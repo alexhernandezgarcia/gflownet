@@ -30,11 +30,14 @@ Modules:
 --> Outputs: binding scores
 
 To-Do
+==> implement model ensembles and uncertainty output - ensemble needs to be one big model at evaluation time otherwise it will be insanely slow
+==> update to workdir based model
 ==> evaluate best sequences against oracle
 ==> implement records saving as a dict
 ==> test production mode (vs debug mode)
 ==> test GPU functionality
 ==> change seed if no new sequences are added
+==> incorporate pipelie convergence stats
 
 To-Do later
 ==> profile & optimize
@@ -44,7 +47,7 @@ To-Do later
 params = {}
 
 # Pipeline parameters
-params['pipeline iterations'] = 3
+params['pipeline iterations'] = 15
 params['mode'] = 'evaluate' # 'training'  'evaluate' 'initialize'
 params['debug'] = 1
 
@@ -54,16 +57,17 @@ params['plot results'] = 1
 params['random seed'] = 1
 
 # model parameters
-params['dataset'] = 'dna_simple_2'
-params['model filters'] = 2
-params['model layers'] = 1
-params['max training epochs'] = 5
+params['dataset'] = 'dna_simple'
+params['ensemble size'] = 1 # number of models in the ensemble
+params['model filters'] = 12
+params['model layers'] = 2
+params['max training epochs'] = 200
 params['GPU'] = 0 # run model on GPU - not yet tested, may not work at all
-params['batch_size'] = 1000 # model training batch size
+params['batch_size'] = 100 # model training batch size
 
 # sampler parameters
-params['sampling time'] = 1e3
-params['sampler runs'] = 2
+params['sampling time'] = 4e4
+params['sampler runs'] = 1
 
 if params['mode'] == 'evaluate':
     params['pipeline iterations'] = 1
@@ -72,7 +76,6 @@ if params['mode'] == 'evaluate':
 class activeLearning():
     def __init__(self, params):
         self.params = params
-        self.getModel()
 
 
     def runPipeline(self):
@@ -93,10 +96,12 @@ class activeLearning():
         run one iteration of the pipeline - train model, sample sequences, select sequences, consult oracle
         :return:
         '''
-        self.resetModel() # reset it to avoid rapid overfit if new data is too small - better to just retrain the whole thing
-        self.model.converge() # converge model
+        for i in range(self.params['ensemble size']):
+            self.resetModel(i) # reset between ensemble estimators EVERY ITERATION of the pipeline
+            self.model.converge() # converge model
 
-        self.model.load() # reload to best checkpoint
+        self.loadEstimatorEnsemble()
+        #self.model.load() # reload to best checkpoint
         self.sampler = sampler(self.params)
         sampleSequences, sampleScores, sampleUncertainty = self.sampler.sample(self.model) # identify interesting sequences
 
@@ -141,13 +146,13 @@ class activeLearning():
         self.model.load()
 
 
-    def resetModel(self):
+    def resetModel(self,ensembleIndex):
         '''
         load a new instance of the model with reset parameters
         :return:
         '''
         del self.model
-        self.model = model(self.params)
+        self.model = model(self.params,ensembleIndex)
         print(f'{bcolors.HEADER} New model: {bcolors.ENDC}', getDirName(self.params))
 
 

@@ -20,6 +20,7 @@ To-do's
 ==> upgrade to uncertainty-enabled architecture
 ==> implement ensembling (model of models? need to stop training for each model individually)
 ==> add noisey augmentation and/or few-shot dimension reduction
+==> add positional embedding
 
 Problems
 ==> we need to think about whether or not to shuffle test set between runs, or indeed what to use in the test set at all - right now we shuffle
@@ -27,8 +28,9 @@ Problems
 
 
 class model():
-    def __init__(self, params):
+    def __init__(self, params, ensembleIndex):
         self.params = params
+        self.ensembleIndex = ensembleIndex
         self.params['history'] = min(20, self.params['max training epochs']) # length of past to check
         self.params['plot training results'] = 1 # plot loss curves
         self.initModel()
@@ -48,9 +50,9 @@ class model():
 
     def save(self, best):
         if best == 0:
-            torch.save({'model_state_dict': self.model.state_dict(), 'optimizer_state_dict': self.optimizer.state_dict()}, 'ckpts/'+getDirName(self.params))
+            torch.save({'model_state_dict': self.model.state_dict(), 'optimizer_state_dict': self.optimizer.state_dict()}, 'ckpts/'+getDirName(self.params,self.ensembleIndex))
         elif best == 1:
-            torch.save({'model_state_dict': self.model.state_dict(), 'optimizer_state_dict': self.optimizer.state_dict()}, 'best_ckpts/'+getDirName(self.params))
+            torch.save({'model_state_dict': self.model.state_dict(), 'optimizer_state_dict': self.optimizer.state_dict()}, 'best_ckpts/'+getDirName(self.params,self.ensembleIndex))
 
 
     def load(self):
@@ -58,7 +60,7 @@ class model():
         Check if a checkpoint exists for this model - if so, load it
         :return:
         '''
-        dirName = getDirName(self.params)
+        dirName = getDirName(self.params,self.ensembleIndex)
         if os.path.exists('best_ckpts/' + dirName):  # reload model
             checkpoint = torch.load('best_ckpts/' + dirName)
 

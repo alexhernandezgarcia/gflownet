@@ -29,7 +29,7 @@ class sampler():
         self.params['Target Acceptance Rate'] = 0.234
         self.chainLength = getDataSize(self.params)
         self.temperature = 1
-        self.gamma = np.linspace(0,1,self.params['sampler runs'])
+        self.gamma = 0.1#np.linspace(0,1,self.params['sampler runs'])
         self.deltaIter = int(100)  # get outputs every this many of iterations with one iteration meaning one move proposed for each "particle" on average
         self.randintsResampleAt = int(1e4)  # larger takes up more memory but increases speed
 
@@ -258,11 +258,11 @@ class sampler():
         if self.params['STUN'] == 1:
             plt.figure(3)
             plt.subplot(rows, columns, self.params['iteration'])
-            plt.plot(self.recInds, self.stunRec, '.')
-            plt.plot(self.recInds, self.accRec, '-')
+            plt.plot(self.recInds, self.stunRec, '.', label='STUN')
+            plt.plot(self.recInds, self.accRec, '-', label='Acceptance Ratio')
             plt.title('Iteration #%d' % self.params['iteration'])
-            plt.ylabel('STUN function')
             plt.xlabel('Sample Iterations')
+            plt.legend()
 
         plt.figure(4)
         plt.subplot(rows, columns, self.params['iteration'])

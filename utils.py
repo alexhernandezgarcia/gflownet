@@ -68,12 +68,12 @@ def numbers2letters(sequences): #Tranforming letters to numbers:
     return my_seq
 
 
-def getDirName(params):
+def getDirName(params, ensembleIndex):
     '''
     :param params: parameters of the pipeline we are training
     :return: directory label
     '''
-    dirName = "dataset="+params['dataset']+"_filters=%d_layers=%d_seed=%d" %\
+    dirName = "estimator=" + str(ensembleIndex) + "_dataset="+params['dataset']+"_filters=%d_layers=%d_seed=%d" %\
                    (params['model filters'], params['model layers'],params['random seed'])
 
     return dirName
