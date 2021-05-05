@@ -239,11 +239,33 @@ class model():
         '''
         self.model.train(False)
         with torch.no_grad():  # we won't need gradients! no training just testing
-            out = self.model(Data.float())
+            out = self.model(torch.Tensor(Data).float())
             if output == 'Average':
-                return np.average(out) * self.std + self.mean
+                return np.average(out,axis=1) * self.std + self.mean
             elif output == 'Variance':
-                return np.var(out)
+                return np.var(out,axis=1)
+
+    def loadEnsemble(self,models):
+        '''
+        load up a model ensemble
+        :return:
+        '''
+        self.model = modelEnsemble(models)
+
+
+class modelEnsemble(nn.Module): # just for evaluation of a pre-trained ensemble
+    def __init__(self,models):
+        super(modelEnsemble, self).__init__()
+        self.models = models
+        self.models = nn.ModuleList(self.models)
+
+    def forward(self, x):
+        output = []
+        for i in range(len(self.models)): # get the prediction from each model
+            output.append(self.models[i](x.clone()))
+
+        output = torch.cat(output,dim=1) #
+        return output # return mean and variance of the ensemble predictions
 
 
 class buildDataset():
@@ -406,16 +428,3 @@ class Activation(nn.Module):
         return self.activation(input)
 
 
-class modelEnsemble(nn.Module): # just for evaluation of a pre-trained ensemble
-    def __init__(self,models):
-        super(modelEnsemble, self).__init__()
-        self.models = models
-        self.models = nn.ModuleList(self.models)
-
-    def forward(self, x):
-        output = []
-        for i in range(len(self.models)): # get the prediction from each model
-            output.append(self.models[i](x.clone()))
-
-        output = torch.cat(output,dim=1) #
-        return output # return mean and variance of the ensemble predictions

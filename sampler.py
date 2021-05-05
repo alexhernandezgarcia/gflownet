@@ -46,11 +46,11 @@ class sampler():
         get initial condition
         :return:
         '''
-        self.config = np.random.randint(0, 4, self.chainLength)
+        self.config = np.random.randint(0, 2, self.chainLength)
 
 
     def resampleRandints(self):
-        self.spinRandints = np.random.randint(0, 4, size=self.randintsResampleAt).astype('uint8')
+        self.spinRandints = np.random.randint(0, 2, size=self.randintsResampleAt).astype('uint8')
         self.pickSpinRandint = np.random.randint(0, self.chainLength, size=self.randintsResampleAt).astype('uint32')
         self.alphaRandoms = np.random.random(self.randintsResampleAt).astype(float)
 
@@ -143,8 +143,7 @@ class sampler():
         if not all(prop_config == self.config):
 
             # compute acceptance ratio
-            scores = model.evaluate(np.asarray([prop_config,self.config])).cpu().detach().numpy()
-            # run with the oracle - for testing purposes
+            scores = model.evaluate(np.asarray([prop_config,self.config]),output="Average")
             #scores = self.oracle.score([prop_config, self.config])
             try:
                 self.E0

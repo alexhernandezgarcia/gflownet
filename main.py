@@ -8,7 +8,6 @@ import os
 import glob
 from shutil import copyfile
 
-
 '''
 This code implements an active learning protocol, intended to optimize the binding score of aptamers to certain analytes
 
@@ -32,39 +31,42 @@ Modules:
 > Oracle
 --> Inputs: sequences
 --> Outputs: binding scores
-
+'''
+'''
 To-Do
-==> rebuild file structrure around workdir system
-    ==> copy initial dataset then save iterations to workdir XXXX
-==> implement model ensembles and uncertainty output - ensemble needs to be one big model at evaluation time otherwise it will be insanely slow
-    => sampler
-    => testing
-==> check for dataset duplicates before going to oracle
-==> more sophisticated oracle selection routine
+==> check for dataset duplicates BEFORE going to oracle
+==> more sophisticated oracle option selection routine
 ==> parallel sampling with multiple gammas
 ==> implement records saving as a dict
 ==> test production mode (vs debug mode)
-==> test GPU functionality
-==> change seed if no new sequences are added
+==> change seed if we can't suggest new samples for oracle
 ==> incorporate pipeline convergence stats
 ==> update training plots for ensemble of models
 ==> upgrade uncertainty calculation from simple variance to isolate epistemic uncertainty
-==> check that relevant params (ensemble size) are properly overwritten when picking up jobs 
+==> check that relevant params (ensemble size) are properly overwritten when picking up jobs
+==> add oracle budget including batch size to params
+==> when we add back real datasets - eventually we'll need to initialize them
 '''
 
 # initialize control parameters
 params = {}
+params['device'] = 'cluster' # 'local' or 'cluster'
 
 # get command line input
-params['run num'] = 2#get_input() # command line, default is 0 (new workdir)
+if params['device'] == 'cluster':
+    params['run num'] = get_input()
+elif params['device'] == 'local':
+    params['run num'] = 0 # manual setting, for 0, do a fresh run, for != 0, pickup on a previous run.
 
 # Pipeline parameters
 params['pipeline iterations'] = 15
-params['mode'] = 'training' # 'training'  'evaluate' 'initialize'
+params['mode'] = 'evaluate' # 'training'  'evaluate' 'initialize'
 params['debug'] = 1
 params['plot results'] = 1
-params['workdir'] = 'C:/Users\mikem\Desktop/activeLearningRuns'
-params['dataset directory'] = 'C:/Users\mikem\OneDrive\McGill_Simine\Aptamers\ActiveLearningPipeline\datasets'
+if params['device'] == 'cluster':
+    params['workdir'] = '/home/kilgourm/scratch/learnerruns'
+elif params['device'] == 'local':
+    params['workdir'] = 'C:/Users\mikem\Desktop/activeLearningRuns'
 
 # Misc parameters
 params['random seed'] = 1
@@ -120,7 +122,6 @@ class activeLearning():
             self.workDir = self.params['workdir'] + '/' + 'run%d' %self.params['run num']
 
         self.learner = learner(self.params)
-        self.sampler = sampler(self.params)
 
 
     def makeNewWorkingDirectory(self):    # make working directory
@@ -162,12 +163,11 @@ class activeLearning():
         run one iteration of the pipeline - train model, sample sequences, select sequences, consult oracle
         :return:
         '''
-        #for i in range(self.params['ensemble size']):
-        #    self.resetModel(i) # reset between ensemble estimators EVERY ITERATION of the pipeline
-        #    self.model.converge() # converge model
+        for i in range(self.params['ensemble size']):
+            self.resetModel(i) # reset between ensemble estimators EVERY ITERATION of the pipeline
+            self.model.converge() # converge model
 
-        self.estimator = self.loadEstimatorEnsemble() # reload to best checkpoint
-        sampleSequences, sampleScores, sampleUncertainty = self.sampler.sample(self.estimator) # identify interesting sequences
+        sampleSequences, sampleScores, sampleUncertainty = self.evaluateSampler() # identify interesting sequences
 
         oracleSequences = self.learner.identifySequences(sampleSequences, sampleScores, sampleUncertainty) # pick sequences to be scored
 
@@ -185,8 +185,8 @@ class activeLearning():
         load the best model and run the sampler
         :return:
         '''
-        self.model.load()
         self.sampler = sampler(self.params)
+        self.loadEstimatorEnsemble()
         sampleSequences, sampleScores, sampleUncertainty = self.sampler.sample(self.model)  # identify interesting sequences
         return sampleSequences, sampleScores, sampleUncertainty
 
@@ -213,7 +213,8 @@ class activeLearning():
             ensemble.append(self.model.model)
 
         del self.model
-        return modelEnsemble(ensemble)
+        self.model = model(self.params,0)
+        self.model.loadEnsemble(ensemble)
 
 
     def loadModelCheckpoint(self):
