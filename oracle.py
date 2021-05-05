@@ -38,6 +38,7 @@ class oracle():
         :param queries:
         :return:
         '''
+        queries = np.asarray(queries)
         np.random.seed(int(queries.shape[-1] * self.params['random seed'])) # this ensures we get the same energy function for the same initial conditions
         hamiltonian = np.random.randn(queries.shape[-1],queries.shape[-1]) # energy function
         energies = np.zeros(len(queries))

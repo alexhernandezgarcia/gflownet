@@ -46,11 +46,12 @@ To-Do
 ==> check that relevant params (ensemble size) are properly overwritten when picking up jobs
 ==> add oracle budget including batch size to params
 ==> when we add back real datasets - eventually we'll need to initialize them
+==> less printouts for new models and stuff, maybe a flag for this
 '''
 
 # initialize control parameters
 params = {}
-params['device'] = 'cluster' # 'local' or 'cluster'
+params['device'] = 'local' # 'local' or 'cluster'
 
 # get command line input
 if params['device'] == 'cluster':
@@ -59,10 +60,10 @@ elif params['device'] == 'local':
     params['run num'] = 0 # manual setting, for 0, do a fresh run, for != 0, pickup on a previous run.
 
 # Pipeline parameters
-params['pipeline iterations'] = 15
-params['mode'] = 'evaluate' # 'training'  'evaluate' 'initialize'
-params['debug'] = 1
-params['plot results'] = 1
+params['pipeline iterations'] = 3
+params['mode'] = 'training' # 'training'  'evaluate' 'initialize'
+params['debug'] = 0
+params['plot results'] = 0
 if params['device'] == 'cluster':
     params['workdir'] = '/home/kilgourm/scratch/learnerruns'
 elif params['device'] == 'local':
@@ -77,10 +78,10 @@ params['init dataset length'] = 1000 # number of items in the initial dataset
 params['sample length'] = 10 # number of input dimensions
 
 # model parameters
-params['ensemble size'] = 5 # number of models in the ensemble
+params['ensemble size'] = 2 # number of models in the ensemble
 params['model filters'] = 12
 params['model layers'] = 2
-params['max training epochs'] = 10
+params['max training epochs'] = 5
 params['GPU'] = 0 # run model on GPU - not yet tested, may not work at all
 params['batch_size'] = 10 # model training batch size
 
@@ -172,12 +173,13 @@ class activeLearning():
         oracleSequences = self.learner.identifySequences(sampleSequences, sampleScores, sampleUncertainty) # pick sequences to be scored
 
         oracleScores = self.oracle.score(oracleSequences) # score sequences
-        oracleSequences = numbers2letters(oracleSequences)
+        #oracleSequences = numbers2letters(oracleSequences)
 
         updateDataset(self.params, oracleSequences, oracleScores) # add scored sequences to dataset
 
         if self.params['plot results'] == 1:
-            self.plotIterations()
+            pass
+            #self.plotIterations()
 
 
     def evaluateSampler(self):
@@ -235,7 +237,7 @@ class activeLearning():
         except:
             pass
         self.model = model(self.params,ensembleIndex)
-        print(f'{bcolors.HEADER} New model: {bcolors.ENDC}', getModelName(ensembleIndex))
+        #print(f'{bcolors.HEADER} New model: {bcolors.ENDC}', getModelName(ensembleIndex))
 
 
     def plotIterations(self):

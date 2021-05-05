@@ -32,7 +32,7 @@ class model():
         self.params = params
         self.ensembleIndex = ensembleIndex
         self.params['history'] = min(20, self.params['max training epochs']) # length of past to check
-        self.params['plot training results'] = 1 # plot loss curves
+        self.params['plot training results'] = self.params['plot results'] # plot loss curves
         self.initModel()
         torch.random.manual_seed(params['random seed'])
 
@@ -81,9 +81,10 @@ class model():
                             state[k] = v.cuda()
 
             self.model.eval()
-            print('Reloaded model: ', dirName)
+            #print('Reloaded model: ', dirName)
         else:
-            print('New model: ', dirName)
+            pass
+            #print('New model: ', dirName)
 
 
     def converge(self):
@@ -95,7 +96,7 @@ class model():
 
         tr, te, self.datasetSize = getDataloaders(self.params)
 
-        print(f"Dataset size is: {bcolors.OKCYAN}%d{bcolors.ENDC}" %self.datasetSize)
+        #print(f"Dataset size is: {bcolors.OKCYAN}%d{bcolors.ENDC}" %self.datasetSize)
 
         self.converged = 0 # convergence flag
         self.epochs = 0
@@ -119,8 +120,8 @@ class model():
             self.epochs += 1
             #self.save(self, best=0) # save ongoing checkpoint
 
-            sys.stdout.flush()
-            sys.stdout.write('\repoch={}; train loss={:.5f}; test loss={:.5f};\r'.format(self.epochs, self.err_tr_hist[-1], self.err_te_hist[-1]))
+            #sys.stdout.flush()
+            #sys.stdout.write('\repoch={}; train loss={:.5f}; test loss={:.5f};\r'.format(self.epochs, self.err_tr_hist[-1], self.err_te_hist[-1]))
 
             #print('epoch={}; train loss={:.5f}; test loss={:.5f};'.format(self.epochs, self.err_tr_hist[-1], self.err_te_hist[-1]))
 
@@ -220,7 +221,7 @@ class model():
         if abs(self.err_te_hist[-self.params['history']] - np.average(self.err_te_hist[-self.params['history']:]))/self.err_te_hist[-self.params['history']] < eps:
             self.converged = 1
 
-        if self.epochs > self.params['max training epochs']:
+        if self.epochs >= self.params['max training epochs']:
             self.converged = 1
 
 
@@ -243,7 +244,7 @@ class model():
             if output == 'Average':
                 return np.average(out,axis=1) * self.std + self.mean
             elif output == 'Variance':
-                return np.var(out,axis=1)
+                return np.var(out.detach().numpy(),axis=1)
 
     def loadEnsemble(self,models):
         '''

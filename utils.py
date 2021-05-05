@@ -102,17 +102,19 @@ def updateDataset(params, oracleSequences, oracleScores):
 
     nDuplicates = 0
     for i in range(len(oracleSequences)):
-        assert type(oracleSequences[i]) == str, "Sequences must be in string format before saving to the dataset"
+        #assert type(oracleSequences[i]) == str, "Sequences must be in string format before saving to the dataset"
         assert len(oracleSequences[i]) == len(dataset['sequences'][0]), "Added sequences must be the same length as those already in the dataset!"
         duplicate = 0
         for j in range(len(dataset['sequences'])): # search for duplicates
-            if oracleSequences[i] == dataset['sequences'][j]:
+            if all(oracleSequences[i] == dataset['sequences'][j]):
                 duplicate = 1
                 nDuplicates += 1
 
         if duplicate == 0:
-            dataset['sequences'].append(oracleSequences[i])
-            dataset['scores'] = np.append(dataset['scores'], oracleScores[i])
+            dataset['sequences'] = np.concatenate((dataset['sequences'],np.expand_dims(oracleSequences[i],0)))
+            dataset['scores'] = np.concatenate((dataset['scores'],np.expand_dims(oracleScores[i],0)))
+            #dataset['sequences'].append(oracleSequences[i])
+            #dataset['scores'] = np.append(dataset['scores'], oracleScores[i])
 
     if nDuplicates > 0:
         print("%d duplicates found" % nDuplicates)

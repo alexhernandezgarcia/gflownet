@@ -61,6 +61,7 @@ class sampler():
         :return:
         '''
         self.emins = [] # record of lowest energies
+        self.varAtEmins = [] # record of uncertainty at lowest energies
         self.eminSequences = [] # record the lowest energy sequences
         self.eminInds = []
 
@@ -144,7 +145,8 @@ class sampler():
 
             # compute acceptance ratio
             scores = model.evaluate(np.asarray([prop_config,self.config]),output="Average")
-            #scores = self.oracle.score([prop_config, self.config])
+            scores2 = model.evaluate(np.asarray([prop_config,self.config]),output="Variance")
+            #scores = self.oracle.score([prop_config, self.config]) # for debugging - just use the oracle for scoring directly
             try:
                 self.E0
             except:
@@ -166,6 +168,7 @@ class sampler():
                 if scores[0] < self.E0: # if we have found a new minimum
                     self.E0 = scores[0]
                     self.emins.append(scores[0])
+                    self.varAtEmins.append(scores2[0])
                     self.eminInds.append(self.iter)
                     self.eminSequences.append(prop_config)
 
