@@ -1,9 +1,13 @@
 '''import statements'''
 from utils import *
-from models import model
-from sampler import sampler
-from indicator import learner
-from oracle import oracle
+from models import *
+from sampler import *
+from indicator import *
+from oracle import *
+import os
+import glob
+from shutil import copyfile
+
 
 '''
 This code implements an active learning protocol, intended to optimize the binding score of aptamers to certain analytes
@@ -30,40 +34,53 @@ Modules:
 --> Outputs: binding scores
 
 To-Do
+==> rebuild file structrure around workdir system
+    ==> copy initial dataset then save iterations to workdir XXXX
 ==> implement model ensembles and uncertainty output - ensemble needs to be one big model at evaluation time otherwise it will be insanely slow
-==> update to workdir based model
-==> evaluate best sequences against oracle
+    => sampler
+    => testing
+==> check for dataset duplicates before going to oracle
+==> more sophisticated oracle selection routine
+==> parallel sampling with multiple gammas
 ==> implement records saving as a dict
 ==> test production mode (vs debug mode)
 ==> test GPU functionality
 ==> change seed if no new sequences are added
-==> incorporate pipelie convergence stats
-
-To-Do later
-==> profile & optimize
+==> incorporate pipeline convergence stats
+==> update training plots for ensemble of models
+==> upgrade uncertainty calculation from simple variance to isolate epistemic uncertainty
+==> check that relevant params (ensemble size) are properly overwritten when picking up jobs 
 '''
 
 # initialize control parameters
 params = {}
 
+# get command line input
+params['run num'] = 2#get_input() # command line, default is 0 (new workdir)
+
 # Pipeline parameters
 params['pipeline iterations'] = 15
-params['mode'] = 'evaluate' # 'training'  'evaluate' 'initialize'
+params['mode'] = 'training' # 'training'  'evaluate' 'initialize'
 params['debug'] = 1
-
 params['plot results'] = 1
+params['workdir'] = 'C:/Users\mikem\Desktop/activeLearningRuns'
+params['dataset directory'] = 'C:/Users\mikem\OneDrive\McGill_Simine\Aptamers\ActiveLearningPipeline\datasets'
 
 # Misc parameters
 params['random seed'] = 1
 
+# toy data parameters
+params['dataset'] = 'toy1'
+params['init dataset length'] = 1000 # number of items in the initial dataset
+params['sample length'] = 10 # number of input dimensions
+
 # model parameters
-params['dataset'] = 'dna_simple'
-params['ensemble size'] = 1 # number of models in the ensemble
+params['ensemble size'] = 5 # number of models in the ensemble
 params['model filters'] = 12
 params['model layers'] = 2
-params['max training epochs'] = 200
+params['max training epochs'] = 10
 params['GPU'] = 0 # run model on GPU - not yet tested, may not work at all
-params['batch_size'] = 100 # model training batch size
+params['batch_size'] = 10 # model training batch size
 
 # sampler parameters
 params['sampling time'] = 4e4
@@ -76,6 +93,55 @@ if params['mode'] == 'evaluate':
 class activeLearning():
     def __init__(self, params):
         self.params = params
+        self.setup()
+
+
+    def setup(self):
+        '''
+        setup working directory
+        move to relevant directory
+        :return:
+        '''
+        self.oracle = oracle(self.params)
+
+        if self.params['run num'] == 0:
+            self.makeNewWorkingDirectory()
+            os.mkdir(self.workDir + '/ckpts')
+            os.mkdir(self.workDir + '/datasets')
+            # move to working dir
+            os.chdir(self.workDir)
+            #copyfile(self.params['dataset directory'] + '/' + self.params['dataset'],self.workDir + '/datasets/' + self.params['dataset'] + '.npy')
+            self.oracle.initializeDataset(self.params['sample length'], self.params['init dataset length']) # generate toy model dataset
+        else:
+            # move to working dir
+            self.workDir = self.params['workdir'] + '/' + 'run%d' %self.params['run num']
+            os.chdir(self.workDir)
+
+            self.workDir = self.params['workdir'] + '/' + 'run%d' %self.params['run num']
+
+        self.learner = learner(self.params)
+        self.sampler = sampler(self.params)
+
+
+    def makeNewWorkingDirectory(self):    # make working directory
+        '''
+        make a new working directory
+        non-overlapping previous entries
+        :return:
+        '''
+        workdirs = glob.glob(self.params['workdir'] + '/' + 'run*') # check for prior working directories
+        if len(workdirs) > 0:
+            prev_runs = []
+            for i in range(len(workdirs)):
+                prev_runs.append(int(workdirs[i].split('run')[-1]))
+
+            prev_max = max(prev_runs)
+            self.workDir = self.params['workdir'] + '/' + 'run%d' %(prev_max + 1)
+            os.mkdir(self.workDir)
+            print('Starting Fresh Run %d' %(prev_max + 1))
+        else:
+            self.workDir = self.params['workdir'] + '/' + 'run1'
+            os.mkdir(self.workDir)
 
 
     def runPipeline(self):
@@ -96,19 +162,15 @@ class activeLearning():
         run one iteration of the pipeline - train model, sample sequences, select sequences, consult oracle
         :return:
         '''
-        for i in range(self.params['ensemble size']):
-            self.resetModel(i) # reset between ensemble estimators EVERY ITERATION of the pipeline
-            self.model.converge() # converge model
+        #for i in range(self.params['ensemble size']):
+        #    self.resetModel(i) # reset between ensemble estimators EVERY ITERATION of the pipeline
+        #    self.model.converge() # converge model
 
-        self.loadEstimatorEnsemble()
-        #self.model.load() # reload to best checkpoint
-        self.sampler = sampler(self.params)
-        sampleSequences, sampleScores, sampleUncertainty = self.sampler.sample(self.model) # identify interesting sequences
+        self.estimator = self.loadEstimatorEnsemble() # reload to best checkpoint
+        sampleSequences, sampleScores, sampleUncertainty = self.sampler.sample(self.estimator) # identify interesting sequences
 
-        self.learner = learner(self.params)
         oracleSequences = self.learner.identifySequences(sampleSequences, sampleScores, sampleUncertainty) # pick sequences to be scored
 
-        self.oracle = oracle(self.params)
         oracleScores = self.oracle.score(oracleSequences) # score sequences
         oracleSequences = numbers2letters(oracleSequences)
 
@@ -138,6 +200,22 @@ class activeLearning():
         #print(f'{bcolors.HEADER} New model: {bcolors.ENDC}', getDirName(self.params))
 
 
+    def loadEstimatorEnsemble(self):
+        '''
+        load all the trained models at their best checkpoints
+        and initialize them in an ensemble model where they can all be queried at once
+        :return:
+        '''
+        ensemble = []
+        for i in range(1,self.params['ensemble size'] + 1):
+            self.resetModel(i)
+            self.model.load(i)
+            ensemble.append(self.model.model)
+
+        del self.model
+        return modelEnsemble(ensemble)
+
+
     def loadModelCheckpoint(self):
         '''
         load most recent converged model checkpoint
@@ -151,9 +229,12 @@ class activeLearning():
         load a new instance of the model with reset parameters
         :return:
         '''
-        del self.model
+        try: # if we have a model already, delete it
+            del self.model
+        except:
+            pass
         self.model = model(self.params,ensembleIndex)
-        print(f'{bcolors.HEADER} New model: {bcolors.ENDC}', getDirName(self.params))
+        print(f'{bcolors.HEADER} New model: {bcolors.ENDC}', getModelName(ensembleIndex))
 
 
     def plotIterations(self):

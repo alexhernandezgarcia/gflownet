@@ -1,6 +1,7 @@
 '''import statement'''
 import numpy as np
 import matplotlib.pyplot as plt
+import argparse
 
 
 '''
@@ -9,6 +10,17 @@ This is a general utilities file for the active learning pipeline
 To-Do:
 '''
 
+def get_input():
+    '''
+    get the command line in put for the run-num. defaulting to a new run (0)
+    :return:
+    '''
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--run_num', type=int, default = 0)
+    cmd_line_input = parser.parse_args()
+    run = cmd_line_input.run_num
+
+    return run
 
 def letters2numbers(sequences): #Tranforming letters to numbers:
     '''
@@ -68,13 +80,12 @@ def numbers2letters(sequences): #Tranforming letters to numbers:
     return my_seq
 
 
-def getDirName(params, ensembleIndex):
+def getModelName(ensembleIndex):
     '''
     :param params: parameters of the pipeline we are training
     :return: directory label
     '''
-    dirName = "estimator=" + str(ensembleIndex) + "_dataset="+params['dataset']+"_filters=%d_layers=%d_seed=%d" %\
-                   (params['model filters'], params['model layers'],params['random seed'])
+    dirName = "estimator=" + str(ensembleIndex)
 
     return dirName
 
@@ -112,7 +123,7 @@ def updateDataset(params, oracleSequences, oracleScores):
     print("=====================================================================")
     print("=====================================================================")
     #print("New dataset size =%d" %len(dataset['sequences']))
-    np.save('datasets/'+params['dataset'], dataset)
+    np.save('datasets/' + params['dataset'], dataset)
 
     if params['debug'] == 1:
         plt.figure(5)

@@ -50,19 +50,19 @@ class model():
 
     def save(self, best):
         if best == 0:
-            torch.save({'model_state_dict': self.model.state_dict(), 'optimizer_state_dict': self.optimizer.state_dict()}, 'ckpts/'+getDirName(self.params,self.ensembleIndex))
+            torch.save({'model_state_dict': self.model.state_dict(), 'optimizer_state_dict': self.optimizer.state_dict()}, 'ckpts/'+getModelName(self.ensembleIndex)+'_final')
         elif best == 1:
-            torch.save({'model_state_dict': self.model.state_dict(), 'optimizer_state_dict': self.optimizer.state_dict()}, 'best_ckpts/'+getDirName(self.params,self.ensembleIndex))
+            torch.save({'model_state_dict': self.model.state_dict(), 'optimizer_state_dict': self.optimizer.state_dict()}, 'ckpts/'+getModelName(self.ensembleIndex))
 
 
-    def load(self):
+    def load(self,ensembleIndex):
         '''
         Check if a checkpoint exists for this model - if so, load it
         :return:
         '''
-        dirName = getDirName(self.params,self.ensembleIndex)
-        if os.path.exists('best_ckpts/' + dirName):  # reload model
-            checkpoint = torch.load('best_ckpts/' + dirName)
+        dirName = getModelName(ensembleIndex)
+        if os.path.exists('ckpts/' + dirName):  # reload model
+            checkpoint = torch.load('ckpts/' + dirName)
 
             if list(checkpoint['model_state_dict'])[0][0:6] == 'module':  # when we use dataparallel it breaks the state_dict - fix it by removing word 'module' from in front of everything
                 for i in list(checkpoint['model_state_dict']):
@@ -194,11 +194,11 @@ class model():
             targets = targets.cuda()
 
         # convert our inputs to a one-hot encoding
-        one_hot_inputs = F.one_hot(torch.Tensor(letters2numbers(inputs)).long(), 4)
+        #one_hot_inputs = F.one_hot(torch.Tensor(letters2numbers(inputs)).long(), 4)
         # flatten inputs to a 1D vector
-        one_hot_inputs = torch.reshape(one_hot_inputs, (one_hot_inputs.shape[0], self.params['input length']))
+        #one_hot_inputs = torch.reshape(one_hot_inputs, (one_hot_inputs.shape[0], self.params['input length']))
         # evaluate the model
-        output = self.model(one_hot_inputs.float())
+        output = self.model(inputs.float())
         # loss function - some room to choose here!
         targets = (targets - self.mean)/self.std # standardize the targets, but only during training
         return F.smooth_l1_loss(output[:,0], targets.float())
@@ -228,24 +228,22 @@ class model():
             print(f'{bcolors.OKCYAN}Model training converged{bcolors.ENDC} after {bcolors.OKBLUE}%d{bcolors.ENDC}' %self.epochs + f" epochs and with a final test loss of {bcolors.OKGREEN}%.3f{bcolors.ENDC}" % np.amin(np.asarray(self.err_te_hist)))
 
 
-    def evaluate(self, Data):
+    def evaluate(self, Data, output="Average"):
         '''
         evaluate the model
-        :param Data: data to be run through model in ACTG format
+        output types - if "Average" return the average of ensemble predictions
+            - if 'Variance' return the variance of ensemble predictions
+        # future upgrade - isolate epistemic uncertainty from intrinsic randomness
+        :param Data: input data
         :return: model scores
         '''
         self.model.train(False)
         with torch.no_grad():  # we won't need gradients! no training just testing
-            if type(Data[0]) == str:
-                Data = F.one_hot(torch.Tensor(letters2numbers(Data)).long(), 4)
-                Data = Data.reshape(len(Data), Data.shape[1] * 4)
-                out = self.model(F.one_hot(letters2numbers(Data).long(),4).float())
-                return out * self.std + self.mean
-            else:
-                Data = F.one_hot(torch.Tensor(Data).long(),4)
-                Data = Data.reshape(len(Data), Data.shape[1] * 4)
-                out = self.model(Data.float())
-                return out * self.std + self.mean
+            out = self.model(Data.float())
+            if output == 'Average':
+                return np.average(out) * self.std + self.mean
+            elif output == 'Variance':
+                return np.var(out)
 
 
 class buildDataset():
@@ -253,17 +251,15 @@ class buildDataset():
     build dataset object
     '''
     def __init__(self, params):
-        dataset = np.load('datasets/'+params['dataset']+'.npy', allow_pickle=True)
+        dataset = np.load('datasets/' + params['dataset']+'.npy', allow_pickle=True)
         dataset = dataset.item()
         self.samples = dataset['sequences']
         self.targets = dataset['scores']
 
         self.samples, self.targets = shuffle(self.samples, self.targets)
 
-        assert type(self.samples[0]) == str, "Sequences should be in loaded in string format"
-
     def __len__(self):
-                return len(self.samples)
+        return len(self.samples)
 
     def __getitem__(self, idx):
         return self.samples[idx], self.targets[idx]
@@ -320,7 +316,7 @@ class MLP(nn.Module):
         #elif params['activation']==2:
         #    act_func = 'kernel'
 
-        params['input length'] = int(getDataSize(params) * 4)
+        params['input length'] = int(getDataSize(params))
 
         self.layers = params['model layers']
         self.filters = params['model filters']
@@ -410,3 +406,16 @@ class Activation(nn.Module):
         return self.activation(input)
 
 
+class modelEnsemble(nn.Module): # just for evaluation of a pre-trained ensemble
+    def __init__(self,models):
+        super(modelEnsemble, self).__init__()
+        self.models = models
+        self.models = nn.ModuleList(self.models)
+
+    def forward(self, x):
+        output = []
+        for i in range(len(self.models)): # get the prediction from each model
+            output.append(self.models[i](x.clone()))
+
+        output = torch.cat(output,dim=1) #
+        return output # return mean and variance of the ensemble predictions

@@ -22,19 +22,50 @@ class oracle():
         self.params = params
 
 
-    def score(self, oracleSequences):
+    def score(self, queries):
         '''
         assign correct scores to selected sequences
-        :param oracleSequences: sequences to be scored
+        :param queries: sequences to be scored
         :return: computed scores
         '''
-        return self.PottsEnergy(oracleSequences)
+        #return self.PottsEnergy(queries)
+        return self.toyEnergy(queries)
+
+    
+    def toyEnergy(self,queries):
+        '''
+        return the energy of a toy model for the given set of queries
+        :param queries:
+        :return:
+        '''
+        np.random.seed(int(queries.shape[-1] * self.params['random seed'])) # this ensures we get the same energy function for the same initial conditions
+        hamiltonian = np.random.randn(queries.shape[-1],queries.shape[-1]) # energy function
+        energies = np.zeros(len(queries))
+
+        for i in range(len(queries)):
+            energies[i] = queries[i] @ hamiltonian @ queries[i].transpose() # compute energy for each sample
+
+        return energies
 
 
-    def PottsEnergy(self, oracleSequences):
+    def initializeDataset(self,inputSize, numSamples):
+        '''
+        generate an initial toy dataset with a given number of samples
+        :param numSamples:
+        :return:
+        '''
+        data = {}
+        np.random.seed(int(numSamples * inputSize * self.params['random seed']))
+        data['sequences'] = np.random.randint(0,2,size=(numSamples, inputSize)) # samples are a binary set
+        data['scores'] = self.toyEnergy(data['sequences'])
+
+        np.save('datasets/' + self.params['dataset'], data)
+
+
+    def PottsEnergy(self, queries):
         '''
         test oracle - learn one of our 40-mer Potts Hamiltonians
-        :param oracleSequences: sequences to be scored
+        :param queries: sequences to be scored
         :return:
         '''
 
@@ -44,14 +75,14 @@ class oracle():
 
         N = coupling_dict['h'].shape[1] # length of DNA chain
 
-        assert N == len(oracleSequences[0]), "Hamiltonian and proposed sequences are different sizes!"
+        assert N == len(queries[0]), "Hamiltonian and proposed sequences are different sizes!"
 
         h = coupling_dict['h']
         J = coupling_dict['J']
 
         energies = []
         ''''''
-        for sequence in oracleSequences:
+        for sequence in queries:
             energy = 0
 
             # potts hamiltonian
