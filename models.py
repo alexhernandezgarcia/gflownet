@@ -244,7 +244,7 @@ class model():
             if output == 'Average':
                 return np.average(out,axis=1) * self.std + self.mean
             elif output == 'Variance':
-                return np.var(out.detach().numpy(),axis=1)
+                return np.var(out.detach().numpy() * self.std + self.mean,axis=1)
 
     def loadEnsemble(self,models):
         '''
@@ -276,7 +276,7 @@ class buildDataset():
     def __init__(self, params):
         dataset = np.load('datasets/' + params['dataset']+'.npy', allow_pickle=True)
         dataset = dataset.item()
-        self.samples = dataset['sequences']
+        self.samples = dataset['samples']
         self.targets = dataset['scores']
 
         self.samples, self.targets = shuffle(self.samples, self.targets)
@@ -324,7 +324,7 @@ def getDataloaders(params): # get the dataloaders, to load the dataset in batche
 def getDataSize(params):
     dataset = np.load('datasets/' + params['dataset'] + '.npy', allow_pickle=True)
     dataset = dataset.item()
-    samples = dataset['sequences']
+    samples = dataset['samples']
 
     return len(samples[0])
 

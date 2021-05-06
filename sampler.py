@@ -1,6 +1,7 @@
 '''import statements'''
 from utils import *
 from models import getDataSize
+from oracle import *
 import os
 import multiprocessing as mp
 
@@ -29,17 +30,17 @@ class sampler():
         self.params['Target Acceptance Rate'] = 0.234
         self.chainLength = getDataSize(self.params)
         self.temperature = 1
-        self.gamma = 0.1#np.linspace(0,1,self.params['sampler runs'])
         self.deltaIter = int(100)  # get outputs every this many of iterations with one iteration meaning one move proposed for each "particle" on average
         self.randintsResampleAt = int(1e4)  # larger takes up more memory but increases speed
 
-        np.random.seed(params['random seed'])
         self.initialize()
 
-        #self.oracle = oracle(self.params)
+        if self.params['dataset'] == 'toy':
+            self.oracle = oracle(self.params) # if we are using a toy model, initialize the oracle so we can optimize it directly for comparison
 
     def __call__(self, model):
         return self.converge(model)
+
 
     def initialize(self):
         '''
@@ -55,20 +56,24 @@ class sampler():
         self.alphaRandoms = np.random.random(self.randintsResampleAt).astype(float)
 
 
-    def initEmin(self, scores, config):
+    def initOptima(self, scores, energy, variance):
         '''
         initialize the minimum energies
         :return:
         '''
-        self.emins = [] # record of lowest energies
-        self.varAtEmins = [] # record of uncertainty at lowest energies
-        self.eminSequences = [] # record the lowest energy sequences
-        self.eminInds = []
+        self.optima = [] # record optima of the score function
+        self.enAtOptima = [] # record energies at the optima
+        self.varAtOptima = [] # record of uncertainty at the optima
+        self.optimalSamples = [] # record the optimal samples
+        self.optimalInds = []
 
-        self.E0 = scores[1]
-        self.emins.append(scores[1])
-        self.eminSequences.append(config)
-        self.eminInds.append(0)
+        # set initial values
+        self.E0 = scores[1] # initialize the 'best score' value
+        self.optima.append(scores[1])
+        self.enAtOptima.append(energy[1])
+        self.varAtOptima.append(variance[1])
+        self.optimalSamples.append(self.config)
+        self.optimalInds.append(0)
 
 
     def computeSTUN(self, scores):
@@ -79,56 +84,46 @@ class sampler():
         return (1 - np.exp(-self.gamma * (scores - self.E0)))  # compute STUN function
 
 
-    def sample(self,model):
+    def sample(self,model, gamma, useOracle):
         '''
         converge the sampling process
         :param model:
         :return:
         '''
-        return self.converge(model)
+        return self.converge(model, gamma, useOracle)
 
 
-    def converge(self, model):
+    def converge(self, model, gamma, useOracle):
         '''
         run the sampler until we converge to an optimum
         :return:
         '''
-        self.converged = 0 # set convergence flag
-        self.iter = 0 # iteration number
-        self.resetInd = 0 # flag
+        self.gamma = gamma
 
-        # convergence stats
-        self.tempRec = []
-        self.stunRec = []
-        self.enRec = []
-        self.recInds = []
-        self.accRec = []
-        self.hursts = []
-        self.acceptanceRate = 0
+        np.random.seed(int(self.params['random seed'] + np.abs((np.log10(self.gamma) * 100)))) # randomize each gamma ru
 
-        while (self.converged == 0) and (self.iter < self.params['sampling time']):
+        self.initConvergenceStats()
+
+        while (self.converged == 0) and (self.iter < self.params['sampling time']): # we'll just sample a certain amount of time for now
             if self.iter % self.randintsResampleAt == 0:
                 self.resampleRandints()
-
-            self.iterate(model)
-
-            # every N iterations do some reporting / updating
-            if (self.iter % self.deltaIter == 0) and (self.iter > 0):
-                self.updateAnnealing()
-                #self.reportRunningStats()
-                #self.checkConvergence()
+                
+            self.iterate(model, useOracle) # try a monte-carlo step!
+            
+            if (self.iter % self.deltaIter == 0) and (self.iter > 0): # every N iterations do some reporting / updating
+                self.updateAnnealing() # change temperature or other conditions
 
             self.iter += 1
 
-        if self.params['debug'] == 1:
-            self.plotSampling()
+        #if self.params['debug'] == True:
+        #   self.plotSampling()
 
         self.printFinalStats()
 
-        return self.eminSequences, self.emins, [] ### this is where we will put the uncertainty flag for exceptional sequences
+        return self.optimalSamples, self.optima, self.enAtOptima, self.varAtOptima ### this is where we will put the uncertainty flag for exceptional sequences
 
 
-    def iterate(self, model):
+    def iterate(self, model, useOracle):
         '''
         run chainLength cycles of the sampler
         process: 1) propose state, 2) compute acceptance ratio, 3) sample against this ratio and accept/reject move
@@ -137,52 +132,91 @@ class sampler():
         self.ind = self.iter % self.randintsResampleAt
 
         # propose a new state
-        prop_config = np.copy(self.config)
-        prop_config[self.pickSpinRandint[self.ind]] = self.spinRandints[self.ind]
+        propConfig = np.copy(self.config)
+        propConfig[self.pickSpinRandint[self.ind]] = self.spinRandints[self.ind]
 
         # has to be a different state or we just skip the cycle
-        if not all(prop_config == self.config):
-
+        if not all(propConfig == self.config):
             # compute acceptance ratio
-            scores = model.evaluate(np.asarray([prop_config,self.config]),output="Average")
-            scores2 = model.evaluate(np.asarray([prop_config,self.config]),output="Variance")
-            #scores = self.oracle.score([prop_config, self.config]) # for debugging - just use the oracle for scoring directly
+            scores, energy, variance = self.getScores(propConfig, self.config, model, useOracle)
+
             try:
                 self.E0
             except:
-                self.initEmin(scores, self.config)
+                self.initOptima(scores, energy, variance) # if we haven't already assigned E0, initialize everything
 
-            if self.params['STUN'] == 1:
-                F = self.computeSTUN(scores)
-                DE = F[0] - F[1]
-            else:
-                F = [0,0]
-                DE = scores[0]-scores[1]
+            F, DE = self.getDE(scores)
 
             acceptanceRatio = np.minimum(1, np.exp(-DE / self.temperature))
 
             # accept or reject
             if self.alphaRandoms[self.ind] < acceptanceRatio: #accept
-                self.config = np.copy(prop_config)
+                self.config = np.copy(propConfig)
 
                 if scores[0] < self.E0: # if we have found a new minimum
-                    self.E0 = scores[0]
-                    self.emins.append(scores[0])
-                    self.varAtEmins.append(scores2[0])
-                    self.eminInds.append(self.iter)
-                    self.eminSequences.append(prop_config)
+                    self.saveOptima(scores,energy,variance,propConfig)
 
-                if self.params['debug'] == 1:
+                if self.params['debug'] == True:
                     self.recordStats(scores,F)
 
 
-        ### this is where we'd put flags for storing other exceptional samples
+    def getDE(self,scores):
+        if self.params['STUN'] == 1:  # compute score difference using STUN
+            F = self.computeSTUN(scores)
+            DE = F[0] - F[1]
+        else:  # compute raw score difference
+            F = [0, 0]
+            DE = scores[0] - scores[1]
+
+        return F, DE
+
+
+    def getScores(self, propConfig, config, model, useOracle):
+        '''
+        compute score against which we're optimizing
+        :param propConfig: 
+        :param config: 
+        :return: 
+        '''
+        if useOracle == 1:
+            energy = self.oracle.score([propConfig,config])
+            variance = [0, 0]
+            score = energy
+        else:
+            energy = model.evaluate(np.asarray([propConfig,config]),output="Average")
+            variance = model.evaluate(np.asarray([propConfig,config]),output="Variance")
+            score = energy - variance # this function will have to be optimized
+
+        return score, energy, variance
+
+
+    def saveOptima(self,scores,energy,variance,propConfig):
+        self.E0 = scores[0]
+        self.optima.append(scores[0])
+        self.enAtOptima.append(energy[0])
+        self.varAtOptima.append(variance[0])
+        self.optimalInds.append(self.iter)
+        self.optimalSamples.append(propConfig)
+
+
+    def initConvergenceStats(self):
+        # convergence stats
+        self.converged = 0 # set convergence flag
+        self.iter = 0 # iteration number
+        self.resetInd = 0 # flag
+
+        self.tempRec = []
+        self.stunRec = []
+        self.scoreRec = []
+        self.recInds = []
+        self.accRec = []
+        self.acceptanceRate = 0
 
 
     def recordStats(self,scores,F):
         self.tempRec.append(self.temperature)
         self.stunRec.append(F[0])
-        self.enRec.append(scores[0])
+        self.scoreRec.append(scores[0])
         self.recInds.append(self.iter)
         self.accRec.append(self.acceptanceRate)
 
@@ -205,21 +239,14 @@ class sampler():
             self.temperature = self.temperature * (1 - np.random.random(1)/5)
 
         #if True:#self.iter > 1e4: # if we've searched for a while already, do Detrended Fluctuation Analysis
-        #    self.hursts.append(nolds.dfa(np.asarray(self.enRec[-int(100/self.params['Target Acceptance Rate']):])))
+        #    self.hursts.append(nolds.dfa(np.asarray(self.scoreRec[-int(100/self.params['Target Acceptance Rate']):])))
 
         # if we haven't found a new minimum in a long time, randomize input and do a temperature boost
         if (self.iter - self.resetInd) > 1e4: # within xx of the last reset
-            if (self.iter - self.eminInds[-1]) > 1e4:
+            if (self.iter - self.optimalInds[-1]) > 1e4:
                 self.resetInd = self.iter
                 self.initialize() # re-randomize
                 self.temperature = self.temperature * 2
-
-
-    def reportRunningStats(self):
-        '''
-        record simulation statistics
-        :return:
-        '''
 
 
     def printFinalStats(self):
@@ -227,14 +254,7 @@ class sampler():
         print the minimum energy found
         :return:
         '''
-        print(f"Sampling Complete! Lowest Energy Found = {bcolors.FAIL}%.3f{bcolors.ENDC}" % np.amin(self.E0) + " after %d" %self.iter + " iterations.")
-
-
-    def checkConvergence(self):
-        '''
-        check simulation records against convergence criteria
-        :return:
-        '''
+        print(f"Sampling Complete! Lowest Energy Found = {bcolors.FAIL}%.3f{bcolors.ENDC}" % np.amin(self.enAtOptima[-1]) + " after %d" %self.iter + " iterations.")
 
 
     def plotSampling(self):
@@ -251,8 +271,8 @@ class sampler():
         rows = max([1,(self.params['pipeline iterations'] // 5)])
 
         plt.subplot(rows, columns, self.params['iteration'])
-        plt.plot(self.recInds, self.enRec, '.')
-        plt.plot(self.eminInds, self.emins,'o-')
+        plt.plot(self.recInds, self.scoreRec, '.')
+        plt.plot(self.optimalInds, self.optima,'o-')
         plt.title('Iteration #%d' % self.params['iteration'])
         plt.ylabel('Sample Energy')
         plt.xlabel('Sample Iterations')

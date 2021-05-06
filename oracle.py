@@ -41,6 +41,7 @@ class oracle():
         queries = np.asarray(queries)
         np.random.seed(int(queries.shape[-1] * self.params['random seed'])) # this ensures we get the same energy function for the same initial conditions
         hamiltonian = np.random.randn(queries.shape[-1],queries.shape[-1]) # energy function
+        hamiltonian = np.tril(hamiltonian) + np.tril(hamiltonian, -1).T # I like random symmetric matrices
         energies = np.zeros(len(queries))
 
         for i in range(len(queries)):
@@ -57,8 +58,8 @@ class oracle():
         '''
         data = {}
         np.random.seed(int(numSamples * inputSize * self.params['random seed']))
-        data['sequences'] = np.random.randint(0,2,size=(numSamples, inputSize)) # samples are a binary set
-        data['scores'] = self.toyEnergy(data['sequences'])
+        data['samples'] = np.random.randint(0,2,size=(numSamples, inputSize)) # samples are a binary set
+        data['scores'] = self.toyEnergy(data['samples'])
 
         np.save('datasets/' + self.params['dataset'], data)
 

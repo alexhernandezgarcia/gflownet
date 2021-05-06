@@ -100,20 +100,20 @@ def updateDataset(params, oracleSequences, oracleScores):
     '''
     dataset = np.load('datasets/' + params['dataset'] + '.npy', allow_pickle=True).item()
 
-    nDuplicates = 0
+    nDuplicates = 0 # this check should no longer be necessary, but I guess it doesn't hurt anything for now
     for i in range(len(oracleSequences)):
         #assert type(oracleSequences[i]) == str, "Sequences must be in string format before saving to the dataset"
-        assert len(oracleSequences[i]) == len(dataset['sequences'][0]), "Added sequences must be the same length as those already in the dataset!"
+        assert len(oracleSequences[i]) == len(dataset['samples'][0]), "Added sequences must be the same length as those already in the dataset!"
         duplicate = 0
-        for j in range(len(dataset['sequences'])): # search for duplicates
-            if all(oracleSequences[i] == dataset['sequences'][j]):
+        for j in range(len(dataset['samples'])): # search for duplicates
+            if all(oracleSequences[i] == dataset['samples'][j]):
                 duplicate = 1
                 nDuplicates += 1
 
         if duplicate == 0:
-            dataset['sequences'] = np.concatenate((dataset['sequences'],np.expand_dims(oracleSequences[i],0)))
+            dataset['samples'] = np.concatenate((dataset['samples'],np.expand_dims(oracleSequences[i],0)))
             dataset['scores'] = np.concatenate((dataset['scores'],np.expand_dims(oracleScores[i],0)))
-            #dataset['sequences'].append(oracleSequences[i])
+            #dataset['samples'].append(oracleSequences[i])
             #dataset['scores'] = np.append(dataset['scores'], oracleScores[i])
 
     if nDuplicates > 0:
@@ -124,10 +124,11 @@ def updateDataset(params, oracleSequences, oracleScores):
     print("=====================================================================")
     print("=====================================================================")
     print("=====================================================================")
-    #print("New dataset size =%d" %len(dataset['sequences']))
+    #print("New dataset size =%d" %len(dataset['samples']))
     np.save('datasets/' + params['dataset'], dataset)
 
-    if params['debug'] == 1:
+    '''
+    if params['debug'] == True:
         plt.figure(5)
         columns = min(5,params['pipeline iterations'])
 
@@ -136,6 +137,8 @@ def updateDataset(params, oracleSequences, oracleScores):
         plt.hist(dataset['scores'],bins=100,density=True)
         plt.title('Iteration #%d' % params['iteration'])
         plt.xlabel('Dataset Scores')
+        
+    '''
 
 
 class bcolors:
