@@ -122,8 +122,6 @@ def updateDataset(params, oracleSequences, oracleScores):
 
     print(f"Added{bcolors.OKBLUE}{bcolors.BOLD} %d{bcolors.ENDC}" %int(len(oracleSequences) - nDuplicates) + " to the dataset")
     print("=====================================================================")
-    print("=====================================================================")
-    print("=====================================================================")
     #print("New dataset size =%d" %len(dataset['samples']))
     np.save('datasets/' + params['dataset'], dataset)
 

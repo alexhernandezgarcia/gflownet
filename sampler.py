@@ -254,7 +254,7 @@ class sampler():
         print the minimum energy found
         :return:
         '''
-        print(f"Sampling Complete! Lowest Energy Found = {bcolors.FAIL}%.3f{bcolors.ENDC}" % np.amin(self.enAtOptima[-1]) + " after %d" %self.iter + " iterations.")
+        print(f"Sampling Complete! Lowest Energy Found = {bcolors.OKGREEN}%.3f{bcolors.ENDC}" % np.amin(self.enAtOptima[-1]) + " after %d" %self.iter + " iterations.")
 
 
     def plotSampling(self):
