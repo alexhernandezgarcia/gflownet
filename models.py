@@ -17,8 +17,7 @@ This script contains models for fitting DNA sequence data
 > Outputs: predicted binding scores, prediction uncertainty 
 
 To-do's
-==> upgrade to uncertainty-enabled architecture
-==> implement ensembling (model of models? need to stop training for each model individually)
+==> upgrade to twin net
 ==> add noisey augmentation and/or few-shot dimension reduction
 ==> add positional embedding
 
@@ -34,8 +33,8 @@ class model():
         self.params['history'] = min(20, self.params['max training epochs']) # length of past to check
         self.params['plot training results'] = self.params['plot results'] # plot loss curves
         self.initModel()
-        torch.random.manual_seed(params['random seed'])
-
+        #torch.random.manual_seed(params['random seed'])
+        torch.random.seed()
 
     def initModel(self):
         '''
@@ -225,8 +224,8 @@ class model():
             self.converged = 1
 
 
-        if self.converged == 1:
-            print(f'{bcolors.OKCYAN}Model training converged{bcolors.ENDC} after {bcolors.OKBLUE}%d{bcolors.ENDC}' %self.epochs + f" epochs and with a final test loss of {bcolors.OKGREEN}%.3f{bcolors.ENDC}" % np.amin(np.asarray(self.err_te_hist)))
+        #if self.converged == 1:
+        #    print(f'{bcolors.OKCYAN}Model training converged{bcolors.ENDC} after {bcolors.OKBLUE}%d{bcolors.ENDC}' %self.epochs + f" epochs and with a final test loss of {bcolors.OKGREEN}%.3f{bcolors.ENDC}" % np.amin(np.asarray(self.err_te_hist)))
 
 
     def evaluate(self, Data, output="Average"):
@@ -300,7 +299,7 @@ def getDataloaders(params): # get the dataloaders, to load the dataset in batche
     :param params:
     :return:
     '''
-    training_batch = params['batch_size']
+    training_batch = params['batch size']
     dataset = buildDataset(params)  # get data
     train_size = int(0.8 * len(dataset))  # split data into training and test sets
 

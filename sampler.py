@@ -118,7 +118,7 @@ class sampler():
         #if self.params['debug'] == True:
         #   self.plotSampling()
 
-        self.printFinalStats()
+        #self.printFinalStats()
 
         return self.optimalSamples, self.optima, self.enAtOptima, self.varAtOptima ### this is where we will put the uncertainty flag for exceptional sequences
 

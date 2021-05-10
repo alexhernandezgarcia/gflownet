@@ -121,4 +121,4 @@ class learner():
         for i in range(len(samples)):
             distances[i] = np.sum(samples[i] != samples)
 
-        return distances/samples.shape[0]/samples.shape[1]
+        return distances

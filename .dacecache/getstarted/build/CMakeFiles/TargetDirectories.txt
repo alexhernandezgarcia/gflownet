@@ -1,0 +1,5 @@
+C:/Users/mikem/OneDrive/McGill_Simine/Aptamers/ActiveLearningPipeline/.dacecache/getstarted/build/CMakeFiles/getstarted.dir
+C:/Users/mikem/OneDrive/McGill_Simine/Aptamers/ActiveLearningPipeline/.dacecache/getstarted/build/CMakeFiles/dacestub_getstarted.dir
+C:/Users/mikem/OneDrive/McGill_Simine/Aptamers/ActiveLearningPipeline/.dacecache/getstarted/build/CMakeFiles/CopyDLL.dir
+C:/Users/mikem/OneDrive/McGill_Simine/Aptamers/ActiveLearningPipeline/.dacecache/getstarted/build/CMakeFiles/ALL_BUILD.dir
+C:/Users/mikem/OneDrive/McGill_Simine/Aptamers/ActiveLearningPipeline/.dacecache/getstarted/build/CMakeFiles/ZERO_CHECK.dir

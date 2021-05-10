@@ -1,0 +1,10 @@
+^C:\USERS\MIKEM\ONEDRIVE\MCGILL_SIMINE\APTAMERS\ACTIVELEARNINGPIPELINE\.DACECACHE\MATMULLOOP\BUILD\CMAKEFILES\8F9251C640F3C09F68719AC4B707AFC0\GENERATE.STAMP.RULE
+setlocal
+C:\Users\mikem\OneDrive\McGill_Simine\Finite_Correlations\PyTorch\PixelCNN\venv\Lib\site-packages\cmake\data\bin\cmake.exe -SC:/Users/mikem/OneDrive/McGill_Simine/Finite_Correlations/PyTorch/PixelCNN/venv/Lib/site-packages/dace/codegen -BC:/Users/mikem/OneDrive/McGill_Simine/Aptamers/ActiveLearningPipeline/.dacecache/matmulLoop/build --check-stamp-list CMakeFiles/generate.stamp.list --vs-solution-file C:/Users/mikem/OneDrive/McGill_Simine/Aptamers/ActiveLearningPipeline/.dacecache/matmulLoop/build/dace_program.sln
+if %errorlevel% neq 0 goto :cmEnd
+:cmEnd
+endlocal & call :cmErrorLevel %errorlevel% & goto :cmDone
+:cmErrorLevel
+exit /b %1
+:cmDone
+if %errorlevel% neq 0 goto :VCEnd

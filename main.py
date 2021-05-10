@@ -41,16 +41,20 @@ To-Do
     ?-> upgrade to pair-regression
 ?=> rebuild debug / plotting modes (partially done / partially unnecessary)
 ?=> get learner and sampler using the same (dynamic) scoring function
-==> check that relevant params (ensemble size) are properly overwritten when picking up old jobs
 ?=> when we add back real datasets - eventually we'll need to initialize them
 ?=> parallelize training and sampling runs
 ?-> if we never see duplicates again, remove the report code in utils
-==> write automated test and analysis routines
+==> write automated test and analysis routines - multi-seed and changing parameters
+==> check that relevant params (ensemble size) are properly overwritten when picking up old jobs
+==> debug oracle for small samples
+==> colour in the global minimum statement - fix the colours in general actualy
+==> print conclusions
+==> transfer explicit enumeration code from tinkertest
 '''
 
 # initialize control parameters
 params = {}
-params['device'] = 'local' # 'local' or 'cluster'
+params['device'] = 'cluster' # 'local' or 'cluster'
 
 # get command line input
 if params['device'] == 'cluster':
@@ -76,19 +80,19 @@ params['random seed'] = 1
 # toy data parameters
 params['dataset'] = 'toy'
 params['init dataset length'] = 1000 # number of items in the initial (toy) dataset
-params['sample length'] = 5 # number of input dimensions
+params['sample length'] = 20 # number of input dimensions
 
 # model parameters
-params['ensemble size'] = 2 # number of models in the ensemble
+params['ensemble size'] = 8 # number of models in the ensemble
 params['model filters'] = 12
 params['model layers'] = 2
-params['max training epochs'] = 20
+params['max training epochs'] = 100
 params['GPU'] = 0 # run model on GPU - not yet tested, may not work at all
-params['batch_size'] = 10 # model training batch size
+params['batch size'] = 10 # model training batch size
 
 # sampler parameters
 params['sampling time'] = 4e4
-params['sampler runs'] = 5
+params['sampler runs'] = 8
 
 if params['mode'] == 'evaluation':
     params['pipeline iterations'] = 1
@@ -106,24 +110,21 @@ class activeLearning():
         move to relevant directory
         :return:
         '''
-        self.oracle = oracle(self.params)
+        self.oracle = oracle(self.params) # oracle needs to be initialized to initialize toy datasets
 
-        if self.params['run num'] == 0:
+        if self.params['run num'] == 0: # if making a new workdir
             self.makeNewWorkingDirectory()
             os.mkdir(self.workDir + '/ckpts')
             os.mkdir(self.workDir + '/datasets')
-            # move to working dir
-            os.chdir(self.workDir)
-            #copyfile(self.params['dataset directory'] + '/' + self.params['dataset'],self.workDir + '/datasets/' + self.params['dataset'] + '.npy')
+            os.chdir(self.workDir) # move to working dir
+            #copyfile(self.params['dataset directory'] + '/' + self.params['dataset'],self.workDir + '/datasets/' + self.params['dataset'] + '.npy') # if using a real initial dataset (not toy) copy it to the workdir
             self.oracle.initializeDataset(self.params['sample length'], self.params['init dataset length']) # generate toy model dataset
         else:
             # move to working dir
             self.workDir = self.params['workdir'] + '/' + 'run%d' %self.params['run num']
             os.chdir(self.workDir)
 
-            self.workDir = self.params['workdir'] + '/' + 'run%d' %self.params['run num']
-
-        self.learner = learner(self.params)
+        self.learner = learner(self.params) # might as well initialize the learner here
 
 
     def makeNewWorkingDirectory(self):    # make working directory
@@ -152,19 +153,19 @@ class activeLearning():
         run  the active learning pipeline for a number of iterations
         :return:
         '''
-        self.testMinima = []
-        self.bestScores = []
+        self.testMinima = [] # best test loss of models, for each iteration of the pipeline
+        self.bestScores = [] # best optima found by the sampler, for each iteration of the pipeline
 
         if self.params['dataset'] == 'toy':
-            self.sampleOracle() # use the oracle to pre-solve the problem
+            self.sampleOracle() # use the oracle to pre-solve the problem for future benchmarking
             print("The true global minimum is %.3f" % np.amin(self.oracleOptima['scores']))
 
         for i in range(params['pipeline iterations']):
             print(f'Starting pipeline iteration #{bcolors.OKGREEN}%d{bcolors.ENDC}' % int(i+1))
             self.params['iteration'] = i + 1
-            self.iterate()
+            self.iterate() # run the pipeline
 
-        self.saveOutputs()
+        self.saveOutputs() # save final outputs
 
 
     def iterate(self):
@@ -177,6 +178,8 @@ class activeLearning():
             self.model.converge() # converge model
             self.testMinima.append(np.amin(self.model.err_te_hist))
 
+        print(f'{bcolors.OKCYAN}Model ensemble training converged{bcolors.ENDC} with average test loss of {bcolors.OKGREEN}%.5f{bcolors.ENDC}' % np.average(np.asarray(self.testMinima[-self.params['ensemble size']:])))
+
         self.sampleDict = self.sampleEnsemble(False) # identify interesting sequences
 
         oracleSamples = self.learner.identifySequences(self.sampleDict) # pick sequences to be scored
@@ -185,7 +188,7 @@ class activeLearning():
         #oracleSequences = numbers2letters(oracleSequences)
 
         updateDataset(self.params, oracleSamples, oracleScores) # add scored sequences to dataset
-        self.bestScores.append(np.amin(self.sampler.optima))
+        self.bestScores.append(np.amin(self.sampleDict['energy'])) # find the lowest energy of all the sampling runs
 
         if self.params['plot results'] == True:
             self.plotIterations()
@@ -229,7 +232,7 @@ class activeLearning():
         accRec = []
         tempRec = []
 
-        gammas = np.logspace(-2,1,self.params['sampler runs'])
+        gammas = np.logspace(-3,1,self.params['sampler runs'])
         for i in range(self.params['sampler runs']):
             sampleSequences, sampleScores, sampleEnergy, sampleVariance = self.evaluateSampler(gammas[i],useOracle)
             samples.append(sampleSequences)
@@ -252,6 +255,9 @@ class activeLearning():
         sampleDict['scores'] = np.concatenate(scores)
         sampleDict['energy'] = np.concatenate(energy)
         sampleDict['variance'] = np.concatenate(variance)
+
+        bestMin = np.amin(sampleDict['energy'])
+        print(f"Sampling Complete! Lowest Energy Found = {bcolors.FAIL}%.3f{bcolors.ENDC}" % bestMin + " from %d" %self.params['sampler runs'] + " sampling runs.")
 
         return sampleDict
 
@@ -318,6 +324,7 @@ class activeLearning():
         np.save('outputsDict',outputDict)
         # outputDict = np.load('outputDict.npy',allow_pickle=True)
         # outputDict = outputDict.item()
+        print('Pipeline Complete: Best optimum found %.3f '%np.amin(self.bestScores) + 'after %d' %iter(self.params['pipeline iterations'] * self.params['queries per iter']) + ' queries')
 
     def plotIterations(self):
         '''

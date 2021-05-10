@@ -1,0 +1,23 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project>
+  <ProjectOutputs>
+    <ProjectOutput>
+      <FullPath>C:\Users\mikem\OneDrive\McGill_Simine\Aptamers\ActiveLearningPipeline\.dacecache\getstarted\build\x64\RelWithDebInfo\ZERO_CHECK</FullPath>
+    </ProjectOutput>
+    <ProjectOutput>
+      <FullPath>C:\Users\mikem\OneDrive\McGill_Simine\Aptamers\ActiveLearningPipeline\.dacecache\getstarted\build\RelWithDebInfo\dacestub_getstarted.dll</FullPath>
+    </ProjectOutput>
+    <ProjectOutput>
+      <FullPath>C:\Users\mikem\OneDrive\McGill_Simine\Aptamers\ActiveLearningPipeline\.dacecache\getstarted\build\RelWithDebInfo\getstarted.dll</FullPath>
+    </ProjectOutput>
+    <ProjectOutput>
+      <FullPath>C:\Users\mikem\OneDrive\McGill_Simine\Aptamers\ActiveLearningPipeline\.dacecache\getstarted\build\x64\RelWithDebInfo\CopyDLL</FullPath>
+    </ProjectOutput>
+    <ProjectOutput>
+      <FullPath>C:\Users\mikem\OneDrive\McGill_Simine\Aptamers\ActiveLearningPipeline\.dacecache\getstarted\build\x64\RelWithDebInfo\ALL_BUILD</FullPath>
+    </ProjectOutput>
+  </ProjectOutputs>
+  <ContentFiles />
+  <SatelliteDlls />
+  <NonRecipeFileRefs />
+</Project>
