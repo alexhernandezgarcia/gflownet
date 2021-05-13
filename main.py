@@ -47,6 +47,7 @@ To-Do
 ?-> if we never see duplicates again, remove the report code in utils
 ==> check that relevant params (ensemble size) are properly overwritten when picking up old jobs
 ==> print list summaries, maybe a table
+==> return accuracy not as minmum energy but as comparison to known optimum
 '''
 
 # initialize control parameters

@@ -2,6 +2,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import argparse
+import os
 
 
 '''
@@ -149,3 +150,43 @@ class bcolors:
     ENDC = '\033[0m'
     BOLD = '\033[1m'
     UNDERLINE = '\033[4m'
+
+
+def resultsAnalysis(outDir):
+    '''
+    analyze the results of a bunch of parallel runs of the active learning pipeline
+    '''
+    outDicts = []
+    os.chdir(outDir)
+    for dirs in os.listdir(outDir):
+        out = np.load(dirs + '/outputsDict.npy',allow_pickle=True).item()
+        outDicts.append(out)
+
+    # collect info for plotting
+    numIter = out['params']['pipeline iterations']
+    numModels = out['params']['ensemble size']
+    numSampler = out['params']['sampler runs']
+    optima = []
+    testLoss = []
+    oracleOptima = []
+    for dict in outDicts:
+        oracleOptima.append(np.amin(dict['oracle outputs']['energy']))
+        optima.append(np.amin(dict['best optima found']))
+        testLoss.append(np.amin(dict['model test minima']))
+
+    # average over repeated runs
+    oracleOptima = np.asarray(oracleOptima)
+    optima = np.asarray(optima)
+    testLoss = np.asarray(testLoss)
+
+    avgDiff = []
+    avgLoss = []
+
+    for i in range(5): #
+        avgDiff.append(np.average(np.abs((oracleOptima[i:-1:5] - optima[i:-1:5])/oracleOptima[i:-1:5])))
+        avgLoss.append(np.average(testLoss[i:-1:5]))
+
+    plt.clf()
+    plt.plot(avgLoss / np.amax(avgLoss),label='test loss')
+    plt.plot(avgDiff / np.amax(avgDiff),label='pipeline error')
+    plt.legend()
