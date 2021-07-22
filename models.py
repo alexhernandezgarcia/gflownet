@@ -31,9 +31,8 @@ class model():
         self.params = params
         self.ensembleIndex = ensembleIndex
         self.params['history'] = min(20, self.params['max training epochs']) # length of past to check
-        self.params['plot training results'] = self.params['plot results'] # plot loss curves
         self.initModel()
-        #torch.random.manual_seed(params['random seed'])
+        torch.random.manual_seed(int(params['model seed'] + ensembleIndex))
         torch.random.seed()
 
     def initModel(self):
@@ -86,7 +85,7 @@ class model():
             #print('New model: ', dirName)
 
 
-    def converge(self):
+    def converge(self, returnHist = False):
         '''
         train model until test loss converges
         :return:
@@ -124,9 +123,8 @@ class model():
 
             #print('epoch={}; train loss={:.5f}; test loss={:.5f};'.format(self.epochs, self.err_tr_hist[-1], self.err_te_hist[-1]))
 
-        if self.params['plot training results'] == 1:
-            self.plotResults()
-
+        if returnHist:
+            return self.err_te_hist
 
     def plotResults(self):
         '''
@@ -314,8 +312,8 @@ def getDataloaders(params): # get the dataloaders, to load the dataset in batche
     for i in range(test_size):
         test_dataset.append(dataset[i])
 
-    tr = data.DataLoader(train_dataset, batch_size=training_batch, shuffle=True, num_workers= 2, pin_memory=True)  # build dataloaders
-    te = data.DataLoader(test_dataset, batch_size=training_batch, shuffle=False, num_workers= 2, pin_memory=True)
+    tr = data.DataLoader(train_dataset, batch_size=training_batch, shuffle=True, num_workers= 0, pin_memory=True)  # build dataloaders
+    te = data.DataLoader(test_dataset, batch_size=training_batch, shuffle=False, num_workers= 0, pin_memory=True) # num_workers must be zero or multiprocessing will not work (can't spawn multiprocessing within multiprocessing)
 
     return tr, te, dataset.__len__()
 

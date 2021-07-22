@@ -39,7 +39,7 @@ class oracle():
         :return:
         '''
         queries = np.asarray(queries)
-        np.random.seed(int(queries.shape[-1] * self.params['random seed'])) # this ensures we get the same energy function for the same initial conditions
+        np.random.seed(int(queries.shape[-1] * self.params['dataset seed'])) # this ensures we get the same energy function for the same initial conditions
         hamiltonian = np.random.randn(queries.shape[-1],queries.shape[-1]) # energy function
         hamiltonian = np.tril(hamiltonian) + np.tril(hamiltonian, -1).T # I like random symmetric matrices
         energies = np.zeros(len(queries))
@@ -57,7 +57,7 @@ class oracle():
         :return:
         '''
         data = {}
-        np.random.seed(int(numSamples * inputSize * self.params['random seed']))
+        np.random.seed(int(numSamples * inputSize * self.params['dataset seed']))
         data['samples'] = np.random.randint(0,2,size=(numSamples, inputSize)) # samples are a binary set
         data['scores'] = self.toyEnergy(data['samples'])
 
@@ -84,7 +84,7 @@ class oracle():
 
         energies = []
         ''''''
-        for sequence in queries:
+        for sample in queries:
             energy = 0
 
             # potts hamiltonian
@@ -100,7 +100,7 @@ class oracle():
                 energy += h[sequence[i], i]  # site-specific base energy
             '''
             # simpler hamiltonian
-            energy = np.sum(sequence)
+            energy = np.sum(sample)
 
             energies.append(energy)
 

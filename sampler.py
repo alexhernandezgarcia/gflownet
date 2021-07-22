@@ -3,7 +3,6 @@ from utils import *
 from models import getDataSize
 from oracle import *
 import os
-import multiprocessing as mp
 
 #import nolds
 
@@ -24,7 +23,7 @@ class sampler():
     '''
     finds optimum values of the function defined by the model
     '''
-    def __init__(self, params):
+    def __init__(self, params, seedInd, scoreFunction):
         self.params = params
         self.params['STUN'] = 1
         self.params['Target Acceptance Rate'] = 0.234
@@ -32,6 +31,8 @@ class sampler():
         self.temperature = 1
         self.deltaIter = int(100)  # get outputs every this many of iterations with one iteration meaning one move proposed for each "particle" on average
         self.randintsResampleAt = int(1e4)  # larger takes up more memory but increases speed
+        self.scoreFunction = scoreFunction
+        self.seedInd = seedInd
 
         self.initialize()
 
@@ -84,13 +85,14 @@ class sampler():
         return (1 - np.exp(-self.gamma * (scores - self.E0)))  # compute STUN function
 
 
-    def sample(self,model, gamma, useOracle):
+    def sample(self,model, gamma, useOracle=False):
         '''
         converge the sampling process
         :param model:
         :return:
         '''
-        return self.converge(model, gamma, useOracle)
+        self.converge(model, gamma, useOracle)
+        return self.__dict__
 
 
     def converge(self, model, gamma, useOracle):
@@ -100,7 +102,7 @@ class sampler():
         '''
         self.gamma = gamma
 
-        np.random.seed(int(self.params['random seed'] + np.abs((np.log10(self.gamma) * 100)))) # randomize each gamma ru
+        np.random.seed(int(self.params['sampler seed'] + np.abs((np.log10(self.gamma) * 100))) + self.seedInd) # randomize each gamma ru
 
         self.initConvergenceStats()
 
@@ -114,13 +116,6 @@ class sampler():
                 self.updateAnnealing() # change temperature or other conditions
 
             self.iter += 1
-
-        #if self.params['debug'] == True:
-        #   self.plotSampling()
-
-        #self.printFinalStats()
-
-        return self.optimalSamples, self.optima, self.enAtOptima, self.varAtOptima ### this is where we will put the uncertainty flag for exceptional sequences
 
 
     def iterate(self, model, useOracle):
@@ -178,14 +173,14 @@ class sampler():
         :param config: 
         :return: 
         '''
-        if useOracle == 1:
+        if useOracle:
             energy = self.oracle.score([propConfig,config])
             variance = [0, 0]
-            score = energy
         else:
             energy = model.evaluate(np.asarray([propConfig,config]),output="Average")
             variance = model.evaluate(np.asarray([propConfig,config]),output="Variance")
-            score = energy - variance # this function will have to be optimized
+
+        score = self.scoreFunction[0] * np.asarray(energy) - self.scoreFunction[1] * np.asarray(variance) # vary the relative importance of these two factors
 
         return score, energy, variance
 

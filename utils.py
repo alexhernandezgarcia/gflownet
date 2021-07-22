@@ -18,10 +18,16 @@ def get_input():
     '''
     parser = argparse.ArgumentParser()
     parser.add_argument('--run_num', type=int, default = 0)
+    parser.add_argument('--sampler_seed', type=int, default = 0)
+    parser.add_argument('--model_seed', type=int, default = 0)
+    parser.add_argument('--dataset_seed', type=int, default=0)
     cmd_line_input = parser.parse_args()
     run = cmd_line_input.run_num
+    samplerSeed = cmd_line_input.sampler_seed
+    modelSeed = cmd_line_input.model_seed
+    datasetSeed = cmd_line_input.dataset_seed
 
-    return run
+    return [run, samplerSeed, modelSeed, datasetSeed]
 
 def letters2numbers(sequences): #Tranforming letters to numbers:
     '''
@@ -126,18 +132,6 @@ def updateDataset(params, oracleSequences, oracleScores):
     #print("New dataset size =%d" %len(dataset['samples']))
     np.save('datasets/' + params['dataset'], dataset)
 
-    '''
-    if params['debug'] == True:
-        plt.figure(5)
-        columns = min(5,params['pipeline iterations'])
-
-        rows = max([1,(params['pipeline iterations'] // 5)])
-        plt.subplot(rows, columns, params['iteration'])
-        plt.hist(dataset['scores'],bins=100,density=True)
-        plt.title('Iteration #%d' % params['iteration'])
-        plt.xlabel('Dataset Scores')
-        
-    '''
 
 
 class bcolors:
@@ -165,7 +159,7 @@ def resultsAnalysis(outDir):
     # collect info for plotting
     numIter = out['params']['pipeline iterations']
     numModels = out['params']['ensemble size']
-    numSampler = out['params']['sampler runs']
+    numSampler = out['params']['sampler gammas']
     optima = []
     testLoss = []
     oracleOptima = []
