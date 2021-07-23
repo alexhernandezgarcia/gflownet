@@ -31,11 +31,7 @@ Modules:
 
 
 To-Do
-==> querier
-    -> drop-in new models
-==> model
-    -> upgrade
-==> combine MCMC with querier and think about batching
+==> put more useful stuff in the output dict 
 ==> parallelize sampling runs
 ==> large-scale testing scripts
 ==> print list summaries, maybe a table - indeed, collate and collect all found optima (and test them against oracle? - maybe for cheap ones)
@@ -62,15 +58,17 @@ if params['device'] == 'cluster':
     params['sampler seed'] = input[1]  # seed for MCMC modelling (each set of gammas gets a slightly different seed)
     params['model seed'] = input[2]  # seed used for model ensemble (each model gets a slightly different seed)
     params['dataset seed'] = input[3]  # if we are using a toy dataset, it may take a specific seed
+    params['query mode'] = input[4]  # 'random', 'score', 'uncertainty', 'heuristic', 'learned' # different modes for query construction
+
 elif params['device'] == 'local':
     params['run num'] = 0 # manual setting, for 0, do a fresh run, for != 0, pickup on a previous run.
     params['sampler seed'] = 0  # seed for MCMC modelling (each set of gammas gets a slightly different seed)
     params['model seed'] = 0  # seed used for model ensemble (each model gets a slightly different seed)
     params['dataset seed'] = 0  # if we are using a toy dataset, it may take a specific seed
+    params['query mode'] = 'random'  # 'random', 'score', 'uncertainty', 'heuristic', 'learned' # different modes for query construction
 
 # Pipeline parameters
 params['pipeline iterations'] = 20 # number of cycles with the oracle
-params['query mode'] = 'random' # 'random', 'score', 'uncertainty', 'heuristic', 'learned' # different modes for query construction
 
 params['queries per iter'] = 100 # maximum number of questions we can ask the oracle per cycle
 params['mode'] = 'training' # 'training'  'evaluation' 'initialize'

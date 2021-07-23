@@ -21,13 +21,15 @@ def get_input():
     parser.add_argument('--sampler_seed', type=int, default = 0)
     parser.add_argument('--model_seed', type=int, default = 0)
     parser.add_argument('--dataset_seed', type=int, default=0)
+    parser.add_argument('--query_type', type=str, default='random')
     cmd_line_input = parser.parse_args()
     run = cmd_line_input.run_num
     samplerSeed = cmd_line_input.sampler_seed
     modelSeed = cmd_line_input.model_seed
     datasetSeed = cmd_line_input.dataset_seed
+    queryMode = cmd_line_input.query_type
 
-    return [run, samplerSeed, modelSeed, datasetSeed]
+    return [run, samplerSeed, modelSeed, datasetSeed, queryMode]
 
 def letters2numbers(sequences): #Tranforming letters to numbers:
     '''
