@@ -31,6 +31,7 @@ Modules:
 
 
 To-Do
+==>>> aggressive profiling on sampling runs - sometimes they hang for seemingly no reason
 ==> put more useful stuff in the output dict 
 ==> parallelize sampling runs
 ==> large-scale testing scripts

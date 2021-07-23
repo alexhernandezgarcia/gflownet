@@ -92,9 +92,15 @@ class activeLearning():
         run one iteration of the pipeline - train model, sample sequences, select sequences, consult oracle
         :return:
         '''
-
+        t0 = time.time()
         self.retrainModels()
+        tf = time.time()
+        print('Retraining took {} seconds'.format(int(tf-t0)))
+
+        t0 = time.time()
         query = self.getQuery()
+        tf = time.time()
+        print('Query generation took {} seconds'.format(int(tf-t0)))
         scores = self.oracle.score(query) # score Samples
 
         updateDataset(self.params, query, scores) # add scored Samples to dataset
