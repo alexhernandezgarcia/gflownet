@@ -53,23 +53,24 @@ class querier():
             samples = []
             scores = []
             while (len(oracleSamples) < self.params['queries per iter']) and (seedInd < 100):  # until we fill up the query size threshold - flag for if it can't add more for some reason
-                samplingOutputs = self.runSampling(model, scoreFunction, seedInd)
+                self.samplingOutputs = self.runSampling(model, scoreFunction, seedInd)
                 if seedInd == 0:
-                    samples = samplingOutputs['samples']
-                    scores = samplingOutputs['scores']
+                    samples = self.samplingOutputs['samples']
+                    scores = self.samplingOutputs['scores']
                 else:
-                    samples = np.concatenate((samples, samplingOutputs['samples']), axis=0)
-                    scores = np.concatenate((scores, samplingOutputs['scores']), axis=0)
+                    samples = np.concatenate((samples, self.samplingOutputs['samples']), axis=0)
+                    scores = np.concatenate((scores, self.samplingOutputs['scores']), axis=0)
                 samples, scores = self.filterDuplicates([samples, scores])
                 oracleSamples = samples  # don't prune for now
                 seedInd += 1
 
-            printRecord('Finished {} iterations of sampling'.format(seedInd))
+
+
 
         elif self.params['query mode'] == 'learned':
             raise RuntimeError
 
-        return oracleSamples[:nQueries]
+        return oracleSamples[:nQueries], seedInd
 
     def runSampling(self, model, scoreFunction, seedInd, parallel=True):
         """

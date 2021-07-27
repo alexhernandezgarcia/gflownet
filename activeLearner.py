@@ -35,12 +35,15 @@ class activeLearning():
             os.mkdir(self.workDir + '/ckpts')
             os.mkdir(self.workDir + '/datasets')
             os.chdir(self.workDir) # move to working dir
+            printRecord('Starting Fresh Run %d' %self.runNum)
             #copyfile(self.params['dataset directory'] + '/' + self.params['dataset'],self.workDir + '/datasets/' + self.params['dataset'] + '.npy') # if using a real initial dataset (not toy) copy it to the workdir
             self.oracle.initializeDataset(self.params['sample length'], self.params['init dataset length']) # generate toy model dataset
         else:
             # move to working dir
             self.workDir = self.params['workdir'] + '/' + 'run%d' %self.params['run num']
             os.chdir(self.workDir)
+            printRecord('Resuming run %d' % self.params['run num'])
+
 
         self.querier = querier(self.params) # might as well initialize the querier here
 
@@ -60,7 +63,7 @@ class activeLearning():
             prev_max = max(prev_runs)
             self.workDir = self.params['workdir'] + '/' + 'run%d' %(prev_max + 1)
             os.mkdir(self.workDir)
-            printRecord('Starting Fresh Run %d' %(prev_max + 1))
+            self.runNum = int(prev_max + 1)
         else:
             self.workDir = self.params['workdir'] + '/' + 'run1'
             os.mkdir(self.workDir)
@@ -84,7 +87,7 @@ class activeLearning():
             self.params['iteration'] = self.pipeIter + 1
             self.iterate() # run the pipeline
 
-            self.saveOutputs() # save final
+            self.saveOutputs() # save pipeline outputs
 
 
     def iterate(self):
@@ -98,9 +101,9 @@ class activeLearning():
         printRecord('Retraining took {} seconds'.format(int(tf-t0)))
 
         t0 = time.time()
-        query = self.getQuery()
+        query, iterations = self.getQuery()
         tf = time.time()
-        printRecord('Query generation took {} seconds'.format(int(tf-t0)))
+        printRecord('Query generation took {} seconds over {} iterations'.format(int(tf-t0), int(iterations)))
         scores = self.oracle.score(query) # score Samples
 
         self.reportStatus() # compute and record the current status of the active learner w.r.t. the dataset
@@ -108,17 +111,23 @@ class activeLearning():
         updateDataset(self.params, query, scores) # add scored Samples to dataset
 
 
-    def reportStatus(self):
+    def reportStatus(self, manualRerun = False):
         '''
         sample the model
         report on the status of dataset
         report on best scores according to models
         report on model confidence
+        :manualRerun: reruns the sampler even if we already have priorsampler data)
         :return:
         '''
+        # if we need to rerun the sampler, do so, otherwise use data from sampling run immediately preceding
+        if (not hasattr(self.querier, 'samplingOutputs')) or manualRerun:
+            self.loadEstimatorEnsemble()
+            sampleDict = self.querier.runSampling(self.model, [1, 0], 1) # faster this way
+        else:
+            sampleDict = self.querier.samplingOutputs
 
-        self.loadEstimatorEnsemble()
-        sampleDict = self.querier.runSampling(self.model, [1, 0], 1) # faster this way
+
         try:
             nRandomSamples = int(1e5)
             modelSample = self.model.evaluate(np.random.randint(0,2,size=(nRandomSamples,self.params['sample length'])),output='Both')
@@ -126,7 +135,6 @@ class activeLearning():
             nRandomSamples = int(1e3)
             modelSample = self.model.evaluate(np.random.randint(0,2,size=(nRandomSamples,self.params['sample length'])),output='Both')
 
-        stdDev = np.average(np.sqrt(modelSample[1])) # average standard deviation on randomly distributed data (uncertainty between models)
 
         # top X distinct samples - energies and uncertainties - we want to know how many minima it's found, how low they are, and how confident we are about them
         # np.argsort some shit
@@ -146,8 +154,6 @@ class activeLearning():
         # model beliefs about total dataset as well - similar but not identical to test loss
         # we can also look at the best X scores and uncertainties in the dataset and/or confidence on overall dataset - test loss is a decent proxy for this
 
-
-        aa = 1
         if self.pipeIter == 0: # if it's the first round, initialize, else, append
             self.bestSamples = [bestSamples]
             self.bestEns = [bestEns]
@@ -156,7 +162,6 @@ class activeLearning():
             self.bestSamples.append(bestSamples)
             self.bestEns.append(bestEns)
             self.bestVars.append(bestVars)
-
 
     def retrainModels(self, parallel=True):
         if not parallel:
@@ -182,9 +187,9 @@ class activeLearning():
 
     def getQuery(self):
         self.loadEstimatorEnsemble()
-        query = self.querier.buildQuery(self.model)  # pick Samples to be scored
+        query, iterations = self.querier.buildQuery(self.model)  # pick Samples to be scored
 
-        return query
+        return query, iterations
 
 
     def evaluateSampler(self, gamma, useOracle):

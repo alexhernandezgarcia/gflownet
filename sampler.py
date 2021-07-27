@@ -33,6 +33,7 @@ class sampler():
         self.randintsResampleAt = int(1e4)  # larger takes up more memory but increases speed
         self.scoreFunction = scoreFunction
         self.seedInd = seedInd
+        self.recordMargin = 0.1 # how close does a state have to be to the best found minimum to be recorded
 
         self.initialize()
 
@@ -148,7 +149,7 @@ class sampler():
             if self.alphaRandoms[self.ind] < acceptanceRatio: #accept
                 self.config = np.copy(propConfig)
 
-                if scores[0] < self.E0: # if we have found a new minimum
+                if ((self.E0 - scores[0])/self.E0 < self.recordMargin) or (scores[0] < self.E0): # if we are near the best minimum, record what happens
                     self.saveOptima(scores,energy,variance,propConfig)
 
                 if self.params['debug'] == True:
@@ -187,7 +188,8 @@ class sampler():
 
 
     def saveOptima(self,scores,energy,variance,propConfig):
-        self.E0 = scores[0]
+        if scores[0] < self.E0:
+            self.E0 = scores[0]
         self.optima.append(scores[0])
         self.enAtOptima.append(energy[0])
         self.varAtOptima.append(variance[0])

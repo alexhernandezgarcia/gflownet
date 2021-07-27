@@ -214,7 +214,7 @@ def binaryDistance(samples, pairwise = False):
     if pairwise: # compute every pairwise distances
         distances = np.zeros((len(samples), len(samples)))
         for i in range(len(samples)):
-            distances[i, :] = np.sum(samples[i] != samples, axis = 1) / len(samples)
+            distances[i, :] = np.sum(samples[i] != samples, axis = 1) / len(samples[i])
     else: # compute average distance of each sample from all the others
         distances = np.zeros(len(samples))
         for i in range(len(samples)):

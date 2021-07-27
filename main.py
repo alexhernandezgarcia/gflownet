@@ -32,16 +32,12 @@ Modules:
 
 To-Do
 ==>>> aggressive profiling on sampling runs - sometimes they hang for seemingly no reason
-==> implement 'test mode'
 ==> think carefully about how we split test and train datasets
-==> finish reporter
 ==> large-scale testing scripts
 ==> print list summaries, maybe a table - indeed, collate and collect all found optima (and test them against oracle? - maybe for cheap ones)
 ==> return accuracy not as minmum energy but as comparison to known optimum
 ==> incorporate sampling, models & queries for mixed-length sequences
 ==> decide on representation - currently binary
-==> improved flag in sampler for when we aren't getting anything new
-==> need to think about how we report closeness to true minimum - account for uncertainty?
 
 low priority
 ==> check that relevant params (ensemble size) are properly overwritten when picking up old jobs (maybe we just don't care about old jobs)
@@ -52,6 +48,7 @@ low priority
 params = {}
 params['device'] = 'cluster' # 'local' or 'cluster'
 params['explicit run enumeration'] = True # if this is True, the next run be fresh, in directory 'run%d'%run_num, if false, regular behaviour. Note: only use this on fresh runs
+params['test mode'] = False # WIP # if true, automatically set parameters for a quick test run
 
 # get command line input
 if params['device'] == 'cluster':
@@ -80,24 +77,31 @@ params['debug'] = False
 params['dataset'] = 'toy'
 params['init dataset length'] = 100 # number of items in the initial (toy) dataset
 params['variable sample size'] = False # WIP - NON-FUNCTIONAL: if true, 'sample length' should be a list with the smallest and largest size of input sequences [min, max]
-params['sample length'] = 40 # number of input dimensions
+params['sample length'] = 20 # number of input dimensions
 
 # model parameters
-params['ensemble size'] = 10 # number of models in the ensemble
-params['model filters'] = 20
+params['ensemble size'] = 5 # number of models in the ensemble
+params['model filters'] = 12
 params['model layers'] = 2 # for cluster batching
 params['max training epochs'] = 200
 params['GPU'] = 0 # run model on GPU - not yet tested, may not work at all
 params['batch size'] = 10 # model training batch size
 
 # sampler parameters
-params['sampling time'] = 1e4
-params['sampler gammas'] = 10 # minimum number of gammas over which to search for each sampler (if doing in parallel, we may do more if we have more CPUs than this)
+params['sampling time'] = 2e4
+params['sampler gammas'] = 5 # minimum number of gammas over which to search for each sampler (if doing in parallel, we may do more if we have more CPUs than this)
 
 
 #====================================
 if params['mode'] == 'evaluation':
     params['pipeline iterations'] = 1
+
+if params['test mode']:
+    params['sampling time'] = 1e3
+    params['sampler gammas'] = 3
+    params['ensemble size'] = 3
+    params['max training epochs'] = 10
+
 
 # paths
 if params['device'] == 'cluster':
