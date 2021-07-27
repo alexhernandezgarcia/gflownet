@@ -1,5 +1,7 @@
-__pycache__
-.idea
+__pycache__/
+.idea/
 datasets
 easy_run_1
 old
+*.pyc
+*.pyo
