@@ -79,10 +79,10 @@ class model():
                             state[k] = v.cuda()
 
             self.model.eval()
-            #print('Reloaded model: ', dirName)
+            #printRecord('Reloaded model: ', dirName)
         else:
             pass
-            #print('New model: ', dirName)
+            #printRecord('New model: ', dirName)
 
 
     def converge(self, returnHist = False):
@@ -94,7 +94,7 @@ class model():
 
         tr, te, self.datasetSize = getDataloaders(self.params)
 
-        #print(f"Dataset size is: {bcolors.OKCYAN}%d{bcolors.ENDC}" %self.datasetSize)
+        #printRecord(f"Dataset size is: {bcolors.OKCYAN}%d{bcolors.ENDC}" %self.datasetSize)
 
         self.converged = 0 # convergence flag
         self.epochs = 0
@@ -121,7 +121,7 @@ class model():
             #sys.stdout.flush()
             #sys.stdout.write('\repoch={}; train loss={:.5f}; test loss={:.5f};\r'.format(self.epochs, self.err_tr_hist[-1], self.err_te_hist[-1]))
 
-            #print('epoch={}; train loss={:.5f}; test loss={:.5f};'.format(self.epochs, self.err_tr_hist[-1], self.err_te_hist[-1]))
+            #printRecord('epoch={}; train loss={:.5f}; test loss={:.5f};'.format(self.epochs, self.err_tr_hist[-1], self.err_te_hist[-1]))
 
         if returnHist:
             return self.err_te_hist
@@ -223,7 +223,7 @@ class model():
 
 
         #if self.converged == 1:
-        #    print(f'{bcolors.OKCYAN}Model training converged{bcolors.ENDC} after {bcolors.OKBLUE}%d{bcolors.ENDC}' %self.epochs + f" epochs and with a final test loss of {bcolors.OKGREEN}%.3f{bcolors.ENDC}" % np.amin(np.asarray(self.err_te_hist)))
+        #    printRecord(f'{bcolors.OKCYAN}Model training converged{bcolors.ENDC} after {bcolors.OKBLUE}%d{bcolors.ENDC}' %self.epochs + f" epochs and with a final test loss of {bcolors.OKGREEN}%.3f{bcolors.ENDC}" % np.amin(np.asarray(self.err_te_hist)))
 
 
     def evaluate(self, Data, output="Average"):
@@ -242,6 +242,8 @@ class model():
                 return np.average(out,axis=1) * self.std + self.mean
             elif output == 'Variance':
                 return np.var(out.detach().numpy() * self.std + self.mean,axis=1)
+            elif output == 'Both':
+                return np.average(out,axis=1) * self.std + self.mean, np.var(out.detach().numpy() * self.std + self.mean,axis=1)
 
     def loadEnsemble(self,models):
         '''

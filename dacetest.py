@@ -34,5 +34,5 @@ out = matmulLoop2(np.random.randn(N,L,L),np.random.randn(N,L,L))
 tfinish = time.time()
 deltat2 = tfinish-tstart
 
-print(deltat)
-print(deltat2)
+printRecord(deltat)
+printRecord(deltat2)

@@ -177,8 +177,9 @@ class sampler():
             energy = self.oracle.score([propConfig,config])
             variance = [0, 0]
         else:
-            energy = model.evaluate(np.asarray([propConfig,config]),output="Average")
-            variance = model.evaluate(np.asarray([propConfig,config]),output="Variance")
+            #energy = model.evaluate(np.asarray([propConfig,config]),output="Average")
+            #variance = model.evaluate(np.asarray([propConfig,config]),output="Variance")
+            energy, variance = model.evaluate(np.asarray([propConfig,config]),output='Both')
 
         score = self.scoreFunction[0] * np.asarray(energy) - self.scoreFunction[1] * np.asarray(variance) # vary the relative importance of these two factors
 
@@ -249,7 +250,7 @@ class sampler():
         print the minimum energy found
         :return:
         '''
-        print(f"Sampling Complete! Lowest Energy Found = {bcolors.OKGREEN}%.3f{bcolors.ENDC}" % np.amin(self.enAtOptima[-1]) + " after %d" %self.iter + " iterations.")
+        printRecord(f"Sampling Complete! Lowest Energy Found = {bcolors.OKGREEN}%.3f{bcolors.ENDC}" % np.amin(self.enAtOptima[-1]) + " after %d" %self.iter + " iterations.")
 
 
     def plotSampling(self):

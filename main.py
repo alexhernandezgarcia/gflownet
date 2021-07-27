@@ -1,6 +1,6 @@
 '''import statements'''
 import activeLearner
-from utils import get_input
+from utils import *
 import warnings
 warnings.filterwarnings("ignore", category=RuntimeWarning) # annoying numpy error
 
@@ -32,8 +32,9 @@ Modules:
 
 To-Do
 ==>>> aggressive profiling on sampling runs - sometimes they hang for seemingly no reason
-==> put more useful stuff in the output dict 
-==> parallelize sampling runs
+==> implement 'test mode'
+==> think carefully about how we split test and train datasets
+==> finish reporter
 ==> large-scale testing scripts
 ==> print list summaries, maybe a table - indeed, collate and collect all found optima (and test them against oracle? - maybe for cheap ones)
 ==> return accuracy not as minmum energy but as comparison to known optimum
@@ -66,7 +67,7 @@ elif params['device'] == 'local':
     params['sampler seed'] = 0  # seed for MCMC modelling (each set of gammas gets a slightly different seed)
     params['model seed'] = 0  # seed used for model ensemble (each model gets a slightly different seed)
     params['dataset seed'] = 0  # if we are using a toy dataset, it may take a specific seed
-    params['query mode'] = 'random'  # 'random', 'score', 'uncertainty', 'heuristic', 'learned' # different modes for query construction
+    params['query mode'] = 'score'  # 'random', 'score', 'uncertainty', 'heuristic', 'learned' # different modes for query construction
 
 # Pipeline parameters
 params['pipeline iterations'] = 20 # number of cycles with the oracle
@@ -108,7 +109,7 @@ elif params['device'] == 'local':
 if __name__ == '__main__':
     al = activeLearner.activeLearning(params)
     if params['mode'] == 'initalize':
-        print("Initialized!")
+        printRecord("Initialized!")
     elif params['mode'] == 'training':
         al.runPipeline()
     elif params['mode'] == 'evaluation':

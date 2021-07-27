@@ -16,6 +16,22 @@ class parent():
 
         return trainingOutput
 
+
+class parent2():
+    def __init__(self):
+        self.i = np.arange(10)
+        self.j = np.arange(2,12)
+
+    def parallelEval(self):
+        cpus = int(np.amin((len(self.i), os.cpu_count() - 1)))  # np.min((os.cpu_count()-2,params['runs']))
+        pool = mp.Pool(cpus)
+        for i in range(int(np.ceil(len(self.i) / cpus))):
+            trainingOutput = [pool.apply_async(coolFunction, args=[self.i[j], self.j[j]]) for j in range(cpus)]
+
+        return trainingOutput
+
+
+
 def coolFunction(i,j):
 
     function = functionClass()
@@ -33,5 +49,5 @@ class functionClass():
 
 
 if __name__ == '__main__':
-    parentClass = parent()
+    parentClass = parent2()
     output = parentClass.parallelEval()

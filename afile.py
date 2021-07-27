@@ -11,7 +11,7 @@ class someClass(object):
    def go(self):
       p = Pool(4)
       sc = p.map(self, range(4))
-      print(sc)
+      printRecord(sc)
 
    def __call__(self, x):
      return self.f(x)

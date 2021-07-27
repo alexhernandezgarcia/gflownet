@@ -32,6 +32,21 @@ def get_input():
 
     return [run, samplerSeed, modelSeed, datasetSeed, queryMode]
 
+def printRecord(statement):
+    '''
+    print a string to command line output and a text file
+    :param statement:
+    :return:
+    '''
+    print(statement)
+    if os.path.exists('record.txt'):
+        with open('record.txt', 'a') as file:
+            file.write('\n' + statement)
+    else:
+        with open('record.txt', 'w') as file:
+            file.write('\n' + statement)
+
+
 def letters2numbers(sequences): #Tranforming letters to numbers:
     '''
     Converts ATCG sequences to numerical values
@@ -127,12 +142,12 @@ def updateDataset(params, oracleSequences, oracleScores):
             #dataset['scores'] = np.append(dataset['scores'], oracleScores[i])
 
     if nDuplicates > 0:
-        print("%d duplicates found" % nDuplicates)
+        printRecord("%d duplicates found" % nDuplicates)
 
 
-    print(f"Added{bcolors.OKBLUE}{bcolors.BOLD} %d{bcolors.ENDC}" %int(len(oracleSequences) - nDuplicates) + " to the dataset")
-    print("=====================================================================")
-    #print("New dataset size =%d" %len(dataset['samples']))
+    printRecord(f"Added{bcolors.OKBLUE}{bcolors.BOLD} %d{bcolors.ENDC}" %int(len(oracleSequences) - nDuplicates) + " to the dataset")
+    printRecord("=====================================================================")
+    #printRecord("New dataset size =%d" %len(dataset['samples']))
     np.save('datasets/' + params['dataset'], dataset)
 
 
@@ -187,3 +202,38 @@ def resultsAnalysis(outDir):
     plt.plot(avgLoss / np.amax(avgLoss),label='test loss')
     plt.plot(avgDiff / np.amax(avgDiff),label='pipeline error')
     plt.legend()
+
+
+
+def binaryDistance(samples, pairwise = False):
+    '''
+    compute simple sum of distances between sample vectors
+    :param samples:
+    :return:
+    '''
+    if pairwise: # compute every pairwise distances
+        distances = np.zeros((len(samples), len(samples)))
+        for i in range(len(samples)):
+            distances[i, :] = np.sum(samples[i] != samples, axis = 1) / len(samples)
+    else: # compute average distance of each sample from all the others
+        distances = np.zeros(len(samples))
+        for i in range(len(samples)):
+            distances[i] = np.sum(samples[i] != samples)
+
+    return distances
+
+
+def sortTopXSamples(sortedSamples, samples = 10, distCutoff = 0.2):
+    # collect top distinct samples
+
+    bestSamples = np.expand_dims(sortedSamples[0], 0)
+    bestInds = [0]
+
+    for i in range(1, len(sortedSamples)):
+        candidate = np.expand_dims(sortedSamples[i], 0)
+        dists = binaryDistance(np.concatenate((bestSamples, candidate)), pairwise=True)[-1, :-1]  # pairwise distances between candiate and prior samples
+        if all(dists > distCutoff):  # if the samples are all distinct
+            bestSamples = np.concatenate((bestSamples, candidate))
+            bestInds.append(i)
+
+    return bestInds[:samples]
