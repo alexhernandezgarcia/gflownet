@@ -11,7 +11,7 @@ def mean_confidence_interval(data, confidence=0.95):
     return m, m-h, m+h
 
 # find the stuff
-directory = 'C:/Users\mikem\Desktop/activeLearningRuns\cluster/random_toy_test1'
+directory = 'C:/Users\mikem\Desktop/activeLearningRuns\cluster/run77x'
 os.chdir(directory)
 
 # load the outputs
@@ -46,6 +46,33 @@ plt.clf()
 plt.errorbar(np.arange(20)+1, avgMinima2, yerr=CI, fmt='k.-',ecolor='c',elinewidth=0.5,capsize=4)
 plt.xlabel('AL Iterations')
 plt.ylabel('Test Losses')
-plt.title('Average of Best Test Losses Over Ensemble of {} Models and Toy Functions {}'.format(minima.shape[-1],minima.shape[0]))
+plt.title('Average of Best Test Losses Over Ensemble of {} Models and {} Toy Functions'.format(minima.shape[-1],minima.shape[0]))
 
 
+# average normalized minimum energy and related std deviations
+bestEns = []
+bestSamples = []
+bestVars = []
+oracleMins = []
+for i in range(len(outputs)):
+    bestSamples.append(outputs[i]['best samples'])
+    bestEns.append(outputs[i]['best energies'])
+    bestVars.append(outputs[i]['best vars'])
+    oracleMins.append(np.amin(outputs[i]['oracle outputs']['energy']))
+
+bestSamples = np.asarray(bestSamples)
+bestEns = np.asarray(bestEns)
+bestVars = np.asarray(bestVars)
+oracleMins = np.asarray(oracleMins)
+
+normedEns = np.zeros_like(bestEns)
+normedVars = np.zeros_like(normedEns)
+for i in range(len(outputs)):
+    normedEns[i] = bestEns[i] / oracleMins[i]
+    normedVars[i] = np.sqrt(bestVars[i]) / np.abs(np.average(bestEns[i]))
+
+plt.figure(2)
+plt.clf()
+plt.subplot(1,2,1)
+plt.subplot(1,2,2)
+plt.plot(np.average)

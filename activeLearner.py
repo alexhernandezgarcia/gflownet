@@ -14,6 +14,7 @@ import multiprocessing as mp
 class activeLearning():
     def __init__(self, params):
         self.params = params
+        self.runNum = self.params['run num']
         self.setup()
 
 
@@ -148,7 +149,7 @@ class activeLearning():
         bestEns = sortedEns[bestInds]
         bestVars = sortedVars[bestInds]
 
-        printRecord('Sampler found top {:} distinct samples with minimum energy {:.2f}, average energy {:.2f}, and average std dev {:.2f}'.format(len(bestInds), np.amin(bestEns), np.average(bestEns), np.average(np.sqrt(bestVars))))
+        printRecord('{} Samplers found top {:} distinct samples with minimum energy {:.2f}, average energy {:.2f}, and average std dev {:.2f}'.format(int(self.params['sampler gammas']),len(bestInds), np.amin(bestEns), np.average(bestEns), np.average(np.sqrt(bestVars))))
 
 
         # model beliefs about total dataset as well - similar but not identical to test loss
@@ -170,17 +171,26 @@ class activeLearning():
                 self.model.converge()  # converge model
                 self.testMinima.append(np.amin(self.model.err_te_hist))
         else:
-            cpus = int(np.amin((self.params['ensemble size'], os.cpu_count() - 1)))  # np.min((os.cpu_count()-2,params['runs']))
-            pool = mp.Pool(cpus)
+            if self.params['device'] == 'local':
+                nHold = 4
+            else:
+                nHold = 1
+            cpus = int(os.cpu_count() - nHold)  # np.min((os.cpu_count()-2,params['runs']))
+            if cpus > self.params['ensemble size']: # if we have more cores available, might as well use them
+                self.params['ensemble size'] = cpus
             for i in range(int(np.ceil(self.params['ensemble size'] / cpus))):
-                output = [pool.apply_async(trainModel, args=[self.params, j + i]) for j in range(cpus)]
-                if i > 0:
-                    for j in range(cpus):
-                        outputList.append(output[j].get())
+                with mp.Pool(processes=cpus) as pool:
+                    output = [pool.apply_async(trainModel, args=[self.params, j + i]) for j in range(cpus)]
+                    if i > 0:
+                        for j in range(cpus):
+                            outputList.append(output[j].get(timeout=6000))
+                            self.testMinima.append([np.amin(outputList[i]) for i in range(cpus)])
+                    else:
+                        outputList = [output[i].get(timeout=6000) for i in range(cpus)]
                         self.testMinima.append([np.amin(outputList[i]) for i in range(cpus)])
-                else:
-                    outputList = [output[i].get() for i in range(cpus)]
-                    self.testMinima.append([np.amin(outputList[i]) for i in range(cpus)])
+                    pool.close()
+                    pool.join()
+
 
         printRecord(f'Model ensemble training converged with average test loss of {bcolors.OKGREEN}%.5f{bcolors.ENDC}' % np.average(np.asarray(self.testMinima[-self.params['ensemble size']:])))
 
@@ -282,6 +292,8 @@ class activeLearning():
         del self.model
         self.model = model(self.params,0)
         self.model.loadEnsemble(ensemble)
+
+        print('Loaded {} estimators'.format(int(self.params['ensemble size'])))
 
 
     def loadModelCheckpoint(self):

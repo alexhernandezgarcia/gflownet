@@ -31,13 +31,12 @@ Modules:
 
 
 To-Do
-==>>> aggressive profiling on sampling runs - sometimes they hang for seemingly no reason
+==? test new pool method 
 ==> think carefully about how we split test and train datasets
 ==> large-scale testing scripts
 ==> print list summaries, maybe a table - indeed, collate and collect all found optima (and test them against oracle? - maybe for cheap ones)
-==> return accuracy not as minmum energy but as comparison to known optimum
+==> return accuracy not as minimum energy but as comparison to known optimum
 ==> incorporate sampling, models & queries for mixed-length sequences
-==> decide on representation - currently binary
 
 low priority
 ==> check that relevant params (ensemble size) are properly overwritten when picking up old jobs (maybe we just don't care about old jobs)
@@ -67,20 +66,20 @@ elif params['device'] == 'local':
     params['query mode'] = 'score'  # 'random', 'score', 'uncertainty', 'heuristic', 'learned' # different modes for query construction
 
 # Pipeline parameters
-params['pipeline iterations'] = 20 # number of cycles with the oracle
+params['pipeline iterations'] = 2 # number of cycles with the oracle
 
-params['queries per iter'] = 100 # maximum number of questions we can ask the oracle per cycle
+params['queries per iter'] = 1000 # maximum number of questions we can ask the oracle per cycle
 params['mode'] = 'training' # 'training'  'evaluation' 'initialize'
 params['debug'] = False
 
 # toy data parameters
 params['dataset'] = 'toy'
-params['init dataset length'] = 100 # number of items in the initial (toy) dataset
+params['init dataset length'] = 1000 # number of items in the initial (toy) dataset
 params['variable sample size'] = False # WIP - NON-FUNCTIONAL: if true, 'sample length' should be a list with the smallest and largest size of input sequences [min, max]
 params['sample length'] = 20 # number of input dimensions
 
 # model parameters
-params['ensemble size'] = 5 # number of models in the ensemble
+params['ensemble size'] = 10 # number of models in the ensemble
 params['model filters'] = 12
 params['model layers'] = 2 # for cluster batching
 params['max training epochs'] = 200
@@ -88,8 +87,8 @@ params['GPU'] = 0 # run model on GPU - not yet tested, may not work at all
 params['batch size'] = 10 # model training batch size
 
 # sampler parameters
-params['sampling time'] = 2e4
-params['sampler gammas'] = 5 # minimum number of gammas over which to search for each sampler (if doing in parallel, we may do more if we have more CPUs than this)
+params['sampling time'] = 1e5
+params['sampler gammas'] = 10 # minimum number of gammas over which to search for each sampler (if doing in parallel, we may do more if we have more CPUs than this)
 
 
 #====================================

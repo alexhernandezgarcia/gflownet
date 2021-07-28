@@ -36,6 +36,8 @@ class querier():
                 oracleSamples.extend(randomSamples)
                 oracleSamples = self.filterDuplicates(oracleSamples, scores=False)
 
+            seedInd = 0
+
 
         elif (self.params['query mode'] == 'score') or (self.params['query mode'] == 'uncertainty') or (self.params['query mode'] == 'heuristic'):
             '''
@@ -91,16 +93,19 @@ class querier():
                 nHold = 1
             cpus = os.cpu_count() - nHold  # np.min((os.cpu_count()-2,params['runs']))
             if cpus > self.params['sampler gammas']:
-                nGammas = cpus
-            pool = mp.Pool(cpus)
-            gammas = np.logspace(-4, 1, nGammas)
-            for i in range(int(np.ceil(nGammas / cpus))):
-                output = [pool.apply_async(askSampler, args=[model, self.params, seedInd, gammas[j], scoreFunction]) for j in range(nGammas)]
-                if i > 0:
-                    for j in range(cpus):
-                        sampleOutputs.append(output[j].get())
-                else:
-                    sampleOutputs = [output[i].get() for i in range(cpus)]
+                self.params['sampler gammas'] = cpus
+            gammas = np.logspace(-4, 1, self.params['sampler gammas'])
+            for i in range(int(np.ceil(self.params['sampler gammas'] / cpus))):
+                with mp.Pool(processes=cpus) as pool:
+                    output = [pool.apply_async(askSampler, args=[model, self.params, seedInd, gammas[j], scoreFunction]) for j in range(self.params['sampler gammas'])]
+                    if i > 0:
+                        for j in range(cpus):
+                            sampleOutputs.append(output[j].get(timeout=1200))
+                    else:
+                        sampleOutputs = [output[i].get(timeout=1200) for i in range(cpus)]
+                    pool.close()
+                    pool.join()
+
 
         samples = []
         scores = []

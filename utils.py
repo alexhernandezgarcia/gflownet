@@ -26,7 +26,7 @@ def get_input():
     cmd_line_input = parser.parse_args()
     run = cmd_line_input.run_num
     samplerSeed = cmd_line_input.sampler_seed
-    modelSeed = cmd_line_input.model_seed
+    modelSeed = cmd_line_input.model_seed % 10
     datasetSeed = cmd_line_input.dataset_seed
     queryMode = cmd_line_input.query_type
 
