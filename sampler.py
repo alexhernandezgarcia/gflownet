@@ -56,6 +56,8 @@ class sampler():
         self.spinRandints = np.random.randint(0, 2, size=self.randintsResampleAt).astype('uint8')
         self.pickSpinRandint = np.random.randint(0, self.chainLength, size=self.randintsResampleAt).astype('uint32')
         self.alphaRandoms = np.random.random(self.randintsResampleAt).astype(float)
+        self.changeLengthRandints = np.random.randint(-1,2,size=self.randintsResampleAt).astype('uint8')
+        self.seqExtensionRandints = np.random.randint(0, 2, size=self.randintsResampleAt).astype('uint8')
 
 
     def initOptima(self, scores, energy, variance):
@@ -131,8 +133,20 @@ class sampler():
         propConfig = np.copy(self.config)
         propConfig[self.pickSpinRandint[self.ind]] = self.spinRandints[self.ind]
 
+        # propose changing sequence length
+        if self.params['variable sample size']:
+            if self.changeLengthRandints[self.ind] == 0: # do nothing
+                pass
+            elif self.changeLengthRandints[self.ind] == 1: # extend sequence by adding a new spin
+                if len(propConfig) < self.params['max sample length']:
+                    propConfig = np.append(propConfig, self.seqExtensionRandints[self.ind])
+            elif self.changeLengthRandints[self.ind] == -1: # shorten sequence by trimming the end
+                if len(propConfig > self.params['min sample length']):
+                    propConfig = np.delete(propConfig, -1)
+
+
         # has to be a different state or we just skip the cycle
-        if not all(propConfig == self.config):
+        if (not all(propConfig[0:len(self.config)] == self.config[0:len(propConfig)]) or (len(propConfig) != len(self.config))): # account for variable lengths
             # compute acceptance ratio
             scores, energy, variance = self.getScores(propConfig, self.config, model, useOracle)
 

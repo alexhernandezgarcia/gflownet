@@ -19,7 +19,7 @@ class querier():
     def __init__(self, params):
         self.params = params
 
-    def buildQuery(self, model):
+    def buildQuery(self, model, parallel=True):
         """
         select the samples which will be sent to the oracle for scoring
         :param sampleDict:
@@ -32,7 +32,7 @@ class querier():
             '''
             oracleSamples = []
             while len(oracleSamples) < nQueries:
-                randomSamples = np.random.randint(0, 2, size=(self.params['queries per iter'], self.params['sample length']))
+                randomSamples = np.random.randint(0, 2, size=(self.params['queries per iter'], self.params['max sample length']))
                 oracleSamples.extend(randomSamples)
                 oracleSamples = self.filterDuplicates(oracleSamples, scores=False)
 
@@ -55,7 +55,7 @@ class querier():
             samples = []
             scores = []
             while (len(oracleSamples) < self.params['queries per iter']) and (seedInd < 100):  # until we fill up the query size threshold - flag for if it can't add more for some reason
-                self.samplingOutputs = self.runSampling(model, scoreFunction, seedInd)
+                self.samplingOutputs = self.runSampling(model, scoreFunction, seedInd, parallel)
                 if seedInd == 0:
                     samples = self.samplingOutputs['samples']
                     scores = self.samplingOutputs['scores']
@@ -65,8 +65,6 @@ class querier():
                 samples, scores = self.filterDuplicates([samples, scores])
                 oracleSamples = samples  # don't prune for now
                 seedInd += 1
-
-
 
 
         elif self.params['query mode'] == 'learned':
@@ -92,19 +90,12 @@ class querier():
             else:
                 nHold = 1
             cpus = os.cpu_count() - nHold  # np.min((os.cpu_count()-2,params['runs']))
-            if cpus > self.params['sampler gammas']:
-                self.params['sampler gammas'] = cpus
             gammas = np.logspace(-4, 1, self.params['sampler gammas'])
-            for i in range(int(np.ceil(self.params['sampler gammas'] / cpus))):
-                with mp.Pool(processes=cpus) as pool:
-                    output = [pool.apply_async(askSampler, args=[model, self.params, seedInd, gammas[j], scoreFunction]) for j in range(self.params['sampler gammas'])]
-                    if i > 0:
-                        for j in range(cpus):
-                            sampleOutputs.append(output[j].get(timeout=1200))
-                    else:
-                        sampleOutputs = [output[i].get(timeout=1200) for i in range(cpus)]
-                    pool.close()
-                    pool.join()
+            with mp.Pool(processes=cpus) as pool:
+                output = [pool.apply_async(askSampler, args=[model, self.params, seedInd, gammas[j], scoreFunction]) for j in range(self.params['sampler gammas'])]
+                sampleOutputs = [output[i].get(timeout=1200) for i in range(self.params['sampler gammas'])]
+                pool.close()
+                pool.join()
 
 
         samples = []
@@ -165,7 +156,7 @@ class querier():
             for i in range(len(samples)):
                 duplicates = 0
                 for j in range(len(checkAgainst)):
-                    if all(samples[i] == checkAgainst[j]):
+                    if all(samples[i][0:len(checkAgainst[j])] == checkAgainst[j][0:len(samples[i])]) and (len(checkAgainst[j] == len(samples[i]))):
                         duplicates += 1
 
                 if duplicates == 1:

@@ -11,7 +11,7 @@ def mean_confidence_interval(data, confidence=0.95):
     return m, m-h, m+h
 
 # find the stuff
-directory = 'C:/Users\mikem\Desktop/activeLearningRuns\cluster/run77x'
+directory = 'C:/Users\mikem\Desktop/activeLearningRuns\cluster/run20x'
 os.chdir(directory)
 
 # load the outputs
@@ -71,8 +71,10 @@ for i in range(len(outputs)):
     normedEns[i] = bestEns[i] / oracleMins[i]
     normedVars[i] = np.sqrt(bestVars[i]) / np.abs(np.average(bestEns[i]))
 
+'''
 plt.figure(2)
 plt.clf()
 plt.subplot(1,2,1)
 plt.subplot(1,2,2)
 plt.plot(np.average)
+'''

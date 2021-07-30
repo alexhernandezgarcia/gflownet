@@ -37,6 +37,7 @@ To-Do
 ==> print list summaries, maybe a table - indeed, collate and collect all found optima (and test them against oracle? - maybe for cheap ones)
 ==> return accuracy not as minimum energy but as comparison to known optimum
 ==> incorporate sampling, models & queries for mixed-length sequences
+    -> maybe the last thing - look at how we can compute binary distances between sequences of different lengths
 
 low priority
 ==> check that relevant params (ensemble size) are properly overwritten when picking up old jobs (maybe we just don't care about old jobs)
@@ -66,7 +67,7 @@ elif params['device'] == 'local':
     params['query mode'] = 'score'  # 'random', 'score', 'uncertainty', 'heuristic', 'learned' # different modes for query construction
 
 # Pipeline parameters
-params['pipeline iterations'] = 2 # number of cycles with the oracle
+params['pipeline iterations'] = 20 # number of cycles with the oracle
 
 params['queries per iter'] = 1000 # maximum number of questions we can ask the oracle per cycle
 params['mode'] = 'training' # 'training'  'evaluation' 'initialize'
@@ -75,16 +76,20 @@ params['debug'] = False
 # toy data parameters
 params['dataset'] = 'toy'
 params['init dataset length'] = 1000 # number of items in the initial (toy) dataset
-params['variable sample size'] = False # WIP - NON-FUNCTIONAL: if true, 'sample length' should be a list with the smallest and largest size of input sequences [min, max]
-params['sample length'] = 20 # number of input dimensions
+params['variable sample size'] = False # WIP - NON-FUNCTIONAL: if true, 'max sample length' should be a list with the smallest and largest size of input sequences [min, max]
+params['min sample length'] = 11 # minimum input sequence length
+params['max sample length'] = 20 # maximum input sequence length (inclusive) - or fixed sample size if 'variable sample size' is false
 
 # model parameters
 params['ensemble size'] = 10 # number of models in the ensemble
 params['model filters'] = 12
 params['model layers'] = 2 # for cluster batching
+params['embed dim'] = 4 # embedding dimension
 params['max training epochs'] = 200
 params['GPU'] = 0 # run model on GPU - not yet tested, may not work at all
 params['batch size'] = 10 # model training batch size
+if params['variable sample size']:
+    params['batch size'] = 1 # we can only train one at a time right now with variable length models
 
 # sampler parameters
 params['sampling time'] = 1e5
@@ -96,6 +101,9 @@ if params['mode'] == 'evaluation':
     params['pipeline iterations'] = 1
 
 if params['test mode']:
+    params['pipeline iterations'] = 2
+    params['init dataset length'] = 100
+    params['queries per iter'] = 100
     params['sampling time'] = 1e3
     params['sampler gammas'] = 3
     params['ensemble size'] = 3

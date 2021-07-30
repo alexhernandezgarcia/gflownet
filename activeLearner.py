@@ -38,7 +38,7 @@ class activeLearning():
             os.chdir(self.workDir) # move to working dir
             printRecord('Starting Fresh Run %d' %self.runNum)
             #copyfile(self.params['dataset directory'] + '/' + self.params['dataset'],self.workDir + '/datasets/' + self.params['dataset'] + '.npy') # if using a real initial dataset (not toy) copy it to the workdir
-            self.oracle.initializeDataset(self.params['sample length'], self.params['init dataset length']) # generate toy model dataset
+            self.oracle.initializeDataset(self.params['max sample length'], self.params['init dataset length']) # generate toy model dataset
         else:
             # move to working dir
             self.workDir = self.params['workdir'] + '/' + 'run%d' %self.params['run num']
@@ -131,10 +131,10 @@ class activeLearning():
 
         try:
             nRandomSamples = int(1e5)
-            modelSample = self.model.evaluate(np.random.randint(0,2,size=(nRandomSamples,self.params['sample length'])),output='Both')
+            modelSample = self.model.evaluate(np.random.randint(0,2,size=(nRandomSamples,self.params['max sample length'])),output='Both')
         except MemoryError:
             nRandomSamples = int(1e3)
-            modelSample = self.model.evaluate(np.random.randint(0,2,size=(nRandomSamples,self.params['sample length'])),output='Both')
+            modelSample = self.model.evaluate(np.random.randint(0,2,size=(nRandomSamples,self.params['max sample length'])),output='Both')
 
 
         # top X distinct samples - energies and uncertainties - we want to know how many minima it's found, how low they are, and how confident we are about them
@@ -175,21 +175,13 @@ class activeLearning():
                 nHold = 4
             else:
                 nHold = 1
-            cpus = int(os.cpu_count() - nHold)  # np.min((os.cpu_count()-2,params['runs']))
-            if cpus > self.params['ensemble size']: # if we have more cores available, might as well use them
-                self.params['ensemble size'] = cpus
-            for i in range(int(np.ceil(self.params['ensemble size'] / cpus))):
-                with mp.Pool(processes=cpus) as pool:
-                    output = [pool.apply_async(trainModel, args=[self.params, j + i]) for j in range(cpus)]
-                    if i > 0:
-                        for j in range(cpus):
-                            outputList.append(output[j].get(timeout=6000))
-                            self.testMinima.append([np.amin(outputList[i]) for i in range(cpus)])
-                    else:
-                        outputList = [output[i].get(timeout=6000) for i in range(cpus)]
-                        self.testMinima.append([np.amin(outputList[i]) for i in range(cpus)])
-                    pool.close()
-                    pool.join()
+            cpus = int(os.cpu_count() - nHold)
+            with mp.Pool(processes=cpus) as pool:
+                output = [pool.apply_async(trainModel, args=[self.params, j]) for j in range(self.params['ensemble size'])]
+                outputList = [output[i].get(timeout=6000) for i in range(self.params['ensemble size'])]
+                self.testMinima.append([np.amin(outputList[i]) for i in range(self.params['ensemble size'])])
+                pool.close()
+                pool.join()
 
 
         printRecord(f'Model ensemble training converged with average test loss of {bcolors.OKGREEN}%.5f{bcolors.ENDC}' % np.average(np.asarray(self.testMinima[-self.params['ensemble size']:])))

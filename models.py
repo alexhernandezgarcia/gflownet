@@ -40,7 +40,10 @@ class model():
         Initialize model and optimizer
         :return:
         '''
-        self.model = MLP(self.params)
+        if self.params['variable sample size']: # switch to variable-length sequence model
+            self.model = LSTM(self.params)
+        else:
+            self.model = MLP(self.params)
         self.optimizer = optim.AdamW(self.model.parameters(), amsgrad=True)
         datasetBuilder = buildDataset(self.params)
         self.mean, self.std = datasetBuilder.getStandardization()
@@ -237,13 +240,18 @@ class model():
         '''
         self.model.train(False)
         with torch.no_grad():  # we won't need gradients! no training just testing
-            out = self.model(torch.Tensor(Data).float())
+            if self.params['variable sample size']:
+                out1 = self.model(torch.Tensor(Data[0]).unsqueeze(0).float()).detach().numpy()
+                out2 = self.model(torch.Tensor(Data[1]).unsqueeze(0).float()).detach().numpy()
+                out = np.concatenate((out1,out2),axis=0)
+            else:
+                out = self.model(torch.Tensor(Data).float()).detach().numpy()
             if output == 'Average':
                 return np.average(out,axis=1) * self.std + self.mean
             elif output == 'Variance':
-                return np.var(out.detach().numpy() * self.std + self.mean,axis=1)
+                return np.var(out * self.std + self.mean,axis=1)
             elif output == 'Both':
-                return np.average(out,axis=1) * self.std + self.mean, np.var(out.detach().numpy() * self.std + self.mean,axis=1)
+                return np.average(out,axis=1) * self.std + self.mean, np.var(out * self.std + self.mean,axis=1)
 
     def loadEnsemble(self,models):
         '''
@@ -326,6 +334,22 @@ def getDataSize(params):
     samples = dataset['samples']
 
     return len(samples[0])
+
+
+class LSTM(nn.Module):
+    def __init__(self,params):
+        super(LSTM,self).__init__()
+        # initialize constants and layers
+
+        self.embedding = nn.Embedding(2, embedding_dim = params['embed dim'])
+        self.encoder = nn.LSTM(input_size=params['embed dim'],hidden_size=params['model filters'],num_layers=params['model layers'])
+        self.decoder = nn.Linear((params['model filters']), 1)
+
+    def forward(self, x):
+        x = x.permute(1,0) # weird input shape requirement
+        embeds = self.embedding(x.int())
+        y = self.encoder(embeds)[0]
+        return self.decoder(y[-1,:,:])
 
 
 class MLP(nn.Module):

@@ -1,6 +1,7 @@
 '''import statements'''
 import numpy as np
 import scipy.io
+import random
 
 '''
 This script computes a binding score for a given sequence or set of sequences
@@ -20,6 +21,8 @@ class oracle():
         :param params:
         '''
         self.params = params
+        np.random.seed(self.params['dataset seed'])
+        self.toyOracleFactors = np.random.randn(self.params['max sample length'])
 
 
     def score(self, queries):
@@ -38,14 +41,15 @@ class oracle():
         :param queries:
         :return:
         '''
-        queries = np.asarray(queries)
-        np.random.seed(int(queries.shape[-1] * self.params['dataset seed'])) # this ensures we get the same energy function for the same initial conditions
-        hamiltonian = np.random.randn(queries.shape[-1],queries.shape[-1]) # energy function
-        hamiltonian = np.tril(hamiltonian) + np.tril(hamiltonian, -1).T # I like random symmetric matrices
+        #queries = np.asarray(queries)
+        #np.random.seed(self.params['dataset seed']) # this ensures we get the same energy function for the same initial conditions
+        #hamiltonian = np.random.randn(queries.shape[-1],queries.shape[-1]) # energy function
+        #hamiltonian = np.tril(hamiltonian) + np.tril(hamiltonian, -1).T # I like random symmetric matrices
         energies = np.zeros(len(queries))
 
         for i in range(len(queries)):
-            energies[i] = queries[i] @ hamiltonian @ queries[i].transpose() # compute energy for each sample
+            energies[i] = np.sum(self.toyOracleFactors[0:len(queries[i])] * queries[i]) # simple linear combination - adjustable range
+            #energies[i] = queries[i] @ hamiltonian @ queries[i].transpose() # compute energy for each sample
 
         return energies
 
@@ -57,9 +61,19 @@ class oracle():
         :return:
         '''
         data = {}
-        np.random.seed(int(numSamples * inputSize * self.params['dataset seed']))
-        data['samples'] = np.random.randint(0,2,size=(numSamples, inputSize)) # samples are a binary set
-        data['scores'] = self.toyEnergy(data['samples'])
+        np.random.seed(self.params['dataset seed'])
+
+        if self.params['variable sample size']:
+            samples = []
+            for i in range(self.params['min sample length'], self.params['max sample length'] + 1):
+                samples.extend(np.random.randint(0, 2, size=(self.params['init dataset length'], i)))  # initialize sequences from length 15-40
+
+            random.shuffle(samples)
+            data['samples'] = samples  # samples are a binary set
+            data['scores'] = self.toyEnergy(data['samples'])
+        else:
+            data['samples'] = np.random.randint(0,2,size=(numSamples, inputSize)) # samples are a binary set
+            data['scores'] = self.toyEnergy(data['samples'])
 
         np.save('datasets/' + self.params['dataset'], data)
 
