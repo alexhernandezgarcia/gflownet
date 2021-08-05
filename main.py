@@ -25,8 +25,8 @@ low priority
 
 # initialize control parameters
 params = {}
-params['device'] = 'cluster' # 'local' or 'cluster'
-params['explicit run enumeration'] = True # if this is True, the next run be fresh, in directory 'run%d'%run_num, if false, regular behaviour. Note: only use this on fresh runs
+params['device'] = 'local' # 'local' or 'cluster'
+params['explicit run enumeration'] = False # if this is True, the next run be fresh, in directory 'run%d'%run_num, if false, regular behaviour. Note: only use this on fresh runs
 params['test mode'] = False # WIP # if true, automatically set parameters for a quick test run
 
 # get command line input
@@ -63,11 +63,11 @@ params['variable sample size'] = True # WIP - NON-FUNCTIONAL: if true, 'max samp
 params['min sample length'], params['max sample length'] = [10, 20] # minimum input sequence length and # maximum input sequence length (inclusive) - or fixed sample size if 'variable sample size' is false
 
 # model parameters
-params['ensemble size'] = 4 # number of models in the ensemble
-params['model filters'] = 24
+params['ensemble size'] = 5 # number of models in the ensemble
+params['model filters'] = 32
 params['model layers'] = 2 # for cluster batching
-params['embed dim'] = 4 # embedding dimension
-params['max training epochs'] = 200
+params['embed dim'] = 12 # embedding dimension
+params['max training epochs'] = 10
 params['GPU'] = 0 # run model on GPU - not yet tested, may not work at all
 params['batch size'] = 10 # model training batch size
 

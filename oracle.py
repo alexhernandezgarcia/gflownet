@@ -154,13 +154,13 @@ class oracle():
         energies = np.zeros(len(queries))
         for k in range(len(queries)):
             sample = queries[k].copy()
-            sample -= 1 # reindex from 1->N to 0->N-1
+
             # potts hamiltonian
             for ii in range(np.count_nonzero(sample)): # ignore padding terms
-                energies[k] += self.pottsH[ii, sample[ii]] # add onsite term
+                energies[k] += self.pottsH[ii, sample[ii] - 1] # add onsite term and account for indexing (e.g. 1-4 -> 0-3)
 
                 for jj in range(ii,np.count_nonzero(sample)): # this is duplicated on lower triangle so we only need to do it from i-L
-                    energies[k] += 2 * self.pottsJ[ii, jj, sample[ii], sample[jj]]  # site-specific couplings
+                    energies[k] += 2 * self.pottsJ[ii, jj, sample[ii] - 1, sample[jj] - 1]  # site-specific couplings
 
         return energies
 
