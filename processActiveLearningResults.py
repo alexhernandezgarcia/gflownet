@@ -11,7 +11,7 @@ def mean_confidence_interval(data, confidence=0.95):
     return m, m-h, m+h
 
 # find the stuff
-directory = 'C:/Users\mikem\Desktop/activeLearningRuns\cluster/run20x'
+directory = 'C:/Users\mikem\Desktop/activeLearningRuns\cluster/run16x'
 os.chdir(directory)
 
 # load the outputs
@@ -43,10 +43,10 @@ CI = np.transpose(np.asarray(CI))
 # plot average test loss over all runs, with confidence intervals
 plt.figure(1)
 plt.clf()
-plt.errorbar(np.arange(20)+1, avgMinima2, yerr=CI, fmt='k.-',ecolor='c',elinewidth=0.5,capsize=4)
+plt.errorbar(np.arange(20)+1, avgMinima2, yerr=CI, fmt='k.-',ecolor='r',elinewidth=0.5,capsize=4)
 plt.xlabel('AL Iterations')
 plt.ylabel('Test Losses')
-plt.title('Average of Best Test Losses Over Ensemble of {} Models and {} Toy Functions'.format(minima.shape[-1],minima.shape[0]))
+plt.title('Average of Best Test Losses Over {} Ensembles of {} Models'.format(minima.shape[0],minima.shape[-1]))
 
 
 # average normalized minimum energy and related std deviations
@@ -71,10 +71,14 @@ for i in range(len(outputs)):
     normedEns[i] = bestEns[i] / oracleMins[i]
     normedVars[i] = np.sqrt(bestVars[i]) / np.abs(np.average(bestEns[i]))
 
-'''
+
 plt.figure(2)
 plt.clf()
-plt.subplot(1,2,1)
-plt.subplot(1,2,2)
-plt.plot(np.average)
-'''
+#plt.subplot(1,2,1)
+plt.plot(np.average(normedEns[:,:,0],axis=0),'.-') # average of best samples
+
+plt.title('Ensemble Average Performance')
+plt.ylabel('Score vs. known minimum')
+plt.xlabel('AL Iterations')
+#plt.subplot(1,2,2)
+#plt.plot(np.average(bestVars[:,:,0],axis=0))

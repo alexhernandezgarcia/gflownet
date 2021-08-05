@@ -54,7 +54,6 @@ def letters2numbers(sequences): #Tranforming letters to numbers:
     :return: DNA sequences in 1234 format
     '''
 
-    assert type(sequences) == list, 'Function inputs must be a list'
 
     my_seq=np.zeros((len(sequences), len(sequences[0])))
     row=0
@@ -64,13 +63,13 @@ def letters2numbers(sequences): #Tranforming letters to numbers:
         col=0
         for na in seq:
             if (na=="a") or (na == "A"):
-                my_seq[row,col]=0
-            elif (na=="u") or (na == "U") or (na=="t") or (na == "T"):
                 my_seq[row,col]=1
-            elif (na=="c") or (na == "C"):
+            elif (na=="u") or (na == "U") or (na=="t") or (na == "T"):
                 my_seq[row,col]=2
-            elif (na=="g") or (na == "G"):
+            elif (na=="c") or (na == "C"):
                 my_seq[row,col]=3
+            elif (na=="g") or (na == "G"):
+                my_seq[row,col]=4
             col+=1
         row+=1
 
@@ -93,13 +92,13 @@ def numbers2letters(sequences): #Tranforming letters to numbers:
         assert type(seq) != str, 'Function inputs must be a list of equal length strings'
         for i in range(len(sequences[0])):
             na = seq[i]
-            if na==0:
+            if na==1:
                 my_seq[row]+='A'
-            elif na==1:
-                my_seq[row]+='T'
             elif na==2:
-                my_seq[row]+='C'
+                my_seq[row]+='T'
             elif na==3:
+                my_seq[row]+='C'
+            elif na==4:
                 my_seq[row]+='G'
         row+=1
     return my_seq
@@ -124,22 +123,20 @@ def updateDataset(params, oracleSequences, oracleScores):
     :return: n/a
     '''
     dataset = np.load('datasets/' + params['dataset'] + '.npy', allow_pickle=True).item()
+    datasetSamples = dataset['samples'] # pad samples of unequal length with '-1'
 
     nDuplicates = 0 # this check should no longer be necessary, but I guess it doesn't hurt anything for now
     for i in range(len(oracleSequences)):
-        #assert type(oracleSequences[i]) == str, "Sequences must be in string format before saving to the dataset"
-        assert len(oracleSequences[i]) == len(dataset['samples'][0]), "Added sequences must be the same length as those already in the dataset!"
         duplicate = 0
-        for j in range(len(dataset['samples'])): # search for duplicates
-            if all(oracleSequences[i] == dataset['samples'][j]):
+        for j in range(len(datasetSamples)): # search for duplicates
+            if all(oracleSequences[i] == datasetSamples[j]):
                 duplicate = 1
                 nDuplicates += 1
 
         if duplicate == 0:
             dataset['samples'] = np.concatenate((dataset['samples'],np.expand_dims(oracleSequences[i],0)))
             dataset['scores'] = np.concatenate((dataset['scores'],np.expand_dims(oracleScores[i],0)))
-            #dataset['samples'].append(oracleSequences[i])
-            #dataset['scores'] = np.append(dataset['scores'], oracleScores[i])
+
 
     if nDuplicates > 0:
         printRecord("%d duplicates found" % nDuplicates)
@@ -211,6 +208,11 @@ def binaryDistance(samples, pairwise = False):
     :param samples:
     :return:
     '''
+    # determine if all samples have equal length
+    lens = np.array([i.shape[-1] for i in samples])
+    if len(np.unique(lens)) > 1: # if there are multiple lengths, we need to pad up to a constant length
+        raise ValueError('Attempted to compute binary distances between samples with different lengths!')
+
     if pairwise: # compute every pairwise distances
         distances = np.zeros((len(samples), len(samples)))
         for i in range(len(samples)):
@@ -226,14 +228,29 @@ def binaryDistance(samples, pairwise = False):
 def sortTopXSamples(sortedSamples, samples = 10, distCutoff = 0.2):
     # collect top distinct samples
 
-    bestSamples = np.expand_dims(sortedSamples[0], 0)
+    bestSamples = np.expand_dims(sortedSamples[0], 0) # start with the best identified sequence
     bestInds = [0]
 
     for i in range(1, len(sortedSamples)):
         candidate = np.expand_dims(sortedSamples[i], 0)
-        dists = binaryDistance(np.concatenate((bestSamples, candidate)), pairwise=True)[-1, :-1]  # pairwise distances between candiate and prior samples
+        sampleList = np.concatenate((bestSamples, candidate))
+
+        dists = binaryDistance(sampleList, pairwise=True)[-1, :-1]  # pairwise distances between candiate and prior samples
         if all(dists > distCutoff):  # if the samples are all distinct
             bestSamples = np.concatenate((bestSamples, candidate))
             bestInds.append(i)
 
     return bestInds[:samples]
+
+
+def numpy_fillna(data):
+    # Get lengths of each row of data
+    lens = np.array([len(i) for i in data])
+
+    # Mask of valid places in each row
+    mask = np.arange(lens.max()) < lens[:,None]
+
+    # Setup output array and put elements from data into masked positions
+    out = np.zeros(mask.shape, dtype=data.dtype) - 1
+    out[mask] = np.concatenate(data)
+    return out

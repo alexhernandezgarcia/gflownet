@@ -219,6 +219,9 @@ def askSampler(model, params, seedInd, gamma, scoreFunction):
     :param scoreFunction:
     :return:
     """
+    t0 = time.time()
     mcmcSampler = sampler(params, seedInd, scoreFunction=scoreFunction)
     sampleOutputs = mcmcSampler.sample(model, gamma)
+    tf = time.time()
+    #print('Sampler {} finished after {} seconds'.format(gamma, int(tf-t0)))
     return sampleOutputs

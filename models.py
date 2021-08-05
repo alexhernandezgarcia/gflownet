@@ -3,7 +3,7 @@ import torch
 import torch.nn.functional as F
 from torch.utils import data
 from torch import nn, optim, cuda, backends
-
+import math
 from sklearn.utils import shuffle
 
 import os
@@ -26,7 +26,7 @@ Problems
 '''
 
 
-class model():
+class modelNet():
     def __init__(self, params, ensembleIndex):
         self.params = params
         self.ensembleIndex = ensembleIndex
@@ -41,7 +41,7 @@ class model():
         :return:
         '''
         if self.params['variable sample size']: # switch to variable-length sequence model
-            self.model = LSTM(self.params)
+            self.model = transformer(self.params)
         else:
             self.model = MLP(self.params)
         self.optimizer = optim.AdamW(self.model.parameters(), amsgrad=True)
@@ -75,7 +75,7 @@ class model():
             #prev_epoch = checkpoint['epoch']
 
             if self.params['GPU'] == 1:
-                model.cuda()  # move net to GPU
+                self.model.cuda()  # move net to GPU
                 for state in self.optimizer.state.values():  # move optimizer to GPU
                     for k, v in state.items():
                         if isinstance(v, torch.Tensor):
@@ -105,11 +105,11 @@ class model():
 
         while (self.converged != 1):
             if self.epochs > 0: #  this allows us to keep the previous model if it is better than any produced on this run
-                model.train_net(self, tr)
+                self.train_net(tr)
             else:
                 self.err_tr_hist.append(0)
 
-            model.test(self, te) # baseline from any prior training
+            self.test(te) # baseline from any prior training
 
             if self.err_te_hist[-1] == np.min(self.err_te_hist): # if this is the best test loss we've seen
                 self.save(best=1)
@@ -240,12 +240,7 @@ class model():
         '''
         self.model.train(False)
         with torch.no_grad():  # we won't need gradients! no training just testing
-            if self.params['variable sample size']:
-                out1 = self.model(torch.Tensor(Data[0]).unsqueeze(0).float()).detach().numpy()
-                out2 = self.model(torch.Tensor(Data[1]).unsqueeze(0).float()).detach().numpy()
-                out = np.concatenate((out1,out2),axis=0)
-            else:
-                out = self.model(torch.Tensor(Data).float()).detach().numpy()
+            out = self.model(torch.Tensor(Data).float()).detach().numpy()
             if output == 'Average':
                 return np.average(out,axis=1) * self.std + self.mean
             elif output == 'Variance':
@@ -298,7 +293,7 @@ class buildDataset():
         return self.samples, self.targets
 
     def getStandardization(self):
-        return np.mean(self.targets), np.var(self.targets)
+        return np.mean(self.targets), np.sqrt(np.var(self.targets))
 
 
 def getDataloaders(params): # get the dataloaders, to load the dataset in batches
@@ -336,7 +331,61 @@ def getDataSize(params):
     return len(samples[0])
 
 
+class PositionalEncoding(nn.Module):
+
+    def __init__(self, d_model: int, dropout: float = 0.1, max_len: int = 5000):
+        super().__init__()
+        self.dropout = nn.Dropout(p=dropout)
+
+        position = torch.arange(max_len).unsqueeze(1)
+        div_term = torch.exp(torch.arange(0, d_model, 2) * (-math.log(10000.0) / d_model))
+        pe = torch.zeros(max_len, 1, d_model)
+        pe[:, 0, 0::2] = torch.sin(position * div_term)
+        pe[:, 0, 1::2] = torch.cos(position * div_term)
+        self.register_buffer('pe', pe)
+
+    def forward(self, x):
+        """
+        Args:
+            x: Tensor, shape [seq_len, batch_size, embedding_dim]
+        """
+        x = x + self.pe[:x.size(0)]
+        return self.dropout(x)
+
+
+class transformer(nn.Module):
+    def __init__(self,params):
+        super(transformer,self).__init__()
+
+        self.embedDim = params['model filters']
+        self.hiddenDim = params['model filters']
+        self.layers = params['model layers']
+        self.maxLen = params['max sample length']
+        self.dictLen = params['dict size']
+        self.heads = min([4, max([1,self.embedDim//self.dictLen])])
+
+        self.positionalEncoder = PositionalEncoding(self.embedDim, max_len = self.maxLen)
+        self.embedding = nn.Embedding(self.dictLen + 1, embedding_dim = self.embedDim)
+        encoder_layer = nn.TransformerEncoderLayer(self.embedDim, nhead = self.heads,dim_feedforward=self.hiddenDim, activation='gelu')
+        self.encoder = nn.TransformerEncoder(encoder_layer, num_layers = self.layers)
+        self.decoder1 = nn.Linear(int(self.embedDim * self.maxLen), self.hiddenDim)
+        self.decoder2 = nn.Linear(self.hiddenDim, 1)
+
+    def forward(self,x):
+        x_key_padding_mask = (x==0).clone().detach() # zero out the attention of empty sequence elements
+        x = self.embedding(x.transpose(1,0).int()) # [seq, batch]
+        x = self.positionalEncoder(x)
+        x = self.encoder(x,src_key_padding_mask=x_key_padding_mask)
+        x = x.permute(1,0,2).reshape(x_key_padding_mask.shape[0], int(self.embedDim*self.maxLen))
+        x = self.decoder1(x)
+        x = self.decoder2(x)
+        return x
+
+
 class LSTM(nn.Module):
+    '''
+    may not work currently
+    '''
     def __init__(self,params):
         super(LSTM,self).__init__()
         # initialize constants and layers

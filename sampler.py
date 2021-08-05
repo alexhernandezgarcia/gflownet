@@ -37,7 +37,7 @@ class sampler():
 
         self.initialize()
 
-        if self.params['dataset'] == 'toy':
+        if self.params['dataset type'] == 'toy':
             self.oracle = oracle(self.params) # if we are using a toy model, initialize the oracle so we can optimize it directly for comparison
 
     def __call__(self, model):
@@ -49,15 +49,15 @@ class sampler():
         get initial condition
         :return:
         '''
-        self.config = np.random.randint(0, 2, self.chainLength)
+        self.config = np.random.randint(1, self.params['dict size'], self.chainLength)
 
 
     def resampleRandints(self):
-        self.spinRandints = np.random.randint(0, 2, size=self.randintsResampleAt).astype('uint8')
+        self.spinRandints = np.random.randint(1, self.params['dict size'], size=self.randintsResampleAt).astype('uint8')
         self.pickSpinRandint = np.random.randint(0, self.chainLength, size=self.randintsResampleAt).astype('uint32')
         self.alphaRandoms = np.random.random(self.randintsResampleAt).astype(float)
         self.changeLengthRandints = np.random.randint(-1,2,size=self.randintsResampleAt).astype('uint8')
-        self.seqExtensionRandints = np.random.randint(0, 2, size=self.randintsResampleAt).astype('uint8')
+        self.seqExtensionRandints = np.random.randint(1, self.params['dict size'], size=self.randintsResampleAt).astype('uint8')
 
 
     def initOptima(self, scores, energy, variance):

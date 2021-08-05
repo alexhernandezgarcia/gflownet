@@ -1,5 +1,5 @@
 from utils import *
-from models import *
+from models import modelNet
 from querier import *
 from oracle import *
 from sampler import *
@@ -78,7 +78,7 @@ class activeLearning():
         self.testMinima = [] # best test loss of models, for each iteration of the pipeline
         self.bestScores = [] # best optima found by the sampler, for each iteration of the pipeline
 
-        if self.params['dataset'] == 'toy':
+        if self.params['dataset type'] == 'toy':
             pass
             self.sampleOracle() # use the oracle to pre-solve the problem for future benchmarking
             printRecord(f"The true global minimum is {bcolors.OKGREEN}%.3f{bcolors.ENDC}" % np.amin(self.oracleOptima['scores']))
@@ -97,7 +97,7 @@ class activeLearning():
         :return:
         '''
         t0 = time.time()
-        self.retrainModels()
+        self.retrainModels(parallel=self.params['training parallelism'])
         tf = time.time()
         printRecord('Retraining took {} seconds'.format(int(tf-t0)))
 
@@ -189,7 +189,7 @@ class activeLearning():
 
     def getQuery(self):
         self.loadEstimatorEnsemble()
-        query, iterations = self.querier.buildQuery(self.model)  # pick Samples to be scored
+        query, iterations = self.querier.buildQuery(self.model, parallel = self.params['sampling parallelism'])  # pick Samples to be scored
 
         return query, iterations
 
@@ -260,15 +260,6 @@ class activeLearning():
         return sampleDict
 
 
-    def getModel(self):
-        '''
-        initialize model and check for prior checkpoints
-        :return:
-        '''
-        self.model = model(self.params)
-        #printRecord(f'{bcolors.HEADER} New model: {bcolors.ENDC}', getDirName(self.params))
-
-
     def loadEstimatorEnsemble(self):
         '''
         load all the trained models at their best checkpoints
@@ -282,7 +273,7 @@ class activeLearning():
             ensemble.append(self.model.model)
 
         del self.model
-        self.model = model(self.params,0)
+        self.model = modelNet(self.params,0)
         self.model.loadEnsemble(ensemble)
 
         print('Loaded {} estimators'.format(int(self.params['ensemble size'])))
@@ -305,7 +296,7 @@ class activeLearning():
             del self.model
         except:
             pass
-        self.model = model(self.params,ensembleIndex)
+        self.model = modelNet(self.params,ensembleIndex)
         #printRecord(f'{bcolors.HEADER} New model: {bcolors.ENDC}', getModelName(ensembleIndex))
         if returnModel:
             return self.model
@@ -318,43 +309,13 @@ class activeLearning():
         '''
         outputDict = {}
         outputDict['params'] = self.params
-        if self.params['dataset'] == 'toy':
+        if self.params['dataset type'] == 'toy':
             outputDict['oracle outputs'] = self.oracleOptima
         outputDict['best samples'] = self.bestSamples
         outputDict['best energies'] = self.bestEns
         outputDict['best vars'] = self.bestVars
         outputDict['model test minima'] = self.testMinima
         np.save('outputsDict',outputDict)
-
-
-
-
-    def plotIterations(self):
-        '''
-        plot high-level results of each iteration
-        1) test loss as function of iteration
-        2) minimum discovered energy as function of iteration
-        :return:
-        '''
-
-        plt.figure(0)
-        plt.subplot(1,2,1)
-        plt.cla()
-        plt.plot(self.testMinima,'o-')
-        plt.xlabel('Iteration')
-        plt.ylabel('Minimum Test Loss')
-        plt.title('Model Performance')
-        plt.subplot(1,2,2)
-        plt.cla()
-        plt.plot(self.bestScores,'o-')
-        if self.params['dataset'] == 'toy':
-            oracleMinimum = np.amin(self.oracleOptima['scores'])
-            plt.plot(np.arange(len(self.bestScores)), np.ones(len(self.bestScores)) * oracleMinimum)
-
-        plt.xlabel('Iteration')
-        plt.ylabel('Minimum Sampled State')
-        plt.title('Best Discovered Optima')
-
 
 
 def trainModel(params, i):
@@ -365,7 +326,7 @@ def trainModel(params, i):
     :return:
     '''
 
-    seqModel = model(params, i)
+    seqModel = modelNet(params, i)
     err_te_hist = seqModel.converge(returnHist = True)  # converge model
 
     return err_te_hist
