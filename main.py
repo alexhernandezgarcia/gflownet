@@ -10,23 +10,22 @@ This code implements an active learning protocol for global minimization of some
 
 To-Do
 ==? test new pool method 
+==> duplicates checking is a tad slow - also sampler makes too many cuplicate samples and checking them takes forever
 ==> think carefully about how we split test and train datasets
 ==> large-scale testing scripts
 ==> print list summaries, maybe a table - indeed, collate and collect all found optima (and test them against oracle? - maybe for cheap ones)
 ==> return accuracy not as minimum energy but as comparison to known optimum
 ==> testing
-==> check reproducibility
-==> model evaluation is ridiculously slow ~3/s for medium sized models
 
 low priority
-==> check that relevant params (ensemble size) are properly overwritten when picking up old jobs (maybe we just don't care about old jobs)
+==> check that relevant params (ensemble size) are properly overwritten when picking up old jobs
 
 '''
 
 # initialize control parameters
 params = {}
-params['device'] = 'local' # 'local' or 'cluster'
-params['explicit run enumeration'] = False # if this is True, the next run be fresh, in directory 'run%d'%run_num, if false, regular behaviour. Note: only use this on fresh runs
+params['device'] = 'cluster' # 'local' or 'cluster'
+params['explicit run enumeration'] = True # if this is True, the next run be fresh, in directory 'run%d'%run_num, if false, regular behaviour. Note: only use this on fresh runs
 params['test mode'] = False # WIP # if true, automatically set parameters for a quick test run
 
 # get command line input
@@ -46,34 +45,36 @@ elif params['device'] == 'local':
     params['query mode'] = 'score'  # 'random', 'score', 'uncertainty', 'heuristic', 'learned' # different modes for query construction
 
 # Pipeline parameters
-params['pipeline iterations'] = 5 # number of cycles with the oracle
+params['pipeline iterations'] = 10 # number of cycles with the oracle
+params['distinct minima'] = 3 # number of distinct minima
+params['minima dist cutoff'] = 0.2 # minimum distance (normalized, binary) between distinct minima
 
 params['queries per iter'] = 1000 # maximum number of questions we can ask the oracle per cycle
 params['mode'] = 'training' # 'training'  'evaluation' 'initialize'
 params['debug'] = False
 params['training parallelism'] = True
-params['sampling parallelism'] = False
+params['sampling parallelism'] = True
 
 # toy data parameters
-params['dataset'] = 'linear' # 'linear', 'inner product', 'potts', 'seqfold', 'nupack' in order of increasing complexity. Note distributions particulary for seqfold and nupack may not be natively well-behaved.
+params['dataset'] = 'potts' # 'linear', 'inner product', 'potts', 'seqfold', 'nupack' in order of increasing complexity. Note distributions particulary for seqfold and nupack may not be natively well-behaved.
 params['dataset type'] = 'toy' # oracle is very fast to sample
 params['init dataset length'] = 1000 # number of items in the initial (toy) dataset
 params['dict size'] = 4 # number of possible choices per-state, e.g., [0,1] would be two, [1,2,3,4] (representing ATGC) would be 4
-params['variable sample size'] = True # WIP - NON-FUNCTIONAL: if true, 'max sample length' should be a list with the smallest and largest size of input sequences [min, max]
+params['variable sample size'] = True #if true, 'max sample length' should be a list with the smallest and largest size of input sequences [min, max]
 params['min sample length'], params['max sample length'] = [10, 20] # minimum input sequence length and # maximum input sequence length (inclusive) - or fixed sample size if 'variable sample size' is false
 
 # model parameters
 params['ensemble size'] = 5 # number of models in the ensemble
-params['model filters'] = 32
-params['model layers'] = 2 # for cluster batching
-params['embed dim'] = 12 # embedding dimension
-params['max training epochs'] = 10
+params['model filters'] = 24
+params['model layers'] = 4 # for cluster batching
+params['embed dim'] = 24 # embedding dimension
+params['max training epochs'] = 200
 params['GPU'] = 0 # run model on GPU - not yet tested, may not work at all
 params['batch size'] = 10 # model training batch size
 
 # sampler parameters
-params['sampling time'] = 1e4
-params['sampler gammas'] = 4 # minimum number of gammas over which to search for each sampler (if doing in parallel, we may do more if we have more CPUs than this)
+params['sampling time'] = int(1e5)
+params['sampler gammas'] = 10 # minimum number of gammas over which to search for each sampler (if doing in parallel, we may do more if we have more CPUs than this)
 
 
 #====================================

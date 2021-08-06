@@ -317,8 +317,8 @@ def getDataloaders(params): # get the dataloaders, to load the dataset in batche
     for i in range(test_size):
         test_dataset.append(dataset[i])
 
-    tr = data.DataLoader(train_dataset, batch_size=training_batch, shuffle=True, num_workers= 0, pin_memory=True)  # build dataloaders
-    te = data.DataLoader(test_dataset, batch_size=training_batch, shuffle=False, num_workers= 0, pin_memory=True) # num_workers must be zero or multiprocessing will not work (can't spawn multiprocessing within multiprocessing)
+    tr = data.DataLoader(train_dataset, batch_size=training_batch, shuffle=True, num_workers= 0, pin_memory=False)  # build dataloaders
+    te = data.DataLoader(test_dataset, batch_size=training_batch, shuffle=False, num_workers= 0, pin_memory=False) # num_workers must be zero or multiprocessing will not work (can't spawn multiprocessing within multiprocessing)
 
     return tr, te, dataset.__len__()
 
@@ -411,13 +411,13 @@ class MLP(nn.Module):
         #elif params['activation']==2:
         #    act_func = 'kernel'
 
-        params['input length'] = int(getDataSize(params))
+        self.inputLength = params['max sample length']
 
         self.layers = params['model layers']
         self.filters = params['model filters']
 
         # build input and output layers
-        self.initial_layer = nn.Linear(params['input length'], self.filters) # layer which takes in our sequence
+        self.initial_layer = nn.Linear(self.inputLength, self.filters) # layer which takes in our sequence
         self.activation1 = Activation(act_func,self.filters,params)
         self.output_layer = nn.Linear(self.filters, 1)
 

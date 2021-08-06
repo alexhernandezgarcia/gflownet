@@ -230,8 +230,9 @@ def sortTopXSamples(sortedSamples, samples = 10, distCutoff = 0.2):
 
     bestSamples = np.expand_dims(sortedSamples[0], 0) # start with the best identified sequence
     bestInds = [0]
-
-    for i in range(1, len(sortedSamples)):
+    i = -1
+    while len(bestInds) < samples:
+        i += 1
         candidate = np.expand_dims(sortedSamples[i], 0)
         sampleList = np.concatenate((bestSamples, candidate))
 
@@ -240,7 +241,7 @@ def sortTopXSamples(sortedSamples, samples = 10, distCutoff = 0.2):
             bestSamples = np.concatenate((bestSamples, candidate))
             bestInds.append(i)
 
-    return bestInds[:samples]
+    return bestInds
 
 
 def numpy_fillna(data):
@@ -254,3 +255,23 @@ def numpy_fillna(data):
     out = np.zeros(mask.shape, dtype=data.dtype) - 1
     out[mask] = np.concatenate(data)
     return out
+
+def filterDuplicateSamples(samples):
+    """
+    make sure there are no duplicates in the filtered samples OR in the existing dataset
+    if scores == True - we sort all of these as well, otherwise we just look at the samples
+    :param samples:
+    :return:
+    """
+
+    filteredSamples = []
+    for i in range(len(samples)):
+        duplicates = 0
+        for j in range(len(samples)):
+            if all(samples[i] == samples[j]):
+                duplicates += 1
+
+        if duplicates == 1:
+            filteredSamples.append(samples[i])  # keep sequences that appear exactly once
+    return np.asarray(filteredSamples)
+

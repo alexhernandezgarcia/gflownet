@@ -30,11 +30,26 @@ class querier():
             '''
             generate query randomly
             '''
-            oracleSamples = []
-            while len(oracleSamples) < nQueries:
-                randomSamples = np.random.randint(0, 2, size=(self.params['queries per iter'], self.params['max sample length']))
-                oracleSamples.extend(randomSamples)
+
+            if self.params['variable sample size']:
+                samples = []
+                while len(samples) < self.params['init dataset length']:
+                    for i in range(self.params['min sample length'], self.params['max sample length'] + 1):
+                        # samples are integer sequeces of varying lengths
+                        samples.extend(np.random.randint(0 + 1, self.params['dict size'] + 1, size=(self.params['queries per iter'] * i, i)))
+
+                    samples = numpy_fillna(np.asarray(samples)).astype(int)  # pad sequences up to maximum length
+                    samples = self.filterDuplicates(samples, scores=False)
+
+                samples = samples[:nQueries]  # after shuffle, reduce dataset to desired size, with properly weighted samples
+                oracleSamples = samples  # samples are a binary set
+            else:  # fixed sample size
+                oracleSamples = []
+                oracleSamples.extend(np.random.randint(1, self.params['dict size'] + 1, size=(self.params['queries per iter'], self.params['max sample length'])))  # samples are a binary set
                 oracleSamples = self.filterDuplicates(oracleSamples, scores=False)
+                while len(oracleSamples) < nQueries:
+                    oracleSamples.extend(np.random.randint(1, self.params['dict size'] + 1, size=(self.params['queries per iter'], self.params['max sample length'])))  # samples are a binary set
+                    oracleSamples = self.filterDuplicates(oracleSamples, scores=False)
 
             seedInd = 0
 
@@ -54,7 +69,7 @@ class querier():
             seedInd = 0
             samples = []
             scores = []
-            while (len(oracleSamples) < self.params['queries per iter']) and (seedInd < 100):  # until we fill up the query size threshold - flag for if it can't add more for some reason
+            while (len(oracleSamples) < self.params['queries per iter']) and (seedInd < 2):  # until we fill up the query size threshold - flag for if it can't add more for some reason
                 self.samplingOutputs = self.runSampling(model, scoreFunction, seedInd, parallel)
                 if seedInd == 0:
                     samples = self.samplingOutputs['samples']
@@ -72,41 +87,31 @@ class querier():
 
         return oracleSamples[:nQueries], seedInd
 
-    def runSampling(self, model, scoreFunction, seedInd, parallel=True):
+    def runSampling(self, model, scoreFunction, seedInd, parallel=True, useOracle=False):
         """
         run MCMC sampling
         :param parallel:
         :return:
         """
+        gammas = np.logspace(-4, 2, self.params['sampler gammas'])
         if not parallel:
-            gammas = np.logspace(-3, 1, self.params['sampler gammas'])
             sampleOutputs = []
             for i in range(len(gammas)):
                 mcmcSampler = sampler(self.params, seedInd, scoreFunction)
                 sampleOutputs.append(mcmcSampler.sample(model, gammas[i]))
         else:
-            if self.params['device'] == 'local':
-                nHold = 4  # keep some CPUS if running locally
-            else:
-                nHold = 1
-            cpus = os.cpu_count() - nHold  # np.min((os.cpu_count()-2,params['runs']))
-            gammas = np.logspace(-4, 1, self.params['sampler gammas'])
-            with mp.Pool(processes=cpus) as pool:
-                output = [pool.apply_async(askSampler, args=[model, self.params, seedInd, gammas[j], scoreFunction]) for j in range(self.params['sampler gammas'])]
-                sampleOutputs = [output[i].get(timeout=1200) for i in range(self.params['sampler gammas'])]
-                pool.close()
-                pool.join()
-
+            mcmcSampler = sampler2(self.params, seedInd, scoreFunction, gammas)
+            sampleOutputs = mcmcSampler.sample(model)
 
         samples = []
         scores = []
         energies = []
         uncertainties = []
-        for i in range(len(sampleOutputs)):
-            samples.extend(sampleOutputs[i]['optimalSamples'])
-            scores.extend(sampleOutputs[i]['optima'])
-            energies.extend(sampleOutputs[i]['enAtOptima'])
-            uncertainties.extend(sampleOutputs[i]['varAtOptima'])
+        for i in range(len(gammas)):
+            samples.extend(sampleOutputs['optimalSamples'][i])
+            scores.extend(sampleOutputs['optima'][i])
+            energies.extend(sampleOutputs['enAtOptima'][i])
+            uncertainties.extend(sampleOutputs['varAtOptima'][i])
 
         outputs = {
             'samples': np.asarray(samples),
@@ -140,7 +145,7 @@ class querier():
 
                 if duplicates == 1:
                     filteredSamples.append(samples[i])  # keep sequences that appear exactly once
-            return filteredSamples
+            return np.asarray(filteredSamples)
 
         else:
             samples = np.asarray(sampleDict[0])
@@ -211,9 +216,9 @@ class querier():
         return bestSamples
 
 
-def askSampler(model, params, seedInd, gamma, scoreFunction):
+def askSampler(model, params, seedInd, gamma, scoreFunction, useOracle = False):
     """
-    rewritten for sampling in a parallelized fashion
+    rewritten for sampling in a parallelized fashion using multiprocessing
     needs to be outside the class method for multiprocessing to work    :param params:
     :param i:
     :param scoreFunction:
@@ -221,7 +226,7 @@ def askSampler(model, params, seedInd, gamma, scoreFunction):
     """
     t0 = time.time()
     mcmcSampler = sampler(params, seedInd, scoreFunction=scoreFunction)
-    sampleOutputs = mcmcSampler.sample(model, gamma)
+    sampleOutputs = mcmcSampler.sample(model, gamma, useOracle = useOracle)
     tf = time.time()
     #print('Sampler {} finished after {} seconds'.format(gamma, int(tf-t0)))
     return sampleOutputs

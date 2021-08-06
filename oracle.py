@@ -4,6 +4,7 @@ import scipy.io
 import random
 from seqfold import dg, fold
 from nupack import *
+from utils import *
 
 '''
 This script computes a binding score for a given sequence or set of sequences
@@ -71,16 +72,22 @@ class oracle():
             samples = []
             while len(samples) < self.params['init dataset length']:
                 for i in range(self.params['min sample length'], self.params['max sample length'] + 1):
-                    # samples are integer sequeces of varying lengths
-                    samples.extend(np.random.randint(0 + 1, self.params['dict size'] + 1, size=(self.params['dict size'] * i, i)))  # initialize sequences with various lengths, linearly growing with exponential growth  of configuration space (not ideal but exponential scaling probably doesn't work)
+                    samples.extend(np.random.randint(0 + 1, self.params['dict size'] + 1, size=(self.params['dict size'] * i, i)))
 
-            samples = self.numpy_fillna(np.asarray(samples)).astype(int) # pad sequences up to maximum length
+                samples = self.numpy_fillna(np.asarray(samples)).astype(int) # pad sequences up to maximum length
+                samples = filterDuplicateSamples(samples) # this will naturally proportionally punish shorter sequences
+                if len(samples) < self.params['init dataset length']:
+                    samples = samples.tolist()
             np.random.shuffle(samples) # shuffle so that sequences with different lengths are randomly distributed
             samples = samples[:self.params['init dataset length']] # after shuffle, reduce dataset to desired size, with properly weighted samples
-            data['samples'] = samples  # samples are a binary set
         else: # fixed sample size
-            data['samples'] = np.random.randint(0, self.params['dict size'],size=(self.params['init dataset length'], self.params['max sample length'])) # samples are a binary set
+            samples = np.random.randint(1, self.params['dict size'] + 1,size=(self.params['init dataset length'], self.params['max sample length']))
+            samples = filterDuplicateSamples(samples)
+            while len(samples) < self.params['init dataset length']:
+                samples = np.concatenate((samples,np.random.randint(1, self.params['dict size'] + 1, size=(self.params['init dataset length'], self.params['max sample length']))),0)
+                samples = filterDuplicateSamples(samples)
 
+        data['samples'] = samples
         data['scores'] = self.score(data['samples'])
 
         if save:
@@ -153,14 +160,13 @@ class oracle():
 
         energies = np.zeros(len(queries))
         for k in range(len(queries)):
-            sample = queries[k].copy()
-
+            nnz = np.count_nonzero(queries[k])
             # potts hamiltonian
-            for ii in range(np.count_nonzero(sample)): # ignore padding terms
-                energies[k] += self.pottsH[ii, sample[ii] - 1] # add onsite term and account for indexing (e.g. 1-4 -> 0-3)
+            for ii in range(nnz): # ignore padding terms
+                energies[k] += self.pottsH[ii, queries[k,ii] - 1] # add onsite term and account for indexing (e.g. 1-4 -> 0-3)
 
-                for jj in range(ii,np.count_nonzero(sample)): # this is duplicated on lower triangle so we only need to do it from i-L
-                    energies[k] += 2 * self.pottsJ[ii, jj, sample[ii] - 1, sample[jj] - 1]  # site-specific couplings
+                for jj in range(ii,nnz): # this is duplicated on lower triangle so we only need to do it from i-L
+                    energies[k] += 2 * self.pottsJ[ii, jj, queries[k,ii] - 1, queries[k,jj] - 1]  # site-specific couplings
 
         return energies
 
