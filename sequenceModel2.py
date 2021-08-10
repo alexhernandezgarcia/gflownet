@@ -12,20 +12,21 @@ from oracle import oracle
 from utils import *
 
 params = {}
-params['init dataset length'] = 10000 # times seq len is real dataset size
+params['init dataset length'] = 100000 # times seq len is real dataset size
 params['dict size'] = 4
 params['variable sample size'] = True
-params['min sample length'], params['max sample length'] = [20, 30]
-params['dataset'] = 'inner product' # linear, inner product, potts, seqfold, nupack
+params['min sample length'], params['max sample length'] = [10, 20]
+params['dataset'] = 'seqfold' # linear, inner product, potts, seqfold, nupack
 
 # model params
 params['model'] = 'transformer' # 'mlp', 'lstm', 'transformer'
-params['hidden dim'] = 64 # filters in fc layers
-params['layers'] = 4
-params['embed dim'] = 32 # embedding dimension for transformer and lstm
-params['heads'] = 4 # transformer heads
-params['epochs'] = 20
-params['training batch'] = 50
+params['hidden dim'] = 128 # filters in fc layers
+params['layers'] = 2
+params['embed dim'] = 128 # embedding dimension for transformer and lstm
+params['heads'] = 2 # transformer heads
+params['epochs'] = 200
+params['training batch'] = 100
+params['GPU'] = True
 
 params['dataset seed'] = 0
 
@@ -122,7 +123,7 @@ class transformer(nn.Module):
         posEmbed = self.positionalEncoder(embed)
         encode = self.encoder(posEmbed,src_key_padding_mask=x_key_padding_mask)
         forFC = encode.permute(1,0,2).reshape(x.shape[0], int(params['embed dim']*params['max sample length']))
-        y = self.decoder1(forFC)
+        y = F.gelu(self.decoder1(forFC))
         y = self.decoder2(y)
         return y
 
@@ -181,6 +182,9 @@ elif params['model'] == 'transformer':
 elif params['model'] == 'lstm':
     model = lstm(params)
 
+if params['GPU']:
+    model = model.cuda()
+
 optimizer = optim.AdamW(model.parameters(), amsgrad=True)
 
 # train and test
@@ -193,6 +197,9 @@ for epoch in range(params['epochs']):
     for i, trainData in enumerate(tr):
         inputs = trainData[0]
         scores = trainData[1]
+        if params['GPU']:
+            inputs = inputs.cuda()
+            scores = scores.cuda()
         out = model(inputs)
         loss = F.smooth_l1_loss(out[:,0],scores.float())
         err_tr.append(loss.data)
@@ -205,6 +212,9 @@ for epoch in range(params['epochs']):
     for i, trainData in enumerate(te):
         inputs = trainData[0]
         scores = trainData[1]
+        if params['GPU']:
+            inputs = inputs.cuda()
+            scores = scores.cuda()
         out = model(inputs)
         loss = F.smooth_l1_loss(out[:,0],scores.float())
         err_te.append(loss.data)

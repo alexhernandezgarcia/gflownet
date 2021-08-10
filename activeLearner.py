@@ -109,7 +109,7 @@ class activeLearning():
 
         self.reportStatus() # compute and record the current status of the active learner w.r.t. the dataset
 
-        updateDataset(self.params, query, scores) # add scored Samples to dataset
+        self.updateDataset(query, scores) # add scored Samples to dataset
 
 
     def reportStatus(self, manualRerun = False):
@@ -129,7 +129,6 @@ class activeLearning():
             sampleDict = self.querier.samplingOutputs
 
         # top X distinct samples - energies and uncertainties - we want to know how many minima it's found, how low they are, and how confident we are about them
-        # np.argsort some shit
         enArgSort = np.argsort(sampleDict['energies'])
         sortedSamples = sampleDict['samples'][enArgSort]
         sortedEns = sampleDict['energies'][enArgSort]
@@ -205,14 +204,6 @@ class activeLearning():
         print('Loaded {} estimators'.format(int(self.params['ensemble size'])))
 
 
-    def loadModelCheckpoint(self):
-        '''
-        load most recent converged model checkpoint
-        :return:
-        '''
-        self.model.load()
-
-
     def resetModel(self,ensembleIndex, returnModel = False):
         '''
         load a new instance of the model with reset parameters
@@ -236,7 +227,7 @@ class activeLearning():
         '''
         printRecord("Asking toy oracle for the true minimum")
         self.model = 'abc'
-        gammas = np.logspace(-4,2,self.params['sampler gammas'])
+        gammas = np.logspace(-4,1,self.params['sampler gammas'])
         mcmcSampler = sampler2(self.params, 0, [1,0], gammas)
         samplerDict = mcmcSampler.sample(self.model,useOracle=True)
 
@@ -280,6 +271,25 @@ class activeLearning():
         np.save('outputsDict',outputDict)
 
 
+    def updateDataset(self, oracleSequences, oracleScores):
+        '''
+        loads dataset, appends new datapoints from oracle, and saves dataset
+        :param params: model parameters
+        :param oracleSequences: sequences which were sent to oracle
+        :param oracleScores: scores of sequences sent to oracle
+        :return: n/a
+        '''
+        dataset = np.load('datasets/' + self.params['dataset'] + '.npy', allow_pickle=True).item()
+
+        dataset['samples'] = np.concatenate((dataset['samples'], oracleSequences))
+        dataset['scores'] = np.concatenate((dataset['scores'], oracleScores))
+
+        printRecord(f"Added{bcolors.OKBLUE}{bcolors.BOLD} %d{bcolors.ENDC}" % int(len(oracleSequences)) + " to the dataset")
+        printRecord("=====================================================================")
+        # printRecord("New dataset size =%d" %len(dataset['samples']))
+        np.save('datasets/' + self.params['dataset'], dataset)
+
+
 def trainModel(params, i):
     '''
     rewritten for training in a parallelized fashion
@@ -292,3 +302,4 @@ def trainModel(params, i):
     err_te_hist = seqModel.converge(returnHist = True)  # converge model
 
     return err_te_hist
+

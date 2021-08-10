@@ -69,7 +69,7 @@ class querier():
             seedInd = 0
             samples = []
             scores = []
-            while (len(oracleSamples) < self.params['queries per iter']) and (seedInd < 2):  # until we fill up the query size threshold - flag for if it can't add more for some reason
+            while (len(oracleSamples) < self.params['queries per iter']) and (seedInd < 1):  # until we fill up the query size threshold - flag for if it can't add more for some reason - or a max number of runs
                 self.samplingOutputs = self.runSampling(model, scoreFunction, seedInd, parallel)
                 if seedInd == 0:
                     samples = self.samplingOutputs['samples']
@@ -93,15 +93,15 @@ class querier():
         :param parallel:
         :return:
         """
-        gammas = np.logspace(-4, 2, self.params['sampler gammas'])
+        gammas = np.logspace(-4, 1, self.params['sampler gammas'])
         if not parallel:
             sampleOutputs = []
             for i in range(len(gammas)):
-                mcmcSampler = sampler(self.params, seedInd, scoreFunction)
-                sampleOutputs.append(mcmcSampler.sample(model, gammas[i]))
+                self.mcmcSampler = sampler(self.params, seedInd, scoreFunction) # older - worse
+                sampleOutputs.append(self.mcmcSampler.sample(model, gammas[i]))
         else:
-            mcmcSampler = sampler2(self.params, seedInd, scoreFunction, gammas)
-            sampleOutputs = mcmcSampler.sample(model)
+            self.mcmcSampler = sampler2(self.params, seedInd, scoreFunction, gammas)
+            sampleOutputs = self.mcmcSampler.sample(model)
 
         samples = []
         scores = []
@@ -137,14 +137,14 @@ class querier():
             checkAgainst = np.concatenate((dataset, samples))  # combined dataset to check against
 
             filteredSamples = []
+            sampleLength = samples.shape[-1]
             for i in range(len(samples)):
-                duplicates = 0
-                for j in range(len(checkAgainst)):
-                    if all(samples[i] == checkAgainst[j]):
-                        duplicates += 1
+                equals = np.sum(samples[i] == checkAgainst, axis=1)
+                duplicates = np.sum(equals == sampleLength)
 
                 if duplicates == 1:
                     filteredSamples.append(samples[i])  # keep sequences that appear exactly once
+
             return np.asarray(filteredSamples)
 
         else:
@@ -157,12 +157,10 @@ class querier():
 
             filteredSamples = []
             filteredScores = []
-
+            sampleLength = samples.shape[-1]
             for i in range(len(samples)):
-                duplicates = 0
-                for j in range(len(checkAgainst)):
-                    if all(samples[i][0:len(checkAgainst[j])] == checkAgainst[j][0:len(samples[i])]) and (len(checkAgainst[j] == len(samples[i]))):
-                        duplicates += 1
+                equals = np.sum(samples[i] == checkAgainst, axis=1)
+                duplicates = np.sum(equals == sampleLength)
 
                 if duplicates == 1:
                     filteredSamples.append(samples[i])  # keep sequences that appear exactly once

@@ -114,38 +114,6 @@ def getModelName(ensembleIndex):
     return dirName
 
 
-def updateDataset(params, oracleSequences, oracleScores):
-    '''
-    loads dataset, appends new datapoints from oracle, and saves dataset
-    :param params: model parameters
-    :param oracleSequences: sequences which were sent to oracle
-    :param oracleScores: scores of sequences sent to oracle
-    :return: n/a
-    '''
-    dataset = np.load('datasets/' + params['dataset'] + '.npy', allow_pickle=True).item()
-    datasetSamples = dataset['samples'] # pad samples of unequal length with '-1'
-
-    nDuplicates = 0 # this check should no longer be necessary, but I guess it doesn't hurt anything for now
-    for i in range(len(oracleSequences)):
-        duplicate = 0
-        for j in range(len(datasetSamples)): # search for duplicates
-            if all(oracleSequences[i] == datasetSamples[j]):
-                duplicate = 1
-                nDuplicates += 1
-
-        if duplicate == 0:
-            dataset['samples'] = np.concatenate((dataset['samples'],np.expand_dims(oracleSequences[i],0)))
-            dataset['scores'] = np.concatenate((dataset['scores'],np.expand_dims(oracleScores[i],0)))
-
-
-    if nDuplicates > 0:
-        printRecord("%d duplicates found" % nDuplicates)
-
-
-    printRecord(f"Added{bcolors.OKBLUE}{bcolors.BOLD} %d{bcolors.ENDC}" %int(len(oracleSequences) - nDuplicates) + " to the dataset")
-    printRecord("=====================================================================")
-    #printRecord("New dataset size =%d" %len(dataset['samples']))
-    np.save('datasets/' + params['dataset'], dataset)
 
 
 
@@ -256,22 +224,19 @@ def numpy_fillna(data):
     out[mask] = np.concatenate(data)
     return out
 
+
 def filterDuplicateSamples(samples):
     """
     make sure there are no duplicates in the filtered samples OR in the existing dataset
     if scores == True - we sort all of these as well, otherwise we just look at the samples
-    :param samples:
+    :param samples: must be np array padded to equal length
     :return:
     """
 
-    filteredSamples = []
-    for i in range(len(samples)):
-        duplicates = 0
-        for j in range(len(samples)):
-            if all(samples[i] == samples[j]):
-                duplicates += 1
+    samplesTuple = [tuple(row) for row in samples]
+    seen = set()
+    seen_add = seen.add
+    filteredSamples = [x for x in samplesTuple if not(x in seen or seen_add(x))]
 
-        if duplicates == 1:
-            filteredSamples.append(samples[i])  # keep sequences that appear exactly once
     return np.asarray(filteredSamples)
 

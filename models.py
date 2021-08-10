@@ -44,6 +44,8 @@ class modelNet():
             self.model = transformer(self.params)
         else:
             self.model = MLP(self.params)
+        if self.params['GPU']:
+            self.model = self.model.cuda()
         self.optimizer = optim.AdamW(self.model.parameters(), amsgrad=True)
         datasetBuilder = buildDataset(self.params)
         self.mean, self.std = datasetBuilder.getStandardization()
@@ -74,7 +76,7 @@ class modelNet():
             self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
             #prev_epoch = checkpoint['epoch']
 
-            if self.params['GPU'] == 1:
+            if self.params['GPU']:
                 self.model.cuda()  # move net to GPU
                 for state in self.optimizer.state.values():  # move optimizer to GPU
                     for k, v in state.items():
@@ -101,7 +103,6 @@ class modelNet():
 
         self.converged = 0 # convergence flag
         self.epochs = 0
-
 
         while (self.converged != 1):
             if self.epochs > 0: #  this allows us to keep the previous model if it is better than any produced on this run
@@ -190,17 +191,11 @@ class modelNet():
         """
         inputs = train_data[0]
         targets = train_data[1]
-        if self.params['GPU'] == 1:
+        if self.params['GPU']:
             inputs = inputs.cuda()
             targets = targets.cuda()
 
-        # convert our inputs to a one-hot encoding
-        #one_hot_inputs = F.one_hot(torch.Tensor(letters2numbers(inputs)).long(), 4)
-        # flatten inputs to a 1D vector
-        #one_hot_inputs = torch.reshape(one_hot_inputs, (one_hot_inputs.shape[0], self.params['input length']))
-        # evaluate the model
         output = self.model(inputs.float())
-        # loss function - some room to choose here!
         targets = (targets - self.mean)/self.std # standardize the targets, but only during training
         return F.smooth_l1_loss(output[:,0], targets.float())
 
@@ -214,15 +209,18 @@ class modelNet():
         # check if test loss is increasing for at least several consecutive epochs
         eps = 1e-4 # relative measure for constancy
 
-        if all(np.asarray(self.err_te_hist[-self.params['history']+1:])  > self.err_te_hist[-self.params['history']]):
+        if all(np.asarray(self.err_te_hist[-self.params['history']+1:])  > self.err_te_hist[-self.params['history']]): #
             self.converged = 1
+            print("Model converged - test error increasing")
 
         # check if test loss is unchanging
         if abs(self.err_te_hist[-self.params['history']] - np.average(self.err_te_hist[-self.params['history']:]))/self.err_te_hist[-self.params['history']] < eps:
             self.converged = 1
+            print("Model converged - hit test loss convergence criterion")
 
         if self.epochs >= self.params['max training epochs']:
             self.converged = 1
+            print("Model coverged - epoch limit was hit")
 
 
         #if self.converged == 1:
@@ -238,9 +236,14 @@ class modelNet():
         :param Data: input data
         :return: model scores
         '''
+        if self.params['GPU']:
+            Data = torch.Tensor(Data).cuda().float()
+        else:
+            Data = torch.Tensor(Data).float()
+
         self.model.train(False)
         with torch.no_grad():  # we won't need gradients! no training just testing
-            out = self.model(torch.Tensor(Data).float()).detach().numpy()
+            out = self.model(Data).cpu().detach().numpy()
             if output == 'Average':
                 return np.average(out,axis=1) * self.std + self.mean
             elif output == 'Variance':
@@ -254,6 +257,8 @@ class modelNet():
         :return:
         '''
         self.model = modelEnsemble(models)
+        if self.params['GPU']:
+            self.model = self.model.cuda()
 
 
 class modelEnsemble(nn.Module): # just for evaluation of a pre-trained ensemble
@@ -377,7 +382,7 @@ class transformer(nn.Module):
         x = self.positionalEncoder(x)
         x = self.encoder(x,src_key_padding_mask=x_key_padding_mask)
         x = x.permute(1,0,2).reshape(x_key_padding_mask.shape[0], int(self.embedDim*self.maxLen))
-        x = self.decoder1(x)
+        x = F.gelu(self.decoder1(x))
         x = self.decoder2(x)
         return x
 

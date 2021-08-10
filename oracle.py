@@ -3,7 +3,7 @@ import numpy as np
 import scipy.io
 import random
 from seqfold import dg, fold
-from nupack import *
+#from nupack import *
 from utils import *
 
 '''
@@ -61,7 +61,7 @@ class oracle():
     def initializeDataset(self,save = True, returnData = False):
         '''
         generate an initial toy dataset with a given number of samples
-        possible that this code may generate duplicates
+        need an extra factor to speed it up (duplicate filtering is very slow)
         :param numSamples:
         :return:
         '''
@@ -72,7 +72,7 @@ class oracle():
             samples = []
             while len(samples) < self.params['init dataset length']:
                 for i in range(self.params['min sample length'], self.params['max sample length'] + 1):
-                    samples.extend(np.random.randint(0 + 1, self.params['dict size'] + 1, size=(self.params['dict size'] * i, i)))
+                    samples.extend(np.random.randint(0 + 1, self.params['dict size'] + 1, size=(int(100 * self.params['dict size'] * i), i)))
 
                 samples = self.numpy_fillna(np.asarray(samples)).astype(int) # pad sequences up to maximum length
                 samples = filterDuplicateSamples(samples) # this will naturally proportionally punish shorter sequences
@@ -219,66 +219,6 @@ class oracle():
         else:
             return energies
 
-
-    def nupackScore(self,queries,returnSS=False,parallel=True):
-        '''
-        use nupack instead of seqfold - more stable and higher quality predictions in general
-        returns the energy of the most probable structure only
-        :param queries:
-        :param returnSS:
-        :return:
-        '''
-        temperature = 310.0  # Kelvin
-        ionicStrength = 1.0 # molar
-        sequences = self.numbers2letters(queries)
-
-        energies = np.zeros(len(sequences))
-        strings = []
-        if parallel:
-            # parallel evaluation - fast
-            strandList = []
-            comps = []
-            i = -1
-            for sequence in sequences:
-                i += 1
-                strandList.append(Strand(sequence, name='strand{}'.format(i)))
-                comps.append(Complex([strandList[-1]], name='comp{}'.format(i)))
-
-            set = ComplexSet(strands=strandList, complexes=SetSpec(max_size=1, include=comps))
-            model1 = Model(material='dna', celsius=temperature - 273, sodium=ionicStrength)
-            results = complex_analysis(set, model=model1, compute=['mfe','subopt'], options={'energy_gap':5})
-            for i in range(len(energies)):
-                energy = results[comps[i]].mfe[0].energy
-                if energy < 0:
-                    energies[i] = energy
-                else: # many sequences do not natively fold (mfe is 0), but all the zeros are bad for training - note that this adjustment will slow oracle sampling
-                    subEns= [results[comps[i]].subopt[j].energy for j in range(len(results[comps[i]].subopt))]
-                    if len(np.unique(subEns)) > 1:
-                        subEns = subEns[1:]
-                    energies[i] = min(subEns)
-                if returnSS:
-                    strings.append(str(results[comps[i]].mfe[0].structure))
-
-        else:
-            i = -1
-            for sequence in sequences:
-                i += 1
-                A = Strand(sequence, name='A')
-                comp = Complex([A], name='AA')
-                set1 = ComplexSet(strands=[A], complexes=SetSpec(max_size=1, include=[comp]))
-                model1 = Model(material='dna', celsius=temperature - 273, sodium=ionicStrength)
-                results = complex_analysis(set1, model=model1, compute=['mfe'])
-                cout = results[comp]
-
-                energies[i] = cout.mfe[0].energy
-                if returnSS:
-                    strings.append(cout.mfe[0].structure)
-
-        if returnSS:
-            return energies, strings
-        else:
-            return energies
-
     def numbers2letters(self, sequences):  # Tranforming letters to numbers (1234 --> ATGC)
         '''
         Converts numerical values to ATGC-format
@@ -325,6 +265,64 @@ class oracle():
         return out
 
 
+
+'''
+    def nupackScore(self,queries,returnSS=False,parallel=True):
+
+        #use nupack instead of seqfold - more stable and higher quality predictions in general
+        #returns the energy of the most probable structure only
+        #:param queries:
+        #:param returnSS:
+        #:return:
+
+        temperature = 310.0  # Kelvin
+        ionicStrength = 1.0 # molar
+        sequences = self.numbers2letters(queries)
+
+        energies = np.zeros(len(sequences))
+        strings = []
+        if parallel:
+            # parallel evaluation - fast
+            strandList = []
+            comps = []
+            i = -1
+            for sequence in sequences:
+                i += 1
+                strandList.append(Strand(sequence, name='strand{}'.format(i)))
+                comps.append(Complex([strandList[-1]], name='comp{}'.format(i)))
+
+            set = ComplexSet(strands=strandList, complexes=SetSpec(max_size=1, include=comps))
+            model1 = Model(material='dna', celsius=temperature - 273, sodium=ionicStrength)
+            results = complex_analysis(set, model=model1, compute=['mfe','subopt'], options={'energy_gap':5})
+            for i in range(len(energies)):
+                energies[i] = results[comps[i]].mfe[0].energy
+
+                if returnSS:
+                    strings.append(str(results[comps[i]].mfe[0].structure))
+
+        else:
+            i = -1
+            for sequence in sequences:
+                i += 1
+                A = Strand(sequence, name='A')
+                comp = Complex([A], name='AA')
+                set1 = ComplexSet(strands=[A], complexes=SetSpec(max_size=1, include=[comp]))
+                model1 = Model(material='dna', celsius=temperature - 273, sodium=ionicStrength)
+                results = complex_analysis(set1, model=model1, compute=['mfe'])
+                cout = results[comp]
+
+                energies[i] = cout.mfe[0].energy
+                if returnSS:
+                    strings.append(cout.mfe[0].structure)
+
+        if returnSS:
+            return energies, strings
+        else:
+            return energies
+'''
+
+
+
 ''' # little script to test and have a look at the data
 
 params = {}
@@ -333,7 +331,7 @@ params['max sample length'] = 20
 params['min sample length'] = 10
 params['dataset'] = 'linear toy' # 'linear', 'potts', 'inner product', 'seqfold'
 params['dict size'] = 4
-params['init dataset length'] = 10000
+params['init dataset length'] = 100000
 params['variable sample size'] = True
 
 oracle = oracle(params)
