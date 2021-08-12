@@ -1,18 +1,18 @@
-from utils import *
 from models import modelNet
 from querier import *
-from oracle import *
 from sampler import *
+from torch.utils import data
+import torch.nn.functional as F
+import torch
 
 import os
 import glob
-import tqdm
-from shutil import copyfile
 import multiprocessing as mp
 
 
 class activeLearning():
     def __init__(self, params):
+        self.pipeIter = None
         self.params = params
         self.runNum = self.params['run num']
         self.setup()
@@ -38,7 +38,7 @@ class activeLearning():
             os.chdir(self.workDir) # move to working dir
             printRecord('Starting Fresh Run %d' %self.runNum)
             #copyfile(self.params['dataset directory'] + '/' + self.params['dataset'],self.workDir + '/datasets/' + self.params['dataset'] + '.npy') # if using a real initial dataset (not toy) copy it to the workdir
-            self.oracle.initializeDataset(self.params['max sample length'], self.params['init dataset length']) # generate toy model dataset
+            self.oracle.initializeDataset() # generate toy model dataset
         else:
             # move to working dir
             self.workDir = self.params['workdir'] + '/' + 'run%d' %self.params['run num']
@@ -79,12 +79,11 @@ class activeLearning():
         self.bestScores = [] # best optima found by the sampler, for each iteration of the pipeline
 
         if self.params['dataset type'] == 'toy':
-            pass
             self.sampleOracle() # use the oracle to pre-solve the problem for future benchmarking
-            printRecord(f"The true global minimum is {bcolors.OKGREEN}%.3f{bcolors.ENDC}" % np.amin(self.oracleOptima['scores']))
+            printRecord(f"The true global minimum is {bcolors.OKGREEN}%.3f{bcolors.ENDC}" % self.trueMinimum)
 
         for self.pipeIter in range(self.params['pipeline iterations']):
-            printRecord(f'Starting pipeline iteration #{bcolors.OKGREEN}%d{bcolors.ENDC}' % int(self.pipeIter+1))
+            printRecord(f'Starting pipeline iteration #{bcolors.FAIL}%d{bcolors.ENDC}' % int(self.pipeIter+1))
             self.params['iteration'] = self.pipeIter + 1
             self.iterate() # run the pipeline
 
@@ -102,10 +101,16 @@ class activeLearning():
         printRecord('Retraining took {} seconds'.format(int(tf-t0)))
 
         t0 = time.time()
-        query, iterations = self.getQuery()
+        query = self.getQuery()
         tf = time.time()
-        printRecord('Query generation took {} seconds over {} iterations'.format(int(tf-t0), int(iterations)))
+        printRecord('Query generation took {} seconds'.format(int(tf-t0)))
+
+        t0 = time.time()
         scores = self.oracle.score(query) # score Samples
+        tf = time.time()
+        print('Oracle scored' + bcolors.OKBLUE + ' {} '.format(len(scores)) + bcolors.ENDC + 'queries with average score of' + bcolors.OKGREEN + ' {:.3f}'.format(np.average(scores)) + bcolors.ENDC)
+        if not self.params['dataset type'] == 'toy':
+            print('Oracle scoring took {} seconds'.format(int(tf-t0)))
 
         self.reportStatus() # compute and record the current status of the active learner w.r.t. the dataset
 
@@ -134,13 +139,16 @@ class activeLearning():
         sortedEns = sampleDict['energies'][enArgSort]
         sortedVars = sampleDict['uncertainties']
 
-        bestInds = sortTopXSamples(sortedSamples, samples = self.params['distinct minima'], distCutoff = self.params['minima dist cutoff'])
+        bestInds = sortTopXSamples(sortedSamples, nSamples = self.params['distinct minima'], distCutoff = self.params['minima dist cutoff'])
         bestSamples = sortedSamples[bestInds]
         bestEns = sortedEns[bestInds]
         bestVars = sortedVars[bestInds]
 
-        printRecord('{} Samplers found top {:} distinct samples with minimum energy {:.2f}, average energy {:.2f}, and average std dev {:.2f}'.format(int(self.params['sampler gammas']),len(bestInds), np.amin(bestEns), np.average(bestEns), np.average(np.sqrt(bestVars))))
+        printRecord('{} Samplers found top {:} distinct samples with minimum energy'.format(int(self.params['sampler gammas']),len(bestInds)) + bcolors.OKGREEN + ' {:.2f},'.format(np.amin(bestEns)) + bcolors.ENDC + ' average energy' + bcolors.OKGREEN + ' {:.2f},'.format(np.average(bestEns)) + bcolors.ENDC + ' and average std dev' + bcolors.OKCYAN + ' {:.2f}'.format(np.average(np.sqrt(bestVars))) + bcolors.ENDC)
 
+        if self.params['dataset type'] == 'toy': # we can check the test error against a huge random dataset
+            self.largeModelEvaluation()
+            self.printOverallPerformance(bestEns, bestVars)
 
         # model beliefs about total dataset as well - similar but not identical to test loss
         # we can also look at the best X scores and uncertainties in the dataset and/or confidence on overall dataset - test loss is a decent proxy for this
@@ -154,6 +162,18 @@ class activeLearning():
             self.bestEns.append(bestEns)
             self.bestVars.append(bestVars)
 
+
+    def printOverallPerformance(self,bestEns,bestVars):
+        '''
+        print the performance of the learner against a known best answer
+        :param bestEns:
+        :param bestVars:
+        :return:
+        '''
+        bestSoFar = np.amin(bestEns)
+        bestSoFarVar = bestVars[np.argmin(np.amin(bestEns))]
+        disagreement = np.abs(self.trueMinimum - bestSoFar) / self.trueMinimum
+        printRecord('Active Learner is off by' + bcolors.WARNING + ' {}%'.format(int(disagreement * 100)) + bcolors.ENDC + ' from true minimum with an uncertainty of' + bcolors.WARNING + ' {:.2f}'.format(bestSoFarVar) + bcolors.ENDC)
 
     def retrainModels(self, parallel=True):
         if not parallel:
@@ -169,20 +189,19 @@ class activeLearning():
             cpus = int(os.cpu_count() - nHold)
             with mp.Pool(processes=cpus) as pool:
                 output = [pool.apply_async(trainModel, args=[self.params, j]) for j in range(self.params['ensemble size'])]
-                outputList = [output[i].get(timeout=6000) for i in range(self.params['ensemble size'])]
+                outputList = [output[i].get() for i in range(self.params['ensemble size'])]
                 self.testMinima.append([np.amin(outputList[i]) for i in range(self.params['ensemble size'])])
                 pool.close()
                 pool.join()
 
-
-        printRecord(f'Model ensemble training converged with average test loss of {bcolors.OKGREEN}%.5f{bcolors.ENDC}' % np.average(np.asarray(self.testMinima[-self.params['ensemble size']:])))
+        printRecord('%d '%self.params['ensemble size'] + f'Model ensemble training converged with average test loss of {bcolors.OKCYAN}%.5f{bcolors.ENDC}' % np.average(np.asarray(self.testMinima[-self.params['ensemble size']:])))
 
 
     def getQuery(self):
         self.loadEstimatorEnsemble()
-        query, iterations = self.querier.buildQuery(self.model, parallel = self.params['sampling parallelism'])  # pick Samples to be scored
+        query = self.querier.buildQuery(self.model, self.pipeIter)  # pick Samples to be scored
 
-        return query, iterations
+        return query
 
 
     def loadEstimatorEnsemble(self):
@@ -192,7 +211,7 @@ class activeLearning():
         :return:
         '''
         ensemble = []
-        for i in range(1,self.params['ensemble size'] + 1):
+        for i in range(0,self.params['ensemble size']):
             self.resetModel(i)
             self.model.load(i)
             ensemble.append(self.model.model)
@@ -201,7 +220,7 @@ class activeLearning():
         self.model = modelNet(self.params,0)
         self.model.loadEnsemble(ensemble)
 
-        print('Loaded {} estimators'.format(int(self.params['ensemble size'])))
+        #print('Loaded {} estimators'.format(int(self.params['ensemble size'])))
 
 
     def resetModel(self,ensembleIndex, returnModel = False):
@@ -219,6 +238,42 @@ class activeLearning():
             return self.model
 
 
+    def largeModelEvaluation(self):
+        '''
+        if we are using a toy oracle, we should be able to easily get the test loss on a huge sample of the dataset
+        :return:
+        '''
+        self.loadEstimatorEnsemble()
+
+        numSamples = min(int(1e5), self.params['dict size'] ** self.params['max sample length'] // 100) # either 1e5, or 1% of the sample space, whichever is smaller
+        randomData = self.oracle.initializeDataset(save=False, returnData=True, customSize=numSamples) # get large random dataset
+        randomSamples = randomData['samples']
+        randomScores = randomData['scores']
+
+        sortInds = np.argsort(randomScores) # sort randoms
+        randomSamples = randomSamples[sortInds]
+        randomScores = randomScores[sortInds]
+
+        modelScores, modelVars = [[],[]]
+        sampleLoader = data.DataLoader(randomSamples, batch_size = self.params['batch size'], shuffle=False, num_workers = 0, pin_memory=False)
+        for i, testData in enumerate(sampleLoader):
+            score, variance = self.model.evaluate(testData.float(), output='Both')
+            modelScores.extend(score)
+            modelVars.extend(variance)
+
+        bestTenInd = numSamples // 10
+        totalLoss = F.smooth_l1_loss((torch.Tensor(modelScores).float() - self.model.mean) / self.model.std, (torch.Tensor(randomScores).float() - self.model.mean) / self.model.std) # full dataset loss (standardized basis)
+        bottomTenLoss = F.smooth_l1_loss((torch.Tensor(modelScores[:bestTenInd]).float() - self.model.mean) / self.model.std, (torch.Tensor(randomScores[:bestTenInd]).float() - self.model.mean) / self.model.std) # bottom 10% loss (standardized basis)
+
+        if self.pipeIter == 0: # if it's the first round, initialize, else, append
+            self.totalLoss = [totalLoss]
+            self.bottomTenLoss = [bottomTenLoss]
+        else:
+            self.totalLoss.append(totalLoss)
+            self.bottomTenLoss.append(bottomTenLoss)
+
+        print("Model has overall loss of" + bcolors.OKCYAN + ' {:.5f}, '.format(totalLoss) + bcolors.ENDC + 'best 10% loss of' + bcolors.OKCYAN + ' {:.5f} '.format(bottomTenLoss) + bcolors.ENDC +  'on {} toy dataset samples'.format(numSamples))
+
     def sampleOracle(self):
         '''
         for toy models
@@ -228,31 +283,14 @@ class activeLearning():
         printRecord("Asking toy oracle for the true minimum")
         self.model = 'abc'
         gammas = np.logspace(-4,1,self.params['sampler gammas'])
-        mcmcSampler = sampler2(self.params, 0, [1,0], gammas)
-        samplerDict = mcmcSampler.sample(self.model,useOracle=True)
+        mcmcSampler = sampler(self.params, 0, [1,0], gammas)
+        sampleDict = runSampling(self.params, mcmcSampler, self.model, useOracle=True)
 
-        sampleList = []
-        scoreList = []
-        energiesList = []
-        variancesList = []
-
-        for i in range(self.params['sampler gammas']):
-            samples, scores, energies, variances = [samplerDict['optimalSamples'][i], samplerDict['optima'][i], samplerDict['enAtOptima'][i], samplerDict['varAtOptima'][i]]
-            sampleList.extend(samples)
-            scoreList.extend(scores)
-            energiesList.extend(energies)
-            variancesList.extend(variances)
-
-        sampleDict = {}
-        sampleDict['samples'] = np.asarray(sampleList)
-        sampleDict['scores'] = np.asarray(scoreList)
-        sampleDict['energy'] = np.asarray(energiesList)
-        sampleDict['variance'] = np.asarray(variancesList)
-
-        bestMin = np.amin(sampleDict['energy'])
+        bestMin = np.amin(sampleDict['energies'])
         printRecord(f"Sampling Complete! Lowest Energy Found = {bcolors.FAIL}%.3f{bcolors.ENDC}" % bestMin + " from %d" % self.params['sampler gammas'] + " sampling runs.")
 
         self.oracleOptima = sampleDict
+        self.trueMinimum = np.amin(self.oracleOptima['scores'])
 
 
     def saveOutputs(self):
@@ -264,6 +302,8 @@ class activeLearning():
         outputDict['params'] = self.params
         if self.params['dataset type'] == 'toy':
             outputDict['oracle outputs'] = self.oracleOptima
+            outputDict['big dataset loss'] = self.totalLoss
+            outputDict['bottom 10% loss'] = self.bottomTenLoss
         outputDict['best samples'] = self.bestSamples
         outputDict['best energies'] = self.bestEns
         outputDict['best vars'] = self.bestVars
@@ -284,9 +324,8 @@ class activeLearning():
         dataset['samples'] = np.concatenate((dataset['samples'], oracleSequences))
         dataset['scores'] = np.concatenate((dataset['scores'], oracleScores))
 
-        printRecord(f"Added{bcolors.OKBLUE}{bcolors.BOLD} %d{bcolors.ENDC}" % int(len(oracleSequences)) + " to the dataset")
-        printRecord("=====================================================================")
-        # printRecord("New dataset size =%d" %len(dataset['samples']))
+        printRecord(f"Added{bcolors.OKBLUE}{bcolors.BOLD} %d{bcolors.ENDC}" % int(len(oracleSequences)) + " to the dataset, total dataset size is" + bcolors.OKBLUE + " {}".format(int(len(dataset['samples']))) + bcolors.ENDC)
+        printRecord(bcolors.UNDERLINE + "=====================================================================" + bcolors.ENDC)
         np.save('datasets/' + self.params['dataset'], dataset)
 
 
@@ -298,8 +337,8 @@ def trainModel(params, i):
     :return:
     '''
 
-    seqModel = modelNet(params, i)
-    err_te_hist = seqModel.converge(returnHist = True)  # converge model
+    model = modelNet(params, i)
+    err_te_hist = model.converge(returnHist = True)  # converge model
 
     return err_te_hist
 

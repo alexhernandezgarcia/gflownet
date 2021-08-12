@@ -40,7 +40,7 @@ class modelNet():
         Initialize model and optimizer
         :return:
         '''
-        if self.params['variable sample size']: # switch to variable-length sequence model
+        if self.params['variable sample length']: # switch to variable-length sequence model
             self.model = transformer(self.params)
         else:
             self.model = MLP(self.params)
@@ -120,6 +120,9 @@ class modelNet():
                 self.checkConvergence()
 
             self.epochs += 1
+
+            if self.params['debug']: # save running stats
+                pass
             #self.save(self, best=0) # save ongoing checkpoint
 
             #sys.stdout.flush()
@@ -196,7 +199,7 @@ class modelNet():
             targets = targets.cuda()
 
         output = self.model(inputs.float())
-        targets = (targets - self.mean)/self.std # standardize the targets, but only during training
+        targets = (targets - self.mean)/self.std # standardize the targets during training
         return F.smooth_l1_loss(output[:,0], targets.float())
 
 
@@ -211,16 +214,16 @@ class modelNet():
 
         if all(np.asarray(self.err_te_hist[-self.params['history']+1:])  > self.err_te_hist[-self.params['history']]): #
             self.converged = 1
-            print("Model converged - test error increasing")
+            print(bcolors.WARNING + "Model converged after {} epochs - test error increasing".format(self.epochs + 1) + bcolors.ENDC)
 
         # check if test loss is unchanging
         if abs(self.err_te_hist[-self.params['history']] - np.average(self.err_te_hist[-self.params['history']:]))/self.err_te_hist[-self.params['history']] < eps:
             self.converged = 1
-            print("Model converged - hit test loss convergence criterion")
+            print(bcolors.WARNING + "Model converged after {} epochs - hit test loss convergence criterion".format(self.epochs + 1) + bcolors.ENDC)
 
         if self.epochs >= self.params['max training epochs']:
             self.converged = 1
-            print("Model coverged - epoch limit was hit")
+            print(bcolors.WARNING + "Model converged after {} epochs- epoch limit was hit".format(self.epochs + 1) + bcolors.ENDC)
 
 
         #if self.converged == 1:
@@ -319,7 +322,7 @@ def getDataloaders(params): # get the dataloaders, to load the dataset in batche
 
     for i in range(test_size, test_size + train_size): # take the training data from the end - we will get the newly appended datapoints this way without ever seeing the test set
         train_dataset.append(dataset[i])
-    for i in range(test_size):
+    for i in range(test_size): # test data is drawn from oldest datapoints
         test_dataset.append(dataset[i])
 
     tr = data.DataLoader(train_dataset, batch_size=training_batch, shuffle=True, num_workers= 0, pin_memory=False)  # build dataloaders

@@ -157,7 +157,7 @@ class sampler2:
             propConfig[i, self.pickSpinRandint[i,ind]] = self.spinRandints[i,ind]
 
             # propose changing sequence length
-            if self.params['variable sample size']:
+            if self.params['variable sample length']:
                 if self.changeLengthRandints[i,ind] == 0:  # do nothing
                     pass
                 else:
@@ -298,8 +298,8 @@ params['dataset'] = 'linear' # 'linear', 'inner product', 'potts', 'seqfold', 'n
 params['dataset type'] = 'toy' # oracle is very fast to sample
 params['init dataset length'] = 1000 # number of items in the initial (toy) dataset
 params['dict size'] = 4 # number of possible choices per-state, e.g., [0,1] would be two, [1,2,3,4] (representing ATGC) would be 4
-params['variable sample size'] = True #if true, 'max sample length' should be a list with the smallest and largest size of input sequences [min, max]
-params['min sample length'], params['max sample length'] = [10, 20] # minimum input sequence length and # maximum input sequence length (inclusive) - or fixed sample size if 'variable sample size' is false
+params['variable sample length'] = True #if true, 'max sample length' should be a list with the smallest and largest size of input sequences [min, max]
+params['min sample length'], params['max sample length'] = [10, 20] # minimum input sequence length and # maximum input sequence length (inclusive) - or fixed sample size if 'variable sample length' is false
 
 # sampler parameters
 params['sampling time'] = int(1e3)

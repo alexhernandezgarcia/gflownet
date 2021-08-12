@@ -3,7 +3,7 @@ import numpy as np
 import scipy.io
 import random
 from seqfold import dg, fold
-#from nupack import *
+from nupack import *
 from utils import *
 
 '''
@@ -22,7 +22,7 @@ To-Do:
 params
 'dataset seed' - self explanatory
 'dict size' - number of possible states per sequence element - e.g., for ATGC 'dict size' = 4
-'variable sample size', 'min sample length', 'max sample length' - for determining the length and variability of sample sequences
+'variable sample length', 'min sample length', 'max sample length' - for determining the length and variability of sample sequences
 'init dataset length' - number of samples for initial (random) dataset
 'dataset' - name of dataset to be saved
 '''
@@ -39,7 +39,10 @@ class oracle():
         np.random.seed(self.params['dataset seed'])
         self.seqLen = self.params['max sample length']
 
-        self.linFactors = np.random.randn(self.seqLen) # coefficients for linear toy energy
+        if self.params['test mode']:
+            self.linFactors = -np.ones(self.seqLen) # Uber-simple function, for testing purposes
+        else:
+            self.linFactors = np.random.randn(self.seqLen)  # coefficients for linear toy energy
 
         hamiltonian = np.random.randn(self.seqLen,self.seqLen) # energy function
         self.hamiltonian = np.tril(hamiltonian) + np.tril(hamiltonian, -1).T # random symmetric matrix
@@ -58,7 +61,7 @@ class oracle():
         self.pottsH = np.random.randn(self.seqLen,self.params['dict size']) # Potts Hamiltonian - onsite term
 
 
-    def initializeDataset(self,save = True, returnData = False):
+    def initializeDataset(self,save = True, returnData = False, customSize=None):
         '''
         generate an initial toy dataset with a given number of samples
         need an extra factor to speed it up (duplicate filtering is very slow)
@@ -67,24 +70,28 @@ class oracle():
         '''
         data = {}
         np.random.seed(self.params['dataset seed'])
+        if customSize is None:
+            datasetLength = self.params['init dataset length']
+        else:
+            datasetLength = customSize
 
-        if self.params['variable sample size']:
+        if self.params['variable sample length']:
             samples = []
-            while len(samples) < self.params['init dataset length']:
+            while len(samples) < datasetLength:
                 for i in range(self.params['min sample length'], self.params['max sample length'] + 1):
                     samples.extend(np.random.randint(0 + 1, self.params['dict size'] + 1, size=(int(100 * self.params['dict size'] * i), i)))
 
                 samples = self.numpy_fillna(np.asarray(samples)).astype(int) # pad sequences up to maximum length
                 samples = filterDuplicateSamples(samples) # this will naturally proportionally punish shorter sequences
-                if len(samples) < self.params['init dataset length']:
+                if len(samples) < datasetLength:
                     samples = samples.tolist()
             np.random.shuffle(samples) # shuffle so that sequences with different lengths are randomly distributed
-            samples = samples[:self.params['init dataset length']] # after shuffle, reduce dataset to desired size, with properly weighted samples
+            samples = samples[:datasetLength] # after shuffle, reduce dataset to desired size, with properly weighted samples
         else: # fixed sample size
-            samples = np.random.randint(1, self.params['dict size'] + 1,size=(self.params['init dataset length'], self.params['max sample length']))
+            samples = np.random.randint(1, self.params['dict size'] + 1,size=(datasetLength, self.params['max sample length']))
             samples = filterDuplicateSamples(samples)
-            while len(samples) < self.params['init dataset length']:
-                samples = np.concatenate((samples,np.random.randint(1, self.params['dict size'] + 1, size=(self.params['init dataset length'], self.params['max sample length']))),0)
+            while len(samples) < datasetLength:
+                samples = np.concatenate((samples,np.random.randint(1, self.params['dict size'] + 1, size=(datasetLength, self.params['max sample length']))),0)
                 samples = filterDuplicateSamples(samples)
 
         data['samples'] = samples
@@ -104,6 +111,19 @@ class oracle():
         if isinstance(queries,list):
             queries = np.asarray(queries) # convert queries to array
 
+        blockSize = int(1e4)
+        if len(queries) > blockSize: # score in blocks of maximum 10000
+            scores = []
+            for i in range(int(len(queries) // blockSize)):
+                queryBlock = queries[i * blockSize:(i+1)*blockSize]
+                scores.extend(self.getScore(queryBlock))
+
+            return np.asarray(scores)
+        else:
+            return self.getScore(queries)
+
+
+    def getScore(self,queries):
         if self.params['dataset'] == 'linear':
             return self.linearToy(queries)
         elif self.params['dataset'] == 'potts':
@@ -265,8 +285,7 @@ class oracle():
         return out
 
 
-
-'''
+#'''
     def nupackScore(self,queries,returnSS=False,parallel=True):
 
         #use nupack instead of seqfold - more stable and higher quality predictions in general
@@ -293,7 +312,7 @@ class oracle():
 
             set = ComplexSet(strands=strandList, complexes=SetSpec(max_size=1, include=comps))
             model1 = Model(material='dna', celsius=temperature - 273, sodium=ionicStrength)
-            results = complex_analysis(set, model=model1, compute=['mfe','subopt'], options={'energy_gap':5})
+            results = complex_analysis(set, model=model1, compute=['mfe'])
             for i in range(len(energies)):
                 energies[i] = results[comps[i]].mfe[0].energy
 
@@ -319,7 +338,7 @@ class oracle():
             return energies, strings
         else:
             return energies
-'''
+#'''
 
 
 
@@ -332,7 +351,7 @@ params['min sample length'] = 10
 params['dataset'] = 'linear toy' # 'linear', 'potts', 'inner product', 'seqfold'
 params['dict size'] = 4
 params['init dataset length'] = 100000
-params['variable sample size'] = True
+params['variable sample length'] = True
 
 oracle = oracle(params)
 dataset = oracle.initializeDataset(save=False,returnData=True)

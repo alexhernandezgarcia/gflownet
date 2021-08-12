@@ -23,14 +23,16 @@ def get_input():
     parser.add_argument('--model_seed', type=int, default = 0)
     parser.add_argument('--dataset_seed', type=int, default=0)
     parser.add_argument('--query_type', type=str, default='random')
+    parser.add_argument('--dataset', type=str, default='linear')
     cmd_line_input = parser.parse_args()
     run = cmd_line_input.run_num
-    samplerSeed = cmd_line_input.sampler_seed
+    samplerSeed = cmd_line_input.sampler_seed % 10
     modelSeed = cmd_line_input.model_seed % 10
     datasetSeed = cmd_line_input.dataset_seed
     queryMode = cmd_line_input.query_type
+    dataset = cmd_line_input.dataset
 
-    return [run, samplerSeed, modelSeed, datasetSeed, queryMode]
+    return [run, samplerSeed, modelSeed, datasetSeed, queryMode, dataset]
 
 def printRecord(statement):
     '''
@@ -193,13 +195,13 @@ def binaryDistance(samples, pairwise = False):
     return distances
 
 
-def sortTopXSamples(sortedSamples, samples = 10, distCutoff = 0.2):
+def sortTopXSamples(sortedSamples, nSamples = int(1e6), distCutoff = 0.2):
     # collect top distinct samples
 
     bestSamples = np.expand_dims(sortedSamples[0], 0) # start with the best identified sequence
     bestInds = [0]
     i = -1
-    while len(bestInds) < samples:
+    while (len(bestInds) < nSamples) and (i < len(sortedSamples) - 1):
         i += 1
         candidate = np.expand_dims(sortedSamples[i], 0)
         sampleList = np.concatenate((bestSamples, candidate))
@@ -220,23 +222,112 @@ def numpy_fillna(data):
     mask = np.arange(lens.max()) < lens[:,None]
 
     # Setup output array and put elements from data into masked positions
-    out = np.zeros(mask.shape, dtype=data.dtype) - 1
+    out = np.zeros(mask.shape, dtype=data.dtype)
     out[mask] = np.concatenate(data)
     return out
 
 
-def filterDuplicateSamples(samples):
+def filterDuplicateSamples(samples, oldDatasetPath = None, returnInds = False):
     """
-    make sure there are no duplicates in the filtered samples OR in the existing dataset
-    if scores == True - we sort all of these as well, otherwise we just look at the samples
-    :param samples: must be np array padded to equal length
-    :return:
+    assumes original dataset contains no duplicates
+    :param samples: must be np array padded to equal length. If a combination of new and original datasets, critical that the original data comes first.
+    : param origDatasetLen: if samples is a combination of new and old datasets, set old dataset first with length 'origDatasetLen'
+    :return: non-duplicate samples and/or indices of such samples
     """
+    origDatasetLen = 0 # if there is no old dataset, take everything
+    if oldDatasetPath is not None:
+        dataset = np.load(oldDatasetPath, allow_pickle=True).item()['samples']
+        origDatasetLen = len(dataset)
+        samples = np.concatenate((dataset,samples),axis=0)
 
     samplesTuple = [tuple(row) for row in samples]
     seen = set()
     seen_add = seen.add
-    filteredSamples = [x for x in samplesTuple if not(x in seen or seen_add(x))]
 
-    return np.asarray(filteredSamples)
+    if returnInds:
+        filtered = [[samplesTuple[i], i] for i in range(len(samplesTuple)) if not (samplesTuple[i] in seen or seen_add(samplesTuple[i]))]
+        filteredSamples = [filtered[i][0] for i in range(len(filtered))]
+        filteredInds = [filtered[i][1] for i in range(len(filtered))]
 
+        return np.asarray(filteredSamples[origDatasetLen:]), np.asarray(filteredInds[origDatasetLen:]) - origDatasetLen
+    else:
+        filteredSamples = [samplesTuple[i] for i in range(len(samplesTuple)) if not (samplesTuple[i] in seen or seen_add(samplesTuple[i]))]
+
+        return np.asarray(filteredSamples[origDatasetLen:])
+
+
+def generateRandomSamples(nSamples, sampleLengthRange, dictSize, oldDatasetPath = None, variableLength = True):
+    '''
+    randomly generate a non-repeating set of samples of the appropriate size and composition
+    :param nSamples:
+    :param sampleLengthRange:
+    :param dictSize:
+    :param variableLength:
+    :return:
+    '''
+
+    if variableLength:
+        samples = []
+        while len(samples) < nSamples:
+            for i in range(sampleLengthRange[0], sampleLengthRange[1] + 1):
+                samples.extend(np.random.randint(1, dictSize + 1, size=(int(10 * dictSize * i), i)))
+
+            samples = numpy_fillna(np.asarray(samples)).astype(int)  # pad sequences up to maximum length
+            samples = filterDuplicateSamples(samples, oldDatasetPath)  # this will naturally proportionally punish shorter sequences
+            if len(samples) < nSamples:
+                samples = samples.tolist()
+
+    else:  # fixed sample size
+        samples = []
+        while len(samples) < nSamples:
+            samples.extend(np.random.randint(1, dictSize + 1, size=(2 * nSamples, sampleLengthRange[1])))
+            samples = numpy_fillna(np.asarray(samples)).astype(int)  # pad sequences up to maximum length
+            samples = filterDuplicateSamples(samples, oldDatasetPath)  # this will naturally proportionally punish shorter sequences
+            if len(samples) < nSamples:
+                samples = samples.tolist()
+
+    np.random.shuffle(samples)  # shuffle so that sequences with different lengths are randomly distributed
+    samples = samples[:nSamples]  # after shuffle, reduce dataset to desired size, with properly weighted samples
+
+    return samples
+
+def runSampling(params, sampler, model, useOracle=False):
+    '''
+    run sampling and return key outputs in a dictionary
+    :param sampler:
+    :return:
+    '''
+    sampleOutputs = sampler.sample(model, useOracle=useOracle)
+
+    samples = []
+    scores = []
+    energies = []
+    uncertainties = []
+    for i in range(params['sampler gammas']):
+        samples.extend(sampleOutputs['optimalSamples'][i])
+        scores.extend(sampleOutputs['optima'][i])
+        energies.extend(sampleOutputs['enAtOptima'][i])
+        uncertainties.extend(sampleOutputs['varAtOptima'][i])
+
+    outputs = {
+        'samples': np.asarray(samples),
+        'scores': np.asarray(scores),
+        'energies': np.asarray(energies),
+        'uncertainties': np.asarray(uncertainties)
+    }
+
+    return outputs
+
+def get_n_params(model):
+    '''
+    count parameters for a pytorch model
+    :param model:
+    :return:
+    '''
+    pp=0
+    for p in list(model.parameters()):
+        nn=1
+        for s in list(p.size()):
+            nn = nn*s
+        pp += nn
+    return pp

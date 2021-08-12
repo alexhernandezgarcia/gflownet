@@ -14,7 +14,7 @@ from utils import *
 params = {}
 params['init dataset length'] = 100000 # times seq len is real dataset size
 params['dict size'] = 4
-params['variable sample size'] = True
+params['variable sample length'] = True
 params['min sample length'], params['max sample length'] = [10, 20]
 params['dataset'] = 'seqfold' # linear, inner product, potts, seqfold, nupack
 
