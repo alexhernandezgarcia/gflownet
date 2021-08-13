@@ -144,7 +144,7 @@ class activeLearning():
         bestEns = sortedEns[bestInds]
         bestVars = sortedVars[bestInds]
 
-        printRecord('{} Samplers found top {:} distinct samples with minimum energy'.format(int(self.params['sampler gammas']),len(bestInds)) + bcolors.OKGREEN + ' {:.2f},'.format(np.amin(bestEns)) + bcolors.ENDC + ' average energy' + bcolors.OKGREEN + ' {:.2f},'.format(np.average(bestEns)) + bcolors.ENDC + ' and average std dev' + bcolors.OKCYAN + ' {:.2f}'.format(np.average(np.sqrt(bestVars))) + bcolors.ENDC)
+        printRecord('{} Samplers found top {:} distinct samples with minimum energy'.format(int(self.params['num samplers']),len(bestInds)) + bcolors.OKGREEN + ' {:.2f},'.format(np.amin(bestEns)) + bcolors.ENDC + ' average energy' + bcolors.OKGREEN + ' {:.2f},'.format(np.average(bestEns)) + bcolors.ENDC + ' and average std dev' + bcolors.OKCYAN + ' {:.2f}'.format(np.average(np.sqrt(bestVars))) + bcolors.ENDC)
 
         if self.params['dataset type'] == 'toy': # we can check the test error against a huge random dataset
             self.largeModelEvaluation()
@@ -182,11 +182,13 @@ class activeLearning():
                 self.model.converge()  # converge model
                 self.testMinima.append(np.amin(self.model.err_te_hist))
         else:
+            del self.model
             if self.params['device'] == 'local':
                 nHold = 4
             else:
                 nHold = 1
             cpus = int(os.cpu_count() - nHold)
+            cpus = min(cpus,self.params['ensemble size']) # only as many CPUs as we need
             with mp.Pool(processes=cpus) as pool:
                 output = [pool.apply_async(trainModel, args=[self.params, j]) for j in range(self.params['ensemble size'])]
                 outputList = [output[i].get() for i in range(self.params['ensemble size'])]
@@ -211,7 +213,7 @@ class activeLearning():
         :return:
         '''
         ensemble = []
-        for i in range(0,self.params['ensemble size']):
+        for i in range(self.params['ensemble size']):
             self.resetModel(i)
             self.model.load(i)
             ensemble.append(self.model.model)
@@ -282,12 +284,12 @@ class activeLearning():
         '''
         printRecord("Asking toy oracle for the true minimum")
         self.model = 'abc'
-        gammas = np.logspace(-4,1,self.params['sampler gammas'])
+        gammas = np.logspace(-4,1,self.params['num samplers'])
         mcmcSampler = sampler(self.params, 0, [1,0], gammas)
         sampleDict = runSampling(self.params, mcmcSampler, self.model, useOracle=True)
 
         bestMin = np.amin(sampleDict['energies'])
-        printRecord(f"Sampling Complete! Lowest Energy Found = {bcolors.FAIL}%.3f{bcolors.ENDC}" % bestMin + " from %d" % self.params['sampler gammas'] + " sampling runs.")
+        printRecord(f"Sampling Complete! Lowest Energy Found = {bcolors.FAIL}%.3f{bcolors.ENDC}" % bestMin + " from %d" % self.params['num samplers'] + " sampling runs.")
 
         self.oracleOptima = sampleDict
         self.trueMinimum = np.amin(self.oracleOptima['scores'])

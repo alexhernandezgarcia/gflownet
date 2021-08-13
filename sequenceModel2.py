@@ -16,17 +16,18 @@ params['init dataset length'] = 100000 # times seq len is real dataset size
 params['dict size'] = 4
 params['variable sample length'] = True
 params['min sample length'], params['max sample length'] = [10, 20]
-params['dataset'] = 'seqfold' # linear, inner product, potts, seqfold, nupack
+params['dataset'] = 'nupack' # linear, inner product, potts, seqfold, nupack
 
 # model params
 params['model'] = 'transformer' # 'mlp', 'lstm', 'transformer'
-params['hidden dim'] = 128 # filters in fc layers
-params['layers'] = 2
-params['embed dim'] = 128 # embedding dimension for transformer and lstm
-params['heads'] = 2 # transformer heads
-params['epochs'] = 200
-params['training batch'] = 100
-params['GPU'] = True
+params['hidden dim'] = 256 # filters in fc layers
+params['layers'] = 4
+params['embed dim'] = 256 # embedding dimension for transformer and lstm
+params['heads'] = 4 # transformer heads
+params['epochs'] = 100
+params['training batch'] = 1000
+params['GPU'] = False
+params['test mode'] = False
 
 params['dataset seed'] = 0
 

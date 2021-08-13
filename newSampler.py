@@ -303,11 +303,11 @@ params['min sample length'], params['max sample length'] = [10, 20] # minimum in
 
 # sampler parameters
 params['sampling time'] = int(1e3)
-params['sampler gammas'] = 3 # minimum number of gammas over which to search for each sampler (if doing in parallel, we may do more if we have more CPUs than this)
+params['num samplers'] = 3 # minimum number of gammas over which to search for each sampler (if doing in parallel, we may do more if we have more CPUs than this)
 
 params['debug'] = False # records extra stats for debugging purposes (slow and heavy)
 params['device'] = 'local'
-gammas = np.logspace(-3, 1, params['sampler gammas'])
+gammas = np.logspace(-3, 1, params['num samplers'])
 
 params['ensemble size'] = 5
 params['run num'] = 27

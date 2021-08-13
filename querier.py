@@ -79,7 +79,7 @@ class querier():
         :param parallel:
         :return:
         """
-        gammas = np.logspace(-5, 1, self.params['sampler gammas'])
+        gammas = np.logspace(-5, 1, self.params['num samplers'])
         self.mcmcSampler = sampler(self.params, seedInd, scoreFunction, gammas)
         outputs = runSampling(self.params, self.mcmcSampler, model, useOracle=useOracle)
 

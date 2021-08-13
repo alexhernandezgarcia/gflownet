@@ -12,27 +12,52 @@ This is a general utilities file for the active learning pipeline
 To-Do:
 '''
 
-def get_input():
-    '''
-    get the command line in put for the run-num. defaulting to a new run (0)
-    :return:
-    '''
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--run_num', type=int, default = 0)
-    parser.add_argument('--sampler_seed', type=int, default = 0)
-    parser.add_argument('--model_seed', type=int, default = 0)
-    parser.add_argument('--dataset_seed', type=int, default=0)
-    parser.add_argument('--query_type', type=str, default='random')
-    parser.add_argument('--dataset', type=str, default='linear')
-    cmd_line_input = parser.parse_args()
-    run = cmd_line_input.run_num
-    samplerSeed = cmd_line_input.sampler_seed % 10
-    modelSeed = cmd_line_input.model_seed % 10
-    datasetSeed = cmd_line_input.dataset_seed
-    queryMode = cmd_line_input.query_type
-    dataset = cmd_line_input.dataset
+def getParamsDict(args):
+    params = {}
+    params['run num'] = args.run_num
+    params['sampler seed'] = args.sampler_seed % 10  # seed for MCMC modelling (each set of gammas gets a slightly different seed)
+    params['model seed'] = args.model_seed % 10  # seed used for model ensemble (each model gets a slightly different seed)
+    params['dataset seed'] = args.dataset_seed % 10 # if we are using a toy dataset, it may take a specific seed
+    params['query mode'] = args.query_mode  # 'random', 'score', 'uncertainty', 'heuristic', 'learned' # different modes for query construction
+    params['dataset'] = args.dataset
 
-    return [run, samplerSeed, modelSeed, datasetSeed, queryMode, dataset]
+    # initialize control parameters
+    params['device'] = args.device  # 'local' or 'cluster'
+    params['GPU'] = args.GPU  # WIP - train and evaluate models on GPU
+    params['explicit run enumeration'] = args.explicit_run_enumeration  # if this is True, the next run be fresh, in directory 'run%d'%run_num, if false, regular behaviour. Note: only use this on fresh runs
+    params['test mode'] = args.test_mode  # WIP # if true, automatically set parameters for a quick test run
+
+    # Pipeline parameters
+    params['pipeline iterations'] = args.pipeline_iterations  # number of cycles with the oracle
+    params['distinct minima'] = args.distinct_minima  # number of distinct minima
+    params['minima dist cutoff'] = args.minima_dist_cutoff  # minimum distance (normalized, binary) between distinct minima
+
+    params['queries per iter'] = args.queries_per_iter  # maximum number of questions we can ask the oracle per cycle
+    params['mode'] = args.mode  # 'training'  'evaluation' 'initialize'
+    params['debug'] = args.debug
+    params['training parallelism'] = args.training_parallelism  # True hangs on Linux systems # distribute training across a CPU multiprocessing pool (each CPU may still access a GPU, if GPU == True)
+
+    # toy data parameters
+    params['dataset type'] = args.dataset_type # oracle is very fast to sample
+    params['init dataset length'] = args.init_dataset_length  # number of items in the initial (toy) dataset
+    params['dict size'] = args.dict_size  # number of possible choices per-state, e.g., [0,1] would be two, [1,2,3,4] (representing ATGC) would be 4
+    params['variable sample length'] = args.variable_sample_length  # if true, 'max sample length' should be a list with the smallest and largest size of input sequences [min, max]. If 'false', model is MLP, if 'true', transformer encoder -> MLP output
+    params['min sample length'], params['max sample length'] = [args.min_sample_length, args.max_sample_length]  # minimum input sequence length and # maximum input sequence length (inclusive) - or fixed sample size if 'variable sample length' is false
+
+    # model parameters
+    params['ensemble size'] = args.model_ensemble_size  # number of models in the ensemble
+    params['model filters'] = args.model_filters
+    params['model layers'] = args.model_layers  # for cluster batching
+    params['embed dim'] = args.embedding_dim  # embedding dimension
+    params['max training epochs'] = args.max_epochs
+    params['batch size'] = args.training_batch_size
+
+    # sampler parameters
+    params['sampling time'] = args.sampling_time
+    params['num samplers'] = args.num_samplers  # minimum number of gammas over which to search for each sampler (if doing in parallel, we may do more if we have more CPUs than this)
+
+    return params
+
 
 def printRecord(statement):
     '''
@@ -144,7 +169,7 @@ def resultsAnalysis(outDir):
     # collect info for plotting
     numIter = out['params']['pipeline iterations']
     numModels = out['params']['ensemble size']
-    numSampler = out['params']['sampler gammas']
+    numSampler = out['params']['num samplers']
     optima = []
     testLoss = []
     oracleOptima = []
@@ -303,7 +328,7 @@ def runSampling(params, sampler, model, useOracle=False):
     scores = []
     energies = []
     uncertainties = []
-    for i in range(params['sampler gammas']):
+    for i in range(params['num samplers']):
         samples.extend(sampleOutputs['optimalSamples'][i])
         scores.extend(sampleOutputs['optima'][i])
         energies.extend(sampleOutputs['enAtOptima'][i])

@@ -105,30 +105,22 @@ class modelNet():
         self.epochs = 0
 
         while (self.converged != 1):
+            if (self.epochs % 10 == 0) and self.params['debug']:
+                printRecord("Model {} epoch {}".format(self.ensembleIndex, self.epochs))
+
             if self.epochs > 0: #  this allows us to keep the previous model if it is better than any produced on this run
                 self.train_net(tr)
             else:
                 self.err_tr_hist.append(0)
 
             self.test(te) # baseline from any prior training
-
             if self.err_te_hist[-1] == np.min(self.err_te_hist): # if this is the best test loss we've seen
                 self.save(best=1)
-
             # after training at least 10 epochs, check convergence
             if self.epochs >= self.params['history']:
                 self.checkConvergence()
 
             self.epochs += 1
-
-            if self.params['debug']: # save running stats
-                pass
-            #self.save(self, best=0) # save ongoing checkpoint
-
-            #sys.stdout.flush()
-            #sys.stdout.write('\repoch={}; train loss={:.5f}; test loss={:.5f};\r'.format(self.epochs, self.err_tr_hist[-1], self.err_te_hist[-1]))
-
-            #printRecord('epoch={}; train loss={:.5f}; test loss={:.5f};'.format(self.epochs, self.err_tr_hist[-1], self.err_te_hist[-1]))
 
         if returnHist:
             return self.err_te_hist
@@ -214,16 +206,16 @@ class modelNet():
 
         if all(np.asarray(self.err_te_hist[-self.params['history']+1:])  > self.err_te_hist[-self.params['history']]): #
             self.converged = 1
-            print(bcolors.WARNING + "Model converged after {} epochs - test error increasing".format(self.epochs + 1) + bcolors.ENDC)
+            printRecord(bcolors.WARNING + "Model converged after {} epochs - test error increasing".format(self.epochs + 1) + bcolors.ENDC)
 
         # check if test loss is unchanging
         if abs(self.err_te_hist[-self.params['history']] - np.average(self.err_te_hist[-self.params['history']:]))/self.err_te_hist[-self.params['history']] < eps:
             self.converged = 1
-            print(bcolors.WARNING + "Model converged after {} epochs - hit test loss convergence criterion".format(self.epochs + 1) + bcolors.ENDC)
+            printRecord(bcolors.WARNING + "Model converged after {} epochs - hit test loss convergence criterion".format(self.epochs + 1) + bcolors.ENDC)
 
         if self.epochs >= self.params['max training epochs']:
             self.converged = 1
-            print(bcolors.WARNING + "Model converged after {} epochs- epoch limit was hit".format(self.epochs + 1) + bcolors.ENDC)
+            printRecord(bcolors.WARNING + "Model converged after {} epochs- epoch limit was hit".format(self.epochs + 1) + bcolors.ENDC)
 
 
         #if self.converged == 1:
