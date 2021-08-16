@@ -178,7 +178,7 @@ class sampler:
             if self.iter % self.randintsResampleAt == 0: # periodically resample random numbers
                 self.resampleRandints()
 
-        print("{} optima were recorded on this run".format(len(self.allOptimalConfigs)))
+        printRecord("{} optima were recorded on this run".format(len(self.allOptimalConfigs)))
 
 
     def propConfigs(self,ind):

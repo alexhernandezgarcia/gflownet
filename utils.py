@@ -41,7 +41,7 @@ def getParamsDict(args):
     params['dataset type'] = args.dataset_type # oracle is very fast to sample
     params['init dataset length'] = args.init_dataset_length  # number of items in the initial (toy) dataset
     params['dict size'] = args.dict_size  # number of possible choices per-state, e.g., [0,1] would be two, [1,2,3,4] (representing ATGC) would be 4
-    params['variable sample length'] = args.variable_sample_length  # if true, 'max sample length' should be a list with the smallest and largest size of input sequences [min, max]. If 'false', model is MLP, if 'true', transformer encoder -> MLP output
+    params['variable sample length'] = args.variable_sample_length  # if true, 'max sample length' should be a list with the smallest and largest size of input sequences [min, max]. If 'false', model is MLP, if 'true', transformer encoder -> MLP output. - false isn't really working/maintained
     params['min sample length'], params['max sample length'] = [args.min_sample_length, args.max_sample_length]  # minimum input sequence length and # maximum input sequence length (inclusive) - or fixed sample size if 'variable sample length' is false
 
     # model parameters

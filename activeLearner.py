@@ -108,9 +108,9 @@ class activeLearning():
         t0 = time.time()
         scores = self.oracle.score(query) # score Samples
         tf = time.time()
-        print('Oracle scored' + bcolors.OKBLUE + ' {} '.format(len(scores)) + bcolors.ENDC + 'queries with average score of' + bcolors.OKGREEN + ' {:.3f}'.format(np.average(scores)) + bcolors.ENDC)
+        printRecord('Oracle scored' + bcolors.OKBLUE + ' {} '.format(len(scores)) + bcolors.ENDC + 'queries with average score of' + bcolors.OKGREEN + ' {:.3f}'.format(np.average(scores)) + bcolors.ENDC)
         if not self.params['dataset type'] == 'toy':
-            print('Oracle scoring took {} seconds'.format(int(tf-t0)))
+            printRecord('Oracle scoring took {} seconds'.format(int(tf-t0)))
 
         self.reportStatus() # compute and record the current status of the active learner w.r.t. the dataset
 
@@ -274,7 +274,7 @@ class activeLearning():
             self.totalLoss.append(totalLoss)
             self.bottomTenLoss.append(bottomTenLoss)
 
-        print("Model has overall loss of" + bcolors.OKCYAN + ' {:.5f}, '.format(totalLoss) + bcolors.ENDC + 'best 10% loss of' + bcolors.OKCYAN + ' {:.5f} '.format(bottomTenLoss) + bcolors.ENDC +  'on {} toy dataset samples'.format(numSamples))
+        printRecord("Model has overall loss of" + bcolors.OKCYAN + ' {:.5f}, '.format(totalLoss) + bcolors.ENDC + 'best 10% loss of' + bcolors.OKCYAN + ' {:.5f} '.format(bottomTenLoss) + bcolors.ENDC +  'on {} toy dataset samples'.format(numSamples))
 
     def sampleOracle(self):
         '''

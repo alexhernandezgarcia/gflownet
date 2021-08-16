@@ -54,7 +54,7 @@ parser.add_argument('--distinct_minima', type = int, default = 10)
 parser.add_argument('--minima_dist_cutoff', type = float, default = 0.2)
 parser.add_argument('--queries_per_iter', type = int, default = 100)
 parser.add_argument('--mode', type = str, default = 'training')
-parser.add_argument('--debug', type = bool, default = False)
+parser.add_argument('--debug', type = bool, default = True)
 # model settings
 parser.add_argument('--training_parallelism', type = bool, default = False)
 parser.add_argument('--model_ensemble_size', type = int, default = 5)
@@ -62,7 +62,7 @@ parser.add_argument('--model_filters', type = int, default = 64)
 parser.add_argument('--embedding_dim', type = int, default = 64)
 parser.add_argument('--model_layers', type = int, default = 4)
 parser.add_argument('--training_batch_size', type = int, default = 10)
-parser.add_argument('--max_epochs', type = int, default = 200)
+parser.add_argument('--max_epochs', type = int, default = 00)
 #sampler settings
 parser.add_argument('--sampling_time', type = int, default = int(1e4))
 parser.add_argument('--num_samplers', type = int, default = 10)
@@ -93,7 +93,7 @@ if params['test mode']:
 if params['device'] == 'cluster':
     params['workdir'] = '/home/kilgourm/scratch/learnerruns'
 elif params['device'] == 'local':
-    params['workdir'] = '/home/mkilgour/learnerruns'#'C:/Users\mikem\Desktop/activeLearningRuns'#
+    params['workdir'] = 'C:/Users\mikem\Desktop/activeLearningRuns'#'/home/mkilgour/learnerruns'#
 
 #=====================================
 if __name__ == '__main__':

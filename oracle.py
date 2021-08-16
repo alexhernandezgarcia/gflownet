@@ -3,7 +3,7 @@ import numpy as np
 import scipy.io
 import random
 from seqfold import dg, fold
-#from nupack import *
+from nupack import *
 from utils import *
 
 '''
@@ -26,7 +26,6 @@ params
 'init dataset length' - number of samples for initial (random) dataset
 'dataset' - name of dataset to be saved
 '''
-
 
 
 class oracle():
@@ -285,7 +284,7 @@ class oracle():
         return out
 
 
-'''
+
     def nupackScore(self,queries,returnSS=False,parallel=True):
 
         #use nupack instead of seqfold - more stable and higher quality predictions in general
@@ -338,7 +337,7 @@ class oracle():
             return energies, strings
         else:
             return energies
-'''
+
 
 
 
