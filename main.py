@@ -44,7 +44,7 @@ parser.add_argument('--min_sample_length', type = int, default = 10)
 parser.add_argument('--max_sample_length', type = int, default = 40)
 # AL settings
 parser.add_argument('--query_mode', type=str, default='energy') # 'random', 'energy', 'uncertainty', 'heuristic', 'learned' # different modes for query construction
-parser.add_argument('--test_mode', type = bool, default = True) # if true, automatically set parameters for a quick test run
+parser.add_argument('--test_mode', type = bool, default = False) # if true, automatically set parameters for a quick test run
 parser.add_argument('--pipeline_iterations', type = int, default = 20) # number of cycles with the oracle
 parser.add_argument('--minima_dist_cutoff', type = float, default = 0.25) # minimum distance (normalized, binary) between distinct minima or between clusters in agglomerative clustering
 # TODO add toggle between agglomerative clustering and simple item-by-item batching
