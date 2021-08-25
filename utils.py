@@ -248,7 +248,7 @@ def generateRandomSamples(nSamples, sampleLengthRange, dictSize, oldDatasetPath 
             for i in range(sampleLengthRange[0], sampleLengthRange[1] + 1):
                 samples.extend(np.random.randint(1, dictSize + 1, size=(int(10 * dictSize * i), i)))
 
-            samples = numpy_fillna(np.asarray(samples)).astype(int)  # pad sequences up to maximum length
+            samples = numpy_fillna(np.asarray(samples,dtype=object))  # pad sequences up to maximum length
             samples = filterDuplicateSamples(samples, oldDatasetPath)  # this will naturally proportionally punish shorter sequences
             if len(samples) < nSamples:
                 samples = samples.tolist()
@@ -257,7 +257,7 @@ def generateRandomSamples(nSamples, sampleLengthRange, dictSize, oldDatasetPath 
         samples = []
         while len(samples) < nSamples:
             samples.extend(np.random.randint(1, dictSize + 1, size=(2 * nSamples, sampleLengthRange[1])))
-            samples = numpy_fillna(np.asarray(samples)).astype(int)  # pad sequences up to maximum length
+            samples = numpy_fillna(np.asarray(samples, dtype=object))  # pad sequences up to maximum length
             samples = filterDuplicateSamples(samples, oldDatasetPath)  # this will naturally proportionally punish shorter sequences
             if len(samples) < nSamples:
                 samples = samples.tolist()

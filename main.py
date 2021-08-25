@@ -4,22 +4,20 @@ from utils import *
 import warnings
 warnings.filterwarnings("ignore", category=RuntimeWarning) # annoying numpy error
 
-
 '''
 This code implements an active learning protocol for global minimization of some function
 
 To-Do
 ==> incorporate gFlowNet
-==> incorporate RL
+==> incorporate 
+==> augment binary distance metric with multi-base motifs
 
 low priority /long term
+==> augment binary distance metric with multi-base motifs
 ==> check that relevant params (ensemble size) are properly overwritten when picking up old jobs
 ==> think carefully about how we split test and train datasets
 ==> augmentation and other regularization
 ==> maybe print outputs at the end of each iteration as a lovely table
-==> add a debug mode for saving training results
-==> characterize and track specific local minima, including suboptimal ones, over iterations
-==> optimize transformer initialization
 
 known issues
 ==> training parallelism hangs on iteration #2 on linux
@@ -46,7 +44,7 @@ parser.add_argument('--min_sample_length', type = int, default = 10)
 parser.add_argument('--max_sample_length', type = int, default = 40)
 # AL settings
 parser.add_argument('--query_mode', type=str, default='energy') # 'random', 'energy', 'uncertainty', 'heuristic', 'learned' # different modes for query construction
-parser.add_argument('--test_mode', type = bool, default = False) # if true, automatically set parameters for a quick test run
+parser.add_argument('--test_mode', type = bool, default = True) # if true, automatically set parameters for a quick test run
 parser.add_argument('--pipeline_iterations', type = int, default = 20) # number of cycles with the oracle
 parser.add_argument('--minima_dist_cutoff', type = float, default = 0.25) # minimum distance (normalized, binary) between distinct minima or between clusters in agglomerative clustering
 # TODO add toggle between agglomerative clustering and simple item-by-item batching
