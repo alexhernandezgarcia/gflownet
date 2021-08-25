@@ -7,6 +7,7 @@ import os
 import pickle
 from collections import defaultdict
 from itertools import count
+import matplotlib.pyplot as plt
 
 import numpy as np
 from scipy.stats import norm
@@ -58,6 +59,7 @@ parser.add_argument(
     type=int,
 )
 parser.add_argument("--nalphabet", default=4, type=int)
+parser.add_argument("--reweight", default = 0.001, type=float, help="Score reweighting factor, 0.001 is effectively linear, 0.1 is significant reweighting toward high scores")
 
 # MCMC
 parser.add_argument("--bufsize", default=16, help="MCMC buffer size", type=int)
@@ -106,7 +108,7 @@ class AptamerSeq:
         Reward function [to be confirmed]
     """
 
-    def __init__(self, horizon=42, nalphabet=4, func=None, allow_backward=False):
+    def __init__(self, horizon=42, nalphabet=4, maxScore=None, avgScore=None, func=None, allow_backward=False, renormalize=False, reweighting = 0.001):
         self.horizon = horizon
         self.nalphabet = nalphabet
         self.seq = []
@@ -120,7 +122,14 @@ class AptamerSeq:
             "seqfold": seqfoldScore,
         }[func]
         #"nupack": nupackScore,
-        self.reward = lambda x: 0 if not self.done else self.func(x)
+        if renormalize:
+            self.reweighting = reweighting * avgScore # small reweighting (.001) leads to less distortion towards high scores, 0.1 is large, 1 is extremely large
+            self.maxScore = maxScore
+            self.exponentialNormFactor = np.amax((np.exp(self.reweighting * self.maxScore) - 1)/ np.exp(self.reweighting * self.maxScore))
+            self.reward = lambda x: 0 if not self.done else 1/2 * (self.func(x)/self.maxScore + (np.exp(self.reweighting * self.func(x)) - 1)/np.exp(self.reweighting * self.maxScore)/self.exponentialNormFactor)  # allow for normalized reweighting of the input scores
+        else:
+            self.reward = lambda x: 0 if not self.done else self.func(x)
+
         self.allow_backward = allow_backward
         self._true_density = None
 
@@ -129,6 +138,43 @@ class AptamerSeq:
             return (seq[-1] + 1) * len(seq)
         else:
             return 0
+
+
+    def generateRandomSamples(self, nSamples):
+        '''
+        randomly generate a non-repeating set of samples of the appropriate size and composition
+        :param nSamples:
+        :param sampleLengthRange:
+        :param dictSize:
+        :param variableLength:
+        :return:
+        '''
+        np.random.seed(10)
+        samples = []
+        while len(samples) < nSamples:
+            for i in range(1, self.horizon + 1):
+                samples.extend(np.random.randint(1, self.nalphabet + 1, size=(int(10 * self.nalphabet * i), i)))
+
+            samples = self.numpy_fillna(np.asarray(samples)).astype(int)  # pad sequences up to maximum length
+            if len(samples) < nSamples:
+                samples = samples.tolist()
+
+        np.random.shuffle(samples)  # shuffle so that sequences with different lengths are randomly distributed
+        samples = samples[:nSamples]  # after shuffle, reduce dataset to desired size, with properly weighted samples
+
+        return samples
+
+    def numpy_fillna(self,data):
+        # Get lengths of each row of data
+        lens = np.array([len(i) for i in data])
+
+        # Mask of valid places in each row
+        mask = np.arange(lens.max()) < lens[:, None]
+
+        # Setup output array and put elements from data into masked positions
+        out = np.zeros(mask.shape, dtype=data.dtype)
+        out[mask] = np.concatenate(data)
+        return out
 
     def seq2obs(self, seq=None):
         """
@@ -281,7 +327,7 @@ class AptamerSeq:
         )
         traj_rewards, seq_end = zip(
             *[
-                (self.func(seq), seq)
+                (self.reward(seq), seq)
                 for seq in seq_all
                 if len(self.parent_transitions(seq, 0)[0]) > 0 or sum(seq) == 0
             ]
@@ -573,13 +619,23 @@ def main(args):
 
     args.is_mcmc = args.method in ["mars", "mcmc"]
 
+    env0 = AptamerSeq(
+        args.horizon, args.nalphabet, func=args.func, allow_backward=args.is_mcmc
+    )
+
+    # initialize constants for renormalized reward evaluation
+    randomSamples = env0.generateRandomSamples(int(1e5))  # generate samples in 1-4 + 0 padding format
+    randomScores = env0.func(randomSamples)
+    maxScore = np.amax(randomScores)
+    averageScore = np.average(randomScores)
+
     # Define environment
     env = AptamerSeq(
-        args.horizon, args.nalphabet, func=args.func, allow_backward=args.is_mcmc
+        args.horizon, args.nalphabet, renormalize=False, maxScore=maxScore, avgScore=averageScore, func=args.func, allow_backward=args.is_mcmc, reweighting=args.reweight
     )
     envs = [
         AptamerSeq(
-            args.horizon, args.nalphabet, func=args.func, allow_backward=args.is_mcmc
+            args.horizon, args.nalphabet, renormalize=False, maxScore=maxScore, avgScore=averageScore, func=args.func, allow_backward=args.is_mcmc, reweighting=args.reweight
         )
         for i in range(args.mbsize)
     ]
@@ -643,6 +699,7 @@ def main(args):
                         ]
                     )
 
+    a = env.true_density()
     root = os.path.split(args.save_path)[0]
     os.makedirs(root, exist_ok=True)
     pickle.dump(

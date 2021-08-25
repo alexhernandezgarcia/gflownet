@@ -19,7 +19,7 @@ class querier():
     def __init__(self, params):
         self.params = params
 
-    def buildQuery(self, model, iterNum):
+    def buildQuery(self, model, statusDict, energySampleDict):
         """
         select the samples which will be sent to the oracle for scoring
         :param sampleDict:
@@ -32,20 +32,47 @@ class querier():
             '''
             samples = generateRandomSamples(self.params['queries per iter'], [self.params['min sample length'],self.params['max sample length']], self.params['dict size'], variableLength = self.params['variable sample length'], oldDatasetPath = 'datasets/' + self.params['dataset'] + '.npy')
 
-        elif self.params['query mode'] == 'learned':
-            raise RuntimeError("No learned models have been implemented!")
-
         else:
-            '''
-            query samples with best good scores, according to our model
-            '''
-            samples = self.sampleForQuery(model, iterNum)
-            mcmcSampleLen = len(samples)
+            if self.params['query mode'] == 'learned':
+                raise RuntimeError("No learned models have been implemented!")
+                # TODO implement learned model
+                # TODO upgrade sampler
+
+            else:
+                '''
+                query samples with best good scores, according to our model and a scoring function
+                
+                '''
+
+                # generate candidates
+                if self.params['query mode'] == 'energy':
+                    self.sampleDict = energySampleDict
+                else:
+                    self.sampleForQuery(model, statusDict['iter'])
+
+                samples = self.sampleDict['samples']
+                scores = self.sampleDict['scores']
+                uncertainties = self.sampleDict['uncertainties']
+                samples, inds = filterDuplicateSamples(samples, oldDatasetPath='datasets/' + self.params['dataset'] + '.npy', returnInds=True)
+                scores = scores[inds]
+
+            # create batch from candidates
+            # agglomerative clustering
+            clusters, clusterScores, clusterVars = doAgglomerativeClustering(samples, scores, uncertainties, cutoff=self.params['minima dist cutoff'])
+            clusterSizes, avgClusterScores, minCluster, avgClusterVars, minClusterVars, minClusterSamples = clusterAnalysis(clusters, clusterScores, clusterVars)
+            samples = minClusterSamples
+
+            # alternatively, simple exclusion
+            #bestInds = sortTopXSamples(samples[np.argsort(scores)], nSamples=len(samples), distCutoff=self.params['minima dist cutoff'])  # sort out the best, and at least minimally distinctive samples
+            #samples = samples[bestInds]
+
+            # alternatively, just take whatever is given
+            # samples = samples[np.argsort(scores)]
+
             while len(samples) < nQueries: # if we don't have enough samples from mcmc, add random ones to pad out the
                 randomSamples = generateRandomSamples(1000, [self.params['min sample length'],self.params['max sample length']], self.params['dict size'], variableLength = self.params['variable sample length'], oldDatasetPath = 'datasets/' + self.params['dataset'] + '.npy')
                 samples = filterDuplicateSamples(np.concatenate((samples,randomSamples),axis=0))
 
-            print('Query contains {} samples from sampler and {} randomly generated'.format(min(mcmcSampleLen,nQueries),max(nQueries-mcmcSampleLen,0)))
 
         return samples[:nQueries]
 
@@ -56,30 +83,23 @@ class querier():
         automatically filter any duplicates within the sample and the existing dataset
         :return:
         '''
-        if self.params['query mode'] == 'score':
+        if self.params['query mode'] == 'energy':
             scoreFunction = [1, 0]  # weighting between score and uncertainty - look for minimum score
         elif self.params['query mode'] == 'uncertainty':
-            scoreFunction = [0, -1]  # look for maximum uncertainty
+            scoreFunction = [0, 1]  # look for maximum uncertainty
         elif self.params['query mode'] == 'heuristic':
-            scoreFunction = [0.5, 0.5]  # this can be modulated over time, in principle, e.g., by a learned function
+            scoreFunction = [0.5, 0.5]  # put in user specified values (or functions) here
 
         # do a single sampling run
-        self.samplingOutputs = self.runSampling(model, scoreFunction, iterNum)
-        samples = self.samplingOutputs['samples']
-        scores = self.samplingOutputs['scores']
-        samples, inds = filterDuplicateSamples(samples, oldDatasetPath='datasets/' + self.params['dataset'] + '.npy', returnInds=True)
-        scores = scores[inds]
-        bestInds = sortTopXSamples(samples[np.argsort(scores)], nSamples = len(samples), distCutoff = 0.1) # sort out the best, and at least minimally distinctive samples
+        self.sampleDict = self.runSampling(model, scoreFunction, iterNum)
 
-        return samples[bestInds]
 
     def runSampling(self, model, scoreFunction, seedInd, useOracle=False):
         """
         run MCMC sampling
-        :param parallel:
         :return:
         """
-        gammas = np.logspace(-5, 1, self.params['num samplers'])
+        gammas = np.logspace(self.params['min gamma'], self.params['max gamma'], self.params['num samplers'])
         self.mcmcSampler = sampler(self.params, seedInd, scoreFunction, gammas)
         outputs = runSampling(self.params, self.mcmcSampler, model, useOracle=useOracle)
 

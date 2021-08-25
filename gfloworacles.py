@@ -5,6 +5,7 @@ from seqfold import dg, fold
 #from nupack import *
 
 
+
 def linearToy(queries, epsilon=1e-9):
     '''
     return the energy of a toy model for the given set of queries

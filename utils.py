@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 import argparse
 import os
 import time
+import sklearn.cluster as cluster
 
 
 '''
@@ -18,7 +19,7 @@ def getParamsDict(args):
     params['sampler seed'] = args.sampler_seed % 10  # seed for MCMC modelling (each set of gammas gets a slightly different seed)
     params['model seed'] = args.model_seed % 10  # seed used for model ensemble (each model gets a slightly different seed)
     params['dataset seed'] = args.dataset_seed % 10 # if we are using a toy dataset, it may take a specific seed
-    params['query mode'] = args.query_mode  # 'random', 'score', 'uncertainty', 'heuristic', 'learned' # different modes for query construction
+    params['query mode'] = args.query_mode  # 'random', 'energy', 'uncertainty', 'heuristic', 'learned' # different modes for query construction
     params['dataset'] = args.dataset
 
     # initialize control parameters
@@ -29,7 +30,6 @@ def getParamsDict(args):
 
     # Pipeline parameters
     params['pipeline iterations'] = args.pipeline_iterations  # number of cycles with the oracle
-    params['distinct minima'] = args.distinct_minima  # number of distinct minima
     params['minima dist cutoff'] = args.minima_dist_cutoff  # minimum distance (normalized, binary) between distinct minima
 
     params['queries per iter'] = args.queries_per_iter  # maximum number of questions we can ask the oracle per cycle
@@ -44,17 +44,23 @@ def getParamsDict(args):
     params['variable sample length'] = args.variable_sample_length  # if true, 'max sample length' should be a list with the smallest and largest size of input sequences [min, max]. If 'false', model is MLP, if 'true', transformer encoder -> MLP output. - false isn't really working/maintained
     params['min sample length'], params['max sample length'] = [args.min_sample_length, args.max_sample_length]  # minimum input sequence length and # maximum input sequence length (inclusive) - or fixed sample size if 'variable sample length' is false
 
+    # querier settings
+    params['model state size'] = args.model_state_size
+
     # model parameters
-    params['ensemble size'] = args.model_ensemble_size  # number of models in the ensemble
-    params['model filters'] = args.model_filters
-    params['model layers'] = args.model_layers  # for cluster batching
-    params['embed dim'] = args.embedding_dim  # embedding dimension
+    params['model type'] = args.model_type # type of proxy model
+    params['model ensemble size'] = args.model_ensemble_size  # number of models in the ensemble
+    params['model filters'] = args.model_filters # number of neurons per proxy NN layer
+    params['model layers'] = args.model_layers  # number of layers in NN proxy models (transformer encoder layers OR MLP layers)
+    params['embed dim'] = args.embedding_dim  # embedding dimension for transformer only
     params['max training epochs'] = args.max_epochs
     params['batch size'] = args.training_batch_size
 
     # sampler parameters
     params['sampling time'] = args.sampling_time
     params['num samplers'] = args.num_samplers  # minimum number of gammas over which to search for each sampler (if doing in parallel, we may do more if we have more CPUs than this)
+    params['min gamma'] = args.min_gamma
+    params['max gamma'] = args.max_gamma
 
     return params
 
@@ -141,9 +147,6 @@ def getModelName(ensembleIndex):
     return dirName
 
 
-
-
-
 class bcolors:
     HEADER = '\033[95m'
     OKBLUE = '\033[94m'
@@ -168,7 +171,7 @@ def resultsAnalysis(outDir):
 
     # collect info for plotting
     numIter = out['params']['pipeline iterations']
-    numModels = out['params']['ensemble size']
+    numModels = out['params']['model ensemble size']
     numSampler = out['params']['num samplers']
     optima = []
     testLoss = []
@@ -215,7 +218,7 @@ def binaryDistance(samples, pairwise = False):
     else: # compute average distance of each sample from all the others
         distances = np.zeros(len(samples))
         for i in range(len(samples)):
-            distances[i] = np.sum(samples[i] != samples)
+            distances[i] = np.sum(samples[i] != samples) / len(samples.flatten())
 
     return distances
 
@@ -356,3 +359,123 @@ def get_n_params(model):
             nn = nn*s
         pp += nn
     return pp
+
+
+def doAgglomerativeClustering(samples,energies, uncertainties,cutoff = 0.25):
+    '''
+    agglomerative clustering and sorting with pairwise binary distance metric
+    :param samples:
+    :param energies:
+    :param cutoff:
+    :return:
+    '''
+    agglomerate = cluster.AgglomerativeClustering(n_clusters=None, affinity='precomputed', linkage='average', compute_full_tree=True, distance_threshold=cutoff).fit(binaryDistance(samples, pairwise=True))
+    labels = agglomerate.labels_
+    nClusters = agglomerate.n_clusters_
+    clusters = []
+    totInds = []
+    clusterEns = []
+    clusterVars = []
+    for i in range(len(np.unique(labels))):
+        inds = np.where(labels == i)[0].astype(int)
+        totInds.extend(inds)
+        clusters.append([samples[j] for j in inds])
+        clusterEns.append([energies[j] for j in inds])
+        clusterVars.append([uncertainties[j] for j in inds])
+
+
+    return clusters, clusterEns, clusterVars
+
+
+def clusterAnalysis(clusters, clusterEns, clusterVars):
+    '''
+    get the average and minimum energies and variances at these points
+    :param clusters:
+    :param clusterEns:
+    :param clusterVars:
+    :return:
+    '''
+    clusterSize = np.asarray([len(cluster) for cluster in clusters])
+    avgClusterEns = np.asarray([np.average(cluster) for cluster in clusterEns])
+    minClusterEns = np.asarray([np.amin(cluster) for cluster in clusterEns])
+    avgClusterVars = np.asarray([np.average(cluster) for cluster in clusterVars])
+    minClusterVars = np.asarray([clusterVars[i][np.argmin(clusterEns[i])] for i in range(len(clusterVars))])
+    minClusterSamples = np.asarray([clusters[i][np.argmin(clusterEns[i])] for i in range(len(clusterEns))])
+
+    clusterOrder = np.argsort(minClusterEns)
+    clusterSize = clusterSize[clusterOrder]
+    avgClusterEns = avgClusterEns[clusterOrder]
+    minClusterEns = minClusterEns[clusterOrder]
+    avgClusterVars = avgClusterVars[clusterOrder]
+    minClusterVars = minClusterVars[clusterOrder]
+    minClusterSamples = minClusterSamples[clusterOrder]
+
+    return clusterSize, avgClusterEns, minClusterEns, avgClusterVars, minClusterVars, minClusterSamples
+
+
+# TODO graph outputs from state dict record
+
+class resultsPlotter():
+    def __init__(self):
+        self.i = 0
+        self.j = 0
+
+    def process(self, directory):
+        # get simulation results
+        os.chdir(directory)
+        results = np.load('outputsDict.npy',allow_pickle=True).item()
+
+        self.niters = len(results['state dict record'])
+        self.nmodels = results['state dict record'][0]['n proxy models']
+
+        self.trueMin = np.amin(results['oracle outputs']['energies'])
+        self.trueMinSample = results['oracle outputs']['samples'][np.argmin(results['oracle outputs']['energies'])]
+
+        self.avgTestLoss = np.asarray([results['state dict record'][i]['test loss'] for i in range(self.niters)])
+        self.testStd = np.asarray([results['state dict record'][i]['test disagreement'] for i in range(self.niters)])
+        self.allTestLosses = np.asarray([results['state dict record'][i]['all test losses'] for i in range(self.niters)])
+        self.stdEns = np.asarray([results['state dict record'][i]['best cluster energies'] for i in range(self.niters)]) # these come standardized out of the box
+        self.stdDevs = np.asarray([results['state dict record'][i]['best cluster deviations'] for i in range(self.niters)])
+        self.stateSamples = np.asarray([results['state dict record'][i]['best cluster samples'] for i in range(self.niters)])
+        self.internalDiffs = np.asarray([results['state dict record'][i]['best clusters internal diff'] for i in range(self.niters)])
+        self.datasetDiffs = np.asarray([results['state dict record'][i]['best clusters dataset diff'] for i in range(self.niters)])
+        self.randomDiffs = np.asarray([results['state dict record'][i]['best clusters random set diff'] for i in range(self.niters)])
+        self.bigDataLoss = np.asarray([results['big dataset loss'][i] for i in range(self.niters)])
+        self.bottom10Loss = np.asarray([results['bottom 10% loss'][i] for i in range(self.niters)])
+
+        # get dataset mean and std
+        target = os.listdir('datasets')[0]
+        dataset = np.load('datasets/' + target,allow_pickle=True).item()
+        datasetScores = dataset['scores']
+        self.mean = np.mean(datasetScores)
+        self.std = np.sqrt(np.var(datasetScores))
+
+        # standardize results
+        self.stdTrueMin = (self.trueMin - self.mean) / self.std
+
+        # normalize against true answer
+        self.normedEns = 1 - np.abs(self.stdTrueMin - self.stdEns) / np.abs(self.stdTrueMin)
+        self.normedDevs = self.stdDevs / np.abs(self.stdTrueMin)
+
+        self.xrange = np.arange(self.niters) + 1
+
+
+    def plotLosses(self, fignum, color, label):
+        plt.figure(fignum)
+        plt.semilogy(self.xrange, self.bigDataLoss, color + '.-', label=label + ' big sample loss')
+        plt.semilogy(self.xrange, self.bottom10Loss, color + 'o-', label=label + ' bottom 10% loss')
+        plt.fill_between(self.xrange, self.avgTestLoss - self.testStd / 2, self.avgTestLoss + self.testStd / 2, alpha = 0.2, edgecolor = color, facecolor = color, label = label + ' test losses')
+        plt.xlabel('AL Iterations')
+        plt.ylabel('Smooth L1 Loss')
+        plt.legend()
+
+    def plotPerformance(self, fignum, color, label, ind):
+        plt.figure(fignum)
+        plt.fill_between(self.xrange, self.normedEns[:,0] - self.normedDevs[:,0] / 2, self.normedEns[:,0] + self.normedDevs[:,0] / 2, alpha = 0.2, edgecolor = color, facecolor = color, label = label + ' best optimum')
+        avgens = np.average(self.normedEns, axis=1)
+        plt.errorbar(self.xrange + ind / 10, avgens, yerr = [avgens-self.normedEns[:,0], avgens-self.normedEns[:,1]], fmt = color + '.', ecolor=color, elinewidth=3, capsize=1.5, alpha=0.2, label=label + ' state range')
+        #for i in range(self.normedEns.shape[1]):
+        #    plt.plot(self.xrange + self.i / 10, self.normedEns[:,i], color + '.')
+        plt.xlabel('AL Iterations')
+        plt.ylabel('Performance')
+        plt.legend()

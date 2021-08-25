@@ -33,17 +33,20 @@ class modelNet():
         self.params['history'] = min(20, self.params['max training epochs']) # length of past to check
         self.initModel()
         torch.random.manual_seed(int(params['model seed'] + ensembleIndex))
-        torch.random.seed()
+
 
     def initModel(self):
         '''
         Initialize model and optimizer
         :return:
         '''
-        if self.params['variable sample length']: # switch to variable-length sequence model
+        if self.params['model type'] == 'transformer': # switch to variable-length sequence model
             self.model = transformer(self.params)
-        else:
+        elif self.params['model type'] == 'mlp':
             self.model = MLP(self.params)
+        else:
+            print(self.params['model type'] + ' is not one of the available models')
+
         if self.params['GPU']:
             self.model = self.model.cuda()
         self.optimizer = optim.AdamW(self.model.parameters(), amsgrad=True)
@@ -246,6 +249,7 @@ class modelNet():
             elif output == 'Both':
                 return np.average(out,axis=1) * self.std + self.mean, np.var(out * self.std + self.mean,axis=1)
 
+
     def loadEnsemble(self,models):
         '''
         load up a model ensemble
@@ -407,7 +411,7 @@ class MLP(nn.Module):
         # initialize constants and layers
 
         if True:
-            act_func = 'relu'
+            act_func = 'gelu'
         #elif params['activation']==2:
         #    act_func = 'kernel'
 
@@ -415,9 +419,11 @@ class MLP(nn.Module):
 
         self.layers = params['model layers']
         self.filters = params['model filters']
+        self.classes = int(params['dict size'] + 1)
+        self.init_layer_depth = int(self.inputLength * self.classes)
 
         # build input and output layers
-        self.initial_layer = nn.Linear(self.inputLength, self.filters) # layer which takes in our sequence
+        self.initial_layer = nn.Linear(int(self.inputLength * self.classes), self.filters) # layer which takes in our sequence in one-hot encoding
         self.activation1 = Activation(act_func,self.filters,params)
         self.output_layer = nn.Linear(self.filters, 1)
 
@@ -438,6 +444,8 @@ class MLP(nn.Module):
 
 
     def forward(self, x):
+        x = F.one_hot(x.long(),num_classes=self.classes)
+        x = x.reshape(x.shape[0], self.init_layer_depth).float()
         x = self.activation1(self.initial_layer(x)) # apply linear transformation and nonlinear activation
         for i in range(self.layers):
             x = self.lin_layers[i](x)
@@ -494,6 +502,8 @@ class Activation(nn.Module):
         super().__init__()
         if activation_func == 'relu':
             self.activation = F.relu
+        elif activation_func == 'gelu':
+            self.activation = F.gelu
         elif activation_func == 'kernel':
             self.activation = kernelActivation(n_basis=20, span=4, channels=filters)
 

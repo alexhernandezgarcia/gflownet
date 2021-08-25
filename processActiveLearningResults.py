@@ -2,6 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import os
 import scipy.stats
+from utils import binaryDistance
 
 '''
 to do
@@ -44,17 +45,30 @@ def numbers2letters(sequences):  # Tranforming letters to numbers (1234 --> ATGC
     return my_seq
 
 
-def plotResults(directory, color, labelname,clear = False):
+def plotResults(directory, color, labelname, ind, clear = False, singleRun=False):
+    '''
+
+    :param directory:
+    :param color:
+    :param labelname:
+    :param clear: erase current figure
+    :param singleRun: analyzing a single run rather than an ensemble
+    :return:
+    '''
     os.chdir(directory)
 
     # load the outputs
     outputs = []
-    dirs = os.listdir()
-    for dir in dirs:
-        outputs.append(np.load(dir + '/outputsDict.npy', allow_pickle=True).item())
+    if singleRun:
+        dirs = [0]
+        outputs.append(np.load('outputsDict.npy',allow_pickle=True).item())
+    else:
+        dirs = os.listdir()
+        for dir in dirs:
+            outputs.append(np.load(dir + '/outputsDict.npy', allow_pickle=True).item())
 
     nruns = len(dirs)
-    nmodels = outputs[0]['params']['ensemble size']
+    nmodels = outputs[0]['params']['model ensemble size']
     niters = outputs[0]['params']['pipeline iterations']
 
     # collate results
@@ -68,48 +82,43 @@ def plotResults(directory, color, labelname,clear = False):
 
     # analysis
     # average test loss per iteration, per seed
-    minima = np.asarray(minima)  # first axis is seed, second axis is interations, third axis is models
-    minima = minima.reshape(nmodels, niters, nruns)  # test minima
-    minima = minima.transpose(1, 0, 2)
-    minima = np.average(minima, axis=2)
+    minima = np.asarray(minima)  # first axis is seed, second axis is iterations, third axis is models
+    niters = minima.shape[1]
+    minima = np.average(minima, axis=0)
     minima2 = minima.reshape(niters, nmodels)  # combine all the models
     avgMinima = np.average(minima2, axis=1)
 
-    totalMinima = np.asarray(totalMinima)  # first axis is seed, second axis is interations, third axis is models
+    minimaMins = np.asarray([np.amin(minima[i,:]) for i in range(len(minima))])
+    minimaMaxs = np.asarray([np.amax(minima[i,:]) for i in range(len(minima))])
+
+    totalMinima = np.asarray(totalMinima)  # first axis is seed, second axis is iterations
     totalMinima = totalMinima.transpose(1, 0)
     totalMinima2 = totalMinima.reshape(niters, nruns)  # combine all the models
     avgTotalMinima = np.average(totalMinima2, axis=1)
 
-    bestTenMinima = np.asarray(bestTenMinima)  # first axis is seed, second axis is interations, third axis is models
+    bestTenMinima = np.asarray(bestTenMinima)  # first axis is seed, second axis is iterations
     bestTenMinima = bestTenMinima.transpose(1, 0)
     bestTenMinima2 = bestTenMinima.reshape(niters, nruns)  # combine all the models
     avgBestTenMinima = np.average(bestTenMinima2, axis=1)
 
-    minimaCI = []
-    totalMinimaCI = []
-    bestTenMinimaCI = []
-    for i in range(niters):
-        mean, Cm, Cp = mean_confidence_interval(minima2[i, :], confidence=0.95)
-        minimaCI.append([Cm, Cp])
-        mean, Cm, Cp = mean_confidence_interval(totalMinima2[i, :], confidence=0.95)
-        totalMinimaCI.append([Cm, Cp])
-        mean, Cm, Cp = mean_confidence_interval(bestTenMinima2[i, :], confidence=0.95)
-        bestTenMinimaCI.append([Cm, Cp])
 
-    minimaCI = np.transpose(np.asarray(minimaCI))
-    totalMinimaCI = np.transpose(np.asarray(totalMinimaCI))
-    bestTenMinimaCI = np.transpose(np.asarray(bestTenMinimaCI))
 
     # plot average test loss over all runs, with confidence intervals
+    if clear:
+        plt.clf()
     plt.subplot(1,2,1)
-    #plt.subplot(2, 1, 1)
     #plt.errorbar(np.arange(niters) + 1, np.log10(avgMinima), yerr=np.log10(minimaCI), fmt=color + 'o-', ecolor=color, elinewidth=0.5, capsize=4, label=labelname + ' average of test minima')
-    plt.errorbar(np.arange(niters) + 1, np.log10(avgTotalMinima), yerr=np.log10(totalMinimaCI), fmt=color + 'd-', ecolor=color, elinewidth=0.5, capsize=4, label=labelname + ' average of large sample')
-    plt.errorbar(np.arange(niters) + 1, np.log10(avgBestTenMinima), yerr=np.log10(bestTenMinimaCI), fmt=color + '.-', ecolor=color, elinewidth=0.5, capsize=4, label=labelname+ ' average of best 10% of large sample')
+    plt.semilogy(np.arange(niters) + 1, avgTotalMinima, color + 'd-', label=labelname + ' average of large sample')
+    plt.semilogy(np.arange(niters) + 1, avgBestTenMinima, color + '.-', label=labelname+ ' average of best 10% of large sample')
+    plt.fill_between(np.arange(niters) + 1, minimaMins, minimaMaxs, alpha=0.2, edgecolor = color, facecolor=color, label=labelname + ' per-model test losses')  # average of best samples
     plt.xlabel('AL Iterations')
     plt.ylabel('Test Losses')
     plt.title('Average of Best Test Losses Over {} Ensembles of {} Models'.format(nruns, nmodels))
     plt.legend()
+
+    #for i in range(nmodels):
+    #    plt.plot(np.arange(niters) + 1, np.log10(minima[:,i]), color + 'o', alpha = 0.1)
+
     '''
     plt.subplot(2, 1, 2)
     
@@ -140,30 +149,35 @@ def plotResults(directory, color, labelname,clear = False):
 
     normedEns = np.zeros_like(bestEns)
     normedVars = np.zeros_like(normedEns)
+
+    if np.amin(oracleMins) >= 0:
+        enMaxs = [np.amax(bestEn) for bestEn in bestEns[0]]
+        enMax = np.amax(enMaxs)
+        oracleMins = oracleMins - enMax
+        bestEns = bestEns - enMax
+
     for i in range(len(outputs)):
-        normedEns[i] = bestEns[i] / np.amin(oracleMins) # assume all runs with same oracle
-        normedVars[i] = np.sqrt(bestVars[i]) / np.abs(np.average(bestEns[i]))
+        for j in range(len(bestEns[i])):
+            normedEns[i][j] = bestEns[i][j] / np.amin(oracleMins) # assume all runs with same oracle
+            normedVars[i][j] = np.sqrt(bestVars[i][j]) / np.abs(np.average(bestEns[i][j]))
 
-    minNormedEns = normedEns[:, :, 0]
-    minNormedVars = normedVars[:, :, 0]
+    minNormedEns = np.asarray([[np.amax(normedEns[i][j]) for j in range(niters)] for i in range(nruns)])
+    minNormedVars = np.asarray([[normedVars[i][j][np.argmax(normedEns[i][j])] for j in range(niters)] for i in range(nruns)])
+    if minNormedVars.ndim > 2:
+        minNormedVars = minNormedVars[:,:,0]
 
-    minEnCI = []
-    for i in range(niters):
-        mean, Cm, Cp = mean_confidence_interval(minNormedEns[:, i], confidence=0.95)
-        minEnCI.append([Cm, Cp])
 
-    minEnCI = np.transpose(np.asarray(minEnCI))
-
-    bestSampleVar = np.zeros(niters)
-    varinds = np.argmax(minNormedEns, axis=0)
-    for i in range(niters):
-        bestSampleVar = minNormedVars[varinds[i]]
-
+    nOptima = [len(normedEns[0][i]) for i in range(niters)]
+    # TODO rebuild this for positive energies
     plt.subplot(1,2,2)
-    #if clear:
-        #plt.clf()
-    plt.errorbar(np.arange(niters) + 1, np.average(normedEns[:, :, 0], axis=0), yerr=np.average(minNormedVars, axis=0), fmt=color + '.-', ecolor=color, elinewidth=0.5, capsize=4, label=labelname + ' average of top scores')
-    plt.errorbar(np.arange(niters) + 1, np.amax(minNormedEns, axis=0), yerr = bestSampleVar, fmt = color + 'o-', ecolor=color, elinewidth=0.5, capsize=4, label=labelname + ' best score')  # average of best samples
+    #plt.errorbar(np.arange(niters) + 1, minNormedEns[0], yerr = minNormedVars[0], fmt = color + 'o-', ecolor=color, elinewidth=0.5, capsize=8, label=labelname + ' best score')  # average of best samples
+    plt.plot(np.arange(niters) + 1, minNormedEns[0], color + 'o-', label=labelname + ' best score')  # average of best samples
+    plt.fill_between(np.arange(niters) + 1, minNormedEns[0] - minNormedVars[0]/2, minNormedEns[0] + minNormedVars[0]/2, alpha=0.2, edgecolor = color, facecolor=color, label=labelname + ' best score')  # average of best samples
+
+    for i in range(niters):
+        plt.plot(np.ones(len(normedEns[0][i])) * (i + 1) + ind /10, normedEns[0][i], color + '.')#, label=labelname + 'distinct minima')
+    plt.twinx()
+    plt.plot(np.arange(niters) + 1, nOptima, color + 'd-',label=labelname + ' # distinct optima')
     plt.legend()
     plt.title('Ensemble Average Performance over {} runs'.format(nruns))
     plt.ylabel('Score vs. known minimum')
@@ -171,20 +185,28 @@ def plotResults(directory, color, labelname,clear = False):
 
 
 plt.figure(1)
-directory = 'C:/Users\mikem\Desktop/activeLearningRuns\cluster/run30x'
-plotResults(directory ,'k','Random',clear=True)
-directory = 'C:/Users\mikem\Desktop/activeLearningRuns\cluster/run31x'
-plotResults(directory ,'r','Energy')
-directory = 'C:/Users\mikem\Desktop/activeLearningRuns\cluster/run32x'
-plotResults(directory ,'b','Uncertainty')
+directory = 'C:/Users\mikem\Desktop/activeLearningRuns/run1251'
+plotResults(directory ,'k','wide',0, clear=True,singleRun=True)
 
-plt.figure(2)
-directory = 'C:/Users\mikem\Desktop/activeLearningRuns\cluster/run40x'
-plotResults(directory ,'k','Random',clear=True)
-directory = 'C:/Users\mikem\Desktop/activeLearningRuns\cluster/run41x'
-plotResults(directory ,'r','Energy')
-directory = 'C:/Users\mikem\Desktop/activeLearningRuns\cluster/run42x'
-plotResults(directory ,'b','Uncertainty')
+
+'''
+directory = 'C:/Users\mikem\Desktop/activeLearningRuns/run1215'
+plotResults(directory ,'r','transformer, energy', 1, singleRun=True)
+directory = 'C:/Users\mikem\Desktop/activeLearningRuns/run1216'
+plotResults(directory ,'b','transformer, uncertainty', 2, singleRun=True)
+'''
+
+# PLOT NUMBER (MAGNITUDE) OF DISTINCT MINIMA OVER TIME
+
+'''
+directory = 'C:/Users\mikem\Desktop/activeLearningRuns/run1222'
+plotResults(directory ,'y','MLP, random',4, clear=False,singleRun=True)
+directory = 'C:/Users\mikem\Desktop/activeLearningRuns/run1223'
+plotResults(directory ,'m','MLP, energy', 5, singleRun=True)
+directory = 'C:/Users\mikem\Desktop/activeLearningRuns/run1224'
+plotResults(directory ,'c','MLP, uncertainty', 6, singleRun=True)
+'''
+
 '''
 directory = 'C:/Users\mikem\Desktop/activeLearningRuns\cluster/run30x'
 plotResults(directory ,'k','default, random')
@@ -210,6 +232,12 @@ directory = 'C:/Users\mikem\Desktop/activeLearningRuns\cluster/run50x'
 plotResults(directory ,'c','20 samplers')
 directory = 'C:/Users\mikem\Desktop/activeLearningRuns\cluster/run51x'
 plotResults(directory ,'c','40 samplers')
+directory = 'C:/Users\mikem\Desktop/activeLearningRuns\cluster/run54x'
+plotResults(directory ,'c','20 models')
+directory = 'C:/Users\mikem\Desktop/activeLearningRuns\cluster/run53x'
+plotResults(directory ,'c','20 models, 20 samplers')
+
+
 
 directory = 'C:/Users\mikem\Desktop/activeLearningRuns\cluster/run40x'
 plotResults(directory ,'k','Random')
@@ -235,5 +263,8 @@ directory = 'C:/Users\mikem\Desktop/activeLearningRuns\cluster/run60x'
 plotResults(directory ,'c','20 samplers')
 directory = 'C:/Users\mikem\Desktop/activeLearningRuns\cluster/run61x'
 plotResults(directory ,'c','40 samplers')
-
+directory = 'C:/Users\mikem\Desktop/activeLearningRuns\cluster/run62x'
+plotResults(directory ,'c','20 models')
+directory = 'C:/Users\mikem\Desktop/activeLearningRuns\cluster/run63x'
+plotResults(directory ,'c','20 models, 20 samplers')
 '''

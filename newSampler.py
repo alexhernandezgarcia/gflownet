@@ -290,7 +290,7 @@ params = {}
 params['model seed'] = 0  # seed used for model ensemble (each model gets a slightly different seed)
 params['sampler seed'] = 0  # seed for MCMC modelling (each set of gammas gets a slightly different seed)
 params['dataset seed'] = 0  # if we are using a toy dataset, it may take a specific seed
-params['query mode'] = 'score'  # 'random', 'score', 'uncertainty', 'heuristic', 'learned' # different modes for query construction
+params['query mode'] = 'energy'  # 'random', 'score', 'uncertainty', 'heuristic', 'learned' # different modes for query construction
 
 # toy data parameters
 params['debug'] = False
@@ -309,12 +309,12 @@ params['debug'] = False # records extra stats for debugging purposes (slow and h
 params['device'] = 'local'
 gammas = np.logspace(-3, 1, params['num samplers'])
 
-params['ensemble size'] = 5
+params['model ensemble size'] = 5
 params['run num'] = 27
 params['explicit run enumeration'] = False
 params['workdir'] = '/home/mkilgour/learnerruns'
 # model parameters
-params['ensemble size'] = 5 # number of models in the ensemble
+params['model ensemble size'] = 5 # number of models in the ensemble
 params['model filters'] = 24
 params['model layers'] = 3 # for cluster batching
 params['embed dim'] = 4 # embedding dimension

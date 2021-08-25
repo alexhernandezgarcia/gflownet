@@ -73,7 +73,7 @@ class sampler:
             if randChainLen < self.params['max sample length']: # add zero padding, if necessary
                 randConfig = np.pad(randConfig[0],[0, self.params['max sample length'] - randChainLen],mode='constant')
         else:
-            randConfig = np.random.randint(1,self.params['dist size'] + 1, size = (1, self.params['max sample length']))
+            randConfig = np.random.randint(1,self.params['dict size'] + 1, size = (self.params['max sample length']))
 
         return randConfig
 
@@ -178,7 +178,7 @@ class sampler:
             if self.iter % self.randintsResampleAt == 0: # periodically resample random numbers
                 self.resampleRandints()
 
-        printRecord("{} optima were recorded on this run".format(len(self.allOptimalConfigs)))
+        printRecord("{} near-optima were recorded on this run".format(len(self.allOptimalConfigs)))
 
 
     def propConfigs(self,ind):

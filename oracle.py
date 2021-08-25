@@ -3,8 +3,11 @@ import numpy as np
 import scipy.io
 import random
 from seqfold import dg, fold
-from nupack import *
+#from nupack import *
+from bbdob.utils import idx2one_hot
+from bbdob import OneMax, TwoMin, FourPeaks, DeceptiveTrap, NKLandscape, WModel, NasBench101
 from utils import *
+import sys
 
 '''
 This script computes a binding score for a given sequence or set of sequences
@@ -35,11 +38,20 @@ class oracle():
         :param params:
         '''
         self.params = params
-        np.random.seed(self.params['dataset seed'])
         self.seqLen = self.params['max sample length']
 
+        self.initRands()
+
+
+    def initRands(self):
+        '''
+        initialize random numbers for custom-made toy functions
+        :return:
+        '''
+        np.random.seed(self.params['dataset seed'])
+
         if self.params['test mode']:
-            self.linFactors = -np.ones(self.seqLen) # Uber-simple function, for testing purposes
+            self.linFactors = -np.ones(self.seqLen) # Uber-simple function, for testing purposes - actually nearly functionally identical to one-max, I believe
         else:
             self.linFactors = np.random.randn(self.seqLen)  # coefficients for linear toy energy
 
@@ -58,6 +70,21 @@ class oracle():
                         pham[j, i, l, k] = num
         self.pottsJ = pham # multilevel spin Hamiltonian (Potts Hamiltonian) - coupling term
         self.pottsH = np.random.randn(self.seqLen,self.params['dict size']) # Potts Hamiltonian - onsite term
+
+        # W-model parameters
+        # first get the binary dimension size
+        aa = np.arange(self.params['dict size'])
+        if self.params['variable sample length']:
+            aa = np.clip(aa, 1, self.params['dict size']) #  merge padding with class 1
+        x0 = np.binary_repr(aa[-1])
+        dimension = int(len(x0) * self.params['max sample length'])
+
+        mu = np.random.randint(1, dimension + 1)
+        v = np.random.randint(1, dimension + 1)
+        m = np.random.randint(1, dimension)
+        n = np.random.randint(1, dimension)
+        gamma = np.random.randint(0, int(n * (n - 1 ) / 2))
+        self.mu, self.v, self.m, self.n, self.gamma = [mu, v, m, n, gamma]
 
 
     def initializeDataset(self,save = True, returnData = False, customSize=None):
@@ -101,6 +128,7 @@ class oracle():
         if returnData:
             return data
 
+
     def score(self, queries):
         '''
         assign correct scores to selected sequences
@@ -133,7 +161,56 @@ class oracle():
             return self.seqfoldScore(queries)
         elif self.params['dataset'] == 'nupack':
             return self.nupackScore(queries)
+        elif (self.params['dataset'] == 'onemax') or (self.params['dataset'] == 'twomin') or (self.params['dataset'] == 'fourpeaks')\
+                or (self.params['dataset'] == 'deceptivetrap') or (self.params['dataset'] == 'nklandscape') or (self.params['dataset'] == 'wmodel'):
+            return self.BB_DOB_functions(queries)
 
+
+    def BB_DOB_functions(self, queries):
+        '''
+        BB-DOB OneMax benchmark
+        :param queries:
+        :return:
+        '''
+        if self.params['variable sample length']:
+            queries = np.clip(queries, 1, self.params['dict size']) #  merge padding with class 1
+
+        x0 = [np.binary_repr((queries[i][j] - 1).astype('uint8'),width=2) for i in range(len(queries)) for j in range(self.params['max sample length'])] # convert to binary
+        x0 = np.asarray(x0).astype(str).reshape(len(queries), self.params['max sample length']) # reshape to proper size
+        x0= [''.join(x0[i]) for i in range(len(x0))] # concatenate to binary strings
+        x1 = np.zeros((len(queries),len(x0[0])),int) # initialize array
+        for i in range(len(x0)): # finally, as an array (took me long enough)
+            x1[i] = np.asarray(list(x0[i])).astype(int)
+
+        dimension = x1.shape[1]
+
+        x1 = idx2one_hot(x1, 2) # convert to BB_DOB one_hot format
+
+        objective = self.getObjective(dimension)
+
+        evals, info = objective(x1)
+
+        return evals
+
+
+    def getObjective(self, dimension):
+        if self.params['dataset'] == 'onemax': # very limited in our DNA one-hot encoding
+            objective = OneMax(dimension)
+        elif self.params['dataset'] == 'twomin':
+            objective = TwoMin(dimension)
+        elif self.params['dataset'] == 'fourpeaks': # very limited in our DNA one-hot encoding
+            objective = FourPeaks(dimension, t=3)
+        elif self.params['dataset'] == 'deceptivetrap':
+            objective = DeceptiveTrap(dimension, minimize=True)
+        elif self.params['dataset'] == 'nklandscape':
+            objective = NKLandscape(dimension, minimize=True)
+        elif self.params['dataset'] == 'wmodel':
+            objective = WModel(dimension, mu=self.mu, v=self.v, m = self.m, n = self.n, gamma = self.gamma, minimize=True)
+        else:
+            print(self.params['dataset'] + ' is not a valid dataset!')
+            sys.exit()
+
+        return objective
 
     def linearToy(self,queries):
         '''
@@ -238,6 +315,7 @@ class oracle():
         else:
             return energies
 
+
     def numbers2letters(self, sequences):  # Tranforming letters to numbers (1234 --> ATGC)
         '''
         Converts numerical values to ATGC-format
@@ -284,7 +362,7 @@ class oracle():
         return out
 
 
-
+'''
     def nupackScore(self,queries,returnSS=False,parallel=True):
 
         #use nupack instead of seqfold - more stable and higher quality predictions in general
@@ -337,7 +415,7 @@ class oracle():
             return energies, strings
         else:
             return energies
-
+'''
 
 
 
