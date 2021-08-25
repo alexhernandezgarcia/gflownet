@@ -287,7 +287,7 @@ class sampler:
             variance = [r2[1], r1[1]]
 
         # energy and variance both come out standardized against the training dataset
-        score = self.scoreFunction[0] * np.asarray(energy)- self.scoreFunction[1] * np.asarray(variance)  # vary the relative importance of these two factors
+        score = self.scoreFunction[0] * np.asarray(energy) - self.scoreFunction[1] * np.asarray(variance)  # vary the relative importance of these two factors
 
         return score, energy, variance
 

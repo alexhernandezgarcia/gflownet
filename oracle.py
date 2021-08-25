@@ -48,7 +48,7 @@ class oracle():
         initialize random numbers for custom-made toy functions
         :return:
         '''
-        np.random.seed(self.params.dataset_seed)
+        np.random.seed(self.params.toy_oracle_seed)
 
         if self.params.test_mode:
             self.linFactors = -np.ones(self.seqLen) # Uber-simple function, for testing purposes - actually nearly functionally identical to one-max, I believe
@@ -95,7 +95,7 @@ class oracle():
         :return:
         '''
         data = {}
-        np.random.seed(self.params.dataset_seed)
+        np.random.seed(self.params.init_dataset_seed)
         if customSize is None:
             datasetLength = self.params.init_dataset_length
         else:

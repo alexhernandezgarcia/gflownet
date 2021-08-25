@@ -82,10 +82,13 @@ class activeLearning():
             self.sampleOracle() # use the oracle to pre-solve the problem for future benchmarking
             printRecord(f"The true global minimum is {bcolors.OKGREEN}%.3f{bcolors.ENDC}" % self.trueMinimum)
 
+        self.params.dataset_size = self.params.init_dataset_length
         for self.pipeIter in range(self.params.pipeline_iterations):
             printRecord(f'Starting pipeline iteration #{bcolors.FAIL}%d{bcolors.ENDC}' % int(self.pipeIter+1))
             self.iterate() # run the pipeline
             self.saveOutputs() # save pipeline outputs
+            if (self.pipeIter > 0) and (self.params.dataset_type == 'toy'):
+                self.reportCumulativeResult()
 
 
     def iterate(self):
@@ -100,7 +103,7 @@ class activeLearning():
         printRecord('Retraining took {} seconds'.format(int(tf-t0)))
 
         t0 = time.time()
-        self.getModelStatus() # run energy-only sampling and create model state dict
+        self.getModelState() # run energy-only sampling and create model state dict
         query = self.querier.buildQuery(self.model, self.stateDict, self.sampleDict)  # pick Samples to be scored
         tf = time.time()
         printRecord('Query generation took {} seconds'.format(int(tf-t0)))
@@ -112,11 +115,10 @@ class activeLearning():
         if not self.params.dataset_type == 'toy':
             printRecord('Oracle scoring took {} seconds'.format(int(tf-t0)))
 
-
         self.updateDataset(query, scores) # add scored Samples to dataset
 
 
-    def getModelStatus(self, manualRerun = False):
+    def getModelState(self):
         '''
         sample the model
         report on the status of dataset
@@ -166,17 +168,17 @@ class activeLearning():
             'best clusters dataset diff': datasetDiff,
             'best clusters random set diff': randomDiff,
             'clustering cutoff': self.params.minima_dist_cutoff, # could be a learned parameter
-            'n proxy models': self.params.proxy_model_ensembleSize,
+            'n proxy models': self.params.proxy_model_ensemble_size,
             'iter': self.pipeIter,
             'budget': self.params.pipeline_iterations
         }
 
-        printRecord('%d '%self.params.proxy_model_ensembleSize + f'Model ensemble training converged with average test loss of {bcolors.OKCYAN}%.5f{bcolors.ENDC}' % np.average(np.asarray(self.testMinima[-self.params.proxy_model_ensembleSize:])) + f' and std of {bcolors.OKCYAN}%.3f{bcolors.ENDC}'%(np.sqrt(np.var(self.testMinima))))
+        printRecord('%d '%self.params.proxy_model_ensemble_size + f'Model ensemble training converged with average test loss of {bcolors.OKCYAN}%.5f{bcolors.ENDC}' % np.average(np.asarray(self.testMinima[-self.params.proxy_model_ensemble_size:])) + f' and std of {bcolors.OKCYAN}%.3f{bcolors.ENDC}'%(np.sqrt(np.var(self.testMinima))))
         printRecord('Model state contains {} samples'.format(self.params.model_state_size) +
                     ' with minimum energy' + bcolors.OKGREEN + ' {:.2f},'.format(np.amin(minClusterEns)) + bcolors.ENDC +
                     ' average energy' + bcolors.OKGREEN +' {:.2f},'.format(np.average(minClusterEns[:self.params.model_state_size])) + bcolors.ENDC +
                     ' and average std dev' + bcolors.OKCYAN + ' {:.2f}'.format(np.average(np.sqrt(minClusterVars[:self.params.model_state_size]))) + bcolors.ENDC)
-        printRecord('Sample average mutial distance is ' + bcolors.WARNING +'{:.2f} '.format(np.average(internalDiff)) + bcolors.ENDC +
+        printRecord('Sample average mutual distance is ' + bcolors.WARNING +'{:.2f} '.format(np.average(internalDiff)) + bcolors.ENDC +
                     'dataset distance is ' + bcolors.WARNING + '{:.2f} '.format(np.average(datasetDiff)) + bcolors.ENDC +
                     'and overall distance estimated at ' + bcolors.WARNING + '{:.2f}'.format(np.average(randomDiff)) + bcolors.ENDC)
 
@@ -209,7 +211,7 @@ class activeLearning():
     def retrainModels(self, parallel=True):
         if not parallel:
             testMins = []
-            for i in range(self.params.proxy_model_ensembleSize):
+            for i in range(self.params.proxy_model_ensemble_size):
                 self.resetModel(i)  # reset between ensemble estimators EVERY ITERATION of the pipeline
                 self.model.converge()  # converge model
                 testMins.append(np.amin(self.model.err_te_hist))
@@ -221,11 +223,11 @@ class activeLearning():
             else:
                 nHold = 1
             cpus = int(os.cpu_count() - nHold)
-            cpus = min(cpus,self.params.proxy_model_ensembleSize) # only as many CPUs as we need
+            cpus = min(cpus,self.params.proxy_model_ensemble_size) # only as many CPUs as we need
             with mp.Pool(processes=cpus) as pool:
-                output = [pool.apply_async(trainModel, args=[self.params, j]) for j in range(self.params.proxy_model_ensembleSize)]
-                outputList = [output[i].get() for i in range(self.params.proxy_model_ensembleSize)]
-                self.testMinima.append([np.amin(outputList[i]) for i in range(self.params.proxy_model_ensembleSize)])
+                output = [pool.apply_async(trainModel, args=[self.params, j]) for j in range(self.params.proxy_model_ensemble_size)]
+                outputList = [output[i].get() for i in range(self.params.proxy_model_ensemble_size)]
+                self.testMinima.append([np.amin(outputList[i]) for i in range(self.params.proxy_model_ensemble_size)])
                 pool.close()
                 pool.join()
 
@@ -237,7 +239,7 @@ class activeLearning():
         :return:
         '''
         ensemble = []
-        for i in range(self.params.proxy_model_ensembleSize):
+        for i in range(self.params.proxy_model_ensemble_size):
             self.resetModel(i)
             self.model.load(i)
             ensemble.append(self.model.model)
@@ -246,7 +248,7 @@ class activeLearning():
         self.model = modelNet(self.params,0)
         self.model.loadEnsemble(ensemble)
 
-        #print('Loaded {} estimators'.format(int(self.params.proxy_model_ensembleSize)))
+        #print('Loaded {} estimators'.format(int(self.params.proxy_model_ensemble_size)))
 
 
     def resetModel(self,ensembleIndex, returnModel = False):
@@ -307,6 +309,7 @@ class activeLearning():
 
         printRecord("Model has overall loss of" + bcolors.OKCYAN + ' {:.5f}, '.format(totalLoss) + bcolors.ENDC + 'best 10% loss of' + bcolors.OKCYAN + ' {:.5f} '.format(bottomTenLoss) + bcolors.ENDC +  'on {} toy dataset samples'.format(numSamples))
 
+
     def sampleOracle(self):
         '''
         for toy models
@@ -342,6 +345,8 @@ class activeLearning():
             outputDict['oracle outputs'] = self.oracleRecord
             outputDict['big dataset loss'] = self.totalLoss
             outputDict['bottom 10% loss'] = self.bottomTenLoss
+            if self.pipeIter > 1:
+                outputDict['cumulative performance'] = self.cumulativeResult
         np.save('outputsDict',outputDict)
 
 
@@ -357,6 +362,8 @@ class activeLearning():
         # TODO separate between scores and q-scores
         dataset['samples'] = np.concatenate((dataset['samples'], oracleSequences))
         dataset['scores'] = np.concatenate((dataset['scores'], oracleScores))
+
+        self.params.dataset_size = len(dataset['samples'])
 
         printRecord(f"Added{bcolors.OKBLUE}{bcolors.BOLD} %d{bcolors.ENDC}" % int(len(oracleSequences)) + " to the dataset, total dataset size is" + bcolors.OKBLUE + " {}".format(int(len(dataset['samples']))) + bcolors.ENDC)
         printRecord(bcolors.UNDERLINE + "=====================================================================" + bcolors.ENDC)
@@ -387,7 +394,7 @@ class activeLearning():
         minClusterSamples = np.concatenate((minClusterSamples, randomSamples))
         minClusterEns = np.concatenate((minClusterEns, randomEnergies))
         minClusterVars = np.concatenate((minClusterVars, randomUncertainties))
-        printRecord('Padded query with {} random samples from sampler run'.format(len(rands)))
+        printRecord('Padded model state with {} random samples from sampler run'.format(len(rands)))
 
         return minClusterSamples, minClusterEns, minClusterVars
 
@@ -415,6 +422,33 @@ class activeLearning():
         randomDiff = binaryDistance(np.concatenate((samples,randomSamples)), pairwise=False)[:len(samples)]
 
         return internalDiff, datasetDiff, randomDiff
+
+
+    def reportCumulativeResult(self):
+        '''
+        integrate the performance curve over all iterations so far
+        :return:
+        '''
+        directory = os.getcwd()
+        plotter = resultsPlotter()
+        plotter.process(directory)
+        iterAxis = (plotter.xrange - 1) * self.params.queries_per_iter + self.params.init_dataset_length
+        bestEns = plotter.normedEns[:,0]
+        cumulativeScore = np.trapz(bestEns, x = iterAxis)
+        normedCumScore = cumulativeScore / (self.params.dataset_size - self.params.queries_per_iter) # we added to the dataset before this
+
+        printRecord('Cumulative score is {:.2f} gross and {:.5f} per-sample after {} samples'.format(cumulativeScore, normedCumScore, self.params.dataset_size - self.params.queries_per_iter))
+
+        results = {
+            'cumulative performance': cumulativeScore,
+            'per-sample cumulative performance': normedCumScore,
+            'dataset size': (self.params.dataset_size - self.params.queries_per_iter)
+        }
+
+        if self.pipeIter == 1:
+            self.cumulativeResult = [results]
+        else:
+            self.cumulativeResult.append(results)
 
 
 def trainModel(params, i):

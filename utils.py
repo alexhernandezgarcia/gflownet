@@ -380,7 +380,7 @@ class resultsPlotter():
         self.trueMinSample = results['oracle outputs']['samples'][np.argmin(results['oracle outputs']['energies'])]
 
         self.avgTestLoss = np.asarray([results['state dict record'][i]['test loss'] for i in range(self.niters)])
-        self.testStd = np.asarray([results['state dict record'][i]['test disagreement'] for i in range(self.niters)])
+        self.testStd = np.asarray([results['state dict record'][i]['test std'] for i in range(self.niters)])
         self.allTestLosses = np.asarray([results['state dict record'][i]['all test losses'] for i in range(self.niters)])
         self.stdEns = np.asarray([results['state dict record'][i]['best cluster energies'] for i in range(self.niters)]) # these come standardized out of the box
         self.stdDevs = np.asarray([results['state dict record'][i]['best cluster deviations'] for i in range(self.niters)])
@@ -406,7 +406,6 @@ class resultsPlotter():
         self.normedDevs = self.stdDevs / np.abs(self.stdTrueMin)
 
         self.xrange = np.arange(self.niters) + 1
-
 
     def plotLosses(self, fignum = 1, color = 'k', label = None):
         plt.figure(fignum)

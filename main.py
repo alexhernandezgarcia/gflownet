@@ -7,10 +7,11 @@ warnings.filterwarnings("ignore", category=RuntimeWarning) # annoying numpy erro
 '''
 This code implements an active learning protocol for global minimization of some function
 
-To-Do
+# TODO
 ==> incorporate gFlowNet
 ==> incorporate 
 ==> augment binary distance metric with multi-base motifs
+==> see if we can do dist metric faster in one-hot encoding
 
 low priority /long term
 ==> augment binary distance metric with multi-base motifs
@@ -30,13 +31,14 @@ parser = argparse.ArgumentParser()
 parser.add_argument('--run_num', type=int, default=0)
 parser.add_argument('--sampler_seed', type=int, default=0) # seed for MCMC modelling (each set of gammas gets a slightly different seed)
 parser.add_argument('--model_seed', type=int, default=0) # seed used for model ensemble (each model gets a slightly different seed)
-parser.add_argument('--dataset_seed', type=int, default=0) # if we are using a toy dataset, it may take a specific seed
+parser.add_argument('--init_dataset_seed', type=int, default=0) # if we are using a toy dataset, it may take a specific seed
+parser.add_argument('--toy_oracle_seed', type=int, default=0) # if we are using a toy dataset, it may take a specific seed
 parser.add_argument('--device', type = str, default = 'local') # 'local' or 'cluster' (assumed linux env)
 parser.add_argument('--GPU', type = bool, default = True) # train and evaluate models on GPU
 parser.add_argument('--explicit_run_enumeration', type = bool, default = False) # if this is True, the next run be fresh, in directory 'run%d'%run_num, if false, regular behaviour. Note: only use this on fresh runs
 # dataset settings
 parser.add_argument('--dataset_type', type = str, default = 'toy') # Toy oracle is very fast to sample
-parser.add_argument('--dataset', type=str, default='potts')
+parser.add_argument('--dataset', type=str, default='linear')
 parser.add_argument('--init_dataset_length', type = int, default = int(1e2)) # number of items in the initial (toy) dataset
 parser.add_argument('--dict_size', type = int, default = 4) # number of possible choices per-state, e.g., [0,1] would be two, [1,2,3,4] (representing ATGC) would be 4 - with variable length, 0's are added for padding
 parser.add_argument('--variable_sample_length', type = bool, default = True) # models will sample within ranges set below
@@ -56,12 +58,12 @@ parser.add_argument('--model_state_size', type = int, default = 30) # number of 
 # gFlownet settings
 
 # proxy model settings
-parser.add_argument('--proxy_model_type', type = str, default = 'mlp') # type of proxy model
+parser.add_argument('--proxy_model_type', type = str, default = 'mlp') # type of proxy model - mlp or transformer
 parser.add_argument('--training_parallelism', type = bool, default = False) # fast enough on GPU without paralellism - True doesn't always work on linux
-parser.add_argument('--proxy_model_ensembleSize', type = int, default = 10) # number of models in the ensemble
-parser.add_argument('--proxy_model_width', type = int, default = 256) # number of neurons per proxy NN layer
-parser.add_argument('--embedding_dim', type = int, default = 256) # embedding dimension for transformer only
-parser.add_argument('--proxy_model_layers', type = int, default = 2) # number of layers in NN proxy models (transformer encoder layers OR MLP layers)
+parser.add_argument('--proxy_model_ensemble_size', type = int, default = 10) # number of models in the ensemble
+parser.add_argument('--proxy_model_width', type = int, default = 64) # number of neurons per proxy NN layer
+parser.add_argument('--embedding_dim', type = int, default = 64) # embedding dimension for transformer only
+parser.add_argument('--proxy_model_layers', type = int, default = 4) # number of layers in NN proxy models (transformer encoder layers OR MLP layers)
 parser.add_argument('--proxy_training_batch_size', type = int, default = 10)
 parser.add_argument('--proxy_max_epochs', type = int, default = 200)
 #sampler settings
@@ -72,17 +74,24 @@ parser.add_argument('--stun_max_gamma', type = float, default = 1)
 
 params = parser.parse_args()
 
+# normalize seeds
+params.model_seed = params.model_seed % 10
+params.init_dataset_seed = params.init_dataset_seed % 10
+params.toy_oracle_seed = params.toy_oracle_seed % 10
+params.sampler_seed = params.sampler_seed % 10
+
+
 #====================================
 if params.mode == 'evaluation':
     params.pipeline_iterations = 1
 
 if params.test_mode:
-    params.pipeline_iterations = 2
+    params.pipeline_iterations = 3
     params.init_dataset_length = 100
     params.queries_per_iter = 100
     params.mcmc_sampling_time = int(1e3)
     params.mcmc_num_samplers = 2
-    params.proxy_model_ensembleSize = 2
+    params.proxy_model_ensemble_size = 2
     params.proxy_max_epochs = 5
     params.proxy_model_width = 12
     params.proxy_model_layers = 1  # for cluster batching
