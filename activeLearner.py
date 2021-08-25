@@ -14,7 +14,7 @@ class activeLearning():
     def __init__(self, params):
         self.pipeIter = None
         self.params = params
-        self.runNum = self.params['run num']
+        self.runNum = self.params.run_num
         self.setup()
         self.getModelSize()
 
@@ -27,24 +27,23 @@ class activeLearning():
         '''
         self.oracle = oracle(self.params) # oracle needs to be initialized to initialize toy datasets
 
-        if (self.params['run num'] == 0) or (self.params['explicit run enumeration'] == True): # if making a new workdir
-            if self.params['run num'] == 0:
+        if (self.params.run_num == 0) or (self.params.explicit_run_enumeration == True): # if making a new workdir
+            if self.params.run_num == 0:
                 self.makeNewWorkingDirectory()
             else:
-                self.workDir = self.params['workdir'] + '/run%d'%self.params['run num'] # explicitly enumerate the new run directory
+                self.workDir = self.params.workdir + '/run%d'%self.params.run_num # explicitly enumerate the new run directory
                 os.mkdir(self.workDir)
 
             os.mkdir(self.workDir + '/ckpts')
             os.mkdir(self.workDir + '/datasets')
             os.chdir(self.workDir) # move to working dir
             printRecord('Starting Fresh Run %d' %self.runNum)
-            #copyfile(self.params['dataset directory'] + '/' + self.params['dataset'],self.workDir + '/datasets/' + self.params['dataset'] + '.npy') # if using a real initial dataset (not toy) copy it to the workdir
             self.oracle.initializeDataset() # generate toy model dataset
         else:
             # move to working dir
-            self.workDir = self.params['workdir'] + '/' + 'run%d' %self.params['run num']
+            self.workDir = self.params.workdir + '/' + 'run%d' %self.params.run_num
             os.chdir(self.workDir)
-            printRecord('Resuming run %d' % self.params['run num'])
+            printRecord('Resuming run %d' % self.params.run_num)
 
 
         self.querier = querier(self.params) # might as well initialize the querier here
@@ -56,18 +55,18 @@ class activeLearning():
         non-overlapping previous entries
         :return:
         '''
-        workdirs = glob.glob(self.params['workdir'] + '/' + 'run*') # check for prior working directories
+        workdirs = glob.glob(self.params.workdir + '/' + 'run*') # check for prior working directories
         if len(workdirs) > 0:
             prev_runs = []
             for i in range(len(workdirs)):
                 prev_runs.append(int(workdirs[i].split('run')[-1]))
 
             prev_max = max(prev_runs)
-            self.workDir = self.params['workdir'] + '/' + 'run%d' %(prev_max + 1)
+            self.workDir = self.params.workdir + '/' + 'run%d' %(prev_max + 1)
             os.mkdir(self.workDir)
             self.runNum = int(prev_max + 1)
         else:
-            self.workDir = self.params['workdir'] + '/' + 'run1'
+            self.workDir = self.params.workdir + '/' + 'run1'
             os.mkdir(self.workDir)
 
 
@@ -79,13 +78,12 @@ class activeLearning():
         self.testMinima = [] # best test loss of models, for each iteration of the pipeline
         self.bestScores = [] # best optima found by the sampler, for each iteration of the pipeline
 
-        if self.params['dataset type'] == 'toy':
+        if self.params.dataset_type == 'toy':
             self.sampleOracle() # use the oracle to pre-solve the problem for future benchmarking
             printRecord(f"The true global minimum is {bcolors.OKGREEN}%.3f{bcolors.ENDC}" % self.trueMinimum)
 
-        for self.pipeIter in range(self.params['pipeline iterations']):
+        for self.pipeIter in range(self.params.pipeline_iterations):
             printRecord(f'Starting pipeline iteration #{bcolors.FAIL}%d{bcolors.ENDC}' % int(self.pipeIter+1))
-            self.params['iteration'] = self.pipeIter + 1
             self.iterate() # run the pipeline
             self.saveOutputs() # save pipeline outputs
 
@@ -97,7 +95,7 @@ class activeLearning():
         '''
 
         t0 = time.time()
-        self.retrainModels(parallel=self.params['training parallelism'])
+        self.retrainModels(parallel=self.params.training_parallelism)
         tf = time.time()
         printRecord('Retraining took {} seconds'.format(int(tf-t0)))
 
@@ -111,7 +109,7 @@ class activeLearning():
         scores = self.oracle.score(query) # score Samples
         tf = time.time()
         printRecord('Oracle scored' + bcolors.OKBLUE + ' {} '.format(len(scores)) + bcolors.ENDC + 'queries with average score of' + bcolors.OKGREEN + ' {:.3f}'.format(np.average(scores)) + bcolors.ENDC)
-        if not self.params['dataset type'] == 'toy':
+        if not self.params.dataset_type == 'toy':
             printRecord('Oracle scoring took {} seconds'.format(int(tf-t0)))
 
 
@@ -145,44 +143,44 @@ class activeLearning():
         uncertainties = self.sampleDict['uncertainties']
 
         # agglomerative clustering
-        clusters, clusterEns, clusterVars = doAgglomerativeClustering(samples,energies,uncertainties,cutoff=self.params['minima dist cutoff'])
+        clusters, clusterEns, clusterVars = doAgglomerativeClustering(samples,energies,uncertainties,cutoff=self.params.minima_dist_cutoff)
         clusterSizes, avgClusterEns, minClusterEns, avgClusterVars, minClusterVars, minClusterSamples = clusterAnalysis(clusters, clusterEns, clusterVars)
 
         #clutering alternative - just include sample-by-sample
         #bestInds = sortTopXSamples(samples[np.argsort(scores)], nSamples=len(samples), distCutoff=0.1)  # sort out the best, and at least minimally distinctive samples
 
-        if len(clusters) < self.params['model state size']: # if we don't have enough clusters for the model, pad with random samples from the sampling run
+        if len(clusters) < self.params.model_state_size: # if we don't have enough clusters for the model, pad with random samples from the sampling run
             minClusterSamples, minClusterEns, minClusterVars = self.addRandomSamples(samples, energies, uncertainties, minClusterSamples, minClusterEns, minClusterVars)
 
         # get distances to relevant datasets
-        internalDiff, datasetDiff, randomDiff = self.getDataDiffs(minClusterSamples[:self.params['model state size']])
+        internalDiff, datasetDiff, randomDiff = self.getDataDiffs(minClusterSamples[:self.params.model_state_size])
 
         self.stateDict = {
             'test loss': np.average(self.testMinima), # losses are evaluated on standardized data, so we do not need to re-standardize here
             'test std': np.sqrt(np.var(self.testMinima)),
             'all test losses': self.testMinima,
-            'best cluster energies': (minClusterEns[:self.params['model state size']] - self.model.mean) / self.model.std, # standardize according to dataset statistics
-            'best cluster deviations': np.sqrt(minClusterVars[:self.params['model state size']]) / self.model.std,
-            'best cluster samples': minClusterSamples[:self.params['model state size']],
+            'best cluster energies': (minClusterEns[:self.params.model_state_size] - self.model.mean) / self.model.std, # standardize according to dataset statistics
+            'best cluster deviations': np.sqrt(minClusterVars[:self.params.model_state_size]) / self.model.std,
+            'best cluster samples': minClusterSamples[:self.params.model_state_size],
             'best clusters internal diff': internalDiff,
             'best clusters dataset diff': datasetDiff,
             'best clusters random set diff': randomDiff,
-            'clustering cutoff': self.params['minima dist cutoff'], # could be a learned parameter
-            'n proxy models': self.params['model ensemble size'],
+            'clustering cutoff': self.params.minima_dist_cutoff, # could be a learned parameter
+            'n proxy models': self.params.proxy_model_ensembleSize,
             'iter': self.pipeIter,
-            'budget': self.params['pipeline iterations']
+            'budget': self.params.pipeline_iterations
         }
 
-        printRecord('%d '%self.params['model ensemble size'] + f'Model ensemble training converged with average test loss of {bcolors.OKCYAN}%.5f{bcolors.ENDC}' % np.average(np.asarray(self.testMinima[-self.params['model ensemble size']:])) + f' and std of {bcolors.OKCYAN}%.3f{bcolors.ENDC}'%(np.sqrt(np.var(self.testMinima))))
-        printRecord('Model state contains {} samples'.format(self.params['model state size']) +
+        printRecord('%d '%self.params.proxy_model_ensembleSize + f'Model ensemble training converged with average test loss of {bcolors.OKCYAN}%.5f{bcolors.ENDC}' % np.average(np.asarray(self.testMinima[-self.params.proxy_model_ensembleSize:])) + f' and std of {bcolors.OKCYAN}%.3f{bcolors.ENDC}'%(np.sqrt(np.var(self.testMinima))))
+        printRecord('Model state contains {} samples'.format(self.params.model_state_size) +
                     ' with minimum energy' + bcolors.OKGREEN + ' {:.2f},'.format(np.amin(minClusterEns)) + bcolors.ENDC +
-                    ' average energy' + bcolors.OKGREEN +' {:.2f},'.format(np.average(minClusterEns[:self.params['model state size']])) + bcolors.ENDC +
-                    ' and average std dev' + bcolors.OKCYAN + ' {:.2f}'.format(np.average(np.sqrt(minClusterVars[:self.params['model state size']]))) + bcolors.ENDC)
+                    ' average energy' + bcolors.OKGREEN +' {:.2f},'.format(np.average(minClusterEns[:self.params.model_state_size])) + bcolors.ENDC +
+                    ' and average std dev' + bcolors.OKCYAN + ' {:.2f}'.format(np.average(np.sqrt(minClusterVars[:self.params.model_state_size]))) + bcolors.ENDC)
         printRecord('Sample average mutial distance is ' + bcolors.WARNING +'{:.2f} '.format(np.average(internalDiff)) + bcolors.ENDC +
                     'dataset distance is ' + bcolors.WARNING + '{:.2f} '.format(np.average(datasetDiff)) + bcolors.ENDC +
                     'and overall distance estimated at ' + bcolors.WARNING + '{:.2f}'.format(np.average(randomDiff)) + bcolors.ENDC)
 
-        if self.params['dataset type'] == 'toy': # we can check the test error against a huge random dataset
+        if self.params.dataset_type == 'toy': # we can check the test error against a huge random dataset
             self.largeModelEvaluation()
             self.printOverallPerformance(minClusterEns, minClusterVars)
 
@@ -211,23 +209,23 @@ class activeLearning():
     def retrainModels(self, parallel=True):
         if not parallel:
             testMins = []
-            for i in range(self.params['model ensemble size']):
+            for i in range(self.params.proxy_model_ensembleSize):
                 self.resetModel(i)  # reset between ensemble estimators EVERY ITERATION of the pipeline
                 self.model.converge()  # converge model
                 testMins.append(np.amin(self.model.err_te_hist))
             self.testMinima.append(testMins)
         else:
             del self.model
-            if self.params['device'] == 'local':
+            if self.params.device == 'local':
                 nHold = 4
             else:
                 nHold = 1
             cpus = int(os.cpu_count() - nHold)
-            cpus = min(cpus,self.params['model ensemble size']) # only as many CPUs as we need
+            cpus = min(cpus,self.params.proxy_model_ensembleSize) # only as many CPUs as we need
             with mp.Pool(processes=cpus) as pool:
-                output = [pool.apply_async(trainModel, args=[self.params, j]) for j in range(self.params['model ensemble size'])]
-                outputList = [output[i].get() for i in range(self.params['model ensemble size'])]
-                self.testMinima.append([np.amin(outputList[i]) for i in range(self.params['model ensemble size'])])
+                output = [pool.apply_async(trainModel, args=[self.params, j]) for j in range(self.params.proxy_model_ensembleSize)]
+                outputList = [output[i].get() for i in range(self.params.proxy_model_ensembleSize)]
+                self.testMinima.append([np.amin(outputList[i]) for i in range(self.params.proxy_model_ensembleSize)])
                 pool.close()
                 pool.join()
 
@@ -239,7 +237,7 @@ class activeLearning():
         :return:
         '''
         ensemble = []
-        for i in range(self.params['model ensemble size']):
+        for i in range(self.params.proxy_model_ensembleSize):
             self.resetModel(i)
             self.model.load(i)
             ensemble.append(self.model.model)
@@ -248,7 +246,7 @@ class activeLearning():
         self.model = modelNet(self.params,0)
         self.model.loadEnsemble(ensemble)
 
-        #print('Loaded {} estimators'.format(int(self.params['model ensemble size'])))
+        #print('Loaded {} estimators'.format(int(self.params.proxy_model_ensembleSize)))
 
 
     def resetModel(self,ensembleIndex, returnModel = False):
@@ -280,7 +278,7 @@ class activeLearning():
         '''
         self.loadEstimatorEnsemble()
 
-        numSamples = min(int(1e5), self.params['dict size'] ** self.params['max sample length'] // 100) # either 1e5, or 1% of the sample space, whichever is smaller
+        numSamples = min(int(1e5), self.params.dict_size ** self.params.max_sample_length // 100) # either 1e5, or 1% of the sample space, whichever is smaller
         randomData = self.oracle.initializeDataset(save=False, returnData=True, customSize=numSamples) # get large random dataset
         randomSamples = randomData['samples']
         randomScores = randomData['scores']
@@ -290,7 +288,7 @@ class activeLearning():
         randomScores = randomScores[sortInds]
 
         modelScores, modelVars = [[],[]]
-        sampleLoader = data.DataLoader(randomSamples, batch_size = self.params['batch size'], shuffle=False, num_workers = 0, pin_memory=False)
+        sampleLoader = data.DataLoader(randomSamples, batch_size = self.params.proxy_training_batch_size, shuffle=False, num_workers = 0, pin_memory=False)
         for i, testData in enumerate(sampleLoader):
             score, variance = self.model.evaluate(testData.float(), output='Both')
             modelScores.extend(score)
@@ -318,15 +316,15 @@ class activeLearning():
         printRecord("Asking toy oracle for the true minimum")
 
         self.model = 'abc'
-        gammas = np.logspace(self.params['min gamma'],self.params['max gamma'],self.params['num samplers'])
+        gammas = np.logspace(self.params.stun_min_gamma,self.params.stun_max_gamma,self.params.mcmc_num_samplers)
         mcmcSampler = sampler(self.params, 0, [1,0], gammas)
         sampleDict = runSampling(self.params, mcmcSampler, self.model, useOracle=True)
-        if self.params['dataset'] == 'wmodel': # w model minimum is always zero - even if we don't find it
+        if self.params.dataset == 'wmodel': # w model minimum is always zero - even if we don't find it
             bestMin = 0
         else:
             bestMin = np.amin(sampleDict['energies'])
 
-        printRecord(f"Sampling Complete! Lowest Energy Found = {bcolors.FAIL}%.3f{bcolors.ENDC}" % bestMin + " from %d" % self.params['num samplers'] + " sampling runs.")
+        printRecord(f"Sampling Complete! Lowest Energy Found = {bcolors.FAIL}%.3f{bcolors.ENDC}" % bestMin + " from %d" % self.params.mcmc_num_samplers + " sampling runs.")
 
         self.oracleRecord = sampleDict
         self.trueMinimum = np.amin(self.oracleRecord['scores'])
@@ -340,7 +338,7 @@ class activeLearning():
         outputDict = {}
         outputDict['params'] = self.params
         outputDict['state dict record'] = self.stateDictRecord
-        if self.params['dataset type'] == 'toy':
+        if self.params.dataset_type == 'toy':
             outputDict['oracle outputs'] = self.oracleRecord
             outputDict['big dataset loss'] = self.totalLoss
             outputDict['bottom 10% loss'] = self.bottomTenLoss
@@ -355,14 +353,14 @@ class activeLearning():
         :param oracleScores: scores of sequences sent to oracle
         :return: n/a
         '''
-        dataset = np.load('datasets/' + self.params['dataset'] + '.npy', allow_pickle=True).item()
+        dataset = np.load('datasets/' + self.params.dataset + '.npy', allow_pickle=True).item()
         # TODO separate between scores and q-scores
         dataset['samples'] = np.concatenate((dataset['samples'], oracleSequences))
         dataset['scores'] = np.concatenate((dataset['scores'], oracleScores))
 
         printRecord(f"Added{bcolors.OKBLUE}{bcolors.BOLD} %d{bcolors.ENDC}" % int(len(oracleSequences)) + " to the dataset, total dataset size is" + bcolors.OKBLUE + " {}".format(int(len(dataset['samples']))) + bcolors.ENDC)
         printRecord(bcolors.UNDERLINE + "=====================================================================" + bcolors.ENDC)
-        np.save('datasets/' + self.params['dataset'], dataset)
+        np.save('datasets/' + self.params.dataset, dataset)
 
 
     def getScalingFactor(self):
@@ -371,7 +369,7 @@ class activeLearning():
         :return:
         '''
         truncationFactor = 0.1 # cut off x% of the furthest outliers
-        dataset = np.load('datasets/' + self.params['dataset'] + '.npy', allow_pickle=True).item()
+        dataset = np.load('datasets/' + self.params.dataset + '.npy', allow_pickle=True).item()
 
         scores = dataset['scores']
         d1 = [np.sum(np.abs(scores[i] - scores)) for i in range(len(scores))]
@@ -382,7 +380,7 @@ class activeLearning():
 
 
     def addRandomSamples(self, samples, energies, uncertainties, minClusterSamples, minClusterEns, minClusterVars):
-        rands = np.random.randint(0, len(samples), size=self.params['model state size'] - len(minClusterSamples))
+        rands = np.random.randint(0, len(samples), size=self.params.model_state_size - len(minClusterSamples))
         randomSamples = samples[rands]
         randomEnergies = energies[rands]
         randomUncertainties = uncertainties[rands]
@@ -404,11 +402,11 @@ class activeLearning():
         :return:
         '''
         # training dataset
-        dataset = np.load('datasets/' + self.params['dataset'] + '.npy', allow_pickle=True).item()
+        dataset = np.load('datasets/' + self.params.dataset + '.npy', allow_pickle=True).item()
         dataset = dataset['samples']
 
         # large, random sample
-        numSamples = min(int(1e4), self.params['dict size'] ** self.params['max sample length'] // 100) # either 1e5, or 1% of the sample space, whichever is smaller
+        numSamples = min(int(1e4), self.params.dict_size ** self.params.max_sample_length // 100) # either 1e5, or 1% of the sample space, whichever is smaller
         randomData = self.oracle.initializeDataset(save=False, returnData=True, customSize=numSamples) # get large random dataset
         randomSamples = randomData['samples']
 

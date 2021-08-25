@@ -13,58 +13,6 @@ This is a general utilities file for the active learning pipeline
 To-Do:
 '''
 
-def getParamsDict(args):
-    params = {}
-    params['run num'] = args.run_num
-    params['sampler seed'] = args.sampler_seed % 10  # seed for MCMC modelling (each set of gammas gets a slightly different seed)
-    params['model seed'] = args.model_seed % 10  # seed used for model ensemble (each model gets a slightly different seed)
-    params['dataset seed'] = args.dataset_seed % 10 # if we are using a toy dataset, it may take a specific seed
-    params['query mode'] = args.query_mode  # 'random', 'energy', 'uncertainty', 'heuristic', 'learned' # different modes for query construction
-    params['dataset'] = args.dataset
-
-    # initialize control parameters
-    params['device'] = args.device  # 'local' or 'cluster'
-    params['GPU'] = args.GPU  # WIP - train and evaluate models on GPU
-    params['explicit run enumeration'] = args.explicit_run_enumeration  # if this is True, the next run be fresh, in directory 'run%d'%run_num, if false, regular behaviour. Note: only use this on fresh runs
-    params['test mode'] = args.test_mode  # WIP # if true, automatically set parameters for a quick test run
-
-    # Pipeline parameters
-    params['pipeline iterations'] = args.pipeline_iterations  # number of cycles with the oracle
-    params['minima dist cutoff'] = args.minima_dist_cutoff  # minimum distance (normalized, binary) between distinct minima
-
-    params['queries per iter'] = args.queries_per_iter  # maximum number of questions we can ask the oracle per cycle
-    params['mode'] = args.mode  # 'training'  'evaluation' 'initialize'
-    params['debug'] = args.debug
-    params['training parallelism'] = args.training_parallelism  # True hangs on Linux systems # distribute training across a CPU multiprocessing pool (each CPU may still access a GPU, if GPU == True)
-
-    # toy data parameters
-    params['dataset type'] = args.dataset_type # oracle is very fast to sample
-    params['init dataset length'] = args.init_dataset_length  # number of items in the initial (toy) dataset
-    params['dict size'] = args.dict_size  # number of possible choices per-state, e.g., [0,1] would be two, [1,2,3,4] (representing ATGC) would be 4
-    params['variable sample length'] = args.variable_sample_length  # if true, 'max sample length' should be a list with the smallest and largest size of input sequences [min, max]. If 'false', model is MLP, if 'true', transformer encoder -> MLP output. - false isn't really working/maintained
-    params['min sample length'], params['max sample length'] = [args.min_sample_length, args.max_sample_length]  # minimum input sequence length and # maximum input sequence length (inclusive) - or fixed sample size if 'variable sample length' is false
-
-    # querier settings
-    params['model state size'] = args.model_state_size
-
-    # model parameters
-    params['model type'] = args.model_type # type of proxy model
-    params['model ensemble size'] = args.model_ensemble_size  # number of models in the ensemble
-    params['model filters'] = args.model_filters # number of neurons per proxy NN layer
-    params['model layers'] = args.model_layers  # number of layers in NN proxy models (transformer encoder layers OR MLP layers)
-    params['embed dim'] = args.embedding_dim  # embedding dimension for transformer only
-    params['max training epochs'] = args.max_epochs
-    params['batch size'] = args.training_batch_size
-
-    # sampler parameters
-    params['sampling time'] = args.sampling_time
-    params['num samplers'] = args.num_samplers  # minimum number of gammas over which to search for each sampler (if doing in parallel, we may do more if we have more CPUs than this)
-    params['min gamma'] = args.min_gamma
-    params['max gamma'] = args.max_gamma
-
-    return params
-
-
 def printRecord(statement):
     '''
     print a string to command line output and a text file
@@ -331,7 +279,7 @@ def runSampling(params, sampler, model, useOracle=False):
     scores = []
     energies = []
     uncertainties = []
-    for i in range(params['num samplers']):
+    for i in range(params.mcmc_num_samplers):
         samples.extend(sampleOutputs['optimalSamples'][i])
         scores.extend(sampleOutputs['optima'][i])
         energies.extend(sampleOutputs['enAtOptima'][i])
@@ -437,9 +385,9 @@ class resultsPlotter():
         self.stdEns = np.asarray([results['state dict record'][i]['best cluster energies'] for i in range(self.niters)]) # these come standardized out of the box
         self.stdDevs = np.asarray([results['state dict record'][i]['best cluster deviations'] for i in range(self.niters)])
         self.stateSamples = np.asarray([results['state dict record'][i]['best cluster samples'] for i in range(self.niters)])
-        self.internalDiffs = np.asarray([results['state dict record'][i]['best clusters internal diff'] for i in range(self.niters)])
-        self.datasetDiffs = np.asarray([results['state dict record'][i]['best clusters dataset diff'] for i in range(self.niters)])
-        self.randomDiffs = np.asarray([results['state dict record'][i]['best clusters random set diff'] for i in range(self.niters)])
+        self.internalDists = np.asarray([results['state dict record'][i]['best clusters internal diff'] for i in range(self.niters)])
+        self.datasetDists = np.asarray([results['state dict record'][i]['best clusters dataset diff'] for i in range(self.niters)])
+        self.randomDists = np.asarray([results['state dict record'][i]['best clusters random set diff'] for i in range(self.niters)])
         self.bigDataLoss = np.asarray([results['big dataset loss'][i] for i in range(self.niters)])
         self.bottom10Loss = np.asarray([results['bottom 10% loss'][i] for i in range(self.niters)])
 
@@ -460,7 +408,7 @@ class resultsPlotter():
         self.xrange = np.arange(self.niters) + 1
 
 
-    def plotLosses(self, fignum, color, label):
+    def plotLosses(self, fignum = 1, color = 'k', label = None):
         plt.figure(fignum)
         plt.semilogy(self.xrange, self.bigDataLoss, color + '.-', label=label + ' big sample loss')
         plt.semilogy(self.xrange, self.bottom10Loss, color + 'o-', label=label + ' bottom 10% loss')
@@ -469,9 +417,10 @@ class resultsPlotter():
         plt.ylabel('Smooth L1 Loss')
         plt.legend()
 
-    def plotPerformance(self, fignum, color, label, ind):
+    def plotPerformance(self, fignum = 1, color = 'k', label = None, ind = 1):
         plt.figure(fignum)
-        plt.fill_between(self.xrange, self.normedEns[:,0] - self.normedDevs[:,0] / 2, self.normedEns[:,0] + self.normedDevs[:,0] / 2, alpha = 0.2, edgecolor = color, facecolor = color, label = label + ' best optimum')
+        plt.plot(self.xrange, self.normedEns[:,0], color + '.-')
+        plt.fill_between(self.xrange, self.normedEns[:,0] - self.normedDevs[:,0] / 2, self.normedEns[:,0] + self.normedDevs[:,0] / 2, alpha = 0.2, edgecolor = color, facecolor = color, label = label + ' best optimum + uncertainty')
         avgens = np.average(self.normedEns, axis=1)
         plt.errorbar(self.xrange + ind / 10, avgens, yerr = [avgens-self.normedEns[:,0], avgens-self.normedEns[:,1]], fmt = color + '.', ecolor=color, elinewidth=3, capsize=1.5, alpha=0.2, label=label + ' state range')
         #for i in range(self.normedEns.shape[1]):
@@ -479,3 +428,42 @@ class resultsPlotter():
         plt.xlabel('AL Iterations')
         plt.ylabel('Performance')
         plt.legend()
+
+    def plotDiversity(self, fignum = 1, subplot = 1, nsubplots = 1,color = 'k', label = None):
+        plt.figure(fignum)
+        square = int(np.ceil(np.sqrt(nsubplots)))
+        plt.subplot(square,square,subplot)
+        plt.fill_between(self.xrange, np.amin(self.internalDists, axis=1), np.amax(self.internalDists, axis=1), alpha=0.2, hatch='o', edgecolor=color, facecolor=color, label=label + ' internal dist')
+        plt.fill_between(self.xrange, np.amin(self.datasetDists, axis=1), np.amax(self.datasetDists, axis=1), alpha=0.2, hatch='-', edgecolor=color, facecolor=color, label=label + ' dataset dist')
+        plt.fill_between(self.xrange, np.amin(self.randomDists, axis=1), np.amax(self.randomDists, axis=1), alpha=0.2, hatch='/', edgecolor=color, facecolor=color, label=label + ' random dist')
+        plt.xlabel('AL Iterations')
+        plt.ylabel('Binary Distances')
+        plt.legend()
+
+    def plotDiversityProduct(self, fignum = 1, color = 'k', label = None):
+        plt.figure(fignum)
+        divXEn = self.internalDists * self.normedEns # pointwise product of internal distance metric and normalized energy (higher is better)
+        plt.fill_between(self.xrange, np.amin(divXEn, axis=1), np.amax(divXEn, axis=1), alpha=0.2, edgecolor=color, facecolor=color, label=label + ' dist evolution')
+        plt.xlabel('AL Iterations')
+        plt.ylabel('Energy x dist')
+        plt.legend()
+
+    def plotDiversityMesh(self, fignum = 1, subplot = 1, nsubplots = 1, color = 'k', label = None):
+        plt.figure(fignum)
+        square = int(np.ceil(np.sqrt(nsubplots)))
+        plt.subplot(square,square,subplot)
+        flatDist = self.internalDists.flatten()
+        flatEns = self.normedEns.flatten()
+        ttime = np.zeros_like(self.internalDists)
+        for i in range(self.niters):
+            ttime[i] = i + 1
+        flatTime = ttime.flatten()
+        plt.tricontourf(flatDist, flatEns, flatTime)
+        plt.title('Diversity and Energy over time')
+        plt.xlabel('Internal Distance')
+        plt.ylabel('Sample Energy')
+        plt.xlim(0,1)
+        plt.ylim(0,1)
+        plt.clim(1,self.niters)
+        plt.colorbar()
+        plt.tight_layout()
