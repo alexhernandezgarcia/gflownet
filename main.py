@@ -46,13 +46,13 @@ parser.add_argument('--min_sample_length', type = int, default = 10)
 parser.add_argument('--max_sample_length', type = int, default = 40)
 # AL settings
 parser.add_argument('--query_mode', type=str, default='energy') # 'random', 'energy', 'uncertainty', 'heuristic', 'learned' # different modes for query construction
-parser.add_argument('--test_mode', type = bool, default = True) # if true, automatically set parameters for a quick test run
-parser.add_argument('--pipeline_iterations', type = int, default = 10) # number of cycles with the oracle
+parser.add_argument('--test_mode', type = bool, default = False) # if true, automatically set parameters for a quick test run
+parser.add_argument('--pipeline_iterations', type = int, default = 20) # number of cycles with the oracle
 parser.add_argument('--minima_dist_cutoff', type = float, default = 0.25) # minimum distance (normalized, binary) between distinct minima or between clusters in agglomerative clustering
 # TODO add toggle between agglomerative clustering and simple item-by-item batching
 parser.add_argument('--queries_per_iter', type = int, default = 100) # maximum number of questions we can ask the oracle per cycle
 parser.add_argument('--mode', type = str, default = 'training') # 'training'  'evaluation' 'initialize' - only training currently useful
-parser.add_argument('--debug', type = bool, default = True)
+parser.add_argument('--debug', type = bool, default = False)
 # querier settings
 parser.add_argument('--model_state_size', type = int, default = 30) # number of selected datapoints of model evaluations
 # gFlownet settings
