@@ -3,8 +3,11 @@ import numpy as np
 import scipy.io
 import random
 from seqfold import dg, fold
-from nupack import *
+from bbdob.utils import idx2one_hot
+from bbdob import OneMax, TwoMin, FourPeaks, DeceptiveTrap, NKLandscape, WModel
+#from nupack import *
 from utils import *
+import sys
 
 '''
 This script computes a binding score for a given sequence or set of sequences
@@ -35,18 +38,27 @@ class oracle():
         :param params:
         '''
         self.params = params
-        np.random.seed(self.params['dataset seed'])
-        self.seqLen = self.params['max sample length']
+        self.seqLen = self.params.max_sample_length
 
-        if self.params['test mode']:
-            self.linFactors = -np.ones(self.seqLen) # Uber-simple function, for testing purposes
+        self.initRands()
+
+
+    def initRands(self):
+        '''
+        initialize random numbers for custom-made toy functions
+        :return:
+        '''
+        np.random.seed(self.params.toy_oracle_seed)
+
+        if self.params.test_mode:
+            self.linFactors = -np.ones(self.seqLen) # Uber-simple function, for testing purposes - actually nearly functionally identical to one-max, I believe
         else:
             self.linFactors = np.random.randn(self.seqLen)  # coefficients for linear toy energy
 
         hamiltonian = np.random.randn(self.seqLen,self.seqLen) # energy function
         self.hamiltonian = np.tril(hamiltonian) + np.tril(hamiltonian, -1).T # random symmetric matrix
 
-        pham = np.zeros((self.seqLen,self.seqLen,self.params['dict size'],self.params['dict size']))
+        pham = np.zeros((self.seqLen,self.seqLen,self.params.dict_size,self.params.dict_size))
         for i in range(pham.shape[0]):
             for j in range(i, pham.shape[1]):
                 for k in range(pham.shape[2]):
@@ -57,7 +69,22 @@ class oracle():
                         pham[j, i, k, l] = num
                         pham[j, i, l, k] = num
         self.pottsJ = pham # multilevel spin Hamiltonian (Potts Hamiltonian) - coupling term
-        self.pottsH = np.random.randn(self.seqLen,self.params['dict size']) # Potts Hamiltonian - onsite term
+        self.pottsH = np.random.randn(self.seqLen,self.params.dict_size) # Potts Hamiltonian - onsite term
+
+        # W-model parameters
+        # first get the binary dimension size
+        aa = np.arange(self.params.dict_size)
+        if self.params.variable_sample_length:
+            aa = np.clip(aa, 1, self.params.dict_size) #  merge padding with class 1
+        x0 = np.binary_repr(aa[-1])
+        dimension = int(len(x0) * self.params.max_sample_length)
+
+        mu = np.random.randint(1, dimension + 1)
+        v = np.random.randint(1, dimension + 1)
+        m = np.random.randint(1, dimension)
+        n = np.random.randint(1, dimension)
+        gamma = np.random.randint(0, int(n * (n - 1 ) / 2))
+        self.mu, self.v, self.m, self.n, self.gamma = [mu, v, m, n, gamma]
 
 
     def initializeDataset(self,save = True, returnData = False, customSize=None):
@@ -68,38 +95,39 @@ class oracle():
         :return:
         '''
         data = {}
-        np.random.seed(self.params['dataset seed'])
+        np.random.seed(self.params.init_dataset_seed)
         if customSize is None:
-            datasetLength = self.params['init dataset length']
+            datasetLength = self.params.init_dataset_length
         else:
             datasetLength = customSize
 
-        if self.params['variable sample length']:
+        if self.params.variable_sample_length:
             samples = []
             while len(samples) < datasetLength:
-                for i in range(self.params['min sample length'], self.params['max sample length'] + 1):
-                    samples.extend(np.random.randint(0 + 1, self.params['dict size'] + 1, size=(int(100 * self.params['dict size'] * i), i)))
+                for i in range(self.params.min_sample_length, self.params.max_sample_length + 1):
+                    samples.extend(np.random.randint(0 + 1, self.params.dict_size + 1, size=(int(100 * self.params.dict_size * i), i)))
 
-                samples = self.numpy_fillna(np.asarray(samples)).astype(int) # pad sequences up to maximum length
+                samples = self.numpy_fillna(np.asarray(samples, dtype = object)) # pad sequences up to maximum length
                 samples = filterDuplicateSamples(samples) # this will naturally proportionally punish shorter sequences
                 if len(samples) < datasetLength:
                     samples = samples.tolist()
             np.random.shuffle(samples) # shuffle so that sequences with different lengths are randomly distributed
             samples = samples[:datasetLength] # after shuffle, reduce dataset to desired size, with properly weighted samples
         else: # fixed sample size
-            samples = np.random.randint(1, self.params['dict size'] + 1,size=(datasetLength, self.params['max sample length']))
+            samples = np.random.randint(1, self.params.dict_size + 1,size=(datasetLength, self.params.max_sample_length))
             samples = filterDuplicateSamples(samples)
             while len(samples) < datasetLength:
-                samples = np.concatenate((samples,np.random.randint(1, self.params['dict size'] + 1, size=(datasetLength, self.params['max sample length']))),0)
+                samples = np.concatenate((samples,np.random.randint(1, self.params.dict_size + 1, size=(datasetLength, self.params.max_sample_length))),0)
                 samples = filterDuplicateSamples(samples)
 
         data['samples'] = samples
         data['scores'] = self.score(data['samples'])
 
         if save:
-            np.save('datasets/' + self.params['dataset'], data)
+            np.save('datasets/' + self.params.dataset, data)
         if returnData:
             return data
+
 
     def score(self, queries):
         '''
@@ -123,17 +151,66 @@ class oracle():
 
 
     def getScore(self,queries):
-        if self.params['dataset'] == 'linear':
+        if self.params.dataset == 'linear':
             return self.linearToy(queries)
-        elif self.params['dataset'] == 'potts':
+        elif self.params.dataset == 'potts':
             return self.PottsEnergy(queries)
-        elif self.params['dataset'] == 'inner product':
+        elif self.params.dataset == 'inner product':
             return self.toyHamiltonian(queries)
-        elif self.params['dataset'] == 'seqfold':
+        elif self.params.dataset == 'seqfold':
             return self.seqfoldScore(queries)
-        elif self.params['dataset'] == 'nupack':
+        elif self.params.dataset == 'nupack':
             return self.nupackScore(queries)
+        elif (self.params.dataset == 'onemax') or (self.params.dataset == 'twomin') or (self.params.dataset == 'fourpeaks')\
+                or (self.params.dataset == 'deceptivetrap') or (self.params.dataset == 'nklandscape') or (self.params.dataset == 'wmodel'):
+            return self.BB_DOB_functions(queries)
 
+
+    def BB_DOB_functions(self, queries):
+        '''
+        BB-DOB OneMax benchmark
+        :param queries:
+        :return:
+        '''
+        if self.params.variable_sample_length:
+            queries = np.clip(queries, 1, self.params.dict_size) #  merge padding with class 1
+
+        x0 = [np.binary_repr((queries[i][j] - 1).astype('uint8'),width=2) for i in range(len(queries)) for j in range(self.params.max_sample_length)] # convert to binary
+        x0 = np.asarray(x0).astype(str).reshape(len(queries), self.params.max_sample_length) # reshape to proper size
+        x0= [''.join(x0[i]) for i in range(len(x0))] # concatenate to binary strings
+        x1 = np.zeros((len(queries),len(x0[0])),int) # initialize array
+        for i in range(len(x0)): # finally, as an array (took me long enough)
+            x1[i] = np.asarray(list(x0[i])).astype(int)
+
+        dimension = x1.shape[1]
+
+        x1 = idx2one_hot(x1, 2) # convert to BB_DOB one_hot format
+
+        objective = self.getObjective(dimension)
+
+        evals, info = objective(x1)
+
+        return evals
+
+
+    def getObjective(self, dimension):
+        if self.params.dataset == 'onemax': # very limited in our DNA one-hot encoding
+            objective = OneMax(dimension)
+        elif self.params.dataset == 'twomin':
+            objective = TwoMin(dimension)
+        elif self.params.dataset == 'fourpeaks': # very limited in our DNA one-hot encoding
+            objective = FourPeaks(dimension, t=3)
+        elif self.params.dataset == 'deceptivetrap':
+            objective = DeceptiveTrap(dimension, minimize=True)
+        elif self.params.dataset == 'nklandscape':
+            objective = NKLandscape(dimension, minimize=True)
+        elif self.params.dataset == 'wmodel':
+            objective = WModel(dimension, mu=self.mu, v=self.v, m = self.m, n = self.n, gamma = self.gamma, minimize=True)
+        else:
+            printRecord(self.params.dataset + ' is not a valid dataset!')
+            sys.exit()
+
+        return objective
 
     def linearToy(self,queries):
         '''
@@ -238,6 +315,7 @@ class oracle():
         else:
             return energies
 
+
     def numbers2letters(self, sequences):  # Tranforming letters to numbers (1234 --> ATGC)
         '''
         Converts numerical values to ATGC-format
@@ -279,123 +357,60 @@ class oracle():
         mask = np.arange(lens.max()) < lens[:, None]
 
         # Setup output array and put elements from data into masked positions
-        out = np.zeros(mask.shape, dtype=data.dtype)
+        out = np.zeros(mask.shape, dtype=object)
         out[mask] = np.concatenate(data)
         return out
 
 
-
     def nupackScore(self,queries,returnSS=False,parallel=True):
+        if self.params.device == 'cluster':
+            #use nupack instead of seqfold - more stable and higher quality predictions in general
+            #returns the energy of the most probable structure only
+            #:param queries:
+            #:param returnSS:
+            #:return:
 
-        #use nupack instead of seqfold - more stable and higher quality predictions in general
-        #returns the energy of the most probable structure only
-        #:param queries:
-        #:param returnSS:
-        #:return:
+            temperature = 310.0  # Kelvin
+            ionicStrength = 1.0 # molar
+            sequences = self.numbers2letters(queries)
 
-        temperature = 310.0  # Kelvin
-        ionicStrength = 1.0 # molar
-        sequences = self.numbers2letters(queries)
+            energies = np.zeros(len(sequences))
+            strings = []
+            if parallel:
+                # parallel evaluation - fast
+                strandList = []
+                comps = []
+                i = -1
+                for sequence in sequences:
+                    i += 1
+                    strandList.append(Strand(sequence, name='strand{}'.format(i)))
+                    comps.append(Complex([strandList[-1]], name='comp{}'.format(i)))
 
-        energies = np.zeros(len(sequences))
-        strings = []
-        if parallel:
-            # parallel evaluation - fast
-            strandList = []
-            comps = []
-            i = -1
-            for sequence in sequences:
-                i += 1
-                strandList.append(Strand(sequence, name='strand{}'.format(i)))
-                comps.append(Complex([strandList[-1]], name='comp{}'.format(i)))
-
-            set = ComplexSet(strands=strandList, complexes=SetSpec(max_size=1, include=comps))
-            model1 = Model(material='dna', celsius=temperature - 273, sodium=ionicStrength)
-            results = complex_analysis(set, model=model1, compute=['mfe'])
-            for i in range(len(energies)):
-                energies[i] = results[comps[i]].mfe[0].energy
-
-                if returnSS:
-                    strings.append(str(results[comps[i]].mfe[0].structure))
-
-        else:
-            i = -1
-            for sequence in sequences:
-                i += 1
-                A = Strand(sequence, name='A')
-                comp = Complex([A], name='AA')
-                set1 = ComplexSet(strands=[A], complexes=SetSpec(max_size=1, include=[comp]))
+                set = ComplexSet(strands=strandList, complexes=SetSpec(max_size=1, include=comps))
                 model1 = Model(material='dna', celsius=temperature - 273, sodium=ionicStrength)
-                results = complex_analysis(set1, model=model1, compute=['mfe'])
-                cout = results[comp]
+                results = complex_analysis(set, model=model1, compute=['mfe'])
+                for i in range(len(energies)):
+                    energies[i] = results[comps[i]].mfe[0].energy
 
-                energies[i] = cout.mfe[0].energy
-                if returnSS:
-                    strings.append(cout.mfe[0].structure)
+                    if returnSS:
+                        strings.append(str(results[comps[i]].mfe[0].structure))
 
-        if returnSS:
-            return energies, strings
-        else:
-            return energies
+            else:
+                i = -1
+                for sequence in sequences:
+                    i += 1
+                    A = Strand(sequence, name='A')
+                    comp = Complex([A], name='AA')
+                    set1 = ComplexSet(strands=[A], complexes=SetSpec(max_size=1, include=[comp]))
+                    model1 = Model(material='dna', celsius=temperature - 273, sodium=ionicStrength)
+                    results = complex_analysis(set1, model=model1, compute=['mfe'])
+                    cout = results[comp]
 
+                    energies[i] = cout.mfe[0].energy
+                    if returnSS:
+                        strings.append(cout.mfe[0].structure)
 
-
-
-''' # little script to test and have a look at the data
-
-params = {}
-params['dataset seed'] = 0
-params['max sample length'] = 20
-params['min sample length'] = 10
-params['dataset'] = 'linear toy' # 'linear', 'potts', 'inner product', 'seqfold'
-params['dict size'] = 4
-params['init dataset length'] = 100000
-params['variable sample length'] = True
-
-oracle = oracle(params)
-dataset = oracle.initializeDataset(save=False,returnData=True)
-
-import time
-
-t0 = time.time()
-oracle.params['dataset'] = 'linear'
-linScore = oracle.score(dataset['samples'])
-tf = time.time()
-print("Linear took {} seconds for {} samples".format(int(tf-t0), params['init dataset length']))
-
-t0 = time.time()
-oracle.params['dataset'] = 'inner product'
-innerScore = oracle.score(dataset['samples'])
-tf = time.time()
-print("Inner product took {} seconds for {} samples".format(int(tf-t0), params['init dataset length']))
-
-t0 = time.time()
-oracle.params['dataset'] = 'potts'
-pottsScore = oracle.score(dataset['samples'])
-tf = time.time()
-print("Potts took {} seconds for {} samples".format(int(tf-t0), params['init dataset length']))
-
-t0 = time.time()
-oracle.params['dataset'] = 'seqfold'
-seqfoldScore = oracle.score(dataset['samples'])
-tf = time.time()
-print("Seqfold took {} seconds for {} samples".format(int(tf-t0), params['init dataset length']))
-
-t0 = time.time()
-oracle.params['dataset'] = 'nupack'
-nupackScore = oracle.score(dataset['samples'])
-tf = time.time()
-print("Nupack took {} seconds for {} samples".format(int(tf-t0), params['init dataset length']))
-
-
-import matplotlib.pyplot as plt
-
-plt.clf()
-plt.hist((linScore - np.mean(linScore))/np.sqrt(np.var(linScore)),alpha=0.5,density=True,bins=100,label='Linear')
-plt.hist((innerScore - np.mean(innerScore))/np.sqrt(np.var(innerScore)),alpha=0.5,density=True,bins=100,label='Inner')
-plt.hist((pottsScore - np.mean(pottsScore))/np.sqrt(np.var(pottsScore)),alpha=0.5,density=True,bins=100,label='Potts')
-plt.hist((seqfoldScore - np.mean(seqfoldScore))/np.sqrt(np.var(seqfoldScore)),alpha=0.5,density=True,bins=100,label='Seqfold')
-plt.hist((nupackScore - np.mean(nupackScore))/np.sqrt(np.var(nupackScore)),alpha=0.5,density=True,bins=100,label='nupack')
-plt.legend()
-
-'''
+            if returnSS:
+                return energies, strings
+            else:
+                return energies
