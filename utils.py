@@ -361,8 +361,6 @@ def clusterAnalysis(clusters, clusterEns, clusterVars):
     return clusterSize, avgClusterEns, minClusterEns, avgClusterVars, minClusterVars, minClusterSamples
 
 
-# TODO graph outputs from state dict record
-
 class resultsPlotter():
     def __init__(self):
         self.i = 0
@@ -405,14 +403,54 @@ class resultsPlotter():
         self.normedEns = 1 - np.abs(self.stdTrueMin - self.stdEns) / np.abs(self.stdTrueMin)
         self.normedDevs = self.stdDevs / np.abs(self.stdTrueMin)
 
-        self.xrange = np.arange(self.niters) + 1
+        self.xrange = np.arange(self.niters) * results['params'].queries_per_iter + results['params'].init_dataset_length
+
+    def averageResults(self,directories):
+        results = []
+        for directory in directories:
+            self.process(directory)
+            results.append(self.__dict__)
+
+        self.avgbigDataLoss = []
+        self.avgbottom10Loss = []
+        self.avgavgTestLoss = []
+        self.avgtestStd = []
+        self.avgstd = []
+        self.avgnormedEns = []
+        self.avgnormedDevs = []
+        self.avginternalDists = []
+        self.avgdatasetDists = []
+        self.avgrandomDists = []
+        for i in range(len(directories)):
+            self.avgbigDataLoss.append(results[i]['bigDataLoss'])
+            self.avgbottom10Loss.append(results[i]['bottom10Loss'])
+            self.avgavgTestLoss.append(results[i]['avgTestLoss'])
+            self.avgtestStd.append(results[i]['testStd'])
+            self.avgstd.append(results[i]['std'])
+            self.avgnormedEns.append(results[i]['normedEns'])
+            self.avgnormedDevs.append(results[i]['normedDevs'])
+            self.avginternalDists.append(results[i]['internalDists'])
+            self.avgdatasetDists.append(results[i]['datasetDists'])
+            self.avgrandomDists.append(results[i]['randomDists'])
+
+        self.bigDataLoss = np.average(self.avgbigDataLoss,axis=0)
+        self.bottom10Loss = np.average(self.avgbottom10Loss,axis=0)
+        self.avgTestLoss = np.average(self.avgavgTestLoss,axis=0)
+        self.testStd = np.average(self.avgtestStd,axis=0)
+        self.std = np.average(self.avgstd,axis=0)
+        self.normedEns = np.average(self.avgnormedEns,axis=0)
+        self.normedDevs = np.average(self.avgnormedDevs,axis=0)
+        self.internalDists = np.average(self.avginternalDists,axis=0)
+        self.datasetDists = np.average(self.avgdatasetDists,axis=0)
+        self.randomDists = np.average(self.avgrandomDists,axis=0)
+
 
     def plotLosses(self, fignum = 1, color = 'k', label = None):
         plt.figure(fignum)
         plt.semilogy(self.xrange, self.bigDataLoss, color + '.-', label=label + ' big sample loss')
         plt.semilogy(self.xrange, self.bottom10Loss, color + 'o-', label=label + ' bottom 10% loss')
         plt.fill_between(self.xrange, self.avgTestLoss - self.testStd / 2, self.avgTestLoss + self.testStd / 2, alpha = 0.2, edgecolor = color, facecolor = color, label = label + ' test losses')
-        plt.xlabel('AL Iterations')
+        plt.xlabel('Training Set Size')
         plt.ylabel('Smooth L1 Loss')
         plt.legend()
 
@@ -421,11 +459,12 @@ class resultsPlotter():
         plt.plot(self.xrange, self.normedEns[:,0], color + '.-')
         plt.fill_between(self.xrange, self.normedEns[:,0] - self.normedDevs[:,0] / 2, self.normedEns[:,0] + self.normedDevs[:,0] / 2, alpha = 0.2, edgecolor = color, facecolor = color, label = label + ' best optimum + uncertainty')
         avgens = np.average(self.normedEns, axis=1)
-        plt.errorbar(self.xrange + ind / 10, avgens, yerr = [avgens-self.normedEns[:,0], avgens-self.normedEns[:,1]], fmt = color + '.', ecolor=color, elinewidth=3, capsize=1.5, alpha=0.2, label=label + ' state range')
+        plt.errorbar(self.xrange + ind * 10, avgens, yerr = [avgens-self.normedEns[:,0], avgens-self.normedEns[:,1]], fmt = color + '.', ecolor=color, elinewidth=3, capsize=1.5, alpha=0.2, label=label + ' state range')
         #for i in range(self.normedEns.shape[1]):
         #    plt.plot(self.xrange + self.i / 10, self.normedEns[:,i], color + '.')
-        plt.xlabel('AL Iterations')
+        plt.xlabel('Training Set Size')
         plt.ylabel('Performance')
+        plt.ylim(0,1)
         plt.legend()
 
     def plotDiversity(self, fignum = 1, subplot = 1, nsubplots = 1,color = 'k', label = None):
@@ -435,7 +474,7 @@ class resultsPlotter():
         plt.fill_between(self.xrange, np.amin(self.internalDists, axis=1), np.amax(self.internalDists, axis=1), alpha=0.2, hatch='o', edgecolor=color, facecolor=color, label=label + ' internal dist')
         plt.fill_between(self.xrange, np.amin(self.datasetDists, axis=1), np.amax(self.datasetDists, axis=1), alpha=0.2, hatch='-', edgecolor=color, facecolor=color, label=label + ' dataset dist')
         plt.fill_between(self.xrange, np.amin(self.randomDists, axis=1), np.amax(self.randomDists, axis=1), alpha=0.2, hatch='/', edgecolor=color, facecolor=color, label=label + ' random dist')
-        plt.xlabel('AL Iterations')
+        plt.xlabel('Training Set Size')
         plt.ylabel('Binary Distances')
         plt.legend()
 
@@ -443,7 +482,7 @@ class resultsPlotter():
         plt.figure(fignum)
         divXEn = self.internalDists * self.normedEns # pointwise product of internal distance metric and normalized energy (higher is better)
         plt.fill_between(self.xrange, np.amin(divXEn, axis=1), np.amax(divXEn, axis=1), alpha=0.2, edgecolor=color, facecolor=color, label=label + ' dist evolution')
-        plt.xlabel('AL Iterations')
+        plt.xlabel('Training Set Size')
         plt.ylabel('Energy x dist')
         plt.legend()
 

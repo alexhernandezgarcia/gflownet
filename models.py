@@ -100,7 +100,7 @@ class modelNet():
         '''
         [self.err_tr_hist, self.err_te_hist] = [[], []] # initialize error records
 
-        tr, te, self.datasetSize = getDataloaders(self.params)
+        tr, te, self.datasetSize = getDataloaders(self.params, self.ensembleIndex)
 
         #printRecord(f"Dataset size is: {bcolors.OKCYAN}%d{bcolors.ENDC}" %self.datasetSize)
 
@@ -268,7 +268,10 @@ class buildDataset():
         self.samples = dataset['samples']
         self.targets = dataset['scores']
 
-        self.samples, self.targets = shuffle(self.samples, self.targets)
+        self.samples, self.targets = shuffle(self.samples, self.targets, random_state=params.init_dataset_seed)
+
+    def reshuffle(self, seed=None):
+        self.samples, self.targets = shuffle(self.samples, self.targets, random_state=seed)
 
     def __len__(self):
         return len(self.samples)
@@ -283,7 +286,7 @@ class buildDataset():
         return np.mean(self.targets), np.sqrt(np.var(self.targets))
 
 
-def getDataloaders(params): # get the dataloaders, to load the dataset in batches
+def getDataloaders(params, ensembleIndex): # get the dataloaders, to load the dataset in batches
     '''
     creat dataloader objects from the dataset
     :param params:
@@ -291,6 +294,8 @@ def getDataloaders(params): # get the dataloaders, to load the dataset in batche
     '''
     training_batch = params.proxy_training_batch_size
     dataset = buildDataset(params)  # get data
+    if params.proxy_shuffle_test_data:
+        dataset.reshuffle(seed=ensembleIndex)
     train_size = int(0.8 * len(dataset))  # split data into training and test sets
 
     test_size = len(dataset) - train_size

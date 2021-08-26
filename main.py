@@ -66,6 +66,7 @@ parser.add_argument('--embedding_dim', type = int, default = 64) # embedding dim
 parser.add_argument('--proxy_model_layers', type = int, default = 4) # number of layers in NN proxy models (transformer encoder layers OR MLP layers)
 parser.add_argument('--proxy_training_batch_size', type = int, default = 10)
 parser.add_argument('--proxy_max_epochs', type = int, default = 200)
+parser.add_argument('--proxy_shuffle_dataset', type = bool, default = False) # give each model in the ensemble a uniquely shuffled dataset
 #sampler settings
 parser.add_argument('--mcmc_sampling_time', type = int, default = int(1e4)) # at least 1e4 is recommended for convergence
 parser.add_argument('--mcmc_num_samplers', type = int, default = 20) # minimum number of gammas over which to search for each sampler (if doing in parallel, we may do more if we have more CPUs than this)
