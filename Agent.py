@@ -9,6 +9,7 @@ import torch
 import math
 import torch.functional as F
 from utils import *
+from oracle import oracle
 
 
 class DQN:
@@ -33,14 +34,18 @@ class DQN:
                 + target_copy_factor*estimator
 
         """
+
+        torch.manual_seed(params.model_seed)
+        self.params = params
         self.exp_name = 'learned_'
         self.load = False if params.qmodel_preload_path is None else True
         # TODO align this with the actual model state below
-        self.state_dataset_size = params.model_state_size  # This depends on size of dataset V
         self.action_state_length = 5 # [energy, variance, 3 distance metrics]
-        self.singleton_state_variables = 5
+        self.singleton_state_variables = 5 # [test loss, test std, n proxy models, cluster cutoff and elapsed time]
+        self.state_dataset_size = int(params.model_state_size * self.action_state_length + self.singleton_state_variables) # This depends on size of dataset V
+        self.model_state_latent_dimension = params.querier_latent_space_width # latent dim of model state
         if params.GPU:
-            self.device = "cuda:0"
+            self.device = "cuda"
         else:
             self.device = "CPU"
 
@@ -93,13 +98,15 @@ class DQN:
         self.policy_net = QueryNetworkDQN(
             model_state_length=self.state_dataset_size,
             action_state_length=self.action_state_length,
+            model_state_latent_dimension=self.model_state_latent_dimension,
             bias_average=1,  # TODO Figure out the query network bias trick from 2018 paper.
-        ).to(device=self.device)
+        ).to(self.device)
         self.target_net = QueryNetworkDQN(
             model_state_length=self.state_dataset_size,
             action_state_length=self.action_state_length,
-            bias_average=1,  # TODO Figure out the query network bias trick from 2018 paper. #MK what are we biasin
-        ).to(device=self.device)
+            model_state_latent_dimension=self.model_state_latent_dimension,
+            bias_average=1,  # TODO Figure out the query network bias trick from 2018 paper. #MK what are we biasing
+        ).to(self.device)
 
         printRecord("Policy network has " + str(get_n_params(self.policy_net)) + " parameters.")
 
@@ -143,7 +150,7 @@ class DQN:
         print("Policy optimizer created")
 
 
-    def updateModelState(self, model_state):
+    def updateModelState(self, model_state, model):
         '''
         update the model state and store it for later sampling
         :param model_state:
@@ -152,7 +159,6 @@ class DQN:
         model_state_dict = model_state
 
         # things to put into the model state
-
         # test loss and standard deviation between models
         self.model_state = torch.stack((torch.tensor(model_state_dict['test loss']), torch.tensor(model_state_dict['test std'])))
 
@@ -171,12 +177,49 @@ class DQN:
         singletons = torch.stack((torch.tensor(model_state_dict['n proxy models']),torch.tensor(model_state_dict['clustering cutoff']), torch.tensor(model_state_dict['iter'] / model_state_dict['budget'])))
 
         self.model_state = torch.cat((self.model_state, singletons))
+        self.model_state = self.model_state.to(self.device)
 
-        self.model_state.to(self.device)
+
+        self.proxyModel = model # this should already be on correct device - passed directly from the main program
+
+        # get data to compute distances
+        # model state samples
+        self.modelStateSamples = model_state_dict['best cluster samples']
+        # training dataset
+        self.trainingSamples = np.load('datasets/' + self.params.dataset + '.npy', allow_pickle=True).item()
+        self.trainingSamples = self.trainingSamples['samples']
+        # large random sample
+        numSamples = min(int(1e4), self.params.dict_size ** self.params.max_sample_length // 100) # either 1e4, or 1% of the sample space, whichever is smaller
+        dataoracle = oracle(self.params)
+        self.randomSamples = dataoracle.initializeDataset(save=False, returnData=True, customSize=numSamples) # get large random dataset
+        self.randomSamples = self.randomSamples['samples']
+
+
+        self.policy_net.eval()
+        with torch.no_grad():
+            self.policy_net.storeLatent(self.model_state) # pre-compute and store the model latent state to save time
+
+
+    def getActionState(self, sample):
+        '''
+        get the proxy model predictions and sample distances
+        :param sample:
+        :return:
+        '''
+        energies, uncertainties = self.proxyModel.evaluate(sample, output='Both')
+        internalDist = binaryDistance(np.concatenate((sample, self.modelStateSamples)),pairwise=False,extractInds=len(sample))
+        datasetDist = binaryDistance(np.concatenate((sample, self.trainingSamples)), pairwise=False, extractInds = len(sample))
+        randomDist = binaryDistance(np.concatenate((sample,self.randomSamples)), pairwise=False, extractInds=len(sample))
+
+        actionState = []
+        for i in range(len(sample)):
+            actionState.append([energies[i],uncertainties[i],internalDist[i],datasetDist[i],randomDist[i]])
+
+        return torch.Tensor(actionState).to(self.device) # return action state
 
 
     def evaluateQ(self,
-                  action_state: torch.Tensor,
+                  sample: np.array,
                   ):
         """ get the q-value for a particular sample, given its 'action state'
 
@@ -189,11 +232,12 @@ class DQN:
         """
         # TODO calculate action state from our model
 
+        action_state = self.getActionState(sample)
+
         self.policy_net.eval()
         with torch.no_grad():
-            q_val = [
-                self.policy_net(self.model_state, action_i_state) for action_i_state in action_state
-            ]
+            q_val = self.policy_net(action_state)
+
 
         return q_val
 

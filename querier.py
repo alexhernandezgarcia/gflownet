@@ -40,7 +40,7 @@ class querier():
         else:
             if self.params.query_mode == 'learned':
                 # TODO implement learned model
-                self.qModel.updateModelState(statusDict)
+                self.qModel.updateModelState(statusDict, model)
                 self.sampleForQuery(self.qModel, statusDict['iter'])
 
             else:
@@ -54,11 +54,11 @@ class querier():
                 else:
                     self.sampleForQuery(model, statusDict['iter'])
 
-                samples = self.sampleDict['samples']
-                scores = self.sampleDict['scores']
-                uncertainties = self.sampleDict['uncertainties']
-                samples, inds = filterDuplicateSamples(samples, oldDatasetPath='datasets/' + self.params.dataset + '.npy', returnInds=True)
-                scores = scores[inds]
+            samples = self.sampleDict['samples']
+            scores = self.sampleDict['scores']
+            uncertainties = self.sampleDict['uncertainties']
+            samples, inds = filterDuplicateSamples(samples, oldDatasetPath='datasets/' + self.params.dataset + '.npy', returnInds=True)
+            scores = scores[inds]
 
             # create batch from candidates
             # agglomerative clustering

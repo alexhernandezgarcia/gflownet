@@ -218,7 +218,7 @@ class sampler:
 
         # even if it didn't change, just run it anyway (big parallel - to hard to disentangle)
         # compute acceptance ratio
-        self.scores, self.energy, self.variance = self.getScores(self.propConfig, self.config, model, useOracle, manualScoreOverride = True)
+        self.scores, self.energy, self.variance = self.getScores(self.propConfig, self.config, model, useOracle)
 
         try:
             self.E0
@@ -271,7 +271,7 @@ class sampler:
             self.scorerec[i].append(self.scores[0][i])
 
 
-    def getScores(self, propConfig, config, model, useOracle, manualScoreOverride = False):
+    def getScores(self, propConfig, config, model, useOracle):
         """
         compute score against which we're optimizing
         :param propConfig:
@@ -283,10 +283,11 @@ class sampler:
             variance = [[0 for _ in range(len(energy[0]))], [0 for _ in range(len(energy[1]))]]
             score = self.scoreFunction[0] * np.asarray(energy) - self.scoreFunction[1] * np.asarray(variance)  # vary the relative importance of these two factors
         else:
-            if self.params.query_mode == 'learned' and (manualScoreOverride is not True):
-                score = [model.evaluateQ(np.asarray(config)),model.evaluateQ(np.asarray(propConfig))] # evaluate the q-model
-                energy = np.zeros_like(score) # energy and variance are irrelevant here
-                variance = np.zeros_like(score)
+            if (self.params.query_mode == 'learned') and ('DQN' in str(model.__class__)):
+                score = [model.evaluateQ(np.asarray(config)).cpu().detach().numpy(),model.evaluateQ(np.asarray(propConfig)).cpu().detach().numpy()] # evaluate the q-model
+                score = - np.array((score[1],score[0]))[:,:,0] # this code is a minimizer so we need to flip the sign of the Q scores
+                energy = [np.zeros_like(score[0]), np.zeros_like(score[1])] # energy and variance are irrelevant here
+                variance = [np.zeros_like(score[0]), np.zeros_like(score[1])]
             else:
                 r1, r2 = [model.evaluate(np.asarray(config), output='Both'),model.evaluate(np.asarray(propConfig), output='Both')] # two model evaluations, each returning score and variance for a propConfig or config
                 energy = [r2[0], r1[0]]
