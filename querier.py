@@ -1,6 +1,7 @@
 """import statements"""
 import numpy as np
 from sampler import *
+from Agent import DQN
 import multiprocessing as mp
 
 '''
@@ -10,14 +11,16 @@ This script selects sequences to be sent to the oracle for scoring
 > Outputs: sequences to be scored (0123 format)
 
 To-Do:
-==> test heruistic logic
 ==> implement RL model
+==> implement gFlowNet sampler
 '''
 
 
 class querier():
     def __init__(self, params):
         self.params = params
+        if self.params.query_mode == 'learned':
+            self.qModel = DQN(self.params) # initialize q-network
 
     def buildQuery(self, model, statusDict, energySampleDict):
         """
@@ -25,6 +28,8 @@ class querier():
         :param sampleDict:
         :return:
         """
+        # TODO upgrade sampler
+
         nQueries = self.params.queries_per_iter
         if self.params.query_mode == 'random':
             '''
@@ -34,14 +39,13 @@ class querier():
 
         else:
             if self.params.query_mode == 'learned':
-                raise RuntimeError("No learned models have been implemented!")
                 # TODO implement learned model
-                # TODO upgrade sampler
+                self.qModel.updateModelState(statusDict)
+                self.sampleForQuery(self.qModel, statusDict['iter'])
 
             else:
                 '''
                 query samples with best good scores, according to our model and a scoring function
-                
                 '''
 
                 # generate candidates
@@ -89,6 +93,10 @@ class querier():
             scoreFunction = [0, 1]  # look for maximum uncertainty
         elif self.params.query_mode == 'heuristic':
             scoreFunction = [0.5, 0.5]  # put in user specified values (or functions) here
+        elif self.params.query_mode == 'learned':
+            scoreFunction = None
+        else:
+            raise ValueError(self.params.query_mode + 'is not a valid query function!')
 
         # do a single sampling run
         self.sampleDict = self.runSampling(model, scoreFunction, iterNum)
@@ -99,6 +107,7 @@ class querier():
         run MCMC sampling
         :return:
         """
+        # TODO add gflownet toggle and optional post-sample annealing
         gammas = np.logspace(self.params.stun_min_gamma, self.params.stun_max_gamma, self.params.mcmc_num_samplers)
         self.mcmcSampler = sampler(self.params, seedInd, scoreFunction, gammas)
         outputs = runSampling(self.params, self.mcmcSampler, model, useOracle=useOracle)

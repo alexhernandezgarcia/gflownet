@@ -14,7 +14,8 @@ This code implements an active learning protocol for global minimization of some
 ==> see if we can do dist metric faster in one-hot encoding
 
 low priority /long term
-==> augment binary distance metric with multi-base motifs
+==> speedtest one-hot binary distance check
+==> consider augment binary distance metric with multi-base motifs - or keep current setup (minimum single mutations)
 ==> check that relevant params (ensemble size) are properly overwritten when picking up old jobs
 ==> think carefully about how we split test and train datasets
 ==> augmentation and other regularization
@@ -45,8 +46,8 @@ parser.add_argument('--variable_sample_length', type = bool, default = True) # m
 parser.add_argument('--min_sample_length', type = int, default = 10)
 parser.add_argument('--max_sample_length', type = int, default = 40)
 # AL settings
-parser.add_argument('--query_mode', type=str, default='energy') # 'random', 'energy', 'uncertainty', 'heuristic', 'learned' # different modes for query construction
-parser.add_argument('--test_mode', type = bool, default = False) # if true, automatically set parameters for a quick test run
+parser.add_argument('--query_mode', type=str, default='learned') # 'random', 'energy', 'uncertainty', 'heuristic', 'learned' # different modes for query construction
+parser.add_argument('--test_mode', type = bool, default = True) # if true, automatically set parameters for a quick test run
 parser.add_argument('--pipeline_iterations', type = int, default = 20) # number of cycles with the oracle
 parser.add_argument('--minima_dist_cutoff', type = float, default = 0.25) # minimum distance (normalized, binary) between distinct minima or between clusters in agglomerative clustering
 # TODO add toggle between agglomerative clustering and simple item-by-item batching
@@ -55,6 +56,9 @@ parser.add_argument('--mode', type = str, default = 'training') # 'training'  'e
 parser.add_argument('--debug', type = bool, default = False)
 # querier settings
 parser.add_argument('--model_state_size', type = int, default = 30) # number of selected datapoints of model evaluations
+parser.add_argument('--qmodel_opt', type = str, default = 'SGD') # optimizer for q-network
+parser.add_argument('--qmodel_momentum', type = float, default = 0.95) # momentum for q-network
+parser.add_argument('--qmodel_preload_path', type = str, default = None) # location of pre-trained qmodel
 # gFlownet settings
 
 # proxy model settings

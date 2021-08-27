@@ -147,8 +147,7 @@ def resultsAnalysis(outDir):
     plt.legend()
 
 
-
-def binaryDistance(samples, pairwise = False):
+def binaryDistance(samples, pairwise = False, extractInds = None):
     '''
     compute simple sum of distances between sample vectors
     :param samples:
@@ -158,17 +157,59 @@ def binaryDistance(samples, pairwise = False):
     lens = np.array([i.shape[-1] for i in samples])
     if len(np.unique(lens)) > 1: # if there are multiple lengths, we need to pad up to a constant length
         raise ValueError('Attempted to compute binary distances between samples with different lengths!')
+    if (len(samples) > 1e3) and (extractInds is None): # one-hot overhead is worth it for larger samples
+        distances = oneHotDistance(samples, pairwise=pairwise, extractInds=extractInds)
+    elif (len(samples) > 1e3) and (extractInds > 10): # one-hot overhead is worth it for larger samples
+        distances = oneHotDistance(samples, pairwise=pairwise, extractInds=extractInds)
+    else:
+        if extractInds is not None:
+            nOutputs = extractInds
+        else:
+            nOutputs = len(samples)
 
-    if pairwise: # compute every pairwise distances
-        distances = np.zeros((len(samples), len(samples)))
-        for i in range(len(samples)):
-            distances[i, :] = np.sum(samples[i] != samples, axis = 1) / len(samples[i])
-    else: # compute average distance of each sample from all the others
-        distances = np.zeros(len(samples))
-        for i in range(len(samples)):
-            distances[i] = np.sum(samples[i] != samples) / len(samples.flatten())
+        if pairwise: # compute every pairwise distances
+            distances = np.zeros((nOutputs, nOutputs))
+            for i in range(nOutputs):
+                distances[i, :] = np.sum(samples[i] != samples, axis = 1) / len(samples[i])
+        else: # compute average distance of each sample from all the others
+            distances = np.zeros(nOutputs)
+            for i in range(nOutputs):
+                distances[i] = np.sum(samples[i] != samples) / len(samples.flatten())
 
     return distances
+
+
+
+def oneHotDistance(samples, pairwise = False, extractInds = None):
+    '''
+    find the minimum single mutation distance (normalized) between sequences
+    optionally explicitly extract only  the first extractInds sequences distances, with respect to themselves and all others
+    :param samples:
+    :param pairwise:
+    :param extractInds:
+    :return:
+    '''
+    # do one-hot encoding
+    oneHot = np_oneHot(samples, len(np.unique(samples)))
+    oneHot = oneHot.reshape(oneHot.shape[0], int(oneHot.shape[1]*oneHot.shape[2]))
+    target = oneHot[:extractInds] # limit the number of samples we are actually interested in
+    if target.ndim == 1:
+        target = np.expand_dims(target,0)
+
+    dists = 1 - target @ oneHot.transpose() / samples.shape[1]
+    if pairwise:
+        return dists
+    else:
+        return np.average(dists,axis=1)
+
+
+def np_oneHot(samples, uniques):
+    flatsamples = samples.flatten()
+    shape = (flatsamples.size, uniques)
+    one_hot = np.zeros(shape)
+    rows = np.arange(flatsamples.size)
+    one_hot[rows, flatsamples] = 1
+    return one_hot.reshape(samples.shape[0], samples.shape[1], uniques)
 
 
 def sortTopXSamples(sortedSamples, nSamples = int(1e6), distCutoff = 0.2):
