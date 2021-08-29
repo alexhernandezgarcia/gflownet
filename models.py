@@ -354,6 +354,7 @@ class transformer(nn.Module):
         self.layers = params.proxy_model_layers
         self.maxLen = params.max_sample_length
         self.dictLen = params.dict_size
+        self.tasks = params.sample_tasks
         self.heads = min([4, max([1,self.embedDim//self.dictLen])])
 
         self.positionalEncoder = PositionalEncoding(self.embedDim, max_len = self.maxLen)
@@ -361,7 +362,12 @@ class transformer(nn.Module):
         encoder_layer = nn.TransformerEncoderLayer(self.embedDim, nhead = self.heads,dim_feedforward=self.hiddenDim, activation='gelu')
         self.encoder = nn.TransformerEncoder(encoder_layer, num_layers = self.layers)
         self.decoder1 = nn.Linear(int(self.embedDim * self.maxLen), self.hiddenDim)
-        self.decoder2 = nn.Linear(self.hiddenDim, 1)
+
+        self.output_layers = []
+        for i in range(self.tasks):
+            self.output_layers.append(nn.Linear(self.filters, 1))
+        self.output_layers = nn.ModuleList(self.output_layers)
+
 
     def forward(self,x):
         x_key_padding_mask = (x==0).clone().detach() # zero out the attention of empty sequence elements
@@ -370,13 +376,16 @@ class transformer(nn.Module):
         x = self.encoder(x,src_key_padding_mask=x_key_padding_mask)
         x = x.permute(1,0,2).reshape(x_key_padding_mask.shape[0], int(self.embedDim*self.maxLen))
         x = F.gelu(self.decoder1(x))
-        x = self.decoder2(x)
-        return x
 
+        y = torch.zeros(self.tasks)
+        for i in range(self.tasks):
+            y = self.output_layers[i](x) # each task has its own head        return x
+
+        return y
 
 class LSTM(nn.Module):
     '''
-    may not work currently
+    may not work currently - possible issues with unequal length batching
     '''
     def __init__(self,params):
         super(LSTM,self).__init__()
@@ -402,7 +411,7 @@ class MLP(nn.Module):
             act_func = 'gelu'
 
         self.inputLength = params.max_sample_length
-
+        self.tasks = params.sample_tasks
         self.layers = params.proxy_model_layers
         self.filters = params.proxy_model_width
         self.classes = int(params.dict_size + 1)
@@ -411,7 +420,11 @@ class MLP(nn.Module):
         # build input and output layers
         self.initial_layer = nn.Linear(int(self.inputLength * self.classes), self.filters) # layer which takes in our sequence in one-hot encoding
         self.activation1 = Activation(act_func,self.filters,params)
-        self.output_layer = nn.Linear(self.filters, 1)
+
+        self.output_layers = []
+        for i in range(self.tasks):
+            self.output_layers.append(nn.Linear(self.filters, 1))
+        self.output_layers = nn.ModuleList(self.output_layers)
 
         # build hidden layers
         self.lin_layers = []
@@ -438,8 +451,11 @@ class MLP(nn.Module):
             x = self.activations[i](x)
             #x = self.norms[i](x)
 
-        x = self.output_layer(x) # linear transformation to output
-        return x
+        y = torch.zeros(self.tasks)
+        for i in range(self.tasks):
+            y = self.output_layers[i](x) # each task has its own head
+
+        return y
 
 
 class kernelActivation(nn.Module): # a better (pytorch-friendly) implementation of activation as a linear combination of basis functions

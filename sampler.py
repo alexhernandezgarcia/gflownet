@@ -281,13 +281,20 @@ class sampler:
         if useOracle:
             energy = [self.oracle.score(propConfig),self.oracle.score(config)]
             variance = [[0 for _ in range(len(energy[0]))], [0 for _ in range(len(energy[1]))]]
+            score = self.scoreFunction[0] * np.asarray(energy) - self.scoreFunction[1] * np.asarray(variance)  # vary the relative importance of these two factors
         else:
-            r1, r2 = [model.evaluate(np.asarray(config), output='Both'),model.evaluate(np.asarray(propConfig), output='Both')] # two model evaluations, each returning score and variance for a propConfig or config
-            energy = [r2[0], r1[0]]
-            variance = [r2[1], r1[1]]
+            if (self.params.query_mode == 'learned') and ('DQN' in str(model.__class__)):
+                score = [model.evaluateQ(np.asarray(config)).cpu().detach().numpy(),model.evaluateQ(np.asarray(propConfig)).cpu().detach().numpy()] # evaluate the q-model
+                score = - np.array((score[1],score[0]))[:,:,0] # this code is a minimizer so we need to flip the sign of the Q scores
+                energy = [np.zeros_like(score[0]), np.zeros_like(score[1])] # energy and variance are irrelevant here
+                variance = [np.zeros_like(score[0]), np.zeros_like(score[1])]
+            else:
+                r1, r2 = [model.evaluate(np.asarray(config), output='Both'),model.evaluate(np.asarray(propConfig), output='Both')] # two model evaluations, each returning score and variance for a propConfig or config
+                energy = [r2[0], r1[0]]
+                variance = [r2[1], r1[1]]
 
-        # energy and variance both come out standardized against the training dataset
-        score = self.scoreFunction[0] * np.asarray(energy) - self.scoreFunction[1] * np.asarray(variance)  # vary the relative importance of these two factors
+                # energy and variance both come out standardized against the training dataset
+                score = self.scoreFunction[0] * np.asarray(energy) - self.scoreFunction[1] * np.asarray(variance)  # vary the relative importance of these two factors
 
         return score, energy, variance
 

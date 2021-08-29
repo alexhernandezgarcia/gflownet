@@ -155,7 +155,7 @@ class activeLearning():
             minClusterSamples, minClusterEns, minClusterVars = self.addRandomSamples(samples, energies, uncertainties, minClusterSamples, minClusterEns, minClusterVars)
 
         # get distances to relevant datasets
-        internalDiff, datasetDiff, randomDiff = self.getDataDiffs(minClusterSamples[:self.params.model_state_size])
+        internalDist, datasetDist, randomDist = self.getDataDiffs(minClusterSamples[:self.params.model_state_size])
 
         self.stateDict = {
             'test loss': np.average(self.testMinima), # losses are evaluated on standardized data, so we do not need to re-standardize here
@@ -164,9 +164,9 @@ class activeLearning():
             'best cluster energies': (minClusterEns[:self.params.model_state_size] - self.model.mean) / self.model.std, # standardize according to dataset statistics
             'best cluster deviations': np.sqrt(minClusterVars[:self.params.model_state_size]) / self.model.std,
             'best cluster samples': minClusterSamples[:self.params.model_state_size],
-            'best clusters internal diff': internalDiff,
-            'best clusters dataset diff': datasetDiff,
-            'best clusters random set diff': randomDiff,
+            'best clusters internal diff': internalDist,
+            'best clusters dataset diff': datasetDist,
+            'best clusters random set diff': randomDist,
             'clustering cutoff': self.params.minima_dist_cutoff, # could be a learned parameter
             'n proxy models': self.params.proxy_model_ensemble_size,
             'iter': self.pipeIter,
@@ -178,9 +178,9 @@ class activeLearning():
                     ' with minimum energy' + bcolors.OKGREEN + ' {:.2f},'.format(np.amin(minClusterEns)) + bcolors.ENDC +
                     ' average energy' + bcolors.OKGREEN +' {:.2f},'.format(np.average(minClusterEns[:self.params.model_state_size])) + bcolors.ENDC +
                     ' and average std dev' + bcolors.OKCYAN + ' {:.2f}'.format(np.average(np.sqrt(minClusterVars[:self.params.model_state_size]))) + bcolors.ENDC)
-        printRecord('Sample average mutual distance is ' + bcolors.WARNING +'{:.2f} '.format(np.average(internalDiff)) + bcolors.ENDC +
-                    'dataset distance is ' + bcolors.WARNING + '{:.2f} '.format(np.average(datasetDiff)) + bcolors.ENDC +
-                    'and overall distance estimated at ' + bcolors.WARNING + '{:.2f}'.format(np.average(randomDiff)) + bcolors.ENDC)
+        printRecord('Sample average mutual distance is ' + bcolors.WARNING +'{:.2f} '.format(np.average(internalDist)) + bcolors.ENDC +
+                    'dataset distance is ' + bcolors.WARNING + '{:.2f} '.format(np.average(datasetDist)) + bcolors.ENDC +
+                    'and overall distance estimated at ' + bcolors.WARNING + '{:.2f}'.format(np.average(randomDist)) + bcolors.ENDC)
 
         if self.params.dataset_type == 'toy': # we can check the test error against a huge random dataset
             self.largeModelEvaluation()
@@ -417,11 +417,11 @@ class activeLearning():
         randomData = self.oracle.initializeDataset(save=False, returnData=True, customSize=numSamples) # get large random dataset
         randomSamples = randomData['samples']
 
-        internalDiff = binaryDistance(samples,pairwise=False)
-        datasetDiff = binaryDistance(np.concatenate((samples, dataset)), pairwise=False)[:len(samples)]
-        randomDiff = binaryDistance(np.concatenate((samples,randomSamples)), pairwise=False)[:len(samples)]
+        internalDist = binaryDistance(samples,pairwise=False,extractInds=len(samples))
+        datasetDist = binaryDistance(np.concatenate((samples, dataset)), pairwise=False, extractInds = len(samples))
+        randomDist = binaryDistance(np.concatenate((samples,randomSamples)), pairwise=False, extractInds=len(samples))
 
-        return internalDiff, datasetDiff, randomDiff
+        return internalDist, datasetDist, randomDist
 
 
     def reportCumulativeResult(self):
