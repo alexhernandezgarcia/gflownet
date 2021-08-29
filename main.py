@@ -112,10 +112,12 @@ if params.test_mode:
     params.dict_size = 4  # number of possible choices per-state, e.g., [0,1] would be two, [1,2,3,4] (representing ATGC) would be 4
 
 # paths
-if params.device == 'cluster':
-    params.workdir = '/home/kilgourm/scratch/learnerruns'
-elif params.device == 'local':
-    params.workdir = 'C:/Users\mikem\Desktop/activeLearningRuns'#'/home/mkilgour/learnerruns'#
+if not params.workdir and params.device == "cluster":
+    params.workdir = "/home/kilgourm/scratch/learnerruns"
+elif not params.workdir and params.device == "local":
+    params.workdir = (
+        "C:/Users\mikem\Desktop/activeLearningRuns"  #'/home/mkilgour/learnerruns'#
+    )
 
 #=====================================
 if __name__ == '__main__':
