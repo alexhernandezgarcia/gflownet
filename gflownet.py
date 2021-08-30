@@ -528,8 +528,8 @@ class GFlowNetAgent:
                         torch.nn.utils.clip_grad_norm_(
                             self.parameters(), self.clip_grad_norm
                         )
-                    opt.step()
-                    opt.zero_grad()
+                    self.opt.step()
+                    self.opt.zero_grad()
                     all_losses.append([i.item() for i in losses])
             all_visited.extend(
                 [
