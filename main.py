@@ -60,6 +60,7 @@ parser.add_argument('--minima_dist_cutoff', type = float, default = 0.25) # mini
 parser.add_argument('--queries_per_iter', type = int, default = 100) # maximum number of questions we can ask the oracle per cycle
 parser.add_argument('--mode', type = str, default = 'training') # 'training'  'evaluation' 'initialize' - only training currently useful
 parser.add_argument('--debug', type = bool, default = False)
+parser.add_argument('--no_bbdob', type = bool, default = True) # do not import bbdob
 # querier settings
 parser.add_argument('--model_state_size', type = int, default = 30) # number of selected datapoints of model evaluations
 parser.add_argument('--qmodel_opt', type = str, default = 'SGD') # optimizer for q-network
@@ -86,8 +87,6 @@ parser.add_argument(
     type=int,
     help="Number of samples used to compute the empirical distribution loss",
 )
-params.horizon = params.max_sample_length
-params.nalphabet = params.dict_size
 parser.add_argument("--bootstrap_tau", default=0.0, type=float)
 parser.add_argument("--clip_grad_norm", default=0.0, type=float)
 parser.add_argument("--comet_project", default="aptamers-al", type=str)
@@ -104,7 +103,7 @@ parser.add_argument('--proxy_model_layers', type = int, default = 4) # number of
 parser.add_argument('--proxy_training_batch_size', type = int, default = 10)
 parser.add_argument('--proxy_max_epochs', type = int, default = 200)
 parser.add_argument('--proxy_shuffle_dataset', type = bool, default = False) # give each model in the ensemble a uniquely shuffled dataset
-#sampler settings
+# sampler settings
 parser.add_argument('--mcmc_sampling_time', type = int, default = int(1e4)) # at least 1e4 is recommended for convergence
 parser.add_argument('--mcmc_num_samplers', type = int, default = 20) # minimum number of gammas over which to search for each sampler (if doing in parallel, we may do more if we have more CPUs than this)
 parser.add_argument('--stun_min_gamma', type = float, default = -3)
@@ -117,6 +116,9 @@ params.model_seed = params.model_seed % 10
 params.init_dataset_seed = params.init_dataset_seed % 10
 params.toy_oracle_seed = params.toy_oracle_seed % 10
 params.sampler_seed = params.sampler_seed % 10
+# gflownet params
+params.horizon = params.max_sample_length
+params.nalphabet = params.dict_size
 
 
 #====================================
