@@ -406,10 +406,11 @@ class ReplayBuffer:
 
 
 class GFlowNetAgent:
-    def __init__(self, args, envs):
-        # Device
+    def __init__(self, args):
+        # Misc
         args.device_torch = torch.device(args.device)
         set_device(args.device_torch)
+        self.save_path = args.save_path
         # Model
         self.model = make_mlp(
             [args.horizon * args.nalphabet]
@@ -443,7 +444,8 @@ class GFlowNetAgent:
         self.n_train_steps = args.n_train_steps
         self.mbsize = args.mbsize
         self.progress = args.progress
-        # Train to sample ratio and sample to train ratio
+        self.clip_grad_norm = args.clip_grad_norm
+        self.num_empirical_loss = args.num_empirical_loss
         self.ttsr = max(int(args.train_to_sample_ratio), 1)
         self.sttr = max(int(1 / args.train_to_sample_ratio), 1)
 
@@ -573,9 +575,9 @@ class GFlowNetAgent:
                 )  # returns (opt loss, *metrics)
                 if losses is not None:
                     losses[0].backward()
-                    if args.clip_grad_norm > 0:
+                    if self.clip_grad_norm > 0:
                         torch.nn.utils.clip_grad_norm_(
-                            self.parameters(), args.clip_grad_norm
+                            self.parameters(), self.clip_grad_norm
                         )
                     opt.step()
                     opt.zero_grad()
@@ -593,7 +595,7 @@ class GFlowNetAgent:
                         env, all_visited[-args.num_empirical_loss :]
                     )
                 )
-                if args.progress:
+                if self.progress:
                     k1, kl = empirical_distrib_losses[-1]
                     print("Empirical L1 distance", k1, "KL", kl)
                     if len(all_losses):
@@ -607,7 +609,7 @@ class GFlowNetAgent:
                 self.comet.log_metric('unique_states', np.unique(all_visited).shape[0], step=i)
 
         # Save model and training variables
-        root = os.path.split(args.save_path)[0]
+        root = os.path.split(self.save_path)[0]
         os.makedirs(root, exist_ok=True)
         pickle.dump(
             {
@@ -617,11 +619,10 @@ class GFlowNetAgent:
                 "visited": [np.int8(seq) for seq in all_visited],
                 "emp_dist_loss": empirical_distrib_losses,
                 "true_d": env.true_density()[0],
-                "args": args,
             },
-            gzip.open(args.save_path, "wb"),
+            gzip.open(self.save_path, "wb"),
         )
-        torch.save(self.model.state_dict(), args.save_path.replace("pkl.gz", "pt"))
+        torch.save(self.model.state_dict(), self.save_path.replace("pkl.gz", "pt"))
 
         # Close comet
         self.comet.end()
@@ -703,114 +704,8 @@ def compute_empirical_distribution_error(env, visited):
 
 
 def main(args):
-
-    # Initialize New Comet Experiment
-    comet = Experiment(
-        project_name="aptamers-gflownet", display_summary_level=0
-    )
-    if args.tags:
-        comet.add_tags(args.tags)
-    comet.log_parameters(vars(args))
-
-    args.device_torch = torch.device(args.device)
-    set_device(args.device_torch)
-
-    args.is_mcmc = args.method in ["mars", "mcmc"]
-
-    # Define environment
-    env = AptamerSeq(
-        args.horizon, args.nalphabet, func=args.func, allow_backward=args.is_mcmc
-    )
-    envs = [
-        AptamerSeq(
-            args.horizon, args.nalphabet, func=args.func, allow_backward=args.is_mcmc
-        )
-        for i in range(args.mbsize)
-    ]
-
-    # Agent
-    if args.method == "flownet":
-        agent = GFlowNetAgent(args, envs)
-    elif args.method == "random_traj":
-        agent = RandomTrajAgent(args, envs)
-    else:
-        raise NotImplemented("Valid methods: flownet, random_traj")
-
-    # Optimizer
-    opt = make_opt(agent.parameters(), args)
-
-    # Metrics
-    all_losses = []
-    all_visited = []
-    empirical_distrib_losses = []
-
-    # Train to sample ratio and sample to train ratio
-    ttsr = max(int(args.train_to_sample_ratio), 1)
-    sttr = max(int(1 / args.train_to_sample_ratio), 1)
-
-    # Train loop
-    for i in tqdm(range(args.n_train_steps + 1), disable=not args.progress):
-        data = []
-        for j in range(sttr):
-            data += agent.sample_many(args.mbsize)
-        for j in range(ttsr):
-            losses = agent.learn_from(
-                i * ttsr + j, data
-            )  # returns (opt loss, *metrics)
-            if losses is not None:
-                losses[0].backward()
-                if args.clip_grad_norm > 0:
-                    torch.nn.utils.clip_grad_norm_(
-                        agent.parameters(), args.clip_grad_norm
-                    )
-                opt.step()
-                opt.zero_grad()
-                all_losses.append([i.item() for i in losses])
-        all_visited.extend(
-            [tuple(env.obs2seq(d[3][0].tolist())) for d in data if bool(d[4].item())]
-        )
-        rewards = [d[2][0].item() for d in data if bool(d[4].item())]
-        comet.log_metric('mean_reward', np.mean(rewards), step=i)
-        comet.log_metric('max_reward', np.max(rewards), step=i)
-
-        if not i % 100:
-            empirical_distrib_losses.append(
-                compute_empirical_distribution_error(
-                    env, all_visited[-args.num_empirical_loss :]
-                )
-            )
-            if args.progress:
-                k1, kl = empirical_distrib_losses[-1]
-                print("Empirical L1 distance", k1, "KL", kl)
-                if len(all_losses):
-                    print(
-                        *[
-                            f"{np.mean([i[j] for i in all_losses[-100:]]):.5f}"
-                            for j in range(len(all_losses[0]))
-                        ]
-                    )
-            comet.log_metrics(dict(zip(['loss', 'term_loss', 'flow_loss'], [loss.item() for loss in losses])), step=i)
-            comet.log_metric('unique_states', np.unique(all_visited).shape[0], step=i)
-
-    # Save model and training variables
-    root = os.path.split(args.save_path)[0]
-    os.makedirs(root, exist_ok=True)
-    pickle.dump(
-        {
-            "losses": np.float32(all_losses),
-            #'model': agent.model.to('cpu') if agent.model else None,
-            "params": [i.data.to("cpu").numpy() for i in agent.parameters()],
-            "visited": [np.int8(seq) for seq in all_visited],
-            "emp_dist_loss": empirical_distrib_losses,
-            "true_d": env.true_density()[0],
-            "args": args,
-        },
-        gzip.open(args.save_path, "wb"),
-    )
-    torch.save(agent.model.state_dict(), args.save_path.replace("pkl.gz", "pt"))
-
-    # Close comet
-    comet.end()
+    gflownet_agent = GFlowNet(args)
+    gflownet_agent.train()
 
 
 if __name__ == "__main__":
