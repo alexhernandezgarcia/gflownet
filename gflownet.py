@@ -26,7 +26,6 @@ parser.add_argument("--save_path", default="results/flow_insp_0.pkl.gz", type=st
 parser.add_argument("--progress", action="store_true")
 
 #
-parser.add_argument("--method", default="flownet", type=str)
 parser.add_argument("--learning_rate", default=1e-4, help="Learning rate", type=float)
 parser.add_argument("--opt", default="adam", type=str)
 parser.add_argument("--adam_beta1", default=0.9, type=float)
@@ -432,16 +431,15 @@ class GFlowNetAgent:
             self.comet.add_tags(args.tags)
         self.comet.log_parameters(vars(args))
         # Environment
-        args.is_mcmc = args.method in ["mars", "mcmc"]
         self.env = AptamerSeq(
-            args.horizon, args.nalphabet, func=args.func, allow_backward=args.is_mcmc
+            args.horizon, args.nalphabet, func=args.func, allow_backward=False
         )
         self.envs = [
             AptamerSeq(
                 args.horizon,
                 args.nalphabet,
                 func=args.func,
-                allow_backward=args.is_mcmc,
+                allow_backward=False,
             )
             for _ in range(args.mbsize)
         ]
