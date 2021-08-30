@@ -441,6 +441,8 @@ class GFlowNetAgent:
         # Training
         self.opt = make_opt(self.parameters(), args)
         self.n_train_steps = args.n_train_steps
+        self.mbsize = args.mbsize
+        self.progress = args.progress
         # Train to sample ratio and sample to train ratio
         self.ttsr = max(int(args.train_to_sample_ratio), 1)
         self.sttr = max(int(1 / args.train_to_sample_ratio), 1)
@@ -561,19 +563,19 @@ class GFlowNetAgent:
         empirical_distrib_losses = []
 
         # Train loop
-        for i in tqdm(range(args.n_train_steps + 1), disable=not args.progress):
+        for i in tqdm(range(self.n_train_steps + 1), disable=not self.progress):
             data = []
-            for j in range(sttr):
-                data += agent.sample_many(args.mbsize)
-            for j in range(ttsr):
-                losses = agent.learn_from(
-                    i * ttsr + j, data
+            for j in range(self.sttr):
+                data += self.sample_many(self.mbsize)
+            for j in range(self.ttsr):
+                losses = self.learn_from(
+                    i * self.ttsr + j, data
                 )  # returns (opt loss, *metrics)
                 if losses is not None:
                     losses[0].backward()
                     if args.clip_grad_norm > 0:
                         torch.nn.utils.clip_grad_norm_(
-                            agent.parameters(), args.clip_grad_norm
+                            self.parameters(), args.clip_grad_norm
                         )
                     opt.step()
                     opt.zero_grad()
@@ -582,8 +584,8 @@ class GFlowNetAgent:
                 [tuple(env.obs2seq(d[3][0].tolist())) for d in data if bool(d[4].item())]
             )
             rewards = [d[2][0].item() for d in data if bool(d[4].item())]
-            comet.log_metric('mean_reward', np.mean(rewards), step=i)
-            comet.log_metric('max_reward', np.max(rewards), step=i)
+            self.comet.log_metric('mean_reward', np.mean(rewards), step=i)
+            self.comet.log_metric('max_reward', np.max(rewards), step=i)
 
             if not i % 100:
                 empirical_distrib_losses.append(
@@ -601,8 +603,8 @@ class GFlowNetAgent:
                                 for j in range(len(all_losses[0]))
                             ]
                         )
-                comet.log_metrics(dict(zip(['loss', 'term_loss', 'flow_loss'], [loss.item() for loss in losses])), step=i)
-                comet.log_metric('unique_states', np.unique(all_visited).shape[0], step=i)
+                self.comet.log_metrics(dict(zip(['loss', 'term_loss', 'flow_loss'], [loss.item() for loss in losses])), step=i)
+                self.comet.log_metric('unique_states', np.unique(all_visited).shape[0], step=i)
 
         # Save model and training variables
         root = os.path.split(args.save_path)[0]
@@ -610,8 +612,8 @@ class GFlowNetAgent:
         pickle.dump(
             {
                 "losses": np.float32(all_losses),
-                #'model': agent.model.to('cpu') if agent.model else None,
-                "params": [i.data.to("cpu").numpy() for i in agent.parameters()],
+                #'model': self.model.to('cpu') if self.model else None,
+                "params": [i.data.to("cpu").numpy() for i in self.parameters()],
                 "visited": [np.int8(seq) for seq in all_visited],
                 "emp_dist_loss": empirical_distrib_losses,
                 "true_d": env.true_density()[0],
@@ -619,10 +621,10 @@ class GFlowNetAgent:
             },
             gzip.open(args.save_path, "wb"),
         )
-        torch.save(agent.model.state_dict(), args.save_path.replace("pkl.gz", "pt"))
+        torch.save(self.model.state_dict(), args.save_path.replace("pkl.gz", "pt"))
 
         # Close comet
-        comet.end()
+        self.comet.end()
 
 
 class RandomTrajAgent:
