@@ -67,6 +67,32 @@ parser.add_argument('--qmodel_preload_path', type = str, default = None) # locat
 parser.add_argument('--querier_latent_space_width', type = int, default = 10)
 # gFlownet settings
 parser.add_argument("--device", default="cpu", type=str)
+parser.add_argument("--save_path", default="results/flow_insp_0.pkl.gz", type=str)
+parser.add_argument("--progress", action="store_true")
+parser.add_argument("--learning_rate", default=1e-4, help="Learning rate", type=float)
+parser.add_argument("--opt", default="adam", type=str)
+parser.add_argument("--adam_beta1", default=0.9, type=float)
+parser.add_argument("--adam_beta2", default=0.999, type=float)
+parser.add_argument("--momentum", default=0.9, type=float)
+parser.add_argument("--mbsize", default=16, help="Minibatch size", type=int)
+parser.add_argument("--train_to_sample_ratio", default=1, type=float)
+parser.add_argument("--n_hid", default=256, type=int)
+parser.add_argument("--n_layers", default=2, type=int)
+parser.add_argument("--n_train_steps", default=20000, type=int)
+parser.add_argument(
+    "--num_empirical_loss",
+    default=200000,
+    type=int,
+    help="Number of samples used to compute the empirical distribution loss",
+)
+params.horizon = params.max_sample_length
+params.nalphabet = params.dict_size
+parser.add_argument("--bootstrap_tau", default=0.0, type=float)
+parser.add_argument("--clip_grad_norm", default=0.0, type=float)
+parser.add_argument("--comet_project", default="aptamers-al", type=str)
+parser.add_argument(
+    "-t", "--tags", nargs="*", help="Comet.ml tags", default=[], type=str
+)
 # proxy model settings
 parser.add_argument('--proxy_model_type', type = str, default = 'mlp') # type of proxy model - mlp or transformer
 parser.add_argument('--training_parallelism', type = bool, default = False) # fast enough on GPU without paralellism - True doesn't always work on linux
