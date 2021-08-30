@@ -119,7 +119,11 @@ class AptamerSeq:
             "seqfold": seqfoldScore,
             "nupack": nupackScore,
         }[func]
-        self.reward = lambda x: 0 if not self.done else self.energy2reward(self.func(self.seq2oracle(x)))
+        self.reward = (
+            lambda x: 0
+            if not self.done
+            else self.energy2reward(self.func(self.seq2oracle(x)))
+        )
         self.allow_backward = allow_backward
         self._true_density = None
 
@@ -164,7 +168,6 @@ class AptamerSeq:
         if self.func == nupackScore:
             energy *= -1
         return energy
-
 
     def seq2obs(self, seq=None):
         """
@@ -434,7 +437,10 @@ class GFlowNetAgent:
         )
         self.envs = [
             AptamerSeq(
-                args.horizon, args.nalphabet, func=args.func, allow_backward=args.is_mcmc
+                args.horizon,
+                args.nalphabet,
+                func=args.func,
+                allow_backward=args.is_mcmc,
             )
             for _ in range(args.mbsize)
         ]
@@ -556,7 +562,6 @@ class GFlowNetAgent:
 
         return loss, term_loss, flow_loss
 
-
     def train():
 
         # Metrics
@@ -583,11 +588,15 @@ class GFlowNetAgent:
                     opt.zero_grad()
                     all_losses.append([i.item() for i in losses])
             all_visited.extend(
-                [tuple(env.obs2seq(d[3][0].tolist())) for d in data if bool(d[4].item())]
+                [
+                    tuple(env.obs2seq(d[3][0].tolist()))
+                    for d in data
+                    if bool(d[4].item())
+                ]
             )
             rewards = [d[2][0].item() for d in data if bool(d[4].item())]
-            self.comet.log_metric('mean_reward', np.mean(rewards), step=i)
-            self.comet.log_metric('max_reward', np.max(rewards), step=i)
+            self.comet.log_metric("mean_reward", np.mean(rewards), step=i)
+            self.comet.log_metric("max_reward", np.max(rewards), step=i)
 
             if not i % 100:
                 empirical_distrib_losses.append(
@@ -605,8 +614,18 @@ class GFlowNetAgent:
                                 for j in range(len(all_losses[0]))
                             ]
                         )
-                self.comet.log_metrics(dict(zip(['loss', 'term_loss', 'flow_loss'], [loss.item() for loss in losses])), step=i)
-                self.comet.log_metric('unique_states', np.unique(all_visited).shape[0], step=i)
+                self.comet.log_metrics(
+                    dict(
+                        zip(
+                            ["loss", "term_loss", "flow_loss"],
+                            [loss.item() for loss in losses],
+                        )
+                    ),
+                    step=i,
+                )
+                self.comet.log_metric(
+                    "unique_states", np.unique(all_visited).shape[0], step=i
+                )
 
         # Save model and training variables
         root = os.path.split(self.save_path)[0]
