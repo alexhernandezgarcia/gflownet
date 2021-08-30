@@ -3,8 +3,8 @@ import numpy as np
 import scipy.io
 import random
 from seqfold import dg, fold
-from bbdob.utils import idx2one_hot
-from bbdob import OneMax, TwoMin, FourPeaks, DeceptiveTrap, NKLandscape, WModel
+# from bbdob.utils import idx2one_hot
+# from bbdob import OneMax, TwoMin, FourPeaks, DeceptiveTrap, NKLandscape, WModel
 #from nupack import *
 from utils import *
 import sys
