@@ -53,14 +53,8 @@ parser.add_argument(
 )
 parser.add_argument("--nalphabet", default=4, type=int)
 
-# MCMC
-parser.add_argument("--bufsize", default=16, help="MCMC buffer size", type=int)
-
 # Flownet
 parser.add_argument("--bootstrap_tau", default=0.0, type=float)
-parser.add_argument("--replay_strategy", default="none", type=str)  # top_k none
-parser.add_argument("--replay_sample_size", default=2, type=int)
-parser.add_argument("--replay_buf_size", default=100, type=float)
 
 # PPO
 parser.add_argument("--clip_grad_norm", default=0.0, type=float)
@@ -360,54 +354,6 @@ def make_mlp(layers_dim, act=nn.LeakyReLU(), tail=[]):
     )
 
 
-class ReplayBuffer:
-    def __init__(self, args, env):
-        self.buf = []
-        self.strat = args.replay_strategy
-        self.sample_size = args.replay_sample_size
-        self.bufsize = args.replay_buf_size
-        self.env = env
-
-    def add(self, x, r_x):
-        if self.strat == "top_k":
-            if len(self.buf) < self.bufsize or r_x > self.buf[0][0]:
-                self.buf = sorted(self.buf + [(r_x, x)])[-self.bufsize :]
-
-    def sample(self):
-        if not len(self.buf):
-            return []
-        idxs = np.random.randint(0, len(self.buf), self.sample_size)
-        return sum([self.generate_backward(*self.buf[i]) for i in idxs], [])
-
-    def generate_backward(self, r, s0):
-        s = np.int8(s0)
-        os0 = self.env.obs(s)
-        # If s0 is a forced-terminal state, the the action that leads
-        # to it is s0.argmax() which .parents finds, but if it isn't,
-        # we must indicate that the agent ended the trajectory with
-        # the stop action
-        used_stop_action = s.max() < self.env.horizon - 1
-        done = True
-        # Now we work backward from that last transition
-        traj = []
-        while s.sum() > 0:
-            parents, actions = self.env.parent_transitions(s, used_stop_action)
-            # add the transition
-            traj.append(
-                [tf(i) for i in (parents, actions, [r], [self.env.obs(s)], [done])]
-            )
-            # Then randomly choose a parent state
-            if not used_stop_action:
-                i = np.random.randint(0, len(parents))
-                a = actions[i]
-                s[a] -= 1
-            # Values for intermediary trajectory states:
-            used_stop_action = False
-            done = False
-            r = 0
-        return traj
-
-
 class GFlowNetAgent:
     def __init__(self, args):
         # Misc
@@ -443,7 +389,6 @@ class GFlowNetAgent:
             )
             for _ in range(args.mbsize)
         ]
-        self.replay = ReplayBuffer(args, self.envs[0])
         # Training
         self.opt = make_opt(self.parameters(), args)
         self.n_train_steps = args.n_train_steps
