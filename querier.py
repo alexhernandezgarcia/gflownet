@@ -2,6 +2,7 @@
 import numpy as np
 from sampler import *
 from Agent import DQN
+from gflownet import GFlowNetAgent
 import multiprocessing as mp
 
 '''
@@ -19,6 +20,7 @@ To-Do:
 class Querier():
     def __init__(self, params):
         self.params = params
+        self.method = params.sample_method
         if self.params.query_mode == 'learned':
             self.qModel = DQN(self.params) # initialize q-network
 
@@ -83,7 +85,7 @@ class Querier():
 
     def sampleForQuery(self, model, iterNum):
         '''
-        generate query candidates via MCMC sampling
+        generate query candidates via MCMC or GFlowNet sampling
         automatically filter any duplicates within the sample and the existing dataset
         :return:
         '''
@@ -104,12 +106,19 @@ class Querier():
 
     def runSampling(self, model, scoreFunction, seedInd, useOracle=False):
         """
-        run MCMC sampling
+        run MCMC or GFlowNet sampling
         :return:
         """
         # TODO add gflownet toggle and optional post-sample annealing
         gammas = np.logspace(self.params.stun_min_gamma, self.params.stun_max_gamma, self.params.mcmc_num_samplers)
-        self.mcmcSampler = sampler(self.params, seedInd, scoreFunction, gammas)
-        outputs = runSampling(self.params, self.mcmcSampler, model, useOracle=useOracle)
+        if self.method.lower() == "mcmc":
+            self.mcmcSampler = sampler(self.params, seedInd, scoreFunction, gammas)
+            samples = self.mcmcSampler.sample(model, useOracle=useOracle)
+            outputs = samples2dict(samples, self.params.mcmc_num_samplers)
+        elif self.method.lower() == "gflownet":
+            gflownet = GFlowNetAgent(self.params)
+            outputs = runSampling(self.params, gflownet, model, useOracle=useOracle)
+        else:
+            raise NotImplemented("method can be either mcmc or gflownet")
 
         return outputs
