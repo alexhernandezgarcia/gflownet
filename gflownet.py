@@ -66,7 +66,8 @@ parser.add_argument("--replay_buf_size", default=100, type=float)
 # PPO
 parser.add_argument("--clip_grad_norm", default=0.0, type=float)
 
-# Comet tags
+# Comet
+parser.add_argument("--comet_project", default="aptamers-al", type=str)
 parser.add_argument(
     "-t", "--tags", nargs="*", help="Comet.ml tags", default=[], type=str
 )
@@ -723,7 +724,7 @@ def compute_empirical_distribution_error(env, visited):
 
 
 def main(args):
-    gflownet_agent = GFlowNet(args)
+    gflownet_agent = GFlowNetAgent(args)
     gflownet_agent.train()
 
 
