@@ -563,7 +563,7 @@ class GFlowNetAgent:
 
         return loss, term_loss, flow_loss
 
-    def train():
+    def train(self):
 
         # Metrics
         all_losses = []
