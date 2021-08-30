@@ -109,13 +109,14 @@ class Querier():
         run MCMC or GFlowNet sampling
         :return:
         """
-        # TODO add gflownet toggle and optional post-sample annealing
+        # TODO add optional post-sample annealing
         gammas = np.logspace(self.params.stun_min_gamma, self.params.stun_max_gamma, self.params.mcmc_num_samplers)
         if self.method.lower() == "mcmc":
             self.mcmcSampler = sampler(self.params, seedInd, scoreFunction, gammas)
             samples = self.mcmcSampler.sample(model, useOracle=useOracle)
-            outputs = samples2dict(samples, self.params.mcmc_num_samplers)
+            outputs = samples2dict(samples)
         elif self.method.lower() == "gflownet":
+            # TODO: instead of initializing gflownet from scratch, we can retrain it
             gflownet = GFlowNetAgent(self.params)
             outputs = runSampling(self.params, gflownet, model, useOracle=useOracle)
         else:

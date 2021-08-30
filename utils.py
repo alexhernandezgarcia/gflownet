@@ -308,29 +308,16 @@ def generateRandomSamples(nSamples, sampleLengthRange, dictSize, oldDatasetPath 
 
     return samples
 
-def samples2dict(samples, num_samples):
+def samples2dict(samples):
     '''
-    Return key outputs in a dictionary
-    :param sampler:
-    :return:
+    Returns key outputs in a dictionary
     '''
-    samples = []
-    scores = []
-    energies = []
-    uncertainties = []
-    for i in range(num_samplers):
-        samples.extend(sampleOutputs['optimalSamples'][i])
-        scores.extend(sampleOutputs['optima'][i])
-        energies.extend(sampleOutputs['enAtOptima'][i])
-        uncertainties.extend(sampleOutputs['varAtOptima'][i])
-
     outputs = {
-        'samples': np.asarray(samples),
-        'scores': np.asarray(scores),
-        'energies': np.asarray(energies),
-        'uncertainties': np.asarray(uncertainties)
+        'samples': np.concatenate(samples['optimalSamples']),
+        'scores': np.concatenate(samples['optima']),
+        'energies': np.concatenate(samples['enAtOptima']),
+        'uncertainties': np.concatenate(samples['varAtOptima'])
     }
-
     return outputs
 
 def get_n_params(model):
