@@ -533,7 +533,7 @@ class GFlowNetAgent:
                     all_losses.append([i.item() for i in losses])
             all_visited.extend(
                 [
-                    tuple(env.obs2seq(d[3][0].tolist()))
+                    tuple(self.env.obs2seq(d[3][0].tolist()))
                     for d in data
                     if bool(d[4].item())
                 ]
@@ -545,7 +545,7 @@ class GFlowNetAgent:
             if not i % 100:
                 empirical_distrib_losses.append(
                     compute_empirical_distribution_error(
-                        env, all_visited[-args.num_empirical_loss :]
+                        self.env, all_visited[-self.num_empirical_loss :]
                     )
                 )
                 if self.progress:
@@ -581,7 +581,7 @@ class GFlowNetAgent:
                 "params": [i.data.to("cpu").numpy() for i in self.parameters()],
                 "visited": [np.int8(seq) for seq in all_visited],
                 "emp_dist_loss": empirical_distrib_losses,
-                "true_d": env.true_density()[0],
+                "true_d": self.env.true_density()[0],
             },
             gzip.open(self.save_path, "wb"),
         )
