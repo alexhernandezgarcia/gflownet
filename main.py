@@ -41,6 +41,7 @@ parser.add_argument('--toy_oracle_seed', type=int, default=0) # if we are using 
 parser.add_argument('--machine', type = str, default = 'local') # 'local' or 'cluster' (assumed linux env)
 parser.add_argument('--GPU', type = bool, default = True) # train and evaluate models on GPU
 parser.add_argument('--explicit_run_enumeration', type = bool, default = False) # if this is True, the next run be fresh, in directory 'run%d'%run_num, if false, regular behaviour. Note: only use this on fresh runs
+parser.add_argument('--workdir', type = str, default = None) # Working directory
 # dataset settings
 parser.add_argument('--dataset_type', type = str, default = 'toy') # Toy oracle is very fast to sample
 parser.add_argument('--dataset', type=str, default='linear')
