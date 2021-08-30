@@ -38,7 +38,7 @@ parser.add_argument('--sampler_seed', type=int, default=0) # seed for MCMC model
 parser.add_argument('--model_seed', type=int, default=0) # seed used for model ensemble (each model gets a slightly different seed)
 parser.add_argument('--init_dataset_seed', type=int, default=0) # if we are using a toy dataset, it may take a specific seed
 parser.add_argument('--toy_oracle_seed', type=int, default=0) # if we are using a toy dataset, it may take a specific seed
-parser.add_argument('--device', type = str, default = 'local') # 'local' or 'cluster' (assumed linux env)
+parser.add_argument('--machine', type = str, default = 'local') # 'local' or 'cluster' (assumed linux env)
 parser.add_argument('--GPU', type = bool, default = True) # train and evaluate models on GPU
 parser.add_argument('--explicit_run_enumeration', type = bool, default = False) # if this is True, the next run be fresh, in directory 'run%d'%run_num, if false, regular behaviour. Note: only use this on fresh runs
 # dataset settings
@@ -66,7 +66,7 @@ parser.add_argument('--qmodel_momentum', type = float, default = 0.95) # momentu
 parser.add_argument('--qmodel_preload_path', type = str, default = None) # location of pre-trained qmodel
 parser.add_argument('--querier_latent_space_width', type = int, default = 10)
 # gFlownet settings
-
+parser.add_argument("--device", default="cpu", type=str)
 # proxy model settings
 parser.add_argument('--proxy_model_type', type = str, default = 'mlp') # type of proxy model - mlp or transformer
 parser.add_argument('--training_parallelism', type = bool, default = False) # fast enough on GPU without paralellism - True doesn't always work on linux
@@ -112,9 +112,9 @@ if params.test_mode:
     params.dict_size = 4  # number of possible choices per-state, e.g., [0,1] would be two, [1,2,3,4] (representing ATGC) would be 4
 
 # paths
-if not params.workdir and params.device == "cluster":
+if not params.workdir and params.machine == "cluster":
     params.workdir = "/home/kilgourm/scratch/learnerruns"
-elif not params.workdir and params.device == "local":
+elif not params.workdir and params.machine == "local":
     params.workdir = (
         "C:/Users\mikem\Desktop/activeLearningRuns"  #'/home/mkilgour/learnerruns'#
     )
