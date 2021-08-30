@@ -31,7 +31,7 @@ params
 '''
 
 
-class oracle():
+class Oracle():
     def __init__(self,params):
         '''
         initialize the oracle

@@ -16,7 +16,7 @@ To-Do:
 '''
 
 
-class querier():
+class Querier():
     def __init__(self, params):
         self.params = params
         if self.params.query_mode == 'learned':

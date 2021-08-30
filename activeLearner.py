@@ -10,7 +10,7 @@ import glob
 import multiprocessing as mp
 
 
-class activeLearning():
+class ActiveLearning():
     def __init__(self, params):
         self.pipeIter = None
         self.params = params
@@ -25,7 +25,7 @@ class activeLearning():
         move to relevant directory
         :return:
         '''
-        self.oracle = oracle(self.params) # oracle needs to be initialized to initialize toy datasets
+        self.oracle = Oracle(self.params) # oracle needs to be initialized to initialize toy datasets
 
         if (self.params.run_num == 0) or (self.params.explicit_run_enumeration == True): # if making a new workdir
             if self.params.run_num == 0:
@@ -46,7 +46,7 @@ class activeLearning():
             printRecord('Resuming run %d' % self.params.run_num)
 
 
-        self.querier = querier(self.params) # might as well initialize the querier here
+        self.querier = Querier(self.params) # might as well initialize the querier here
 
 
     def makeNewWorkingDirectory(self):    # make working directory

@@ -121,7 +121,7 @@ elif not params.workdir and params.device == "local":
 
 #=====================================
 if __name__ == '__main__':
-    al = activeLearner.activeLearning(params)
+    al = activeLearner.ActiveLearning(params)
     if params.mode == 'initalize':
         printRecord("Initialized!")
     elif params.mode == 'training':
