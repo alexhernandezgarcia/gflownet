@@ -51,6 +51,7 @@ parser.add_argument('--min_sample_length', type = int, default = 10)
 parser.add_argument('--max_sample_length', type = int, default = 40)
 parser.add_argument('--sample_tasks', type = int, default = 1) # WIP unfinished for multi-task training - how many outputs per oracle? (only nupack currently  setup for > 1 output)
 # AL settings
+parser.add_argument('--sample_method', type=str, default='mcmc') # 'mcmc', 'gflownet'
 parser.add_argument('--query_mode', type=str, default='learned') # 'random', 'energy', 'uncertainty', 'heuristic', 'learned' # different modes for query construction
 parser.add_argument('--test_mode', type = bool, default = True) # if true, automatically set parameters for a quick test run
 parser.add_argument('--pipeline_iterations', type = int, default = 20) # number of cycles with the oracle
