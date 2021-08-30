@@ -194,8 +194,8 @@ class AptamerSeq:
 
     def obs2seq(self, obs):
         """
-        Transforms the one-hot encoding version of a sequence (state) given as argument into a
-        a sequence of letter indices.
+        Transforms the one-hot encoding version of a sequence (state) given as argument
+        into a a sequence of letter indices.
 
         Example:
           - Sequence: AACTG
