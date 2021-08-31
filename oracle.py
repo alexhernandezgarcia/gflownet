@@ -3,8 +3,8 @@ import numpy as np
 import scipy.io
 import random
 from seqfold import dg, fold
-from bbdob.utils import idx2one_hot
-from bbdob import OneMax, TwoMin, FourPeaks, DeceptiveTrap, NKLandscape, WModel
+# from bbdob.utils import idx2one_hot
+# from bbdob import OneMax, TwoMin, FourPeaks, DeceptiveTrap, NKLandscape, WModel
 #from nupack import *
 from utils import *
 import sys
@@ -31,7 +31,7 @@ params
 '''
 
 
-class oracle():
+class Oracle():
     def __init__(self,params):
         '''
         initialize the oracle
@@ -363,7 +363,7 @@ class oracle():
 
 
     def nupackScore(self,queries,returnSS=False,parallel=True):
-        if self.params.device == 'cluster':
+        if self.params.machine == 'cluster':
             #use nupack instead of seqfold - more stable and higher quality predictions in general
             #returns the energy of the most probable structure only
             #:param queries:

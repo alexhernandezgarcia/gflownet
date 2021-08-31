@@ -2,6 +2,7 @@
 import numpy as np
 from sampler import *
 from Agent import DQN
+from gflownet import GFlowNetAgent
 import multiprocessing as mp
 
 '''
@@ -16,9 +17,10 @@ To-Do:
 '''
 
 
-class querier():
+class Querier():
     def __init__(self, params):
         self.params = params
+        self.method = params.sample_method
         if self.params.query_mode == 'learned':
             self.qModel = DQN(self.params) # initialize q-network
 
@@ -83,7 +85,7 @@ class querier():
 
     def sampleForQuery(self, model, iterNum):
         '''
-        generate query candidates via MCMC sampling
+        generate query candidates via MCMC or GFlowNet sampling
         automatically filter any duplicates within the sample and the existing dataset
         :return:
         '''
@@ -104,12 +106,21 @@ class querier():
 
     def runSampling(self, model, scoreFunction, seedInd, useOracle=False):
         """
-        run MCMC sampling
+        run MCMC or GFlowNet sampling
         :return:
         """
-        # TODO add gflownet toggle and optional post-sample annealing
-        gammas = np.logspace(self.params.stun_min_gamma, self.params.stun_max_gamma, self.params.mcmc_num_samplers)
-        self.mcmcSampler = sampler(self.params, seedInd, scoreFunction, gammas)
-        outputs = runSampling(self.params, self.mcmcSampler, model, useOracle=useOracle)
+        if self.method.lower() == "mcmc":
+            # TODO add optional post-sample annealing
+            gammas = np.logspace(self.params.stun_min_gamma, self.params.stun_max_gamma, self.params.mcmc_num_samplers)
+            self.mcmcSampler = Sampler(self.params, seedInd, scoreFunction, gammas)
+            samples = self.mcmcSampler.sample(model, useOracle=useOracle)
+            outputs = samples2dict(samples)
+        elif self.method.lower() == "gflownet":
+            # TODO: instead of initializing gflownet from scratch, we could retrain it?
+            gflownet = GFlowNetAgent(self.params, proxy=model.evaluate)
+            gflownet.train()
+            outputs = gflownet.sample(self.params.gflownet_n_samples, self.params.horizon, self.params.nalphabet)
+        else:
+            raise NotImplemented("method can be either mcmc or gflownet")
 
         return outputs

@@ -12,7 +12,7 @@ This script uses Markov Chain Monte Carlo, including the STUN algorithm, to opti
 '''
 
 
-class sampler:
+class Sampler:
     """
     finds optimum values of the function defined by the model
     intrinsically parallel, rather than via multiprocessing
@@ -35,7 +35,7 @@ class sampler:
 
 
         if self.params.dataset_type == 'toy':
-            self.oracle = oracle(self.params)  # if we are using a toy model, initialize the oracle so we can optimize it directly for comparison
+            self.oracle = Oracle(self.params)  # if we are using a toy model, initialize the oracle so we can optimize it directly for comparison
 
         np.random.seed(int(self.params.sampler_seed + int(self.seedInd * 1000))) # initial seed is randomized over pipeline iterations
 

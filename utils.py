@@ -308,31 +308,16 @@ def generateRandomSamples(nSamples, sampleLengthRange, dictSize, oldDatasetPath 
 
     return samples
 
-def runSampling(params, sampler, model, useOracle=False):
+def samples2dict(samples):
     '''
-    run sampling and return key outputs in a dictionary
-    :param sampler:
-    :return:
+    Returns key outputs in a dictionary
     '''
-    sampleOutputs = sampler.sample(model, useOracle=useOracle)
-
-    samples = []
-    scores = []
-    energies = []
-    uncertainties = []
-    for i in range(params.mcmc_num_samplers):
-        samples.extend(sampleOutputs['optimalSamples'][i])
-        scores.extend(sampleOutputs['optima'][i])
-        energies.extend(sampleOutputs['enAtOptima'][i])
-        uncertainties.extend(sampleOutputs['varAtOptima'][i])
-
     outputs = {
-        'samples': np.asarray(samples),
-        'scores': np.asarray(scores),
-        'energies': np.asarray(energies),
-        'uncertainties': np.asarray(uncertainties)
+        'samples': np.concatenate(samples['optimalSamples']),
+        'scores': np.concatenate(samples['optima']),
+        'energies': np.concatenate(samples['enAtOptima']),
+        'uncertainties': np.concatenate(samples['varAtOptima'])
     }
-
     return outputs
 
 def get_n_params(model):
