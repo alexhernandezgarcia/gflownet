@@ -92,32 +92,37 @@ class AptamerSeq:
         True if the sequence has reached a terminal state (maximum length, or stop
         action executed.
 
-    func : lambda
-        Reward function [to be confirmed]
+    func : str
+        Name of reward function
+
+    proxy : func
+        A proxy model
     """
 
     def __init__(
-        self, horizon=42, nalphabet=4, func=None, allow_backward=False, proxy=None
+        self, horizon=42, nalphabet=4, func=None, proxy=None, allow_backward=False
     ):
         self.horizon = horizon
         self.nalphabet = nalphabet
         self.seq = []
         self.done = False
-        self.proxy = proxy
-        self.func = {
-            "default": None,
-            "arbitrary_i": self.reward_arbitrary_i,
-            "linear": linearToy,
-            "innerprod": toyHamiltonian,
-            "potts": PottsEnergy,
-            "seqfold": seqfoldScore,
-            "nupack": nupackScore,
-            "proxy": proxy,
-        }[func]
+        self.func = func
+        if proxy:
+            self.proxy = proxy
+        else:
+            self.proxy = {
+                "default": None,
+                "arbitrary_i": self.reward_arbitrary_i,
+                "linear": linearToy,
+                "innerprod": toyHamiltonian,
+                "potts": PottsEnergy,
+                "seqfold": seqfoldScore,
+                "nupack": nupackScore,
+            }[self.func]
         self.reward = (
             lambda x: 0
             if not self.done
-            else self.energy2reward(self.func(self.seq2oracle(x)))
+            else self.energy2reward(self.proxy(self.seq2oracle(x)))
         )
         self.allow_backward = allow_backward
         self._true_density = None
@@ -145,13 +150,13 @@ class AptamerSeq:
         """
         Prepares the output of an oracle for GFlowNet.
         """
-        if self.proxy:
+        if self.func == "potts":
             energies *= -1
             energies = np.clip(energies, a_min=0.0, a_max=None)
-        elif self.func == seqfoldScore:
+        elif self.func == "seqfold":
             energies -= 5
             energies *= -1
-        elif self.func == nupackScore:
+        elif self.func == "nupack":
             energies *= -1
         else:
             pass
@@ -163,10 +168,12 @@ class AptamerSeq:
         Converts a "GFlowNet reward" into energy as returned by an oracle.
         """
         energy = reward - epsilon
-        if self.func == seqfoldScore:
+        if self.func == "potts":
+            energy *= -1
+        elif self.func == "seqfold":
             energy *= -1
             energy += 5
-        if self.func == nupackScore:
+        elif self.func == "nupack":
             energy *= -1
         return energy
 
@@ -321,7 +328,7 @@ class AptamerSeq:
         )
         traj_rewards, seq_end = zip(
             *[
-                (self.func(seq), seq)
+                (self.proxy(seq), seq)
                 for seq in seq_all
                 if len(self.parent_transitions(seq, 0)[0]) > 0 or sum(seq) == 0
             ]
@@ -377,7 +384,7 @@ class GFlowNetAgent:
         self.target = copy.deepcopy(self.model)
         self.tau = args.bootstrap_tau
         self.ema_alpha = 0.5
-        self.early_stopping = 0.025
+        self.early_stopping = 0.05
         # Comet
         self.comet = args.comet
         # Environment
@@ -609,10 +616,10 @@ class GFlowNetAgent:
         # Close comet
         self.comet.end()
 
-    def sample(self, n_samples, horizon, nalphabet):
+    def sample(self, n_samples, horizon, nalphabet, proxy):
         envs = [
             AptamerSeq(
-                horizon, nalphabet, func="default"
+                horizon, nalphabet, proxy=proxy
             )
             for i in range(n_samples)
         ]
@@ -634,7 +641,14 @@ class GFlowNetAgent:
 
             seq = [s.item() for s in seq]
             batch[idx, :] = env.seq2oracle(seq)
-        return batch
+        energies = env.proxy(batch)
+        samples = {
+                'samples': batch,
+                'scores': energies,
+                'energies': energies,
+                'uncertainties': np.zeros(energies.shape),
+        }
+        return samples
 
 
 

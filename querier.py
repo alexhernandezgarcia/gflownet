@@ -119,7 +119,10 @@ class Querier():
             # TODO: instead of initializing gflownet from scratch, we could retrain it?
             gflownet = GFlowNetAgent(self.params, proxy=model.evaluate)
             gflownet.train()
-            outputs = gflownet.sample(self.params.gflownet_n_samples, self.params.horizon, self.params.nalphabet)
+            outputs = gflownet.sample(
+                    self.params.gflownet_n_samples, self.params.horizon,
+                    self.params.nalphabet, model.evaluate
+            )
         else:
             raise NotImplemented("method can be either mcmc or gflownet")
 
