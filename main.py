@@ -91,7 +91,7 @@ parser.add_argument(
 )
 parser.add_argument("--bootstrap_tau", default=0.0, type=float)
 parser.add_argument("--clip_grad_norm", default=0.0, type=float)
-parser.add_argument("--comet_project", default="aptamers-al", type=str)
+parser.add_argument("--comet_project", default=None, type=str)
 parser.add_argument(
     "-t", "--tags", nargs="*", help="Comet.ml tags", default=[], type=str
 )
@@ -120,12 +120,15 @@ params.init_dataset_seed = params.init_dataset_seed % 10
 params.toy_oracle_seed = params.toy_oracle_seed % 10
 params.sampler_seed = params.sampler_seed % 10
 # Comet
-params.comet = Experiment(
-    project_name=params.comet_project, display_summary_level=0
-)
-if params.tags:
-    params.comet.add_tags(params.tags)
-params.comet.log_parameters(vars(params))
+if params.comet_project:
+    params.comet = Experiment(
+        project_name=params.comet_project, display_summary_level=0
+    )
+    if params.tags:
+        params.comet.add_tags(params.tags)
+    params.comet.log_parameters(vars(params))
+else:
+    params.comet = None
 
 #====================================
 if params.mode == 'evaluation':
