@@ -118,10 +118,6 @@ params.model_seed = params.model_seed % 10
 params.init_dataset_seed = params.init_dataset_seed % 10
 params.toy_oracle_seed = params.toy_oracle_seed % 10
 params.sampler_seed = params.sampler_seed % 10
-# gflownet params
-params.horizon = params.max_sample_length
-params.nalphabet = params.dict_size
-params.func = "proxy"
 # Comet
 params.comet = Experiment(
     project_name=params.comet_project, display_summary_level=0
@@ -148,7 +144,10 @@ if params.test_mode:
     params.proxy_training_batch_size = 10  # model training batch size
     params.min_sample_length, params.max_sample_length = [10, 20]  # minimum input sequence length and # maximum input sequence length (inclusive) - or fixed sample size if 'variable sample length' is false
     params.dict_size = 4  # number of possible choices per-state, e.g., [0,1] would be two, [1,2,3,4] (representing ATGC) would be 4
-
+# gflownet params
+params.horizon = params.max_sample_length
+params.nalphabet = params.dict_size
+params.func = "proxy"
 # paths
 if not params.workdir and params.machine == "cluster":
     params.workdir = "/home/kilgourm/scratch/learnerruns"
