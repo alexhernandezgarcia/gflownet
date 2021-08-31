@@ -557,8 +557,9 @@ class GFlowNetAgent:
             )
             # Log
             rewards = [d[2][0].item() for d in data if bool(d[4].item())]
-            self.comet.log_metric("mean_reward", np.mean(rewards), step=i)
-            self.comet.log_metric("max_reward", np.max(rewards), step=i)
+            if self.comet:
+                self.comet.log_metric("mean_reward", np.mean(rewards), step=i)
+                self.comet.log_metric("max_reward", np.max(rewards), step=i)
             if not i % 100:
                 empirical_distrib_losses.append(
                     compute_empirical_distribution_error(
@@ -575,18 +576,19 @@ class GFlowNetAgent:
                                 for j in range(len(all_losses[0]))
                             ]
                         )
-                self.comet.log_metrics(
-                    dict(
-                        zip(
-                            ["loss", "term_loss", "flow_loss"],
-                            [loss.item() for loss in losses],
-                        )
-                    ),
-                    step=i,
-                )
-                self.comet.log_metric(
-                    "unique_states", np.unique(all_visited).shape[0], step=i
-                )
+                if self.comet:
+                    self.comet.log_metrics(
+                        dict(
+                            zip(
+                                ["loss", "term_loss", "flow_loss"],
+                                [loss.item() for loss in losses],
+                            )
+                        ),
+                        step=i,
+                    )
+                    self.comet.log_metric(
+                        "unique_states", np.unique(all_visited).shape[0], step=i
+                    )
             # Moving average of the loss for early stopping
             if loss_ema > 0:
                 loss_ema = (
@@ -614,7 +616,8 @@ class GFlowNetAgent:
         torch.save(self.model.state_dict(), self.save_path.replace("pkl.gz", "pt"))
 
         # Close comet
-        self.comet.end()
+        if self.comet:
+            self.comet.end()
 
     def sample(self, n_samples, horizon, nalphabet, proxy):
         envs = [
