@@ -148,6 +148,7 @@ if params.test_mode:
     params.proxy_training_batch_size = 10  # model training batch size
     params.min_sample_length, params.max_sample_length = [10, 20]  # minimum input sequence length and # maximum input sequence length (inclusive) - or fixed sample size if 'variable sample length' is false
     params.dict_size = 4  # number of possible choices per-state, e.g., [0,1] would be two, [1,2,3,4] (representing ATGC) would be 4
+    params.n_train_steps = 1000 # Max number of GFlowNet iterations
 # gflownet params
 params.horizon = params.max_sample_length
 params.nalphabet = params.dict_size

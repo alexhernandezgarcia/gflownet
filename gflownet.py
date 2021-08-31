@@ -97,7 +97,7 @@ class AptamerSeq:
     """
 
     def __init__(
-        self, horizon=42, nalphabet=4, func=None, allow_backward=False, proxy=None
+        self, horizon=42, nalphabet=4, func="default", proxy=None, allow_backward=False
     ):
         self.horizon = horizon
         self.nalphabet = nalphabet
@@ -377,7 +377,7 @@ class GFlowNetAgent:
         self.target = copy.deepcopy(self.model)
         self.tau = args.bootstrap_tau
         self.ema_alpha = 0.5
-        self.early_stopping = 0.025
+        self.early_stopping = 0.05
         # Comet
         self.comet = args.comet
         # Environment
@@ -612,10 +612,10 @@ class GFlowNetAgent:
         if self.comet:
             self.comet.end()
 
-    def sample(self, n_samples, horizon, nalphabet):
+    def sample(self, n_samples, horizon, nalphabet, proxy):
         envs = [
             AptamerSeq(
-                horizon, nalphabet, func="default"
+                horizon, nalphabet, proxy=proxy
             )
             for i in range(n_samples)
         ]
@@ -637,7 +637,14 @@ class GFlowNetAgent:
 
             seq = [s.item() for s in seq]
             batch[idx, :] = env.seq2oracle(seq)
-        return batch
+        energies = env.proxy(batch)
+        samples = {
+                'samples': batch,
+                'scores': energies,
+                'energies': energies,
+                'uncertainties': np.zeros(energies.shape),
+        }
+        return samples
 
 
 
