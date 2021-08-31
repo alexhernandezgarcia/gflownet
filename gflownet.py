@@ -7,11 +7,11 @@ import os
 import pickle
 from collections import defaultdict
 from itertools import count
+from comet_ml import Experiment
 
 import numpy as np
 from scipy.stats import norm
 from tqdm import tqdm
-from comet_ml import Experiment
 import torch
 import torch.nn as nn
 from torch.distributions.categorical import Categorical
@@ -42,6 +42,7 @@ parser.add_argument(
     type=int,
     help="Number of samples used to compute the empirical distribution loss",
 )
+parser.add_argument("--clip_grad_norm", default=0.0, type=float)
 
 # Environment
 parser.add_argument("--func", default="arbitrary_i")
@@ -55,9 +56,6 @@ parser.add_argument("--nalphabet", default=4, type=int)
 
 # Flownet
 parser.add_argument("--bootstrap_tau", default=0.0, type=float)
-
-# PPO
-parser.add_argument("--clip_grad_norm", default=0.0, type=float)
 
 # Comet
 parser.add_argument("--comet_project", default="aptamers-al", type=str)
@@ -99,7 +97,7 @@ class AptamerSeq:
         Reward function [to be confirmed]
     """
 
-    def __init__(self, horizon=42, nalphabet=4, func=None, allow_backward=False):
+    def __init__(self, horizon=42, nalphabet=4, func=None, allow_backward=False, proxy=None):
         self.horizon = horizon
         self.nalphabet = nalphabet
         self.seq = []
@@ -112,6 +110,7 @@ class AptamerSeq:
             "potts": PottsEnergy,
             "seqfold": seqfoldScore,
             "nupack": nupackScore,
+            "proxy": proxy,
         }[func]
         self.reward = (
             lambda x: 0
@@ -355,7 +354,7 @@ def make_mlp(layers_dim, act=nn.LeakyReLU(), tail=[]):
 
 
 class GFlowNetAgent:
-    def __init__(self, args):
+    def __init__(self, args, proxy=None):
         # Misc
         args.device_torch = torch.device(args.device)
         set_device(args.device_torch)
@@ -369,6 +368,8 @@ class GFlowNetAgent:
         self.model.to(args.device_torch)
         self.target = copy.deepcopy(self.model)
         self.tau = args.bootstrap_tau
+        self.ema_alpha = 0.5
+        self.early_stopping = 0.001
         # Comet
         self.comet = Experiment(
             project_name=args.comet_project, display_summary_level=0
@@ -378,7 +379,8 @@ class GFlowNetAgent:
         self.comet.log_parameters(vars(args))
         # Environment
         self.env = AptamerSeq(
-            args.horizon, args.nalphabet, func=args.func, allow_backward=False
+            args.horizon, args.nalphabet, func=args.func, allow_backward=False,
+            proxy=proxy
         )
         self.envs = [
             AptamerSeq(
@@ -386,6 +388,7 @@ class GFlowNetAgent:
                 args.nalphabet,
                 func=args.func,
                 allow_backward=False,
+                proxy=proxy,
             )
             for _ in range(args.mbsize)
         ]
@@ -512,6 +515,7 @@ class GFlowNetAgent:
         all_losses = []
         all_visited = []
         empirical_distrib_losses = []
+        loss_ema = -1.
 
         # Train loop
         for i in tqdm(range(self.n_train_steps + 1), disable=not self.progress):
@@ -538,10 +542,10 @@ class GFlowNetAgent:
                     if bool(d[4].item())
                 ]
             )
+            # Log
             rewards = [d[2][0].item() for d in data if bool(d[4].item())]
             self.comet.log_metric("mean_reward", np.mean(rewards), step=i)
             self.comet.log_metric("max_reward", np.max(rewards), step=i)
-
             if not i % 100:
                 empirical_distrib_losses.append(
                     compute_empirical_distribution_error(
@@ -570,6 +574,13 @@ class GFlowNetAgent:
                 self.comet.log_metric(
                     "unique_states", np.unique(all_visited).shape[0], step=i
                 )
+            # Moving average of the loss for early stopping
+            if loss_ema > 0:
+                loss_ema = self.ema_alpha * losses[0] + (1. - self.ema_alpha) * loss_ema
+                if loss_ema < self.early_stopping:
+                    break
+            else:
+                loss_ema = losses[0]
 
         # Save model and training variables
         root = os.path.split(self.save_path)[0]
