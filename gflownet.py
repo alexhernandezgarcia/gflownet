@@ -135,6 +135,7 @@ class AptamerSeq:
         if queries.ndim == 1:
             queries = queries[np.newaxis, ...]
         queries += 1
+        queries = np.concatenate((queries, np.zeros((queries.shape[0], self.horizon - queries.shape[1]))), axis=1)
         if queries.shape[1] == 1:
             queries = np.column_stack((queries, np.zeros(queries.shape[0])))
         return queries
@@ -601,6 +602,34 @@ class GFlowNetAgent:
 
         # Close comet
         self.comet.end()
+
+    def sample(self, n_samples, horizon, nalphabet):
+        envs = [
+            AptamerSeq(
+                horizon, nalphabet, func="default"
+            )
+            for i in range(n_samples)
+        ]
+
+        batch = np.zeros(n_samples, horizon)
+        for idx, env in enumerate(envs):
+            env = env.reset()
+            while not env.done:
+                with torch.no_grad():
+                    action_probs = self.model(tf(env.seq2obs()))
+                    if all(torch.isfinite(action_probs)):
+                        action = Categorical(logits=action_probs).sample()
+                    else:
+                        action = np.random.permutation(np.arange(len(action_probs)))[0]
+                        print("Action could not be sampled from model!")
+                seq, valid = env.step(action)
+                if not valid:
+                    print("Invalid action")
+
+            seq = [s.item() for s in seq]
+            batch[idx, :] = env.seq2oracle(seq)
+        return batch
+
 
 
 class RandomTrajAgent:
