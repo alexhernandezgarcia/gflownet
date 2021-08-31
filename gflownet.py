@@ -639,10 +639,10 @@ class GFlowNetAgent:
             batch[idx, :] = env.seq2oracle(seq)
         energies = env.proxy(batch)
         samples = {
-                'samples': batch,
+                'samples': batch.astype(np.int64),
                 'scores': energies,
                 'energies': energies,
-                'uncertainties': np.zeros(energies.shape),
+                'uncertainties': np.zeros(energies.shape, dtype=np.float32),
         }
         return samples
 
