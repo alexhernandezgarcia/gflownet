@@ -9,13 +9,11 @@ This code implements an active learning protocol for global minimization of some
 
 # TODO
 ==> incorporate gFlowNet
-==> incorporate RL
 ==> RL testing
-==> multi-task setup
-    -> nupack output
-    -> model output heads
-    -> loss balancing
-    -> testing
+==> add a function for tracking dataset distances and adjusting the cutoff
+==> update imports
+==> streamline sampling
+==> add YAML params
 
 low priority /long term
 ==> speedtest one-hot binary distance check
@@ -51,11 +49,11 @@ parser.add_argument('--min_sample_length', type = int, default = 10)
 parser.add_argument('--max_sample_length', type = int, default = 40)
 parser.add_argument('--sample_tasks', type = int, default = 1) # WIP unfinished for multi-task training - how many outputs per oracle? (only nupack currently  setup for > 1 output)
 # AL settings
-parser.add_argument('--query_mode', type=str, default='learned') # 'random', 'energy', 'uncertainty', 'heuristic', 'learned' # different modes for query construction
+parser.add_argument('--query_mode', type=str, default='energy') # 'random', 'energy', 'uncertainty', 'heuristic', 'learned' # different modes for query construction
 parser.add_argument('--test_mode', type = bool, default = True) # if true, automatically set parameters for a quick test run
-parser.add_argument('--pipeline_iterations', type = int, default = 20) # number of cycles with the oracle
-parser.add_argument('--minima_dist_cutoff', type = float, default = 0.25) # minimum distance (normalized, binary) between distinct minima or between clusters in agglomerative clustering
-# TODO add toggle between agglomerative clustering and simple item-by-item batching
+parser.add_argument('--pipeline_iterations', type = int, default = 10) # number of cycles with the oracle
+parser.add_argument('--query_selection', type = str, default = 'clustering') # agglomerative 'clustering', 'cutoff' or strictly 'argmin' based query construction
+parser.add_argument('--minima_dist_cutoff', type = float, default = 0.25) # minimum distance (normalized, binary) between distinct minima or between clusters in agglomerative clustering OR 'cutoff' batch selection
 parser.add_argument('--queries_per_iter', type = int, default = 100) # maximum number of questions we can ask the oracle per cycle
 parser.add_argument('--mode', type = str, default = 'training') # 'training'  'evaluation' 'initialize' - only training currently useful
 parser.add_argument('--debug', type = bool, default = False)
@@ -71,12 +69,12 @@ parser.add_argument('--querier_latent_space_width', type = int, default = 10)
 parser.add_argument('--proxy_model_type', type = str, default = 'mlp') # type of proxy model - mlp or transformer
 parser.add_argument('--training_parallelism', type = bool, default = False) # fast enough on GPU without paralellism - True doesn't always work on linux
 parser.add_argument('--proxy_model_ensemble_size', type = int, default = 10) # number of models in the ensemble
-parser.add_argument('--proxy_model_width', type = int, default = 64) # number of neurons per proxy NN layer
-parser.add_argument('--embedding_dim', type = int, default = 64) # embedding dimension for transformer only
-parser.add_argument('--proxy_model_layers', type = int, default = 4) # number of layers in NN proxy models (transformer encoder layers OR MLP layers)
+parser.add_argument('--proxy_model_width', type = int, default = 256) # number of neurons per proxy NN layer
+parser.add_argument('--embedding_dim', type = int, default = 256) # embedding dimension for transformer only
+parser.add_argument('--proxy_model_layers', type = int, default = 2) # number of layers in NN proxy models (transformer encoder layers OR MLP layers)
 parser.add_argument('--proxy_training_batch_size', type = int, default = 10)
 parser.add_argument('--proxy_max_epochs', type = int, default = 200)
-parser.add_argument('--proxy_shuffle_dataset', type = bool, default = False) # give each model in the ensemble a uniquely shuffled dataset
+parser.add_argument('--proxy_shuffle_dataset', type = bool, default = True) # give each model in the ensemble a uniquely shuffled dataset
 #sampler settings
 parser.add_argument('--mcmc_sampling_time', type = int, default = int(1e4)) # at least 1e4 is recommended for convergence
 parser.add_argument('--mcmc_num_samplers', type = int, default = 20) # minimum number of gammas over which to search for each sampler (if doing in parallel, we may do more if we have more CPUs than this)

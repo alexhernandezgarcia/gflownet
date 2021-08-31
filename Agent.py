@@ -39,7 +39,6 @@ class DQN:
         self.params = params
         self.exp_name = 'learned_'
         self.load = False if params.qmodel_preload_path is None else True
-        # TODO align this with the actual model state below
         self.action_state_length = 5 # [energy, variance, 3 distance metrics]
         self.singleton_state_variables = 5 # [test loss, test std, n proxy models, cluster cutoff and elapsed time]
         self.state_dataset_size = int(params.model_state_size * self.action_state_length + self.singleton_state_variables) # This depends on size of dataset V
@@ -230,8 +229,6 @@ class DQN:
 
         :return: Action (index of Sequence to Label)
         """
-        # TODO calculate action state from our model
-
         action_state = self.getActionState(sample)
 
         self.policy_net.eval()

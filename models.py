@@ -192,16 +192,16 @@ class modelNet():
 
         if all(np.asarray(self.err_te_hist[-self.params.history+1:])  > self.err_te_hist[-self.params.history]): #
             self.converged = 1
-            printRecord(bcolors.WARNING + "Model converged after {} epochs - test error increasing".format(self.epochs + 1) + bcolors.ENDC)
+            printRecord(bcolors.WARNING + "Model converged after {} epochs - test loss increasing, at {:.4f}".format(self.epochs + 1, min(self.err_te_hist)) + bcolors.ENDC)
 
         # check if test loss is unchanging
         if abs(self.err_te_hist[-self.params.history] - np.average(self.err_te_hist[-self.params.history:]))/self.err_te_hist[-self.params.history] < eps:
             self.converged = 1
-            printRecord(bcolors.WARNING + "Model converged after {} epochs - hit test loss convergence criterion".format(self.epochs + 1) + bcolors.ENDC)
+            printRecord(bcolors.WARNING + "Model converged after {} epochs - hit test loss convergence criterion at {:.4f}".format(self.epochs + 1, min(self.err_te_hist)) + bcolors.ENDC)
 
         if self.epochs >= self.params.proxy_max_epochs:
             self.converged = 1
-            printRecord(bcolors.WARNING + "Model converged after {} epochs- epoch limit was hit".format(self.epochs + 1) + bcolors.ENDC)
+            printRecord(bcolors.WARNING + "Model converged after {} epochs- epoch limit was hit with test loss {:.4f}".format(self.epochs + 1, min(self.err_te_hist)) + bcolors.ENDC)
 
 
         #if self.converged == 1:

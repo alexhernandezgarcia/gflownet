@@ -39,7 +39,6 @@ class querier():
 
         else:
             if self.params.query_mode == 'learned':
-                # TODO implement learned model
                 self.qModel.updateModelState(statusDict, model)
                 self.sampleForQuery(self.qModel, statusDict['iter'])
 
@@ -60,23 +59,30 @@ class querier():
             samples, inds = filterDuplicateSamples(samples, oldDatasetPath='datasets/' + self.params.dataset + '.npy', returnInds=True)
             scores = scores[inds]
 
-            # create batch from candidates
+            samples = self.constructQuery(samples, scores, uncertainties, nQueries)
+
+        return samples
+
+
+    def constructQuery(self, samples, scores, uncertainties, nQueries):
+        # create batch from candidates
+        if self.params.query_selection == 'clustering':
             # agglomerative clustering
             clusters, clusterScores, clusterVars = doAgglomerativeClustering(samples, scores, uncertainties, cutoff=self.params.minima_dist_cutoff)
             clusterSizes, avgClusterScores, minCluster, avgClusterVars, minClusterVars, minClusterSamples = clusterAnalysis(clusters, clusterScores, clusterVars)
             samples = minClusterSamples
+        elif self.params.query_selection == 'cutoff':
+            # build up sufficiently different examples in order of best scores
+            bestInds = sortTopXSamples(samples[np.argsort(scores)], nSamples=len(samples), distCutoff=self.params.minima_dist_cutoff)  # sort out the best, and at least minimally distinctive samples
+            samples = samples[bestInds]
+        elif self.params.query_selection == 'argmin':
+            # just take the bottom x scores
+            samples = samples[np.argsort(scores)]
 
-            # alternatively, simple exclusion
-            #bestInds = sortTopXSamples(samples[np.argsort(scores)], nSamples=len(samples), distCutoff=self.params.minima_dist_cutoff)  # sort out the best, and at least minimally distinctive samples
-            #samples = samples[bestInds]
-
-            # alternatively, just take whatever is given
-            # samples = samples[np.argsort(scores)]
-
-            while len(samples) < nQueries: # if we don't have enough samples from mcmc, add random ones to pad out the
-                randomSamples = generateRandomSamples(1000, [self.params.min_sample_length,self.params.max_sample_length], self.params.dict_size, variableLength = self.params.variable_sample_length, oldDatasetPath = 'datasets/' + self.params.dataset + '.npy')
-                samples = filterDuplicateSamples(np.concatenate((samples,randomSamples),axis=0))
-
+        while len(samples) < nQueries:  # if we don't have enough samples from samplers, add random ones to pad out the query
+            randomSamples = generateRandomSamples(1000, [self.params.min_sample_length, self.params.max_sample_length], self.params.dict_size, variableLength=self.params.variable_sample_length,
+                                                  oldDatasetPath='datasets/' + self.params.dataset + '.npy')
+            samples = filterDuplicateSamples(np.concatenate((samples, randomSamples), axis=0))
 
         return samples[:nQueries]
 
