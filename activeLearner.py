@@ -1,3 +1,4 @@
+from argparse import Namespace
 from models import modelNet
 from querier import *
 from sampler import *
@@ -340,7 +341,7 @@ class ActiveLearning():
         :return:
         '''
         outputDict = {}
-        outputDict['params'] = self.params
+        outputDict['params'] = Namespace(**dict(vars(self.params)))
         del outputDict['params'].comet
         outputDict['state dict record'] = self.stateDictRecord
         if self.params.dataset_type == 'toy':
@@ -349,7 +350,7 @@ class ActiveLearning():
             outputDict['bottom 10% loss'] = self.bottomTenLoss
             if self.pipeIter > 1:
                 outputDict['cumulative performance'] = self.cumulativeResult
-        np.save('outputsDict',outputDict)
+        np.save('outputsDict', outputDict)
 
 
     def updateDataset(self, oracleSequences, oracleScores):
