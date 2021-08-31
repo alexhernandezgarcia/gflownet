@@ -341,6 +341,7 @@ class ActiveLearning():
         '''
         outputDict = {}
         outputDict['params'] = self.params
+        del outputDict['params'].comet
         outputDict['state dict record'] = self.stateDictRecord
         if self.params.dataset_type == 'toy':
             outputDict['oracle outputs'] = self.oracleRecord
