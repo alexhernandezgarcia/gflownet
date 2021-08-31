@@ -103,6 +103,7 @@ class AptamerSeq:
         self.nalphabet = nalphabet
         self.seq = []
         self.done = False
+        self.proxy = proxy
         self.func = {
             "default": None,
             "arbitrary_i": self.reward_arbitrary_i,
@@ -144,11 +145,16 @@ class AptamerSeq:
         """
         Prepares the output of an oracle for GFlowNet.
         """
-        if self.func == seqfoldScore:
+        if self.proxy:
+            energies *= -1
+            energies = np.clip(energies, a_min=0.0, a_max=None)
+        elif self.func == seqfoldScore:
             energies -= 5
             energies *= -1
-        if self.func == nupackScore:
+        elif self.func == nupackScore:
             energies *= -1
+        else:
+            pass
         reward = energies + epsilon
         return reward[0]
 
@@ -371,7 +377,7 @@ class GFlowNetAgent:
         self.target = copy.deepcopy(self.model)
         self.tau = args.bootstrap_tau
         self.ema_alpha = 0.5
-        self.early_stopping = 0.001
+        self.early_stopping = 0.025
         # Comet
         self.comet = args.comet
         # Environment
@@ -611,7 +617,7 @@ class GFlowNetAgent:
             for i in range(n_samples)
         ]
 
-        batch = np.zeros(n_samples, horizon)
+        batch = np.zeros((n_samples, horizon))
         for idx, env in enumerate(envs):
             env = env.reset()
             while not env.done:
