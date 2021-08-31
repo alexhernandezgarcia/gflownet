@@ -109,16 +109,17 @@ class Querier():
         run MCMC or GFlowNet sampling
         :return:
         """
-        # TODO add optional post-sample annealing
-        gammas = np.logspace(self.params.stun_min_gamma, self.params.stun_max_gamma, self.params.mcmc_num_samplers)
         if self.method.lower() == "mcmc":
+            # TODO add optional post-sample annealing
+            gammas = np.logspace(self.params.stun_min_gamma, self.params.stun_max_gamma, self.params.mcmc_num_samplers)
             self.mcmcSampler = Sampler(self.params, seedInd, scoreFunction, gammas)
             samples = self.mcmcSampler.sample(model, useOracle=useOracle)
             outputs = samples2dict(samples)
         elif self.method.lower() == "gflownet":
-            # TODO: instead of initializing gflownet from scratch, we can retrain it
-            gflownet = GFlowNetAgent(self.params, proxy=model)
-            outputs = runSampling(self.params, gflownet, model, useOracle=useOracle)
+            # TODO: instead of initializing gflownet from scratch, we could retrain it?
+            gflownet = GFlowNetAgent(self.params, proxy=model.evaluate)
+            gflownet.train()
+            outputs = gflownet.sample(self.params.gflownet_n_samples, self.params.horizon, self.params.nalphabet)
         else:
             raise NotImplemented("method can be either mcmc or gflownet")
 
