@@ -10,7 +10,7 @@ import glob
 import multiprocessing as mp
 
 
-class activeLearning():
+class ActiveLearning():
     def __init__(self, params):
         self.pipeIter = None
         self.params = params
@@ -25,7 +25,7 @@ class activeLearning():
         move to relevant directory
         :return:
         '''
-        self.oracle = oracle(self.params) # oracle needs to be initialized to initialize toy datasets
+        self.oracle = Oracle(self.params) # oracle needs to be initialized to initialize toy datasets
 
         if (self.params.run_num == 0) or (self.params.explicit_run_enumeration == True): # if making a new workdir
             if self.params.run_num == 0:
@@ -46,7 +46,7 @@ class activeLearning():
             printRecord('Resuming run %d' % self.params.run_num)
 
 
-        self.querier = querier(self.params) # might as well initialize the querier here
+        self.querier = Querier(self.params) # might as well initialize the querier here
 
 
     def makeNewWorkingDirectory(self):    # make working directory
@@ -218,7 +218,7 @@ class activeLearning():
             self.testMinima.append(testMins)
         else:
             del self.model
-            if self.params.device == 'local':
+            if self.params.machine == 'local':
                 nHold = 4
             else:
                 nHold = 1
@@ -320,8 +320,9 @@ class activeLearning():
 
         self.model = 'abc'
         gammas = np.logspace(self.params.stun_min_gamma,self.params.stun_max_gamma,self.params.mcmc_num_samplers)
-        mcmcSampler = sampler(self.params, 0, [1,0], gammas)
-        sampleDict = runSampling(self.params, mcmcSampler, self.model, useOracle=True)
+        mcmcSampler = Sampler(self.params, 0, [1,0], gammas)
+        samples = mcmcSampler.sample(self.model, useOracle=True)
+        sampleDict = samples2dict(samples)
         if self.params.dataset == 'wmodel': # w model minimum is always zero - even if we don't find it
             bestMin = 0
         else:

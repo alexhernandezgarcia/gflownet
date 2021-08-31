@@ -9,7 +9,7 @@ import torch
 import math
 import torch.functional as F
 from utils import *
-from oracle import oracle
+from oracle import Oracle
 
 
 class DQN:
@@ -189,7 +189,7 @@ class DQN:
         self.trainingSamples = self.trainingSamples['samples']
         # large random sample
         numSamples = min(int(1e4), self.params.dict_size ** self.params.max_sample_length // 100) # either 1e4, or 1% of the sample space, whichever is smaller
-        dataoracle = oracle(self.params)
+        dataoracle = Oracle(self.params)
         self.randomSamples = dataoracle.initializeDataset(save=False, returnData=True, customSize=numSamples) # get large random dataset
         self.randomSamples = self.randomSamples['samples']
 
