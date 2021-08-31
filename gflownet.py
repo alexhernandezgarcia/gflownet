@@ -96,7 +96,9 @@ class AptamerSeq:
         Reward function [to be confirmed]
     """
 
-    def __init__(self, horizon=42, nalphabet=4, func=None, allow_backward=False, proxy=None):
+    def __init__(
+        self, horizon=42, nalphabet=4, func=None, allow_backward=False, proxy=None
+    ):
         self.horizon = horizon
         self.nalphabet = nalphabet
         self.seq = []
@@ -373,8 +375,11 @@ class GFlowNetAgent:
         self.comet = args.comet
         # Environment
         self.env = AptamerSeq(
-            args.horizon, args.nalphabet, func=args.func, allow_backward=False,
-            proxy=proxy
+            args.horizon,
+            args.nalphabet,
+            func=args.func,
+            allow_backward=False,
+            proxy=proxy,
         )
         self.envs = [
             AptamerSeq(
@@ -509,7 +514,7 @@ class GFlowNetAgent:
         all_losses = []
         all_visited = []
         empirical_distrib_losses = []
-        loss_ema = -1.
+        loss_ema = -1.0
 
         # Train loop
         for i in tqdm(range(self.n_train_steps + 1), disable=not self.progress):
@@ -570,7 +575,9 @@ class GFlowNetAgent:
                 )
             # Moving average of the loss for early stopping
             if loss_ema > 0:
-                loss_ema = self.ema_alpha * losses[0] + (1. - self.ema_alpha) * loss_ema
+                loss_ema = (
+                    self.ema_alpha * losses[0] + (1.0 - self.ema_alpha) * loss_ema
+                )
                 if loss_ema < self.early_stopping:
                     break
             else:
