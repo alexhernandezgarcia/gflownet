@@ -320,7 +320,7 @@ class ActiveLearning():
 
         self.model = 'abc'
         gammas = np.logspace(self.params.stun_min_gamma,self.params.stun_max_gamma,self.params.mcmc_num_samplers)
-        mcmcSampler = sampler(self.params, 0, [1,0], gammas)
+        mcmcSampler = Sampler(self.params, 0, [1,0], gammas)
         samples = mcmcSampler.sample(self.model, useOracle=True)
         sampleDict = samples2dict(samples)
         if self.params.dataset == 'wmodel': # w model minimum is always zero - even if we don't find it

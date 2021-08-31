@@ -112,7 +112,7 @@ class Querier():
         # TODO add optional post-sample annealing
         gammas = np.logspace(self.params.stun_min_gamma, self.params.stun_max_gamma, self.params.mcmc_num_samplers)
         if self.method.lower() == "mcmc":
-            self.mcmcSampler = sampler(self.params, seedInd, scoreFunction, gammas)
+            self.mcmcSampler = Sampler(self.params, seedInd, scoreFunction, gammas)
             samples = self.mcmcSampler.sample(model, useOracle=useOracle)
             outputs = samples2dict(samples)
         elif self.method.lower() == "gflownet":

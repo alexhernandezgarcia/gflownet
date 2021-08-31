@@ -12,7 +12,7 @@ This script uses Markov Chain Monte Carlo, including the STUN algorithm, to opti
 '''
 
 
-class sampler:
+class Sampler:
     """
     finds optimum values of the function defined by the model
     intrinsically parallel, rather than via multiprocessing
