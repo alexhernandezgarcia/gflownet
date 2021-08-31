@@ -108,6 +108,7 @@ parser.add_argument('--proxy_shuffle_dataset', type = bool, default = False) # g
 # sampler settings
 parser.add_argument('--mcmc_sampling_time', type = int, default = int(1e4)) # at least 1e4 is recommended for convergence
 parser.add_argument('--mcmc_num_samplers', type = int, default = 20) # minimum number of gammas over which to search for each sampler (if doing in parallel, we may do more if we have more CPUs than this)
+parser.add_argument('--gflownet_n_samples', type = int, default = 1000) # Sequences to sample from GFLowNet
 parser.add_argument('--stun_min_gamma', type = float, default = -3)
 parser.add_argument('--stun_max_gamma', type = float, default = 1)
 
