@@ -1,4 +1,5 @@
 '''import statements'''
+from comet_ml import Experiment
 import activeLearner
 from utils import *
 import warnings
@@ -121,7 +122,13 @@ params.sampler_seed = params.sampler_seed % 10
 params.horizon = params.max_sample_length
 params.nalphabet = params.dict_size
 params.func = "proxy"
-
+# Comet
+params.comet = Experiment(
+    project_name=params.comet_project, display_summary_level=0
+)
+if params.tags:
+    params.comet.add_tags(params.tags)
+params.comet.log_parameters(vars(params))
 
 #====================================
 if params.mode == 'evaluation':

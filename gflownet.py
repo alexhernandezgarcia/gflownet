@@ -7,7 +7,6 @@ import os
 import pickle
 from collections import defaultdict
 from itertools import count
-from comet_ml import Experiment
 
 import numpy as np
 from scipy.stats import norm
@@ -371,12 +370,7 @@ class GFlowNetAgent:
         self.ema_alpha = 0.5
         self.early_stopping = 0.001
         # Comet
-        self.comet = Experiment(
-            project_name=args.comet_project, display_summary_level=0
-        )
-        if args.tags:
-            self.comet.add_tags(args.tags)
-        self.comet.log_parameters(vars(args))
+        self.comet = args.comet
         # Environment
         self.env = AptamerSeq(
             args.horizon, args.nalphabet, func=args.func, allow_backward=False,
