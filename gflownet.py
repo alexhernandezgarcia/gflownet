@@ -93,14 +93,14 @@ class AptamerSeq:
         action executed.
 
     func : str
-        Name of reward function
+        Name of the reward function
 
-    proxy : func
-        A proxy model
+    proxy : lambda
+        Proxy model
     """
 
     def __init__(
-        self, horizon=42, nalphabet=4, func=None, proxy=None, allow_backward=False
+        self, horizon=42, nalphabet=4, func="default", proxy=None, allow_backward=False
     ):
         self.horizon = horizon
         self.nalphabet = nalphabet
@@ -175,6 +175,8 @@ class AptamerSeq:
             energy += 5
         elif self.func == "nupack":
             energy *= -1
+        else:
+            pass
         return energy
 
     def seq2obs(self, seq=None):
@@ -392,16 +394,16 @@ class GFlowNetAgent:
             args.horizon,
             args.nalphabet,
             func=args.func,
-            allow_backward=False,
             proxy=proxy,
+            allow_backward=False,
         )
         self.envs = [
             AptamerSeq(
                 args.horizon,
                 args.nalphabet,
                 func=args.func,
-                allow_backward=False,
                 proxy=proxy,
+                allow_backward=False,
             )
             for _ in range(args.mbsize)
         ]
@@ -639,17 +641,15 @@ class GFlowNetAgent:
                         action = np.random.permutation(np.arange(len(action_probs)))[0]
                         print("Action could not be sampled from model!")
                 seq, valid = env.step(action)
-                if not valid:
-                    print("Invalid action")
 
             seq = [s.item() for s in seq]
             batch[idx, :] = env.seq2oracle(seq)
         energies = env.proxy(batch)
         samples = {
-                'samples': batch,
+                'samples': batch.astype(np.int64),
                 'scores': energies,
                 'energies': energies,
-                'uncertainties': np.zeros(energies.shape),
+                'uncertainties': np.zeros(energies.shape, dtype=np.float32),
         }
         return samples
 
