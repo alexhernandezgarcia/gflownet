@@ -120,6 +120,7 @@ params.sampler_seed = params.sampler_seed % 10
 # gflownet params
 params.horizon = params.max_sample_length
 params.nalphabet = params.dict_size
+params.func = "proxy"
 
 
 #====================================
@@ -151,6 +152,7 @@ elif not params.workdir and params.machine == "local":
 
 #=====================================
 if __name__ == '__main__':
+    print("Args:\n" + "\n".join([f"    {k:20}: {v}" for k, v in vars(params).items()]))
     al = activeLearner.ActiveLearning(params)
     if params.mode == 'initalize':
         printRecord("Initialized!")
