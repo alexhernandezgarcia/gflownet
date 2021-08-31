@@ -117,7 +117,7 @@ class Querier():
             outputs = samples2dict(samples)
         elif self.method.lower() == "gflownet":
             # TODO: instead of initializing gflownet from scratch, we can retrain it
-            gflownet = GFlowNetAgent(self.params)
+            gflownet = GFlowNetAgent(self.params, proxy=model)
             outputs = runSampling(self.params, gflownet, model, useOracle=useOracle)
         else:
             raise NotImplemented("method can be either mcmc or gflownet")
