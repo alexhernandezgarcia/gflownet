@@ -37,12 +37,12 @@ class Querier():
             '''
             generate query randomly
             '''
-            samples = generateRandomSamples(self.params.queries_per_iter, [self.params.min_sample_length,self.params.max_sample_length], self.params.dict_size, variableLength = self.params.variable_sample_length, oldDatasetPath = 'datasets/' + self.params.dataset + '.npy')
+            query = generateRandomSamples(nQueries, [self.params.min_sample_length,self.params.max_sample_length], self.params.dict_size, variableLength = self.params.variable_sample_length, oldDatasetPath = 'datasets/' + self.params.dataset + '.npy')
 
         else:
             if self.params.query_mode == 'learned':
                 self.qModel.updateModelState(statusDict, model)
-                self.sampleForQuery(self.qModel, statusDict['iter'])
+                self.sampleDict = self.sampleForQuery(self.qModel, statusDict['iter'])
 
             else:
                 '''
@@ -53,7 +53,7 @@ class Querier():
                 if self.params.query_mode == 'energy':
                     self.sampleDict = energySampleDict
                 else:
-                    self.sampleForQuery(model, statusDict['iter'])
+                    self.sampleDict = self.sampleForQuery(model, statusDict['iter'])
 
             samples = self.sampleDict['samples']
             scores = self.sampleDict['scores']
@@ -61,9 +61,9 @@ class Querier():
             samples, inds = filterDuplicateSamples(samples, oldDatasetPath='datasets/' + self.params.dataset + '.npy', returnInds=True)
             scores = scores[inds]
 
-            samples = self.constructQuery(samples, scores, uncertainties, nQueries)
+            query = self.constructQuery(samples, scores, uncertainties, nQueries)
 
-        return samples
+        return query
 
 
     def constructQuery(self, samples, scores, uncertainties, nQueries):
@@ -107,8 +107,9 @@ class Querier():
             raise ValueError(self.params.query_mode + 'is not a valid query function!')
 
         # do a single sampling run
-        self.sampleDict = self.runSampling(model, scoreFunction, iterNum)
+        sampleDict = self.runSampling(model, scoreFunction, iterNum)
 
+        return sampleDict
 
     def runSampling(self, model, scoreFunction, seedInd, useOracle=False):
         """
@@ -116,19 +117,23 @@ class Querier():
         :return:
         """
         if self.method.lower() == "mcmc":
-            # TODO add optional post-sample annealing
             gammas = np.logspace(self.params.stun_min_gamma, self.params.stun_max_gamma, self.params.mcmc_num_samplers)
             self.mcmcSampler = Sampler(self.params, seedInd, scoreFunction, gammas)
             samples = self.mcmcSampler.sample(model, useOracle=useOracle)
             outputs = samples2dict(samples)
         elif self.method.lower() == "gflownet":
             # TODO: instead of initializing gflownet from scratch, we could retrain it?
+            # MK if it's fast, it might be best to train from scratch, since models may drastically change iteration-over-iteration,
+            # and we want the gflownet to represent the current models, in general, though it's not impossible we may want to incorporate
+            # information from prior iterations for some reason
+            # TODO add optional post-sample annealing
             gflownet = GFlowNetAgent(self.params, proxy=model.evaluate)
             gflownet.train()
             outputs = gflownet.sample(
-                    self.params.gflownet_n_samples, self.params.horizon,
-                    self.params.nalphabet, model.evaluate
+                    self.params.gflownet_n_samples, self.params.max_sample_length,
+                    self.params.dict_size, model.evaluate
             )
+            # TODO get scores, energies and uncertainties for outputs dict
         else:
             raise NotImplemented("method can be either mcmc or gflownet")
 

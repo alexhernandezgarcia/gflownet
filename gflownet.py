@@ -150,7 +150,9 @@ class AptamerSeq:
         """
         Prepares the output of an oracle for GFlowNet.
         """
-        if self.func == "potts":
+        if self.func == 'linear':
+            energies *= 1 # manually set all possible energies to be positive
+        elif self.func == "potts":
             energies *= -1
             energies = np.clip(energies, a_min=0.0, a_max=None)
         elif self.func == "seqfold":
@@ -197,9 +199,14 @@ class AptamerSeq:
         """
         if seq is None:
             seq = self.seq
+
         z = np.zeros((self.nalphabet * self.horizon), dtype=np.float32)
+
         if len(seq) > 0:
-            z[np.arange(len(seq)) * self.nalphabet + seq] = 1
+            if hasattr(seq[0],'device'): # if it has a device at all, it will be cuda (CPU numpy array has no dev
+                seq = [subseq.cpu().detach().numpy() for subseq in seq]
+
+            z[(np.arange(len(seq)) * self.nalphabet + seq)] = 1
         return z
 
     def obs2seq(self, obs):
@@ -374,6 +381,7 @@ class GFlowNetAgent:
     def __init__(self, args, proxy=None):
         # Misc
         args.device_torch = torch.device(args.device)
+        self.device = args.device_torch
         set_device(args.device_torch)
         self.save_path = args.save_path
         # Model
@@ -448,6 +456,9 @@ class GFlowNetAgent:
                         action = np.random.permutation(np.arange(len(action_probs)))[0]
                         print("Action could not be sampled from model!")
                 seq, valid = env.step(action)
+                if len(seq) > 0:
+                    if hasattr(seq[0], 'device'): # if it has a device, it's on cuda
+                        seq = [subseq.cpu().detach().numpy() for subseq in seq]
                 if valid:
                     parents, parents_a = env.parent_transitions(seq, action)
                     batch.append(
@@ -496,11 +507,19 @@ class GFlowNetAgent:
         parents_Qsa = self.model(parents)[
             torch.arange(parents.shape[0]), actions.long()
         ]
-        in_flow = torch.log(
-            torch.zeros((sp.shape[0],)).index_add_(
-                0, batch_idxs, torch.exp(parents_Qsa)
+
+        if self.device.type == 'cuda':
+            in_flow = torch.log(
+                torch.zeros((sp.shape[0],)).cuda().index_add_(
+                    0, batch_idxs, torch.exp(parents_Qsa)
+                )
             )
-        )
+        else:
+            in_flow = torch.log(
+                torch.zeros((sp.shape[0],)).index_add_(
+                    0, batch_idxs, torch.exp(parents_Qsa)
+                )
+            )
         if self.tau > 0:
             with torch.no_grad():
                 next_q = self.target(sp)
@@ -533,7 +552,7 @@ class GFlowNetAgent:
         loss_ema = -1.0
 
         # Train loop
-        for i in tqdm(range(self.n_train_steps + 1), disable=not self.progress):
+        for i in tqdm(range(self.n_train_steps + 1)):#, disable=not self.progress):
             data = []
             for j in range(self.sttr):
                 data += self.sample_many(self.mbsize)
@@ -644,12 +663,12 @@ class GFlowNetAgent:
 
             seq = [s.item() for s in seq]
             batch[idx, :] = env.seq2oracle(seq)
-        energies = env.proxy(batch)
+        energies, uncertainties = env.proxy(batch, 'Both')
         samples = {
                 'samples': batch.astype(np.int64),
                 'scores': energies,
                 'energies': energies,
-                'uncertainties': np.zeros(energies.shape, dtype=np.float32),
+                'uncertainties': uncertainties,
         }
         return samples
 

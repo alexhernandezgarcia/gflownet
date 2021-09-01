@@ -2,7 +2,10 @@ import numpy as np
 import scipy.io
 import random
 from seqfold import dg, fold
-from nupack import *
+try:
+    from nupack import *
+except:
+    pass
 
 
 def linearToy(queries):
@@ -12,7 +15,8 @@ def linearToy(queries):
     :param queries:
     :return:
     '''
-    linFactors = np.random.random(queries.shape[1]) # coefficients for linear toy energy
+    linFactors = np.ones(queries.shape[1]) # ultra-simple and always positive
+    #linFactors = np.random.random(queries.shape[1]) # coefficients for linear toy energy
     energies = queries @ linFactors # simple matmul - padding entries (zeros) have zero contribution
     return energies
 
