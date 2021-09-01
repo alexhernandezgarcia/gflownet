@@ -10,6 +10,7 @@ import math
 import torch.functional as F
 from utils import *
 from oracle import oracle
+from replay_buffer import ReplayMemory
 
 
 class DQN:
@@ -74,20 +75,24 @@ class DQN:
 
         self._create_and_load_optimizer(**self.optimizer_param)
 
+        self.memory = ReplayMemory(self.params['buffer_size'])
+
     def _load_models(self):
-        """Load model weights.
-        :param load_weights: (bool) True if segmentation network is loaded from pretrained weights in 'exp_name_toload'
-        :param exp_name_toload: (str) Folder where to find pre-trained segmentation network's weights.
-        :param snapshot: (str) Name of the checkpoint.
-        :param exp_name: (str) Experiment name.
-        :param ckpt_path: (str) Checkpoint name.
-        :param checkpointer: (bool) If True, load weights from the same folder.
-        :param exp_name_toload_rl: (str) Folder where to find trained weights for the query network (DQN). Used to test
-        query network.
-        :param test: (bool) If True  and there exists a checkpoint in 'exp_name_toload_rl', we will load checkpoint for trained query network (DQN).
+        """Load Policy model weights. Needs to know episode and exp_name.
         """
         # TODO write loader
         # TODO write saver
+        if os.path.exists('ckpts/' + exp_name):  # reload model
+            policy_checkpoint = torch.load(f'ckpts/policy_{episode}')
+            target_checkpoint = torch.load(f'ckpts/target_{episode}')
+
+        self.model.load_state_dict(policy_checkpoint['model_state_dict'])
+        self.model.load_state_dict(target_checkpoint['model_state_dict'])
+
+
+    def save_models(self, episode):
+        torch.save({'model_state_dict': self.policy_net.state_dict(), 'optimizer_state_dict': self.optimizer.state_dict()}, f'ckpts/policy_{episode}')
+        torch.save({'model_state_dict': self.target.state_dict()}, f'ckpts/target_{episode}')
 
     def _create_models(self):
         """Creates the Online and Target DQNs
@@ -214,8 +219,8 @@ class DQN:
         actionState = []
         for i in range(len(sample)):
             actionState.append([energies[i],uncertainties[i],internalDist[i],datasetDist[i],randomDist[i]])
-
-        return torch.Tensor(actionState).to(self.device) # return action state
+        self.actionState = torch.Tensor(actionState).to(self.device)
+        return self.actionState # return action state
 
 
     def evaluateQ(self,
@@ -269,26 +274,29 @@ class DQN:
             transitions = memory_batch.sample(BATCH_SIZE)
             expected_q_values = []
             for transition in transitions:
-                # Predict q-value function value for all available actions in transition
+                # Get Target q-value function value for the action at s_t+1
+                # that yields the highest discounted return
                 action_i = self.select_action(
-                    transition.model_state, transition.action_state, test=False
+                    transition.next_model_state, transition.next_action_state, test=False
                 )
-                with torch.autograd.set_detect_anomaly(True):
-                    self.policy_net.train()
-                    q_policy = self.policy_net(
-                        transition.model_state.detach(), transition.action_state[action_i].detach()
-                    )
-                    q_target = self.target_net(
-                        transition.model_state.detach(), transition.action_state[action_i].detach()
-                    )
+                max_next_q_value = self.target_net(
+                    transition.model_state.detach(), transition.action_state[action_i].detach()
+                )
 
-                    # Compute the expected Q values
-                    expected_q_values = (q_target * GAMMA) + transition.reward
+                # Get Predicted Q-values at s_t
+                online_q_values = self.policy_net(
+                    transition.model_state.detach(), transition.action_state[action_i].detach()
+                )
+                # Compute the Target Q values (No future return if terminal).
+                # Use Bellman Equation which essentially states that sum of r_t+1 and the max_q_value at time t+1
+                # is the target/expected value of the Q-function at time t.
+                target_q_values = (max_next_q_value * GAMMA) + transition.reward if transition.terminal else transition.reward
 
-                    # Compute MSE loss
-                    loss = F.mse_loss(q_policy, expected_q_values)
-                    loss_item += loss.item()
-                    loss.backward()
+                # Compute MSE loss Comparing Q(s) obtained from Online Policy to
+                # target Q value (Q'(s)) obtained from Target Network + Bellman Equation
+                loss = F.mse_loss(online_q_values, target_q_values)
+                loss_item += loss.item()
+                loss.backward()
             self.optimizer.step()
 
             del loss
