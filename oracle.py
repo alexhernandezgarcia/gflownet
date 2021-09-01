@@ -3,17 +3,25 @@ import numpy as np
 import scipy.io
 import random
 from seqfold import dg, fold
-# from bbdob.utils import idx2one_hot
-# from bbdob import OneMax, TwoMin, FourPeaks, DeceptiveTrap, NKLandscape, WModel
-from nupack import *
 from utils import *
 import sys
+try: # these don't always install properly
+    from nupack import *
+except:
+    pass
+try:
+    from bbdob.utils import idx2one_hot
+    from bbdob import OneMax, TwoMin, FourPeaks, DeceptiveTrap, NKLandscape, WModel
+except:
+    pass
+
 
 '''
 This script computes a binding score for a given sequence or set of sequences
 
 > Inputs: DNA sequence in letter format
 > Outputs: Sequence binding scores
+
 
 To-Do:
 ==> linear expansion

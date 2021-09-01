@@ -1,4 +1,11 @@
 from utils import *
+
+'''# one-off
+directories = ['C:/Users\mikem\Desktop/activeLearningRuns/run1330']
+colors = ['m']
+labels = ['test']
+averaging = False
+'''
 '''
 # sub 101-103 and 201-203 for batch size on Nupack with small and large models
 directories= []
@@ -49,7 +56,7 @@ labels = ['small, small', 'small, med', 'small, large', 'large, small', 'large, 
 averaging = True
 
 '''
-''' # sub 301 and 302 tests for shuffling vs no shuffling
+ # sub 301 and 302 tests for shuffling vs no shuffling
 directories = []
 directories.append([
     'C:/Users\mikem\Desktop/activeLearningRuns/cluster/run210',
@@ -75,15 +82,15 @@ directories.append([
     'C:/Users\mikem\Desktop/activeLearningRuns/cluster/run227',
     'C:/Users\mikem\Desktop/activeLearningRuns/cluster/run228',
     'C:/Users\mikem\Desktop/activeLearningRuns/cluster/run229'
+    ])
 
 colors = ['m','c']
 labels = ['shuffle','no shuffle']
 averaging = True
 
-])
-'''
 
-averaging = True
+
+
 
 for i in range(len(directories)):
     directory = directories[i]
