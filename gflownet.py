@@ -150,9 +150,7 @@ class AptamerSeq:
         """
         Prepares the output of an oracle for GFlowNet.
         """
-        if self.func == 'linear':
-            energies *= 1 # manually set all possible energies to be positive
-        elif self.func == "potts":
+        if self.func == "potts":
             energies *= -1
             energies = np.clip(energies, a_min=0.0, a_max=None)
         elif self.func == "seqfold":
