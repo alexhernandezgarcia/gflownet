@@ -308,31 +308,16 @@ def generateRandomSamples(nSamples, sampleLengthRange, dictSize, oldDatasetPath 
 
     return samples
 
-def runSampling(params, sampler, model, useOracle=False):
+def samples2dict(samples):
     '''
-    run sampling and return key outputs in a dictionary
-    :param sampler:
-    :return:
+    Returns key outputs in a dictionary
     '''
-    sampleOutputs = sampler.sample(model, useOracle=useOracle)
-
-    samples = []
-    scores = []
-    energies = []
-    uncertainties = []
-    for i in range(params.mcmc_num_samplers):
-        samples.extend(sampleOutputs['optimalSamples'][i])
-        scores.extend(sampleOutputs['optima'][i])
-        energies.extend(sampleOutputs['enAtOptima'][i])
-        uncertainties.extend(sampleOutputs['varAtOptima'][i])
-
     outputs = {
-        'samples': np.asarray(samples),
-        'scores': np.asarray(scores),
-        'energies': np.asarray(energies),
-        'uncertainties': np.asarray(uncertainties)
+        'samples': np.concatenate(samples['optimalSamples']),
+        'scores': np.concatenate(samples['optima']),
+        'energies': np.concatenate(samples['enAtOptima']),
+        'uncertainties': np.concatenate(samples['varAtOptima'])
     }
-
     return outputs
 
 def get_n_params(model):
@@ -513,8 +498,11 @@ class resultsPlotter():
         square = int(np.ceil(np.sqrt(nsubplots)))
         plt.subplot(square,square,subplot)
         plt.fill_between(self.xrange, np.amin(self.internalDists, axis=1), np.amax(self.internalDists, axis=1), alpha=0.2, hatch='o', edgecolor=color, facecolor=color, label=label + ' internal dist')
+        plt.plot(self.xrange, np.average(self.internalDists,axis=1), color + '-')
         plt.fill_between(self.xrange, np.amin(self.datasetDists, axis=1), np.amax(self.datasetDists, axis=1), alpha=0.2, hatch='-', edgecolor=color, facecolor=color, label=label + ' dataset dist')
+        plt.plot(self.xrange, np.average(self.datasetDists,axis=1), color + '-')
         plt.fill_between(self.xrange, np.amin(self.randomDists, axis=1), np.amax(self.randomDists, axis=1), alpha=0.2, hatch='/', edgecolor=color, facecolor=color, label=label + ' random dist')
+        plt.plot(self.xrange, np.average(self.randomDists,axis=1), color + '-')
         plt.xlabel('Training Set Size')
         plt.ylabel('Binary Distances')
         plt.legend()

@@ -1,3 +1,4 @@
+from argparse import Namespace
 from models import modelNet
 from querier import *
 from sampler import *
@@ -10,7 +11,7 @@ import glob
 import multiprocessing as mp
 
 
-class activeLearning():
+class ActiveLearning():
     def __init__(self, params):
         self.pipeIter = None
         self.params = params
@@ -25,7 +26,7 @@ class activeLearning():
         move to relevant directory
         :return:
         '''
-        self.oracle = oracle(self.params) # oracle needs to be initialized to initialize toy datasets
+        self.oracle = Oracle(self.params) # oracle needs to be initialized to initialize toy datasets
 
         if (self.params.run_num == 0) or (self.params.explicit_run_enumeration == True): # if making a new workdir
             if self.params.run_num == 0:
@@ -46,7 +47,7 @@ class activeLearning():
             printRecord('Resuming run %d' % self.params.run_num)
 
 
-        self.querier = querier(self.params) # might as well initialize the querier here
+        self.querier = Querier(self.params) # might as well initialize the querier here
 
 
     def makeNewWorkingDirectory(self):    # make working directory
@@ -218,7 +219,7 @@ class activeLearning():
             self.testMinima.append(testMins)
         else:
             del self.model
-            if self.params.device == 'local':
+            if self.params.machine == 'local':
                 nHold = 4
             else:
                 nHold = 1
@@ -280,7 +281,7 @@ class activeLearning():
         '''
         self.loadEstimatorEnsemble()
 
-        numSamples = min(int(1e5), self.params.dict_size ** self.params.max_sample_length // 100) # either 1e5, or 1% of the sample space, whichever is smaller
+        numSamples = min(int(1e4), self.params.dict_size ** self.params.max_sample_length // 100) # either 1e5, or 1% of the sample space, whichever is smaller
         randomData = self.oracle.initializeDataset(save=False, returnData=True, customSize=numSamples) # get large random dataset
         randomSamples = randomData['samples']
         randomScores = randomData['scores']
@@ -320,8 +321,9 @@ class activeLearning():
 
         self.model = 'abc'
         gammas = np.logspace(self.params.stun_min_gamma,self.params.stun_max_gamma,self.params.mcmc_num_samplers)
-        mcmcSampler = sampler(self.params, 0, [1,0], gammas)
-        sampleDict = runSampling(self.params, mcmcSampler, self.model, useOracle=True)
+        mcmcSampler = Sampler(self.params, 0, [1,0], gammas)
+        samples = mcmcSampler.sample(self.model, useOracle=True)
+        sampleDict = samples2dict(samples)
         if self.params.dataset == 'wmodel': # w model minimum is always zero - even if we don't find it
             bestMin = 0
         else:
@@ -339,7 +341,8 @@ class activeLearning():
         :return:
         '''
         outputDict = {}
-        outputDict['params'] = self.params
+        outputDict['params'] = Namespace(**dict(vars(self.params)))
+        del outputDict['params'].comet
         outputDict['state dict record'] = self.stateDictRecord
         if self.params.dataset_type == 'toy':
             outputDict['oracle outputs'] = self.oracleRecord
@@ -347,7 +350,7 @@ class activeLearning():
             outputDict['bottom 10% loss'] = self.bottomTenLoss
             if self.pipeIter > 1:
                 outputDict['cumulative performance'] = self.cumulativeResult
-        np.save('outputsDict',outputDict)
+        np.save('outputsDict', outputDict)
 
 
     def updateDataset(self, oracleSequences, oracleScores):

@@ -3,24 +3,24 @@ import numpy as np
 import scipy.io
 import random
 from seqfold import dg, fold
-from bbdob.utils import idx2one_hot
-from bbdob import OneMax, TwoMin, FourPeaks, DeceptiveTrap, NKLandscape, WModel
-#from nupack import *
 from utils import *
 import sys
+try: # we don't always install these on every platform
+    from nupack import *
+except:
+    pass
+try:
+    from bbdob.utils import idx2one_hot
+    from bbdob import OneMax, TwoMin, FourPeaks, DeceptiveTrap, NKLandscape, WModel
+except:
+    pass
+
 
 '''
 This script computes a binding score for a given sequence or set of sequences
 
-> Inputs: DNA sequence in letter format
-> Outputs: Sequence binding scores
-
-To-Do:
-==> linear expansion
-==> inner product
-==> Potts model
-==> seqfold
-
+> Inputs: numpy integer arrays - different oracles with different requirements
+> Outputs: oracle outputs - usually numbers
 
 params
 'dataset seed' - self explanatory
@@ -31,7 +31,7 @@ params
 '''
 
 
-class oracle():
+class Oracle():
     def __init__(self,params):
         '''
         initialize the oracle
@@ -50,10 +50,11 @@ class oracle():
         '''
         np.random.seed(self.params.toy_oracle_seed)
 
-        if self.params.test_mode:
-            self.linFactors = -np.ones(self.seqLen) # Uber-simple function, for testing purposes - actually nearly functionally identical to one-max, I believe
+        # set these to be always positive to play nice with gFlowNet sampling
+        if True:#self.params.test_mode:
+            self.linFactors = np.ones(self.seqLen) # Uber-simple function, for testing purposes - actually nearly functionally identical to one-max, I believe
         else:
-            self.linFactors = np.random.randn(self.seqLen)  # coefficients for linear toy energy
+            self.linFactors = np.abs(np.random.randn(self.seqLen))  # coefficients for linear toy energy
 
         hamiltonian = np.random.randn(self.seqLen,self.seqLen) # energy function
         self.hamiltonian = np.tril(hamiltonian) + np.tril(hamiltonian, -1).T # random symmetric matrix
@@ -363,7 +364,7 @@ class oracle():
 
 
     def nupackScore(self,queries,returnSS=False,parallel=True):
-        if self.params.device == 'cluster':
+        if self.params.machine == 'cluster':
             #use nupack instead of seqfold - more stable and higher quality predictions in general
             #returns the energy of the most probable structure only
             #:param queries:

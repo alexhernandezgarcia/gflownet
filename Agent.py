@@ -9,8 +9,12 @@ import torch
 import math
 import torch.functional as F
 from utils import *
+<<<<<<< HEAD
 from oracle import oracle
 from replay_buffer import ReplayMemory
+=======
+from oracle import Oracle
+>>>>>>> 2afb7ffe62771abcde38535fcb2be93163c33f7c
 
 
 class DQN:
@@ -40,15 +44,11 @@ class DQN:
         self.params = params
         self.exp_name = 'learned_'
         self.load = False if params.qmodel_preload_path is None else True
-        # TODO align this with the actual model state below
         self.action_state_length = 5 # [energy, variance, 3 distance metrics]
         self.singleton_state_variables = 5 # [test loss, test std, n proxy models, cluster cutoff and elapsed time]
         self.state_dataset_size = int(params.model_state_size * self.action_state_length + self.singleton_state_variables) # This depends on size of dataset V
         self.model_state_latent_dimension = params.querier_latent_space_width # latent dim of model state
-        if params.GPU:
-            self.device = "cuda"
-        else:
-            self.device = "CPU"
+        self.device = params.device
 
         # Magic Hyperparameters for Greedy Sampling in Action Selection
         self.EPS_START = 0.9
@@ -195,7 +195,7 @@ class DQN:
         self.trainingSamples = self.trainingSamples['samples']
         # large random sample
         numSamples = min(int(1e4), self.params.dict_size ** self.params.max_sample_length // 100) # either 1e4, or 1% of the sample space, whichever is smaller
-        dataoracle = oracle(self.params)
+        dataoracle = Oracle(self.params)
         self.randomSamples = dataoracle.initializeDataset(save=False, returnData=True, customSize=numSamples) # get large random dataset
         self.randomSamples = self.randomSamples['samples']
 
@@ -222,6 +222,8 @@ class DQN:
         self.actionState = torch.Tensor(actionState).to(self.device)
         return self.actionState # return action state
 
+    def evaluate(self, sample, output = 'Average'): # just evaluate the proxy
+        return self.proxyModel.evaluate(sample, output = output)
 
     def evaluateQ(self,
                   sample: np.array,
@@ -235,8 +237,6 @@ class DQN:
 
         :return: Action (index of Sequence to Label)
         """
-        # TODO calculate action state from our model
-
         action_state = self.getActionState(sample)
 
         self.policy_net.eval()

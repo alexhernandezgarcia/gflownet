@@ -12,7 +12,7 @@ This script uses Markov Chain Monte Carlo, including the STUN algorithm, to opti
 '''
 
 
-class sampler:
+class Sampler:
     """
     finds optimum values of the function defined by the model
     intrinsically parallel, rather than via multiprocessing
@@ -35,7 +35,7 @@ class sampler:
 
 
         if self.params.dataset_type == 'toy':
-            self.oracle = oracle(self.params)  # if we are using a toy model, initialize the oracle so we can optimize it directly for comparison
+            self.oracle = Oracle(self.params)  # if we are using a toy model, initialize the oracle so we can optimize it directly for comparison
 
         np.random.seed(int(self.params.sampler_seed + int(self.seedInd * 1000))) # initial seed is randomized over pipeline iterations
 
@@ -288,7 +288,7 @@ class sampler:
                 score = - np.array((score[1],score[0]))[:,:,0] # this code is a minimizer so we need to flip the sign of the Q scores
                 energy = [np.zeros_like(score[0]), np.zeros_like(score[1])] # energy and variance are irrelevant here
                 variance = [np.zeros_like(score[0]), np.zeros_like(score[1])]
-            else:
+            else: # manually specify score function
                 r1, r2 = [model.evaluate(np.asarray(config), output='Both'),model.evaluate(np.asarray(propConfig), output='Both')] # two model evaluations, each returning score and variance for a propConfig or config
                 energy = [r2[0], r1[0]]
                 variance = [r2[1], r1[1]]

@@ -47,7 +47,7 @@ class modelNet():
         else:
             print(self.params.proxy_model_type + ' is not one of the available models')
 
-        if self.params.GPU:
+        if self.params.device == 'cuda':
             self.model = self.model.cuda()
         self.optimizer = optim.AdamW(self.model.parameters(), amsgrad=True)
         datasetBuilder = buildDataset(self.params)
@@ -79,7 +79,7 @@ class modelNet():
             self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
             #prev_epoch = checkpoint['epoch']
 
-            if self.params.GPU:
+            if self.params.device == 'cuda':
                 self.model.cuda()  # move net to GPU
                 for state in self.optimizer.state.values():  # move optimizer to GPU
                     for k, v in state.items():
@@ -172,7 +172,7 @@ class modelNet():
         """
         inputs = train_data[0]
         targets = train_data[1]
-        if self.params.GPU:
+        if self.params.device == 'cuda':
             inputs = inputs.cuda()
             targets = targets.cuda()
 
@@ -192,16 +192,16 @@ class modelNet():
 
         if all(np.asarray(self.err_te_hist[-self.params.history+1:])  > self.err_te_hist[-self.params.history]): #
             self.converged = 1
-            printRecord(bcolors.WARNING + "Model converged after {} epochs - test error increasing".format(self.epochs + 1) + bcolors.ENDC)
+            printRecord(bcolors.WARNING + "Model converged after {} epochs - test loss increasing at {:.4f}".format(self.epochs + 1, min(self.err_te_hist)) + bcolors.ENDC)
 
         # check if test loss is unchanging
         if abs(self.err_te_hist[-self.params.history] - np.average(self.err_te_hist[-self.params.history:]))/self.err_te_hist[-self.params.history] < eps:
             self.converged = 1
-            printRecord(bcolors.WARNING + "Model converged after {} epochs - hit test loss convergence criterion".format(self.epochs + 1) + bcolors.ENDC)
+            printRecord(bcolors.WARNING + "Model converged after {} epochs - hit test loss convergence criterion at {:.4f}".format(self.epochs + 1, min(self.err_te_hist)) + bcolors.ENDC)
 
         if self.epochs >= self.params.proxy_max_epochs:
             self.converged = 1
-            printRecord(bcolors.WARNING + "Model converged after {} epochs- epoch limit was hit".format(self.epochs + 1) + bcolors.ENDC)
+            printRecord(bcolors.WARNING + "Model converged after {} epochs- epoch limit was hit with test loss {:.4f}".format(self.epochs + 1, min(self.err_te_hist)) + bcolors.ENDC)
 
 
         #if self.converged == 1:
@@ -217,7 +217,7 @@ class modelNet():
         :param Data: input data
         :return: model scores
         '''
-        if self.params.GPU:
+        if self.params.device == 'cuda':
             Data = torch.Tensor(Data).cuda().float()
         else:
             Data = torch.Tensor(Data).float()
@@ -239,7 +239,7 @@ class modelNet():
         :return:
         '''
         self.model = modelEnsemble(models)
-        if self.params.GPU:
+        if self.params.device == 'cuda':
             self.model = self.model.cuda()
 
 

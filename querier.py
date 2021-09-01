@@ -2,6 +2,7 @@
 import numpy as np
 from sampler import *
 from Agent import DQN
+from gflownet import GFlowNetAgent
 import multiprocessing as mp
 
 '''
@@ -16,9 +17,10 @@ To-Do:
 '''
 
 
-class querier():
+class Querier():
     def __init__(self, params):
         self.params = params
+        self.method = params.sample_method
         if self.params.query_mode == 'learned':
             self.qModel = DQN(self.params) # initialize q-network
 
@@ -35,13 +37,12 @@ class querier():
             '''
             generate query randomly
             '''
-            samples = generateRandomSamples(self.params.queries_per_iter, [self.params.min_sample_length,self.params.max_sample_length], self.params.dict_size, variableLength = self.params.variable_sample_length, oldDatasetPath = 'datasets/' + self.params.dataset + '.npy')
+            query = generateRandomSamples(nQueries, [self.params.min_sample_length,self.params.max_sample_length], self.params.dict_size, variableLength = self.params.variable_sample_length, oldDatasetPath = 'datasets/' + self.params.dataset + '.npy')
 
         else:
             if self.params.query_mode == 'learned':
-                # TODO implement learned model
                 self.qModel.updateModelState(statusDict, model)
-                self.sampleForQuery(self.qModel, statusDict['iter'])
+                self.sampleDict = self.sampleForQuery(self.qModel, statusDict['iter'])
 
             else:
                 '''
@@ -52,7 +53,7 @@ class querier():
                 if self.params.query_mode == 'energy':
                     self.sampleDict = energySampleDict
                 else:
-                    self.sampleForQuery(model, statusDict['iter'])
+                    self.sampleDict = self.sampleForQuery(model, statusDict['iter'])
 
             samples = self.sampleDict['samples']
             scores = self.sampleDict['scores']
@@ -60,30 +61,37 @@ class querier():
             samples, inds = filterDuplicateSamples(samples, oldDatasetPath='datasets/' + self.params.dataset + '.npy', returnInds=True)
             scores = scores[inds]
 
-            # create batch from candidates
+            query = self.constructQuery(samples, scores, uncertainties, nQueries)
+
+        return query
+
+
+    def constructQuery(self, samples, scores, uncertainties, nQueries):
+        # create batch from candidates
+        if self.params.query_selection == 'clustering':
             # agglomerative clustering
             clusters, clusterScores, clusterVars = doAgglomerativeClustering(samples, scores, uncertainties, cutoff=self.params.minima_dist_cutoff)
             clusterSizes, avgClusterScores, minCluster, avgClusterVars, minClusterVars, minClusterSamples = clusterAnalysis(clusters, clusterScores, clusterVars)
             samples = minClusterSamples
+        elif self.params.query_selection == 'cutoff':
+            # build up sufficiently different examples in order of best scores
+            bestInds = sortTopXSamples(samples[np.argsort(scores)], nSamples=len(samples), distCutoff=self.params.minima_dist_cutoff)  # sort out the best, and at least minimally distinctive samples
+            samples = samples[bestInds]
+        elif self.params.query_selection == 'argmin':
+            # just take the bottom x scores
+            samples = samples[np.argsort(scores)]
 
-            # alternatively, simple exclusion
-            #bestInds = sortTopXSamples(samples[np.argsort(scores)], nSamples=len(samples), distCutoff=self.params.minima_dist_cutoff)  # sort out the best, and at least minimally distinctive samples
-            #samples = samples[bestInds]
-
-            # alternatively, just take whatever is given
-            # samples = samples[np.argsort(scores)]
-
-            while len(samples) < nQueries: # if we don't have enough samples from mcmc, add random ones to pad out the
-                randomSamples = generateRandomSamples(1000, [self.params.min_sample_length,self.params.max_sample_length], self.params.dict_size, variableLength = self.params.variable_sample_length, oldDatasetPath = 'datasets/' + self.params.dataset + '.npy')
-                samples = filterDuplicateSamples(np.concatenate((samples,randomSamples),axis=0))
-
+        while len(samples) < nQueries:  # if we don't have enough samples from samplers, add random ones to pad out the query
+            randomSamples = generateRandomSamples(1000, [self.params.min_sample_length, self.params.max_sample_length], self.params.dict_size, variableLength=self.params.variable_sample_length,
+                                                  oldDatasetPath='datasets/' + self.params.dataset + '.npy')
+            samples = filterDuplicateSamples(np.concatenate((samples, randomSamples), axis=0))
 
         return samples[:nQueries]
 
 
     def sampleForQuery(self, model, iterNum):
         '''
-        generate query candidates via MCMC sampling
+        generate query candidates via MCMC or GFlowNet sampling
         automatically filter any duplicates within the sample and the existing dataset
         :return:
         '''
@@ -99,17 +107,34 @@ class querier():
             raise ValueError(self.params.query_mode + 'is not a valid query function!')
 
         # do a single sampling run
-        self.sampleDict = self.runSampling(model, scoreFunction, iterNum)
+        sampleDict = self.runSampling(model, scoreFunction, iterNum)
 
+        return sampleDict
 
     def runSampling(self, model, scoreFunction, seedInd, useOracle=False):
         """
-        run MCMC sampling
+        run MCMC or GFlowNet sampling
         :return:
         """
-        # TODO add gflownet toggle and optional post-sample annealing
-        gammas = np.logspace(self.params.stun_min_gamma, self.params.stun_max_gamma, self.params.mcmc_num_samplers)
-        self.mcmcSampler = sampler(self.params, seedInd, scoreFunction, gammas)
-        outputs = runSampling(self.params, self.mcmcSampler, model, useOracle=useOracle)
+        if self.method.lower() == "mcmc":
+            gammas = np.logspace(self.params.stun_min_gamma, self.params.stun_max_gamma, self.params.mcmc_num_samplers)
+            self.mcmcSampler = Sampler(self.params, seedInd, scoreFunction, gammas)
+            samples = self.mcmcSampler.sample(model, useOracle=useOracle)
+            outputs = samples2dict(samples)
+        elif self.method.lower() == "gflownet":
+            # TODO: instead of initializing gflownet from scratch, we could retrain it?
+            # MK if it's fast, it might be best to train from scratch, since models may drastically change iteration-over-iteration,
+            # and we want the gflownet to represent the current models, in general, though it's not impossible we may want to incorporate
+            # information from prior iterations for some reason
+            # TODO add optional post-sample annealing
+            gflownet = GFlowNetAgent(self.params, proxy=model.evaluate)
+            gflownet.train()
+            outputs = gflownet.sample(
+                    self.params.gflownet_n_samples, self.params.max_sample_length,
+                    self.params.dict_size, model.evaluate
+            )
+            # TODO get scores, energies and uncertainties for outputs dict
+        else:
+            raise NotImplemented("method can be either mcmc or gflownet")
 
         return outputs
