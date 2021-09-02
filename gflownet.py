@@ -1,3 +1,4 @@
+from comet_ml import Experiment
 import argparse
 import copy
 import gzip
@@ -7,6 +8,7 @@ import os
 import pickle
 from collections import defaultdict
 from itertools import count
+from pathlib import Path
 
 import numpy as np
 from scipy.stats import norm
@@ -21,7 +23,6 @@ from oracles import linearToy, toyHamiltonian, PottsEnergy, seqfoldScore, nupack
 parser = argparse.ArgumentParser()
 
 parser.add_argument("--device", default="cpu", type=str)
-parser.add_argument("--save_path", default="results/flow_insp_0.pkl.gz", type=str)
 parser.add_argument("--progress", action="store_true")
 
 #
@@ -381,20 +382,31 @@ class GFlowNetAgent:
         args.device_torch = torch.device(args.device)
         self.device = args.device_torch
         set_device(args.device_torch)
-        self.save_path = args.save_path
         # Model
         self.model = make_mlp(
             [args.horizon * args.nalphabet]
             + [args.n_hid] * args.n_layers
             + [args.nalphabet + 1]
         )
+        if args.model_ckpt:
+            self.model_path = Path(args.workdir) / "ckpts" / args.model_ckpt
+            if self.model_path.exists():
+                self.model.load_state_dict(torch.load(self.model_path))
         self.model.to(args.device_torch)
         self.target = copy.deepcopy(self.model)
         self.tau = args.bootstrap_tau
         self.ema_alpha = 0.5
         self.early_stopping = 0.05
         # Comet
-        self.comet = args.comet
+        if args.comet_project:
+            self.comet = Experiment(
+                project_name=args.comet_project, display_summary_level=0
+            )
+            if args.tags:
+                self.comet.add_tags(args.tags)
+            self.comet.log_parameters(vars(args))
+        else:
+            args.comet = None
         # Environment
         self.env = AptamerSeq(
             args.horizon,
@@ -618,21 +630,9 @@ class GFlowNetAgent:
             else:
                 loss_ema = losses[0]
 
-        # Save model and training variables
-        root = os.path.split(self.save_path)[0]
-        os.makedirs(root, exist_ok=True)
-        pickle.dump(
-            {
-                "losses": np.float32(all_losses),
-                #'model': self.model.to('cpu') if self.model else None,
-                "params": [i.data.to("cpu").numpy() for i in self.parameters()],
-                "visited": [np.int8(seq) for seq in all_visited],
-                "emp_dist_loss": empirical_distrib_losses,
-                "true_d": self.env.true_density()[0],
-            },
-            gzip.open(self.save_path, "wb"),
-        )
-        torch.save(self.model.state_dict(), self.save_path.replace("pkl.gz", "pt"))
+        # Save model
+        if self.model_path:
+            torch.save(self.model.state_dict(), self.model_path)
 
         # Close comet
         if self.comet:
