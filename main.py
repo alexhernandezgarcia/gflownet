@@ -92,6 +92,7 @@ parser.add_argument(
     type=int,
     help="Number of samples used to compute the empirical distribution loss",
 )
+parser.add_argument('--batch_reward', type=bool, default=True) # If True, compute rewards after batch is formed
 parser.add_argument("--bootstrap_tau", default=0.0, type=float)
 parser.add_argument("--clip_grad_norm", default=0.0, type=float)
 parser.add_argument("--comet_project", default=None, type=str)

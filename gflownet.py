@@ -24,6 +24,7 @@ parser = argparse.ArgumentParser()
 
 parser.add_argument("--device", default="cpu", type=str)
 parser.add_argument("--progress", action="store_true")
+parser.add_argument("--model_ckpt", default=None, type=str)
 
 #
 parser.add_argument("--learning_rate", default=1e-4, help="Learning rate", type=float)
@@ -56,9 +57,10 @@ parser.add_argument("--nalphabet", default=4, type=int)
 
 # Flownet
 parser.add_argument("--bootstrap_tau", default=0.0, type=float)
+parser.add_argument('--batch_reward', type=bool, default=False)
 
 # Comet
-parser.add_argument("--comet_project", default="aptamers-al", type=str)
+parser.add_argument("--comet_project", default=None, type=str)
 parser.add_argument(
     "-t", "--tags", nargs="*", help="Comet.ml tags", default=[], type=str
 )
@@ -138,14 +140,21 @@ class AptamerSeq:
         """
         Prepares a sequence in "GFlowNet format" for the oracles.
         """
-        queries = np.array(seq)
+        queries = [s + [-1] * (self.horizon - len(s)) for s in seq]
+        queries = np.array(queries, dtype=int)
         if queries.ndim == 1:
             queries = queries[np.newaxis, ...]
         queries += 1
-        queries = np.concatenate((queries, np.zeros((queries.shape[0], self.horizon - queries.shape[1]))), axis=1)
         if queries.shape[1] == 1:
+            import ipdb; ipdb.set_trace()
             queries = np.column_stack((queries, np.zeros(queries.shape[0])))
         return queries
+
+    def reward_batch(self, seq, done):
+        seq = [s for s, d in zip(seq, done) if d]
+        reward = np.zeros(len(done))
+        reward[list(done)] = self.energy2reward(self.proxy(self.seq2oracle(seq)))
+        return reward
 
     def energy2reward(self, energies, epsilon=1e-9):
         """
@@ -161,8 +170,8 @@ class AptamerSeq:
             energies *= -1
         else:
             pass
-        reward = energies + epsilon
-        return reward[0]
+        rewards = energies + epsilon
+        return rewards
 
     def reward2energy(self, reward, epsilon=1e-9):
         """
@@ -425,6 +434,7 @@ class GFlowNetAgent:
             )
             for _ in range(args.mbsize)
         ]
+        self.batch_reward = args.batch_reward
         # Training
         self.opt = make_opt(self.parameters(), args)
         self.n_train_steps = args.n_train_steps
@@ -438,7 +448,7 @@ class GFlowNetAgent:
     def parameters(self):
         return self.model.parameters()
 
-    def sample_many(self, mbsize):
+    def sample_many(self):
         """
         Builds a mini-batch of data
 
@@ -471,15 +481,32 @@ class GFlowNetAgent:
                         seq = [subseq.cpu().detach().numpy() for subseq in seq]
                 if valid:
                     parents, parents_a = env.parent_transitions(seq, action)
-                    batch.append(
-                        [
-                            tf(parents),
-                            tf(parents_a),
-                            tf([env.reward(seq)]),
-                            tf([env.seq2obs()]),
-                            tf([env.done]),
-                        ]
-                    )
+                    if self.batch_reward:
+                        batch.append(
+                            [
+                                tf(parents),
+                                tf(parents_a),
+                                seq,
+                                tf([env.seq2obs()]),
+                                env.done,
+                            ]
+                        )
+                    else:
+                        batch.append(
+                            [
+                                tf(parents),
+                                tf(parents_a),
+                                tf([env.reward(seq)[0]]),
+                                tf([env.seq2obs()]),
+                                tf([env.done]),
+                            ]
+                        )
+        if self.batch_reward:
+            parents, parents_a, seq, obs, done = zip(*batch)
+            rewards = env.reward_batch(seq, done)
+            rewards = [tf([r]) for r in rewards]
+            done = [tf([d]) for d in done]
+            batch = [parents, parents_a, rewards, obs, done]
         return batch
 
     def learn_from(self, it, batch):
@@ -565,7 +592,7 @@ class GFlowNetAgent:
         for i in tqdm(range(self.n_train_steps + 1)):#, disable=not self.progress):
             data = []
             for j in range(self.sttr):
-                data += self.sample_many(self.mbsize)
+                data += self.sample_many()
             for j in range(self.ttsr):
                 losses = self.learn_from(
                     i * self.ttsr + j, data
