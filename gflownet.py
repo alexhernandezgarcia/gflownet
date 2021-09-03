@@ -123,7 +123,7 @@ class AptamerSeq:
                 "nupack": nupackScore,
             }[self.func]
         self.reward = (
-            lambda x: 0
+            lambda x: [0]
             if not self.done
             else self.energy2reward(self.proxy(self.seq2oracle(x)))
         )
@@ -139,6 +139,11 @@ class AptamerSeq:
     def seq2oracle(self, seq):
         """
         Prepares a sequence in "GFlowNet format" for the oracles.
+
+        Args
+        ----
+        seq : list of lists
+            List of sequences.
         """
         queries = [s + [-1] * (self.horizon - len(s)) for s in seq]
         queries = np.array(queries, dtype=int)
@@ -496,7 +501,7 @@ class GFlowNetAgent:
                             [
                                 tf(parents),
                                 tf(parents_a),
-                                tf([env.reward(seq)[0]]),
+                                tf([env.reward([seq])[0]]),
                                 tf([env.seq2obs()]),
                                 tf([env.done]),
                             ]
@@ -506,7 +511,7 @@ class GFlowNetAgent:
             rewards = env.reward_batch(seq, done)
             rewards = [tf([r]) for r in rewards]
             done = [tf([d]) for d in done]
-            batch = [parents, parents_a, rewards, obs, done]
+            batch = list(zip(parents, parents_a, rewards, obs, done))
         return batch
 
     def learn_from(self, it, batch):
@@ -687,7 +692,7 @@ class GFlowNetAgent:
                 seq, valid = env.step(action)
 
             seq = [s.item() for s in seq]
-            batch[idx, :] = env.seq2oracle(seq)
+            batch[idx, :] = env.seq2oracle([seq])
         energies, uncertainties = env.proxy(batch, 'Both')
         samples = {
                 'samples': batch.astype(np.int64),
