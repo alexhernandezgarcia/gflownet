@@ -402,8 +402,11 @@ class GFlowNetAgent:
             + [args.n_hid] * args.n_layers
             + [args.nalphabet + 1]
         )
-        if args.model_ckpt:
-            self.model_path = Path(args.workdir) / "ckpts" / args.model_ckpt
+        if args.model_ckpt and "workdir" in args:
+            if "workdir" in args:
+                self.model_path = Path(args.workdir) / "ckpts" / args.model_ckpt
+            else:
+                self.model_path = args.model_ckpt
             if self.model_path.exists():
                 self.model.load_state_dict(torch.load(self.model_path))
         self.model.to(args.device_torch)
@@ -420,7 +423,7 @@ class GFlowNetAgent:
                 self.comet.add_tags(args.tags)
             self.comet.log_parameters(vars(args))
         else:
-            args.comet = None
+            self.comet = None
         # Environment
         self.env = AptamerSeq(
             args.horizon,
