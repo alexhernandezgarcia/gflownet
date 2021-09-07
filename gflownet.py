@@ -703,6 +703,8 @@ class GFlowNetAgent:
                 'energies': energies,
                 'uncertainties': uncertainties,
         }
+        # Sanity-check 
+        import ipdb; ipdb.set_trace()
         return samples
 
 

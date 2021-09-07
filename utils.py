@@ -1,7 +1,6 @@
 '''import statement'''
 import numpy as np
 import matplotlib.pyplot as plt
-import argparse
 import os
 import time
 import sklearn.cluster as cluster

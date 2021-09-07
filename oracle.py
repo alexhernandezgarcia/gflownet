@@ -96,7 +96,7 @@ class Oracle():
         :return:
         '''
         data = {}
-        np.random.seed(self.params.init_dataset_seed)
+        np.random.seed(self.params.dataset_seed)
         if customSize is None:
             datasetLength = self.params.init_dataset_length
         else:

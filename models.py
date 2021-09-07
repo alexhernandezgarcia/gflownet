@@ -268,7 +268,7 @@ class buildDataset():
         self.samples = dataset['samples']
         self.targets = dataset['scores']
 
-        self.samples, self.targets = shuffle(self.samples, self.targets, random_state=params.init_dataset_seed)
+        self.samples, self.targets = shuffle(self.samples, self.targets, random_state=params.dataset_seed)
 
     def reshuffle(self, seed=None):
         self.samples, self.targets = shuffle(self.samples, self.targets, random_state=seed)
