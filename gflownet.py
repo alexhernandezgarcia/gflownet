@@ -703,6 +703,13 @@ class GFlowNetAgent:
                 'energies': energies,
                 'uncertainties': uncertainties,
         }
+        # Sanity-check: absolute zero pad
+        zeros = np.where(batch == 0)
+        row_unique, row_unique_idx = np.unique(zeros[0], return_index=True)
+        for row, idx in zip(row_unique, row_unique_idx): 
+            if np.sum(batch[row, zeros[1][idx]:]):
+                print(f"Found sequence with positive values after last 0, row {row}")
+                import ipdb; ipdb.set_trace()
         return samples
 
 
