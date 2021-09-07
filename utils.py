@@ -149,12 +149,12 @@ def resultsAnalysis(outDir):
 
 def binaryDistance(samples, dict_size, pairwise = False, extractInds = None):
     '''
-    compute simple sum of distances between sample vectors
+    compute simple sum of distances between sample vectors: distance = disagreement of allele elements.
     :param samples:
     :return:
     '''
     # determine if all samples have equal length
-
+    '''
     lens = np.array([i.shape[-1] for i in samples])
     if len(np.unique(lens)) > 1: # if there are multiple lengths, we need to pad up to a constant length
         raise ValueError('Attempted to compute binary distances between samples with different lengths!')
@@ -163,20 +163,28 @@ def binaryDistance(samples, dict_size, pairwise = False, extractInds = None):
     elif (len(samples) > 1e3) and (extractInds > 10): # one-hot overhead is worth it for larger samples
         distances = oneHotDistance(samples, dict_size, pairwise=pairwise, extractInds=extractInds)
     else:
-        if extractInds is not None:
-            nOutputs = extractInds
-        else:
-            nOutputs = len(samples)
+    '''
 
-        if pairwise: # compute every pairwise distances
-            distances = np.zeros((nOutputs, nOutputs))
-            for i in range(nOutputs):
-                distances[i, :] = np.sum(samples[i] != samples, axis = 1) / len(samples[i])
-        else: # compute average distance of each sample from all the others
-            distances = np.zeros(nOutputs)
+    if extractInds is not None:
+        nOutputs = extractInds
+    else:
+        nOutputs = len(samples)
+
+    if pairwise:  # compute every pairwise distances
+        distances = np.zeros((nOutputs, nOutputs))
+        for i in range(nOutputs):
+            distances[i, :] = np.sum(samples[i] != samples, axis=1) / len(samples[i])
+    else:  # compute average distance of each sample from all the others
+        distances = np.zeros(nOutputs)
+        if len(samples) == nOutputs:  # compute distance with itself
             for i in range(nOutputs):
                 distances[i] = np.sum(samples[i] != samples) / len(samples.flatten())
-
+            # print('Compared with itelf.')
+        else:  # compute distance from the training set or random set
+            references = samples[nOutputs:]
+            for i in range(nOutputs):
+                distances[i] = np.sum(samples[i] != references) / len(references.flatten())
+            # print('Compared with external reference.')
     return distances
 
 
