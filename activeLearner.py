@@ -64,6 +64,7 @@ class ActiveLearning():
 
             prev_max = max(prev_runs)
             self.workDir = self.params.workdir + '/' + 'run%d' %(prev_max + 1)
+            self.params.workdir = self.workDir
             os.mkdir(self.workDir)
             self.runNum = int(prev_max + 1)
         else:
@@ -342,7 +343,8 @@ class ActiveLearning():
         '''
         outputDict = {}
         outputDict['params'] = Namespace(**dict(vars(self.params)))
-        del outputDict['params'].comet
+        if "comet" in outputDict['params']:
+            del outputDict['params'].comet
         outputDict['state dict record'] = self.stateDictRecord
         if self.params.dataset_type == 'toy':
             outputDict['oracle outputs'] = self.oracleRecord

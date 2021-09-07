@@ -18,13 +18,13 @@ This code implements an active learning protocol for global minimization of some
     -> add option for test mode to slash model size and training epochs
     -> speedup - larger batch sizes / early stopping?
     -> investigate 'invalid action' error
+    -> investigate 'action could not be sampled from model' error
 ==> RL training and testing
 ==> add a function for tracking dataset distances and adjusting the cutoff
 ==> add YAML params
 ==> update and test beluga requirements
 
 low priority /long term
-==> MCMC not always finding lowest minima if it requires a shorter sequence (longer? test)
 ==> consider augment binary distance metric with multi-base motifs - or keep current setup (minimum single mutations)
 ==> check that relevant params (ensemble size) are properly overwritten when picking up old jobs 
 ==> augmentation regularization
@@ -49,18 +49,18 @@ parser.add_argument('--explicit_run_enumeration', type = bool, default = False) 
 parser.add_argument('--workdir', type = str, default = None) # Working directory
 # dataset settings
 parser.add_argument('--dataset_type', type = str, default = 'toy') # Toy oracle is very fast to sample
-parser.add_argument('--dataset', type=str, default='potts')
-parser.add_argument('--init_dataset_length', type = int, default = int(1e4)) # number of items in the initial (toy) dataset
+parser.add_argument('--dataset', type=str, default='linear')
+parser.add_argument('--init_dataset_length', type = int, default = int(1e2)) # number of items in the initial (toy) dataset
 parser.add_argument('--dict_size', type = int, default = 4) # number of possible choices per-state, e.g., [0,1] would be two, [1,2,3,4] (representing ATGC) would be 4 - with variable length, 0's are added for padding
 parser.add_argument('--variable_sample_length', type = bool, default = True) # models will sample within ranges set below
-parser.add_argument('--min_sample_length', type = int, default = 20)
+parser.add_argument('--min_sample_length', type = int, default = 10)
 parser.add_argument('--max_sample_length', type = int, default = 40)
 parser.add_argument('--sample_tasks', type = int, default = 1) # WIP unfinished for multi-task training - how many outputs per oracle? (only nupack currently  setup for > 1 output)
 # AL settings
-parser.add_argument('--sample_method', type=str, default='mcmc') # 'mcmc', 'gflownet'
-parser.add_argument('--query_mode', type=str, default='energy') # 'random', 'energy', 'uncertainty', 'heuristic', 'learned' # different modes for query construction
+parser.add_argument('--sample_method', type=str, default='gflownet') # 'mcmc', 'gflownet'
+parser.add_argument('--query_mode', type=str, default='learned') # 'random', 'energy', 'uncertainty', 'heuristic', 'learned' # different modes for query construction
 parser.add_argument('--test_mode', type = bool, default = False) # if true, automatically set parameters for a quick test run
-parser.add_argument('--pipeline_iterations', type = int, default = 10) # number of cycles with the oracle
+parser.add_argument('--pipeline_iterations', type = int, default = 1) # number of cycles with the oracle
 parser.add_argument('--query_selection', type = str, default = 'clustering') # agglomerative 'clustering', 'cutoff' or strictly 'argmin' based query construction
 parser.add_argument('--minima_dist_cutoff', type = float, default = 0.25) # minimum distance (normalized, binary) between distinct minima or between clusters in agglomerative clustering OR 'cutoff' batch selection
 parser.add_argument('--queries_per_iter', type = int, default = 100) # maximum number of questions we can ask the oracle per cycle
@@ -74,24 +74,25 @@ parser.add_argument('--qmodel_momentum', type = float, default = 0.95) # momentu
 parser.add_argument('--qmodel_preload_path', type = str, default = None) # location of pre-trained qmodel
 parser.add_argument('--querier_latent_space_width', type = int, default = 10)
 # gFlownet settings
-parser.add_argument("--save_path", default="ckpts/flow_insp_0.pkl.gz", type=str)
+parser.add_argument("--model_ckpt", default=None, type=str)
 parser.add_argument("--progress", action="store_true")
 parser.add_argument("--learning_rate", default=1e-4, help="Learning rate", type=float)
 parser.add_argument("--opt", default="adam", type=str)
 parser.add_argument("--adam_beta1", default=0.9, type=float)
 parser.add_argument("--adam_beta2", default=0.999, type=float)
 parser.add_argument("--momentum", default=0.9, type=float)
-parser.add_argument("--mbsize", default=8, help="Minibatch size", type=int)
+parser.add_argument("--mbsize", default=16, help="Minibatch size", type=int)
 parser.add_argument("--train_to_sample_ratio", default=1, type=float)
 parser.add_argument("--n_hid", default=256, type=int)
 parser.add_argument("--n_layers", default=2, type=int)
-parser.add_argument("--n_train_steps", default=1000, type=int) # gflownet training steps
+parser.add_argument("--n_train_steps", default=20000, type=int) # gflownet training steps
 parser.add_argument(
     "--num_empirical_loss",
     default=200000,
     type=int,
     help="Number of samples used to compute the empirical distribution loss",
 )
+parser.add_argument('--batch_reward', type=bool, default=True) # If True, compute rewards after batch is formed
 parser.add_argument("--bootstrap_tau", default=0.0, type=float)
 parser.add_argument("--clip_grad_norm", default=0.0, type=float)
 parser.add_argument("--comet_project", default=None, type=str)
@@ -101,12 +102,12 @@ parser.add_argument(
 # proxy model settings
 parser.add_argument('--proxy_model_type', type = str, default = 'mlp') # type of proxy model - mlp or transformer
 parser.add_argument('--training_parallelism', type = bool, default = False) # fast enough on GPU without paralellism - True doesn't always work on linux
-parser.add_argument('--proxy_model_ensemble_size', type = int, default = 5) # number of models in the ensemble
+parser.add_argument('--proxy_model_ensemble_size', type = int, default = 10) # number of models in the ensemble
 parser.add_argument('--proxy_model_width', type = int, default = 256) # number of neurons per proxy NN layer
 parser.add_argument('--embedding_dim', type = int, default = 256) # embedding dimension for transformer only
-parser.add_argument('--proxy_model_layers', type = int, default = 10) # number of layers in NN proxy models (transformer encoder layers OR MLP layers)
+parser.add_argument('--proxy_model_layers', type = int, default = 2) # number of layers in NN proxy models (transformer encoder layers OR MLP layers)
 parser.add_argument('--proxy_training_batch_size', type = int, default = 10)
-parser.add_argument('--proxy_max_epochs', type = int, default = 50)
+parser.add_argument('--proxy_max_epochs', type = int, default = 200)
 parser.add_argument('--proxy_shuffle_dataset', type = bool, default = True) # give each model in the ensemble a uniquely shuffled dataset
 #sampler settings
 parser.add_argument('--mcmc_sampling_time', type = int, default = int(1e4)) # at least 1e4 is recommended for convergence
@@ -122,16 +123,6 @@ params.model_seed = params.model_seed % 10
 params.init_dataset_seed = params.init_dataset_seed % 10
 params.toy_oracle_seed = params.toy_oracle_seed % 10
 params.sampler_seed = params.sampler_seed % 10
-# Comet
-if params.comet_project:
-    params.comet = Experiment(
-        project_name=params.comet_project, display_summary_level=0
-    )
-    if params.tags:
-        params.comet.add_tags(params.tags)
-    params.comet.log_parameters(vars(params))
-else:
-    params.comet = None
 
 #====================================
 if params.mode == 'evaluation':
@@ -143,7 +134,7 @@ if params.test_mode:
     params.init_dataset_length = 100
     params.queries_per_iter = 100
     params.mcmc_sampling_time = int(1e3)
-    params.mcmc_num_samplers = 10
+    params.mcmc_num_samplers = 2
     params.proxy_model_ensemble_size = 2
     params.proxy_max_epochs = 5
     params.proxy_model_width = 12
