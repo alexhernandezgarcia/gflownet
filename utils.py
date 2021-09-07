@@ -147,20 +147,21 @@ def resultsAnalysis(outDir):
     plt.legend()
 
 
-def binaryDistance(samples, pairwise = False, extractInds = None):
+def binaryDistance(samples, dict_size, pairwise = False, extractInds = None):
     '''
     compute simple sum of distances between sample vectors
     :param samples:
     :return:
     '''
     # determine if all samples have equal length
+
     lens = np.array([i.shape[-1] for i in samples])
     if len(np.unique(lens)) > 1: # if there are multiple lengths, we need to pad up to a constant length
         raise ValueError('Attempted to compute binary distances between samples with different lengths!')
     if (len(samples) > 1e3) and (extractInds is None): # one-hot overhead is worth it for larger samples
-        distances = oneHotDistance(samples, pairwise=pairwise, extractInds=extractInds)
+        distances = oneHotDistance(samples, dict_size, pairwise=pairwise, extractInds=extractInds)
     elif (len(samples) > 1e3) and (extractInds > 10): # one-hot overhead is worth it for larger samples
-        distances = oneHotDistance(samples, pairwise=pairwise, extractInds=extractInds)
+        distances = oneHotDistance(samples, dict_size, pairwise=pairwise, extractInds=extractInds)
     else:
         if extractInds is not None:
             nOutputs = extractInds
@@ -180,7 +181,7 @@ def binaryDistance(samples, pairwise = False, extractInds = None):
 
 
 
-def oneHotDistance(samples, pairwise = False, extractInds = None):
+def oneHotDistance(samples, dict_size, pairwise = False, extractInds = None):
     '''
     find the minimum single mutation distance (normalized) between sequences
     optionally explicitly extract only  the first extractInds sequences distances, with respect to themselves and all others
@@ -190,7 +191,7 @@ def oneHotDistance(samples, pairwise = False, extractInds = None):
     :return:
     '''
     # do one-hot encoding
-    oneHot = np_oneHot(samples, len(np.unique(samples)))
+    oneHot = np_oneHot(samples, int(dict_size + 1)) # assumes dict is 1-N with 0 padding
     oneHot = oneHot.reshape(oneHot.shape[0], int(oneHot.shape[1]*oneHot.shape[2]))
     target = oneHot[:extractInds] # limit the number of samples we are actually interested in
     if target.ndim == 1:
@@ -204,6 +205,7 @@ def oneHotDistance(samples, pairwise = False, extractInds = None):
 
 
 def np_oneHot(samples, uniques):
+    samples = samples.astype(int)
     flatsamples = samples.flatten()
     shape = (flatsamples.size, uniques)
     one_hot = np.zeros(shape)
@@ -335,7 +337,7 @@ def get_n_params(model):
     return pp
 
 
-def doAgglomerativeClustering(samples,energies, uncertainties,cutoff = 0.25):
+def doAgglomerativeClustering(samples,energies, uncertainties, dict_size, cutoff = 0.25):
     '''
     agglomerative clustering and sorting with pairwise binary distance metric
     :param samples:
@@ -343,7 +345,7 @@ def doAgglomerativeClustering(samples,energies, uncertainties,cutoff = 0.25):
     :param cutoff:
     :return:
     '''
-    agglomerate = cluster.AgglomerativeClustering(n_clusters=None, affinity='precomputed', linkage='average', compute_full_tree=True, distance_threshold=cutoff).fit(binaryDistance(samples, pairwise=True))
+    agglomerate = cluster.AgglomerativeClustering(n_clusters=None, affinity='precomputed', linkage='average', compute_full_tree=True, distance_threshold=cutoff).fit(binaryDistance(samples, dict_size, pairwise=True))
     labels = agglomerate.labels_
     nClusters = agglomerate.n_clusters_
     clusters = []

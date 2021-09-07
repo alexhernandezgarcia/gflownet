@@ -146,7 +146,7 @@ class ActiveLearning():
         uncertainties = self.sampleDict['uncertainties']
 
         # agglomerative clustering
-        clusters, clusterEns, clusterVars = doAgglomerativeClustering(samples,energies,uncertainties,cutoff=self.params.minima_dist_cutoff)
+        clusters, clusterEns, clusterVars = doAgglomerativeClustering(samples,energies,uncertainties, self.params.dict_size, cutoff=self.params.minima_dist_cutoff)
         clusterSizes, avgClusterEns, minClusterEns, avgClusterVars, minClusterVars, minClusterSamples = clusterAnalysis(clusters, clusterEns, clusterVars)
 
         #clutering alternative - just include sample-by-sample
@@ -156,7 +156,7 @@ class ActiveLearning():
             minClusterSamples, minClusterEns, minClusterVars = self.addRandomSamples(samples, energies, uncertainties, minClusterSamples, minClusterEns, minClusterVars)
 
         # get distances to relevant datasets
-        internalDist, datasetDist, randomDist = self.getDataDiffs(minClusterSamples[:self.params.model_state_size])
+        internalDist, datasetDist, randomDist = self.getDataDists(minClusterSamples[:self.params.model_state_size])
 
         self.stateDict = {
             'test loss': np.average(self.testMinima), # losses are evaluated on standardized data, so we do not need to re-standardize here
@@ -402,7 +402,7 @@ class ActiveLearning():
         return minClusterSamples, minClusterEns, minClusterVars
 
 
-    def getDataDiffs(self, samples):
+    def getDataDists(self, samples):
         '''
         compute average binary distances between a set of samples and
         1 - itself
@@ -420,9 +420,9 @@ class ActiveLearning():
         randomData = self.oracle.initializeDataset(save=False, returnData=True, customSize=numSamples) # get large random dataset
         randomSamples = randomData['samples']
 
-        internalDist = binaryDistance(samples,pairwise=False,extractInds=len(samples))
-        datasetDist = binaryDistance(np.concatenate((samples, dataset)), pairwise=False, extractInds = len(samples))
-        randomDist = binaryDistance(np.concatenate((samples,randomSamples)), pairwise=False, extractInds=len(samples))
+        internalDist = binaryDistance(samples, self.params.dict_size, pairwise=False,extractInds=len(samples))
+        datasetDist = binaryDistance(np.concatenate((samples, dataset)), self.params.dict_size, pairwise=False, extractInds = len(samples))
+        randomDist = binaryDistance(np.concatenate((samples,randomSamples)), self.params.dict_size, pairwise=False, extractInds=len(samples))
 
         return internalDist, datasetDist, randomDist
 

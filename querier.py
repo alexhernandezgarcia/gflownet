@@ -70,7 +70,7 @@ class Querier():
         # create batch from candidates
         if self.params.query_selection == 'clustering':
             # agglomerative clustering
-            clusters, clusterScores, clusterVars = doAgglomerativeClustering(samples, scores, uncertainties, cutoff=self.params.minima_dist_cutoff)
+            clusters, clusterScores, clusterVars = doAgglomerativeClustering(samples, scores, uncertainties, self.params.dict_size, cutoff=self.params.minima_dist_cutoff)
             clusterSizes, avgClusterScores, minCluster, avgClusterVars, minClusterVars, minClusterSamples = clusterAnalysis(clusters, clusterScores, clusterVars)
             samples = minClusterSamples
         elif self.params.query_selection == 'cutoff':
@@ -127,12 +127,19 @@ class Querier():
             # and we want the gflownet to represent the current models, in general, though it's not impossible we may want to incorporate
             # information from prior iterations for some reason
             # TODO add optional post-sample annealing
-            gflownet = GFlowNetAgent(self.params, proxy=model.evaluate)
+            if model.__class__.__name__ == "modelNet":
+                scorefunc = model.evaluate
+            elif model.__class__.__name__ == 'DQN':
+                scorefunc = model.evaluateQ
+            else:
+                raise ValueError("Not an accepted model type!")
+
+            gflownet = GFlowNetAgent(self.params, proxy=scorefunc) # train according to the scoring function
             gflownet.train()
             outputs = gflownet.sample(
                     self.params.gflownet_n_samples, self.params.max_sample_length,
                     self.params.dict_size, model.evaluate
-            )
+            ) # model.evaluate returns proxy model energy and uncertainty
             # TODO get scores, energies and uncertainties for outputs dict
         else:
             raise NotImplemented("method can be either mcmc or gflownet")

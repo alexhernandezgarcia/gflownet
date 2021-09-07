@@ -7,3 +7,4 @@ old
 *.pyo
 RLAptamer/
 sequenceModel2
+distanceTests.py
