@@ -128,7 +128,10 @@ class Querier():
             # information from prior iterations for some reason
             # TODO add optional post-sample annealing
             gflownet = GFlowNetAgent(self.params, proxy=model.evaluate)
+            t0 = time.time()
             gflownet.train()
+            tf = time.time()
+            printRecord('Training GFlowNet took {} seconds'.format(int(tf-t0)))
             outputs = gflownet.sample(
                     self.params.gflownet_n_samples, self.params.max_sample_length,
                     self.params.dict_size, model.evaluate

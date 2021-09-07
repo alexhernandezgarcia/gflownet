@@ -74,7 +74,7 @@ parser.add_argument('--qmodel_momentum', type = float, default = 0.95) # momentu
 parser.add_argument('--qmodel_preload_path', type = str, default = None) # location of pre-trained qmodel
 parser.add_argument('--querier_latent_space_width', type = int, default = 10)
 # gFlownet settings
-parser.add_argument("--save_path", default="results/flow_insp_0.pkl.gz", type=str)
+parser.add_argument("--model_ckpt", default=None, type=str)
 parser.add_argument("--progress", action="store_true")
 parser.add_argument("--learning_rate", default=1e-4, help="Learning rate", type=float)
 parser.add_argument("--opt", default="adam", type=str)
@@ -92,6 +92,7 @@ parser.add_argument(
     type=int,
     help="Number of samples used to compute the empirical distribution loss",
 )
+parser.add_argument('--batch_reward', type=bool, default=True) # If True, compute rewards after batch is formed
 parser.add_argument("--bootstrap_tau", default=0.0, type=float)
 parser.add_argument("--clip_grad_norm", default=0.0, type=float)
 parser.add_argument("--comet_project", default=None, type=str)
@@ -122,16 +123,6 @@ params.model_seed = params.model_seed % 10
 params.init_dataset_seed = params.init_dataset_seed % 10
 params.toy_oracle_seed = params.toy_oracle_seed % 10
 params.sampler_seed = params.sampler_seed % 10
-# Comet
-if params.comet_project:
-    params.comet = Experiment(
-        project_name=params.comet_project, display_summary_level=0
-    )
-    if params.tags:
-        params.comet.add_tags(params.tags)
-    params.comet.log_parameters(vars(params))
-else:
-    params.comet = None
 
 #====================================
 if params.mode == 'evaluation':
