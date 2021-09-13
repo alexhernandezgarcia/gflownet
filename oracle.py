@@ -364,54 +364,54 @@ class Oracle():
 
 
     def nupackScore(self,queries,returnSS=False,parallel=True):
-        if self.params.machine == 'cluster':
-            #use nupack instead of seqfold - more stable and higher quality predictions in general
-            #returns the energy of the most probable structure only
-            #:param queries:
-            #:param returnSS:
-            #:return:
+        # Nupack requires Linux OS.
+        #use nupack instead of seqfold - more stable and higher quality predictions in general
+        #returns the energy of the most probable structure only
+        #:param queries:
+        #:param returnSS:
+        #:return:
 
-            temperature = 310.0  # Kelvin
-            ionicStrength = 1.0 # molar
-            sequences = self.numbers2letters(queries)
+        temperature = 310.0  # Kelvin
+        ionicStrength = 1.0 # molar
+        sequences = self.numbers2letters(queries)
 
-            energies = np.zeros(len(sequences))
-            strings = []
-            if parallel:
-                # parallel evaluation - fast
-                strandList = []
-                comps = []
-                i = -1
-                for sequence in sequences:
-                    i += 1
-                    strandList.append(Strand(sequence, name='strand{}'.format(i)))
-                    comps.append(Complex([strandList[-1]], name='comp{}'.format(i)))
+        energies = np.zeros(len(sequences))
+        strings = []
+        if parallel:
+            # parallel evaluation - fast
+            strandList = []
+            comps = []
+            i = -1
+            for sequence in sequences:
+                i += 1
+                strandList.append(Strand(sequence, name='strand{}'.format(i)))
+                comps.append(Complex([strandList[-1]], name='comp{}'.format(i)))
 
-                set = ComplexSet(strands=strandList, complexes=SetSpec(max_size=1, include=comps))
+            set = ComplexSet(strands=strandList, complexes=SetSpec(max_size=1, include=comps))
+            model1 = Model(material='dna', celsius=temperature - 273, sodium=ionicStrength)
+            results = complex_analysis(set, model=model1, compute=['mfe'])
+            for i in range(len(energies)):
+                energies[i] = results[comps[i]].mfe[0].energy
+
+                if returnSS:
+                    strings.append(str(results[comps[i]].mfe[0].structure))
+
+        else:
+            i = -1
+            for sequence in sequences:
+                i += 1
+                A = Strand(sequence, name='A')
+                comp = Complex([A], name='AA')
+                set1 = ComplexSet(strands=[A], complexes=SetSpec(max_size=1, include=[comp]))
                 model1 = Model(material='dna', celsius=temperature - 273, sodium=ionicStrength)
-                results = complex_analysis(set, model=model1, compute=['mfe'])
-                for i in range(len(energies)):
-                    energies[i] = results[comps[i]].mfe[0].energy
+                results = complex_analysis(set1, model=model1, compute=['mfe'])
+                cout = results[comp]
 
-                    if returnSS:
-                        strings.append(str(results[comps[i]].mfe[0].structure))
+                energies[i] = cout.mfe[0].energy
+                if returnSS:
+                    strings.append(cout.mfe[0].structure)
 
-            else:
-                i = -1
-                for sequence in sequences:
-                    i += 1
-                    A = Strand(sequence, name='A')
-                    comp = Complex([A], name='AA')
-                    set1 = ComplexSet(strands=[A], complexes=SetSpec(max_size=1, include=[comp]))
-                    model1 = Model(material='dna', celsius=temperature - 273, sodium=ionicStrength)
-                    results = complex_analysis(set1, model=model1, compute=['mfe'])
-                    cout = results[comp]
-
-                    energies[i] = cout.mfe[0].energy
-                    if returnSS:
-                        strings.append(cout.mfe[0].structure)
-
-            if returnSS:
-                return energies, strings
-            else:
-                return energies
+        if returnSS:
+            return energies, strings
+        else:
+            return energies
