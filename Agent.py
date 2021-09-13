@@ -9,12 +9,8 @@ import torch
 import math
 import torch.functional as F
 from utils import *
-<<<<<<< HEAD
-from oracle import oracle
 from replay_buffer import ReplayMemory
-=======
 from oracle import Oracle
->>>>>>> 2afb7ffe62771abcde38535fcb2be93163c33f7c
 
 
 class DQN:
@@ -272,20 +268,24 @@ class DQN:
         for ep in range(dqn_epochs):
             self.optimizer.zero_grad()
             transitions = memory_batch.sample(BATCH_SIZE)
-            expected_q_values = []
             for transition in transitions:
                 # Get Target q-value function value for the action at s_t+1
                 # that yields the highest discounted return
-                action_i = self.select_action(
-                    transition.next_model_state, transition.next_action_state, test=False
-                )
-                max_next_q_value = self.target_net(
-                    transition.model_state.detach(), transition.action_state[action_i].detach()
+                with torch.no_grad():
+                    # Get Q-values for every action
+                    q_val_ = [
+                        self.target_net(transition.next_model_state.detach(), action_i_state.detach()) for action_i_state in transition.next_action_state
+                    ]
+
+                    action_i = torch.argmax(torch.stack(q_val_))
+
+                max_next_q_value = self.policy_net(
+                    transition.next_model_state.detach(), transition.next_action_state[action_i].detach()
                 )
 
                 # Get Predicted Q-values at s_t
                 online_q_values = self.policy_net(
-                    transition.model_state.detach(), transition.action_state[action_i].detach()
+                    transition.model_state.detach(), transition.action_state[action_taken].detach()
                 )
                 # Compute the Target Q values (No future return if terminal).
                 # Use Bellman Equation which essentially states that sum of r_t+1 and the max_q_value at time t+1
