@@ -754,10 +754,10 @@ def make_opt(params, args):
         return None
     if args.opt == "adam":
         opt = torch.optim.Adam(
-            params, args.learning_rate, betas=(args.adam_beta1, args.adam_beta2)
+            params, args.gflownet.learning_rate, betas=(args.adam_beta1, args.adam_beta2)
         )
     elif args.opt == "msgd":
-        opt = torch.optim.SGD(params, args.learning_rate, momentum=args.momentum)
+        opt = torch.optim.SGD(params, args.gflownet.learning_rate, momentum=args.momentum)
     return opt
 
 
