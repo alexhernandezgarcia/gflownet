@@ -419,8 +419,8 @@ class GFlowNetAgent:
             self.comet = Experiment(
                 project_name=args.gflownet.comet.project, display_summary_level=0
             )
-            if args.tags:
-                self.comet.add_tags(args.tags)
+            if args.gflownet.comet.tags:
+                self.comet.add_tags(args.gflownet.comet.tags)
             self.comet.log_parameters(vars(args))
         else:
             self.comet = None
