@@ -105,7 +105,7 @@ class Oracle():
         if self.config.dataset.variable_length:
             samples = []
             while len(samples) < datasetLength:
-                for i in range(self.params.min_sample_length, self.params.max_sample_length + 1):
+                for i in range(self.config.dataset.min_length, self.params.max_sample_length + 1):
                     samples.extend(np.random.randint(0 + 1, self.config.dataset.dict_size + 1, size=(int(100 * self.config.dataset.dict_size * i), i)))
 
                 samples = self.numpy_fillna(np.asarray(samples, dtype = object)) # pad sequences up to maximum length
