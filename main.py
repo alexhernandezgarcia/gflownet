@@ -280,34 +280,34 @@ def add_args(parser):
         {"querier_latent_space_width": ["querier", "latent_space_width"]}
     )
     # GFlowNet
-    parser.add_argument("--model_ckpt", default=None, type=str)
-    args2config.update({"model_ckpt": ["gflownet" "model_ckpt"]})
-    parser.add_argument("--progress", action="store_true")
-    args2config.update({"progress": ["gflownet", "progress"]})
+    parser.add_argument("--gflownet_model_ckpt", default=None, type=str)
+    args2config.update({"gflownet_model_ckpt": ["gflownet" "model_ckpt"]})
+    parser.add_argument("--gflownet_progress", action="store_true")
+    args2config.update({"gflownet_progress": ["gflownet", "progress"]})
     parser.add_argument(
-        "--learning_rate", default=1e-4, help="Learning rate", type=float
+        "--gflownet_learning_rate", default=1e-4, help="Learning rate", type=float
     )
-    args2config.update({"learning_rate": ["gflownet", "learning_rate"]})
-    parser.add_argument("--opt", default="adam", type=str)
-    args2config.update({"opt": ["gflownet", "opt"]})
+    args2config.update({"gflownet_learning_rate": ["gflownet", "learning_rate"]})
+    parser.add_argument("--gflownet_opt", default="adam", type=str)
+    args2config.update({"gflownet_opt": ["gflownet", "opt"]})
     parser.add_argument("--adam_beta1", default=0.9, type=float)
     args2config.update({"adam_beta1": ["gflownet", "adam_beta1"]})
     parser.add_argument("--adam_beta2", default=0.999, type=float)
     args2config.update({"adam_beta2": ["gflownet", "adam_beta2"]})
-    parser.add_argument("--momentum", default=0.9, type=float)
-    args2config.update({"momentum": ["gflownet", "momentum"]})
-    parser.add_argument("--mbsize", default=16, help="Minibatch size", type=int)
-    args2config.update({"mbsize": ["gflownet", "mbsize"]})
+    parser.add_argument("--gflownet_momentum", default=0.9, type=float)
+    args2config.update({"gflownet_momentum": ["gflownet", "momentum"]})
+    parser.add_argument("--gflownet_mbsize", default=16, help="Minibatch size", type=int)
+    args2config.update({"gflownet_mbsize": ["gflownet", "mbsize"]})
     parser.add_argument("--train_to_sample_ratio", default=1, type=float)
     args2config.update({"train_to_sample_ratio": ["gflownet", "train_to_sample_ratio"]})
-    parser.add_argument("--n_hid", default=256, type=int)
-    args2config.update({"n_hid": ["gflownet", "n_hid"]})
-    parser.add_argument("--n_layers", default=2, type=int)
-    args2config.update({"n_layers": ["gflownet", "n_layers"]})
+    parser.add_argument("--gflownet_n_hid", default=256, type=int)
+    args2config.update({"gflownet_n_hid": ["gflownet", "n_hid"]})
+    parser.add_argument("--gflownet_n_layers", default=2, type=int)
+    args2config.update({"gflownet_n_layers": ["gflownet", "n_layers"]})
     parser.add_argument(
-        "--n_train_steps", default=20000, type=int, help="gflownet training steps"
+        "--gflownet_n_iter", default=20000, type=int, help="gflownet training steps"
     )
-    args2config.update({"n_train_steps": ["gflownet", "n_iter"]})
+    args2config.update({"gflownet_n_iter": ["gflownet", "n_iter"]})
     parser.add_argument(
         "--num_empirical_loss",
         default=200000,
