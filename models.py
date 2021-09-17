@@ -40,12 +40,12 @@ class modelNet():
         Initialize model and optimizer
         :return:
         '''
-        if self.params.proxy_model_type == 'transformer': # switch to variable-length sequence model
+        if self.config.proxy.model_type == 'transformer': # switch to variable-length sequence model
             self.model = transformer(self.params)
-        elif self.params.proxy_model_type == 'mlp':
+        elif self.config.proxy.model_type == 'mlp':
             self.model = MLP(self.params)
         else:
-            print(self.params.proxy_model_type + ' is not one of the available models')
+            print(self.config.proxy.model_type + ' is not one of the available models')
 
         if self.config.device == 'cuda':
             self.model = self.model.cuda()
