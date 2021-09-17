@@ -440,13 +440,13 @@ class GFlowNetAgent:
                 proxy=proxy,
                 allow_backward=False,
             )
-            for _ in range(args.mbsize)
+            for _ in range(args.gflownet.mbsize)
         ]
         self.batch_reward = args.batch_reward
         # Training
         self.opt = make_opt(self.parameters(), args)
         self.n_train_steps = args.n_train_steps
-        self.mbsize = args.mbsize
+        self.mbsize = args.gflownet.mbsize
         self.gflownet.progress = args.gflownet.progress
         self.clip_grad_norm = args.clip_grad_norm
         self.num_empirical_loss = args.num_empirical_loss
@@ -711,7 +711,7 @@ class GFlowNetAgent:
 
 class RandomTrajAgent:
     def __init__(self, args, envs):
-        self.mbsize = args.mbsize  # mini-batch size
+        self.mbsize = args.gflownet.mbsize  # mini-batch size
         self.envs = envs
         self.nact = args.ndim + 1
         self.model = None
