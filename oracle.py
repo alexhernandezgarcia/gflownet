@@ -48,7 +48,7 @@ class Oracle():
         initialize random numbers for custom-made toy functions
         :return:
         '''
-        np.random.seed(self.params.toy_oracle_seed)
+        np.random.seed(self.config.seeds.toy_oracle)
 
         # set these to be always positive to play nice with gFlowNet sampling
         if True:#self.config.test_mode:
