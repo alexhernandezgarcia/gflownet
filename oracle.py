@@ -75,7 +75,7 @@ class Oracle():
         # W-model parameters
         # first get the binary dimension size
         aa = np.arange(self.config.dataset.dict_size)
-        if self.params.variable_sample_length:
+        if self.config.dataset.variable_length:
             aa = np.clip(aa, 1, self.config.dataset.dict_size) #  merge padding with class 1
         x0 = np.binary_repr(aa[-1])
         dimension = int(len(x0) * self.params.max_sample_length)
@@ -102,7 +102,7 @@ class Oracle():
         else:
             datasetLength = customSize
 
-        if self.params.variable_sample_length:
+        if self.config.dataset.variable_length:
             samples = []
             while len(samples) < datasetLength:
                 for i in range(self.params.min_sample_length, self.params.max_sample_length + 1):
@@ -173,7 +173,7 @@ class Oracle():
         :param queries:
         :return:
         '''
-        if self.params.variable_sample_length:
+        if self.config.dataset.variable_length:
             queries = np.clip(queries, 1, self.config.dataset.dict_size) #  merge padding with class 1
 
         x0 = [np.binary_repr((queries[i][j] - 1).astype('uint8'),width=2) for i in range(len(queries)) for j in range(self.params.max_sample_length)] # convert to binary

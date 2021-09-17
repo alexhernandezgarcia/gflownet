@@ -67,7 +67,7 @@ class Sampler:
         :return:
         '''
 
-        if self.params.variable_sample_length:
+        if self.config.dataset.variable_length:
             randChainLen = np.random.randint(self.params.min_sample_length,self.params.max_sample_length)
             randConfig = np.random.randint(1, self.config.dataset.dict_size + 1, size = (1, randChainLen))
             if randChainLen < self.params.max_sample_length: # add zero padding, if necessary
@@ -192,7 +192,7 @@ class Sampler:
             self.propConfig[i, self.pickSpinRandint[i,ind]] = self.spinRandints[i,ind]
 
             # propose changing sequence length
-            if self.params.variable_sample_length:
+            if self.config.dataset.variable_length:
                 if self.changeLengthRandints[i,ind] == 0:  # do nothing
                     pass
                 else:

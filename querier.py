@@ -37,7 +37,7 @@ class Querier():
             '''
             generate query randomly
             '''
-            query = generateRandomSamples(nQueries, [self.params.min_sample_length,self.params.max_sample_length], self.config.dataset.dict_size, variableLength = self.params.variable_sample_length, oldDatasetPath = 'datasets/' + self.config.dataset.oracle + '.npy')
+            query = generateRandomSamples(nQueries, [self.params.min_sample_length,self.params.max_sample_length], self.config.dataset.dict_size, variableLength = self.config.dataset.variable_length, oldDatasetPath = 'datasets/' + self.config.dataset.oracle + '.npy')
 
         else:
             if self.params.query_mode == 'learned':
@@ -82,7 +82,7 @@ class Querier():
             samples = samples[np.argsort(scores)]
 
         while len(samples) < nQueries:  # if we don't have enough samples from samplers, add random ones to pad out the query
-            randomSamples = generateRandomSamples(1000, [self.params.min_sample_length, self.params.max_sample_length], self.config.dataset.dict_size, variableLength=self.params.variable_sample_length,
+            randomSamples = generateRandomSamples(1000, [self.params.min_sample_length, self.params.max_sample_length], self.config.dataset.dict_size, variableLength=self.config.dataset.variable_length,
                                                   oldDatasetPath='datasets/' + self.config.dataset.oracle + '.npy')
             samples = filterDuplicateSamples(np.concatenate((samples, randomSamples), axis=0))
 
