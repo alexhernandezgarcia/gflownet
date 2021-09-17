@@ -447,7 +447,7 @@ class GFlowNetAgent:
         self.opt = make_opt(self.parameters(), args)
         self.n_train_steps = args.n_train_steps
         self.mbsize = args.mbsize
-        self.progress = args.progress
+        self.gflownet.progress = args.gflownet.progress
         self.clip_grad_norm = args.clip_grad_norm
         self.num_empirical_loss = args.num_empirical_loss
         self.ttsr = max(int(args.train_to_sample_ratio), 1)
@@ -597,7 +597,7 @@ class GFlowNetAgent:
         loss_ema = -1.0
 
         # Train loop
-        for i in tqdm(range(self.n_train_steps + 1)):#, disable=not self.progress):
+        for i in tqdm(range(self.n_train_steps + 1)):#, disable=not self.gflownet.progress):
             data = []
             for j in range(self.sttr):
                 data += self.sample_many()
@@ -632,7 +632,7 @@ class GFlowNetAgent:
                         self.env, all_visited[-self.num_empirical_loss :]
                     )
                 )
-                if self.progress:
+                if self.gflownet.progress:
                     k1, kl = empirical_distrib_losses[-1]
                     print("Empirical L1 distance", k1, "KL", kl)
                     if len(all_losses):
