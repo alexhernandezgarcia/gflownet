@@ -32,7 +32,7 @@ class ActiveLearning():
             if self.config.run_num == 0:
                 self.makeNewWorkingDirectory()
             else:
-                self.workDir = self.params.workdir + '/run%d'%self.config.run_num # explicitly enumerate the new run directory
+                self.workDir = self.config.workdir + '/run%d'%self.config.run_num # explicitly enumerate the new run directory
                 os.mkdir(self.workDir)
 
             os.mkdir(self.workDir + '/ckpts')
@@ -42,7 +42,7 @@ class ActiveLearning():
             self.oracle.initializeDataset() # generate toy model dataset
         else:
             # move to working dir
-            self.workDir = self.params.workdir + '/' + 'run%d' %self.config.run_num
+            self.workDir = self.config.workdir + '/' + 'run%d' %self.config.run_num
             os.chdir(self.workDir)
             printRecord('Resuming run %d' % self.config.run_num)
 
@@ -56,19 +56,19 @@ class ActiveLearning():
         non-overlapping previous entries
         :return:
         '''
-        workdirs = glob.glob(self.params.workdir + '/' + 'run*') # check for prior working directories
+        workdirs = glob.glob(self.config.workdir + '/' + 'run*') # check for prior working directories
         if len(workdirs) > 0:
             prev_runs = []
             for i in range(len(workdirs)):
                 prev_runs.append(int(workdirs[i].split('run')[-1]))
 
             prev_max = max(prev_runs)
-            self.workDir = self.params.workdir + '/' + 'run%d' %(prev_max + 1)
-            self.params.workdir = self.workDir
+            self.workDir = self.config.workdir + '/' + 'run%d' %(prev_max + 1)
+            self.config.workdir = self.workDir
             os.mkdir(self.workDir)
             self.runNum = int(prev_max + 1)
         else:
-            self.workDir = self.params.workdir + '/' + 'run1'
+            self.workDir = self.config.workdir + '/' + 'run1'
             os.mkdir(self.workDir)
 
 
