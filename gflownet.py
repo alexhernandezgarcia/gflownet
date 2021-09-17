@@ -757,7 +757,7 @@ def make_opt(params, args):
             params, args.gflownet.learning_rate, betas=(args.gflownet.adam_beta1, args.gflownet.adam_beta2)
         )
     elif args.gflownet.opt == "msgd":
-        opt = torch.optim.SGD(params, args.gflownet.learning_rate, momentum=args.momentum)
+        opt = torch.optim.SGD(params, args.gflownet.learning_rate, momentum=args.gflownet.momentum)
     return opt
 
 
