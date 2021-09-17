@@ -107,18 +107,18 @@ def add_args(parser):
     # General
     parser.add_argument(
         "--test_mode",
-        type=bool,
+        action="store_true",
         default=False,
-        help="If true, set parameters for a quick test run",
+        help="Set parameters for a quick test run",
     )
     args2config.update({"test_mode": ["test_mode"]})
-    parser.add_argument("--debug", type=bool, default=False)
+    parser.add_argument("--debug", action="store_true", default=False)
     args2config.update({"debug": ["debug"]})
     parser.add_argument("--run_num", type=int, default=0, help="Experiment ID")
     args2config.update({"run_num": ["run_num"]})
     parser.add_argument(
         "--explicit_run_enumeration",
-        type=bool,
+        action="store_true",
         default=False,
         help="If True, the next run be fresh, in directory 'run%d'%run_num; if False, regular behaviour. Note: only use this on fresh runs",
     )
@@ -188,8 +188,9 @@ def add_args(parser):
     )
     args2config.update({"dict_size": ["dataset", "dict_size"]})
     parser.add_argument(
-        "--variable_sample_length",
-        type=bool,
+        "--fixed_sample_length",
+        dest="variable_sample_length",
+        action="store_false",
         default=True,
         help="models will sample within ranges set below",
     )
@@ -316,8 +317,9 @@ def add_args(parser):
     )
     args2config.update({"num_empirical_loss": ["gflownet", "num_empirical_loss"]})
     parser.add_argument(
-        "--batch_reward",
-        type=bool,
+        "--no_batch_reward",
+        dest="bath_reward",
+        action="store_false",
         default=True,
         help="If True, compute rewards after batch is formed",
     )
@@ -349,7 +351,7 @@ def add_args(parser):
     args2config.update({"proxy_model_type": ["proxy", "model_type"]})
     parser.add_argument(
         "--training_parallelism",
-        type=bool,
+        action="store_true",
         default=False,
         help="fast enough on GPU without paralellism - True doesn't always work on linux",
     )
@@ -387,8 +389,9 @@ def add_args(parser):
     parser.add_argument("--proxy_max_epochs", type=int, default=200)
     args2config.update({"proxy_max_epochs": ["proxy", "max_epochs"]})
     parser.add_argument(
-        "--proxy_shuffle_dataset",
-        type=bool,
+        "--proxy_no_shuffle_dataset",
+        dest="proxy_shuffle_dataset",
+        action="store_false",
         default=True,
         help="give each model in the ensemble a uniquely shuffled dataset",
     )
