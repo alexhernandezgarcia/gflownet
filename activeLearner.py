@@ -100,7 +100,7 @@ class ActiveLearning():
         '''
 
         t0 = time.time()
-        self.retrainModels(parallel=self.params.training_parallelism)
+        self.retrainModels(parallel=self.config.proxy.training_parallelism)
         tf = time.time()
         printRecord('Retraining took {} seconds'.format(int(tf-t0)))
 
