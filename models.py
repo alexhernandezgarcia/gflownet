@@ -316,7 +316,7 @@ def getDataloaders(params, ensembleIndex): # get the dataloaders, to load the da
 
 
 def getDataSize(params):
-    dataset = np.load('datasets/' + params.dataset + '.npy', allow_pickle=True)
+    dataset = np.load('datasets/' + config.dataset.oracle + '.npy', allow_pickle=True)
     dataset = dataset.item()
     samples = dataset['samples']
 

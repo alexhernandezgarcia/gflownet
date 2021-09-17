@@ -152,18 +152,18 @@ class Oracle():
 
 
     def getScore(self,queries):
-        if self.params.dataset == 'linear':
+        if self.config.dataset.oracle == 'linear':
             return self.linearToy(queries)
-        elif self.params.dataset == 'potts':
+        elif self.config.dataset.oracle == 'potts':
             return self.PottsEnergy(queries)
-        elif self.params.dataset == 'inner product':
+        elif self.config.dataset.oracle == 'inner product':
             return self.toyHamiltonian(queries)
-        elif self.params.dataset == 'seqfold':
+        elif self.config.dataset.oracle == 'seqfold':
             return self.seqfoldScore(queries)
-        elif self.params.dataset == 'nupack':
+        elif self.config.dataset.oracle == 'nupack':
             return self.nupackScore(queries)
-        elif (self.params.dataset == 'onemax') or (self.params.dataset == 'twomin') or (self.params.dataset == 'fourpeaks')\
-                or (self.params.dataset == 'deceptivetrap') or (self.params.dataset == 'nklandscape') or (self.params.dataset == 'wmodel'):
+        elif (self.config.dataset.oracle == 'onemax') or (self.config.dataset.oracle == 'twomin') or (self.config.dataset.oracle == 'fourpeaks')\
+                or (self.config.dataset.oracle == 'deceptivetrap') or (self.config.dataset.oracle == 'nklandscape') or (self.config.dataset.oracle == 'wmodel'):
             return self.BB_DOB_functions(queries)
 
 
@@ -195,20 +195,20 @@ class Oracle():
 
 
     def getObjective(self, dimension):
-        if self.params.dataset == 'onemax': # very limited in our DNA one-hot encoding
+        if self.config.dataset.oracle == 'onemax': # very limited in our DNA one-hot encoding
             objective = OneMax(dimension)
-        elif self.params.dataset == 'twomin':
+        elif self.config.dataset.oracle == 'twomin':
             objective = TwoMin(dimension)
-        elif self.params.dataset == 'fourpeaks': # very limited in our DNA one-hot encoding
+        elif self.config.dataset.oracle == 'fourpeaks': # very limited in our DNA one-hot encoding
             objective = FourPeaks(dimension, t=3)
-        elif self.params.dataset == 'deceptivetrap':
+        elif self.config.dataset.oracle == 'deceptivetrap':
             objective = DeceptiveTrap(dimension, minimize=True)
-        elif self.params.dataset == 'nklandscape':
+        elif self.config.dataset.oracle == 'nklandscape':
             objective = NKLandscape(dimension, minimize=True)
-        elif self.params.dataset == 'wmodel':
+        elif self.config.dataset.oracle == 'wmodel':
             objective = WModel(dimension, mu=self.mu, v=self.v, m = self.m, n = self.n, gamma = self.gamma, minimize=True)
         else:
-            printRecord(self.params.dataset + ' is not a valid dataset!')
+            printRecord(self.config.dataset.oracle + ' is not a valid dataset!')
             sys.exit()
 
         return objective

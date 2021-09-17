@@ -325,7 +325,7 @@ class ActiveLearning():
         mcmcSampler = Sampler(self.params, 0, [1,0], gammas)
         samples = mcmcSampler.sample(self.model, useOracle=True)
         sampleDict = samples2dict(samples)
-        if self.params.dataset == 'wmodel': # w model minimum is always zero - even if we don't find it
+        if self.config.dataset.oracle == 'wmodel': # w model minimum is always zero - even if we don't find it
             bestMin = 0
         else:
             bestMin = np.amin(sampleDict['energies'])
@@ -363,7 +363,7 @@ class ActiveLearning():
         :param oracleScores: scores of sequences sent to oracle
         :return: n/a
         '''
-        dataset = np.load('datasets/' + self.params.dataset + '.npy', allow_pickle=True).item()
+        dataset = np.load('datasets/' + self.config.dataset.oracle + '.npy', allow_pickle=True).item()
         # TODO separate between scores and q-scores
         dataset['samples'] = np.concatenate((dataset['samples'], oracleSequences))
         dataset['scores'] = np.concatenate((dataset['scores'], oracleScores))
@@ -381,7 +381,7 @@ class ActiveLearning():
         :return:
         '''
         truncationFactor = 0.1 # cut off x% of the furthest outliers
-        dataset = np.load('datasets/' + self.params.dataset + '.npy', allow_pickle=True).item()
+        dataset = np.load('datasets/' + self.config.dataset.oracle + '.npy', allow_pickle=True).item()
 
         scores = dataset['scores']
         d1 = [np.sum(np.abs(scores[i] - scores)) for i in range(len(scores))]
@@ -414,7 +414,7 @@ class ActiveLearning():
         :return:
         '''
         # training dataset
-        dataset = np.load('datasets/' + self.params.dataset + '.npy', allow_pickle=True).item()
+        dataset = np.load('datasets/' + self.config.dataset.oracle + '.npy', allow_pickle=True).item()
         dataset = dataset['samples']
 
         # large, random sample

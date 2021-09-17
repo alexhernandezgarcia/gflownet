@@ -182,7 +182,7 @@ class DQN:
         # model state samples
         self.modelStateSamples = model_state_dict['best cluster samples']
         # training dataset
-        self.trainingSamples = np.load('datasets/' + self.params.dataset + '.npy', allow_pickle=True).item()
+        self.trainingSamples = np.load('datasets/' + self.config.dataset.oracle + '.npy', allow_pickle=True).item()
         self.trainingSamples = self.trainingSamples['samples']
         # large random sample
         numSamples = min(int(1e4), self.params.dict_size ** self.params.max_sample_length // 100) # either 1e4, or 1% of the sample space, whichever is smaller
