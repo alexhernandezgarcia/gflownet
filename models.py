@@ -30,7 +30,7 @@ class modelNet():
     def __init__(self, config, ensembleIndex):
         self.config = config
         self.ensembleIndex = ensembleIndex
-        self.config.history = min(20, self.config.proxy_max_epochs) # length of past to check
+        self.config.history = min(20, self.config.proxy.max_epochs) # length of past to check
         self.initModel()
         torch.random.manual_seed(int(config.seeds.model + ensembleIndex))
 
@@ -263,7 +263,7 @@ class buildDataset():
     build dataset object
     '''
     def __init__(self, config):
-        dataset = np.load('datasets/' + config.dataset+'.npy', allow_pickle=True)
+        dataset = np.load('datasets/' + config.dataset.oracle + '.npy', allow_pickle=True)
         dataset = dataset.item()
         self.samples = dataset['samples']
         self.targets = dataset['scores']

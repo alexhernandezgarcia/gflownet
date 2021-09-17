@@ -125,7 +125,7 @@ class Oracle():
         data['scores'] = self.score(data['samples'])
 
         if save:
-            np.save('datasets/' + self.config.dataset, data)
+            np.save('datasets/' + self.config.dataset.oracle, data)
         if returnData:
             return data
 

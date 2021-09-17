@@ -393,14 +393,14 @@ def make_mlp(layers_dim, act=nn.LeakyReLU(), tail=[]):
 class GFlowNetAgent:
     def __init__(self, args, proxy=None):
         # Misc
-        args.device_torch = torch.device(args.device)
-        self.device = args.device_torch
-        set_device(args.device_torch)
+        self.device_torch = torch.device(args.device)
+        self.device = self.device_torch
+        set_device(self.device_torch)
         # Model
         self.model = make_mlp(
-            [args.horizon * args.nalphabet]
+            [args.gflownet.horizon * args.gflownet.nalphabet]
             + [args.gflownet.n_hid] * args.gflownet.n_layers
-            + [args.nalphabet + 1]
+            + [args.gflownet.nalphabet + 1]
         )
         if args.gflownet.model_ckpt and "workdir" in args:
             if "workdir" in args:
@@ -409,7 +409,7 @@ class GFlowNetAgent:
                 self.model_path = args.gflownet.model_ckpt
             if self.model_path.exists():
                 self.model.load_state_dict(torch.load(self.model_path))
-        self.model.to(args.device_torch)
+        self.model.to(self.device_torch)
         self.target = copy.deepcopy(self.model)
         self.tau = args.gflownet.bootstrap_tau
         self.ema_alpha = 0.5
@@ -426,17 +426,17 @@ class GFlowNetAgent:
             self.comet = None
         # Environment
         self.env = AptamerSeq(
-            args.horizon,
-            args.nalphabet,
-            func=args.func,
+            args.gflownet.horizon,
+            args.gflownet.nalphabet,
+            func=args.gflownet.func,
             proxy=proxy,
             allow_backward=False,
         )
         self.envs = [
             AptamerSeq(
-                args.horizon,
-                args.nalphabet,
-                func=args.func,
+                args.gflownet.horizon,
+                args.gflownet.nalphabet,
+                func=args.gflownet.func,
                 proxy=proxy,
                 allow_backward=False,
             )
@@ -447,7 +447,7 @@ class GFlowNetAgent:
         self.opt = make_opt(self.parameters(), args)
         self.n_train_steps = args.gflownet.n_iter
         self.mbsize = args.gflownet.mbsize
-        self.gflownet.progress = args.gflownet.progress
+        self.progress = args.gflownet.progress
         self.clip_grad_norm = args.gflownet.clip_grad_norm
         self.num_empirical_loss = args.gflownet.num_empirical_loss
         self.ttsr = max(int(args.gflownet.train_to_sample_ratio), 1)
@@ -597,7 +597,7 @@ class GFlowNetAgent:
         loss_ema = -1.0
 
         # Train loop
-        for i in tqdm(range(self.n_train_steps + 1)):#, disable=not self.gflownet.progress):
+        for i in tqdm(range(self.n_train_steps + 1)):#, disable=not self.progress):
             data = []
             for j in range(self.sttr):
                 data += self.sample_many()
@@ -632,7 +632,7 @@ class GFlowNetAgent:
                         self.env, all_visited[-self.num_empirical_loss :]
                     )
                 )
-                if self.gflownet.progress:
+                if self.progress:
                     k1, kl = empirical_distrib_losses[-1]
                     print("Empirical L1 distance", k1, "KL", kl)
                     if len(all_losses):

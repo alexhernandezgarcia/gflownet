@@ -19,10 +19,10 @@ class Sampler:
     """
 
     def __init__(self, config, seedInd, scoreFunction, gammas):
-        self.config = config
-        self.config.STUN = 1
-        self.config.target_acceptance_rate = 0.234 # found this in a paper
-        self.chainLength = self.config.max_sample_length
+        self.config_main = config
+        self.config_main.STUN = 1
+        self.config_main.target_acceptance_rate = 0.234 # found this in a paper
+        self.chainLength = self.config_main.dataset.max_length
         self.deltaIter = int(10)  # get outputs every this many of iterations with one iteration meaning one move proposed for each "particle" on average
         self.randintsResampleAt = int(1e4)  # larger takes up more memory but increases speed
         self.scoreFunction = scoreFunction
@@ -34,14 +34,14 @@ class Sampler:
         self.temperature = [self.temp0 for _ in range(self.nruns)]
 
 
-        if self.config.dataset_type == 'toy':
-            self.oracle = Oracle(self.config)  # if we are using a toy model, initialize the oracle so we can optimize it directly for comparison
+        if self.config_main.dataset.type == 'toy':
+            self.oracle = Oracle(self.config_main)  # if we are using a toy model, initialize the oracle so we can optimize it directly for comparison
 
-        np.random.seed(int(self.config.seeds.sampler + int(self.seedInd * 1000))) # initial seed is randomized over pipeline iterations
+        np.random.seed(int(self.config_main.seeds.sampler + int(self.seedInd * 1000))) # initial seed is randomized over pipeline iterations
 
         self.getInitConfig()
 
-        if self.config.debug:
+        if self.config_main.debug:
             self.initRecs()
 
 
@@ -67,13 +67,13 @@ class Sampler:
         :return:
         '''
 
-        if self.config.dataset.variable_length:
-            randChainLen = np.random.randint(self.config.dataset.min_length,self.config.dataset.max_length)
-            randConfig = np.random.randint(1, self.config.dataset.dict_size + 1, size = (1, randChainLen))
-            if randChainLen < self.config.dataset.max_length: # add zero padding, if necessary
-                randConfig = np.pad(randConfig[0],[0, self.config.dataset.max_length - randChainLen],mode='constant')
+        if self.config_main.dataset.variable_length:
+            randChainLen = np.random.randint(self.config_main.dataset.min_length,self.config_main.dataset.max_length)
+            randConfig = np.random.randint(1, self.config_main.dataset.dict_size + 1, size = (1, randChainLen))
+            if randChainLen < self.config_main.dataset.max_length: # add zero padding, if necessary
+                randConfig = np.pad(randConfig[0],[0, self.config_main.dataset.max_length - randChainLen],mode='constant')
         else:
-            randConfig = np.random.randint(1,self.config.dataset.dict_size + 1, size = (self.config.dataset.max_length))
+            randConfig = np.random.randint(1,self.config_main.dataset.dict_size + 1, size = (self.config_main.dataset.max_length))
 
         return randConfig
 
@@ -91,11 +91,11 @@ class Sampler:
         periodically resample our relevant random numbers
         :return:
         """
-        self.spinRandints = np.random.randint(1, self.config.dataset.dict_size + 1, size=(self.nruns,self.randintsResampleAt)).astype('uint8')
+        self.spinRandints = np.random.randint(1, self.config_main.dataset.dict_size + 1, size=(self.nruns,self.randintsResampleAt)).astype('uint8')
         self.pickSpinRandint = np.random.randint(0, self.chainLength, size=(self.nruns,self.randintsResampleAt)).astype('uint32')
         self.alphaRandoms = np.random.random((self.nruns,self.randintsResampleAt)).astype(float)
         self.changeLengthRandints = np.random.randint(-1, 2, size=(self.nruns,self.randintsResampleAt)).astype('int8')
-        self.seqExtensionRandints = np.random.randint(1, self.config.dataset.dict_size + 1, size=(self.nruns,self.randintsResampleAt)).astype('uint8')
+        self.seqExtensionRandints = np.random.randint(1, self.config_main.dataset.dict_size + 1, size=(self.nruns,self.randintsResampleAt)).astype('uint8')
 
 
     def initOptima(self, scores, energy, variance):
@@ -169,7 +169,7 @@ class Sampler:
         """
         self.initConvergenceStats()
         self.resampleRandints()
-        for self.iter in tqdm.tqdm(range(self.config.mcmc.sampling_time)):  # sample for a certain number of iterations
+        for self.iter in tqdm.tqdm(range(self.config_main.mcmc.sampling_time)):  # sample for a certain number of iterations
             self.iterate(model, useOracle)  # try a monte-carlo step!
 
             if (self.iter % self.deltaIter == 0) and (self.iter > 0):  # every N iterations do some reporting / updating
@@ -192,16 +192,16 @@ class Sampler:
             self.propConfig[i, self.pickSpinRandint[i,ind]] = self.spinRandints[i,ind]
 
             # propose changing sequence length
-            if self.config.dataset.variable_length:
+            if self.config_main.dataset.variable_length:
                 if self.changeLengthRandints[i,ind] == 0:  # do nothing
                     pass
                 else:
                     nnz = np.count_nonzero(self.propConfig[i])
                     if self.changeLengthRandints[i,ind] == 1:  # extend sequence by adding a new spin (nonzero element)
-                        if nnz < self.config.dataset.max_length:
+                        if nnz < self.config_main.dataset.max_length:
                             self.propConfig[i, nnz] = self.seqExtensionRandints[i, ind]
                     elif nnz == -1:  # shorten sequence by trimming the end (set last element to zero)
-                        if nnz > self.config.dataset.min_length:
+                        if nnz > self.config_main.dataset.min_length:
                             self.propConfig[i, nnz - 1] = 0
 
 
@@ -248,12 +248,12 @@ class Sampler:
                     self.saveOptima(i, newBest)
 
 
-        if self.config.debug: # record a bunch of detailed outputs
+        if self.config_main.debug: # record a bunch of detailed outputs
             self.recordStats()
 
 
     def getDE(self, scores):
-        if self.config.STUN == 1:  # compute score difference using STUN
+        if self.config_main.STUN == 1:  # compute score difference using STUN
             F = self.computeSTUN(scores)
             DE = F[0] - F[1]
         else:  # compute raw score difference
@@ -283,7 +283,7 @@ class Sampler:
             variance = [[0 for _ in range(len(energy[0]))], [0 for _ in range(len(energy[1]))]]
             score = self.scoreFunction[0] * np.asarray(energy) - self.scoreFunction[1] * np.asarray(variance)  # vary the relative importance of these two factors
         else:
-            if (self.config.al.query_mode == 'learned') and ('DQN' in str(model.__class__)):
+            if (self.config_main.al.query_mode == 'learned') and ('DQN' in str(model.__class__)):
                 score = [model.evaluateQ(np.asarray(config)).cpu().detach().numpy(),model.evaluateQ(np.asarray(propConfig)).cpu().detach().numpy()] # evaluate the q-model
                 score = - np.array((score[1],score[0]))[:,:,0] # this code is a minimizer so we need to flip the sign of the Q scores
                 energy = [np.zeros_like(score[0]), np.zeros_like(score[1])] # energy and variance are irrelevant here
@@ -332,7 +332,7 @@ class Sampler:
             acceptedRecently = np.sum((self.iter - np.asarray(self.recInds[i][-history:])) < history)  # rolling acceptance rate - how many accepted out of the last hundred iters
             self.acceptanceRate[i] = acceptedRecently / history
 
-            if self.acceptanceRate[i] < self.config.target_acceptance_rate:
+            if self.acceptanceRate[i] < self.config_main.target_acceptance_rate:
                 self.temperature[i] = self.temperature[i] * (1 + np.random.random(1)[0]) # modulate temperature semi-stochastically
             else:
                 self.temperature[i] = self.temperature[i] * (1 - np.random.random(1)[0])

@@ -318,7 +318,7 @@ def add_args(parser):
     args2config.update({"num_empirical_loss": ["gflownet", "num_empirical_loss"]})
     parser.add_argument(
         "--no_batch_reward",
-        dest="bath_reward",
+        dest="batch_reward",
         action="store_false",
         default=True,
         help="If True, compute rewards after batch is formed",
