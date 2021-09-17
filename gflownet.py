@@ -393,65 +393,65 @@ def make_mlp(layers_dim, act=nn.LeakyReLU(), tail=[]):
 class GFlowNetAgent:
     def __init__(self, args, proxy=None):
         # Misc
-        args.device_torch = torch.device(args.device)
-        self.device = args.device_torch
-        set_device(args.device_torch)
+        self.device_torch = torch.device(args.device)
+        self.device = self.device_torch
+        set_device(self.device_torch)
         # Model
         self.model = make_mlp(
-            [args.horizon * args.nalphabet]
-            + [args.n_hid] * args.n_layers
-            + [args.nalphabet + 1]
+            [args.gflownet.horizon * args.gflownet.nalphabet]
+            + [args.gflownet.n_hid] * args.gflownet.n_layers
+            + [args.gflownet.nalphabet + 1]
         )
-        if args.model_ckpt and "workdir" in args:
+        if args.gflownet.model_ckpt and "workdir" in args:
             if "workdir" in args:
-                self.model_path = Path(args.workdir) / "ckpts" / args.model_ckpt
+                self.model_path = Path(args.workdir) / "ckpts" / args.gflownet.model_ckpt
             else:
-                self.model_path = args.model_ckpt
+                self.model_path = args.gflownet.model_ckpt
             if self.model_path.exists():
                 self.model.load_state_dict(torch.load(self.model_path))
-        self.model.to(args.device_torch)
+        self.model.to(self.device_torch)
         self.target = copy.deepcopy(self.model)
-        self.tau = args.bootstrap_tau
+        self.tau = args.gflownet.bootstrap_tau
         self.ema_alpha = 0.5
         self.early_stopping = 0.05
         # Comet
-        if args.comet_project:
+        if args.gflownet.comet.project:
             self.comet = Experiment(
-                project_name=args.comet_project, display_summary_level=0
+                project_name=args.gflownet.comet.project, display_summary_level=0
             )
-            if args.tags:
-                self.comet.add_tags(args.tags)
+            if args.gflownet.comet.tags:
+                self.comet.add_tags(args.gflownet.comet.tags)
             self.comet.log_parameters(vars(args))
         else:
             self.comet = None
         # Environment
         self.env = AptamerSeq(
-            args.horizon,
-            args.nalphabet,
-            func=args.func,
+            args.gflownet.horizon,
+            args.gflownet.nalphabet,
+            func=args.gflownet.func,
             proxy=proxy,
             allow_backward=False,
         )
         self.envs = [
             AptamerSeq(
-                args.horizon,
-                args.nalphabet,
-                func=args.func,
+                args.gflownet.horizon,
+                args.gflownet.nalphabet,
+                func=args.gflownet.func,
                 proxy=proxy,
                 allow_backward=False,
             )
-            for _ in range(args.mbsize)
+            for _ in range(args.gflownet.mbsize)
         ]
-        self.batch_reward = args.batch_reward
+        self.batch_reward = args.gflownet.batch_reward
         # Training
         self.opt = make_opt(self.parameters(), args)
-        self.n_train_steps = args.n_train_steps
-        self.mbsize = args.mbsize
-        self.progress = args.progress
-        self.clip_grad_norm = args.clip_grad_norm
-        self.num_empirical_loss = args.num_empirical_loss
-        self.ttsr = max(int(args.train_to_sample_ratio), 1)
-        self.sttr = max(int(1 / args.train_to_sample_ratio), 1)
+        self.n_train_steps = args.gflownet.n_iter
+        self.mbsize = args.gflownet.mbsize
+        self.progress = args.gflownet.progress
+        self.clip_grad_norm = args.gflownet.clip_grad_norm
+        self.num_empirical_loss = args.gflownet.num_empirical_loss
+        self.ttsr = max(int(args.gflownet.train_to_sample_ratio), 1)
+        self.sttr = max(int(1 / args.gflownet.train_to_sample_ratio), 1)
 
     def parameters(self):
         return self.model.parameters()
@@ -716,7 +716,7 @@ class GFlowNetAgent:
 
 class RandomTrajAgent:
     def __init__(self, args, envs):
-        self.mbsize = args.mbsize  # mini-batch size
+        self.mbsize = args.gflownet.mbsize  # mini-batch size
         self.envs = envs
         self.nact = args.ndim + 1
         self.model = None
@@ -757,12 +757,12 @@ def make_opt(params, args):
     params = list(params)
     if not len(params):
         return None
-    if args.opt == "adam":
+    if args.gflownet.opt == "adam":
         opt = torch.optim.Adam(
-            params, args.learning_rate, betas=(args.adam_beta1, args.adam_beta2)
+            params, args.gflownet.learning_rate, betas=(args.gflownet.adam_beta1, args.gflownet.adam_beta2)
         )
-    elif args.opt == "msgd":
-        opt = torch.optim.SGD(params, args.learning_rate, momentum=args.momentum)
+    elif args.gflownet.opt == "msgd":
+        opt = torch.optim.SGD(params, args.gflownet.learning_rate, momentum=args.gflownet.momentum)
     return opt
 
 

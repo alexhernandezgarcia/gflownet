@@ -6,4 +6,5 @@ ipdb
 jupyter
 torch
 tqdm
+pyyaml
 scikit_learn

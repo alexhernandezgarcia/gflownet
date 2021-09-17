@@ -18,11 +18,11 @@ To-Do:
 
 
 class Querier():
-    def __init__(self, params):
-        self.params = params
-        self.method = params.sample_method
-        if self.params.query_mode == 'learned':
-            self.qModel = DQN(self.params) # initialize q-network
+    def __init__(self, config):
+        self.config = config
+        self.method = config.al.sample_method
+        if self.config.al.query_mode == 'learned':
+            self.qModel = DQN(self.config) # initialize q-network
 
     def buildQuery(self, model, statusDict, energySampleDict):
         """
@@ -32,15 +32,15 @@ class Querier():
         """
         # TODO upgrade sampler
 
-        nQueries = self.params.queries_per_iter
-        if self.params.query_mode == 'random':
+        nQueries = self.config.al.queries_per_iter
+        if self.config.al.query_mode == 'random':
             '''
             generate query randomly
             '''
-            query = generateRandomSamples(nQueries, [self.params.min_sample_length,self.params.max_sample_length], self.params.dict_size, variableLength = self.params.variable_sample_length, oldDatasetPath = 'datasets/' + self.params.dataset + '.npy')
+            query = generateRandomSamples(nQueries, [self.config.dataset.min_length,self.config.dataset.max_length], self.config.dataset.dict_size, variableLength = self.config.dataset.variable_length, oldDatasetPath = 'datasets/' + self.config.dataset.oracle + '.npy')
 
         else:
-            if self.params.query_mode == 'learned':
+            if self.config.al.query_mode == 'learned':
                 self.qModel.updateModelState(statusDict, model)
                 self.sampleDict = self.sampleForQuery(self.qModel, statusDict['iter'])
 
@@ -50,7 +50,7 @@ class Querier():
                 '''
 
                 # generate candidates
-                if self.params.query_mode == 'energy':
+                if self.config.al.query_mode == 'energy':
                     self.sampleDict = energySampleDict
                 else:
                     self.sampleDict = self.sampleForQuery(model, statusDict['iter'])
@@ -58,7 +58,7 @@ class Querier():
             samples = self.sampleDict['samples']
             scores = self.sampleDict['scores']
             uncertainties = self.sampleDict['uncertainties']
-            samples, inds = filterDuplicateSamples(samples, oldDatasetPath='datasets/' + self.params.dataset + '.npy', returnInds=True)
+            samples, inds = filterDuplicateSamples(samples, oldDatasetPath='datasets/' + self.config.dataset.oracle + '.npy', returnInds=True)
             scores = scores[inds]
 
             query = self.constructQuery(samples, scores, uncertainties, nQueries)
@@ -68,22 +68,22 @@ class Querier():
 
     def constructQuery(self, samples, scores, uncertainties, nQueries):
         # create batch from candidates
-        if self.params.query_selection == 'clustering':
+        if self.config.al.query_selection == 'clustering':
             # agglomerative clustering
-            clusters, clusterScores, clusterVars = doAgglomerativeClustering(samples, scores, uncertainties, cutoff=self.params.minima_dist_cutoff)
+            clusters, clusterScores, clusterVars = doAgglomerativeClustering(samples, scores, uncertainties, cutoff=self.config.al.minima_dist_cutoff)
             clusterSizes, avgClusterScores, minCluster, avgClusterVars, minClusterVars, minClusterSamples = clusterAnalysis(clusters, clusterScores, clusterVars)
             samples = minClusterSamples
-        elif self.params.query_selection == 'cutoff':
+        elif self.config.al.query_selection == 'cutoff':
             # build up sufficiently different examples in order of best scores
-            bestInds = sortTopXSamples(samples[np.argsort(scores)], nSamples=len(samples), distCutoff=self.params.minima_dist_cutoff)  # sort out the best, and at least minimally distinctive samples
+            bestInds = sortTopXSamples(samples[np.argsort(scores)], nSamples=len(samples), distCutoff=self.config.al.minima_dist_cutoff)  # sort out the best, and at least minimally distinctive samples
             samples = samples[bestInds]
-        elif self.params.query_selection == 'argmin':
+        elif self.config.al.query_selection == 'argmin':
             # just take the bottom x scores
             samples = samples[np.argsort(scores)]
 
         while len(samples) < nQueries:  # if we don't have enough samples from samplers, add random ones to pad out the query
-            randomSamples = generateRandomSamples(1000, [self.params.min_sample_length, self.params.max_sample_length], self.params.dict_size, variableLength=self.params.variable_sample_length,
-                                                  oldDatasetPath='datasets/' + self.params.dataset + '.npy')
+            randomSamples = generateRandomSamples(1000, [self.config.dataset.min_length, self.config.dataset.max_length], self.config.dataset.dict_size, variableLength=self.config.dataset.variable_length,
+                                                  oldDatasetPath='datasets/' + self.config.dataset.oracle + '.npy')
             samples = filterDuplicateSamples(np.concatenate((samples, randomSamples), axis=0))
 
         return samples[:nQueries]
@@ -95,16 +95,16 @@ class Querier():
         automatically filter any duplicates within the sample and the existing dataset
         :return:
         '''
-        if self.params.query_mode == 'energy':
+        if self.config.al.query_mode == 'energy':
             scoreFunction = [1, 0]  # weighting between score and uncertainty - look for minimum score
-        elif self.params.query_mode == 'uncertainty':
+        elif self.config.al.query_mode == 'uncertainty':
             scoreFunction = [0, 1]  # look for maximum uncertainty
-        elif self.params.query_mode == 'heuristic':
+        elif self.config.al.query_mode == 'heuristic':
             scoreFunction = [0.5, 0.5]  # put in user specified values (or functions) here
-        elif self.params.query_mode == 'learned':
+        elif self.config.al.query_mode == 'learned':
             scoreFunction = None
         else:
-            raise ValueError(self.params.query_mode + 'is not a valid query function!')
+            raise ValueError(self.config.al.query_mode + 'is not a valid query function!')
 
         # do a single sampling run
         sampleDict = self.runSampling(model, scoreFunction, iterNum)
@@ -117,8 +117,8 @@ class Querier():
         :return:
         """
         if self.method.lower() == "mcmc":
-            gammas = np.logspace(self.params.stun_min_gamma, self.params.stun_max_gamma, self.params.mcmc_num_samplers)
-            self.mcmcSampler = Sampler(self.params, seedInd, scoreFunction, gammas)
+            gammas = np.logspace(self.config.mcmc.stun_min_gamma, self.config.mcmc.stun_max_gamma, self.config.mcmc.num_samplers)
+            self.mcmcSampler = Sampler(self.config, seedInd, scoreFunction, gammas)
             samples = self.mcmcSampler.sample(model, useOracle=useOracle)
             outputs = samples2dict(samples)
         elif self.method.lower() == "gflownet":
@@ -127,14 +127,14 @@ class Querier():
             # and we want the gflownet to represent the current models, in general, though it's not impossible we may want to incorporate
             # information from prior iterations for some reason
             # TODO add optional post-sample annealing
-            gflownet = GFlowNetAgent(self.params, proxy=model.evaluate)
+            gflownet = GFlowNetAgent(self.config, proxy=model.evaluate)
             t0 = time.time()
             gflownet.train()
             tf = time.time()
             printRecord('Training GFlowNet took {} seconds'.format(int(tf-t0)))
             outputs = gflownet.sample(
-                    self.params.gflownet_n_samples, self.params.max_sample_length,
-                    self.params.dict_size, model.evaluate
+                    self.config.gflownet.n_samples, self.config.dataset.max_length,
+                    self.config.dataset.dict_size, model.evaluate
             )
             # TODO get scores, energies and uncertainties for outputs dict
         else:
