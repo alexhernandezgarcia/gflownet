@@ -68,16 +68,16 @@ class Querier():
 
     def constructQuery(self, samples, scores, uncertainties, nQueries):
         # create batch from candidates
-        if self.params.query_selection == 'clustering':
+        if self.config.al.query_selection == 'clustering':
             # agglomerative clustering
             clusters, clusterScores, clusterVars = doAgglomerativeClustering(samples, scores, uncertainties, cutoff=self.params.minima_dist_cutoff)
             clusterSizes, avgClusterScores, minCluster, avgClusterVars, minClusterVars, minClusterSamples = clusterAnalysis(clusters, clusterScores, clusterVars)
             samples = minClusterSamples
-        elif self.params.query_selection == 'cutoff':
+        elif self.config.al.query_selection == 'cutoff':
             # build up sufficiently different examples in order of best scores
             bestInds = sortTopXSamples(samples[np.argsort(scores)], nSamples=len(samples), distCutoff=self.params.minima_dist_cutoff)  # sort out the best, and at least minimally distinctive samples
             samples = samples[bestInds]
-        elif self.params.query_selection == 'argmin':
+        elif self.config.al.query_selection == 'argmin':
             # just take the bottom x scores
             samples = samples[np.argsort(scores)]
 
