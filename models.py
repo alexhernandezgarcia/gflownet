@@ -27,10 +27,10 @@ Problems
 
 
 class modelNet():
-    def __init__(self, params, ensembleIndex):
-        self.params = params
+    def __init__(self, config, ensembleIndex):
+        self.config = config
         self.ensembleIndex = ensembleIndex
-        self.params.history = min(20, self.params.proxy_max_epochs) # length of past to check
+        self.config.history = min(20, self.config.proxy_max_epochs) # length of past to check
         self.initModel()
         torch.random.manual_seed(int(params.model_seed + ensembleIndex))
 
@@ -108,7 +108,7 @@ class modelNet():
         self.epochs = 0
 
         while (self.converged != 1):
-            if (self.epochs % 10 == 0) and self.params.debug:
+            if (self.epochs % 10 == 0) and self.config.debug:
                 printRecord("Model {} epoch {}".format(self.ensembleIndex, self.epochs))
 
             if self.epochs > 0: #  this allows us to keep the previous model if it is better than any produced on this run

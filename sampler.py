@@ -18,11 +18,11 @@ class Sampler:
     intrinsically parallel, rather than via multiprocessing
     """
 
-    def __init__(self, params, seedInd, scoreFunction, gammas):
-        self.params = params
-        self.params.STUN = 1
-        self.params.target_acceptance_rate = 0.234 # found this in a paper
-        self.chainLength = self.params.max_sample_length
+    def __init__(self, config, seedInd, scoreFunction, gammas):
+        self.config = config
+        self.config.STUN = 1
+        self.config.target_acceptance_rate = 0.234 # found this in a paper
+        self.chainLength = self.config.max_sample_length
         self.deltaIter = int(10)  # get outputs every this many of iterations with one iteration meaning one move proposed for each "particle" on average
         self.randintsResampleAt = int(1e4)  # larger takes up more memory but increases speed
         self.scoreFunction = scoreFunction
@@ -34,14 +34,14 @@ class Sampler:
         self.temperature = [self.temp0 for _ in range(self.nruns)]
 
 
-        if self.params.dataset_type == 'toy':
-            self.oracle = Oracle(self.params)  # if we are using a toy model, initialize the oracle so we can optimize it directly for comparison
+        if self.config.dataset_type == 'toy':
+            self.oracle = Oracle(self.config)  # if we are using a toy model, initialize the oracle so we can optimize it directly for comparison
 
-        np.random.seed(int(self.params.sampler_seed + int(self.seedInd * 1000))) # initial seed is randomized over pipeline iterations
+        np.random.seed(int(self.config.sampler_seed + int(self.seedInd * 1000))) # initial seed is randomized over pipeline iterations
 
         self.getInitConfig()
 
-        if self.params.debug:
+        if self.config.debug:
             self.initRecs()
 
 
@@ -248,7 +248,7 @@ class Sampler:
                     self.saveOptima(i, newBest)
 
 
-        if self.params.debug: # record a bunch of detailed outputs
+        if self.config.debug: # record a bunch of detailed outputs
             self.recordStats()
 
 
