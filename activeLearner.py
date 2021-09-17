@@ -85,7 +85,7 @@ class ActiveLearning():
             printRecord(f"The true global minimum is {bcolors.OKGREEN}%.3f{bcolors.ENDC}" % self.trueMinimum)
 
         self.params.dataset_size = self.config.dataset.init_length
-        for self.pipeIter in range(self.params.pipeline_iterations):
+        for self.pipeIter in range(self.config.al.n_iter):
             printRecord(f'Starting pipeline iteration #{bcolors.FAIL}%d{bcolors.ENDC}' % int(self.pipeIter+1))
             self.iterate() # run the pipeline
             self.saveOutputs() # save pipeline outputs
@@ -172,7 +172,7 @@ class ActiveLearning():
             'clustering cutoff': self.params.minima_dist_cutoff, # could be a learned parameter
             'n proxy models': self.params.proxy_model_ensemble_size,
             'iter': self.pipeIter,
-            'budget': self.params.pipeline_iterations
+            'budget': self.config.al.n_iter
         }
 
         printRecord('%d '%self.params.proxy_model_ensemble_size + f'Model ensemble training converged with average test loss of {bcolors.OKCYAN}%.5f{bcolors.ENDC}' % np.average(np.asarray(self.testMinima[-self.params.proxy_model_ensemble_size:])) + f' and std of {bcolors.OKCYAN}%.3f{bcolors.ENDC}'%(np.sqrt(np.var(self.testMinima))))
