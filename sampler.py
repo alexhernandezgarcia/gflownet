@@ -283,7 +283,7 @@ class Sampler:
             variance = [[0 for _ in range(len(energy[0]))], [0 for _ in range(len(energy[1]))]]
             score = self.scoreFunction[0] * np.asarray(energy) - self.scoreFunction[1] * np.asarray(variance)  # vary the relative importance of these two factors
         else:
-            if (self.params.query_mode == 'learned') and ('DQN' in str(model.__class__)):
+            if (self.config.al.query_mode == 'learned') and ('DQN' in str(model.__class__)):
                 score = [model.evaluateQ(np.asarray(config)).cpu().detach().numpy(),model.evaluateQ(np.asarray(propConfig)).cpu().detach().numpy()] # evaluate the q-model
                 score = - np.array((score[1],score[0]))[:,:,0] # this code is a minimizer so we need to flip the sign of the Q scores
                 energy = [np.zeros_like(score[0]), np.zeros_like(score[1])] # energy and variance are irrelevant here

@@ -21,7 +21,7 @@ class Querier():
     def __init__(self, params):
         self.params = params
         self.method = config.al.sample_method
-        if self.params.query_mode == 'learned':
+        if self.config.al.query_mode == 'learned':
             self.qModel = DQN(self.params) # initialize q-network
 
     def buildQuery(self, model, statusDict, energySampleDict):
@@ -33,14 +33,14 @@ class Querier():
         # TODO upgrade sampler
 
         nQueries = self.params.queries_per_iter
-        if self.params.query_mode == 'random':
+        if self.config.al.query_mode == 'random':
             '''
             generate query randomly
             '''
             query = generateRandomSamples(nQueries, [self.config.dataset.min_length,self.config.dataset.max_length], self.config.dataset.dict_size, variableLength = self.config.dataset.variable_length, oldDatasetPath = 'datasets/' + self.config.dataset.oracle + '.npy')
 
         else:
-            if self.params.query_mode == 'learned':
+            if self.config.al.query_mode == 'learned':
                 self.qModel.updateModelState(statusDict, model)
                 self.sampleDict = self.sampleForQuery(self.qModel, statusDict['iter'])
 
@@ -50,7 +50,7 @@ class Querier():
                 '''
 
                 # generate candidates
-                if self.params.query_mode == 'energy':
+                if self.config.al.query_mode == 'energy':
                     self.sampleDict = energySampleDict
                 else:
                     self.sampleDict = self.sampleForQuery(model, statusDict['iter'])
@@ -95,16 +95,16 @@ class Querier():
         automatically filter any duplicates within the sample and the existing dataset
         :return:
         '''
-        if self.params.query_mode == 'energy':
+        if self.config.al.query_mode == 'energy':
             scoreFunction = [1, 0]  # weighting between score and uncertainty - look for minimum score
-        elif self.params.query_mode == 'uncertainty':
+        elif self.config.al.query_mode == 'uncertainty':
             scoreFunction = [0, 1]  # look for maximum uncertainty
-        elif self.params.query_mode == 'heuristic':
+        elif self.config.al.query_mode == 'heuristic':
             scoreFunction = [0.5, 0.5]  # put in user specified values (or functions) here
-        elif self.params.query_mode == 'learned':
+        elif self.config.al.query_mode == 'learned':
             scoreFunction = None
         else:
-            raise ValueError(self.params.query_mode + 'is not a valid query function!')
+            raise ValueError(self.config.al.query_mode + 'is not a valid query function!')
 
         # do a single sampling run
         sampleDict = self.runSampling(model, scoreFunction, iterNum)
