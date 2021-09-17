@@ -415,9 +415,9 @@ class GFlowNetAgent:
         self.ema_alpha = 0.5
         self.early_stopping = 0.05
         # Comet
-        if args.comet_project:
+        if args.gflownet.comet.project:
             self.comet = Experiment(
-                project_name=args.comet_project, display_summary_level=0
+                project_name=args.gflownet.comet.project, display_summary_level=0
             )
             if args.tags:
                 self.comet.add_tags(args.tags)
