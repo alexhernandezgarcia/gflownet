@@ -752,11 +752,11 @@ def make_opt(params, args):
     params = list(params)
     if not len(params):
         return None
-    if args.opt == "adam":
+    if args.gflownet.opt == "adam":
         opt = torch.optim.Adam(
             params, args.gflownet.learning_rate, betas=(args.adam_beta1, args.adam_beta2)
         )
-    elif args.opt == "msgd":
+    elif args.gflownet.opt == "msgd":
         opt = torch.optim.SGD(params, args.gflownet.learning_rate, momentum=args.momentum)
     return opt
 
