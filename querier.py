@@ -70,12 +70,12 @@ class Querier():
         # create batch from candidates
         if self.config.al.query_selection == 'clustering':
             # agglomerative clustering
-            clusters, clusterScores, clusterVars = doAgglomerativeClustering(samples, scores, uncertainties, cutoff=self.params.minima_dist_cutoff)
+            clusters, clusterScores, clusterVars = doAgglomerativeClustering(samples, scores, uncertainties, cutoff=self.config.al.minima_dist_cutoff)
             clusterSizes, avgClusterScores, minCluster, avgClusterVars, minClusterVars, minClusterSamples = clusterAnalysis(clusters, clusterScores, clusterVars)
             samples = minClusterSamples
         elif self.config.al.query_selection == 'cutoff':
             # build up sufficiently different examples in order of best scores
-            bestInds = sortTopXSamples(samples[np.argsort(scores)], nSamples=len(samples), distCutoff=self.params.minima_dist_cutoff)  # sort out the best, and at least minimally distinctive samples
+            bestInds = sortTopXSamples(samples[np.argsort(scores)], nSamples=len(samples), distCutoff=self.config.al.minima_dist_cutoff)  # sort out the best, and at least minimally distinctive samples
             samples = samples[bestInds]
         elif self.config.al.query_selection == 'argmin':
             # just take the bottom x scores

@@ -147,7 +147,7 @@ class ActiveLearning():
         uncertainties = self.sampleDict['uncertainties']
 
         # agglomerative clustering
-        clusters, clusterEns, clusterVars = doAgglomerativeClustering(samples,energies,uncertainties,cutoff=self.params.minima_dist_cutoff)
+        clusters, clusterEns, clusterVars = doAgglomerativeClustering(samples,energies,uncertainties,cutoff=self.config.al.minima_dist_cutoff)
         clusterSizes, avgClusterEns, minClusterEns, avgClusterVars, minClusterVars, minClusterSamples = clusterAnalysis(clusters, clusterEns, clusterVars)
 
         #clutering alternative - just include sample-by-sample
@@ -169,7 +169,7 @@ class ActiveLearning():
             'best clusters internal diff': internalDist,
             'best clusters dataset diff': datasetDist,
             'best clusters random set diff': randomDist,
-            'clustering cutoff': self.params.minima_dist_cutoff, # could be a learned parameter
+            'clustering cutoff': self.config.al.minima_dist_cutoff, # could be a learned parameter
             'n proxy models': self.params.proxy_model_ensemble_size,
             'iter': self.pipeIter,
             'budget': self.config.al.n_iter
