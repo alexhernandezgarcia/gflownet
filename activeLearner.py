@@ -84,7 +84,7 @@ class ActiveLearning():
             self.sampleOracle() # use the oracle to pre-solve the problem for future benchmarking
             printRecord(f"The true global minimum is {bcolors.OKGREEN}%.3f{bcolors.ENDC}" % self.trueMinimum)
 
-        self.params.dataset_size = self.params.init_dataset_length
+        self.params.dataset_size = self.config.dataset.init_length
         for self.pipeIter in range(self.params.pipeline_iterations):
             printRecord(f'Starting pipeline iteration #{bcolors.FAIL}%d{bcolors.ENDC}' % int(self.pipeIter+1))
             self.iterate() # run the pipeline
@@ -437,7 +437,7 @@ class ActiveLearning():
         directory = os.getcwd()
         plotter = resultsPlotter()
         plotter.process(directory)
-        iterAxis = (plotter.xrange - 1) * self.params.queries_per_iter + self.params.init_dataset_length
+        iterAxis = (plotter.xrange - 1) * self.params.queries_per_iter + self.config.dataset.init_length
         bestEns = plotter.normedEns[:,0]
         cumulativeScore = np.trapz(bestEns, x = iterAxis)
         normedCumScore = cumulativeScore / (self.params.dataset_size - self.params.queries_per_iter) # we added to the dataset before this

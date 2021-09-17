@@ -98,7 +98,7 @@ class Oracle():
         data = {}
         np.random.seed(self.config.seeds.dataset)
         if customSize is None:
-            datasetLength = self.params.init_dataset_length
+            datasetLength = self.config.dataset.init_length
         else:
             datasetLength = customSize
 
