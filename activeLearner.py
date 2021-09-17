@@ -80,7 +80,7 @@ class ActiveLearning():
         self.testMinima = [] # best test loss of models, for each iteration of the pipeline
         self.bestScores = [] # best optima found by the sampler, for each iteration of the pipeline
 
-        if self.params.dataset_type == 'toy':
+        if self.config.dataset.type == 'toy':
             self.sampleOracle() # use the oracle to pre-solve the problem for future benchmarking
             printRecord(f"The true global minimum is {bcolors.OKGREEN}%.3f{bcolors.ENDC}" % self.trueMinimum)
 
@@ -89,7 +89,7 @@ class ActiveLearning():
             printRecord(f'Starting pipeline iteration #{bcolors.FAIL}%d{bcolors.ENDC}' % int(self.pipeIter+1))
             self.iterate() # run the pipeline
             self.saveOutputs() # save pipeline outputs
-            if (self.pipeIter > 0) and (self.params.dataset_type == 'toy'):
+            if (self.pipeIter > 0) and (self.config.dataset.type == 'toy'):
                 self.reportCumulativeResult()
 
 
@@ -114,7 +114,7 @@ class ActiveLearning():
         scores = self.oracle.score(query) # score Samples
         tf = time.time()
         printRecord('Oracle scored' + bcolors.OKBLUE + ' {} '.format(len(scores)) + bcolors.ENDC + 'queries with average score of' + bcolors.OKGREEN + ' {:.3f}'.format(np.average(scores)) + bcolors.ENDC)
-        if not self.params.dataset_type == 'toy':
+        if not self.config.dataset.type == 'toy':
             printRecord('Oracle scoring took {} seconds'.format(int(tf-t0)))
 
         self.updateDataset(query, scores) # add scored Samples to dataset
@@ -184,7 +184,7 @@ class ActiveLearning():
                     'dataset distance is ' + bcolors.WARNING + '{:.2f} '.format(np.average(datasetDist)) + bcolors.ENDC +
                     'and overall distance estimated at ' + bcolors.WARNING + '{:.2f}'.format(np.average(randomDist)) + bcolors.ENDC)
 
-        if self.params.dataset_type == 'toy': # we can check the test error against a huge random dataset
+        if self.config.dataset.type == 'toy': # we can check the test error against a huge random dataset
             self.largeModelEvaluation()
             self.printOverallPerformance(minClusterEns, minClusterVars)
 
@@ -346,7 +346,7 @@ class ActiveLearning():
         if "comet" in outputDict['params']:
             del outputDict['params'].comet
         outputDict['state dict record'] = self.stateDictRecord
-        if self.params.dataset_type == 'toy':
+        if self.config.dataset.type == 'toy':
             outputDict['oracle outputs'] = self.oracleRecord
             outputDict['big dataset loss'] = self.totalLoss
             outputDict['bottom 10% loss'] = self.bottomTenLoss
