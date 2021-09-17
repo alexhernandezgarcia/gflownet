@@ -43,7 +43,7 @@ class DQN:
         self.singleton_state_variables = 5 # [test loss, test std, n proxy models, cluster cutoff and elapsed time]
         self.state_dataset_size = int(params.model_state_size * self.action_state_length + self.singleton_state_variables) # This depends on size of dataset V
         self.model_state_latent_dimension = params.querier_latent_space_width # latent dim of model state
-        self.device = params.device
+        self.device = config.device
 
         # Magic Hyperparameters for Greedy Sampling in Action Selection
         self.EPS_START = 0.9
