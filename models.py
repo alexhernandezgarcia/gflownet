@@ -349,8 +349,8 @@ class transformer(nn.Module):
     def __init__(self,params):
         super(transformer,self).__init__()
 
-        self.embedDim = params.proxy_model_width
-        self.hiddenDim = params.proxy_model_width
+        self.embedDim = config.proxy.width
+        self.hiddenDim = config.proxy.width
         self.layers = params.proxy_model_layers
         self.maxLen = config.dataset.max_length
         self.dictLen = config.dataset.dict_size
@@ -392,8 +392,8 @@ class LSTM(nn.Module):
         # initialize constants and layers
 
         self.embedding = nn.Embedding(2, embedding_dim = params.embedding_dim)
-        self.encoder = nn.LSTM(input_size=params.embedding_dim,hidden_size=params.proxy_model_width,num_layers=params.proxy_model_layers)
-        self.decoder = nn.Linear((params.proxy_model_width), 1)
+        self.encoder = nn.LSTM(input_size=params.embedding_dim,hidden_size=config.proxy.width,num_layers=params.proxy_model_layers)
+        self.decoder = nn.Linear((config.proxy.width), 1)
 
     def forward(self, x):
         x = x.permute(1,0) # weird input shape requirement
@@ -413,7 +413,7 @@ class MLP(nn.Module):
         self.inputLength = config.dataset.max_length
         self.tasks = config.dataset.sample_tasks
         self.layers = params.proxy_model_layers
-        self.filters = params.proxy_model_width
+        self.filters = config.proxy.width
         self.classes = int(config.dataset.dict_size + 1)
         self.init_layer_depth = int(self.inputLength * self.classes)
 
