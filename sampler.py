@@ -169,7 +169,7 @@ class Sampler:
         """
         self.initConvergenceStats()
         self.resampleRandints()
-        for self.iter in tqdm.tqdm(range(self.params.mcmc_sampling_time)):  # sample for a certain number of iterations
+        for self.iter in tqdm.tqdm(range(self.config.mcmc.sampling_time)):  # sample for a certain number of iterations
             self.iterate(model, useOracle)  # try a monte-carlo step!
 
             if (self.iter % self.deltaIter == 0) and (self.iter > 0):  # every N iterations do some reporting / updating
