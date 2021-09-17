@@ -52,7 +52,7 @@ class DQN:
         self.rl_pool = 100  # Size of Unlabelled Dataset aka Number of actions
 
         self.optimizer_param = {
-            "opt_choice": params.qmodel_opt,
+            "opt_choice": config.querier.opt,
             "momentum": params.qmodel_momentum,
             "ckpt_path": "./ckpts/",
             "exp_name_toload": params.qmodel_preload_path,
