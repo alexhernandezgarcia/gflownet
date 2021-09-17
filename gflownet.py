@@ -409,6 +409,8 @@ class GFlowNetAgent:
                 self.model_path = args.gflownet.model_ckpt
             if self.model_path.exists():
                 self.model.load_state_dict(torch.load(self.model_path))
+        else:
+            self.model_path = None
         self.model.to(self.device_torch)
         self.target = copy.deepcopy(self.model)
         self.tau = args.gflownet.bootstrap_tau
