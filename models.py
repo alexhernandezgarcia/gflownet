@@ -352,7 +352,7 @@ class transformer(nn.Module):
         self.embedDim = params.proxy_model_width
         self.hiddenDim = params.proxy_model_width
         self.layers = params.proxy_model_layers
-        self.maxLen = params.max_sample_length
+        self.maxLen = config.dataset.max_length
         self.dictLen = config.dataset.dict_size
         self.tasks = params.sample_tasks
         self.heads = min([4, max([1,self.embedDim//self.dictLen])])
@@ -410,7 +410,7 @@ class MLP(nn.Module):
         if True:
             act_func = 'gelu'
 
-        self.inputLength = params.max_sample_length
+        self.inputLength = config.dataset.max_length
         self.tasks = params.sample_tasks
         self.layers = params.proxy_model_layers
         self.filters = params.proxy_model_width

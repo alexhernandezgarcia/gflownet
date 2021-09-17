@@ -38,7 +38,7 @@ class Oracle():
         :param params:
         '''
         self.config = config
-        self.seqLen = self.params.max_sample_length
+        self.seqLen = self.config.dataset.max_length
 
         self.initRands()
 
@@ -78,7 +78,7 @@ class Oracle():
         if self.config.dataset.variable_length:
             aa = np.clip(aa, 1, self.config.dataset.dict_size) #  merge padding with class 1
         x0 = np.binary_repr(aa[-1])
-        dimension = int(len(x0) * self.params.max_sample_length)
+        dimension = int(len(x0) * self.config.dataset.max_length)
 
         mu = np.random.randint(1, dimension + 1)
         v = np.random.randint(1, dimension + 1)
@@ -105,7 +105,7 @@ class Oracle():
         if self.config.dataset.variable_length:
             samples = []
             while len(samples) < datasetLength:
-                for i in range(self.config.dataset.min_length, self.params.max_sample_length + 1):
+                for i in range(self.config.dataset.min_length, self.config.dataset.max_length + 1):
                     samples.extend(np.random.randint(0 + 1, self.config.dataset.dict_size + 1, size=(int(100 * self.config.dataset.dict_size * i), i)))
 
                 samples = self.numpy_fillna(np.asarray(samples, dtype = object)) # pad sequences up to maximum length
@@ -115,10 +115,10 @@ class Oracle():
             np.random.shuffle(samples) # shuffle so that sequences with different lengths are randomly distributed
             samples = samples[:datasetLength] # after shuffle, reduce dataset to desired size, with properly weighted samples
         else: # fixed sample size
-            samples = np.random.randint(1, self.config.dataset.dict_size + 1,size=(datasetLength, self.params.max_sample_length))
+            samples = np.random.randint(1, self.config.dataset.dict_size + 1,size=(datasetLength, self.config.dataset.max_length))
             samples = filterDuplicateSamples(samples)
             while len(samples) < datasetLength:
-                samples = np.concatenate((samples,np.random.randint(1, self.config.dataset.dict_size + 1, size=(datasetLength, self.params.max_sample_length))),0)
+                samples = np.concatenate((samples,np.random.randint(1, self.config.dataset.dict_size + 1, size=(datasetLength, self.config.dataset.max_length))),0)
                 samples = filterDuplicateSamples(samples)
 
         data['samples'] = samples
@@ -176,8 +176,8 @@ class Oracle():
         if self.config.dataset.variable_length:
             queries = np.clip(queries, 1, self.config.dataset.dict_size) #  merge padding with class 1
 
-        x0 = [np.binary_repr((queries[i][j] - 1).astype('uint8'),width=2) for i in range(len(queries)) for j in range(self.params.max_sample_length)] # convert to binary
-        x0 = np.asarray(x0).astype(str).reshape(len(queries), self.params.max_sample_length) # reshape to proper size
+        x0 = [np.binary_repr((queries[i][j] - 1).astype('uint8'),width=2) for i in range(len(queries)) for j in range(self.config.dataset.max_length)] # convert to binary
+        x0 = np.asarray(x0).astype(str).reshape(len(queries), self.config.dataset.max_length) # reshape to proper size
         x0= [''.join(x0[i]) for i in range(len(x0))] # concatenate to binary strings
         x1 = np.zeros((len(queries),len(x0[0])),int) # initialize array
         for i in range(len(x0)): # finally, as an array (took me long enough)

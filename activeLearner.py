@@ -282,7 +282,7 @@ class ActiveLearning():
         '''
         self.loadEstimatorEnsemble()
 
-        numSamples = min(int(1e4), self.config.dataset.dict_size ** self.params.max_sample_length // 100) # either 1e5, or 1% of the sample space, whichever is smaller
+        numSamples = min(int(1e4), self.config.dataset.dict_size ** self.config.dataset.max_length // 100) # either 1e5, or 1% of the sample space, whichever is smaller
         randomData = self.oracle.initializeDataset(save=False, returnData=True, customSize=numSamples) # get large random dataset
         randomSamples = randomData['samples']
         randomScores = randomData['scores']
@@ -418,7 +418,7 @@ class ActiveLearning():
         dataset = dataset['samples']
 
         # large, random sample
-        numSamples = min(int(1e4), self.config.dataset.dict_size ** self.params.max_sample_length // 100) # either 1e5, or 1% of the sample space, whichever is smaller
+        numSamples = min(int(1e4), self.config.dataset.dict_size ** self.config.dataset.max_length // 100) # either 1e5, or 1% of the sample space, whichever is smaller
         randomData = self.oracle.initializeDataset(save=False, returnData=True, customSize=numSamples) # get large random dataset
         randomSamples = randomData['samples']
 

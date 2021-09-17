@@ -37,7 +37,7 @@ class Querier():
             '''
             generate query randomly
             '''
-            query = generateRandomSamples(nQueries, [self.config.dataset.min_length,self.params.max_sample_length], self.config.dataset.dict_size, variableLength = self.config.dataset.variable_length, oldDatasetPath = 'datasets/' + self.config.dataset.oracle + '.npy')
+            query = generateRandomSamples(nQueries, [self.config.dataset.min_length,self.config.dataset.max_length], self.config.dataset.dict_size, variableLength = self.config.dataset.variable_length, oldDatasetPath = 'datasets/' + self.config.dataset.oracle + '.npy')
 
         else:
             if self.params.query_mode == 'learned':
@@ -82,7 +82,7 @@ class Querier():
             samples = samples[np.argsort(scores)]
 
         while len(samples) < nQueries:  # if we don't have enough samples from samplers, add random ones to pad out the query
-            randomSamples = generateRandomSamples(1000, [self.config.dataset.min_length, self.params.max_sample_length], self.config.dataset.dict_size, variableLength=self.config.dataset.variable_length,
+            randomSamples = generateRandomSamples(1000, [self.config.dataset.min_length, self.config.dataset.max_length], self.config.dataset.dict_size, variableLength=self.config.dataset.variable_length,
                                                   oldDatasetPath='datasets/' + self.config.dataset.oracle + '.npy')
             samples = filterDuplicateSamples(np.concatenate((samples, randomSamples), axis=0))
 
@@ -133,7 +133,7 @@ class Querier():
             tf = time.time()
             printRecord('Training GFlowNet took {} seconds'.format(int(tf-t0)))
             outputs = gflownet.sample(
-                    self.params.gflownet_n_samples, self.params.max_sample_length,
+                    self.params.gflownet_n_samples, self.config.dataset.max_length,
                     self.config.dataset.dict_size, model.evaluate
             )
             # TODO get scores, energies and uncertainties for outputs dict

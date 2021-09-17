@@ -185,7 +185,7 @@ class DQN:
         self.trainingSamples = np.load('datasets/' + self.config.dataset.oracle + '.npy', allow_pickle=True).item()
         self.trainingSamples = self.trainingSamples['samples']
         # large random sample
-        numSamples = min(int(1e4), self.config.dataset.dict_size ** self.params.max_sample_length // 100) # either 1e4, or 1% of the sample space, whichever is smaller
+        numSamples = min(int(1e4), self.config.dataset.dict_size ** self.config.dataset.max_length // 100) # either 1e4, or 1% of the sample space, whichever is smaller
         dataoracle = Oracle(self.params)
         self.randomSamples = dataoracle.initializeDataset(save=False, returnData=True, customSize=numSamples) # get large random dataset
         self.randomSamples = self.randomSamples['samples']

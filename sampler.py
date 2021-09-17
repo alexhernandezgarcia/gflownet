@@ -68,12 +68,12 @@ class Sampler:
         '''
 
         if self.config.dataset.variable_length:
-            randChainLen = np.random.randint(self.config.dataset.min_length,self.params.max_sample_length)
+            randChainLen = np.random.randint(self.config.dataset.min_length,self.config.dataset.max_length)
             randConfig = np.random.randint(1, self.config.dataset.dict_size + 1, size = (1, randChainLen))
-            if randChainLen < self.params.max_sample_length: # add zero padding, if necessary
-                randConfig = np.pad(randConfig[0],[0, self.params.max_sample_length - randChainLen],mode='constant')
+            if randChainLen < self.config.dataset.max_length: # add zero padding, if necessary
+                randConfig = np.pad(randConfig[0],[0, self.config.dataset.max_length - randChainLen],mode='constant')
         else:
-            randConfig = np.random.randint(1,self.config.dataset.dict_size + 1, size = (self.params.max_sample_length))
+            randConfig = np.random.randint(1,self.config.dataset.dict_size + 1, size = (self.config.dataset.max_length))
 
         return randConfig
 
@@ -198,7 +198,7 @@ class Sampler:
                 else:
                     nnz = np.count_nonzero(self.propConfig[i])
                     if self.changeLengthRandints[i,ind] == 1:  # extend sequence by adding a new spin (nonzero element)
-                        if nnz < self.params.max_sample_length:
+                        if nnz < self.config.dataset.max_length:
                             self.propConfig[i, nnz] = self.seqExtensionRandints[i, ind]
                     elif nnz == -1:  # shorten sequence by trimming the end (set last element to zero)
                         if nnz > self.config.dataset.min_length:
