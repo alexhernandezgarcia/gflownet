@@ -37,7 +37,7 @@ class Sampler:
         if self.config.dataset_type == 'toy':
             self.oracle = Oracle(self.config)  # if we are using a toy model, initialize the oracle so we can optimize it directly for comparison
 
-        np.random.seed(int(self.config.sampler_seed + int(self.seedInd * 1000))) # initial seed is randomized over pipeline iterations
+        np.random.seed(int(self.config.seeds.sampler + int(self.seedInd * 1000))) # initial seed is randomized over pipeline iterations
 
         self.getInitConfig()
 
