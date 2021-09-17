@@ -153,19 +153,19 @@ class ActiveLearning():
         #clutering alternative - just include sample-by-sample
         #bestInds = sortTopXSamples(samples[np.argsort(scores)], nSamples=len(samples), distCutoff=0.1)  # sort out the best, and at least minimally distinctive samples
 
-        if len(clusters) < self.params.model_state_size: # if we don't have enough clusters for the model, pad with random samples from the sampling run
+        if len(clusters) < self.config.querier.model_state_size: # if we don't have enough clusters for the model, pad with random samples from the sampling run
             minClusterSamples, minClusterEns, minClusterVars = self.addRandomSamples(samples, energies, uncertainties, minClusterSamples, minClusterEns, minClusterVars)
 
         # get distances to relevant datasets
-        internalDist, datasetDist, randomDist = self.getDataDiffs(minClusterSamples[:self.params.model_state_size])
+        internalDist, datasetDist, randomDist = self.getDataDiffs(minClusterSamples[:self.config.querier.model_state_size])
 
         self.stateDict = {
             'test loss': np.average(self.testMinima), # losses are evaluated on standardized data, so we do not need to re-standardize here
             'test std': np.sqrt(np.var(self.testMinima)),
             'all test losses': self.testMinima,
-            'best cluster energies': (minClusterEns[:self.params.model_state_size] - self.model.mean) / self.model.std, # standardize according to dataset statistics
-            'best cluster deviations': np.sqrt(minClusterVars[:self.params.model_state_size]) / self.model.std,
-            'best cluster samples': minClusterSamples[:self.params.model_state_size],
+            'best cluster energies': (minClusterEns[:self.config.querier.model_state_size] - self.model.mean) / self.model.std, # standardize according to dataset statistics
+            'best cluster deviations': np.sqrt(minClusterVars[:self.config.querier.model_state_size]) / self.model.std,
+            'best cluster samples': minClusterSamples[:self.config.querier.model_state_size],
             'best clusters internal diff': internalDist,
             'best clusters dataset diff': datasetDist,
             'best clusters random set diff': randomDist,
@@ -176,10 +176,10 @@ class ActiveLearning():
         }
 
         printRecord('%d '%self.params.proxy_model_ensemble_size + f'Model ensemble training converged with average test loss of {bcolors.OKCYAN}%.5f{bcolors.ENDC}' % np.average(np.asarray(self.testMinima[-self.params.proxy_model_ensemble_size:])) + f' and std of {bcolors.OKCYAN}%.3f{bcolors.ENDC}'%(np.sqrt(np.var(self.testMinima))))
-        printRecord('Model state contains {} samples'.format(self.params.model_state_size) +
+        printRecord('Model state contains {} samples'.format(self.config.querier.model_state_size) +
                     ' with minimum energy' + bcolors.OKGREEN + ' {:.2f},'.format(np.amin(minClusterEns)) + bcolors.ENDC +
-                    ' average energy' + bcolors.OKGREEN +' {:.2f},'.format(np.average(minClusterEns[:self.params.model_state_size])) + bcolors.ENDC +
-                    ' and average std dev' + bcolors.OKCYAN + ' {:.2f}'.format(np.average(np.sqrt(minClusterVars[:self.params.model_state_size]))) + bcolors.ENDC)
+                    ' average energy' + bcolors.OKGREEN +' {:.2f},'.format(np.average(minClusterEns[:self.config.querier.model_state_size])) + bcolors.ENDC +
+                    ' and average std dev' + bcolors.OKCYAN + ' {:.2f}'.format(np.average(np.sqrt(minClusterVars[:self.config.querier.model_state_size]))) + bcolors.ENDC)
         printRecord('Sample average mutual distance is ' + bcolors.WARNING +'{:.2f} '.format(np.average(internalDist)) + bcolors.ENDC +
                     'dataset distance is ' + bcolors.WARNING + '{:.2f} '.format(np.average(datasetDist)) + bcolors.ENDC +
                     'and overall distance estimated at ' + bcolors.WARNING + '{:.2f}'.format(np.average(randomDist)) + bcolors.ENDC)
@@ -392,7 +392,7 @@ class ActiveLearning():
 
 
     def addRandomSamples(self, samples, energies, uncertainties, minClusterSamples, minClusterEns, minClusterVars):
-        rands = np.random.randint(0, len(samples), size=self.params.model_state_size - len(minClusterSamples))
+        rands = np.random.randint(0, len(samples), size=self.config.querier.model_state_size - len(minClusterSamples))
         randomSamples = samples[rands]
         randomEnergies = energies[rands]
         randomUncertainties = uncertainties[rands]

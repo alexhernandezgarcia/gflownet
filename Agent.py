@@ -41,7 +41,7 @@ class DQN:
         self.load = False if params.qmodel_preload_path is None else True
         self.action_state_length = 5 # [energy, variance, 3 distance metrics]
         self.singleton_state_variables = 5 # [test loss, test std, n proxy models, cluster cutoff and elapsed time]
-        self.state_dataset_size = int(params.model_state_size * self.action_state_length + self.singleton_state_variables) # This depends on size of dataset V
+        self.state_dataset_size = int(config.querier.model_state_size * self.action_state_length + self.singleton_state_variables) # This depends on size of dataset V
         self.model_state_latent_dimension = params.querier_latent_space_width # latent dim of model state
         self.device = config.device
 
