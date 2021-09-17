@@ -53,7 +53,7 @@ class DQN:
 
         self.optimizer_param = {
             "opt_choice": config.querier.opt,
-            "momentum": params.qmodel_momentum,
+            "momentum": config.querier.momentum,
             "ckpt_path": "./ckpts/",
             "exp_name_toload": params.qmodel_preload_path,
             "exp_name": self.exp_name,
