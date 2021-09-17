@@ -364,7 +364,7 @@ class Oracle():
 
 
     def nupackScore(self,queries,returnSS=False,parallel=True):
-        if self.params.machine == 'cluster':
+        if self.config.machine == 'cluster':
             #use nupack instead of seqfold - more stable and higher quality predictions in general
             #returns the energy of the most probable structure only
             #:param queries:

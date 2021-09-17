@@ -220,7 +220,7 @@ class ActiveLearning():
             self.testMinima.append(testMins)
         else:
             del self.model
-            if self.params.machine == 'local':
+            if self.config.machine == 'local':
                 nHold = 4
             else:
                 nHold = 1
