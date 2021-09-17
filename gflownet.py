@@ -399,7 +399,7 @@ class GFlowNetAgent:
         # Model
         self.model = make_mlp(
             [args.horizon * args.nalphabet]
-            + [args.gflownet.n_hid] * args.n_layers
+            + [args.gflownet.n_hid] * args.gflownet.n_layers
             + [args.nalphabet + 1]
         )
         if args.gflownet.model_ckpt and "workdir" in args:
