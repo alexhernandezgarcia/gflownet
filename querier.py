@@ -117,7 +117,7 @@ class Querier():
         :return:
         """
         if self.method.lower() == "mcmc":
-            gammas = np.logspace(self.params.stun_min_gamma, self.params.stun_max_gamma, self.params.mcmc_num_samplers)
+            gammas = np.logspace(self.params.stun_min_gamma, self.params.stun_max_gamma, self.config.mcmc.num_samplers)
             self.mcmcSampler = Sampler(self.params, seedInd, scoreFunction, gammas)
             samples = self.mcmcSampler.sample(model, useOracle=useOracle)
             outputs = samples2dict(samples)

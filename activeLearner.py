@@ -321,7 +321,7 @@ class ActiveLearning():
         printRecord("Asking toy oracle for the true minimum")
 
         self.model = 'abc'
-        gammas = np.logspace(self.params.stun_min_gamma,self.params.stun_max_gamma,self.params.mcmc_num_samplers)
+        gammas = np.logspace(self.params.stun_min_gamma,self.params.stun_max_gamma,self.config.mcmc.num_samplers)
         mcmcSampler = Sampler(self.params, 0, [1,0], gammas)
         samples = mcmcSampler.sample(self.model, useOracle=True)
         sampleDict = samples2dict(samples)
@@ -330,7 +330,7 @@ class ActiveLearning():
         else:
             bestMin = np.amin(sampleDict['energies'])
 
-        printRecord(f"Sampling Complete! Lowest Energy Found = {bcolors.FAIL}%.3f{bcolors.ENDC}" % bestMin + " from %d" % self.params.mcmc_num_samplers + " sampling runs.")
+        printRecord(f"Sampling Complete! Lowest Energy Found = {bcolors.FAIL}%.3f{bcolors.ENDC}" % bestMin + " from %d" % self.config.mcmc.num_samplers + " sampling runs.")
 
         self.oracleRecord = sampleDict
         self.trueMinimum = np.amin(self.oracleRecord['scores'])
