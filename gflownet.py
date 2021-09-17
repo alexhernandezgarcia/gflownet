@@ -411,7 +411,7 @@ class GFlowNetAgent:
                 self.model.load_state_dict(torch.load(self.model_path))
         self.model.to(args.device_torch)
         self.target = copy.deepcopy(self.model)
-        self.tau = args.bootstrap_tau
+        self.tau = args.gflownet.bootstrap_tau
         self.ema_alpha = 0.5
         self.early_stopping = 0.05
         # Comet
