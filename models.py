@@ -292,7 +292,7 @@ def getDataloaders(params, ensembleIndex): # get the dataloaders, to load the da
     :param params:
     :return:
     '''
-    training_batch = params.proxy_training_batch_size
+    training_batch = config.proxy.mbsize
     dataset = buildDataset(params)  # get data
     if params.proxy_shuffle_dataset:
         dataset.reshuffle(seed=ensembleIndex)

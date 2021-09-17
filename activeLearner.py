@@ -292,7 +292,7 @@ class ActiveLearning():
         randomScores = randomScores[sortInds]
 
         modelScores, modelVars = [[],[]]
-        sampleLoader = data.DataLoader(randomSamples, batch_size = self.params.proxy_training_batch_size, shuffle=False, num_workers = 0, pin_memory=False)
+        sampleLoader = data.DataLoader(randomSamples, batch_size = self.config.proxy.mbsize, shuffle=False, num_workers = 0, pin_memory=False)
         for i, testData in enumerate(sampleLoader):
             score, variance = self.model.evaluate(testData.float(), output='Both')
             modelScores.extend(score)
