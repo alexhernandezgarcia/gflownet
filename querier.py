@@ -32,7 +32,7 @@ class Querier():
         """
         # TODO upgrade sampler
 
-        nQueries = self.params.queries_per_iter
+        nQueries = self.config.al.queries_per_iter
         if self.config.al.query_mode == 'random':
             '''
             generate query randomly

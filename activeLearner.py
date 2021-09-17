@@ -437,17 +437,17 @@ class ActiveLearning():
         directory = os.getcwd()
         plotter = resultsPlotter()
         plotter.process(directory)
-        iterAxis = (plotter.xrange - 1) * self.params.queries_per_iter + self.config.dataset.init_length
+        iterAxis = (plotter.xrange - 1) * self.config.al.queries_per_iter + self.config.dataset.init_length
         bestEns = plotter.normedEns[:,0]
         cumulativeScore = np.trapz(bestEns, x = iterAxis)
-        normedCumScore = cumulativeScore / (self.params.dataset_size - self.params.queries_per_iter) # we added to the dataset before this
+        normedCumScore = cumulativeScore / (self.params.dataset_size - self.config.al.queries_per_iter) # we added to the dataset before this
 
-        printRecord('Cumulative score is {:.2f} gross and {:.5f} per-sample after {} samples'.format(cumulativeScore, normedCumScore, self.params.dataset_size - self.params.queries_per_iter))
+        printRecord('Cumulative score is {:.2f} gross and {:.5f} per-sample after {} samples'.format(cumulativeScore, normedCumScore, self.params.dataset_size - self.config.al.queries_per_iter))
 
         results = {
             'cumulative performance': cumulativeScore,
             'per-sample cumulative performance': normedCumScore,
-            'dataset size': (self.params.dataset_size - self.params.queries_per_iter)
+            'dataset size': (self.params.dataset_size - self.config.al.queries_per_iter)
         }
 
         if self.pipeIter == 1:
