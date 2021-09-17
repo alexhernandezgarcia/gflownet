@@ -28,7 +28,7 @@ class ActiveLearning():
         '''
         self.oracle = Oracle(self.params) # oracle needs to be initialized to initialize toy datasets
 
-        if (self.config.run_num == 0) or (self.params.explicit_run_enumeration == True): # if making a new workdir
+        if (self.config.run_num == 0) or (self.config.explicit_run_enumeration == True): # if making a new workdir
             if self.config.run_num == 0:
                 self.makeNewWorkingDirectory()
             else:
