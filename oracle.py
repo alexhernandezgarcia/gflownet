@@ -59,7 +59,7 @@ class Oracle():
         hamiltonian = np.random.randn(self.seqLen,self.seqLen) # energy function
         self.hamiltonian = np.tril(hamiltonian) + np.tril(hamiltonian, -1).T # random symmetric matrix
 
-        pham = np.zeros((self.seqLen,self.seqLen,self.params.dict_size,self.params.dict_size))
+        pham = np.zeros((self.seqLen,self.seqLen,self.config.dataset.dict_size,self.config.dataset.dict_size))
         for i in range(pham.shape[0]):
             for j in range(i, pham.shape[1]):
                 for k in range(pham.shape[2]):
@@ -70,13 +70,13 @@ class Oracle():
                         pham[j, i, k, l] = num
                         pham[j, i, l, k] = num
         self.pottsJ = pham # multilevel spin Hamiltonian (Potts Hamiltonian) - coupling term
-        self.pottsH = np.random.randn(self.seqLen,self.params.dict_size) # Potts Hamiltonian - onsite term
+        self.pottsH = np.random.randn(self.seqLen,self.config.dataset.dict_size) # Potts Hamiltonian - onsite term
 
         # W-model parameters
         # first get the binary dimension size
-        aa = np.arange(self.params.dict_size)
+        aa = np.arange(self.config.dataset.dict_size)
         if self.params.variable_sample_length:
-            aa = np.clip(aa, 1, self.params.dict_size) #  merge padding with class 1
+            aa = np.clip(aa, 1, self.config.dataset.dict_size) #  merge padding with class 1
         x0 = np.binary_repr(aa[-1])
         dimension = int(len(x0) * self.params.max_sample_length)
 
@@ -106,7 +106,7 @@ class Oracle():
             samples = []
             while len(samples) < datasetLength:
                 for i in range(self.params.min_sample_length, self.params.max_sample_length + 1):
-                    samples.extend(np.random.randint(0 + 1, self.params.dict_size + 1, size=(int(100 * self.params.dict_size * i), i)))
+                    samples.extend(np.random.randint(0 + 1, self.config.dataset.dict_size + 1, size=(int(100 * self.config.dataset.dict_size * i), i)))
 
                 samples = self.numpy_fillna(np.asarray(samples, dtype = object)) # pad sequences up to maximum length
                 samples = filterDuplicateSamples(samples) # this will naturally proportionally punish shorter sequences
@@ -115,10 +115,10 @@ class Oracle():
             np.random.shuffle(samples) # shuffle so that sequences with different lengths are randomly distributed
             samples = samples[:datasetLength] # after shuffle, reduce dataset to desired size, with properly weighted samples
         else: # fixed sample size
-            samples = np.random.randint(1, self.params.dict_size + 1,size=(datasetLength, self.params.max_sample_length))
+            samples = np.random.randint(1, self.config.dataset.dict_size + 1,size=(datasetLength, self.params.max_sample_length))
             samples = filterDuplicateSamples(samples)
             while len(samples) < datasetLength:
-                samples = np.concatenate((samples,np.random.randint(1, self.params.dict_size + 1, size=(datasetLength, self.params.max_sample_length))),0)
+                samples = np.concatenate((samples,np.random.randint(1, self.config.dataset.dict_size + 1, size=(datasetLength, self.params.max_sample_length))),0)
                 samples = filterDuplicateSamples(samples)
 
         data['samples'] = samples
@@ -174,7 +174,7 @@ class Oracle():
         :return:
         '''
         if self.params.variable_sample_length:
-            queries = np.clip(queries, 1, self.params.dict_size) #  merge padding with class 1
+            queries = np.clip(queries, 1, self.config.dataset.dict_size) #  merge padding with class 1
 
         x0 = [np.binary_repr((queries[i][j] - 1).astype('uint8'),width=2) for i in range(len(queries)) for j in range(self.params.max_sample_length)] # convert to binary
         x0 = np.asarray(x0).astype(str).reshape(len(queries), self.params.max_sample_length) # reshape to proper size

@@ -69,11 +69,11 @@ class Sampler:
 
         if self.params.variable_sample_length:
             randChainLen = np.random.randint(self.params.min_sample_length,self.params.max_sample_length)
-            randConfig = np.random.randint(1, self.params.dict_size + 1, size = (1, randChainLen))
+            randConfig = np.random.randint(1, self.config.dataset.dict_size + 1, size = (1, randChainLen))
             if randChainLen < self.params.max_sample_length: # add zero padding, if necessary
                 randConfig = np.pad(randConfig[0],[0, self.params.max_sample_length - randChainLen],mode='constant')
         else:
-            randConfig = np.random.randint(1,self.params.dict_size + 1, size = (self.params.max_sample_length))
+            randConfig = np.random.randint(1,self.config.dataset.dict_size + 1, size = (self.params.max_sample_length))
 
         return randConfig
 
@@ -91,11 +91,11 @@ class Sampler:
         periodically resample our relevant random numbers
         :return:
         """
-        self.spinRandints = np.random.randint(1, self.params.dict_size + 1, size=(self.nruns,self.randintsResampleAt)).astype('uint8')
+        self.spinRandints = np.random.randint(1, self.config.dataset.dict_size + 1, size=(self.nruns,self.randintsResampleAt)).astype('uint8')
         self.pickSpinRandint = np.random.randint(0, self.chainLength, size=(self.nruns,self.randintsResampleAt)).astype('uint32')
         self.alphaRandoms = np.random.random((self.nruns,self.randintsResampleAt)).astype(float)
         self.changeLengthRandints = np.random.randint(-1, 2, size=(self.nruns,self.randintsResampleAt)).astype('int8')
-        self.seqExtensionRandints = np.random.randint(1, self.params.dict_size + 1, size=(self.nruns,self.randintsResampleAt)).astype('uint8')
+        self.seqExtensionRandints = np.random.randint(1, self.config.dataset.dict_size + 1, size=(self.nruns,self.randintsResampleAt)).astype('uint8')
 
 
     def initOptima(self, scores, energy, variance):

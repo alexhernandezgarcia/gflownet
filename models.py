@@ -353,7 +353,7 @@ class transformer(nn.Module):
         self.hiddenDim = params.proxy_model_width
         self.layers = params.proxy_model_layers
         self.maxLen = params.max_sample_length
-        self.dictLen = params.dict_size
+        self.dictLen = config.dataset.dict_size
         self.tasks = params.sample_tasks
         self.heads = min([4, max([1,self.embedDim//self.dictLen])])
 
@@ -414,7 +414,7 @@ class MLP(nn.Module):
         self.tasks = params.sample_tasks
         self.layers = params.proxy_model_layers
         self.filters = params.proxy_model_width
-        self.classes = int(params.dict_size + 1)
+        self.classes = int(config.dataset.dict_size + 1)
         self.init_layer_depth = int(self.inputLength * self.classes)
 
         # build input and output layers
