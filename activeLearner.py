@@ -170,12 +170,12 @@ class ActiveLearning():
             'best clusters dataset diff': datasetDist,
             'best clusters random set diff': randomDist,
             'clustering cutoff': self.config.al.minima_dist_cutoff, # could be a learned parameter
-            'n proxy models': self.params.proxy_model_ensemble_size,
+            'n proxy models': self.config.proxy.ensemble_size,
             'iter': self.pipeIter,
             'budget': self.config.al.n_iter
         }
 
-        printRecord('%d '%self.params.proxy_model_ensemble_size + f'Model ensemble training converged with average test loss of {bcolors.OKCYAN}%.5f{bcolors.ENDC}' % np.average(np.asarray(self.testMinima[-self.params.proxy_model_ensemble_size:])) + f' and std of {bcolors.OKCYAN}%.3f{bcolors.ENDC}'%(np.sqrt(np.var(self.testMinima))))
+        printRecord('%d '%self.config.proxy.ensemble_size + f'Model ensemble training converged with average test loss of {bcolors.OKCYAN}%.5f{bcolors.ENDC}' % np.average(np.asarray(self.testMinima[-self.config.proxy.ensemble_size:])) + f' and std of {bcolors.OKCYAN}%.3f{bcolors.ENDC}'%(np.sqrt(np.var(self.testMinima))))
         printRecord('Model state contains {} samples'.format(self.config.querier.model_state_size) +
                     ' with minimum energy' + bcolors.OKGREEN + ' {:.2f},'.format(np.amin(minClusterEns)) + bcolors.ENDC +
                     ' average energy' + bcolors.OKGREEN +' {:.2f},'.format(np.average(minClusterEns[:self.config.querier.model_state_size])) + bcolors.ENDC +
@@ -213,7 +213,7 @@ class ActiveLearning():
     def retrainModels(self, parallel=True):
         if not parallel:
             testMins = []
-            for i in range(self.params.proxy_model_ensemble_size):
+            for i in range(self.config.proxy.ensemble_size):
                 self.resetModel(i)  # reset between ensemble estimators EVERY ITERATION of the pipeline
                 self.model.converge()  # converge model
                 testMins.append(np.amin(self.model.err_te_hist))
@@ -225,11 +225,11 @@ class ActiveLearning():
             else:
                 nHold = 1
             cpus = int(os.cpu_count() - nHold)
-            cpus = min(cpus,self.params.proxy_model_ensemble_size) # only as many CPUs as we need
+            cpus = min(cpus,self.config.proxy.ensemble_size) # only as many CPUs as we need
             with mp.Pool(processes=cpus) as pool:
-                output = [pool.apply_async(trainModel, args=[self.params, j]) for j in range(self.params.proxy_model_ensemble_size)]
-                outputList = [output[i].get() for i in range(self.params.proxy_model_ensemble_size)]
-                self.testMinima.append([np.amin(outputList[i]) for i in range(self.params.proxy_model_ensemble_size)])
+                output = [pool.apply_async(trainModel, args=[self.params, j]) for j in range(self.config.proxy.ensemble_size)]
+                outputList = [output[i].get() for i in range(self.config.proxy.ensemble_size)]
+                self.testMinima.append([np.amin(outputList[i]) for i in range(self.config.proxy.ensemble_size)])
                 pool.close()
                 pool.join()
 
@@ -241,7 +241,7 @@ class ActiveLearning():
         :return:
         '''
         ensemble = []
-        for i in range(self.params.proxy_model_ensemble_size):
+        for i in range(self.config.proxy.ensemble_size):
             self.resetModel(i)
             self.model.load(i)
             ensemble.append(self.model.model)
@@ -250,7 +250,7 @@ class ActiveLearning():
         self.model = modelNet(self.params,0)
         self.model.loadEnsemble(ensemble)
 
-        #print('Loaded {} estimators'.format(int(self.params.proxy_model_ensemble_size)))
+        #print('Loaded {} estimators'.format(int(self.config.proxy.ensemble_size)))
 
 
     def resetModel(self,ensembleIndex, returnModel = False):
