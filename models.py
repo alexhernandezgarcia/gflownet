@@ -32,7 +32,7 @@ class modelNet():
         self.ensembleIndex = ensembleIndex
         self.config.history = min(20, self.config.proxy_max_epochs) # length of past to check
         self.initModel()
-        torch.random.manual_seed(int(params.model_seed + ensembleIndex))
+        torch.random.manual_seed(int(config.seeds.model + ensembleIndex))
 
 
     def initModel(self):

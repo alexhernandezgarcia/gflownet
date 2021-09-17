@@ -35,7 +35,7 @@ class DQN:
 
         """
 
-        torch.manual_seed(params.model_seed)
+        torch.manual_seed(config.seeds.model)
         self.params = params
         self.exp_name = 'learned_'
         self.load = False if params.qmodel_preload_path is None else True
