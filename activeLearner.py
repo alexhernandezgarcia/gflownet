@@ -321,7 +321,7 @@ class ActiveLearning():
         printRecord("Asking toy oracle for the true minimum")
 
         self.model = 'abc'
-        gammas = np.logspace(self.config.mcmc.stun_min_gamma,self.params.stun_max_gamma,self.config.mcmc.num_samplers)
+        gammas = np.logspace(self.config.mcmc.stun_min_gamma,self.config.mcmc.stun_max_gamma,self.config.mcmc.num_samplers)
         mcmcSampler = Sampler(self.params, 0, [1,0], gammas)
         samples = mcmcSampler.sample(self.model, useOracle=True)
         sampleDict = samples2dict(samples)
