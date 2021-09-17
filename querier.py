@@ -20,7 +20,7 @@ To-Do:
 class Querier():
     def __init__(self, params):
         self.params = params
-        self.method = params.sample_method
+        self.method = config.al.sample_method
         if self.params.query_mode == 'learned':
             self.qModel = DQN(self.params) # initialize q-network
 
