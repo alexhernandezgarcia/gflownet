@@ -32,12 +32,12 @@ params
 
 
 class Oracle():
-    def __init__(self,params):
+    def __init__(self, params):
         '''
         initialize the oracle
         :param params:
         '''
-        self.params = params
+        self.config = config
         self.seqLen = self.params.max_sample_length
 
         self.initRands()
@@ -51,7 +51,7 @@ class Oracle():
         np.random.seed(self.params.toy_oracle_seed)
 
         # set these to be always positive to play nice with gFlowNet sampling
-        if True:#self.params.test_mode:
+        if True:#self.config.test_mode:
             self.linFactors = np.ones(self.seqLen) # Uber-simple function, for testing purposes - actually nearly functionally identical to one-max, I believe
         else:
             self.linFactors = np.abs(np.random.randn(self.seqLen))  # coefficients for linear toy energy
