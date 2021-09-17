@@ -199,7 +199,7 @@ class modelNet():
             self.converged = 1
             printRecord(bcolors.WARNING + "Model converged after {} epochs - hit test loss convergence criterion at {:.4f}".format(self.epochs + 1, min(self.err_te_hist)) + bcolors.ENDC)
 
-        if self.epochs >= self.params.proxy_max_epochs:
+        if self.epochs >= self.config.proxy.max_epochs:
             self.converged = 1
             printRecord(bcolors.WARNING + "Model converged after {} epochs- epoch limit was hit with test loss {:.4f}".format(self.epochs + 1, min(self.err_te_hist)) + bcolors.ENDC)
 
