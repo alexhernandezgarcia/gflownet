@@ -472,11 +472,11 @@ if __name__ == "__main__":
     ipdb.set_trace()
     print("Args:\n" + "\n".join([f"    {k:20}: {v}" for k, v in vars(config).items()]))
     al = activeLearner.ActiveLearning(params)
-    if params.mode == "initalize":
+    if config.al.mode == "initalize":
         printRecord("Initialized!")
-    elif params.mode == "training":
+    elif config.al.mode == "training":
         al.runPipeline()
-    elif params.mode == "evaluation":
+    elif config.al.mode == "evaluation":
         ValueError(
             "No function for this! Write a function to load torch models and evaluate inputs."
         )
