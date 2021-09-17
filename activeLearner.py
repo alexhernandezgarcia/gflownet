@@ -26,7 +26,7 @@ class ActiveLearning():
         move to relevant directory
         :return:
         '''
-        self.oracle = Oracle(self.params) # oracle needs to be initialized to initialize toy datasets
+        self.oracle = Oracle(self.config) # oracle needs to be initialized to initialize toy datasets
 
         if (self.config.run_num == 0) or (self.config.explicit_run_enumeration == True): # if making a new workdir
             if self.config.run_num == 0:
@@ -47,7 +47,7 @@ class ActiveLearning():
             printRecord('Resuming run %d' % self.config.run_num)
 
 
-        self.querier = Querier(self.params) # might as well initialize the querier here
+        self.querier = Querier(self.config) # might as well initialize the querier here
 
 
     def makeNewWorkingDirectory(self):    # make working directory
@@ -84,7 +84,7 @@ class ActiveLearning():
             self.sampleOracle() # use the oracle to pre-solve the problem for future benchmarking
             printRecord(f"The true global minimum is {bcolors.OKGREEN}%.3f{bcolors.ENDC}" % self.trueMinimum)
 
-        self.params.dataset_size = self.config.dataset.init_length
+        self.config.dataset_size = self.config.dataset.init_length
         for self.pipeIter in range(self.config.al.n_iter):
             printRecord(f'Starting pipeline iteration #{bcolors.FAIL}%d{bcolors.ENDC}' % int(self.pipeIter+1))
             self.iterate() # run the pipeline
@@ -227,7 +227,7 @@ class ActiveLearning():
             cpus = int(os.cpu_count() - nHold)
             cpus = min(cpus,self.config.proxy.ensemble_size) # only as many CPUs as we need
             with mp.Pool(processes=cpus) as pool:
-                output = [pool.apply_async(trainModel, args=[self.params, j]) for j in range(self.config.proxy.ensemble_size)]
+                output = [pool.apply_async(trainModel, args=[self.config, j]) for j in range(self.config.proxy.ensemble_size)]
                 outputList = [output[i].get() for i in range(self.config.proxy.ensemble_size)]
                 self.testMinima.append([np.amin(outputList[i]) for i in range(self.config.proxy.ensemble_size)])
                 pool.close()
@@ -247,7 +247,7 @@ class ActiveLearning():
             ensemble.append(self.model.model)
 
         del self.model
-        self.model = modelNet(self.params,0)
+        self.model = modelNet(self.config,0)
         self.model.loadEnsemble(ensemble)
 
         #print('Loaded {} estimators'.format(int(self.config.proxy.ensemble_size)))
@@ -262,14 +262,14 @@ class ActiveLearning():
             del self.model
         except:
             pass
-        self.model = modelNet(self.params,ensembleIndex)
+        self.model = modelNet(self.config,ensembleIndex)
         #printRecord(f'{bcolors.HEADER} New model: {bcolors.ENDC}', getModelName(ensembleIndex))
         if returnModel:
             return self.model
 
 
     def getModelSize(self):
-        self.model = modelNet(self.params, 0)
+        self.model = modelNet(self.config, 0)
         nParams = get_n_params(self.model.model)
         printRecord('Proxy model has {} parameters'.format(int(nParams)))
         del(self.model)
@@ -322,7 +322,7 @@ class ActiveLearning():
 
         self.model = 'abc'
         gammas = np.logspace(self.config.mcmc.stun_min_gamma,self.config.mcmc.stun_max_gamma,self.config.mcmc.num_samplers)
-        mcmcSampler = Sampler(self.params, 0, [1,0], gammas)
+        mcmcSampler = Sampler(self.config, 0, [1,0], gammas)
         samples = mcmcSampler.sample(self.model, useOracle=True)
         sampleDict = samples2dict(samples)
         if self.config.dataset.oracle == 'wmodel': # w model minimum is always zero - even if we don't find it
@@ -338,13 +338,13 @@ class ActiveLearning():
 
     def saveOutputs(self):
         '''
-        save params and outputs in a dict
+        save config and outputs in a dict
         :return:
         '''
         outputDict = {}
-        outputDict['params'] = Namespace(**dict(vars(self.params)))
-        if "comet" in outputDict['params']:
-            del outputDict['params'].comet
+        outputDict['config'] = Namespace(**dict(vars(self.config)))
+        if "comet" in outputDict['config']:
+            del outputDict['config'].comet
         outputDict['state dict record'] = self.stateDictRecord
         if self.config.dataset.type == 'toy':
             outputDict['oracle outputs'] = self.oracleRecord
@@ -368,11 +368,11 @@ class ActiveLearning():
         dataset['samples'] = np.concatenate((dataset['samples'], oracleSequences))
         dataset['scores'] = np.concatenate((dataset['scores'], oracleScores))
 
-        self.params.dataset_size = len(dataset['samples'])
+        self.config.dataset_size = len(dataset['samples'])
 
         printRecord(f"Added{bcolors.OKBLUE}{bcolors.BOLD} %d{bcolors.ENDC}" % int(len(oracleSequences)) + " to the dataset, total dataset size is" + bcolors.OKBLUE + " {}".format(int(len(dataset['samples']))) + bcolors.ENDC)
         printRecord(bcolors.UNDERLINE + "=====================================================================" + bcolors.ENDC)
-        np.save('datasets/' + self.params.dataset, dataset)
+        np.save('datasets/' + self.config.dataset, dataset)
 
 
     def getScalingFactor(self):
@@ -440,14 +440,14 @@ class ActiveLearning():
         iterAxis = (plotter.xrange - 1) * self.config.al.queries_per_iter + self.config.dataset.init_length
         bestEns = plotter.normedEns[:,0]
         cumulativeScore = np.trapz(bestEns, x = iterAxis)
-        normedCumScore = cumulativeScore / (self.params.dataset_size - self.config.al.queries_per_iter) # we added to the dataset before this
+        normedCumScore = cumulativeScore / (self.config.dataset_size - self.config.al.queries_per_iter) # we added to the dataset before this
 
-        printRecord('Cumulative score is {:.2f} gross and {:.5f} per-sample after {} samples'.format(cumulativeScore, normedCumScore, self.params.dataset_size - self.config.al.queries_per_iter))
+        printRecord('Cumulative score is {:.2f} gross and {:.5f} per-sample after {} samples'.format(cumulativeScore, normedCumScore, self.config.dataset_size - self.config.al.queries_per_iter))
 
         results = {
             'cumulative performance': cumulativeScore,
             'per-sample cumulative performance': normedCumScore,
-            'dataset size': (self.params.dataset_size - self.config.al.queries_per_iter)
+            'dataset size': (self.config.dataset_size - self.config.al.queries_per_iter)
         }
 
         if self.pipeIter == 1:
@@ -456,7 +456,7 @@ class ActiveLearning():
             self.cumulativeResult.append(results)
 
 
-def trainModel(params, i):
+def trainModel(config, i):
     '''
     rewritten for training in a parallelized fashion
     needs to be outside the class method for multiprocessing to work
@@ -464,7 +464,7 @@ def trainModel(params, i):
     :return:
     '''
 
-    model = modelNet(params, i)
+    model = modelNet(config, i)
     err_te_hist = model.converge(returnHist = True)  # converge model
 
     return err_te_hist

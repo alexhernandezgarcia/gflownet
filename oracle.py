@@ -22,7 +22,7 @@ This script computes a binding score for a given sequence or set of sequences
 > Inputs: numpy integer arrays - different oracles with different requirements
 > Outputs: oracle outputs - usually numbers
 
-params
+config
 'dataset seed' - self explanatory
 'dict size' - number of possible states per sequence element - e.g., for ATGC 'dict size' = 4
 'variable sample length', 'min sample length', 'max sample length' - for determining the length and variability of sample sequences
@@ -32,10 +32,10 @@ params
 
 
 class Oracle():
-    def __init__(self, params):
+    def __init__(self, config):
         '''
         initialize the oracle
-        :param params:
+        :param config:
         '''
         self.config = config
         self.seqLen = self.config.dataset.max_length
@@ -125,7 +125,7 @@ class Oracle():
         data['scores'] = self.score(data['samples'])
 
         if save:
-            np.save('datasets/' + self.params.dataset, data)
+            np.save('datasets/' + self.config.dataset, data)
         if returnData:
             return data
 

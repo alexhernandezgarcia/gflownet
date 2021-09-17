@@ -22,7 +22,7 @@ class DQN:
 
     """
 
-    def __init__(self, params):
+    def __init__(self, config):
         """Inits the DQN object.
 
         Args:
@@ -36,7 +36,7 @@ class DQN:
         """
 
         torch.manual_seed(config.seeds.model)
-        self.params = params
+        self.config = config
         self.exp_name = 'learned_'
         self.load = False if config.querier.model_ckpt is None else True
         self.action_state_length = 5 # [energy, variance, 3 distance metrics]
@@ -186,7 +186,7 @@ class DQN:
         self.trainingSamples = self.trainingSamples['samples']
         # large random sample
         numSamples = min(int(1e4), self.config.dataset.dict_size ** self.config.dataset.max_length // 100) # either 1e4, or 1% of the sample space, whichever is smaller
-        dataoracle = Oracle(self.params)
+        dataoracle = Oracle(self.config)
         self.randomSamples = dataoracle.initializeDataset(save=False, returnData=True, customSize=numSamples) # get large random dataset
         self.randomSamples = self.randomSamples['samples']
 

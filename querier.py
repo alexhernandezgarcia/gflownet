@@ -18,11 +18,11 @@ To-Do:
 
 
 class Querier():
-    def __init__(self, params):
-        self.params = params
+    def __init__(self, config):
+        self.config = config
         self.method = config.al.sample_method
         if self.config.al.query_mode == 'learned':
-            self.qModel = DQN(self.params) # initialize q-network
+            self.qModel = DQN(self.config) # initialize q-network
 
     def buildQuery(self, model, statusDict, energySampleDict):
         """
@@ -118,7 +118,7 @@ class Querier():
         """
         if self.method.lower() == "mcmc":
             gammas = np.logspace(self.config.mcmc.stun_min_gamma, self.config.mcmc.stun_max_gamma, self.config.mcmc.num_samplers)
-            self.mcmcSampler = Sampler(self.params, seedInd, scoreFunction, gammas)
+            self.mcmcSampler = Sampler(self.config, seedInd, scoreFunction, gammas)
             samples = self.mcmcSampler.sample(model, useOracle=useOracle)
             outputs = samples2dict(samples)
         elif self.method.lower() == "gflownet":
@@ -127,13 +127,13 @@ class Querier():
             # and we want the gflownet to represent the current models, in general, though it's not impossible we may want to incorporate
             # information from prior iterations for some reason
             # TODO add optional post-sample annealing
-            gflownet = GFlowNetAgent(self.params, proxy=model.evaluate)
+            gflownet = GFlowNetAgent(self.config, proxy=model.evaluate)
             t0 = time.time()
             gflownet.train()
             tf = time.time()
             printRecord('Training GFlowNet took {} seconds'.format(int(tf-t0)))
             outputs = gflownet.sample(
-                    self.params.gflownet_n_samples, self.config.dataset.max_length,
+                    self.config.gflownet.n_samples, self.config.dataset.max_length,
                     self.config.dataset.dict_size, model.evaluate
             )
             # TODO get scores, energies and uncertainties for outputs dict

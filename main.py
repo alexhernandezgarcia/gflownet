@@ -3,7 +3,6 @@ This code implements an active learning protocol for global minimization of some
 
 # TODO
 ==> incorporate gFlowNet
-    -> batch generation
     -> model state calculation
     -> training and sampling print statements
         => training performance
@@ -14,7 +13,6 @@ This code implements an active learning protocol for global minimization of some
     -> investigate 'action could not be sampled from model' error
 ==> RL training and testing
 ==> add a function for tracking dataset distances and adjusting the cutoff
-==> add YAML params
 ==> update and test beluga requirements
 
 low priority /long term
@@ -445,7 +443,7 @@ def process_config(config):
             20,
         ]
         config.dataset.dict_size = 4
-    # GFlowNet params
+    # GFlowNet
     config.gflownet.horizon = config.dataset.max_length
     config.gflownet.nalphabet = config.dataset.dict_size
     config.gflownet.func = config.dataset
@@ -467,8 +465,9 @@ if __name__ == "__main__":
     args = parser.parse_args()
     config = get_config(args, override_args, args2config)
     config = process_config(config)
-    print("Args:\n" + "\n".join([f"    {k:20}: {v}" for k, v in vars(config).items()]))
-    al = activeLearner.ActiveLearning(params)
+#     print("Args:\n" + "\n".join([f"    {k:20}: {v}" for k, v in vars(config).items()]))
+# TODO: save final config in workdir
+    al = activeLearner.ActiveLearning(config)
     if config.al.mode == "initalize":
         printRecord("Initialized!")
     elif config.al.mode == "training":

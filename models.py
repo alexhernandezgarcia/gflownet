@@ -41,16 +41,16 @@ class modelNet():
         :return:
         '''
         if self.config.proxy.model_type == 'transformer': # switch to variable-length sequence model
-            self.model = transformer(self.params)
+            self.model = transformer(self.config)
         elif self.config.proxy.model_type == 'mlp':
-            self.model = MLP(self.params)
+            self.model = MLP(self.config)
         else:
             print(self.config.proxy.model_type + ' is not one of the available models')
 
         if self.config.device == 'cuda':
             self.model = self.model.cuda()
         self.optimizer = optim.AdamW(self.model.parameters(), amsgrad=True)
-        datasetBuilder = buildDataset(self.params)
+        datasetBuilder = buildDataset(self.config)
         self.mean, self.std = datasetBuilder.getStandardization()
 
 
@@ -100,7 +100,7 @@ class modelNet():
         '''
         [self.err_tr_hist, self.err_te_hist] = [[], []] # initialize error records
 
-        tr, te, self.datasetSize = getDataloaders(self.params, self.ensembleIndex)
+        tr, te, self.datasetSize = getDataloaders(self.config, self.ensembleIndex)
 
         #printRecord(f"Dataset size is: {bcolors.OKCYAN}%d{bcolors.ENDC}" %self.datasetSize)
 
@@ -120,7 +120,7 @@ class modelNet():
             if self.err_te_hist[-1] == np.min(self.err_te_hist): # if this is the best test loss we've seen
                 self.save(best=1)
             # after training at least 10 epochs, check convergence
-            if self.epochs >= self.params.history:
+            if self.epochs >= self.config.history:
                 self.checkConvergence()
 
             self.epochs += 1
@@ -190,12 +190,12 @@ class modelNet():
         # check if test loss is increasing for at least several consecutive epochs
         eps = 1e-4 # relative measure for constancy
 
-        if all(np.asarray(self.err_te_hist[-self.params.history+1:])  > self.err_te_hist[-self.params.history]): #
+        if all(np.asarray(self.err_te_hist[-self.config.history+1:])  > self.err_te_hist[-self.config.history]): #
             self.converged = 1
             printRecord(bcolors.WARNING + "Model converged after {} epochs - test loss increasing at {:.4f}".format(self.epochs + 1, min(self.err_te_hist)) + bcolors.ENDC)
 
         # check if test loss is unchanging
-        if abs(self.err_te_hist[-self.params.history] - np.average(self.err_te_hist[-self.params.history:]))/self.err_te_hist[-self.params.history] < eps:
+        if abs(self.err_te_hist[-self.config.history] - np.average(self.err_te_hist[-self.config.history:]))/self.err_te_hist[-self.config.history] < eps:
             self.converged = 1
             printRecord(bcolors.WARNING + "Model converged after {} epochs - hit test loss convergence criterion at {:.4f}".format(self.epochs + 1, min(self.err_te_hist)) + bcolors.ENDC)
 
@@ -262,8 +262,8 @@ class buildDataset():
     '''
     build dataset object
     '''
-    def __init__(self, params):
-        dataset = np.load('datasets/' + params.dataset+'.npy', allow_pickle=True)
+    def __init__(self, config):
+        dataset = np.load('datasets/' + config.dataset+'.npy', allow_pickle=True)
         dataset = dataset.item()
         self.samples = dataset['samples']
         self.targets = dataset['scores']
@@ -286,14 +286,14 @@ class buildDataset():
         return np.mean(self.targets), np.sqrt(np.var(self.targets))
 
 
-def getDataloaders(params, ensembleIndex): # get the dataloaders, to load the dataset in batches
+def getDataloaders(config, ensembleIndex): # get the dataloaders, to load the dataset in batches
     '''
     creat dataloader objects from the dataset
-    :param params:
+    :param config:
     :return:
     '''
     training_batch = config.proxy.mbsize
-    dataset = buildDataset(params)  # get data
+    dataset = buildDataset(config)  # get data
     if config.proxy.shuffle_dataset:
         dataset.reshuffle(seed=ensembleIndex)
     train_size = int(0.8 * len(dataset))  # split data into training and test sets
@@ -315,7 +315,7 @@ def getDataloaders(params, ensembleIndex): # get the dataloaders, to load the da
     return tr, te, dataset.__len__()
 
 
-def getDataSize(params):
+def getDataSize(config):
     dataset = np.load('datasets/' + config.dataset.oracle + '.npy', allow_pickle=True)
     dataset = dataset.item()
     samples = dataset['samples']
@@ -346,7 +346,7 @@ class PositionalEncoding(nn.Module):
 
 
 class transformer(nn.Module):
-    def __init__(self,params):
+    def __init__(self,config):
         super(transformer,self).__init__()
 
         self.embedDim = config.proxy.width
@@ -387,7 +387,7 @@ class LSTM(nn.Module):
     '''
     may not work currently - possible issues with unequal length batching
     '''
-    def __init__(self,params):
+    def __init__(self,config):
         super(LSTM,self).__init__()
         # initialize constants and layers
 
@@ -403,7 +403,7 @@ class LSTM(nn.Module):
 
 
 class MLP(nn.Module):
-    def __init__(self,params):
+    def __init__(self,config):
         super(MLP,self).__init__()
         # initialize constants and layers
 
@@ -419,7 +419,7 @@ class MLP(nn.Module):
 
         # build input and output layers
         self.initial_layer = nn.Linear(int(self.inputLength * self.classes), self.filters) # layer which takes in our sequence in one-hot encoding
-        self.activation1 = Activation(act_func,self.filters,params)
+        self.activation1 = Activation(act_func,self.filters,config)
 
         self.output_layers = []
         for i in range(self.tasks):

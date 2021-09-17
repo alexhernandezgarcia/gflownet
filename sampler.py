@@ -253,7 +253,7 @@ class Sampler:
 
 
     def getDE(self, scores):
-        if self.params.STUN == 1:  # compute score difference using STUN
+        if self.config.STUN == 1:  # compute score difference using STUN
             F = self.computeSTUN(scores)
             DE = F[0] - F[1]
         else:  # compute raw score difference
@@ -332,7 +332,7 @@ class Sampler:
             acceptedRecently = np.sum((self.iter - np.asarray(self.recInds[i][-history:])) < history)  # rolling acceptance rate - how many accepted out of the last hundred iters
             self.acceptanceRate[i] = acceptedRecently / history
 
-            if self.acceptanceRate[i] < self.params.target_acceptance_rate:
+            if self.acceptanceRate[i] < self.config.target_acceptance_rate:
                 self.temperature[i] = self.temperature[i] * (1 + np.random.random(1)[0]) # modulate temperature semi-stochastically
             else:
                 self.temperature[i] = self.temperature[i] * (1 - np.random.random(1)[0])
