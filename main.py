@@ -309,7 +309,7 @@ def add_args(parser):
     parser.add_argument(
         "--n_train_steps", default=20000, type=int, help="gflownet training steps"
     )
-    args2config.update({"n_train_steps": ["gflownet", "n_train_steps"]})
+    args2config.update({"n_train_steps": ["gflownet", "n_iter"]})
     parser.add_argument(
         "--num_empirical_loss",
         default=200000,

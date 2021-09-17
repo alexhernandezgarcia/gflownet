@@ -445,7 +445,7 @@ class GFlowNetAgent:
         self.batch_reward = args.gflownet.batch_reward
         # Training
         self.opt = make_opt(self.parameters(), args)
-        self.n_train_steps = args.n_train_steps
+        self.n_train_steps = args.gflownet.n_iter
         self.mbsize = args.gflownet.mbsize
         self.gflownet.progress = args.gflownet.progress
         self.clip_grad_norm = args.gflownet.clip_grad_norm
