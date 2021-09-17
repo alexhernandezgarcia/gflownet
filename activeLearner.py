@@ -1,7 +1,9 @@
 from argparse import Namespace
+import yaml
 from models import modelNet
 from querier import *
 from sampler import *
+from utils import namespace2dict
 from torch.utils import data
 import torch.nn.functional as F
 import torch
@@ -45,6 +47,9 @@ class ActiveLearning():
             self.workDir = self.config.workdir + '/' + 'run%d' %self.config.run_num
             os.chdir(self.workDir)
             printRecord('Resuming run %d' % self.config.run_num)
+        # Save YAML config
+        with open(self.workDir + '/config.yml', 'w') as f:
+            yaml.dump(numpy2python(namespace2dict(self.config)), f, default_flow_style=False)
 
 
         self.querier = Querier(self.config) # might as well initialize the querier here
