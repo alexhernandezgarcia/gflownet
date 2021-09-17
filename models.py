@@ -294,7 +294,7 @@ def getDataloaders(params, ensembleIndex): # get the dataloaders, to load the da
     '''
     training_batch = config.proxy.mbsize
     dataset = buildDataset(params)  # get data
-    if params.proxy_shuffle_dataset:
+    if config.proxy.shuffle_dataset:
         dataset.reshuffle(seed=ensembleIndex)
     train_size = int(0.8 * len(dataset))  # split data into training and test sets
 
