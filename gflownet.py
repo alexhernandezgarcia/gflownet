@@ -450,8 +450,8 @@ class GFlowNetAgent:
         self.gflownet.progress = args.gflownet.progress
         self.clip_grad_norm = args.gflownet.clip_grad_norm
         self.num_empirical_loss = args.num_empirical_loss
-        self.ttsr = max(int(args.train_to_sample_ratio), 1)
-        self.sttr = max(int(1 / args.train_to_sample_ratio), 1)
+        self.ttsr = max(int(args.gflownet.train_to_sample_ratio), 1)
+        self.sttr = max(int(1 / args.gflownet.train_to_sample_ratio), 1)
 
     def parameters(self):
         return self.model.parameters()
