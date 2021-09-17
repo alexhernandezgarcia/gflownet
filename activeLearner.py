@@ -12,10 +12,10 @@ import multiprocessing as mp
 
 
 class ActiveLearning():
-    def __init__(self, params):
+    def __init__(self, config):
         self.pipeIter = None
-        self.params = params
-        self.runNum = self.params.run_num
+        self.config = config
+        self.runNum = self.config.run_num
         self.setup()
         self.getModelSize()
 
@@ -28,11 +28,11 @@ class ActiveLearning():
         '''
         self.oracle = Oracle(self.params) # oracle needs to be initialized to initialize toy datasets
 
-        if (self.params.run_num == 0) or (self.params.explicit_run_enumeration == True): # if making a new workdir
-            if self.params.run_num == 0:
+        if (self.config.run_num == 0) or (self.params.explicit_run_enumeration == True): # if making a new workdir
+            if self.config.run_num == 0:
                 self.makeNewWorkingDirectory()
             else:
-                self.workDir = self.params.workdir + '/run%d'%self.params.run_num # explicitly enumerate the new run directory
+                self.workDir = self.params.workdir + '/run%d'%self.config.run_num # explicitly enumerate the new run directory
                 os.mkdir(self.workDir)
 
             os.mkdir(self.workDir + '/ckpts')
@@ -42,9 +42,9 @@ class ActiveLearning():
             self.oracle.initializeDataset() # generate toy model dataset
         else:
             # move to working dir
-            self.workDir = self.params.workdir + '/' + 'run%d' %self.params.run_num
+            self.workDir = self.params.workdir + '/' + 'run%d' %self.config.run_num
             os.chdir(self.workDir)
-            printRecord('Resuming run %d' % self.params.run_num)
+            printRecord('Resuming run %d' % self.config.run_num)
 
 
         self.querier = Querier(self.params) # might as well initialize the querier here
