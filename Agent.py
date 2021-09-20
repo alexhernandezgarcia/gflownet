@@ -1,7 +1,7 @@
 # This code is the modified version of code from
 # ksenia-konyushkova/intelligent_annotation_dialogs/exp1_IAD_RL.ipynb
 
-from RLAptamer.models.query_network import QueryNetworkDQN
+from RLmodels import QueryNetworkDQN, ParameterUpdateDQN
 import numpy as np
 import os
 import random
@@ -9,7 +9,7 @@ import torch
 import math
 import torch.functional as F
 from utils import *
-from replay_buffer import ReplayMemory
+from replay_buffer import QuerySelectionReplayMemory, ParameterUpdateReplayMemory
 from oracle import Oracle
 
 
@@ -38,12 +38,18 @@ class DQN:
 
         torch.manual_seed(params.model_seed)
         self.params = params
-        self.exp_name = 'learned_'
+        self.exp_name = "learned_"
         self.load = False if params.qmodel_preload_path is None else True
-        self.action_state_length = 5 # [energy, variance, 3 distance metrics]
-        self.singleton_state_variables = 5 # [test loss, test std, n proxy models, cluster cutoff and elapsed time]
-        self.state_dataset_size = int(params.model_state_size * self.action_state_length + self.singleton_state_variables) # This depends on size of dataset V
-        self.model_state_latent_dimension = params.querier_latent_space_width # latent dim of model state
+        self.action_state_length = 5  # [energy, variance, 3 distance metrics]
+        self.singleton_state_variables = (
+            5  # [test loss, test std, n proxy models, cluster cutoff and elapsed time]
+        )
+        self.state_dataset_size = int(
+            params.model_state_size * self.action_state_length + self.singleton_state_variables
+        )  # This depends on size of dataset V
+        self.model_state_latent_dimension = (
+            params.querier_latent_space_width
+        )  # latent dim of model state
         self.device = params.device
 
         # Magic Hyperparameters for Greedy Sampling in Action Selection
@@ -62,8 +68,8 @@ class DQN:
             "load_opt": self.load,
         }
 
-        self.opt_choice = self.optimizer_param['opt_choice']
-        self.momentum = self.optimizer_param['momentum']
+        self.opt_choice = self.optimizer_param["opt_choice"]
+        self.momentum = self.optimizer_param["momentum"]
         if self.load:
             self._load_models()
         else:
@@ -71,49 +77,31 @@ class DQN:
 
         self._create_and_load_optimizer(**self.optimizer_param)
 
-        self.memory = ReplayMemory(self.params['buffer_size'])
-
     def _load_models(self):
         """Load Policy model weights. Needs to know episode and exp_name.
         """
         # TODO write loader
         # TODO write saver
-        if os.path.exists('ckpts/' + exp_name):  # reload model
-            policy_checkpoint = torch.load(f'ckpts/policy_{episode}')
-            target_checkpoint = torch.load(f'ckpts/target_{episode}')
+        if os.path.exists("ckpts/" + exp_name):  # reload model
+            policy_checkpoint = torch.load(f"ckpts/policy_{episode}")
+            target_checkpoint = torch.load(f"ckpts/target_{episode}")
 
-        self.model.load_state_dict(policy_checkpoint['model_state_dict'])
-        self.model.load_state_dict(target_checkpoint['model_state_dict'])
-
+        self.model.load_state_dict(policy_checkpoint["model_state_dict"])
+        self.model.load_state_dict(target_checkpoint["model_state_dict"])
 
     def save_models(self, episode):
-        torch.save({'model_state_dict': self.policy_net.state_dict(), 'optimizer_state_dict': self.optimizer.state_dict()}, f'ckpts/policy_{episode}')
-        torch.save({'model_state_dict': self.target.state_dict()}, f'ckpts/target_{episode}')
+        torch.save(
+            {
+                "model_state_dict": self.policy_net.state_dict(),
+                "optimizer_state_dict": self.optimizer.state_dict(),
+            },
+            f"ckpts/policy_{episode}",
+        )
+        torch.save({"model_state_dict": self.target.state_dict()}, f"ckpts/target_{episode}")
 
-    def _create_models(self):
-        """Creates the Online and Target DQNs
-
-        """
-        # Query network (and target network for DQN)
-        # TODO add model state single variables to DQN net
-        self.policy_net = QueryNetworkDQN(
-            model_state_length=self.state_dataset_size,
-            action_state_length=self.action_state_length,
-            model_state_latent_dimension=self.model_state_latent_dimension,
-            bias_average=1,  # TODO Figure out the query network bias trick from 2018 paper.
-        ).to(self.device)
-        self.target_net = QueryNetworkDQN(
-            model_state_length=self.state_dataset_size,
-            action_state_length=self.action_state_length,
-            model_state_latent_dimension=self.model_state_latent_dimension,
-            bias_average=1,  # TODO Figure out the query network bias trick from 2018 paper. #MK what are we biasing
-        ).to(self.device)
-
-        printRecord("Policy network has " + str(get_n_params(self.policy_net)) + " parameters.")
-
-        #print("DQN Models created!")
-
-    def count_parameters(net: torch.nn.Module) -> int: # TODO - delete - MK didn't work for whatever reason
+    def count_parameters(
+        net: torch.nn.Module,
+    ) -> int:  # TODO - delete - MK didn't work for whatever reason
         model_parameters = filter(lambda p: p.requires_grad, net.parameters())
         params = sum([np.prod(p.size()) for p in model_parameters])
         return params
@@ -150,80 +138,117 @@ class DQN:
 
         print("Policy optimizer created")
 
-
     def updateModelState(self, model_state, model):
-        '''
+        """
         update the model state and store it for later sampling
         :param model_state:
         :return:
-        '''
+        """
         model_state_dict = model_state
 
         # things to put into the model state
         # test loss and standard deviation between models
-        self.model_state = torch.stack((torch.tensor(model_state_dict['test loss']), torch.tensor(model_state_dict['test std'])))
+        self.model_state = torch.stack(
+            (
+                torch.tensor(model_state_dict["test loss"]),
+                torch.tensor(model_state_dict["test std"]),
+            )
+        )
 
         # sample energies
-        self.model_state = torch.cat((self.model_state, torch.tensor(model_state_dict['best cluster energies'])))
+        self.model_state = torch.cat(
+            (self.model_state, torch.tensor(model_state_dict["best cluster energies"]))
+        )
 
         # sample uncertainties
-        self.model_state = torch.cat((self.model_state, torch.Tensor(model_state_dict['best cluster deviations'])))
+        self.model_state = torch.cat(
+            (self.model_state, torch.Tensor(model_state_dict["best cluster deviations"]))
+        )
 
         # internal dist, dataset dist, random set dist
-        self.model_state = torch.cat((self.model_state, torch.tensor(model_state_dict['best clusters internal diff'])))
-        self.model_state = torch.cat((self.model_state, torch.tensor(model_state_dict['best clusters dataset diff'])))
-        self.model_state = torch.cat((self.model_state, torch.tensor(model_state_dict['best clusters random set diff'])))
+        self.model_state = torch.cat(
+            (self.model_state, torch.tensor(model_state_dict["best clusters internal diff"]))
+        )
+        self.model_state = torch.cat(
+            (self.model_state, torch.tensor(model_state_dict["best clusters dataset diff"]))
+        )
+        self.model_state = torch.cat(
+            (self.model_state, torch.tensor(model_state_dict["best clusters random set diff"]))
+        )
 
         # n proxy models,         # clustering cutoff,         # progress fraction
-        singletons = torch.stack((torch.tensor(model_state_dict['n proxy models']),torch.tensor(model_state_dict['clustering cutoff']), torch.tensor(model_state_dict['iter'] / model_state_dict['budget'])))
+        singletons = torch.stack(
+            (
+                torch.tensor(model_state_dict["n proxy models"]),
+                torch.tensor(model_state_dict["clustering cutoff"]),
+                torch.tensor(model_state_dict["iter"] / model_state_dict["budget"]),
+            )
+        )
 
         self.model_state = torch.cat((self.model_state, singletons))
         self.model_state = self.model_state.to(self.device)
 
-
-        self.proxyModel = model # this should already be on correct device - passed directly from the main program
+        self.proxyModel = model  # this should already be on correct device - passed directly from the main program
 
         # get data to compute distances
         # model state samples
-        self.modelStateSamples = model_state_dict['best cluster samples']
+        self.modelStateSamples = model_state_dict["best cluster samples"]
         # training dataset
-        self.trainingSamples = np.load('datasets/' + self.params.dataset + '.npy', allow_pickle=True).item()
-        self.trainingSamples = self.trainingSamples['samples']
+        self.trainingSamples = np.load(
+            "datasets/" + self.params.dataset + ".npy", allow_pickle=True
+        ).item()
+        self.trainingSamples = self.trainingSamples["samples"]
         # large random sample
-        numSamples = min(int(1e4), self.params.dict_size ** self.params.max_sample_length // 100) # either 1e4, or 1% of the sample space, whichever is smaller
+        numSamples = min(
+            int(1e4), self.params.dict_size ** self.params.max_sample_length // 100
+        )  # either 1e4, or 1% of the sample space, whichever is smaller
         dataoracle = Oracle(self.params)
-        self.randomSamples = dataoracle.initializeDataset(save=False, returnData=True, customSize=numSamples) # get large random dataset
-        self.randomSamples = self.randomSamples['samples']
-
+        self.randomSamples = dataoracle.initializeDataset(
+            save=False, returnData=True, customSize=numSamples
+        )  # get large random dataset
+        self.randomSamples = self.randomSamples["samples"]
 
         self.policy_net.eval()
         with torch.no_grad():
-            self.policy_net.storeLatent(self.model_state) # pre-compute and store the model latent state to save time
+            self.policy_net.storeLatent(
+                self.model_state
+            )  # pre-compute and store the model latent state to save time
+
+    def evaluate(self, sample, output="Average"):  # just evaluate the proxy
+        return self.proxyModel.evaluate(sample, output=output)
 
 
-    def getActionState(self, sample):
-        '''
-        get the proxy model predictions and sample distances
-        :param sample:
-        :return:
-        '''
-        energies, uncertainties = self.proxyModel.evaluate(sample, output='Both')
-        internalDist = binaryDistance(np.concatenate((sample, self.modelStateSamples)),pairwise=False,extractInds=len(sample))
-        datasetDist = binaryDistance(np.concatenate((sample, self.trainingSamples)), pairwise=False, extractInds = len(sample))
-        randomDist = binaryDistance(np.concatenate((sample,self.randomSamples)), pairwise=False, extractInds=len(sample))
+class QuerySelectionAgent(DQN):
+    def __init__(self, params):
+        super().__init__(params)
+        self.memory = QuerySelectionReplayMemory(self.params["buffer_size"])
 
-        actionState = []
-        for i in range(len(sample)):
-            actionState.append([energies[i],uncertainties[i],internalDist[i],datasetDist[i],randomDist[i]])
-        self.actionState = torch.Tensor(actionState).to(self.device)
-        return self.actionState # return action state
+    def _create_models(self):
+        """Creates the Online and Target DQNs
 
-    def evaluate(self, sample, output = 'Average'): # just evaluate the proxy
-        return self.proxyModel.evaluate(sample, output = output)
+        """
+        # Query network (and target network for DQN)
+        # TODO add model state single variables to DQN net
+        self.policy_net = QueryNetworkDQN(
+            model_state_length=self.state_dataset_size,
+            action_state_length=self.action_state_length,
+            model_state_latent_dimension=self.model_state_latent_dimension,
+            bias_average=1,  # TODO Figure out the query network bias trick from 2018 paper.
+        ).to(self.device)
+        self.target_net = QueryNetworkDQN(
+            model_state_length=self.state_dataset_size,
+            action_state_length=self.action_state_length,
+            model_state_latent_dimension=self.model_state_latent_dimension,
+            bias_average=1,  # TODO Figure out the query network bias trick from 2018 paper. #MK what are we biasing
+        ).to(self.device)
 
-    def evaluateQ(self,
-                  sample: np.array,
-                  ):
+        printRecord("Policy network has " + str(get_n_params(self.policy_net)) + " parameters.")
+
+        # print("DQN Models created!")
+
+    def evaluateQ(
+        self, sample: np.array,
+    ):
         """ get the q-value for a particular sample, given its 'action state'
 
         :param model_state: (torch.Variable) Torch tensor containing the model state representation.
@@ -239,9 +264,34 @@ class DQN:
         with torch.no_grad():
             q_val = self.policy_net(action_state)
 
-
         return q_val
 
+    def getActionState(self, sample):
+        """
+        get the proxy model predictions and sample distances
+        :param sample:
+        :return:
+        """
+        energies, uncertainties = self.proxyModel.evaluate(sample, output="Both")
+        internalDist = binaryDistance(
+            np.concatenate((sample, self.modelStateSamples)),
+            pairwise=False,
+            extractInds=len(sample),
+        )
+        datasetDist = binaryDistance(
+            np.concatenate((sample, self.trainingSamples)), pairwise=False, extractInds=len(sample)
+        )
+        randomDist = binaryDistance(
+            np.concatenate((sample, self.randomSamples)), pairwise=False, extractInds=len(sample)
+        )
+
+        actionState = []
+        for i in range(len(sample)):
+            actionState.append(
+                [energies[i], uncertainties[i], internalDist[i], datasetDist[i], randomDist[i]]
+            )
+        self.actionState = torch.Tensor(actionState).to(self.device)
+        return self.actionState  # return action state
 
     def train(self, memory_batch, BATCH_SIZE=32, GAMMA=0.999, dqn_epochs=1):
         """Train a q-function estimator on a minibatch.
@@ -274,13 +324,17 @@ class DQN:
                 with torch.no_grad():
                     # Get Q-values for every action
                     q_val_ = [
-                        self.target_net(transition.next_model_state.detach(), action_i_state.detach()) for action_i_state in transition.next_action_state
+                        self.target_net(
+                            transition.next_model_state.detach(), action_i_state.detach()
+                        )
+                        for action_i_state in transition.next_action_state
                     ]
 
                     action_i = torch.argmax(torch.stack(q_val_))
 
                 max_next_q_value = self.policy_net(
-                    transition.next_model_state.detach(), transition.next_action_state[action_i].detach()
+                    transition.next_model_state.detach(),
+                    transition.next_action_state[action_i].detach(),
                 )
 
                 # Get Predicted Q-values at s_t
@@ -290,11 +344,100 @@ class DQN:
                 # Compute the Target Q values (No future return if terminal).
                 # Use Bellman Equation which essentially states that sum of r_t+1 and the max_q_value at time t+1
                 # is the target/expected value of the Q-function at time t.
-                target_q_values = (max_next_q_value * GAMMA) + transition.reward if transition.terminal else transition.reward
+                target_q_values = (
+                    (max_next_q_value * GAMMA) + transition.reward
+                    if transition.terminal
+                    else transition.reward
+                )
 
                 # Compute MSE loss Comparing Q(s) obtained from Online Policy to
                 # target Q value (Q'(s)) obtained from Target Network + Bellman Equation
                 loss = F.mse_loss(online_q_values, target_q_values)
+                loss_item += loss.item()
+                loss.backward()
+            self.optimizer.step()
+
+            del loss
+            del transitions
+
+
+class ParameterUpdateAgent(DQN):
+    def __init__(self, params):
+        super().__init__(params)
+        self.memory = ParameterUpdateReplayMemory(self.params["buffer_size"])
+
+    def _create_models(self):
+        """Creates the Online and Target DQNs
+
+        """
+        # Query network (and target network for DQN)
+        self.policy_net = ParameterUpdateDQN(
+            model_state_length=self.state_dataset_size,
+            model_state_latent_dimension=self.model_state_latent_dimension,
+            bias_average=1,  # TODO Figure out the query network bias trick from 2018 paper.
+        ).to(self.device)
+        self.target_net = ParameterUpdateDQN(
+            model_state_length=self.state_dataset_size,
+            model_state_latent_dimension=self.model_state_latent_dimension,
+            bias_average=1,  # TODO Figure out the query network bias trick from 2018 paper. #MK what are we biasing
+        ).to(self.device)
+
+        printRecord("Policy network has " + str(get_n_params(self.policy_net)) + " parameters.")
+
+        # print("DQN Models created!")
+
+    def train(self, memory_batch, BATCH_SIZE=32, GAMMA=0.999, dqn_epochs=1):
+        """Train a q-function estimator on a minibatch.
+
+        Train estimator on minibatch, partially copy
+        optimised parameters to target_estimator.
+        We use double DQN that means that estimator is
+        used to select the best action, but target_estimator
+        predicts the q-value.
+
+        :(ReplayMemory) memory: Experience replay buffer
+        :param Transition: definition of the experience replay tuple
+        :param BATCH_SIZE: (int) Batch size to sample from the experience replay
+        :param GAMMA: (float) Discount factor
+        :param dqn_epochs: (int) Number of epochs to train the DQN
+        """
+        # Code adapted from https://pytorch.org/tutorials/intermediate/reinforcement_q_learning.html
+        if len(memory_batch) < BATCH_SIZE:
+            return
+        print("Optimize model...")
+        print(len(memory_batch))
+        self.policy_net.train()
+        loss_item = 0
+        for ep in range(dqn_epochs):
+            self.optimizer.zero_grad()
+            transitions = memory_batch.sample(BATCH_SIZE)
+            for transition in transitions:
+                # Get Target q-value function value for the action at s_t+1
+                # that yields the highest discounted return
+                with torch.no_grad():
+                    # Get Q-values for every action
+                    q_val_ = self.target_net(transition.next_model_state.detach())
+
+                    action_i = torch.argmax(q_val_)
+
+                max_next_q_value = self.policy_net(transition.next_model_state.detach())[action_i]
+
+                # Get Predicted Q-values at s_t
+                online_q_value = self.policy_net(transition.model_state.detach())[
+                    transition.action
+                ]
+                # Compute the Target Q values (No future return if terminal).
+                # Use Bellman Equation which essentially states that sum of r_t+1 and the max_q_value at time t+1
+                # is the target/expected value of the Q-function at time t.
+                target_q_value = (
+                    (max_next_q_value * GAMMA) + transition.reward
+                    if transition.terminal
+                    else transition.reward
+                )
+
+                # Compute MSE loss Comparing Q(s) obtained from Online Policy to
+                # target Q value (Q'(s)) obtained from Target Network + Bellman Equation
+                loss = F.mse_loss(online_q_value, target_q_value)
                 loss_item += loss.item()
                 loss.backward()
             self.optimizer.step()

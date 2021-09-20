@@ -27,7 +27,7 @@ class ActiveLearning():
         :return:
         '''
         self.oracle = Oracle(self.params) # oracle needs to be initialized to initialize toy datasets
-
+        #TODO Initialize Q_Network
         if (self.params.run_num == 0) or (self.params.explicit_run_enumeration == True): # if making a new workdir
             if self.params.run_num == 0:
                 self.makeNewWorkingDirectory()
@@ -85,6 +85,7 @@ class ActiveLearning():
             printRecord(f"The true global minimum is {bcolors.OKGREEN}%.3f{bcolors.ENDC}" % self.trueMinimum)
 
         self.params.dataset_size = self.params.init_dataset_length
+        #TODO Add nested loop for episodes and Q_model Training
         for self.pipeIter in range(self.params.pipeline_iterations):
             printRecord(f'Starting pipeline iteration #{bcolors.FAIL}%d{bcolors.ENDC}' % int(self.pipeIter+1))
             self.iterate() # run the pipeline
@@ -106,6 +107,8 @@ class ActiveLearning():
 
         t0 = time.time()
         self.getModelState() # run energy-only sampling and create model state dict
+        #TODO Get Reward and put Transition in Buffer
+        #TODO Run Q_Network and pass action to querier
         query = self.querier.buildQuery(self.model, self.stateDict, self.sampleDict)  # pick Samples to be scored
         tf = time.time()
         printRecord('Query generation took {} seconds'.format(int(tf-t0)))
