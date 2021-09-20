@@ -27,12 +27,12 @@ Problems
 
 
 class modelNet():
-    def __init__(self, params, ensembleIndex):
-        self.params = params
+    def __init__(self, config, ensembleIndex):
+        self.config = config
         self.ensembleIndex = ensembleIndex
-        self.params.history = min(20, self.params.proxy_max_epochs) # length of past to check
+        self.config.history = min(20, self.config.proxy.max_epochs) # length of past to check
         self.initModel()
-        torch.random.manual_seed(int(params.model_seed + ensembleIndex))
+        torch.random.manual_seed(int(config.seeds.model + ensembleIndex))
 
 
     def initModel(self):
@@ -40,17 +40,17 @@ class modelNet():
         Initialize model and optimizer
         :return:
         '''
-        if self.params.proxy_model_type == 'transformer': # switch to variable-length sequence model
-            self.model = transformer(self.params)
-        elif self.params.proxy_model_type == 'mlp':
-            self.model = MLP(self.params)
+        if self.config.proxy.model_type == 'transformer': # switch to variable-length sequence model
+            self.model = transformer(self.config)
+        elif self.config.proxy.model_type == 'mlp':
+            self.model = MLP(self.config)
         else:
-            print(self.params.proxy_model_type + ' is not one of the available models')
+            print(self.config.proxy.model_type + ' is not one of the available models')
 
-        if self.params.device == 'cuda':
+        if self.config.device == 'cuda':
             self.model = self.model.cuda()
         self.optimizer = optim.AdamW(self.model.parameters(), amsgrad=True)
-        datasetBuilder = buildDataset(self.params)
+        datasetBuilder = buildDataset(self.config)
         self.mean, self.std = datasetBuilder.getStandardization()
 
 
@@ -79,7 +79,7 @@ class modelNet():
             self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
             #prev_epoch = checkpoint['epoch']
 
-            if self.params.device == 'cuda':
+            if self.config.device == 'cuda':
                 self.model.cuda()  # move net to GPU
                 for state in self.optimizer.state.values():  # move optimizer to GPU
                     for k, v in state.items():
@@ -100,7 +100,7 @@ class modelNet():
         '''
         [self.err_tr_hist, self.err_te_hist] = [[], []] # initialize error records
 
-        tr, te, self.datasetSize = getDataloaders(self.params, self.ensembleIndex)
+        tr, te, self.datasetSize = getDataloaders(self.config, self.ensembleIndex)
 
         #printRecord(f"Dataset size is: {bcolors.OKCYAN}%d{bcolors.ENDC}" %self.datasetSize)
 
@@ -108,7 +108,7 @@ class modelNet():
         self.epochs = 0
 
         while (self.converged != 1):
-            if (self.epochs % 10 == 0) and self.params.debug:
+            if (self.epochs % 10 == 0) and self.config.debug:
                 printRecord("Model {} epoch {}".format(self.ensembleIndex, self.epochs))
 
             if self.epochs > 0: #  this allows us to keep the previous model if it is better than any produced on this run
@@ -120,7 +120,7 @@ class modelNet():
             if self.err_te_hist[-1] == np.min(self.err_te_hist): # if this is the best test loss we've seen
                 self.save(best=1)
             # after training at least 10 epochs, check convergence
-            if self.epochs >= self.params.history:
+            if self.epochs >= self.config.history:
                 self.checkConvergence()
 
             self.epochs += 1
@@ -172,7 +172,7 @@ class modelNet():
         """
         inputs = train_data[0]
         targets = train_data[1]
-        if self.params.device == 'cuda':
+        if self.config.device == 'cuda':
             inputs = inputs.cuda()
             targets = targets.cuda()
 
@@ -190,16 +190,16 @@ class modelNet():
         # check if test loss is increasing for at least several consecutive epochs
         eps = 1e-4 # relative measure for constancy
 
-        if all(np.asarray(self.err_te_hist[-self.params.history+1:])  > self.err_te_hist[-self.params.history]): #
+        if all(np.asarray(self.err_te_hist[-self.config.history+1:])  > self.err_te_hist[-self.config.history]): #
             self.converged = 1
             printRecord(bcolors.WARNING + "Model converged after {} epochs - test loss increasing at {:.4f}".format(self.epochs + 1, min(self.err_te_hist)) + bcolors.ENDC)
 
         # check if test loss is unchanging
-        if abs(self.err_te_hist[-self.params.history] - np.average(self.err_te_hist[-self.params.history:]))/self.err_te_hist[-self.params.history] < eps:
+        if abs(self.err_te_hist[-self.config.history] - np.average(self.err_te_hist[-self.config.history:]))/self.err_te_hist[-self.config.history] < eps:
             self.converged = 1
             printRecord(bcolors.WARNING + "Model converged after {} epochs - hit test loss convergence criterion at {:.4f}".format(self.epochs + 1, min(self.err_te_hist)) + bcolors.ENDC)
 
-        if self.epochs >= self.params.proxy_max_epochs:
+        if self.epochs >= self.config.proxy.max_epochs:
             self.converged = 1
             printRecord(bcolors.WARNING + "Model converged after {} epochs- epoch limit was hit with test loss {:.4f}".format(self.epochs + 1, min(self.err_te_hist)) + bcolors.ENDC)
 
@@ -217,7 +217,7 @@ class modelNet():
         :param Data: input data
         :return: model scores
         '''
-        if self.params.device == 'cuda':
+        if self.config.device == 'cuda':
             Data = torch.Tensor(Data).cuda().float()
         else:
             Data = torch.Tensor(Data).float()
@@ -239,7 +239,7 @@ class modelNet():
         :return:
         '''
         self.model = modelEnsemble(models)
-        if self.params.device == 'cuda':
+        if self.config.device == 'cuda':
             self.model = self.model.cuda()
 
 
@@ -262,13 +262,13 @@ class buildDataset():
     '''
     build dataset object
     '''
-    def __init__(self, params):
-        dataset = np.load('datasets/' + params.dataset+'.npy', allow_pickle=True)
+    def __init__(self, config):
+        dataset = np.load('datasets/' + config.dataset.oracle + '.npy', allow_pickle=True)
         dataset = dataset.item()
         self.samples = dataset['samples']
         self.targets = dataset['scores']
 
-        self.samples, self.targets = shuffle(self.samples, self.targets, random_state=params.init_dataset_seed)
+        self.samples, self.targets = shuffle(self.samples, self.targets, random_state=config.seeds.dataset)
 
     def reshuffle(self, seed=None):
         self.samples, self.targets = shuffle(self.samples, self.targets, random_state=seed)
@@ -286,15 +286,15 @@ class buildDataset():
         return np.mean(self.targets), np.sqrt(np.var(self.targets))
 
 
-def getDataloaders(params, ensembleIndex): # get the dataloaders, to load the dataset in batches
+def getDataloaders(config, ensembleIndex): # get the dataloaders, to load the dataset in batches
     '''
     creat dataloader objects from the dataset
-    :param params:
+    :param config:
     :return:
     '''
-    training_batch = params.proxy_training_batch_size
-    dataset = buildDataset(params)  # get data
-    if params.proxy_shuffle_dataset:
+    training_batch = config.proxy.mbsize
+    dataset = buildDataset(config)  # get data
+    if config.proxy.shuffle_dataset:
         dataset.reshuffle(seed=ensembleIndex)
     train_size = int(0.8 * len(dataset))  # split data into training and test sets
 
@@ -315,8 +315,8 @@ def getDataloaders(params, ensembleIndex): # get the dataloaders, to load the da
     return tr, te, dataset.__len__()
 
 
-def getDataSize(params):
-    dataset = np.load('datasets/' + params.dataset + '.npy', allow_pickle=True)
+def getDataSize(config):
+    dataset = np.load('datasets/' + config.dataset.oracle + '.npy', allow_pickle=True)
     dataset = dataset.item()
     samples = dataset['samples']
 
@@ -346,15 +346,15 @@ class PositionalEncoding(nn.Module):
 
 
 class transformer(nn.Module):
-    def __init__(self,params):
+    def __init__(self,config):
         super(transformer,self).__init__()
 
-        self.embedDim = params.proxy_model_width
-        self.hiddenDim = params.proxy_model_width
-        self.layers = params.proxy_model_layers
-        self.maxLen = params.max_sample_length
-        self.dictLen = params.dict_size
-        self.tasks = params.sample_tasks
+        self.embedDim = config.proxy.width
+        self.hiddenDim = config.proxy.width
+        self.layers = config.proxy.n_layers
+        self.maxLen = config.dataset.max_length
+        self.dictLen = config.dataset.dict_size
+        self.tasks = config.dataset.sample_tasks
         self.heads = min([4, max([1,self.embedDim//self.dictLen])])
 
         self.positionalEncoder = PositionalEncoding(self.embedDim, max_len = self.maxLen)
@@ -387,13 +387,13 @@ class LSTM(nn.Module):
     '''
     may not work currently - possible issues with unequal length batching
     '''
-    def __init__(self,params):
+    def __init__(self,config):
         super(LSTM,self).__init__()
         # initialize constants and layers
 
-        self.embedding = nn.Embedding(2, embedding_dim = params.embedding_dim)
-        self.encoder = nn.LSTM(input_size=params.embedding_dim,hidden_size=params.proxy_model_width,num_layers=params.proxy_model_layers)
-        self.decoder = nn.Linear((params.proxy_model_width), 1)
+        self.embedding = nn.Embedding(2, embedding_dim = config.proxy.embedding_dim)
+        self.encoder = nn.LSTM(input_size=config.proxy.embedding_dim,hidden_size=config.proxy.width,num_layers=config.proxy.n_layers)
+        self.decoder = nn.Linear((config.proxy.width), 1)
 
     def forward(self, x):
         x = x.permute(1,0) # weird input shape requirement
@@ -403,23 +403,23 @@ class LSTM(nn.Module):
 
 
 class MLP(nn.Module):
-    def __init__(self,params):
+    def __init__(self,config):
         super(MLP,self).__init__()
         # initialize constants and layers
 
         if True:
             act_func = 'gelu'
 
-        self.inputLength = params.max_sample_length
-        self.tasks = params.sample_tasks
-        self.layers = params.proxy_model_layers
-        self.filters = params.proxy_model_width
-        self.classes = int(params.dict_size + 1)
+        self.inputLength = config.dataset.max_length
+        self.tasks = config.dataset.sample_tasks
+        self.layers = config.proxy.n_layers
+        self.filters = config.proxy.width
+        self.classes = int(config.dataset.dict_size + 1)
         self.init_layer_depth = int(self.inputLength * self.classes)
 
         # build input and output layers
         self.initial_layer = nn.Linear(int(self.inputLength * self.classes), self.filters) # layer which takes in our sequence in one-hot encoding
-        self.activation1 = Activation(act_func,self.filters,params)
+        self.activation1 = Activation(act_func,self.filters,config)
 
         self.output_layers = []
         for i in range(self.tasks):

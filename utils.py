@@ -1,7 +1,7 @@
 '''import statement'''
+from argparse import Namespace
 import numpy as np
 import matplotlib.pyplot as plt
-import argparse
 import os
 import time
 import sklearn.cluster as cluster
@@ -577,4 +577,96 @@ class resultsPlotter():
         plt.clim(1,self.niters)
         plt.colorbar()
         plt.tight_layout()
+
+def dict2namespace(data_dict):
+    """
+    Recursively converts a dictionary and its internal dictionaries into an
+    argparse.Namespace
+
+    Parameters
+    ----------
+    data_dict : dict
+        The input dictionary
+
+    Return
+    ------
+    data_namespace : argparse.Namespace
+        The output namespace
+    """
+    for k, v in data_dict.items():
+        if isinstance(v, dict):
+            data_dict[k] = dict2namespace(v)
+        else:
+            pass
+    data_namespace = Namespace(**data_dict)
+
+    return data_namespace
+
+def namespace2dict(data_namespace):
+    """
+    Recursively converts a dictionary and its internal dictionaries into an
+    argparse.Namespace
+
+    Parameters
+    ----------
+    data_dict : dict
+        The input dictionary
+
+    Return
+    ------
+    data_namespace : argparse.Namespace
+        The output namespace
+    """
+    data_dict = {}
+    for k in vars(data_namespace):
+        if isinstance(getattr(data_namespace, k), Namespace):
+            data_dict.update({k: namespace2dict(getattr(data_namespace, k))})
+        else:
+            data_dict.update({k: getattr(data_namespace, k)})
+
+    return data_dict
+
+def numpy2python(results_dict):
+    """
+    Recursively converts the numpy types into native Python types in order to
+    enable proper dumping into YAML files:
+
+    Parameters
+    ----------
+    results_dict : dict
+        The input dictionary
+
+    Return
+    ------
+    results_dict : dict
+        The modified dictionary
+    """
+    def convert(v):
+        if isinstance(v, np.ndarray):
+            if np.ndim(v) == 1:
+                return v.tolist()
+        elif isinstance(v, (int, np.integer)):
+            return int(v)
+        elif isinstance(v, (float, np.float, np.float32)):
+            return float(v)
+        elif isinstance(v, list):
+            for idx, el in enumerate(v):
+                v[idx] = convert(el)
+            return v
+        elif isinstance(v, dict):
+            return numpy2python(v)
+        elif isinstance(v, Namespace):
+            return numpy2python(vars(v))
+        else:
+            return v
+
+    for k, v in results_dict.items():
+        if isinstance(v, dict):
+            numpy2python(v)
+        elif isinstance(v, Namespace):
+            numpy2python(vars(v))
+        else:
+            results_dict[k] = convert(v)
+
+    return results_dict
 
