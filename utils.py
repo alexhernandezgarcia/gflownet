@@ -147,41 +147,40 @@ def resultsAnalysis(outDir):
     plt.legend()
 
 
-def binaryDistance(samples, pairwise=False, extractInds=None):
+def binaryDistance(samples, dict_size, pairwise = False, extractInds = None):
     '''
     compute simple sum of distances between sample vectors: distance = disagreement of allele elements.
     :param samples:
     :return:
     '''
-    
-    '''
-    # Skip calculating distance using OneHot for now. Just use the regular way of calculating it.
     # determine if all samples have equal length
+    '''
     lens = np.array([i.shape[-1] for i in samples])
     if len(np.unique(lens)) > 1: # if there are multiple lengths, we need to pad up to a constant length
         raise ValueError('Attempted to compute binary distances between samples with different lengths!')
     if (len(samples) > 1e3) and (extractInds is None): # one-hot overhead is worth it for larger samples
-        distances = oneHotDistance(samples, pairwise=pairwise, extractInds=extractInds)
+        distances = oneHotDistance(samples, dict_size, pairwise=pairwise, extractInds=extractInds)
     elif (len(samples) > 1e3) and (extractInds > 10): # one-hot overhead is worth it for larger samples
-        distances = oneHotDistance(samples, pairwise=pairwise, extractInds=extractInds)
+        distances = oneHotDistance(samples, dict_size, pairwise=pairwise, extractInds=extractInds)
     else:
-    '''    
+    '''
+
     if extractInds is not None:
         nOutputs = extractInds
     else:
         nOutputs = len(samples)
-        
-    if pairwise: # compute every pairwise distances
+
+    if pairwise:  # compute every pairwise distances
         distances = np.zeros((nOutputs, nOutputs))
         for i in range(nOutputs):
-            distances[i, :] = np.sum(samples[i] != samples, axis = 1) / len(samples[i])
-    else: # compute average distance of each sample from all the others
+            distances[i, :] = np.sum(samples[i] != samples, axis=1) / len(samples[i])
+    else:  # compute average distance of each sample from all the others
         distances = np.zeros(nOutputs)
         if len(samples) == nOutputs:  # compute distance with itself
             for i in range(nOutputs):
                 distances[i] = np.sum(samples[i] != samples) / len(samples.flatten())
             # print('Compared with itelf.')
-        else:  # compute distance from the training set or random set            
+        else:  # compute distance from the training set or random set
             references = samples[nOutputs:]
             for i in range(nOutputs):
                 distances[i] = np.sum(samples[i] != references) / len(references.flatten())
@@ -190,7 +189,7 @@ def binaryDistance(samples, pairwise=False, extractInds=None):
 
 
 
-def oneHotDistance(samples, pairwise = False, extractInds = None):
+def oneHotDistance(samples, dict_size, pairwise = False, extractInds = None):
     '''
     find the minimum single mutation distance (normalized) between sequences
     optionally explicitly extract only  the first extractInds sequences distances, with respect to themselves and all others
@@ -200,7 +199,7 @@ def oneHotDistance(samples, pairwise = False, extractInds = None):
     :return:
     '''
     # do one-hot encoding
-    oneHot = np_oneHot(samples, len(np.unique(samples)))
+    oneHot = np_oneHot(samples, int(dict_size + 1)) # assumes dict is 1-N with 0 padding
     oneHot = oneHot.reshape(oneHot.shape[0], int(oneHot.shape[1]*oneHot.shape[2]))
     target = oneHot[:extractInds] # limit the number of samples we are actually interested in
     if target.ndim == 1:
@@ -214,6 +213,7 @@ def oneHotDistance(samples, pairwise = False, extractInds = None):
 
 
 def np_oneHot(samples, uniques):
+    samples = samples.astype(int)
     flatsamples = samples.flatten()
     shape = (flatsamples.size, uniques)
     one_hot = np.zeros(shape)
@@ -345,7 +345,7 @@ def get_n_params(model):
     return pp
 
 
-def doAgglomerativeClustering(samples,energies, uncertainties,cutoff = 0.25):
+def doAgglomerativeClustering(samples,energies, uncertainties, dict_size, cutoff = 0.25):
     '''
     agglomerative clustering and sorting with pairwise binary distance metric
     :param samples:
@@ -353,7 +353,7 @@ def doAgglomerativeClustering(samples,energies, uncertainties,cutoff = 0.25):
     :param cutoff:
     :return:
     '''
-    agglomerate = cluster.AgglomerativeClustering(n_clusters=None, affinity='precomputed', linkage='average', compute_full_tree=True, distance_threshold=cutoff).fit(binaryDistance(samples, pairwise=True))
+    agglomerate = cluster.AgglomerativeClustering(n_clusters=None, affinity='precomputed', linkage='average', compute_full_tree=True, distance_threshold=cutoff).fit(binaryDistance(samples, dict_size, pairwise=True))
     labels = agglomerate.labels_
     nClusters = agglomerate.n_clusters_
     clusters = []
@@ -369,6 +369,39 @@ def doAgglomerativeClustering(samples,energies, uncertainties,cutoff = 0.25):
 
 
     return clusters, clusterEns, clusterVars
+
+
+def filterOutputs(outputs, additionalEntries = None):
+    '''
+    run filtering on particular outputs dictionaries
+    '''
+
+    if additionalEntries is not None:
+        extraSamples = additionalEntries['samples']
+        extraScores = additionalEntries['scores']
+        extraEnergies = additionalEntries['energies']
+        extraUncertainties = additionalEntries['uncertainties']
+        samples = np.concatenate((outputs['samples'], extraSamples))
+        scores = np.concatenate((outputs['scores'], extraScores))
+        energies = np.concatenate((outputs['energies'], extraEnergies))
+        uncertainties = np.concatenate((outputs['uncertainties'], extraUncertainties))
+    else:
+        samples = outputs['samples']
+        scores = outputs['scores']
+        energies = outputs['energies']
+        uncertainties = outputs['uncertainties']
+
+    filteredSamples, filteredInds = filterDuplicateSamples(samples, returnInds=True)
+
+    filteredOutputs = {
+        'samples': filteredSamples,
+        'scores': scores[filteredInds],
+        'energies': energies[filteredInds],
+        'uncertainties': uncertainties[filteredInds],
+    }
+
+    return filteredOutputs
+
 
 
 def clusterAnalysis(clusters, clusterEns, clusterVars):
@@ -636,3 +669,4 @@ def numpy2python(results_dict):
             results_dict[k] = convert(v)
 
     return results_dict
+

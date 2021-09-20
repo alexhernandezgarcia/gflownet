@@ -7,19 +7,24 @@ This code implements an active learning protocol for global minimization of some
     -> training and sampling print statements
         => training performance
         => sample quality e.g., diversity, span, best scores averages, whatever
+        -> print flag on gflownet convergence - epoch limit OR loss convergence
+    -> hardcode padding rules - in case it is poorly trained, it should never be able to add a base after the end of the chain
+    -> iteratively resample gflownet to remove duplicates until desired sample number is reached 
+    -> merge gflownet oracles with standard oracle class
+    -> switch gflownet training tqdm from iters to log convergence
+    -> make sure gflownet scores are aligned with AL optimization target (minimization)
     -> add option for test mode to slash model size and training epochs
-    -> speedup - larger batch sizes / early stopping?
-    -> investigate 'invalid action' error
-    -> investigate 'action could not be sampled from model' error
 ==> RL training and testing
 ==> add a function for tracking dataset distances and adjusting the cutoff
 ==> update and test beluga requirements
+
 
 low priority /long term
 ==> consider augment binary distance metric with multi-base motifs - or keep current setup (minimum single mutations)
 ==> check that relevant params (ensemble size) are properly overwritten when picking up old jobs 
 ==> augmentation regularization
 ==> maybe print outputs at the end of each iteration as a lovely table
+==> add detection for oracle.initializeDataset for if the requested number of samples is a significant fraction of the total sample space - may be faster to return full space or large fraction of all permutations
 
 known issues
 ==> training parallelism hangs on iteration #2 on linux
@@ -66,6 +71,7 @@ def get_config(args, override_args, args2config, save=True):
                     config_aux[k] = val
                 else:
                     config_aux = config_aux[k]
+
 
     # Read YAML config
     if args.yaml_config:

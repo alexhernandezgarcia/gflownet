@@ -181,6 +181,41 @@ class Sampler:
         printRecord("{} near-optima were recorded on this run".format(len(self.allOptimalConfigs)))
 
 
+    def postSampleAnnealing(self, initConfigs, model, useOracle=False):
+        '''
+        run a sampling run with the following characteristics
+        - low temperature so that we quickly crash to global minimum
+        - no STUN function
+        - instead of many parallel stun functions, many parallel initial configurations
+        - return final configurations for each run as 'annealed samples'
+        '''
+        self.params.STUN = 0
+        self.nruns = len(initConfigs)
+        self.temp0 = 0.01 # initial temperature for sampling runs
+        self.temperature = [self.temp0 for _ in range(self.nruns)]
+        self.config = initConfigs # manually overwrite configs
+
+        self.initConvergenceStats()
+        self.resampleRandints()
+        for self.iter in tqdm.tqdm(range(self.params.post_annealing_time)):
+            self.iterate(model, useOracle)
+
+            self.temperature = [temperature * 0.99 for temperature in self.temperature] # cut temperature at every time step
+
+            if self.iter % self.randintsResampleAt == 0: # periodically resample random numbers
+                self.resampleRandints()
+
+        evals = self.getScores(self.config, self.config, model, useOracle=False)
+        annealedOutputs = {
+            'samples': self.config,
+            'scores': evals[0][0],
+            'energies': evals[1][0],
+            'uncertainties': evals[2][0]
+        }
+
+        return annealedOutputs
+
+
     def propConfigs(self,ind):
         """
         propose a new ensemble of configurations
@@ -203,7 +238,6 @@ class Sampler:
                     elif nnz == -1:  # shorten sequence by trimming the end (set last element to zero)
                         if nnz > self.config_main.dataset.min_length:
                             self.propConfig[i, nnz - 1] = 0
-
 
     def iterate(self, model, useOracle):
         """
@@ -229,7 +263,6 @@ class Sampler:
         self.acceptanceRatio = np.minimum(1, np.exp(-self.DE / self.temperature))
         self.updateConfigs()
 
-
     def updateConfigs(self):
         '''
         check Metropolis conditions, update configurations, and record statistics
@@ -251,7 +284,6 @@ class Sampler:
         if self.config_main.debug: # record a bunch of detailed outputs
             self.recordStats()
 
-
     def getDE(self, scores):
         if self.config_main.STUN == 1:  # compute score difference using STUN
             F = self.computeSTUN(scores)
@@ -262,14 +294,13 @@ class Sampler:
 
         return F, DE
 
-
     def recordStats(self):
         for i in range(self.nruns):
             self.temprec[i].append(self.temperature[i])
             self.accrec[i].append(self.acceptanceRate[i])
-            self.stunrec[i].append(self.F[0][i])
             self.scorerec[i].append(self.scores[0][i])
-
+            if self.params.STUN:
+                self.stunrec[i].append(self.F[0][i])
 
     def getScores(self, propConfig, config, model, useOracle):
         """

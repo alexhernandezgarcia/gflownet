@@ -71,6 +71,7 @@ class Querier():
         if self.config.al.query_selection == 'clustering':
             # agglomerative clustering
             clusters, clusterScores, clusterVars = doAgglomerativeClustering(samples, scores, uncertainties, cutoff=self.config.al.minima_dist_cutoff)
+
             clusterSizes, avgClusterScores, minCluster, avgClusterVars, minClusterVars, minClusterSamples = clusterAnalysis(clusters, clusterScores, clusterVars)
             samples = minClusterSamples
         elif self.config.al.query_selection == 'cutoff':
@@ -128,16 +129,42 @@ class Querier():
             # information from prior iterations for some reason
             # TODO add optional post-sample annealing
             gflownet = GFlowNetAgent(self.config, proxy=model.evaluate)
+
             t0 = time.time()
             gflownet.train()
             tf = time.time()
             printRecord('Training GFlowNet took {} seconds'.format(int(tf-t0)))
+            t0 = time.time()
             outputs = gflownet.sample(
                     self.config.gflownet.n_samples, self.config.dataset.max_length,
                     self.config.dataset.dict_size, model.evaluate
             )
-            # TODO get scores, energies and uncertainties for outputs dict
+            tf = time.time()
+            printRecord('Sampling {} samples from GFlowNet took {} seconds'.format(self.params.gflownet_n_samples,int(tf-t0)))
+            outputs = filterOutputs(outputs)
+
+            if self.params.post_gflownet_annealing:
+                self.doAnnealing(scoreFunction, model, outputs)
+
         else:
             raise NotImplemented("method can be either mcmc or gflownet")
 
         return outputs
+
+
+    def doAnnealing(self, scoreFunction, model, outputs):
+        t0 = time.time()
+        initConfigs = outputs['samples'][np.argsort(outputs['scores'])]
+        initConfigs = initConfigs[0:self.params.post_annealing_samples]
+
+        annealer = Sampler(self.params, 1, scoreFunction, gammas=np.arange(len(initConfigs)))  # the gamma is a dummy
+        annealedOutputs = annealer.postSampleAnnealing(initConfigs, model)
+
+        filteredOutputs = filterOutputs(outputs, additionalEntries = annealedOutputs)
+        tf = time.time()
+
+        nAddedSamples = int(len(filteredOutputs['samples']) - len(outputs['samples']))
+
+        printRecord('Post-sample annealing added {} samples in {} seconds'.format(nAddedSamples, int(tf-t0)))
+
+        return filteredOutputs
