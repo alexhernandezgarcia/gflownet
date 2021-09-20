@@ -217,6 +217,11 @@ class DQN:
         datasetDist = binaryDistance(np.concatenate((sample, self.params.dict_size, self.trainingSamples)), pairwise=False, extractInds = len(sample))
         randomDist = binaryDistance(np.concatenate((sample, self.params.dict_size,self.randomSamples)), pairwise=False, extractInds=len(sample))
 
+        actionState = []
+        for i in range(len(sample)):
+            actionState.append([energies[i],uncertainties[i],internalDist[i],datasetDist[i],randomDist[i]])
+
+        return torch.Tensor(actionState).to(self.device) # return action state
 class QuerySelectionAgent(DQN):
     def __init__(self, params):
         super().__init__(params)
