@@ -371,6 +371,39 @@ def doAgglomerativeClustering(samples,energies, uncertainties, dict_size, cutoff
     return clusters, clusterEns, clusterVars
 
 
+def filterOutputs(outputs, additionalEntries = None):
+    '''
+    run filtering on particular outputs dictionaries
+    '''
+
+    if additionalEntries is not None:
+        extraSamples = additionalEntries['samples']
+        extraScores = additionalEntries['scores']
+        extraEnergies = additionalEntries['energies']
+        extraUncertainties = additionalEntries['uncertainties']
+        samples = np.concatenate((outputs['samples'], extraSamples))
+        scores = np.concatenate((outputs['scores'], extraScores))
+        energies = np.concatenate((outputs['energies'], extraEnergies))
+        uncertainties = np.concatenate((outputs['uncertainties'], extraUncertainties))
+    else:
+        samples = outputs['samples']
+        scores = outputs['scores']
+        energies = outputs['energies']
+        uncertainties = outputs['uncertainties']
+
+    filteredSamples, filteredInds = filterDuplicateSamples(samples, returnInds=True)
+
+    filteredOutputs = {
+        'samples': filteredSamples,
+        'scores': scores[filteredInds],
+        'energies': energies[filteredInds],
+        'uncertainties': uncertainties[filteredInds],
+    }
+
+    return filteredOutputs
+
+
+
 def clusterAnalysis(clusters, clusterEns, clusterVars):
     '''
     get the average and minimum energies and variances at these points
@@ -544,3 +577,4 @@ class resultsPlotter():
         plt.clim(1,self.niters)
         plt.colorbar()
         plt.tight_layout()
+

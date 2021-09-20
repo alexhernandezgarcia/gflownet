@@ -70,7 +70,7 @@ class Querier():
         # create batch from candidates
         if self.params.query_selection == 'clustering':
             # agglomerative clustering
-            clusters, clusterScores, clusterVars = doAgglomerativeClustering(samples, scores, uncertainties, cutoff=self.params.minima_dist_cutoff)
+            clusters, clusterScores, clusterVars = doAgglomerativeClustering(samples, scores, uncertainties, self.params.dict_size, cutoff=self.params.minima_dist_cutoff)
             clusterSizes, avgClusterScores, minCluster, avgClusterVars, minClusterVars, minClusterSamples = clusterAnalysis(clusters, clusterScores, clusterVars)
             samples = minClusterSamples
         elif self.params.query_selection == 'cutoff':
@@ -126,18 +126,42 @@ class Querier():
             # MK if it's fast, it might be best to train from scratch, since models may drastically change iteration-over-iteration,
             # and we want the gflownet to represent the current models, in general, though it's not impossible we may want to incorporate
             # information from prior iterations for some reason
-            # TODO add optional post-sample annealing
             gflownet = GFlowNetAgent(self.params, proxy=model.evaluate)
             t0 = time.time()
             gflownet.train()
             tf = time.time()
             printRecord('Training GFlowNet took {} seconds'.format(int(tf-t0)))
+            t0 = time.time()
             outputs = gflownet.sample(
                     self.params.gflownet_n_samples, self.params.max_sample_length,
                     self.params.dict_size, model.evaluate
             )
-            # TODO get scores, energies and uncertainties for outputs dict
+            tf = time.time()
+            printRecord('Sampling {} samples from GFlowNet took {} seconds'.format(self.params.gflownet_n_samples,int(tf-t0)))
+            outputs = filterOutputs(outputs)
+
+            if self.params.post_gflownet_annealing:
+                self.doAnnealing(scoreFunction, model, outputs)
+
         else:
             raise NotImplemented("method can be either mcmc or gflownet")
 
         return outputs
+
+
+    def doAnnealing(self, scoreFunction, model, outputs):
+        t0 = time.time()
+        initConfigs = outputs['samples'][np.argsort(outputs['scores'])]
+        initConfigs = initConfigs[0:self.params.post_annealing_samples]
+
+        annealer = Sampler(self.params, 1, scoreFunction, gammas=np.arange(len(initConfigs)))  # the gamma is a dummy
+        annealedOutputs = annealer.postSampleAnnealing(initConfigs, model)
+
+        filteredOutputs = filterOutputs(outputs, additionalEntries = annealedOutputs)
+        tf = time.time()
+
+        nAddedSamples = int(len(filteredOutputs['samples']) - len(outputs['samples']))
+
+        printRecord('Post-sample annealing added {} samples in {} seconds'.format(nAddedSamples, int(tf-t0)))
+
+        return filteredOutputs

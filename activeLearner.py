@@ -158,6 +158,7 @@ class ActiveLearning():
 
         # get distances to relevant datasets
         internalDist, datasetDist, randomDist = self.getDataDists(minClusterSamples[:self.params.model_state_size])
+        self.getReward(minClusterEns, minClusterVars)
 
         self.stateDict = {
             'test loss': np.average(self.testMinima), # losses are evaluated on standardized data, so we do not need to re-standardize here
@@ -172,7 +173,8 @@ class ActiveLearning():
             'clustering cutoff': self.params.minima_dist_cutoff, # could be a learned parameter
             'n proxy models': self.params.proxy_model_ensemble_size,
             'iter': self.pipeIter,
-            'budget': self.params.pipeline_iterations
+            'budget': self.params.pipeline_iterations,
+            'reward': self.reward
         }
 
         printRecord('%d '%self.params.proxy_model_ensemble_size + f'Model ensemble training converged with average test loss of {bcolors.OKCYAN}%.5f{bcolors.ENDC}' % np.average(np.asarray(self.testMinima[-self.params.proxy_model_ensemble_size:])) + f' and std of {bcolors.OKCYAN}%.3f{bcolors.ENDC}'%(np.sqrt(np.var(self.testMinima))))
@@ -184,9 +186,9 @@ class ActiveLearning():
                     'dataset distance is ' + bcolors.WARNING + '{:.2f} '.format(np.average(datasetDist)) + bcolors.ENDC +
                     'and overall distance estimated at ' + bcolors.WARNING + '{:.2f}'.format(np.average(randomDist)) + bcolors.ENDC)
 
+
         if self.params.dataset_type == 'toy': # we can check the test error against a huge random dataset
             self.largeModelEvaluation()
-            self.printOverallPerformance(minClusterEns, minClusterVars)
 
 
         if self.pipeIter == 0: # if it's the first round, initialize, else, append
@@ -195,19 +197,34 @@ class ActiveLearning():
             self.stateDictRecord.append(self.stateDict)
 
 
-    def printOverallPerformance(self,bestEns,bestVars):
+    def getReward(self,bestEns,bestVars):
         '''
         print the performance of the learner against a known best answer
         :param bestEns:
         :param bestVars:
         :return:
         '''
-        bestSoFar = np.amin(bestEns)
-        bestSoFarVar = bestVars[np.argmin(bestEns)]
-        stdTrueMin = (self.trueMinimum - self.model.mean) / self.model.std
-        stdSampleMin = (bestSoFar - self.model.mean)/ self.model.std
-        disagreement = np.abs(stdTrueMin-stdSampleMin)/np.abs(stdTrueMin)
-        printRecord('Active learner best sample, {:.2f} is off by'.format(bestSoFar) + bcolors.WARNING + ' {}%'.format(int(disagreement * 100)) + bcolors.ENDC + ' from true minimum with std of' + bcolors.WARNING + ' {:.2f}'.format(np.sqrt(bestSoFarVar)) + bcolors.ENDC)
+        # get the best results in the standardized basis
+        stdEns = (bestEns - self.model.mean)/self.model.std
+        stdDevs = np.sqrt(bestVars) / self.model.std
+        adjustedEns = stdEns + stdDevs # consider std dev as an uncertainty envelope and take the high end
+        bestStdAdjusted = np.amin(adjustedEns)
+
+        # convert to raw outputs basis
+        bestSoFar = bestEns[np.argmin(adjustedEns)]
+        bestSoFarVar = bestVars[np.argmin(adjustedEns)]
+        bestRawAdjusted = bestSoFar + bestSoFarVar
+        if self.pipeIter == 0:
+            self.reward = 0 # first iteration - can't define a reward
+            self.prevIterBest = 0
+        else: # calculate reward using current standardization
+            stdPrevIterBest = (self.prevIterBest - self.model.mean)/self.model.std
+            self.reward = -(bestStdAdjusted - stdPrevIterBest) # reward is the delta between variance-adjusted energies in the standardized basis (smaller is better)
+
+        printRecord('Iteration best result = {:.3f}, previous best = {:.3f}, reward = {:.3f}'.format(bestRawAdjusted, self.prevIterBest, self.reward))
+
+        self.prevIterBest = bestRawAdjusted
+
 
 
     def retrainModels(self, parallel=True):
