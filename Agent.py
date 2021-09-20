@@ -23,7 +23,7 @@ class DQN:
 
     """
 
-    def __init__(self, params):
+    def __init__(self, config):
         """Inits the DQN object.
 
         Args:
@@ -36,21 +36,15 @@ class DQN:
 
         """
 
-        torch.manual_seed(params.model_seed)
-        self.params = params
-        self.exp_name = "learned_"
-        self.load = False if params.qmodel_preload_path is None else True
-        self.action_state_length = 5  # [energy, variance, 3 distance metrics]
-        self.singleton_state_variables = (
-            5  # [test loss, test std, n proxy models, cluster cutoff and elapsed time]
-        )
-        self.state_dataset_size = int(
-            params.model_state_size * self.action_state_length + self.singleton_state_variables
-        )  # This depends on size of dataset V
-        self.model_state_latent_dimension = (
-            params.querier_latent_space_width
-        )  # latent dim of model state
-        self.device = params.device
+        torch.manual_seed(config.seeds.model)
+        self.config = config
+        self.exp_name = 'learned_'
+        self.load = False if config.querier.model_ckpt is None else True
+        self.action_state_length = 5 # [energy, variance, 3 distance metrics]
+        self.singleton_state_variables = 5 # [test loss, test std, n proxy models, cluster cutoff and elapsed time]
+        self.state_dataset_size = int(config.querier.model_state_size * self.action_state_length + self.singleton_state_variables) # This depends on size of dataset V
+        self.model_state_latent_dimension = config.querier.latent_space_width # latent dim of model state
+        self.device = config.device
 
         # Magic Hyperparameters for Greedy Sampling in Action Selection
         self.EPS_START = 0.9
@@ -59,10 +53,10 @@ class DQN:
         self.rl_pool = 100  # Size of Unlabelled Dataset aka Number of actions
 
         self.optimizer_param = {
-            "opt_choice": params.qmodel_opt,
-            "momentum": params.qmodel_momentum,
+            "opt_choice": config.querier.opt,
+            "momentum": config.querier.momentum,
             "ckpt_path": "./ckpts/",
-            "exp_name_toload": params.qmodel_preload_path,
+            "exp_name_toload": config.querier.model_ckpt,
             "exp_name": self.exp_name,
             "snapshot": 0,
             "load_opt": self.load,
@@ -194,19 +188,14 @@ class DQN:
         # model state samples
         self.modelStateSamples = model_state_dict["best cluster samples"]
         # training dataset
-        self.trainingSamples = np.load(
-            "datasets/" + self.params.dataset + ".npy", allow_pickle=True
-        ).item()
-        self.trainingSamples = self.trainingSamples["samples"]
+        self.trainingSamples = np.load('datasets/' + self.config.dataset.oracle + '.npy', allow_pickle=True).item()
+        self.trainingSamples = self.trainingSamples['samples']
         # large random sample
-        numSamples = min(
-            int(1e4), self.params.dict_size ** self.params.max_sample_length // 100
-        )  # either 1e4, or 1% of the sample space, whichever is smaller
-        dataoracle = Oracle(self.params)
-        self.randomSamples = dataoracle.initializeDataset(
-            save=False, returnData=True, customSize=numSamples
-        )  # get large random dataset
-        self.randomSamples = self.randomSamples["samples"]
+        numSamples = min(int(1e4), self.config.dataset.dict_size ** self.config.dataset.max_length // 100) # either 1e4, or 1% of the sample space, whichever is smaller
+        dataoracle = Oracle(self.config)
+        self.randomSamples = dataoracle.initializeDataset(save=False, returnData=True, customSize=numSamples) # get large random dataset
+        self.randomSamples = self.randomSamples['samples']
+
 
         self.policy_net.eval()
         with torch.no_grad():
@@ -217,6 +206,16 @@ class DQN:
     def evaluate(self, sample, output="Average"):  # just evaluate the proxy
         return self.proxyModel.evaluate(sample, output=output)
 
+    def getActionState(self, sample):
+        '''
+        get the proxy model predictions and sample distances
+        :param sample:
+        :return:
+        '''
+        energies, uncertainties = self.proxyModel.evaluate(sample, output='Both')
+        internalDist = binaryDistance(np.concatenate((sample, self.params.dict_size, self.modelStateSamples)),pairwise=False,extractInds=len(sample))
+        datasetDist = binaryDistance(np.concatenate((sample, self.params.dict_size, self.trainingSamples)), pairwise=False, extractInds = len(sample))
+        randomDist = binaryDistance(np.concatenate((sample, self.params.dict_size,self.randomSamples)), pairwise=False, extractInds=len(sample))
 
 class QuerySelectionAgent(DQN):
     def __init__(self, params):
