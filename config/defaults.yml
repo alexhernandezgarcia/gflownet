@@ -1,10 +1,10 @@
 # General
-test_mode: False
+test_mode: True
 debug: False
 run_num: 0
 explicit_run_enumeration: False
 machine: "local"
-device: "cuda"
+device: "CPU"
 workdir: !!null
 # Seeds
 seeds:
@@ -24,8 +24,8 @@ dataset:
   sample_tasks: 1
 # AL
 al:
-  sample_method: "gflownet"
-  query_mode: "learned"
+  sample_method: "mcmc"
+  query_mode: "energy"
   n_iter: 1
   query_selection: "clustering"
   minima_dist_cutoff: 0.25

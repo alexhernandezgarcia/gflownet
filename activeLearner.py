@@ -152,7 +152,7 @@ class ActiveLearning():
         uncertainties = self.sampleDict['uncertainties']
 
         # agglomerative clustering
-        clusters, clusterEns, clusterVars = doAgglomerativeClustering(samples,energies,uncertainties,cutoff=self.config.al.minima_dist_cutoff)
+        clusters, clusterEns, clusterVars = doAgglomerativeClustering(samples,energies,uncertainties,self.config.dataset.dict_size,cutoff=self.config.al.minima_dist_cutoff)
         clusterSizes, avgClusterEns, minClusterEns, avgClusterVars, minClusterVars, minClusterSamples = clusterAnalysis(clusters, clusterEns, clusterVars)
 
         #clutering alternative - just include sample-by-sample
@@ -162,7 +162,7 @@ class ActiveLearning():
             minClusterSamples, minClusterEns, minClusterVars = self.addRandomSamples(samples, energies, uncertainties, minClusterSamples, minClusterEns, minClusterVars)
 
         # get distances to relevant datasets
-        internalDist, datasetDist, randomDist = self.getDataDiffs(minClusterSamples[:self.config.querier.model_state_size])
+        internalDist, datasetDist, randomDist = self.getDataDists(minClusterSamples[:self.config.querier.model_state_size])
         self.getReward(minClusterEns, minClusterVars)
 
         self.stateDict = {
@@ -178,7 +178,7 @@ class ActiveLearning():
             'clustering cutoff': self.config.al.minima_dist_cutoff, # could be a learned parameter
             'n proxy models': self.config.proxy.ensemble_size,
             'iter': self.pipeIter,
-            'budget': self.config.al.n_iter
+            'budget': self.config.al.n_iter,
             'reward': self.reward
         }
 
@@ -192,7 +192,7 @@ class ActiveLearning():
                     'and overall distance estimated at ' + bcolors.WARNING + '{:.2f}'.format(np.average(randomDist)) + bcolors.ENDC)
 
 
-        if self.params.dataset_type == 'toy': # we can check the test error against a huge random dataset
+        if self.config.dataset.type == 'toy': # we can check the test error against a huge random dataset
             self.largeModelEvaluation()
 
 
@@ -394,7 +394,7 @@ class ActiveLearning():
 
         printRecord(f"Added{bcolors.OKBLUE}{bcolors.BOLD} %d{bcolors.ENDC}" % int(len(oracleSequences)) + " to the dataset, total dataset size is" + bcolors.OKBLUE + " {}".format(int(len(dataset['samples']))) + bcolors.ENDC)
         printRecord(bcolors.UNDERLINE + "=====================================================================" + bcolors.ENDC)
-        np.save('datasets/' + self.config.dataset, dataset)
+        np.save('datasets/' + self.config.dataset.oracle, dataset)
 
 
     def getScalingFactor(self):
@@ -444,9 +444,9 @@ class ActiveLearning():
         randomData = self.oracle.initializeDataset(save=False, returnData=True, customSize=numSamples) # get large random dataset
         randomSamples = randomData['samples']
 
-        internalDist = binaryDistance(samples, self.params.dict_size, pairwise=False,extractInds=len(samples))
-        datasetDist = binaryDistance(np.concatenate((samples, dataset)), self.params.dict_size, pairwise=False, extractInds = len(samples))
-        randomDist = binaryDistance(np.concatenate((samples,randomSamples)), self.params.dict_size, pairwise=False, extractInds=len(samples))
+        internalDist = binaryDistance(samples, self.config.dataset.dict_size, pairwise=False,extractInds=len(samples))
+        datasetDist = binaryDistance(np.concatenate((samples, dataset)), self.config.dataset.dict_size, pairwise=False, extractInds = len(samples))
+        randomDist = binaryDistance(np.concatenate((samples,randomSamples)), self.config.dataset.dict_size, pairwise=False, extractInds=len(samples))
 
         return internalDist, datasetDist, randomDist
 

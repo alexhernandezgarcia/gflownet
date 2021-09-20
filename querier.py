@@ -70,7 +70,7 @@ class Querier():
         # create batch from candidates
         if self.config.al.query_selection == 'clustering':
             # agglomerative clustering
-            clusters, clusterScores, clusterVars = doAgglomerativeClustering(samples, scores, uncertainties, cutoff=self.config.al.minima_dist_cutoff)
+            clusters, clusterScores, clusterVars = doAgglomerativeClustering(samples, scores, uncertainties, self.config.dataset.dict_size, cutoff=self.config.al.minima_dist_cutoff)
 
             clusterSizes, avgClusterScores, minCluster, avgClusterVars, minClusterVars, minClusterSamples = clusterAnalysis(clusters, clusterScores, clusterVars)
             samples = minClusterSamples
