@@ -448,3 +448,21 @@ class ParameterUpdateAgent(DQN):
 
             del loss
             del transitions
+
+    def evaluateQ(
+        self,
+    ):
+        """ get the q-value for a particular sample, given its 'action state'
+
+        :param model_state: (torch.Variable) Torch tensor containing the model state representation.
+        :param steps_done: (int) Number of aptamers labeled so far.
+        :param test: (bool) Whether we are testing the DQN or training it. Disables greedy-epsilon when True.
+
+        :return: Action (index of Sequence to Label)
+        """
+
+        self.policy_net.eval()
+        with torch.no_grad():
+            q_val = self.policy_net(self.model_state)
+
+        return q_val
