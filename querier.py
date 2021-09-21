@@ -1,7 +1,6 @@
 """import statements"""
 import numpy as np
 from sampler import *
-from Agent import DQN
 from gflownet import GFlowNetAgent
 import multiprocessing as mp
 
@@ -22,7 +21,7 @@ class Querier():
         self.config = config
         self.method = config.al.sample_method
         if self.config.al.query_mode == 'learned':
-            self.qModel = DQN(self.config) # initialize q-network
+            pass
 
     def buildQuery(self, model, statusDict, energySampleDict):
         """

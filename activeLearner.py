@@ -7,6 +7,8 @@ from utils import namespace2dict
 from torch.utils import data
 import torch.nn.functional as F
 import torch
+from Agent import ParameterUpdateAgent
+from replay_buffer import ParameterUpdateReplayMemory
 
 import os
 import glob
@@ -29,7 +31,8 @@ class ActiveLearning():
         :return:
         '''
         self.oracle = Oracle(self.config) # oracle needs to be initialized to initialize toy datasets
-
+        self.agent = ParameterUpdateAgent(self.config)
+        self.memory_buffer = ParameterUpdateReplayMemory()
         if (self.config.run_num == 0) or (self.config.explicit_run_enumeration == True): # if making a new workdir
             if self.config.run_num == 0:
                 self.makeNewWorkingDirectory()
@@ -90,12 +93,14 @@ class ActiveLearning():
             printRecord(f"The true global minimum is {bcolors.OKGREEN}%.3f{bcolors.ENDC}" % self.trueMinimum)
 
         self.config.dataset_size = self.config.dataset.init_length
-        for self.pipeIter in range(self.config.al.n_iter):
-            printRecord(f'Starting pipeline iteration #{bcolors.FAIL}%d{bcolors.ENDC}' % int(self.pipeIter+1))
-            self.iterate() # run the pipeline
-            self.saveOutputs() # save pipeline outputs
-            if (self.pipeIter > 0) and (self.config.dataset.type == 'toy'):
-                self.reportCumulativeResult()
+        for ep in range(self.config.al.episodes):
+            for self.pipeIter in range(self.config.al.n_iter):
+                printRecord(f'Starting pipeline iteration #{bcolors.FAIL}%d{bcolors.ENDC}' % int(self.pipeIter+1))
+                self.iterate() # run the pipeline
+                self.saveOutputs() # save pipeline outputs
+                if (self.pipeIter > 0) and (self.config.dataset.type == 'toy'):
+                    self.reportCumulativeResult()
+            self.agent.train(self.memory_buffer.sample(self.config.q_batch_size))
 
 
     def iterate(self):
@@ -111,6 +116,11 @@ class ActiveLearning():
 
         t0 = time.time()
         self.getModelState() # run energy-only sampling and create model state dict
+        if self.reward:
+            # Put Transition in Buffer
+            self.memory_buffer.push(self.stateDictRecord[-2], self.action, self.stateDictRecord[-1], self.reward, self.terminal)
+        self.agent.updateModelState(self.stateDict, self.model)
+        action = self.agent.getAction()
         query = self.querier.buildQuery(self.model, self.stateDict, self.sampleDict)  # pick Samples to be scored
         tf = time.time()
         printRecord('Query generation took {} seconds'.format(int(tf-t0)))

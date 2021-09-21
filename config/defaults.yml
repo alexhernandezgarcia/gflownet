@@ -27,17 +27,19 @@ al:
   sample_method: "mcmc"
   query_mode: "energy"
   n_iter: 1
+  episodes: 1
   query_selection: "clustering"
   minima_dist_cutoff: 0.25
   queries_per_iter: 100
   mode: "training"
+  q_batch_size: 32
 # Querier
 querier: 
   model_state_size: 30
   opt: "SGD"
   momentum: 0.95
   model_ckpt: !!null
-  latent_space_width: 10
+  latent_space_width: 9
 # GFlowNet
 gflownet:
   model_ckpt: !!null
