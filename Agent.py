@@ -206,22 +206,6 @@ class DQN:
     def evaluate(self, sample, output="Average"):  # just evaluate the proxy
         return self.proxyModel.evaluate(sample, output=output)
 
-    def getActionState(self, sample):
-        '''
-        get the proxy model predictions and sample distances
-        :param sample:
-        :return:
-        '''
-        energies, uncertainties = self.proxyModel.evaluate(sample, output='Both')
-        internalDist = binaryDistance(np.concatenate((sample, self.params.dict_size, self.modelStateSamples)),pairwise=False,extractInds=len(sample))
-        datasetDist = binaryDistance(np.concatenate((sample, self.params.dict_size, self.trainingSamples)), pairwise=False, extractInds = len(sample))
-        randomDist = binaryDistance(np.concatenate((sample, self.params.dict_size,self.randomSamples)), pairwise=False, extractInds=len(sample))
-
-        actionState = []
-        for i in range(len(sample)):
-            actionState.append([energies[i],uncertainties[i],internalDist[i],datasetDist[i],randomDist[i]])
-
-        return torch.Tensor(actionState).to(self.device) # return action state
 class QuerySelectionAgent(DQN):
     def __init__(self, params):
         super().__init__(params)
