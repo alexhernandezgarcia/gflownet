@@ -120,8 +120,7 @@ class ActiveLearning():
             # Put Transition in Buffer
             self.memory_buffer.push(self.stateDictRecord[-2], self.action, self.stateDictRecord[-1], self.reward, self.terminal)
         self.agent.updateModelState(self.stateDict, self.model)
-        action = self.agent.evaluateQ()
-        #TODO Run Q_Network and pass action to querier
+        action = self.agent.getAction()
         query = self.querier.buildQuery(self.model, self.stateDict, self.sampleDict)  # pick Samples to be scored
         tf = time.time()
         printRecord('Query generation took {} seconds'.format(int(tf-t0)))

@@ -1,6 +1,7 @@
 # This code is the modified version of code from
 # ksenia-konyushkova/intelligent_annotation_dialogs/exp1_IAD_RL.ipynb
 
+from scipy.sparse.construct import rand
 from RLmodels import QueryNetworkDQN, ParameterUpdateDQN
 import numpy as np
 import os
@@ -45,6 +46,7 @@ class DQN:
         self.state_dataset_size = int(config.querier.model_state_size * self.action_state_length + self.singleton_state_variables) # This depends on size of dataset V
         self.model_state_latent_dimension = config.querier.latent_space_width # latent dim of model state
         self.device = config.device
+        self.epsilon = 0.1
 
         # Magic Hyperparameters for Greedy Sampling in Action Selection
         self.EPS_START = 0.9
@@ -433,9 +435,7 @@ class ParameterUpdateAgent(DQN):
             del loss
             del transitions
 
-    def evaluateQ(
-        self,
-    ):
+    def evaluateQ(self):
         """ get the q-value for a particular sample, given its 'action state'
 
         :param model_state: (torch.Variable) Torch tensor containing the model state representation.
@@ -450,3 +450,15 @@ class ParameterUpdateAgent(DQN):
             q_val = self.policy_net(self.model_state)
 
         return q_val
+
+    def getAction(self):
+        action = np.zeros(self.model_state_latent_dimension)
+        if random.random() > self.epsilon:
+            q_values = self.evaluateQ()
+            action_id = torch.argmax(q_values)
+
+        else:
+            action_id = int(random.random() * self.model_state_latent_dimension)
+
+        action[action_id] = 1
+        return action
