@@ -1,5 +1,5 @@
 from comet_ml import Experiment
-import argparse
+from argparse import ArgumentParser
 import copy
 import gzip
 import heapq
@@ -26,9 +26,6 @@ tf = lambda x: torch.FloatTensor(x).to(_dev[0])
 tl = lambda x: torch.LongTensor(x).to(_dev[0])
 
 
-
-parser = argparse.ArgumentParser()
-
 def add_args(parser):
     """
     Adds command-line arguments to parser
@@ -37,67 +34,76 @@ def add_args(parser):
         argparse.Namespace: the parsed arguments
     """
     args2config = {}
+    # YAML config
+    parser.add_argument(
+        "-y",
+        "--yaml_config",
+        default=None,
+        type=str,
+        help="YAML configuration file",
+    )
+    args2config.update({"yaml_config": ["yaml_config"]})
     # General
     parser.add_argument("--device", default="cpu", type=str)
     args2config.update({"device": ["device"]})
     parser.add_argument("--progress", action="store_true")
-    args2config.update({"progress": ["progress"]})
+    args2config.update({"progress": ["gflownet", "progress"]})
     parser.add_argument("--model_ckpt", default=None, type=str)
-    args2config.update({"model_ckpt": ["model_ckpt"]})
+    args2config.update({"model_ckpt": ["gflownet", "model_ckpt"]})
     # Training hyperparameters
     parser.add_argument("--learning_rate", default=1e-4, help="Learning rate", type=float)
-    args2config.update({"learning_rate": ["learning_rate"]})
+    args2config.update({"learning_rate": ["gflownet", "learning_rate"]})
     parser.add_argument("--opt", default="adam", type=str)
-    args2config.update({"opt": ["opt"]})
+    args2config.update({"opt": ["gflownet", "opt"]})
     parser.add_argument("--adam_beta1", default=0.9, type=float)
-    args2config.update({"adam_beta1": ["adam_beta1"]})
+    args2config.update({"adam_beta1": ["gflownet", "adam_beta1"]})
     parser.add_argument("--adam_beta2", default=0.999, type=float)
-    args2config.update({"adam_beta2": ["adam_beta2"]})
+    args2config.update({"adam_beta2": ["gflownet", "adam_beta2"]})
     parser.add_argument("--momentum", default=0.9, type=float)
-    args2config.update({"momentum": ["momentum"]})
+    args2config.update({"momentum": ["gflownet", "momentum"]})
     parser.add_argument("--mbsize", default=16, help="Minibatch size", type=int)
-    args2config.update({"mbsize": ["mbsize"]})
+    args2config.update({"mbsize": ["gflownet", "mbsize"]})
     parser.add_argument("--train_to_sample_ratio", default=1, type=float)
-    args2config.update({"train_to_sample_ratio": ["train_to_sample_ratio"]})
+    args2config.update({"train_to_sample_ratio": ["gflownet", "train_to_sample_ratio"]})
     parser.add_argument("--n_hid", default=256, type=int)
-    args2config.update({"n_hid": ["n_hid"]})
+    args2config.update({"n_hid": ["gflownet", "n_hid"]})
     parser.add_argument("--n_layers", default=2, type=int)
-    args2config.update({"n_layers": ["n_layers"]})
+    args2config.update({"n_layers": ["gflownet", "n_layers"]})
     parser.add_argument("--n_train_steps", default=20000, type=int)
-    args2config.update({"n_train_steps": ["n_train_steps"]})
+    args2config.update({"n_train_steps": ["gflownet", "n_iter"]})
     parser.add_argument(
         "--num_empirical_loss",
         default=200000,
         type=int,
         help="Number of samples used to compute the empirical distribution loss",
     )
-    args2config.update({"num_empirical_loss": ["num_empirical_loss"]})
+    args2config.update({"num_empirical_loss": ["gflownet", "num_empirical_loss"]})
     parser.add_argument("--clip_grad_norm", default=0.0, type=float)
-    args2config.update({"clip_grad_norm": ["clip_grad_norm"]})
+    args2config.update({"clip_grad_norm": ["gflownet", "clip_grad_norm"]})
     # Environment
     parser.add_argument("--func", default="arbitrary_i")
-    args2config.update({"func": ["func"]})
+    args2config.update({"func": ["gflownet", "func"]})
     parser.add_argument(
         "--horizon",
         default=42,
         help="Maximum number of episodes; maximum sequence length",
         type=int,
     )
-    args2config.update({"horizon": ["horizon"]})
+    args2config.update({"horizon": ["gflownet", "horizon"]})
     parser.add_argument("--nalphabet", default=4, type=int)
-    args2config.update({"nalphabet": ["nalphabet"]})
+    args2config.update({"nalphabet": ["gflownet", "nalphabet"]})
     # Sampling
     parser.add_argument("--bootstrap_tau", default=0.0, type=float)
-    args2config.update({"bootstrap_tau": ["bootstrap_tau"]})
+    args2config.update({"bootstrap_tau": ["gflownet", "bootstrap_tau"]})
     parser.add_argument('--batch_reward', type=bool, default=False)
-    args2config.update({"batch_reward": ["batch_reward"]})
+    args2config.update({"batch_reward": ["gflownet", "batch_reward"]})
     # Comet
     parser.add_argument("--comet_project", default=None, type=str)
-    args2config.update({"comet_project": ["comet_project"]})
+    args2config.update({"comet_project": ["gflownet", "comet", "project"]})
     parser.add_argument(
         "-t", "--tags", nargs="*", help="Comet.ml tags", default=[], type=str
     )
-    args2config.update({"tags": ["tags"]})
+    args2config.update({"tags": ["gflownet", "comet", "tags"]})
     return parser, args2config
 
 def set_device(dev):
@@ -438,6 +444,8 @@ class GFlowNetAgent:
                 self.model_path = args.gflownet.model_ckpt
             if self.model_path.exists():
                 self.model.load_state_dict(torch.load(self.model_path))
+        else:
+            self.model_path = None
         self.model.to(self.device_torch)
         self.target = copy.deepcopy(self.model)
         self.tau = args.gflownet.bootstrap_tau
@@ -814,18 +822,16 @@ def compute_empirical_distribution_error(env, visited):
 
 
 def main(args):
+    gflownet_agent = GFlowNetAgent(args)
+    gflownet_agent.train()
+
+
+if __name__ == "__main__":
     # Handle command line arguments and configuration
     parser = ArgumentParser()
     _, override_args = parser.parse_known_args()
     parser, args2config = add_args(parser)
     args = parser.parse_args()
     config = get_config(args, override_args, args2config)
-    # Run
-    gflownet_agent = GFlowNetAgent(args)
-    gflownet_agent.train()
-
-
-if __name__ == "__main__":
-    args = parser.parse_args()
     torch.set_num_threads(1)
-    main(args)
+    main(config)

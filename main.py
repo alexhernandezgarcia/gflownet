@@ -33,9 +33,7 @@ known issues
 print("Imports...", end="")
 import sys
 from argparse import ArgumentParser
-import yaml
 from comet_ml import Experiment
-from pathlib import Path
 import activeLearner
 from utils import *
 import time
