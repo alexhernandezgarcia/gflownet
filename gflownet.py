@@ -18,58 +18,87 @@ import torch.nn as nn
 from torch.distributions.categorical import Categorical
 
 from oracles import linearToy, toyHamiltonian, PottsEnergy, seqfoldScore, nupackScore
-
-
-parser = argparse.ArgumentParser()
-
-parser.add_argument("--device", default="cpu", type=str)
-parser.add_argument("--progress", action="store_true")
-parser.add_argument("--model_ckpt", default=None, type=str)
-
-#
-parser.add_argument("--learning_rate", default=1e-4, help="Learning rate", type=float)
-parser.add_argument("--opt", default="adam", type=str)
-parser.add_argument("--adam_beta1", default=0.9, type=float)
-parser.add_argument("--adam_beta2", default=0.999, type=float)
-parser.add_argument("--momentum", default=0.9, type=float)
-parser.add_argument("--mbsize", default=16, help="Minibatch size", type=int)
-parser.add_argument("--train_to_sample_ratio", default=1, type=float)
-parser.add_argument("--n_hid", default=256, type=int)
-parser.add_argument("--n_layers", default=2, type=int)
-parser.add_argument("--n_train_steps", default=20000, type=int)
-parser.add_argument(
-    "--num_empirical_loss",
-    default=200000,
-    type=int,
-    help="Number of samples used to compute the empirical distribution loss",
-)
-parser.add_argument("--clip_grad_norm", default=0.0, type=float)
-
-# Environment
-parser.add_argument("--func", default="arbitrary_i")
-parser.add_argument(
-    "--horizon",
-    default=42,
-    help="Maximum number of episodes; maximum sequence length",
-    type=int,
-)
-parser.add_argument("--nalphabet", default=4, type=int)
-
-# Flownet
-parser.add_argument("--bootstrap_tau", default=0.0, type=float)
-parser.add_argument('--batch_reward', type=bool, default=False)
-
-# Comet
-parser.add_argument("--comet_project", default=None, type=str)
-parser.add_argument(
-    "-t", "--tags", nargs="*", help="Comet.ml tags", default=[], type=str
-)
+from main import get_config
 
 # Float and Long tensors
 _dev = [torch.device("cpu")]
 tf = lambda x: torch.FloatTensor(x).to(_dev[0])
 tl = lambda x: torch.LongTensor(x).to(_dev[0])
 
+
+
+parser = argparse.ArgumentParser()
+
+def add_args(parser):
+    """
+    Adds command-line arguments to parser
+
+    Returns:
+        argparse.Namespace: the parsed arguments
+    """
+    args2config = {}
+    # General
+    parser.add_argument("--device", default="cpu", type=str)
+    args2config.update({"device": ["device"]})
+    parser.add_argument("--progress", action="store_true")
+    args2config.update({"progress": ["progress"]})
+    parser.add_argument("--model_ckpt", default=None, type=str)
+    args2config.update({"model_ckpt": ["model_ckpt"]})
+    # Training hyperparameters
+    parser.add_argument("--learning_rate", default=1e-4, help="Learning rate", type=float)
+    args2config.update({"learning_rate": ["learning_rate"]})
+    parser.add_argument("--opt", default="adam", type=str)
+    args2config.update({"opt": ["opt"]})
+    parser.add_argument("--adam_beta1", default=0.9, type=float)
+    args2config.update({"adam_beta1": ["adam_beta1"]})
+    parser.add_argument("--adam_beta2", default=0.999, type=float)
+    args2config.update({"adam_beta2": ["adam_beta2"]})
+    parser.add_argument("--momentum", default=0.9, type=float)
+    args2config.update({"momentum": ["momentum"]})
+    parser.add_argument("--mbsize", default=16, help="Minibatch size", type=int)
+    args2config.update({"mbsize": ["mbsize"]})
+    parser.add_argument("--train_to_sample_ratio", default=1, type=float)
+    args2config.update({"train_to_sample_ratio": ["train_to_sample_ratio"]})
+    parser.add_argument("--n_hid", default=256, type=int)
+    args2config.update({"n_hid": ["n_hid"]})
+    parser.add_argument("--n_layers", default=2, type=int)
+    args2config.update({"n_layers": ["n_layers"]})
+    parser.add_argument("--n_train_steps", default=20000, type=int)
+    args2config.update({"n_train_steps": ["n_train_steps"]})
+    parser.add_argument(
+        "--num_empirical_loss",
+        default=200000,
+        type=int,
+        help="Number of samples used to compute the empirical distribution loss",
+    )
+    args2config.update({"num_empirical_loss": ["num_empirical_loss"]})
+    parser.add_argument("--clip_grad_norm", default=0.0, type=float)
+    args2config.update({"clip_grad_norm": ["clip_grad_norm"]})
+    # Environment
+    parser.add_argument("--func", default="arbitrary_i")
+    args2config.update({"func": ["func"]})
+    parser.add_argument(
+        "--horizon",
+        default=42,
+        help="Maximum number of episodes; maximum sequence length",
+        type=int,
+    )
+    args2config.update({"horizon": ["horizon"]})
+    parser.add_argument("--nalphabet", default=4, type=int)
+    args2config.update({"nalphabet": ["nalphabet"]})
+    # Sampling
+    parser.add_argument("--bootstrap_tau", default=0.0, type=float)
+    args2config.update({"bootstrap_tau": ["bootstrap_tau"]})
+    parser.add_argument('--batch_reward', type=bool, default=False)
+    args2config.update({"batch_reward": ["batch_reward"]})
+    # Comet
+    parser.add_argument("--comet_project", default=None, type=str)
+    args2config.update({"comet_project": ["comet_project"]})
+    parser.add_argument(
+        "-t", "--tags", nargs="*", help="Comet.ml tags", default=[], type=str
+    )
+    args2config.update({"tags": ["tags"]})
+    return parser, args2config
 
 def set_device(dev):
     _dev[0] = dev
@@ -785,6 +814,13 @@ def compute_empirical_distribution_error(env, visited):
 
 
 def main(args):
+    # Handle command line arguments and configuration
+    parser = ArgumentParser()
+    _, override_args = parser.parse_known_args()
+    parser, args2config = add_args(parser)
+    args = parser.parse_args()
+    config = get_config(args, override_args, args2config)
+    # Run
     gflownet_agent = GFlowNetAgent(args)
     gflownet_agent.train()
 
