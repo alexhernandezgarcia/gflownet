@@ -178,7 +178,7 @@ class ActiveLearning():
             'clustering cutoff': self.config.al.minima_dist_cutoff, # could be a learned parameter
             'n proxy models': self.config.proxy.ensemble_size,
             'iter': self.pipeIter,
-            'budget': self.config.al.n_iter
+            'budget': self.config.al.n_iter,
             'reward': self.reward
         }
 
