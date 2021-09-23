@@ -18,7 +18,7 @@ import torch.nn as nn
 from torch.distributions.categorical import Categorical
 
 from oracles import linearToy, toyHamiltonian, PottsEnergy, seqfoldScore, nupackScore
-from main import get_config
+from utils import get_config
 
 # Float and Long tensors
 _dev = [torch.device("cpu")]

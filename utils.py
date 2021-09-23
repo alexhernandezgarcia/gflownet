@@ -13,6 +13,55 @@ This is a general utilities file for the active learning pipeline
 To-Do:
 '''
 
+def get_config(args, override_args, args2config):
+    """
+    Combines YAML configuration file, command line arguments and default arguments into
+    a single configuration dictionary.
+
+    - Values in YAML file override default values
+    - Command line arguments override values in YAML file
+
+    Returns
+    -------
+        Namespace
+    """
+
+    def _update_config(arg, val, config, override=False):
+        config_aux = config
+        for k in args2config[arg]:
+            if k not in config_aux:
+                if k is args2config[arg][-1]:
+                    config_aux.update({k: val})
+                else:
+                    config_aux.update({k: {}})
+                    config_aux = config_aux[k]
+            else:
+                if k is args2config[arg][-1] and override:
+                    config_aux[k] = val
+                else:
+                    config_aux = config_aux[k]
+
+
+    # Read YAML config
+    if args.yaml_config:
+        yaml_path = Path(args.yaml_config)
+        assert yaml_path.exists()
+        assert yaml_path.suffix in {".yaml", ".yml"}
+        with yaml_path.open("r") as f:
+            config = yaml.safe_load(f)
+    else:
+        config = {}
+    # Add args to config: add if not provided; override if in command line
+    override_args = [arg.strip("--") for arg in override_args if "--" in arg]
+    for k, v in vars(args).items():
+        print(k, v)
+        if k in override_args:
+            _update_config(k, v, config, override=True)
+        else:
+            _update_config(k, v, config, override=False)
+    return dict2namespace(config)
+
+
 def printRecord(statement):
     '''
     print a string to command line output and a text file
