@@ -201,19 +201,13 @@ class DQN:
         self.randomSamples = self.randomSamples['samples']
 
 
-        self.policy_net.eval()
-        with torch.no_grad():
-            self.policy_net.storeLatent(
-                self.model_state
-            )  # pre-compute and store the model latent state to save time
-
     def evaluate(self, sample, output="Average"):  # just evaluate the proxy
         return self.proxyModel.evaluate(sample, output=output)
 
 class QuerySelectionAgent(DQN):
-    def __init__(self, params):
-        super().__init__(params)
-        self.memory = QuerySelectionReplayMemory(self.params["buffer_size"])
+    def __init__(self, config):
+        super().__init__(config)
+        self.memory = QuerySelectionReplayMemory(self.config.buffer_size)
 
     def _create_models(self):
         """Creates the Online and Target DQNs
@@ -328,9 +322,9 @@ class QuerySelectionAgent(DQN):
 
 
 class ParameterUpdateAgent(DQN):
-    def __init__(self, params):
-        super().__init__(params)
-        self.memory = ParameterUpdateReplayMemory(self.params["buffer_size"])
+    def __init__(self, config):
+        super().__init__(config)
+        self.memory = ParameterUpdateReplayMemory(self.config.al.buffer_size)
 
     def _create_models(self):
         """Creates the Online and Target DQNs
@@ -352,7 +346,8 @@ class ParameterUpdateAgent(DQN):
 
         # print("DQN Models created!")
 
-    def train(self, memory_batch, BATCH_SIZE=32, GAMMA=0.999, dqn_epochs=1):
+    #TODO sample within train funciton self.memory_buffer.sample(self.config.q_batch_size)
+    def train(self, BATCH_SIZE=32, GAMMA=0.999, dqn_epochs=1):
         """Train a q-function estimator on a minibatch.
 
         Train estimator on minibatch, partially copy
@@ -368,6 +363,7 @@ class ParameterUpdateAgent(DQN):
         :param dqn_epochs: (int) Number of epochs to train the DQN
         """
         # Code adapted from https://pytorch.org/tutorials/intermediate/reinforcement_q_learning.html
+        memory_batch = self.memory.sample(self.config.al.q_batch_size)
         if len(memory_batch) < BATCH_SIZE:
             return
         print("Optimize model...")
@@ -411,24 +407,22 @@ class ParameterUpdateAgent(DQN):
             del loss
             del transitions
 
-    def evaluateQ(
-        self, sample: np.array,
-    ):
+
+    def evaluateQ(self):
         """ get the q-value for a particular sample, given its 'action state'
+
         :param model_state: (torch.Variable) Torch tensor containing the model state representation.
-        :param action_state: (torch.Variable) Torch tensor containing the action state representations.
         :param steps_done: (int) Number of aptamers labeled so far.
         :param test: (bool) Whether we are testing the DQN or training it. Disables greedy-epsilon when True.
+
         :return: Action (index of Sequence to Label)
         """
-        action_state = self.getActionState(sample)
 
         self.policy_net.eval()
         with torch.no_grad():
-            q_val = self.policy_net(action_state)
+            q_val = self.policy_net(self.model_state)
 
         return q_val
-
 
     def getAction(self):
         action = np.zeros(self.model_state_latent_dimension)
@@ -440,4 +434,11 @@ class ParameterUpdateAgent(DQN):
             action_id = int(random.random() * self.model_state_latent_dimension)
 
         action[action_id] = 1
+
         return action
+
+    def push_to_buffer(
+        self, model_state, action, next_model_state, reward, terminal
+    ):
+        """Saves a transition."""
+        self.memory.push(model_state, action, next_model_state, reward, terminal)

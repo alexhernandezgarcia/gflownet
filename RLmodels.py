@@ -45,31 +45,30 @@ class QueryNetworkDQN(nn.Module):
         return self.predictions(out)
 
 class ParameterUpdateDQN(nn.Module):
-    def __init__(self, model_state_length, action_state_length, model_state_latent_dimension, bias_average,):
+    def __init__(self, model_state_length, model_state_latent_dimension, bias_average,):
         """Initialises the Query Network. A Network that computes Q-values starting from model state and action state.
         :param: model_state_length: An integer indicating the number of features in model state.
         :param: action_state_length: An integer indicating the number of features in action state.
         :param: bias_average: A float that is used to initialize the bias in the last layer.
         """
-        super(QueryNetworkDQN, self).__init__()
+        super(ParameterUpdateDQN, self).__init__()
         self.model_state_length = model_state_length
-        self.action_state_length = action_state_length
         self.model_state_latent_dimension = model_state_latent_dimension
 
 
         # A fully connected layers with model_state as input
-        self.fc1 = nn.Linear(self.model_state_length, self.model_state_latent_dimension)
+        self.fc1 = nn.Linear(self.model_state_length, self.model_state_latent_dimension).double()
         # not trainable if not is_target_dqn
 
 
         # A fully connected layer with fc2concat as input
-        self.fc2 = nn.Linear(self.model_state_latent_dimension, self.model_state_latent_dimension)  # not trainable if not is_target_dqn
+        self.fc2 = nn.Linear(self.model_state_latent_dimension, self.model_state_latent_dimension).double()  # not trainable if not is_target_dqn
 
         # The last linear fully connected layer
         # The bias on the last layer is initialized to some value
         # normally it is the - average episode duriation / 2
         # like this NN find optimum better even as the mean is not 0
-        self.predictions = nn.Linear(self.model_state_latent_dimension, 1)  # not trainable if not is_target_dqn
+        self.predictions = nn.Linear(self.model_state_latent_dimension, 1).double()  # not trainable if not is_target_dqn
         nn.init.constant_(self.predictions.weight, bias_average)
 
     def forward(self, model_state):

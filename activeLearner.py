@@ -32,7 +32,6 @@ class ActiveLearning():
         '''
         self.oracle = Oracle(self.config) # oracle needs to be initialized to initialize toy datasets
         self.agent = ParameterUpdateAgent(self.config)
-        self.memory_buffer = ParameterUpdateReplayMemory()
         if (self.config.run_num == 0) or (self.config.explicit_run_enumeration == True): # if making a new workdir
             if self.config.run_num == 0:
                 self.makeNewWorkingDirectory()
@@ -99,9 +98,8 @@ class ActiveLearning():
                 self.iterate() # run the pipeline
                 self.saveOutputs() # save pipeline outputs
                 if (self.pipeIter > 0) and (self.config.dataset.type == 'toy'):
-                    pass
-                    #self.reportCumulativeResult()
-            self.agent.train(self.memory_buffer.sample(self.config.q_batch_size))
+                    self.reportCumulativeResult()
+            self.agent.train()
 
 
     def iterate(self):
@@ -119,7 +117,7 @@ class ActiveLearning():
         self.getModelState() # run energy-only sampling and create model state dict
         if self.reward:
             # Put Transition in Buffer
-            self.memory_buffer.push(self.stateDictRecord[-2], self.action, self.stateDictRecord[-1], self.reward, self.terminal)
+            self.agent.push_to_buffer(self.stateDictRecord[-2], self.action, self.stateDictRecord[-1], self.reward, self.terminal)
         if self.config.al.hyperparams_learning and (self.pipeIter > 0):
             self.agent.updateModelState(self.stateDict, self.model)
             self.action = self.agent.getAction()
@@ -127,6 +125,7 @@ class ActiveLearning():
             self.action = None
 
         query = self.querier.buildQuery(self.model, self.stateDict, self.sampleDict, self.action)  # pick Samples to be scored
+
         tf = time.time()
         printRecord('Query generation took {} seconds'.format(int(tf-t0)))
 

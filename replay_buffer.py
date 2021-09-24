@@ -7,9 +7,14 @@ EPS_END = 0.05
 EPS_DECAY = 10
 
 # Definition needed to store memory replay in pickle
-Transition = namedtuple(
+Query_Transition = namedtuple(
     "Transition",
     ("model_state", "action_state", "next_model_state", "next_action_state", "reward", "terminal"),
+)
+
+Parameter_Transition = namedtuple(
+    "Transition",
+    ("model_state", "action", "next_model_state", "reward", "terminal"),
 )
 
 
@@ -31,7 +36,7 @@ class QuerySelectionReplayMemory(object):
             self.memory.append(None)
 
         self.memory[self.position] = None
-        self.memory[self.position] = Transition(
+        self.memory[self.position] = Query_Transition(
             model_state, action_state, next_model_state, next_action_state, reward, terminal
         )
         self.position = (self.position + 1) % self.capacity
@@ -67,7 +72,7 @@ class ParameterUpdateReplayMemory(object):
             self.memory.append(None)
 
         self.memory[self.position] = None
-        self.memory[self.position] = Transition(
+        self.memory[self.position] = Parameter_Transition(
             model_state, action, next_model_state, reward, terminal
         )
         self.position = (self.position + 1) % self.capacity
