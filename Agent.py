@@ -348,7 +348,7 @@ class QuerySelectionAgent(DQN):
 class ParameterUpdateAgent(DQN):
     def __init__(self, config):
         super().__init__(config)
-        self.memory = QuerySelectionReplayMemory(self.config.al.buffer_size)
+        self.memory = ParameterUpdateReplayMemory(self.config.al.buffer_size)
 
     def _create_models(self):
         """Creates the Online and Target DQNs
@@ -387,6 +387,7 @@ class ParameterUpdateAgent(DQN):
         :param dqn_epochs: (int) Number of epochs to train the DQN
         """
         # Code adapted from https://pytorch.org/tutorials/intermediate/reinforcement_q_learning.html
+        memory_batch = self.memory.sample(self.config.al.q_batch_size)
         if len(memory_batch) < BATCH_SIZE:
             return
         print("Optimize model...")
@@ -459,8 +460,8 @@ class ParameterUpdateAgent(DQN):
         return action
 
     def push_to_buffer(
-        self, model_state, action_state, next_model_state, next_action_state, reward, terminal
+        self, model_state, action, next_model_state, reward, terminal
     ):
         """Saves a transition."""
-        self.memory.push(model_state, action_state, next_model_state, next_action_state, reward, terminal)
+        self.memory.push(model_state, action, next_model_state, reward, terminal)
 
