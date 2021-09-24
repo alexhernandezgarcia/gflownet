@@ -199,19 +199,13 @@ class DQN:
         self.randomSamples = self.randomSamples['samples']
 
 
-        self.policy_net.eval()
-        with torch.no_grad():
-            self.policy_net.storeLatent(
-                self.model_state
-            )  # pre-compute and store the model latent state to save time
-
     def evaluate(self, sample, output="Average"):  # just evaluate the proxy
         return self.proxyModel.evaluate(sample, output=output)
 
 class QuerySelectionAgent(DQN):
-    def __init__(self, params):
-        super().__init__(params)
-        self.memory = QuerySelectionReplayMemory(self.params["buffer_size"])
+    def __init__(self, config):
+        super().__init__(config)
+        self.memory = QuerySelectionReplayMemory(self.config.buffer_size)
 
     def _create_models(self):
         """Creates the Online and Target DQNs
@@ -352,9 +346,9 @@ class QuerySelectionAgent(DQN):
 
 
 class ParameterUpdateAgent(DQN):
-    def __init__(self, params):
-        super().__init__(params)
-        self.memory = ParameterUpdateReplayMemory(self.params["buffer_size"])
+    def __init__(self, config):
+        super().__init__(config)
+        self.memory = QuerySelectionReplayMemory(self.config.al.buffer_size)
 
     def _create_models(self):
         """Creates the Online and Target DQNs
@@ -376,7 +370,8 @@ class ParameterUpdateAgent(DQN):
 
         # print("DQN Models created!")
 
-    def train(self, memory_batch, BATCH_SIZE=32, GAMMA=0.999, dqn_epochs=1):
+    #TODO sample within train funciton self.memory_buffer.sample(self.config.q_batch_size)
+    def train(self, BATCH_SIZE=32, GAMMA=0.999, dqn_epochs=1):
         """Train a q-function estimator on a minibatch.
 
         Train estimator on minibatch, partially copy
@@ -462,3 +457,10 @@ class ParameterUpdateAgent(DQN):
 
         action[action_id] = 1
         return action
+
+    def push_to_buffer(
+        self, model_state, action_state, next_model_state, next_action_state, reward, terminal
+    ):
+        """Saves a transition."""
+        self.memory.push(model_state, action_state, next_model_state, next_action_state, reward, terminal)
+

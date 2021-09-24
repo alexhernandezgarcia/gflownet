@@ -4,8 +4,8 @@ debug: False
 run_num: 0
 explicit_run_enumeration: False
 machine: "local"
-device: "CPU"
-workdir: !!null
+device: "cuda"
+workdir: "C:/Users/Danny/Desktop/ActiveLearningPipeline/Runs"
 # Seeds
 seeds:
   sampler: 0
@@ -33,6 +33,7 @@ al:
   queries_per_iter: 100
   mode: "training"
   q_batch_size: 32
+  buffer_size: 10000
 # Querier
 querier: 
   model_state_size: 30
