@@ -203,9 +203,9 @@ class DQN:
         :return:
         '''
         energies, uncertainties = self.proxyModel.evaluate(sample, output='Both')
-        internalDist = binaryDistance(np.concatenate((sample, self.params.dict_size, self.modelStateSamples)),pairwise=False,extractInds=len(sample))
-        datasetDist = binaryDistance(np.concatenate((sample, self.params.dict_size, self.trainingSamples)), pairwise=False, extractInds = len(sample))
-        randomDist = binaryDistance(np.concatenate((sample, self.params.dict_size,self.randomSamples)), pairwise=False, extractInds=len(sample))
+        internalDist = binaryDistance(np.concatenate((sample, self.config.dict_size, self.modelStateSamples)),pairwise=False,extractInds=len(sample))
+        datasetDist = binaryDistance(np.concatenate((sample, self.config.dict_size, self.trainingSamples)), pairwise=False, extractInds = len(sample))
+        randomDist = binaryDistance(np.concatenate((sample, self.config.dict_size,self.randomSamples)), pairwise=False, extractInds=len(sample))
 
         actionState = []
         for i in range(len(sample)):

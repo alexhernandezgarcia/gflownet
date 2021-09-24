@@ -95,7 +95,8 @@ class ActiveLearning():
             self.iterate() # run the pipeline
             self.saveOutputs() # save pipeline outputs
             if (self.pipeIter > 0) and (self.config.dataset.type == 'toy'):
-                self.reportCumulativeResult()
+                pass
+                #self.reportCumulativeResult() # this function is not perfectly working
 
 
     def iterate(self):

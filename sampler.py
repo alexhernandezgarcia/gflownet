@@ -136,6 +136,8 @@ class Sampler:
         self.accrec = [[] for i in range(self.nruns)]
         self.stunrec = [[] for i in range(self.nruns)]
         self.scorerec = [[] for i in range(self.nruns)]
+        self.enrec = [[] for i in range(self.nruns)]
+        self.varrec = [[] for i in range(self.nruns)]
 
 
     def initConvergenceStats(self):
@@ -189,7 +191,7 @@ class Sampler:
         - instead of many parallel stun functions, many parallel initial configurations
         - return final configurations for each run as 'annealed samples'
         '''
-        self.params.STUN = 0
+        self.config_main.STUN = 0
         self.nruns = len(initConfigs)
         self.temp0 = 0.01 # initial temperature for sampling runs
         self.temperature = [self.temp0 for _ in range(self.nruns)]
@@ -197,7 +199,7 @@ class Sampler:
 
         self.initConvergenceStats()
         self.resampleRandints()
-        for self.iter in tqdm.tqdm(range(self.params.post_annealing_time)):
+        for self.iter in tqdm.tqdm(range(self.config_main.post_annealing_time)):
             self.iterate(model, useOracle)
 
             self.temperature = [temperature * 0.99 for temperature in self.temperature] # cut temperature at every time step
@@ -299,7 +301,9 @@ class Sampler:
             self.temprec[i].append(self.temperature[i])
             self.accrec[i].append(self.acceptanceRate[i])
             self.scorerec[i].append(self.scores[0][i])
-            if self.params.STUN:
+            self.enrec[i].append(self.energy[0][i])
+            self.varrec[i].append(self.variance[0][i])
+            if self.config_main.STUN:
                 self.stunrec[i].append(self.F[0][i])
 
     def getScores(self, propConfig, config, model, useOracle):
