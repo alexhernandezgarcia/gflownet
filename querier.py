@@ -139,10 +139,10 @@ class Querier():
                     self.config.dataset.dict_size, model.evaluate
             )
             tf = time.time()
-            printRecord('Sampling {} samples from GFlowNet took {} seconds'.format(self.params.gflownet_n_samples,int(tf-t0)))
+            printRecord('Sampling {} samples from GFlowNet took {} seconds'.format(self.config.gflownet_n_samples,int(tf-t0)))
             outputs = filterOutputs(outputs)
 
-            if self.params.post_gflownet_annealing:
+            if self.config.post_gflownet_annealing:
                 self.doAnnealing(scoreFunction, model, outputs)
 
         else:
@@ -154,7 +154,7 @@ class Querier():
     def doAnnealing(self, scoreFunction, model, outputs):
         t0 = time.time()
         initConfigs = outputs['samples'][np.argsort(outputs['scores'])]
-        initConfigs = initConfigs[0:self.params.post_annealing_samples]
+        initConfigs = initConfigs[0:self.config.post_annealing_samples]
 
         annealer = Sampler(self.params, 1, scoreFunction, gammas=np.arange(len(initConfigs)))  # the gamma is a dummy
         annealedOutputs = annealer.postSampleAnnealing(initConfigs, model)

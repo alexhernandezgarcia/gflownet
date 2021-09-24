@@ -250,32 +250,6 @@ class QuerySelectionAgent(DQN):
 
         return q_val
 
-    def getActionState(self, sample):
-        """
-        get the proxy model predictions and sample distances
-        :param sample:
-        :return:
-        """
-        energies, uncertainties = self.proxyModel.evaluate(sample, output="Both")
-        internalDist = binaryDistance(
-            np.concatenate((sample, self.modelStateSamples)),
-            pairwise=False,
-            extractInds=len(sample),
-        )
-        datasetDist = binaryDistance(
-            np.concatenate((sample, self.trainingSamples)), pairwise=False, extractInds=len(sample)
-        )
-        randomDist = binaryDistance(
-            np.concatenate((sample, self.randomSamples)), pairwise=False, extractInds=len(sample)
-        )
-
-        actionState = []
-        for i in range(len(sample)):
-            actionState.append(
-                [energies[i], uncertainties[i], internalDist[i], datasetDist[i], randomDist[i]]
-            )
-        self.actionState = torch.Tensor(actionState).to(self.device)
-        return self.actionState  # return action state
 
     def train(self, memory_batch, BATCH_SIZE=32, GAMMA=0.999, dqn_epochs=1):
         """Train a q-function estimator on a minibatch.

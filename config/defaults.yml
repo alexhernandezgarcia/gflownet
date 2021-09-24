@@ -1,11 +1,11 @@
 # General
-test_mode: True
-debug: False
+test_mode: False
+debug: True
 run_num: 0
 explicit_run_enumeration: False
 machine: "local"
-device: "cpu"
-workdir: "C:/Users/Danny/Desktop/ActiveLearningPipeline/Runs"
+device: "cuda"
+workdir: !!null
 # Seeds
 seeds:
   sampler: 0
@@ -25,9 +25,8 @@ dataset:
 # AL
 al:
   sample_method: "mcmc"
-  query_mode: "energy"
-  n_iter: 1
-  episodes: 1
+  query_mode: "heuristic"
+  n_iter: 5
   query_selection: "clustering"
   minima_dist_cutoff: 0.25
   queries_per_iter: 100
@@ -40,7 +39,7 @@ querier:
   opt: "SGD"
   momentum: 0.95
   model_ckpt: !!null
-  latent_space_width: 9
+  latent_space_width: 10
 # GFlowNet
 gflownet:
   model_ckpt: !!null
@@ -65,7 +64,7 @@ gflownet:
 proxy:
   model_type: "mlp"
   training_parallelism: False
-  ensemble_size: 10
+  ensemble_size: 5
   width: 256
   embedding_dim: 256
   n_layers: 2

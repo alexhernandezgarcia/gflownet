@@ -409,6 +409,8 @@ class GFlowNetAgent:
                 self.model_path = args.gflownet.model_ckpt
             if self.model_path.exists():
                 self.model.load_state_dict(torch.load(self.model_path))
+        else:
+            self.model_path = None
         self.model.to(self.device_torch)
         self.target = copy.deepcopy(self.model)
         self.tau = args.gflownet.bootstrap_tau
@@ -703,8 +705,13 @@ class GFlowNetAgent:
                 'energies': energies,
                 'uncertainties': uncertainties,
         }
-        # Sanity-check 
-        import ipdb; ipdb.set_trace()
+        # Sanity-check: absolute zero pad
+        zeros = np.where(batch == 0)
+        row_unique, row_unique_idx = np.unique(zeros[0], return_index=True)
+        for row, idx in zip(row_unique, row_unique_idx): 
+            if np.sum(batch[row, zeros[1][idx]:]):
+                print(f"Found sequence with positive values after last 0, row {row}")
+                import ipdb; ipdb.set_trace()
         return samples
 
 
