@@ -23,13 +23,17 @@ class Querier():
         if self.config.al.query_mode == 'learned':
             pass
 
-    def buildQuery(self, model, statusDict, energySampleDict):
+    def buildQuery(self, model, statusDict, energySampleDict, action = None):
         """
         select the samples which will be sent to the oracle for scoring
+        if we are dynamically updating hyperparameters, take an action
         :param sampleDict:
         :return:
         """
         # TODO upgrade sampler
+
+        if action is not None:
+            self.updateHyperparams(action)
 
         nQueries = self.config.al.queries_per_iter
         if self.config.al.query_mode == 'random':
@@ -39,11 +43,12 @@ class Querier():
             query = generateRandomSamples(nQueries, [self.config.dataset.min_length,self.config.dataset.max_length], self.config.dataset.dict_size, variableLength = self.config.dataset.variable_length, oldDatasetPath = 'datasets/' + self.config.dataset.oracle + '.npy')
 
         else:
-            if self.config.al.query_mode == 'learned':
-                self.qModel.updateModelState(statusDict, model)
-                self.sampleDict = self.sampleForQuery(self.qModel, statusDict['iter'])
+            #if self.config.al.query_mode == 'learned': # we aren't doing this anymore
+            #    self.qModel.updateModelState(statusDict, model)
+            #    self.sampleDict = self.sampleForQuery(self.qModel, statusDict['iter'])
 
-            else:
+            #else:
+            if True:
                 '''
                 query samples with best good scores, according to our model and a scoring function
                 '''
@@ -65,17 +70,32 @@ class Querier():
         return query
 
 
+    def updateHyperparams(self,action):
+        '''
+        take an 'action' to adjust hyperparameters
+        action space has a size of 9, and is the  product space of
+        [increase, stay the same, decrease] for the two parameters
+        minima_dist_cutoff and [c1 - c2] where c1 is the 'energy'
+        weight and c2 is the 'uncertainty' weight in the sampler scoring function
+        and c1 + c2 = 1
+        '''
+        binary_to_policy = np.array(((1,1,1,0,0,0,-1,-1,-1),(1,0,-1,1,0,-1,1,0,-1)))
+        actions = binary_to_policy @ np.asarray(action) # action 1 is for dist cutoff modulation, action 2 is for c1-c2 tradeoff
+        self.config.al.minima_dist_cutoff = self.config.al.minima_dist_cutoff + actions[0] * 0.1 # modulate by 0.1
+        self.config.al.energy_uncertainty_tradeoff = self.config.al.energy_uncertainty_tradeoff + actions[1] * 0.1 # modulate by 0.1
+
+
     def constructQuery(self, samples, scores, uncertainties, nQueries):
         # create batch from candidates
         if self.config.al.query_selection == 'clustering':
             # agglomerative clustering
-            clusters, clusterScores, clusterVars = doAgglomerativeClustering(samples, scores, uncertainties, self.config.dataset.dict_size, cutoff=self.config.al.minima_dist_cutoff)
+            clusters, clusterScores, clusterVars = doAgglomerativeClustering(samples, scores, uncertainties, self.config.dataset.dict_size, cutoff=normalizeDistCutoff(self.config.al.minima_dist_cutoff))
 
             clusterSizes, avgClusterScores, minCluster, avgClusterVars, minClusterVars, minClusterSamples = clusterAnalysis(clusters, clusterScores, clusterVars)
             samples = minClusterSamples
         elif self.config.al.query_selection == 'cutoff':
             # build up sufficiently different examples in order of best scores
-            bestInds = sortTopXSamples(samples[np.argsort(scores)], nSamples=len(samples), distCutoff=self.config.al.minima_dist_cutoff)  # sort out the best, and at least minimally distinctive samples
+            bestInds = sortTopXSamples(samples[np.argsort(scores)], nSamples=len(samples), distCutoff=normalizeDistCutoff(self.config.al.minima_dist_cutoff))  # sort out the best, and at least minimally distinctive samples
             samples = samples[bestInds]
         elif self.config.al.query_selection == 'argmin':
             # just take the bottom x scores
@@ -100,7 +120,9 @@ class Querier():
         elif self.config.al.query_mode == 'uncertainty':
             scoreFunction = [0, 1]  # look for maximum uncertainty
         elif self.config.al.query_mode == 'heuristic':
-            scoreFunction = [0.5, 0.5]  # put in user specified values (or functions) here
+            c1 = 0.5 - self.config.al.energy_uncertainty_tradeoff / 2
+            c2 = 0.5 + self.config.al.energy_uncertainty_tradeoff / 2
+            scoreFunction = [c1, c2]  # put in user specified values (or functions) here
         elif self.config.al.query_mode == 'learned':
             scoreFunction = None
         else:

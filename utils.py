@@ -670,3 +670,5 @@ def numpy2python(results_dict):
 
     return results_dict
 
+def normalizeDistCutoff(cutoff):
+    return (1 + np.tanh(cutoff)) / 2

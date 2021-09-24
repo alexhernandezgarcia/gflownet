@@ -26,9 +26,11 @@ dataset:
 al:
   sample_method: "mcmc"
   query_mode: "heuristic"
+  hyperparams_learning: True
   n_iter: 5
   query_selection: "clustering"
-  minima_dist_cutoff: 0.25
+  minima_dist_cutoff: 0
+  energy_uncertainty_tradeoff: 0
   queries_per_iter: 100
   mode: "training"
 # Querier

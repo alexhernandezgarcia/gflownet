@@ -78,6 +78,8 @@ class DQN:
         """
         # TODO write loader
         # TODO write saver
+        exp_name = 'exp'
+        episode = 1
         if os.path.exists("ckpts/" + exp_name):  # reload model
             policy_checkpoint = torch.load(f"ckpts/policy_{episode}")
             target_checkpoint = torch.load(f"ckpts/target_{episode}")
@@ -408,3 +410,34 @@ class ParameterUpdateAgent(DQN):
 
             del loss
             del transitions
+
+    def evaluateQ(
+        self, sample: np.array,
+    ):
+        """ get the q-value for a particular sample, given its 'action state'
+        :param model_state: (torch.Variable) Torch tensor containing the model state representation.
+        :param action_state: (torch.Variable) Torch tensor containing the action state representations.
+        :param steps_done: (int) Number of aptamers labeled so far.
+        :param test: (bool) Whether we are testing the DQN or training it. Disables greedy-epsilon when True.
+        :return: Action (index of Sequence to Label)
+        """
+        action_state = self.getActionState(sample)
+
+        self.policy_net.eval()
+        with torch.no_grad():
+            q_val = self.policy_net(action_state)
+
+        return q_val
+
+
+    def getAction(self):
+        action = np.zeros(self.model_state_latent_dimension)
+        if random.random() > self.epsilon:
+            q_values = self.evaluateQ()
+            action_id = torch.argmax(q_values)
+
+        else:
+            action_id = int(random.random() * self.model_state_latent_dimension)
+
+        action[action_id] = 1
+        return action

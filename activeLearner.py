@@ -120,9 +120,13 @@ class ActiveLearning():
         if self.reward:
             # Put Transition in Buffer
             self.memory_buffer.push(self.stateDictRecord[-2], self.action, self.stateDictRecord[-1], self.reward, self.terminal)
-        self.agent.updateModelState(self.stateDict, self.model)
-        action = self.agent.getAction()
-        query = self.querier.buildQuery(self.model, self.stateDict, self.sampleDict)  # pick Samples to be scored
+        if self.config.al.hyperparams_learning and (self.pipeIter > 0):
+            self.agent.updateModelState(self.stateDict, self.model)
+            self.action = self.agent.getAction()
+        else:
+            self.action = None
+
+        query = self.querier.buildQuery(self.model, self.stateDict, self.sampleDict, self.action)  # pick Samples to be scored
         tf = time.time()
         printRecord('Query generation took {} seconds'.format(int(tf-t0)))
 
@@ -163,7 +167,7 @@ class ActiveLearning():
         uncertainties = self.sampleDict['uncertainties']
 
         # agglomerative clustering
-        clusters, clusterEns, clusterVars = doAgglomerativeClustering(samples,energies,uncertainties,self.config.dataset.dict_size,cutoff=self.config.al.minima_dist_cutoff)
+        clusters, clusterEns, clusterVars = doAgglomerativeClustering(samples,energies,uncertainties,self.config.dataset.dict_size,cutoff=normalizeDistCutoff(self.config.al.minima_dist_cutoff))
         clusterSizes, avgClusterEns, minClusterEns, avgClusterVars, minClusterVars, minClusterSamples = clusterAnalysis(clusters, clusterEns, clusterVars)
 
         #clutering alternative - just include sample-by-sample
