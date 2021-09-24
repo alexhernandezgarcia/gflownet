@@ -472,7 +472,7 @@ class resultsPlotter():
         self.normedEns = 1 - np.abs(self.stdTrueMin - self.stdEns) / np.abs(self.stdTrueMin)
         self.normedDevs = self.stdDevs / np.abs(self.stdTrueMin)
 
-        self.xrange = np.arange(self.niters) * results['params'].queries_per_iter + results['params'].init_dataset_length
+        self.xrange = np.arange(self.niters) * results['config'].al.queries_per_iter + results['config'].dataset.init_length
 
     def averageResults(self,directories):
         results = []
