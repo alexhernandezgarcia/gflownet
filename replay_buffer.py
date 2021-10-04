@@ -64,6 +64,9 @@ class ParameterUpdateReplayMemory(object):
         self.memory = []
         self.position = 0
 
+    def __len__(self):
+        return len(self.memory)
+
     def push(
         self, model_state, action, next_model_state, reward, terminal
     ):

@@ -27,13 +27,17 @@ al:
   sample_method: "mcmc"
   query_mode: "learned"
   n_iter: 10
-  episodes: 1
+  episodes: 10
   query_selection: "clustering"
   minima_dist_cutoff: 0.25
   queries_per_iter: 100
   mode: "training"
-  q_batch_size: 32
+  q_batch_size: 8
   buffer_size: 10000
+  hyperparams_learning: True
+  energy_uncertainty_tradeoff: 0
+  action_state_size: 9
+  q_network_width: 100
 # Querier
 querier: 
   model_state_size: 30

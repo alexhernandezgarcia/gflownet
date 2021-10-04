@@ -99,7 +99,8 @@ class ActiveLearning():
                 self.saveOutputs() # save pipeline outputs
                 if (self.pipeIter > 0) and (self.config.dataset.type == 'toy'):
                     self.reportCumulativeResult()
-            self.agent.train()
+            # Train Policy Network
+            self.agent.train(BATCH_SIZE=self.config.al.q_batch_size)
 
 
     def iterate(self):
@@ -115,12 +116,12 @@ class ActiveLearning():
 
         t0 = time.time()
         self.getModelState() # run energy-only sampling and create model state dict
-        if self.reward:
-            # Put Transition in Buffer
-            self.agent.push_to_buffer(self.stateDictRecord[-2], self.action, self.stateDictRecord[-1], self.reward, self.terminal)
-        if self.config.al.hyperparams_learning and (self.pipeIter > 0):
-            self.agent.updateModelState(self.stateDict, self.model)
+        if self.config.al.hyperparams_learning:# and (self.pipeIter > 0):
+            model_state_prev, model_state_curr = self.agent.updateModelState(self.stateDict, self.model)
+            if model_state_prev is not None:
+                self.agent.push_to_buffer(model_state_prev, self.action, model_state_curr, self.reward, self.terminal)
             self.action = self.agent.getAction()
+            self.terminal = 0 #TODO Figure out a terminal condition and move this there.
         else:
             self.action = None
 
