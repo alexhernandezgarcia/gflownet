@@ -208,6 +208,22 @@ def add_args(parser):
         help="'training'  'evaluation' 'initialize' - only training currently useful",
     )
     args2config.update({"mode": ["al", "mode"]})
+    parser.add_argument(
+        "--agent_buffer_size",
+        type=int,
+        default=10000,
+        help="RL agent buffer size",
+    )
+    args2config.update({"agent_buffer_size": ["al", "buffer_size"]})
+    parser.add_argument(
+        "--episodes",
+        type=int,
+        default=1,
+        help="Episodes",
+    )
+    args2config.update({"episodes": ["al", "episodes"]})
+    parser.add_argument("--hyperparams_learning", action="store_true")
+    args2config.update({"hyperparams_learning": ["al", "hyperparams_learning"]})
     # Querier
     parser.add_argument(
         "--model_state_size",
@@ -296,6 +312,8 @@ def add_args(parser):
         "-t", "--tags", nargs="*", help="Comet.ml tags", default=[], type=str
     )
     args2config.update({"tags": ["gflownet", "comet", "tags"]})
+    parser.add_argument("--gflownet_annealing", action="store_true")
+    args2config.update({"gflownet_annealing": ["gflownet", "annealing"]})
     # Proxy model
     parser.add_argument(
         "--proxy_model_type",
