@@ -95,7 +95,7 @@ def add_args(parser):
     # Sampling
     parser.add_argument("--bootstrap_tau", default=0.0, type=float)
     args2config.update({"bootstrap_tau": ["gflownet", "bootstrap_tau"]})
-    parser.add_argument('--batch_reward', type=bool, default=False)
+    parser.add_argument('--batch_reward', action="store_true")
     args2config.update({"batch_reward": ["gflownet", "batch_reward"]})
     # Comet
     parser.add_argument("--comet_project", default=None, type=str)
