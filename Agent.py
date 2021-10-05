@@ -50,6 +50,7 @@ class DQN:
         self.model_state = None
         self.target_sync_interval = 2
         self.episode = 0
+        self.policy_error = []
 
         # Magic Hyperparameters for Greedy Sampling in Action Selection
         self.EPS_START = 0.9
@@ -402,9 +403,9 @@ class ParameterUpdateAgent(DQN):
                 # Use Bellman Equation which essentially states that sum of r_t+1 and the max_q_value at time t+1
                 # is the target/expected value of the Q-function at time t.
                 if transition.terminal:
-                    target_q_value = torch.tensor(transition.reward)
+                    target_q_value = torch.tensor(transition.reward, device=self.device)
                 else:
-                    target_q_value = (max_next_q_value * GAMMA) + transition.reward
+                    target_q_value = torch.tensor((max_next_q_value * GAMMA) + transition.reward, device=self.device)
 
 
                 # Compute MSE loss Comparing Q(s) obtained from Online Policy to
@@ -412,6 +413,7 @@ class ParameterUpdateAgent(DQN):
                 loss = torch.nn.functional.mse_loss(online_q_value, target_q_value)
                 loss_item += loss.item()
                 loss.backward()
+            self.policy_error += [loss.detach().cpu().numpy()]
             self.optimizer.step()
 
             del loss
