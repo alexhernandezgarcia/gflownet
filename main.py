@@ -151,7 +151,7 @@ def add_args(parser):
     )
     args2config.update({"variable_sample_length": ["dataset", "variable_length"]})
     parser.add_argument("--min_sample_length", type=int, default=10)
-    args2config.update({"min_sample_length": ["dataset" "min_length"]})
+    args2config.update({"min_sample_length": ["dataset", "min_length"]})
     parser.add_argument("--max_sample_length", type=int, default=40)
     args2config.update({"max_sample_length": ["dataset", "max_length"]})
     parser.add_argument(
@@ -252,8 +252,10 @@ def add_args(parser):
         {"querier_latent_space_width": ["querier", "latent_space_width"]}
     )
     # GFlowNet
+    parser.add_argument("--gflownet_device", default="cpu", type=str, help="'cuda' or 'cpu'")
+    args2config.update({"gflownet_device": ["gflownet", "device"]})
     parser.add_argument("--gflownet_model_ckpt", default=None, type=str)
-    args2config.update({"gflownet_model_ckpt": ["gflownet" "model_ckpt"]})
+    args2config.update({"gflownet_model_ckpt": ["gflownet", "model_ckpt"]})
     parser.add_argument("--gflownet_progress", action="store_true")
     args2config.update({"gflownet_progress": ["gflownet", "progress"]})
     parser.add_argument(
@@ -422,7 +424,7 @@ def process_config(config):
     # GFlowNet
     config.gflownet.horizon = config.dataset.max_length
     config.gflownet.nalphabet = config.dataset.dict_size
-    config.gflownet.func = config.dataset
+    config.gflownet.func = config.dataset.oracle
     # Paths
     if not config.workdir and config.machine == "cluster":
         config.workdir = "/home/kilgourm/scratch/learnerruns"

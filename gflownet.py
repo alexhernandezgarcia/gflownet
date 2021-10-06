@@ -428,7 +428,8 @@ def make_mlp(layers_dim, act=nn.LeakyReLU(), tail=[]):
 class GFlowNetAgent:
     def __init__(self, args, proxy=None):
         # Misc
-        self.device_torch = torch.device(args.device)
+        self.debug = args.debug
+        self.device_torch = torch.device(args.gflownet.device)
         self.device = self.device_torch
         set_device(self.device_torch)
         # Model
@@ -519,7 +520,9 @@ class GFlowNetAgent:
                         action = Categorical(logits=action_probs).sample()
                     else:
                         action = np.random.permutation(np.arange(len(action_probs)))[0]
-                        print("Action could not be sampled from model!")
+                        if self.debug:
+                            print("Action could not be sampled from model!")
+                            import ipdb; ipdb.set_trace()
                 seq, valid = env.step(action)
                 if len(seq) > 0:
                     if hasattr(seq[0], 'device'): # if it has a device, it's on cuda
