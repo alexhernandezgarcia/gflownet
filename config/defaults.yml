@@ -44,6 +44,7 @@ querier:
   latent_space_width: 10
 # GFlowNet
 gflownet:
+  device: "cpu"
   model_ckpt: !!null
   progress: True
   opt: "adam"
