@@ -18,11 +18,18 @@ import multiprocessing as mp
 class ActiveLearning():
     def __init__(self, config):
         self.pipeIter = None
+        self.homedir = os.getcwd()
+        self.episode = 0
         self.config = config
         self.runNum = self.config.run_num
+        self.oracle = Oracle(self.config) # oracle needs to be initialized to initialize toy datasets
+        self.agent = ParameterUpdateAgent(self.config)
+        self.querier = Querier(self.config) # might as well initialize the querier here
         self.setup()
         self.getModelSize()
-
+        # Save YAML config
+        with open(self.workDir + '/config.yml', 'w') as f:
+            yaml.dump(numpy2python(namespace2dict(self.config)), f, default_flow_style=False)
 
     def setup(self):
         '''
@@ -30,32 +37,43 @@ class ActiveLearning():
         move to relevant directory
         :return:
         '''
-        self.oracle = Oracle(self.config) # oracle needs to be initialized to initialize toy datasets
-        self.agent = ParameterUpdateAgent(self.config)
-        if (self.config.run_num == 0) or (self.config.explicit_run_enumeration == True): # if making a new workdir
-            if self.config.run_num == 0:
-                self.makeNewWorkingDirectory()
-            else:
-                self.workDir = self.config.workdir + '/run%d'%self.config.run_num # explicitly enumerate the new run directory
-                os.mkdir(self.workDir)
-
-            os.mkdir(self.workDir + '/ckpts')
-            os.mkdir(self.workDir + '/datasets')
-            os.chdir(self.workDir) # move to working dir
-            printRecord('Starting Fresh Run %d' %self.runNum)
-            self.oracle.initializeDataset() # generate toy model dataset
+        if self.config.run_num == 0: # if making a new workdir
+            self.makeNewWorkingDirectory()
+            self.reset()
+        elif (self.config.explicit_run_enumeration == True):
+            self.workDir = self.config.workdir + '/run%d'%self.config.run_num # explicitly enumerate the new run directory
+            os.mkdir(self.workDir)
+            self.reset()
         else:
             # move to working dir
             self.workDir = self.config.workdir + '/' + 'run%d' %self.config.run_num
             os.chdir(self.workDir)
             printRecord('Resuming run %d' % self.config.run_num)
-        # Save YAML config
-        with open(self.workDir + '/config.yml', 'w') as f:
-            yaml.dump(numpy2python(namespace2dict(self.config)), f, default_flow_style=False)
 
 
-        self.querier = Querier(self.config) # might as well initialize the querier here
-
+    def reset(self):
+        os.chdir(self.homedir)
+        os.mkdir(f'{self.workDir}/episode{self.episode}')
+        os.mkdir(f'{self.workDir}/episode{self.episode}/ckpts')
+        os.mkdir(f'{self.workDir}/episode{self.episode}/datasets')
+        os.chdir(f'{self.workDir}/episode{self.episode}') # move to working dir
+        printRecord('Starting Fresh Run %d' %self.runNum)
+        self.oracle.initializeDataset() # generate toy model dataset
+        self.stateDict = None
+        self.sampleDict = None
+        self.totalLoss = None
+        self.testMinima = None
+        self.stateDictRecord = None
+        self.reward = None
+        self.terminal = None
+        self.model = None
+        self.cumulativeResult = None
+        self.bottomTenLoss = None
+        self.action = None
+        self.trueMinimum = None
+        self.oracleRecord = None
+        self.bestScores = None
+        self.prevIterBest = None
 
     def makeNewWorkingDirectory(self):    # make working directory
         '''
@@ -84,23 +102,31 @@ class ActiveLearning():
         run  the active learning pipeline for a number of iterations
         :return:
         '''
-        self.testMinima = [] # best test loss of models, for each iteration of the pipeline
-        self.bestScores = [] # best optima found by the sampler, for each iteration of the pipeline
-
-        if self.config.dataset.type == 'toy':
-            self.sampleOracle() # use the oracle to pre-solve the problem for future benchmarking
-            printRecord(f"The true global minimum is {bcolors.OKGREEN}%.3f{bcolors.ENDC}" % self.trueMinimum)
-
         self.config.dataset_size = self.config.dataset.init_length
-        for ep in range(self.config.al.episodes):
+        for _ in range(self.config.al.episodes):
+
+            if self.config.dataset.type == 'toy':
+                self.sampleOracle() # use the oracle to pre-solve the problem for future benchmarking
+                printRecord(f"The true global minimum is {bcolors.OKGREEN}%.3f{bcolors.ENDC}" % self.trueMinimum)
+
+            self.testMinima = [] # best test loss of models, for each iteration of the pipeline
+            self.bestScores = [] # best optima found by the sampler, for each iteration of the pipeline
+
             for self.pipeIter in range(self.config.al.n_iter):
                 printRecord(f'Starting pipeline iteration #{bcolors.FAIL}%d{bcolors.ENDC}' % int(self.pipeIter+1))
+                if self.pipeIter == (self.config.al.n_iter - 1):
+                    self.terminal = 1
+                else:
+                    self.terminal = 0
                 self.iterate() # run the pipeline
                 self.saveOutputs() # save pipeline outputs
                 if (self.pipeIter > 0) and (self.config.dataset.type == 'toy'):
                     self.reportCumulativeResult()
-            self.agent.train()
-
+            # Train Policy Network
+            self.agent.train(BATCH_SIZE=self.config.al.q_batch_size)
+            self.policy_error = self.agent.policy_error
+            self.episode +=1
+            self.reset()
 
     def iterate(self):
         '''
@@ -115,11 +141,10 @@ class ActiveLearning():
 
         t0 = time.time()
         self.getModelState() # run energy-only sampling and create model state dict
-        if self.reward:
-            # Put Transition in Buffer
-            self.agent.push_to_buffer(self.stateDictRecord[-2], self.action, self.stateDictRecord[-1], self.reward, self.terminal)
-        if self.config.al.hyperparams_learning and (self.pipeIter > 0):
-            self.agent.updateModelState(self.stateDict, self.model)
+        if self.config.al.hyperparams_learning:# and (self.pipeIter > 0):
+            model_state_prev, model_state_curr = self.agent.updateModelState(self.stateDict, self.model)
+            if model_state_prev is not None:
+                self.agent.push_to_buffer(model_state_prev, self.action, model_state_curr, self.reward, self.terminal)
             self.action = self.agent.getAction()
         else:
             self.action = None

@@ -124,7 +124,9 @@ class Querier():
             c2 = 0.5 + self.config.al.energy_uncertainty_tradeoff / 2
             scoreFunction = [c1, c2]  # put in user specified values (or functions) here
         elif self.config.al.query_mode == 'learned':
-            scoreFunction = None
+            c1 = 0.5 - self.config.al.energy_uncertainty_tradeoff / 2
+            c2 = 0.5 + self.config.al.energy_uncertainty_tradeoff / 2
+            scoreFunction = [c1, c2]  # put in user specified values (or functions) here
         else:
             raise ValueError(self.config.al.query_mode + 'is not a valid query function!')
 

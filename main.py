@@ -208,6 +208,10 @@ def add_args(parser):
         help="'training'  'evaluation' 'initialize' - only training currently useful",
     )
     args2config.update({"mode": ["al", "mode"]})
+    parser.add_argument("--q_network_width", type=int, default=10)
+    args2config.update(
+        {"q_network_width": ["al", "q_network_width"]}
+    )
     parser.add_argument(
         "--agent_buffer_size",
         type=int,
@@ -247,10 +251,7 @@ def add_args(parser):
         help="location of pre-trained qmodel",
     )
     args2config.update({"qmodel_preload_path": ["querier", "model_ckpt"]})
-    parser.add_argument("--querier_latent_space_width", type=int, default=10)
-    args2config.update(
-        {"querier_latent_space_width": ["querier", "latent_space_width"]}
-    )
+
     # GFlowNet
     parser.add_argument("--gflownet_model_ckpt", default=None, type=str)
     args2config.update({"gflownet_model_ckpt": ["gflownet" "model_ckpt"]})
