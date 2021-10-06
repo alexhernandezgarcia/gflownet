@@ -163,10 +163,10 @@ class Querier():
                     self.config.dataset.dict_size, model.evaluate
             )
             tf = time.time()
-            printRecord('Sampling {} samples from GFlowNet took {} seconds'.format(self.config.gflownet_n_samples,int(tf-t0)))
+            printRecord('Sampling {} samples from GFlowNet took {} seconds'.format(self.config.gflownet.n_samples, int(tf-t0)))
             outputs = filterOutputs(outputs)
 
-            if self.config.post_gflownet_annealing:
+            if self.config.gflownet.annealing:
                 self.doAnnealing(scoreFunction, model, outputs)
 
         else:

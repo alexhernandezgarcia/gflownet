@@ -33,64 +33,13 @@ known issues
 print("Imports...", end="")
 import sys
 from argparse import ArgumentParser
-import yaml
 from comet_ml import Experiment
-from pathlib import Path
 import activeLearner
 from utils import *
 import time
 import warnings
 
 warnings.filterwarnings("ignore", category=RuntimeWarning)  # annoying numpy error
-
-
-def get_config(args, override_args, args2config, save=True):
-    """
-    Combines YAML configuration file, command line arguments and default arguments into
-    a single configuration dictionary.
-
-    - Values in YAML file override default values
-    - Command line arguments override values in YAML file
-
-    Returns
-    -------
-        Namespace
-    """
-
-    def _update_config(arg, val, config, override=False):
-        config_aux = config
-        for k in args2config[arg]:
-            if k not in config_aux:
-                if k is args2config[arg][-1]:
-                    config_aux.update({k: val})
-                else:
-                    config_aux.update({k: {}})
-                    config_aux = config_aux[k]
-            else:
-                if k is args2config[arg][-1] and override:
-                    config_aux[k] = val
-                else:
-                    config_aux = config_aux[k]
-
-
-    # Read YAML config
-    if args.yaml_config:
-        yaml_path = Path(args.yaml_config)
-        assert yaml_path.exists()
-        assert yaml_path.suffix in {".yaml", ".yml"}
-        with yaml_path.open("r") as f:
-            config = yaml.safe_load(f)
-    else:
-        config = {}
-    # Add args to config: add if not provided; override if in command line
-    override_args = [arg.strip("--") for arg in override_args if "--" in arg]
-    for k, v in vars(args).items():
-        print(k, v)
-        if k in override_args:
-            _update_config(k, v, config, override=True)
-        else:
-            _update_config(k, v, config, override=False)
-    return dict2namespace(config)
 
 
 def add_args(parser):
@@ -263,6 +212,22 @@ def add_args(parser):
     args2config.update(
         {"q_network_width": ["al", "q_network_width"]}
     )
+    parser.add_argument(
+        "--agent_buffer_size",
+        type=int,
+        default=10000,
+        help="RL agent buffer size",
+    )
+    args2config.update({"agent_buffer_size": ["al", "buffer_size"]})
+    parser.add_argument(
+        "--episodes",
+        type=int,
+        default=1,
+        help="Episodes",
+    )
+    args2config.update({"episodes": ["al", "episodes"]})
+    parser.add_argument("--hyperparams_learning", action="store_true")
+    args2config.update({"hyperparams_learning": ["al", "hyperparams_learning"]})
     # Querier
     parser.add_argument(
         "--model_state_size",
@@ -348,6 +313,8 @@ def add_args(parser):
         "-t", "--tags", nargs="*", help="Comet.ml tags", default=[], type=str
     )
     args2config.update({"tags": ["gflownet", "comet", "tags"]})
+    parser.add_argument("--gflownet_annealing", action="store_true")
+    args2config.update({"gflownet_annealing": ["gflownet", "annealing"]})
     # Proxy model
     parser.add_argument(
         "--proxy_model_type",
