@@ -223,9 +223,16 @@ def add_args(parser):
         "--episodes",
         type=int,
         default=1,
-        help="Episodes",
+        help="RL episodes (runs of the full AL pipeline)",
     )
     args2config.update({"episodes": ["al", "episodes"]})
+    parser.add_argument(
+        "--action_state_size",
+        type=int,
+        default=1,
+        help="number of actions RL agent can choose from",
+    )
+    args2config.update({"action_state_size": ["al", "action_state_size"]})
     parser.add_argument("--hyperparams_learning", action="store_true")
     args2config.update({"hyperparams_learning": ["al", "hyperparams_learning"]})
     # Querier

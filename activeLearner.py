@@ -1,3 +1,4 @@
+
 from argparse import Namespace
 import yaml
 from models import modelNet
@@ -123,10 +124,12 @@ class ActiveLearning():
                 if (self.pipeIter > 0) and (self.config.dataset.type == 'toy'):
                     self.reportCumulativeResult()
             # Train Policy Network
-            self.agent.train(BATCH_SIZE=self.config.al.q_batch_size)
+            # self.agent.train(BATCH_SIZE=self.config.al.q_batch_size)
             self.policy_error = self.agent.policy_error
-            self.episode +=1
-            self.reset()
+            if self.config.al.episodes > self.episode: # if we are doing multiple al episodes
+                self.reset()
+                self.episode += 1
+
 
     def iterate(self):
         '''
