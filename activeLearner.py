@@ -68,7 +68,8 @@ class ActiveLearning():
         self.reward = None
         self.terminal = None
         self.model = None
-        self.cumulativeResult = None
+        self.cumulativeReward = None
+        self.rewardList = None
         self.bottomTenLoss = None
         self.action = None
         self.trueMinimum = None
@@ -121,8 +122,7 @@ class ActiveLearning():
                     self.terminal = 0
                 self.iterate() # run the pipeline
                 self.saveOutputs() # save pipeline outputs
-                if (self.pipeIter > 0) and (self.config.dataset.type == 'toy'):
-                    self.reportCumulativeResult()
+
             # Train Policy Network
             # self.agent.train(BATCH_SIZE=self.config.al.q_batch_size)
             self.policy_error = self.agent.policy_error
@@ -263,15 +263,32 @@ class ActiveLearning():
         bestRawAdjusted = bestSoFar + bestSoFarVar
         if self.pipeIter == 0:
             self.reward = 0 # first iteration - can't define a reward
-            self.prevIterBest = 0
+            self.cumulativeReward = 0
+            self.rewardList = np.zeros(self.config.al.n_iter)
+            self.prevIterBest = [bestRawAdjusted]
         else: # calculate reward using current standardization
-            stdPrevIterBest = (self.prevIterBest - self.model.mean)/self.model.std
+            stdPrevIterBest = (self.prevIterBest[-1] - self.model.mean)/self.model.std
             self.reward = -(bestStdAdjusted - stdPrevIterBest) # reward is the delta between variance-adjusted energies in the standardized basis (smaller is better)
+            self.rewardList[self.pipeIter] = self.reward
+            self.cumulativeReward = sum(self.rewardList)
+            self.prevIterBest.append(bestRawAdjusted)
 
-        printRecord('Iteration best result = {:.3f}, previous best = {:.3f}, reward = {:.3f}'.format(bestRawAdjusted, self.prevIterBest, self.reward))
+        printRecord('Iteration best uncertainty-adjusted result = {:.3f}, previous best = {:.3f}, reward = {:.3f}, cumulative reward = {:.3f}'.format(bestRawAdjusted, self.prevIterBest[-1], self.reward, self.cumulativeReward))
 
-        self.prevIterBest = bestRawAdjusted
-
+        if self.config.dataset.type == 'toy': # if it's  a toy dataset, report the cumulative performance against the known minimum
+            stdTrueMinimum = (self.trueMinimum - self.model.mean) / self.model.std
+            if self.pipeIter == 0:
+                self.tot_score_yaxis = [1 - np.abs(stdTrueMinimum - bestStdAdjusted) / np.abs(stdTrueMinimum)]
+            elif self.pipeIter > 0:
+                # we will compute the distance from our best answer to the correct answer and integrate it over the number of samples in the dataset
+                xaxis = self.config.dataset_size + np.arange(0,self.pipeIter + 1) * self.config.al.queries_per_iter # how many samples in the dataset used for each
+                self.tot_score_yaxis.append(1 - np.abs(stdTrueMinimum - bestStdAdjusted) / np.abs(stdTrueMinimum)) # compute proximity to correct answer in standardized basis
+                self.cumulativeScore = np.trapz(self.tot_score_yaxis, x=xaxis)
+                self.normedCumScore = self.cumulativeScore / xaxis[-1]
+                printRecord('Total score is {} and {:.5f} per-sample after {} samples'.format(self.tot_score_yaxis[-1], self.normedCumScore, xaxis[-1]))
+            else:
+                print('Error! Pipeline iteration cannot be negative')
+                sys.exit()
 
 
     def retrainModels(self, parallel=True):
@@ -410,12 +427,14 @@ class ActiveLearning():
         if "comet" in outputDict['config']:
             del outputDict['config'].comet
         outputDict['state dict record'] = self.stateDictRecord
+        outputDict['rewards'] = self.rewardList
         if self.config.dataset.type == 'toy':
             outputDict['oracle outputs'] = self.oracleRecord
             outputDict['big dataset loss'] = self.totalLoss
             outputDict['bottom 10% loss'] = self.bottomTenLoss
             if self.pipeIter > 1:
-                outputDict['cumulative performance'] = self.cumulativeResult
+                outputDict['cumulative score'] = self.cumulativeScore,
+                outputDict['per sample cumulative score'] = self.normedCumScore
         np.save('outputsDict', outputDict)
 
 
@@ -491,33 +510,6 @@ class ActiveLearning():
         randomDist = binaryDistance(np.concatenate((samples,randomSamples)), self.config.dataset.dict_size, pairwise=False, extractInds=len(samples))
 
         return internalDist, datasetDist, randomDist
-
-
-    def reportCumulativeResult(self):
-        '''
-        integrate the performance curve over all iterations so far
-        :return:
-        '''
-        directory = os.getcwd()
-        plotter = resultsPlotter()
-        plotter.process(directory)
-        iterAxis = (plotter.xrange - 1) * self.config.al.queries_per_iter + self.config.dataset.init_length
-        bestEns = plotter.normedEns[:,0]
-        cumulativeScore = np.trapz(bestEns, x = iterAxis)
-        normedCumScore = cumulativeScore / (self.config.dataset_size - self.config.al.queries_per_iter) # we added to the dataset before this
-
-        printRecord('Cumulative score is {:.2f} gross and {:.5f} per-sample after {} samples'.format(cumulativeScore, normedCumScore, self.config.dataset_size - self.config.al.queries_per_iter))
-
-        results = {
-            'cumulative performance': cumulativeScore,
-            'per-sample cumulative performance': normedCumScore,
-            'dataset size': (self.config.dataset_size - self.config.al.queries_per_iter)
-        }
-
-        if self.pipeIter == 1:
-            self.cumulativeResult = [results]
-        else:
-            self.cumulativeResult.append(results)
 
 
 def trainModel(config, i):
