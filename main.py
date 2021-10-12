@@ -155,7 +155,7 @@ def add_args(parser):
     args2config.update({"sample_tasks": ["dataset", "sample_tasks"]})
     # AL
     parser.add_argument(
-        "--sample_method", type=str, default="gflownet", help="'mcmc', 'gflownet'"
+        "--sample_method", type=str, default="gflownet", help="'mcmc', 'gflownet', 'random'"
     )
     args2config.update({"sample_method": ["al", "sample_method"]})
     parser.add_argument(

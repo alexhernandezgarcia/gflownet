@@ -145,12 +145,24 @@ class Querier():
             self.mcmcSampler = Sampler(self.config, seedInd, scoreFunction, gammas)
             samples = self.mcmcSampler.sample(model, useOracle=useOracle)
             outputs = samples2dict(samples)
+        elif self.method.lower() == "random":
+            samples = generateRandomSamples(10000, [self.config.dataset.min_length,self.config.dataset.max_length], self.config.dataset.dict_size, variableLength = self.config.dataset.variable_length, oldDatasetPath = 'datasets/' + self.config.dataset.oracle + '.npy')
+            energies, uncertainties = model.evaluate(samples,output="Both")
+            scores = energies * scoreFunction[0] - scoreFunction[1] * np.asarray(np.sqrt(uncertainties))
+            outputs = {
+                'samples': samples,
+                'energies': energies,
+                'uncertainties': uncertainties,
+                'scores':scores
+            }
+            if self.config.gflownet.annealing:
+                outputs = self.doAnnealing(scoreFunction, model, outputs)
+
         elif self.method.lower() == "gflownet":
             # TODO: instead of initializing gflownet from scratch, we could retrain it?
             # MK if it's fast, it might be best to train from scratch, since models may drastically change iteration-over-iteration,
             # and we want the gflownet to represent the current models, in general, though it's not impossible we may want to incorporate
             # information from prior iterations for some reason
-            # TODO add optional post-sample annealing
             gflownet = GFlowNetAgent(self.config, proxy=model.evaluate)
 
             t0 = time.time()
