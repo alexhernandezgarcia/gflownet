@@ -126,7 +126,7 @@ class ActiveLearning():
             # Train Policy Network
             # self.agent.train(BATCH_SIZE=self.config.al.q_batch_size)
             self.policy_error = self.agent.policy_error
-            if self.config.al.episodes > self.episode: # if we are doing multiple al episodes
+            if self.config.al.episodes > (self.episode + 1): # if we are doing multiple al episodes
                 self.reset()
                 self.episode += 1
 
@@ -285,7 +285,7 @@ class ActiveLearning():
                 self.tot_score_yaxis.append(1 - np.abs(stdTrueMinimum - bestStdAdjusted) / np.abs(stdTrueMinimum)) # compute proximity to correct answer in standardized basis
                 self.cumulativeScore = np.trapz(self.tot_score_yaxis, x=xaxis)
                 self.normedCumScore = self.cumulativeScore / xaxis[-1]
-                printRecord('Total score is {} and {:.5f} per-sample after {} samples'.format(self.tot_score_yaxis[-1], self.normedCumScore, xaxis[-1]))
+                printRecord('Total score is {:.3f} and {:.5f} per-sample after {} samples'.format(self.tot_score_yaxis[-1], self.normedCumScore, xaxis[-1]))
             else:
                 print('Error! Pipeline iteration cannot be negative')
                 sys.exit()
@@ -433,6 +433,7 @@ class ActiveLearning():
             outputDict['big dataset loss'] = self.totalLoss
             outputDict['bottom 10% loss'] = self.bottomTenLoss
             if self.pipeIter > 1:
+                outputDict['score record'] = self.tot_score_yaxis
                 outputDict['cumulative score'] = self.cumulativeScore,
                 outputDict['per sample cumulative score'] = self.normedCumScore
         np.save('outputsDict', outputDict)

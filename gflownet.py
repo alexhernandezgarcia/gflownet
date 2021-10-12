@@ -200,9 +200,12 @@ class AptamerSeq:
         """
         Prepares the output of an oracle for GFlowNet.
         """
-        if self.func == "potts":
-            energies *= -1
+        if (self.func == "potts") or (self.func == 'inner product'):
+            energies *= -1 # model the negative part of the function only (maximizing it is minimizing the original)
             energies = np.clip(energies, a_min=0.0, a_max=None)
+        elif self.func == 'linear': # works if the coefficients for the linear are np.ones(horizon)
+            energies *= -1
+            #energies = (energies/self.horizon / self.nalphabet) ** 5 # weight towards higher energies
         elif self.func == "seqfold":
             energies -= 5
             energies *= -1
@@ -218,8 +221,11 @@ class AptamerSeq:
         Converts a "GFlowNet reward" into energy as returned by an oracle.
         """
         energy = reward - epsilon
-        if self.func == "potts":
+        if (self.func == "potts") or (self.func == 'inner product'):
             energy *= -1
+        elif self.func == 'linear':
+            energy *= -1
+            #energy = energy ** (1/5) * self.horizon * self.nalphabet
         elif self.func == "seqfold":
             energy *= -1
             energy += 5
@@ -674,14 +680,15 @@ class GFlowNetAgent:
                 )
                 if self.progress:
                     k1, kl = empirical_distrib_losses[-1]
-                    print("Empirical L1 distance", k1, "KL", kl)
-                    if len(all_losses):
-                        print(
-                            *[
-                                f"{np.mean([i[j] for i in all_losses[-100:]]):.5f}"
-                                for j in range(len(all_losses[0]))
-                            ]
-                        )
+                    if self.debug:
+                        print("Empirical L1 distance", k1, "KL", kl)
+                        if len(all_losses):
+                            print(
+                                *[
+                                    f"{np.mean([i[j] for i in all_losses[-100:]]):.5f}"
+                                    for j in range(len(all_losses[0]))
+                                ]
+                            )
                 if self.comet:
                     self.comet.log_metrics(
                         dict(
@@ -722,7 +729,7 @@ class GFlowNetAgent:
         ]
 
         batch = np.zeros((n_samples, horizon))
-        for idx, env in enumerate(envs):
+        for idx, env in enumerate(tqdm(envs)):
             env = env.reset()
             while not env.done:
                 with torch.no_grad():

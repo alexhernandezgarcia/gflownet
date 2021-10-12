@@ -52,7 +52,7 @@ class Oracle():
 
         # set these to be always positive to play nice with gFlowNet sampling
         if True:#self.config.test_mode:
-            self.linFactors = np.ones(self.seqLen) # Uber-simple function, for testing purposes - actually nearly functionally identical to one-max, I believe
+            self.linFactors = -np.ones(self.seqLen) # Uber-simple function, for testing purposes - actually nearly functionally identical to one-max, I believe
         else:
             self.linFactors = np.abs(np.random.randn(self.seqLen))  # coefficients for linear toy energy
 
@@ -64,7 +64,7 @@ class Oracle():
             for j in range(i, pham.shape[1]):
                 for k in range(pham.shape[2]):
                     for l in range(k, pham.shape[3]):
-                        num = np.random.randn(1)
+                        num =  - np.random.uniform(0,1)
                         pham[i, j, k, l] = num
                         pham[i, j, l, k] = num
                         pham[j, i, k, l] = num

@@ -391,8 +391,8 @@ class LSTM(nn.Module):
         super(LSTM,self).__init__()
         # initialize constants and layers
 
-        self.embedding = nn.Embedding(2, embedding_dim = config.proxy.embedding_dim)
-        self.encoder = nn.LSTM(input_size=config.proxy.embedding_dim,hidden_size=config.proxy.width,num_layers=config.proxy.n_layers)
+        self.embedding = nn.Embedding(2, embedding_dim = config.proxy.width)
+        self.encoder = nn.LSTM(input_size=config.proxy.width,hidden_size=config.proxy.width,num_layers=config.proxy.n_layers)
         self.decoder = nn.Linear((config.proxy.width), 1)
 
     def forward(self, x):

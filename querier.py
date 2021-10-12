@@ -167,7 +167,7 @@ class Querier():
             outputs = filterOutputs(outputs)
 
             if self.config.gflownet.annealing:
-                self.doAnnealing(scoreFunction, model, outputs)
+                outputs = self.doAnnealing(scoreFunction, model, outputs)
 
         else:
             raise NotImplemented("method can be either mcmc or gflownet")
@@ -178,9 +178,9 @@ class Querier():
     def doAnnealing(self, scoreFunction, model, outputs):
         t0 = time.time()
         initConfigs = outputs['samples'][np.argsort(outputs['scores'])]
-        initConfigs = initConfigs[0:self.config.post_annealing_samples]
+        initConfigs = initConfigs[0:self.config.gflownet.post_annealing_samples]
 
-        annealer = Sampler(self.params, 1, scoreFunction, gammas=np.arange(len(initConfigs)))  # the gamma is a dummy
+        annealer = Sampler(self.config, 1, scoreFunction, gammas=np.arange(len(initConfigs)))  # the gamma is a dummy
         annealedOutputs = annealer.postSampleAnnealing(initConfigs, model)
 
         filteredOutputs = filterOutputs(outputs, additionalEntries = annealedOutputs)

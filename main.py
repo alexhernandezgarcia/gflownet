@@ -3,21 +3,13 @@ This code implements an active learning protocol for global minimization of some
 
 # TODO
 ==> incorporate gFlowNet
-    -> model state calculation
     -> training and sampling print statements
-        => training performance
         => sample quality e.g., diversity, span, best scores averages, whatever
         -> print flag on gflownet convergence - epoch limit OR loss convergence
-    -> hardcode padding rules - in case it is poorly trained, it should never be able to add a base after the end of the chain
     -> iteratively resample gflownet to remove duplicates until desired sample number is reached
     -> merge gflownet oracles with standard oracle class
-    -> switch gflownet training tqdm from iters to log convergence
-    -> make sure gflownet scores are aligned with AL optimization target (minimization)
-    -> add option for test mode to slash model size and training epochs
 ==> RL training and testing
-==> add a function for tracking dataset distances and adjusting the cutoff
-==> update and test beluga requirements
-
+==> comet for key outputs (reward, toy score)
 
 low priority /long term
 ==> consider augment binary distance metric with multi-base motifs - or keep current setup (minimum single mutations)
@@ -307,7 +299,7 @@ def add_args(parser):
     parser.add_argument(
         "--gflownet_n_samples",
         type=int,
-        default=1000,
+        default=10000,
         help="Sequences to sample from GFLowNet",
     )
     args2config.update({"gflownet_n_samples": ["gflownet", "n_samples"]})
@@ -324,6 +316,20 @@ def add_args(parser):
     args2config.update({"tags": ["gflownet", "comet", "tags"]})
     parser.add_argument("--gflownet_annealing", action="store_true")
     args2config.update({"gflownet_annealing": ["gflownet", "annealing"]})
+    parser.add_argument(
+        "--gflownet_annealing_samples",
+        type=int,
+        default=1000,
+        help="number of init configs for post sample annealing",
+    )
+    args2config.update({"gflownet_annealing_samples": ["gflownet", "post_annealing_samples"]})
+    parser.add_argument(
+        "--gflownet_post_annealing_time",
+        type=int,
+        default=1000,
+        help="number MCMC steps for post sample annealing",
+    )
+    args2config.update({"gflownet_post_annealing_time": ["gflownet", "post_annealing_time"]})
     # Proxy model
     parser.add_argument(
         "--proxy_model_type",
@@ -353,13 +359,6 @@ def add_args(parser):
         help="number of neurons per proxy NN layer",
     )
     args2config.update({"proxy_model_width": ["proxy", "width"]})
-    parser.add_argument(
-        "--embedding_dim",
-        type=int,
-        default=256,
-        help="embedding dimension for transformer only",
-    )
-    args2config.update({"embedding_dim": ["proxy", "embedding_dim"]})
     parser.add_argument(
         "--proxy_model_layers",
         type=int,
@@ -422,7 +421,6 @@ def process_config(config):
         config.proxy.max_epochs = 5
         config.proxy.width = 12
         config.proxy.n_layers = 1  # for cluster batching
-        config.proxy.embedding_dim = 12  # embedding dimension
         config.proxy.mbsize = 10  # model training batch size
         config.dataset.min_length, config.dataset.max_length = [
             10,
@@ -438,7 +436,7 @@ def process_config(config):
         config.workdir = "/home/kilgourm/scratch/learnerruns"
     elif not config.workdir and config.machine == "local":
         config.workdir = (
-            "C:/Users\mikem\Desktop/activeLearningRuns"  #'/home/mkilgour/learnerruns'#
+            "C:/Users\mikem\Desktop/activeLearningRuns" # '/home/mkilgour/learnerruns'#
         )
     return config
 

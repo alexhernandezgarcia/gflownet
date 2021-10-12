@@ -199,7 +199,7 @@ class Sampler:
 
         self.initConvergenceStats()
         self.resampleRandints()
-        for self.iter in tqdm.tqdm(range(self.config_main.post_annealing_time)):
+        for self.iter in tqdm.tqdm(range(self.config_main.gflownet.post_annealing_time)):
             self.iterate(model, useOracle)
 
             self.temperature = [temperature * 0.99 for temperature in self.temperature] # cut temperature at every time step

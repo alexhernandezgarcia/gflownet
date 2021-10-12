@@ -2,9 +2,9 @@
 test_mode: False
 debug: True
 run_num: 0
-explicit_run_enumeration: False
-machine: "local"
-device: "cuda"
+explicit_run_enumeration: True
+machine: "cluster"
+device: "cpu"
 workdir: !!null
 # Seeds
 seeds:
@@ -27,7 +27,7 @@ al:
   sample_method: "gflownet"
   query_mode: "energy"
   hyperparams_learning: False
-  n_iter: 5
+  n_iter: 10
   query_selection: "clustering"
   minima_dist_cutoff: 0.25
   energy_uncertainty_tradeoff: 0
@@ -58,10 +58,14 @@ gflownet:
   n_hid: 256
   n_layers: 2
   n_iter: 20000
+  n_samples: 10000
   num_empirical_loss: 200000
   batch_reward: True
   bootstrap_tau: 0.0
   clip_grad_norm: 0.0
+  annealing: True
+  post_annealing_samples: 100
+  post_annealing_time: 1000
   comet:
     project: !!null
     tags: []
@@ -70,8 +74,7 @@ proxy:
   model_type: "mlp"
   training_parallelism: False
   ensemble_size: 5
-  width: 256
-  embedding_dim: 256
+  width: 64
   n_layers: 2
   mbsize: 10
   max_epochs: 200
