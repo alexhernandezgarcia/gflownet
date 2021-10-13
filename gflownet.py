@@ -138,7 +138,8 @@ class AptamerSeq:
     """
 
     def __init__(
-        self, horizon=42, nalphabet=4, func="default", proxy=None, allow_backward=False
+        self, horizon=42, nalphabet=4, func="default", proxy=None,
+        allow_backward=False, debug=False
     ):
         self.horizon = horizon
         self.nalphabet = nalphabet
@@ -164,6 +165,7 @@ class AptamerSeq:
         )
         self.allow_backward = allow_backward
         self._true_density = None
+        self.debug = debug
 
     def reward_arbitrary_i(self, seq):
         if len(seq) > 0:
@@ -202,7 +204,6 @@ class AptamerSeq:
         """
         if (self.func == "potts") or (self.func == 'inner product'):
             energies *= -1 # model the negative part of the function only (maximizing it is minimizing the original)
-            energies = np.clip(energies, a_min=0.0, a_max=None)
         elif self.func == 'linear': # works if the coefficients for the linear are np.ones(horizon)
             energies *= -1
             #energies = (energies/self.horizon / self.nalphabet) ** 5 # weight towards higher energies
@@ -213,6 +214,9 @@ class AptamerSeq:
             energies *= -1
         else:
             pass
+        if self.debug and np.any(energies < 0.):
+            print("Negative reward found after conversion from proxy output!")
+        energies = np.clip(energies, a_min=0.0, a_max=None)
         rewards = energies + epsilon
         return rewards
 
@@ -475,6 +479,7 @@ class GFlowNetAgent:
             func=args.gflownet.func,
             proxy=proxy,
             allow_backward=False,
+            debug=self.debug,
         )
         self.envs = [
             AptamerSeq(
@@ -483,6 +488,7 @@ class GFlowNetAgent:
                 func=args.gflownet.func,
                 proxy=proxy,
                 allow_backward=False,
+                debug=self.debug,
             )
             for _ in range(args.gflownet.mbsize)
         ]
@@ -595,6 +601,16 @@ class GFlowNetAgent:
             )
         )
         parents, actions, r, sp, done = map(torch.cat, zip(*batch))
+        if self.debug and torch.any(r < 0):
+            neg_r_idx = torch.where(r < 0)[0].tolist()
+            for idx in neg_r_idx:
+                obs = sp[idx].tolist()
+                seq = list(self.env.obs2seq(seq))
+                seq_oracle = self.env.seq2oracle([seq])
+                output_proxy = self.env.proxy(seq_oracle)
+                reward = self.env.energy2reward(output_proxy)
+                print(idx, output_proxy, reward)
+                import ipdb; ipdb.set_trace()
         parents_Qsa = self.model(parents)[
             torch.arange(parents.shape[0]), actions.long()
         ]
