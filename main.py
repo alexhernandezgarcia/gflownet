@@ -157,7 +157,10 @@ def add_args(parser):
     args2config.update({"sample_tasks": ["dataset", "sample_tasks"]})
     # AL
     parser.add_argument(
-        "--sample_method", type=str, default="gflownet", help="'mcmc', 'gflownet', 'random'"
+        "--sample_method",
+        type=str,
+        default="gflownet",
+        help="'mcmc', 'gflownet', 'random'",
     )
     args2config.update({"sample_method": ["al", "sample_method"]})
     parser.add_argument(
@@ -203,9 +206,7 @@ def add_args(parser):
     )
     args2config.update({"mode": ["al", "mode"]})
     parser.add_argument("--q_network_width", type=int, default=10)
-    args2config.update(
-        {"q_network_width": ["al", "q_network_width"]}
-    )
+    args2config.update({"q_network_width": ["al", "q_network_width"]})
     parser.add_argument(
         "--agent_buffer_size",
         type=int,
@@ -254,7 +255,9 @@ def add_args(parser):
     args2config.update({"qmodel_preload_path": ["querier", "model_ckpt"]})
 
     # GFlowNet
-    parser.add_argument("--gflownet_device", default="cpu", type=str, help="'cuda' or 'cpu'")
+    parser.add_argument(
+        "--gflownet_device", default="cpu", type=str, help="'cuda' or 'cpu'"
+    )
     args2config.update({"gflownet_device": ["gflownet", "device"]})
     parser.add_argument("--gflownet_model_ckpt", default=None, type=str)
     args2config.update({"gflownet_model_ckpt": ["gflownet", "model_ckpt"]})
@@ -272,7 +275,9 @@ def add_args(parser):
     args2config.update({"adam_beta2": ["gflownet", "adam_beta2"]})
     parser.add_argument("--gflownet_momentum", default=0.9, type=float)
     args2config.update({"gflownet_momentum": ["gflownet", "momentum"]})
-    parser.add_argument("--gflownet_mbsize", default=16, help="Minibatch size", type=int)
+    parser.add_argument(
+        "--gflownet_mbsize", default=16, help="Minibatch size", type=int
+    )
     args2config.update({"gflownet_mbsize": ["gflownet", "mbsize"]})
     parser.add_argument("--train_to_sample_ratio", default=1, type=float)
     args2config.update({"train_to_sample_ratio": ["gflownet", "train_to_sample_ratio"]})
@@ -324,14 +329,18 @@ def add_args(parser):
         default=1000,
         help="number of init configs for post sample annealing",
     )
-    args2config.update({"gflownet_annealing_samples": ["gflownet", "post_annealing_samples"]})
+    args2config.update(
+        {"gflownet_annealing_samples": ["gflownet", "post_annealing_samples"]}
+    )
     parser.add_argument(
         "--gflownet_post_annealing_time",
         type=int,
         default=1000,
         help="number MCMC steps for post sample annealing",
     )
-    args2config.update({"gflownet_post_annealing_time": ["gflownet", "post_annealing_time"]})
+    args2config.update(
+        {"gflownet_post_annealing_time": ["gflownet", "post_annealing_time"]}
+    )
     # Proxy model
     parser.add_argument(
         "--proxy_model_type",
@@ -438,7 +447,7 @@ def process_config(config):
         config.workdir = "/home/kilgourm/scratch/learnerruns"
     elif not config.workdir and config.machine == "local":
         config.workdir = (
-            "C:/Users\mikem\Desktop/activeLearningRuns" # '/home/mkilgour/learnerruns'#
+            "C:/Users\mikem\Desktop/activeLearningRuns"  # '/home/mkilgour/learnerruns'#
         )
     return config
 
@@ -451,8 +460,8 @@ if __name__ == "__main__":
     args = parser.parse_args()
     config = get_config(args, override_args, args2config)
     config = process_config(config)
-#     print("Args:\n" + "\n".join([f"    {k:20}: {v}" for k, v in vars(config).items()]))
-# TODO: save final config in workdir
+    #     print("Args:\n" + "\n".join([f"    {k:20}: {v}" for k, v in vars(config).items()]))
+    # TODO: save final config in workdir
     al = activeLearner.ActiveLearning(config)
     if config.al.mode == "initalize":
         printRecord("Initialized!")
