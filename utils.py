@@ -54,9 +54,16 @@ def get_config(args, override_args, args2config):
     else:
         config = {}
     # Add args to config: add if not provided; override if in command line
-    override_args = [arg.strip("--") for arg in override_args if "--" in arg]
+    override_args = [arg.strip("--").split("=")[0] for arg in override_args if "--" in arg]
+    override_args_extra = []
+    for k1 in override_args:
+        if k1 in args2config:
+            v1 = args2config[k1]
+            for k2, v2 in args2config.items():
+                if v2 == v1 and k2 != k1:
+                    override_args_extra.append(k2)
+    override_args = override_args + override_args_extra
     for k, v in vars(args).items():
-        print(k, v)
         if k in override_args:
             _update_config(k, v, config, override=True)
         else:
