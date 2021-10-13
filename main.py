@@ -61,6 +61,8 @@ def add_args(parser):
     args2config.update({"test_mode": ["test_mode"]})
     parser.add_argument("--debug", action="store_true", default=False)
     args2config.update({"debug": ["debug"]})
+    parser.add_argument("--no_debug", action="store_false", dest="debug", default=False)
+    args2config.update({"no_debug": ["debug"]})
     parser.add_argument("--run_num", type=int, default=0, help="Experiment ID")
     args2config.update({"run_num": ["run_num"]})
     parser.add_argument(
