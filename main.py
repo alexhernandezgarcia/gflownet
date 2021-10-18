@@ -19,7 +19,7 @@ low priority /long term
 ==> add detection for oracle.initializeDataset for if the requested number of samples is a significant fraction of the total sample space - may be faster to return full space or large fraction of all permutations
 
 known issues
-==> training parallelism hangs on iteration #2 on linux
+==> mp.pool parallelism often fails on linux
 
 """
 print("Imports...", end="")
@@ -269,6 +269,8 @@ def add_args(parser):
     args2config.update({"gflownet_learning_rate": ["gflownet", "learning_rate"]})
     parser.add_argument("--gflownet_opt", default="adam", type=str)
     args2config.update({"gflownet_opt": ["gflownet", "opt"]})
+    parser.add_argument("--reward_beta", default=1, type=float) # beta for exponential reward rescaling
+    args2config.update({"reward_beta": ["gflownet", "reward_beta"]})
     parser.add_argument("--adam_beta1", default=0.9, type=float)
     args2config.update({"adam_beta1": ["gflownet", "adam_beta1"]})
     parser.add_argument("--adam_beta2", default=0.999, type=float)
@@ -447,7 +449,7 @@ def process_config(config):
         config.workdir = "/home/kilgourm/scratch/learnerruns"
     elif not config.workdir and config.machine == "local":
         config.workdir = (
-            "C:/Users\mikem\Desktop/activeLearningRuns"  # '/home/mkilgour/learnerruns'#
+            "C:/Users\mikem\Desktop/activeLearningRuns"  #'/home/mkilgour/learnerruns'#
         )
     return config
 

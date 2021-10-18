@@ -109,7 +109,6 @@ class ActiveLearning():
 
             if self.config.dataset.type == 'toy':
                 self.sampleOracle() # use the oracle to pre-solve the problem for future benchmarking
-                printRecord(f"The true global minimum is {bcolors.OKGREEN}%.3f{bcolors.ENDC}" % self.trueMinimum)
 
             self.testMinima = [] # best test loss of models, for each iteration of the pipeline
             self.bestScores = [] # best optima found by the sampler, for each iteration of the pipeline
@@ -411,10 +410,33 @@ class ActiveLearning():
         else:
             bestMin = np.amin(sampleDict['energies'])
 
+        # append suggestions for known likely solutions
+        if self.config.dataset.oracle == "linear":
+            goodSamples = np.zeros((4,self.config.dataset.max_length)) # all of one class usually best
+            goodSamples[0] = goodSamples[1] + 1
+            goodSamples[1] = goodSamples[1] + 2
+            goodSamples[2] = goodSamples[2] + 3
+            goodSamples[3] = goodSamples[3] + 4
+            ens = self.oracle.score(goodSamples)
+            if np.amin(ens) < bestMin:
+                bestMin = np.amin(ens)
+                printRecord("Pre-loaded minimum was better than one found by sampler")
+
+        elif self.config.dataset.oracle == "nupack":
+            goodSamples = np.ones((4, self.config.dataset.max_length)) * 4 # GCGC CGCG GGGCCC CCCGGG
+            goodSamples[0,0:-1:2] = 3
+            goodSamples[1,1:-1:2] = 3
+            goodSamples[2,:self.config.dataset.max_length//2] = 3
+            goodSamples[3,self.config.dataset.max_length//2:] = 3
+            ens = self.oracle.score(goodSamples)
+            if np.amin(ens) < bestMin:
+                bestMin = np.amin(ens)
+                printRecord("Pre-loaded minimum was better than one found by sampler")
+
         printRecord(f"Sampling Complete! Lowest Energy Found = {bcolors.FAIL}%.3f{bcolors.ENDC}" % bestMin + " from %d" % self.config.mcmc.num_samplers + " sampling runs.")
 
         self.oracleRecord = sampleDict
-        self.trueMinimum = np.amin(self.oracleRecord['scores'])
+        self.trueMinimum = bestMin
 
 
     def saveOutputs(self):

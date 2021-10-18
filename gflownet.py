@@ -139,7 +139,7 @@ class AptamerSeq:
 
     def __init__(
         self, horizon=42, nalphabet=4, func="default", proxy=None,
-        allow_backward=False, debug=False
+        allow_backward=False, debug=False, reward_beta=1
     ):
         self.horizon = horizon
         self.nalphabet = nalphabet
@@ -166,6 +166,7 @@ class AptamerSeq:
         self.allow_backward = allow_backward
         self._true_density = None
         self.debug = debug
+        self.reward_beta = reward_beta
 
     def reward_arbitrary_i(self, seq):
         if len(seq) > 0:
@@ -202,21 +203,11 @@ class AptamerSeq:
         """
         Prepares the output of an oracle for GFlowNet.
         """
-        if (self.func == "potts") or (self.func == 'inner product'):
-            energies *= -1 # model the negative part of the function only (maximizing it is minimizing the original)
-        elif self.func == 'linear': # works if the coefficients for the linear are np.ones(horizon)
-            energies *= -1
-            #energies = (energies/self.horizon / self.nalphabet) ** 5 # weight towards higher energies
-        elif self.func == "seqfold":
-            energies -= 5
-            energies *= -1
-        elif self.func == "nupack":
-            energies *= -1
-        else:
-            pass
+        energies = np.exp(-self.reward_beta * energies)
+
         if self.debug and np.any(energies < 0.):
             print("Negative reward found after conversion from proxy output!")
-        energies = np.clip(energies, a_min=0.0, a_max=None)
+            energies = np.clip(energies, a_min=0.0, a_max=None)
         rewards = energies + epsilon
         return rewards
 
@@ -224,6 +215,7 @@ class AptamerSeq:
         """
         Converts a "GFlowNet reward" into energy as returned by an oracle.
         """
+        beta = self.beta
         energy = reward - epsilon
         if (self.func == "potts") or (self.func == 'inner product'):
             energy *= -1
@@ -462,6 +454,7 @@ class GFlowNetAgent:
         self.tau = args.gflownet.bootstrap_tau
         self.ema_alpha = 0.5
         self.early_stopping = 0.05
+        self.reward_beta = args.gflownet.reward_beta
         # Comet
         if args.gflownet.comet.project:
             self.comet = Experiment(
@@ -480,6 +473,7 @@ class GFlowNetAgent:
             proxy=proxy,
             allow_backward=False,
             debug=self.debug,
+            reward_beta = self.reward_beta
         )
         self.envs = [
             AptamerSeq(
@@ -489,6 +483,7 @@ class GFlowNetAgent:
                 proxy=proxy,
                 allow_backward=False,
                 debug=self.debug,
+                reward_beta = self.reward_beta
             )
             for _ in range(args.gflownet.mbsize)
         ]

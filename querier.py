@@ -163,7 +163,7 @@ class Querier():
             # MK if it's fast, it might be best to train from scratch, since models may drastically change iteration-over-iteration,
             # and we want the gflownet to represent the current models, in general, though it's not impossible we may want to incorporate
             # information from prior iterations for some reason
-            gflownet = GFlowNetAgent(self.config, proxy=model.evaluate)
+            gflownet = GFlowNetAgent(self.config, proxy=model.raw)
 
             t0 = time.time()
             gflownet.train()

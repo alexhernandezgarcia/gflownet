@@ -106,7 +106,7 @@ class Oracle():
             samples = []
             while len(samples) < datasetLength:
                 for i in range(self.config.dataset.min_length, self.config.dataset.max_length + 1):
-                    samples.extend(np.random.randint(0 + 1, self.config.dataset.dict_size + 1, size=(int(100 * self.config.dataset.dict_size * i), i)))
+                    samples.extend(np.random.randint(0 + 1, self.config.dataset.dict_size + 1, size=(int(10 * self.config.dataset.dict_size * i), i)))
 
                 samples = self.numpy_fillna(np.asarray(samples, dtype = object)) # pad sequences up to maximum length
                 samples = filterDuplicateSamples(samples) # this will naturally proportionally punish shorter sequences
