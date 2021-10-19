@@ -127,6 +127,9 @@ def numbers2letters(sequences):  # Tranforming letters to numbers:
     if type(sequences) != np.ndarray:
         sequences = np.asarray(sequences)
 
+    if sequences.ndim < 2:
+        sequences = np.expand_dims(sequences,0)
+
     my_seq = ["" for x in range(len(sequences))]
     row = 0
     for j in range(len(sequences)):
