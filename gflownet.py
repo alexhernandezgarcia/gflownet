@@ -1,3 +1,8 @@
+"""
+GFlowNet
+TODO:
+    - Seeds
+"""
 from comet_ml import Experiment
 from argparse import ArgumentParser
 import copy
@@ -9,6 +14,7 @@ import pickle
 from collections import defaultdict
 from itertools import count, product
 from pathlib import Path
+import yaml
 
 import numpy as np
 from scipy.stats import norm
@@ -18,7 +24,7 @@ import torch.nn as nn
 from torch.distributions.categorical import Categorical
 
 from oracles import linearToy, toyHamiltonian, PottsEnergy, seqfoldScore, nupackScore
-from utils import get_config
+from utils import get_config, namespace2dict, numpy2python
 
 # Float and Long tensors
 _dev = [torch.device("cpu")]
@@ -53,6 +59,10 @@ def add_args(parser):
     parser.add_argument("--model_ckpt", default=None, type=str)
     args2config.update({"model_ckpt": ["gflownet", "model_ckpt"]})
     # Training hyperparameters
+    parser.add_argument("--early_stopping", default=0.01, help="Threshold loss for early stopping", type=float)
+    args2config.update({"early_stopping": ["gflownet", "early_stopping"]})
+    parser.add_argument("--ema_alpha", default=0.5, help="alpha coefficient for exponential moving average", type=float)
+    args2config.update({"ema_alpha": ["gflownet", "ema_alpha"]})
     parser.add_argument("--learning_rate", default=1e-4, help="Learning rate", type=float)
     args2config.update({"learning_rate": ["gflownet", "learning_rate"]})
     parser.add_argument("--opt", default="adam", type=str)
@@ -478,7 +488,10 @@ class GFlowNetAgent:
                 project_name=args.gflownet.comet.project, display_summary_level=0
             )
             if args.gflownet.comet.tags:
-                self.comet.add_tags(args.gflownet.comet.tags)
+                if isinstance(args.gflownet.comet.tags, list):
+                    self.comet.add_tags(args.gflownet.comet.tags)
+                else:
+                    self.comet.add_tag(args.gflownet.comet.tags)
             self.comet.log_parameters(vars(args))
         else:
             self.comet = None
@@ -517,7 +530,10 @@ class GFlowNetAgent:
         )
         if args.gflownet.model_ckpt and "workdir" in args:
             if "workdir" in args:
-                self.model_path = Path(args.workdir) / "ckpts" / args.gflownet.model_ckpt
+                if (Path(args.workdir) / "ckpts").exists():
+                    self.model_path = Path(args.workdir) / "ckpts" / args.gflownet.model_ckpt
+                else:
+                    self.model_path = Path(args.workdir) / args.gflownet.model_ckpt
             else:
                 self.model_path = args.gflownet.model_ckpt
             if self.model_path.exists():
@@ -567,7 +583,6 @@ class GFlowNetAgent:
                         action = np.random.permutation(np.arange(len(action_probs)))[0]
                         if self.debug:
                             print("Action could not be sampled from model!")
-                            import ipdb; ipdb.set_trace()
                 seq, valid = env.step(action)
                 if len(seq) > 0:
                     if hasattr(seq[0], 'device'): # if it has a device, it's on cuda
@@ -681,7 +696,10 @@ class GFlowNetAgent:
             for a, b in zip(self.model.parameters(), self.target.parameters()):
                 b.data.mul_(1 - self.tau).add_(self.tau * a)
 
-        return loss, term_loss, flow_loss
+        if self.debug and not torch.isfinite(loss):
+            raise ValueError("Loss is NaN: terminating experiment")
+        else:
+            return loss, term_loss, flow_loss
 
     def train(self):
 
@@ -897,5 +915,10 @@ if __name__ == "__main__":
     parser, args2config = add_args(parser)
     args = parser.parse_args()
     config = get_config(args, override_args, args2config)
+    if "workdir" in config:
+        if not Path(config.workdir).exists():
+            Path(config.workdir).mkdir(parents=True, exist_ok=False)
+        with open(config.workdir + '/config.yml', 'w') as f:
+            yaml.dump(numpy2python(namespace2dict(config)), f, default_flow_style=False)
     torch.set_num_threads(1)
     main(config)
