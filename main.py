@@ -266,10 +266,14 @@ def add_args(parser):
     parser.add_argument(
         "--gflownet_learning_rate", default=1e-4, help="Learning rate", type=float
     )
+    parser.add_argument("--gflownet_min_word_len", default=1, type=int)
+    args2config.update({"gflownet_min_word_len": ["gflownet", "min_word_len"]})
+    parser.add_argument("--gflownet_max_word_len", default=1, type=int)
+    args2config.update({"gflownet_max_word_len": ["gflownet", "max_word_len"]})
     args2config.update({"gflownet_learning_rate": ["gflownet", "learning_rate"]})
     parser.add_argument("--gflownet_opt", default="adam", type=str)
     args2config.update({"gflownet_opt": ["gflownet", "opt"]})
-    parser.add_argument("--reward_beta", default=1, type=float) # beta for exponential reward rescaling
+    parser.add_argument("--reward_beta", default=1, type=float, help="beta for exponential reward rescaling")
     args2config.update({"reward_beta": ["gflownet", "reward_beta"]})
     parser.add_argument("--adam_beta1", default=0.9, type=float)
     args2config.update({"adam_beta1": ["gflownet", "adam_beta1"]})

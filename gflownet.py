@@ -1,3 +1,8 @@
+"""
+GFlowNet
+TODO:
+    - Seeds
+"""
 from comet_ml import Experiment
 from argparse import ArgumentParser
 import copy
@@ -7,8 +12,9 @@ import itertools
 import os
 import pickle
 from collections import defaultdict
-from itertools import count
+from itertools import count, product
 from pathlib import Path
+import yaml
 
 import numpy as np
 from scipy.stats import norm
@@ -18,7 +24,7 @@ import torch.nn as nn
 from torch.distributions.categorical import Categorical
 
 from oracles import linearToy, toyHamiltonian, PottsEnergy, seqfoldScore, nupackScore
-from utils import get_config
+from utils import get_config, namespace2dict, numpy2python
 
 # Float and Long tensors
 _dev = [torch.device("cpu")]
@@ -45,12 +51,18 @@ def add_args(parser):
     args2config.update({"yaml_config": ["yaml_config"]})
     # General
     parser.add_argument("--device", default="cpu", type=str)
-    args2config.update({"device": ["device"]})
+    args2config.update({"device": ["gflownet", "device"]})
     parser.add_argument("--progress", action="store_true")
     args2config.update({"progress": ["gflownet", "progress"]})
+    parser.add_argument("--debug", action="store_true")
+    args2config.update({"debug": ["debug"]})
     parser.add_argument("--model_ckpt", default=None, type=str)
     args2config.update({"model_ckpt": ["gflownet", "model_ckpt"]})
     # Training hyperparameters
+    parser.add_argument("--early_stopping", default=0.01, help="Threshold loss for early stopping", type=float)
+    args2config.update({"early_stopping": ["gflownet", "early_stopping"]})
+    parser.add_argument("--ema_alpha", default=0.5, help="alpha coefficient for exponential moving average", type=float)
+    args2config.update({"ema_alpha": ["gflownet", "ema_alpha"]})
     parser.add_argument("--learning_rate", default=1e-4, help="Learning rate", type=float)
     args2config.update({"learning_rate": ["gflownet", "learning_rate"]})
     parser.add_argument("--opt", default="adam", type=str)
@@ -59,6 +71,8 @@ def add_args(parser):
     args2config.update({"adam_beta1": ["gflownet", "adam_beta1"]})
     parser.add_argument("--adam_beta2", default=0.999, type=float)
     args2config.update({"adam_beta2": ["gflownet", "adam_beta2"]})
+    parser.add_argument("--reward_beta", default=1, type=float, help="beta for exponential reward rescaling")
+    args2config.update({"reward_beta": ["gflownet", "reward_beta"]})
     parser.add_argument("--momentum", default=0.9, type=float)
     args2config.update({"momentum": ["gflownet", "momentum"]})
     parser.add_argument("--mbsize", default=16, help="Minibatch size", type=int)
@@ -92,6 +106,11 @@ def add_args(parser):
     args2config.update({"horizon": ["gflownet", "horizon"]})
     parser.add_argument("--nalphabet", default=4, type=int)
     args2config.update({"nalphabet": ["gflownet", "nalphabet"]})
+    parser.add_argument("--min_word_len", default=1, type=int)
+    args2config.update({"min_word_len": ["gflownet", "min_word_len"]})
+    parser.add_argument("--max_word_len", default=1, type=int)
+    args2config.update({"max_word_len": ["gflownet", "max_word_len"]})
+    args2config.update({"learning_rate": ["gflownet", "learning_rate"]})
     # Sampling
     parser.add_argument("--bootstrap_tau", default=0.0, type=float)
     args2config.update({"bootstrap_tau": ["gflownet", "bootstrap_tau"]})
@@ -138,11 +157,13 @@ class AptamerSeq:
     """
 
     def __init__(
-        self, horizon=42, nalphabet=4, func="default", proxy=None,
-        allow_backward=False, debug=False, reward_beta=1
+        self, horizon=42, nalphabet=4, min_word_len=1, max_word_len=1, func="default",
+        proxy=None, allow_backward=False, debug=False, reward_beta=1
     ):
         self.horizon = horizon
         self.nalphabet = nalphabet
+        self.min_word_len = min_word_len
+        self.max_word_len = max_word_len
         self.seq = []
         self.done = False
         self.func = func
@@ -167,6 +188,20 @@ class AptamerSeq:
         self._true_density = None
         self.debug = debug
         self.reward_beta = reward_beta
+        self.action_space = self.get_actions_space(self.nalphabet, 
+                np.arange(self.min_word_len, self.max_word_len + 1))
+        self.nactions = len(self.action_space)
+
+    def get_actions_space(self, nalphabet, valid_wordlens):
+        """
+        Constructs with all possible actions
+        """
+        alphabet = [a for a in range(nalphabet)]
+        actions = []
+        for r in valid_wordlens:
+            actions_r = [el for el in product(alphabet, repeat=r)]
+            actions += actions_r
+        return actions
 
     def reward_arbitrary_i(self, seq):
         if len(seq) > 0:
@@ -291,6 +326,7 @@ class AptamerSeq:
         return self
 
     def parent_transitions(self, seq, action):
+        # TODO: valid parents must satisfy horizon constraint!!!
         """
         Determines all parents and actions that lead to sequence (state) seq
 
@@ -311,11 +347,15 @@ class AptamerSeq:
         actions : list
             List of actions that lead to seq for each parent in parents
         """
-        if action == self.nalphabet:
+        if action == self.nactions:
             return [self.seq2obs(seq)], [action]
         else:
-            parents = [self.seq2obs(seq[:-1])]
-            actions = [action]
+            parents = []
+            actions = []
+            for idx, a in enumerate(self.action_space):
+                if seq[-len(a):] == list(a):
+                    parents.append(self.seq2obs(seq[:-len(a)]))
+                    actions.append(idx)
         return parents, actions
 
     def step(self, action):
@@ -333,7 +373,7 @@ class AptamerSeq:
         """
         Executes step given an action
 
-        If action is smaller than nalphabet (no stop), add action letter to next
+        If action is smaller than nactions (no stop), add action to next
         position.
 
         See: step_daug()
@@ -342,7 +382,7 @@ class AptamerSeq:
         Args
         ----
         a : int
-            Index of letter in the alphabet. a == nalphabet indicates "stop action"
+            Index of action in the action space. a == nactions indicates "stop action"
 
         Returns
         -------
@@ -353,10 +393,14 @@ class AptamerSeq:
             False, if the action is not allowed for the current state, e.g. stop at the
             root state
         """
-        if action < self.nalphabet:
-            self.seq = self.seq + [action]
+        if action < self.nactions:
+            seq_next = self.seq + list(self.action_space[action])
+            if len(seq_next) > self.horizon:
+                valid = False
+            else:
+                self.seq = seq_next
+                valid = True
             self.done = len(self.seq) == self.horizon
-            valid = True
         else:
             if len(self.seq) == 0:
                 valid = False
@@ -434,23 +478,6 @@ class GFlowNetAgent:
         self.device_torch = torch.device(args.gflownet.device)
         self.device = self.device_torch
         set_device(self.device_torch)
-        # Model
-        self.model = make_mlp(
-            [args.gflownet.horizon * args.gflownet.nalphabet]
-            + [args.gflownet.n_hid] * args.gflownet.n_layers
-            + [args.gflownet.nalphabet + 1]
-        )
-        if args.gflownet.model_ckpt and "workdir" in args:
-            if "workdir" in args:
-                self.model_path = Path(args.workdir) / "ckpts" / args.gflownet.model_ckpt
-            else:
-                self.model_path = args.gflownet.model_ckpt
-            if self.model_path.exists():
-                self.model.load_state_dict(torch.load(self.model_path))
-        else:
-            self.model_path = None
-        self.model.to(self.device_torch)
-        self.target = copy.deepcopy(self.model)
         self.tau = args.gflownet.bootstrap_tau
         self.ema_alpha = 0.5
         self.early_stopping = 0.05
@@ -461,7 +488,10 @@ class GFlowNetAgent:
                 project_name=args.gflownet.comet.project, display_summary_level=0
             )
             if args.gflownet.comet.tags:
-                self.comet.add_tags(args.gflownet.comet.tags)
+                if isinstance(args.gflownet.comet.tags, list):
+                    self.comet.add_tags(args.gflownet.comet.tags)
+                else:
+                    self.comet.add_tag(args.gflownet.comet.tags)
             self.comet.log_parameters(vars(args))
         else:
             self.comet = None
@@ -469,6 +499,8 @@ class GFlowNetAgent:
         self.env = AptamerSeq(
             args.gflownet.horizon,
             args.gflownet.nalphabet,
+            args.gflownet.min_word_len,
+            args.gflownet.max_word_len,
             func=args.gflownet.func,
             proxy=proxy,
             allow_backward=False,
@@ -479,6 +511,8 @@ class GFlowNetAgent:
             AptamerSeq(
                 args.gflownet.horizon,
                 args.gflownet.nalphabet,
+                args.gflownet.min_word_len,
+                args.gflownet.max_word_len,
                 func=args.gflownet.func,
                 proxy=proxy,
                 allow_backward=False,
@@ -488,6 +522,26 @@ class GFlowNetAgent:
             for _ in range(args.gflownet.mbsize)
         ]
         self.batch_reward = args.gflownet.batch_reward
+        # Model
+        self.model = make_mlp(
+            [args.gflownet.horizon * args.gflownet.nalphabet]
+            + [args.gflownet.n_hid] * args.gflownet.n_layers
+            + [self.env.nactions + 1]
+        )
+        if args.gflownet.model_ckpt and "workdir" in args:
+            if "workdir" in args:
+                if (Path(args.workdir) / "ckpts").exists():
+                    self.model_path = Path(args.workdir) / "ckpts" / args.gflownet.model_ckpt
+                else:
+                    self.model_path = Path(args.workdir) / args.gflownet.model_ckpt
+            else:
+                self.model_path = args.gflownet.model_ckpt
+            if self.model_path.exists():
+                self.model.load_state_dict(torch.load(self.model_path))
+        else:
+            self.model_path = None
+        self.model.to(self.device_torch)
+        self.target = copy.deepcopy(self.model)
         # Training
         self.opt = make_opt(self.parameters(), args)
         self.n_train_steps = args.gflownet.n_iter
@@ -529,7 +583,6 @@ class GFlowNetAgent:
                         action = np.random.permutation(np.arange(len(action_probs)))[0]
                         if self.debug:
                             print("Action could not be sampled from model!")
-                            import ipdb; ipdb.set_trace()
                 seq, valid = env.step(action)
                 if len(seq) > 0:
                     if hasattr(seq[0], 'device'): # if it has a device, it's on cuda
@@ -643,7 +696,10 @@ class GFlowNetAgent:
             for a, b in zip(self.model.parameters(), self.target.parameters()):
                 b.data.mul_(1 - self.tau).add_(self.tau * a)
 
-        return loss, term_loss, flow_loss
+        if self.debug and not torch.isfinite(loss):
+            raise ValueError("Loss is NaN: terminating experiment")
+        else:
+            return loss, term_loss, flow_loss
 
     def train(self):
 
@@ -859,5 +915,10 @@ if __name__ == "__main__":
     parser, args2config = add_args(parser)
     args = parser.parse_args()
     config = get_config(args, override_args, args2config)
+    if "workdir" in config:
+        if not Path(config.workdir).exists():
+            Path(config.workdir).mkdir(parents=True, exist_ok=False)
+        with open(config.workdir + '/config.yml', 'w') as f:
+            yaml.dump(numpy2python(namespace2dict(config)), f, default_flow_style=False)
     torch.set_num_threads(1)
     main(config)
