@@ -154,24 +154,28 @@ class Sampler:
         return 1 - np.exp(-self.gammas * (scores - self.absMin))  # compute STUN function with shared global minimum
 
 
-    def sample(self, model, useOracle=False):
+    def sample(self, model, useOracle=False, nIters = None):
         """
         converge the sampling process
         :param model:
         :return:
         """
-        self.converge(model, useOracle)
+        self.converge(model, useOracle, nIters = nIters)
         return self.__dict__
 
 
-    def converge(self, model, useOracle=False):
+    def converge(self, model, useOracle=False, nIters = False):
         """
         run the sampler until we converge to an optimum
         :return:
         """
         self.initConvergenceStats()
         self.resampleRandints()
-        for self.iter in tqdm.tqdm(range(self.config_main.mcmc.sampling_time)):  # sample for a certain number of iterations
+        if nIters is None:
+            run_iters = self.config_main.mcmc.sampling_time
+        else:
+            run_iters = nIters
+        for self.iter in tqdm.tqdm(range(run_iters)):  # sample for a certain number of iterations
             self.iterate(model, useOracle)  # try a monte-carlo step!
 
             if (self.iter % self.deltaIter == 0) and (self.iter > 0):  # every N iterations do some reporting / updating

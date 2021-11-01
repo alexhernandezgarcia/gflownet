@@ -819,7 +819,6 @@ class GFlowNetAgent:
                         print("Action could not be sampled from model!")
                 seq, valid = env.step(action)
 
-            import ipdb; ipdb.set_trace()
             seq = [s.item() for s in seq]
             batch[idx, :] = env.seq2oracle([seq])
         energies, uncertainties = env.proxy(batch, 'Both')

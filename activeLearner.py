@@ -187,7 +187,7 @@ class ActiveLearning():
 
         # run the sampler
         self.loadEstimatorEnsemble()
-        self.sampleDict = self.querier.runSampling(self.model, [1, 0], 1) # sample existing optima
+        self.sampleDict = self.querier.runSampling(self.model, [1, 0], 1, method_overwrite = 'mcmc') # sample existing optima - always construct model state with mcmc
         samples = self.sampleDict['samples']
         energies = self.sampleDict['energies']
         uncertainties = self.sampleDict['uncertainties']
@@ -404,7 +404,11 @@ class ActiveLearning():
         self.model = 'abc'
         gammas = np.logspace(self.config.mcmc.stun_min_gamma,self.config.mcmc.stun_max_gamma,self.config.mcmc.num_samplers)
         mcmcSampler = Sampler(self.config, 0, [1,0], gammas)
-        samples = mcmcSampler.sample(self.model, useOracle=True)
+        if (self.config.dataset.oracle == 'linear') or (self.config.dataset.oracle == 'nupack'):
+            samples = mcmcSampler.sample(self.model, useOracle=True, nIters = 100) # do a tiny number of iters - the minimum is known
+        else:
+            samples = mcmcSampler.sample(self.model, useOracle=True) # do a genuine search
+
         sampleDict = samples2dict(samples)
         if self.config.dataset.oracle == 'wmodel': # w model minimum is always zero - even if we don't find it
             bestMin = 0
