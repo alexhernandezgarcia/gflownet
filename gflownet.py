@@ -478,6 +478,7 @@ class GFlowNetAgent:
         self.device_torch = torch.device(args.gflownet.device)
         self.device = self.device_torch
         set_device(self.device_torch)
+        self.lightweight = True
         self.tau = args.gflownet.bootstrap_tau
         self.ema_alpha = 0.5
         self.early_stopping = 0.05
@@ -727,19 +728,28 @@ class GFlowNetAgent:
                     self.opt.step()
                     self.opt.zero_grad()
                     all_losses.append([i.item() for i in losses])
-            all_visited.extend(
-                [
-                    tuple(self.env.obs2seq(d[3][0].tolist()))
-                    for d in data
-                    if bool(d[4].item())
-                ]
-            )
+            if self.lightweight:
+                all_losses = all_losses[-100:]
+                all_visited = [
+                        tuple(self.env.obs2seq(d[3][0].tolist()))
+                        for d in data
+                        if bool(d[4].item())
+                        ]
+
+            else:
+                all_visited.extend(
+                    [
+                        tuple(self.env.obs2seq(d[3][0].tolist()))
+                        for d in data
+                        if bool(d[4].item())
+                    ]
+                )
             # Log
             rewards = [d[2][0].item() for d in data if bool(d[4].item())]
             if self.comet:
                 self.comet.log_metric("mean_reward", np.mean(rewards), step=i)
                 self.comet.log_metric("max_reward", np.max(rewards), step=i)
-            if not i % 100:
+            if not i % 100 and not self.lightweight:
                 empirical_distrib_losses.append(
                     compute_empirical_distribution_error(
                         self.env, all_visited[-self.num_empirical_loss :]
@@ -766,9 +776,10 @@ class GFlowNetAgent:
                         ),
                         step=i,
                     )
-                    self.comet.log_metric(
-                        "unique_states", np.unique(all_visited).shape[0], step=i
-                    )
+                    if not self.lightweight:
+                        self.comet.log_metric(
+                            "unique_states", np.unique(all_visited).shape[0], step=i
+                        )
             # Moving average of the loss for early stopping
             if loss_ema > 0:
                 loss_ema = (
@@ -808,6 +819,7 @@ class GFlowNetAgent:
                         print("Action could not be sampled from model!")
                 seq, valid = env.step(action)
 
+            import ipdb; ipdb.set_trace()
             seq = [s.item() for s in seq]
             batch[idx, :] = env.seq2oracle([seq])
         energies, uncertainties = env.proxy(batch, 'Both')
