@@ -818,8 +818,6 @@ class GFlowNetAgent:
                         action = np.random.permutation(np.arange(len(action_probs)))[0]
                         print("Action could not be sampled from model!")
                 seq, valid = env.step(action)
-
-            seq = [s.item() for s in seq]
             batch[idx, :] = env.seq2oracle([seq])
         energies, uncertainties = env.proxy(batch, 'Both')
         samples = {
