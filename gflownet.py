@@ -266,7 +266,9 @@ class AptamerSeq:
             queries = queries[np.newaxis, ...]
         queries += 1
         if queries.shape[1] == 1:
-            import ipdb; ipdb.set_trace()
+            import ipdb
+
+            ipdb.set_trace()
             queries = np.column_stack((queries, np.zeros(queries.shape[0])))
         return queries
 
@@ -282,25 +284,11 @@ class AptamerSeq:
         """
         return np.exp(-self.reward_beta * energies)
 
-    def reward2energy(self, reward, epsilon=1e-9):
+    def reward2energy(self, reward):
         """
         Converts a "GFlowNet reward" into energy as returned by an oracle.
         """
-        beta = self.beta
-        energy = reward - epsilon
-        if (self.func == "potts") or (self.func == "inner product"):
-            energy *= -1
-        elif self.func == "linear":
-            energy *= -1
-            # energy = energy ** (1/5) * self.horizon * self.nalphabet
-        elif self.func == "seqfold":
-            energy *= -1
-            energy += 5
-        elif self.func == "nupack":
-            energy *= -1
-        else:
-            pass
-        return energy
+        return -np.log(reward) * self.reward_beta
 
     def seq2obs(self, seq=None):
         """
@@ -701,7 +689,9 @@ class GFlowNetAgent:
                 output_proxy = self.env.proxy(seq_oracle)
                 reward = self.env.energy2reward(output_proxy)
                 print(idx, output_proxy, reward)
-                import ipdb; ipdb.set_trace()
+                import ipdb
+
+                ipdb.set_trace()
         parents_Qsa = self.model(parents)[
             torch.arange(parents.shape[0]), actions.long()
         ]
@@ -811,12 +801,25 @@ class GFlowNetAgent:
                     ]
                 )
             rewards = [d[2][0].item() for d in data if bool(d[4].item())]
+            energies = env.reward2energy(rewards)
             if self.comet:
                 self.comet.log_metrics(
                     dict(
                         zip(
-                            ["mean_reward", "max_reward", "reward_beta"],
-                            [np.mean(rewards), np.max(rewards), self.reward_beta],
+                            [
+                                "mean_reward",
+                                "max_reward",
+                                "mean_energy",
+                                "max_energy",
+                                "reward_beta",
+                            ],
+                            [
+                                np.mean(rewards),
+                                np.max(rewards),
+                                np.mean(energies),
+                                np.max(energies),
+                                self.reward_beta,
+                            ],
                         )
                     ),
                     step=i,
@@ -913,7 +916,9 @@ class GFlowNetAgent:
         for row, idx in zip(row_unique, row_unique_idx):
             if np.sum(batch[row, zeros[1][idx] :]):
                 print(f"Found sequence with positive values after last 0, row {row}")
-                import ipdb; ipdb.set_trace()
+                import ipdb
+
+                ipdb.set_trace()
         return samples
 
 
