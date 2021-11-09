@@ -15,6 +15,7 @@ from collections import defaultdict
 from itertools import count, product
 from pathlib import Path
 import yaml
+import time
 
 import numpy as np
 from scipy.stats import norm
@@ -750,9 +751,12 @@ class GFlowNetAgent:
 
         # Train loop
         for i in tqdm(range(self.n_train_steps + 1)):  # , disable=not self.progress):
+            t0_iter = time.time()
             data = []
             for j in range(self.sttr):
+                t0_sample = time.time()
                 data += self.sample_many()
+                t1_sample = time.time()
             for j in range(self.ttsr):
                 losses = self.learn_from(
                     i * self.ttsr + j, data
@@ -861,6 +865,17 @@ class GFlowNetAgent:
             else:
                 loss_ema = losses[0]
 
+            # Log times
+            t1_iter = time.time()
+            self.comet.log_metrics(
+                dict(
+                    zip(
+                        ["time_iter", "time_sample"],
+                        [t1_iter - t0_iter, t1_sample - t0_sample],
+                    )
+                ),
+                step=i,
+            )
         # Save model
         if self.model_path:
             torch.save(self.model.state_dict(), self.model_path)
