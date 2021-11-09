@@ -275,17 +275,11 @@ class AptamerSeq:
         reward[list(done)] = self.energy2reward(self.proxy(self.seq2oracle(seq)))
         return reward
 
-    def energy2reward(self, energies, epsilon=1e-9):
+    def energy2reward(self, energies):
         """
         Prepares the output of an oracle for GFlowNet.
         """
-        energies = np.exp(-self.reward_beta * energies)
-
-        if self.debug and np.any(energies < 0.0):
-            print("Negative reward found after conversion from proxy output!")
-            energies = np.clip(energies, a_min=0.0, a_max=None)
-        rewards = energies + epsilon
-        return rewards
+        return np.exp(-self.reward_beta * energies)
 
     def reward2energy(self, reward, epsilon=1e-9):
         """
