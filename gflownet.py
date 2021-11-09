@@ -801,7 +801,7 @@ class GFlowNetAgent:
                     ]
                 )
             rewards = [d[2][0].item() for d in data if bool(d[4].item())]
-            energies = env.reward2energy(rewards)
+            energies = self.env.reward2energy(rewards)
             if self.comet:
                 self.comet.log_metrics(
                     dict(
