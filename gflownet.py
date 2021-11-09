@@ -812,14 +812,14 @@ class GFlowNetAgent:
                                 "mean_reward",
                                 "max_reward",
                                 "mean_energy",
-                                "max_energy",
+                                "min_energy",
                                 "reward_beta",
                             ],
                             [
                                 np.mean(rewards),
                                 np.max(rewards),
                                 np.mean(energies),
-                                np.max(energies),
+                                np.min(energies),
                                 self.reward_beta,
                             ],
                         )
