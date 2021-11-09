@@ -786,22 +786,17 @@ class GFlowNetAgent:
                 for env in [self.env] + self.envs:
                     env.reward_beta = self.reward_beta
             # Log
+            seqs_batch = [
+                tuple(self.env.obs2seq(d[3][0].tolist()))
+                for d in data
+                if bool(d[4].item())
+            ]
             if self.lightweight:
                 all_losses = all_losses[-100:]
-                all_visited = [
-                    tuple(self.env.obs2seq(d[3][0].tolist()))
-                    for d in data
-                    if bool(d[4].item())
-                ]
+                all_visited = seqs_batch
 
             else:
-                all_visited.extend(
-                    [
-                        tuple(self.env.obs2seq(d[3][0].tolist()))
-                        for d in data
-                        if bool(d[4].item())
-                    ]
-                )
+                all_visited.extend(seqs_batch)
             rewards = [d[2][0].item() for d in data if bool(d[4].item())]
             energies = self.env.reward2energy(rewards)
             if self.comet:
@@ -813,6 +808,7 @@ class GFlowNetAgent:
                                 "max_reward",
                                 "mean_energy",
                                 "min_energy",
+                                "mean_seq_length",
                                 "reward_beta",
                             ],
                             [
@@ -820,6 +816,7 @@ class GFlowNetAgent:
                                 np.max(rewards),
                                 np.mean(energies),
                                 np.min(energies),
+                                np.mean([len(seq) for seq in seqs_batch]),
                                 self.reward_beta,
                             ],
                         )
