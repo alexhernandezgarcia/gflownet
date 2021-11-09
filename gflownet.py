@@ -51,6 +51,8 @@ def add_args(parser):
     )
     args2config.update({"yaml_config": ["yaml_config"]})
     # General
+    parser.add_argument("--workdir", default=None, type=str)
+    args2config.update({"workdir": ["workdir"]})
     parser.add_argument("--device", default="cpu", type=str)
     args2config.update({"device": ["gflownet", "device"]})
     parser.add_argument("--progress", action="store_true")
@@ -557,8 +559,8 @@ class GFlowNetAgent:
             + [args.gflownet.n_hid] * args.gflownet.n_layers
             + [self.env.nactions + 1]
         )
-        if args.gflownet.model_ckpt and "workdir" in args:
-            if "workdir" in args:
+        if args.gflownet.model_ckpt:
+            if "workdir" in args and Path(args.workdir).exists():
                 if (Path(args.workdir) / "ckpts").exists():
                     self.model_path = (
                         Path(args.workdir) / "ckpts" / args.gflownet.model_ckpt
