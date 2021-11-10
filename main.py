@@ -289,7 +289,7 @@ def add_args(parser):
     args2config.update({"reward_beta_mult": ["gflownet", "reward_beta_mult"]})
     parser.add_argument(
         "--reward_beta_period",
-        default=None,
+        default=-1,
         type=float,
         help="Period (number of iterations) for beta rescaling",
     )

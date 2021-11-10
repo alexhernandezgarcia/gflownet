@@ -102,7 +102,7 @@ def add_args(parser):
     args2config.update({"reward_beta_mult": ["gflownet", "reward_beta_mult"]})
     parser.add_argument(
         "--reward_beta_period",
-        default=None,
+        default=-1,
         type=float,
         help="Period (number of iterations) for beta rescaling",
     )
@@ -513,6 +513,8 @@ class GFlowNetAgent:
         self.reward_beta = args.gflownet.reward_beta_init
         self.reward_beta_mult = args.gflownet.reward_beta_mult
         self.reward_beta_period = args.gflownet.reward_beta_period
+        if self.reward_beta_period in [None, -1]:
+            self.reward_beta_period = np.inf
         # Comet
         if args.gflownet.comet.project:
             self.comet = Experiment(
