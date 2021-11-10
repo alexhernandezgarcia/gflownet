@@ -604,18 +604,29 @@ class GFlowNetAgent:
         mbsize : int
             Mini-batch size
         """
+        times = {
+            "all": 0.,
+            "actions_model": 0.,
+            "actions_envs": 0.,
+            "rewards": 0.,
+        }
+        t0_all = time.time()
         batch = []
         envs = [env.reset() for env in self.envs]
         while envs:
             seqs = [env.seq2obs() for env in envs]
             with torch.no_grad():
+                t0_a_model = time.time()
                 action_probs = self.model(tf(seqs))
+                t1_a_model = time.time()
+                times["actions_model"] += (t1_a_model - t0_a_model)
                 if all(torch.isfinite(action_probs).flatten()):
                     actions = Categorical(logits=action_probs).sample()
                 else:
                     actions = np.random.randint(low=0, high=action_probs.shape[1], size=action_probs.shape[0])
                     if self.debug:
                         print("Action could not be sampled from model!")
+            t0_a_envs = time.time()
             for env, action in zip(envs, actions):
                 seq, valid = env.step(action)
                 if valid:
@@ -630,12 +641,19 @@ class GFlowNetAgent:
                         ]
                     )
             envs = [env for env in envs if not env.done]
+            t1_a_envs = time.time()
+            times["actions_envs"] += (t1_a_envs - t0_a_envs)
         parents, parents_a, seqs, obs, done = zip(*batch)
+        t0_rewards = time.time()
         rewards = env.reward_batch(seqs, done)
+        t1_rewards = time.time()
+        times["rewards"] += (t1_rewards - t0_rewards)
         rewards = [tf([r]) for r in rewards]
         done = [tf([d]) for d in done]
         batch = list(zip(parents, parents_a, rewards, obs, done))
-        return batch
+        t1_all = time.time()
+        times["all"] += (t1_all - t0_all)
+        return batch, times
 
     def learn_from(self, it, batch):
         """
@@ -733,9 +751,8 @@ class GFlowNetAgent:
             t0_iter = time.time()
             data = []
             for j in range(self.sttr):
-                t0_sample = time.time()
-                data += self.sample_many()
-                t1_sample = time.time()
+                batch, times = self.sample_many()
+                data += batch
             for j in range(self.ttsr):
                 losses = self.learn_from(
                     i * self.ttsr + j, data
@@ -856,15 +873,9 @@ class GFlowNetAgent:
 
             # Log times
             t1_iter = time.time()
-            self.comet.log_metrics(
-                dict(
-                    zip(
-                        ["time_iter", "time_sample"],
-                        [t1_iter - t0_iter, t1_sample - t0_sample],
-                    )
-                ),
-                step=i,
-            )
+            times.update({"iter": t1_iter - t0_iter})
+            times = {"time_{}".format(k): v for k, v in times.items()}
+            self.comet.log_metrics(times, step=i)
         # Save model
         if self.model_path:
             torch.save(self.model.state_dict(), self.model_path)
