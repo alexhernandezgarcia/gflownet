@@ -762,12 +762,13 @@ class GFlowNetAgent:
                 if not all([torch.isfinite(loss) for loss in losses]):
                     if self.debug:
                         print(
-                            "Loss is NaN: Skipping backward pass and increasing reward temperature from -{:.4f} to -{:.4f}".format(
+                            "Loss is NaN: Skipping backward pass and increasing reward temperature from -{:.4f} to -{:.4f} and cancelling beta scheduling".format(
                                 self.reward_beta,
                                 self.reward_beta / self.reward_beta_mult,
                             )
                         )
                     self.reward_beta /= self.reward_beta_mult
+                    self.reward_beta_period = np.inf
                     for env in [self.env] + self.envs:
                         env.reward_beta = self.reward_beta
                     all_losses.append([loss for loss in all_losses[-1]])
