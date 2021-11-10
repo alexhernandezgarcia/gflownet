@@ -606,23 +606,20 @@ class GFlowNetAgent:
         """
         batch = []
         envs = [env.reset() for env in self.envs]
-        seq_idx, seq, done = zip(*[(idx, env.seq2obs(), env.done) for idx, env in enumerate(env)])
-        while not all(done):
+        while envs:
+            seqs = [env.seq2obs() for env in envs]
             with torch.no_grad():
-                action_probs = self.model(tf(seq))
-                if all(torch.isfinite(action_probs)):
-                    action = Categorical(logits=action_probs).sample()
+                action_probs = self.model(tf(seqs))
+                if all(torch.isfinite(action_probs).flatten()):
+                    actions = Categorical(logits=action_probs).sample()
                 else:
-                    action = np.random.permutation(np.arange(len(action_probs)))[0]
+                    actions = np.random.randint(low=0, high=action_probs.shape[1], size=action_probs.shape[0])
                     if self.debug:
                         print("Action could not be sampled from model!")
-            seq, valid = env.step(action)
-            if len(seq) > 0:
-                if hasattr(seq[0], "device"):  # if it has a device, it's on cuda
-                    seq = [subseq.cpu().detach().numpy() for subseq in seq]
-            if valid:
-                parents, parents_a = env.parent_transitions(seq, action)
-                if self.batch_reward:
+            for env, action in zip(envs, actions):
+                seq, valid = env.step(action)
+                if valid:
+                    parents, parents_a = env.parent_transitions(seq, action)
                     batch.append(
                         [
                             tf(parents),
@@ -632,22 +629,12 @@ class GFlowNetAgent:
                             env.done,
                         ]
                     )
-                else:
-                    batch.append(
-                        [
-                            tf(parents),
-                            tf(parents_a),
-                            tf([env.reward([seq])[0]]),
-                            tf([env.seq2obs()]),
-                            tf([env.done]),
-                        ]
-                    )
-        if self.batch_reward:
-            parents, parents_a, seq, obs, done = zip(*batch)
-            rewards = env.reward_batch(seq, done)
-            rewards = [tf([r]) for r in rewards]
-            done = [tf([d]) for d in done]
-            batch = list(zip(parents, parents_a, rewards, obs, done))
+            envs = [env for env in envs if not env.done]
+        parents, parents_a, seqs, obs, done = zip(*batch)
+        rewards = env.reward_batch(seqs, done)
+        rewards = [tf([r]) for r in rewards]
+        done = [tf([d]) for d in done]
+        batch = list(zip(parents, parents_a, rewards, obs, done))
         return batch
 
     def learn_from(self, it, batch):
