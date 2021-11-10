@@ -59,11 +59,23 @@ def add_args(parser):
     parser.add_argument("--model_ckpt", default=None, type=str)
     args2config.update({"model_ckpt": ["gflownet", "model_ckpt"]})
     # Training hyperparameters
-    parser.add_argument("--early_stopping", default=0.01, help="Threshold loss for early stopping", type=float)
+    parser.add_argument(
+        "--early_stopping",
+        default=0.01,
+        help="Threshold loss for early stopping",
+        type=float,
+    )
     args2config.update({"early_stopping": ["gflownet", "early_stopping"]})
-    parser.add_argument("--ema_alpha", default=0.5, help="alpha coefficient for exponential moving average", type=float)
+    parser.add_argument(
+        "--ema_alpha",
+        default=0.5,
+        help="alpha coefficient for exponential moving average",
+        type=float,
+    )
     args2config.update({"ema_alpha": ["gflownet", "ema_alpha"]})
-    parser.add_argument("--learning_rate", default=1e-4, help="Learning rate", type=float)
+    parser.add_argument(
+        "--learning_rate", default=1e-4, help="Learning rate", type=float
+    )
     args2config.update({"learning_rate": ["gflownet", "learning_rate"]})
     parser.add_argument("--opt", default="adam", type=str)
     args2config.update({"opt": ["gflownet", "opt"]})
@@ -71,8 +83,27 @@ def add_args(parser):
     args2config.update({"adam_beta1": ["gflownet", "adam_beta1"]})
     parser.add_argument("--adam_beta2", default=0.999, type=float)
     args2config.update({"adam_beta2": ["gflownet", "adam_beta2"]})
-    parser.add_argument("--reward_beta", default=1, type=float, help="beta for exponential reward rescaling")
-    args2config.update({"reward_beta": ["gflownet", "reward_beta"]})
+    parser.add_argument(
+        "--reward_beta_init",
+        default=1,
+        type=float,
+        help="Initial beta for exponential reward scaling",
+    )
+    args2config.update({"reward_beta_init": ["gflownet", "reward_beta_init"]})
+    parser.add_argument(
+        "--reward_beta_mult",
+        default=1.25,
+        type=float,
+        help="Multiplier for rescaling beta during training",
+    )
+    args2config.update({"reward_beta_mult": ["gflownet", "reward_beta_mult"]})
+    parser.add_argument(
+        "--reward_beta_period",
+        default=None,
+        type=float,
+        help="Period (number of iterations) for beta rescaling",
+    )
+    args2config.update({"reward_beta_period": ["gflownet", "reward_beta_period"]})
     parser.add_argument("--momentum", default=0.9, type=float)
     args2config.update({"momentum": ["gflownet", "momentum"]})
     parser.add_argument("--mbsize", default=16, help="Minibatch size", type=int)
@@ -114,7 +145,7 @@ def add_args(parser):
     # Sampling
     parser.add_argument("--bootstrap_tau", default=0.0, type=float)
     args2config.update({"bootstrap_tau": ["gflownet", "bootstrap_tau"]})
-    parser.add_argument('--batch_reward', action="store_true")
+    parser.add_argument("--batch_reward", action="store_true")
     args2config.update({"batch_reward": ["gflownet", "batch_reward"]})
     # Comet
     parser.add_argument("--comet_project", default=None, type=str)
@@ -124,6 +155,7 @@ def add_args(parser):
     )
     args2config.update({"tags": ["gflownet", "comet", "tags"]})
     return parser, args2config
+
 
 def set_device(dev):
     _dev[0] = dev
@@ -157,8 +189,16 @@ class AptamerSeq:
     """
 
     def __init__(
-        self, horizon=42, nalphabet=4, min_word_len=1, max_word_len=1, func="default",
-        proxy=None, allow_backward=False, debug=False, reward_beta=1
+        self,
+        horizon=42,
+        nalphabet=4,
+        min_word_len=1,
+        max_word_len=1,
+        func="default",
+        proxy=None,
+        allow_backward=False,
+        debug=False,
+        reward_beta=1,
     ):
         self.horizon = horizon
         self.nalphabet = nalphabet
@@ -188,8 +228,9 @@ class AptamerSeq:
         self._true_density = None
         self.debug = debug
         self.reward_beta = reward_beta
-        self.action_space = self.get_actions_space(self.nalphabet, 
-                np.arange(self.min_word_len, self.max_word_len + 1))
+        self.action_space = self.get_actions_space(
+            self.nalphabet, np.arange(self.min_word_len, self.max_word_len + 1)
+        )
         self.nactions = len(self.action_space)
 
     def get_actions_space(self, nalphabet, valid_wordlens):
@@ -234,17 +275,11 @@ class AptamerSeq:
         reward[list(done)] = self.energy2reward(self.proxy(self.seq2oracle(seq)))
         return reward
 
-    def energy2reward(self, energies, epsilon=1e-9):
+    def energy2reward(self, energies):
         """
         Prepares the output of an oracle for GFlowNet.
         """
-        energies = np.exp(-self.reward_beta * energies)
-
-        if self.debug and np.any(energies < 0.):
-            print("Negative reward found after conversion from proxy output!")
-            energies = np.clip(energies, a_min=0.0, a_max=None)
-        rewards = energies + epsilon
-        return rewards
+        return np.exp(-self.reward_beta * energies)
 
     def reward2energy(self, reward, epsilon=1e-9):
         """
@@ -252,11 +287,11 @@ class AptamerSeq:
         """
         beta = self.beta
         energy = reward - epsilon
-        if (self.func == "potts") or (self.func == 'inner product'):
+        if (self.func == "potts") or (self.func == "inner product"):
             energy *= -1
-        elif self.func == 'linear':
+        elif self.func == "linear":
             energy *= -1
-            #energy = energy ** (1/5) * self.horizon * self.nalphabet
+            # energy = energy ** (1/5) * self.horizon * self.nalphabet
         elif self.func == "seqfold":
             energy *= -1
             energy += 5
@@ -288,7 +323,9 @@ class AptamerSeq:
         z = np.zeros((self.nalphabet * self.horizon), dtype=np.float32)
 
         if len(seq) > 0:
-            if hasattr(seq[0],'device'): # if it has a device at all, it will be cuda (CPU numpy array has no dev
+            if hasattr(
+                seq[0], "device"
+            ):  # if it has a device at all, it will be cuda (CPU numpy array has no dev
                 seq = [subseq.cpu().detach().numpy() for subseq in seq]
 
             z[(np.arange(len(seq)) * self.nalphabet + seq)] = 1
@@ -353,8 +390,8 @@ class AptamerSeq:
             parents = []
             actions = []
             for idx, a in enumerate(self.action_space):
-                if seq[-len(a):] == list(a):
-                    parents.append(self.seq2obs(seq[:-len(a)]))
+                if seq[-len(a) :] == list(a):
+                    parents.append(self.seq2obs(seq[: -len(a)]))
                     actions.append(idx)
         return parents, actions
 
@@ -482,7 +519,9 @@ class GFlowNetAgent:
         self.tau = args.gflownet.bootstrap_tau
         self.ema_alpha = 0.5
         self.early_stopping = 0.05
-        self.reward_beta = args.gflownet.reward_beta
+        self.reward_beta = args.gflownet.reward_beta_init
+        self.reward_beta_mult = args.gflownet.reward_beta_mult
+        self.reward_beta_period = args.gflownet.reward_beta_period
         # Comet
         if args.gflownet.comet.project:
             self.comet = Experiment(
@@ -506,7 +545,7 @@ class GFlowNetAgent:
             proxy=proxy,
             allow_backward=False,
             debug=self.debug,
-            reward_beta = self.reward_beta
+            reward_beta=self.reward_beta,
         )
         self.envs = [
             AptamerSeq(
@@ -518,7 +557,7 @@ class GFlowNetAgent:
                 proxy=proxy,
                 allow_backward=False,
                 debug=self.debug,
-                reward_beta = self.reward_beta
+                reward_beta=self.reward_beta,
             )
             for _ in range(args.gflownet.mbsize)
         ]
@@ -532,7 +571,9 @@ class GFlowNetAgent:
         if args.gflownet.model_ckpt and "workdir" in args:
             if "workdir" in args:
                 if (Path(args.workdir) / "ckpts").exists():
-                    self.model_path = Path(args.workdir) / "ckpts" / args.gflownet.model_ckpt
+                    self.model_path = (
+                        Path(args.workdir) / "ckpts" / args.gflownet.model_ckpt
+                    )
                 else:
                     self.model_path = Path(args.workdir) / args.gflownet.model_ckpt
             else:
@@ -586,7 +627,7 @@ class GFlowNetAgent:
                             print("Action could not be sampled from model!")
                 seq, valid = env.step(action)
                 if len(seq) > 0:
-                    if hasattr(seq[0], 'device'): # if it has a device, it's on cuda
+                    if hasattr(seq[0], "device"):  # if it has a device, it's on cuda
                         seq = [subseq.cpu().detach().numpy() for subseq in seq]
                 if valid:
                     parents, parents_a = env.parent_transitions(seq, action)
@@ -664,11 +705,11 @@ class GFlowNetAgent:
             torch.arange(parents.shape[0]), actions.long()
         ]
 
-        if self.device.type == 'cuda':
+        if self.device.type == "cuda":
             in_flow = torch.log(
-                torch.zeros((sp.shape[0],)).cuda().index_add_(
-                    0, batch_idxs, torch.exp(parents_Qsa)
-                )
+                torch.zeros((sp.shape[0],))
+                .cuda()
+                .index_add_(0, batch_idxs, torch.exp(parents_Qsa))
             )
         else:
             in_flow = torch.log(
@@ -697,10 +738,7 @@ class GFlowNetAgent:
             for a, b in zip(self.model.parameters(), self.target.parameters()):
                 b.data.mul_(1 - self.tau).add_(self.tau * a)
 
-        if self.debug and not torch.isfinite(loss):
-            raise ValueError("Loss is NaN: terminating experiment")
-        else:
-            return loss, term_loss, flow_loss
+        return loss, term_loss, flow_loss
 
     def train(self):
 
@@ -711,7 +749,7 @@ class GFlowNetAgent:
         loss_ema = -1.0
 
         # Train loop
-        for i in tqdm(range(self.n_train_steps + 1)):#, disable=not self.progress):
+        for i in tqdm(range(self.n_train_steps + 1)):  # , disable=not self.progress):
             data = []
             for j in range(self.sttr):
                 data += self.sample_many()
@@ -719,7 +757,19 @@ class GFlowNetAgent:
                 losses = self.learn_from(
                     i * self.ttsr + j, data
                 )  # returns (opt loss, *metrics)
-                if losses is not None:
+                if not all([torch.isfinite(loss) for loss in losses]):
+                    if self.debug:
+                        print(
+                            "Loss is NaN: Skipping backward pass and increasing reward temperature from -{:.4f} to -{:.4f}".format(
+                                self.reward_beta,
+                                self.reward_beta / self.reward_beta_mult,
+                            )
+                        )
+                    self.reward_beta /= self.reward_beta_mult
+                    for env in [self.env] + self.envs:
+                        env.reward_beta = self.reward_beta
+                    all_losses.append([loss for loss in all_losses[-1]])
+                else:
                     losses[0].backward()
                     if self.clip_grad_norm > 0:
                         torch.nn.utils.clip_grad_norm_(
@@ -728,13 +778,25 @@ class GFlowNetAgent:
                     self.opt.step()
                     self.opt.zero_grad()
                     all_losses.append([i.item() for i in losses])
+            # Reward beta scaling
+            if not i % self.reward_beta_period and i > 0:
+                if self.debug:
+                    print(
+                        "\tDecreasing reward temperature from -{:.4f} to -{:.4f}".format(
+                            self.reward_beta, self.reward_beta * self.reward_beta_mult
+                        )
+                    )
+                self.reward_beta *= self.reward_beta_mult
+                for env in [self.env] + self.envs:
+                    env.reward_beta = self.reward_beta
+            # Log
             if self.lightweight:
                 all_losses = all_losses[-100:]
                 all_visited = [
-                        tuple(self.env.obs2seq(d[3][0].tolist()))
-                        for d in data
-                        if bool(d[4].item())
-                        ]
+                    tuple(self.env.obs2seq(d[3][0].tolist()))
+                    for d in data
+                    if bool(d[4].item())
+                ]
 
             else:
                 all_visited.extend(
@@ -744,17 +806,26 @@ class GFlowNetAgent:
                         if bool(d[4].item())
                     ]
                 )
-            # Log
             rewards = [d[2][0].item() for d in data if bool(d[4].item())]
             if self.comet:
-                self.comet.log_metric("mean_reward", np.mean(rewards), step=i)
-                self.comet.log_metric("max_reward", np.max(rewards), step=i)
-            if not i % 100 and not self.lightweight:
-                empirical_distrib_losses.append(
-                    compute_empirical_distribution_error(
-                        self.env, all_visited[-self.num_empirical_loss :]
-                    )
+                self.comet.log_metrics(
+                    dict(
+                        zip(
+                            ["mean_reward", "max_reward", "reward_beta"],
+                            [np.mean(rewards), np.max(rewards), self.reward_beta],
+                        )
+                    ),
+                    step=i,
                 )
+            if not i % 100:
+                if not self.lightweight:
+                    empirical_distrib_losses.append(
+                        compute_empirical_distribution_error(
+                            self.env, all_visited[-self.num_empirical_loss :]
+                        )
+                    )
+                else:
+                    empirical_distrib_losses.append((None, None))
                 if self.progress:
                     k1, kl = empirical_distrib_losses[-1]
                     if self.debug:
@@ -799,12 +870,7 @@ class GFlowNetAgent:
             self.comet.end()
 
     def sample(self, n_samples, horizon, nalphabet, proxy):
-        envs = [
-            AptamerSeq(
-                horizon, nalphabet, proxy=proxy
-            )
-            for i in range(n_samples)
-        ]
+        envs = [AptamerSeq(horizon, nalphabet, proxy=proxy) for i in range(n_samples)]
 
         batch = np.zeros((n_samples, horizon))
         for idx, env in enumerate(tqdm(envs)):
@@ -819,22 +885,21 @@ class GFlowNetAgent:
                         print("Action could not be sampled from model!")
                 seq, valid = env.step(action)
             batch[idx, :] = env.seq2oracle([seq])
-        energies, uncertainties = env.proxy(batch, 'Both')
+        energies, uncertainties = env.proxy(batch, "Both")
         samples = {
-                'samples': batch.astype(np.int64),
-                'scores': energies,
-                'energies': energies,
-                'uncertainties': uncertainties,
+            "samples": batch.astype(np.int64),
+            "scores": energies,
+            "energies": energies,
+            "uncertainties": uncertainties,
         }
         # Sanity-check: absolute zero pad
         zeros = np.where(batch == 0)
         row_unique, row_unique_idx = np.unique(zeros[0], return_index=True)
-        for row, idx in zip(row_unique, row_unique_idx): 
-            if np.sum(batch[row, zeros[1][idx]:]):
+        for row, idx in zip(row_unique, row_unique_idx):
+            if np.sum(batch[row, zeros[1][idx] :]):
                 print(f"Found sequence with positive values after last 0, row {row}")
                 import ipdb; ipdb.set_trace()
         return samples
-
 
 
 class RandomTrajAgent:
@@ -882,10 +947,14 @@ def make_opt(params, args):
         return None
     if args.gflownet.opt == "adam":
         opt = torch.optim.Adam(
-            params, args.gflownet.learning_rate, betas=(args.gflownet.adam_beta1, args.gflownet.adam_beta2)
+            params,
+            args.gflownet.learning_rate,
+            betas=(args.gflownet.adam_beta1, args.gflownet.adam_beta2),
         )
     elif args.gflownet.opt == "msgd":
-        opt = torch.optim.SGD(params, args.gflownet.learning_rate, momentum=args.gflownet.momentum)
+        opt = torch.optim.SGD(
+            params, args.gflownet.learning_rate, momentum=args.gflownet.momentum
+        )
     return opt
 
 
@@ -927,7 +996,7 @@ if __name__ == "__main__":
     if "workdir" in config:
         if not Path(config.workdir).exists():
             Path(config.workdir).mkdir(parents=True, exist_ok=False)
-        with open(config.workdir + '/config.yml', 'w') as f:
+        with open(config.workdir + "/config.yml", "w") as f:
             yaml.dump(numpy2python(namespace2dict(config)), f, default_flow_style=False)
     torch.set_num_threads(1)
     main(config)
