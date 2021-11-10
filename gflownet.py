@@ -605,43 +605,43 @@ class GFlowNetAgent:
             Mini-batch size
         """
         batch = []
-        for env in self.envs:
-            env = env.reset()
-            while not env.done:
-                with torch.no_grad():
-                    action_probs = self.model(tf(env.seq2obs()))
-                    if all(torch.isfinite(action_probs)):
-                        action = Categorical(logits=action_probs).sample()
-                    else:
-                        action = np.random.permutation(np.arange(len(action_probs)))[0]
-                        if self.debug:
-                            print("Action could not be sampled from model!")
-                seq, valid = env.step(action)
-                if len(seq) > 0:
-                    if hasattr(seq[0], "device"):  # if it has a device, it's on cuda
-                        seq = [subseq.cpu().detach().numpy() for subseq in seq]
-                if valid:
-                    parents, parents_a = env.parent_transitions(seq, action)
-                    if self.batch_reward:
-                        batch.append(
-                            [
-                                tf(parents),
-                                tf(parents_a),
-                                seq,
-                                tf([env.seq2obs()]),
-                                env.done,
-                            ]
-                        )
-                    else:
-                        batch.append(
-                            [
-                                tf(parents),
-                                tf(parents_a),
-                                tf([env.reward([seq])[0]]),
-                                tf([env.seq2obs()]),
-                                tf([env.done]),
-                            ]
-                        )
+        envs = [env.reset() for env in self.envs]
+        seq_idx, seq, done = zip(*[(idx, env.seq2obs(), env.done) for idx, env in enumerate(env)])
+        while not all(done):
+            with torch.no_grad():
+                action_probs = self.model(tf(seq))
+                if all(torch.isfinite(action_probs)):
+                    action = Categorical(logits=action_probs).sample()
+                else:
+                    action = np.random.permutation(np.arange(len(action_probs)))[0]
+                    if self.debug:
+                        print("Action could not be sampled from model!")
+            seq, valid = env.step(action)
+            if len(seq) > 0:
+                if hasattr(seq[0], "device"):  # if it has a device, it's on cuda
+                    seq = [subseq.cpu().detach().numpy() for subseq in seq]
+            if valid:
+                parents, parents_a = env.parent_transitions(seq, action)
+                if self.batch_reward:
+                    batch.append(
+                        [
+                            tf(parents),
+                            tf(parents_a),
+                            seq,
+                            tf([env.seq2obs()]),
+                            env.done,
+                        ]
+                    )
+                else:
+                    batch.append(
+                        [
+                            tf(parents),
+                            tf(parents_a),
+                            tf([env.reward([seq])[0]]),
+                            tf([env.seq2obs()]),
+                            tf([env.done]),
+                        ]
+                    )
         if self.batch_reward:
             parents, parents_a, seq, obs, done = zip(*batch)
             rewards = env.reward_batch(seq, done)
