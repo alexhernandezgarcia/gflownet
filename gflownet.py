@@ -94,6 +94,13 @@ def add_args(parser):
     )
     args2config.update({"reward_beta_init": ["gflownet", "reward_beta_init"]})
     parser.add_argument(
+        "--reward_max",
+        default=1e6,
+        type=float,
+        help="Max reward to prevent numerical issues",
+    )
+    args2config.update({"reward_max": ["gflownet", "reward_max"]})
+    parser.add_argument(
         "--reward_beta_mult",
         default=1.25,
         type=float,
@@ -515,6 +522,7 @@ class GFlowNetAgent:
         self.reward_beta_period = args.gflownet.reward_beta_period
         if self.reward_beta_period in [None, -1]:
             self.reward_beta_period = np.inf
+        self.reward_max = args.gflownet.reward_max
         # Comet
         if args.gflownet.comet.project:
             self.comet = Experiment(
@@ -755,14 +763,16 @@ class GFlowNetAgent:
             for j in range(self.sttr):
                 batch, times = self.sample_many()
                 data += batch
+            rewards = [d[2][0].item() for d in data if bool(d[4].item())]
+            energies = self.env.reward2energy(rewards)
             for j in range(self.ttsr):
                 losses = self.learn_from(
                     i * self.ttsr + j, data
                 )  # returns (opt loss, *metrics)
-                if not all([torch.isfinite(loss) for loss in losses]):
+                if not all([torch.isfinite(loss) for loss in losses]) or np.max(rewards) > self.reward_max:
                     if self.debug:
                         print(
-                            "Loss is NaN: Skipping backward pass and increasing reward temperature from -{:.4f} to -{:.4f} and cancelling beta scheduling".format(
+                            "Too large rewards: Skipping backward pass, increasing reward temperature from -{:.4f} to -{:.4f} and cancelling beta scheduling".format(
                                 self.reward_beta,
                                 self.reward_beta / self.reward_beta_mult,
                             )
@@ -804,8 +814,6 @@ class GFlowNetAgent:
 
             else:
                 all_visited.extend(seqs_batch)
-            rewards = [d[2][0].item() for d in data if bool(d[4].item())]
-            energies = self.env.reward2energy(rewards)
             if self.comet:
                 self.comet.log_metrics(
                     dict(

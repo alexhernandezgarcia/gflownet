@@ -281,6 +281,13 @@ def add_args(parser):
     )
     args2config.update({"reward_beta_init": ["gflownet", "reward_beta_init"]})
     parser.add_argument(
+        "--reward_max",
+        default=1e6,
+        type=float,
+        help="Max reward to prevent numerical issues",
+    )
+    args2config.update({"reward_max": ["gflownet", "reward_max"]})
+    parser.add_argument(
         "--reward_beta_mult",
         default=1.25,
         type=float,
