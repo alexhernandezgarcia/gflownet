@@ -839,6 +839,7 @@ class GFlowNetAgent:
                                 "mean_energy",
                                 "min_energy",
                                 "mean_seq_length",
+                                "batch_size",
                                 "reward_beta",
                             ],
                             [
@@ -847,6 +848,7 @@ class GFlowNetAgent:
                                 np.mean(energies),
                                 np.min(energies),
                                 np.mean([len(seq) for seq in seqs_batch]),
+                                len(data),
                                 self.reward_beta,
                             ],
                         )
