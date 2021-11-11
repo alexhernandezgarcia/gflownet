@@ -61,6 +61,8 @@ def add_args(parser):
     args2config.update({"debug": ["debug"]})
     parser.add_argument("--model_ckpt", default=None, type=str)
     args2config.update({"model_ckpt": ["gflownet", "model_ckpt"]})
+    parser.add_argument("--ckpt_period", default=None, type=int)
+    args2config.update({"ckpt_period": ["gflownet", "ckpt_period"]})
     # Training hyperparameters
     parser.add_argument(
         "--early_stopping",
@@ -534,6 +536,9 @@ class GFlowNetAgent:
                 else:
                     self.comet.add_tag(args.gflownet.comet.tags)
             self.comet.log_parameters(vars(args))
+            if "workdir" in args and Path(args.workdir).exists():
+                with open(Path(args.workdir) / "comet.url", "w") as f:
+                    f.write(self.comet.url + "\n")
         else:
             self.comet = None
         # Environment
@@ -583,6 +588,9 @@ class GFlowNetAgent:
                 self.model.load_state_dict(torch.load(self.model_path))
         else:
             self.model_path = None
+        self.ckpt_period = args.gflownet.ckpt_period
+        if self.ckpt_period in [None, -1]:
+            self.ckpt_period = np.inf
         self.model.to(self.device_torch)
         self.target = copy.deepcopy(self.model)
         # Training
@@ -777,7 +785,9 @@ class GFlowNetAgent:
                 ):
                     if self.debug:
                         print(
-                            "Too large rewards: Skipping backward pass, increasing reward temperature from -{:.4f} to -{:.4f} and cancelling beta scheduling".format(
+                            "Too large rewards: Skipping backward pass, increasing "
+                            "reward temperature from -{:.4f} to -{:.4f} and cancelling "
+                            "beta scheduling".format(
                                 self.reward_beta,
                                 self.reward_beta / self.reward_beta_mult,
                             )
@@ -877,6 +887,14 @@ class GFlowNetAgent:
                         self.comet.log_metric(
                             "unique_states", np.unique(all_visited).shape[0], step=i
                         )
+                # Save intermediate model
+            if not i % self.ckpt_period and self.model_path:
+                path = self.model_path.parent / Path(
+                    self.model_path.stem
+                    + "_iter{:06d}".format(i)
+                    + self.model_path.suffix
+                )
+                torch.save(self.model.state_dict(), path)
             # Moving average of the loss for early stopping
             if loss_ema > 0:
                 loss_ema = (
@@ -892,9 +910,12 @@ class GFlowNetAgent:
             times.update({"iter": t1_iter - t0_iter})
             times = {"time_{}".format(k): v for k, v in times.items()}
             self.comet.log_metrics(times, step=i)
-        # Save model
+        # Save final model
         if self.model_path:
-            torch.save(self.model.state_dict(), self.model_path)
+            path = self.model_path.parent / Path(
+                self.model_path.stem + "_final" + self.model_path.suffix
+            )
+            torch.save(self.model.state_dict(), path)
 
         # Close comet
         if self.comet:
@@ -1020,12 +1041,14 @@ def main(args):
 
 
 if __name__ == "__main__":
-    # Handle command line arguments and configuration
     parser = ArgumentParser()
     _, override_args = parser.parse_known_args()
     parser, args2config = add_args(parser)
     args = parser.parse_args()
     config = get_config(args, override_args, args2config)
+    print("Config file: " + config.yaml_config)
+    print("Working dir: " + config.workdir)
+    print("Config:\n" + "\n".join([f"    {k:20}: {v}" for k, v in vars(config.gflownet).items()]))
     if "workdir" in config:
         if not Path(config.workdir).exists():
             Path(config.workdir).mkdir(parents=True, exist_ok=False)
