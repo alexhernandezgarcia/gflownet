@@ -615,10 +615,10 @@ class GFlowNetAgent:
             Mini-batch size
         """
         times = {
-            "all": 0.,
-            "actions_model": 0.,
-            "actions_envs": 0.,
-            "rewards": 0.,
+            "all": 0.0,
+            "actions_model": 0.0,
+            "actions_envs": 0.0,
+            "rewards": 0.0,
         }
         t0_all = time.time()
         batch = []
@@ -629,11 +629,13 @@ class GFlowNetAgent:
                 t0_a_model = time.time()
                 action_probs = self.model(tf(seqs))
                 t1_a_model = time.time()
-                times["actions_model"] += (t1_a_model - t0_a_model)
+                times["actions_model"] += t1_a_model - t0_a_model
                 if all(torch.isfinite(action_probs).flatten()):
                     actions = Categorical(logits=action_probs).sample()
                 else:
-                    actions = np.random.randint(low=0, high=action_probs.shape[1], size=action_probs.shape[0])
+                    actions = np.random.randint(
+                        low=0, high=action_probs.shape[1], size=action_probs.shape[0]
+                    )
                     if self.debug:
                         print("Action could not be sampled from model!")
             t0_a_envs = time.time()
@@ -652,17 +654,17 @@ class GFlowNetAgent:
                     )
             envs = [env for env in envs if not env.done]
             t1_a_envs = time.time()
-            times["actions_envs"] += (t1_a_envs - t0_a_envs)
+            times["actions_envs"] += t1_a_envs - t0_a_envs
         parents, parents_a, seqs, obs, done = zip(*batch)
         t0_rewards = time.time()
         rewards = env.reward_batch(seqs, done)
         t1_rewards = time.time()
-        times["rewards"] += (t1_rewards - t0_rewards)
+        times["rewards"] += t1_rewards - t0_rewards
         rewards = [tf([r]) for r in rewards]
         done = [tf([d]) for d in done]
         batch = list(zip(parents, parents_a, rewards, obs, done))
         t1_all = time.time()
-        times["all"] += (t1_all - t0_all)
+        times["all"] += t1_all - t0_all
         return batch, times
 
     def learn_from(self, it, batch):
@@ -769,7 +771,10 @@ class GFlowNetAgent:
                 losses = self.learn_from(
                     i * self.ttsr + j, data
                 )  # returns (opt loss, *metrics)
-                if not all([torch.isfinite(loss) for loss in losses]) or np.max(rewards) > self.reward_max:
+                if (
+                    not all([torch.isfinite(loss) for loss in losses])
+                    or np.max(rewards) > self.reward_max
+                ):
                     if self.debug:
                         print(
                             "Too large rewards: Skipping backward pass, increasing reward temperature from -{:.4f} to -{:.4f} and cancelling beta scheduling".format(
