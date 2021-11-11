@@ -297,7 +297,7 @@ class AptamerSeq:
         """
         Converts a "GFlowNet reward" into energy as returned by an oracle.
         """
-        return -np.log(reward) * self.reward_beta
+        return -np.log(reward) / self.reward_beta
 
     def seq2obs(self, seq=None):
         """
