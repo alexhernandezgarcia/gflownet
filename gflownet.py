@@ -647,6 +647,7 @@ class GFlowNetAgent:
                     if self.debug:
                         print("Action could not be sampled from model!")
             t0_a_envs = time.time()
+            assert len(envs) == actions.shape[0]
             for env, action in zip(envs, actions):
                 seq, valid = env.step(action)
                 if valid:
@@ -924,23 +925,50 @@ class GFlowNetAgent:
         if self.comet:
             self.comet.end()
 
-    def sample(self, n_samples, horizon, nalphabet, proxy):
-        envs = [AptamerSeq(horizon, nalphabet, proxy=proxy) for i in range(n_samples)]
-
-        batch = np.zeros((n_samples, horizon))
-        for idx, env in enumerate(tqdm(envs)):
-            env = env.reset()
-            while not env.done:
-                with torch.no_grad():
-                    action_probs = self.model(tf(env.seq2obs()))
-                    if all(torch.isfinite(action_probs)):
-                        action = Categorical(logits=action_probs).sample()
-                    else:
-                        action = np.random.permutation(np.arange(len(action_probs)))[0]
+    def sample(self, n_samples, horizon, nalphabet, min_word_len, max_word_len, proxy):
+        times = {
+            "all": 0.0,
+            "actions_model": 0.0,
+            "actions_envs": 0.0,
+            "proxy": 0.0,
+            "sanitycheck": 0.0,
+        }
+        t0_all = time.time()
+        batch = []
+        envs = [
+            AptamerSeq(horizon, nalphabet, min_word_len, max_word_len, proxy=proxy)
+            for i in range(n_samples)
+        ]
+        envs = [env.reset() for env in envs]
+        while envs:
+            seqs = [env.seq2obs() for env in envs]
+            with torch.no_grad():
+                t0_a_model = time.time()
+                action_probs = self.model(tf(seqs))
+                t1_a_model = time.time()
+                times["actions_model"] += t1_a_model - t0_a_model
+                if all(torch.isfinite(action_probs).flatten()):
+                    actions = Categorical(logits=action_probs).sample()
+                else:
+                    actions = np.random.randint(
+                        low=0, high=action_probs.shape[1], size=action_probs.shape[0]
+                    )
+                    if self.debug:
                         print("Action could not be sampled from model!")
+            t0_a_envs = time.time()
+            assert len(envs) == actions.shape[0]
+            for env, action in zip(envs, actions):
                 seq, valid = env.step(action)
-            batch[idx, :] = env.seq2oracle([seq])
+                if valid and env.done:
+                    batch.append(env.seq2oracle([seq])[0])
+            envs = [env for env in envs if not env.done]
+            t1_a_envs = time.time()
+            times["actions_envs"] += t1_a_envs - t0_a_envs
+        t0_proxy = time.time()
+        batch = np.asarray(batch)
         energies, uncertainties = env.proxy(batch, "Both")
+        t1_proxy = time.time()
+        times["proxy"] += t1_proxy - t0_proxy
         samples = {
             "samples": batch.astype(np.int64),
             "scores": energies,
@@ -948,6 +976,7 @@ class GFlowNetAgent:
             "uncertainties": uncertainties,
         }
         # Sanity-check: absolute zero pad
+        t0_sanitycheck = time.time()
         zeros = np.where(batch == 0)
         row_unique, row_unique_idx = np.unique(zeros[0], return_index=True)
         for row, idx in zip(row_unique, row_unique_idx):
@@ -956,7 +985,11 @@ class GFlowNetAgent:
                 import ipdb
 
                 ipdb.set_trace()
-        return samples
+        t1_sanitycheck = time.time()
+        times["sanitycheck"] += t1_sanitycheck - t0_sanitycheck
+        t1_all = time.time()
+        times["all"] += t1_all - t0_all
+        return samples, times
 
 
 class RandomTrajAgent:
@@ -1051,7 +1084,10 @@ if __name__ == "__main__":
     config = get_config(args, override_args, args2config)
     print("Config file: " + config.yaml_config)
     print("Working dir: " + config.workdir)
-    print("Config:\n" + "\n".join([f"    {k:20}: {v}" for k, v in vars(config.gflownet).items()]))
+    print(
+        "Config:\n"
+        + "\n".join([f"    {k:20}: {v}" for k, v in vars(config.gflownet).items()])
+    )
     if "workdir" in config:
         if not Path(config.workdir).exists():
             Path(config.workdir).mkdir(parents=True, exist_ok=False)

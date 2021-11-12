@@ -171,9 +171,10 @@ class Querier():
             tf = time.time()
             printRecord('Training GFlowNet took {} seconds'.format(int(tf-t0)))
             t0 = time.time()
-            outputs = gflownet.sample(
+            outputs, times = gflownet.sample(
                     self.config.gflownet.n_samples, self.config.dataset.max_length,
-                    self.config.dataset.dict_size, model.evaluate
+                    self.config.dataset.dict_size, self.config.gflownet.min_word_len, 
+                    self.config.gflownet.max_word_len, model.evaluate
             )
             tf = time.time()
             printRecord('Sampling {} samples from GFlowNet took {} seconds'.format(self.config.gflownet.n_samples, int(tf-t0)))
