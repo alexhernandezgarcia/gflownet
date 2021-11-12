@@ -918,6 +918,7 @@ class GFlowNetAgent:
                 self.model_path.stem + "_final" + self.model_path.suffix
             )
             torch.save(self.model.state_dict(), path)
+            torch.save(self.model.state_dict(), self.model_path)
 
         # Close comet
         if self.comet:
