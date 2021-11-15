@@ -449,6 +449,8 @@ if __name__ == "__main__":
         printRecord("Initialized!")
     elif config.al.mode == "training":
         al.runPipeline()
+    elif config.al.mode == "test_rl":
+        al.agent.train_from_file()
     elif config.al.mode == "evaluation":
         ValueError(
             "No function for this! Write a function to load torch models and evaluate inputs."
