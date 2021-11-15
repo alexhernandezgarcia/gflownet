@@ -516,7 +516,7 @@ def filterOutputs(outputs, additionalEntries=None):
         "energies": energies[filteredInds],
         "uncertainties": uncertainties[filteredInds],
     }
-
+    printRecord('Sampler outputs after filtering - best energy = {}'.format(np.amin(energies)))
     return filteredOutputs
 
 
