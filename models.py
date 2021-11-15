@@ -232,6 +232,29 @@ class modelNet():
             elif output == 'Both':
                 return np.average(out,axis=1) * self.std + self.mean, np.var(out * self.std,axis=1)
 
+    def raw(self, Data, output="Average"):
+        '''
+        evaluate the model
+        output types - if "Average" return the average of ensemble predictions
+            - if 'Variance' return the variance of ensemble predictions
+        # future upgrade - isolate epistemic uncertainty from intrinsic randomness
+        :param Data: input data
+        :return: model scores
+        '''
+        if self.config.device == 'cuda':
+            Data = torch.Tensor(Data).cuda().float()
+        else:
+            Data = torch.Tensor(Data).float()
+
+        self.model.train(False)
+        with torch.no_grad():  # we won't need gradients! no training just testing
+            out = self.model(Data).cpu().detach().numpy()
+            if output == 'Average':
+                return np.average(out,axis=1)
+            elif output == 'Variance':
+                return np.var(out,axis=1)
+            elif output == 'Both':
+                return np.average(out,axis=1), np.var(out,axis=1)
 
     def loadEnsemble(self,models):
         '''
@@ -391,8 +414,8 @@ class LSTM(nn.Module):
         super(LSTM,self).__init__()
         # initialize constants and layers
 
-        self.embedding = nn.Embedding(2, embedding_dim = config.proxy.embedding_dim)
-        self.encoder = nn.LSTM(input_size=config.proxy.embedding_dim,hidden_size=config.proxy.width,num_layers=config.proxy.n_layers)
+        self.embedding = nn.Embedding(2, embedding_dim = config.proxy.width)
+        self.encoder = nn.LSTM(input_size=config.proxy.width,hidden_size=config.proxy.width,num_layers=config.proxy.n_layers)
         self.decoder = nn.Linear((config.proxy.width), 1)
 
     def forward(self, x):

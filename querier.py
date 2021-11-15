@@ -30,7 +30,6 @@ class Querier():
         :param sampleDict:
         :return:
         """
-        # TODO upgrade sampler
 
         if action is not None:
             self.updateHyperparams(action)
@@ -54,7 +53,7 @@ class Querier():
                 '''
 
                 # generate candidates
-                if self.config.al.query_mode == 'energy':
+                if (self.config.al.query_mode == 'energy') and (self.config.al.sample_method == 'mcmc'): # we already do energy based sampling with mcmc to generate the model state
                     self.sampleDict = energySampleDict
                 else:
                     self.sampleDict = self.sampleForQuery(model, statusDict['iter'])
@@ -135,42 +134,57 @@ class Querier():
 
         return sampleDict
 
-    def runSampling(self, model, scoreFunction, seedInd, useOracle=False):
+    def runSampling(self, model, scoreFunction, seedInd, useOracle=False, method_overwrite = False):
         """
         run MCMC or GFlowNet sampling
         :return:
         """
-        if self.method.lower() == "mcmc":
+        if not method_overwrite:
+            method = self.method
+        else:
+            method = method_overwrite
+
+        if method.lower() == "mcmc":
             gammas = np.logspace(self.config.mcmc.stun_min_gamma, self.config.mcmc.stun_max_gamma, self.config.mcmc.num_samplers)
             self.mcmcSampler = Sampler(self.config, seedInd, scoreFunction, gammas)
             samples = self.mcmcSampler.sample(model, useOracle=useOracle)
             outputs = samples2dict(samples)
-        elif self.method.lower() == "gflownet":
-            # TODO: instead of initializing gflownet from scratch, we could retrain it?
-            # MK if it's fast, it might be best to train from scratch, since models may drastically change iteration-over-iteration,
-            # and we want the gflownet to represent the current models, in general, though it's not impossible we may want to incorporate
-            # information from prior iterations for some reason
-            # TODO add optional post-sample annealing
-            gflownet = GFlowNetAgent(self.config, proxy=model.evaluate)
+
+        elif method.lower() == "random":
+            samples = generateRandomSamples(10000, [self.config.dataset.min_length,self.config.dataset.max_length], self.config.dataset.dict_size, variableLength = self.config.dataset.variable_length, oldDatasetPath = 'datasets/' + self.config.dataset.oracle + '.npy')
+            energies, uncertainties = model.evaluate(samples,output="Both")
+            scores = energies * scoreFunction[0] - scoreFunction[1] * np.asarray(np.sqrt(uncertainties))
+            outputs = {
+                'samples': samples,
+                'energies': energies,
+                'uncertainties': uncertainties,
+                'scores':scores
+            }
+            if self.config.gflownet.annealing:
+                outputs = self.doAnnealing(scoreFunction, model, outputs)
+
+        elif method.lower() == "gflownet":
+            gflownet = GFlowNetAgent(self.config, proxy=model.raw)
 
             t0 = time.time()
             gflownet.train()
             tf = time.time()
             printRecord('Training GFlowNet took {} seconds'.format(int(tf-t0)))
             t0 = time.time()
-            outputs = gflownet.sample(
+            outputs, times = gflownet.sample(
                     self.config.gflownet.n_samples, self.config.dataset.max_length,
-                    self.config.dataset.dict_size, model.evaluate
+                    self.config.dataset.dict_size, self.config.gflownet.min_word_len, 
+                    self.config.gflownet.max_word_len, model.evaluate
             )
             tf = time.time()
             printRecord('Sampling {} samples from GFlowNet took {} seconds'.format(self.config.gflownet.n_samples, int(tf-t0)))
             outputs = filterOutputs(outputs)
 
             if self.config.gflownet.annealing:
-                self.doAnnealing(scoreFunction, model, outputs)
+                outputs = self.doAnnealing(scoreFunction, model, outputs)
 
         else:
-            raise NotImplemented("method can be either mcmc or gflownet")
+            raise NotImplemented("method can be either mcmc or gflownet or random")
 
         return outputs
 
@@ -178,9 +192,9 @@ class Querier():
     def doAnnealing(self, scoreFunction, model, outputs):
         t0 = time.time()
         initConfigs = outputs['samples'][np.argsort(outputs['scores'])]
-        initConfigs = initConfigs[0:self.config.post_annealing_samples]
+        initConfigs = initConfigs[0:self.config.gflownet.post_annealing_samples]
 
-        annealer = Sampler(self.params, 1, scoreFunction, gammas=np.arange(len(initConfigs)))  # the gamma is a dummy
+        annealer = Sampler(self.config, 1, scoreFunction, gammas=np.arange(len(initConfigs)))  # the gamma is a dummy
         annealedOutputs = annealer.postSampleAnnealing(initConfigs, model)
 
         filteredOutputs = filterOutputs(outputs, additionalEntries = annealedOutputs)

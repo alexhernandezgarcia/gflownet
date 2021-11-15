@@ -1,11 +1,11 @@
 # General
 test_mode: False
 debug: True
-run_num: 0
+run_num: 0 
 explicit_run_enumeration: True
 machine: "cluster"
 device: "cpu"
-workdir: !!null
+workdir: "/home/kilgourm/scratch/learnerruns"
 # Seeds
 seeds:
   sampler: 0
@@ -14,7 +14,7 @@ seeds:
   toy_oracle: 0
 # Dataset
 dataset:
-  oracle: "linear"
+  oracle: "nupack"
   type: "toy"
   init_length: 100
   dict_size: 4
@@ -24,10 +24,10 @@ dataset:
   sample_tasks: 1
 # AL
 al:
-  sample_method: "gflownet"
+  sample_method: "mcmc"
   query_mode: "energy"
   hyperparams_learning: False
-  n_iter: 10
+  n_iter: 20
   query_selection: "clustering"
   minima_dist_cutoff: 0.25
   energy_uncertainty_tradeoff: 0

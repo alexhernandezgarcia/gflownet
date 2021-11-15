@@ -1,3 +1,4 @@
+
 from argparse import Namespace
 import yaml
 from models import modelNet
@@ -68,7 +69,8 @@ class ActiveLearning():
         self.reward = None
         self.terminal = None
         self.model = None
-        self.cumulativeResult = None
+        self.cumulativeReward = None
+        self.rewardList = None
         self.bottomTenLoss = None
         self.action = None
         self.trueMinimum = None
@@ -107,7 +109,6 @@ class ActiveLearning():
 
             if self.config.dataset.type == 'toy':
                 self.sampleOracle() # use the oracle to pre-solve the problem for future benchmarking
-                printRecord(f"The true global minimum is {bcolors.OKGREEN}%.3f{bcolors.ENDC}" % self.trueMinimum)
 
             self.testMinima = [] # best test loss of models, for each iteration of the pipeline
             self.bestScores = [] # best optima found by the sampler, for each iteration of the pipeline
@@ -120,16 +121,17 @@ class ActiveLearning():
                     self.terminal = 0
                 self.iterate() # run the pipeline
                 self.saveOutputs() # save pipeline outputs
-                if (self.pipeIter > 0) and (self.config.dataset.type == 'toy'):
-                    self.reportCumulativeResult()
+
             # Train Policy Network
-            self.agent.train(BATCH_SIZE=self.config.al.q_batch_size)
+            # self.agent.train(BATCH_SIZE=self.config.al.q_batch_size)
             self.policy_error = self.agent.policy_error
-            self.episode +=1
-            self.reset()
-        #torch.save({"memory":self.agent.memory.memory, "position":self.agent.memory.position}, f'{self.homedir}/memory.pt')
-        numpy.save(f'{self.workDir}/memory.npy', self.agent.memory.memory)
-        numpy.save(f'{self.workDir}/agent_error.npy', self.agent.policy_error)
+            if self.config.al.episodes > (self.episode + 1): # if we are doing multiple al episodes
+                self.reset()
+                self.episode += 1
+
+            #Save Memory for Agent architecture testing
+            #numpy.save(f'{self.workDir}/memory.npy', self.agent.memory.memory)
+            #numpy.save(f'{self.workDir}/agent_error.npy', self.agent.policy_error)
 
     def iterate(self):
         '''
@@ -188,7 +190,7 @@ class ActiveLearning():
 
         # run the sampler
         self.loadEstimatorEnsemble()
-        self.sampleDict = self.querier.runSampling(self.model, [1, 0], 1) # sample existing optima
+        self.sampleDict = self.querier.runSampling(self.model, [1, 0], 1, method_overwrite = 'mcmc') # sample existing optima - always construct model state with mcmc
         samples = self.sampleDict['samples']
         energies = self.sampleDict['energies']
         uncertainties = self.sampleDict['uncertainties']
@@ -229,6 +231,7 @@ class ActiveLearning():
                     ' with minimum energy' + bcolors.OKGREEN + ' {:.2f},'.format(np.amin(minClusterEns)) + bcolors.ENDC +
                     ' average energy' + bcolors.OKGREEN +' {:.2f},'.format(np.average(minClusterEns[:self.config.querier.model_state_size])) + bcolors.ENDC +
                     ' and average std dev' + bcolors.OKCYAN + ' {:.2f}'.format(np.average(np.sqrt(minClusterVars[:self.config.querier.model_state_size]))) + bcolors.ENDC)
+        printRecord("Best sample in model state is {}".format(numbers2letters(minClusterSamples[np.argmin(minClusterEns)])))
         printRecord('Sample average mutual distance is ' + bcolors.WARNING +'{:.2f} '.format(np.average(internalDist)) + bcolors.ENDC +
                     'dataset distance is ' + bcolors.WARNING + '{:.2f} '.format(np.average(datasetDist)) + bcolors.ENDC +
                     'and overall distance estimated at ' + bcolors.WARNING + '{:.2f}'.format(np.average(randomDist)) + bcolors.ENDC)
@@ -263,15 +266,32 @@ class ActiveLearning():
         bestRawAdjusted = bestSoFar + bestSoFarVar
         if self.pipeIter == 0:
             self.reward = 0 # first iteration - can't define a reward
-            self.prevIterBest = 0
+            self.cumulativeReward = 0
+            self.rewardList = np.zeros(self.config.al.n_iter)
+            self.prevIterBest = [bestRawAdjusted]
         else: # calculate reward using current standardization
-            stdPrevIterBest = (self.prevIterBest - self.model.mean)/self.model.std
+            stdPrevIterBest = (self.prevIterBest[-1] - self.model.mean)/self.model.std
             self.reward = -(bestStdAdjusted - stdPrevIterBest) # reward is the delta between variance-adjusted energies in the standardized basis (smaller is better)
+            self.rewardList[self.pipeIter] = self.reward
+            self.cumulativeReward = sum(self.rewardList)
+            self.prevIterBest.append(bestRawAdjusted)
 
-        printRecord('Iteration best result = {:.3f}, previous best = {:.3f}, reward = {:.3f}'.format(bestRawAdjusted, self.prevIterBest, self.reward))
+        printRecord('Iteration best uncertainty-adjusted result = {:.3f}, previous best = {:.3f}, reward = {:.3f}, cumulative reward = {:.3f}'.format(bestRawAdjusted, self.prevIterBest[-1], self.reward, self.cumulativeReward))
 
-        self.prevIterBest = bestRawAdjusted
-
+        if self.config.dataset.type == 'toy': # if it's  a toy dataset, report the cumulative performance against the known minimum
+            stdTrueMinimum = (self.trueMinimum - self.model.mean) / self.model.std
+            if self.pipeIter == 0:
+                self.tot_score_yaxis = [1 - np.abs(stdTrueMinimum - bestStdAdjusted) / np.abs(stdTrueMinimum)]
+            elif self.pipeIter > 0:
+                # we will compute the distance from our best answer to the correct answer and integrate it over the number of samples in the dataset
+                xaxis = self.config.dataset_size + np.arange(0,self.pipeIter + 1) * self.config.al.queries_per_iter # how many samples in the dataset used for each
+                self.tot_score_yaxis.append(1 - np.abs(stdTrueMinimum - bestStdAdjusted) / np.abs(stdTrueMinimum)) # compute proximity to correct answer in standardized basis
+                self.cumulativeScore = np.trapz(self.tot_score_yaxis, x=xaxis)
+                self.normedCumScore = self.cumulativeScore / xaxis[-1]
+                printRecord('Total score is {:.3f} and {:.5f} per-sample after {} samples'.format(self.tot_score_yaxis[-1], self.normedCumScore, xaxis[-1]))
+            else:
+                print('Error! Pipeline iteration cannot be negative')
+                sys.exit()
 
 
     def retrainModels(self, parallel=True):
@@ -387,17 +407,44 @@ class ActiveLearning():
         self.model = 'abc'
         gammas = np.logspace(self.config.mcmc.stun_min_gamma,self.config.mcmc.stun_max_gamma,self.config.mcmc.num_samplers)
         mcmcSampler = Sampler(self.config, 0, [1,0], gammas)
-        samples = mcmcSampler.sample(self.model, useOracle=True)
+        if (self.config.dataset.oracle == 'linear') or (self.config.dataset.oracle == 'nupack'):
+            samples = mcmcSampler.sample(self.model, useOracle=True, nIters = 100) # do a tiny number of iters - the minimum is known
+        else:
+            samples = mcmcSampler.sample(self.model, useOracle=True) # do a genuine search
+
         sampleDict = samples2dict(samples)
         if self.config.dataset.oracle == 'wmodel': # w model minimum is always zero - even if we don't find it
             bestMin = 0
         else:
             bestMin = np.amin(sampleDict['energies'])
 
+        # append suggestions for known likely solutions
+        if self.config.dataset.oracle == "linear":
+            goodSamples = np.zeros((4,self.config.dataset.max_length)) # all of one class usually best
+            goodSamples[0] = goodSamples[1] + 1
+            goodSamples[1] = goodSamples[1] + 2
+            goodSamples[2] = goodSamples[2] + 3
+            goodSamples[3] = goodSamples[3] + 4
+            ens = self.oracle.score(goodSamples)
+            if np.amin(ens) < bestMin:
+                bestMin = np.amin(ens)
+                printRecord("Pre-loaded minimum was better than one found by sampler")
+
+        elif self.config.dataset.oracle == "nupack":
+            goodSamples = np.ones((4, self.config.dataset.max_length)) * 4 # GCGC CGCG GGGCCC CCCGGG
+            goodSamples[0,0:-1:2] = 3
+            goodSamples[1,1:-1:2] = 3
+            goodSamples[2,:self.config.dataset.max_length//2] = 3
+            goodSamples[3,self.config.dataset.max_length//2:] = 3
+            ens = self.oracle.score(goodSamples)
+            if np.amin(ens) < bestMin:
+                bestMin = np.amin(ens)
+                printRecord("Pre-loaded minimum was better than one found by sampler")
+
         printRecord(f"Sampling Complete! Lowest Energy Found = {bcolors.FAIL}%.3f{bcolors.ENDC}" % bestMin + " from %d" % self.config.mcmc.num_samplers + " sampling runs.")
 
         self.oracleRecord = sampleDict
-        self.trueMinimum = np.amin(self.oracleRecord['scores'])
+        self.trueMinimum = bestMin
 
 
     def saveOutputs(self):
@@ -410,12 +457,15 @@ class ActiveLearning():
         if "comet" in outputDict['config']:
             del outputDict['config'].comet
         outputDict['state dict record'] = self.stateDictRecord
+        outputDict['rewards'] = self.rewardList
         if self.config.dataset.type == 'toy':
             outputDict['oracle outputs'] = self.oracleRecord
             outputDict['big dataset loss'] = self.totalLoss
             outputDict['bottom 10% loss'] = self.bottomTenLoss
             if self.pipeIter > 1:
-                outputDict['cumulative performance'] = self.cumulativeResult
+                outputDict['score record'] = self.tot_score_yaxis
+                outputDict['cumulative score'] = self.cumulativeScore,
+                outputDict['per sample cumulative score'] = self.normedCumScore
         np.save('outputsDict', outputDict)
 
 
@@ -491,33 +541,6 @@ class ActiveLearning():
         randomDist = binaryDistance(np.concatenate((samples,randomSamples)), self.config.dataset.dict_size, pairwise=False, extractInds=len(samples))
 
         return internalDist, datasetDist, randomDist
-
-
-    def reportCumulativeResult(self):
-        '''
-        integrate the performance curve over all iterations so far
-        :return:
-        '''
-        directory = os.getcwd()
-        plotter = resultsPlotter()
-        plotter.process(directory)
-        iterAxis = (plotter.xrange - 1) * self.config.al.queries_per_iter + self.config.dataset.init_length
-        bestEns = plotter.normedEns[:,0]
-        cumulativeScore = np.trapz(bestEns, x = iterAxis)
-        normedCumScore = cumulativeScore / (self.config.dataset_size - self.config.al.queries_per_iter) # we added to the dataset before this
-
-        printRecord('Cumulative score is {:.2f} gross and {:.5f} per-sample after {} samples'.format(cumulativeScore, normedCumScore, self.config.dataset_size - self.config.al.queries_per_iter))
-
-        results = {
-            'cumulative performance': cumulativeScore,
-            'per-sample cumulative performance': normedCumScore,
-            'dataset size': (self.config.dataset_size - self.config.al.queries_per_iter)
-        }
-
-        if self.pipeIter == 1:
-            self.cumulativeResult = [results]
-        else:
-            self.cumulativeResult.append(results)
 
 
 def trainModel(config, i):

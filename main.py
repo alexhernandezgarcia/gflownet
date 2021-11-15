@@ -3,21 +3,13 @@ This code implements an active learning protocol for global minimization of some
 
 # TODO
 ==> incorporate gFlowNet
-    -> model state calculation
     -> training and sampling print statements
-        => training performance
         => sample quality e.g., diversity, span, best scores averages, whatever
         -> print flag on gflownet convergence - epoch limit OR loss convergence
-    -> hardcode padding rules - in case it is poorly trained, it should never be able to add a base after the end of the chain
     -> iteratively resample gflownet to remove duplicates until desired sample number is reached
     -> merge gflownet oracles with standard oracle class
-    -> switch gflownet training tqdm from iters to log convergence
-    -> make sure gflownet scores are aligned with AL optimization target (minimization)
-    -> add option for test mode to slash model size and training epochs
 ==> RL training and testing
-==> add a function for tracking dataset distances and adjusting the cutoff
-==> update and test beluga requirements
-
+==> comet for key outputs (reward, toy score)
 
 low priority /long term
 ==> consider augment binary distance metric with multi-base motifs - or keep current setup (minimum single mutations)
@@ -27,7 +19,7 @@ low priority /long term
 ==> add detection for oracle.initializeDataset for if the requested number of samples is a significant fraction of the total sample space - may be faster to return full space or large fraction of all permutations
 
 known issues
-==> training parallelism hangs on iteration #2 on linux
+==> mp.pool parallelism often fails on linux
 
 """
 print("Imports...", end="")
@@ -69,6 +61,8 @@ def add_args(parser):
     args2config.update({"test_mode": ["test_mode"]})
     parser.add_argument("--debug", action="store_true", default=False)
     args2config.update({"debug": ["debug"]})
+    parser.add_argument("--no_debug", action="store_false", dest="debug", default=False)
+    args2config.update({"no_debug": ["debug"]})
     parser.add_argument("--run_num", type=int, default=0, help="Experiment ID")
     args2config.update({"run_num": ["run_num"]})
     parser.add_argument(
@@ -151,7 +145,7 @@ def add_args(parser):
     )
     args2config.update({"variable_sample_length": ["dataset", "variable_length"]})
     parser.add_argument("--min_sample_length", type=int, default=10)
-    args2config.update({"min_sample_length": ["dataset" "min_length"]})
+    args2config.update({"min_sample_length": ["dataset", "min_length"]})
     parser.add_argument("--max_sample_length", type=int, default=40)
     args2config.update({"max_sample_length": ["dataset", "max_length"]})
     parser.add_argument(
@@ -163,7 +157,10 @@ def add_args(parser):
     args2config.update({"sample_tasks": ["dataset", "sample_tasks"]})
     # AL
     parser.add_argument(
-        "--sample_method", type=str, default="gflownet", help="'mcmc', 'gflownet'"
+        "--sample_method",
+        type=str,
+        default="gflownet",
+        help="'mcmc', 'gflownet', 'random'",
     )
     args2config.update({"sample_method": ["al", "sample_method"]})
     parser.add_argument(
@@ -209,9 +206,7 @@ def add_args(parser):
     )
     args2config.update({"mode": ["al", "mode"]})
     parser.add_argument("--q_network_width", type=int, default=10)
-    args2config.update(
-        {"q_network_width": ["al", "q_network_width"]}
-    )
+    args2config.update({"q_network_width": ["al", "q_network_width"]})
     parser.add_argument(
         "--agent_buffer_size",
         type=int,
@@ -223,9 +218,16 @@ def add_args(parser):
         "--episodes",
         type=int,
         default=1,
-        help="Episodes",
+        help="RL episodes (runs of the full AL pipeline)",
     )
     args2config.update({"episodes": ["al", "episodes"]})
+    parser.add_argument(
+        "--action_state_size",
+        type=int,
+        default=1,
+        help="number of actions RL agent can choose from",
+    )
+    args2config.update({"action_state_size": ["al", "action_state_size"]})
     parser.add_argument("--hyperparams_learning", action="store_true")
     args2config.update({"hyperparams_learning": ["al", "hyperparams_learning"]})
     # Querier
@@ -253,23 +255,63 @@ def add_args(parser):
     args2config.update({"qmodel_preload_path": ["querier", "model_ckpt"]})
 
     # GFlowNet
+    parser.add_argument(
+        "--gflownet_device", default="cpu", type=str, help="'cuda' or 'cpu'"
+    )
+    args2config.update({"gflownet_device": ["gflownet", "device"]})
     parser.add_argument("--gflownet_model_ckpt", default=None, type=str)
-    args2config.update({"gflownet_model_ckpt": ["gflownet" "model_ckpt"]})
+    args2config.update({"gflownet_model_ckpt": ["gflownet", "model_ckpt"]})
+    parser.add_argument("--gflownet_ckpt_period", default=None, type=int)
+    args2config.update({"gflownet_ckpt_period": ["gflownet", "ckpt_period"]})
     parser.add_argument("--gflownet_progress", action="store_true")
     args2config.update({"gflownet_progress": ["gflownet", "progress"]})
     parser.add_argument(
         "--gflownet_learning_rate", default=1e-4, help="Learning rate", type=float
     )
+    parser.add_argument("--gflownet_min_word_len", default=1, type=int)
+    args2config.update({"gflownet_min_word_len": ["gflownet", "min_word_len"]})
+    parser.add_argument("--gflownet_max_word_len", default=1, type=int)
+    args2config.update({"gflownet_max_word_len": ["gflownet", "max_word_len"]})
     args2config.update({"gflownet_learning_rate": ["gflownet", "learning_rate"]})
     parser.add_argument("--gflownet_opt", default="adam", type=str)
     args2config.update({"gflownet_opt": ["gflownet", "opt"]})
+    parser.add_argument(
+        "--reward_beta_init",
+        default=1,
+        type=float,
+        help="Initial beta for exponential reward scaling",
+    )
+    args2config.update({"reward_beta_init": ["gflownet", "reward_beta_init"]})
+    parser.add_argument(
+        "--reward_max",
+        default=1e6,
+        type=float,
+        help="Max reward to prevent numerical issues",
+    )
+    args2config.update({"reward_max": ["gflownet", "reward_max"]})
+    parser.add_argument(
+        "--reward_beta_mult",
+        default=1.25,
+        type=float,
+        help="Multiplier for rescaling beta during training",
+    )
+    args2config.update({"reward_beta_mult": ["gflownet", "reward_beta_mult"]})
+    parser.add_argument(
+        "--reward_beta_period",
+        default=-1,
+        type=float,
+        help="Period (number of iterations) for beta rescaling",
+    )
+    args2config.update({"reward_beta_period": ["gflownet", "reward_beta_period"]})
     parser.add_argument("--adam_beta1", default=0.9, type=float)
     args2config.update({"adam_beta1": ["gflownet", "adam_beta1"]})
     parser.add_argument("--adam_beta2", default=0.999, type=float)
     args2config.update({"adam_beta2": ["gflownet", "adam_beta2"]})
     parser.add_argument("--gflownet_momentum", default=0.9, type=float)
     args2config.update({"gflownet_momentum": ["gflownet", "momentum"]})
-    parser.add_argument("--gflownet_mbsize", default=16, help="Minibatch size", type=int)
+    parser.add_argument(
+        "--gflownet_mbsize", default=16, help="Minibatch size", type=int
+    )
     args2config.update({"gflownet_mbsize": ["gflownet", "mbsize"]})
     parser.add_argument("--train_to_sample_ratio", default=1, type=float)
     args2config.update({"train_to_sample_ratio": ["gflownet", "train_to_sample_ratio"]})
@@ -298,7 +340,7 @@ def add_args(parser):
     parser.add_argument(
         "--gflownet_n_samples",
         type=int,
-        default=1000,
+        default=10000,
         help="Sequences to sample from GFLowNet",
     )
     args2config.update({"gflownet_n_samples": ["gflownet", "n_samples"]})
@@ -315,6 +357,24 @@ def add_args(parser):
     args2config.update({"tags": ["gflownet", "comet", "tags"]})
     parser.add_argument("--gflownet_annealing", action="store_true")
     args2config.update({"gflownet_annealing": ["gflownet", "annealing"]})
+    parser.add_argument(
+        "--gflownet_annealing_samples",
+        type=int,
+        default=1000,
+        help="number of init configs for post sample annealing",
+    )
+    args2config.update(
+        {"gflownet_annealing_samples": ["gflownet", "post_annealing_samples"]}
+    )
+    parser.add_argument(
+        "--gflownet_post_annealing_time",
+        type=int,
+        default=1000,
+        help="number MCMC steps for post sample annealing",
+    )
+    args2config.update(
+        {"gflownet_post_annealing_time": ["gflownet", "post_annealing_time"]}
+    )
     # Proxy model
     parser.add_argument(
         "--proxy_model_type",
@@ -344,13 +404,6 @@ def add_args(parser):
         help="number of neurons per proxy NN layer",
     )
     args2config.update({"proxy_model_width": ["proxy", "width"]})
-    parser.add_argument(
-        "--embedding_dim",
-        type=int,
-        default=256,
-        help="embedding dimension for transformer only",
-    )
-    args2config.update({"embedding_dim": ["proxy", "embedding_dim"]})
     parser.add_argument(
         "--proxy_model_layers",
         type=int,
@@ -413,7 +466,6 @@ def process_config(config):
         config.proxy.max_epochs = 5
         config.proxy.width = 12
         config.proxy.n_layers = 1  # for cluster batching
-        config.proxy.embedding_dim = 12  # embedding dimension
         config.proxy.mbsize = 10  # model training batch size
         config.dataset.min_length, config.dataset.max_length = [
             10,
@@ -423,7 +475,7 @@ def process_config(config):
     # GFlowNet
     config.gflownet.horizon = config.dataset.max_length
     config.gflownet.nalphabet = config.dataset.dict_size
-    config.gflownet.func = config.dataset
+    config.gflownet.func = config.dataset.oracle
     # Paths
     if not config.workdir and config.machine == "cluster":
         config.workdir = "/home/kilgourm/scratch/learnerruns"
@@ -442,8 +494,8 @@ if __name__ == "__main__":
     args = parser.parse_args()
     config = get_config(args, override_args, args2config)
     config = process_config(config)
-#     print("Args:\n" + "\n".join([f"    {k:20}: {v}" for k, v in vars(config).items()]))
-# TODO: save final config in workdir
+    #     print("Args:\n" + "\n".join([f"    {k:20}: {v}" for k, v in vars(config).items()]))
+    # TODO: save final config in workdir
     al = activeLearner.ActiveLearning(config)
     if config.al.mode == "initalize":
         printRecord("Initialized!")
