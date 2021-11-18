@@ -1,6 +1,7 @@
 # This code is the modified version of code from
 # ksenia-konyushkova/intelligent_annotation_dialogs/exp1_IAD_RL.ipynb
 
+import warnings
 from scipy.sparse.construct import rand
 from RLmodels import QueryNetworkDQN, ParameterUpdateDQN
 import numpy as np
@@ -81,29 +82,30 @@ class DQN:
 
         self._create_and_load_optimizer(**self.optimizer_param)
 
-    def _load_models(self):
-        """Load Policy model weights. Needs to know episode and exp_name.
+    def _load_models(self, file_name = 'policy_agent'):
+        """Load trained policy agent for experiments. Needs to know file_name. File expected in
+        project working directory.
         """
-        # TODO write loader
-        # TODO write saver
-        exp_name = 'exp'
-        episode = 1
-        if os.path.exists("ckpts/" + exp_name):  # reload model
-            policy_checkpoint = torch.load(f"ckpts/policy_{episode}")
-            target_checkpoint = torch.load(f"ckpts/target_{episode}")
 
-        self.model.load_state_dict(policy_checkpoint["model_state_dict"])
-        self.model.load_state_dict(target_checkpoint["model_state_dict"])
+        try: # reload model
+            policy_checkpoint = torch.load(f"{file_name}.pt")
+            self.model.load_state_dict(policy_checkpoint["model_state_dict"])
+        except:
+            raise ValueError(
+                "No agent checkpoint found."
+            )
 
-    def save_models(self, episode):
+    def save_models(self, file_name = 'policy_agent'):
+        """Save trained policy agent for experiments. Needs to know file_name. File expected in
+        project working directory.
+        """
         torch.save(
             {
                 "model_state_dict": self.policy_net.state_dict(),
                 "optimizer_state_dict": self.optimizer.state_dict(),
             },
-            f"ckpts/policy_{episode}",
+            f"{file_name}.pt",
         )
-        torch.save({"model_state_dict": self.target.state_dict()}, f"ckpts/target_{episode}")
 
     def count_parameters(
         net: torch.nn.Module,
@@ -214,124 +216,6 @@ class DQN:
     def evaluate(self, sample, output="Average"):  # just evaluate the proxy
         return self.proxyModel.evaluate(sample, output=output)
 
-class QuerySelectionAgent(DQN):
-    def __init__(self, config):
-        super().__init__(config)
-        self.memory = QuerySelectionReplayMemory(self.config.buffer_size)
-
-    def _create_models(self):
-        """Creates the Online and Target DQNs
-
-        """
-        # Query network (and target network for DQN)
-        # TODO add model state single variables to DQN net
-        self.policy_net = QueryNetworkDQN(
-            model_state_length=self.state_dataset_size,
-            action_state_length=self.action_state_length,
-            model_state_latent_dimension=self.model_state_latent_dimension,
-            bias_average=1,  # TODO Figure out the query network bias trick from 2018 paper.
-        ).to(self.device)
-        self.target_net = QueryNetworkDQN(
-            model_state_length=self.state_dataset_size,
-            action_state_length=self.action_state_length,
-            model_state_latent_dimension=self.model_state_latent_dimension,
-            bias_average=1,  # TODO Figure out the query network bias trick from 2018 paper. #MK what are we biasing
-        ).to(self.device)
-
-        printRecord("Policy network has " + str(get_n_params(self.policy_net)) + " parameters.")
-
-        # print("DQN Models created!")
-
-    def evaluateQ(
-        self, sample: np.array,
-    ):
-        """ get the q-value for a particular sample, given its 'action state'
-
-        :param model_state: (torch.Variable) Torch tensor containing the model state representation.
-        :param action_state: (torch.Variable) Torch tensor containing the action state representations.
-        :param steps_done: (int) Number of aptamers labeled so far.
-        :param test: (bool) Whether we are testing the DQN or training it. Disables greedy-epsilon when True.
-
-        :return: Action (index of Sequence to Label)
-        """
-        action_state = self.getActionState(sample)
-
-        self.policy_net.eval()
-        with torch.no_grad():
-            q_val = self.policy_net(action_state)
-
-        return q_val
-
-
-    def train(self, memory_batch, BATCH_SIZE=32, GAMMA=0.999, dqn_epochs=1):
-        """Train a q-function estimator on a minibatch.
-
-        Train estimator on minibatch, partially copy
-        optimised parameters to target_estimator.
-        We use double DQN that means that estimator is
-        used to select the best action, but target_estimator
-        predicts the q-value.
-
-        :(ReplayMemory) memory: Experience replay buffer
-        :param Transition: definition of the experience replay tuple
-        :param BATCH_SIZE: (int) Batch size to sample from the experience replay
-        :param GAMMA: (float) Discount factor
-        :param dqn_epochs: (int) Number of epochs to train the DQN
-        """
-        # Code adapted from https://pytorch.org/tutorials/intermediate/reinforcement_q_learning.html
-        if len(memory_batch) < BATCH_SIZE:
-            return
-        print("Optimize model...")
-        print(len(memory_batch))
-        print(f'Policy Net Training Episode #{self.episode}')
-        self.policy_net.train()
-        loss_item = 0
-        for ep in range(dqn_epochs):
-            self.optimizer.zero_grad()
-            transitions = memory_batch.sample(BATCH_SIZE)
-            for transition in transitions:
-                # Get Target q-value function value for the action at s_t+1
-                # that yields the highest discounted return
-                with torch.no_grad():
-                    # Get Q-values for every action
-                    q_val_ = [
-                        self.target_net(
-                            transition.next_model_state.detach(), action_i_state.detach()
-                        )
-                        for action_i_state in transition.next_action_state
-                    ]
-
-                    action_i = torch.argmax(torch.stack(q_val_))
-
-                max_next_q_value = self.policy_net(
-                    transition.next_model_state.detach(),
-                    transition.next_action_state[action_i].detach(),
-                )
-
-                # Get Predicted Q-values at s_t
-                online_q_values = self.policy_net(
-                    transition.model_state.detach(), transition.action_state[action_taken].detach()
-                )
-                # Compute the Target Q values (No future return if terminal).
-                # Use Bellman Equation which essentially states that sum of r_t+1 and the max_q_value at time t+1
-                # is the target/expected value of the Q-function at time t.
-                target_q_values = (
-                    (max_next_q_value * GAMMA) + transition.reward
-                    if transition.terminal
-                    else transition.reward
-                )
-
-                # Compute MSE loss Comparing Q(s) obtained from Online Policy to
-                # target Q value (Q'(s)) obtained from Target Network + Bellman Equation
-                loss = F.mse_loss(online_q_values, target_q_values)
-                loss_item += loss.item()
-                loss.backward()
-            self.optimizer.step()
-
-            del loss
-            del transitions
-
-
 class ParameterUpdateAgent(DQN):
     def __init__(self, config):
         super().__init__(config)
@@ -358,7 +242,7 @@ class ParameterUpdateAgent(DQN):
         printRecord("Policy network has " + str(get_n_params(self.policy_net)) + " parameters.")
 
         # print("DQN Models created!")
-    def train_from_file(self, BATCH_SIZE=32, GAMMA=0.999, dqn_epochs=10000):
+    def train_from_file(self, BATCH_SIZE=32, GAMMA=0.999, dqn_epochs=30000):
         memory_from_file = np.load('C:/Users/Danny/Desktop/ActiveLearningPipeline/memory.npy', allow_pickle=True)
         self.memory.memory = memory_from_file
         self.policy_net.train()
@@ -403,6 +287,7 @@ class ParameterUpdateAgent(DQN):
             if ep % self.target_sync_interval == 0:
                 self.target_net.load_state_dict(self.policy_net.state_dict())
         self.writer.close()
+        self.save_models()
 
     #TODO sample within train funciton self.memory_buffer.sample(self.config.q_batch_size)
     def train(self, BATCH_SIZE=32, GAMMA=0.999, dqn_epochs=20):

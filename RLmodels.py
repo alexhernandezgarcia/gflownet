@@ -58,12 +58,12 @@ class ParameterUpdateDQN(nn.Module):
 
 
         # A fully connected layers with model_state as input
-        self.fc1 = nn.Linear(self.model_state_length, 1000).double()
+        self.fc1 = nn.Linear(self.model_state_length, self.model_state_latent_dimension).double()
         # not trainable if not is_target_dqn
 
 
         # A fully connected layer with fc2concat as input
-        self.fc2 = nn.Linear(1000, self.model_state_latent_dimension).double()  # not trainable if not is_target_dqn
+        self.fc2 = nn.Linear(self.model_state_latent_dimension, self.model_state_latent_dimension).double()  # not trainable if not is_target_dqn
         # A fully connected layer with fc2concat as input
         #self.fc3 = nn.Linear(self.model_state_latent_dimension, self.model_state_latent_dimension).double()  # not trainable if not is_target_dqn
 
@@ -79,5 +79,6 @@ class ParameterUpdateDQN(nn.Module):
         #return self.predictions(out)
 
         #out = self.fc3(self.fc2(self.fc1(model_state)))
-        out = self.fc2(self.fc1(model_state))
+        out = F.relu(self.fc1(model_state))
+        out = F.relu(self.fc2(out))
         return torch.sigmoid(self.predictions(out))
