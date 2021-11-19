@@ -375,7 +375,7 @@ class ParameterUpdateAgent(DQN):
 
     def getAction(self):
         action = np.zeros(self.action_state_size)
-        if random.random() > self.epsilon:
+        if random.random() > self.epsilon or self.config.al.mode == "deploy":
             q_values = self.evaluateQ()
             action_id = torch.argmax(q_values)
 

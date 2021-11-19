@@ -1,0 +1,84 @@
+# General
+test_mode: True
+debug: False
+run_num: 0
+explicit_run_enumeration: False
+machine: "local"
+device: "cuda"
+workdir: "C:/Users/Danny/Desktop/ActiveLearningPipeline/Runs"
+# Seeds
+seeds:
+  sampler: 0
+  model: 0
+  dataset: 0
+  toy_oracle: 0
+# Dataset
+dataset:
+  oracle: "linear"
+  type: "toy"
+  init_length: 100
+  dict_size: 4
+  variable_length: True
+  min_length: 10
+  max_length: 40
+  sample_tasks: 1
+# AL
+al:
+  sample_method: "mcmc"
+  query_mode: "learned"
+  n_iter: 10
+  episodes: 1000
+  query_selection: "clustering"
+  minima_dist_cutoff: 0.25
+  queries_per_iter: 100
+  mode: "test_rl"
+  q_batch_size: 8
+  buffer_size: 10000
+  hyperparams_learning: True
+  energy_uncertainty_tradeoff: 0
+  action_state_size: 9
+  q_network_width: 1000
+# Querier
+querier: 
+  model_state_size: 30
+  opt: "SGD"
+  momentum: 0.95
+  model_ckpt: !!null
+  latent_space_width: 9
+# GFlowNet
+gflownet:
+  model_ckpt: !!null
+  progress: True
+  opt: "adam"
+  adam_beta1: 0.9
+  adam_beta2: 0.999
+  momentum: 0.9
+  mbsize: 16
+  train_to_sample_ratio: 1
+  n_hid: 256
+  n_layers: 2
+  n_iter: 20000
+  num_empirical_loss: 200000
+  batch_reward: True
+  bootstrap_tau: 0.0
+  clip_grad_norm: 0.0
+  comet:
+    project: !!null
+    tags: []
+# Proxy model
+proxy:
+  model_type: "mlp"
+  training_parallelism: False
+  ensemble_size: 10
+  width: 256
+  embedding_dim: 256
+  n_layers: 2
+  mbsize: 10
+  max_epochs: 200
+  shuffle_dataset: True
+# MCMC
+mcmc:
+  sampling_time: 10000
+  num_samplers: 40
+  stun_min_gamma: -3
+  stun_max_gamma: 1
