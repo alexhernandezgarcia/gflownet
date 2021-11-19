@@ -11,6 +11,7 @@ import torch
 from Agent import ParameterUpdateAgent
 from replay_buffer import ParameterUpdateReplayMemory
 
+import numpy
 import os
 import glob
 import multiprocessing as mp
@@ -98,7 +99,6 @@ class ActiveLearning():
             self.workDir = self.config.workdir + '/' + 'run1'
             os.mkdir(self.workDir)
 
-
     def runPipeline(self):
         '''
         run  the active learning pipeline for a number of iterations
@@ -129,6 +129,9 @@ class ActiveLearning():
                 self.reset()
                 self.episode += 1
 
+            #Save Memory for Agent architecture testing
+            #numpy.save(f'{self.workDir}/memory.npy', self.agent.memory.memory)
+            #numpy.save(f'{self.workDir}/agent_error.npy', self.agent.policy_error)
 
     def iterate(self):
         '''
