@@ -363,12 +363,12 @@ class Oracle():
         return out
 
 
-    def nupackScore(self,queries,returnSS=False,parallel=True):
+    def nupackScore(self,queries,returnFunc = 'energy'):
         # Nupack requires Linux OS.
         #use nupack instead of seqfold - more stable and higher quality predictions in general
         #returns the energy of the most probable structure only
         #:param queries:
-        #:param returnSS:
+        #:param returnFunct 'energy' 'hairpins' 'pairs'
         #:return:
 
         temperature = 310.0  # Kelvin
@@ -377,41 +377,43 @@ class Oracle():
 
         energies = np.zeros(len(sequences))
         strings = []
-        if parallel:
-            # parallel evaluation - fast
-            strandList = []
-            comps = []
-            i = -1
-            for sequence in sequences:
-                i += 1
-                strandList.append(Strand(sequence, name='strand{}'.format(i)))
-                comps.append(Complex([strandList[-1]], name='comp{}'.format(i)))
+        nPins = np.zeros(len(sequences)).astype(int)
+        nPairs = 0
+        ssStrings = np.zeros(len(sequences),dtype=object)
 
-            set = ComplexSet(strands=strandList, complexes=SetSpec(max_size=1, include=comps))
-            model1 = Model(material='dna', celsius=temperature - 273, sodium=ionicStrength)
-            results = complex_analysis(set, model=model1, compute=['mfe'])
-            for i in range(len(energies)):
-                energies[i] = results[comps[i]].mfe[0].energy
+        # parallel evaluation - fast
+        strandList = []
+        comps = []
+        i = -1
+        for sequence in sequences:
+            i += 1
+            strandList.append(Strand(sequence, name='strand{}'.format(i)))
+            comps.append(Complex([strandList[-1]], name='comp{}'.format(i)))
 
-                if returnSS:
-                    strings.append(str(results[comps[i]].mfe[0].structure))
+        set = ComplexSet(strands=strandList, complexes=SetSpec(max_size=1, include=comps))
+        model1 = Model(material='dna', celsius=temperature - 273, sodium=ionicStrength)
+        results = complex_analysis(set, model=model1, compute=['mfe'])
+        for i in range(len(energies)):
+            energies[i] = results[comps[i]].mfe[0].energy
+            ssStrings[i] = str(results[comps[i]].mfe[0].structure)
 
-        else:
-            i = -1
-            for sequence in sequences:
-                i += 1
-                A = Strand(sequence, name='A')
-                comp = Complex([A], name='AA')
-                set1 = ComplexSet(strands=[A], complexes=SetSpec(max_size=1, include=[comp]))
-                model1 = Model(material='dna', celsius=temperature - 273, sodium=ionicStrength)
-                results = complex_analysis(set1, model=model1, compute=['mfe'])
-                cout = results[comp]
+        if returnFunc == 'hairpins':
+            for i in range(len(ssStrings)):
+                indA = 0  # hairpin completion index
+                for j in range(len(sequences[i])):
+                    if ssStrings[i][j] == '(':
+                        indA += 1
+                    elif ssStrings[i][j] == ')':
+                        indA -= 1
+                        if indA == 0:  # if we come to the end of a distinct hairpin
+                            nPins[i] += 1
+        if returnFunc == 'pairs':
+            nPairs = np.asarray([ssString.count('(') for ssString in ssStrings]).astype(int)
 
-                energies[i] = cout.mfe[0].energy
-                if returnSS:
-                    strings.append(cout.mfe[0].structure)
 
-        if returnSS:
-            return energies, strings
-        else:
+        if returnFunc == 'energy':
             return energies
+        elif returnFunc == 'hairpins':
+            return nPins
+        elif returnFunc == 'pairs':
+            return nPairs
