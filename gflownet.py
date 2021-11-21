@@ -765,7 +765,8 @@ class GFlowNetAgent:
         all_losses = []
         all_visited = []
         empirical_distrib_losses = []
-        loss_ema = -1.0
+        loss_term_ema = None
+        loss_flow_ema = None
 
         # Train loop
         for i in tqdm(range(self.n_train_steps + 1)):  # , disable=not self.progress):
@@ -899,14 +900,21 @@ class GFlowNetAgent:
                 )
                 torch.save(self.model.state_dict(), path)
             # Moving average of the loss for early stopping
-            if loss_ema > 0:
-                loss_ema = (
-                    self.ema_alpha * losses[0] + (1.0 - self.ema_alpha) * loss_ema
+            if loss_term_ema and loss_flow_ema:
+                loss_term_ema = (
+                    self.ema_alpha * losses[1] + (1.0 - self.ema_alpha) * loss_term_ema
                 )
-                if loss_ema < self.early_stopping:
+                loss_flow_ema = (
+                    self.ema_alpha * losses[2] + (1.0 - self.ema_alpha) * loss_flow_ema
+                )
+                if (
+                    loss_term_ema < self.early_stopping
+                    and loss_flow_ema < self.early_stopping
+                ):
                     break
             else:
-                loss_ema = losses[0]
+                loss_term_ema = losses[1]
+                loss_flow_ema = losses[2]
 
             # Log times
             t1_iter = time.time()
