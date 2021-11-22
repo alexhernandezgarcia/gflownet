@@ -229,7 +229,10 @@ class AptamerSeq:
                 "innerprod": toyHamiltonian,
                 "potts": PottsEnergy,
                 "seqfold": seqfoldScore,
-                "nupack": nupackScore,
+                "nupack energy": lambda x: nupackScore(returnFunc = 'energy'),
+                "nupack pairs": lambda x: -nupackScore(returnFunc='pairs'),
+                "nupack pins": lambda x: -nupackScore(returnFunc='hairpins'),
+
             }[self.func]
         self.reward = (
             lambda x: [0]
@@ -528,7 +531,7 @@ class GFlowNetAgent:
         # Comet
         if args.gflownet.comet.project:
             self.comet = Experiment(
-                project_name=args.gflownet.comet.project, display_summary_level=0
+                project_name=args.gflownet.comet.project, display_summary_level=0, api_key="l3uy3rlY8fefx1QMxN3wIVFOO"
             )
             if args.gflownet.comet.tags:
                 if isinstance(args.gflownet.comet.tags, list):
@@ -786,6 +789,8 @@ class GFlowNetAgent:
                     or np.max(rewards) > self.reward_max
                 ):
                     if self.debug:
+                        if not all([torch.isfinite(loss) for loss in losses]):
+                            aa = 1
                         print(
                             "Too large rewards: Skipping backward pass, increasing "
                             "reward temperature from -{:.4f} to -{:.4f} and cancelling "
@@ -920,7 +925,8 @@ class GFlowNetAgent:
             t1_iter = time.time()
             times.update({"iter": t1_iter - t0_iter})
             times = {"time_{}".format(k): v for k, v in times.items()}
-            self.comet.log_metrics(times, step=i)
+            if self.comet:
+                self.comet.log_metrics(times, step=i)
         # Save final model
         if self.model_path:
             path = self.model_path.parent / Path(

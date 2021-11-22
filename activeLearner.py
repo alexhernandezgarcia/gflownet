@@ -407,7 +407,7 @@ class ActiveLearning():
         self.model = 'abc'
         gammas = np.logspace(self.config.mcmc.stun_min_gamma,self.config.mcmc.stun_max_gamma,self.config.mcmc.num_samplers)
         mcmcSampler = Sampler(self.config, 0, [1,0], gammas)
-        if (self.config.dataset.oracle == 'linear') or (self.config.dataset.oracle == 'nupack'):
+        if (self.config.dataset.oracle == 'linear') or (self.config.dataset.oracle == 'nupack energy') or (self.config.dataset.oracle == '5 pairs'):
             samples = mcmcSampler.sample(self.model, useOracle=True, nIters = 100) # do a tiny number of iters - the minimum is known
         else:
             samples = mcmcSampler.sample(self.model, useOracle=True) # do a genuine search
@@ -430,7 +430,7 @@ class ActiveLearning():
                 bestMin = np.amin(ens)
                 printRecord("Pre-loaded minimum was better than one found by sampler")
 
-        elif self.config.dataset.oracle == "nupack":
+        elif (self.config.dataset.oracle == "nupack energy") or (self.config.dataset.oracle == "nupack pairs"):
             goodSamples = np.ones((4, self.config.dataset.max_length)) * 4 # GCGC CGCG GGGCCC CCCGGG
             goodSamples[0,0:-1:2] = 3
             goodSamples[1,1:-1:2] = 3
@@ -442,6 +442,7 @@ class ActiveLearning():
                 printRecord("Pre-loaded minimum was better than one found by sampler")
 
         printRecord(f"Sampling Complete! Lowest Energy Found = {bcolors.FAIL}%.3f{bcolors.ENDC}" % bestMin + " from %d" % self.config.mcmc.num_samplers + " sampling runs.")
+        printRecord("Best sample found is {}".format(numbers2letters(sampleDict['samples'][np.argmin(sampleDict['energies'])])))
 
         self.oracleRecord = sampleDict
         self.trueMinimum = bestMin
