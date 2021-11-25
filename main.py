@@ -72,6 +72,8 @@ def add_args(parser):
         help="If True, the next run be fresh, in directory 'run%d'%run_num; if False, regular behaviour. Note: only use this on fresh runs",
     )
     args2config.update({"explicit_run_enumeration": ["explicit_run_enumeration"]})
+    parser.add_argument("--comet_project", default=None, type=str)
+    args2config.update({"comet_project": ["comet_project"]})
     # Seeds
     parser.add_argument(
         "--sampler_seed",
@@ -230,6 +232,10 @@ def add_args(parser):
     args2config.update({"action_state_size": ["al", "action_state_size"]})
     parser.add_argument("--hyperparams_learning", action="store_true")
     args2config.update({"hyperparams_learning": ["al", "hyperparams_learning"]})
+    parser.add_argument(
+        "--tags_al", nargs="*", help="Comet.ml tags", default=[], type=str
+    )
+    args2config.update({"tags_al": ["al", "comet", "tags"]})
     # Querier
     parser.add_argument(
         "--model_state_size",
@@ -349,12 +355,10 @@ def add_args(parser):
     args2config.update({"bootstrap_tau": ["gflownet", "bootstrap_tau"]})
     parser.add_argument("--clip_grad_norm", default=0.0, type=float)
     args2config.update({"clip_grad_norm": ["gflownet", "clip_grad_norm"]})
-    parser.add_argument("--comet_project", default=None, type=str)
-    args2config.update({"comet_project": ["gflownet", "comet", "project"]})
     parser.add_argument(
-        "-t", "--tags", nargs="*", help="Comet.ml tags", default=[], type=str
+        "--tags_gfn", nargs="*", help="Comet.ml tags", default=[], type=str
     )
-    args2config.update({"tags": ["gflownet", "comet", "tags"]})
+    args2config.update({"tags_gfn": ["gflownet", "comet", "tags"]})
     parser.add_argument("--gflownet_annealing", action="store_true")
     args2config.update({"gflownet_annealing": ["gflownet", "annealing"]})
     parser.add_argument(
@@ -476,6 +480,10 @@ def process_config(config):
     config.gflownet.horizon = config.dataset.max_length
     config.gflownet.nalphabet = config.dataset.dict_size
     config.gflownet.func = config.dataset.oracle
+    # Comet: same project for AL and GFlowNet
+    if config.comet_project:
+        config.gflownet.comet.project = config.comet_project
+        config.al.comet.project = config.comet_project
     # Paths
     if not config.workdir and config.machine == "cluster":
         config.workdir = "/home/kilgourm/scratch/learnerruns"
