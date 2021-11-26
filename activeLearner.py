@@ -462,8 +462,9 @@ class ActiveLearning():
         self.oracleRecord = sampleDict
         self.trueMinimum = bestMin
 
-        self.comet.log_histogram_3d(sampleDict['energies'], name="energies_true",
-                step=0)
+        if self.comet:
+            self.comet.log_histogram_3d(sampleDict['energies'], name="energies_true",
+                    step=0)
 
 
     def saveOutputs(self):
