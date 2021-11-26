@@ -1,4 +1,4 @@
-
+from comet_ml import Experiment
 from argparse import Namespace
 import yaml
 from models import modelNet
@@ -29,6 +29,21 @@ class ActiveLearning():
         self.querier = Querier(self.config) # might as well initialize the querier here
         self.setup()
         self.getModelSize()
+        # Comet
+        if config.al.comet.project:
+            self.comet = Experiment(
+                project_name=config.al.comet.project, display_summary_level=0
+            )
+            if config.al.comet.tags:
+                if isinstance(config.al.comet.tags, list):
+                    self.comet.add_tags(config.al.comet.tags)
+                else:
+                    self.comet.add_tag(config.al.comet.tags)
+            self.comet.log_parameters(vars(config))
+            with open(Path(self.workDir) / "comet_al.url", "w") as f:
+                f.write(self.comet.url + "\n")
+        else:
+            self.comet = None
         # Save YAML config
         with open(self.workDir + '/config.yml', 'w') as f:
             yaml.dump(numpy2python(namespace2dict(self.config)), f, default_flow_style=False)
@@ -445,6 +460,10 @@ class ActiveLearning():
 
         self.oracleRecord = sampleDict
         self.trueMinimum = bestMin
+
+        if self.comet:
+            self.comet.log_histogram_3d(sampleDict['energies'], name="energies_true",
+                    step=0)
 
 
     def saveOutputs(self):
