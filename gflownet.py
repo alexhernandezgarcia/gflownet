@@ -229,7 +229,7 @@ class AptamerSeq:
                 "innerprod": toyHamiltonian,
                 "potts": PottsEnergy,
                 "seqfold": seqfoldScore,
-                "nupack energy": lambda x: nupackScore(returnFunc = 'energy'),
+                "nupack energy": lambda x: nupackScore(returnFunc='energy'),
                 "nupack pairs": lambda x: -nupackScore(returnFunc='pairs'),
                 "nupack pins": lambda x: -nupackScore(returnFunc='hairpins'),
 
@@ -531,7 +531,7 @@ class GFlowNetAgent:
         # Comet
         if args.gflownet.comet.project:
             self.comet = Experiment(
-                project_name=args.gflownet.comet.project, display_summary_level=0, api_key="l3uy3rlY8fefx1QMxN3wIVFOO"
+                project_name=args.gflownet.comet.project, display_summary_level=0
             )
             if args.gflownet.comet.tags:
                 if isinstance(args.gflownet.comet.tags, list):
