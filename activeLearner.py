@@ -265,6 +265,7 @@ class ActiveLearning():
         else:
             self.stateDictRecord.append(self.stateDict)
 
+
         if self.comet:
             self.comet.log_histogram_3d(energies, name='model state sampling run energies', step = self.pipeIter)
             self.comet.log_histogram_3d(np.sqrt(uncertainties), name='model state sampling run std deviations', step = self.pipeIter)
