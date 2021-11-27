@@ -377,34 +377,43 @@ class transformer(nn.Module):
         self.layers = config.proxy.n_layers
         self.maxLen = config.dataset.max_length
         self.dictLen = config.dataset.dict_size
-        self.tasks = config.dataset.sample_tasks
+        self.classes = int(config.dataset.dict_size + 1)
         self.heads = min([4, max([1,self.embedDim//self.dictLen])])
 
-        self.positionalEncoder = PositionalEncoding(self.embedDim, max_len = self.maxLen)
+        self.positionalEncoder = PositionalEncoding(self.embedDim, max_len = self.maxLen, dropout=0)
         self.embedding = nn.Embedding(self.dictLen + 1, embedding_dim = self.embedDim)
-        encoder_layer = nn.TransformerEncoderLayer(self.embedDim, nhead = self.heads,dim_feedforward=self.hiddenDim, activation='gelu')
-        self.encoder = nn.TransformerEncoder(encoder_layer, num_layers = self.layers)
-        self.decoder1 = nn.Linear(int(self.embedDim * self.maxLen), self.hiddenDim)
 
-        self.output_layers = []
-        for i in range(self.tasks):
-            self.output_layers.append(nn.Linear(self.filters, 1))
-        self.output_layers = nn.ModuleList(self.output_layers)
+        factory_kwargs = {'device': None, 'dtype': None}
+        self.self_attn = nn.MultiheadAttention(self.embedDim, self.heads, dropout=0, batch_first=False,**factory_kwargs)
 
+        #encoder_layer = nn.TransformerEncoderLayer(self.embedDim, nhead = self.heads,dim_feedforward=self.hiddenDim, activation='gelu', dropout=0)
+        #self.encoder = nn.TransformerEncoder(encoder_layer, num_layers = self.layers)
+        self.decoder_layers = []
+        for i in range(self.layers):
+            if i == 0:
+                in_dim = self.embedDim
+            else:
+                in_dim = self.hiddenDim
+            out_dim = self.hiddenDim
+            self.decoder_layers.append(nn.Linear(in_dim, out_dim))
+
+        self.decoder_layers = nn.ModuleList(self.decoder_layers)
+        self.output_layer = nn.Linear(self.hiddenDim,self.classes,bias=False)
 
     def forward(self,x):
         x_key_padding_mask = (x==0).clone().detach() # zero out the attention of empty sequence elements
         x = self.embedding(x.transpose(1,0).int()) # [seq, batch]
         x = self.positionalEncoder(x)
-        x = self.encoder(x,src_key_padding_mask=x_key_padding_mask)
-        x = x.permute(1,0,2).reshape(x_key_padding_mask.shape[0], int(self.embedDim*self.maxLen))
-        x = F.gelu(self.decoder1(x))
+        x = self.self_attn(x,x,x,key_padding_mask=x_key_padding_mask)[0] # self-attention over sequence
+        x = torch.mean(x,dim=0) # aggregate
+        #x = self.encoder(x,src_key_padding_mask=x_key_padding_mask)
+        #x = x.permute(1,0,2).reshape(x_key_padding_mask.shape[0], int(self.embedDim*self.maxLen))
+        for i in range(len(self.decoder_layers)):
+            x = F.gelu(self.decoder_layers[i](x))
 
-        y = torch.zeros(self.tasks)
-        for i in range(self.tasks):
-            y = self.output_layers[i](x) # each task has its own head        return x
+        x = self.output_layer(x)
 
-        return y
+        return x
 
 class LSTM(nn.Module):
     '''

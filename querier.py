@@ -23,7 +23,7 @@ class Querier():
         if self.config.al.query_mode == 'learned':
             pass
 
-    def buildQuery(self, model, statusDict, energySampleDict, action = None):
+    def buildQuery(self, model, statusDict, energySampleDict, action = None, comet=None,):
         """
         select the samples which will be sent to the oracle for scoring
         if we are dynamically updating hyperparameters, take an action
@@ -65,6 +65,11 @@ class Querier():
             scores = scores[inds]
 
             query = self.constructQuery(samples, scores, uncertainties, nQueries)
+
+            if comet:
+                comet.log_histogram_3d(self.sampleDict['scores'], name='sampler output scores', step=statusDict['iter'])
+                comet.log_histogram_3d(np.sqrt(uncertainties), name='sampler output std deviations', step=statusDict['iter'])
+                comet.log_histogram_3d(self.sampleDict['energies'], name='sampler output energies', step=statusDict['iter'])
 
         return query
 
