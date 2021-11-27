@@ -229,7 +229,10 @@ class AptamerSeq:
                 "innerprod": toyHamiltonian,
                 "potts": PottsEnergy,
                 "seqfold": seqfoldScore,
-                "nupack": nupackScore,
+                "nupack energy": lambda x: nupackScore(returnFunc='energy'),
+                "nupack pairs": lambda x: -nupackScore(returnFunc='pairs'),
+                "nupack pins": lambda x: -nupackScore(returnFunc='hairpins'),
+
             }[self.func]
         self.reward = (
             lambda x: [0]
@@ -920,7 +923,8 @@ class GFlowNetAgent:
             t1_iter = time.time()
             times.update({"iter": t1_iter - t0_iter})
             times = {"time_{}".format(k): v for k, v in times.items()}
-            self.comet.log_metrics(times, step=i)
+            if self.comet:
+                self.comet.log_metrics(times, step=i)
         # Save final model
         if self.model_path:
             path = self.model_path.parent / Path(

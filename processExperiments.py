@@ -22,10 +22,12 @@ distList = []
 #experiments = ['A1', 'A2', 'A3', 'A4', 'A5', 'A7']
 experiments = ['B1', 'B2', 'B3','C1','C2','C3']
 #experiments = ['D3','D5']
-plotAll = False
+#experiments = ['ubuntu_test']
+plotAll = True
 
 for experiment in experiments:
     experiments_dir = 'C:/Users\mikem\Desktop/activeLearningRuns\cluster\production/'
+    #experiments_dir = 'C:/Users/mikem/Desktop/activeLearningRuns/'
 
     scores, rewards, cumulative_score, dists = getScores(experiment, experiments_dir)
     scoreList.append(scores)

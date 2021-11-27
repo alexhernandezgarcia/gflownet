@@ -115,7 +115,7 @@ def add_args(parser):
     parser.add_argument("--workdir", type=str, default=None, help="Working directory")
     args2config.update({"workdir": ["workdir"]})
     # Dataset
-    parser.add_argument("--dataset", type=str, default="linear")
+    parser.add_argument("--dataset", type=str, default="linear") # 'linear' 'potts' 'nupack energy' 'nupack pairs' 'nupack pins'
     args2config.update({"dataset": ["dataset", "oracle"]})
     parser.add_argument(
         "--dataset_type",
@@ -489,7 +489,7 @@ def process_config(config):
         config.workdir = "/home/kilgourm/scratch/learnerruns"
     elif not config.workdir and config.machine == "local":
         config.workdir = (
-            "C:/Users\mikem\Desktop/activeLearningRuns"  #'/home/mkilgour/learnerruns'#
+            '/home/mkilgour/learnerruns'#"C:/Users\mikem\Desktop/activeLearningRuns"  #
         )
     return config
 
