@@ -789,8 +789,6 @@ class GFlowNetAgent:
                     or np.max(rewards) > self.reward_max
                 ):
                     if self.debug:
-                        if not all([torch.isfinite(loss) for loss in losses]):
-                            aa = 1
                         print(
                             "Too large rewards: Skipping backward pass, increasing "
                             "reward temperature from -{:.4f} to -{:.4f} and cancelling "
