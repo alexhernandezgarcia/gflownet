@@ -2,8 +2,8 @@
 test_mode: False
 debug: True
 run_num: 0
-explicit_run_enumeration: False
-machine: "local"
+explicit_run_enumeration: True
+machine: "cluster"
 device: "cpu"
 workdir: !!null
 # Seeds
@@ -24,12 +24,12 @@ dataset:
   sample_tasks: 1
 # AL
 al:
-  sample_method: "gflownet"
-  query_mode: "heuristic"
+  sample_method: "random"
+  query_mode: "energy"
   hyperparams_learning: False
-  n_iter: 5
+  n_iter: 50
   query_selection: "clustering"
-  minima_dist_cutoff: 0.25
+  minima_dist_cutoff: 0.4
   energy_uncertainty_tradeoff: 0
   queries_per_iter: 100
   mode: "training"
@@ -40,15 +40,16 @@ al:
   comet:
     project: aptamer-al-mk
     tags:
-      - EX_test_run
+      - EX9
+      - EX_runs
 # Querier
-querier:
+querier: 
   model_state_size: 30
   opt: "SGD"
   momentum: 0.95
   model_ckpt: !!null
   latent_space_width: 10
-# GFlowNet # model.pt
+# GFlowNet
 gflownet:
   device: "cpu"
   model_ckpt: model.pt
@@ -57,17 +58,17 @@ gflownet:
   adam_beta1: 0.9
   adam_beta2: 0.999
   momentum: 0.9
-  mbsize: 64
+  mbsize: 16
   train_to_sample_ratio: 1
   n_hid: 256
   n_layers: 2
-  n_iter: 200
+  n_iter: 20000
   n_samples: 10000
   num_empirical_loss: 200000
   batch_reward: 1
   bootstrap_tau: 0.0
   clip_grad_norm: 0.0
-  annealing: True
+  annealing: False
   post_annealing_samples: 100
   post_annealing_time: 1000
   min_word_len: 1
@@ -84,15 +85,15 @@ gflownet:
 proxy:
   model_type: "mlp"
   training_parallelism: False
-  ensemble_size: 2
-  width: 64
-  n_layers: 2
+  ensemble_size: 10
+  width: 256
+  n_layers: 4
   mbsize: 10
-  max_epochs: 200
+  max_epochs: 500
   shuffle_dataset: True
 # MCMC
 mcmc:
-  sampling_time: 1000
-  num_samplers: 5
+  sampling_time: 10000
+  num_samplers: 20
   stun_min_gamma: -3
   stun_max_gamma: 1

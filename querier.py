@@ -30,7 +30,7 @@ class Querier():
         :param sampleDict:
         :return:
         """
-
+        self.comet = comet
         if action is not None:
             self.updateHyperparams(action)
 
@@ -66,10 +66,10 @@ class Querier():
 
             query = self.constructQuery(samples, scores, uncertainties, nQueries)
 
-            if comet:
-                comet.log_histogram_3d(self.sampleDict['scores'], name='sampler output scores', step=statusDict['iter'])
-                comet.log_histogram_3d(np.sqrt(uncertainties), name='sampler output std deviations', step=statusDict['iter'])
-                comet.log_histogram_3d(self.sampleDict['energies'], name='sampler output energies', step=statusDict['iter'])
+            if self.comet:
+                self.comet.log_histogram_3d(self.sampleDict['scores'], name='sampler output scores', step=statusDict['iter'])
+                self.comet.log_histogram_3d(np.sqrt(uncertainties), name='sampler output std deviations', step=statusDict['iter'])
+                self.comet.log_histogram_3d(self.sampleDict['energies'], name='sampler output energies', step=statusDict['iter'])
 
         return query
 
@@ -165,11 +165,10 @@ class Querier():
                 'uncertainties': uncertainties,
                 'scores':scores
             }
-            if self.config.gflownet.annealing:
-                outputs = self.doAnnealing(scoreFunction, model, outputs)
+            outputs = self.doAnnealing(scoreFunction, model, outputs)
 
         elif method.lower() == "gflownet":
-            gflownet = GFlowNetAgent(self.config, proxy=model.raw)
+            gflownet = GFlowNetAgent(self.config, comet = self.comet, proxy=model.raw)
 
             t0 = time.time()
             gflownet.train()

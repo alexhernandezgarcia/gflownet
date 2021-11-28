@@ -32,13 +32,16 @@ class ActiveLearning():
         # Comet
         if config.al.comet.project:
             self.comet = Experiment(
-                project_name=config.al.comet.project, display_summary_level=0
+                project_name=config.al.comet.project, display_summary_level=0,
             )
             if config.al.comet.tags:
                 if isinstance(config.al.comet.tags, list):
                     self.comet.add_tags(config.al.comet.tags)
                 else:
                     self.comet.add_tag(config.al.comet.tags)
+
+            self.comet.set_name("run {}".format(config.run_num))
+
             self.comet.log_parameters(vars(config))
             with open(Path(self.workDir) / "comet_al.url", "w") as f:
                 f.write(self.comet.url + "\n")
@@ -337,17 +340,15 @@ class ActiveLearning():
                 self.model.converge()  # converge model
                 testMins.append(np.amin(self.model.err_te_hist))
                 if self.comet:
-                    self.comet.log_curve("iter {} proxy {} train loss".format(i, self.pipeIter),
-                                         x=np.arange(len(self.model.err_tr_hist)).tolist(),
-                                         y=np.asarray(self.model.err_tr_hist).tolist()
-                                         )
-                    self.comet.log_curve("iter {} proxy {} test loss".format(i, self.pipeIter),
-                                         x=np.arange(len(self.model.err_te_hist)).tolist(),
-                                         y=np.asarray(self.model.err_te_hist).tolist()
-                                         )
+                    tr_hist = self.model.err_tr_hist
+                    te_hist = self.model.err_te_hist
+                    epochs = len(te_hist)
+                    for i in range(epochs):
+                        self.comet.log_metric('proxy train loss iter {}'.format(self.pipeIter), step=i, value=tr_hist[i])
+                        self.comet.log_metric('proxy test loss iter {}'.format(self.pipeIter), step=i, value=te_hist[i])
 
             self.testMinima.append(testMins)
-        else:
+        else: # deprecated
             del self.model
             if self.config.machine == 'local':
                 nHold = 4

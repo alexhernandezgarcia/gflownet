@@ -512,7 +512,7 @@ def make_mlp(layers_dim, act=nn.LeakyReLU(), tail=[]):
 
 
 class GFlowNetAgent:
-    def __init__(self, args, proxy=None):
+    def __init__(self, args, comet = None, proxy=None, alIter = 0):
         # Misc
         self.debug = args.debug
         self.device_torch = torch.device(args.gflownet.device)
@@ -528,22 +528,25 @@ class GFlowNetAgent:
         if self.reward_beta_period in [None, -1]:
             self.reward_beta_period = np.inf
         self.reward_max = args.gflownet.reward_max
+        self.alIter = alIter
+
         # Comet
-        if args.gflownet.comet.project:
-            self.comet = Experiment(
-                project_name=args.gflownet.comet.project, display_summary_level=0
-            )
-            if args.gflownet.comet.tags:
-                if isinstance(args.gflownet.comet.tags, list):
-                    self.comet.add_tags(args.gflownet.comet.tags)
-                else:
-                    self.comet.add_tag(args.gflownet.comet.tags)
-            self.comet.log_parameters(vars(args))
-            if "workdir" in args and Path(args.workdir).exists():
-                with open(Path(args.workdir) / "comet.url", "w") as f:
-                    f.write(self.comet.url + "\n")
-        else:
-            self.comet = None
+        #if args.gflownet.comet.project:
+        #    self.comet = Experiment(
+        #        project_name=args.gflownet.comet.project, display_summary_level=0
+        #    )
+        #    if args.gflownet.comet.tags:
+        #        if isinstance(args.gflownet.comet.tags, list):
+        #            self.comet.add_tags(args.gflownet.comet.tags)
+        #        else:
+        #            self.comet.add_tag(args.gflownet.comet.tags)
+        #    self.comet.log_parameters(vars(args))
+        #    if "workdir" in args and Path(args.workdir).exists():
+        #        with open(Path(args.workdir) / "comet.url", "w") as f:
+        #            f.write(self.comet.url + "\n")
+        #else:
+        #    self.comet = None
+        self.comet = comet
         # Environment
         self.env = AptamerSeq(
             args.gflownet.horizon,
@@ -841,13 +844,13 @@ class GFlowNetAgent:
                     dict(
                         zip(
                             [
-                                "mean_reward",
-                                "max_reward",
-                                "mean_energy",
-                                "min_energy",
-                                "mean_seq_length",
-                                "batch_size",
-                                "reward_beta",
+                                "mean_reward iter {}".format(self.alIter),
+                                "max_reward iter {}".format(self.alIter),
+                                "mean_energy iter {}".format(self.alIter),
+                                "min_energy iter {}".format(self.alIter),
+                                "mean_seq_length iter {}".format(self.alIter),
+                                "batch_size iter {}".format(self.alIter),
+                                "reward_beta iter {}".format(self.alIter),
                             ],
                             [
                                 np.mean(rewards),
@@ -886,7 +889,7 @@ class GFlowNetAgent:
                     self.comet.log_metrics(
                         dict(
                             zip(
-                                ["loss", "term_loss", "flow_loss"],
+                                ["loss iter {}".format(self.alIter), "term_loss iter {}".format(self.alIter), "flow_loss iter {}".format(self.alIter)],
                                 [loss.item() for loss in losses],
                             )
                         ),
@@ -894,7 +897,7 @@ class GFlowNetAgent:
                     )
                     if not self.lightweight:
                         self.comet.log_metric(
-                            "unique_states", np.unique(all_visited).shape[0], step=i
+                            "unique_states iter {}".format(self.alIter), np.unique(all_visited).shape[0], step=i
                         )
                 # Save intermediate model
             if not i % self.ckpt_period and self.model_path:
@@ -936,8 +939,8 @@ class GFlowNetAgent:
             torch.save(self.model.state_dict(), self.model_path)
 
         # Close comet
-        if self.comet:
-            self.comet.end()
+        #if self.comet:
+        #    self.comet.end()
 
     def sample(self, n_samples, horizon, nalphabet, min_word_len, max_word_len, proxy):
         times = {

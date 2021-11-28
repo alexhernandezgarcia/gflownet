@@ -108,9 +108,6 @@ class modelNet():
         self.epochs = 0
 
         while (self.converged != 1):
-            if (self.epochs % 10 == 0) and self.config.debug:
-                printRecord("Model {} epoch {}".format(self.ensembleIndex, self.epochs))
-
             if self.epochs > 0: #  this allows us to keep the previous model if it is better than any produced on this run
                 self.train_net(tr)
             else:
@@ -122,6 +119,9 @@ class modelNet():
             # after training at least 10 epochs, check convergence
             if self.epochs >= self.config.history:
                 self.checkConvergence()
+
+            if (self.epochs % 10 == 0) and self.config.debug:
+                printRecord("Model {} epoch {} test loss {:.3f}".format(self.ensembleIndex, self.epochs, self.err_te_hist[-1]))
 
             self.epochs += 1
 
@@ -138,11 +138,11 @@ class modelNet():
         err_tr = []
         self.model.train(True)
         for i, trainData in enumerate(tr):
-            loss = self.getLoss(trainData)
-            err_tr.append(loss.data)  # record the loss
+            proxy_loss = self.getLoss(trainData)
+            err_tr.append(proxy_loss.data)  # record the loss
 
             self.optimizer.zero_grad()  # run the optimizer
-            loss.backward()
+            proxy_loss.backward()
             self.optimizer.step()
 
         self.err_tr_hist.append(torch.mean(torch.stack(err_tr)).cpu().detach().numpy())
@@ -384,12 +384,15 @@ class transformer(nn.Module):
         self.embedding = nn.Embedding(self.dictLen + 1, embedding_dim = self.embedDim)
 
         factory_kwargs = {'device': None, 'dtype': None}
-        self.self_attn = nn.MultiheadAttention(self.embedDim, self.heads, dropout=0, batch_first=False,**factory_kwargs)
-
         #encoder_layer = nn.TransformerEncoderLayer(self.embedDim, nhead = self.heads,dim_feedforward=self.hiddenDim, activation='gelu', dropout=0)
         #self.encoder = nn.TransformerEncoder(encoder_layer, num_layers = self.layers)
         self.decoder_layers = []
+        self.encoder_linear = []
+        self.self_attn_layers = []
         for i in range(self.layers):
+            self.encoder_linear.append(nn.Linear(self.embedDim,self.embedDim))
+            self.self_attn_layers.append(nn.MultiheadAttention(self.embedDim, self.heads, dropout=0, batch_first=False, **factory_kwargs))
+
             if i == 0:
                 in_dim = self.embedDim
             else:
@@ -398,16 +401,21 @@ class transformer(nn.Module):
             self.decoder_layers.append(nn.Linear(in_dim, out_dim))
 
         self.decoder_layers = nn.ModuleList(self.decoder_layers)
+        self.encoder_linear = nn.ModuleList(self.encoder_linear)
+        self.self_attn_layers = nn.ModuleList(self.self_attn_layers)
         self.output_layer = nn.Linear(self.hiddenDim,self.classes,bias=False)
 
     def forward(self,x):
         x_key_padding_mask = (x==0).clone().detach() # zero out the attention of empty sequence elements
         x = self.embedding(x.transpose(1,0).int()) # [seq, batch]
         x = self.positionalEncoder(x)
-        x = self.self_attn(x,x,x,key_padding_mask=x_key_padding_mask)[0] # self-attention over sequence
-        x = torch.mean(x,dim=0) # aggregate
         #x = self.encoder(x,src_key_padding_mask=x_key_padding_mask)
         #x = x.permute(1,0,2).reshape(x_key_padding_mask.shape[0], int(self.embedDim*self.maxLen))
+        for i in range(len(self.self_attn_layers)):
+            x = self.self_attn_layers[i](x,x,x,key_padding_mask=x_key_padding_mask)[0]
+            x = self.encoder_linear[i](x)
+
+        x = x.mean(dim=0) # mean aggregation
         for i in range(len(self.decoder_layers)):
             x = F.gelu(self.decoder_layers[i](x))
 
