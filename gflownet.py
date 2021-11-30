@@ -229,15 +229,15 @@ class AptamerSeq:
                 "innerprod": toyHamiltonian,
                 "potts": PottsEnergy,
                 "seqfold": seqfoldScore,
-                "nupack energy": lambda x: nupackScore(returnFunc='energy'),
-                "nupack pairs": lambda x: -nupackScore(returnFunc='pairs'),
-                "nupack pins": lambda x: -nupackScore(returnFunc='hairpins'),
+                "nupack energy": lambda x: nupackScore(x, returnFunc='energy'),
+                "nupack pairs": lambda x: nupackScore(x, returnFunc='pairs'),
+                "nupack pins": lambda x: nupackScore(x, returnFunc='hairpins'),
 
             }[self.func]
         self.reward = (
             lambda x: [0]
             if not self.done
-            else self.energy2reward(self.proxy(self.seq2oracle(x)))
+            else self.proxy2reward(self.proxy(self.seq2oracle(x)))
         )
         self.allow_backward = allow_backward
         self._true_density = None
@@ -289,20 +289,26 @@ class AptamerSeq:
     def reward_batch(self, seq, done):
         seq = [s for s, d in zip(seq, done) if d]
         reward = np.zeros(len(done))
-        reward[list(done)] = self.energy2reward(self.proxy(self.seq2oracle(seq)))
+        reward[list(done)] = self.proxy2reward(self.proxy(self.seq2oracle(seq)))
         return reward
 
-    def energy2reward(self, energies):
+    def proxy2reward(self, proxy_vals):
         """
         Prepares the output of an oracle for GFlowNet.
         """
-        return np.exp(-self.reward_beta * energies)
+        if "pins" in self.func or "pairs" in self.func:
+            return np.exp(self.reward_beta * proxy_vals)
+        else:
+            return np.exp(-self.reward_beta * proxy_vals)
 
-    def reward2energy(self, reward):
+    def reward2proxy(self, reward):
         """
-        Converts a "GFlowNet reward" into energy as returned by an oracle.
+        Converts a "GFlowNet reward" into energy or values as returned by an oracle.
         """
-        return -np.log(reward) / self.reward_beta
+        if "pins" in self.func or "pairs" in self.func:
+            return np.log(reward) / self.reward_beta
+        else:
+            return -np.log(reward) / self.reward_beta
 
     def seq2obs(self, seq=None):
         """
@@ -718,7 +724,7 @@ class GFlowNetAgent:
                 seq = list(self.env.obs2seq(seq))
                 seq_oracle = self.env.seq2oracle([seq])
                 output_proxy = self.env.proxy(seq_oracle)
-                reward = self.env.energy2reward(output_proxy)
+                reward = self.env.proxy2reward(output_proxy)
                 print(idx, output_proxy, reward)
                 import ipdb
 
@@ -779,7 +785,7 @@ class GFlowNetAgent:
                 batch, times = self.sample_many()
                 data += batch
             rewards = [d[2][0].item() for d in data if bool(d[4].item())]
-            energies = self.env.reward2energy(rewards)
+            proxy_vals = self.env.reward2proxy(rewards)
             for j in range(self.ttsr):
                 losses = self.learn_from(
                     i * self.ttsr + j, data
@@ -841,8 +847,8 @@ class GFlowNetAgent:
                             [
                                 "mean_reward",
                                 "max_reward",
-                                "mean_energy",
-                                "min_energy",
+                                "mean_proxy",
+                                "min_proxy",
                                 "mean_seq_length",
                                 "batch_size",
                                 "reward_beta",
@@ -850,8 +856,8 @@ class GFlowNetAgent:
                             [
                                 np.mean(rewards),
                                 np.max(rewards),
-                                np.mean(energies),
-                                np.min(energies),
+                                np.mean(proxy_vals),
+                                np.min(proxy_vals),
                                 np.mean([len(seq) for seq in seqs_batch]),
                                 len(data),
                                 self.reward_beta,
@@ -978,13 +984,13 @@ class GFlowNetAgent:
             times["actions_envs"] += t1_a_envs - t0_a_envs
         t0_proxy = time.time()
         batch = np.asarray(batch)
-        energies, uncertainties = env.proxy(batch, "Both")
+        proxy_vals, uncertainties = env.proxy(batch, "Both")
         t1_proxy = time.time()
         times["proxy"] += t1_proxy - t0_proxy
         samples = {
             "samples": batch.astype(np.int64),
-            "scores": energies,
-            "energies": energies,
+            "scores": proxy_vals,
+            "energies": proxy_vals,
             "uncertainties": uncertainties,
         }
         # Sanity-check: absolute zero pad
