@@ -229,10 +229,9 @@ class AptamerSeq:
                 "innerprod": toyHamiltonian,
                 "potts": PottsEnergy,
                 "seqfold": seqfoldScore,
-                "nupack energy": lambda x: nupackScore(x, returnFunc='energy'),
-                "nupack pairs": lambda x: nupackScore(x, returnFunc='pairs'),
-                "nupack pins": lambda x: nupackScore(x, returnFunc='hairpins'),
-
+                "nupack energy": lambda x: nupackScore(x, returnFunc="energy"),
+                "nupack pairs": lambda x: nupackScore(x, returnFunc="pairs"),
+                "nupack pins": lambda x: nupackScore(x, returnFunc="hairpins"),
             }[self.func]
         self.reward = (
             lambda x: [0]
@@ -843,7 +842,9 @@ class GFlowNetAgent:
             else:
                 all_visited.extend(seqs_batch)
             if self.comet:
-                self.comet.log_text(seq_best + " / proxy: {}".format(proxy_vals[idx_best]) , step=i)
+                self.comet.log_text(
+                    seq_best + " / proxy: {}".format(proxy_vals[idx_best]), step=i
+                )
                 self.comet.log_metrics(
                     dict(
                         zip(
