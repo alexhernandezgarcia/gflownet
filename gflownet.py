@@ -229,9 +229,9 @@ class AptamerSeq:
                 "innerprod": toyHamiltonian,
                 "potts": PottsEnergy,
                 "seqfold": seqfoldScore,
-                "nupack energy": lambda x: nupackScore(returnFunc='energy'),
-                "nupack pairs": lambda x: -nupackScore(returnFunc='pairs'),
-                "nupack pins": lambda x: -nupackScore(returnFunc='hairpins'),
+                "nupack energy": lambda x: nupackScore(x, returnFunc='energy'),
+                "nupack pairs": lambda x: nupackScore(x, returnFunc='pairs'),
+                "nupack pins": lambda x: nupackScore(x, returnFunc='hairpins'),
 
             }[self.func]
         self.reward = (
@@ -296,7 +296,10 @@ class AptamerSeq:
         """
         Prepares the output of an oracle for GFlowNet.
         """
-        return np.exp(-self.reward_beta * energies)
+        if "pins" in self.func or "pairs" in self.func:
+            return np.exp(self.reward_beta * energies)
+        else:
+            return np.exp(-self.reward_beta * energies)
 
     def reward2energy(self, reward):
         """
