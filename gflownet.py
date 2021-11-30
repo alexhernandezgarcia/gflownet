@@ -834,6 +834,8 @@ class GFlowNetAgent:
                 for d in data
                 if bool(d[4].item())
             ]
+            idx_best = np.argmax(rewards)
+            seq_best = "".join(self.env.seq2letters(seqs_batch[idx_best]))
             if self.lightweight:
                 all_losses = all_losses[-100:]
                 all_visited = seqs_batch
@@ -841,6 +843,7 @@ class GFlowNetAgent:
             else:
                 all_visited.extend(seqs_batch)
             if self.comet:
+                self.comet.log_text(seq_best + " / proxy: {}".format(proxy_vals[idx_best]) , step=i)
                 self.comet.log_metrics(
                     dict(
                         zip(
