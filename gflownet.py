@@ -1115,7 +1115,11 @@ if __name__ == "__main__":
     if "workdir" in config:
         if not Path(config.workdir).exists():
             Path(config.workdir).mkdir(parents=True, exist_ok=False)
-        with open(config.workdir + "/config.yml", "w") as f:
-            yaml.dump(numpy2python(namespace2dict(config)), f, default_flow_style=False)
-    torch.set_num_threads(1)
-    main(config)
+            with open(config.workdir + "/config.yml", "w") as f:
+                yaml.dump(numpy2python(namespace2dict(config)), f, default_flow_style=False)
+            torch.set_num_threads(1)
+            main(config)
+        else:
+            print(f"workdir {config.workdir} already exists! - Ending run...")
+    else:
+        print(f"workdir not defined - Ending run...")
