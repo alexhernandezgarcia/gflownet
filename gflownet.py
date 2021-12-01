@@ -229,10 +229,9 @@ class AptamerSeq:
                 "innerprod": toyHamiltonian,
                 "potts": PottsEnergy,
                 "seqfold": seqfoldScore,
-                "nupack energy": lambda x: nupackScore(x, returnFunc='energy'),
-                "nupack pairs": lambda x: nupackScore(x, returnFunc='pairs'),
-                "nupack pins": lambda x: nupackScore(x, returnFunc='hairpins'),
-
+                "nupack energy": lambda x: nupackScore(x, returnFunc="energy"),
+                "nupack pairs": lambda x: nupackScore(x, returnFunc="pairs"),
+                "nupack pins": lambda x: nupackScore(x, returnFunc="hairpins"),
             }[self.func]
         self.reward = (
             lambda x: [0]
@@ -834,6 +833,8 @@ class GFlowNetAgent:
                 for d in data
                 if bool(d[4].item())
             ]
+            idx_best = np.argmax(rewards)
+            seq_best = "".join(self.env.seq2letters(seqs_batch[idx_best]))
             if self.lightweight:
                 all_losses = all_losses[-100:]
                 all_visited = seqs_batch
@@ -841,6 +842,9 @@ class GFlowNetAgent:
             else:
                 all_visited.extend(seqs_batch)
             if self.comet:
+                self.comet.log_text(
+                    seq_best + " / proxy: {}".format(proxy_vals[idx_best]), step=i
+                )
                 self.comet.log_metrics(
                     dict(
                         zip(
@@ -849,6 +853,7 @@ class GFlowNetAgent:
                                 "max_reward",
                                 "mean_proxy",
                                 "min_proxy",
+                                "max_proxy",
                                 "mean_seq_length",
                                 "batch_size",
                                 "reward_beta",
@@ -858,6 +863,7 @@ class GFlowNetAgent:
                                 np.max(rewards),
                                 np.mean(proxy_vals),
                                 np.min(proxy_vals),
+                                np.max(proxy_vals),
                                 np.mean([len(seq) for seq in seqs_batch]),
                                 len(data),
                                 self.reward_beta,
