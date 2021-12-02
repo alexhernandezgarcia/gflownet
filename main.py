@@ -268,11 +268,11 @@ def add_args(parser):
     parser.add_argument(
         "--gflownet_learning_rate", default=1e-4, help="Learning rate", type=float
     )
+    args2config.update({"gflownet_learning_rate": ["gflownet", "learning_rate"]})
     parser.add_argument("--gflownet_min_word_len", default=1, type=int)
     args2config.update({"gflownet_min_word_len": ["gflownet", "min_word_len"]})
     parser.add_argument("--gflownet_max_word_len", default=1, type=int)
     args2config.update({"gflownet_max_word_len": ["gflownet", "max_word_len"]})
-    args2config.update({"gflownet_learning_rate": ["gflownet", "learning_rate"]})
     parser.add_argument("--gflownet_opt", default="adam", type=str)
     args2config.update({"gflownet_opt": ["gflownet", "opt"]})
     parser.add_argument(
@@ -303,6 +303,20 @@ def add_args(parser):
         help="Period (number of iterations) for beta rescaling",
     )
     args2config.update({"reward_beta_period": ["gflownet", "reward_beta_period"]})
+    parser.add_argument(
+        "--gflownet_early_stopping",
+        default=0.01,
+        help="Threshold loss for GFlowNet early stopping",
+        type=float,
+    )
+    args2config.update({"gflownet_early_stopping": ["gflownet", "early_stopping"]})
+    parser.add_argument(
+        "--gflownet_ema_alpha",
+        default=0.5,
+        help="alpha coefficient for exponential moving average (early stopping)",
+        type=float,
+    )
+    args2config.update({"gflownet_ema_alpha": ["gflownet", "ema_alpha"]})
     parser.add_argument("--adam_beta1", default=0.9, type=float)
     args2config.update({"adam_beta1": ["gflownet", "adam_beta1"]})
     parser.add_argument("--adam_beta2", default=0.999, type=float)
