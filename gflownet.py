@@ -355,7 +355,7 @@ class AptamerSeq:
         seq = np.where(obs_mat)[1]
         return seq
 
-    def seq2letters(self, seq, alphabet={0: "A", 1: "T", 2: "C", 3: "G"}):
+    def seq2letters(self, seq, alphabet={0: "A", 1: "T", 2: "G", 3: "C"}):
         """
         Transforms a sequence given as a list of indices into a sequence of letters
         according to an alphabet.
