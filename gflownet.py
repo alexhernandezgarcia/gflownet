@@ -403,6 +403,32 @@ class AptamerSeq:
                     actions.append(idx)
         return parents, actions
 
+    def trajectories(self, seq, traj):
+        """
+        Determines all trajectories to sequence seq
+
+        Args
+        ----
+        seq : list
+            Representation of a sequence (state), as a list of length horizon where each
+        element is the index of a letter in the alphabet, from 0 to (nalphabet - 1).
+
+        Returns
+        -------
+        traj : list
+            List of sequences (lists) 
+
+        actions : list
+            List of actions that lead to each sequence in traj
+        """
+        parents, actions = self.parent_transitions(seq, -1)
+        parents = [self.obs2seq(el).tolist() for el in parents]
+        if parents == []:
+            return traj
+        for parent in parents:
+            traj += [parent]
+            return self.trajectories(parent, traj)
+
     def step(self, action):
         """
         Define step given action and state.
