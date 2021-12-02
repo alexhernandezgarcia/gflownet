@@ -367,7 +367,7 @@ class Oracle():
         return out
 
 
-    def nupackScore(self,queries,returnFunc = 'energy'):
+    def nupackScore(self, queries, returnFunc='energy'):
         # Nupack requires Linux OS.
         #use nupack instead of seqfold - more stable and higher quality predictions in general
         #returns the energy of the most probable structure only
@@ -380,10 +380,9 @@ class Oracle():
         sequences = self.numbers2letters(queries)
 
         energies = np.zeros(len(sequences))
-        strings = []
         nPins = np.zeros(len(sequences)).astype(int)
         nPairs = 0
-        ssStrings = np.zeros(len(sequences),dtype=object)
+        ssStrings = np.zeros(len(sequences), dtype=object)
 
         # parallel evaluation - fast
         strandList = []
@@ -413,7 +412,6 @@ class Oracle():
                             nPins[i] += 1
         if returnFunc == 'pairs':
             nPairs = np.asarray([ssString.count('(') for ssString in ssStrings]).astype(int)
-
 
         if returnFunc == 'energy':
             return energies
