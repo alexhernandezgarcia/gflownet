@@ -11,7 +11,7 @@ import torch
 from tqdm import tqdm
 import math
 import torch.functional as F
-from torch.utils.tensorboard import SummaryWriter
+#from torch.utils.tensorboard import SummaryWriter
 from utils import *
 from replay_buffer import QuerySelectionReplayMemory, ParameterUpdateReplayMemory
 from oracle import Oracle
@@ -42,7 +42,7 @@ class DQN:
         """
 
         torch.manual_seed(config.seeds.model)
-        self.writer = SummaryWriter(log_dir=f"C:/Users/Danny/Desktop/ActiveLearningPipeline/logs/exp{datetime.now().strftime('D%Y-%m-%dT%H-%M-%S')}")
+        #self.writer = SummaryWriter(log_dir=f"C:/Users/Danny/Desktop/ActiveLearningPipeline/logs/exp{datetime.now().strftime('D%Y-%m-%dT%H-%M-%S')}")
         self.config = config
         self.exp_name = 'learned_'
         self.load = False if config.querier.model_ckpt is None else True
@@ -282,11 +282,11 @@ class ParameterUpdateAgent(DQN):
                 loss_item += loss.item()
                 loss.backward()
             self.policy_error += [loss.detach().cpu().numpy()]
-            self.writer.add_scalar('Error', loss, ep)
+            #self.writer.add_scalar('Error', loss, ep)
             self.optimizer.step()
             if ep % self.target_sync_interval == 0:
                 self.target_net.load_state_dict(self.policy_net.state_dict())
-        self.writer.close()
+        #self.writer.close()
         self.save_models()
 
     #TODO sample within train funciton self.memory_buffer.sample(self.config.q_batch_size)

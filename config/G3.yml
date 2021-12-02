@@ -1,9 +1,9 @@
 # General
 test_mode: False
-debug: True
+debug: False
 run_num: 0
-explicit_run_enumeration: False
-machine: "local"
+explicit_run_enumeration: True
+machine: "cluster"
 device: "cpu"
 workdir: !!null
 # Seeds
@@ -14,7 +14,7 @@ seeds:
   toy_oracle: 0
 # Dataset
 dataset:
-  oracle: "nupack pins"
+  oracle: "nupack energy"
   type: "toy"
   init_length: 100
   dict_size: 4
@@ -24,7 +24,7 @@ dataset:
   sample_tasks: 1
 # AL
 al:
-  sample_method: "gflownet"
+  sample_method: "mcmc"
   query_mode: "energy"
   hyperparams_learning: False
   n_iter: 20
@@ -38,13 +38,13 @@ al:
   episodes: 1
   action_state_size: 9
 # Querier
-querier:
+querier: 
   model_state_size: 30
   opt: "SGD"
   momentum: 0.95
   model_ckpt: !!null
   latent_space_width: 10
-# GFlowNet # model.pt
+# GFlowNet
 gflownet:
   device: "cpu"
   model_ckpt: !!null #model.pt
@@ -69,7 +69,7 @@ gflownet:
   min_word_len: 1
   max_word_len: 1
   comet:
-    project: aptamer-al-mk
+    project: !!null #aptamer-al-mk
     tags:
       - testing
   early_stopping: 0.1
@@ -92,7 +92,7 @@ proxy:
   shuffle_dataset: True
 # MCMC
 mcmc:
-  sampling_time: 2000
-  num_samplers: 10
+  sampling_time: 10000
+  num_samplers: 20
   stun_min_gamma: -3
   stun_max_gamma: 1
