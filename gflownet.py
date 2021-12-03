@@ -319,9 +319,9 @@ class AptamerSeq:
         Example:
           - Sequence: AACTG
           - State, seq: [0, 0, 1, 3, 2]
-                         A, A, C, T, G
+                         A, A, T, G, C
           - seq2obs(seq): [1, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0]
-                          |     A    |      A    |      C    |      T    |      G    |
+                          |     A    |      A    |      T    |      G    |      C    |
 
         If horizon > len(s), the last (horizon - len(s)) blocks are all 0s.
         """
@@ -403,7 +403,7 @@ class AptamerSeq:
                     actions.append(idx)
         return parents, actions
 
-    def trajectories(self, seq, traj):
+    def trajectories(self, seq, traj, actions):
         """
         Determines all trajectories to sequence seq
 
@@ -421,13 +421,14 @@ class AptamerSeq:
         actions : list
             List of actions that lead to each sequence in traj
         """
-        parents, actions = self.parent_transitions(seq, -1)
+        parents, parents_actions = self.parent_transitions(seq, -1)
         parents = [self.obs2seq(el).tolist() for el in parents]
         if parents == []:
-            return traj
-        for parent in parents:
-            traj += [parent]
-            return self.trajectories(parent, traj)
+            return traj, actions
+        for p, a in zip(parents, parents_actions):
+            traj += [p]
+            actions += [a]
+            return self.trajectories(p, traj, actions)
 
     def step(self, action):
         """
@@ -1040,6 +1041,69 @@ class GFlowNetAgent:
         t1_all = time.time()
         times["all"] += t1_all - t0_all
         return samples, times
+
+
+def sample(model, n_samples, horizon, nalphabet, min_word_len, max_word_len, func):
+    times = {
+        "all": 0.0,
+        "actions_model": 0.0,
+        "actions_envs": 0.0,
+        "proxy": 0.0,
+        "sanitycheck": 0.0,
+    }
+    t0_all = time.time()
+    batch = []
+    envs = [
+        AptamerSeq(horizon, nalphabet, min_word_len, max_word_len, func=func)
+        for i in range(n_samples)
+    ]
+    envs = [env.reset() for env in envs]
+    while envs:
+        seqs = [env.seq2obs() for env in envs]
+        with torch.no_grad():
+            t0_a_model = time.time()
+            action_probs = model(tf(seqs))
+            t1_a_model = time.time()
+            times["actions_model"] += t1_a_model - t0_a_model
+            if all(torch.isfinite(action_probs).flatten()):
+                actions = Categorical(logits=action_probs).sample()
+            else:
+                actions = np.random.randint(
+                    low=0, high=action_probs.shape[1], size=action_probs.shape[0]
+                )
+        t0_a_envs = time.time()
+        assert len(envs) == actions.shape[0]
+        for env, action in zip(envs, actions):
+            seq, valid = env.step(action)
+            if valid and env.done:
+                batch.append(env.seq2oracle([seq])[0])
+        envs = [env for env in envs if not env.done]
+        t1_a_envs = time.time()
+        times["actions_envs"] += t1_a_envs - t0_a_envs
+    t0_proxy = time.time()
+    batch = np.asarray(batch)
+    proxy_vals = env.proxy(batch)
+    t1_proxy = time.time()
+    times["proxy"] += t1_proxy - t0_proxy
+    samples = {
+        "samples": batch.astype(np.int64),
+        "scores": proxy_vals,
+    }
+    # Sanity-check: absolute zero pad
+    t0_sanitycheck = time.time()
+    zeros = np.where(batch == 0)
+    row_unique, row_unique_idx = np.unique(zeros[0], return_index=True)
+    for row, idx in zip(row_unique, row_unique_idx):
+        if np.sum(batch[row, zeros[1][idx] :]):
+            print(f"Found sequence with positive values after last 0, row {row}")
+            import ipdb
+
+            ipdb.set_trace()
+    t1_sanitycheck = time.time()
+    times["sanitycheck"] += t1_sanitycheck - t0_sanitycheck
+    t1_all = time.time()
+    times["all"] += t1_all - t0_all
+    return samples, times
 
 
 class RandomTrajAgent:
