@@ -136,6 +136,7 @@ def main(args):
     print(f"\tAverage score: {df_test.scores.mean()}")
     print(f"\tStd score: {df_test.scores.std()}")
     print(f"\tMin score: {df_test.scores.min()}")
+    print(f"\tMax score: {df_test.scores.max()}")
 
     # Sample data
     if args.do_sample:
@@ -168,6 +169,7 @@ def main(args):
         print(f"\tAverage score: {df_samples.scores.mean()}")
         print(f"\tStd score: {df_samples.scores.std()}")
         print(f"\tMin score: {df_samples.scores.min()}")
+        print(f"\tMax score: {df_samples.scores.max()}")
         output_samples = workdir / "{}_samples_n{}.csv".format(model_alias, n_samples)
         df_samples.to_csv(output_samples)
 
