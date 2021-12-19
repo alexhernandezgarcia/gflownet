@@ -137,6 +137,8 @@ def add_args(parser):
     args2config.update({"num_empirical_loss": ["gflownet", "num_empirical_loss"]})
     parser.add_argument("--clip_grad_norm", default=0.0, type=float)
     args2config.update({"clip_grad_norm": ["gflownet", "clip_grad_norm"]})
+    parser.add_argument("--random_action_prob", default=0.0, type=float)
+    args2config.update({"random_action_prob": ["gflownet", "random_action_prob"]})
     # Environment
     parser.add_argument("--func", default="arbitrary_i")
     args2config.update({"func": ["gflownet", "func"]})
@@ -511,6 +513,7 @@ def make_mlp(layers_dim, act=nn.LeakyReLU(), tail=[]):
 class GFlowNetAgent:
     def __init__(self, args, proxy=None):
         # Misc
+        self.rng = np.random.RandomState(int(time.time()))
         self.debug = args.debug
         self.device_torch = torch.device(args.gflownet.device)
         self.device = self.device_torch
@@ -602,6 +605,7 @@ class GFlowNetAgent:
         self.num_empirical_loss = args.gflownet.num_empirical_loss
         self.ttsr = max(int(args.gflownet.train_to_sample_ratio), 1)
         self.sttr = max(int(1 / args.gflownet.train_to_sample_ratio), 1)
+        self.random_action_prob = args.gflownet.random_action_prob
 
     def parameters(self):
         return self.model.parameters()
@@ -633,19 +637,23 @@ class GFlowNetAgent:
         envs = [env.reset() for env in self.envs]
         while envs:
             seqs = [env.seq2obs() for env in envs]
-            with torch.no_grad():
-                t0_a_model = time.time()
-                action_probs = self.model(tf(seqs))
-                t1_a_model = time.time()
-                times["actions_model"] += t1_a_model - t0_a_model
-                if all(torch.isfinite(action_probs).flatten()):
-                    actions = Categorical(logits=action_probs).sample()
-                else:
-                    actions = np.random.randint(
-                        low=0, high=action_probs.shape[1], size=action_probs.shape[0]
-                    )
-                    if self.debug:
-                        print("Action could not be sampled from model!")
+            random_action = self.rng.uniform()
+            if random_action > self.random_action_prob:
+                with torch.no_grad():
+                    t0_a_model = time.time()
+                    action_probs = self.model(tf(seqs))
+                    t1_a_model = time.time()
+                    times["actions_model"] += t1_a_model - t0_a_model
+                    if all(torch.isfinite(action_probs).flatten()):
+                        actions = Categorical(logits=action_probs).sample()
+                    else:
+                        random_action = -1
+                        if self.debug:
+                            print("Action could not be sampled from model!")
+            if random_action < self.random_action_prob:
+                actions = np.random.randint(
+                    low=0, high=action_probs.shape[1], size=action_probs.shape[0]
+                )
             t0_a_envs = time.time()
             assert len(envs) == actions.shape[0]
             for env, action in zip(envs, actions):
