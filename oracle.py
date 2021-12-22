@@ -160,8 +160,12 @@ class Oracle():
             return self.toyHamiltonian(queries)
         elif self.config.dataset.oracle == 'seqfold':
             return self.seqfoldScore(queries)
-        elif self.config.dataset.oracle == 'nupack':
-            return self.nupackScore(queries)
+        elif self.config.dataset.oracle == 'nupack energy':
+            return self.nupackScore(queries, returnFunc = 'energy')
+        elif self.config.dataset.oracle == 'nupack pins':
+            return -self.nupackScore(queries, returnFunc = 'hairpins')
+        elif self.config.dataset.oracle == 'nupack pairs':
+            return -self.nupackScore(queries, returnFunc = 'pairs')
         elif (self.config.dataset.oracle == 'onemax') or (self.config.dataset.oracle == 'twomin') or (self.config.dataset.oracle == 'fourpeaks')\
                 or (self.config.dataset.oracle == 'deceptivetrap') or (self.config.dataset.oracle == 'nklandscape') or (self.config.dataset.oracle == 'wmodel'):
             return self.BB_DOB_functions(queries)
