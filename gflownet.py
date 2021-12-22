@@ -660,7 +660,7 @@ class GFlowNetAgent:
                             print("Action could not be sampled from model!")
             if random_action < self.random_action_prob:
                 actions = np.random.randint(
-                    low=0, high=action_probs.shape[1], size=action_probs.shape[0]
+                    low=0, high=self.env.nactions + 1, size=len(envs)
                 )
             t0_a_envs = time.time()
             assert len(envs) == actions.shape[0]
