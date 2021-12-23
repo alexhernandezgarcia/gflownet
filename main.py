@@ -355,6 +355,10 @@ def add_args(parser):
     args2config.update({"bootstrap_tau": ["gflownet", "bootstrap_tau"]})
     parser.add_argument("--clip_grad_norm", default=0.0, type=float)
     args2config.update({"clip_grad_norm": ["gflownet", "clip_grad_norm"]})
+    parser.add_argument("--random_action_prob", default=0.0, type=float)
+    args2config.update({"random_action_prob": ["gflownet", "random_action_prob"]})
+    parser.add_argument("--comet_project", default=None, type=str)
+    args2config.update({"comet_project": ["gflownet", "comet", "project"]})
     parser.add_argument(
         "--tags_gfn", nargs="*", help="Comet.ml tags", default=[], type=str
     )

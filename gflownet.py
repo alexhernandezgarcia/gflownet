@@ -142,6 +142,8 @@ def add_args(parser):
     args2config.update({"num_empirical_loss": ["gflownet", "num_empirical_loss"]})
     parser.add_argument("--clip_grad_norm", default=0.0, type=float)
     args2config.update({"clip_grad_norm": ["gflownet", "clip_grad_norm"]})
+    parser.add_argument("--random_action_prob", default=0.0, type=float)
+    args2config.update({"random_action_prob": ["gflownet", "random_action_prob"]})
     # Environment
     parser.add_argument("--func", default="arbitrary_i")
     args2config.update({"func": ["gflownet", "func"]})
@@ -567,6 +569,7 @@ def make_mlp(layers_dim, act=nn.LeakyReLU(), tail=[]):
 class GFlowNetAgent:
     def __init__(self, args, proxy=None):
         # Misc
+        self.rng = np.random.RandomState(int(time.time()))
         self.debug = args.debug
         self.device_torch = torch.device(args.gflownet.device)
         self.device = self.device_torch
@@ -658,6 +661,7 @@ class GFlowNetAgent:
         self.num_empirical_loss = args.gflownet.num_empirical_loss
         self.ttsr = max(int(args.gflownet.train_to_sample_ratio), 1)
         self.sttr = max(int(1 / args.gflownet.train_to_sample_ratio), 1)
+        self.random_action_prob = args.gflownet.random_action_prob
         # Test set
         test_set = make_approx_uniform_test_set(
                 path_base_dataset=args.gflownet.test.base,
@@ -667,7 +671,6 @@ class GFlowNetAgent:
                 dask=args.gflownet.test.dask,
                 output_csv=args.gflownet.test.output,
         )
-        import ipdb; ipdb.set_trace()
 
     def parameters(self):
         return self.model.parameters()
@@ -699,19 +702,23 @@ class GFlowNetAgent:
         envs = [env.reset() for env in self.envs]
         while envs:
             seqs = [env.seq2obs() for env in envs]
-            with torch.no_grad():
-                t0_a_model = time.time()
-                action_probs = self.model(tf(seqs))
-                t1_a_model = time.time()
-                times["actions_model"] += t1_a_model - t0_a_model
-                if all(torch.isfinite(action_probs).flatten()):
-                    actions = Categorical(logits=action_probs).sample()
-                else:
-                    actions = np.random.randint(
-                        low=0, high=action_probs.shape[1], size=action_probs.shape[0]
-                    )
-                    if self.debug:
-                        print("Action could not be sampled from model!")
+            random_action = self.rng.uniform()
+            if random_action > self.random_action_prob:
+                with torch.no_grad():
+                    t0_a_model = time.time()
+                    action_probs = self.model(tf(seqs))
+                    t1_a_model = time.time()
+                    times["actions_model"] += t1_a_model - t0_a_model
+                    if all(torch.isfinite(action_probs).flatten()):
+                        actions = Categorical(logits=action_probs).sample()
+                    else:
+                        random_action = -1
+                        if self.debug:
+                            print("Action could not be sampled from model!")
+            if random_action < self.random_action_prob:
+                actions = np.random.randint(
+                    low=0, high=self.env.nactions + 1, size=len(envs)
+                )
             t0_a_envs = time.time()
             assert len(envs) == actions.shape[0]
             for env, action in zip(envs, actions):
@@ -1306,7 +1313,11 @@ if __name__ == "__main__":
     if "workdir" in config:
         if not Path(config.workdir).exists():
             Path(config.workdir).mkdir(parents=True, exist_ok=False)
-        with open(config.workdir + "/config.yml", "w") as f:
-            yaml.dump(numpy2python(namespace2dict(config)), f, default_flow_style=False)
-    torch.set_num_threads(1)
-    main(config)
+            with open(config.workdir + "/config.yml", "w") as f:
+                yaml.dump(numpy2python(namespace2dict(config)), f, default_flow_style=False)
+            torch.set_num_threads(1)
+            main(config)
+        else:
+            print(f"workdir {config.workdir} already exists! - Ending run...")
+    else:
+        print(f"workdir not defined - Ending run...")
