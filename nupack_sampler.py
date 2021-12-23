@@ -96,7 +96,6 @@ def main(args):
     seq_ints = ["".join([str(el) for el in seq if el > 0]) for seq in samples_mat]
     if isinstance(scores, dict):
         scores.update({"letters": seq_letters, "indices": seq_ints})
-        import ipdb; ipdb.set_trace()
         df = pd.DataFrame(scores)
     else:
         df = pd.DataFrame({"letters": seq_letters, "indices": seq_ints, "scores": scores})
