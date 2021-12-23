@@ -149,9 +149,9 @@ class Oracle():
                 if isinstance(scores_block, dict):
                     for k, v in scores_block.items():
                         if k in scores_dict:
-                            scores_dict[k].extend(v)
+                            scores_dict[k].extend(list(v))
                         else:
-                            scores_dict.update({k: v})
+                            scores_dict.update({k: list(v)})
                 else:
                     scores_list.extend(self.getScore(queryBlock))
             if len(scores_list) > 0:
