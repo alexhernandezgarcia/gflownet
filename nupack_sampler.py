@@ -1,7 +1,5 @@
 """
-GFlowNet
-TODO:
-    - Seeds
+Script to create data set of with nupack labels.
 """
 from argparse import ArgumentParser
 import os
@@ -48,7 +46,7 @@ def add_args(parser):
     args2config.update({"seed_dataset": ["seeds", "dataset"]})
     parser.add_argument(
         "--oracle",
-        type=str,
+        nargs="+",
         default="nupack energy",
         help="linear, potts, nupack energy, nupack pairs, nupack pins",
     )
@@ -96,7 +94,12 @@ def main(args):
     samples_mat = samples_dict["samples"]
     seq_letters = oracle.numbers2letters(samples_mat)
     seq_ints = ["".join([str(el) for el in seq if el > 0]) for seq in samples_mat]
-    df = pd.DataFrame({"letters": seq_letters, "indices": seq_ints, "scores": scores})
+    if isinstance(scores, dict):
+        scores.update({"letters": seq_letters, "indices": seq_ints})
+        import ipdb; ipdb.set_trace()
+        df = pd.DataFrame(scores)
+    else:
+        df = pd.DataFrame({"letters": seq_letters, "indices": seq_ints, "scores": scores})
     if args.output:
         output_yml = Path(args.output).with_suffix(".yml")
         with open(output_yml, "w") as f:

@@ -141,12 +141,23 @@ class Oracle():
 
         blockSize = int(1e4)
         if len(queries) > blockSize: # score in blocks of maximum 10000
-            scores = []
+            scores_list = []
+            scores_dict = {}
             for i in range(int(len(queries) // blockSize)):
                 queryBlock = queries[i * blockSize:(i+1)*blockSize]
-                scores.extend(self.getScore(queryBlock))
-
-            return np.asarray(scores)
+                scores_block = self.getScore(queryBlock)
+                if isinstance(scores_block, dict):
+                    for k, v in scores_block.items():
+                        if k in scores_dict:
+                            scores_dict[k].extend(v)
+                        else:
+                            scores_dict.update({k: v})
+                else:
+                    scores_list.extend(self.getScore(queryBlock))
+            if len(scores_list) > 0:
+                return np.asarray(scores_list)
+            else:
+                return {k: np.asarray(v) for k, v in scores_dict.items()}
         else:
             return self.getScore(queries)
 
@@ -163,12 +174,16 @@ class Oracle():
         elif self.config.dataset.oracle == 'nupack energy':
             return self.nupackScore(queries, returnFunc = 'energy')
         elif self.config.dataset.oracle == 'nupack pins':
-            return -self.nupackScore(queries, returnFunc = 'hairpins')
+            return -self.nupackScore(queries, returnFunc = 'pins')
         elif self.config.dataset.oracle == 'nupack pairs':
             return -self.nupackScore(queries, returnFunc = 'pairs')
         elif (self.config.dataset.oracle == 'onemax') or (self.config.dataset.oracle == 'twomin') or (self.config.dataset.oracle == 'fourpeaks')\
                 or (self.config.dataset.oracle == 'deceptivetrap') or (self.config.dataset.oracle == 'nklandscape') or (self.config.dataset.oracle == 'wmodel'):
             return self.BB_DOB_functions(queries)
+        elif isinstance(self.config.dataset.oracle, list) and all(["nupack " in el for el in self.config.dataset.oracle]):
+            return self.nupackScore(queries, returnFunc=[el.replace("nupack ", "") for el in self.config.dataset.oracle])
+        else:
+            raise NotImplementedError("Unknown orackle type")
 
 
     def BB_DOB_functions(self, queries):
@@ -367,12 +382,12 @@ class Oracle():
         return out
 
 
-    def nupackScore(self,queries,returnFunc = 'energy'):
+    def nupackScore(self, queries, returnFunc='energy'):
         # Nupack requires Linux OS.
         #use nupack instead of seqfold - more stable and higher quality predictions in general
         #returns the energy of the most probable structure only
         #:param queries:
-        #:param returnFunct 'energy' 'hairpins' 'pairs'
+        #:param returnFunct 'energy' 'pins' 'pairs'
         #:return:
 
         temperature = 310.0  # Kelvin
@@ -401,7 +416,8 @@ class Oracle():
             energies[i] = results[comps[i]].mfe[0].energy
             ssStrings[i] = str(results[comps[i]].mfe[0].structure)
 
-        if returnFunc == 'hairpins':
+        dict_return = {}
+        if 'pins' in returnFunc:
             for i in range(len(ssStrings)):
                 indA = 0  # hairpin completion index
                 for j in range(len(sequences[i])):
@@ -411,13 +427,18 @@ class Oracle():
                         indA -= 1
                         if indA == 0:  # if we come to the end of a distinct hairpin
                             nPins[i] += 1
-        if returnFunc == 'pairs':
+            dict_return.update({"pins": nPins})
+        if 'pairs' in returnFunc:
             nPairs = np.asarray([ssString.count('(') for ssString in ssStrings]).astype(int)
+            dict_return.update({"pairs": nPairs})
+        if 'energy' in returnFunc:
+            dict_return.update({"energy": energies})
 
+        if isinstance(returnFunc, list):
+            if len(returnFunc) > 1:
+                return dict_return
+            else:
+                return dict_return[returnFunc[0]]
+        else:
+            return dict_return[returnFunc]
 
-        if returnFunc == 'energy':
-            return energies
-        elif returnFunc == 'hairpins':
-            return nPins
-        elif returnFunc == 'pairs':
-            return nPairs
