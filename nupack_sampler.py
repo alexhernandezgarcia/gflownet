@@ -78,6 +78,14 @@ def add_args(parser):
     )
     args2config.update({"nsamples": ["dataset", "init_length"]})
     parser.add_argument(
+        "--no_indices",
+        dest="no_indices",
+        action="store_true",
+        default=False,
+        help="Omit indices in output CSV",
+    )
+    args2config.update({"no_indices": ["no_indices"]})
+    parser.add_argument(
         "--output_csv",
         type=str,
         default=None,
@@ -103,6 +111,8 @@ def main(args):
         output_yml = Path(args.output).with_suffix(".yml")
         with open(output_yml, "w") as f:
             yaml.dump(numpy2python(namespace2dict(args)), f, default_flow_style=False)
+        if args.no_indices:
+            df.drop(columns="indices", inplace=True)
         df.to_csv(args.output)
 
 
