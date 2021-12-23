@@ -18,6 +18,7 @@ import yaml
 import time
 
 import numpy as np
+import pandas as pd
 try:
     import dask.dataframe as dd
 except:
@@ -163,6 +164,17 @@ def add_args(parser):
     args2config.update({"bootstrap_tau": ["gflownet", "bootstrap_tau"]})
     parser.add_argument("--batch_reward", action="store_true")
     args2config.update({"batch_reward": ["gflownet", "batch_reward"]})
+    # Test set
+    parser.add_argument("--test_set_base", default=None, type=str)
+    args2config.update({"test_set_base": ["gflownet", "test", "base"]})
+    parser.add_argument("--test_set_seed", default=167, type=int)
+    args2config.update({"test_set_seed": ["gflownet", "test", "seed"]})
+    parser.add_argument("--ntest", default=10000, type=int)
+    args2config.update({"ntest": ["gflownet", "test", "n"]})
+    parser.add_argument("--test_dask", action="store_true", default=False)
+    args2config.update({"test_dask": ["gflownet", "test", "dask"]})
+    parser.add_argument("--test_output", default=None, type=str)
+    args2config.update({"test_output": ["gflownet", "test", "output"]})
     # Comet
     parser.add_argument("--comet_project", default=None, type=str)
     args2config.update({"comet_project": ["gflownet", "comet", "project"]})
@@ -171,6 +183,11 @@ def add_args(parser):
     )
     args2config.update({"tags": ["gflownet", "comet", "tags"]})
     return parser, args2config
+
+def process_config(config):
+    if config.gflownet.test.base:
+        config.gflownet.test.score = config.gflownet.func.replace("nupack ", "")
+    return config
 
 
 def set_device(dev):
@@ -641,6 +658,16 @@ class GFlowNetAgent:
         self.num_empirical_loss = args.gflownet.num_empirical_loss
         self.ttsr = max(int(args.gflownet.train_to_sample_ratio), 1)
         self.sttr = max(int(1 / args.gflownet.train_to_sample_ratio), 1)
+        # Test set
+        test_set = make_approx_uniform_test_set(
+                path_base_dataset=args.gflownet.test.base,
+                score=args.gflownet.test.score,
+                ntest=args.gflownet.test.n,
+                seed=args.gflownet.test.seed,
+                dask=args.gflownet.test.dask,
+                output_csv=args.gflownet.test.output,
+        )
+        import ipdb; ipdb.set_trace()
 
     def parameters(self):
         return self.model.parameters()
@@ -1189,6 +1216,8 @@ def compute_empirical_distribution_error(env, visited):
     return k1, kl
 
 
+# TODO: min and max length
+# TODO: improve approximation of uniform
 def make_approx_uniform_test_set(path_base_dataset, score, ntest, seed=167, dask=False,
         output_csv=None):
     """
@@ -1225,7 +1254,7 @@ def make_approx_uniform_test_set(path_base_dataset, score, ntest, seed=167, dask
     n_base = len(scores_base)
     min_base = np.min(scores_base)
     max_base = np.max(scores_base)
-    distr_unif = np.random.uniform(low=minval, high=maxval, size=ntest)
+    distr_unif = np.random.uniform(low=min_base, high=max_base, size=ntest)
     # Compute distance matrix
     if scores_base.ndim == 1:
         scores_base = scores_base[:, np.newaxis]
@@ -1267,6 +1296,7 @@ if __name__ == "__main__":
     parser, args2config = add_args(parser)
     args = parser.parse_args()
     config = get_config(args, override_args, args2config)
+    config = process_config(config)
     print("Config file: " + config.yaml_config)
     print("Working dir: " + config.workdir)
     print(
