@@ -18,6 +18,10 @@ import yaml
 import time
 
 import numpy as np
+try:
+    import dask.dataframe as dd
+except:
+    print("Dask DataFrame is not available")
 from scipy.stats import norm
 from tqdm import tqdm
 import torch
@@ -1183,6 +1187,73 @@ def compute_empirical_distribution_error(env, visited):
     # KL divergence
     kl = (true_density * torch.log(estimated_density / true_density)).sum().item()
     return k1, kl
+
+
+def make_approx_uniform_test_set(path_base_dataset, score, ntest, seed=167, dask=False,
+        output_csv=None):
+    """
+    Constructs an approximately uniformly distributed (on the score) set, by 
+    selecting samples from a larger base set.
+    
+    Args
+    ----
+    path_base_dataset : str
+        Path to a CSV file containing the base data set.
+
+    score : str
+        Column in the CSV file containing the score.
+
+    ntest : int
+        Number of test samples.
+
+    seed : int
+        Random seed.
+
+    dask : bool
+        If True, use dask to efficiently read a large base file.
+
+    output_csv: str
+        Optional path to store the test set as CSV.
+    """
+    if seed:
+        np.random.seed(seed)
+    if dask:
+        df_base = dd.read_csv(path_base_dataset, index_col=0)
+    else:
+        df_base = pd.read_csv(path_base_dataset, index_col=0)
+        scores_base = df_base[score]
+    n_base = len(scores_base)
+    min_base = np.min(scores_base)
+    max_base = np.max(scores_base)
+    distr_unif = np.random.uniform(low=minval, high=maxval, size=ntest)
+    # Compute distance matrix
+    if scores_base.ndim == 1:
+        scores_base = scores_base[:, np.newaxis]
+    scores_base_sq = np.sum(np.square(scores_base), axis=1)[:, np.newaxis]
+    if distr_unif.ndim == 1:
+        distr_unif = distr_unif[:, np.newaxis]
+    distr_sub_sq = np.sum(np.square(distr_unif), axis=1)
+    mat_dot = -2 * np.dot(scores_base, distr_unif.T)
+    dist_mat = np.sqrt(scores_base_sq + distr_sub_sq + mat_dot)
+    # Get minimum distance samples without duplicates
+    idx_samples = []
+    for idx in range(ntest):
+        idx_min = np.argmin(dist_mat[:, idx])
+        if idx_min in idx_samples:
+            for idx_next in np.argsort(dist_mat[:, idx]):
+                if idx_next not in idx_samples:
+                    idx_samples.append(idx_next)
+                    break
+        else:
+            idx_samples.append(idx_min)
+    # Make test set
+    df_test = df_base.loc[idx_samples, [score, "letters"]]
+    if dask:
+        df_test.compute()
+    if output_csv:
+        df_test.to_csv(output_csv)
+    return df_test[score]
+
 
 
 def main(args):
