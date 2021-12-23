@@ -136,30 +136,26 @@ class Oracle():
         :param queries: sequences to be scored
         :return: computed scores
         '''
-        if isinstance(queries,list):
+        if isinstance(queries, list):
             queries = np.asarray(queries) # convert queries to array
-
-        blockSize = int(1e4)
-        if len(queries) > blockSize: # score in blocks of maximum 10000
-            scores_list = []
-            scores_dict = {}
-            for i in range(int(len(queries) // blockSize)):
-                queryBlock = queries[i * blockSize:(i+1)*blockSize]
-                scores_block = self.getScore(queryBlock)
-                if isinstance(scores_block, dict):
-                    for k, v in scores_block.items():
-                        if k in scores_dict:
-                            scores_dict[k].extend(list(v))
-                        else:
-                            scores_dict.update({k: list(v)})
-                else:
-                    scores_list.extend(self.getScore(queryBlock))
-            if len(scores_list) > 0:
-                return np.asarray(scores_list)
+        block_size = int(1e4) # score in blocks of maximum 10000
+        scores_list = []
+        scores_dict = {}
+        for idx in range(len(queries) // block_size + bool(len(queries) % block_size)):
+            queryBlock = queries[idx * block_size:(idx + 1) * block_size]
+            scores_block = self.getScore(queryBlock)
+            if isinstance(scores_block, dict):
+                for k, v in scores_block.items():
+                    if k in scores_dict:
+                        scores_dict[k].extend(list(v))
+                    else:
+                        scores_dict.update({k: list(v)})
             else:
-                return {k: np.asarray(v) for k, v in scores_dict.items()}
+                scores_list.extend(self.getScore(queryBlock))
+        if len(scores_list) > 0:
+            return np.asarray(scores_list)
         else:
-            return self.getScore(queries)
+            return {k: np.asarray(v) for k, v in scores_dict.items()}
 
 
     def getScore(self,queries):
