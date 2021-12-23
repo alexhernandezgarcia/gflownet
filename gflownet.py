@@ -22,7 +22,7 @@ import pandas as pd
 try:
     import dask.dataframe as dd
 except:
-    print("Dask DataFrame is not available")
+    print("Dask DataFrame is not available. Install with:\npython -m pip install \"dask[dataframe]\"")
 from scipy.stats import norm
 from tqdm import tqdm
 import torch
@@ -58,6 +58,8 @@ def add_args(parser):
     # General
     parser.add_argument("--workdir", default=None, type=str)
     args2config.update({"workdir": ["workdir"]})
+    parser.add_argument("--overwrite_workdir", action="store_true", default=False)
+    args2config.update({"overwrite_workdir": ["overwrite_workdir"]})
     parser.add_argument("--device", default="cpu", type=str)
     args2config.update({"device": ["gflownet", "device"]})
     parser.add_argument("--progress", action="store_true")
@@ -1311,8 +1313,8 @@ if __name__ == "__main__":
         + "\n".join([f"    {k:20}: {v}" for k, v in vars(config.gflownet).items()])
     )
     if "workdir" in config:
-        if not Path(config.workdir).exists():
-            Path(config.workdir).mkdir(parents=True, exist_ok=False)
+        if not Path(config.workdir).exists() or config.overwrite_workdir:
+            Path(config.workdir).mkdir(parents=True, exist_ok=True)
             with open(config.workdir + "/config.yml", "w") as f:
                 yaml.dump(numpy2python(namespace2dict(config)), f, default_flow_style=False)
             torch.set_num_threads(1)
