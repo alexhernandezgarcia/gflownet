@@ -19,10 +19,19 @@ import time
 
 import numpy as np
 import pandas as pd
+
 try:
     import dask.dataframe as dd
 except:
-    print("Dask DataFrame is not available. Install with:\npython -m pip install \"dask[dataframe]\"")
+    print(
+        'Dask DataFrame is not available. Install with:\npython -m pip install "dask[dataframe]"'
+    )
+try:
+    import dask.array as da
+except:
+    print(
+        'Dask Array is not available. Install with:\npython -m pip install "dask[array]"'
+    )
 from scipy.stats import norm
 from tqdm import tqdm
 import torch
@@ -187,6 +196,7 @@ def add_args(parser):
     )
     args2config.update({"tags": ["gflownet", "comet", "tags"]})
     return parser, args2config
+
 
 def process_config(config):
     if config.gflownet.test.base:
@@ -441,7 +451,7 @@ class AptamerSeq:
         Returns
         -------
         traj : list
-            List of sequences (lists) 
+            List of sequences (lists)
 
         actions : list
             List of actions that lead to each sequence in traj
@@ -665,14 +675,17 @@ class GFlowNetAgent:
         self.sttr = max(int(1 / args.gflownet.train_to_sample_ratio), 1)
         self.random_action_prob = args.gflownet.random_action_prob
         # Test set
-        test_set = make_approx_uniform_test_set(
-                path_base_dataset=args.gflownet.test.base,
-                score=args.gflownet.test.score,
-                ntest=args.gflownet.test.n,
-                seed=args.gflownet.test.seed,
-                dask=args.gflownet.test.dask,
-                output_csv=args.gflownet.test.output,
+        test_set, times = make_approx_uniform_test_set(
+            path_base_dataset=args.gflownet.test.base,
+            score=args.gflownet.test.score,
+            ntest=args.gflownet.test.n,
+            seed=args.gflownet.test.seed,
+            dask=args.gflownet.test.dask,
+            output_csv=args.gflownet.test.output,
         )
+        import ipdb
+
+        ipdb.set_trace()
 
     def parameters(self):
         return self.model.parameters()
@@ -1227,12 +1240,13 @@ def compute_empirical_distribution_error(env, visited):
 
 # TODO: min and max length
 # TODO: improve approximation of uniform
-def make_approx_uniform_test_set(path_base_dataset, score, ntest, seed=167, dask=False,
-        output_csv=None):
+def make_approx_uniform_test_set(
+    path_base_dataset, score, ntest, seed=167, dask=False, output_csv=None
+):
     """
-    Constructs an approximately uniformly distributed (on the score) set, by 
+    Constructs an approximately uniformly distributed (on the score) set, by
     selecting samples from a larger base set.
-    
+
     Args
     ----
     path_base_dataset : str
@@ -1253,45 +1267,74 @@ def make_approx_uniform_test_set(path_base_dataset, score, ntest, seed=167, dask
     output_csv: str
         Optional path to store the test set as CSV.
     """
+    times = {
+        "all": 0.0,
+        "distance_mat": 0.0,
+        "indices": 0.0,
+    }
+    t0_all = time.time()
     if seed:
         np.random.seed(seed)
     if dask:
-        df_base = dd.read_csv(path_base_dataset, index_col=0)
+        df_base = dd.read_csv(path_base_dataset)
+        scores_base = df_base[score].values
+        scores_base.compute_chunk_sizes()
     else:
         df_base = pd.read_csv(path_base_dataset, index_col=0)
-        scores_base = df_base[score]
-    n_base = len(scores_base)
-    min_base = np.min(scores_base)
-    max_base = np.max(scores_base)
+        scores_base = np.asarray(df_base[score].values)
     distr_unif = np.random.uniform(low=min_base, high=max_base, size=ntest)
+    min_base = scores_base.min()
+    max_base = scores_base.max()
     # Compute distance matrix
-    if scores_base.ndim == 1:
-        scores_base = scores_base[:, np.newaxis]
-    scores_base_sq = np.sum(np.square(scores_base), axis=1)[:, np.newaxis]
+    t0_distance = time.time()
     if distr_unif.ndim == 1:
-        distr_unif = distr_unif[:, np.newaxis]
+        distr_unif = distr_unif[:, None]
     distr_sub_sq = np.sum(np.square(distr_unif), axis=1)
-    mat_dot = -2 * np.dot(scores_base, distr_unif.T)
-    dist_mat = np.sqrt(scores_base_sq + distr_sub_sq + mat_dot)
+    if scores_base.ndim == 1:
+        scores_base = scores_base[:, None]
+    if dask:
+        distr_unif = da.from_array(distr_unif)
+        scores_base_sq = da.sum(da.square(scores_base), axis=1)[:, None]
+        mat_dot = -2 * da.dot(scores_base, distr_unif.T)
+        dist_mat = da.sqrt(scores_base_sq + distr_sub_sq + mat_dot)
+    else:
+        scores_base_sq = np.sum(np.square(scores_base), axis=1)[:, None]
+        mat_dot = -2 * np.dot(scores_base, distr_unif.T)
+        dist_mat = np.sqrt(scores_base_sq + distr_sub_sq + mat_dot)
+        dist_mat.compute_chunk_sizes()
+    t1_distance = time.time()
+    times["distance_mat"] += t1_distance - t0_distance
     # Get minimum distance samples without duplicates
+    t0_indices = time.time()
     idx_samples = []
     for idx in range(ntest):
-        idx_min = np.argmin(dist_mat[:, idx])
+        if dask:
+            col = dist_mat[:, idx].compute()
+            idx_min = da.argmin(dist_mat[:, idx]).compute()
+        else:
+            idx_min = np.argmin(dist_mat[:, idx])
         if idx_min in idx_samples:
-            for idx_next in np.argsort(dist_mat[:, idx]):
+            if dask:
+                idx_sort = da.argsort(dist_mat[:, idx]).compute()
+            else:
+                idx_sort =  np.argsort(dist_mat[:, idx])
+            for idx_next in idx_sort:
                 if idx_next not in idx_samples:
                     idx_samples.append(idx_next)
                     break
         else:
             idx_samples.append(idx_min)
+    t1_indices = time.time()
+    times["indices"] += t1_indices - t0_indices
     # Make test set
     df_test = df_base.loc[idx_samples, [score, "letters"]]
     if dask:
         df_test.compute()
     if output_csv:
         df_test.to_csv(output_csv)
-    return df_test[score]
-
+    t1_all = time.time()
+    times["all"] += t1_all - t0_all
+    return df_test, times
 
 
 def main(args):
@@ -1316,7 +1359,9 @@ if __name__ == "__main__":
         if not Path(config.workdir).exists() or config.overwrite_workdir:
             Path(config.workdir).mkdir(parents=True, exist_ok=True)
             with open(config.workdir + "/config.yml", "w") as f:
-                yaml.dump(numpy2python(namespace2dict(config)), f, default_flow_style=False)
+                yaml.dump(
+                    numpy2python(namespace2dict(config)), f, default_flow_style=False
+                )
             torch.set_num_threads(1)
             main(config)
         else:
