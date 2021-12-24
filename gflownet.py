@@ -1293,7 +1293,7 @@ def make_approx_uniform_test_set(
     t1_indices = time.time()
     times["indices"] += t1_indices - t0_indices
     # Make test set
-    df_test = df_base.loc[idx_samples, [score, "letters"]]
+    df_test = df_base.iloc[idx_samples]
     if output_csv:
         df_test.to_csv(output_csv)
     t1_all = time.time()
