@@ -663,9 +663,9 @@ class GFlowNetAgent:
         self.random_action_prob = args.gflownet.random_action_prob
         # Test set
         if args.gflownet.test.path:
-            test_set = pd.read_csv(args.gflownet.test.path, index_col=0)
+            self.test_set = pd.read_csv(args.gflownet.test.path, index_col=0)
         else:
-            test_set, test_set_times = make_approx_uniform_test_set(
+            self.test_set, test_set_times = make_approx_uniform_test_set(
                 path_base_dataset=args.gflownet.test.base,
                 score=args.gflownet.test.score,
                 ntest=args.gflownet.test.n,
@@ -1226,7 +1226,6 @@ def compute_empirical_distribution_error(env, visited):
     return k1, kl
 
 
-# TODO: min and max length
 # TODO: improve approximation of uniform
 def make_approx_uniform_test_set(
     path_base_dataset,
