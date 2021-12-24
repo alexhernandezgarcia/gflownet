@@ -19,19 +19,6 @@ import time
 
 import numpy as np
 import pandas as pd
-
-try:
-    import dask.dataframe as dd
-except:
-    print(
-        'Dask DataFrame is not available. Install with:\npython -m pip install "dask[dataframe]"'
-    )
-try:
-    import dask.array as da
-except:
-    print(
-        'Dask Array is not available. Install with:\npython -m pip install "dask[array]"'
-    )
 from scipy.stats import norm
 from tqdm import tqdm
 import torch
@@ -186,8 +173,6 @@ def add_args(parser):
     args2config.update({"test_set_seed": ["gflownet", "test", "seed"]})
     parser.add_argument("--ntest", default=10000, type=int)
     args2config.update({"ntest": ["gflownet", "test", "n"]})
-    parser.add_argument("--test_dask", action="store_true", default=False)
-    args2config.update({"test_dask": ["gflownet", "test", "dask"]})
     parser.add_argument("--test_output", default=None, type=str)
     args2config.update({"test_output": ["gflownet", "test", "output"]})
     # Comet
@@ -684,6 +669,8 @@ class GFlowNetAgent:
                 path_base_dataset=args.gflownet.test.base,
                 score=args.gflownet.test.score,
                 ntest=args.gflownet.test.n,
+                min_length=1,
+                max_length=args.gflownet.horizon,
                 seed=args.gflownet.test.seed,
                 output_csv=args.gflownet.test.output,
             )
@@ -1241,76 +1228,14 @@ def compute_empirical_distribution_error(env, visited):
 
 # TODO: min and max length
 # TODO: improve approximation of uniform
-def make_approx_uniform_test_set_dask(
-    path_base_dataset, score, ntest, seed=167, output_csv=None
-):
-    """
-    Constructs an approximately uniformly distributed (on the score) set, by
-    selecting samples from a larger base set.
-
-    Args
-    ----
-    path_base_dataset : str
-        Path to a CSV file containing the base data set.
-
-    score : str
-        Column in the CSV file containing the score.
-
-    ntest : int
-        Number of test samples.
-
-    seed : int
-        Random seed.
-
-    dask : bool
-        If True, use dask to efficiently read a large base file.
-
-    output_csv: str
-        Optional path to store the test set as CSV.
-    """
-    times = {
-        "all": 0.0,
-        "indices": 0.0,
-    }
-    t0_all = time.time()
-    if seed:
-        np.random.seed(seed)
-    df_base = dd.read_csv(path_base_dataset)
-    scores_base = df_base[score].values
-    scores_base.compute_chunk_sizes()
-    min_base = scores_base.min()
-    max_base = scores_base.max()
-    distr_unif = da.random.uniform(low=min_base, high=max_base, size=ntest)
-    # Get minimum distance samples without duplicates
-    t0_indices = time.time()
-    idx_samples = []
-    for idx in tqdm(range(ntest)):
-        dist = da.abs(scores_base - distr_unif[idx])
-        idx_min = da.argmin(dist).compute()
-        if idx_min in idx_samples:
-            idx_sort = da.argsort(dist).compute()
-            for idx_next in idx_sort:
-                if idx_next not in idx_samples:
-                    idx_samples.append(idx_next)
-                    break
-        else:
-            idx_samples.append(idx_min)
-    t1_indices = time.time()
-    times["indices"] += t1_indices - t0_indices
-    # Make test set
-    df_test = df_base.loc[idx_samples, [score, "letters"]]
-    df_test.compute()
-    if output_csv:
-        df_test.to_csv(output_csv)
-    t1_all = time.time()
-    times["all"] += t1_all - t0_all
-    return df_test, times
-
-
-# TODO: min and max length
-# TODO: improve approximation of uniform
 def make_approx_uniform_test_set(
-    path_base_dataset, score, ntest, seed=167, output_csv=None
+    path_base_dataset,
+    score,
+    ntest,
+    min_length=0,
+    max_length=np.inf,
+    seed=167,
+    output_csv=None,
 ):
     """
     Constructs an approximately uniformly distributed (on the score) set, by
@@ -1344,6 +1269,10 @@ def make_approx_uniform_test_set(
     if seed:
         np.random.seed(seed)
     df_base = pd.read_csv(path_base_dataset, index_col=0)
+    df_base = df_base.loc[
+        (df_base["letters"].map(len) >= min_length)
+        & (df_base["letters"].map(len) <= max_length)
+    ]
     scores_base = df_base[score].values
     min_base = scores_base.min()
     max_base = scores_base.max()
