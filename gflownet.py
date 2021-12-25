@@ -342,7 +342,7 @@ class AptamerSeq:
         letter in the n-th position.
 
         Example:
-          - Sequence: AACTG
+          - Sequence: AATGC
           - State, seq: [0, 0, 1, 3, 2]
                          A, A, T, G, C
           - seq2obs(seq): [1, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0]
@@ -370,11 +370,11 @@ class AptamerSeq:
         into a a sequence of letter indices.
 
         Example:
-          - Sequence: AACTG
+          - Sequence: AATGC
           - obs: [1, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0]
-                 |     A    |      A    |      C    |      T    |      G    |
+                 |     A    |      A    |      T    |      G    |      C    |
           - seq: [0, 0, 1, 3, 2]
-                  A, A, C, T, G
+                  A, A, T, G, C
         """
         obs_mat = np.reshape(obs, (self.horizon, self.nalphabet))
         seq = np.where(obs_mat)[1]
