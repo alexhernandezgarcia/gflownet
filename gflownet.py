@@ -175,6 +175,8 @@ def add_args(parser):
     args2config.update({"ntest": ["gflownet", "test", "n"]})
     parser.add_argument("--test_output", default=None, type=str)
     args2config.update({"test_output": ["gflownet", "test", "output"]})
+    parser.add_argument("--test_period", default=500, type=int)
+    args2config.update({"test_period": ["gflownet", "test", "period"]})
     # Comet
     parser.add_argument("--comet_project", default=None, type=str)
     args2config.update({"comet_project": ["gflownet", "comet", "project"]})
@@ -182,12 +184,13 @@ def add_args(parser):
         "-t", "--tags", nargs="*", help="Comet.ml tags", default=[], type=str
     )
     args2config.update({"tags": ["gflownet", "comet", "tags"]})
+    parser.add_argument("--no_comet", action="store_true")
+    args2config.update({"no_comet": ["gflownet", "comet", "skip"]})
     return parser, args2config
 
 
 def process_config(config):
-    if config.gflownet.test.base:
-        config.gflownet.test.score = config.gflownet.func.replace("nupack ", "")
+    config.gflownet.test.score = config.gflownet.func.replace("nupack ", "")
     return config
 
 
@@ -383,6 +386,14 @@ class AptamerSeq:
         according to an alphabet.
         """
         return [alphabet[el] for el in seq]
+
+    def letters2seq(self, letters, alphabet={0: "A", 1: "T", 2: "C", 3: "G"}):
+        """
+        Transforms a sequence given as a list of indices into a sequence of letters
+        according to an alphabet.
+        """
+        alphabet = {v: k for k, v in alphabet.items()}
+        return [alphabet[el] for el in letters]
 
     def reset(self):
         """
@@ -584,7 +595,7 @@ class GFlowNetAgent:
             self.reward_beta_period = np.inf
         self.reward_max = args.gflownet.reward_max
         # Comet
-        if args.gflownet.comet.project:
+        if args.gflownet.comet.project and not args.gflownet.comet.skip:
             self.comet = Experiment(
                 project_name=args.gflownet.comet.project, display_summary_level=0
             )
@@ -662,18 +673,26 @@ class GFlowNetAgent:
         self.sttr = max(int(1 / args.gflownet.train_to_sample_ratio), 1)
         self.random_action_prob = args.gflownet.random_action_prob
         # Test set
+        self.test_period = args.gflownet.test.period
+        self.test_score = args.gflownet.test.score
         if args.gflownet.test.path:
-            self.test_set = pd.read_csv(args.gflownet.test.path, index_col=0)
+            self.df_test = pd.read_csv(args.gflownet.test.path, index_col=0)
         else:
-            self.test_set, test_set_times = make_approx_uniform_test_set(
+            self.df_test, test_set_times = make_approx_uniform_test_set(
                 path_base_dataset=args.gflownet.test.base,
-                score=args.gflownet.test.score,
+                score=self.test_score,
                 ntest=args.gflownet.test.n,
                 min_length=1,
                 max_length=args.gflownet.horizon,
                 seed=args.gflownet.test.seed,
                 output_csv=args.gflownet.test.output,
             )
+        if self.df_test is not None:
+            print("\nTest data")
+            print(f"\tAverage score: {self.df_test[self.test_score].mean()}")
+            print(f"\tStd score: {self.df_test[self.test_score].std()}")
+            print(f"\tMin score: {self.df_test[self.test_score].min()}")
+            print(f"\tMax score: {self.df_test[self.test_score].max()}")
 
     def parameters(self):
         return self.model.parameters()
@@ -940,6 +959,38 @@ class GFlowNetAgent:
                     ),
                     step=i,
                 )
+            # Test set metrics
+            if not i % self.test_period and self.df_test is not None:
+                t0_test_logq = time.time()
+                data_logq = []
+                for seqstr, score in tqdm(
+                    zip(self.df_test.letters, self.df_test[self.test_score])
+                ):
+                    traj, actions = self.env.trajectories(
+                        self.env.letters2seq(seqstr),
+                        [self.env.letters2seq(seqstr)],
+                        [self.env.nactions],
+                    )
+                    data_logq.append(logq(traj, actions, self.model, self.env))
+                corr = np.corrcoef(data_logq, self.df_test[self.test_score])
+                t1_test_logq = time.time()
+                times.update({"test_logq": t1_test_logq - t0_test_logq})
+                if self.comet:
+                    self.comet.log_metrics(
+                        dict(
+                            zip(
+                                [
+                                    "test_corr_logq_score",
+                                    "test_mean_logq",
+                                ],
+                                [
+                                    corr[0, 1],
+                                    np.mean(data_logq),
+                                ],
+                            )
+                        ),
+                        step=i,
+                    )
             if not i % 100:
                 if not self.lightweight:
                     empirical_distrib_losses.append(
@@ -974,7 +1025,7 @@ class GFlowNetAgent:
                         self.comet.log_metric(
                             "unique_states", np.unique(all_visited).shape[0], step=i
                         )
-                # Save intermediate model
+            # Save intermediate model
             if not i % self.ckpt_period and self.model_path:
                 path = self.model_path.parent / Path(
                     self.model_path.stem
@@ -1260,6 +1311,8 @@ def make_approx_uniform_test_set(
     output_csv: str
         Optional path to store the test set as CSV.
     """
+    if path_base_dataset is None:
+        return None
     times = {
         "all": 0.0,
         "indices": 0.0,
@@ -1299,6 +1352,20 @@ def make_approx_uniform_test_set(
     t1_all = time.time()
     times["all"] += t1_all - t0_all
     return df_test, times
+
+
+def logq(traj, actions, model, env):
+    traj = traj[::-1]
+    actions = actions[::-1]
+    traj_obs = np.asarray([env.seq2obs(seq) for seq in traj])
+    with torch.no_grad():
+        logits_traj = model(tf(traj_obs))
+    logsoftmax = torch.nn.LogSoftmax(dim=1)
+    logprobs_traj = logsoftmax(logits_traj)
+    log_q = torch.tensor(0.0)
+    for s, a, logprobs in zip(*[traj, actions, logprobs_traj]):
+        log_q = log_q + logprobs[a]
+    return log_q.item()
 
 
 def main(args):
