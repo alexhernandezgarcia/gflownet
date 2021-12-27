@@ -173,6 +173,8 @@ def add_args(parser):
     args2config.update({"test_set_seed": ["gflownet", "test", "seed"]})
     parser.add_argument("--ntest", default=10000, type=int)
     args2config.update({"ntest": ["gflownet", "test", "n"]})
+    parser.add_argument("--min_length", default=1, type=int)
+    args2config.update({"min_length": ["gflownet", "test", "min_length"]})
     parser.add_argument("--test_output", default=None, type=str)
     args2config.update({"test_output": ["gflownet", "test", "output"]})
     parser.add_argument("--test_period", default=500, type=int)
@@ -682,7 +684,7 @@ class GFlowNetAgent:
                 path_base_dataset=args.gflownet.test.base,
                 score=self.test_score,
                 ntest=args.gflownet.test.n,
-                min_length=1,
+                min_length=args.gflownet.test.min_length,
                 max_length=args.gflownet.horizon,
                 seed=args.gflownet.test.seed,
                 output_csv=args.gflownet.test.output,
