@@ -525,8 +525,8 @@ class GFlowNetAgent:
         set_device(self.device_torch)
         self.lightweight = True
         self.tau = args.gflownet.bootstrap_tau
-        self.ema_alpha = 0.5
-        self.early_stopping = 0.05
+        self.ema_alpha = args.gflownet.ema_alpha
+        self.early_stopping = args.gflownet.early_stopping
         self.reward_beta = args.gflownet.reward_beta_init
         self.reward_beta_mult = args.gflownet.reward_beta_mult
         self.reward_beta_period = args.gflownet.reward_beta_period
