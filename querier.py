@@ -23,14 +23,14 @@ class Querier():
         if self.config.al.query_mode == 'learned':
             pass
 
-    def buildQuery(self, model, statusDict, energySampleDict, action = None):
+    def buildQuery(self, model, statusDict, energySampleDict, action = None, comet=None,):
         """
         select the samples which will be sent to the oracle for scoring
         if we are dynamically updating hyperparameters, take an action
         :param sampleDict:
         :return:
         """
-
+        self.comet = comet
         if action is not None:
             self.updateHyperparams(action)
 
@@ -65,6 +65,11 @@ class Querier():
             scores = scores[inds]
 
             query = self.constructQuery(samples, scores, uncertainties, nQueries)
+
+            if self.comet:
+                self.comet.log_histogram_3d(self.sampleDict['scores'], name='sampler output scores', step=statusDict['iter'])
+                self.comet.log_histogram_3d(np.sqrt(uncertainties), name='sampler output std deviations', step=statusDict['iter'])
+                self.comet.log_histogram_3d(self.sampleDict['energies'], name='sampler output energies', step=statusDict['iter'])
 
         return query
 
@@ -160,11 +165,10 @@ class Querier():
                 'uncertainties': uncertainties,
                 'scores':scores
             }
-            if self.config.gflownet.annealing:
-                outputs = self.doAnnealing(scoreFunction, model, outputs)
+            outputs = self.doAnnealing(scoreFunction, model, outputs)
 
         elif method.lower() == "gflownet":
-            gflownet = GFlowNetAgent(self.config, proxy=model.raw)
+            gflownet = GFlowNetAgent(self.config, comet = self.comet, proxy=model.raw)
 
             t0 = time.time()
             gflownet.train()

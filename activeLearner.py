@@ -32,13 +32,16 @@ class ActiveLearning():
         # Comet
         if config.al.comet.project:
             self.comet = Experiment(
-                project_name=config.al.comet.project, display_summary_level=0
+                project_name=config.al.comet.project, display_summary_level=0,
             )
             if config.al.comet.tags:
                 if isinstance(config.al.comet.tags, list):
                     self.comet.add_tags(config.al.comet.tags)
                 else:
                     self.comet.add_tag(config.al.comet.tags)
+
+            self.comet.set_name("run {}".format(config.run_num))
+
             self.comet.log_parameters(vars(config))
             with open(Path(self.workDir) / "comet_al.url", "w") as f:
                 f.write(self.comet.url + "\n")
@@ -169,8 +172,7 @@ class ActiveLearning():
         else:
             self.action = None
 
-        query = self.querier.buildQuery(self.model, self.stateDict, self.sampleDict, self.action)  # pick Samples to be scored
-
+        query = self.querier.buildQuery(self.model, self.stateDict, self.sampleDict, action=self.action, comet=self.comet)  # pick Samples to be scored
         tf = time.time()
         printRecord('Query generation took {} seconds'.format(int(tf-t0)))
 
@@ -180,6 +182,9 @@ class ActiveLearning():
         printRecord('Oracle scored' + bcolors.OKBLUE + ' {} '.format(len(scores)) + bcolors.ENDC + 'queries with average score of' + bcolors.OKGREEN + ' {:.3f}'.format(np.average(scores)) + bcolors.ENDC)
         if not self.config.dataset.type == 'toy':
             printRecord('Oracle scoring took {} seconds'.format(int(tf-t0)))
+
+        if self.comet:
+            self.comet.log_histogram_3d(scores,name='query scores',step=self.pipeIter)
 
         self.updateDataset(query, scores) # add scored Samples to dataset
 
@@ -254,12 +259,25 @@ class ActiveLearning():
 
         if self.config.dataset.type == 'toy': # we can check the test error against a huge random dataset
             self.largeModelEvaluation()
-
+            if self.comet:
+                self.comet.log_metric(name='proxy loss on best 10% of large random dataset',value = self.bottomTenLoss[0], step=self.pipeIter)
+                self.comet.log_metric(name='proxy loss on large random dataset', value = self.totalLoss[0], step=self.pipeIter)
 
         if self.pipeIter == 0: # if it's the first round, initialize, else, append
             self.stateDictRecord = [self.stateDict]
         else:
             self.stateDictRecord.append(self.stateDict)
+
+
+        if self.comet:
+            self.comet.log_histogram_3d(energies, name='model state sampling run energies', step = self.pipeIter)
+            self.comet.log_histogram_3d(np.sqrt(uncertainties), name='model state sampling run std deviations', step = self.pipeIter)
+            self.comet.log_histogram_3d(minClusterEns[:self.config.querier.model_state_size], name='model state energies', step=self.pipeIter)
+            self.comet.log_histogram_3d(np.sqrt(minClusterVars[:self.config.querier.model_state_size]), name='model state std deviations', step=self.pipeIter)
+            self.comet.log_histogram_3d(internalDist, name='model state internal distance', step=self.pipeIter)
+            self.comet.log_histogram_3d(datasetDist, name='model state distance from dataset', step=self.pipeIter)
+            self.comet.log_histogram_3d(randomDist, name='model state distance from large random sample', step=self.pipeIter)
+            self.comet.log_histogram_3d(self.testMinima[-1], name='proxy model test minima', step=self.pipeIter)
 
 
     def getReward(self,bestEns,bestVars):
@@ -270,43 +288,48 @@ class ActiveLearning():
         :return:
         '''
         # get the best results in the standardized basis
-        stdEns = (bestEns - self.model.mean)/self.model.std
-        stdDevs = np.sqrt(bestVars) / self.model.std
-        adjustedEns = stdEns + stdDevs # consider std dev as an uncertainty envelope and take the high end
-        bestStdAdjusted = np.amin(adjustedEns)
+        best_ens_standardized = (bestEns - self.model.mean)/self.model.std
+        standardized_standard_deviations = np.sqrt(bestVars) / self.model.std
+        adjusted_standardized_energies = best_ens_standardized + standardized_standard_deviations # consider std dev as an uncertainty envelope and take the high end
+        best_standardized_adjusted_energy = np.amin(adjusted_standardized_energies)
 
         # convert to raw outputs basis
-        bestSoFar = bestEns[np.argmin(adjustedEns)]
-        bestSoFarVar = bestVars[np.argmin(adjustedEns)]
-        bestRawAdjusted = bestSoFar + bestSoFarVar
+        adjusted_energies = bestEns + np.sqrt(bestVars)
+        best_adjusted_energy = np.amin(adjusted_energies) # best energy, adjusted for uncertainty
         if self.pipeIter == 0:
             self.reward = 0 # first iteration - can't define a reward
             self.cumulativeReward = 0
             self.rewardList = np.zeros(self.config.al.n_iter)
-            self.prevIterBest = [bestRawAdjusted]
+            self.prevIterBest = [best_adjusted_energy]
         else: # calculate reward using current standardization
             stdPrevIterBest = (self.prevIterBest[-1] - self.model.mean)/self.model.std
-            self.reward = -(bestStdAdjusted - stdPrevIterBest) # reward is the delta between variance-adjusted energies in the standardized basis (smaller is better)
+            self.reward = -(best_standardized_adjusted_energy - stdPrevIterBest) # reward is the delta between variance-adjusted energies in the standardized basis (smaller is better)
             self.rewardList[self.pipeIter] = self.reward
             self.cumulativeReward = sum(self.rewardList)
-            self.prevIterBest.append(bestRawAdjusted)
+            self.prevIterBest.append(best_adjusted_energy)
 
-        printRecord('Iteration best uncertainty-adjusted result = {:.3f}, previous best = {:.3f}, reward = {:.3f}, cumulative reward = {:.3f}'.format(bestRawAdjusted, self.prevIterBest[-1], self.reward, self.cumulativeReward))
+        printRecord('Iteration best uncertainty-adjusted result = {:.3f}, previous best = {:.3f}, reward = {:.3f}, cumulative reward = {:.3f}'.format(best_adjusted_energy, self.prevIterBest[-1], self.reward, self.cumulativeReward))
 
         if self.config.dataset.type == 'toy': # if it's  a toy dataset, report the cumulative performance against the known minimum
             stdTrueMinimum = (self.trueMinimum - self.model.mean) / self.model.std
             if self.pipeIter == 0:
-                self.tot_score_yaxis = [1 - np.abs(stdTrueMinimum - bestStdAdjusted) / np.abs(stdTrueMinimum)]
+                self.abs_score = [1 - np.abs(self.trueMinimum - best_adjusted_energy) / np.abs(self.trueMinimum)]
+                self.cumulativeScore=0
             elif self.pipeIter > 0:
                 # we will compute the distance from our best answer to the correct answer and integrate it over the number of samples in the dataset
                 xaxis = self.config.dataset_size + np.arange(0,self.pipeIter + 1) * self.config.al.queries_per_iter # how many samples in the dataset used for each
-                self.tot_score_yaxis.append(1 - np.abs(stdTrueMinimum - bestStdAdjusted) / np.abs(stdTrueMinimum)) # compute proximity to correct answer in standardized basis
-                self.cumulativeScore = np.trapz(self.tot_score_yaxis, x=xaxis)
+                self.abs_score.append(1 - np.abs(self.trueMinimum - best_adjusted_energy) / np.abs(self.trueMinimum)) # compute proximity to correct answer in standardized basis
+                self.cumulativeScore = np.trapz(self.abs_score, x=xaxis)
                 self.normedCumScore = self.cumulativeScore / xaxis[-1]
-                printRecord('Total score is {:.3f} and {:.5f} per-sample after {} samples'.format(self.tot_score_yaxis[-1], self.normedCumScore, xaxis[-1]))
+                printRecord('Total score is {:.3f} and {:.5f} per-sample after {} samples'.format(self.abs_score[-1], self.normedCumScore, xaxis[-1]))
             else:
                 print('Error! Pipeline iteration cannot be negative')
                 sys.exit()
+
+            if self.comet:
+                self.comet.log_metric(name = "absolute score", value = self.abs_score[-1], step = self.pipeIter)
+                self.comet.log_metric(name = "cumulative score", value = self.cumulativeScore, step = self.pipeIter)
+                self.comet.log_metric(name = "reward", value = self.reward, step = self.pipeIter)
 
 
     def retrainModels(self, parallel=True):
@@ -316,8 +339,16 @@ class ActiveLearning():
                 self.resetModel(i)  # reset between ensemble estimators EVERY ITERATION of the pipeline
                 self.model.converge()  # converge model
                 testMins.append(np.amin(self.model.err_te_hist))
+                if self.comet:
+                    tr_hist = self.model.err_tr_hist
+                    te_hist = self.model.err_te_hist
+                    epochs = len(te_hist)
+                    for i in range(epochs):
+                        self.comet.log_metric('proxy train loss iter {}'.format(self.pipeIter), step=i, value=tr_hist[i])
+                        self.comet.log_metric('proxy test loss iter {}'.format(self.pipeIter), step=i, value=te_hist[i])
+
             self.testMinima.append(testMins)
-        else:
+        else: # deprecated
             del self.model
             if self.config.machine == 'local':
                 nHold = 4
@@ -483,7 +514,7 @@ class ActiveLearning():
             outputDict['big dataset loss'] = self.totalLoss
             outputDict['bottom 10% loss'] = self.bottomTenLoss
             if self.pipeIter > 1:
-                outputDict['score record'] = self.tot_score_yaxis
+                outputDict['score record'] = self.abs_score
                 outputDict['cumulative score'] = self.cumulativeScore,
                 outputDict['per sample cumulative score'] = self.normedCumScore
         np.save('outputsDict', outputDict)
@@ -501,6 +532,9 @@ class ActiveLearning():
         # TODO separate between scores and q-scores
         dataset['samples'] = np.concatenate((dataset['samples'], oracleSequences))
         dataset['scores'] = np.concatenate((dataset['scores'], oracleScores))
+
+        if self.comet:
+            self.comet.log_histogram_3d(dataset['scores'], name='dataset scores', step=self.pipeIter)
 
         self.config.dataset_size = len(dataset['samples'])
 
