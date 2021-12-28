@@ -1363,18 +1363,26 @@ def make_approx_uniform_test_set(
     return df_test, times
 
 
-def logq(traj_list, actions, model, env):
-    # TODO: adapt to DAG trajectories!
-    traj = traj_list[0][::-1]
-    actions = actions[0][::-1]
-    traj_obs = np.asarray([env.seq2obs(seq) for seq in traj])
-    with torch.no_grad():
-        logits_traj = model(tf(traj_obs))
-    logsoftmax = torch.nn.LogSoftmax(dim=1)
-    logprobs_traj = logsoftmax(logits_traj)
-    log_q = torch.tensor(0.0)
-    for s, a, logprobs in zip(*[traj, actions, logprobs_traj]):
-        log_q = log_q + logprobs[a]
+def logq(traj_list, actions_list, model, env):
+    # TODO: this method is probably suboptimal, since it may repeat forward calls for
+    # the same nodes.
+    log_q = torch.tensor(1.0)
+    for traj, actions in zip(traj_list, actions_list):
+        traj = traj[::-1]
+        actions = actions[::-1]
+        traj_obs = np.asarray([env.seq2obs(seq) for seq in traj])
+        with torch.no_grad():
+            logits_traj = model(tf(traj_obs))
+        logsoftmax = torch.nn.LogSoftmax(dim=1)
+        logprobs_traj = logsoftmax(logits_traj)
+        log_q_traj = torch.tensor(0.0)
+        for s, a, logprobs in zip(*[traj, actions, logprobs_traj]):
+            log_q_traj = log_q_traj + logprobs[a]
+        # Accumulate log prob of trajectory
+        if torch.le(log_q, 0.0):
+            log_q = torch.logaddexp(log_q, log_q_traj)
+        else:
+            log_q = log_q_traj
     return log_q.item()
 
 
