@@ -438,32 +438,40 @@ class AptamerSeq:
                     actions.append(idx)
         return parents, actions
 
-    def trajectories(self, seq, traj, actions):
+    def get_trajectories(self, traj_list, actions):
         """
         Determines all trajectories to sequence seq
 
         Args
         ----
-        seq : list
-            Representation of a sequence (state), as a list of length horizon where each
-        element is the index of a letter in the alphabet, from 0 to (nalphabet - 1).
+        traj_list : list
+            List of trajectories (lists)
+
+        actions : list
+            List of actions within each trajectory
 
         Returns
         -------
-        traj : list
-            List of sequences (lists)
+        traj_list : list
+            List of trajectories (lists)
 
         actions : list
-            List of actions that lead to each sequence in traj
+            List of actions within each trajectory
         """
-        parents, parents_actions = self.parent_transitions(seq, -1)
+        current_traj = traj_list[-1].copy()
+        current_traj_actions = actions[-1].copy()
+        parents, parents_actions = self.parent_transitions(list(current_traj[-1]), -1)
         parents = [self.obs2seq(el).tolist() for el in parents]
         if parents == []:
-            return traj, actions
-        for p, a in zip(parents, parents_actions):
-            traj += [p]
-            actions += [a]
-            return self.trajectories(p, traj, actions)
+            return traj_list, actions
+        for idx, (p, a) in enumerate(zip(parents, parents_actions)):
+            if idx > 0:
+                traj_list.append(current_traj)
+                actions.append(current_traj_actions)
+            traj_list[-1] += [p]
+            actions[-1] += [a]
+            traj_list, actions = self.get_trajectories(traj_list, actions)
+        return traj_list, actions
 
     def step(self, action):
         """
@@ -968,12 +976,11 @@ class GFlowNetAgent:
                 for seqstr, score in tqdm(
                     zip(self.df_test.letters, self.df_test[self.test_score])
                 ):
-                    traj, actions = self.env.trajectories(
-                        self.env.letters2seq(seqstr),
-                        [self.env.letters2seq(seqstr)],
-                        [self.env.nactions],
+                    traj_list, actions = self.env.get_trajectories(
+                        [[self.env.letters2seq(seqstr)]],
+                        [[self.env.nactions]],
                     )
-                    data_logq.append(logq(traj, actions, self.model, self.env))
+                    data_logq.append(logq(traj_list, actions, self.model, self.env))
                 corr = np.corrcoef(data_logq, self.df_test[self.test_score])
                 t1_test_logq = time.time()
                 times.update({"test_logq": t1_test_logq - t0_test_logq})
@@ -1356,9 +1363,10 @@ def make_approx_uniform_test_set(
     return df_test, times
 
 
-def logq(traj, actions, model, env):
-    traj = traj[::-1]
-    actions = actions[::-1]
+def logq(traj_list, actions, model, env):
+    # TODO: adapt to DAG trajectories!
+    traj = traj_list[0][::-1]
+    actions = actions[0][::-1]
     traj_obs = np.asarray([env.seq2obs(seq) for seq in traj])
     with torch.no_grad():
         logits_traj = model(tf(traj_obs))
