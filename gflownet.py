@@ -971,19 +971,27 @@ class GFlowNetAgent:
                 )
             # Test set metrics
             if not i % self.test_period and self.df_test is not None:
-                t0_test_logq = time.time()
                 data_logq = []
+                times.update({
+                    "test_traj": 0.0,
+                    "test_logq": 0.0,
+                })
+                # TODO: this could be done just once and store it
                 for seqstr, score in tqdm(
                     zip(self.df_test.letters, self.df_test[self.test_score])
                 ):
+                    t0_test_traj = time.time()
                     traj_list, actions = self.env.get_trajectories(
                         [[self.env.letters2seq(seqstr)]],
                         [[self.env.nactions]],
                     )
+                    t1_test_traj = time.time()
+                    times["test_traj"] += t1_test_traj - t0_test_traj
+                    t0_test_logq = time.time()
                     data_logq.append(logq(traj_list, actions, self.model, self.env))
+                    t1_test_logq = time.time()
+                    times["test_logq"] += t1_test_logq - t0_test_logq
                 corr = np.corrcoef(data_logq, self.df_test[self.test_score])
-                t1_test_logq = time.time()
-                times.update({"test_logq": t1_test_logq - t0_test_logq})
                 if self.comet:
                     self.comet.log_metrics(
                         dict(
