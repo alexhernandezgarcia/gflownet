@@ -18,6 +18,7 @@ import yaml
 import time
 
 import numpy as np
+import pandas as pd
 from scipy.stats import norm
 from tqdm import tqdm
 import torch
@@ -53,6 +54,8 @@ def add_args(parser):
     # General
     parser.add_argument("--workdir", default=None, type=str)
     args2config.update({"workdir": ["workdir"]})
+    parser.add_argument("--overwrite_workdir", action="store_true", default=False)
+    args2config.update({"overwrite_workdir": ["overwrite_workdir"]})
     parser.add_argument("--device", default="cpu", type=str)
     args2config.update({"device": ["gflownet", "device"]})
     parser.add_argument("--progress", action="store_true")
@@ -137,6 +140,8 @@ def add_args(parser):
     args2config.update({"num_empirical_loss": ["gflownet", "num_empirical_loss"]})
     parser.add_argument("--clip_grad_norm", default=0.0, type=float)
     args2config.update({"clip_grad_norm": ["gflownet", "clip_grad_norm"]})
+    parser.add_argument("--random_action_prob", default=0.0, type=float)
+    args2config.update({"random_action_prob": ["gflownet", "random_action_prob"]})
     # Environment
     parser.add_argument("--func", default="arbitrary_i")
     args2config.update({"func": ["gflownet", "func"]})
@@ -159,6 +164,21 @@ def add_args(parser):
     args2config.update({"bootstrap_tau": ["gflownet", "bootstrap_tau"]})
     parser.add_argument("--batch_reward", action="store_true")
     args2config.update({"batch_reward": ["gflownet", "batch_reward"]})
+    # Test set
+    parser.add_argument("--test_set_path", default=None, type=str)
+    args2config.update({"test_set_path": ["gflownet", "test", "path"]})
+    parser.add_argument("--test_set_base", default=None, type=str)
+    args2config.update({"test_set_base": ["gflownet", "test", "base"]})
+    parser.add_argument("--test_set_seed", default=167, type=int)
+    args2config.update({"test_set_seed": ["gflownet", "test", "seed"]})
+    parser.add_argument("--ntest", default=10000, type=int)
+    args2config.update({"ntest": ["gflownet", "test", "n"]})
+    parser.add_argument("--min_length", default=1, type=int)
+    args2config.update({"min_length": ["gflownet", "test", "min_length"]})
+    parser.add_argument("--test_output", default=None, type=str)
+    args2config.update({"test_output": ["gflownet", "test", "output"]})
+    parser.add_argument("--test_period", default=500, type=int)
+    args2config.update({"test_period": ["gflownet", "test", "period"]})
     # Comet
     parser.add_argument("--comet_project", default=None, type=str)
     args2config.update({"comet_project": ["gflownet", "comet", "project"]})
@@ -166,7 +186,14 @@ def add_args(parser):
         "-t", "--tags", nargs="*", help="Comet.ml tags", default=[], type=str
     )
     args2config.update({"tags": ["gflownet", "comet", "tags"]})
+    parser.add_argument("--no_comet", action="store_true")
+    args2config.update({"no_comet": ["gflownet", "comet", "skip"]})
     return parser, args2config
+
+
+def process_config(config):
+    config.gflownet.test.score = config.gflownet.func.replace("nupack ", "")
+    return config
 
 
 def set_device(dev):
@@ -317,11 +344,11 @@ class AptamerSeq:
         letter in the n-th position.
 
         Example:
-          - Sequence: AACTG
+          - Sequence: AATGC
           - State, seq: [0, 0, 1, 3, 2]
-                         A, A, C, T, G
+                         A, A, T, G, C
           - seq2obs(seq): [1, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0]
-                          |     A    |      A    |      C    |      T    |      G    |
+                          |     A    |      A    |      T    |      G    |      C    |
 
         If horizon > len(s), the last (horizon - len(s)) blocks are all 0s.
         """
@@ -345,11 +372,11 @@ class AptamerSeq:
         into a a sequence of letter indices.
 
         Example:
-          - Sequence: AACTG
+          - Sequence: AATGC
           - obs: [1, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0]
-                 |     A    |      A    |      C    |      T    |      G    |
+                 |     A    |      A    |      T    |      G    |      C    |
           - seq: [0, 0, 1, 3, 2]
-                  A, A, C, T, G
+                  A, A, T, G, C
         """
         obs_mat = np.reshape(obs, (self.horizon, self.nalphabet))
         seq = np.where(obs_mat)[1]
@@ -361,6 +388,14 @@ class AptamerSeq:
         according to an alphabet.
         """
         return [alphabet[el] for el in seq]
+
+    def letters2seq(self, letters, alphabet={0: "A", 1: "T", 2: "C", 3: "G"}):
+        """
+        Transforms a sequence given as a list of indices into a sequence of letters
+        according to an alphabet.
+        """
+        alphabet = {v: k for k, v in alphabet.items()}
+        return [alphabet[el] for el in letters]
 
     def reset(self):
         """
@@ -402,6 +437,33 @@ class AptamerSeq:
                     parents.append(self.seq2obs(seq[: -len(a)]))
                     actions.append(idx)
         return parents, actions
+
+    def trajectories(self, seq, traj, actions):
+        """
+        Determines all trajectories to sequence seq
+
+        Args
+        ----
+        seq : list
+            Representation of a sequence (state), as a list of length horizon where each
+        element is the index of a letter in the alphabet, from 0 to (nalphabet - 1).
+
+        Returns
+        -------
+        traj : list
+            List of sequences (lists)
+
+        actions : list
+            List of actions that lead to each sequence in traj
+        """
+        parents, parents_actions = self.parent_transitions(seq, -1)
+        parents = [self.obs2seq(el).tolist() for el in parents]
+        if parents == []:
+            return traj, actions
+        for p, a in zip(parents, parents_actions):
+            traj += [p]
+            actions += [a]
+            return self.trajectories(p, traj, actions)
 
     def step(self, action):
         """
@@ -519,6 +581,7 @@ def make_mlp(layers_dim, act=nn.LeakyReLU(), tail=[]):
 class GFlowNetAgent:
     def __init__(self, args, comet = None, proxy=None, alIter = 0):
         # Misc
+        self.rng = np.random.RandomState(int(time.time()))
         self.debug = args.debug
         self.device_torch = torch.device(args.gflownet.device)
         self.device = self.device_torch
@@ -536,22 +599,21 @@ class GFlowNetAgent:
         self.alIter = alIter
 
         # Comet
-        #if args.gflownet.comet.project:
-        #    self.comet = Experiment(
-        #        project_name=args.gflownet.comet.project, display_summary_level=0
-        #    )
-        #    if args.gflownet.comet.tags:
-        #        if isinstance(args.gflownet.comet.tags, list):
-        #            self.comet.add_tags(args.gflownet.comet.tags)
-        #        else:
-        #            self.comet.add_tag(args.gflownet.comet.tags)
-        #    self.comet.log_parameters(vars(args))
-        #    if "workdir" in args and Path(args.workdir).exists():
-        #        with open(Path(args.workdir) / "comet.url", "w") as f:
-        #            f.write(self.comet.url + "\n")
-        #else:
-        #    self.comet = None
-        self.comet = comet
+        if args.gflownet.comet.project and not args.gflownet.comet.skip:
+            self.comet = Experiment(
+                project_name=args.gflownet.comet.project, display_summary_level=0
+            )
+            if args.gflownet.comet.tags:
+                if isinstance(args.gflownet.comet.tags, list):
+                    self.comet.add_tags(args.gflownet.comet.tags)
+                else:
+                    self.comet.add_tag(args.gflownet.comet.tags)
+            self.comet.log_parameters(vars(args))
+            if "workdir" in args and Path(args.workdir).exists():
+                with open(Path(args.workdir) / "comet.url", "w") as f:
+                    f.write(self.comet.url + "\n")
+        else:
+            self.comet = None
         # Environment
         self.env = AptamerSeq(
             args.gflownet.horizon,
@@ -613,6 +675,28 @@ class GFlowNetAgent:
         self.num_empirical_loss = args.gflownet.num_empirical_loss
         self.ttsr = max(int(args.gflownet.train_to_sample_ratio), 1)
         self.sttr = max(int(1 / args.gflownet.train_to_sample_ratio), 1)
+        self.random_action_prob = args.gflownet.random_action_prob
+        # Test set
+        self.test_period = args.gflownet.test.period
+        self.test_score = args.gflownet.test.score
+        if args.gflownet.test.path:
+            self.df_test = pd.read_csv(args.gflownet.test.path, index_col=0)
+        else:
+            self.df_test, test_set_times = make_approx_uniform_test_set(
+                path_base_dataset=args.gflownet.test.base,
+                score=self.test_score,
+                ntest=args.gflownet.test.n,
+                min_length=args.gflownet.test.min_length,
+                max_length=args.gflownet.horizon,
+                seed=args.gflownet.test.seed,
+                output_csv=args.gflownet.test.output,
+            )
+        if self.df_test is not None:
+            print("\nTest data")
+            print(f"\tAverage score: {self.df_test[self.test_score].mean()}")
+            print(f"\tStd score: {self.df_test[self.test_score].std()}")
+            print(f"\tMin score: {self.df_test[self.test_score].min()}")
+            print(f"\tMax score: {self.df_test[self.test_score].max()}")
 
     def parameters(self):
         return self.model.parameters()
@@ -644,19 +728,23 @@ class GFlowNetAgent:
         envs = [env.reset() for env in self.envs]
         while envs:
             seqs = [env.seq2obs() for env in envs]
-            with torch.no_grad():
-                t0_a_model = time.time()
-                action_probs = self.model(tf(seqs))
-                t1_a_model = time.time()
-                times["actions_model"] += t1_a_model - t0_a_model
-                if all(torch.isfinite(action_probs).flatten()):
-                    actions = Categorical(logits=action_probs).sample()
-                else:
-                    actions = np.random.randint(
-                        low=0, high=action_probs.shape[1], size=action_probs.shape[0]
-                    )
-                    if self.debug:
-                        print("Action could not be sampled from model!")
+            random_action = self.rng.uniform()
+            if random_action > self.random_action_prob:
+                with torch.no_grad():
+                    t0_a_model = time.time()
+                    action_probs = self.model(tf(seqs))
+                    t1_a_model = time.time()
+                    times["actions_model"] += t1_a_model - t0_a_model
+                    if all(torch.isfinite(action_probs).flatten()):
+                        actions = Categorical(logits=action_probs).sample()
+                    else:
+                        random_action = -1
+                        if self.debug:
+                            print("Action could not be sampled from model!")
+            if random_action < self.random_action_prob:
+                actions = np.random.randint(
+                    low=0, high=self.env.nactions + 1, size=len(envs)
+                )
             t0_a_envs = time.time()
             assert len(envs) == actions.shape[0]
             for env, action in zip(envs, actions):
@@ -875,6 +963,38 @@ class GFlowNetAgent:
                     ),
                     step=i,
                 )
+            # Test set metrics
+            if not i % self.test_period and self.df_test is not None:
+                t0_test_logq = time.time()
+                data_logq = []
+                for seqstr, score in tqdm(
+                    zip(self.df_test.letters, self.df_test[self.test_score])
+                ):
+                    traj, actions = self.env.trajectories(
+                        self.env.letters2seq(seqstr),
+                        [self.env.letters2seq(seqstr)],
+                        [self.env.nactions],
+                    )
+                    data_logq.append(logq(traj, actions, self.model, self.env))
+                corr = np.corrcoef(data_logq, self.df_test[self.test_score])
+                t1_test_logq = time.time()
+                times.update({"test_logq": t1_test_logq - t0_test_logq})
+                if self.comet:
+                    self.comet.log_metrics(
+                        dict(
+                            zip(
+                                [
+                                    "test_corr_logq_score",
+                                    "test_mean_logq",
+                                ],
+                                [
+                                    corr[0, 1],
+                                    np.mean(data_logq),
+                                ],
+                            )
+                        ),
+                        step=i,
+                    )
             if not i % 100:
                 if not self.lightweight:
                     empirical_distrib_losses.append(
@@ -909,7 +1029,7 @@ class GFlowNetAgent:
                         self.comet.log_metric(
                             "unique_states iter {}".format(self.alIter), np.unique(all_visited).shape[0], step=i
                         )
-                # Save intermediate model
+            # Save intermediate model
             if not i % self.ckpt_period and self.model_path:
                 path = self.model_path.parent / Path(
                     self.model_path.stem
@@ -1019,6 +1139,69 @@ class GFlowNetAgent:
         return samples, times
 
 
+def sample(model, n_samples, horizon, nalphabet, min_word_len, max_word_len, func):
+    times = {
+        "all": 0.0,
+        "actions_model": 0.0,
+        "actions_envs": 0.0,
+        "proxy": 0.0,
+        "sanitycheck": 0.0,
+    }
+    t0_all = time.time()
+    batch = []
+    envs = [
+        AptamerSeq(horizon, nalphabet, min_word_len, max_word_len, func=func)
+        for i in range(n_samples)
+    ]
+    envs = [env.reset() for env in envs]
+    while envs:
+        seqs = [env.seq2obs() for env in envs]
+        with torch.no_grad():
+            t0_a_model = time.time()
+            action_probs = model(tf(seqs))
+            t1_a_model = time.time()
+            times["actions_model"] += t1_a_model - t0_a_model
+            if all(torch.isfinite(action_probs).flatten()):
+                actions = Categorical(logits=action_probs).sample()
+            else:
+                actions = np.random.randint(
+                    low=0, high=action_probs.shape[1], size=action_probs.shape[0]
+                )
+        t0_a_envs = time.time()
+        assert len(envs) == actions.shape[0]
+        for env, action in zip(envs, actions):
+            seq, valid = env.step(action)
+            if valid and env.done:
+                batch.append(env.seq2oracle([seq])[0])
+        envs = [env for env in envs if not env.done]
+        t1_a_envs = time.time()
+        times["actions_envs"] += t1_a_envs - t0_a_envs
+    t0_proxy = time.time()
+    batch = np.asarray(batch)
+    proxy_vals = env.proxy(batch)
+    t1_proxy = time.time()
+    times["proxy"] += t1_proxy - t0_proxy
+    samples = {
+        "samples": batch.astype(np.int64),
+        "scores": proxy_vals,
+    }
+    # Sanity-check: absolute zero pad
+    t0_sanitycheck = time.time()
+    zeros = np.where(batch == 0)
+    row_unique, row_unique_idx = np.unique(zeros[0], return_index=True)
+    for row, idx in zip(row_unique, row_unique_idx):
+        if np.sum(batch[row, zeros[1][idx] :]):
+            print(f"Found sequence with positive values after last 0, row {row}")
+            import ipdb
+
+            ipdb.set_trace()
+    t1_sanitycheck = time.time()
+    times["sanitycheck"] += t1_sanitycheck - t0_sanitycheck
+    t1_all = time.time()
+    times["all"] += t1_all - t0_all
+    return samples, times
+
+
 class RandomTrajAgent:
     def __init__(self, args, envs):
         self.mbsize = args.gflownet.mbsize  # mini-batch size
@@ -1098,6 +1281,97 @@ def compute_empirical_distribution_error(env, visited):
     return k1, kl
 
 
+# TODO: improve approximation of uniform
+def make_approx_uniform_test_set(
+    path_base_dataset,
+    score,
+    ntest,
+    min_length=0,
+    max_length=np.inf,
+    seed=167,
+    output_csv=None,
+):
+    """
+    Constructs an approximately uniformly distributed (on the score) set, by
+    selecting samples from a larger base set.
+
+    Args
+    ----
+    path_base_dataset : str
+        Path to a CSV file containing the base data set.
+
+    score : str
+        Column in the CSV file containing the score.
+
+    ntest : int
+        Number of test samples.
+
+    seed : int
+        Random seed.
+
+    dask : bool
+        If True, use dask to efficiently read a large base file.
+
+    output_csv: str
+        Optional path to store the test set as CSV.
+    """
+    if path_base_dataset is None:
+        return None
+    times = {
+        "all": 0.0,
+        "indices": 0.0,
+    }
+    t0_all = time.time()
+    if seed:
+        np.random.seed(seed)
+    df_base = pd.read_csv(path_base_dataset, index_col=0)
+    df_base = df_base.loc[
+        (df_base["letters"].map(len) >= min_length)
+        & (df_base["letters"].map(len) <= max_length)
+    ]
+    scores_base = df_base[score].values
+    min_base = scores_base.min()
+    max_base = scores_base.max()
+    distr_unif = np.random.uniform(low=min_base, high=max_base, size=ntest)
+    # Get minimum distance samples without duplicates
+    t0_indices = time.time()
+    idx_samples = []
+    for idx in tqdm(range(ntest)):
+        dist = np.abs(scores_base - distr_unif[idx])
+        idx_min = np.argmin(dist)
+        if idx_min in idx_samples:
+            idx_sort = np.argsort(dist)
+            for idx_next in idx_sort:
+                if idx_next not in idx_samples:
+                    idx_samples.append(idx_next)
+                    break
+        else:
+            idx_samples.append(idx_min)
+    t1_indices = time.time()
+    times["indices"] += t1_indices - t0_indices
+    # Make test set
+    df_test = df_base.iloc[idx_samples]
+    if output_csv:
+        df_test.to_csv(output_csv)
+    t1_all = time.time()
+    times["all"] += t1_all - t0_all
+    return df_test, times
+
+
+def logq(traj, actions, model, env):
+    traj = traj[::-1]
+    actions = actions[::-1]
+    traj_obs = np.asarray([env.seq2obs(seq) for seq in traj])
+    with torch.no_grad():
+        logits_traj = model(tf(traj_obs))
+    logsoftmax = torch.nn.LogSoftmax(dim=1)
+    logprobs_traj = logsoftmax(logits_traj)
+    log_q = torch.tensor(0.0)
+    for s, a, logprobs in zip(*[traj, actions, logprobs_traj]):
+        log_q = log_q + logprobs[a]
+    return log_q.item()
+
+
 def main(args):
     gflownet_agent = GFlowNetAgent(args)
     gflownet_agent.train()
@@ -1109,6 +1383,7 @@ if __name__ == "__main__":
     parser, args2config = add_args(parser)
     args = parser.parse_args()
     config = get_config(args, override_args, args2config)
+    config = process_config(config)
     print("Config file: " + config.yaml_config)
     print("Working dir: " + config.workdir)
     print(
@@ -1116,9 +1391,15 @@ if __name__ == "__main__":
         + "\n".join([f"    {k:20}: {v}" for k, v in vars(config.gflownet).items()])
     )
     if "workdir" in config:
-        if not Path(config.workdir).exists():
-            Path(config.workdir).mkdir(parents=True, exist_ok=False)
-        with open(config.workdir + "/config.yml", "w") as f:
-            yaml.dump(numpy2python(namespace2dict(config)), f, default_flow_style=False)
-    torch.set_num_threads(1)
-    main(config)
+        if not Path(config.workdir).exists() or config.overwrite_workdir:
+            Path(config.workdir).mkdir(parents=True, exist_ok=True)
+            with open(config.workdir + "/config.yml", "w") as f:
+                yaml.dump(
+                    numpy2python(namespace2dict(config)), f, default_flow_style=False
+                )
+            torch.set_num_threads(1)
+            main(config)
+        else:
+            print(f"workdir {config.workdir} already exists! - Ending run...")
+    else:
+        print(f"workdir not defined - Ending run...")
