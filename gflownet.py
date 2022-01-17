@@ -301,19 +301,23 @@ class GFlowNetAgent:
         self.random_action_prob = args.gflownet.random_action_prob
         # Test set
         self.test_period = args.gflownet.test.period
-        self.test_score = args.gflownet.test.score
-        if args.gflownet.test.path:
-            self.df_test = pd.read_csv(args.gflownet.test.path, index_col=0)
+        if self.test_period in [None, -1]:
+            self.test_period = np.inf
+            self.df_test = None
         else:
-            self.df_test, test_set_times = make_approx_uniform_test_set(
-                path_base_dataset=args.gflownet.test.base,
-                score=self.test_score,
-                ntest=args.gflownet.test.n,
-                min_length=args.gflownet.test.min_length,
-                max_length=args.gflownet.horizon,
-                seed=args.gflownet.test.seed,
-                output_csv=args.gflownet.test.output,
-            )
+            self.test_score = args.gflownet.test.score
+            if args.gflownet.test.path:
+                self.df_test = pd.read_csv(args.gflownet.test.path, index_col=0)
+            else:
+                self.df_test, test_set_times = make_approx_uniform_test_set(
+                    path_base_dataset=args.gflownet.test.base,
+                    score=self.test_score,
+                    ntest=args.gflownet.test.n,
+                    min_length=args.gflownet.test.min_length,
+                    max_length=args.gflownet.horizon,
+                    seed=args.gflownet.test.seed,
+                    output_csv=args.gflownet.test.output,
+                )
         if self.df_test is not None:
             print("\nTest data")
             print(f"\tAverage score: {self.df_test[self.test_score].mean()}")
