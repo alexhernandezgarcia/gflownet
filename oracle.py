@@ -391,10 +391,9 @@ class Oracle():
         sequences = self.numbers2letters(queries)
 
         energies = np.zeros(len(sequences))
-        strings = []
         nPins = np.zeros(len(sequences)).astype(int)
         nPairs = 0
-        ssStrings = np.zeros(len(sequences),dtype=object)
+        ssStrings = np.zeros(len(sequences), dtype=object)
 
         # parallel evaluation - fast
         strandList = []

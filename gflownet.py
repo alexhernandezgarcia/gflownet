@@ -25,6 +25,7 @@ import torch
 import torch.nn as nn
 from torch.distributions.categorical import Categorical
 
+from aptamers import AptamerSeq
 from oracles import linearToy, toyHamiltonian, PottsEnergy, seqfoldScore, nupackScore
 from utils import get_config, namespace2dict, numpy2python
 
@@ -200,386 +201,8 @@ def set_device(dev):
     _dev[0] = dev
 
 
-class AptamerSeq:
-    """
-    Aptamer sequence environment
-
-    Attributes
-    ----------
-    horizon : int
-        Maximum length of the sequences
-
-    nalphabet : int
-        Number of letters in the alphabet
-
-    seq : list
-        Representation of a sequence (state), as a list of length horizon where each
-        element is the index of a letter in the alphabet, from 0 to (nalphabet - 1).
-
-    done : bool
-        True if the sequence has reached a terminal state (maximum length, or stop
-        action executed.
-
-    func : str
-        Name of the reward function
-
-    proxy : lambda
-        Proxy model
-    """
-
-    def __init__(
-        self,
-        horizon=42,
-        nalphabet=4,
-        min_word_len=1,
-        max_word_len=1,
-        func="default",
-        proxy=None,
-        allow_backward=False,
-        debug=False,
-        reward_beta=1,
-    ):
-        self.horizon = horizon
-        self.nalphabet = nalphabet
-        self.min_word_len = min_word_len
-        self.max_word_len = max_word_len
-        self.seq = []
-        self.done = False
-        self.func = func
-        if proxy:
-            self.proxy = proxy
-        else:
-            self.proxy = {
-                "default": None,
-                "arbitrary_i": self.reward_arbitrary_i,
-                "linear": linearToy,
-                "innerprod": toyHamiltonian,
-                "potts": PottsEnergy,
-                "seqfold": seqfoldScore,
-                "nupack energy": lambda x: nupackScore(x, returnFunc="energy"),
-                "nupack pairs": lambda x: nupackScore(x, returnFunc="pairs"),
-                "nupack pins": lambda x: nupackScore(x, returnFunc="hairpins"),
-            }[self.func]
-        self.reward = (
-            lambda x: [0]
-            if not self.done
-            else self.proxy2reward(self.proxy(self.seq2oracle(x)))
-        )
-        self.allow_backward = allow_backward
-        self._true_density = None
-        self.debug = debug
-        self.reward_beta = reward_beta
-        self.action_space = self.get_actions_space(
-            self.nalphabet, np.arange(self.min_word_len, self.max_word_len + 1)
-        )
-        self.nactions = len(self.action_space)
-
-    def get_actions_space(self, nalphabet, valid_wordlens):
-        """
-        Constructs with all possible actions
-        """
-        alphabet = [a for a in range(nalphabet)]
-        actions = []
-        for r in valid_wordlens:
-            actions_r = [el for el in product(alphabet, repeat=r)]
-            actions += actions_r
-        return actions
-
-    def reward_arbitrary_i(self, seq):
-        if len(seq) > 0:
-            return (seq[-1] + 1) * len(seq)
-        else:
-            return 0
-
-    def seq2oracle(self, seq):
-        """
-        Prepares a sequence in "GFlowNet format" for the oracles.
-
-        Args
-        ----
-        seq : list of lists
-            List of sequences.
-        """
-        queries = [s + [-1] * (self.horizon - len(s)) for s in seq]
-        queries = np.array(queries, dtype=int)
-        if queries.ndim == 1:
-            queries = queries[np.newaxis, ...]
-        queries += 1
-        if queries.shape[1] == 1:
-            import ipdb
-
-            ipdb.set_trace()
-            queries = np.column_stack((queries, np.zeros(queries.shape[0])))
-        return queries
-
-    def reward_batch(self, seq, done):
-        seq = [s for s, d in zip(seq, done) if d]
-        reward = np.zeros(len(done))
-        reward[list(done)] = self.proxy2reward(self.proxy(self.seq2oracle(seq)))
-        return reward
-
-    def proxy2reward(self, proxy_vals):
-        """
-        Prepares the output of an oracle for GFlowNet.
-        """
-        if "pins" in self.func or "pairs" in self.func:
-            return np.exp(self.reward_beta * proxy_vals)
-        else:
-            return np.exp(-self.reward_beta * proxy_vals)
-
-    def reward2proxy(self, reward):
-        """
-        Converts a "GFlowNet reward" into energy or values as returned by an oracle.
-        """
-        if "pins" in self.func or "pairs" in self.func:
-            return np.log(reward) / self.reward_beta
-        else:
-            return -np.log(reward) / self.reward_beta
-
-    def seq2obs(self, seq=None):
-        """
-        Transforms the sequence (state) given as argument (or self.seq if None) into a
-        one-hot encoding. The output is a list of length nalphabet * nhorizon, where
-        each n-th successive block of nalphabet elements is a one-hot encoding of the
-        letter in the n-th position.
-
-        Example:
-          - Sequence: AATGC
-          - State, seq: [0, 0, 1, 3, 2]
-                         A, A, T, G, C
-          - seq2obs(seq): [1, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0]
-                          |     A    |      A    |      T    |      G    |      C    |
-
-        If horizon > len(s), the last (horizon - len(s)) blocks are all 0s.
-        """
-        if seq is None:
-            seq = self.seq
-
-        z = np.zeros((self.nalphabet * self.horizon), dtype=np.float32)
-
-        if len(seq) > 0:
-            if hasattr(
-                seq[0], "device"
-            ):  # if it has a device at all, it will be cuda (CPU numpy array has no dev
-                seq = [subseq.cpu().detach().numpy() for subseq in seq]
-
-            z[(np.arange(len(seq)) * self.nalphabet + seq)] = 1
-        return z
-
-    def obs2seq(self, obs):
-        """
-        Transforms the one-hot encoding version of a sequence (state) given as argument
-        into a a sequence of letter indices.
-
-        Example:
-          - Sequence: AATGC
-          - obs: [1, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0]
-                 |     A    |      A    |      T    |      G    |      C    |
-          - seq: [0, 0, 1, 3, 2]
-                  A, A, T, G, C
-        """
-        obs_mat = np.reshape(obs, (self.horizon, self.nalphabet))
-        seq = np.where(obs_mat)[1]
-        return seq
-
-    def seq2letters(self, seq, alphabet={0: "A", 1: "T", 2: "C", 3: "G"}):
-        """
-        Transforms a sequence given as a list of indices into a sequence of letters
-        according to an alphabet.
-        """
-        return [alphabet[el] for el in seq]
-
-    def letters2seq(self, letters, alphabet={0: "A", 1: "T", 2: "C", 3: "G"}):
-        """
-        Transforms a sequence given as a list of indices into a sequence of letters
-        according to an alphabet.
-        """
-        alphabet = {v: k for k, v in alphabet.items()}
-        return [alphabet[el] for el in letters]
-
-    def reset(self):
-        """
-        Resets the environment
-        """
-        self.seq = []
-        self.done = False
-        return self
-
-    def parent_transitions(self, seq, action):
-        # TODO: valid parents must satisfy horizon constraint!!!
-        """
-        Determines all parents and actions that lead to sequence (state) seq
-
-        Args
-        ----
-        seq : list
-            Representation of a sequence (state), as a list of length horizon where each
-        element is the index of a letter in the alphabet, from 0 to (nalphabet - 1).
-
-        action : int
-            Last action performed
-
-        Returns
-        -------
-        parents : list
-            List of parents as seq2obs(seq)
-
-        actions : list
-            List of actions that lead to seq for each parent in parents
-        """
-        if action == self.nactions:
-            return [self.seq2obs(seq)], [action]
-        else:
-            parents = []
-            actions = []
-            for idx, a in enumerate(self.action_space):
-                if seq[-len(a) :] == list(a):
-                    parents.append(self.seq2obs(seq[: -len(a)]))
-                    actions.append(idx)
-        return parents, actions
-
-    def trajectories(self, seq, traj, actions):
-        """
-        Determines all trajectories to sequence seq
-
-        Args
-        ----
-        seq : list
-            Representation of a sequence (state), as a list of length horizon where each
-        element is the index of a letter in the alphabet, from 0 to (nalphabet - 1).
-
-        Returns
-        -------
-        traj : list
-            List of sequences (lists)
-
-        actions : list
-            List of actions that lead to each sequence in traj
-        """
-        parents, parents_actions = self.parent_transitions(seq, -1)
-        parents = [self.obs2seq(el).tolist() for el in parents]
-        if parents == []:
-            return traj, actions
-        for p, a in zip(parents, parents_actions):
-            traj += [p]
-            actions += [a]
-            return self.trajectories(p, traj, actions)
-
-    def step(self, action):
-        """
-        Define step given action and state.
-
-        See: step_daug()
-        See: step_chain()
-        """
-        if self.allow_backward:
-            return self.step_chain(action)
-        return self.step_dag(action)
-
-    def step_dag(self, action):
-        """
-        Executes step given an action
-
-        If action is smaller than nactions (no stop), add action to next
-        position.
-
-        See: step_daug()
-        See: step_chain()
-
-        Args
-        ----
-        a : int
-            Index of action in the action space. a == nactions indicates "stop action"
-
-        Returns
-        -------
-        self.seq : list
-            The sequence after executing the action
-
-        valid : bool
-            False, if the action is not allowed for the current state, e.g. stop at the
-            root state
-        """
-        if action < self.nactions:
-            seq_next = self.seq + list(self.action_space[action])
-            if len(seq_next) > self.horizon:
-                valid = False
-            else:
-                self.seq = seq_next
-                valid = True
-            self.done = len(self.seq) == self.horizon
-        else:
-            if len(self.seq) == 0:
-                valid = False
-            else:
-                self.done = True
-                valid = True
-
-        return self.seq, valid
-
-    def true_density(self, max_states=1e6):
-        """
-        Computes the reward density (reward / sum(rewards)) of the whole space, if the
-        dimensionality is smaller than specified in the arguments.
-
-        Returns
-        -------
-        Tuple:
-          - normalized reward for each state
-          - states
-          - (un-normalized) reward)
-        """
-        if self._true_density is not None:
-            return self._true_density
-        if self.nalphabet ** self.horizon > max_states:
-            return (None, None, None)
-        seq_all = np.int32(
-            list(itertools.product(*[list(range(self.nalphabet))] * self.horizon))
-        )
-        traj_rewards, seq_end = zip(
-            *[
-                (self.proxy(seq), seq)
-                for seq in seq_all
-                if len(self.parent_transitions(seq, 0)[0]) > 0 or sum(seq) == 0
-            ]
-        )
-        traj_rewards = np.array(traj_rewards)
-        self._true_density = (
-            traj_rewards / traj_rewards.sum(),
-            list(map(tuple, seq_end)),
-            traj_rewards,
-        )
-        return self._true_density
-
-
-def make_mlp(layers_dim, act=nn.LeakyReLU(), tail=[]):
-    """
-    Defines an MLP with no top layer activation
-
-    Args
-    ----
-    layers_dim : list
-        Dimensionality of each layer
-
-    act : Activation
-        Activation function
-    """
-    return nn.Sequential(
-        *(
-            sum(
-                [
-                    [nn.Linear(idim, odim)] + ([act] if n < len(layers_dim) - 2 else [])
-                    for n, (idim, odim) in enumerate(zip(layers_dim, layers_dim[1:]))
-                ],
-                [],
-            )
-            + tail
-        )
-    )
-
-
 class GFlowNetAgent:
-    def __init__(self, args, comet = None, proxy=None, alIter = 0):
+    def __init__(self, args, comet=None, proxy=None, al_iter=0):
         # Misc
         self.rng = np.random.RandomState(int(time.time()))
         self.debug = args.debug
@@ -596,7 +219,7 @@ class GFlowNetAgent:
         if self.reward_beta_period in [None, -1]:
             self.reward_beta_period = np.inf
         self.reward_max = args.gflownet.reward_max
-        self.alIter = alIter
+        self.al_iter = al_iter
 
         # Comet
         if args.gflownet.comet.project and not args.gflownet.comet.skip:
@@ -678,19 +301,23 @@ class GFlowNetAgent:
         self.random_action_prob = args.gflownet.random_action_prob
         # Test set
         self.test_period = args.gflownet.test.period
-        self.test_score = args.gflownet.test.score
-        if args.gflownet.test.path:
-            self.df_test = pd.read_csv(args.gflownet.test.path, index_col=0)
+        if self.test_period in [None, -1]:
+            self.test_period = np.inf
+            self.df_test = None
         else:
-            self.df_test, test_set_times = make_approx_uniform_test_set(
-                path_base_dataset=args.gflownet.test.base,
-                score=self.test_score,
-                ntest=args.gflownet.test.n,
-                min_length=args.gflownet.test.min_length,
-                max_length=args.gflownet.horizon,
-                seed=args.gflownet.test.seed,
-                output_csv=args.gflownet.test.output,
-            )
+            self.test_score = args.gflownet.test.score
+            if args.gflownet.test.path:
+                self.df_test = pd.read_csv(args.gflownet.test.path, index_col=0)
+            else:
+                self.df_test, test_set_times = make_approx_uniform_test_set(
+                    path_base_dataset=args.gflownet.test.base,
+                    score=self.test_score,
+                    ntest=args.gflownet.test.n,
+                    min_length=args.gflownet.test.min_length,
+                    max_length=args.gflownet.horizon,
+                    seed=args.gflownet.test.seed,
+                    output_csv=args.gflownet.test.output,
+                )
         if self.df_test is not None:
             print("\nTest data")
             print(f"\tAverage score: {self.df_test[self.test_score].mean()}")
@@ -701,7 +328,7 @@ class GFlowNetAgent:
     def parameters(self):
         return self.model.parameters()
 
-    def sample_many(self):
+    def sample_batch(self):
         """
         Builds a mini-batch of data
 
@@ -872,7 +499,7 @@ class GFlowNetAgent:
             t0_iter = time.time()
             data = []
             for j in range(self.sttr):
-                batch, times = self.sample_many()
+                batch, times = self.sample_batch()
                 data += batch
             rewards = [d[2][0].item() for d in data if bool(d[4].item())]
             proxy_vals = self.env.reward2proxy(rewards)
@@ -965,20 +592,29 @@ class GFlowNetAgent:
                 )
             # Test set metrics
             if not i % self.test_period and self.df_test is not None:
-                t0_test_logq = time.time()
                 data_logq = []
+                times.update(
+                    {
+                        "test_traj": 0.0,
+                        "test_logq": 0.0,
+                    }
+                )
+                # TODO: this could be done just once and store it
                 for seqstr, score in tqdm(
                     zip(self.df_test.letters, self.df_test[self.test_score])
                 ):
-                    traj, actions = self.env.trajectories(
-                        self.env.letters2seq(seqstr),
-                        [self.env.letters2seq(seqstr)],
-                        [self.env.nactions],
+                    t0_test_traj = time.time()
+                    traj_list, actions = self.env.get_trajectories(
+                        [[self.env.letters2seq(seqstr)]],
+                        [[self.env.nactions]],
                     )
-                    data_logq.append(logq(traj, actions, self.model, self.env))
+                    t1_test_traj = time.time()
+                    times["test_traj"] += t1_test_traj - t0_test_traj
+                    t0_test_logq = time.time()
+                    data_logq.append(logq(traj_list, actions, self.model, self.env))
+                    t1_test_logq = time.time()
+                    times["test_logq"] += t1_test_logq - t0_test_logq
                 corr = np.corrcoef(data_logq, self.df_test[self.test_score])
-                t1_test_logq = time.time()
-                times.update({"test_logq": t1_test_logq - t0_test_logq})
                 if self.comet:
                     self.comet.log_metrics(
                         dict(
@@ -1019,7 +655,11 @@ class GFlowNetAgent:
                     self.comet.log_metrics(
                         dict(
                             zip(
-                                ["loss iter {}".format(self.alIter), "term_loss iter {}".format(self.alIter), "flow_loss iter {}".format(self.alIter)],
+                                [
+                                    "loss iter {}".format(self.al_iter),
+                                    "term_loss iter {}".format(self.al_iter),
+                                    "flow_loss iter {}".format(self.al_iter),
+                                ],
                                 [loss.item() for loss in losses],
                             )
                         ),
@@ -1027,7 +667,9 @@ class GFlowNetAgent:
                     )
                     if not self.lightweight:
                         self.comet.log_metric(
-                            "unique_states iter {}".format(self.alIter), np.unique(all_visited).shape[0], step=i
+                            "unique_states iter {}".format(self.al_iter),
+                            np.unique(all_visited).shape[0],
+                            step=i,
                         )
             # Save intermediate model
             if not i % self.ckpt_period and self.model_path:
@@ -1069,8 +711,8 @@ class GFlowNetAgent:
             torch.save(self.model.state_dict(), self.model_path)
 
         # Close comet
-        #if self.comet:
-        #    self.comet.end()
+        if self.comet:
+            self.comet.end()
 
     def sample(self, n_samples, horizon, nalphabet, min_word_len, max_word_len, proxy):
         times = {
@@ -1212,7 +854,7 @@ class RandomTrajAgent:
     def parameters(self):
         return []
 
-    def sample_many(self, mbsize, all_visited):
+    def sample_batch(self, mbsize, all_visited):
         batch = []
         [i.reset()[0] for i in self.envs]  # reset envs
         done = [False] * mbsize
@@ -1236,6 +878,32 @@ class RandomTrajAgent:
 
     def learn_from(self, it, batch):
         return None
+
+
+def make_mlp(layers_dim, act=nn.LeakyReLU(), tail=[]):
+    """
+    Defines an MLP with no top layer activation
+
+    Args
+    ----
+    layers_dim : list
+        Dimensionality of each layer
+
+    act : Activation
+        Activation function
+    """
+    return nn.Sequential(
+        *(
+            sum(
+                [
+                    [nn.Linear(idim, odim)] + ([act] if n < len(layers_dim) - 2 else [])
+                    for n, (idim, odim) in enumerate(zip(layers_dim, layers_dim[1:]))
+                ],
+                [],
+            )
+            + tail
+        )
+    )
 
 
 def make_opt(params, args):
@@ -1358,17 +1026,26 @@ def make_approx_uniform_test_set(
     return df_test, times
 
 
-def logq(traj, actions, model, env):
-    traj = traj[::-1]
-    actions = actions[::-1]
-    traj_obs = np.asarray([env.seq2obs(seq) for seq in traj])
-    with torch.no_grad():
-        logits_traj = model(tf(traj_obs))
-    logsoftmax = torch.nn.LogSoftmax(dim=1)
-    logprobs_traj = logsoftmax(logits_traj)
-    log_q = torch.tensor(0.0)
-    for s, a, logprobs in zip(*[traj, actions, logprobs_traj]):
-        log_q = log_q + logprobs[a]
+def logq(traj_list, actions_list, model, env):
+    # TODO: this method is probably suboptimal, since it may repeat forward calls for
+    # the same nodes.
+    log_q = torch.tensor(1.0)
+    for traj, actions in zip(traj_list, actions_list):
+        traj = traj[::-1]
+        actions = actions[::-1]
+        traj_obs = np.asarray([env.seq2obs(seq) for seq in traj])
+        with torch.no_grad():
+            logits_traj = model(tf(traj_obs))
+        logsoftmax = torch.nn.LogSoftmax(dim=1)
+        logprobs_traj = logsoftmax(logits_traj)
+        log_q_traj = torch.tensor(0.0)
+        for s, a, logprobs in zip(*[traj, actions, logprobs_traj]):
+            log_q_traj = log_q_traj + logprobs[a]
+        # Accumulate log prob of trajectory
+        if torch.le(log_q, 0.0):
+            log_q = torch.logaddexp(log_q, log_q_traj)
+        else:
+            log_q = log_q_traj
     return log_q.item()
 
 
