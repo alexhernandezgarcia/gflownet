@@ -373,6 +373,8 @@ def add_args(parser):
     args2config.update({"random_action_prob": ["gflownet", "random_action_prob"]})
     parser.add_argument("--gflownet_comet_project", default=None, type=str)
     args2config.update({"gflownet_comet_project": ["gflownet", "comet", "project"]})
+    parser.add_argument("--gflownet_no_comet", action="store_true")
+    args2config.update({"gflownet_no_comet": ["gflownet", "comet", "skip"]})
     parser.add_argument(
         "--tags_gfn", nargs="*", help="Comet.ml tags", default=[], type=str
     )

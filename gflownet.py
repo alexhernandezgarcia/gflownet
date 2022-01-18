@@ -236,7 +236,10 @@ class GFlowNetAgent:
                 with open(Path(args.workdir) / "comet.url", "w") as f:
                     f.write(self.comet.url + "\n")
         else:
-            self.comet = None
+            if isinstance(comet, Experiment):
+                self.comet = comet
+            else:
+                self.comet = None
         # Environment
         self.env = AptamerSeq(
             args.gflownet.horizon,
