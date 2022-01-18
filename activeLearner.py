@@ -73,6 +73,7 @@ class ActiveLearning():
 
     def reset(self):
         os.chdir(self.homedir)
+        os.mkdir(f'{self.workDir}/ckpts')
         os.mkdir(f'{self.workDir}/episode{self.episode}')
         os.mkdir(f'{self.workDir}/episode{self.episode}/ckpts')
         os.mkdir(f'{self.workDir}/episode{self.episode}/datasets')
