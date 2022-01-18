@@ -722,7 +722,7 @@ class GFlowNetAgent:
             torch.save(self.model.state_dict(), self.model_path)
 
         # Close comet
-        if self.comet:
+        if self.comet and self.al_iter == -1:
             self.comet.end()
 
     def sample(self, n_samples, horizon, nalphabet, min_word_len, max_word_len, proxy):
