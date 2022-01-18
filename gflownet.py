@@ -27,6 +27,7 @@ from torch.distributions.categorical import Categorical
 
 from aptamers import AptamerSeq
 from oracles import linearToy, toyHamiltonian, PottsEnergy, seqfoldScore, nupackScore
+from oracle import numbers2letters
 from utils import get_config, namespace2dict, numpy2python
 
 # Float and Long tensors
@@ -202,7 +203,7 @@ def set_device(dev):
 
 
 class GFlowNetAgent:
-    def __init__(self, args, comet=None, proxy=None, al_iter=0):
+    def __init__(self, args, comet=None, proxy=None, al_iter=-1, test_path=None):
         # Misc
         self.rng = np.random.RandomState(int(time.time()))
         self.debug = args.debug
@@ -219,7 +220,10 @@ class GFlowNetAgent:
         if self.reward_beta_period in [None, -1]:
             self.reward_beta_period = np.inf
         self.reward_max = args.gflownet.reward_max
-        self.al_iter = al_iter
+        if al_iter >= 0:
+            self.al_iter = "_iter{}".format(al_iter)
+        else:
+            self.al_iter = ""
 
         # Comet
         if args.gflownet.comet.project and not args.gflownet.comet.skip:
@@ -304,12 +308,16 @@ class GFlowNetAgent:
         self.random_action_prob = args.gflownet.random_action_prob
         # Test set
         self.test_period = args.gflownet.test.period
+        if test_path:
+            self.test_path = Path(test_path)
         if self.test_period in [None, -1]:
             self.test_period = np.inf
             self.df_test = None
         else:
             self.test_score = args.gflownet.test.score
-            if args.gflownet.test.path:
+            if self.test_path and self.test_path.suffix == ".npy":
+                self.df_test = test_np2df(self.test_path, self.test_score)
+            elif args.gflownet.test.path:
                 self.df_test = pd.read_csv(args.gflownet.test.path, index_col=0)
             else:
                 self.df_test, test_set_times = make_approx_uniform_test_set(
@@ -570,14 +578,14 @@ class GFlowNetAgent:
                     dict(
                         zip(
                             [
-                                "mean_reward",
-                                "max_reward",
-                                "mean_proxy",
-                                "min_proxy",
-                                "max_proxy",
-                                "mean_seq_length",
-                                "batch_size",
-                                "reward_beta",
+                                "mean_reward{}".format(self.al_iter),
+                                "max_reward{}".format(self.al_iter),
+                                "mean_proxy{}".format(self.al_iter),
+                                "min_proxy{}".format(self.al_iter),
+                                "max_proxy{}".format(self.al_iter),
+                                "mean_seq_length{}".format(self.al_iter),
+                                "batch_size{}".format(self.al_iter),
+                                "reward_beta{}".format(self.al_iter),
                             ],
                             [
                                 np.mean(rewards),
@@ -623,8 +631,8 @@ class GFlowNetAgent:
                         dict(
                             zip(
                                 [
-                                    "test_corr_logq_score",
-                                    "test_mean_logq",
+                                    "test_corr_logq_score{}".format(self.al_iter),
+                                    "test_mean_logq{}".format(self.al_iter),
                                 ],
                                 [
                                     corr[0, 1],
@@ -659,9 +667,9 @@ class GFlowNetAgent:
                         dict(
                             zip(
                                 [
-                                    "loss iter {}".format(self.al_iter),
-                                    "term_loss iter {}".format(self.al_iter),
-                                    "flow_loss iter {}".format(self.al_iter),
+                                    "loss{}".format(self.al_iter),
+                                    "term_loss{}".format(self.al_iter),
+                                    "flow_loss{}".format(self.al_iter),
                                 ],
                                 [loss.item() for loss in losses],
                             )
@@ -670,7 +678,7 @@ class GFlowNetAgent:
                     )
                     if not self.lightweight:
                         self.comet.log_metric(
-                            "unique_states iter {}".format(self.al_iter),
+                            "unique_states{}".format(self.al_iter),
                             np.unique(all_visited).shape[0],
                             step=i,
                         )
@@ -678,7 +686,7 @@ class GFlowNetAgent:
             if not i % self.ckpt_period and self.model_path:
                 path = self.model_path.parent / Path(
                     self.model_path.stem
-                    + "_iter{:06d}".format(i)
+                    + "{}_iter{:06d}".format(i, self.al_iter)
                     + self.model_path.suffix
                 )
                 torch.save(self.model.state_dict(), path)
@@ -702,7 +710,7 @@ class GFlowNetAgent:
             # Log times
             t1_iter = time.time()
             times.update({"iter": t1_iter - t0_iter})
-            times = {"time_{}".format(k): v for k, v in times.items()}
+            times = {"time_{}{}".format(k, self.al_iter): v for k, v in times.items()}
             if self.comet:
                 self.comet.log_metrics(times, step=i)
         # Save final model
@@ -714,7 +722,7 @@ class GFlowNetAgent:
             torch.save(self.model.state_dict(), self.model_path)
 
         # Close comet
-        if self.comet:
+        if self.comet and self.al_iter == -1:
             self.comet.end()
 
     def sample(self, n_samples, horizon, nalphabet, min_word_len, max_word_len, proxy):
@@ -1027,6 +1035,13 @@ def make_approx_uniform_test_set(
     t1_all = time.time()
     times["all"] += t1_all - t0_all
     return df_test, times
+
+
+def test_np2df(test_path, score):
+    data_dict = np.load(test_path, allow_pickle=True).item()
+    letters = numbers2letters(data_dict["samples"])
+    df = pd.DataFrame({"letters": letters, score: data_dict["scores"]})
+    return df
 
 
 def logq(traj_list, actions_list, model, env):

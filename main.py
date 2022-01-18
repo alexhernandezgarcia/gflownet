@@ -500,6 +500,7 @@ def process_config(config):
     config.gflownet.horizon = config.dataset.max_length
     config.gflownet.nalphabet = config.dataset.dict_size
     config.gflownet.func = config.dataset.oracle
+    config.gflownet.test.score = config.gflownet.func.replace("nupack ", "")
     # Comet: same project for AL and GFlowNet
     if config.comet_project:
         config.gflownet.comet.project = config.comet_project
