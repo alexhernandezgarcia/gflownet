@@ -203,7 +203,7 @@ def set_device(dev):
 
 
 class GFlowNetAgent:
-    def __init__(self, args, comet=None, proxy=None, al_iter=0, test_path=None):
+    def __init__(self, args, comet=None, proxy=None, al_iter=-1, test_path=None):
         # Misc
         self.rng = np.random.RandomState(int(time.time()))
         self.debug = args.debug
@@ -220,7 +220,10 @@ class GFlowNetAgent:
         if self.reward_beta_period in [None, -1]:
             self.reward_beta_period = np.inf
         self.reward_max = args.gflownet.reward_max
-        self.al_iter = al_iter
+        if al_iter >= 0:
+            self.al_iter = "_iter{}".format(al_iter)
+        else:
+            self.al_iter = ""
 
         # Comet
         if args.gflownet.comet.project and not args.gflownet.comet.skip:
@@ -575,14 +578,14 @@ class GFlowNetAgent:
                     dict(
                         zip(
                             [
-                                "mean_reward",
-                                "max_reward",
-                                "mean_proxy",
-                                "min_proxy",
-                                "max_proxy",
-                                "mean_seq_length",
-                                "batch_size",
-                                "reward_beta",
+                                "mean_reward{}".format(self.al_iter),
+                                "max_reward{}".format(self.al_iter),
+                                "mean_proxy{}".format(self.al_iter),
+                                "min_proxy{}".format(self.al_iter),
+                                "max_proxy{}".format(self.al_iter),
+                                "mean_seq_length{}".format(self.al_iter),
+                                "batch_size{}".format(self.al_iter),
+                                "reward_beta{}".format(self.al_iter),
                             ],
                             [
                                 np.mean(rewards),
@@ -628,8 +631,8 @@ class GFlowNetAgent:
                         dict(
                             zip(
                                 [
-                                    "test_corr_logq_score",
-                                    "test_mean_logq",
+                                    "test_corr_logq_score{}".format(self.al_iter),
+                                    "test_mean_logq{}".format(self.al_iter),
                                 ],
                                 [
                                     corr[0, 1],
@@ -664,9 +667,9 @@ class GFlowNetAgent:
                         dict(
                             zip(
                                 [
-                                    "loss iter {}".format(self.al_iter),
-                                    "term_loss iter {}".format(self.al_iter),
-                                    "flow_loss iter {}".format(self.al_iter),
+                                    "loss{}".format(self.al_iter),
+                                    "term_loss{}".format(self.al_iter),
+                                    "flow_loss{}".format(self.al_iter),
                                 ],
                                 [loss.item() for loss in losses],
                             )
@@ -675,7 +678,7 @@ class GFlowNetAgent:
                     )
                     if not self.lightweight:
                         self.comet.log_metric(
-                            "unique_states iter {}".format(self.al_iter),
+                            "unique_states{}".format(self.al_iter),
                             np.unique(all_visited).shape[0],
                             step=i,
                         )
@@ -707,7 +710,7 @@ class GFlowNetAgent:
             # Log times
             t1_iter = time.time()
             times.update({"iter": t1_iter - t0_iter})
-            times = {"time_{}".format(k): v for k, v in times.items()}
+            times = {"time_{}{}".format(k, self.al_iter): v for k, v in times.items()}
             if self.comet:
                 self.comet.log_metrics(times, step=i)
         # Save final model
