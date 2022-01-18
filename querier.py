@@ -168,7 +168,8 @@ class Querier():
             outputs = self.doAnnealing(scoreFunction, model, outputs)
 
         elif method.lower() == "gflownet":
-            gflownet = GFlowNetAgent(self.config, comet = self.comet, proxy=model.raw)
+            gflownet = GFlowNetAgent(self.config, comet = self.comet, proxy=model.raw,
+                    test_path='datasets/' + self.config.dataset.oracle + '.npy')
 
             t0 = time.time()
             gflownet.train()

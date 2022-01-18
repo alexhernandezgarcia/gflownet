@@ -27,6 +27,7 @@ from torch.distributions.categorical import Categorical
 
 from aptamers import AptamerSeq
 from oracles import linearToy, toyHamiltonian, PottsEnergy, seqfoldScore, nupackScore
+from oracle import numbers2letters
 from utils import get_config, namespace2dict, numpy2python
 
 # Float and Long tensors
@@ -202,7 +203,7 @@ def set_device(dev):
 
 
 class GFlowNetAgent:
-    def __init__(self, args, comet=None, proxy=None, al_iter=0):
+    def __init__(self, args, comet=None, proxy=None, al_iter=0, test_path=None):
         # Misc
         self.rng = np.random.RandomState(int(time.time()))
         self.debug = args.debug
@@ -304,12 +305,16 @@ class GFlowNetAgent:
         self.random_action_prob = args.gflownet.random_action_prob
         # Test set
         self.test_period = args.gflownet.test.period
+        if test_path:
+            self.test_path = Path(test_path)
         if self.test_period in [None, -1]:
             self.test_period = np.inf
             self.df_test = None
         else:
             self.test_score = args.gflownet.test.score
-            if args.gflownet.test.path:
+            if self.test_path and self.test_path.suffix == ".npy":
+                self.df_test = test_np2df(self.test_path, self.test_score)
+            elif args.gflownet.test.path:
                 self.df_test = pd.read_csv(args.gflownet.test.path, index_col=0)
             else:
                 self.df_test, test_set_times = make_approx_uniform_test_set(
@@ -1027,6 +1032,12 @@ def make_approx_uniform_test_set(
     t1_all = time.time()
     times["all"] += t1_all - t0_all
     return df_test, times
+
+def test_np2df(test_path, score):
+    data_dict = np.load(test_path, allow_pickle=True).item()
+    letters = numbers2letters(data_dict["samples"])
+    df = pd.DataFrame({"letters": letters, score: data_dict["scores"]})
+    return df
 
 
 def logq(traj_list, actions_list, model, env):
