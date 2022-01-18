@@ -169,7 +169,7 @@ class Querier():
 
         elif method.lower() == "gflownet":
             gflownet = GFlowNetAgent(self.config, comet = self.comet, proxy=model.raw,
-                    al_iter=seedInd, test_path='datasets/' + self.config.dataset.oracle + '.npy'),
+                    al_iter=seedInd, test_path='datasets/' + self.config.dataset.oracle + '.npy')
 
             t0 = time.time()
             gflownet.train()
