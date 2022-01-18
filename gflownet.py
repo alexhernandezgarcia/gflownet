@@ -686,7 +686,7 @@ class GFlowNetAgent:
             if not i % self.ckpt_period and self.model_path:
                 path = self.model_path.parent / Path(
                     self.model_path.stem
-                    + "_iter{:06d}".format(i)
+                    + "{}_iter{:06d}".format(i, self.al_iter)
                     + self.model_path.suffix
                 )
                 torch.save(self.model.state_dict(), path)
