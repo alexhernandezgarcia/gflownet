@@ -1036,6 +1036,7 @@ def make_approx_uniform_test_set(
     times["all"] += t1_all - t0_all
     return df_test, times
 
+
 def test_np2df(test_path, score):
     data_dict = np.load(test_path, allow_pickle=True).item()
     letters = numbers2letters(data_dict["samples"])
