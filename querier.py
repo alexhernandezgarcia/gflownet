@@ -53,6 +53,7 @@ class Querier():
                 '''
 
                 # generate candidates
+                #MK when up update model state calculation, it should be updated here as well
                 if (self.config.al.query_mode == 'energy') and (self.config.al.sample_method == 'mcmc'): # we already do energy based sampling with mcmc to generate the model state
                     self.sampleDict = energySampleDict
                 else:

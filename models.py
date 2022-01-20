@@ -44,6 +44,8 @@ class modelNet():
             self.model = transformer(self.config)
         elif self.config.proxy.model_type == 'mlp':
             self.model = MLP(self.config)
+        elif self.config.proxy.model_type == 'transformer2': # upgraded self-attention model
+            self.model = transformer2(self.config)
         else:
             print(self.config.proxy.model_type + ' is not one of the available models')
 
@@ -422,6 +424,229 @@ class transformer(nn.Module):
         x = self.output_layer(x)
 
         return x
+
+
+class transformer2(nn.Module):
+    def __init__(self,config):
+        super(transformer2,self).__init__()
+
+        self.embedDim = config.proxy.width
+        self.filters = config.proxy.width
+        self.encoder_layers = config.proxy.n_layers
+        self.decoder_layers = 1
+        self.maxLen = config.dataset.max_length
+        self.dictLen = config.dataset.dict_size
+        self.proxy_aggregation = 'sum'
+        self.proxy_attention_norm = 'layer'
+        self.proxy_norm = 'layer'
+        self.proxy_dropout_prob = 0
+        self.proxy_attention_dropout_prob = 0
+        self.classes = int(config.dataset.dict_size + 1)
+        self.heads = max([4, max([1,self.embedDim//self.dictLen])])
+        self.relative_attention = True
+        act_func = 'gelu'
+
+        self.positionalEncoder = PositionalEncoding(self.embedDim, max_len = self.maxLen, dropout=self.proxy_attention_dropout_prob)
+        self.embedding = nn.Embedding(self.dictLen + 1, embedding_dim = self.embedDim)
+
+        factory_kwargs = {'device': None, 'dtype': None}
+        #encoder_layer = nn.TransformerEncoderLayer(self.embedDim, nhead = self.heads,dim_feedforward=self.filters, activation='gelu', dropout=0)
+        #self.encoder = nn.TransformerEncoder(encoder_layer, num_layers = self.layers)
+        self.decoder_linear = []
+        self.encoder_norms1 = []
+        self.encoder_norms2 = []
+        self.decoder_norms = []
+        self.encoder_dropouts = []
+        self.decoder_dropouts = []
+        self.encoder_linear1 = []
+        self.encoder_linear2 = []
+        self.self_attn_layers = []
+        self.aggregation_mode = self.proxy_aggregation
+        self.encoder_activations = []
+        self.decoder_activations = []
+
+        for i in range(self.encoder_layers):
+            self.encoder_linear1.append(nn.Linear(self.embedDim,self.embedDim))
+            self.encoder_linear2.append(nn.Linear(self.embedDim,self.embedDim))
+
+            if not self.relative_attention:
+                self.self_attn_layers.append(nn.MultiheadAttention(self.embedDim, self.heads, dropout=self.proxy_attention_dropout_prob, batch_first=False, **factory_kwargs))
+            else:
+                self.self_attn_layers.append(RelativeGlobalAttention(self.embedDim, self.heads, dropout=self.proxy_attention_dropout_prob, max_len=self.maxLen))
+
+            self.encoder_activations.append(Activation(act_func, self.filters))
+
+            if self.proxy_dropout_prob != 0:
+                self.encoder_dropouts.append(nn.Dropout(self.proxy_dropout_prob))
+            else:
+                self.encoder_dropouts.append(nn.Identity())
+
+            if self.proxy_attention_norm == 'layer': # work in progress
+                self.encoder_norms1.append(nn.LayerNorm(self.embedDim))
+                self.encoder_norms2.append(nn.LayerNorm(self.embedDim))
+
+            else:
+                self.encoder_norms1.append(nn.Identity())
+                self.encoder_norms2.append(nn.Identity())
+
+
+        for i in range(self.decoder_layers):
+            if i == 0:
+                self.decoder_linear.append(nn.Linear(self.embedDim, self.filters))
+            else:
+                self.decoder_linear.append(nn.Linear(self.filters, self.filters))
+
+            self.decoder_activations.append(Activation(act_func,self.filters))
+            if self.proxy_dropout_prob != 0:
+                self.decoder_dropouts.append(nn.Dropout(self.proxy_dropout_prob))
+            else:
+                self.decoder_dropouts.append(nn.Identity())
+
+            if self.proxy_norm == 'batch':
+                self.decoder_norms.append(nn.BatchNorm1d(self.filters))
+            elif self.proxy_norm == 'layer':
+                self.decoder_norms.append(nn.LayerNorm(self.filters))
+            else:
+                self.decoder_norms.append(nn.Identity())
+
+        self.decoder_linear = nn.ModuleList(self.decoder_linear)
+        self.encoder_linear1 = nn.ModuleList(self.encoder_linear1)
+        self.encoder_linear2 = nn.ModuleList(self.encoder_linear2)
+
+        self.self_attn_layers = nn.ModuleList(self.self_attn_layers)
+        self.encoder_norms1 = nn.ModuleList(self.encoder_norms1)
+        self.encoder_norms2 = nn.ModuleList(self.encoder_norms2)
+        self.decoder_norms = nn.ModuleList(self.decoder_norms)
+        self.encoder_dropouts = nn.ModuleList(self.encoder_dropouts)
+        self.decoder_dropouts = nn.ModuleList(self.decoder_dropouts)
+        self.encoder_activations = nn.ModuleList(self.encoder_activations)
+        self.decoder_activations = nn.ModuleList(self.decoder_activations)
+
+        self.output_layer = nn.Linear(self.filters,1,bias=False)
+
+    def forward(self,x, clip = None):
+        x_key_padding_mask = (x==0).clone().detach() # zero out the attention of empty sequence elements
+        x = self.embedding(x.transpose(1,0).int()) # [seq, batch]
+
+        for i in range(self.encoder_layers):
+            # Self-attention block
+            residue = x.clone()
+            x = self.encoder_norms1[i](x)
+            if not self.relative_attention:
+                x = self.self_attn_layers[i](x,x,x,key_padding_mask=x_key_padding_mask)[0]
+            else:
+                x = self.self_attn_layers[i](x.transpose(1,0)).transpose(1,0) # pairwise relative position encoding embedded in the self-attention block
+            x = self.encoder_dropouts[i](x)
+            x = x + residue
+
+            # dense block
+            residue = x.clone()
+            x = self.encoder_linear1[i](x)
+            x = self.encoder_norms2[i](x)
+            x = self.encoder_activations[i](x)
+            x = self.encoder_linear2[i](x)
+            x = x + residue
+
+        if self.aggregation_mode == 'mean':
+            x = x.mean(dim=0) # mean aggregation
+        elif self.aggregation_mode == 'sum':
+            x = x.sum(dim=0) # sum aggregation
+        elif self.aggregation_mode == 'max':
+            x = x.max(dim=0) # max aggregation
+        else:
+            print(self.aggregation_mode + ' is not a valid aggregation mode!')
+
+        for i in range(self.decoder_layers):
+            if i != 0:
+                residue = x.clone()
+            x = self.decoder_linear[i](x)
+            x = self.decoder_norms[i](x)
+            x = self.decoder_dropouts[i](x)
+            x = self.decoder_activations[i](x)
+            if i != 0:
+                x += residue
+
+        x = self.output_layer(x)
+
+        if clip is not None:
+            x = torch.clip(x,max=clip)
+
+        return x
+
+
+class RelativeGlobalAttention(nn.Module):
+    def __init__(self, d_model, num_heads, max_len=1024, dropout=0.1):
+        super().__init__()
+        d_head, remainder = divmod(d_model, num_heads)
+        if remainder:
+            raise ValueError(
+                "incompatible `d_model` and `num_heads`"
+            )
+        self.max_len = max_len
+        self.d_model = d_model
+        self.num_heads = num_heads
+        self.key = nn.Linear(d_model, d_model)
+        self.value = nn.Linear(d_model, d_model)
+        self.query = nn.Linear(d_model, d_model)
+        self.dropout = nn.Dropout(dropout)
+        self.Er = nn.Parameter(torch.randn(max_len, d_head))
+        self.register_buffer(
+            "mask",
+            torch.tril(torch.ones(max_len, max_len))
+                .unsqueeze(0).unsqueeze(0)
+        )
+        # self.mask.shape = (1, 1, max_len, max_len)
+
+    def forward(self, x):
+        # x.shape == (batch_size, seq_len, d_model)
+        batch_size, seq_len, _ = x.shape
+
+        if seq_len > self.max_len:
+            raise ValueError(
+                "sequence length exceeds model capacity"
+            )
+
+        k_t = self.key(x).reshape(batch_size, seq_len, self.num_heads, -1).permute(0, 2, 3, 1)
+        # k_t.shape = (batch_size, num_heads, d_head, seq_len)
+        v = self.value(x).reshape(batch_size, seq_len, self.num_heads, -1).transpose(1, 2)
+        q = self.query(x).reshape(batch_size, seq_len, self.num_heads, -1).transpose(1, 2)
+        # shape = (batch_size, num_heads, seq_len, d_head)
+
+        start = self.max_len - seq_len
+        Er_t = self.Er[start:, :].transpose(0, 1)
+        # Er_t.shape = (d_head, seq_len)
+        QEr = torch.matmul(q, Er_t)
+        # QEr.shape = (batch_size, num_heads, seq_len, seq_len)
+        Srel = self.skew(QEr)
+        # Srel.shape = (batch_size, num_heads, seq_len, seq_len)
+
+        QK_t = torch.matmul(q, k_t)
+        # QK_t.shape = (batch_size, num_heads, seq_len, seq_len)
+        attn = (QK_t + Srel) / math.sqrt(q.size(-1))
+        mask = self.mask[:, :, :seq_len, :seq_len]
+        # mask.shape = (1, 1, seq_len, seq_len)
+        attn = attn.masked_fill(mask == 0, float("-inf"))
+        # attn.shape = (batch_size, num_heads, seq_len, seq_len)
+        attn = F.softmax(attn, dim=-1)
+        out = torch.matmul(attn, v)
+        # out.shape = (batch_size, num_heads, seq_len, d_head)
+        out = out.transpose(1, 2)
+        # out.shape == (batch_size, seq_len, num_heads, d_head)
+        out = out.reshape(batch_size, seq_len, -1)
+        # out.shape == (batch_size, seq_len, d_model)
+        return self.dropout(out)
+
+    def skew(self, QEr):
+        # QEr.shape = (batch_size, num_heads, seq_len, seq_len)
+        padded = F.pad(QEr, (1, 0))
+        # padded.shape = (batch_size, num_heads, seq_len, 1 + seq_len)
+        batch_size, num_heads, num_rows, num_cols = padded.shape
+        reshaped = padded.reshape(batch_size, num_heads, num_cols, num_rows)
+        # reshaped.size = (batch_size, num_heads, 1 + seq_len, seq_len)
+        Srel = reshaped[:, :, 1:, :]
+        # Srel.shape = (batch_size, num_heads, seq_len, seq_len)
+        return Srel
+
 
 class LSTM(nn.Module):
     '''
