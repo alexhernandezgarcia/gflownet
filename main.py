@@ -523,7 +523,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
     config = get_config(args, override_args, args2config)
     config = process_config(config)
-    #     print("Args:\n" + "\n".join([f"    {k:20}: {v}" for k, v in vars(config).items()]))
+    print("Args:\n" + "\n".join([f"    {k:20}: {v}" for k, v in vars(config).items()]))
     # TODO: save final config in workdir
     al = activeLearner.ActiveLearning(config)
     if config.al.mode == "initalize":
