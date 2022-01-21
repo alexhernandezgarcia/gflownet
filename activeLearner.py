@@ -536,6 +536,14 @@ class ActiveLearning():
 
         if self.comet:
             self.comet.log_histogram_3d(dataset['scores'], name='dataset scores', step=self.pipeIter)
+            idx_sorted = np.argsort(dataset["scores"])
+            for k in [1, 10, 100]:
+                topk_scores = dataset["scores"][idx_sorted[:k]]
+                topk_samples = dataset["samples"][idx_sorted[:k]]
+                dist = binaryDistance(topk_samples, pairwise=False, extractInds=len(topk))
+                self.comet.log_metric(f"mean top-{k} scores", np.mean(topk_scores), step=self.pipeIter)
+                self.comet.log_metric(f"std top-{k} scores", np.std(topk_scores), step=self.pipeIter)
+                self.comet.log_metric(f"mean dist top-{k}", np.mean(dist), step=self.pipeIter)
 
         self.config.dataset_size = len(dataset['samples'])
 

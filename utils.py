@@ -217,7 +217,8 @@ def resultsAnalysis(outDir):
     plt.legend()
 
 
-def binaryDistance(samples, dict_size, pairwise=False, extractInds=None):
+# TODO: dict_size is unused
+def binaryDistance(samples, dict_size=None, pairwise=False, extractInds=None):
     """
     compute simple sum of distances between sample vectors: distance = disagreement of allele elements.
     :param samples:
