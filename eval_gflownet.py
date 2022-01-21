@@ -130,17 +130,17 @@ def main(args):
         + [args.gflownet.n_hid] * args.gflownet.n_layers
         + [env.nactions + 1]
     )
+    model.to(device_torch)
     if not args.rand_model:
         model_alias = "gfn"
         if args.model_ckpt:
             model_ckpt = args.model_ckpt
         else:
             model_ckpt = workdir / "model_final.pt"
-        model.load_state_dict(torch.load(model_ckpt))
+        model.load_state_dict(torch.load(model_ckpt, map_location=device_torch))
     else:
         model_alias = "rand"
         print("No trained model will be loaded - using random weights")
-    model.to(device_torch)
     # Data set
     if args.n_samples:
         n_samples = args.n_samples
@@ -191,7 +191,6 @@ def main(args):
         for k in args.k:
             mean_topk = np.mean(scores_sorted[:k])
             print(f"\tAverage score top-{k}: {mean_topk}")
-        import ipdb; ipdb.set_trace()
 
     # log q(x)
     if args.do_logq:
