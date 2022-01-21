@@ -10,6 +10,7 @@ import torch.nn.functional as F
 import torch
 from Agent import ParameterUpdateAgent
 from replay_buffer import ParameterUpdateReplayMemory
+import pandas as pd
 
 import numpy
 import os
@@ -550,6 +551,14 @@ class ActiveLearning():
         printRecord(f"Added{bcolors.OKBLUE}{bcolors.BOLD} %d{bcolors.ENDC}" % int(len(oracleSequences)) + " to the dataset, total dataset size is" + bcolors.OKBLUE + " {}".format(int(len(dataset['samples']))) + bcolors.ENDC)
         printRecord(bcolors.UNDERLINE + "=====================================================================" + bcolors.ENDC)
         np.save('datasets/' + self.config.dataset.oracle, dataset)
+        np.save('datasets/' + self.config.dataset.oracle + '_iter_{}'.format(self.pipeIter),dataset)
+
+        if self.comet:
+            self.comet.log_histogram_3d(dataset['scores'], name='dataset scores', step=self.pipeIter)
+            dataset2 = dataset.copy()
+            dataset2['samples'] = numbers2letters(dataset['samples'])
+            self.comet.log_table(filename = 'dataset_at_iter_{}.csv'.format(self.pipeIter), tabular_data=pd.DataFrame.from_dict(dataset2))
+
 
 
     def getScalingFactor(self):
