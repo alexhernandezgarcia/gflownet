@@ -2,8 +2,11 @@
 Classes to represent aptamers environments
 """
 import itertools
+
 import numpy as np
-from oracles import linearToy, toyHamiltonian, PottsEnergy, seqfoldScore, nupackScore
+
+from oracles import (PottsEnergy, linearToy, nupackScore, seqfoldScore,
+                     toyHamiltonian)
 
 
 class AptamerSeq:
@@ -226,8 +229,9 @@ class AptamerSeq:
         Args
         ----
         seq : list
-            Representation of a sequence (state), as a list of length max_seq_length where each
-        element is the index of a letter in the alphabet, from 0 to (nalphabet - 1).
+            Representation of a sequence (state), as a list of length max_seq_length
+            where each element is the index of a letter in the alphabet, from 0 to
+            (nalphabet - 1).
 
         action : int
             Last action performed
