@@ -104,7 +104,8 @@ def main(args):
     workdir = Path(args.config_file).parent
     # Environment
     env = AptamerSeq(
-        args.gflownet.horizon,
+        args.gflownet.max_seq_length,
+        args.gflownet.min_seq_length,
         args.gflownet.nalphabet,
         args.gflownet.min_word_len,
         args.gflownet.max_word_len,
@@ -112,7 +113,7 @@ def main(args):
     )
     # Model
     model = make_mlp(
-        [args.gflownet.horizon * args.gflownet.nalphabet]
+        [args.gflownet.max_seq_length * args.gflownet.nalphabet]
         + [args.gflownet.n_hid] * args.gflownet.n_layers
         + [env.nactions + 1]
     )
@@ -142,7 +143,7 @@ def main(args):
         samples_dict, times = sample(
             model,
             n_samples,
-            args.gflownet.horizon,
+            args.gflownet.max_seq_length,
             args.gflownet.nalphabet,
             args.gflownet.min_word_len,
             args.gflownet.max_word_len,

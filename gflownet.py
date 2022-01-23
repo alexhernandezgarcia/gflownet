@@ -3,30 +3,23 @@ GFlowNet
 TODO:
     - Seeds
 """
-from comet_ml import Experiment
-from argparse import ArgumentParser
 import copy
-import gzip
-import heapq
-import itertools
-import os
-import pickle
-from collections import defaultdict
-from itertools import count, product
-from pathlib import Path
-import yaml
 import time
+from argparse import ArgumentParser
+from collections import defaultdict
+from itertools import count
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
-from scipy.stats import norm
-from tqdm import tqdm
 import torch
 import torch.nn as nn
+import yaml
+from comet_ml import Experiment
 from torch.distributions.categorical import Categorical
+from tqdm import tqdm
 
 from aptamers import AptamerSeq
-from oracles import linearToy, toyHamiltonian, PottsEnergy, seqfoldScore, nupackScore
 from oracle import numbers2letters
 from utils import get_config, namespace2dict, numpy2python
 
@@ -458,7 +451,7 @@ class GFlowNetAgent:
             neg_r_idx = torch.where(r < 0)[0].tolist()
             for idx in neg_r_idx:
                 obs = sp[idx].tolist()
-                seq = list(self.env.obs2seq(seq))
+                seq = list(self.env.obs2seq(obs))
                 seq_oracle = self.env.seq2oracle([seq])
                 output_proxy = self.env.proxy(seq_oracle)
                 reward = self.env.proxy2reward(output_proxy)
@@ -558,7 +551,8 @@ class GFlowNetAgent:
             if not i % self.reward_beta_period and i > 0:
                 if self.debug:
                     print(
-                        "\tDecreasing reward temperature from -{:.4f} to -{:.4f}".format(
+                        "\tDecreasing reward temperature from "
+                        "-{:.4f} to -{:.4f}".format(
                             self.reward_beta, self.reward_beta * self.reward_beta_mult
                         )
                     )
@@ -735,7 +729,14 @@ class GFlowNetAgent:
             self.comet.end()
 
     def sample(
-        self, n_samples, max_seq_length, nalphabet, min_word_len, max_word_len, proxy
+        self,
+        n_samples,
+        max_seq_length,
+        min_seq_length,
+        nalphabet,
+        min_word_len,
+        max_word_len,
+        proxy,
     ):
         times = {
             "all": 0.0,
@@ -748,7 +749,12 @@ class GFlowNetAgent:
         batch = []
         envs = [
             AptamerSeq(
-                max_seq_length, nalphabet, min_word_len, max_word_len, proxy=proxy
+                max_seq_length=max_seq_length,
+                min_seq_length=min_seq_length,
+                nalphabet=nalphabet,
+                min_word_len=min_word_len,
+                max_word_len=max_word_len,
+                proxy=proxy,
             )
             for i in range(n_samples)
         ]
@@ -806,7 +812,14 @@ class GFlowNetAgent:
 
 
 def sample(
-    model, n_samples, max_seq_length, nalphabet, min_word_len, max_word_len, func
+    model,
+    n_samples,
+    max_seq_length,
+    min_seq_length,
+    nalphabet,
+    min_word_len,
+    max_word_len,
+    func,
 ):
     times = {
         "all": 0.0,
@@ -818,7 +831,14 @@ def sample(
     t0_all = time.time()
     batch = []
     envs = [
-        AptamerSeq(max_seq_length, nalphabet, min_word_len, max_word_len, func=func)
+        AptamerSeq(
+            max_seq_length=max_seq_length,
+            min_seq_length=min_seq_length,
+            nalphabet=nalphabet,
+            min_word_len=min_word_len,
+            max_word_len=max_word_len,
+            func=func,
+        )
         for i in range(n_samples)
     ]
     envs = [env.reset() for env in envs]
