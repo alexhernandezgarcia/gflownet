@@ -179,7 +179,8 @@ class Querier():
             t0 = time.time()
             outputs, times = gflownet.sample(
                     self.config.gflownet.n_samples, self.config.dataset.max_length,
-                    self.config.dataset.dict_size, self.config.gflownet.min_word_len, 
+                    self.config.dataset.min_length, self.config.dataset.dict_size, 
+                    self.config.gflownet.min_word_len, 
                     self.config.gflownet.max_word_len, model.evaluate
             )
             tf = time.time()
