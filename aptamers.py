@@ -22,8 +22,9 @@ class AptamerSeq:
         Number of letters in the alphabet
 
     seq : list
-        Representation of a sequence (state), as a list of length max_seq_length where each
-        element is the index of a letter in the alphabet, from 0 to (nalphabet - 1).
+        Representation of a sequence (state), as a list of length max_seq_length where
+        each element is the index of a letter in the alphabet, from 0 to (nalphabet -
+        1).
 
     done : bool
         True if the sequence has reached a terminal state (maximum length, or stop
@@ -150,9 +151,9 @@ class AptamerSeq:
     def seq2obs(self, seq=None):
         """
         Transforms the sequence (state) given as argument (or self.seq if None) into a
-        one-hot encoding. The output is a list of length nalphabet * max_seq_length, where
-        each n-th successive block of nalphabet elements is a one-hot encoding of the
-        letter in the n-th position.
+        one-hot encoding. The output is a list of length nalphabet * max_seq_length,
+        where each n-th successive block of nalphabet elements is a one-hot encoding of
+        the letter in the n-th position.
 
         Example:
           - Sequence: AATGC
@@ -161,7 +162,8 @@ class AptamerSeq:
           - seq2obs(seq): [1, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0]
                           |     A    |      A    |      T    |      G    |      C    |
 
-        If max_seq_length > len(s), the last (max_seq_length - len(s)) blocks are all 0s.
+        If max_seq_length > len(s), the last (max_seq_length - len(s)) blocks are all
+        0s.
         """
         if seq is None:
             seq = self.seq
