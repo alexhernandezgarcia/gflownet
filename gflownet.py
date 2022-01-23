@@ -734,7 +734,9 @@ class GFlowNetAgent:
         if self.comet and self.al_iter == -1:
             self.comet.end()
 
-    def sample(self, n_samples, max_seq_length, nalphabet, min_word_len, max_word_len, proxy):
+    def sample(
+        self, n_samples, max_seq_length, nalphabet, min_word_len, max_word_len, proxy
+    ):
         times = {
             "all": 0.0,
             "actions_model": 0.0,
@@ -745,7 +747,9 @@ class GFlowNetAgent:
         t0_all = time.time()
         batch = []
         envs = [
-            AptamerSeq(max_seq_length, nalphabet, min_word_len, max_word_len, proxy=proxy)
+            AptamerSeq(
+                max_seq_length, nalphabet, min_word_len, max_word_len, proxy=proxy
+            )
             for i in range(n_samples)
         ]
         envs = [env.reset() for env in envs]
@@ -801,7 +805,9 @@ class GFlowNetAgent:
         return samples, times
 
 
-def sample(model, n_samples, max_seq_length, nalphabet, min_word_len, max_word_len, func):
+def sample(
+    model, n_samples, max_seq_length, nalphabet, min_word_len, max_word_len, func
+):
     times = {
         "all": 0.0,
         "actions_model": 0.0,

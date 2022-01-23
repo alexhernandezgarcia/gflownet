@@ -353,7 +353,9 @@ class AptamerSeq:
         if self.nalphabet ** self.max_seq_length > max_states:
             return (None, None, None)
         seq_all = np.int32(
-            list(itertools.product(*[list(range(self.nalphabet))] * self.max_seq_length))
+            list(
+                itertools.product(*[list(range(self.nalphabet))] * self.max_seq_length)
+            )
         )
         traj_rewards, seq_end = zip(
             *[
