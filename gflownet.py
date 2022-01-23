@@ -4,15 +4,10 @@ TODO:
     - Seeds
 """
 import copy
-import gzip
-import heapq
-import itertools
-import os
-import pickle
 import time
 from argparse import ArgumentParser
 from collections import defaultdict
-from itertools import count, product
+from itertools import count
 from pathlib import Path
 
 import numpy as np
@@ -21,14 +16,11 @@ import torch
 import torch.nn as nn
 import yaml
 from comet_ml import Experiment
-from scipy.stats import norm
 from torch.distributions.categorical import Categorical
 from tqdm import tqdm
 
 from aptamers import AptamerSeq
 from oracle import numbers2letters
-from oracles import (PottsEnergy, linearToy, nupackScore, seqfoldScore,
-                     toyHamiltonian)
 from utils import get_config, namespace2dict, numpy2python
 
 # Float and Long tensors
@@ -459,7 +451,7 @@ class GFlowNetAgent:
             neg_r_idx = torch.where(r < 0)[0].tolist()
             for idx in neg_r_idx:
                 obs = sp[idx].tolist()
-                seq = list(self.env.obs2seq(seq))
+                seq = list(self.env.obs2seq(obs))
                 seq_oracle = self.env.seq2oracle([seq])
                 output_proxy = self.env.proxy(seq_oracle)
                 reward = self.env.proxy2reward(output_proxy)
@@ -559,7 +551,8 @@ class GFlowNetAgent:
             if not i % self.reward_beta_period and i > 0:
                 if self.debug:
                     print(
-                        "\tDecreasing reward temperature from -{:.4f} to -{:.4f}".format(
+                        "\tDecreasing reward temperature from "
+                        "-{:.4f} to -{:.4f}".format(
                             self.reward_beta, self.reward_beta * self.reward_beta_mult
                         )
                     )
