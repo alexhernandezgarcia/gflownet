@@ -148,12 +148,19 @@ def add_args(parser):
     parser.add_argument("--func", default="arbitrary_i")
     args2config.update({"func": ["gflownet", "func"]})
     parser.add_argument(
-        "--horizon",
+        "--max_seq_length",
         default=42,
         help="Maximum number of episodes; maximum sequence length",
         type=int,
     )
-    args2config.update({"horizon": ["gflownet", "horizon"]})
+    args2config.update({"max_seq_length": ["gflownet", "max_seq_length"]})
+    parser.add_argument(
+        "--min_seq_length",
+        default=1,
+        help="Minimum sequence length",
+        type=int,
+    )
+    args2config.update({"min_seq_length": ["gflownet", "min_seq_length"]})
     parser.add_argument("--nalphabet", default=4, type=int)
     args2config.update({"nalphabet": ["gflownet", "nalphabet"]})
     parser.add_argument("--min_word_len", default=1, type=int)
@@ -246,7 +253,8 @@ class GFlowNetAgent:
                 self.comet = None
         # Environment
         self.env = AptamerSeq(
-            args.gflownet.horizon,
+            args.gflownet.max_seq_length,
+            args.gflownet.min_seq_length,
             args.gflownet.nalphabet,
             args.gflownet.min_word_len,
             args.gflownet.max_word_len,
@@ -258,7 +266,8 @@ class GFlowNetAgent:
         )
         self.envs = [
             AptamerSeq(
-                args.gflownet.horizon,
+                args.gflownet.max_seq_length,
+                args.gflownet.min_seq_length,
                 args.gflownet.nalphabet,
                 args.gflownet.min_word_len,
                 args.gflownet.max_word_len,
@@ -273,7 +282,7 @@ class GFlowNetAgent:
         self.batch_reward = args.gflownet.batch_reward
         # Model
         self.model = make_mlp(
-            [args.gflownet.horizon * args.gflownet.nalphabet]
+            [args.gflownet.max_seq_length * args.gflownet.nalphabet]
             + [args.gflownet.n_hid] * args.gflownet.n_layers
             + [self.env.nactions + 1]
         )
@@ -325,7 +334,7 @@ class GFlowNetAgent:
                     score=self.test_score,
                     ntest=args.gflownet.test.n,
                     min_length=args.gflownet.test.min_length,
-                    max_length=args.gflownet.horizon,
+                    max_length=args.gflownet.max_seq_length,
                     seed=args.gflownet.test.seed,
                     output_csv=args.gflownet.test.output,
                 )
@@ -725,7 +734,9 @@ class GFlowNetAgent:
         if self.comet and self.al_iter == -1:
             self.comet.end()
 
-    def sample(self, n_samples, horizon, nalphabet, min_word_len, max_word_len, proxy):
+    def sample(
+        self, n_samples, max_seq_length, nalphabet, min_word_len, max_word_len, proxy
+    ):
         times = {
             "all": 0.0,
             "actions_model": 0.0,
@@ -736,7 +747,9 @@ class GFlowNetAgent:
         t0_all = time.time()
         batch = []
         envs = [
-            AptamerSeq(horizon, nalphabet, min_word_len, max_word_len, proxy=proxy)
+            AptamerSeq(
+                max_seq_length, nalphabet, min_word_len, max_word_len, proxy=proxy
+            )
             for i in range(n_samples)
         ]
         envs = [env.reset() for env in envs]
@@ -792,7 +805,9 @@ class GFlowNetAgent:
         return samples, times
 
 
-def sample(model, n_samples, horizon, nalphabet, min_word_len, max_word_len, func):
+def sample(
+    model, n_samples, max_seq_length, nalphabet, min_word_len, max_word_len, func
+):
     times = {
         "all": 0.0,
         "actions_model": 0.0,
@@ -803,7 +818,7 @@ def sample(model, n_samples, horizon, nalphabet, min_word_len, max_word_len, fun
     t0_all = time.time()
     batch = []
     envs = [
-        AptamerSeq(horizon, nalphabet, min_word_len, max_word_len, func=func)
+        AptamerSeq(max_seq_length, nalphabet, min_word_len, max_word_len, func=func)
         for i in range(n_samples)
     ]
     envs = [env.reset() for env in envs]
