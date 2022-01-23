@@ -541,7 +541,7 @@ class ActiveLearning():
             for k in [1, 10, 100]:
                 topk_scores = dataset["scores"][idx_sorted[:k]]
                 topk_samples = dataset["samples"][idx_sorted[:k]]
-                dist = binaryDistance(topk_samples, pairwise=False, extractInds=len(topk))
+                dist = binaryDistance(topk_samples, pairwise=False, extractInds=len(topk_samples))
                 self.comet.log_metric(f"mean top-{k} scores", np.mean(topk_scores), step=self.pipeIter)
                 self.comet.log_metric(f"std top-{k} scores", np.std(topk_scores), step=self.pipeIter)
                 self.comet.log_metric(f"mean dist top-{k}", np.mean(dist), step=self.pipeIter)
