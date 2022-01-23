@@ -3,31 +3,32 @@ GFlowNet
 TODO:
     - Seeds
 """
-from comet_ml import Experiment
-from argparse import ArgumentParser
 import copy
 import gzip
 import heapq
 import itertools
 import os
 import pickle
+import time
+from argparse import ArgumentParser
 from collections import defaultdict
 from itertools import count, product
 from pathlib import Path
-import yaml
-import time
 
 import numpy as np
 import pandas as pd
-from scipy.stats import norm
-from tqdm import tqdm
 import torch
 import torch.nn as nn
+import yaml
+from comet_ml import Experiment
+from scipy.stats import norm
 from torch.distributions.categorical import Categorical
+from tqdm import tqdm
 
 from aptamers import AptamerSeq
-from oracles import linearToy, toyHamiltonian, PottsEnergy, seqfoldScore, nupackScore
 from oracle import numbers2letters
+from oracles import (PottsEnergy, linearToy, nupackScore, seqfoldScore,
+                     toyHamiltonian)
 from utils import get_config, namespace2dict, numpy2python
 
 # Float and Long tensors
