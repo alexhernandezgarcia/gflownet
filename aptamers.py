@@ -12,14 +12,17 @@ class AptamerSeq:
 
     Attributes
     ----------
-    horizon : int
+    max_seq_length : int
         Maximum length of the sequences
+
+    min_seq_length : int
+        Minimum length of the sequences
 
     nalphabet : int
         Number of letters in the alphabet
 
     seq : list
-        Representation of a sequence (state), as a list of length horizon where each
+        Representation of a sequence (state), as a list of length max_seq_length where each
         element is the index of a letter in the alphabet, from 0 to (nalphabet - 1).
 
     done : bool
@@ -35,7 +38,8 @@ class AptamerSeq:
 
     def __init__(
         self,
-        horizon=42,
+        max_seq_length=42,
+        min_seq_length=1,
         nalphabet=4,
         min_word_len=1,
         max_word_len=1,
@@ -45,7 +49,8 @@ class AptamerSeq:
         debug=False,
         reward_beta=1,
     ):
-        self.horizon = horizon
+        self.max_seq_length = max_seq_length
+        self.min_seq_length = min_seq_length
         self.nalphabet = nalphabet
         self.min_word_len = min_word_len
         self.max_word_len = max_word_len
@@ -106,7 +111,7 @@ class AptamerSeq:
         seq : list of lists
             List of sequences.
         """
-        queries = [s + [-1] * (self.horizon - len(s)) for s in seq]
+        queries = [s + [-1] * (self.max_seq_length - len(s)) for s in seq]
         queries = np.array(queries, dtype=int)
         if queries.ndim == 1:
             queries = queries[np.newaxis, ...]
@@ -145,7 +150,7 @@ class AptamerSeq:
     def seq2obs(self, seq=None):
         """
         Transforms the sequence (state) given as argument (or self.seq if None) into a
-        one-hot encoding. The output is a list of length nalphabet * nhorizon, where
+        one-hot encoding. The output is a list of length nalphabet * max_seq_length, where
         each n-th successive block of nalphabet elements is a one-hot encoding of the
         letter in the n-th position.
 
@@ -156,12 +161,12 @@ class AptamerSeq:
           - seq2obs(seq): [1, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0]
                           |     A    |      A    |      T    |      G    |      C    |
 
-        If horizon > len(s), the last (horizon - len(s)) blocks are all 0s.
+        If max_seq_length > len(s), the last (max_seq_length - len(s)) blocks are all 0s.
         """
         if seq is None:
             seq = self.seq
 
-        z = np.zeros((self.nalphabet * self.horizon), dtype=np.float32)
+        z = np.zeros((self.nalphabet * self.max_seq_length), dtype=np.float32)
 
         if len(seq) > 0:
             if hasattr(
@@ -184,7 +189,7 @@ class AptamerSeq:
           - seq: [0, 0, 1, 3, 2]
                   A, A, T, G, C
         """
-        obs_mat = np.reshape(obs, (self.horizon, self.nalphabet))
+        obs_mat = np.reshape(obs, (self.max_seq_length, self.nalphabet))
         seq = np.where(obs_mat)[1]
         return seq
 
@@ -212,14 +217,14 @@ class AptamerSeq:
         return self
 
     def parent_transitions(self, seq, action):
-        # TODO: valid parents must satisfy horizon constraint!!!
+        # TODO: valid parents must satisfy max_seq_length constraint!!!
         """
         Determines all parents and actions that lead to sequence (state) seq
 
         Args
         ----
         seq : list
-            Representation of a sequence (state), as a list of length horizon where each
+            Representation of a sequence (state), as a list of length max_seq_length where each
         element is the index of a letter in the alphabet, from 0 to (nalphabet - 1).
 
         action : int
@@ -316,14 +321,14 @@ class AptamerSeq:
         """
         if action < self.nactions:
             seq_next = self.seq + list(self.action_space[action])
-            if len(seq_next) > self.horizon:
+            if len(seq_next) > self.max_seq_length:
                 valid = False
             else:
                 self.seq = seq_next
                 valid = True
-            self.done = len(self.seq) == self.horizon
+            self.done = len(self.seq) == self.max_seq_length
         else:
-            if len(self.seq) == 0:
+            if len(self.seq) < self.min_seq_length:
                 valid = False
             else:
                 self.done = True
@@ -345,10 +350,10 @@ class AptamerSeq:
         """
         if self._true_density is not None:
             return self._true_density
-        if self.nalphabet ** self.horizon > max_states:
+        if self.nalphabet ** self.max_seq_length > max_states:
             return (None, None, None)
         seq_all = np.int32(
-            list(itertools.product(*[list(range(self.nalphabet))] * self.horizon))
+            list(itertools.product(*[list(range(self.nalphabet))] * self.max_seq_length))
         )
         traj_rewards, seq_end = zip(
             *[
