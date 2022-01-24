@@ -335,35 +335,21 @@ class ActiveLearning():
 
 
     def retrainModels(self, parallel=True):
-        if not parallel:
-            testMins = []
-            for i in range(self.config.proxy.ensemble_size):
-                self.resetModel(i)  # reset between ensemble estimators EVERY ITERATION of the pipeline
-                self.model.converge()  # converge model
-                testMins.append(np.amin(self.model.err_te_hist))
-                if self.comet:
-                    tr_hist = self.model.err_tr_hist
-                    te_hist = self.model.err_te_hist
-                    epochs = len(te_hist)
-                    for i in range(epochs):
-                        self.comet.log_metric('proxy train loss iter {}'.format(self.pipeIter), step=i, value=tr_hist[i])
-                        self.comet.log_metric('proxy test loss iter {}'.format(self.pipeIter), step=i, value=te_hist[i])
+        testMins = []
+        for i in range(self.config.proxy.ensemble_size):
+            self.resetModel(i)  # reset between ensemble estimators EVERY ITERATION of the pipeline
+            self.model.converge()  # converge model
+            testMins.append(np.amin(self.model.err_te_hist))
+            if self.comet:
+                tr_hist = self.model.err_tr_hist
+                te_hist = self.model.err_te_hist
+                epochs = len(te_hist)
+                for i in range(epochs):
+                    self.comet.log_metric('proxy train loss iter {}'.format(self.pipeIter), step=i, value=tr_hist[i])
+                    self.comet.log_metric('proxy test loss iter {}'.format(self.pipeIter), step=i, value=te_hist[i])
 
-            self.testMinima.append(testMins)
-        else: # deprecated
-            del self.model
-            if self.config.machine == 'local':
-                nHold = 4
-            else:
-                nHold = 1
-            cpus = int(os.cpu_count() - nHold)
-            cpus = min(cpus,self.config.proxy.ensemble_size) # only as many CPUs as we need
-            with mp.Pool(processes=cpus) as pool:
-                output = [pool.apply_async(trainModel, args=[self.config, j]) for j in range(self.config.proxy.ensemble_size)]
-                outputList = [output[i].get() for i in range(self.config.proxy.ensemble_size)]
-                self.testMinima.append([np.amin(outputList[i]) for i in range(self.config.proxy.ensemble_size)])
-                pool.close()
-                pool.join()
+        self.testMinima.append(testMins)
+
 
 
     def loadEstimatorEnsemble(self):

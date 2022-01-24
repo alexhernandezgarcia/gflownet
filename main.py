@@ -408,13 +408,6 @@ def add_args(parser):
     )
     args2config.update({"proxy_model_type": ["proxy", "model_type"]})
     parser.add_argument(
-        "--training_parallelism",
-        action="store_true",
-        default=False,
-        help="fast enough on GPU without paralellism - True doesn't always work on linux",
-    )
-    args2config.update({"training_parallelism": ["proxy", "training_parallelism"]})
-    parser.add_argument(
         "--proxy_model_ensemble_size",
         type=int,
         default=10,
@@ -447,6 +440,10 @@ def add_args(parser):
         help="give each model in the ensemble a uniquely shuffled dataset",
     )
     args2config.update({"proxy_shuffle_dataset": ["proxy", "shuffle_dataset"]})
+    parser.add_argument("--proxy_uncertainty_estimation", type=str, default="dropout", help="dropout or ensemble")
+    args2config.update({"proxy_uncertainty_estimation": ["proxy", "uncertainty_estimation"]})
+    parser.add_argument("--proxy_dropout", type=float, default = 0.5)
+    args2config.update({"proxy_dropout": ["proxy", "dropout"]})
     # MCMC
     parser.add_argument(
         "--mcmc_sampling_time",
