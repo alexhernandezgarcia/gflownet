@@ -543,6 +543,85 @@ class GFlowNetAgent:
 
         return loss, term_loss, flow_loss
 
+    def trajectorybalance_loss(self, it, batch):
+        """
+        Computes the trajectory balance loss of a batch
+
+        Args
+        ----
+        it : int
+            Iteration
+
+        batch : ndarray
+            A batch of data: every row is a state (list), corresponding to all states
+            visited in each sequence in the batch.
+
+        Returns
+        -------
+        loss : float
+            Loss, as per Equation 12 of https://arxiv.org/abs/2106.04399v1
+
+        term_loss : float
+            Loss of the terminal nodes only
+
+        flow_loss : float
+            Loss of the intermediate nodes only
+        """
+        loginf = tf([1000])
+        batch_idxs = tl(
+            sum(
+                [[i] * len(parents) for i, (parents, _, _, _, _) in enumerate(batch)],
+                [],
+            )
+        )
+        parents, actions, r, sp, done = map(torch.cat, zip(*batch))
+
+        # Sanity check if negative rewards
+        if self.debug and torch.any(r < 0):
+            neg_r_idx = torch.where(r < 0)[0].tolist()
+            for idx in neg_r_idx:
+                obs = sp[idx].tolist()
+                seq = list(self.env.obs2seq(obs))
+                seq_oracle = self.env.seq2oracle([seq])
+                output_proxy = self.env.proxy(seq_oracle)
+                reward = self.env.proxy2reward(output_proxy)
+                print(idx, output_proxy, reward)
+                import ipdb
+
+                ipdb.set_trace()
+
+        # Q(s,a)
+        parents_Qsa = self.model(parents)[
+            torch.arange(parents.shape[0]), actions.long()
+        ]
+
+        # log(eps + exp(log(Q(s,a)))) : qsa
+        in_flow = torch.logaddexp(parents_Qsa[batch_idxs], torch.log(self.loss_eps))
+        if self.tau > 0:
+            with torch.no_grad():
+                next_q = self.target(sp)
+        else:
+            next_q = self.model(sp)
+        qsp = torch.logsumexp(next_q, 1)
+        # qsp: qsp if not done; -loginf if done
+        qsp = qsp * (1 - done) - loginf * done
+        out_flow = torch.logaddexp(torch.log(r + self.loss_eps), qsp)
+        loss = (in_flow - out_flow).pow(2).mean()
+
+        with torch.no_grad():
+            term_loss = ((in_flow - out_flow) * done).pow(2).sum() / (
+                done.sum() + 1e-20
+            )
+            flow_loss = ((in_flow - out_flow) * (1 - done)).pow(2).sum() / (
+                (1 - done).sum() + 1e-20
+            )
+
+        if self.tau > 0:
+            for a, b in zip(self.model.parameters(), self.target.parameters()):
+                b.data.mul_(1 - self.tau).add_(self.tau * a)
+
+        return loss, term_loss, flow_loss
+
     def train(self):
 
         # Metrics
