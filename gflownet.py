@@ -203,7 +203,7 @@ def set_device(dev):
 
 
 class GFlowNetAgent:
-    def __init__(self, args, comet=None, proxy=None, al_iter=-1, test_path=None):
+    def __init__(self, args, comet=None, proxy=None, al_iter=-1, data_path=None):
         # Misc
         self.rng = np.random.RandomState(int(time.time()))
         self.debug = args.debug
@@ -308,17 +308,39 @@ class GFlowNetAgent:
         self.ttsr = max(int(args.gflownet.train_to_sample_ratio), 1)
         self.sttr = max(int(1 / args.gflownet.train_to_sample_ratio), 1)
         self.random_action_prob = args.gflownet.random_action_prob
+        self.pct_batch_empirical = args.gflownet.pct_batch_empirical
+        # Empirical data from active learning
+        if data_path:
+            self.data_path = Path(data_path)
+            self.al_init_length = args.dataset.init_length
+            self.al_queries_per_iter = args.al.queries_per_iter
+            self.pct_test = args.gflownet.test.pct_test
+            self.data_seed = args.seeds.dataset
+            if self.data_path.suffix == ".npy":
+                self.df_data = np2df(
+                    self.data_path,
+                    args.gflownet.test.score,
+                    self.al_init_length,
+                    self.al_queries_per_iter,
+                    self.pct_test,
+                    self.data_seed,
+                )
+                self.df_train = self.df_data.loc[self.df_data.train]
+            else:
+                self.df_data = None
+                self.df_train = None
+        else:
+            self.df_data = None
+            self.df_train = None
         # Test set
         self.test_period = args.gflownet.test.period
-        if test_path:
-            self.test_path = Path(test_path)
         if self.test_period in [None, -1]:
             self.test_period = np.inf
             self.df_test = None
         else:
             self.test_score = args.gflownet.test.score
-            if self.test_path and self.test_path.suffix == ".npy":
-                self.df_test = test_np2df(self.test_path, self.test_score)
+            if self.df_data is not None:
+                self.df_test = self.df_data.loc[self.df_data.test]
             elif args.gflownet.test.path:
                 self.df_test = pd.read_csv(args.gflownet.test.path, index_col=0)
             else:
@@ -366,6 +388,30 @@ class GFlowNetAgent:
         t0_all = time.time()
         batch = []
         envs = [env.reset() for env in self.envs]
+        # Sequences from empirical distribution
+        n_empirical = int(self.pct_batch_empirical * len(envs))
+        for env in envs[:n_empirical]:
+            env.done = True
+            seq_letters = self.rng.permutation(self.df_train.letters.values)[0]
+            seq = env.letters2seq(seq_letters)
+            done = True
+            action = env.nactions
+            while len(seq) > 0:
+                parents, parents_a = env.parent_transitions(seq, action)
+                batch.append(
+                    [
+                        tf(parents),
+                        tf(parents_a),
+                        seq,
+                        tf([env.seq2obs(seq)]),
+                        done,
+                    ]
+                )
+                seq = env.obs2seq(self.rng.permutation(parents)[0])
+                done = False
+                action = -1
+        envs = [env for env in envs if not env.done]
+        # Rest of batch
         while envs:
             seqs = [env.seq2obs() for env in envs]
             random_action = self.rng.uniform()
@@ -1072,10 +1118,36 @@ def make_approx_uniform_test_set(
     return df_test, times
 
 
-def test_np2df(test_path, score):
+def np2df(test_path, score, al_init_length, al_queries_per_iter, pct_test, data_seed):
     data_dict = np.load(test_path, allow_pickle=True).item()
     letters = numbers2letters(data_dict["samples"])
-    df = pd.DataFrame({"letters": letters, score: data_dict["scores"]})
+    df = pd.DataFrame(
+        {
+            "letters": letters,
+            score: data_dict["scores"],
+            "train": [False] * len(letters),
+            "test": [False] * len(letters),
+        }
+    )
+    # Split train and test section of init data set
+    rng = np.random.default_rng(data_seed)
+    indices = rng.permutation(al_init_length)
+    n_tt = int(pct_test * len(indices))
+    indices_tt = indices[:n_tt]
+    indices_tr = indices[n_tt:]
+    df.loc[indices_tt, "test"] = True
+    df.loc[indices_tr, "train"] = True
+    # Split train and test the section of each iteration to preserve splits
+    idx = al_init_length
+    iters_remaining = (len(df) - al_init_length) // al_queries_per_iter
+    indices = rng.permutation(al_queries_per_iter)
+    n_tt = int(pct_test * len(indices))
+    for it in range(iters_remaining):
+        indices_tt = indices[:n_tt] + idx
+        indices_tr = indices[n_tt:] + idx
+        df.loc[indices_tt, "test"] = True
+        df.loc[indices_tr, "train"] = True
+        idx += (it + 1) * al_queries_per_iter
     return df
 
 
