@@ -1147,7 +1147,7 @@ def np2df(test_path, score, al_init_length, al_queries_per_iter, pct_test, data_
         indices_tr = indices[n_tt:] + idx
         df.loc[indices_tt, "test"] = True
         df.loc[indices_tr, "train"] = True
-        idx += (it + 1) * al_queries_per_iter
+        idx += al_queries_per_iter
     return df
 
 
