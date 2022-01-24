@@ -10,12 +10,12 @@ from collections import defaultdict
 from itertools import count
 from pathlib import Path
 
+from comet_ml import Experiment
 import numpy as np
 import pandas as pd
 import torch
 import torch.nn as nn
 import yaml
-from comet_ml import Experiment
 from torch.distributions.categorical import Categorical
 from tqdm import tqdm
 
