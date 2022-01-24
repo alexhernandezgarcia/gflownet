@@ -137,6 +137,8 @@ def add_args(parser):
     args2config.update({"clip_grad_norm": ["gflownet", "clip_grad_norm"]})
     parser.add_argument("--random_action_prob", default=0.0, type=float)
     args2config.update({"random_action_prob": ["gflownet", "random_action_prob"]})
+    parser.add_argument("--pct_batch_empirical", default=0.0, type=float)
+    args2config.update({"pct_batch_empirical": ["gflownet", "pct_batch_empirical"]})
     # Environment
     parser.add_argument("--func", default="arbitrary_i")
     args2config.update({"func": ["gflownet", "func"]})
@@ -210,6 +212,7 @@ class GFlowNetAgent:
         self.device_torch = torch.device(args.gflownet.device)
         self.device = self.device_torch
         set_device(self.device_torch)
+        self.loss_eps = torch.tensor(float(1e-5)).to(self.device)
         self.lightweight = True
         self.tau = args.gflownet.bootstrap_tau
         self.ema_alpha = args.gflownet.ema_alpha
@@ -461,7 +464,7 @@ class GFlowNetAgent:
         times["all"] += t1_all - t0_all
         return batch, times
 
-    def learn_from(self, it, batch):
+    def flowmatch_loss(self, it, batch):
         """
         Computes the loss of a batch
 
@@ -493,6 +496,8 @@ class GFlowNetAgent:
             )
         )
         parents, actions, r, sp, done = map(torch.cat, zip(*batch))
+
+        # Sanity check if negative rewards
         if self.debug and torch.any(r < 0):
             neg_r_idx = torch.where(r < 0)[0].tolist()
             for idx in neg_r_idx:
@@ -505,29 +510,23 @@ class GFlowNetAgent:
                 import ipdb
 
                 ipdb.set_trace()
+
+        # Q(s,a)
         parents_Qsa = self.model(parents)[
             torch.arange(parents.shape[0]), actions.long()
         ]
 
-        if self.device.type == "cuda":
-            in_flow = torch.log(
-                torch.zeros((sp.shape[0],))
-                .cuda()
-                .index_add_(0, batch_idxs, torch.exp(parents_Qsa))
-            )
-        else:
-            in_flow = torch.log(
-                torch.zeros((sp.shape[0],)).index_add_(
-                    0, batch_idxs, torch.exp(parents_Qsa)
-                )
-            )
+        # log(eps + exp(log(Q(s,a)))) : qsa
+        in_flow = torch.logaddexp(parents_Qsa[batch_idxs], torch.log(self.loss_eps))
         if self.tau > 0:
             with torch.no_grad():
                 next_q = self.target(sp)
         else:
             next_q = self.model(sp)
-        next_qd = next_q * (1 - done).unsqueeze(1) + done.unsqueeze(1) * (-loginf)
-        out_flow = torch.logsumexp(torch.cat([torch.log(r)[:, None], next_qd], 1), 1)
+        qsp = torch.logsumexp(next_q, 1)
+        # qsp: qsp if not done; -loginf if done
+        qsp = qsp * (1 - done) - loginf * done
+        out_flow = torch.logaddexp(torch.log(r + self.loss_eps), qsp)
         loss = (in_flow - out_flow).pow(2).mean()
 
         with torch.no_grad():
@@ -563,7 +562,7 @@ class GFlowNetAgent:
             rewards = [d[2][0].item() for d in data if bool(d[4].item())]
             proxy_vals = self.env.reward2proxy(rewards)
             for j in range(self.ttsr):
-                losses = self.learn_from(
+                losses = self.flowmatch_loss(
                     i * self.ttsr + j, data
                 )  # returns (opt loss, *metrics)
                 if (
@@ -968,7 +967,7 @@ class RandomTrajAgent:
                     all_visited.append(tuple(sp))
         return []  # agent is stateful, no need to return minibatch data
 
-    def learn_from(self, it, batch):
+    def flowmatch_loss(self, it, batch):
         return None
 
 
