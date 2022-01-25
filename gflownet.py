@@ -586,15 +586,19 @@ class GFlowNetAgent:
         flow_loss : float
             Loss of the intermediate nodes only
         """
-        seqs, rewards = zip(
+        # for debugging
+#         parents, actions, r, sp, done = map(torch.cat, zip(*batch))
+#         seqs = [self.env.obs2seq(obs.tolist()) for obs in sp]
+
+        seqs_done, rewards = zip(
             *[
                 (self.env.obs2seq(d[3][0].tolist()), d[2])
                 for d in batch
                 if bool(d[4].item())
             ]
         )
-        qsa_mat = -1000 * torch.ones(len(seqs), self.env.max_seq_length + 1)
-        for idx, seq in enumerate(seqs):
+        qsa_mat = -1000 * torch.ones(len(seqs_done), self.env.max_seq_length + 1)
+        for idx, seq in enumerate(seqs_done):
             traj_seqs, actions = self.env.get_trajectories(
                 [[seq]],
                 [[self.env.nactions]],
@@ -1089,17 +1093,10 @@ def make_opt(params, Z, args):
             betas=(args.gflownet.adam_beta1, args.gflownet.adam_beta2),
         )
         if Z is not None:
-#             opt.param_groups.append(
-#                 {
-#                     "params": Z,
-#                     "lr": args.gflownet.learning_rate * 10,
-#                     "betas": (args.gflownet.adam_beta1, args.gflownet.adam_beta2),
-#                 }
-#             )
             opt.add_param_group(
                 {
                     "params": Z,
-                    "lr": args.gflownet.learning_rate * 1,
+                    "lr": args.gflownet.learning_rate * 10,
                 }
             )
     elif args.gflownet.opt == "msgd":
