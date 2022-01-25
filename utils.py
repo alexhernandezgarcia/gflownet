@@ -438,7 +438,7 @@ def samples2dict(samples):
         "samples": np.concatenate(samples["optimalSamples"]),
         "scores": np.concatenate(samples["optima"]),
         "energies": np.concatenate(samples["enAtOptima"]),
-        "uncertainties": np.concatenate(samples["varAtOptima"]),
+        "uncertainties": np.concatenate(samples["std_devAtOptima"]),
     }
     return outputs
 
@@ -929,3 +929,4 @@ def numpy2python(results_dict):
 
 def normalizeDistCutoff(cutoff):
     return (1 + np.tanh(cutoff)) / 2
+

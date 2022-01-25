@@ -4,7 +4,7 @@ debug: True
 run_num: 0
 explicit_run_enumeration: False
 machine: "local"
-device: "cpu"
+device: "cuda"
 workdir: !!null
 # Seeds
 seeds:
@@ -24,13 +24,16 @@ dataset:
   sample_tasks: 1
 # AL
 al:
-  sample_method: "random"
-  query_mode: "energy"
+  sample_method: "mcmc"
+  query_mode: "fancy_acquisition" # must be 'fancy_acquisition' for our new acquisition functions
+  acquisition_function : "ei"
   hyperparams_learning: False
-  n_iter: 5
+  n_iter: 10
   query_selection: "argmin"
   minima_dist_cutoff: 0.25
   energy_uncertainty_tradeoff: 0
+  UCB_kappa: 0.1
+  EI_percentile: 80
   queries_per_iter: 100
   mode: "training"
   q_batch_size: 32
@@ -50,7 +53,7 @@ querier:
   latent_space_width: 10
 # GFlowNet # model.pt
 gflownet:
-  device: "cpu"
+  device: "cuda"
   model_ckpt: !!null #model.pt
   progress: True
   opt: "adam"
@@ -85,18 +88,19 @@ gflownet:
     period: 100
 # Proxy model
 proxy:
-  model_type: "transformer2"
-  ensemble_size: 2
-  width: 16
-  n_layers: 12
+  model_type: "mlp"
+  ensemble_size: 1
+  width: 128
+  n_layers: 4
   mbsize: 10
   max_epochs: 200
   shuffle_dataset: True
   uncertainty_estimation : "dropout"
-  dropout: 0.5
+  dropout: 0.1
+  dropout_samples: 25
 # MCMC
 mcmc:
   sampling_time: 200
-  num_samplers: 2
+  num_samplers: 20
   stun_min_gamma: -3
   stun_max_gamma: 1

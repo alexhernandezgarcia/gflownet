@@ -19,7 +19,6 @@ low priority /long term
 ==> add detection for oracle.initializeDataset for if the requested number of samples is a significant fraction of the total sample space - may be faster to return full space or large fraction of all permutations
 
 known issues
-==> mp.pool parallelism often fails on linux
 
 """
 print("Imports...", end="")
@@ -173,6 +172,13 @@ def add_args(parser):
     )
     args2config.update({"query_mode": ["al", "query_mode"]})
     parser.add_argument(
+        "--acquisition_function",
+        type=str,
+        default="learned",
+        help="'none', 'ucb','ei' # different 'things to do' with model uncertainty",
+    )
+    args2config.update({"acquisition_function": ["al", "acquisition_function"]})
+    parser.add_argument(
         "--pipeline_iterations",
         type=int,
         default=1,
@@ -186,6 +192,20 @@ def add_args(parser):
         help="agglomerative 'clustering', 'cutoff' or strictly 'argmin' based query construction",
     )
     args2config.update({"query_selection": ["al", "query_selection"]})
+    parser.add_argument(
+        "--UCB_kappa",
+        type=float,
+        default=0.1,
+        help="wighting of the uncertainty in BO-UCB acquisition function",
+    )
+    args2config.update({"UCB_kappa": ["al", "UCB_kappa"]})
+    parser.add_argument(
+        "--EI_max_percentile",
+        type=float,
+        default=80,
+        help="max percentile for expected improvement (EI) acquisition function",
+    )
+    args2config.update({"EI_max_percentile": ["al", "EI_max_percentile"]})
     parser.add_argument(
         "--minima_dist_cutoff",
         type=float,
@@ -442,8 +462,10 @@ def add_args(parser):
     args2config.update({"proxy_shuffle_dataset": ["proxy", "shuffle_dataset"]})
     parser.add_argument("--proxy_uncertainty_estimation", type=str, default="dropout", help="dropout or ensemble")
     args2config.update({"proxy_uncertainty_estimation": ["proxy", "uncertainty_estimation"]})
-    parser.add_argument("--proxy_dropout", type=float, default = 0.5)
+    parser.add_argument("--proxy_dropout", type=float, default = 0.1)
     args2config.update({"proxy_dropout": ["proxy", "dropout"]})
+    parser.add_argument("--proxy_dropout_samples", type=int, default = 25, help="number of times to resample via stochastic dropout")
+    args2config.update({"proxy_dropout_samples": ["proxy", "dropout_samples"]})
     # MCMC
     parser.add_argument(
         "--mcmc_sampling_time",
@@ -503,6 +525,10 @@ def process_config(config):
     if config.comet_project:
         config.gflownet.comet.project = config.comet_project
         config.al.comet.project = config.comet_project
+    # sampling method - in case we forget to revert ensemble size
+    if config.proxy.uncertainty_estimation == "dropout":
+        config.proxy.ensemble_size = 1
+        print("Ensemble size set to 1 due to dropout uncertainty estimation being 'on'")
     # Paths
     if not config.workdir and config.machine == "cluster":
         config.workdir = "/home/kilgourm/scratch/learnerruns"

@@ -132,6 +132,10 @@ class Querier():
             c1 = 0.5 - self.config.al.energy_uncertainty_tradeoff / 2
             c2 = 0.5 + self.config.al.energy_uncertainty_tradeoff / 2
             scoreFunction = [c1, c2]  # put in user specified values (or functions) here
+        elif self.config.al.query_mode == 'fancy_acquisition':
+            c1 = 1
+            c2 = 1
+            scoreFunction = [c1, c2]
         else:
             raise ValueError(self.config.al.query_mode + 'is not a valid query function!')
 
@@ -158,12 +162,12 @@ class Querier():
 
         elif method.lower() == "random":
             samples = generateRandomSamples(10000, [self.config.dataset.min_length,self.config.dataset.max_length], self.config.dataset.dict_size, variableLength = self.config.dataset.variable_length, oldDatasetPath = 'datasets/' + self.config.dataset.oracle + '.npy')
-            energies, uncertainties = model.evaluate(samples,output="Both")
-            scores = energies * scoreFunction[0] - scoreFunction[1] * np.asarray(np.sqrt(uncertainties))
+            energies, std_dev = model.evaluate(samples,output="Both")
+            scores = energies * scoreFunction[0] - scoreFunction[1] * np.asarray(std_dev)
             outputs = {
                 'samples': samples,
                 'energies': energies,
-                'uncertainties': uncertainties,
+                'uncertainties': std_dev,
                 'scores':scores
             }
             outputs = self.doAnnealing(scoreFunction, model, outputs)

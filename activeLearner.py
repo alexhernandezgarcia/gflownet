@@ -160,19 +160,19 @@ class ActiveLearning():
         '''
 
         t0 = time.time()
-        self.retrainModels(parallel=self.config.proxy.training_parallelism)
+        self.retrainModels()
         tf = time.time()
         printRecord('Retraining took {} seconds'.format(int(tf-t0)))
 
         t0 = time.time()
         self.getModelState() # run energy-only sampling and create model state dict
-        if self.config.al.hyperparams_learning:# and (self.pipeIter > 0):
-            model_state_prev, model_state_curr = self.agent.updateModelState(self.stateDict, self.model)
-            if model_state_prev is not None:
-                self.agent.push_to_buffer(model_state_prev, self.action, model_state_curr, self.reward, self.terminal)
-            self.action = self.agent.getAction()
-        else:
-            self.action = None
+        #if self.config.al.hyperparams_learning:# and (self.pipeIter > 0):
+        #    model_state_prev, model_state_curr = self.agent.updateModelState(self.stateDict, self.model)
+        #    if model_state_prev is not None:
+        #        self.agent.push_to_buffer(model_state_prev, self.action, model_state_curr, self.reward, self.terminal)
+        #    self.action = self.agent.getAction()
+        #else:
+        #    self.action = None
 
         query = self.querier.buildQuery(self.model, self.stateDict, self.sampleDict, action=self.action, comet=self.comet)  # pick Samples to be scored
         tf = time.time()
@@ -218,25 +218,25 @@ class ActiveLearning():
         uncertainties = self.sampleDict['uncertainties']
 
         # agglomerative clustering
-        clusters, clusterEns, clusterVars = doAgglomerativeClustering(samples,energies,uncertainties,self.config.dataset.dict_size,cutoff=normalizeDistCutoff(self.config.al.minima_dist_cutoff))
-        clusterSizes, avgClusterEns, minClusterEns, avgClusterVars, minClusterVars, minClusterSamples = clusterAnalysis(clusters, clusterEns, clusterVars)
+        clusters, clusterEns, clusterstd_dev = doAgglomerativeClustering(samples,energies,uncertainties,self.config.dataset.dict_size,cutoff=normalizeDistCutoff(self.config.al.minima_dist_cutoff))
+        clusterSizes, avgClusterEns, minClusterEns, avgClusterstd_dev, minClusterstd_dev, minClusterSamples = clusterAnalysis(clusters, clusterEns, clusterstd_dev)
 
         #clutering alternative - just include sample-by-sample
         #bestInds = sortTopXSamples(samples[np.argsort(scores)], nSamples=len(samples), distCutoff=0.1)  # sort out the best, and at least minimally distinctive samples
 
         if len(clusters) < self.config.querier.model_state_size: # if we don't have enough clusters for the model, pad with random samples from the sampling run
-            minClusterSamples, minClusterEns, minClusterVars = self.addRandomSamples(samples, energies, uncertainties, minClusterSamples, minClusterEns, minClusterVars)
+            minClusterSamples, minClusterEns, minClusterstd_dev = self.addRandomSamples(samples, energies, uncertainties, minClusterSamples, minClusterEns, minClusterstd_dev)
 
         # get distances to relevant datasets
         internalDist, datasetDist, randomDist = self.getDataDists(minClusterSamples[:self.config.querier.model_state_size])
-        self.getReward(minClusterEns, minClusterVars)
+        self.getReward(minClusterEns, minClusterstd_dev)
 
         self.stateDict = {
             'test loss': np.average(self.testMinima), # losses are evaluated on standardized data, so we do not need to re-standardize here
             'test std': np.sqrt(np.var(self.testMinima)),
             'all test losses': self.testMinima,
             'best cluster energies': (minClusterEns[:self.config.querier.model_state_size] - self.model.mean) / self.model.std, # standardize according to dataset statistics
-            'best cluster deviations': np.sqrt(minClusterVars[:self.config.querier.model_state_size]) / self.model.std,
+            'best cluster deviations': minClusterstd_dev[:self.config.querier.model_state_size] / self.model.std,
             'best cluster samples': minClusterSamples[:self.config.querier.model_state_size],
             'best clusters internal diff': internalDist,
             'best clusters dataset diff': datasetDist,
@@ -248,11 +248,11 @@ class ActiveLearning():
             'reward': self.reward
         }
 
-        printRecord('%d '%self.config.proxy.ensemble_size + f'Model ensemble training converged with average test loss of {bcolors.OKCYAN}%.5f{bcolors.ENDC}' % np.average(np.asarray(self.testMinima[-self.config.proxy.ensemble_size:])) + f' and std of {bcolors.OKCYAN}%.3f{bcolors.ENDC}'%(np.sqrt(np.var(self.testMinima))))
+        printRecord('%d '%self.config.proxy.ensemble_size + f'Model ensemble training converged with average test loss of {bcolors.OKCYAN}%.5f{bcolors.ENDC}' % np.average(np.asarray(self.testMinima[-self.config.proxy.ensemble_size:])) + f' and std of {bcolors.OKCYAN}%.3f{bcolors.ENDC}'%(np.sqrt(np.var(self.testMinima[-self.config.proxy.ensemble_size:]))))
         printRecord('Model state contains {} samples'.format(self.config.querier.model_state_size) +
                     ' with minimum energy' + bcolors.OKGREEN + ' {:.2f},'.format(np.amin(minClusterEns)) + bcolors.ENDC +
                     ' average energy' + bcolors.OKGREEN +' {:.2f},'.format(np.average(minClusterEns[:self.config.querier.model_state_size])) + bcolors.ENDC +
-                    ' and average std dev' + bcolors.OKCYAN + ' {:.2f}'.format(np.average(np.sqrt(minClusterVars[:self.config.querier.model_state_size]))) + bcolors.ENDC)
+                    ' and average std dev' + bcolors.OKCYAN + ' {:.2f}'.format(np.average(minClusterstd_dev[:self.config.querier.model_state_size])) + bcolors.ENDC)
         printRecord("Best sample in model state is {}".format(numbers2letters(minClusterSamples[np.argmin(minClusterEns)])))
         printRecord('Sample average mutual distance is ' + bcolors.WARNING +'{:.2f} '.format(np.average(internalDist)) + bcolors.ENDC +
                     'dataset distance is ' + bcolors.WARNING + '{:.2f} '.format(np.average(datasetDist)) + bcolors.ENDC +
@@ -273,9 +273,9 @@ class ActiveLearning():
 
         if self.comet:
             self.comet.log_histogram_3d(energies, name='model state sampling run energies', step = self.pipeIter)
-            self.comet.log_histogram_3d(np.sqrt(uncertainties), name='model state sampling run std deviations', step = self.pipeIter)
+            self.comet.log_histogram_3d(uncertainties, name='model state sampling run std deviations', step = self.pipeIter)
             self.comet.log_histogram_3d(minClusterEns[:self.config.querier.model_state_size], name='model state energies', step=self.pipeIter)
-            self.comet.log_histogram_3d(np.sqrt(minClusterVars[:self.config.querier.model_state_size]), name='model state std deviations', step=self.pipeIter)
+            self.comet.log_histogram_3d(minClusterstd_dev[:self.config.querier.model_state_size], name='model state std deviations', step=self.pipeIter)
             self.comet.log_histogram_3d(internalDist, name='model state internal distance', step=self.pipeIter)
             self.comet.log_histogram_3d(datasetDist, name='model state distance from dataset', step=self.pipeIter)
             self.comet.log_histogram_3d(randomDist, name='model state distance from large random sample', step=self.pipeIter)
@@ -291,12 +291,12 @@ class ActiveLearning():
         '''
         # get the best results in the standardized basis
         best_ens_standardized = (bestEns - self.model.mean)/self.model.std
-        standardized_standard_deviations = np.sqrt(bestVars) / self.model.std
+        standardized_standard_deviations = bestVars / self.model.std
         adjusted_standardized_energies = best_ens_standardized + standardized_standard_deviations # consider std dev as an uncertainty envelope and take the high end
         best_standardized_adjusted_energy = np.amin(adjusted_standardized_energies)
 
         # convert to raw outputs basis
-        adjusted_energies = bestEns + np.sqrt(bestVars)
+        adjusted_energies = bestEns + bestVars
         best_adjusted_energy = np.amin(adjusted_energies) # best energy, adjusted for uncertainty
         if self.pipeIter == 0:
             self.reward = 0 # first iteration - can't define a reward
@@ -334,7 +334,7 @@ class ActiveLearning():
                 self.comet.log_metric(name = "reward", value = self.reward, step = self.pipeIter)
 
 
-    def retrainModels(self, parallel=True):
+    def retrainModels(self):
         testMins = []
         for i in range(self.config.proxy.ensemble_size):
             self.resetModel(i)  # reset between ensemble estimators EVERY ITERATION of the pipeline
@@ -349,7 +349,6 @@ class ActiveLearning():
                     self.comet.log_metric('proxy test loss iter {}'.format(self.pipeIter), step=i, value=te_hist[i])
 
         self.testMinima.append(testMins)
-
 
 
     def loadEstimatorEnsemble(self):
@@ -367,6 +366,7 @@ class ActiveLearning():
         del self.model
         self.model = modelNet(self.config,0)
         self.model.loadEnsemble(ensemble)
+        self.model.getMinF()
 
         #print('Loaded {} estimators'.format(int(self.config.proxy.ensemble_size)))
 
@@ -409,12 +409,12 @@ class ActiveLearning():
         randomSamples = randomSamples[sortInds]
         randomScores = randomScores[sortInds]
 
-        modelScores, modelVars = [[],[]]
+        modelScores, modelStd = [[],[]]
         sampleLoader = data.DataLoader(randomSamples, batch_size = self.config.proxy.mbsize, shuffle=False, num_workers = 0, pin_memory=False)
         for i, testData in enumerate(sampleLoader):
-            score, variance = self.model.evaluate(testData.float(), output='Both')
+            score, std_dev = self.model.evaluate(testData.float(), output='Both')
             modelScores.extend(score)
-            modelVars.extend(variance)
+            modelStd.extend(std_dev)
 
         bestTenInd = numSamples // 10
         totalLoss = F.smooth_l1_loss((torch.Tensor(modelScores).float() - self.model.mean) / self.model.std, (torch.Tensor(randomScores).float() - self.model.mean) / self.model.std) # full dataset loss (standardized basis)
