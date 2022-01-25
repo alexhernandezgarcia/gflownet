@@ -428,7 +428,7 @@ class GFlowNetAgent:
                         seq,
                         tf([env.seq2obs(seq)]),
                         done,
-                        tl([env.id]),
+                        tf([env.id]),
                     ]
                 )
                 seq = env.obs2seq(self.rng.permutation(parents)[0])
@@ -468,7 +468,7 @@ class GFlowNetAgent:
                             seq,
                             tf([env.seq2obs()]),
                             env.done,
-                            tl([env.id]),
+                            tf([env.id]),
                         ]
                     )
             envs = [env for env in envs if not env.done]
