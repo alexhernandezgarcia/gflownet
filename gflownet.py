@@ -540,7 +540,7 @@ class GFlowNetAgent:
 
         # log(eps + exp(log(Q(s,a)))) : qsa
         in_flow = torch.log(
-            torch.zeros((sp.shape[0],)).index_add_(
+            tf(torch.zeros((sp.shape[0],))).index_add_(
                 0, batch_idxs, torch.exp(parents_Qsa)
             )
         )
@@ -605,7 +605,7 @@ class GFlowNetAgent:
                 if bool(d[4].item())
             ]
         )
-        logprobs_mat = -1000 * torch.ones(len(seqs_done), self.env.max_seq_length + 1)
+        logprobs_mat = tf(-1000 * torch.ones(len(seqs_done), self.env.max_seq_length + 1))
         for idx, seq in enumerate(seqs_done):
             traj_seqs, actions = self.env.get_trajectories(
                 [[seq]],
