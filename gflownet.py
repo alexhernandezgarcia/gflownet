@@ -63,6 +63,14 @@ def add_args(parser):
     args2config.update({"ckpt_period": ["gflownet", "ckpt_period"]})
     # Training hyperparameters
     parser.add_argument(
+        "--loss", default="flowmatch", type=str, help="flowmatch | trajectorybalance/tb"
+    )
+    args2config.update({"loss": ["gflownet", "loss"]})
+    parser.add_argument(
+        "--lr_z_mult", default=10, type=int, help="Multiplicative factor of the Z learning rate"
+    )
+    args2config.update({"lr_z_mult": ["gflownet", "lr_z_mult"]})
+    parser.add_argument(
         "--early_stopping",
         default=0.01,
         help="Threshold loss for early stopping",
@@ -137,6 +145,8 @@ def add_args(parser):
     args2config.update({"clip_grad_norm": ["gflownet", "clip_grad_norm"]})
     parser.add_argument("--random_action_prob", default=0.0, type=float)
     args2config.update({"random_action_prob": ["gflownet", "random_action_prob"]})
+    parser.add_argument("--pct_batch_empirical", default=0.0, type=float)
+    args2config.update({"pct_batch_empirical": ["gflownet", "pct_batch_empirical"]})
     # Environment
     parser.add_argument("--func", default="arbitrary_i")
     args2config.update({"func": ["gflownet", "func"]})
@@ -210,6 +220,17 @@ class GFlowNetAgent:
         self.device_torch = torch.device(args.gflownet.device)
         self.device = self.device_torch
         set_device(self.device_torch)
+        if args.gflownet.loss in ["flowmatch"]:
+            self.loss = "flowmatch"
+            self.Z = None
+        elif args.gflownet.loss in ["trajectorybalance", "tb"]:
+            self.loss = "trajectorybalance"
+            self.Z = nn.Parameter(torch.ones(64) * 150.0 / 64)
+        else:
+            print("Unkown loss. Using flowmatch as default")
+            self.loss == "flowmatch"
+            self.Z = None
+        self.loss_eps = torch.tensor(float(1e-5)).to(self.device)
         self.lightweight = True
         self.tau = args.gflownet.bootstrap_tau
         self.ema_alpha = args.gflownet.ema_alpha
@@ -224,6 +245,7 @@ class GFlowNetAgent:
             self.al_iter = "_iter{}".format(al_iter)
         else:
             self.al_iter = ""
+        self.logsoftmax = torch.nn.LogSoftmax(dim=1)
 
         # Comet
         if args.gflownet.comet.project and not args.gflownet.comet.skip:
@@ -299,7 +321,7 @@ class GFlowNetAgent:
         self.model.to(self.device_torch)
         self.target = copy.deepcopy(self.model)
         # Training
-        self.opt = make_opt(self.parameters(), args)
+        self.opt = make_opt(self.parameters(), self.Z, args)
         self.n_train_steps = args.gflownet.n_iter
         self.mbsize = args.gflownet.mbsize
         self.progress = args.gflownet.progress
@@ -461,7 +483,7 @@ class GFlowNetAgent:
         times["all"] += t1_all - t0_all
         return batch, times
 
-    def learn_from(self, it, batch):
+    def flowmatch_loss(self, it, batch):
         """
         Computes the loss of a batch
 
@@ -493,6 +515,8 @@ class GFlowNetAgent:
             )
         )
         parents, actions, r, sp, done = map(torch.cat, zip(*batch))
+
+        # Sanity check if negative rewards
         if self.debug and torch.any(r < 0):
             neg_r_idx = torch.where(r < 0)[0].tolist()
             for idx in neg_r_idx:
@@ -505,29 +529,29 @@ class GFlowNetAgent:
                 import ipdb
 
                 ipdb.set_trace()
+
+        # Q(s,a)
         parents_Qsa = self.model(parents)[
             torch.arange(parents.shape[0]), actions.long()
         ]
 
-        if self.device.type == "cuda":
-            in_flow = torch.log(
-                torch.zeros((sp.shape[0],))
-                .cuda()
-                .index_add_(0, batch_idxs, torch.exp(parents_Qsa))
+        # log(eps + exp(log(Q(s,a)))) : qsa
+        in_flow = torch.log(
+            torch.zeros((sp.shape[0],)).index_add_(
+                0, batch_idxs, torch.exp(parents_Qsa)
             )
-        else:
-            in_flow = torch.log(
-                torch.zeros((sp.shape[0],)).index_add_(
-                    0, batch_idxs, torch.exp(parents_Qsa)
-                )
-            )
+        )
+        # the following with work if autoregressive 
+#         in_flow = torch.logaddexp(parents_Qsa[batch_idxs], torch.log(self.loss_eps))
         if self.tau > 0:
             with torch.no_grad():
                 next_q = self.target(sp)
         else:
             next_q = self.model(sp)
-        next_qd = next_q * (1 - done).unsqueeze(1) + done.unsqueeze(1) * (-loginf)
-        out_flow = torch.logsumexp(torch.cat([torch.log(r)[:, None], next_qd], 1), 1)
+        qsp = torch.logsumexp(next_q, 1)
+        # qsp: qsp if not done; -loginf if done
+        qsp = qsp * (1 - done) - loginf * done
+        out_flow = torch.logaddexp(torch.log(r + self.loss_eps), qsp)
         loss = (in_flow - out_flow).pow(2).mean()
 
         with torch.no_grad():
@@ -543,6 +567,62 @@ class GFlowNetAgent:
                 b.data.mul_(1 - self.tau).add_(self.tau * a)
 
         return loss, term_loss, flow_loss
+
+    def trajectorybalance_loss(self, it, batch):
+        """
+        Computes the trajectory balance loss of a batch
+
+        Args
+        ----
+        it : int
+            Iteration
+
+        batch : ndarray
+            A batch of data: every row is a state (list), corresponding to all states
+            visited in each sequence in the batch.
+
+        Returns
+        -------
+        loss : float
+
+        term_loss : float
+            Loss of the terminal nodes only
+
+        flow_loss : float
+            Loss of the intermediate nodes only
+        """
+        # for debugging
+#         parents, actions, r, sp, done = map(torch.cat, zip(*batch))
+#         seqs = [self.env.obs2seq(obs.tolist()) for obs in sp]
+
+        seqs_done, rewards = zip(
+            *[
+                (self.env.obs2seq(d[3][0].tolist()), d[2])
+                for d in batch
+                if bool(d[4].item())
+            ]
+        )
+        logprobs_mat = -1000 * torch.ones(len(seqs_done), self.env.max_seq_length + 1)
+        for idx, seq in enumerate(seqs_done):
+            traj_seqs, actions = self.env.get_trajectories(
+                [[seq]],
+                [[self.env.nactions]],
+            )
+            traj_obs = tf(
+                np.vstack([self.env.seq2obs(traj_seq) for traj_seq in traj_seqs[0]])
+            )
+            actions = tf(actions)
+            logits = self.model(traj_obs)
+            logprobs = self.logsoftmax(logits)[torch.arange(traj_obs.shape[0]), actions.long()]
+            logprobs_mat[idx, : len(traj_obs)] = logprobs
+
+        loss = (
+            (self.Z.sum() + torch.logsumexp(logprobs_mat, 1) - torch.log(torch.cat(rewards)))
+            .pow(2)
+            .mean()
+        )
+
+        return loss, loss, loss
 
     def train(self):
 
@@ -563,9 +643,16 @@ class GFlowNetAgent:
             rewards = [d[2][0].item() for d in data if bool(d[4].item())]
             proxy_vals = self.env.reward2proxy(rewards)
             for j in range(self.ttsr):
-                losses = self.learn_from(
-                    i * self.ttsr + j, data
-                )  # returns (opt loss, *metrics)
+                if self.loss == "flowmatch":
+                    losses = self.flowmatch_loss(
+                        i * self.ttsr + j, data
+                    )  # returns (opt loss, *metrics)
+                elif self.loss == "trajectorybalance":
+                    losses = self.trajectorybalance_loss(
+                        i * self.ttsr + j, data
+                    )  # returns (opt loss, *metrics)
+                else:
+                    print("Unknown loss!")
                 if (
                     not all([torch.isfinite(loss) for loss in losses])
                     or np.max(rewards) > self.reward_max
@@ -968,7 +1055,7 @@ class RandomTrajAgent:
                     all_visited.append(tuple(sp))
         return []  # agent is stateful, no need to return minibatch data
 
-    def learn_from(self, it, batch):
+    def flowmatch_loss(self, it, batch):
         return None
 
 
@@ -998,7 +1085,7 @@ def make_mlp(layers_dim, act=nn.LeakyReLU(), tail=[]):
     )
 
 
-def make_opt(params, args):
+def make_opt(params, Z, args):
     """
     Set up the optimizer
     """
@@ -1011,6 +1098,13 @@ def make_opt(params, args):
             args.gflownet.learning_rate,
             betas=(args.gflownet.adam_beta1, args.gflownet.adam_beta2),
         )
+        if Z is not None:
+            opt.add_param_group(
+                {
+                    "params": Z,
+                    "lr": args.gflownet.learning_rate * args.gflownet.lr_z_mult,
+                }
+            )
     elif args.gflownet.opt == "msgd":
         opt = torch.optim.SGD(
             params, args.gflownet.learning_rate, momentum=args.gflownet.momentum
