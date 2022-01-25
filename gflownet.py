@@ -531,7 +531,13 @@ class GFlowNetAgent:
         ]
 
         # log(eps + exp(log(Q(s,a)))) : qsa
-        in_flow = torch.logaddexp(parents_Qsa[batch_idxs], torch.log(self.loss_eps))
+        in_flow = torch.log(
+            torch.zeros((sp.shape[0],)).index_add_(
+                0, batch_idxs, torch.exp(parents_Qsa)
+            )
+        )
+        # the following with work if autoregressive 
+#         in_flow = torch.logaddexp(parents_Qsa[batch_idxs], torch.log(self.loss_eps))
         if self.tau > 0:
             with torch.no_grad():
                 next_q = self.target(sp)
