@@ -67,6 +67,10 @@ def add_args(parser):
     )
     args2config.update({"loss": ["gflownet", "loss"]})
     parser.add_argument(
+        "--lr_z_mult", default=10, type=int, help="Multiplicative factor of the Z learning rate"
+    )
+    args2config.update({"lr_z_mult": ["gflownet", "lr_z_mult"]})
+    parser.add_argument(
         "--early_stopping",
         default=0.01,
         help="Threshold loss for early stopping",
@@ -1098,7 +1102,7 @@ def make_opt(params, Z, args):
             opt.add_param_group(
                 {
                     "params": Z,
-                    "lr": args.gflownet.learning_rate * 10,
+                    "lr": args.gflownet.learning_rate * args.gflownet.lr_z_mult,
                 }
             )
     elif args.gflownet.opt == "msgd":
