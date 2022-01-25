@@ -52,6 +52,7 @@ class AptamerSeq:
         allow_backward=False,
         debug=False,
         reward_beta=1,
+        env_id=None,
     ):
         self.max_seq_length = max_seq_length
         self.min_seq_length = min_seq_length
@@ -60,6 +61,7 @@ class AptamerSeq:
         self.max_word_len = max_word_len
         self.seq = []
         self.done = False
+        self.id = env_id
         self.func = func
         if proxy:
             self.proxy = proxy
@@ -213,12 +215,13 @@ class AptamerSeq:
         alphabet = {v: k for k, v in alphabet.items()}
         return [alphabet[el] for el in letters]
 
-    def reset(self):
+    def reset(self, env_id=None):
         """
         Resets the environment
         """
         self.seq = []
         self.done = False
+        self.id = env_id
         return self
 
     def parent_transitions(self, seq, action):
