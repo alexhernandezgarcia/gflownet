@@ -241,6 +241,7 @@ class GFlowNetAgent:
             self.al_iter = "_iter{}".format(al_iter)
         else:
             self.al_iter = ""
+        self.logsoftmax = torch.nn.LogSoftmax(dim=1)
 
         # Comet
         if args.gflownet.comet.project and not args.gflownet.comet.skip:
@@ -597,7 +598,7 @@ class GFlowNetAgent:
                 if bool(d[4].item())
             ]
         )
-        qsa_mat = -1000 * torch.ones(len(seqs_done), self.env.max_seq_length + 1)
+        logprobs_mat = -1000 * torch.ones(len(seqs_done), self.env.max_seq_length + 1)
         for idx, seq in enumerate(seqs_done):
             traj_seqs, actions = self.env.get_trajectories(
                 [[seq]],
@@ -607,11 +608,12 @@ class GFlowNetAgent:
                 np.vstack([self.env.seq2obs(traj_seq) for traj_seq in traj_seqs[0]])
             )
             actions = tf(actions)
-            qsa = self.model(traj_obs)[torch.arange(traj_obs.shape[0]), actions.long()]
-            qsa_mat[idx, : len(traj_obs)] = qsa
+            logits = self.model(traj_obs)
+            logprobs = self.logsoftmax(logits)[torch.arange(traj_obs.shape[0]), actions.long()]
+            logprobs_mat[idx, : len(traj_obs)] = logprobs
 
         loss = (
-            (self.Z.sum() + torch.logsumexp(qsa_mat, 1) - torch.log(torch.cat(rewards)))
+            (self.Z.sum() + torch.logsumexp(logprobs_mat, 1) - torch.log(torch.cat(rewards)))
             .pow(2)
             .mean()
         )
