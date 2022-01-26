@@ -385,7 +385,7 @@ class GFlowNetAgent:
     def parameters(self):
         return self.model.parameters()
 
-    def sample_batch(self, do_mask=True):
+    def sample_batch(self, mask_eos=True):
         """
         Builds a mini-batch of data
 
@@ -444,7 +444,7 @@ class GFlowNetAgent:
                 with torch.no_grad():
                     t0_a_model = time.time()
                     action_probs = self.model(tf(seqs))
-                    if do_mask:
+                    if mask_eos:
                         action_probs[mask, -1] = -1000
                     t1_a_model = time.time()
                     times["actions_model"] += t1_a_model - t0_a_model
@@ -905,7 +905,7 @@ class GFlowNetAgent:
             with torch.no_grad():
                 t0_a_model = time.time()
                 action_probs = self.model(tf(seqs))
-                if do_mask:
+                if mask_eos:
                     action_probs[mask, -1] = -1000
                 t1_a_model = time.time()
                 times["actions_model"] += t1_a_model - t0_a_model
