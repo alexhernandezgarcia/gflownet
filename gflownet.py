@@ -395,6 +395,7 @@ class GFlowNetAgent:
             - reward of the state
             - the state, as seq2obs(seq)
             - done
+            - trajectory id
 
         Args
         ----
@@ -409,7 +410,7 @@ class GFlowNetAgent:
         }
         t0_all = time.time()
         batch = []
-        envs = [env.reset() for env in self.envs]
+        envs = [env.reset(idx) for idx, env in enumerate(self.envs)]
         # Sequences from empirical distribution
         n_empirical = int(self.pct_batch_empirical * len(envs))
         for env in envs[:n_empirical]:
@@ -427,6 +428,7 @@ class GFlowNetAgent:
                         seq,
                         tf([env.seq2obs(seq)]),
                         done,
+                        tf([env.id]),
                     ]
                 )
                 seq = env.obs2seq(self.rng.permutation(parents)[0])
@@ -466,19 +468,20 @@ class GFlowNetAgent:
                             seq,
                             tf([env.seq2obs()]),
                             env.done,
+                            tf([env.id]),
                         ]
                     )
             envs = [env for env in envs if not env.done]
             t1_a_envs = time.time()
             times["actions_envs"] += t1_a_envs - t0_a_envs
-        parents, parents_a, seqs, obs, done = zip(*batch)
+        parents, parents_a, seqs, obs, done, traj_id = zip(*batch)
         t0_rewards = time.time()
         rewards = env.reward_batch(seqs, done)
         t1_rewards = time.time()
         times["rewards"] += t1_rewards - t0_rewards
         rewards = [tf([r]) for r in rewards]
         done = [tf([d]) for d in done]
-        batch = list(zip(parents, parents_a, rewards, obs, done))
+        batch = list(zip(parents, parents_a, rewards, obs, done, traj_id))
         t1_all = time.time()
         times["all"] += t1_all - t0_all
         return batch, times
@@ -510,11 +513,11 @@ class GFlowNetAgent:
         loginf = tf([1000])
         batch_idxs = tl(
             sum(
-                [[i] * len(parents) for i, (parents, _, _, _, _) in enumerate(batch)],
+                [[i] * len(parents) for i, (parents, _, _, _, _, _) in enumerate(batch)],
                 [],
             )
         )
-        parents, actions, r, sp, done = map(torch.cat, zip(*batch))
+        parents, actions, r, sp, done, _ = map(torch.cat, zip(*batch))
 
         # Sanity check if negative rewards
         if self.debug and torch.any(r < 0):
@@ -537,7 +540,7 @@ class GFlowNetAgent:
 
         # log(eps + exp(log(Q(s,a)))) : qsa
         in_flow = torch.log(
-            torch.zeros((sp.shape[0],)).index_add_(
+            tf(torch.zeros((sp.shape[0],))).index_add_(
                 0, batch_idxs, torch.exp(parents_Qsa)
             )
         )
@@ -592,7 +595,7 @@ class GFlowNetAgent:
             Loss of the intermediate nodes only
         """
         # for debugging
-#         parents, actions, r, sp, done = map(torch.cat, zip(*batch))
+#         parents, actions, r, sp, done, traj_id = map(torch.cat, zip(*batch))
 #         seqs = [self.env.obs2seq(obs.tolist()) for obs in sp]
 
         seqs_done, rewards = zip(
@@ -602,7 +605,7 @@ class GFlowNetAgent:
                 if bool(d[4].item())
             ]
         )
-        logprobs_mat = -1000 * torch.ones(len(seqs_done), self.env.max_seq_length + 1)
+        logprobs_mat = tf(-1000 * torch.ones(len(seqs_done), self.env.max_seq_length + 1))
         for idx, seq in enumerate(seqs_done):
             traj_seqs, actions = self.env.get_trajectories(
                 [[seq]],
