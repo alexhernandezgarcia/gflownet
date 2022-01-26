@@ -161,6 +161,7 @@ def main(args):
             model,
             n_samples,
             args.gflownet.max_seq_length,
+            args.gflownet.min_seq_length,
             args.gflownet.nalphabet,
             args.gflownet.min_word_len,
             args.gflownet.max_word_len,
