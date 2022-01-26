@@ -10,6 +10,7 @@ import torch.nn.functional as F
 import torch
 from Agent import ParameterUpdateAgent
 from replay_buffer import ParameterUpdateReplayMemory
+import pandas as pd
 
 import numpy
 import os
@@ -536,12 +537,28 @@ class ActiveLearning():
 
         if self.comet:
             self.comet.log_histogram_3d(dataset['scores'], name='dataset scores', step=self.pipeIter)
+            idx_sorted = np.argsort(dataset["scores"])
+            for k in [1, 10, 100]:
+                topk_scores = dataset["scores"][idx_sorted[:k]]
+                topk_samples = dataset["samples"][idx_sorted[:k]]
+                dist = binaryDistance(topk_samples, pairwise=False, extractInds=len(topk_samples))
+                self.comet.log_metric(f"mean top-{k} scores", np.mean(topk_scores), step=self.pipeIter)
+                self.comet.log_metric(f"std top-{k} scores", np.std(topk_scores), step=self.pipeIter)
+                self.comet.log_metric(f"mean dist top-{k}", np.mean(dist), step=self.pipeIter)
 
         self.config.dataset_size = len(dataset['samples'])
 
         printRecord(f"Added{bcolors.OKBLUE}{bcolors.BOLD} %d{bcolors.ENDC}" % int(len(oracleSequences)) + " to the dataset, total dataset size is" + bcolors.OKBLUE + " {}".format(int(len(dataset['samples']))) + bcolors.ENDC)
         printRecord(bcolors.UNDERLINE + "=====================================================================" + bcolors.ENDC)
         np.save('datasets/' + self.config.dataset.oracle, dataset)
+        np.save('datasets/' + self.config.dataset.oracle + '_iter_{}'.format(self.pipeIter),dataset)
+
+        if self.comet:
+            self.comet.log_histogram_3d(dataset['scores'], name='dataset scores', step=self.pipeIter)
+            dataset2 = dataset.copy()
+            dataset2['samples'] = numbers2letters(dataset['samples'])
+            self.comet.log_table(filename = 'dataset_at_iter_{}.csv'.format(self.pipeIter), tabular_data=pd.DataFrame.from_dict(dataset2))
+
 
 
     def getScalingFactor(self):
