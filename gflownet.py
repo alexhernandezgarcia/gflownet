@@ -215,7 +215,7 @@ def set_device(dev):
 class GFlowNetAgent:
     def __init__(self, args, comet=None, proxy=None, al_iter=-1, data_path=None):
         # Misc
-        self.rng = np.random.RandomState(int(time.time()))
+        self.rng = np.random.default_rng(int(time.time()))
         self.debug = args.debug
         self.device_torch = torch.device(args.gflownet.device)
         self.device = self.device_torch
@@ -299,7 +299,7 @@ class GFlowNetAgent:
         self.model = make_mlp(
             [args.gflownet.max_seq_length * args.gflownet.nalphabet]
             + [args.gflownet.n_hid] * args.gflownet.n_layers
-            + [self.env.nactions + 1]
+            + [len(self.env.action_space) + 1]
         )
         if args.gflownet.model_ckpt:
             if "workdir" in args and Path(args.workdir).exists():
@@ -395,7 +395,8 @@ class GFlowNetAgent:
             - reward of the state
             - the state, as seq2obs(seq)
             - done
-            - trajectory id
+            - trajectory id: identifies each trajectory
+            - seq id: identifies each sequence within a trajectory
 
         Args
         ----
@@ -418,17 +419,18 @@ class GFlowNetAgent:
             seq_letters = self.rng.permutation(self.df_train.letters.values)[0]
             seq = env.letters2seq(seq_letters)
             done = True
-            action = env.nactions
+            action = env.eos
             while len(seq) > 0:
                 parents, parents_a = env.parent_transitions(seq, action)
                 batch.append(
                     [
                         tf(parents),
-                        tf(parents_a),
+                        tl(parents_a),
                         seq,
                         tf([env.seq2obs(seq)]),
                         done,
-                        tf([env.id]),
+                        tl([env.id]),
+                        tl([env.n_actions]),
                     ]
                 )
                 seq = env.obs2seq(self.rng.permutation(parents)[0])
@@ -455,36 +457,42 @@ class GFlowNetAgent:
                         if self.debug:
                             print("Action could not be sampled from model!")
             if random_action < self.random_action_prob:
-                actions = np.random.randint(
-                    low=0, high=self.env.nactions + 1, size=len(envs)
+                high = (len(self.env.action_space) + 1) * np.ones(len(envs), dtype=int)
+                if mask_eos:
+                    high[mask] -= 1
+                actions = self.rng.integers(
+                    low=0, high=high, size=len(envs)
                 )
             t0_a_envs = time.time()
             assert len(envs) == actions.shape[0]
             for env, action in zip(envs, actions):
+                if len(env.seq) == env.max_seq_length:
+                    action = env.eos
                 seq, valid = env.step(action)
                 if valid:
                     parents, parents_a = env.parent_transitions(seq, action)
                     batch.append(
                         [
                             tf(parents),
-                            tf(parents_a),
+                            tl(parents_a),
                             seq,
                             tf([env.seq2obs()]),
                             env.done,
-                            tf([env.id]),
+                            tl([env.id]),
+                            tl([env.n_actions]),
                         ]
                     )
             envs = [env for env in envs if not env.done]
             t1_a_envs = time.time()
             times["actions_envs"] += t1_a_envs - t0_a_envs
-        parents, parents_a, seqs, obs, done, traj_id = zip(*batch)
+        parents, parents_a, seqs, obs, done, traj_id, seq_id = zip(*batch)
         t0_rewards = time.time()
         rewards = env.reward_batch(seqs, done)
         t1_rewards = time.time()
         times["rewards"] += t1_rewards - t0_rewards
         rewards = [tf([r]) for r in rewards]
         done = [tf([d]) for d in done]
-        batch = list(zip(parents, parents_a, rewards, obs, done, traj_id))
+        batch = list(zip(parents, parents_a, rewards, obs, done, traj_id, seq_id))
         t1_all = time.time()
         times["all"] += t1_all - t0_all
         return batch, times
@@ -597,37 +605,20 @@ class GFlowNetAgent:
         flow_loss : float
             Loss of the intermediate nodes only
         """
-        # for debugging
-#         parents, actions, r, sp, done, traj_id = map(torch.cat, zip(*batch))
-#         seqs = [self.env.obs2seq(obs.tolist()) for obs in sp]
-
-        seqs_done, rewards = zip(
-            *[
-                (self.env.obs2seq(d[3][0].tolist()), d[2])
-                for d in batch
-                if bool(d[4].item())
-            ]
-        )
-        logprobs_mat = tf(-1000 * torch.ones(len(seqs_done), self.env.max_seq_length + 1))
-        for idx, seq in enumerate(seqs_done):
-            traj_seqs, actions = self.env.get_trajectories(
-                [[seq]],
-                [[self.env.nactions]],
-            )
-            traj_obs = tf(
-                np.vstack([self.env.seq2obs(traj_seq) for traj_seq in traj_seqs[0]])
-            )
-            actions = tf(actions)
-            logits = self.model(traj_obs)
-            logprobs = self.logsoftmax(logits)[torch.arange(traj_obs.shape[0]), actions.long()]
-            logprobs_mat[idx, : len(traj_obs)] = logprobs
-
+        # Unpack batch
+        parents, actions, rewards, _, done, traj_id, _ = map(torch.cat, zip(*batch))
+        # Log probs of each (s, a)
+        logprobs = self.logsoftmax(self.model(parents))[torch.arange(parents.shape[0]), actions.long()]
+        # Sum of log probs
+        sumlogprobs = torch.zeros(len(torch.unique(traj_id, sorted=True))).index_add_(0, traj_id, logprobs)
+        # Sort rewards of done sequences by ascending traj id
+        rewards = rewards[done.eq(1)][torch.argsort(traj_id[done.eq(1)])]
+        # Trajectory balance loss
         loss = (
-            (self.Z.sum() + torch.logsumexp(logprobs_mat, 1) - torch.log(torch.cat(rewards)))
+            (self.Z.sum() + sumlogprobs - torch.log((rewards)))
             .pow(2)
             .mean()
         )
-
         return loss, loss, loss
 
     def train(self):
@@ -759,7 +750,7 @@ class GFlowNetAgent:
                     t0_test_traj = time.time()
                     traj_list, actions = self.env.get_trajectories(
                         [[self.env.letters2seq(seqstr)]],
-                        [[self.env.nactions]],
+                        [[self.env.eos]],
                     )
                     t1_test_traj = time.time()
                     times["test_traj"] += t1_test_traj - t0_test_traj
