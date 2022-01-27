@@ -385,7 +385,7 @@ class GFlowNetAgent:
     def parameters(self):
         return self.model.parameters()
 
-    def sample_batch(self):
+    def sample_batch(self, mask_eos=True):
         """
         Builds a mini-batch of data
 
@@ -438,11 +438,14 @@ class GFlowNetAgent:
         # Rest of batch
         while envs:
             seqs = [env.seq2obs() for env in envs]
+            mask = [len(env.seq) < env.min_seq_length for env in envs]
             random_action = self.rng.uniform()
             if random_action > self.random_action_prob:
                 with torch.no_grad():
                     t0_a_model = time.time()
                     action_probs = self.model(tf(seqs))
+                    if mask_eos:
+                        action_probs[mask, -1] = -1000
                     t1_a_model = time.time()
                     times["actions_model"] += t1_a_model - t0_a_model
                     if all(torch.isfinite(action_probs).flatten()):
@@ -873,6 +876,7 @@ class GFlowNetAgent:
         min_word_len,
         max_word_len,
         proxy,
+        mask_eos=True,
     ):
         times = {
             "all": 0.0,
@@ -897,9 +901,12 @@ class GFlowNetAgent:
         envs = [env.reset() for env in envs]
         while envs:
             seqs = [env.seq2obs() for env in envs]
+            mask = [len(env.seq) < env.min_seq_length for env in envs]
             with torch.no_grad():
                 t0_a_model = time.time()
                 action_probs = self.model(tf(seqs))
+                if mask_eos:
+                    action_probs[mask, -1] = -1000
                 t1_a_model = time.time()
                 times["actions_model"] += t1_a_model - t0_a_model
                 if all(torch.isfinite(action_probs).flatten()):
