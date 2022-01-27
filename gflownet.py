@@ -67,7 +67,10 @@ def add_args(parser):
     )
     args2config.update({"loss": ["gflownet", "loss"]})
     parser.add_argument(
-        "--lr_z_mult", default=10, type=int, help="Multiplicative factor of the Z learning rate"
+        "--lr_z_mult",
+        default=10,
+        type=int,
+        help="Multiplicative factor of the Z learning rate",
     )
     args2config.update({"lr_z_mult": ["gflownet", "lr_z_mult"]})
     parser.add_argument(
@@ -460,9 +463,7 @@ class GFlowNetAgent:
                 high = (len(self.env.action_space) + 1) * np.ones(len(envs), dtype=int)
                 if mask_eos:
                     high[mask] -= 1
-                actions = self.rng.integers(
-                    low=0, high=high, size=len(envs)
-                )
+                actions = self.rng.integers(low=0, high=high, size=len(envs))
             t0_a_envs = time.time()
             assert len(envs) == actions.shape[0]
             for env, action in zip(envs, actions):
@@ -524,7 +525,10 @@ class GFlowNetAgent:
         loginf = tf([1000])
         batch_idxs = tl(
             sum(
-                [[i] * len(parents) for i, (parents, _, _, _, _, _, _) in enumerate(batch)],
+                [
+                    [i] * len(parents)
+                    for i, (parents, _, _, _, _, _, _) in enumerate(batch)
+                ],
                 [],
             )
         )
@@ -545,9 +549,7 @@ class GFlowNetAgent:
                 ipdb.set_trace()
 
         # Q(s,a)
-        parents_Qsa = self.model(parents)[
-            torch.arange(parents.shape[0]), actions
-        ]
+        parents_Qsa = self.model(parents)[torch.arange(parents.shape[0]), actions]
 
         # log(eps + exp(log(Q(s,a)))) : qsa
         in_flow = torch.log(
@@ -555,8 +557,8 @@ class GFlowNetAgent:
                 0, batch_idxs, torch.exp(parents_Qsa)
             )
         )
-        # the following with work if autoregressive 
-#         in_flow = torch.logaddexp(parents_Qsa[batch_idxs], torch.log(self.loss_eps))
+        # the following with work if autoregressive
+        #         in_flow = torch.logaddexp(parents_Qsa[batch_idxs], torch.log(self.loss_eps))
         if self.tau > 0:
             with torch.no_grad():
                 next_q = self.target(sp)
@@ -608,17 +610,17 @@ class GFlowNetAgent:
         # Unpack batch
         parents, actions, rewards, _, done, traj_id, _ = map(torch.cat, zip(*batch))
         # Log probs of each (s, a)
-        logprobs = self.logsoftmax(self.model(parents))[torch.arange(parents.shape[0]), actions]
+        logprobs = self.logsoftmax(self.model(parents))[
+            torch.arange(parents.shape[0]), actions
+        ]
         # Sum of log probs
-        sumlogprobs = torch.zeros(len(torch.unique(traj_id, sorted=True))).index_add_(0, traj_id, logprobs)
+        sumlogprobs = tf(
+            torch.zeros(len(torch.unique(traj_id, sorted=True)))
+        ).index_add_(0, traj_id, logprobs)
         # Sort rewards of done sequences by ascending traj id
         rewards = rewards[done.eq(1)][torch.argsort(traj_id[done.eq(1)])]
         # Trajectory balance loss
-        loss = (
-            (self.Z.sum() + sumlogprobs - torch.log((rewards)))
-            .pow(2)
-            .mean()
-        )
+        loss = (self.Z.sum() + sumlogprobs - torch.log((rewards))).pow(2).mean()
         return loss, loss, loss
 
     def train(self):
