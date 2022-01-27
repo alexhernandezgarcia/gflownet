@@ -457,12 +457,17 @@ class GFlowNetAgent:
                         if self.debug:
                             print("Action could not be sampled from model!")
             if random_action < self.random_action_prob:
-                actions = np.random.randint(
-                    low=0, high=len(self.env.action_space) + 1, size=len(envs)
+                high = (len(self.env.action_space) + 1) * np.ones(len(envs), dtype=int)
+                if mask_eos:
+                    high[mask] -= 1
+                actions = self.rng.integers(
+                    low=0, high=high, size=len(envs)
                 )
             t0_a_envs = time.time()
             assert len(envs) == actions.shape[0]
             for env, action in zip(envs, actions):
+                if len(env.seq) == env.max_seq_length:
+                    action = env.eos
                 seq, valid = env.step(action)
                 if valid:
                     parents, parents_a = env.parent_transitions(seq, action)
@@ -601,17 +606,13 @@ class GFlowNetAgent:
             Loss of the intermediate nodes only
         """
         # Unpack batch
-        parents, actions, r, sp, done, traj_id, seq_id = map(torch.cat, zip(*batch))
-        # Collect all sequences and actions: parents + trajs finished by max length
-        seqs_all = torch.cat((parents, sp[seq_id.eq(self.env.eos)]), dim=0)
-        actions_all = torch.cat((actions, self.env.eos * torch.ones(torch.sum(seq_id.eq(self.env.eos)))), dim=0)
-        traj_id_all = torch.cat((traj_id, traj_id[seq_id.eq(self.env.eos)]), dim=0)
+        parents, actions, rewards, _, done, traj_id, _ = map(torch.cat, zip(*batch))
         # Log probs of each (s, a)
-        logprobs = self.logsoftmax(self.model(seqs_all))[torch.arange(seqs_all.shape[0]), actions_all.long()]
+        logprobs = self.logsoftmax(self.model(parents))[torch.arange(parents.shape[0]), actions.long()]
         # Sum of log probs
-        sumlogprobs = torch.zeros(len(torch.unique(traj_id_all, sorted=True))).index_add_(0, traj_id_all, logprobs)
+        sumlogprobs = torch.zeros(len(torch.unique(traj_id, sorted=True))).index_add_(0, traj_id, logprobs)
         # Sort rewards of done sequences by ascending traj id
-        rewards = r[done.eq(1)][torch.argsort(traj_id[done.eq(1)])]
+        rewards = rewards[done.eq(1)][torch.argsort(traj_id[done.eq(1)])]
         # Trajectory balance loss
         loss = (
             (self.Z.sum() + sumlogprobs - torch.log((rewards)))

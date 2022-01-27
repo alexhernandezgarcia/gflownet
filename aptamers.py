@@ -333,6 +333,10 @@ class AptamerSeq:
             False, if the action is not allowed for the current state, e.g. stop at the
             root state
         """
+        if len(self.seq) == self.max_seq_length:
+            self.done = True
+            self.n_actions += 1
+            return self.seq, True
         if action < self.eos:
             seq_next = self.seq + list(self.action_space[action])
             if len(seq_next) > self.max_seq_length:
@@ -341,7 +345,6 @@ class AptamerSeq:
                 self.seq = seq_next
                 valid = True
                 self.n_actions += 1
-            self.done = len(self.seq) == self.max_seq_length
         else:
             if len(self.seq) < self.min_seq_length:
                 valid = False
