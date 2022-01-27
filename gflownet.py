@@ -524,11 +524,11 @@ class GFlowNetAgent:
         loginf = tf([1000])
         batch_idxs = tl(
             sum(
-                [[i] * len(parents) for i, (parents, _, _, _, _, _) in enumerate(batch)],
+                [[i] * len(parents) for i, (parents, _, _, _, _, _, _) in enumerate(batch)],
                 [],
             )
         )
-        parents, actions, r, sp, done, _ = map(torch.cat, zip(*batch))
+        parents, actions, r, sp, done, _, _ = map(torch.cat, zip(*batch))
 
         # Sanity check if negative rewards
         if self.debug and torch.any(r < 0):
