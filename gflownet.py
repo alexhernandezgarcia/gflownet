@@ -491,7 +491,7 @@ class GFlowNetAgent:
         t1_rewards = time.time()
         times["rewards"] += t1_rewards - t0_rewards
         rewards = [tf([r]) for r in rewards]
-        done = [tf([d]) for d in done]
+        done = [tl([d]) for d in done]
         batch = list(zip(parents, parents_a, rewards, obs, done, traj_id, seq_id))
         t1_all = time.time()
         times["all"] += t1_all - t0_all
@@ -546,7 +546,7 @@ class GFlowNetAgent:
 
         # Q(s,a)
         parents_Qsa = self.model(parents)[
-            torch.arange(parents.shape[0]), actions.long()
+            torch.arange(parents.shape[0]), actions
         ]
 
         # log(eps + exp(log(Q(s,a)))) : qsa
@@ -608,7 +608,7 @@ class GFlowNetAgent:
         # Unpack batch
         parents, actions, rewards, _, done, traj_id, _ = map(torch.cat, zip(*batch))
         # Log probs of each (s, a)
-        logprobs = self.logsoftmax(self.model(parents))[torch.arange(parents.shape[0]), actions.long()]
+        logprobs = self.logsoftmax(self.model(parents))[torch.arange(parents.shape[0]), actions]
         # Sum of log probs
         sumlogprobs = torch.zeros(len(torch.unique(traj_id, sorted=True))).index_add_(0, traj_id, logprobs)
         # Sort rewards of done sequences by ascending traj id
