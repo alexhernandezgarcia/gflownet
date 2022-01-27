@@ -395,7 +395,8 @@ class GFlowNetAgent:
             - reward of the state
             - the state, as seq2obs(seq)
             - done
-            - trajectory id
+            - trajectory id: identifies each trajectory
+            - seq id: identifies each sequence within a trajectory
 
         Args
         ----
@@ -424,11 +425,12 @@ class GFlowNetAgent:
                 batch.append(
                     [
                         tf(parents),
-                        tf(parents_a),
+                        tl(parents_a),
                         seq,
                         tf([env.seq2obs(seq)]),
                         done,
                         tl([env.id]),
+                        tl([env.n_actions]),
                     ]
                 )
                 seq = env.obs2seq(self.rng.permutation(parents)[0])
@@ -464,24 +466,25 @@ class GFlowNetAgent:
                     batch.append(
                         [
                             tf(parents),
-                            tf(parents_a),
+                            tl(parents_a),
                             seq,
                             tf([env.seq2obs()]),
                             env.done,
                             tl([env.id]),
+                            tl([env.n_actions]),
                         ]
                     )
             envs = [env for env in envs if not env.done]
             t1_a_envs = time.time()
             times["actions_envs"] += t1_a_envs - t0_a_envs
-        parents, parents_a, seqs, obs, done, traj_id = zip(*batch)
+        parents, parents_a, seqs, obs, done, traj_id, seq_id = zip(*batch)
         t0_rewards = time.time()
         rewards = env.reward_batch(seqs, done)
         t1_rewards = time.time()
         times["rewards"] += t1_rewards - t0_rewards
         rewards = [tf([r]) for r in rewards]
         done = [tf([d]) for d in done]
-        batch = list(zip(parents, parents_a, rewards, obs, done, traj_id))
+        batch = list(zip(parents, parents_a, rewards, obs, done, traj_id, seq_id))
         t1_all = time.time()
         times["all"] += t1_all - t0_all
         return batch, times
@@ -594,38 +597,24 @@ class GFlowNetAgent:
         flow_loss : float
             Loss of the intermediate nodes only
         """
-        # for debugging
-#         parents, actions, r, sp, done, traj_id = map(torch.cat, zip(*batch))
-#         seqs = [self.env.obs2seq(obs.tolist()).tolist() for obs in sp]
-#         pseqs = [self.env.obs2seq(obs.tolist()).tolist() for obs in parents]
-
-        seqs_done, rewards = zip(
-            *[
-                (self.env.obs2seq(d[3][0].tolist()), d[2])
-                for d in batch
-                if bool(d[4].item())
-            ]
-        )
-        logprobs_mat = tf(-1000 * torch.ones(len(seqs_done), self.env.max_seq_length + 1))
-        for idx, seq in enumerate(seqs_done):
-            traj_seqs, traj_actions = self.env.get_trajectories(
-                [[seq]],
-                [[self.env.eos]],
-            )
-            traj_obs = tf(
-                np.vstack([self.env.seq2obs(traj_seq) for traj_seq in traj_seqs[0]])
-            )
-            traj_actions = tf(traj_actions)
-            logits = self.model(traj_obs)
-            logprobs = self.logsoftmax(logits)[torch.arange(traj_obs.shape[0]), traj_actions.long()]
-            logprobs_mat[idx, : len(traj_obs)] = logprobs
-
+        # Unpack batch
+        parents, actions, r, sp, done, traj_id, seq_id = map(torch.cat, zip(*batch))
+        # Collect all sequences and actions: parents + trajs finished by max length
+        seqs_all = torch.cat((parents, sp[seq_id.eq(self.env.eos)]), dim=0)
+        actions_all = torch.cat((actions, self.env.eos * torch.ones(torch.sum(seq_id.eq(self.env.eos)))), dim=0)
+        traj_id_all = torch.cat((traj_id, traj_id[seq_id.eq(self.env.eos)]), dim=0)
+        # Log probs of each (s, a)
+        logprobs = self.logsoftmax(self.model(seqs_all))[torch.arange(seqs_all.shape[0]), actions_all.long()]
+        # Sum of log probs
+        sumlogprobs = torch.zeros(len(torch.unique(traj_id_all, sorted=True))).index_add_(0, traj_id_all, logprobs)
+        # Sort rewards of done sequences by ascending traj id
+        rewards = r[done.eq(1)][torch.argsort(traj_id[done.eq(1)])]
+        # Trajectory balance loss
         loss = (
-            (self.Z.sum() + torch.logsumexp(logprobs_mat, 1) - torch.log(torch.cat(rewards)))
+            (self.Z.sum() + sumlogprobs - torch.log((rewards)))
             .pow(2)
             .mean()
         )
-
         return loss, loss, loss
 
     def train(self):
