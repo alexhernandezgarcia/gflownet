@@ -215,7 +215,7 @@ def set_device(dev):
 class GFlowNetAgent:
     def __init__(self, args, comet=None, proxy=None, al_iter=-1, data_path=None):
         # Misc
-        self.rng = np.random.RandomState(int(time.time()))
+        self.rng = np.random.default_rng(int(time.time()))
         self.debug = args.debug
         self.device_torch = torch.device(args.gflownet.device)
         self.device = self.device_torch
