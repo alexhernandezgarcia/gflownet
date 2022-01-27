@@ -956,6 +956,7 @@ def sample(
     min_word_len,
     max_word_len,
     func,
+    mask_eos=True,
 ):
     times = {
         "all": 0.0,
@@ -980,9 +981,12 @@ def sample(
     envs = [env.reset() for env in envs]
     while envs:
         seqs = [env.seq2obs() for env in envs]
+        mask = [len(env.seq) < env.min_seq_length for env in envs]
         with torch.no_grad():
             t0_a_model = time.time()
             action_probs = model(tf(seqs))
+            if mask_eos:
+                action_probs[mask, -1] = -1000
             t1_a_model = time.time()
             times["actions_model"] += t1_a_model - t0_a_model
             if all(torch.isfinite(action_probs).flatten()):

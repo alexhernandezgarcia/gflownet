@@ -129,7 +129,7 @@ def main(args):
     model = make_mlp(
         [args.gflownet.max_seq_length * args.gflownet.nalphabet]
         + [args.gflownet.n_hid] * args.gflownet.n_layers
-        + [len(self.env.action_space) + 1]
+        + [len(env.action_space) + 1]
     )
     model.to(device_torch)
     if not args.rand_model:
