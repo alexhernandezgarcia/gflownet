@@ -299,7 +299,7 @@ class GFlowNetAgent:
         self.model = make_mlp(
             [args.gflownet.max_seq_length * args.gflownet.nalphabet]
             + [args.gflownet.n_hid] * args.gflownet.n_layers
-            + [self.env.nactions + 1]
+            + [len(self.env.action_space) + 1]
         )
         if args.gflownet.model_ckpt:
             if "workdir" in args and Path(args.workdir).exists():
@@ -418,7 +418,7 @@ class GFlowNetAgent:
             seq_letters = self.rng.permutation(self.df_train.letters.values)[0]
             seq = env.letters2seq(seq_letters)
             done = True
-            action = env.nactions
+            action = env.eos
             while len(seq) > 0:
                 parents, parents_a = env.parent_transitions(seq, action)
                 batch.append(
@@ -428,7 +428,7 @@ class GFlowNetAgent:
                         seq,
                         tf([env.seq2obs(seq)]),
                         done,
-                        tf([env.id]),
+                        tl([env.id]),
                     ]
                 )
                 seq = env.obs2seq(self.rng.permutation(parents)[0])
@@ -453,7 +453,7 @@ class GFlowNetAgent:
                             print("Action could not be sampled from model!")
             if random_action < self.random_action_prob:
                 actions = np.random.randint(
-                    low=0, high=self.env.nactions + 1, size=len(envs)
+                    low=0, high=len(self.env.action_space) + 1, size=len(envs)
                 )
             t0_a_envs = time.time()
             assert len(envs) == actions.shape[0]
@@ -468,7 +468,7 @@ class GFlowNetAgent:
                             seq,
                             tf([env.seq2obs()]),
                             env.done,
-                            tf([env.id]),
+                            tl([env.id]),
                         ]
                     )
             envs = [env for env in envs if not env.done]
@@ -596,7 +596,8 @@ class GFlowNetAgent:
         """
         # for debugging
 #         parents, actions, r, sp, done, traj_id = map(torch.cat, zip(*batch))
-#         seqs = [self.env.obs2seq(obs.tolist()) for obs in sp]
+#         seqs = [self.env.obs2seq(obs.tolist()).tolist() for obs in sp]
+#         pseqs = [self.env.obs2seq(obs.tolist()).tolist() for obs in parents]
 
         seqs_done, rewards = zip(
             *[
@@ -607,16 +608,16 @@ class GFlowNetAgent:
         )
         logprobs_mat = tf(-1000 * torch.ones(len(seqs_done), self.env.max_seq_length + 1))
         for idx, seq in enumerate(seqs_done):
-            traj_seqs, actions = self.env.get_trajectories(
+            traj_seqs, traj_actions = self.env.get_trajectories(
                 [[seq]],
-                [[self.env.nactions]],
+                [[self.env.eos]],
             )
             traj_obs = tf(
                 np.vstack([self.env.seq2obs(traj_seq) for traj_seq in traj_seqs[0]])
             )
-            actions = tf(actions)
+            traj_actions = tf(traj_actions)
             logits = self.model(traj_obs)
-            logprobs = self.logsoftmax(logits)[torch.arange(traj_obs.shape[0]), actions.long()]
+            logprobs = self.logsoftmax(logits)[torch.arange(traj_obs.shape[0]), traj_actions.long()]
             logprobs_mat[idx, : len(traj_obs)] = logprobs
 
         loss = (
@@ -756,7 +757,7 @@ class GFlowNetAgent:
                     t0_test_traj = time.time()
                     traj_list, actions = self.env.get_trajectories(
                         [[self.env.letters2seq(seqstr)]],
-                        [[self.env.nactions]],
+                        [[self.env.eos]],
                     )
                     t1_test_traj = time.time()
                     times["test_traj"] += t1_test_traj - t0_test_traj

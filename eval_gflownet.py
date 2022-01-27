@@ -129,7 +129,7 @@ def main(args):
     model = make_mlp(
         [args.gflownet.max_seq_length * args.gflownet.nalphabet]
         + [args.gflownet.n_hid] * args.gflownet.n_layers
-        + [env.nactions + 1]
+        + [len(self.env.action_space) + 1]
     )
     model.to(device_torch)
     if not args.rand_model:
@@ -200,7 +200,7 @@ def main(args):
         data_logq = []
         for seqint, score in tqdm(zip(df_test.indices, df_test.scores)):
             traj, actions = env.trajectories(
-                indstr2seq(seqint), [indstr2seq(seqint)], [env.nactions]
+                indstr2seq(seqint), [indstr2seq(seqint)], [env.eos]
             )
             data_logq.append(logq(traj, actions, model, env))
         corr = np.corrcoef(data_logq, df_test.scores)
