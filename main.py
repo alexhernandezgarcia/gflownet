@@ -115,7 +115,9 @@ def add_args(parser):
     parser.add_argument("--workdir", type=str, default=None, help="Working directory")
     args2config.update({"workdir": ["workdir"]})
     # Dataset
-    parser.add_argument("--dataset", type=str, default="linear") # 'linear' 'potts' 'nupack energy' 'nupack pairs' 'nupack pins'
+    parser.add_argument(
+        "--dataset", type=str, default="linear"
+    )  # 'linear' 'potts' 'nupack energy' 'nupack pairs' 'nupack pins'
     args2config.update({"dataset": ["dataset", "oracle"]})
     parser.add_argument(
         "--dataset_type",
@@ -271,6 +273,20 @@ def add_args(parser):
     args2config.update({"gflownet_ckpt_period": ["gflownet", "ckpt_period"]})
     parser.add_argument("--gflownet_progress", action="store_true")
     args2config.update({"gflownet_progress": ["gflownet", "progress"]})
+    parser.add_argument(
+        "--gflownet_loss",
+        default="flowmatch",
+        type=str,
+        help="flowmatch | trajectorybalance/tb",
+    )
+    args2config.update({"gflownet_loss": ["gflownet", "loss"]})
+    parser.add_argument(
+        "--gflownet_lr_z_mult",
+        default=10,
+        type=int,
+        help="Multiplicative factor of the Z learning rate",
+    )
+    args2config.update({"gflownet_lr_z_mult": ["gflownet", "lr_z_mult"]})
     parser.add_argument(
         "--gflownet_learning_rate", default=1e-4, help="Learning rate", type=float
     )
@@ -510,9 +526,7 @@ def process_config(config):
     if not config.workdir and config.machine == "cluster":
         config.workdir = "/home/kilgourm/scratch/learnerruns"
     elif not config.workdir and config.machine == "local":
-        config.workdir = (
-            '/home/mkilgour/learnerruns'#"C:/Users\mikem\Desktop/activeLearningRuns"  #
-        )
+        config.workdir = "/home/mkilgour/learnerruns"  # "C:/Users\mikem\Desktop/activeLearningRuns"  #
     return config
 
 
