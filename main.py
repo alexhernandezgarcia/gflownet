@@ -269,6 +269,8 @@ def add_args(parser):
     args2config.update({"gflownet_device": ["gflownet", "device"]})
     parser.add_argument("--gflownet_model_ckpt", default=None, type=str)
     args2config.update({"gflownet_model_ckpt": ["gflownet", "model_ckpt"]})
+    parser.add_argument("--gflownet_reload_ckpt", action="store_true")
+    args2config.update({"gflownet_reload_ckpt": ["gflownet", "reload_ckpt"]})
     parser.add_argument("--gflownet_ckpt_period", default=None, type=int)
     args2config.update({"gflownet_ckpt_period": ["gflownet", "ckpt_period"]})
     parser.add_argument("--gflownet_progress", action="store_true")

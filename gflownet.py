@@ -59,6 +59,8 @@ def add_args(parser):
     args2config.update({"debug": ["debug"]})
     parser.add_argument("--model_ckpt", default=None, type=str)
     args2config.update({"model_ckpt": ["gflownet", "model_ckpt"]})
+    parser.add_argument("--reload_ckpt", action="store_true")
+    args2config.update({"reload_ckpt": ["gflownet", "reload_ckpt"]})
     parser.add_argument("--ckpt_period", default=None, type=int)
     args2config.update({"ckpt_period": ["gflownet", "ckpt_period"]})
     # Training hyperparameters
@@ -317,6 +319,7 @@ class GFlowNetAgent:
             + [args.gflownet.n_hid] * args.gflownet.n_layers
             + [len(self.env.action_space) + 1]
         )
+        self.restore_ckpt = args.gflownet.reload_ckpt
         if args.gflownet.model_ckpt:
             if "workdir" in args and Path(args.workdir).exists():
                 if (Path(args.workdir) / "ckpts").exists():
@@ -327,7 +330,7 @@ class GFlowNetAgent:
                     self.model_path = Path(args.workdir) / args.gflownet.model_ckpt
             else:
                 self.model_path = args.gflownet.model_ckpt
-            if self.model_path.exists():
+            if self.model_path.exists() and self.reload_ckpt:
                 self.model.load_state_dict(torch.load(self.model_path))
         else:
             self.model_path = None
