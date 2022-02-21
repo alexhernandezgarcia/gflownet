@@ -218,6 +218,8 @@ def add_args(parser):
     args2config.update({"tags": ["gflownet", "comet", "tags"]})
     parser.add_argument("--no_comet", action="store_true")
     args2config.update({"no_comet": ["gflownet", "comet", "skip"]})
+    parser.add_argument("--no_log_times", action="store_true")
+    args2config.update({"no_log_times": ["gflownet", "no_log_times"]})
     return parser, args2config
 
 
@@ -284,6 +286,7 @@ class GFlowNetAgent:
                 self.comet = comet
             else:
                 self.comet = None
+        self.no_log_times = args.gflownet.no_log_times
         # Environment
         self.env = AptamerSeq(
             args.gflownet.max_seq_length,
@@ -886,7 +889,7 @@ class GFlowNetAgent:
             t1_iter = time.time()
             times.update({"iter": t1_iter - t0_iter})
             times = {"time_{}{}".format(k, self.al_iter): v for k, v in times.items()}
-            if self.comet:
+            if self.comet and not self.no_log_times:
                 self.comet.log_metrics(times, step=i)
         # Save final model
         if self.model_path:
