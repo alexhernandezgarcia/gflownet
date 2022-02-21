@@ -5,8 +5,7 @@ import itertools
 
 import numpy as np
 
-from oracles import (PottsEnergy, linearToy, nupackScore, seqfoldScore,
-                     toyHamiltonian)
+from oracles import PottsEnergy, linearToy, nupackScore, seqfoldScore, toyHamiltonian
 
 
 class AptamerSeq:
@@ -67,20 +66,21 @@ class AptamerSeq:
         self.id = env_id
         self.n_actions = 0
         self.func = func
+        self.oracle = {
+            "default": None,
+            "arbitrary_i": self.reward_arbitrary_i,
+            "linear": linearToy,
+            "innerprod": toyHamiltonian,
+            "potts": PottsEnergy,
+            "seqfold": seqfoldScore,
+            "nupack energy": lambda x: nupackScore(x, returnFunc="energy"),
+            "nupack pairs": lambda x: nupackScore(x, returnFunc="pairs"),
+            "nupack pins": lambda x: nupackScore(x, returnFunc="hairpins"),
+        }[self.func]
         if proxy:
             self.proxy = proxy
         else:
-            self.proxy = {
-                "default": None,
-                "arbitrary_i": self.reward_arbitrary_i,
-                "linear": linearToy,
-                "innerprod": toyHamiltonian,
-                "potts": PottsEnergy,
-                "seqfold": seqfoldScore,
-                "nupack energy": lambda x: nupackScore(x, returnFunc="energy"),
-                "nupack pairs": lambda x: nupackScore(x, returnFunc="pairs"),
-                "nupack pins": lambda x: nupackScore(x, returnFunc="hairpins"),
-            }[self.func]
+            self.proxy = self.oracle
         self.reward = (
             lambda x: [0]
             if not self.done

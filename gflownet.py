@@ -194,6 +194,19 @@ def add_args(parser):
     args2config.update({"test_output": ["gflownet", "test", "output"]})
     parser.add_argument("--test_period", default=500, type=int)
     args2config.update({"test_period": ["gflownet", "test", "period"]})
+    # Oracle metrics
+    parser.add_argument("--oracle_period", default=500, type=int)
+    args2config.update({"oracle_period": ["gflownet", "oracle", "period"]})
+    parser.add_argument("--oracle_nsamples", default=500, type=int)
+    args2config.update({"oracle_nsamples": ["gflownet", "oracle", "nsamples"]})
+    parser.add_argument(
+        "--oracle_k",
+        default=[1, 10, 100],
+        nargs="*",
+        type=int,
+        help="List of K, for Top-K",
+    )
+    args2config.update({"oracle_k": ["gflownet", "oracle", "k"]})
     # Comet
     parser.add_argument("--comet_project", default=None, type=str)
     args2config.update({"comet_project": ["gflownet", "comet", "project"]})
@@ -384,6 +397,10 @@ class GFlowNetAgent:
             print(f"\tStd score: {self.df_test[self.test_score].std()}")
             print(f"\tMin score: {self.df_test[self.test_score].min()}")
             print(f"\tMax score: {self.df_test[self.test_score].max()}")
+        # Oracle metrics
+        self.oracle_period = args.gflownet.oracle.period
+        self.oracle_nsamples = args.gflownet.oracle.nsamples
+        self.oracle_k = args.gflownet.oracle.k
 
     def parameters(self):
         return self.model.parameters()
@@ -777,6 +794,26 @@ class GFlowNetAgent:
                         ),
                         step=i,
                     )
+            # Oracle metrics (for monitoring)
+            if not i % self.oracle_period and self.debug:
+                oracle_dict, oracle_times = self.sample(
+                    self.oracle_nsamples,
+                    self.env.max_seq_length,
+                    self.env.min_seq_length,
+                    self.env.nalphabet,
+                    self.env.min_word_len,
+                    self.env.max_word_len,
+                    self.env.oracle,
+                    get_uncertainties=False,
+                )
+                scores = oracle_dict["scores"]
+                scores_sorted = np.sort(scores)
+                dict_topk = {}
+                for k in self.oracle_k:
+                    mean_topk = np.mean(scores_sorted[:k])
+                    dict_topk.update({f"oracle_mean_top{k}": mean_topk})
+                    if self.comet:
+                        self.comet.log_metrics(dict_topk)
             if not i % 100:
                 if not self.lightweight:
                     empirical_distrib_losses.append(
@@ -870,6 +907,7 @@ class GFlowNetAgent:
         max_word_len,
         proxy,
         mask_eos=True,
+        get_uncertainties=True,
     ):
         times = {
             "all": 0.0,
@@ -921,7 +959,11 @@ class GFlowNetAgent:
             times["actions_envs"] += t1_a_envs - t0_a_envs
         t0_proxy = time.time()
         batch = np.asarray(batch)
-        proxy_vals, uncertainties = env.proxy(batch, "Both")
+        if get_uncertainties:
+            proxy_vals, uncertainties = env.proxy(batch, "Both")
+        else:
+            proxy_vals = env.proxy(batch)
+            uncertainties = None
         t1_proxy = time.time()
         times["proxy"] += t1_proxy - t0_proxy
         samples = {
