@@ -807,7 +807,10 @@ class GFlowNetAgent:
                     get_uncertainties=False,
                 )
                 scores = oracle_dict["scores"]
-                scores_sorted = np.sort(scores)
+                if any([s in self.env.func for s in ["pins", "pairs"]]):
+                    scores_sorted = np.sort(scores)[::-1]
+                else:
+                    scores_sorted = np.sort(scores)
                 dict_topk = {}
                 for k in self.oracle_k:
                     mean_topk = np.mean(scores_sorted[:k])
