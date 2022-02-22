@@ -319,7 +319,7 @@ class GFlowNetAgent:
             + [args.gflownet.n_hid] * args.gflownet.n_layers
             + [len(self.env.action_space) + 1]
         )
-        self.restore_ckpt = args.gflownet.reload_ckpt
+        self.reload_ckpt = args.gflownet.reload_ckpt
         if args.gflownet.model_ckpt:
             if "workdir" in args and Path(args.workdir).exists():
                 if (Path(args.workdir) / "ckpts").exists():
