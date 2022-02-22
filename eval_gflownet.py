@@ -189,7 +189,10 @@ def main(args):
         print(f"\tMax score: {df_samples.scores.max()}")
         output_samples = workdir / "{}_samples_n{}.csv".format(model_alias, n_samples)
         df_samples.to_csv(output_samples)
-        scores_sorted = np.sort(df_samples["scores"].values)
+        if any([s in env.func for s in ["pins", "pairs"]]):
+            scores_sorted = np.sort(df_samples["scores"].values)[::-1]
+        else:
+            scores_sorted = np.sort(df_samples["scores"].values)
         for k in args.k:
             mean_topk = np.mean(scores_sorted[:k])
             print(f"\tAverage score top-{k}: {mean_topk}")
