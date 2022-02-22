@@ -821,7 +821,7 @@ class GFlowNetAgent:
                 for k in self.oracle_k:
                     mean_topk = np.mean(scores_sorted[:k])
                     dict_topk.update(
-                        {"oracle_mean_top{}{}".format(mean_topk, self.al_iter)}
+                            {"oracle_mean_top{}{}".format(k, self.al_iter): mean_topk}
                     )
                     if self.comet:
                         self.comet.log_metrics(dict_topk)
