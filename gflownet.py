@@ -63,6 +63,13 @@ def add_args(parser):
     args2config.update({"reload_ckpt": ["gflownet", "reload_ckpt"]})
     parser.add_argument("--ckpt_period", default=None, type=int)
     args2config.update({"ckpt_period": ["gflownet", "ckpt_period"]})
+    parser.add_argument(
+        "--rng_seed",
+        type=int,
+        default=0,
+        help="Seed for random number generator",
+    )
+    args2config.update({"rng_seed": ["seeds", "gflownet"]})
     # Training hyperparameters
     parser.add_argument(
         "--loss", default="flowmatch", type=str, help="flowmatch | trajectorybalance/tb"
@@ -235,7 +242,7 @@ def set_device(dev):
 class GFlowNetAgent:
     def __init__(self, args, comet=None, proxy=None, al_iter=-1, data_path=None):
         # Misc
-        self.rng = np.random.default_rng(int(time.time()))
+        self.rng = np.random.default_rng(args.seeds.gflownet)
         self.debug = args.debug
         self.device_torch = torch.device(args.gflownet.device)
         self.device = self.device_torch
