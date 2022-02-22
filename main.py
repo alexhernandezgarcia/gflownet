@@ -419,6 +419,10 @@ def add_args(parser):
     args2config.update(
         {"gflownet_post_annealing_time": ["gflownet", "post_annealing_time"]}
     )
+    parser.add_argument("--gflownet_test_period", default=500, type=int)
+    args2config.update({"gflownet_test_period": ["gflownet", "test", "period"]})
+    parser.add_argument("--gflownet_pct_test", default=500, type=int)
+    args2config.update({"gflownet_pct_test": ["gflownet", "test", "pct_test"]})
     # Proxy model
     parser.add_argument(
         "--proxy_model_type",
