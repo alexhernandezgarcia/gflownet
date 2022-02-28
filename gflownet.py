@@ -259,6 +259,7 @@ class GFlowNetAgent:
             self.Z = None
         self.loss_eps = torch.tensor(float(1e-5)).to(self.device)
         self.lightweight = True
+        self.query_function = args.al.query_mode
         self.tau = args.gflownet.bootstrap_tau
         self.ema_alpha = args.gflownet.ema_alpha
         self.early_stopping = args.gflownet.early_stopping
@@ -977,19 +978,26 @@ class GFlowNetAgent:
             times["actions_envs"] += t1_a_envs - t0_a_envs
         t0_proxy = time.time()
         batch = np.asarray(batch)
+
         if get_uncertainties:
-            proxy_vals, uncertainties = env.proxy(batch, "Both")
+            if self.query_function == 'fancy_acquisition':
+                scores, proxy_vals, uncertainties = env.proxy(batch, "fancy_acquisition")
+            else:
+                proxy_vals, uncertainties = env.proxy(batch, "Both")
+                scores = proxy_vals
         else:
             proxy_vals = env.proxy(batch)
             uncertainties = None
+            scores = proxy_vals
         t1_proxy = time.time()
         times["proxy"] += t1_proxy - t0_proxy
         samples = {
             "samples": batch.astype(np.int64),
-            "scores": proxy_vals,
+            "scores": scores,
             "energies": proxy_vals,
             "uncertainties": uncertainties,
         }
+
         # Sanity-check: absolute zero pad
         t0_sanitycheck = time.time()
         zeros = np.where(batch == 0)

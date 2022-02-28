@@ -98,14 +98,14 @@ class Sampler:
         self.seqExtensionRandints = np.random.randint(1, self.config_main.dataset.dict_size + 1, size=(self.nruns,self.randintsResampleAt)).astype('uint8')
 
 
-    def initOptima(self, scores, energy, variance):
+    def initOptima(self, scores, energy, std_dev):
         """
         initialize the minimum energies
         :return:
         """
         self.optima = [[] for i in range(self.nruns)] # record optima of the score function
         self.enAtOptima = [[] for i in range(self.nruns)]  # record energies near the optima
-        self.varAtOptima = [[] for i in range(self.nruns)]  # record of uncertainty at the optima
+        self.std_devAtOptima = [[] for i in range(self.nruns)]  # record of uncertainty at the optima
         self.optimalSamples = [[] for i in range(self.nruns)]  # record the optimal samples
         self.optimalInds = [[] for i in range(self.nruns)]
         self.recInds = [[] for i in range(self.nruns)]
@@ -116,11 +116,11 @@ class Sampler:
 
         # set initial values
         self.E0 = scores[1]  # initialize the 'best score' value
-        self.absMin = min(self.E0)
+        self.absMin = np.amin(self.E0)
         for i in range(self.nruns):
             self.optima[i].append(scores[1][i])
             self.enAtOptima[i].append(energy[1][i])
-            self.varAtOptima[i].append(variance[1][i])
+            self.std_devAtOptima[i].append(std_dev[1][i])
             self.newOptima[i].append(self.config[i])
             self.newOptimaEn[i].append(energy[1][i])
             self.optimalSamples[i].append(self.config[i])
@@ -137,7 +137,7 @@ class Sampler:
         self.stunrec = [[] for i in range(self.nruns)]
         self.scorerec = [[] for i in range(self.nruns)]
         self.enrec = [[] for i in range(self.nruns)]
-        self.varrec = [[] for i in range(self.nruns)]
+        self.std_devrec = [[] for i in range(self.nruns)]
 
 
     def initConvergenceStats(self):
@@ -258,12 +258,12 @@ class Sampler:
 
         # even if it didn't change, just run it anyway (big parallel - to hard to disentangle)
         # compute acceptance ratio
-        self.scores, self.energy, self.variance = self.getScores(self.propConfig, self.config, model, useOracle)
+        self.scores, self.energy, self.std_dev = self.getScores(self.propConfig, self.config, model, useOracle)
 
         try:
             self.E0
         except:
-            self.initOptima(self.scores, self.energy, self.variance)  # if we haven't already assigned E0, initialize everything
+            self.initOptima(self.scores, self.energy, self.std_dev)  # if we haven't already assigned E0, initialize everything
 
         self.F, self.DE = self.getDE(self.scores)
         self.acceptanceRatio = np.minimum(1, np.exp(-self.DE / self.temperature))
@@ -306,7 +306,7 @@ class Sampler:
             self.accrec[i].append(self.acceptanceRate[i])
             self.scorerec[i].append(self.scores[0][i])
             self.enrec[i].append(self.energy[0][i])
-            self.varrec[i].append(self.variance[0][i])
+            self.std_devrec[i].append(self.std_dev[0][i])
             if self.config_main.STUN:
                 self.stunrec[i].append(self.F[0][i])
 
@@ -319,23 +319,31 @@ class Sampler:
         """
         if useOracle:
             energy = [self.oracle.score(propConfig),self.oracle.score(config)]
-            variance = [[0 for _ in range(len(energy[0]))], [0 for _ in range(len(energy[1]))]]
-            score = self.scoreFunction[0] * np.asarray(energy) - self.scoreFunction[1] * np.asarray(variance)  # vary the relative importance of these two factors
+            std_dev = [[0 for _ in range(len(energy[0]))], [0 for _ in range(len(energy[1]))]]
+            score = self.scoreFunction[0] * np.asarray(energy) - self.scoreFunction[1] * np.asarray(std_dev)  # vary the relative importance of these two factors
         else:
             if (self.config_main.al.query_mode == 'learned') and ('DQN' in str(model.__class__)):
                 score = [model.evaluateQ(np.asarray(config)).cpu().detach().numpy(),model.evaluateQ(np.asarray(propConfig)).cpu().detach().numpy()] # evaluate the q-model
                 score = - np.array((score[1],score[0]))[:,:,0] # this code is a minimizer so we need to flip the sign of the Q scores
                 energy = [np.zeros_like(score[0]), np.zeros_like(score[1])] # energy and variance are irrelevant here
-                variance = [np.zeros_like(score[0]), np.zeros_like(score[1])]
+                std_dev = [np.zeros_like(score[0]), np.zeros_like(score[1])]
+
+            if self.config_main.al.query_mode == 'fancy_acquisition':
+                score1, out1, std1 = model.evaluate(np.asarray(config), output='fancy_acquisition')
+                score2, out2, std2 = model.evaluate(np.asarray(propConfig), output='fancy_acquisition')
+                energy = [out2,out1]
+                std_dev = [std2,std1]
+                score = [score2, score1]
+
             else: # manually specify score function
                 r1, r2 = [model.evaluate(np.asarray(config), output='Both'),model.evaluate(np.asarray(propConfig), output='Both')] # two model evaluations, each returning score and variance for a propConfig or config
                 energy = [r2[0], r1[0]]
-                variance = [r2[1], r1[1]]
+                std_dev = [r2[1], r1[1]]
 
                 # energy and variance both come out standardized against the training dataset
-                score = self.scoreFunction[0] * np.asarray(energy) - self.scoreFunction[1] * np.asarray(np.sqrt(variance))  # vary the relative importance of these two factors
+                score = self.scoreFunction[0] * np.asarray(energy) - self.scoreFunction[1] * np.asarray(std_dev)  # vary the relative importance of these two factors
 
-        return score, energy, variance
+        return score, energy, std_dev
 
 
     def saveOptima(self, ind, newBest):
@@ -345,7 +353,7 @@ class Sampler:
         if (not any(equals == self.propConfig[ind].shape[-1])) or newBest: # if there are no copies or we know it's a new minimum, record it # bit slower to keep checking like this but saves us checks later
             self.optima[ind].append(self.scores[0][ind])
             self.enAtOptima[ind].append(self.energy[0][ind])
-            self.varAtOptima[ind].append(self.variance[0][ind])
+            self.std_devAtOptima[ind].append(self.std_dev[0][ind])
             self.optimalSamples[ind].append(self.propConfig[ind])
             self.allOptimalConfigs.append(self.propConfig[ind])
         if newBest:

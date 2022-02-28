@@ -31,9 +31,8 @@ class modelNet():
         self.config = config
         self.ensembleIndex = ensembleIndex
         self.config.history = min(20, self.config.proxy.max_epochs) # length of past to check
-        self.initModel()
         torch.random.manual_seed(int(config.seeds.model + ensembleIndex))
-
+        self.initModel()
 
     def initModel(self):
         '''
@@ -54,6 +53,7 @@ class modelNet():
         self.optimizer = optim.AdamW(self.model.parameters(), amsgrad=True)
         datasetBuilder = buildDataset(self.config)
         self.mean, self.std = datasetBuilder.getStandardization()
+        self.dataset_samples, self.dataset_scores = datasetBuilder.getFullDataset()
 
 
     def save(self, best):
@@ -127,6 +127,9 @@ class modelNet():
 
             self.epochs += 1
 
+
+
+
         if returnHist:
             return self.err_te_hist
 
@@ -183,6 +186,15 @@ class modelNet():
         return F.smooth_l1_loss(output[:,0], targets.float())
 
 
+    def getMinF(self):
+        inputs = self.dataset_samples
+        if self.config.device == 'cuda':
+            inputs = torch.Tensor(inputs).cuda()
+
+        outputs = l2r(self.model(inputs))
+        self.best_f = np.percentile(outputs, self.config.al.EI_percentile)
+
+
     def checkConvergence(self):
         """
         check if we are converged
@@ -224,15 +236,52 @@ class modelNet():
         else:
             Data = torch.Tensor(Data).float()
 
-        self.model.train(False)
-        with torch.no_grad():  # we won't need gradients! no training just testing
-            out = self.model(Data).cpu().detach().numpy()
-            if output == 'Average':
-                return np.average(out,axis=1) * self.std + self.mean
-            elif output == 'Variance':
-                return np.var(out * self.std + self.mean,axis=1)
-            elif output == 'Both':
-                return np.average(out,axis=1) * self.std + self.mean, np.var(out * self.std,axis=1)
+        if self.config.proxy.uncertainty_estimation == "ensemble":
+            self.model.train(False)
+            with torch.no_grad():  # we won't need gradients! no training just testing
+                outputs = self.model(Data)
+                mean = torch.mean(outputs,dim=1).cpu().detach().numpy()
+                std = torch.std(outputs,dim=1).cpu().detach().numpy()
+        elif self.config.proxy.uncertainty_estimation == "dropout":
+            self.model.train(True) # need this to be true to activate dropout
+            with torch.no_grad():
+                outputs = torch.hstack([self.model(Data) for _ in range(self.config.proxy.dropout_samples)])
+            mean = torch.mean(outputs, dim=1).cpu().detach().numpy()
+            std = torch.std(outputs, dim=1).cpu().detach().numpy()
+        else:
+            print("No uncertainty estimator called {}".format(self.config.proxy.uncertainty_estimation))
+            sys.exit()
+
+        if output == 'Average':
+            return mean * self.std + self.mean
+        elif output == 'Uncertainty':
+            return std * self.std
+        elif output == 'Both':
+            return mean * self.std + self.mean, std * self.std
+        elif output == 'fancy_acquisition':
+            if self.config.al.acquisition_function.lower() == 'ucb':
+                mean = mean * self.std + self.mean
+                std = std * self.std
+                score = mean + self.config.al.UCB_kappa * std
+                score = l2r(torch.Tensor(score))
+                return score, mean * self.std + self.mean, std * self.std
+            elif self.config.al.acquisition_function.lower() == 'ei':
+                try:
+                    if self.best_f == 'canoe': # I just want it to load for goodness sake
+                        pass
+                except:
+                    self.getMinF()
+
+                outputs = l2r(outputs)
+                mean, std = torch.mean(torch.Tensor(outputs),dim=1), torch.std(torch.Tensor(outputs),dim=1)
+                u = torch.tensor((mean - self.best_f) / (std + 1e-4))
+                u = -u  # we are minimizing # MK double-check on this
+                normal = torch.distributions.Normal(torch.zeros_like(u), torch.ones_like(u))
+                ucdf = normal.cdf(u)
+                updf = torch.exp(normal.log_prob(u))
+                ei = std * (updf + u * ucdf)
+                return ei.cpu().detach().numpy(), mean * self.std + self.mean, std * self.std
+
 
     def raw(self, Data, output="Average"):
         '''
@@ -303,6 +352,9 @@ class buildDataset():
 
     def __getitem__(self, idx):
         return self.samples[idx], self.targets[idx]
+
+    def returnScores(self):
+        return self.targets
 
     def getFullDataset(self):
         return self.samples, self.targets
@@ -391,9 +443,10 @@ class transformer(nn.Module):
         self.decoder_layers = []
         self.encoder_linear = []
         self.self_attn_layers = []
+        self.decoder_dropouts = []
         for i in range(self.layers):
             self.encoder_linear.append(nn.Linear(self.embedDim,self.embedDim))
-            self.self_attn_layers.append(nn.MultiheadAttention(self.embedDim, self.heads, dropout=0, batch_first=False, **factory_kwargs))
+            self.self_attn_layers.append(nn.MultiheadAttention(self.embedDim, self.heads, dropout=config.proxy.dropout, batch_first=False, **factory_kwargs))
 
             if i == 0:
                 in_dim = self.embedDim
@@ -401,8 +454,10 @@ class transformer(nn.Module):
                 in_dim = self.hiddenDim
             out_dim = self.hiddenDim
             self.decoder_layers.append(nn.Linear(in_dim, out_dim))
+            self.decoder_dropouts.append(nn.Dropout(config.proxy.dropout))
 
         self.decoder_layers = nn.ModuleList(self.decoder_layers)
+        self.decoder_dropouts = nn.ModuleList(self.decoder_dropouts)
         self.encoder_linear = nn.ModuleList(self.encoder_linear)
         self.self_attn_layers = nn.ModuleList(self.self_attn_layers)
         self.output_layer = nn.Linear(self.hiddenDim,self.classes,bias=False)
@@ -420,6 +475,7 @@ class transformer(nn.Module):
         x = x.mean(dim=0) # mean aggregation
         for i in range(len(self.decoder_layers)):
             x = F.gelu(self.decoder_layers[i](x))
+            x = self.decoder_dropouts[i](x)
 
         x = self.output_layer(x)
 
@@ -439,14 +495,12 @@ class transformer2(nn.Module):
         self.proxy_aggregation = 'sum'
         self.proxy_attention_norm = 'layer'
         self.proxy_norm = 'layer'
-        self.proxy_dropout_prob = 0
-        self.proxy_attention_dropout_prob = 0
         self.classes = int(config.dataset.dict_size + 1)
         self.heads = max([4, max([1,self.embedDim//self.dictLen])])
         self.relative_attention = True
         act_func = 'gelu'
 
-        self.positionalEncoder = PositionalEncoding(self.embedDim, max_len = self.maxLen, dropout=self.proxy_attention_dropout_prob)
+        self.positionalEncoder = PositionalEncoding(self.embedDim, max_len = self.maxLen, dropout=config.proxy.dropout)
         self.embedding = nn.Embedding(self.dictLen + 1, embedding_dim = self.embedDim)
 
         factory_kwargs = {'device': None, 'dtype': None}
@@ -470,14 +524,14 @@ class transformer2(nn.Module):
             self.encoder_linear2.append(nn.Linear(self.embedDim,self.embedDim))
 
             if not self.relative_attention:
-                self.self_attn_layers.append(nn.MultiheadAttention(self.embedDim, self.heads, dropout=self.proxy_attention_dropout_prob, batch_first=False, **factory_kwargs))
+                self.self_attn_layers.append(nn.MultiheadAttention(self.embedDim, self.heads, dropout=config.proxy.dropout, batch_first=False, **factory_kwargs))
             else:
-                self.self_attn_layers.append(RelativeGlobalAttention(self.embedDim, self.heads, dropout=self.proxy_attention_dropout_prob, max_len=self.maxLen))
+                self.self_attn_layers.append(RelativeGlobalAttention(self.embedDim, self.heads, dropout=config.proxy.dropout, max_len=self.maxLen))
 
             self.encoder_activations.append(Activation(act_func, self.filters))
 
-            if self.proxy_dropout_prob != 0:
-                self.encoder_dropouts.append(nn.Dropout(self.proxy_dropout_prob))
+            if config.proxy.dropout != 0:
+                self.encoder_dropouts.append(nn.Dropout(config.proxy.dropout))
             else:
                 self.encoder_dropouts.append(nn.Identity())
 
@@ -497,8 +551,8 @@ class transformer2(nn.Module):
                 self.decoder_linear.append(nn.Linear(self.filters, self.filters))
 
             self.decoder_activations.append(Activation(act_func,self.filters))
-            if self.proxy_dropout_prob != 0:
-                self.decoder_dropouts.append(nn.Dropout(self.proxy_dropout_prob))
+            if config.proxy.dropout != 0:
+                self.decoder_dropouts.append(nn.Dropout(config.proxy.dropout))
             else:
                 self.decoder_dropouts.append(nn.Identity())
 
@@ -648,25 +702,6 @@ class RelativeGlobalAttention(nn.Module):
         return Srel
 
 
-class LSTM(nn.Module):
-    '''
-    may not work currently - possible issues with unequal length batching
-    '''
-    def __init__(self,config):
-        super(LSTM,self).__init__()
-        # initialize constants and layers
-
-        self.embedding = nn.Embedding(2, embedding_dim = config.proxy.width)
-        self.encoder = nn.LSTM(input_size=config.proxy.width,hidden_size=config.proxy.width,num_layers=config.proxy.n_layers)
-        self.decoder = nn.Linear((config.proxy.width), 1)
-
-    def forward(self, x):
-        x = x.permute(1,0) # weird input shape requirement
-        embeds = self.embedding(x.int())
-        y = self.encoder(embeds)[0]
-        return self.decoder(y[-1,:,:])
-
-
 class MLP(nn.Module):
     def __init__(self,config):
         super(MLP,self).__init__()
@@ -695,16 +730,19 @@ class MLP(nn.Module):
         self.lin_layers = []
         self.activations = []
         self.norms = []
+        self.dropouts = []
 
         for i in range(self.layers):
             self.lin_layers.append(nn.Linear(self.filters,self.filters))
             self.activations.append(Activation(act_func, self.filters))
             #self.norms.append(nn.BatchNorm1d(self.filters))
+            self.dropouts.append(nn.Dropout(p=config.proxy.dropout))
 
         # initialize module lists
         self.lin_layers = nn.ModuleList(self.lin_layers)
         self.activations = nn.ModuleList(self.activations)
         #self.norms = nn.ModuleList(self.norms)
+        self.dropouts = nn.ModuleList(self.dropouts)
 
 
     def forward(self, x):
@@ -714,6 +752,7 @@ class MLP(nn.Module):
         for i in range(self.layers):
             x = self.lin_layers[i](x)
             x = self.activations[i](x)
+            x = self.dropouts[i](x)
             #x = self.norms[i](x)
 
         y = torch.zeros(self.tasks)
@@ -778,3 +817,71 @@ class Activation(nn.Module):
         return self.activation(input)
 
 
+
+class UCB:
+    def __init__(self, model, kappa, device):
+        self.kappa = kappa
+        self.model = model
+        self.device = device
+        self.sigmoid = nn.Sigmoid()
+
+    def __call__(self, x1, x2, **f_kwargs):
+        outputs = self.model(x1, x2)
+        outputs = torch.cat(outputs)
+        mean = outputs.mean(dim=0)
+        std = outputs.std(dim=0)
+        return self.l2r(torch.tensor([[(mean + self.kappa * std)]]).to(self.device), **f_kwargs)
+
+    def l2r(self, x, **f_kwargs):
+        return self.sigmoid(x.clamp(min=f_kwargs["r_min"])) / f_kwargs["r_norm"]
+
+class EI:
+    def __init__(self, config, model, maximize=False):
+        #tokenizer = pickle.load(gzip.open('tokenizer.pkl.gz', 'rb'))
+        #self.model = model
+        #self.device = device
+        self.maximize = maximize
+        self.sigmoid = nn.Sigmoid()
+        self.best_f = self._get_best_f(dataset, tokenizer)
+
+    def _get_best_f(self, dataset, tok):
+        f_values = []
+        for sample in dataset.pos_train:
+            x = tok.process([sample]).to(self.device)
+            # ys = self.model(x.swapaxes(0,1), x.lt(2), **self.f_kwargs)
+            outputs = self.model(x.swapaxes(0,1), x.lt(2))
+            outputs = self.sigmoid(torch.cat(outputs))
+            mean, _ = outputs.mean(dim=0), outputs.std(dim=0)
+            f_values.append(mean.item())
+        return torch.tensor(np.percentile(f_values, args.max_percentile))
+
+    def __call__(self, x1, x2, **f_kwargs):
+        self.best_f = self.best_f.to(x1)
+
+        outputs = self.model(x1, x2)
+        outputs = torch.cat([self.l2r(outputs[i].unsqueeze(0), **f_kwargs) for i in range(len(outputs))])
+        outputs = outputs.swapaxes(0, 1)
+        mean, sigma = outputs.mean(dim=1).unsqueeze(-1), outputs.std(dim=1).unsqueeze(-1)
+        # deal with batch evaluation and broadcasting
+        view_shape = mean.shape[:-2] if mean.dim() >= x1.dim() else x1.shape[:-2]
+        mean = mean.view(view_shape)
+        sigma = sigma.view(view_shape)
+
+        u = (mean - self.best_f.expand_as(mean)) / sigma
+        if not self.maximize:
+            u = -u
+        normal = torch.distributions.Normal(torch.zeros_like(u), torch.ones_like(u))
+        ucdf = normal.cdf(u)
+        updf = torch.exp(normal.log_prob(u))
+        ei = sigma * (updf + u * ucdf)
+        return ei.cpu().numpy()
+
+    def l2r(self, x, **f_kwargs):
+        return self.sigmoid(x.clamp(min=f_kwargs["r_min"])) / f_kwargs["r_norm"]
+
+
+def l2r(x):
+    r_max = 0
+    r_norm = 1
+    score = torch.clip(x, min=-np.inf, max=r_max).sigmoid() / r_norm
+    return score.cpu().detach().numpy()
