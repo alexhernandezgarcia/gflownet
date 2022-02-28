@@ -10,12 +10,12 @@ from collections import defaultdict
 from itertools import count
 from pathlib import Path
 
+from comet_ml import Experiment
 import numpy as np
 import pandas as pd
 import torch
 import torch.nn as nn
 import yaml
-from comet_ml import Experiment
 from torch.distributions.categorical import Categorical
 from tqdm import tqdm
 
@@ -59,9 +59,29 @@ def add_args(parser):
     args2config.update({"debug": ["debug"]})
     parser.add_argument("--model_ckpt", default=None, type=str)
     args2config.update({"model_ckpt": ["gflownet", "model_ckpt"]})
+    parser.add_argument("--reload_ckpt", action="store_true")
+    args2config.update({"reload_ckpt": ["gflownet", "reload_ckpt"]})
     parser.add_argument("--ckpt_period", default=None, type=int)
     args2config.update({"ckpt_period": ["gflownet", "ckpt_period"]})
+    parser.add_argument(
+        "--rng_seed",
+        type=int,
+        default=0,
+        help="Seed for random number generator",
+    )
+    args2config.update({"rng_seed": ["seeds", "gflownet"]})
     # Training hyperparameters
+    parser.add_argument(
+        "--loss", default="flowmatch", type=str, help="flowmatch | trajectorybalance/tb"
+    )
+    args2config.update({"loss": ["gflownet", "loss"]})
+    parser.add_argument(
+        "--lr_z_mult",
+        default=10,
+        type=int,
+        help="Multiplicative factor of the Z learning rate",
+    )
+    args2config.update({"lr_z_mult": ["gflownet", "lr_z_mult"]})
     parser.add_argument(
         "--early_stopping",
         default=0.01,
@@ -137,6 +157,8 @@ def add_args(parser):
     args2config.update({"clip_grad_norm": ["gflownet", "clip_grad_norm"]})
     parser.add_argument("--random_action_prob", default=0.0, type=float)
     args2config.update({"random_action_prob": ["gflownet", "random_action_prob"]})
+    parser.add_argument("--pct_batch_empirical", default=0.0, type=float)
+    args2config.update({"pct_batch_empirical": ["gflownet", "pct_batch_empirical"]})
     # Environment
     parser.add_argument("--func", default="arbitrary_i")
     args2config.update({"func": ["gflownet", "func"]})
@@ -181,6 +203,19 @@ def add_args(parser):
     args2config.update({"test_output": ["gflownet", "test", "output"]})
     parser.add_argument("--test_period", default=500, type=int)
     args2config.update({"test_period": ["gflownet", "test", "period"]})
+    # Oracle metrics
+    parser.add_argument("--oracle_period", default=500, type=int)
+    args2config.update({"oracle_period": ["gflownet", "oracle", "period"]})
+    parser.add_argument("--oracle_nsamples", default=500, type=int)
+    args2config.update({"oracle_nsamples": ["gflownet", "oracle", "nsamples"]})
+    parser.add_argument(
+        "--oracle_k",
+        default=[1, 10, 100],
+        nargs="*",
+        type=int,
+        help="List of K, for Top-K",
+    )
+    args2config.update({"oracle_k": ["gflownet", "oracle", "k"]})
     # Comet
     parser.add_argument("--comet_project", default=None, type=str)
     args2config.update({"comet_project": ["gflownet", "comet", "project"]})
@@ -190,6 +225,8 @@ def add_args(parser):
     args2config.update({"tags": ["gflownet", "comet", "tags"]})
     parser.add_argument("--no_comet", action="store_true")
     args2config.update({"no_comet": ["gflownet", "comet", "skip"]})
+    parser.add_argument("--no_log_times", action="store_true")
+    args2config.update({"no_log_times": ["gflownet", "no_log_times"]})
     return parser, args2config
 
 
@@ -205,11 +242,22 @@ def set_device(dev):
 class GFlowNetAgent:
     def __init__(self, args, comet=None, proxy=None, al_iter=-1, data_path=None):
         # Misc
-        self.rng = np.random.RandomState(int(time.time()))
+        self.rng = np.random.default_rng(args.seeds.gflownet)
         self.debug = args.debug
         self.device_torch = torch.device(args.gflownet.device)
         self.device = self.device_torch
         set_device(self.device_torch)
+        if args.gflownet.loss in ["flowmatch"]:
+            self.loss = "flowmatch"
+            self.Z = None
+        elif args.gflownet.loss in ["trajectorybalance", "tb"]:
+            self.loss = "trajectorybalance"
+            self.Z = nn.Parameter(torch.ones(64) * 150.0 / 64)
+        else:
+            print("Unkown loss. Using flowmatch as default")
+            self.loss == "flowmatch"
+            self.Z = None
+        self.loss_eps = torch.tensor(float(1e-5)).to(self.device)
         self.lightweight = True
         self.query_function = args.al.query_mode
         self.tau = args.gflownet.bootstrap_tau
@@ -225,6 +273,7 @@ class GFlowNetAgent:
             self.al_iter = "_iter{}".format(al_iter)
         else:
             self.al_iter = ""
+        self.logsoftmax = torch.nn.LogSoftmax(dim=1)
 
         # Comet
         if args.gflownet.comet.project and not args.gflownet.comet.skip:
@@ -245,6 +294,7 @@ class GFlowNetAgent:
                 self.comet = comet
             else:
                 self.comet = None
+        self.no_log_times = args.gflownet.no_log_times
         # Environment
         self.env = AptamerSeq(
             args.gflownet.max_seq_length,
@@ -278,8 +328,9 @@ class GFlowNetAgent:
         self.model = make_mlp(
             [args.gflownet.max_seq_length * args.gflownet.nalphabet]
             + [args.gflownet.n_hid] * args.gflownet.n_layers
-            + [self.env.nactions + 1]
+            + [len(self.env.action_space) + 1]
         )
+        self.reload_ckpt = args.gflownet.reload_ckpt
         if args.gflownet.model_ckpt:
             if "workdir" in args and Path(args.workdir).exists():
                 if (Path(args.workdir) / "ckpts").exists():
@@ -290,7 +341,7 @@ class GFlowNetAgent:
                     self.model_path = Path(args.workdir) / args.gflownet.model_ckpt
             else:
                 self.model_path = args.gflownet.model_ckpt
-            if self.model_path.exists():
+            if self.model_path.exists() and self.reload_ckpt:
                 self.model.load_state_dict(torch.load(self.model_path))
         else:
             self.model_path = None
@@ -300,7 +351,7 @@ class GFlowNetAgent:
         self.model.to(self.device_torch)
         self.target = copy.deepcopy(self.model)
         # Training
-        self.opt = make_opt(self.parameters(), args)
+        self.opt = make_opt(self.parameters(), self.Z, args)
         self.n_train_steps = args.gflownet.n_iter
         self.mbsize = args.gflownet.mbsize
         self.progress = args.gflownet.progress
@@ -360,11 +411,15 @@ class GFlowNetAgent:
             print(f"\tStd score: {self.df_test[self.test_score].std()}")
             print(f"\tMin score: {self.df_test[self.test_score].min()}")
             print(f"\tMax score: {self.df_test[self.test_score].max()}")
+        # Oracle metrics
+        self.oracle_period = args.gflownet.oracle.period
+        self.oracle_nsamples = args.gflownet.oracle.nsamples
+        self.oracle_k = args.gflownet.oracle.k
 
     def parameters(self):
         return self.model.parameters()
 
-    def sample_batch(self):
+    def sample_batch(self, mask_eos=True):
         """
         Builds a mini-batch of data
 
@@ -374,6 +429,8 @@ class GFlowNetAgent:
             - reward of the state
             - the state, as seq2obs(seq)
             - done
+            - trajectory id: identifies each trajectory
+            - seq id: identifies each sequence within a trajectory
 
         Args
         ----
@@ -388,7 +445,7 @@ class GFlowNetAgent:
         }
         t0_all = time.time()
         batch = []
-        envs = [env.reset() for env in self.envs]
+        envs = [env.reset(idx) for idx, env in enumerate(self.envs)]
         # Sequences from empirical distribution
         n_empirical = int(self.pct_batch_empirical * len(envs))
         for env in envs[:n_empirical]:
@@ -396,16 +453,18 @@ class GFlowNetAgent:
             seq_letters = self.rng.permutation(self.df_train.letters.values)[0]
             seq = env.letters2seq(seq_letters)
             done = True
-            action = env.nactions
+            action = env.eos
             while len(seq) > 0:
                 parents, parents_a = env.parent_transitions(seq, action)
                 batch.append(
                     [
                         tf(parents),
-                        tf(parents_a),
+                        tl(parents_a),
                         seq,
                         tf([env.seq2obs(seq)]),
                         done,
+                        tl([env.id]),
+                        tl([env.n_actions]),
                     ]
                 )
                 seq = env.obs2seq(self.rng.permutation(parents)[0])
@@ -415,11 +474,14 @@ class GFlowNetAgent:
         # Rest of batch
         while envs:
             seqs = [env.seq2obs() for env in envs]
+            mask = [len(env.seq) < env.min_seq_length for env in envs]
             random_action = self.rng.uniform()
             if random_action > self.random_action_prob:
                 with torch.no_grad():
                     t0_a_model = time.time()
                     action_probs = self.model(tf(seqs))
+                    if mask_eos:
+                        action_probs[mask, -1] = -1000
                     t1_a_model = time.time()
                     times["actions_model"] += t1_a_model - t0_a_model
                     if all(torch.isfinite(action_probs).flatten()):
@@ -429,40 +491,45 @@ class GFlowNetAgent:
                         if self.debug:
                             print("Action could not be sampled from model!")
             if random_action < self.random_action_prob:
-                actions = np.random.randint(
-                    low=0, high=self.env.nactions + 1, size=len(envs)
-                )
+                high = (len(self.env.action_space) + 1) * np.ones(len(envs), dtype=int)
+                if mask_eos:
+                    high[mask] -= 1
+                actions = self.rng.integers(low=0, high=high, size=len(envs))
             t0_a_envs = time.time()
             assert len(envs) == actions.shape[0]
             for env, action in zip(envs, actions):
+                if len(env.seq) == env.max_seq_length:
+                    action = env.eos
                 seq, valid = env.step(action)
                 if valid:
                     parents, parents_a = env.parent_transitions(seq, action)
                     batch.append(
                         [
                             tf(parents),
-                            tf(parents_a),
+                            tl(parents_a),
                             seq,
                             tf([env.seq2obs()]),
                             env.done,
+                            tl([env.id]),
+                            tl([env.n_actions]),
                         ]
                     )
             envs = [env for env in envs if not env.done]
             t1_a_envs = time.time()
             times["actions_envs"] += t1_a_envs - t0_a_envs
-        parents, parents_a, seqs, obs, done = zip(*batch)
+        parents, parents_a, seqs, obs, done, traj_id, seq_id = zip(*batch)
         t0_rewards = time.time()
         rewards = env.reward_batch(seqs, done)
         t1_rewards = time.time()
         times["rewards"] += t1_rewards - t0_rewards
         rewards = [tf([r]) for r in rewards]
-        done = [tf([d]) for d in done]
-        batch = list(zip(parents, parents_a, rewards, obs, done))
+        done = [tl([d]) for d in done]
+        batch = list(zip(parents, parents_a, rewards, obs, done, traj_id, seq_id))
         t1_all = time.time()
         times["all"] += t1_all - t0_all
         return batch, times
 
-    def learn_from(self, it, batch):
+    def flowmatch_loss(self, it, batch):
         """
         Computes the loss of a batch
 
@@ -489,11 +556,16 @@ class GFlowNetAgent:
         loginf = tf([1000])
         batch_idxs = tl(
             sum(
-                [[i] * len(parents) for i, (parents, _, _, _, _) in enumerate(batch)],
+                [
+                    [i] * len(parents)
+                    for i, (parents, _, _, _, _, _, _) in enumerate(batch)
+                ],
                 [],
             )
         )
-        parents, actions, r, sp, done = map(torch.cat, zip(*batch))
+        parents, actions, r, sp, done, _, _ = map(torch.cat, zip(*batch))
+
+        # Sanity check if negative rewards
         if self.debug and torch.any(r < 0):
             neg_r_idx = torch.where(r < 0)[0].tolist()
             for idx in neg_r_idx:
@@ -506,29 +578,27 @@ class GFlowNetAgent:
                 import ipdb
 
                 ipdb.set_trace()
-        parents_Qsa = self.model(parents)[
-            torch.arange(parents.shape[0]), actions.long()
-        ]
 
-        if self.device.type == "cuda":
-            in_flow = torch.log(
-                torch.zeros((sp.shape[0],))
-                .cuda()
-                .index_add_(0, batch_idxs, torch.exp(parents_Qsa))
+        # Q(s,a)
+        parents_Qsa = self.model(parents)[torch.arange(parents.shape[0]), actions]
+
+        # log(eps + exp(log(Q(s,a)))) : qsa
+        in_flow = torch.log(
+            tf(torch.zeros((sp.shape[0],))).index_add_(
+                0, batch_idxs, torch.exp(parents_Qsa)
             )
-        else:
-            in_flow = torch.log(
-                torch.zeros((sp.shape[0],)).index_add_(
-                    0, batch_idxs, torch.exp(parents_Qsa)
-                )
-            )
+        )
+        # the following with work if autoregressive
+        #         in_flow = torch.logaddexp(parents_Qsa[batch_idxs], torch.log(self.loss_eps))
         if self.tau > 0:
             with torch.no_grad():
                 next_q = self.target(sp)
         else:
             next_q = self.model(sp)
-        next_qd = next_q * (1 - done).unsqueeze(1) + done.unsqueeze(1) * (-loginf)
-        out_flow = torch.logsumexp(torch.cat([torch.log(r)[:, None], next_qd], 1), 1)
+        qsp = torch.logsumexp(next_q, 1)
+        # qsp: qsp if not done; -loginf if done
+        qsp = qsp * (1 - done) - loginf * done
+        out_flow = torch.logaddexp(torch.log(r + self.loss_eps), qsp)
         loss = (in_flow - out_flow).pow(2).mean()
 
         with torch.no_grad():
@@ -544,6 +614,45 @@ class GFlowNetAgent:
                 b.data.mul_(1 - self.tau).add_(self.tau * a)
 
         return loss, term_loss, flow_loss
+
+    def trajectorybalance_loss(self, it, batch):
+        """
+        Computes the trajectory balance loss of a batch
+
+        Args
+        ----
+        it : int
+            Iteration
+
+        batch : ndarray
+            A batch of data: every row is a state (list), corresponding to all states
+            visited in each sequence in the batch.
+
+        Returns
+        -------
+        loss : float
+
+        term_loss : float
+            Loss of the terminal nodes only
+
+        flow_loss : float
+            Loss of the intermediate nodes only
+        """
+        # Unpack batch
+        parents, actions, rewards, _, done, traj_id, _ = map(torch.cat, zip(*batch))
+        # Log probs of each (s, a)
+        logprobs = self.logsoftmax(self.model(parents))[
+            torch.arange(parents.shape[0]), actions
+        ]
+        # Sum of log probs
+        sumlogprobs = tf(
+            torch.zeros(len(torch.unique(traj_id, sorted=True)))
+        ).index_add_(0, traj_id, logprobs)
+        # Sort rewards of done sequences by ascending traj id
+        rewards = rewards[done.eq(1)][torch.argsort(traj_id[done.eq(1)])]
+        # Trajectory balance loss
+        loss = (self.Z.sum() + sumlogprobs - torch.log((rewards))).pow(2).mean()
+        return loss, loss, loss
 
     def train(self):
 
@@ -564,9 +673,16 @@ class GFlowNetAgent:
             rewards = [d[2][0].item() for d in data if bool(d[4].item())]
             proxy_vals = self.env.reward2proxy(rewards)
             for j in range(self.ttsr):
-                losses = self.learn_from(
-                    i * self.ttsr + j, data
-                )  # returns (opt loss, *metrics)
+                if self.loss == "flowmatch":
+                    losses = self.flowmatch_loss(
+                        i * self.ttsr + j, data
+                    )  # returns (opt loss, *metrics)
+                elif self.loss == "trajectorybalance":
+                    losses = self.trajectorybalance_loss(
+                        i * self.ttsr + j, data
+                    )  # returns (opt loss, *metrics)
+                else:
+                    print("Unknown loss!")
                 if (
                     not all([torch.isfinite(loss) for loss in losses])
                     or np.max(rewards) > self.reward_max
@@ -667,7 +783,7 @@ class GFlowNetAgent:
                     t0_test_traj = time.time()
                     traj_list, actions = self.env.get_trajectories(
                         [[self.env.letters2seq(seqstr)]],
-                        [[self.env.nactions]],
+                        [[self.env.eos]],
                     )
                     t1_test_traj = time.time()
                     times["test_traj"] += t1_test_traj - t0_test_traj
@@ -692,6 +808,31 @@ class GFlowNetAgent:
                         ),
                         step=i,
                     )
+            # Oracle metrics (for monitoring)
+            if not i % self.oracle_period and self.debug:
+                oracle_dict, oracle_times = self.sample(
+                    self.oracle_nsamples,
+                    self.env.max_seq_length,
+                    self.env.min_seq_length,
+                    self.env.nalphabet,
+                    self.env.min_word_len,
+                    self.env.max_word_len,
+                    self.env.oracle,
+                    get_uncertainties=False,
+                )
+                scores = oracle_dict["scores"]
+                if any([s in self.env.func for s in ["pins", "pairs"]]):
+                    scores_sorted = np.sort(scores)[::-1]
+                else:
+                    scores_sorted = np.sort(scores)
+                dict_topk = {}
+                for k in self.oracle_k:
+                    mean_topk = np.mean(scores_sorted[:k])
+                    dict_topk.update(
+                            {"oracle_mean_top{}{}".format(k, self.al_iter): mean_topk}
+                    )
+                    if self.comet:
+                        self.comet.log_metrics(dict_topk)
             if not i % 100:
                 if not self.lightweight:
                     empirical_distrib_losses.append(
@@ -761,7 +902,7 @@ class GFlowNetAgent:
             t1_iter = time.time()
             times.update({"iter": t1_iter - t0_iter})
             times = {"time_{}{}".format(k, self.al_iter): v for k, v in times.items()}
-            if self.comet:
+            if self.comet and not self.no_log_times:
                 self.comet.log_metrics(times, step=i)
         # Save final model
         if self.model_path:
@@ -784,6 +925,8 @@ class GFlowNetAgent:
         min_word_len,
         max_word_len,
         proxy,
+        mask_eos=True,
+        get_uncertainties=True,
     ):
         times = {
             "all": 0.0,
@@ -808,9 +951,12 @@ class GFlowNetAgent:
         envs = [env.reset() for env in envs]
         while envs:
             seqs = [env.seq2obs() for env in envs]
+            mask = [len(env.seq) < env.min_seq_length for env in envs]
             with torch.no_grad():
                 t0_a_model = time.time()
                 action_probs = self.model(tf(seqs))
+                if mask_eos:
+                    action_probs[mask, -1] = -1000
                 t1_a_model = time.time()
                 times["actions_model"] += t1_a_model - t0_a_model
                 if all(torch.isfinite(action_probs).flatten()):
@@ -832,26 +978,26 @@ class GFlowNetAgent:
             times["actions_envs"] += t1_a_envs - t0_a_envs
         t0_proxy = time.time()
         batch = np.asarray(batch)
-        if self.query_function == 'fancy_acquisition':
-            scores, proxy_vals, uncertainties = env.proxy(batch, "fancy_acquisition")
-            t1_proxy = time.time()
-            times["proxy"] += t1_proxy - t0_proxy
-            samples = {
-                "samples": batch.astype(np.int64),
-                "scores": scores,
-                "energies": proxy_vals,
-                "uncertainties": uncertainties,
-            }
+
+        if get_uncertainties:
+            if self.query_function == 'fancy_acquisition':
+                scores, proxy_vals, uncertainties = env.proxy(batch, "fancy_acquisition")
+            else:
+                proxy_vals, uncertainties = env.proxy(batch, "Both")
+                scores = proxy_vals
         else:
-            proxy_vals, uncertainties = env.proxy(batch, "Both")
-            t1_proxy = time.time()
-            times["proxy"] += t1_proxy - t0_proxy
-            samples = {
-                "samples": batch.astype(np.int64),
-                "scores": proxy_vals,
-                "energies": proxy_vals,
-                "uncertainties": uncertainties,
-            }
+            proxy_vals = env.proxy(batch)
+            uncertainties = None
+            scores = proxy_vals
+        t1_proxy = time.time()
+        times["proxy"] += t1_proxy - t0_proxy
+        samples = {
+            "samples": batch.astype(np.int64),
+            "scores": scores,
+            "energies": proxy_vals,
+            "uncertainties": uncertainties,
+        }
+
         # Sanity-check: absolute zero pad
         t0_sanitycheck = time.time()
         zeros = np.where(batch == 0)
@@ -878,6 +1024,7 @@ def sample(
     min_word_len,
     max_word_len,
     func,
+    mask_eos=True,
 ):
     times = {
         "all": 0.0,
@@ -902,9 +1049,12 @@ def sample(
     envs = [env.reset() for env in envs]
     while envs:
         seqs = [env.seq2obs() for env in envs]
+        mask = [len(env.seq) < env.min_seq_length for env in envs]
         with torch.no_grad():
             t0_a_model = time.time()
             action_probs = model(tf(seqs))
+            if mask_eos:
+                action_probs[mask, -1] = -1000
             t1_a_model = time.time()
             times["actions_model"] += t1_a_model - t0_a_model
             if all(torch.isfinite(action_probs).flatten()):
@@ -980,7 +1130,7 @@ class RandomTrajAgent:
                     all_visited.append(tuple(sp))
         return []  # agent is stateful, no need to return minibatch data
 
-    def learn_from(self, it, batch):
+    def flowmatch_loss(self, it, batch):
         return None
 
 
@@ -1010,7 +1160,7 @@ def make_mlp(layers_dim, act=nn.LeakyReLU(), tail=[]):
     )
 
 
-def make_opt(params, args):
+def make_opt(params, Z, args):
     """
     Set up the optimizer
     """
@@ -1023,6 +1173,13 @@ def make_opt(params, args):
             args.gflownet.learning_rate,
             betas=(args.gflownet.adam_beta1, args.gflownet.adam_beta2),
         )
+        if Z is not None:
+            opt.add_param_group(
+                {
+                    "params": Z,
+                    "lr": args.gflownet.learning_rate * args.gflownet.lr_z_mult,
+                }
+            )
     elif args.gflownet.opt == "msgd":
         opt = torch.optim.SGD(
             params, args.gflownet.learning_rate, momentum=args.gflownet.momentum

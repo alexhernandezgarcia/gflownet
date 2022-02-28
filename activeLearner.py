@@ -523,7 +523,10 @@ class ActiveLearning():
 
         if self.comet:
             self.comet.log_histogram_3d(dataset['scores'], name='dataset scores', step=self.pipeIter)
-            idx_sorted = np.argsort(dataset["scores"])
+            if any([s in self.config.dataset.oracle for s in ["pins", "pairs"]]):
+                idx_sorted = np.argsort(dataset["scores"])[::-1]
+            else:
+                idx_sorted = np.argsort(dataset["scores"])
             for k in [1, 10, 100]:
                 topk_scores = dataset["scores"][idx_sorted[:k]]
                 topk_samples = dataset["samples"][idx_sorted[:k]]

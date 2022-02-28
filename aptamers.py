@@ -5,8 +5,7 @@ import itertools
 
 import numpy as np
 
-from oracles import (PottsEnergy, linearToy, nupackScore, seqfoldScore,
-                     toyHamiltonian)
+from oracles import PottsEnergy, linearToy, nupackScore, seqfoldScore, toyHamiltonian
 
 
 class AptamerSeq:
@@ -36,6 +35,9 @@ class AptamerSeq:
     func : str
         Name of the reward function
 
+    n_actions : int
+        Number of actions applied to the sequence
+
     proxy : lambda
         Proxy model
     """
@@ -52,6 +54,7 @@ class AptamerSeq:
         allow_backward=False,
         debug=False,
         reward_beta=1,
+        env_id=None,
     ):
         self.max_seq_length = max_seq_length
         self.min_seq_length = min_seq_length
@@ -60,21 +63,24 @@ class AptamerSeq:
         self.max_word_len = max_word_len
         self.seq = []
         self.done = False
+        self.id = env_id
+        self.n_actions = 0
         self.func = func
+        self.oracle = {
+            "default": None,
+            "arbitrary_i": self.reward_arbitrary_i,
+            "linear": linearToy,
+            "innerprod": toyHamiltonian,
+            "potts": PottsEnergy,
+            "seqfold": seqfoldScore,
+            "nupack energy": lambda x: nupackScore(x, returnFunc="energy"),
+            "nupack pairs": lambda x: nupackScore(x, returnFunc="pairs"),
+            "nupack pins": lambda x: nupackScore(x, returnFunc="hairpins"),
+        }[self.func]
         if proxy:
             self.proxy = proxy
         else:
-            self.proxy = {
-                "default": None,
-                "arbitrary_i": self.reward_arbitrary_i,
-                "linear": linearToy,
-                "innerprod": toyHamiltonian,
-                "potts": PottsEnergy,
-                "seqfold": seqfoldScore,
-                "nupack energy": lambda x: nupackScore(x, returnFunc="energy"),
-                "nupack pairs": lambda x: nupackScore(x, returnFunc="pairs"),
-                "nupack pins": lambda x: nupackScore(x, returnFunc="hairpins"),
-            }[self.func]
+            self.proxy = self.oracle
         self.reward = (
             lambda x: [0]
             if not self.done
@@ -87,7 +93,7 @@ class AptamerSeq:
         self.action_space = self.get_actions_space(
             self.nalphabet, np.arange(self.min_word_len, self.max_word_len + 1)
         )
-        self.nactions = len(self.action_space)
+        self.eos = len(self.action_space)
 
     def get_actions_space(self, nalphabet, valid_wordlens):
         """
@@ -213,12 +219,14 @@ class AptamerSeq:
         alphabet = {v: k for k, v in alphabet.items()}
         return [alphabet[el] for el in letters]
 
-    def reset(self):
+    def reset(self, env_id=None):
         """
         Resets the environment
         """
         self.seq = []
+        self.n_actions = 0
         self.done = False
+        self.id = env_id
         return self
 
     def parent_transitions(self, seq, action):
@@ -244,7 +252,7 @@ class AptamerSeq:
         actions : list
             List of actions that lead to seq for each parent in parents
         """
-        if action == self.nactions:
+        if action == self.eos:
             return [self.seq2obs(seq)], [action]
         else:
             parents = []
@@ -305,7 +313,7 @@ class AptamerSeq:
         """
         Executes step given an action
 
-        If action is smaller than nactions (no stop), add action to next
+        If action is smaller than eos (no stop), add action to next
         position.
 
         See: step_daug()
@@ -314,7 +322,7 @@ class AptamerSeq:
         Args
         ----
         a : int
-            Index of action in the action space. a == nactions indicates "stop action"
+            Index of action in the action space. a == eos indicates "stop action"
 
         Returns
         -------
@@ -325,20 +333,25 @@ class AptamerSeq:
             False, if the action is not allowed for the current state, e.g. stop at the
             root state
         """
-        if action < self.nactions:
+        if len(self.seq) == self.max_seq_length:
+            self.done = True
+            self.n_actions += 1
+            return self.seq, True
+        if action < self.eos:
             seq_next = self.seq + list(self.action_space[action])
             if len(seq_next) > self.max_seq_length:
                 valid = False
             else:
                 self.seq = seq_next
                 valid = True
-            self.done = len(self.seq) == self.max_seq_length
+                self.n_actions += 1
         else:
             if len(self.seq) < self.min_seq_length:
                 valid = False
             else:
                 self.done = True
                 valid = True
+                self.n_actions += 1
 
         return self.seq, valid
 

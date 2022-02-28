@@ -104,7 +104,12 @@ class Querier():
             samples = samples[bestInds]
         elif self.config.al.query_selection == 'argmin':
             # just take the bottom x scores
-            samples = samples[np.argsort(scores)]
+            if any([s in self.config.dataset.oracle for s in ["pins", "pairs"]]):
+                # TODO: a similar operation should be done for the other query
+                # selection options
+                samples = samples[np.argsort(scores)[::-1]]
+            else:
+                samples = samples[np.argsort(scores)]
 
         while len(samples) < nQueries:  # if we don't have enough samples from samplers, add random ones to pad out the query
             randomSamples = generateRandomSamples(1000, [self.config.dataset.min_length, self.config.dataset.max_length], self.config.dataset.dict_size, variableLength=self.config.dataset.variable_length,

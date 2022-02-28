@@ -45,7 +45,6 @@ def add_args(parser):
         "-y",
         "--yaml_config",
         default=None,
-        required=True,
         type=str,
         help="Configuration file of the experiment",
     )
@@ -66,6 +65,21 @@ def add_args(parser):
         help="Path to CSV file containing test data",
     )
     args2config.update({"test_data": ["test_data"]})
+    parser.add_argument(
+        "--n_samples",
+        default=None,
+        type=int,
+        help="Number of sequences to sample",
+    )
+    args2config.update({"n_samples": ["n_samples"]})
+    parser.add_argument(
+        "--k",
+        default=None,
+        nargs="*",
+        type=int,
+        help="List of K, for Top-K",
+    )
+    args2config.update({"k": ["k"]})
     parser.add_argument("--rand_model", action="store_true", default=False)
     args2config.update({"rand_model": ["rand_model"]})
     parser.add_argument("--do_logq", action="store_true", default=False)
@@ -115,27 +129,30 @@ def main(args):
     model = make_mlp(
         [args.gflownet.max_seq_length * args.gflownet.nalphabet]
         + [args.gflownet.n_hid] * args.gflownet.n_layers
-        + [env.nactions + 1]
+        + [len(env.action_space) + 1]
     )
+    model.to(device_torch)
     if not args.rand_model:
         model_alias = "gfn"
         if args.model_ckpt:
             model_ckpt = args.model_ckpt
         else:
             model_ckpt = workdir / "model_final.pt"
-        model.load_state_dict(torch.load(model_ckpt))
+        model.load_state_dict(torch.load(model_ckpt, map_location=device_torch))
     else:
         model_alias = "rand"
         print("No trained model will be loaded - using random weights")
-    model.to(device_torch)
     # Data set
-    df_test = pd.read_csv(args.test_data, index_col=0)
-    n_samples = len(df_test)
-    print("\nTest data")
-    print(f"\tAverage score: {df_test.scores.mean()}")
-    print(f"\tStd score: {df_test.scores.std()}")
-    print(f"\tMin score: {df_test.scores.min()}")
-    print(f"\tMax score: {df_test.scores.max()}")
+    if args.n_samples:
+        n_samples = args.n_samples
+    if args.test_data:
+        df_test = pd.read_csv(args.test_data, index_col=0)
+        n_samples = len(df_test)
+        print("\nTest data")
+        print(f"\tAverage score: {df_test.scores.mean()}")
+        print(f"\tStd score: {df_test.scores.std()}")
+        print(f"\tMin score: {df_test.scores.min()}")
+        print(f"\tMax score: {df_test.scores.max()}")
 
     # Sample data
     if args.do_sample:
@@ -144,6 +161,7 @@ def main(args):
             model,
             n_samples,
             args.gflownet.max_seq_length,
+            args.gflownet.min_seq_length,
             args.gflownet.nalphabet,
             args.gflownet.min_word_len,
             args.gflownet.max_word_len,
@@ -171,6 +189,13 @@ def main(args):
         print(f"\tMax score: {df_samples.scores.max()}")
         output_samples = workdir / "{}_samples_n{}.csv".format(model_alias, n_samples)
         df_samples.to_csv(output_samples)
+        if any([s in env.func for s in ["pins", "pairs"]]):
+            scores_sorted = np.sort(df_samples["scores"].values)[::-1]
+        else:
+            scores_sorted = np.sort(df_samples["scores"].values)
+        for k in args.k:
+            mean_topk = np.mean(scores_sorted[:k])
+            print(f"\tAverage score top-{k}: {mean_topk}")
 
     # log q(x)
     if args.do_logq:
@@ -178,7 +203,7 @@ def main(args):
         data_logq = []
         for seqint, score in tqdm(zip(df_test.indices, df_test.scores)):
             traj, actions = env.trajectories(
-                indstr2seq(seqint), [indstr2seq(seqint)], [env.nactions]
+                indstr2seq(seqint), [indstr2seq(seqint)], [env.eos]
             )
             data_logq.append(logq(traj, actions, model, env))
         corr = np.corrcoef(data_logq, df_test.scores)
