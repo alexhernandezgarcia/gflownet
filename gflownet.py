@@ -59,8 +59,17 @@ def add_args(parser):
     args2config.update({"debug": ["debug"]})
     parser.add_argument("--model_ckpt", default=None, type=str)
     args2config.update({"model_ckpt": ["gflownet", "model_ckpt"]})
+    parser.add_argument("--reload_ckpt", action="store_true")
+    args2config.update({"reload_ckpt": ["gflownet", "reload_ckpt"]})
     parser.add_argument("--ckpt_period", default=None, type=int)
     args2config.update({"ckpt_period": ["gflownet", "ckpt_period"]})
+    parser.add_argument(
+        "--rng_seed",
+        type=int,
+        default=0,
+        help="Seed for random number generator",
+    )
+    args2config.update({"rng_seed": ["seeds", "gflownet"]})
     # Training hyperparameters
     parser.add_argument(
         "--loss", default="flowmatch", type=str, help="flowmatch | trajectorybalance/tb"
@@ -194,6 +203,19 @@ def add_args(parser):
     args2config.update({"test_output": ["gflownet", "test", "output"]})
     parser.add_argument("--test_period", default=500, type=int)
     args2config.update({"test_period": ["gflownet", "test", "period"]})
+    # Oracle metrics
+    parser.add_argument("--oracle_period", default=500, type=int)
+    args2config.update({"oracle_period": ["gflownet", "oracle", "period"]})
+    parser.add_argument("--oracle_nsamples", default=500, type=int)
+    args2config.update({"oracle_nsamples": ["gflownet", "oracle", "nsamples"]})
+    parser.add_argument(
+        "--oracle_k",
+        default=[1, 10, 100],
+        nargs="*",
+        type=int,
+        help="List of K, for Top-K",
+    )
+    args2config.update({"oracle_k": ["gflownet", "oracle", "k"]})
     # Comet
     parser.add_argument("--comet_project", default=None, type=str)
     args2config.update({"comet_project": ["gflownet", "comet", "project"]})
@@ -203,6 +225,8 @@ def add_args(parser):
     args2config.update({"tags": ["gflownet", "comet", "tags"]})
     parser.add_argument("--no_comet", action="store_true")
     args2config.update({"no_comet": ["gflownet", "comet", "skip"]})
+    parser.add_argument("--no_log_times", action="store_true")
+    args2config.update({"no_log_times": ["gflownet", "no_log_times"]})
     return parser, args2config
 
 
@@ -218,7 +242,7 @@ def set_device(dev):
 class GFlowNetAgent:
     def __init__(self, args, comet=None, proxy=None, al_iter=-1, data_path=None):
         # Misc
-        self.rng = np.random.default_rng(int(time.time()))
+        self.rng = np.random.default_rng(args.seeds.gflownet)
         self.debug = args.debug
         self.device_torch = torch.device(args.gflownet.device)
         self.device = self.device_torch
@@ -269,6 +293,7 @@ class GFlowNetAgent:
                 self.comet = comet
             else:
                 self.comet = None
+        self.no_log_times = args.gflownet.no_log_times
         # Environment
         self.env = AptamerSeq(
             args.gflownet.max_seq_length,
@@ -304,6 +329,7 @@ class GFlowNetAgent:
             + [args.gflownet.n_hid] * args.gflownet.n_layers
             + [len(self.env.action_space) + 1]
         )
+        self.reload_ckpt = args.gflownet.reload_ckpt
         if args.gflownet.model_ckpt:
             if "workdir" in args and Path(args.workdir).exists():
                 if (Path(args.workdir) / "ckpts").exists():
@@ -314,7 +340,7 @@ class GFlowNetAgent:
                     self.model_path = Path(args.workdir) / args.gflownet.model_ckpt
             else:
                 self.model_path = args.gflownet.model_ckpt
-            if self.model_path.exists():
+            if self.model_path.exists() and self.reload_ckpt:
                 self.model.load_state_dict(torch.load(self.model_path))
         else:
             self.model_path = None
@@ -384,6 +410,10 @@ class GFlowNetAgent:
             print(f"\tStd score: {self.df_test[self.test_score].std()}")
             print(f"\tMin score: {self.df_test[self.test_score].min()}")
             print(f"\tMax score: {self.df_test[self.test_score].max()}")
+        # Oracle metrics
+        self.oracle_period = args.gflownet.oracle.period
+        self.oracle_nsamples = args.gflownet.oracle.nsamples
+        self.oracle_k = args.gflownet.oracle.k
 
     def parameters(self):
         return self.model.parameters()
@@ -777,6 +807,31 @@ class GFlowNetAgent:
                         ),
                         step=i,
                     )
+            # Oracle metrics (for monitoring)
+            if not i % self.oracle_period and self.debug:
+                oracle_dict, oracle_times = self.sample(
+                    self.oracle_nsamples,
+                    self.env.max_seq_length,
+                    self.env.min_seq_length,
+                    self.env.nalphabet,
+                    self.env.min_word_len,
+                    self.env.max_word_len,
+                    self.env.oracle,
+                    get_uncertainties=False,
+                )
+                scores = oracle_dict["scores"]
+                if any([s in self.env.func for s in ["pins", "pairs"]]):
+                    scores_sorted = np.sort(scores)[::-1]
+                else:
+                    scores_sorted = np.sort(scores)
+                dict_topk = {}
+                for k in self.oracle_k:
+                    mean_topk = np.mean(scores_sorted[:k])
+                    dict_topk.update(
+                            {"oracle_mean_top{}{}".format(k, self.al_iter): mean_topk}
+                    )
+                    if self.comet:
+                        self.comet.log_metrics(dict_topk)
             if not i % 100:
                 if not self.lightweight:
                     empirical_distrib_losses.append(
@@ -846,7 +901,7 @@ class GFlowNetAgent:
             t1_iter = time.time()
             times.update({"iter": t1_iter - t0_iter})
             times = {"time_{}{}".format(k, self.al_iter): v for k, v in times.items()}
-            if self.comet:
+            if self.comet and not self.no_log_times:
                 self.comet.log_metrics(times, step=i)
         # Save final model
         if self.model_path:
@@ -870,6 +925,7 @@ class GFlowNetAgent:
         max_word_len,
         proxy,
         mask_eos=True,
+        get_uncertainties=True,
     ):
         times = {
             "all": 0.0,
@@ -921,7 +977,11 @@ class GFlowNetAgent:
             times["actions_envs"] += t1_a_envs - t0_a_envs
         t0_proxy = time.time()
         batch = np.asarray(batch)
-        proxy_vals, uncertainties = env.proxy(batch, "Both")
+        if get_uncertainties:
+            proxy_vals, uncertainties = env.proxy(batch, "Both")
+        else:
+            proxy_vals = env.proxy(batch)
+            uncertainties = None
         t1_proxy = time.time()
         times["proxy"] += t1_proxy - t0_proxy
         samples = {

@@ -104,6 +104,15 @@ def add_args(parser):
     )
     args2config.update({"toy_oracle_seed": ["seeds", "toy_oracle"]})
     parser.add_argument(
+        "--gflownet_seed",
+        type=int,
+        default=0,
+        help="Seed for GFlowNet random number generator",
+    )
+    args2config.update({"gflownet_seed": ["seeds", "gflownet"]})
+    # Misc
+    args2config.update({"toy_oracle_seed": ["seeds", "toy_oracle"]})
+    parser.add_argument(
         "--machine",
         type=str,
         default="local",
@@ -269,6 +278,8 @@ def add_args(parser):
     args2config.update({"gflownet_device": ["gflownet", "device"]})
     parser.add_argument("--gflownet_model_ckpt", default=None, type=str)
     args2config.update({"gflownet_model_ckpt": ["gflownet", "model_ckpt"]})
+    parser.add_argument("--gflownet_reload_ckpt", action="store_true")
+    args2config.update({"gflownet_reload_ckpt": ["gflownet", "reload_ckpt"]})
     parser.add_argument("--gflownet_ckpt_period", default=None, type=int)
     args2config.update({"gflownet_ckpt_period": ["gflownet", "ckpt_period"]})
     parser.add_argument("--gflownet_progress", action="store_true")
@@ -391,6 +402,8 @@ def add_args(parser):
     args2config.update({"gflownet_comet_project": ["gflownet", "comet", "project"]})
     parser.add_argument("--gflownet_no_comet", action="store_true")
     args2config.update({"gflownet_no_comet": ["gflownet", "comet", "skip"]})
+    parser.add_argument("--no_log_times", action="store_true")
+    args2config.update({"no_log_times": ["gflownet", "no_log_times"]})
     parser.add_argument(
         "--tags_gfn", nargs="*", help="Comet.ml tags", default=[], type=str
     )
@@ -415,6 +428,10 @@ def add_args(parser):
     args2config.update(
         {"gflownet_post_annealing_time": ["gflownet", "post_annealing_time"]}
     )
+    parser.add_argument("--gflownet_test_period", default=500, type=int)
+    args2config.update({"gflownet_test_period": ["gflownet", "test", "period"]})
+    parser.add_argument("--gflownet_pct_test", default=500, type=int)
+    args2config.update({"gflownet_pct_test": ["gflownet", "test", "pct_test"]})
     # Proxy model
     parser.add_argument(
         "--proxy_model_type",
