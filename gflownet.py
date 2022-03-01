@@ -390,7 +390,6 @@ class GFlowNetAgent:
             self.test_period = np.inf
             self.df_test = None
         else:
-            import ipdb; ipdb.set_trace()
             self.test_score = args.gflownet.test.score
             if self.df_data is not None:
                 self.df_test = self.df_data.loc[self.df_data.test]
