@@ -1,25 +1,6 @@
 """
 This code implements an active learning protocol for global minimization of some function
 
-# TODO
-==> incorporate gFlowNet
-    -> training and sampling print statements
-        => sample quality e.g., diversity, span, best scores averages, whatever
-        -> print flag on gflownet convergence - epoch limit OR loss convergence
-    -> iteratively resample gflownet to remove duplicates until desired sample number is reached
-    -> merge gflownet oracles with standard oracle class
-==> RL training and testing
-==> comet for key outputs (reward, toy score)
-
-low priority /long term
-==> consider augment binary distance metric with multi-base motifs - or keep current setup (minimum single mutations)
-==> check that relevant params (ensemble size) are properly overwritten when picking up old jobs
-==> augmentation regularization
-==> maybe print outputs at the end of each iteration as a lovely table
-==> add detection for oracle.initializeDataset for if the requested number of samples is a significant fraction of the total sample space - may be faster to return full space or large fraction of all permutations
-
-known issues
-
 """
 print("Imports...", end="")
 import sys
@@ -125,8 +106,17 @@ def add_args(parser):
     # Dataset
     parser.add_argument(
         "--dataset", type=str, default="linear"
-    )  # 'linear' 'potts' 'nupack energy' 'nupack pairs' 'nupack pins'
+    )  # 'linear' 'potts' 'nupack energy' 'nupack pairs' 'nupack pins' 'nupack open loop' 'nupack motif' #set motif in oracles.py
     args2config.update({"dataset": ["dataset", "oracle"]})
+    add_bool_arg(parser,'nupack_energy_reweighting',default=False)
+    args2config.update({"nupack_energy_reweighting": ["dataset", "nupack_energy_reweighting"]})
+    parser.add_argument(
+        "--nupack_target_motif",
+        type=str,
+        default=".....(((((.......))))).....",
+        help = "if using 'nupack motif' oracle, return value is the binary distance to this fold, must be <= max sequence length"
+    )
+    args2config.update({"nupack_target_motif": ["dataset", "nupack_target_motif"]})
     parser.add_argument(
         "--dataset_type",
         type=str,
@@ -176,10 +166,35 @@ def add_args(parser):
     )
     args2config.update({"sample_method": ["al", "sample_method"]})
     parser.add_argument(
+        "--num_random_samples",
+        type=int,
+        default=10000,
+        help="number of samples for random sampling",
+    )
+    args2config.update({"num_random_samples": ["al", "num_random_samples"]})
+    parser.add_argument(
+        "--annealing_samples",
+        type=int,
+        default=1000,
+        help="number of init configs for post sample annealing",
+    )
+    args2config.update(
+        {"annealing_samples": ["al", "annealing_samples"]}
+    )
+    parser.add_argument(
+        "--annealing_time",
+        type=int,
+        default=1000,
+        help="number MCMC steps for post sample annealing",
+    )
+    args2config.update(
+        {"annealing_time": ["al", "annealing_time"]}
+    )
+    parser.add_argument(
         "--query_mode",
         type=str,
         default="learned",
-        help="'random', 'energy', 'uncertainty', 'heuristic', 'learned' # different modes for query construction",
+        help="'random', 'energy', 'uncertainty', 'heuristic', 'learned', 'fancy acquisition' # different modes for query construction",
     )
     args2config.update({"query_mode": ["al", "query_mode"]})
     parser.add_argument(
@@ -238,6 +253,8 @@ def add_args(parser):
         help="'training'  'evaluation' 'initialize' - only training currently useful",
     )
     args2config.update({"mode": ["al", "mode"]})
+    add_bool_arg(parser,'large_model_evaluation',default=False) # do a large test dataset run to evaluate proxy performance mid-run
+    args2config.update({"large_model_evaluation": ["al", "large_model_evaluation"]})
     parser.add_argument("--q_network_width", type=int, default=10)
     args2config.update({"q_network_width": ["al", "q_network_width"]})
     parser.add_argument(
@@ -430,28 +447,22 @@ def add_args(parser):
     args2config.update({"tags_gfn": ["gflownet", "comet", "tags"]})
     parser.add_argument("--gflownet_annealing", action="store_true")
     args2config.update({"gflownet_annealing": ["gflownet", "annealing"]})
-    parser.add_argument(
-        "--gflownet_annealing_samples",
-        type=int,
-        default=1000,
-        help="number of init configs for post sample annealing",
-    )
-    args2config.update(
-        {"gflownet_annealing_samples": ["gflownet", "post_annealing_samples"]}
-    )
-    parser.add_argument(
-        "--gflownet_post_annealing_time",
-        type=int,
-        default=1000,
-        help="number MCMC steps for post sample annealing",
-    )
-    args2config.update(
-        {"gflownet_post_annealing_time": ["gflownet", "post_annealing_time"]}
-    )
     parser.add_argument("--gflownet_test_period", default=500, type=int)
     args2config.update({"gflownet_test_period": ["gflownet", "test", "period"]})
     parser.add_argument("--gflownet_pct_test", default=500, type=int)
     args2config.update({"gflownet_pct_test": ["gflownet", "test", "pct_test"]})
+    parser.add_argument("--oracle_period", default=500, type=int)
+    args2config.update({"oracle_period": ["gflownet", "oracle", "period"]})
+    parser.add_argument("--oracle_nsamples", default=500, type=int)
+    args2config.update({"oracle_nsamples": ["gflownet", "oracle", "nsamples"]})
+    parser.add_argument(
+        "--oracle_k",
+        default=[1, 10, 100],
+        nargs="*",
+        type=int,
+        help="List of K, for Top-K",
+    )
+    args2config.update({"oracle_k": ["gflownet", "oracle", "k"]})
     # Proxy model
     parser.add_argument(
         "--proxy_model_type",
@@ -527,6 +538,7 @@ def process_config(config):
     config.seeds.dataset = config.seeds.dataset % 10
     config.seeds.toy_oracle = config.seeds.toy_oracle % 10
     config.seeds.sampler = config.seeds.sampler % 10
+    config.seeds.gflownet = config.seeds.gflownet % 10
     # Evaluation mode
     if config.al.mode == "evaluation":
         config.al.pipeline_iterations = 1
@@ -549,6 +561,8 @@ def process_config(config):
         ]
         config.dataset.dict_size = 4
     # GFlowNet
+    config.gflownet.post_annealing_samples = config.al.annealing_samples
+    config.gflownet.post_annealing_time = config.al.annealing_time
     config.gflownet.max_seq_length = config.dataset.max_length
     config.gflownet.min_seq_length = config.dataset.min_length
     config.gflownet.nalphabet = config.dataset.dict_size
