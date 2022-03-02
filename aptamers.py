@@ -5,7 +5,7 @@ import itertools
 
 import numpy as np
 
-#from oracles import PottsEnergy, linearToy, nupackScore, seqfoldScore, toyHamiltonian
+# from oracles import PottsEnergy, linearToy, nupackScore, seqfoldScore, toyHamiltonian
 
 
 class AptamerSeq:
@@ -43,18 +43,18 @@ class AptamerSeq:
     """
 
     def __init__(
-            self,
-            max_seq_length=42,
-            min_seq_length=1,
-            nalphabet=4,
-            min_word_len=1,
-            max_word_len=1,
-            proxy=None,
-            allow_backward=False,
-            debug=False,
-            reward_beta=1,
-            env_id=None,
-            oracleFunc=None,
+        self,
+        max_seq_length=42,
+        min_seq_length=1,
+        nalphabet=4,
+        min_word_len=1,
+        max_word_len=1,
+        proxy=None,
+        allow_backward=False,
+        debug=False,
+        reward_beta=1,
+        env_id=None,
+        oracleFunc=None,
     ):
         self.max_seq_length = max_seq_length
         self.min_seq_length = min_seq_length
@@ -66,7 +66,7 @@ class AptamerSeq:
         self.id = env_id
         self.n_actions = 0
         self.oracle = oracleFunc
-        '''    
+        """    
             {
             "default": None,
             "arbitrary_i": self.reward_arbitrary_i,
@@ -78,7 +78,7 @@ class AptamerSeq:
             "nupack pairs": lambda x: nupackScore(x, returnFunc="pairs"),
             "nupack pins": lambda x: nupackScore(x, returnFunc="hairpins"),
         }[self.func]
-        '''
+        """
         if proxy:
             self.proxy = proxy
         else:
