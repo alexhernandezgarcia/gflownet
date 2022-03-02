@@ -2,11 +2,7 @@
 Classes to represent aptamers environments
 """
 import itertools
-
 import numpy as np
-
-# from oracles import PottsEnergy, linearToy, nupackScore, seqfoldScore, toyHamiltonian
-
 
 class AptamerSeq:
     """
