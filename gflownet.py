@@ -71,7 +71,7 @@ def add_args(parser):
     )
     args2config.update({"rng_seed": ["seeds", "gflownet"]})
     # dataset
-    add_bool_arg(parser, "nupack_energy_reweighting", default=False)
+    parser = add_bool_arg(parser, "nupack_energy_reweighting", default=False)
     args2config.update(
         {"nupack_energy_reweighting": ["dataset", "nupack_energy_reweighting"]}
     )
