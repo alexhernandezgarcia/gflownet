@@ -41,7 +41,7 @@ def add_args(parser):
     parser.add_argument(
         "-y",
         "--yaml_config",
-        default='config/mk_test_defaults_gfn_only.yml',
+        default="config/mk_test_defaults_gfn_only.yml",
         type=str,
         help="YAML configuration file",
     )
@@ -71,13 +71,15 @@ def add_args(parser):
     )
     args2config.update({"rng_seed": ["seeds", "gflownet"]})
     # dataset
-    add_bool_arg(parser,'nupack_energy_reweighting',default=False)
-    args2config.update({"nupack_energy_reweighting": ["dataset", "nupack_energy_reweighting"]})
+    add_bool_arg(parser, "nupack_energy_reweighting", default=False)
+    args2config.update(
+        {"nupack_energy_reweighting": ["dataset", "nupack_energy_reweighting"]}
+    )
     parser.add_argument(
         "--nupack_target_motif",
         type=str,
         default=".....(((((.......))))).....",
-        help = "if using 'nupack motif' oracle, return value is the binary distance to this fold, must be <= max sequence length"
+        help="if using 'nupack motif' oracle, return value is the binary distance to this fold, must be <= max sequence length",
     )
     args2config.update({"nupack_target_motif": ["dataset", "nupack_target_motif"]})
     # Training hyperparameters
@@ -338,7 +340,7 @@ class GFlowNetAgent:
                 allow_backward=False,
                 debug=self.debug,
                 reward_beta=self.reward_beta,
-                oracle_func = self.oracle.score,
+                oracle_func=self.oracle.score,
             )
             for _ in range(args.gflownet.mbsize)
         ]
@@ -422,9 +424,10 @@ class GFlowNetAgent:
                     ntest=args.gflownet.test.n,
                     min_length=args.gflownet.test.min_length,
                     max_length=args.gflownet.max_seq_length,
-                    seed=args.gflownet.test.seed,)
-                    #output_csv=args.gflownet.test.output,
-                #)
+                    seed=args.gflownet.test.seed,
+                )
+                # output_csv=args.gflownet.test.output,
+                # )
         if self.df_test is not None:
             print("\nTest data")
             print(f"\tAverage score: {self.df_test[self.test_score].mean()}")
@@ -846,7 +849,7 @@ class GFlowNetAgent:
                 for k in self.oracle_k:
                     mean_topk = np.mean(scores_sorted[:k])
                     dict_topk.update(
-                            {"oracle_mean_top{}{}".format(k, self.al_iter): mean_topk}
+                        {"oracle_mean_top{}{}".format(k, self.al_iter): mean_topk}
                     )
                     if self.comet:
                         self.comet.log_metrics(dict_topk)
@@ -997,8 +1000,10 @@ class GFlowNetAgent:
         batch = np.asarray(batch)
 
         if get_uncertainties:
-            if self.query_function == 'fancy_acquisition':
-                scores, proxy_vals, uncertainties = env.proxy(batch, "fancy_acquisition")
+            if self.query_function == "fancy_acquisition":
+                scores, proxy_vals, uncertainties = env.proxy(
+                    batch, "fancy_acquisition"
+                )
             else:
                 proxy_vals, uncertainties = env.proxy(batch, "Both")
                 scores = proxy_vals
@@ -1374,9 +1379,8 @@ def main(args):
         args.gflownet.max_word_len,
         gflownet_agent.env.oracle,
         mask_eos=True,
-        get_uncertainties=False
+        get_uncertainties=False,
     )
-
 
 
 if __name__ == "__main__":
