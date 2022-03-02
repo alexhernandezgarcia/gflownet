@@ -50,7 +50,7 @@ class AptamerSeq:
         debug=False,
         reward_beta=1,
         env_id=None,
-        oracleFunc=None,
+        oracle_func=None,
     ):
         self.max_seq_length = max_seq_length
         self.min_seq_length = min_seq_length
@@ -61,7 +61,7 @@ class AptamerSeq:
         self.done = False
         self.id = env_id
         self.n_actions = 0
-        self.oracle = oracleFunc
+        self.oracle = oracle_func
         """    
             {
             "default": None,
