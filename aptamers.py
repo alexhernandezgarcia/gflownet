@@ -62,19 +62,6 @@ class AptamerSeq:
         self.id = env_id
         self.n_actions = 0
         self.oracle = oracle_func
-        """    
-            {
-            "default": None,
-            "arbitrary_i": self.reward_arbitrary_i,
-            "linear": linearToy,
-            "innerprod": toyHamiltonian,
-            "potts": PottsEnergy,
-            "seqfold": seqfoldScore,
-            "nupack energy": lambda x: nupackScore(x, returnFunc="energy"),
-            "nupack pairs": lambda x: nupackScore(x, returnFunc="pairs"),
-            "nupack pins": lambda x: nupackScore(x, returnFunc="hairpins"),
-        }[self.func]
-        """
         if proxy:
             self.proxy = proxy
         else:
