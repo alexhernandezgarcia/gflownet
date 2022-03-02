@@ -325,7 +325,7 @@ class GFlowNetAgent:
             allow_backward=False,
             debug=self.debug,
             reward_beta=self.reward_beta,
-            oracleFunc=self.oracle.score,
+            oracle_func=self.oracle.score,
         )
         self.envs = [
             AptamerSeq(
@@ -338,7 +338,7 @@ class GFlowNetAgent:
                 allow_backward=False,
                 debug=self.debug,
                 reward_beta=self.reward_beta,
-                oracleFunc = self.oracle.score,
+                oracle_func = self.oracle.score,
             )
             for _ in range(args.gflownet.mbsize)
         ]
