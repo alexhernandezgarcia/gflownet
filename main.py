@@ -249,8 +249,8 @@ def add_args(parser):
     parser.add_argument(
         "--mode",
         type=str,
-        default="training",
-        help="'training'  'evaluation' 'initialize' - only training currently useful",
+        default="active learning",
+        help="'active learning'  'sampling only' ",
     )
     args2config.update({"mode": ["al", "mode"]})
     parser = add_bool_arg(parser,'large_model_evaluation',default=False) # do a large test dataset run to evaluate proxy performance mid-run
@@ -599,13 +599,12 @@ if __name__ == "__main__":
     al = activeLearner.ActiveLearning(config)
     if config.al.mode == "initalize":
         printRecord("Initialized!")
-    elif config.al.mode == "training":
+    elif config.al.mode == "active learning":
         al.runPipeline()
     elif config.al.mode == "deploy":
         al.runPipeline()
+    elif config.al.mode == 'sampling only':
+        sampleDict = al.runPureSampler()
     elif config.al.mode == "test_rl":
         al.agent.train_from_file()
-    elif config.al.mode == "evaluation":
-        ValueError(
-            "No function for this! Write a function to load torch models and evaluate inputs."
-        )
+

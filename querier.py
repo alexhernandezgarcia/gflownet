@@ -204,13 +204,13 @@ class Querier():
         return outputs
 
 
-    def doAnnealing(self, scoreFunction, model, outputs):
+    def doAnnealing(self, scoreFunction, model, outputs, useOracle=False):
         t0 = time.time()
         initConfigs = outputs['samples'][np.argsort(outputs['scores'])]
         initConfigs = initConfigs[0:self.config.al.annealing_samples]
 
         annealer = Sampler(self.config, 1, scoreFunction, gammas=np.arange(len(initConfigs)))  # the gamma is a dummy, and will not be used (this is not STUN MC)
-        annealedOutputs = annealer.postSampleAnnealing(initConfigs, model, seed = self.config.seeds.sampler)
+        annealedOutputs = annealer.postSampleAnnealing(initConfigs, model, useOracle=useOracle, seed = self.config.seeds.sampler)
 
         filteredOutputs = filterOutputs(outputs, additionalEntries = annealedOutputs)
 
