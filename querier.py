@@ -163,7 +163,7 @@ class Querier():
             samples = generateRandomSamples(self.config.al.num_random_samples, [self.config.dataset.min_length,self.config.dataset.max_length], self.config.dataset.dict_size,
                                             variableLength = self.config.dataset.variable_length,
                                             oldDatasetPath = 'datasets/' + self.config.dataset.oracle + '.npy',
-                                            seed = self.config.seeds.sampler)
+                                            seed = self.config.seeds.sampler + al_iter)
             if self.config.al.query_mode == 'fancy_acquisition':
                 scores, energies, std_dev = model.evaluate(samples,output="fancy_acquisition")
             else:
@@ -175,7 +175,7 @@ class Querier():
                 'uncertainties': std_dev,
                 'scores':scores
             }
-            outputs = self.doAnnealing(scoreFunction, model, outputs)
+            outputs = self.doAnnealing(scoreFunction, model, outputs, seed = al_iter)
             printRecord('Random sampling and annealing took {} seconds'.format(int(time.time()-t0)))
 
         elif method.lower() == "gflownet":
@@ -196,7 +196,7 @@ class Querier():
             outputs = filterOutputs(outputs)
 
             if self.config.gflownet.annealing:
-                outputs = self.doAnnealing(scoreFunction, model, outputs)
+                outputs = self.doAnnealing(scoreFunction, model, outputs, seed=al_iter)
 
         else:
             raise NotImplemented("method can be either mcmc or gflownet or random")
@@ -204,13 +204,13 @@ class Querier():
         return outputs
 
 
-    def doAnnealing(self, scoreFunction, model, outputs, useOracle=False):
+    def doAnnealing(self, scoreFunction, model, outputs, seed = 0, useOracle=False):
         t0 = time.time()
         initConfigs = outputs['samples'][np.argsort(outputs['scores'])]
         initConfigs = initConfigs[0:self.config.al.annealing_samples]
 
         annealer = Sampler(self.config, 1, scoreFunction, gammas=np.arange(len(initConfigs)))  # the gamma is a dummy, and will not be used (this is not STUN MC)
-        annealedOutputs = annealer.postSampleAnnealing(initConfigs, model, useOracle=useOracle, seed = self.config.seeds.sampler)
+        annealedOutputs = annealer.postSampleAnnealing(initConfigs, model, useOracle=useOracle, seed = self.config.seeds.sampler + seed)
 
         filteredOutputs = filterOutputs(outputs, additionalEntries = annealedOutputs)
 
