@@ -496,6 +496,8 @@ def add_args(parser):
     args2config.update({"proxy_training_batch_size": ["proxy", "mbsize"]})
     parser.add_argument("--proxy_max_epochs", type=int, default=200)
     args2config.update({"proxy_max_epochs": ["proxy", "max_epochs"]})
+    parser.add_argument("--proxy_history", type=int, default=20)
+    args2config.update({"proxy_history": ["proxy", "history"]})
     parser.add_argument(
         "--proxy_no_shuffle_dataset",
         dest="proxy_shuffle_dataset",

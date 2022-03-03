@@ -371,7 +371,7 @@ def filterDuplicateSamples(samples, oldDatasetPath=None, returnInds=False):
 
 
 def generateRandomSamples(
-    nSamples, sampleLengthRange, dictSize, oldDatasetPath=None, variableLength=True
+    nSamples, sampleLengthRange, dictSize, oldDatasetPath=None, variableLength=True, seed=0
 ):
     """
     randomly generate a non-repeating set of samples of the appropriate size and composition
@@ -381,7 +381,7 @@ def generateRandomSamples(
     :param variableLength:
     :return:
     """
-
+    np.random.seed(seed)
     if variableLength:
         samples = []
         while len(samples) < nSamples:

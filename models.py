@@ -30,7 +30,7 @@ class modelNet():
     def __init__(self, config, ensembleIndex):
         self.config = config
         self.ensembleIndex = ensembleIndex
-        self.config.history = min(20, self.config.proxy.max_epochs) # length of past to check
+        self.config.history = min(self.config.proxy.history, self.config.proxy.max_epochs) # length of past to check
         torch.random.manual_seed(int(config.seeds.model + ensembleIndex))
         self.initModel()
 
@@ -726,7 +726,7 @@ class MLP(nn.Module):
 
         self.output_layers = []
         for i in range(self.tasks):
-            self.output_layers.append(nn.Linear(self.filters, 1))
+            self.output_layers.append(nn.Linear(self.filters, 1, bias=False))
         self.output_layers = nn.ModuleList(self.output_layers)
 
         # build hidden layers

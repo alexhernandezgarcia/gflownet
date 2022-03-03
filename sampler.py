@@ -201,7 +201,7 @@ class Sampler:
         printRecord("{} samples were recorded on this run".format(len(np.concatenate(self.all_samples))))
 
 
-    def postSampleAnnealing(self, initConfigs, model, useOracle=False):
+    def postSampleAnnealing(self, initConfigs, model, useOracle=False, seed = 0):
         '''
         run a sampling run with the following characteristics
         - low temperature so that we quickly crash to global minimum
@@ -209,6 +209,7 @@ class Sampler:
         - instead of many parallel stun functions, many parallel initial configurations
         - return final configurations for each run as 'annealed samples'
         '''
+        np.random.seed(seed)
         self.config_main.STUN = 0
         self.nruns = len(initConfigs)
         self.temp0 = 0.01 # initial temperature for sampling runs - start low and shrink

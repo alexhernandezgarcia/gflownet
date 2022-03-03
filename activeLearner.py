@@ -171,14 +171,14 @@ class ActiveLearning():
             printRecord('Query generation took {} seconds'.format(int(time.time()-t0)))
 
             t0 = time.time()
-            scores = self.oracle.score(query) # score Samples
+            energies = self.oracle.score(query) # score Samples
             printRecord('Oracle scoring took {} seconds'.format(int(time.time()-t0)))
-            printRecord('Oracle scored' + bcolors.OKBLUE + ' {} '.format(len(scores)) + bcolors.ENDC + 'queries with average score of' + bcolors.OKGREEN + ' {:.3f}'.format(np.average(scores)) + bcolors.ENDC + ' and minimum score of {:.3f}'.format(np.amin(scores)))
+            printRecord('Oracle scored' + bcolors.OKBLUE + ' {} '.format(len(energies)) + bcolors.ENDC + 'queries with average score of' + bcolors.OKGREEN + ' {:.3f}'.format(np.average(energies)) + bcolors.ENDC + ' and minimum score of {:.3f}'.format(np.amin(energies)))
 
-            self.updateDataset(query, scores) # add scored Samples to dataset
+            self.updateDataset(query, energies) # add scored Samples to dataset
 
             if self.comet: # report query scores to comet
-                self.comet.log_histogram_3d(scores,name='query scores',step=self.pipeIter)
+                self.comet.log_histogram_3d(energies,name='query energies',step=self.pipeIter)
 
 
         # CODE FOR LEARNED POLICY
@@ -207,6 +207,9 @@ class ActiveLearning():
         else: # use a cheap sampler for mid-run model state calculations
             sampleDict = self.querier.runSampling(self.model, scoreFunction = [1, 0], al_iter = self.pipeIter,  method_overwrite = 'random') # sample existing optima cheaply with random + annealing
 
+        sampleDict = filterOutputs(sampleDict)
+
+        # we used to do clustering here, now strictly argsort direct from the sampler
         sort_inds = np.argsort(sampleDict['energies']) # sort by energy
         samples = sampleDict['samples'][sort_inds][:self.config.querier.model_state_size] # top-k samples from model state run
         energies = sampleDict['energies'][sort_inds][:self.config.querier.model_state_size]
@@ -220,8 +223,8 @@ class ActiveLearning():
             'test loss': np.average(self.testMinima), # losses are evaluated on standardized data, so we do not need to re-standardize here
             'test std': np.sqrt(np.var(self.testMinima)),
             'all test losses': self.testMinima,
-            'best energies': (energies - self.model.mean) / self.model.std, # standardize according to dataset statistics
-            'best uncertanties': uncertainties / self.model.std,
+            'best energies': energies, # these are already standardized #(energies - self.model.mean) / self.model.std, # standardize according to dataset statistics
+            'best uncertanties': uncertainties, # these are already standardized #uncertainties / self.model.std,
             'best samples': samples,
             'best samples internal diff': internalDist,
             'best samples dataset diff': datasetDist,
@@ -403,8 +406,8 @@ class ActiveLearning():
             modelStd.extend(std_dev)
 
         bestTenInd = numSamples // 10
-        totalLoss = F.smooth_l1_loss((torch.Tensor(modelScores).float() - self.model.mean) / self.model.std, (torch.Tensor(randomScores).float() - self.model.mean) / self.model.std) # full dataset loss (standardized basis)
-        bottomTenLoss = F.smooth_l1_loss((torch.Tensor(modelScores[:bestTenInd]).float() - self.model.mean) / self.model.std, (torch.Tensor(randomScores[:bestTenInd]).float() - self.model.mean) / self.model.std) # bottom 10% loss (standardized basis)
+        totalLoss = F.mse_loss((torch.Tensor(modelScores).float() - self.model.mean) / self.model.std, (torch.Tensor(randomScores).float() - self.model.mean) / self.model.std) # full dataset loss (standardized basis)
+        bottomTenLoss = F.mse_loss((torch.Tensor(modelScores[:bestTenInd]).float() - self.model.mean) / self.model.std, (torch.Tensor(randomScores[:bestTenInd]).float() - self.model.mean) / self.model.std) # bottom 10% loss (standardized basis)
 
         if self.pipeIter == 0: # if it's the first round, initialize, else, append
             self.totalLoss = [totalLoss]
