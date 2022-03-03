@@ -108,7 +108,7 @@ def add_args(parser):
         "--dataset", type=str, default="linear"
     )  # 'linear' 'potts' 'nupack energy' 'nupack pairs' 'nupack pins' 'nupack open loop' 'nupack motif' #set motif in oracles.py
     args2config.update({"dataset": ["dataset", "oracle"]})
-    add_bool_arg(parser,'nupack_energy_reweighting',default=False)
+    parser = add_bool_arg(parser,'nupack_energy_reweighting',default=False)
     args2config.update({"nupack_energy_reweighting": ["dataset", "nupack_energy_reweighting"]})
     parser.add_argument(
         "--nupack_target_motif",
@@ -253,7 +253,7 @@ def add_args(parser):
         help="'training'  'evaluation' 'initialize' - only training currently useful",
     )
     args2config.update({"mode": ["al", "mode"]})
-    add_bool_arg(parser,'large_model_evaluation',default=False) # do a large test dataset run to evaluate proxy performance mid-run
+    parser = add_bool_arg(parser,'large_model_evaluation',default=False) # do a large test dataset run to evaluate proxy performance mid-run
     args2config.update({"large_model_evaluation": ["al", "large_model_evaluation"]})
     parser.add_argument("--q_network_width", type=int, default=10)
     args2config.update({"q_network_width": ["al", "q_network_width"]})
