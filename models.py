@@ -241,15 +241,15 @@ class modelNet():
         if self.config.proxy.uncertainty_estimation == "ensemble":
             self.model.train(False)
             with torch.no_grad():  # we won't need gradients! no training just testing
-                outputs = self.model(Data)
-                mean = torch.mean(outputs,dim=1).cpu().detach().numpy()
-                std = torch.std(outputs,dim=1).cpu().detach().numpy()
+                outputs = self.model(Data).cpu().detach().numpy()
+                mean = torch.mean(outputs,dim=1)
+                std = torch.std(outputs,dim=1)
         elif self.config.proxy.uncertainty_estimation == "dropout":
             self.model.train(True) # need this to be true to activate dropout
             with torch.no_grad():
-                outputs = torch.hstack([self.model(Data) for _ in range(self.config.proxy.dropout_samples)])
-            mean = torch.mean(outputs, dim=1).cpu().detach().numpy()
-            std = torch.std(outputs, dim=1).cpu().detach().numpy()
+                outputs = torch.hstack([self.model(Data) for _ in range(self.config.proxy.dropout_samples)]).cpu().detach().numpy()
+            mean = torch.mean(outputs, dim=1)
+            std = torch.std(outputs, dim=1)
         else:
             print("No uncertainty estimator called {}".format(self.config.proxy.uncertainty_estimation))
             sys.exit()

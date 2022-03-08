@@ -471,6 +471,7 @@ class ActiveLearning():
 
     def runPureSampler(self):
         self.model = None
+        self.pipeIter = 0
         if self.config.al.sample_method == 'mcmc':
             gammas = np.logspace(self.config.mcmc.stun_min_gamma, self.config.mcmc.stun_max_gamma, self.config.mcmc.num_samplers)
             mcmcSampler = Sampler(self.config, self.config.seeds.sampler, [1,0], gammas)
@@ -488,7 +489,6 @@ class ActiveLearning():
                 'uncertainties': np.zeros(len(samples))
             }
             sampleDict = self.querier.doAnnealing([1,0], model, outputs, useOracle=True)
-
         elif self.config.al.sample_method == 'gflownet':
             gflownet = GFlowNetAgent(self.config, comet = self.comet, proxy=None, al_iter=0, data_path=None)
 
@@ -509,13 +509,47 @@ class ActiveLearning():
             if self.config.gflownet.annealing:
                 sampleDict = self.querier.doAnnealing([1, 0], model, sampleDict, useOracle=True)
 
+
+        self.logTopK(sampleDict, prefix = "Pure sampling")
+
+        # run clustering as a form of diversity analysis
+        # more clusters means more diverse
+        # this way won't penalize one (e.g., MCMC) for badly oversampling one area
+        # only penalize it for not sampling *enough distinct areas*
+        clusters, clusterScores, clusterVars = doAgglomerativeClustering(
+            sampleDict['samples'], sampleDict['scores'],
+            sampleDict['uncertainties'], self.config.dataset.dict_size,
+            cutoff=self.config.al.minima_dist_cutoff)
+
+        clusterDict = {
+            'energies': np.asarray([np.amin(cluster_scores) for cluster_scores in clusterScores]),
+            'samples': np.asarray([cluster[0] for cluster in clusters]) # this one doesn't matter
+        }
+
+        self.logTopK(clusterDict, prefix = "Pure sampling - clusters")
+
+        # identify the clusters within XX% of the known global minimum
+        global_minimum = min(np.amin(sampleDict['energies']), self.getTrueMinimum(sampleDict))
+        found_minimum = np.amin(sampleDict['energies'])
+        bottom_ranges = [10, 25, 50] # percent difference from known minimum
+        for bottom_range in bottom_ranges:
+
+            global_minimum_cutoff = global_minimum - bottom_range * global_minimum / 100
+            found_minimum_cutoff = found_minimum - bottom_range * found_minimum / 100
+
+            n_low_clusters1 = np.sum(clusterDict['energies'] < global_minimum_cutoff)
+            n_low_clusters2 = np.sum(clusterDict['energies'] < found_minimum_cutoff)
+            if self.comet:
+                self.comet.log_metric("Number of clusters {} % from known minimum with {} cutoff".format(bottom_range, self.config.al.minima_dist_cutoff),
+                                      n_low_clusters1)
+                self.comet.log_metric("Number of clusters {} % from found minimum with {} cutoff".format(bottom_range, self.config.al.minima_dist_cutoff),
+                                      n_low_clusters2)
+
         if self.comet:
             self.comet.log_histogram_3d(sampleDict['energies'], name="pure sampling energies", step=0)
             self.comet.log_metric("Best energy", np.amin(sampleDict['energies']))
             self.comet.log_metric("Best sample", numbers2letters(sampleDict['samples'][np.argmin(sampleDict["energies"])]))
-            # TODO add some meaningful distance metric to sample outputs
 
-        self.logTopK(sampleDict, prefix = "Pure sampling")
 
         return sampleDict
 
@@ -535,12 +569,27 @@ class ActiveLearning():
         else:
             sampleDict = mcmcSampler.sample(self.model, useOracle=True) # do a genuine search
 
+        bestMin = self.getTrueMinimum(sampleDict)
+
+
+        printRecord(f"Sampling Complete! Lowest Energy Found = {bcolors.FAIL}%.3f{bcolors.ENDC}" % bestMin + " from %d" % self.config.mcmc.num_samplers + " sampling runs.")
+        printRecord("Best sample found is {}".format(numbers2letters(sampleDict['samples'][np.argmin(sampleDict['energies'])])))
+
+        self.oracleRecord = sampleDict
+        self.trueMinimum = bestMin
+
+        if self.comet:
+            self.comet.log_histogram_3d(sampleDict['energies'], name="energies_true",step=0)
+
+
+    def getTrueMinimum(self, sampleDict):
+
         if self.config.dataset.oracle == 'wmodel': # w model minimum is always zero - even if we don't find it
             bestMin = 0
         else:
             bestMin = np.amin(sampleDict['energies'])
 
-        if 'nupack' in self.config.dataset.oracle: # compute minimum energy for this length - for reweighting purposed
+        if 'nupack' in self.config.dataset.oracle: # compute minimum energy for this length - for reweighting purposes
             goodSamples = np.ones((4, self.config.dataset.max_length)) * 4 # GCGC CGCG GGGCCC CCCGGG
             goodSamples[0,0:-1:2] = 3
             goodSamples[1,1:-1:2] = 3
@@ -591,19 +640,7 @@ class ActiveLearning():
         elif self.config.dataset.oracle == 'nupack motif':
             bestMin = -1 # 100% agreement is the best possible
 
-
-        # the best minimum with reweighting is scaled by the minimum energy - this will not actually be achievable !! but will give a reasonable scaling
-        #if ('nupack' in self.config.dataset.oracle) and (self.config.dataset.nupack_energy_reweighting):
-        #    bestMin = bestMin * np.abs(np.amin(min_nupack_ens))
-
-        printRecord(f"Sampling Complete! Lowest Energy Found = {bcolors.FAIL}%.3f{bcolors.ENDC}" % bestMin + " from %d" % self.config.mcmc.num_samplers + " sampling runs.")
-        printRecord("Best sample found is {}".format(numbers2letters(sampleDict['samples'][np.argmin(sampleDict['energies'])])))
-
-        self.oracleRecord = sampleDict
-        self.trueMinimum = bestMin
-
-        if self.comet:
-            self.comet.log_histogram_3d(sampleDict['energies'], name="energies_true",step=0)
+        return bestMin
 
 
     def saveOutputs(self):
