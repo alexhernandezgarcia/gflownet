@@ -39,7 +39,9 @@ class Querier():
             '''
             generate query randomly
             '''
-            query = generateRandomSamples(nQueries, [self.config.dataset.min_length,self.config.dataset.max_length], self.config.dataset.dict_size, variableLength = self.config.dataset.variable_length, oldDatasetPath = 'datasets/' + self.config.dataset.oracle + '.npy')
+            query = generateRandomSamples(nQueries, [self.config.dataset.min_length,self.config.dataset.max_length],
+                                          self.config.dataset.dict_size, variableLength = self.config.dataset.variable_length,
+                                          oldDatasetPath = 'datasets/' + self.config.dataset.oracle + '.npy')
 
         else:
 
@@ -81,6 +83,15 @@ class Querier():
 
     def constructQuery(self, samples, scores, uncertainties, nQueries):
         # create batch from candidates
+
+        # for memory purposes, we have to cap the total number of samples considered
+        maxLen = 10000
+        if len(samples) > maxLen:
+            bestInds = np.argsort(scores)[:maxLen]
+            scores = scores[bestInds]
+            samples = samples[bestInds]
+            uncertainties = uncertainties[bestInds]
+
         if self.config.al.query_selection == 'clustering':
             # agglomerative clustering
             clusters, clusterScores, clusterVars = doAgglomerativeClustering(samples, scores, uncertainties, self.config.dataset.dict_size, cutoff=normalizeDistCutoff(self.config.al.minima_dist_cutoff))

@@ -470,6 +470,7 @@ class ActiveLearning():
 
 
     def runPureSampler(self):
+        ti = time.time()
         self.model = None
         self.pipeIter = 0
         if self.config.al.sample_method == 'mcmc':
@@ -510,6 +511,14 @@ class ActiveLearning():
                 sampleDict = self.querier.doAnnealing([1, 0], model, sampleDict, useOracle=True)
 
 
+        sampleDict = filterOutputs(sampleDict) # remove duplicates
+        # take only the top XX samples, for memory purposes
+        maxLen = 10000
+        if len(sampleDict['samples']) > maxLen:
+            bestInds = np.argsort(sampleDict['energies'])[:maxLen]
+            for key in sampleDict.keys():
+                sampleDict[key] = sampleDict[key][bestInds]
+
         self.logTopK(sampleDict, prefix = "Pure sampling")
 
         # run clustering as a form of diversity analysis
@@ -526,12 +535,14 @@ class ActiveLearning():
             'samples': np.asarray([cluster[0] for cluster in clusters]) # this one doesn't matter
         }
 
-        self.logTopK(clusterDict, prefix = "Pure sampling - clusters")
+        top_cluster_energies = self.logTopK(clusterDict, prefix = "Pure sampling - clusters", returnScores=True)
 
         # identify the clusters within XX% of the known global minimum
         global_minimum = min(np.amin(sampleDict['energies']), self.getTrueMinimum(sampleDict))
         found_minimum = np.amin(sampleDict['energies'])
         bottom_ranges = [10, 25, 50] # percent difference from known minimum
+        abs_cluster_numbers = []
+        rel_cluster_numbers = []
         for bottom_range in bottom_ranges:
 
             global_minimum_cutoff = global_minimum - bottom_range * global_minimum / 100
@@ -539,6 +550,8 @@ class ActiveLearning():
 
             n_low_clusters1 = np.sum(clusterDict['energies'] < global_minimum_cutoff)
             n_low_clusters2 = np.sum(clusterDict['energies'] < found_minimum_cutoff)
+            abs_cluster_numbers.append(n_low_clusters1)
+            rel_cluster_numbers.append(n_low_clusters2)
             if self.comet:
                 self.comet.log_metric("Number of clusters {} % from known minimum with {} cutoff".format(bottom_range, self.config.al.minima_dist_cutoff),
                                       n_low_clusters1)
@@ -548,8 +561,17 @@ class ActiveLearning():
         if self.comet:
             self.comet.log_histogram_3d(sampleDict['energies'], name="pure sampling energies", step=0)
             self.comet.log_metric("Best energy", np.amin(sampleDict['energies']))
+            self.comet.log_metric("Proposed true minimum", self.trueMinimum)
             self.comet.log_metric("Best sample", numbers2letters(sampleDict['samples'][np.argmin(sampleDict["energies"])]))
 
+
+        print("Key metrics:")
+        print("Best found sample was {}".format(numbers2letters(sampleDict['samples'][np.argmin(sampleDict['energies'])])))
+        print("Top K Cluster Energies {:.3f} {:.3f} {:.3f}".format(top_cluster_energies[0], top_cluster_energies[1], top_cluster_energies[2]))
+        print("Top K Absolute # Clusters {} {} {}".format(abs_cluster_numbers[0], abs_cluster_numbers[1], abs_cluster_numbers[2]))
+        print("Top K Relative # Clusters {} {} {}".format(rel_cluster_numbers[0], rel_cluster_numbers[1], rel_cluster_numbers[2]))
+        print("Proposed True Global Minimum is {}".format(global_minimum))
+        print("Pure sampling took a total of {} seconds".format(int(time.time()-ti)))
 
         return sampleDict
 
@@ -632,7 +654,7 @@ class ActiveLearning():
                 printRecord("Pre-run guess was better than one found by sampler")
 
         elif self.config.dataset.oracle == "nupack open loop":
-            biggest_loop = self.config.dataset.max_length // 2 - 8 # a conservative estimate - 8 bases for the stem (10 would be more conservative) and the rest are open
+            biggest_loop = self.config.dataset.max_length - 8 # a conservative estimate - 8 bases for the stem (10 would be more conservative) and the rest are open
             if biggest_loop < bestMin:
                 bestMin = biggest_loop
                 printRecord("Pre-run guess was better than one found by sampler")
@@ -698,18 +720,22 @@ class ActiveLearning():
             self.comet.log_table(filename = 'dataset_at_iter_{}.csv'.format(self.pipeIter), tabular_data=pd.DataFrame.from_dict(dataset2))
 
 
-    def logTopK(self, dataset, prefix):
+    def logTopK(self, dataset, prefix, returnScores = False):
         if self.comet:
             self.comet.log_histogram_3d(dataset['energies'], name=prefix + ' energies', step=self.pipeIter)
             idx_sorted = np.argsort(dataset["energies"])
+            top_scores = []
             for k in [1, 10, 100]:
                 topk_scores = dataset["energies"][idx_sorted[:k]]
                 topk_samples = dataset["samples"][idx_sorted[:k]]
+                top_scores.append(np.average(topk_scores))
                 dist = binaryDistance(topk_samples, pairwise=False, extractInds=len(topk_samples))
                 self.comet.log_metric(prefix + f" mean top-{k} energies", np.mean(topk_scores), step=self.pipeIter)
                 self.comet.log_metric(prefix + f" std top-{k} energies", np.std(topk_scores), step=self.pipeIter)
                 self.comet.log_metric(prefix + f" mean dist top-{k}", np.mean(dist), step=self.pipeIter)
 
+            if returnScores:
+                return np.asarray(top_scores)
 
     def getScalingFactor(self):
         '''

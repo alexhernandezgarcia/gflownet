@@ -1,9 +1,9 @@
 # General
 test_mode: False
 debug: False
-run_num: 1501
-explicit_run_enumeration: True
-machine: cluster
+run_num: 0
+explicit_run_enumeration: False
+machine: local
 device: cpu
 workdir: null
 # Seeds
@@ -17,7 +17,7 @@ seeds:
 dataset:
   oracle: nupack energy
   nupack_energy_reweighting: False
-  nupack_target_motif: .....(((((.......))))).....
+  nupack_target_motif: .....(((((.......))))).....(((......(((((....)))))..)))
   type: toy
   init_length: 100
   dict_size: 4

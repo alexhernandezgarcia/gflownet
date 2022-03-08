@@ -1,9 +1,9 @@
 # General
 test_mode: False
 debug: False
-run_num: 1502
-explicit_run_enumeration: True
-machine: cluster
+run_num: 0
+explicit_run_enumeration: False
+machine: local
 device: cpu
 workdir: null
 # Seeds
@@ -17,7 +17,7 @@ seeds:
 dataset:
   oracle: nupack energy
   nupack_energy_reweighting: False
-  nupack_target_motif: .....(((((.......))))).....
+  nupack_target_motif: .....(((((.......))))).....(((......(((((....)))))..)))
   type: toy
   init_length: 100
   dict_size: 4
@@ -29,7 +29,7 @@ al:
   mode: sampling only # sampling only or active learning
   sample_method: random
   num_random_samples: 10000
-  annealing_samples: 1000
+  annealing_samples: 200
   annealing_time: 100
   query_mode: energy # must be 'fancy_acquisition' for our new acquisition functions "EI" and "UCB"
   acquisition_function : null # only for 'fancy_acquisition'
