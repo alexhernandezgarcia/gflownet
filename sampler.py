@@ -116,6 +116,7 @@ class Sampler:
         self.new_optima_energies = [[] for i in range(self.nruns)] # new minima
         self.new_optima_samples = [[] for i in range(self.nruns)] # new minima
 
+
         # set initial values
         self.E0 = scores[1]  # initialize the 'best score' value
         self.absMin = np.amin(self.E0)
@@ -129,6 +130,7 @@ class Sampler:
             self.new_optima_energies[i].append(energy[1][i])
             self.new_optima_scores[i].append(scores[1][i])
             self.new_optima_inds[i].append(0)
+
 
 
     def initRecs(self):
@@ -397,7 +399,7 @@ class Sampler:
 
             # if we haven't found a new minimum in a long time, randomize input and do a temperature boost
             if (self.iter - self.resetInd[i]) > 1e3:  # within xx of the last reset
-                if (self.iter - self.optimalInds[i][-1]) > 1e3: # haven't seen a new near-minimum in xx steps
+                if (self.iter - self.new_optima_inds[i][-1]) > 1e3: # haven't seen a new near-minimum in xx steps
                     self.resetInd[i] = self.iter
                     self.resetConfig(i)  # re-randomize
                     self.temperature[i] = self.temp0 # boost temperature
