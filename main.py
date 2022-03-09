@@ -108,13 +108,15 @@ def add_args(parser):
         "--dataset", type=str, default="linear"
     )  # 'linear' 'potts' 'nupack energy' 'nupack pairs' 'nupack pins' 'nupack open loop' 'nupack motif' #set motif in oracles.py
     args2config.update({"dataset": ["dataset", "oracle"]})
-    parser = add_bool_arg(parser,'nupack_energy_reweighting',default=False)
-    args2config.update({"nupack_energy_reweighting": ["dataset", "nupack_energy_reweighting"]})
+    parser = add_bool_arg(parser, "nupack_energy_reweighting", default=False)
+    args2config.update(
+        {"nupack_energy_reweighting": ["dataset", "nupack_energy_reweighting"]}
+    )
     parser.add_argument(
         "--nupack_target_motif",
         type=str,
         default=".....(((((.......))))).....",
-        help = "if using 'nupack motif' oracle, return value is the binary distance to this fold, must be <= max sequence length"
+        help="if using 'nupack motif' oracle, return value is the binary distance to this fold, must be <= max sequence length",
     )
     args2config.update({"nupack_target_motif": ["dataset", "nupack_target_motif"]})
     parser.add_argument(
@@ -178,18 +180,14 @@ def add_args(parser):
         default=1000,
         help="number of init configs for post sample annealing",
     )
-    args2config.update(
-        {"annealing_samples": ["al", "annealing_samples"]}
-    )
+    args2config.update({"annealing_samples": ["al", "annealing_samples"]})
     parser.add_argument(
         "--annealing_time",
         type=int,
         default=1000,
         help="number MCMC steps for post sample annealing",
     )
-    args2config.update(
-        {"annealing_time": ["al", "annealing_time"]}
-    )
+    args2config.update({"annealing_time": ["al", "annealing_time"]})
     parser.add_argument(
         "--query_mode",
         type=str,
@@ -253,7 +251,9 @@ def add_args(parser):
         help="'active learning'  'sampling only' ",
     )
     args2config.update({"mode": ["al", "mode"]})
-    parser = add_bool_arg(parser,'large_model_evaluation',default=False) # do a large test dataset run to evaluate proxy performance mid-run
+    parser = add_bool_arg(
+        parser, "large_model_evaluation", default=False
+    )  # do a large test dataset run to evaluate proxy performance mid-run
     args2config.update({"large_model_evaluation": ["al", "large_model_evaluation"]})
     parser.add_argument("--q_network_width", type=int, default=10)
     args2config.update({"q_network_width": ["al", "q_network_width"]})
@@ -506,11 +506,23 @@ def add_args(parser):
         help="give each model in the ensemble a uniquely shuffled dataset",
     )
     args2config.update({"proxy_shuffle_dataset": ["proxy", "shuffle_dataset"]})
-    parser.add_argument("--proxy_uncertainty_estimation", type=str, default="dropout", help="dropout or ensemble")
-    args2config.update({"proxy_uncertainty_estimation": ["proxy", "uncertainty_estimation"]})
-    parser.add_argument("--proxy_dropout", type=float, default = 0.1)
+    parser.add_argument(
+        "--proxy_uncertainty_estimation",
+        type=str,
+        default="dropout",
+        help="dropout or ensemble",
+    )
+    args2config.update(
+        {"proxy_uncertainty_estimation": ["proxy", "uncertainty_estimation"]}
+    )
+    parser.add_argument("--proxy_dropout", type=float, default=0.1)
     args2config.update({"proxy_dropout": ["proxy", "dropout"]})
-    parser.add_argument("--proxy_dropout_samples", type=int, default = 25, help="number of times to resample via stochastic dropout")
+    parser.add_argument(
+        "--proxy_dropout_samples",
+        type=int,
+        default=25,
+        help="number of times to resample via stochastic dropout",
+    )
     args2config.update({"proxy_dropout_samples": ["proxy", "dropout_samples"]})
     # MCMC
     parser.add_argument(
@@ -603,8 +615,7 @@ if __name__ == "__main__":
         al.runPipeline()
     elif config.al.mode == "deploy":
         al.runPipeline()
-    elif config.al.mode == 'sampling only':
+    elif config.al.mode == "sampling only":
         sampleDict = al.runPureSampler()
     elif config.al.mode == "test_rl":
         al.agent.train_from_file()
-
