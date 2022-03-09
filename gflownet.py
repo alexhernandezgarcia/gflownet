@@ -41,7 +41,7 @@ def add_args(parser):
     parser.add_argument(
         "-y",
         "--yaml_config",
-        default="config/mk_test_defaults_gfn_only.yml",
+        default=None,
         type=str,
         help="YAML configuration file",
     )
