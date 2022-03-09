@@ -575,8 +575,6 @@ def process_config(config):
         ]
         config.dataset.dict_size = 4
     # GFlowNet
-    config.gflownet.post_annealing_samples = config.al.annealing_samples
-    config.gflownet.post_annealing_time = config.al.annealing_time
     config.gflownet.max_seq_length = config.dataset.max_length
     config.gflownet.min_seq_length = config.dataset.min_length
     config.gflownet.nalphabet = config.dataset.dict_size
