@@ -425,9 +425,8 @@ class GFlowNetAgent:
                     min_length=args.gflownet.test.min_length,
                     max_length=args.gflownet.max_seq_length,
                     seed=args.gflownet.test.seed,
+                    output_csv=args.gflownet.test.output,
                 )
-                # output_csv=args.gflownet.test.output,
-                # )
         if self.df_test is not None:
             print("\nTest data")
             print(f"\tAverage score: {self.df_test[self.test_score].mean()}")
