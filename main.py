@@ -451,18 +451,18 @@ def add_args(parser):
     args2config.update({"gflownet_test_period": ["gflownet", "test", "period"]})
     parser.add_argument("--gflownet_pct_test", default=500, type=int)
     args2config.update({"gflownet_pct_test": ["gflownet", "test", "pct_test"]})
-    parser.add_argument("--oracle_period", default=500, type=int)
-    args2config.update({"oracle_period": ["gflownet", "oracle", "period"]})
-    parser.add_argument("--oracle_nsamples", default=500, type=int)
-    args2config.update({"oracle_nsamples": ["gflownet", "oracle", "nsamples"]})
+    parser.add_argument("--gflownet_oracle_period", default=500, type=int)
+    args2config.update({"gflownet_oracle_period": ["gflownet", "oracle", "period"]})
+    parser.add_argument("--gflownet_oracle_nsamples", default=500, type=int)
+    args2config.update({"gflownet_oracle_nsamples": ["gflownet", "oracle", "nsamples"]})
     parser.add_argument(
-        "--oracle_k",
+        "--gflownet_oracle_k",
         default=[1, 10, 100],
         nargs="*",
         type=int,
         help="List of K, for Top-K",
     )
-    args2config.update({"oracle_k": ["gflownet", "oracle", "k"]})
+    args2config.update({"gflownet_oracle_k": ["gflownet", "oracle", "k"]})
     # Proxy model
     parser.add_argument(
         "--proxy_model_type",
