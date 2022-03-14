@@ -1,18 +1,17 @@
 '''import statements'''
-import numpy as np
-import scipy.io
-import random
 from seqfold import dg, fold
 from utils import *
 import sys
 try: # we don't always install these on every platform
     from nupack import *
 except:
+    print("COULD NOT IMPORT NUPACK ON THIS DEVICE - proceeding, but will crash with nupack oracle selected")
     pass
 try:
     from bbdob.utils import idx2one_hot
     from bbdob import OneMax, TwoMin, FourPeaks, DeceptiveTrap, NKLandscape, WModel
 except:
+    print("COULD NOT IMPORT BB-DOB ON THIS DEVICE - proceeding, but will crash with BB-DOB oracle selected")
     pass
 
 
@@ -39,8 +38,10 @@ class Oracle():
         '''
         self.config = config
         self.seqLen = self.config.dataset.max_length
+        np.random.seed(self.config.seeds.toy_oracle)
 
-        self.initRands()
+        if not 'nupack' in self.config.dataset.oracle:
+            self.initRands() # initialize random numbers for hand-made oracles
 
 
     def initRands(self):
@@ -48,7 +49,6 @@ class Oracle():
         initialize random numbers for custom-made toy functions
         :return:
         '''
-        np.random.seed(self.config.seeds.toy_oracle)
 
         # set these to be always positive to play nice with gFlowNet sampling
         if True:#self.config.test_mode:
@@ -122,7 +122,7 @@ class Oracle():
                 samples = filterDuplicateSamples(samples)
 
         data['samples'] = samples
-        data['scores'] = self.score(data['samples'])
+        data['energies'] = self.score(data['samples'])
 
         if save:
             np.save('datasets/' + self.config.dataset.oracle, data)
@@ -170,9 +170,15 @@ class Oracle():
         elif self.config.dataset.oracle == 'nupack energy':
             return self.nupackScore(queries, returnFunc = 'energy')
         elif self.config.dataset.oracle == 'nupack pins':
-            return -self.nupackScore(queries, returnFunc = 'pins')
+            return self.nupackScore(queries, returnFunc = 'pins', energy_weighting = self.config.dataset.nupack_energy_reweighting)
         elif self.config.dataset.oracle == 'nupack pairs':
-            return -self.nupackScore(queries, returnFunc = 'pairs')
+            return self.nupackScore(queries, returnFunc = 'pairs', energy_weighting = self.config.dataset.nupack_energy_reweighting)
+        elif self.config.dataset.oracle == 'nupack open loop':
+            return self.nupackScore(queries, returnFunc = 'open loop', energy_weighting = self.config.dataset.nupack_energy_reweighting)
+        elif self.config.dataset.oracle == 'nupack motif':
+            return self.nupackScore(queries, returnFunc = 'motif', motif = self.config.dataset.nupack_target_motif, energy_weighting = self.config.dataset.nupack_energy_reweighting)
+
+
         elif (self.config.dataset.oracle == 'onemax') or (self.config.dataset.oracle == 'twomin') or (self.config.dataset.oracle == 'fourpeaks')\
                 or (self.config.dataset.oracle == 'deceptivetrap') or (self.config.dataset.oracle == 'nklandscape') or (self.config.dataset.oracle == 'wmodel'):
             return self.BB_DOB_functions(queries)
@@ -378,7 +384,7 @@ class Oracle():
         return out
 
 
-    def nupackScore(self, queries, returnFunc='energy'):
+    def nupackScore(self, queries, returnFunc='energy', energy_weighting = False, motif = None):
         # Nupack requires Linux OS.
         #use nupack instead of seqfold - more stable and higher quality predictions in general
         #returns the energy of the most probable structure only
@@ -422,12 +428,44 @@ class Oracle():
                         indA -= 1
                         if indA == 0:  # if we come to the end of a distinct hairpin
                             nPins[i] += 1
-            dict_return.update({"pins": nPins})
+            dict_return.update({"pins": -nPins})
         if 'pairs' in returnFunc:
             nPairs = np.asarray([ssString.count('(') for ssString in ssStrings]).astype(int)
-            dict_return.update({"pairs": nPairs})
+            dict_return.update({"pairs": -nPairs})
         if 'energy' in returnFunc:
-            dict_return.update({"energy": energies})
+            dict_return.update({"energy": energies}) # this is already negative by construction in nupack
+
+        if 'open loop' in returnFunc:
+            biggest_loop = np.zeros(len(ssStrings))
+            for i in range(len(ssStrings)):  # measure all the open loops and return the largest
+                loops = [0] # size of loops
+                counting = 0
+                indA = 0
+                # loop completion index
+                for j in range(len(sequences[i])):
+                    if ssStrings[i][j] == '(':
+                        counting = 1
+                        indA = 0
+                    if (ssStrings[i][j] == '.') and (counting == 1):
+                        indA += 1
+                    if (ssStrings[i][j] == ')') and (counting == 1):
+                        loops.append(indA)
+                        counting = 0
+                biggest_loop[i] = max(loops)
+            dict_return.update({"open loop": -biggest_loop})
+
+        if 'motif' in returnFunc: # searches for a particular fold NOTE searches for this exact aptamer, not subsections or longer sequences with this as just one portion
+            #'((((....))))((((....))))....(((....)))'
+            # pad strings up to max length for binary distance calculation
+            padded_strings = bracket_dot_to_num(ssStrings, maxlen=self.config.dataset.max_length)
+            padded_motif = np.expand_dims(bracket_dot_to_num([motif,motif], maxlen=self.config.dataset.max_length)[0],0)
+            motif_distance = binaryDistance(np.concatenate((padded_motif,padded_strings),axis=0), pairwise=True)[0,1:] # the first element is the motif we are looking for - take everything after this
+            dict_return.update({"motif": motif_distance - 1}) # result is normed on 0-1, so dist-1 gives scaling from 0(bad) to -1(good)
+
+        if energy_weighting:
+            for key in dict_return.keys():
+                if key is not 'energy':
+                    dict_return[key] = dict_return[key] * np.tanh(np.abs(energies)/2) # positive tahn of the energies, scaled
 
         if isinstance(returnFunc, list):
             if len(returnFunc) > 1:

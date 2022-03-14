@@ -98,33 +98,39 @@ class Sampler:
         self.seqExtensionRandints = np.random.randint(1, self.config_main.dataset.dict_size + 1, size=(self.nruns,self.randintsResampleAt)).astype('uint8')
 
 
-    def initOptima(self, scores, energy, variance):
+    def initOptima(self, scores, energy, std_dev):
         """
         initialize the minimum energies
         :return:
         """
-        self.optima = [[] for i in range(self.nruns)] # record optima of the score function
-        self.enAtOptima = [[] for i in range(self.nruns)]  # record energies near the optima
-        self.varAtOptima = [[] for i in range(self.nruns)]  # record of uncertainty at the optima
-        self.optimalSamples = [[] for i in range(self.nruns)]  # record the optimal samples
-        self.optimalInds = [[] for i in range(self.nruns)]
+        # trajectory
+        self.all_scores = np.zeros((self.run_iters, self.nruns)) # record optima of the score function
+        self.all_energies = np.zeros_like(self.all_scores)  # record energies near the optima
+        self.all_uncertainties = np.zeros_like(self.all_scores)  # record of uncertainty at the optima
+        self.all_samples = np.zeros((self.run_iters, self.nruns, self.config_main.dataset.max_length))
+
+        # optima
+        self.new_optima_inds = [[] for i in range(self.nruns)]
         self.recInds = [[] for i in range(self.nruns)]
-        self.newOptima = [[] for i in range(self.nruns)] # new minima
-        self.newOptimaEn = [[] for i in range(self.nruns)] # new minima
-        self.allOptimalConfigs = []
+        self.new_optima_scores = [[] for i in range(self.nruns)] # new minima
+        self.new_optima_energies = [[] for i in range(self.nruns)] # new minima
+        self.new_optima_samples = [[] for i in range(self.nruns)] # new minima
 
 
         # set initial values
         self.E0 = scores[1]  # initialize the 'best score' value
-        self.absMin = min(self.E0)
+        self.absMin = np.amin(self.E0)
+        self.all_scores[0] = scores[1]
+        self.all_energies[0] = energy[1]
+        self.all_uncertainties[0] = std_dev[1]
+        self.all_samples[0] = self.config
+
         for i in range(self.nruns):
-            self.optima[i].append(scores[1][i])
-            self.enAtOptima[i].append(energy[1][i])
-            self.varAtOptima[i].append(variance[1][i])
-            self.newOptima[i].append(self.config[i])
-            self.newOptimaEn[i].append(energy[1][i])
-            self.optimalSamples[i].append(self.config[i])
-            self.optimalInds[i].append(0)
+            self.new_optima_samples[i].append(self.config[i])
+            self.new_optima_energies[i].append(energy[1][i])
+            self.new_optima_scores[i].append(scores[1][i])
+            self.new_optima_inds[i].append(0)
+
 
 
     def initRecs(self):
@@ -137,7 +143,7 @@ class Sampler:
         self.stunrec = [[] for i in range(self.nruns)]
         self.scorerec = [[] for i in range(self.nruns)]
         self.enrec = [[] for i in range(self.nruns)]
-        self.varrec = [[] for i in range(self.nruns)]
+        self.std_devrec = [[] for i in range(self.nruns)]
 
 
     def initConvergenceStats(self):
@@ -161,7 +167,15 @@ class Sampler:
         :return:
         """
         self.converge(model, useOracle, nIters = nIters)
-        return self.__dict__
+
+        outputs = {
+            "samples": np.concatenate(self.all_samples),
+            "scores": np.concatenate(self.all_scores),
+            "energies": np.concatenate(self.all_energies),
+            "uncertainties": np.concatenate(self.all_uncertainties),
+        }
+
+        return outputs
 
 
     def converge(self, model, useOracle=False, nIters = False):
@@ -171,11 +185,14 @@ class Sampler:
         """
         self.initConvergenceStats()
         self.resampleRandints()
+
         if nIters is None:
-            run_iters = self.config_main.mcmc.sampling_time
+            self.run_iters = self.config_main.mcmc.sampling_time
         else:
-            run_iters = nIters
-        for self.iter in tqdm.tqdm(range(run_iters)):  # sample for a certain number of iterations
+            self.run_iters = nIters
+
+
+        for self.iter in tqdm.tqdm(range(self.run_iters)):  # sample for a certain number of iterations
             self.iterate(model, useOracle)  # try a monte-carlo step!
 
             if (self.iter % self.deltaIter == 0) and (self.iter > 0):  # every N iterations do some reporting / updating
@@ -184,10 +201,10 @@ class Sampler:
             if self.iter % self.randintsResampleAt == 0: # periodically resample random numbers
                 self.resampleRandints()
 
-        printRecord("{} near-optima were recorded on this run".format(len(self.allOptimalConfigs)))
+        printRecord("{} samples were recorded on this run".format(len(np.concatenate(self.all_samples))))
 
 
-    def postSampleAnnealing(self, initConfigs, model, useOracle=False):
+    def postSampleAnnealing(self, initConfigs, model, useOracle=False, seed = 0):
         '''
         run a sampling run with the following characteristics
         - low temperature so that we quickly crash to global minimum
@@ -195,15 +212,17 @@ class Sampler:
         - instead of many parallel stun functions, many parallel initial configurations
         - return final configurations for each run as 'annealed samples'
         '''
+        np.random.seed(seed)
         self.config_main.STUN = 0
         self.nruns = len(initConfigs)
-        self.temp0 = 0.01 # initial temperature for sampling runs
+        self.temp0 = 0.01 # initial temperature for sampling runs - start low and shrink
         self.temperature = [self.temp0 for _ in range(self.nruns)]
         self.config = initConfigs # manually overwrite configs
+        self.run_iters = self.config_main.al.annealing_time
 
         self.initConvergenceStats()
         self.resampleRandints()
-        for self.iter in tqdm.tqdm(range(self.config_main.gflownet.post_annealing_time)):
+        for self.iter in tqdm.tqdm(range(self.run_iters)):
             self.iterate(model, useOracle)
 
             self.temperature = [temperature * 0.99 for temperature in self.temperature] # cut temperature at every time step
@@ -211,7 +230,7 @@ class Sampler:
             if self.iter % self.randintsResampleAt == 0: # periodically resample random numbers
                 self.resampleRandints()
 
-        evals = self.getScores(self.config, self.config, model, useOracle=False)
+        evals = self.getScores(self.config, self.config, model, useOracle=useOracle)
         annealedOutputs = {
             'samples': self.config,
             'scores': evals[0][0],
@@ -245,6 +264,7 @@ class Sampler:
                         if nnz > self.config_main.dataset.min_length:
                             self.propConfig[i, nnz - 1] = 0
 
+
     def iterate(self, model, useOracle):
         """
         run chainLength cycles of the sampler
@@ -258,16 +278,15 @@ class Sampler:
 
         # even if it didn't change, just run it anyway (big parallel - to hard to disentangle)
         # compute acceptance ratio
-        self.scores, self.energy, self.variance = self.getScores(self.propConfig, self.config, model, useOracle)
+        self.scores, self.energy, self.std_dev = self.getScores(self.propConfig, self.config, model, useOracle)
 
-        try:
-            self.E0
-        except:
-            self.initOptima(self.scores, self.energy, self.variance)  # if we haven't already assigned E0, initialize everything
+        if self.iter == 0: # initialize optima recording
+            self.initOptima(self.scores, self.energy, self.std_dev)
 
-        self.F, self.DE = self.getDE(self.scores)
+        self.F, self.DE = self.getDelta(self.scores)
         self.acceptanceRatio = np.minimum(1, np.exp(-self.DE / self.temperature))
         self.updateConfigs()
+
 
     def updateConfigs(self):
         '''
@@ -280,17 +299,25 @@ class Sampler:
                 self.config[i] = np.copy(self.propConfig[i])
                 self.recInds[i].append(self.iter)
 
-                newBest = False
                 if (self.scores[0][i] < self.E0[i]):
-                    newBest = True
-                if newBest or ((self.E0[i] - self.scores[0][i]) / self.E0[i] < self.recordMargin):  # if we have a new minimum on this trajectory, record it  # or if near a minimum
-                    self.saveOptima(i, newBest)
+                    self.updateBest(i)
 
+                #self.recordTrajectory(i) # if we accept the move, update the trajectory
+
+        self.recordTrajectory()  # if we accept the move, update the trajectory
 
         if self.config_main.debug: # record a bunch of detailed outputs
             self.recordStats()
 
-    def getDE(self, scores):
+
+    def recordTrajectory(self):
+        self.all_scores[self.iter] = self.scores[0]
+        self.all_energies[self.iter] = self.energy[0]
+        self.all_uncertainties[self.iter] = self.std_dev[0]
+        self.all_samples[self.iter] = self.propConfig
+
+
+    def getDelta(self, scores):
         if self.config_main.STUN == 1:  # compute score difference using STUN
             F = self.computeSTUN(scores)
             DE = F[0] - F[1]
@@ -300,15 +327,17 @@ class Sampler:
 
         return F, DE
 
+
     def recordStats(self):
         for i in range(self.nruns):
             self.temprec[i].append(self.temperature[i])
             self.accrec[i].append(self.acceptanceRate[i])
             self.scorerec[i].append(self.scores[0][i])
             self.enrec[i].append(self.energy[0][i])
-            self.varrec[i].append(self.variance[0][i])
+            self.std_devrec[i].append(self.std_dev[0][i])
             if self.config_main.STUN:
                 self.stunrec[i].append(self.F[0][i])
+
 
     def getScores(self, propConfig, config, model, useOracle):
         """
@@ -319,43 +348,35 @@ class Sampler:
         """
         if useOracle:
             energy = [self.oracle.score(propConfig),self.oracle.score(config)]
-            variance = [[0 for _ in range(len(energy[0]))], [0 for _ in range(len(energy[1]))]]
-            score = self.scoreFunction[0] * np.asarray(energy) - self.scoreFunction[1] * np.asarray(variance)  # vary the relative importance of these two factors
+            std_dev = [[0 for _ in range(len(energy[0]))], [0 for _ in range(len(energy[1]))]]
+            score = self.scoreFunction[0] * np.asarray(energy) - self.scoreFunction[1] * np.asarray(std_dev)  # vary the relative importance of these two factors
         else:
-            if (self.config_main.al.query_mode == 'learned') and ('DQN' in str(model.__class__)):
-                score = [model.evaluateQ(np.asarray(config)).cpu().detach().numpy(),model.evaluateQ(np.asarray(propConfig)).cpu().detach().numpy()] # evaluate the q-model
-                score = - np.array((score[1],score[0]))[:,:,0] # this code is a minimizer so we need to flip the sign of the Q scores
-                energy = [np.zeros_like(score[0]), np.zeros_like(score[1])] # energy and variance are irrelevant here
-                variance = [np.zeros_like(score[0]), np.zeros_like(score[1])]
+            if self.config_main.al.query_mode == 'fancy_acquisition':
+                score1, out1, std1 = model.evaluate(np.asarray(config), output='fancy_acquisition')
+                score2, out2, std2 = model.evaluate(np.asarray(propConfig), output='fancy_acquisition')
+                energy = [out2,out1]
+                std_dev = [std2,std1]
+                score = [score2, score1]
+
             else: # manually specify score function
                 r1, r2 = [model.evaluate(np.asarray(config), output='Both'),model.evaluate(np.asarray(propConfig), output='Both')] # two model evaluations, each returning score and variance for a propConfig or config
                 energy = [r2[0], r1[0]]
-                variance = [r2[1], r1[1]]
+                std_dev = [r2[1], r1[1]]
 
                 # energy and variance both come out standardized against the training dataset
-                score = self.scoreFunction[0] * np.asarray(energy) - self.scoreFunction[1] * np.asarray(np.sqrt(variance))  # vary the relative importance of these two factors
+                score = self.scoreFunction[0] * np.asarray(energy) - self.scoreFunction[1] * np.asarray(std_dev)  # vary the relative importance of these two factors
 
-        return score, energy, variance
+        return score, energy, std_dev
 
 
-    def saveOptima(self, ind, newBest):
-        if len(self.allOptimalConfigs) == 0:
-            [self.allOptimalConfigs.extend(i) for i in self.optimalSamples] # we don't want to duplicate any samples at all, if possible
-        equals = np.sum(self.propConfig[ind] == self.allOptimalConfigs,axis=1)
-        if (not any(equals == self.propConfig[ind].shape[-1])) or newBest: # if there are no copies or we know it's a new minimum, record it # bit slower to keep checking like this but saves us checks later
-            self.optima[ind].append(self.scores[0][ind])
-            self.enAtOptima[ind].append(self.energy[0][ind])
-            self.varAtOptima[ind].append(self.variance[0][ind])
-            self.optimalSamples[ind].append(self.propConfig[ind])
-            self.allOptimalConfigs.append(self.propConfig[ind])
-        if newBest:
-            self.E0[ind] = self.scores[0][ind]
-            if self.E0[ind] < self.absMin: # if we find a new global minimum, use it
-                self.absMin = self.E0[ind]
-            self.newOptima[ind].append(self.propConfig[ind])
-            self.newOptimaEn[ind].append(self.energy[0][ind])
-            self.optimalInds[ind].append(self.iter)
 
+    def updateBest(self,ind):
+        self.E0[ind] = self.scores[0][ind]
+        self.absMin = self.E0[ind]
+        self.new_optima_samples[ind].append(self.propConfig[ind])
+        self.new_optima_energies[ind].append(self.energy[0][ind])
+        self.new_optima_scores[ind].append(self.scores[0][ind])
+        self.new_optima_inds[ind].append(self.iter)
 
     def updateAnnealing(self):
         """
@@ -378,7 +399,7 @@ class Sampler:
 
             # if we haven't found a new minimum in a long time, randomize input and do a temperature boost
             if (self.iter - self.resetInd[i]) > 1e3:  # within xx of the last reset
-                if (self.iter - self.optimalInds[i][-1]) > 1e3: # haven't seen a new near-minimum in xx steps
+                if (self.iter - self.new_optima_inds[i][-1]) > 1e3: # haven't seen a new near-minimum in xx steps
                     self.resetInd[i] = self.iter
                     self.resetConfig(i)  # re-randomize
                     self.temperature[i] = self.temp0 # boost temperature

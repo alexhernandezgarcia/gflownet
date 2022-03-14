@@ -1,0 +1,106 @@
+# General
+test_mode: False
+debug: True
+run_num: 0
+explicit_run_enumeration: False
+machine: "local"
+device: "cpu"
+workdir: null
+# Seeds
+seeds:
+  sampler: 0
+  gflownet: 0
+  model: 0
+  dataset: 0
+  toy_oracle: 0
+# Dataset
+dataset:
+  oracle: nupack motif
+  nupack_energy_reweighting: True
+  nupack_target_motif: .....(((((.......))))).....
+  type: toy
+  init_length: 100
+  dict_size: 4
+  variable_length: True
+  min_length: 10
+  max_length: 30
+# AL
+al:
+  sample_method: random
+  num_random_samples: 10000
+  annealing_samples: 50
+  annealing_time: 100
+  query_mode: energy # must be 'fancy_acquisition' for our new acquisition functions "EI" and "UCB"
+  acquisition_function : null # only for 'fancy_acquisition'
+  n_iter: 40
+  query_selection: "argmin"
+  minima_dist_cutoff: 0
+  energy_uncertainty_tradeoff: 0
+  UCB_kappa: 0.1
+  EI_percentile: 80
+  queries_per_iter: 10
+  large_model_evaluation: False
+  comet:
+    project: aptamer-al-mk
+    tags:
+      - al_pipeline_work
+# Querier
+querier:
+  model_state_size: 10
+# GFlowNet
+gflownet:
+  device: cpu
+  ckpt_period: 500
+  clip_grad_norm: 0.0
+  early_stopping: 0.0001
+  learning_rate: 0.001
+  momentum: 0.9
+  ema_alpha: 0.5
+  loss: trajectorybalance # flowmatch
+  lr_z_mult: 10
+  max_word_len: 1
+  min_word_len: 1
+  mbsize: 100
+  reload_ckpt: True
+  model_ckpt: model.pt
+  n_hid: 256
+  n_layers: 2
+  n_iter: 500
+  num_empirical_loss: 200000
+  opt: adam
+  pct_batch_empirical: 0.0
+  progress: 1
+  random_action_prob: 0.33
+  reward_beta_init: 0.05
+  reward_beta_mult: 1.25
+  reward_beta_period: 100
+  reward_max: 1000000
+  n_samples: 10000
+  annealing: False
+  test:
+    path: null
+    period: null #200
+    pct_test: null #0.4
+  oracle:
+    period: 100
+    nsamples: 100
+    k: [1, 10, 100]
+# Proxy model
+proxy:
+  model_type: "mlp"
+  ensemble_size: 1
+  width: 256
+  n_layers: 5
+  mbsize: 10
+  max_epochs: 500
+  history: 200
+  shuffle_dataset: True
+  uncertainty_estimation : "dropout"
+  dropout: 0.1
+  dropout_samples: 25
+# MCMC
+mcmc:
+  sampling_time: 100
+  num_samplers: 10
+  stun_min_gamma: -3
+  stun_max_gamma: 1
