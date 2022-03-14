@@ -1,0 +1,112 @@
+# General
+test_mode: False
+debug: False
+run_num: 0
+explicit_run_enumeration: False
+machine: local
+device: cpu
+workdir: null
+# Seeds
+seeds:
+  sampler: 0
+  gflownet: 0
+  model: 0
+  dataset: 0
+  toy_oracle: 0
+# Dataset
+dataset:
+  oracle: nupack energy
+  nupack_energy_reweighting: False
+  nupack_target_motif: .....(((((.......))))).....(((......(((((....)))))..)))
+  type: toy
+  init_length: 100
+  dict_size: 4
+  variable_length: True
+  min_length: 10
+  max_length: 60
+# AL
+al:
+  mode: sampling only # sampling only or active learning
+  sample_method: random
+  num_random_samples: 10000
+  annealing_samples: 200
+  annealing_time: 100
+  query_mode: energy # must be 'fancy_acquisition' for our new acquisition functions "EI" and "UCB"
+  acquisition_function : null # only for 'fancy_acquisition'
+  n_iter: 40
+  query_selection: argmin
+  minima_dist_cutoff: 0.05
+  energy_uncertainty_tradeoff: 0
+  UCB_kappa: 0.1
+  EI_percentile: 80
+  queries_per_iter: 50
+  large_model_evaluation: False
+  comet:
+    project: aptamer-al-mk
+    tags:
+      - pure_sampling_runs
+      - st2
+# Querier
+querier:
+  model_state_size: 10
+# GFlowNet
+gflownet:
+  device: cpu
+  ckpt_period: 500
+  clip_grad_norm: 0.0
+  early_stopping: 0.000001
+  learning_rate: 0.001
+  momentum: 0.9
+  ema_alpha: 0.5
+  loss: flowmatch #trajectorybalance
+  lr_z_mult: 10
+  max_word_len: 1
+  min_word_len: 1
+  mbsize: 10
+  reload_ckpt: True
+  model_ckpt: model.pt
+  n_hid: 256
+  n_layers: 4
+  n_iter: 20000
+  num_empirical_loss: 200000
+  opt: adam
+  pct_batch_empirical: 0.0
+  progress: 1
+  random_action_prob: 0.33
+  reward_beta_init: 0.05
+  reward_beta_mult: 1.25
+  reward_beta_period: 100
+  reward_max: 1000000
+  n_samples: 10000
+  annealing: False
+  test:
+    base: null
+    n: 1000
+    path: null
+    period: null
+    min_length: 1
+    pct_test: 0 #0.4
+    seed: 0
+  oracle:
+    period: 100
+    nsamples: 1000
+    k: [1, 10, 100]
+# Proxy model
+proxy:
+  model_type: mlp
+  ensemble_size: 1 # >1 for 'ensemble' uncertainty estimation only
+  width: 256 # 256
+  n_layers: 4 # 5
+  mbsize: 10
+  max_epochs: 500
+  history: 25
+  shuffle_dataset: True
+  uncertainty_estimation : dropout
+  dropout: 0.1
+  dropout_samples: 25 # only used if uncertainty estimation is 'dropout'
+# MCMC
+mcmc:
+  sampling_time: 5000
+  num_samplers: 40
+  stun_min_gamma: -3
+  stun_max_gamma: 1

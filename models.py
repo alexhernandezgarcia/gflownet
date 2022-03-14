@@ -30,7 +30,7 @@ class modelNet():
     def __init__(self, config, ensembleIndex):
         self.config = config
         self.ensembleIndex = ensembleIndex
-        self.config.history = min(20, self.config.proxy.max_epochs) # length of past to check
+        self.config.history = min(self.config.proxy.history, self.config.proxy.max_epochs) # length of past to check
         torch.random.manual_seed(int(config.seeds.model + ensembleIndex))
         self.initModel()
 
@@ -183,7 +183,9 @@ class modelNet():
 
         output = self.model(inputs.float())
         targets = (targets - self.mean)/self.std # standardize the targets during training
-        return F.smooth_l1_loss(output[:,0], targets.float())
+        #return F.smooth_l1_loss(output[:,0], targets.float())
+        return F.mse_loss(output[:,0], targets.float())
+
 
 
     def getMinF(self):
@@ -239,15 +241,15 @@ class modelNet():
         if self.config.proxy.uncertainty_estimation == "ensemble":
             self.model.train(False)
             with torch.no_grad():  # we won't need gradients! no training just testing
-                outputs = self.model(Data)
-                mean = torch.mean(outputs,dim=1).cpu().detach().numpy()
-                std = torch.std(outputs,dim=1).cpu().detach().numpy()
+                outputs = self.model(Data).cpu().detach().numpy()
+                mean = torch.mean(outputs,dim=1)
+                std = torch.std(outputs,dim=1)
         elif self.config.proxy.uncertainty_estimation == "dropout":
             self.model.train(True) # need this to be true to activate dropout
             with torch.no_grad():
-                outputs = torch.hstack([self.model(Data) for _ in range(self.config.proxy.dropout_samples)])
-            mean = torch.mean(outputs, dim=1).cpu().detach().numpy()
-            std = torch.std(outputs, dim=1).cpu().detach().numpy()
+                outputs = torch.hstack([self.model(Data) for _ in range(self.config.proxy.dropout_samples)]).cpu().detach().numpy()
+            mean = torch.mean(outputs, dim=1)
+            std = torch.std(outputs, dim=1)
         else:
             print("No uncertainty estimator called {}".format(self.config.proxy.uncertainty_estimation))
             sys.exit()
@@ -281,6 +283,7 @@ class modelNet():
                 updf = torch.exp(normal.log_prob(u))
                 ei = std * (updf + u * ucdf)
                 return ei.cpu().detach().numpy(), mean * self.std + self.mean, std * self.std
+
 
 
     def raw(self, Data, output="Average"):
@@ -326,7 +329,7 @@ class modelEnsemble(nn.Module): # just for evaluation of a pre-trained ensemble
     def forward(self, x):
         output = []
         for i in range(len(self.models)): # get the prediction from each model
-            output.append(self.models[i](x.clone()))
+            output.append(self.models[i](torch.Tensor(x).clone()))
 
         output = torch.cat(output,dim=1) #
         return output # return mean and variance of the ensemble predictions
@@ -340,7 +343,7 @@ class buildDataset():
         dataset = np.load('datasets/' + config.dataset.oracle + '.npy', allow_pickle=True)
         dataset = dataset.item()
         self.samples = dataset['samples']
-        self.targets = dataset['scores']
+        self.targets = dataset['energies']
 
         self.samples, self.targets = shuffle(self.samples, self.targets, random_state=config.seeds.dataset)
 
@@ -723,7 +726,7 @@ class MLP(nn.Module):
 
         self.output_layers = []
         for i in range(self.tasks):
-            self.output_layers.append(nn.Linear(self.filters, 1))
+            self.output_layers.append(nn.Linear(self.filters, 1, bias=False))
         self.output_layers = nn.ModuleList(self.output_layers)
 
         # build hidden layers
@@ -815,69 +818,6 @@ class Activation(nn.Module):
 
     def forward(self, input):
         return self.activation(input)
-
-
-
-class UCB:
-    def __init__(self, model, kappa, device):
-        self.kappa = kappa
-        self.model = model
-        self.device = device
-        self.sigmoid = nn.Sigmoid()
-
-    def __call__(self, x1, x2, **f_kwargs):
-        outputs = self.model(x1, x2)
-        outputs = torch.cat(outputs)
-        mean = outputs.mean(dim=0)
-        std = outputs.std(dim=0)
-        return self.l2r(torch.tensor([[(mean + self.kappa * std)]]).to(self.device), **f_kwargs)
-
-    def l2r(self, x, **f_kwargs):
-        return self.sigmoid(x.clamp(min=f_kwargs["r_min"])) / f_kwargs["r_norm"]
-
-class EI:
-    def __init__(self, config, model, maximize=False):
-        #tokenizer = pickle.load(gzip.open('tokenizer.pkl.gz', 'rb'))
-        #self.model = model
-        #self.device = device
-        self.maximize = maximize
-        self.sigmoid = nn.Sigmoid()
-        self.best_f = self._get_best_f(dataset, tokenizer)
-
-    def _get_best_f(self, dataset, tok):
-        f_values = []
-        for sample in dataset.pos_train:
-            x = tok.process([sample]).to(self.device)
-            # ys = self.model(x.swapaxes(0,1), x.lt(2), **self.f_kwargs)
-            outputs = self.model(x.swapaxes(0,1), x.lt(2))
-            outputs = self.sigmoid(torch.cat(outputs))
-            mean, _ = outputs.mean(dim=0), outputs.std(dim=0)
-            f_values.append(mean.item())
-        return torch.tensor(np.percentile(f_values, args.max_percentile))
-
-    def __call__(self, x1, x2, **f_kwargs):
-        self.best_f = self.best_f.to(x1)
-
-        outputs = self.model(x1, x2)
-        outputs = torch.cat([self.l2r(outputs[i].unsqueeze(0), **f_kwargs) for i in range(len(outputs))])
-        outputs = outputs.swapaxes(0, 1)
-        mean, sigma = outputs.mean(dim=1).unsqueeze(-1), outputs.std(dim=1).unsqueeze(-1)
-        # deal with batch evaluation and broadcasting
-        view_shape = mean.shape[:-2] if mean.dim() >= x1.dim() else x1.shape[:-2]
-        mean = mean.view(view_shape)
-        sigma = sigma.view(view_shape)
-
-        u = (mean - self.best_f.expand_as(mean)) / sigma
-        if not self.maximize:
-            u = -u
-        normal = torch.distributions.Normal(torch.zeros_like(u), torch.ones_like(u))
-        ucdf = normal.cdf(u)
-        updf = torch.exp(normal.log_prob(u))
-        ei = sigma * (updf + u * ucdf)
-        return ei.cpu().numpy()
-
-    def l2r(self, x, **f_kwargs):
-        return self.sigmoid(x.clamp(min=f_kwargs["r_min"])) / f_kwargs["r_norm"]
 
 
 def l2r(x):

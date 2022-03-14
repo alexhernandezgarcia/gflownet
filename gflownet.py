@@ -20,8 +20,8 @@ from torch.distributions.categorical import Categorical
 from tqdm import tqdm
 
 from aptamers import AptamerSeq
-from oracle import numbers2letters
-from utils import get_config, namespace2dict, numpy2python
+from oracle import numbers2letters, Oracle
+from utils import get_config, namespace2dict, numpy2python, add_bool_arg
 
 # Float and Long tensors
 _dev = [torch.device("cpu")]
@@ -70,6 +70,18 @@ def add_args(parser):
         help="Seed for random number generator",
     )
     args2config.update({"rng_seed": ["seeds", "gflownet"]})
+    # dataset
+    parser = add_bool_arg(parser, "nupack_energy_reweighting", default=False)
+    args2config.update(
+        {"nupack_energy_reweighting": ["dataset", "nupack_energy_reweighting"]}
+    )
+    parser.add_argument(
+        "--nupack_target_motif",
+        type=str,
+        default=".....(((((.......))))).....",
+        help="if using 'nupack motif' oracle, return value is the binary distance to this fold, must be <= max sequence length",
+    )
+    args2config.update({"nupack_target_motif": ["dataset", "nupack_target_motif"]})
     # Training hyperparameters
     parser.add_argument(
         "--loss", default="flowmatch", type=str, help="flowmatch | trajectorybalance/tb"
@@ -164,7 +176,7 @@ def add_args(parser):
     args2config.update({"func": ["gflownet", "func"]})
     parser.add_argument(
         "--max_seq_length",
-        default=42,
+        default=40,
         help="Maximum number of episodes; maximum sequence length",
         type=int,
     )
@@ -227,6 +239,14 @@ def add_args(parser):
     args2config.update({"no_comet": ["gflownet", "comet", "skip"]})
     parser.add_argument("--no_log_times", action="store_true")
     args2config.update({"no_log_times": ["gflownet", "no_log_times"]})
+    parser.add_argument(
+        "--n_samples",
+        type=int,
+        default=10000,
+        help="Sequences to sample",
+    )
+    args2config.update({"n_samples": ["gflownet", "n_samples"]})
+
     return parser, args2config
 
 
@@ -242,6 +262,7 @@ def set_device(dev):
 class GFlowNetAgent:
     def __init__(self, args, comet=None, proxy=None, al_iter=-1, data_path=None):
         # Misc
+        self.oracle = Oracle(args)
         self.rng = np.random.default_rng(args.seeds.gflownet)
         self.debug = args.debug
         self.device_torch = torch.device(args.gflownet.device)
@@ -302,11 +323,11 @@ class GFlowNetAgent:
             args.gflownet.nalphabet,
             args.gflownet.min_word_len,
             args.gflownet.max_word_len,
-            func=args.gflownet.func,
             proxy=proxy,
             allow_backward=False,
             debug=self.debug,
             reward_beta=self.reward_beta,
+            oracle_func=self.oracle.score,
         )
         self.envs = [
             AptamerSeq(
@@ -315,11 +336,11 @@ class GFlowNetAgent:
                 args.gflownet.nalphabet,
                 args.gflownet.min_word_len,
                 args.gflownet.max_word_len,
-                func=args.gflownet.func,
                 proxy=proxy,
                 allow_backward=False,
                 debug=self.debug,
                 reward_beta=self.reward_beta,
+                oracle_func=self.oracle.score,
             )
             for _ in range(args.gflownet.mbsize)
         ]
@@ -343,6 +364,7 @@ class GFlowNetAgent:
                 self.model_path = args.gflownet.model_ckpt
             if self.model_path.exists() and self.reload_ckpt:
                 self.model.load_state_dict(torch.load(self.model_path))
+                print("Reloaded GFN Model Checkpoint")
         else:
             self.model_path = None
         self.ckpt_period = args.gflownet.ckpt_period
@@ -820,16 +842,13 @@ class GFlowNetAgent:
                     self.env.oracle,
                     get_uncertainties=False,
                 )
-                scores = oracle_dict["scores"]
-                if any([s in self.env.func for s in ["pins", "pairs"]]):
-                    scores_sorted = np.sort(scores)[::-1]
-                else:
-                    scores_sorted = np.sort(scores)
+                scores = oracle_dict["energies"]
+                scores_sorted = np.sort(scores)
                 dict_topk = {}
                 for k in self.oracle_k:
                     mean_topk = np.mean(scores_sorted[:k])
                     dict_topk.update(
-                            {"oracle_mean_top{}{}".format(k, self.al_iter): mean_topk}
+                        {"oracle_mean_top{}{}".format(k, self.al_iter): mean_topk}
                     )
                     if self.comet:
                         self.comet.log_metrics(dict_topk)
@@ -980,8 +999,10 @@ class GFlowNetAgent:
         batch = np.asarray(batch)
 
         if get_uncertainties:
-            if self.query_function == 'fancy_acquisition':
-                scores, proxy_vals, uncertainties = env.proxy(batch, "fancy_acquisition")
+            if self.query_function == "fancy_acquisition":
+                scores, proxy_vals, uncertainties = env.proxy(
+                    batch, "fancy_acquisition"
+                )
             else:
                 proxy_vals, uncertainties = env.proxy(batch, "Both")
                 scores = proxy_vals
@@ -1293,7 +1314,7 @@ def np2df(test_path, score, al_init_length, al_queries_per_iter, pct_test, data_
     df = pd.DataFrame(
         {
             "letters": letters,
-            score: data_dict["scores"],
+            score: data_dict["energies"],
             "train": [False] * len(letters),
             "test": [False] * len(letters),
         }
@@ -1346,6 +1367,19 @@ def logq(traj_list, actions_list, model, env):
 def main(args):
     gflownet_agent = GFlowNetAgent(args)
     gflownet_agent.train()
+
+    # sample from the oracle, not from a proxy model
+    samples, times = gflownet_agent.sample(
+        args.gflownet.n_samples,
+        args.gflownet.max_seq_length,
+        args.gflownet.min_seq_length,
+        args.gflownet.nalphabet,
+        args.gflownet.min_word_len,
+        args.gflownet.max_word_len,
+        gflownet_agent.env.oracle,
+        mask_eos=True,
+        get_uncertainties=False,
+    )
 
 
 if __name__ == "__main__":

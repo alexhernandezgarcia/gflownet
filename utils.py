@@ -351,31 +351,27 @@ def filterDuplicateSamples(samples, oldDatasetPath=None, returnInds=False):
     seen = set()
     seen_add = seen.add
 
-    if returnInds:
-        filtered = [
-            [samplesTuple[i], i]
-            for i in range(len(samplesTuple))
-            if not (samplesTuple[i] in seen or seen_add(samplesTuple[i]))
-        ]
-        filteredSamples = [filtered[i][0] for i in range(len(filtered))]
-        filteredInds = [filtered[i][1] for i in range(len(filtered))]
+    filtered = [
+        [samplesTuple[i], i]
+        for i in range(len(samplesTuple))
+        if not (samplesTuple[i] in seen or seen_add(samplesTuple[i]))
+    ]
+    filteredSamples = [filtered[i][0] for i in range(len(filtered))][origDatasetLen:] # unique samples
+    filteredInds = [filtered[i][1] for i in range(len(filtered))][origDatasetLen:] # unique sample idxs
 
+    assert len(filteredSamples) > 0, "Sampler returned duplicates only, problem may be completely solved, or sampler is too myopic"
+
+    if returnInds:
         return (
-            np.asarray(filteredSamples[origDatasetLen:]),
-            np.asarray(filteredInds[origDatasetLen:]) - origDatasetLen,
+            np.asarray(filteredSamples),
+            np.asarray(filteredInds) - origDatasetLen, # in samples basis (omitting any prior dataset)
         )
     else:
-        filteredSamples = [
-            samplesTuple[i]
-            for i in range(len(samplesTuple))
-            if not (samplesTuple[i] in seen or seen_add(samplesTuple[i]))
-        ]
-
-        return np.asarray(filteredSamples[origDatasetLen:])
+        return np.asarray(filteredSamples)
 
 
 def generateRandomSamples(
-    nSamples, sampleLengthRange, dictSize, oldDatasetPath=None, variableLength=True
+    nSamples, sampleLengthRange, dictSize, oldDatasetPath=None, variableLength=True, seed=None
 ):
     """
     randomly generate a non-repeating set of samples of the appropriate size and composition
@@ -385,7 +381,8 @@ def generateRandomSamples(
     :param variableLength:
     :return:
     """
-
+    if seed is not None:
+        np.random.seed(seed)
     if variableLength:
         samples = []
         while len(samples) < nSamples:
@@ -429,18 +426,6 @@ def generateRandomSamples(
 
     return samples
 
-
-def samples2dict(samples):
-    """
-    Returns key outputs in a dictionary
-    """
-    outputs = {
-        "samples": np.concatenate(samples["optimalSamples"]),
-        "scores": np.concatenate(samples["optima"]),
-        "energies": np.concatenate(samples["enAtOptima"]),
-        "uncertainties": np.concatenate(samples["std_devAtOptima"]),
-    }
-    return outputs
 
 
 def get_n_params(model):
@@ -518,6 +503,7 @@ def filterOutputs(outputs, additionalEntries=None):
         "uncertainties": uncertainties[filteredInds],
     }
     printRecord('Sampler outputs after filtering - best energy = {:.4f}'.format(np.amin(energies)))
+
     return filteredOutputs
 
 
@@ -930,3 +916,32 @@ def numpy2python(results_dict):
 def normalizeDistCutoff(cutoff):
     return (1 + np.tanh(cutoff)) / 2
 
+
+def bracket_dot_to_num(sequences, maxlen):
+    '''
+    convert from (((...))) notation to 111222333
+    '''
+    my_seq = np.zeros((len(sequences), maxlen))
+    row = 0
+
+    for seq in sequences:
+        col = 0
+        for na in seq:
+            if na == "(":
+                my_seq[row, col] = 1
+            elif na == ".":
+                my_seq[row, col] = 2
+            elif na == ")":
+                my_seq[row, col] = 3
+            col += 1
+        row += 1
+
+    return my_seq
+
+
+def add_bool_arg(parser, name, default=False):
+    group = parser.add_mutually_exclusive_group(required=False)
+    group.add_argument('--' + name, dest=name, action = 'store_true')
+    group.add_argument('--no-' + name, dest=name, action = 'store_false')
+    parser.set_defaults(**{name:default})
+    return parser
