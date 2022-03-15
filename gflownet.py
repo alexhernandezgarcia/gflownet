@@ -1369,7 +1369,7 @@ def make_train_set(
         energies.update({"letters": seq_letters, "indices": seq_ints})
         df_train = pd.DataFrame(energies)
     else:
-        df_train = pd.DataFrame({"letters": seq_letters, "indices": seq_ints, "energies": energies})
+        df_train = pd.DataFrame({"letters": seq_letters, "indices": seq_ints, "scores": energies})
     if output_csv:
         df_train.to_csv(output_csv)
     return df_train
