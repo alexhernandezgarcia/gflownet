@@ -341,6 +341,71 @@ class GFlowNetAgent:
             else:
                 self.comet = None
         self.no_log_times = args.gflownet.no_log_times
+        # Train set or empirical data from active learning
+        if data_path:
+            self.data_path = Path(data_path)
+            self.al_init_length = args.dataset.init_length
+            self.al_queries_per_iter = args.al.queries_per_iter
+            self.pct_test = args.gflownet.test.pct_test
+            self.data_seed = args.seeds.dataset
+            if self.data_path.suffix == ".npy":
+                self.df_data = np2df(
+                    self.data_path,
+                    args.gflownet.test.score,
+                    self.al_init_length,
+                    self.al_queries_per_iter,
+                    self.pct_test,
+                    self.data_seed,
+                )
+                self.df_train = self.df_data.loc[self.df_data.train]
+            else:
+                self.df_data = None
+                self.df_train = None
+        elif args.gflownet.train.path:
+            self.df_data = None
+            self.df_train = pd.read_csv(args.gflownet.train.path, index_col=0)
+        else:
+            self.df_data = None
+            self.df_train = make_train_set(self.oracle, args.gflownet.train.n,
+                    args.gflownet.train.seed, args.gflownet.train.output)
+        if self.df_train is not None:
+            min_scores_tr = self.df_train["scores"].min()
+            max_scores_tr = self.df_train["scores"].max()
+            mean_scores_tr = self.df_train["scores"].mean()
+            std_scores_tr = self.df_train["scores"].std()
+            scores_tr_norm = (self.df_train["scores"].values - mean_scores_tr) / std_scores_tr
+            max_norm_scores_tr = np.max(scores_tr_norm)
+            self.stats_scores_tr = [min_scores_tr, max_scores_tr, mean_scores_tr,
+                    std_scores_tr, max_norm_scores_tr]
+        else:
+            self.stats_scores_tr = None
+        # Test set
+        self.test_period = args.gflownet.test.period
+        if self.test_period in [None, -1]:
+            self.test_period = np.inf
+            self.df_test = None
+        else:
+            self.test_score = args.gflownet.test.score
+            if self.df_data is not None:
+                self.df_test = self.df_data.loc[self.df_data.test]
+            elif args.gflownet.test.path:
+                self.df_test = pd.read_csv(args.gflownet.test.path, index_col=0)
+            else:
+                self.df_test, test_set_times = make_approx_uniform_test_set(
+                    path_base_dataset=args.gflownet.test.base,
+                    score=self.test_score,
+                    ntest=args.gflownet.test.n,
+                    min_length=args.gflownet.test.min_length,
+                    max_length=args.gflownet.max_seq_length,
+                    seed=args.gflownet.test.seed,
+                    output_csv=args.gflownet.test.output,
+                )
+        if self.df_test is not None:
+            print("\nTest data")
+            print(f"\tAverage score: {self.df_test[self.test_score].mean()}")
+            print(f"\tStd score: {self.df_test[self.test_score].std()}")
+            print(f"\tMin score: {self.df_test[self.test_score].min()}")
+            print(f"\tMax score: {self.df_test[self.test_score].max()}")
         # Environment
         self.env = AptamerSeq(
             args.gflownet.max_seq_length,
@@ -353,6 +418,7 @@ class GFlowNetAgent:
             debug=self.debug,
             reward_beta=self.reward_beta,
             oracle_func=self.oracle.score,
+            stats_scores=self.stats_scores_tr,
         )
         self.envs = [
             AptamerSeq(
@@ -366,6 +432,7 @@ class GFlowNetAgent:
                 debug=self.debug,
                 reward_beta=self.reward_beta,
                 oracle_func=self.oracle.score,
+                stats_scores=self.stats_scores_tr,
             )
             for _ in range(args.gflownet.mbsize)
         ]
@@ -408,61 +475,6 @@ class GFlowNetAgent:
         self.sttr = max(int(1 / args.gflownet.train_to_sample_ratio), 1)
         self.random_action_prob = args.gflownet.random_action_prob
         self.pct_batch_empirical = args.gflownet.pct_batch_empirical
-        # Train set or empirical data from active learning
-        if data_path:
-            self.data_path = Path(data_path)
-            self.al_init_length = args.dataset.init_length
-            self.al_queries_per_iter = args.al.queries_per_iter
-            self.pct_test = args.gflownet.test.pct_test
-            self.data_seed = args.seeds.dataset
-            if self.data_path.suffix == ".npy":
-                self.df_data = np2df(
-                    self.data_path,
-                    args.gflownet.test.score,
-                    self.al_init_length,
-                    self.al_queries_per_iter,
-                    self.pct_test,
-                    self.data_seed,
-                )
-                self.df_train = self.df_data.loc[self.df_data.train]
-            else:
-                self.df_data = None
-                self.df_train = None
-        elif args.gflownet.train.path:
-            self.df_data = None
-            self.df_train = pd.read_csv(args.gflownet.train.path, index_col=0)
-        else:
-            self.df_data = None
-            self.df_train = make_train_set(self.oracle, args.gflownet.train.n,
-                    args.gflownet.train.seed, args.gflownet.train.output)
-        import ipdb; ipdb.set_trace()
-        # Test set
-        self.test_period = args.gflownet.test.period
-        if self.test_period in [None, -1]:
-            self.test_period = np.inf
-            self.df_test = None
-        else:
-            self.test_score = args.gflownet.test.score
-            if self.df_data is not None:
-                self.df_test = self.df_data.loc[self.df_data.test]
-            elif args.gflownet.test.path:
-                self.df_test = pd.read_csv(args.gflownet.test.path, index_col=0)
-            else:
-                self.df_test, test_set_times = make_approx_uniform_test_set(
-                    path_base_dataset=args.gflownet.test.base,
-                    score=self.test_score,
-                    ntest=args.gflownet.test.n,
-                    min_length=args.gflownet.test.min_length,
-                    max_length=args.gflownet.max_seq_length,
-                    seed=args.gflownet.test.seed,
-                    output_csv=args.gflownet.test.output,
-                )
-        if self.df_test is not None:
-            print("\nTest data")
-            print(f"\tAverage score: {self.df_test[self.test_score].mean()}")
-            print(f"\tStd score: {self.df_test[self.test_score].std()}")
-            print(f"\tMin score: {self.df_test[self.test_score].min()}")
-            print(f"\tMax score: {self.df_test[self.test_score].max()}")
         # Oracle metrics
         self.oracle_period = args.gflownet.oracle.period
         self.oracle_nsamples = args.gflownet.oracle.nsamples
@@ -995,6 +1007,7 @@ class GFlowNetAgent:
                 min_word_len=min_word_len,
                 max_word_len=max_word_len,
                 proxy=proxy,
+                stats_scores=self.stats_scores_tr,
             )
             for i in range(n_samples)
         ]
@@ -1077,6 +1090,7 @@ def sample(
     max_word_len,
     func,
     mask_eos=True,
+    stats_scores_tr=None,
 ):
     times = {
         "all": 0.0,
@@ -1095,6 +1109,7 @@ def sample(
             min_word_len=min_word_len,
             max_word_len=max_word_len,
             func=func,
+            stats_scores=stats_scores_tr,
         )
         for i in range(n_samples)
     ]

@@ -51,6 +51,7 @@ class AptamerSeq:
         reward_beta=1,
         env_id=None,
         oracle_func=None,
+        stats_scores=[-1.0, 0.0, 0.5, 1.0, -1.0],
     ):
         self.max_seq_length = max_seq_length
         self.min_seq_length = min_seq_length
@@ -61,6 +62,7 @@ class AptamerSeq:
         self.done = False
         self.id = env_id
         self.n_actions = 0
+        self.stats_scores = stats_scores
         self.oracle = oracle_func
         if proxy:
             self.proxy = proxy
@@ -75,6 +77,8 @@ class AptamerSeq:
         self._true_density = None
         self.debug = debug
         self.reward_beta = reward_beta
+        self.min_reward = 1e-8
+        self.reward_norm = 8 * self.stats_scores[3]
         self.action_space = self.get_actions_space(
             self.nalphabet, np.arange(self.min_word_len, self.max_word_len + 1)
         )
@@ -127,8 +131,21 @@ class AptamerSeq:
     def proxy2reward(self, proxy_vals):
         """
         Prepares the output of an oracle for GFlowNet.
+        self.stats_scores:
+            [0]: min
+            [1]: max
+            [2]: mean
+            [3]: std
+            [4]: max after norm
         """
-        return np.exp(-self.reward_beta * proxy_vals)
+        # Normalize
+        proxy_vals = (np.min(np.stack([np.zeros(proxy_vals.shape[0]), proxy_vals], axis=0), axis=0) - self.stats_scores[2]) / self.stats_scores[3]
+        # Invert and shift to the right (add maximum of normalized train distribution)
+        proxy_vals = self.stats_scores[4] - proxy_vals
+        # Clip
+        proxy_vals = np.max(np.stack([self.min_reward * np.zeros(proxy_vals.shape[0]), proxy_vals], axis=0), axis=0)
+        # Re-normalize to ~[0, 1] and distort
+        return (proxy_vals / self.reward_norm) ** self.reward_beta
 
     def reward2proxy(self, reward):
         """
