@@ -513,7 +513,8 @@ class ActiveLearning():
                 self.config.gflownet.n_samples, self.config.dataset.max_length,
                 self.config.dataset.min_length, self.config.dataset.dict_size,
                 self.config.gflownet.min_word_len,
-                self.config.gflownet.max_word_len, self.oracle.score, get_uncertainties=False
+                self.config.gflownet.max_word_len, self.oracle.score,
+                get_uncertainties=False, al_query_function=self.config.al.query_mode,
             )
             printRecord('Sampling {} samples from GFlowNet took {} seconds'.format(self.config.gflownet.n_samples, int(time.time()-t0)))
             sampleDict['uncertainties'] = np.zeros(len(sampleDict['energies']))
