@@ -764,7 +764,8 @@ class GFlowNetAgent:
                     self.reward_beta_period = np.inf
                     for env in [self.env] + self.envs:
                         env.reward_beta = self.reward_beta
-                    all_losses.append([loss for loss in all_losses[-1]])
+                    if len(all_losses) > 0:
+                        all_losses.append([loss for loss in all_losses[-1]])
                 else:
                     losses[0].backward()
                     if self.clip_grad_norm > 0:
