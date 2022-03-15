@@ -70,10 +70,17 @@ def add_args(parser):
         help="Seed for random number generator",
     )
     args2config.update({"rng_seed": ["seeds", "gflownet"]})
-    # dataset
+    # Oracle
+    parser.add_argument(
+        "--oracle_seed",
+        type=int,
+        default=0,
+        help="Seed for oracle",
+    )
+    args2config.update({"oracle_seed": ["oracle", "seed"]})
     parser = add_bool_arg(parser, "nupack_energy_reweighting", default=False)
     args2config.update(
-        {"nupack_energy_reweighting": ["dataset", "nupack_energy_reweighting"]}
+        {"nupack_energy_reweighting": ["oracle", "nupack_energy_reweighting"]}
     )
     parser.add_argument(
         "--nupack_target_motif",
@@ -81,7 +88,7 @@ def add_args(parser):
         default=".....(((((.......))))).....",
         help="if using 'nupack motif' oracle, return value is the binary distance to this fold, must be <= max sequence length",
     )
-    args2config.update({"nupack_target_motif": ["dataset", "nupack_target_motif"]})
+    args2config.update({"nupack_target_motif": ["oracle", "nupack_target_motif"]})
     # Training hyperparameters
     parser.add_argument(
         "--loss", default="flowmatch", type=str, help="flowmatch | trajectorybalance/tb"
@@ -200,6 +207,15 @@ def add_args(parser):
     args2config.update({"bootstrap_tau": ["gflownet", "bootstrap_tau"]})
     parser.add_argument("--batch_reward", action="store_true")
     args2config.update({"batch_reward": ["gflownet", "batch_reward"]})
+    # Train set
+    parser.add_argument("--train_set_path", default=None, type=str)
+    args2config.update({"train_set_path": ["gflownet", "train", "path"]})
+    parser.add_argument("--ntrain", default=10000, type=int)
+    args2config.update({"ntrain": ["gflownet", "train", "n"]})
+    parser.add_argument("--train_set_seed", default=167, type=int)
+    args2config.update({"train_set_seed": ["gflownet", "train", "seed"]})
+    parser.add_argument("--train_output", default=None, type=str)
+    args2config.update({"train_output": ["gflownet", "train", "output"]})
     # Test set
     parser.add_argument("--test_set_path", default=None, type=str)
     args2config.update({"test_set_path": ["gflownet", "test", "path"]})
@@ -263,7 +279,6 @@ def set_device(dev):
 class GFlowNetAgent:
     def __init__(self, args, comet=None, proxy=None, al_iter=-1, data_path=None):
         # Misc
-        self.oracle = Oracle(args)
         self.rng = np.random.default_rng(args.seeds.gflownet)
         self.debug = args.debug
         self.device_torch = torch.device(args.gflownet.device)
@@ -296,7 +311,17 @@ class GFlowNetAgent:
         else:
             self.al_iter = ""
         self.logsoftmax = torch.nn.LogSoftmax(dim=1)
-
+        # Oracle
+        self.oracle = Oracle(
+            seed = args.oracle.seed,
+            seq_len = args.gflownet.max_seq_length,
+            dict_size = args.gflownet.nalphabet,
+            min_len = args.gflownet.min_seq_length,
+            max_len = args.gflownet.max_seq_length,
+            oracle = args.gflownet.func,
+            energy_weight = args.oracle.nupack_energy_reweighting,
+            nupack_target_motif = args.oracle.nupack_target_motif,
+        )
         # Comet
         if args.gflownet.comet.project and not args.gflownet.comet.skip:
             self.comet = Experiment(
@@ -384,7 +409,7 @@ class GFlowNetAgent:
         self.sttr = max(int(1 / args.gflownet.train_to_sample_ratio), 1)
         self.random_action_prob = args.gflownet.random_action_prob
         self.pct_batch_empirical = args.gflownet.pct_batch_empirical
-        # Empirical data from active learning
+        # Train set or empirical data from active learning
         if data_path:
             self.data_path = Path(data_path)
             self.al_init_length = args.dataset.init_length
@@ -404,9 +429,14 @@ class GFlowNetAgent:
             else:
                 self.df_data = None
                 self.df_train = None
+        elif args.gflownet.train.path:
+            self.df_data = None
+            self.df_train = pd.read_csv(args.gflownet.train.path, index_col=0)
         else:
             self.df_data = None
-            self.df_train = None
+            self.df_train = make_train_set(self.oracle, args.gflownet.train.n,
+                    args.gflownet.train.seed, args.gflownet.train.output)
+        import ipdb; ipdb.set_trace()
         # Test set
         self.test_period = args.gflownet.test.period
         if self.test_period in [None, -1]:
@@ -1307,6 +1337,42 @@ def make_approx_uniform_test_set(
     t1_all = time.time()
     times["all"] += t1_all - t0_all
     return df_test, times
+
+
+def make_train_set(
+    oracle,
+    ntrain,
+    seed=168,
+    output_csv=None,
+):
+    """
+    Constructs a randomly sampled train set.
+
+    Args
+    ----
+    ntest : int
+        Number of test samples.
+
+    seed : int
+        Random seed.
+
+    output_csv: str
+        Optional path to store the test set as CSV.
+    """
+    samples_dict = oracle.initializeDataset(save=False, returnData=True,
+            customSize=ntrain, custom_seed=seed)
+    scores = samples_dict["scores"]
+    samples_mat = samples_dict["samples"]
+    seq_letters = oracle.numbers2letters(samples_mat)
+    seq_ints = ["".join([str(el) for el in seq if el > 0]) for seq in samples_mat]
+    if isinstance(scores, dict):
+        scores.update({"letters": seq_letters, "indices": seq_ints})
+        df_train = pd.DataFrame(scores)
+    else:
+        df_train = pd.DataFrame({"letters": seq_letters, "indices": seq_ints, "scores": scores})
+    if output_csv:
+        df_train.to_csv(output_csv)
+    return df_train
 
 
 def np2df(test_path, score, al_init_length, al_queries_per_iter, pct_test, data_seed):

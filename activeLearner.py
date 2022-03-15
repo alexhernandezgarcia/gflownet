@@ -22,7 +22,19 @@ class ActiveLearning():
         self.episode = 0
         self.config = config
         self.runNum = self.config.run_num
-        self.oracle = Oracle(self.config) # oracle needs to be initialized to initialize toy datasets
+        self.oracle = Oracle(
+            seed = self.config.seeds.dataset,
+            seq_len = self.config.dataset.max_length,
+            dict_size = self.config.dataset.dict_size,
+            min_len = self.config.dataset.min_length,
+            max_len = self.config.dataset.max_length,
+            oracle = self.config.dataset.oracle,
+            variable_len = self.config.dataset.variable_length,
+            init_len = self.config.dataset.init_length,
+            energy_weight = self.config.dataset.nupack_energy_reweighting,
+            nupack_target_motif = self.config.dataset.nupack_target_motif,
+            seed_toy = self.config.seeds.toy_oracle,
+        ) # oracle needs to be initialized to initialize toy datasets
         self.agent = ParameterUpdateAgent(self.config)
         self.querier = Querier(self.config) # might as well initialize the querier here
         self.setup()

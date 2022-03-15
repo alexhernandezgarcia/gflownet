@@ -31,16 +31,27 @@ config
 
 
 class Oracle():
-    def __init__(self, config):
+    def __init__(self, seed, seq_len, dict_size, min_len, max_len, oracle,
+            variable_len=True, init_len=0, energy_weight=False, nupack_target_motif="",
+            seed_toy=0):
         '''
         initialize the oracle
         :param config:
         '''
-        self.config = config
-        self.seqLen = self.config.dataset.max_length
-        np.random.seed(self.config.seeds.toy_oracle)
+        self.seed = seed
+        self.seq_len = seq_len
+        self.dict_size = dict_size
+        self.min_len = min_len
+        self.max_len = max_len
+        self.init_len = init_len
+        self.variable_len = variable_len
+        self.oracle = oracle
+        self.energy_weight = energy_weight
+        self.nupack_target_motif = nupack_target_motif
+        self.seed_toy = seed_toy
 
-        if not 'nupack' in self.config.dataset.oracle:
+        np.random.seed(self.seed_toy)
+        if not 'nupack' in self.oracle:
             self.initRands() # initialize random numbers for hand-made oracles
 
 
@@ -52,14 +63,14 @@ class Oracle():
 
         # set these to be always positive to play nice with gFlowNet sampling
         if True:#self.config.test_mode:
-            self.linFactors = -np.ones(self.seqLen) # Uber-simple function, for testing purposes - actually nearly functionally identical to one-max, I believe
+            self.linFactors = -np.ones(self.seq_len) # Uber-simple function, for testing purposes - actually nearly functionally identical to one-max, I believe
         else:
-            self.linFactors = np.abs(np.random.randn(self.seqLen))  # coefficients for linear toy energy
+            self.linFactors = np.abs(np.random.randn(self.seq_len))  # coefficients for linear toy energy
 
-        hamiltonian = np.random.randn(self.seqLen,self.seqLen) # energy function
+        hamiltonian = np.random.randn(self.seq_len,self.seq_len) # energy function
         self.hamiltonian = np.tril(hamiltonian) + np.tril(hamiltonian, -1).T # random symmetric matrix
 
-        pham = np.zeros((self.seqLen,self.seqLen,self.config.dataset.dict_size,self.config.dataset.dict_size))
+        pham = np.zeros((self.seq_len,self.seq_len,self.dict_size,self.dict_size))
         for i in range(pham.shape[0]):
             for j in range(i, pham.shape[1]):
                 for k in range(pham.shape[2]):
@@ -70,15 +81,15 @@ class Oracle():
                         pham[j, i, k, l] = num
                         pham[j, i, l, k] = num
         self.pottsJ = pham # multilevel spin Hamiltonian (Potts Hamiltonian) - coupling term
-        self.pottsH = np.random.randn(self.seqLen,self.config.dataset.dict_size) # Potts Hamiltonian - onsite term
+        self.pottsH = np.random.randn(self.seq_len,self.dict_size) # Potts Hamiltonian - onsite term
 
         # W-model parameters
         # first get the binary dimension size
-        aa = np.arange(self.config.dataset.dict_size)
-        if self.config.dataset.variable_length:
-            aa = np.clip(aa, 1, self.config.dataset.dict_size) #  merge padding with class 1
+        aa = np.arange(self.dict_size)
+        if self.variable_len:
+            aa = np.clip(aa, 1, self.dict_size) #  merge padding with class 1
         x0 = np.binary_repr(aa[-1])
-        dimension = int(len(x0) * self.config.dataset.max_length)
+        dimension = int(len(x0) * self.max_len)
 
         mu = np.random.randint(1, dimension + 1)
         v = np.random.randint(1, dimension + 1)
@@ -88,7 +99,8 @@ class Oracle():
         self.mu, self.v, self.m, self.n, self.gamma = [mu, v, m, n, gamma]
 
 
-    def initializeDataset(self,save = True, returnData = False, customSize=None):
+    def initializeDataset(self,save = True, returnData = False, customSize=None,
+            custom_seed=None):
         '''
         generate an initial toy dataset with a given number of samples
         need an extra factor to speed it up (duplicate filtering is very slow)
@@ -96,17 +108,20 @@ class Oracle():
         :return:
         '''
         data = {}
-        np.random.seed(self.config.seeds.dataset)
+        if custom_seed:
+            np.random.seed(custom_seed)
+        else:
+            np.random.seed(self.seed)
         if customSize is None:
-            datasetLength = self.config.dataset.init_length
+            datasetLength = self.init_len
         else:
             datasetLength = customSize
 
-        if self.config.dataset.variable_length:
+        if self.variable_len:
             samples = []
             while len(samples) < datasetLength:
-                for i in range(self.config.dataset.min_length, self.config.dataset.max_length + 1):
-                    samples.extend(np.random.randint(0 + 1, self.config.dataset.dict_size + 1, size=(int(10 * self.config.dataset.dict_size * i), i)))
+                for i in range(self.min_len, self.max_len + 1):
+                    samples.extend(np.random.randint(0 + 1, self.dict_size + 1, size=(int(10 * self.dict_size * i), i)))
 
                 samples = self.numpy_fillna(np.asarray(samples, dtype = object)) # pad sequences up to maximum length
                 samples = filterDuplicateSamples(samples) # this will naturally proportionally punish shorter sequences
@@ -115,17 +130,17 @@ class Oracle():
             np.random.shuffle(samples) # shuffle so that sequences with different lengths are randomly distributed
             samples = samples[:datasetLength] # after shuffle, reduce dataset to desired size, with properly weighted samples
         else: # fixed sample size
-            samples = np.random.randint(1, self.config.dataset.dict_size + 1,size=(datasetLength, self.config.dataset.max_length))
+            samples = np.random.randint(1, self.dict_size + 1,size=(datasetLength, self.max_len))
             samples = filterDuplicateSamples(samples)
             while len(samples) < datasetLength:
-                samples = np.concatenate((samples,np.random.randint(1, self.config.dataset.dict_size + 1, size=(datasetLength, self.config.dataset.max_length))),0)
+                samples = np.concatenate((samples,np.random.randint(1, self.dict_size + 1, size=(datasetLength, self.max_len))),0)
                 samples = filterDuplicateSamples(samples)
 
         data['samples'] = samples
         data['energies'] = self.score(data['samples'])
 
         if save:
-            np.save('datasets/' + self.config.dataset.oracle, data)
+            np.save('datasets/' + self.oracle, data)
         if returnData:
             return data
 
@@ -159,31 +174,31 @@ class Oracle():
 
 
     def getScore(self,queries):
-        if self.config.dataset.oracle == 'linear':
+        if self.oracle == 'linear':
             return self.linearToy(queries)
-        elif self.config.dataset.oracle == 'potts':
+        elif self.oracle == 'potts':
             return self.PottsEnergy(queries)
-        elif self.config.dataset.oracle == 'inner product':
+        elif self.oracle == 'inner product':
             return self.toyHamiltonian(queries)
-        elif self.config.dataset.oracle == 'seqfold':
+        elif self.oracle == 'seqfold':
             return self.seqfoldScore(queries)
-        elif self.config.dataset.oracle == 'nupack energy':
+        elif self.oracle == 'nupack energy':
             return self.nupackScore(queries, returnFunc = 'energy')
-        elif self.config.dataset.oracle == 'nupack pins':
-            return self.nupackScore(queries, returnFunc = 'pins', energy_weighting = self.config.dataset.nupack_energy_reweighting)
-        elif self.config.dataset.oracle == 'nupack pairs':
-            return self.nupackScore(queries, returnFunc = 'pairs', energy_weighting = self.config.dataset.nupack_energy_reweighting)
-        elif self.config.dataset.oracle == 'nupack open loop':
-            return self.nupackScore(queries, returnFunc = 'open loop', energy_weighting = self.config.dataset.nupack_energy_reweighting)
-        elif self.config.dataset.oracle == 'nupack motif':
-            return self.nupackScore(queries, returnFunc = 'motif', motif = self.config.dataset.nupack_target_motif, energy_weighting = self.config.dataset.nupack_energy_reweighting)
+        elif self.oracle == 'nupack pins':
+            return self.nupackScore(queries, returnFunc = 'pins', energy_weighting = self.energy_weight)
+        elif self.oracle == 'nupack pairs':
+            return self.nupackScore(queries, returnFunc = 'pairs', energy_weighting = self.energy_weight)
+        elif self.oracle == 'nupack open loop':
+            return self.nupackScore(queries, returnFunc = 'open loop', energy_weighting = self.energy_weight)
+        elif self.oracle == 'nupack motif':
+            return self.nupackScore(queries, returnFunc = 'motif', motif = nupack_target_motif, energy_weighting = self.energy_weight)
 
 
-        elif (self.config.dataset.oracle == 'onemax') or (self.config.dataset.oracle == 'twomin') or (self.config.dataset.oracle == 'fourpeaks')\
-                or (self.config.dataset.oracle == 'deceptivetrap') or (self.config.dataset.oracle == 'nklandscape') or (self.config.dataset.oracle == 'wmodel'):
+        elif (self.oracle == 'onemax') or (self.oracle == 'twomin') or (self.oracle == 'fourpeaks')\
+                or (self.oracle == 'deceptivetrap') or (self.oracle == 'nklandscape') or (self.oracle == 'wmodel'):
             return self.BB_DOB_functions(queries)
-        elif isinstance(self.config.dataset.oracle, list) and all(["nupack " in el for el in self.config.dataset.oracle]):
-            return self.nupackScore(queries, returnFunc=[el.replace("nupack ", "") for el in self.config.dataset.oracle])
+        elif isinstance(self.oracle, list) and all(["nupack " in el for el in self.oracle]):
+            return self.nupackScore(queries, returnFunc=[el.replace("nupack ", "") for el in self.oracle])
         else:
             raise NotImplementedError("Unknown orackle type")
 
@@ -194,11 +209,11 @@ class Oracle():
         :param queries:
         :return:
         '''
-        if self.config.dataset.variable_length:
-            queries = np.clip(queries, 1, self.config.dataset.dict_size) #  merge padding with class 1
+        if self.variable_len:
+            queries = np.clip(queries, 1, self.dict_size) #  merge padding with class 1
 
-        x0 = [np.binary_repr((queries[i][j] - 1).astype('uint8'),width=2) for i in range(len(queries)) for j in range(self.config.dataset.max_length)] # convert to binary
-        x0 = np.asarray(x0).astype(str).reshape(len(queries), self.config.dataset.max_length) # reshape to proper size
+        x0 = [np.binary_repr((queries[i][j] - 1).astype('uint8'),width=2) for i in range(len(queries)) for j in range(self.max_len)] # convert to binary
+        x0 = np.asarray(x0).astype(str).reshape(len(queries), self.max_len) # reshape to proper size
         x0= [''.join(x0[i]) for i in range(len(x0))] # concatenate to binary strings
         x1 = np.zeros((len(queries),len(x0[0])),int) # initialize array
         for i in range(len(x0)): # finally, as an array (took me long enough)
@@ -216,20 +231,20 @@ class Oracle():
 
 
     def getObjective(self, dimension):
-        if self.config.dataset.oracle == 'onemax': # very limited in our DNA one-hot encoding
+        if self.oracle == 'onemax': # very limited in our DNA one-hot encoding
             objective = OneMax(dimension)
-        elif self.config.dataset.oracle == 'twomin':
+        elif self.oracle == 'twomin':
             objective = TwoMin(dimension)
-        elif self.config.dataset.oracle == 'fourpeaks': # very limited in our DNA one-hot encoding
+        elif self.oracle == 'fourpeaks': # very limited in our DNA one-hot encoding
             objective = FourPeaks(dimension, t=3)
-        elif self.config.dataset.oracle == 'deceptivetrap':
+        elif self.oracle == 'deceptivetrap':
             objective = DeceptiveTrap(dimension, minimize=True)
-        elif self.config.dataset.oracle == 'nklandscape':
+        elif self.oracle == 'nklandscape':
             objective = NKLandscape(dimension, minimize=True)
-        elif self.config.dataset.oracle == 'wmodel':
+        elif self.oracle == 'wmodel':
             objective = WModel(dimension, mu=self.mu, v=self.v, m = self.m, n = self.n, gamma = self.gamma, minimize=True)
         else:
-            printRecord(self.config.dataset.oracle + ' is not a valid dataset!')
+            printRecord(self.oracle + ' is not a valid dataset!')
             sys.exit()
 
         return objective
@@ -457,8 +472,8 @@ class Oracle():
         if 'motif' in returnFunc: # searches for a particular fold NOTE searches for this exact aptamer, not subsections or longer sequences with this as just one portion
             #'((((....))))((((....))))....(((....)))'
             # pad strings up to max length for binary distance calculation
-            padded_strings = bracket_dot_to_num(ssStrings, maxlen=self.config.dataset.max_length)
-            padded_motif = np.expand_dims(bracket_dot_to_num([motif,motif], maxlen=self.config.dataset.max_length)[0],0)
+            padded_strings = bracket_dot_to_num(ssStrings, maxlen=self.max_len)
+            padded_motif = np.expand_dims(bracket_dot_to_num([motif,motif], maxlen=self.max_len)[0],0)
             motif_distance = binaryDistance(np.concatenate((padded_motif,padded_strings),axis=0), pairwise=True)[0,1:] # the first element is the motif we are looking for - take everything after this
             dict_return.update({"motif": motif_distance - 1}) # result is normed on 0-1, so dist-1 gives scaling from 0(bad) to -1(good)
 

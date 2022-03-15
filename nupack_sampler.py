@@ -96,7 +96,19 @@ def add_args(parser):
 
 
 def main(args):
-    oracle = Oracle(args)
+    oracle = Oracle(
+        seed = args.seeds.dataset,
+        seq_len = args.dataset.max_length,
+        dict_size = args.dataset.dict_size,
+        min_len = args.dataset.min_length,
+        max_len = args.dataset.max_length,
+        oracle = args.dataset.oracle,
+        variable_len = args.dataset.variable_length,
+        init_len = args.dataset.init_length,
+        energy_weight = args.dataset.nupack_energy_reweighting,
+        nupack_target_motif = args.dataset.nupack_target_motif,
+        seed_toy = args.seeds.toy_oracle,
+    )
     samples_dict = oracle.initializeDataset(save=False, returnData=True)
     scores = samples_dict["scores"]
     samples_mat = samples_dict["samples"]

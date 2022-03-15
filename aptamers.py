@@ -128,7 +128,6 @@ class AptamerSeq:
         """
         Prepares the output of an oracle for GFlowNet.
         """
-
         return np.exp(-self.reward_beta * proxy_vals)
 
     def reward2proxy(self, reward):

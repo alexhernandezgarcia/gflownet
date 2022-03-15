@@ -35,7 +35,19 @@ class Sampler:
 
 
         if self.config_main.dataset.type == 'toy':
-            self.oracle = Oracle(self.config_main)  # if we are using a toy model, initialize the oracle so we can optimize it directly for comparison
+            self.oracle = Oracle(
+                seed = self.config_main.seeds.dataset,
+                seq_len = self.config_main.dataset.max_length,
+                dict_size = self.config_main.dataset.dict_size,
+                min_len = self.config_main.dataset.min_length,
+                max_len = self.config_main.dataset.max_length,
+                oracle = self.config_main.dataset.oracle,
+                variable_len = self.config_main.dataset.variable_length,
+                init_len = self.config_main.dataset.init_length,
+                energy_weight = self.config_main.dataset.nupack_energy_reweighting,
+                nupack_target_motif = self.config_main.dataset.nupack_target_motif,
+                seed_toy = self.config_main.seeds.toy_oracle,
+            ) # if we are using a toy model, initialize the oracle so we can optimize it directly for comparison
 
         np.random.seed(int(self.config_main.seeds.sampler + int(self.seedInd * 1000))) # initial seed is randomized over pipeline iterations
 

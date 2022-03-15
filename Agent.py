@@ -206,7 +206,19 @@ class DQN:
         self.trainingSamples = self.trainingSamples['samples']
         # large random sample
         numSamples = min(int(1e4), self.config.dataset.dict_size ** self.config.dataset.max_length // 100) # either 1e4, or 1% of the sample space, whichever is smaller
-        dataoracle = Oracle(self.config)
+        dataoracle = Oracle(
+            seed = self.config.seeds.dataset,
+            seq_len = self.config.dataset.max_length,
+            dict_size = self.config.dataset.dict_size,
+            min_len = self.config.dataset.min_length,
+            max_len = self.config.dataset.max_length,
+            oracle = self.config.dataset.oracle,
+            variable_len = self.config.dataset.variable_length,
+            init_len = self.config.dataset.init_length,
+            energy_weight = self.config.dataset.nupack_energy_reweighting,
+            nupack_target_motif = self.config.dataset.nupack_target_motif,
+            seed_toy = self.config.seeds.toy_oracle,
+        )
         self.randomSamples = dataoracle.initializeDataset(save=False, returnData=True, customSize=numSamples) # get large random dataset
         self.randomSamples = self.randomSamples['samples']
 
