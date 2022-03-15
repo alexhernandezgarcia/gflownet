@@ -110,15 +110,15 @@ def main(args):
         seed_toy = args.seeds.toy_oracle,
     )
     samples_dict = oracle.initializeDataset(save=False, returnData=True)
-    scores = samples_dict["scores"]
+    energies = samples_dict["energies"]
     samples_mat = samples_dict["samples"]
     seq_letters = oracle.numbers2letters(samples_mat)
     seq_ints = ["".join([str(el) for el in seq if el > 0]) for seq in samples_mat]
-    if isinstance(scores, dict):
-        scores.update({"letters": seq_letters, "indices": seq_ints})
-        df = pd.DataFrame(scores)
+    if isinstance(energies, dict):
+        energies.update({"letters": seq_letters, "indices": seq_ints})
+        df = pd.DataFrame(energies)
     else:
-        df = pd.DataFrame({"letters": seq_letters, "indices": seq_ints, "scores": scores})
+        df = pd.DataFrame({"letters": seq_letters, "indices": seq_ints, "energies": energies})
     if args.output:
         output_yml = Path(args.output).with_suffix(".yml")
         with open(output_yml, "w") as f:

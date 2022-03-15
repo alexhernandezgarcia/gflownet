@@ -1361,15 +1361,15 @@ def make_train_set(
     """
     samples_dict = oracle.initializeDataset(save=False, returnData=True,
             customSize=ntrain, custom_seed=seed)
-    scores = samples_dict["scores"]
+    energies = samples_dict["energies"]
     samples_mat = samples_dict["samples"]
     seq_letters = oracle.numbers2letters(samples_mat)
     seq_ints = ["".join([str(el) for el in seq if el > 0]) for seq in samples_mat]
-    if isinstance(scores, dict):
-        scores.update({"letters": seq_letters, "indices": seq_ints})
-        df_train = pd.DataFrame(scores)
+    if isinstance(energies, dict):
+        energies.update({"letters": seq_letters, "indices": seq_ints})
+        df_train = pd.DataFrame(energies)
     else:
-        df_train = pd.DataFrame({"letters": seq_letters, "indices": seq_ints, "scores": scores})
+        df_train = pd.DataFrame({"letters": seq_letters, "indices": seq_ints, "energies": energies})
     if output_csv:
         df_train.to_csv(output_csv)
     return df_train
