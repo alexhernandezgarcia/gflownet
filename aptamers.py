@@ -143,7 +143,7 @@ class AptamerSeq:
         # Invert and shift to the right (add maximum of normalized train distribution)
         proxy_vals = self.stats_scores[4] - proxy_vals
         # Clip
-        proxy_vals = np.max(np.stack([self.min_reward * np.zeros(proxy_vals.shape[0]), proxy_vals], axis=0), axis=0)
+        proxy_vals = np.max(np.stack([self.min_reward * np.ones(proxy_vals.shape[0]), proxy_vals], axis=0), axis=0)
         # Re-normalize to ~[0, 1] and distort
         return (proxy_vals / self.reward_norm) ** self.reward_beta
 
