@@ -79,7 +79,7 @@ class AptamerSeq:
         self.debug = debug
         self.reward_beta = reward_beta
         self.min_reward = 1e-8
-        self.reward_norm = 8
+        self.reward_norm = np.abs(self.stats_scores[0])
         self.action_space = self.get_actions_space(
             self.nalphabet, np.arange(self.min_word_len, self.max_word_len + 1)
         )
