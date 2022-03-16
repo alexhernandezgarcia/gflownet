@@ -105,8 +105,6 @@ def main(args):
         oracle = args.dataset.oracle,
         variable_len = args.dataset.variable_length,
         init_len = args.dataset.init_length,
-        energy_weight = args.dataset.nupack_energy_reweighting,
-        nupack_target_motif = args.dataset.nupack_target_motif,
         seed_toy = args.seeds.toy_oracle,
     )
     samples_dict = oracle.initializeDataset(save=False, returnData=True)
