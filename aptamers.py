@@ -4,6 +4,7 @@ Classes to represent aptamers environments
 import itertools
 import numpy as np
 
+
 class AptamerSeq:
     """
     Aptamer sequence environment
@@ -78,7 +79,7 @@ class AptamerSeq:
         self.debug = debug
         self.reward_beta = reward_beta
         self.min_reward = 1e-8
-        self.reward_norm = 8 * self.stats_scores[3]
+        self.reward_norm = 8
         self.action_space = self.get_actions_space(
             self.nalphabet, np.arange(self.min_word_len, self.max_word_len + 1)
         )
@@ -139,20 +140,34 @@ class AptamerSeq:
             [4]: max after norm
         """
         # Normalize
-        proxy_vals = (np.min(np.stack([np.zeros(proxy_vals.shape[0]), proxy_vals], axis=0), axis=0) - self.stats_scores[2]) / self.stats_scores[3]
+        rewards = (
+            np.min(
+                np.stack([np.zeros(proxy_vals.shape[0]), proxy_vals], axis=0), axis=0
+            )
+            - self.stats_scores[2]
+        ) / self.stats_scores[3]
         # Invert and shift to the right (add maximum of normalized train distribution)
-        proxy_vals = self.stats_scores[4] - proxy_vals
-        # Clip
-        proxy_vals = np.max(np.stack([self.min_reward * np.ones(proxy_vals.shape[0]), proxy_vals], axis=0), axis=0)
+        rewards = self.stats_scores[4] - rewards
         # Re-normalize to ~[0, 1] and distort
-        return (proxy_vals / self.reward_norm) ** self.reward_beta
+        rewards = (rewards / self.reward_norm) ** self.reward_beta
+        # Clip
+        rewards = np.max(
+            np.stack(
+                [self.min_reward * np.ones(rewards.shape[0]), rewards], axis=0
+            ),
+            axis=0,
+        )
+        return rewards
 
     def reward2proxy(self, reward):
         """
         Converts a "GFlowNet reward" into energy or values as returned by an oracle.
         """
-
-        return -np.log(reward) / self.reward_beta
+        # TODO: rewrite
+        proxy_vals = np.exp((np.log(rewards) + self.reward_beta * np.log(self.reward_norm)) / self.reward_beta)
+        proxy_vals = self.stats_scores[4] - proxy_vals
+        proxy_vals = proxy_vals * self.stats_scores[3] + self.stats_scores[2]
+        return proxy_vals
 
     def seq2obs(self, seq=None):
         """
