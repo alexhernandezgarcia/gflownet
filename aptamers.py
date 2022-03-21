@@ -53,6 +53,7 @@ class AptamerSeq:
         env_id=None,
         oracle_func=None,
         stats_scores=[-1.0, 0.0, 0.5, 1.0, -1.0],
+        reward_norm=1.0,
     ):
         self.max_seq_length = max_seq_length
         self.min_seq_length = min_seq_length
@@ -79,7 +80,7 @@ class AptamerSeq:
         self.debug = debug
         self.reward_beta = reward_beta
         self.min_reward = 1e-8
-        self.reward_norm = np.abs(self.stats_scores[0])
+        self.reward_norm = reward_norm
         self.action_space = self.get_actions_space(
             self.nalphabet, np.arange(self.min_word_len, self.max_word_len + 1)
         )
@@ -132,42 +133,19 @@ class AptamerSeq:
     def proxy2reward(self, proxy_vals):
         """
         Prepares the output of an oracle for GFlowNet.
-        self.stats_scores:
-            [0]: min
-            [1]: max
-            [2]: mean
-            [3]: std
-            [4]: max after norm
         """
-        # Normalize
-        rewards = (
-            np.min(
-                np.stack([np.zeros(proxy_vals.shape[0]), proxy_vals], axis=0), axis=0
-            )
-            - self.stats_scores[2]
-        ) / self.stats_scores[3]
-        # Invert and shift to the right (add maximum of normalized train distribution)
-        rewards = self.stats_scores[4] - rewards
-        # Re-normalize to ~[0, 1] and distort
-        rewards = (rewards / self.reward_norm) ** self.reward_beta
-        # Clip
-        rewards = np.max(
-            np.stack(
-                [self.min_reward * np.ones(rewards.shape[0]), rewards], axis=0
-            ),
-            axis=0,
+        return np.clip(
+            (proxy_vals / self.reward_norm) ** self.reward_beta, self.min_reward, None
         )
-        return rewards
 
     def reward2proxy(self, reward):
         """
         Converts a "GFlowNet reward" into energy or values as returned by an oracle.
         """
-        # TODO: rewrite
-        proxy_vals = np.exp((np.log(reward) + self.reward_beta * np.log(self.reward_norm)) / self.reward_beta)
-        proxy_vals = self.stats_scores[4] - proxy_vals
-        proxy_vals = proxy_vals * self.stats_scores[3] + self.stats_scores[2]
-        return proxy_vals
+        return -np.exp(
+            (np.log(reward) + self.reward_beta * np.log(np.abs(self.reward_norm)))
+            / self.reward_beta
+        )
 
     def seq2obs(self, seq=None):
         """
