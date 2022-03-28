@@ -54,6 +54,7 @@ class AptamerSeq:
         oracle_func=None,
         stats_scores=[-1.0, 0.0, 0.5, 1.0, -1.0],
         reward_norm=1.0,
+        denorm_proxy=False,
     ):
         self.max_seq_length = max_seq_length
         self.min_seq_length = min_seq_length
@@ -81,6 +82,7 @@ class AptamerSeq:
         self.reward_beta = reward_beta
         self.min_reward = 1e-8
         self.reward_norm = reward_norm
+        self.denorm_proxy = denorm_proxy
         self.action_space = self.get_actions_space(
             self.nalphabet, np.arange(self.min_word_len, self.max_word_len + 1)
         )
@@ -134,6 +136,8 @@ class AptamerSeq:
         """
         Prepares the output of an oracle for GFlowNet.
         """
+        if self.denorm_proxy:
+            proxy_vals = proxy_vals * self.stats_scores[3] + self.stats_scores[2]
         return np.clip(
             (-1.0 * proxy_vals / self.reward_norm) ** self.reward_beta,
             self.min_reward,
@@ -145,7 +149,7 @@ class AptamerSeq:
         Converts a "GFlowNet reward" into energy or values as returned by an oracle.
         """
         return -np.exp(
-            (np.log(reward) + self.reward_beta * np.log(np.abs(self.reward_norm)))
+            (np.log(reward) + self.reward_beta * np.log(self.reward_norm))
             / self.reward_beta
         )
 
