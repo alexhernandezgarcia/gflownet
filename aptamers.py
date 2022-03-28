@@ -135,7 +135,9 @@ class AptamerSeq:
         Prepares the output of an oracle for GFlowNet.
         """
         return np.clip(
-            (proxy_vals / self.reward_norm) ** self.reward_beta, self.min_reward, None
+            (-1.0 * proxy_vals / self.reward_norm) ** self.reward_beta,
+            self.min_reward,
+            None,
         )
 
     def reward2proxy(self, reward):

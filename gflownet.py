@@ -168,6 +168,13 @@ def add_args(parser):
         help="Factor for the reward normalization",
     )
     args2config.update({"reward_norm": ["gflownet", "reward_norm"]})
+    parser.add_argument(
+        "--reward_norm_std_mult",
+        default=0.0,
+        type=float,
+        help="Multiplier of the standard deviation for the reward normalization",
+    )
+    args2config.update({"reward_norm_std_mult": ["gflownet", "reward_norm_std_mult"]})
     parser.add_argument("--momentum", default=0.9, type=float)
     args2config.update({"momentum": ["gflownet", "momentum"]})
     parser.add_argument("--mbsize", default=16, help="Minibatch size", type=int)
@@ -314,7 +321,8 @@ class GFlowNetAgent:
         self.tau = args.gflownet.bootstrap_tau
         self.ema_alpha = args.gflownet.ema_alpha
         self.early_stopping = args.gflownet.early_stopping
-        self.reward_norm = args.gflownet.reward_norm
+        self.reward_norm = np.abs(args.gflownet.reward_norm)
+        self.reward_norm_std_mult = args.gflownet.reward_norm_std_mult
         self.reward_beta = args.gflownet.reward_beta_init
         self.reward_beta_mult = args.gflownet.reward_beta_mult
         self.reward_beta_period = args.gflownet.reward_beta_period
@@ -406,6 +414,8 @@ class GFlowNetAgent:
             ]
         else:
             self.stats_scores_tr = None
+        if self.reward_norm_std_mult > 0 and self.stats_scores_tr is not None:
+            self.reward_norm = self.reward_norm_std_mult * self.stats_scores_tr[3]
         # Test set
         self.test_period = args.gflownet.test.period
         if self.test_period in [None, -1]:
