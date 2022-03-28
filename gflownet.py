@@ -268,7 +268,7 @@ def add_args(parser):
 
 
 def process_config(config):
-    if not config.gflownet.test.score or "nupack" in config.gflownet.test.score:
+    if "score" not in config.gflownet.test or "nupack" in config.gflownet.test.score:
         config.gflownet.test.score = config.gflownet.func.replace("nupack ", "")
     return config
 
