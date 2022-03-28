@@ -134,33 +134,12 @@ def add_args(parser):
     parser.add_argument("--adam_beta2", default=0.999, type=float)
     args2config.update({"adam_beta2": ["gflownet", "adam_beta2"]})
     parser.add_argument(
-        "--reward_beta_init",
+        "--reward_beta",
         default=1,
         type=float,
         help="Initial beta for exponential reward scaling",
     )
-    args2config.update({"reward_beta_init": ["gflownet", "reward_beta_init"]})
-    parser.add_argument(
-        "--reward_max",
-        default=1e6,
-        type=float,
-        help="Max reward to prevent numerical issues",
-    )
-    args2config.update({"reward_max": ["gflownet", "reward_max"]})
-    parser.add_argument(
-        "--reward_beta_mult",
-        default=1.25,
-        type=float,
-        help="Multiplier for rescaling beta during training",
-    )
-    args2config.update({"reward_beta_mult": ["gflownet", "reward_beta_mult"]})
-    parser.add_argument(
-        "--reward_beta_period",
-        default=-1,
-        type=float,
-        help="Period (number of iterations) for beta rescaling",
-    )
-    args2config.update({"reward_beta_period": ["gflownet", "reward_beta_period"]})
+    args2config.update({"reward_beta": ["gflownet", "reward_beta"]})
     parser.add_argument(
         "--reward_norm",
         default=1.0,
@@ -323,12 +302,7 @@ class GFlowNetAgent:
         self.early_stopping = args.gflownet.early_stopping
         self.reward_norm = np.abs(args.gflownet.reward_norm)
         self.reward_norm_std_mult = args.gflownet.reward_norm_std_mult
-        self.reward_beta = args.gflownet.reward_beta_init
-        self.reward_beta_mult = args.gflownet.reward_beta_mult
-        self.reward_beta_period = args.gflownet.reward_beta_period
-        if self.reward_beta_period in [None, -1]:
-            self.reward_beta_period = np.inf
-        self.reward_max = args.gflownet.reward_max
+        self.reward_beta = args.gflownet.reward_beta
         if al_iter >= 0:
             self.al_iter = "_iter{}".format(al_iter)
         else:
@@ -786,21 +760,11 @@ class GFlowNetAgent:
                     print("Unknown loss!")
                 if (
                     not all([torch.isfinite(loss) for loss in losses])
-                    or np.max(rewards) > self.reward_max
                 ):
                     if self.debug:
                         print(
-                            "Too large rewards: Skipping backward pass, increasing "
-                            "reward temperature from -{:.4f} to -{:.4f} and cancelling "
-                            "beta scheduling".format(
-                                self.reward_beta,
-                                self.reward_beta / self.reward_beta_mult,
-                            )
+                            "Loss is not finite - skipping iteration"
                         )
-                    self.reward_beta /= self.reward_beta_mult
-                    self.reward_beta_period = np.inf
-                    for env in [self.env] + self.envs:
-                        env.reward_beta = self.reward_beta
                     if len(all_losses) > 0:
                         all_losses.append([loss for loss in all_losses[-1]])
                 else:
@@ -813,18 +777,6 @@ class GFlowNetAgent:
                     self.lr_scheduler.step()
                     self.opt.zero_grad()
                     all_losses.append([i.item() for i in losses])
-            # Reward beta scaling
-            if not i % self.reward_beta_period and i > 0:
-                if self.debug:
-                    print(
-                        "\tDecreasing reward temperature from "
-                        "-{:.4f} to -{:.4f}".format(
-                            self.reward_beta, self.reward_beta * self.reward_beta_mult
-                        )
-                    )
-                self.reward_beta *= self.reward_beta_mult
-                for env in [self.env] + self.envs:
-                    env.reward_beta = self.reward_beta
             # Log
             seqs_batch = [
                 tuple(self.env.obs2seq(d[3][0].tolist()))
@@ -854,7 +806,6 @@ class GFlowNetAgent:
                                 "max_proxy{}".format(self.al_iter),
                                 "mean_seq_length{}".format(self.al_iter),
                                 "batch_size{}".format(self.al_iter),
-                                "reward_beta{}".format(self.al_iter),
                             ],
                             [
                                 np.mean(rewards),
@@ -864,7 +815,6 @@ class GFlowNetAgent:
                                 np.max(proxy_vals),
                                 np.mean([len(seq) for seq in seqs_batch]),
                                 len(data),
-                                self.reward_beta,
                             ],
                         )
                     ),

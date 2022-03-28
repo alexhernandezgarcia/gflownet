@@ -346,33 +346,12 @@ def add_args(parser):
     parser.add_argument("--gflownet_opt", default="adam", type=str)
     args2config.update({"gflownet_opt": ["gflownet", "opt"]})
     parser.add_argument(
-        "--reward_beta_init",
+        "--reward_beta",
         default=1,
         type=float,
-        help="Initial beta for exponential reward scaling",
+        help="Exponent of reward scaling",
     )
-    args2config.update({"reward_beta_init": ["gflownet", "reward_beta_init"]})
-    parser.add_argument(
-        "--reward_max",
-        default=1e6,
-        type=float,
-        help="Max reward to prevent numerical issues",
-    )
-    args2config.update({"reward_max": ["gflownet", "reward_max"]})
-    parser.add_argument(
-        "--reward_beta_mult",
-        default=1.25,
-        type=float,
-        help="Multiplier for rescaling beta during training",
-    )
-    args2config.update({"reward_beta_mult": ["gflownet", "reward_beta_mult"]})
-    parser.add_argument(
-        "--reward_beta_period",
-        default=-1,
-        type=float,
-        help="Period (number of iterations) for beta rescaling",
-    )
-    args2config.update({"reward_beta_period": ["gflownet", "reward_beta_period"]})
+    args2config.update({"reward_beta": ["gflownet", "reward_beta"]})
     parser.add_argument(
         "--gflownet_early_stopping",
         default=0.01,
