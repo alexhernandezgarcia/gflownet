@@ -47,7 +47,6 @@ class AptamerSeq:
         min_word_len=1,
         max_word_len=1,
         proxy=None,
-        allow_backward=False,
         debug=False,
         reward_beta=1,
         env_id=None,
@@ -76,7 +75,6 @@ class AptamerSeq:
             if not self.done
             else self.proxy2reward(self.proxy(self.seq2oracle(x)))
         )
-        self.allow_backward = allow_backward
         self._true_density = None
         self.debug = debug
         self.reward_beta = reward_beta
@@ -295,17 +293,6 @@ class AptamerSeq:
         return traj_list, actions
 
     def step(self, action):
-        """
-        Define step given action and state.
-
-        See: step_daug()
-        See: step_chain()
-        """
-        if self.allow_backward:
-            return self.step_chain(action)
-        return self.step_dag(action)
-
-    def step_dag(self, action):
         """
         Executes step given an action
 
