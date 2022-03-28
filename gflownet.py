@@ -119,6 +119,14 @@ def add_args(parser):
         "--learning_rate", default=1e-4, help="Learning rate", type=float
     )
     args2config.update({"learning_rate": ["gflownet", "learning_rate"]})
+    parser.add_argument(
+        "--lr_decay_period", default=1e6, help="Learning rate decay period", type=int
+    )
+    args2config.update({"lr_decay_period": ["gflownet", "lr", "decay_period"]})
+    parser.add_argument(
+        "--lr_decay_gamma", default=0.5, help="Learning rate decay gamma", type=float
+    )
+    args2config.update({"lr_decay_gamma": ["gflownet", "lr", "decay_gamma"]})
     parser.add_argument("--opt", default="adam", type=str)
     args2config.update({"opt": ["gflownet", "opt"]})
     parser.add_argument("--adam_beta1", default=0.9, type=float)
@@ -153,6 +161,13 @@ def add_args(parser):
         help="Period (number of iterations) for beta rescaling",
     )
     args2config.update({"reward_beta_period": ["gflownet", "reward_beta_period"]})
+    parser.add_argument(
+        "--reward_norm",
+        default=1.0,
+        type=float,
+        help="Factor for the reward normalization",
+    )
+    args2config.update({"reward_norm": ["gflownet", "reward_norm"]})
     parser.add_argument("--momentum", default=0.9, type=float)
     args2config.update({"momentum": ["gflownet", "momentum"]})
     parser.add_argument("--mbsize", default=16, help="Minibatch size", type=int)
@@ -299,6 +314,7 @@ class GFlowNetAgent:
         self.tau = args.gflownet.bootstrap_tau
         self.ema_alpha = args.gflownet.ema_alpha
         self.early_stopping = args.gflownet.early_stopping
+        self.reward_norm = args.gflownet.reward_norm
         self.reward_beta = args.gflownet.reward_beta_init
         self.reward_beta_mult = args.gflownet.reward_beta_mult
         self.reward_beta_period = args.gflownet.reward_beta_period
@@ -312,14 +328,14 @@ class GFlowNetAgent:
         self.logsoftmax = torch.nn.LogSoftmax(dim=1)
         # Oracle
         self.oracle = Oracle(
-            seed = args.oracle.seed,
-            seq_len = args.gflownet.max_seq_length,
-            dict_size = args.gflownet.nalphabet,
-            min_len = args.gflownet.min_seq_length,
-            max_len = args.gflownet.max_seq_length,
-            oracle = args.gflownet.func,
-            energy_weight = args.oracle.nupack_energy_reweighting,
-            nupack_target_motif = args.oracle.nupack_target_motif,
+            seed=args.oracle.seed,
+            seq_len=args.gflownet.max_seq_length,
+            dict_size=args.gflownet.nalphabet,
+            min_len=args.gflownet.min_seq_length,
+            max_len=args.gflownet.max_seq_length,
+            oracle=args.gflownet.func,
+            energy_weight=args.oracle.nupack_energy_reweighting,
+            nupack_target_motif=args.oracle.nupack_target_motif,
         )
         # Comet
         if args.gflownet.comet.project and not args.gflownet.comet.skip:
@@ -366,17 +382,28 @@ class GFlowNetAgent:
             self.df_train = pd.read_csv(args.gflownet.train.path, index_col=0)
         else:
             self.df_data = None
-            self.df_train = make_train_set(self.oracle, args.gflownet.train.n,
-                    args.gflownet.train.seed, args.gflownet.train.output)
+            self.df_train = make_train_set(
+                self.oracle,
+                args.gflownet.train.n,
+                args.gflownet.train.seed,
+                args.gflownet.train.output,
+            )
         if self.df_train is not None:
             min_scores_tr = self.df_train["scores"].min()
             max_scores_tr = self.df_train["scores"].max()
             mean_scores_tr = self.df_train["scores"].mean()
             std_scores_tr = self.df_train["scores"].std()
-            scores_tr_norm = (self.df_train["scores"].values - mean_scores_tr) / std_scores_tr
+            scores_tr_norm = (
+                self.df_train["scores"].values - mean_scores_tr
+            ) / std_scores_tr
             max_norm_scores_tr = np.max(scores_tr_norm)
-            self.stats_scores_tr = [min_scores_tr, max_scores_tr, mean_scores_tr,
-                    std_scores_tr, max_norm_scores_tr]
+            self.stats_scores_tr = [
+                min_scores_tr,
+                max_scores_tr,
+                mean_scores_tr,
+                std_scores_tr,
+                max_norm_scores_tr,
+            ]
         else:
             self.stats_scores_tr = None
         # Test set
@@ -419,6 +446,7 @@ class GFlowNetAgent:
             reward_beta=self.reward_beta,
             oracle_func=self.oracle.score,
             stats_scores=self.stats_scores_tr,
+            reward_norm=self.reward_norm,
         )
         self.envs = [
             AptamerSeq(
@@ -433,6 +461,7 @@ class GFlowNetAgent:
                 reward_beta=self.reward_beta,
                 oracle_func=self.oracle.score,
                 stats_scores=self.stats_scores_tr,
+                reward_norm=self.reward_norm,
             )
             for _ in range(args.gflownet.mbsize)
         ]
@@ -465,7 +494,7 @@ class GFlowNetAgent:
         self.model.to(self.device_torch)
         self.target = copy.deepcopy(self.model)
         # Training
-        self.opt = make_opt(self.parameters(), self.Z, args)
+        self.opt, self.lr_scheduler = make_opt(self.parameters(), self.Z, args)
         self.n_train_steps = args.gflownet.n_iter
         self.mbsize = args.gflownet.mbsize
         self.progress = args.gflownet.progress
@@ -773,6 +802,7 @@ class GFlowNetAgent:
                             self.parameters(), self.clip_grad_norm
                         )
                     self.opt.step()
+                    self.lr_scheduler.step()
                     self.opt.zero_grad()
                     all_losses.append([i.item() for i in losses])
             # Reward beta scaling
@@ -1252,7 +1282,13 @@ def make_opt(params, Z, args):
         opt = torch.optim.SGD(
             params, args.gflownet.learning_rate, momentum=args.gflownet.momentum
         )
-    return opt
+    # Learning rate scheduling
+    lr_scheduler = torch.optim.lr_scheduler.StepLR(
+        opt,
+        step_size=args.gflownet.lr.decay_period,
+        gamma=args.gflownet.lr.decay_gamma,
+    )
+    return opt, lr_scheduler
 
 
 def compute_empirical_distribution_error(env, visited):
@@ -1375,8 +1411,9 @@ def make_train_set(
     output_csv: str
         Optional path to store the test set as CSV.
     """
-    samples_dict = oracle.initializeDataset(save=False, returnData=True,
-            customSize=ntrain, custom_seed=seed)
+    samples_dict = oracle.initializeDataset(
+        save=False, returnData=True, customSize=ntrain, custom_seed=seed
+    )
     energies = samples_dict["energies"]
     samples_mat = samples_dict["samples"]
     seq_letters = oracle.numbers2letters(samples_mat)
@@ -1385,7 +1422,9 @@ def make_train_set(
         energies.update({"letters": seq_letters, "indices": seq_ints})
         df_train = pd.DataFrame(energies)
     else:
-        df_train = pd.DataFrame({"letters": seq_letters, "indices": seq_ints, "scores": energies})
+        df_train = pd.DataFrame(
+            {"letters": seq_letters, "indices": seq_ints, "scores": energies}
+        )
     if output_csv:
         df_train.to_csv(output_csv)
     return df_train
