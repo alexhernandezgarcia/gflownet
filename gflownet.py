@@ -457,7 +457,10 @@ class GFlowNetAgent:
                 for _ in range(args.gflownet.mbsize)
             ]
         elif self.env_id == "grid":
-            self.envs = [Grid(oracle_func=args.gflownet.func) for _ in range(args.gflownet.mbsize)]
+            self.envs = [
+                Grid(oracle_func=args.gflownet.func)
+                for _ in range(args.gflownet.mbsize)
+            ]
         else:
             raise NotImplementedError("Unknown environment name")
         self.batch_reward = args.gflownet.batch_reward
@@ -551,7 +554,7 @@ class GFlowNetAgent:
                         seq,
                         tf([env.seq2obs(seq)]),
                         done,
-                        tl([env.id]),
+                        tl([env.id] * len(parents)),
                         tl([env.n_actions]),
                     ]
                 )
@@ -596,7 +599,7 @@ class GFlowNetAgent:
                             seq,
                             tf([env.seq2obs()]),
                             env.done,
-                            tl([env.id]),
+                            tl([env.id] * len(parents)),
                             tl([env.n_actions]),
                         ]
                     )
@@ -725,7 +728,11 @@ class GFlowNetAgent:
             Loss of the intermediate nodes only
         """
         # Unpack batch
-        parents, actions, rewards, _, done, traj_id, _ = map(torch.cat, zip(*batch))
+        parents, actions, rewards, _, done, traj_id_parents, _ = zip(*batch)
+        traj_id = torch.cat([el[:1] for el in traj_id_parents])
+        parents, actions, rewards, done, traj_id_parents = map(
+            torch.cat, [parents, actions, rewards, done, traj_id_parents]
+        )
         # Log probs of each (s, a)
         logprobs = self.logsoftmax(self.model(parents))[
             torch.arange(parents.shape[0]), actions
@@ -733,7 +740,7 @@ class GFlowNetAgent:
         # Sum of log probs
         sumlogprobs = tf(
             torch.zeros(len(torch.unique(traj_id, sorted=True)))
-        ).index_add_(0, traj_id, logprobs)
+        ).index_add_(0, traj_id_parents, logprobs)
         # Sort rewards of done sequences by ascending traj id
         rewards = rewards[done.eq(1)][torch.argsort(traj_id[done.eq(1)])]
         # Trajectory balance loss
@@ -769,13 +776,9 @@ class GFlowNetAgent:
                     )  # returns (opt loss, *metrics)
                 else:
                     print("Unknown loss!")
-                if (
-                    not all([torch.isfinite(loss) for loss in losses])
-                ):
+                if not all([torch.isfinite(loss) for loss in losses]):
                     if self.debug:
-                        print(
-                            "Loss is not finite - skipping iteration"
-                        )
+                        print("Loss is not finite - skipping iteration")
                     if len(all_losses) > 0:
                         all_losses.append([loss for loss in all_losses[-1]])
                 else:

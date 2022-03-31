@@ -81,7 +81,7 @@ class Grid:
         # Aliases and compatibility
         self.seq = self.state
         self.seq2obs = self.state2obs
-        self.obs2state = self.obs2state
+        self.obs2seq = self.obs2state
 
     def get_actions_space(self, n_dim, valid_steplens):
         """
@@ -171,13 +171,13 @@ class Grid:
         state = np.where(obs_mat)[1]
         return state
 
-    def state2letters(self, state, alphabet={}):
+    def seq2letters(self, state, alphabet={}):
         """
         Dummy function for compatibility reasons.
         """
-        return state
+        return str(state)
 
-    def letters2state(self, letters, alphabet={}):
+    def letters2seq(self, letters, alphabet={}):
         """
         Dummy function for compatibility reasons.
         """
