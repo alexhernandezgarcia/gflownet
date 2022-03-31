@@ -20,6 +20,7 @@ from torch.distributions.categorical import Categorical
 from tqdm import tqdm
 
 from aptamers import AptamerSeq
+from grid import Grid
 from oracle import numbers2letters, Oracle
 from utils import get_config, namespace2dict, numpy2python, add_bool_arg
 
@@ -180,6 +181,8 @@ def add_args(parser):
     parser.add_argument("--pct_batch_empirical", default=0.0, type=float)
     args2config.update({"pct_batch_empirical": ["gflownet", "pct_batch_empirical"]})
     # Environment
+    parser.add_argument("--env_id", default="aptamers")
+    args2config.update({"env_id": ["gflownet", "env_id"]})
     parser.add_argument("--func", default="arbitrary_i")
     args2config.update({"func": ["gflownet", "func"]})
     parser.add_argument(
@@ -319,6 +322,24 @@ class GFlowNetAgent:
             energy_weight=args.oracle.nupack_energy_reweighting,
             nupack_target_motif=args.oracle.nupack_target_motif,
         )
+        # Generic environment
+        self.env_id = args.gflownet.env_id.lower()
+        if self.env_id == "aptamers":
+            self.env = AptamerSeq(
+                args.gflownet.max_seq_length,
+                args.gflownet.min_seq_length,
+                args.gflownet.nalphabet,
+                args.gflownet.min_word_len,
+                args.gflownet.max_word_len,
+                proxy=proxy,
+                reward_beta=self.reward_beta,
+                oracle_func=self.oracle.score,
+                reward_norm=self.reward_norm,
+            )
+        elif self.env_id == "grid":
+            self.env = Grid(oracle_func=args.gflownet.func)
+        else:
+            raise NotImplemented
         # Comet
         if args.gflownet.comet.project and not args.gflownet.comet.skip:
             self.comet = Experiment(
@@ -347,7 +368,7 @@ class GFlowNetAgent:
             self.pct_test = args.gflownet.test.pct_test
             self.data_seed = args.seeds.dataset
             if self.data_path.suffix == ".npy":
-                self.df_data = np2df(
+                self.df_data = self.env.np2df(
                     self.data_path,
                     args.gflownet.test.score,
                     self.al_init_length,
@@ -364,7 +385,7 @@ class GFlowNetAgent:
             self.df_train = pd.read_csv(args.gflownet.train.path, index_col=0)
         else:
             self.df_data = None
-            self.df_train = make_train_set(
+            self.df_train = self.env.make_train_set(
                 self.oracle,
                 args.gflownet.train.n,
                 args.gflownet.train.seed,
@@ -402,7 +423,7 @@ class GFlowNetAgent:
             elif args.gflownet.test.path:
                 self.df_test = pd.read_csv(args.gflownet.test.path, index_col=0)
             else:
-                self.df_test, test_set_times = make_approx_uniform_test_set(
+                self.df_test, test_set_times = self.env.make_approx_uniform_test_set(
                     path_base_dataset=args.gflownet.test.base,
                     score=self.test_score,
                     ntest=args.gflownet.test.n,
@@ -417,40 +438,32 @@ class GFlowNetAgent:
             print(f"\tStd score: {self.df_test[self.test_score].std()}")
             print(f"\tMin score: {self.df_test[self.test_score].min()}")
             print(f"\tMax score: {self.df_test[self.test_score].max()}")
-        # Environment
-        self.env = AptamerSeq(
-            args.gflownet.max_seq_length,
-            args.gflownet.min_seq_length,
-            args.gflownet.nalphabet,
-            args.gflownet.min_word_len,
-            args.gflownet.max_word_len,
-            proxy=proxy,
-            debug=self.debug,
-            reward_beta=self.reward_beta,
-            oracle_func=self.oracle.score,
-            stats_scores=self.stats_scores_tr,
-            reward_norm=self.reward_norm,
-        )
-        self.envs = [
-            AptamerSeq(
-                args.gflownet.max_seq_length,
-                args.gflownet.min_seq_length,
-                args.gflownet.nalphabet,
-                args.gflownet.min_word_len,
-                args.gflownet.max_word_len,
-                proxy=proxy,
-                debug=self.debug,
-                reward_beta=self.reward_beta,
-                oracle_func=self.oracle.score,
-                stats_scores=self.stats_scores_tr,
-                reward_norm=self.reward_norm,
-            )
-            for _ in range(args.gflownet.mbsize)
-        ]
+        # Environments
+        if self.env_id == "aptamers":
+            self.envs = [
+                AptamerSeq(
+                    args.gflownet.max_seq_length,
+                    args.gflownet.min_seq_length,
+                    args.gflownet.nalphabet,
+                    args.gflownet.min_word_len,
+                    args.gflownet.max_word_len,
+                    proxy=proxy,
+                    debug=self.debug,
+                    reward_beta=self.reward_beta,
+                    oracle_func=self.oracle.score,
+                    stats_scores=self.stats_scores_tr,
+                    reward_norm=self.reward_norm,
+                )
+                for _ in range(args.gflownet.mbsize)
+            ]
+        elif self.env_id == "grid":
+            self.envs = [Grid(oracle_func=args.gflownet.func) for _ in range(args.gflownet.mbsize)]
+        else:
+            raise NotImplementedError("Unknown environment name")
         self.batch_reward = args.gflownet.batch_reward
         # Model
         self.model = make_mlp(
-            [args.gflownet.max_seq_length * args.gflownet.nalphabet]
+            [self.env.obs_dim]
             + [args.gflownet.n_hid] * args.gflownet.n_layers
             + [len(self.env.action_space) + 1]
         )
@@ -499,13 +512,13 @@ class GFlowNetAgent:
         Builds a mini-batch of data
 
         Each item in the batch is a list of 5 elements:
-            - all parents of the state
-            - actions that lead to the state from each parent
-            - reward of the state
-            - the state, as seq2obs(seq)
-            - done
-            - trajectory id: identifies each trajectory
-            - seq id: identifies each sequence within a trajectory
+            - [0] all parents of the state
+            - [1] actions that lead to the state from each parent
+            - [2] reward of the state
+            - [3] the state, as seq2obs(seq)
+            - [4] done
+            - [5] trajectory id: identifies each trajectory
+            - [6] seq id: identifies each sequence within a trajectory
 
         Args
         ----
@@ -549,7 +562,7 @@ class GFlowNetAgent:
         # Rest of batch
         while envs:
             seqs = [env.seq2obs() for env in envs]
-            mask = [len(env.seq) < env.min_seq_length for env in envs]
+            mask = [env.no_eos_mask() for env in envs]
             random_action = self.rng.uniform()
             if random_action > self.random_action_prob:
                 with torch.no_grad():
@@ -573,8 +586,6 @@ class GFlowNetAgent:
             t0_a_envs = time.time()
             assert len(envs) == actions.shape[0]
             for env, action in zip(envs, actions):
-                if len(env.seq) == env.max_seq_length:
-                    action = env.eos
                 seq, valid = env.step(action)
                 if valid:
                     parents, parents_a = env.parent_transitions(seq, action)
@@ -1270,155 +1281,6 @@ def compute_empirical_distribution_error(env, visited):
     # KL divergence
     kl = (true_density * torch.log(estimated_density / true_density)).sum().item()
     return k1, kl
-
-
-# TODO: improve approximation of uniform
-def make_approx_uniform_test_set(
-    path_base_dataset,
-    score,
-    ntest,
-    min_length=0,
-    max_length=np.inf,
-    seed=167,
-    output_csv=None,
-):
-    """
-    Constructs an approximately uniformly distributed (on the score) set, by
-    selecting samples from a larger base set.
-
-    Args
-    ----
-    path_base_dataset : str
-        Path to a CSV file containing the base data set.
-
-    score : str
-        Column in the CSV file containing the score.
-
-    ntest : int
-        Number of test samples.
-
-    seed : int
-        Random seed.
-
-    dask : bool
-        If True, use dask to efficiently read a large base file.
-
-    output_csv: str
-        Optional path to store the test set as CSV.
-    """
-    if path_base_dataset is None:
-        return None
-    times = {
-        "all": 0.0,
-        "indices": 0.0,
-    }
-    t0_all = time.time()
-    if seed:
-        np.random.seed(seed)
-    df_base = pd.read_csv(path_base_dataset, index_col=0)
-    df_base = df_base.loc[
-        (df_base["letters"].map(len) >= min_length)
-        & (df_base["letters"].map(len) <= max_length)
-    ]
-    scores_base = df_base[score].values
-    min_base = scores_base.min()
-    max_base = scores_base.max()
-    distr_unif = np.random.uniform(low=min_base, high=max_base, size=ntest)
-    # Get minimum distance samples without duplicates
-    t0_indices = time.time()
-    idx_samples = []
-    for idx in tqdm(range(ntest)):
-        dist = np.abs(scores_base - distr_unif[idx])
-        idx_min = np.argmin(dist)
-        if idx_min in idx_samples:
-            idx_sort = np.argsort(dist)
-            for idx_next in idx_sort:
-                if idx_next not in idx_samples:
-                    idx_samples.append(idx_next)
-                    break
-        else:
-            idx_samples.append(idx_min)
-    t1_indices = time.time()
-    times["indices"] += t1_indices - t0_indices
-    # Make test set
-    df_test = df_base.iloc[idx_samples]
-    if output_csv:
-        df_test.to_csv(output_csv)
-    t1_all = time.time()
-    times["all"] += t1_all - t0_all
-    return df_test, times
-
-
-def make_train_set(
-    oracle,
-    ntrain,
-    seed=168,
-    output_csv=None,
-):
-    """
-    Constructs a randomly sampled train set.
-
-    Args
-    ----
-    ntest : int
-        Number of test samples.
-
-    seed : int
-        Random seed.
-
-    output_csv: str
-        Optional path to store the test set as CSV.
-    """
-    samples_dict = oracle.initializeDataset(
-        save=False, returnData=True, customSize=ntrain, custom_seed=seed
-    )
-    energies = samples_dict["energies"]
-    samples_mat = samples_dict["samples"]
-    seq_letters = oracle.numbers2letters(samples_mat)
-    seq_ints = ["".join([str(el) for el in seq if el > 0]) for seq in samples_mat]
-    if isinstance(energies, dict):
-        energies.update({"letters": seq_letters, "indices": seq_ints})
-        df_train = pd.DataFrame(energies)
-    else:
-        df_train = pd.DataFrame(
-            {"letters": seq_letters, "indices": seq_ints, "scores": energies}
-        )
-    if output_csv:
-        df_train.to_csv(output_csv)
-    return df_train
-
-
-def np2df(test_path, score, al_init_length, al_queries_per_iter, pct_test, data_seed):
-    data_dict = np.load(test_path, allow_pickle=True).item()
-    letters = numbers2letters(data_dict["samples"])
-    df = pd.DataFrame(
-        {
-            "letters": letters,
-            score: data_dict["energies"],
-            "train": [False] * len(letters),
-            "test": [False] * len(letters),
-        }
-    )
-    # Split train and test section of init data set
-    rng = np.random.default_rng(data_seed)
-    indices = rng.permutation(al_init_length)
-    n_tt = int(pct_test * len(indices))
-    indices_tt = indices[:n_tt]
-    indices_tr = indices[n_tt:]
-    df.loc[indices_tt, "test"] = True
-    df.loc[indices_tr, "train"] = True
-    # Split train and test the section of each iteration to preserve splits
-    idx = al_init_length
-    iters_remaining = (len(df) - al_init_length) // al_queries_per_iter
-    indices = rng.permutation(al_queries_per_iter)
-    n_tt = int(pct_test * len(indices))
-    for it in range(iters_remaining):
-        indices_tt = indices[:n_tt] + idx
-        indices_tr = indices[n_tt:] + idx
-        df.loc[indices_tt, "test"] = True
-        df.loc[indices_tr, "train"] = True
-        idx += al_queries_per_iter
-    return df
 
 
 def logq(traj_list, actions_list, model, env):

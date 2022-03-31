@@ -3,6 +3,7 @@ Classes to represent aptamers environments
 """
 import itertools
 import numpy as np
+import pandas as pd
 
 
 class AptamerSeq:
@@ -58,6 +59,7 @@ class AptamerSeq:
         self.max_seq_length = max_seq_length
         self.min_seq_length = min_seq_length
         self.nalphabet = nalphabet
+        self.obs_dim = self.nalphabet * self.max_seq_length
         self.min_word_len = min_word_len
         self.max_word_len = max_word_len
         self.seq = []
@@ -88,7 +90,7 @@ class AptamerSeq:
 
     def get_actions_space(self, nalphabet, valid_wordlens):
         """
-        Constructs with all possible actions
+        Constructs list with all possible actions
         """
         alphabet = [a for a in range(nalphabet)]
         actions = []
@@ -103,16 +105,16 @@ class AptamerSeq:
         else:
             return 0
 
-    def seq2oracle(self, seq):
+    def seq2oracle(self, seq_list):
         """
         Prepares a sequence in "GFlowNet format" for the oracles.
 
         Args
         ----
-        seq : list of lists
+        seq_list : list of lists
             List of sequences.
         """
-        queries = [s + [-1] * (self.max_seq_length - len(s)) for s in seq]
+        queries = [s + [-1] * (self.max_seq_length - len(s)) for s in seq_list]
         queries = np.array(queries, dtype=int)
         if queries.ndim == 1:
             queries = queries[np.newaxis, ...]
@@ -171,7 +173,7 @@ class AptamerSeq:
         if seq is None:
             seq = self.seq
 
-        z = np.zeros((self.nalphabet * self.max_seq_length), dtype=np.float32)
+        z = np.zeros(self.obs_dim, dtype=np.float32)
 
         if len(seq) > 0:
             if hasattr(
@@ -259,7 +261,8 @@ class AptamerSeq:
 
     def get_trajectories(self, traj_list, actions):
         """
-        Determines all trajectories to sequence seq
+        Determines all trajectories to leading to each sequence in traj_list,
+        recursively.
 
         Args
         ----
@@ -304,7 +307,7 @@ class AptamerSeq:
 
         Args
         ----
-        a : int
+        a : int (tensor)
             Index of action in the action space. a == eos indicates "stop action"
 
         Returns
@@ -337,6 +340,14 @@ class AptamerSeq:
                 self.n_actions += 1
 
         return self.seq, valid
+
+    def no_eos_mask(self, seq=None):
+        """
+        Returns True if no eos action is allowed given seq
+        """
+        if seq is None:
+            seq = self.seq
+        return len(seq) < self.min_seq_length
 
     def true_density(self, max_states=1e6):
         """
@@ -373,3 +384,155 @@ class AptamerSeq:
             traj_rewards,
         )
         return self._true_density
+
+    @staticmethod
+    def make_train_set(
+        oracle,
+        ntrain,
+        seed=168,
+        output_csv=None,
+    ):
+        """
+        Constructs a randomly sampled train set.
+
+        Args
+        ----
+        ntest : int
+            Number of test samples.
+
+        seed : int
+            Random seed.
+
+        output_csv: str
+            Optional path to store the test set as CSV.
+        """
+        samples_dict = oracle.initializeDataset(
+            save=False, returnData=True, customSize=ntrain, custom_seed=seed
+        )
+        energies = samples_dict["energies"]
+        samples_mat = samples_dict["samples"]
+        seq_letters = oracle.numbers2letters(samples_mat)
+        seq_ints = ["".join([str(el) for el in seq if el > 0]) for seq in samples_mat]
+        if isinstance(energies, dict):
+            energies.update({"letters": seq_letters, "indices": seq_ints})
+            df_train = pd.DataFrame(energies)
+        else:
+            df_train = pd.DataFrame(
+                {"letters": seq_letters, "indices": seq_ints, "scores": energies}
+            )
+        if output_csv:
+            df_train.to_csv(output_csv)
+        return df_train
+
+    # TODO: improve approximation of uniform
+    @staticmethod
+    def make_approx_uniform_test_set(
+        path_base_dataset,
+        score,
+        ntest,
+        min_length=0,
+        max_length=np.inf,
+        seed=167,
+        output_csv=None,
+    ):
+        """
+        Constructs an approximately uniformly distributed (on the score) set, by
+        selecting samples from a larger base set.
+
+        Args
+        ----
+        path_base_dataset : str
+            Path to a CSV file containing the base data set.
+
+        score : str
+            Column in the CSV file containing the score.
+
+        ntest : int
+            Number of test samples.
+
+        seed : int
+            Random seed.
+
+        dask : bool
+            If True, use dask to efficiently read a large base file.
+
+        output_csv: str
+            Optional path to store the test set as CSV.
+        """
+        if path_base_dataset is None:
+            return None
+        times = {
+            "all": 0.0,
+            "indices": 0.0,
+        }
+        t0_all = time.time()
+        if seed:
+            np.random.seed(seed)
+        df_base = pd.read_csv(path_base_dataset, index_col=0)
+        df_base = df_base.loc[
+            (df_base["letters"].map(len) >= min_length)
+            & (df_base["letters"].map(len) <= max_length)
+        ]
+        scores_base = df_base[score].values
+        min_base = scores_base.min()
+        max_base = scores_base.max()
+        distr_unif = np.random.uniform(low=min_base, high=max_base, size=ntest)
+        # Get minimum distance samples without duplicates
+        t0_indices = time.time()
+        idx_samples = []
+        for idx in tqdm(range(ntest)):
+            dist = np.abs(scores_base - distr_unif[idx])
+            idx_min = np.argmin(dist)
+            if idx_min in idx_samples:
+                idx_sort = np.argsort(dist)
+                for idx_next in idx_sort:
+                    if idx_next not in idx_samples:
+                        idx_samples.append(idx_next)
+                        break
+            else:
+                idx_samples.append(idx_min)
+        t1_indices = time.time()
+        times["indices"] += t1_indices - t0_indices
+        # Make test set
+        df_test = df_base.iloc[idx_samples]
+        if output_csv:
+            df_test.to_csv(output_csv)
+        t1_all = time.time()
+        times["all"] += t1_all - t0_all
+        return df_test, times
+
+    @staticmethod
+    def np2df(test_path, score, al_init_length, al_queries_per_iter, pct_test, data_seed):
+        data_dict = np.load(test_path, allow_pickle=True).item()
+        letters = numbers2letters(data_dict["samples"])
+        df = pd.DataFrame(
+            {
+                "letters": letters,
+                score: data_dict["energies"],
+                "train": [False] * len(letters),
+                "test": [False] * len(letters),
+            }
+        )
+        # Split train and test section of init data set
+        rng = np.random.default_rng(data_seed)
+        indices = rng.permutation(al_init_length)
+        n_tt = int(pct_test * len(indices))
+        indices_tt = indices[:n_tt]
+        indices_tr = indices[n_tt:]
+        df.loc[indices_tt, "test"] = True
+        df.loc[indices_tr, "train"] = True
+        # Split train and test the section of each iteration to preserve splits
+        idx = al_init_length
+        iters_remaining = (len(df) - al_init_length) // al_queries_per_iter
+        indices = rng.permutation(al_queries_per_iter)
+        n_tt = int(pct_test * len(indices))
+        for it in range(iters_remaining):
+            indices_tt = indices[:n_tt] + idx
+            indices_tr = indices[n_tt:] + idx
+            df.loc[indices_tt, "test"] = True
+            df.loc[indices_tr, "train"] = True
+            idx += al_queries_per_iter
+        return df
+
+
+

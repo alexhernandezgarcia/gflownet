@@ -554,6 +554,7 @@ def process_config(config):
         ]
         config.dataset.dict_size = 4
     # GFlowNet
+    config.gflownet.env_id = "aptamers"
     config.gflownet.max_seq_length = config.dataset.max_length
     config.gflownet.min_seq_length = config.dataset.min_length
     config.gflownet.nalphabet = config.dataset.dict_size
