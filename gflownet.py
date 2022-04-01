@@ -594,7 +594,7 @@ class GFlowNetAgent:
                             ]
                         )
                     else:
-                        batch.append(seq.numpy())
+                        batch.append(seq)
             envs = [env for env in envs if not env.done]
             t1_a_envs = time.time()
             times["actions_envs"] += t1_a_envs - t0_a_envs
@@ -749,7 +749,7 @@ class GFlowNetAgent:
         loss_term_ema = None
         loss_flow_ema = None
         # Generate list of environments
-        envs = [copy.deepcopy(env).reset() for _ in range(self.mbsize)]
+        envs = [copy.deepcopy(self.env).reset() for _ in range(self.mbsize)]
         # Train loop
         for i in tqdm(range(self.n_train_steps + 1)):  # , disable=not self.progress):
             t0_iter = time.time()
@@ -985,7 +985,7 @@ def batch2dict(batch, env, get_uncertainties=False, query_function="Both"):
         uncertainties = None
         scores = proxy_vals
     t1_proxy = time.time()
-    times["proxy"] += t1_proxy - t0_proxy
+    times = {"proxy": t1_proxy - t0_proxy}
     samples = {
         "samples": batch.astype(np.int64),
         "scores": scores,

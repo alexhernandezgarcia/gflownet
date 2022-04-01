@@ -88,7 +88,7 @@ class AptamerSeq:
         )
         self.eos = len(self.action_space)
 
-    def set_scores_stats(scores_stats):
+    def set_scores_stats(self, scores_stats):
         self.scores_stats = scores_stats
 
     def get_actions_space(self, nalphabet, valid_wordlens):

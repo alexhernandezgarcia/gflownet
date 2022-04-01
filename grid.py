@@ -83,6 +83,9 @@ class Grid:
         self.seq2obs = self.state2obs
         self.obs2seq = self.obs2state
 
+    def set_scores_stats(self, scores_stats):
+        self.scores_stats = scores_stats
+
     def get_actions_space(self, n_dim, valid_steplens):
         """
         Constructs list with all possible actions
