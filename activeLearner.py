@@ -2,6 +2,7 @@ from comet_ml import Experiment
 from models import modelNet
 from querier import *
 from sampler import *
+from gflownet import batch2dict
 from utils import namespace2dict
 from torch.utils import data
 import torch.nn.functional as F
@@ -509,13 +510,9 @@ class ActiveLearning():
             gflownet.train()
             printRecord('Training GFlowNet took {} seconds'.format(int(time.time()-t0)))
             t0 = time.time()
-            sampleDict, times = gflownet.sample(
-                self.config.gflownet.n_samples, self.config.dataset.max_length,
-                self.config.dataset.min_length, self.config.dataset.dict_size,
-                self.config.gflownet.min_word_len,
-                self.config.gflownet.max_word_len, self.oracle.score,
-                get_uncertainties=False, al_query_function=self.config.al.query_mode,
-            )
+            sample_batch, times = gflownet.sample_batch(gflownet.env, 
+                self.config.gflownet.n_samples, train=False)
+            sampleDict, times = batch2dict(sample_batch, gflownet.env, get_uncertainties=False, query_function=self.config.al.query_mode)
             printRecord('Sampling {} samples from GFlowNet took {} seconds'.format(self.config.gflownet.n_samples, int(time.time()-t0)))
             sampleDict['uncertainties'] = np.zeros(len(sampleDict['energies']))
             sampleDict = filterOutputs(sampleDict)

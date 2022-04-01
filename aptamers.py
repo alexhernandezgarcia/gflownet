@@ -52,7 +52,7 @@ class AptamerSeq:
         reward_beta=1,
         env_id=None,
         oracle_func=None,
-        stats_scores=[-1.0, 0.0, 0.5, 1.0, -1.0],
+        scores_stats=None,
         reward_norm=1.0,
         denorm_proxy=False,
     ):
@@ -66,7 +66,7 @@ class AptamerSeq:
         self.done = False
         self.id = env_id
         self.n_actions = 0
-        self.stats_scores = stats_scores
+        self.scores_stats = scores_stats
         self.oracle = oracle_func
         if proxy:
             self.proxy = proxy
@@ -87,6 +87,9 @@ class AptamerSeq:
             self.nalphabet, np.arange(self.min_word_len, self.max_word_len + 1)
         )
         self.eos = len(self.action_space)
+
+    def set_scores_stats(scores_stats):
+        self.scores_stats = scores_stats
 
     def get_actions_space(self, nalphabet, valid_wordlens):
         """
@@ -137,7 +140,7 @@ class AptamerSeq:
         Prepares the output of an oracle for GFlowNet.
         """
         if self.denorm_proxy:
-            proxy_vals = proxy_vals * self.stats_scores[3] + self.stats_scores[2]
+            proxy_vals = proxy_vals * self.scores_stats[3] + self.scores_stats[2]
         return np.clip(
             (-1.0 * proxy_vals / self.reward_norm) ** self.reward_beta,
             self.min_reward,

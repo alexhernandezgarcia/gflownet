@@ -25,7 +25,8 @@ from torch.distributions.categorical import Categorical
 
 from oracles import linearToy, toyHamiltonian, PottsEnergy, seqfoldScore, nupackScore
 from utils import get_config, namespace2dict, numpy2python
-from gflownet import AptamerSeq, make_mlp, sample
+from gflownet import GFlowNetAgent, make_mlp, batch2dict
+from aptamers import AptamerSeq
 
 # Float and Long tensors
 _dev = [torch.device("cpu")]
@@ -116,6 +117,8 @@ def main(args):
     device = device_torch
     set_device(device_torch)
     workdir = Path(args.config_file).parent
+    # GFlowNet agent (just for sampling)
+    gflownet = GFlowNetAgent(args)
     # Environment
     env = AptamerSeq(
         args.gflownet.max_seq_length,
@@ -157,16 +160,8 @@ def main(args):
     # Sample data
     if args.do_sample:
         print("\nSampling from GFlowNet model")
-        samples_dict, times = sample(
-            model,
-            n_samples,
-            args.gflownet.max_seq_length,
-            args.gflownet.min_seq_length,
-            args.gflownet.nalphabet,
-            args.gflownet.min_word_len,
-            args.gflownet.max_word_len,
-            args.gflownet.func,
-        )
+        samples, times = gflownet.sample_batch(env, n_samples, train=False, model=model)
+        samples_dict, times_proxy = batch2dict(samples, env)
         samples_mat = samples_dict["samples"]
         seq_ints = ["".join([str(el) for el in seq if el > 0]) for seq in samples_mat]
         seq_letters = [

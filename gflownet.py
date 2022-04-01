@@ -311,6 +311,7 @@ class GFlowNetAgent:
         else:
             self.al_iter = ""
         self.logsoftmax = torch.nn.LogSoftmax(dim=1)
+        self.batch_reward = args.gflownet.batch_reward
         # Oracle
         self.oracle = Oracle(
             seed=args.oracle.seed,
@@ -322,7 +323,7 @@ class GFlowNetAgent:
             energy_weight=args.oracle.nupack_energy_reweighting,
             nupack_target_motif=args.oracle.nupack_target_motif,
         )
-        # Generic environment
+        # Environment
         self.env_id = args.gflownet.env_id.lower()
         if self.env_id == "aptamers":
             self.env = AptamerSeq(
@@ -333,8 +334,9 @@ class GFlowNetAgent:
                 args.gflownet.max_word_len,
                 proxy=proxy,
                 reward_beta=self.reward_beta,
-                oracle_func=self.oracle.score,
                 reward_norm=self.reward_norm,
+                oracle_func=self.oracle.score,
+                debug=self.debug,
             )
         elif self.env_id == "grid":
             self.env = Grid(oracle_func=args.gflownet.func)
@@ -400,7 +402,7 @@ class GFlowNetAgent:
                 self.df_train["scores"].values - mean_scores_tr
             ) / std_scores_tr
             max_norm_scores_tr = np.max(scores_tr_norm)
-            self.stats_scores_tr = [
+            self.scores_stats_tr = [
                 min_scores_tr,
                 max_scores_tr,
                 mean_scores_tr,
@@ -408,9 +410,9 @@ class GFlowNetAgent:
                 max_norm_scores_tr,
             ]
         else:
-            self.stats_scores_tr = None
-        if self.reward_norm_std_mult > 0 and self.stats_scores_tr is not None:
-            self.reward_norm = self.reward_norm_std_mult * self.stats_scores_tr[3]
+            self.scores_stats_tr = None
+        if self.reward_norm_std_mult > 0 and self.scores_stats_tr is not None:
+            self.reward_norm = self.reward_norm_std_mult * self.scores_stats_tr[3]
         # Test set
         self.test_period = args.gflownet.test.period
         if self.test_period in [None, -1]:
@@ -438,32 +440,8 @@ class GFlowNetAgent:
             print(f"\tStd score: {self.df_test[self.test_score].std()}")
             print(f"\tMin score: {self.df_test[self.test_score].min()}")
             print(f"\tMax score: {self.df_test[self.test_score].max()}")
-        # Environments
-        if self.env_id == "aptamers":
-            self.envs = [
-                AptamerSeq(
-                    args.gflownet.max_seq_length,
-                    args.gflownet.min_seq_length,
-                    args.gflownet.nalphabet,
-                    args.gflownet.min_word_len,
-                    args.gflownet.max_word_len,
-                    proxy=proxy,
-                    debug=self.debug,
-                    reward_beta=self.reward_beta,
-                    oracle_func=self.oracle.score,
-                    stats_scores=self.stats_scores_tr,
-                    reward_norm=self.reward_norm,
-                )
-                for _ in range(args.gflownet.mbsize)
-            ]
-        elif self.env_id == "grid":
-            self.envs = [
-                Grid(oracle_func=args.gflownet.func)
-                for _ in range(args.gflownet.mbsize)
-            ]
-        else:
-            raise NotImplementedError("Unknown environment name")
-        self.batch_reward = args.gflownet.batch_reward
+        # Set scores stats
+        self.env.set_scores_stats(self.scores_stats_tr)
         # Model
         self.model = make_mlp(
             [self.env.obs_dim]
@@ -495,6 +473,7 @@ class GFlowNetAgent:
         self.opt, self.lr_scheduler = make_opt(self.parameters(), self.Z, args)
         self.n_train_steps = args.gflownet.n_iter
         self.mbsize = args.gflownet.mbsize
+        self.mask_eos = True
         self.progress = args.gflownet.progress
         self.clip_grad_norm = args.gflownet.clip_grad_norm
         self.num_empirical_loss = args.gflownet.num_empirical_loss
@@ -510,23 +489,25 @@ class GFlowNetAgent:
     def parameters(self):
         return self.model.parameters()
 
-    def sample_batch(self, mask_eos=True):
+    def sample_batch(self, envs, n_samples=None, train=True, model=None):
         """
-        Builds a mini-batch of data
+        Builds a batch of data
 
-        Each item in the batch is a list of 5 elements:
-            - [0] all parents of the state
-            - [1] actions that lead to the state from each parent
-            - [2] reward of the state
-            - [3] the state, as seq2obs(seq)
-            - [4] done
-            - [5] trajectory id: identifies each trajectory
-            - [6] seq id: identifies each sequence within a trajectory
+        if train == True:
+            Each item in the batch is a list of 7 elements (all tensors):
+                - [0] all parents of the state
+                - [1] actions that lead to the state from each parent
+                - [2] reward of the state
+                - [3] the state, as seq2obs(seq)
+                - [4] done
+                - [5] trajectory id: identifies each trajectory
+                - [6] seq id: identifies each sequence within a trajectory
+        else:
+            Each item in the batch is a list of 1 element:
+                - [0] the states (seq)
 
         Args
         ----
-        mbsize : int
-            Mini-batch size
         """
         times = {
             "all": 0.0,
@@ -536,42 +517,50 @@ class GFlowNetAgent:
         }
         t0_all = time.time()
         batch = []
-        envs = [env.reset(idx) for idx, env in enumerate(self.envs)]
+        if model is None:
+            model = self.model
+        if isinstance(envs, list):
+            envs = [env.reset(idx) for idx, env in enumerate(envs)]
+        elif n_samples is not None:
+            envs = [copy.deepcopy(envs).reset(idx) for idx in range(n_samples)]
+        else:
+            return None
         # Sequences from empirical distribution
-        n_empirical = int(self.pct_batch_empirical * len(envs))
-        for env in envs[:n_empirical]:
-            env.done = True
-            seq_letters = self.rng.permutation(self.df_train.letters.values)[0]
-            seq = env.letters2seq(seq_letters)
-            done = True
-            action = env.eos
-            while len(seq) > 0:
-                parents, parents_a = env.parent_transitions(seq, action)
-                batch.append(
-                    [
-                        tf(parents),
-                        tl(parents_a),
-                        seq,
-                        tf([env.seq2obs(seq)]),
-                        done,
-                        tl([env.id] * len(parents)),
-                        tl([env.n_actions]),
-                    ]
-                )
-                seq = env.obs2seq(self.rng.permutation(parents)[0])
-                done = False
-                action = -1
-        envs = [env for env in envs if not env.done]
+        if train:
+            n_empirical = int(self.pct_batch_empirical * len(envs))
+            for env in envs[:n_empirical]:
+                env.done = True
+                seq_letters = self.rng.permutation(self.df_train.letters.values)[0]
+                seq = env.letters2seq(seq_letters)
+                done = True
+                action = env.eos
+                while len(seq) > 0:
+                    parents, parents_a = env.parent_transitions(seq, action)
+                    batch.append(
+                        [
+                            tf(parents),
+                            tl(parents_a),
+                            seq,
+                            tf([env.seq2obs(seq)]),
+                            done,
+                            tl([env.id] * len(parents)),
+                            tl([env.n_actions]),
+                        ]
+                    )
+                    seq = env.obs2seq(self.rng.permutation(parents)[0])
+                    done = False
+                    action = -1
+            envs = [env for env in envs if not env.done]
         # Rest of batch
         while envs:
             seqs = [env.seq2obs() for env in envs]
             mask = [env.no_eos_mask() for env in envs]
             random_action = self.rng.uniform()
-            if random_action > self.random_action_prob:
+            if train is False or random_action > self.random_action_prob:
                 with torch.no_grad():
                     t0_a_model = time.time()
-                    action_probs = self.model(tf(seqs))
-                    if mask_eos:
+                    action_probs = model(tf(seqs))
+                    if self.mask_eos:
                         action_probs[mask, -1] = -1000
                     t1_a_model = time.time()
                     times["actions_model"] += t1_a_model - t0_a_model
@@ -581,9 +570,9 @@ class GFlowNetAgent:
                         random_action = -1
                         if self.debug:
                             print("Action could not be sampled from model!")
-            if random_action < self.random_action_prob:
+            if train and random_action < self.random_action_prob:
                 high = (len(self.env.action_space) + 1) * np.ones(len(envs), dtype=int)
-                if mask_eos:
+                if self.mask_eos:
                     high[mask] -= 1
                 actions = self.rng.integers(low=0, high=high, size=len(envs))
             t0_a_envs = time.time()
@@ -592,28 +581,33 @@ class GFlowNetAgent:
                 seq, valid = env.step(action)
                 if valid:
                     parents, parents_a = env.parent_transitions(seq, action)
-                    batch.append(
-                        [
-                            tf(parents),
-                            tl(parents_a),
-                            seq,
-                            tf([env.seq2obs()]),
-                            env.done,
-                            tl([env.id] * len(parents)),
-                            tl([env.n_actions]),
-                        ]
-                    )
+                    if train:
+                        batch.append(
+                            [
+                                tf(parents),
+                                tl(parents_a),
+                                seq,
+                                tf([env.seq2obs()]),
+                                env.done,
+                                tl([env.id] * len(parents)),
+                                tl([env.n_actions]),
+                            ]
+                        )
+                    else:
+                        batch.append(seq.numpy())
             envs = [env for env in envs if not env.done]
             t1_a_envs = time.time()
             times["actions_envs"] += t1_a_envs - t0_a_envs
-        parents, parents_a, seqs, obs, done, traj_id, seq_id = zip(*batch)
-        t0_rewards = time.time()
-        rewards = env.reward_batch(seqs, done)
-        t1_rewards = time.time()
-        times["rewards"] += t1_rewards - t0_rewards
-        rewards = [tf([r]) for r in rewards]
-        done = [tl([d]) for d in done]
-        batch = list(zip(parents, parents_a, rewards, obs, done, traj_id, seq_id))
+        # Compute rewards
+        if train:
+            parents, parents_a, seqs, obs, done, traj_id, seq_id = zip(*batch)
+            t0_rewards = time.time()
+            rewards = env.reward_batch(seqs, done)
+            t1_rewards = time.time()
+            times["rewards"] += t1_rewards - t0_rewards
+            rewards = [tf([r]) for r in rewards]
+            done = [tl([d]) for d in done]
+            batch = list(zip(parents, parents_a, rewards, obs, done, traj_id, seq_id))
         t1_all = time.time()
         times["all"] += t1_all - t0_all
         return batch, times
@@ -748,20 +742,20 @@ class GFlowNetAgent:
         return loss, loss, loss
 
     def train(self):
-
         # Metrics
         all_losses = []
         all_visited = []
         empirical_distrib_losses = []
         loss_term_ema = None
         loss_flow_ema = None
-
+        # Generate list of environments
+        envs = [copy.deepcopy(env).reset() for _ in range(self.mbsize)]
         # Train loop
         for i in tqdm(range(self.n_train_steps + 1)):  # , disable=not self.progress):
             t0_iter = time.time()
             data = []
             for j in range(self.sttr):
-                batch, times = self.sample_batch()
+                batch, times = self.sample_batch(envs)
                 data += batch
             rewards = [d[2][0].item() for d in data if bool(d[4].item())]
             proxy_vals = self.env.reward2proxy(rewards)
@@ -877,15 +871,11 @@ class GFlowNetAgent:
                     )
             # Oracle metrics (for monitoring)
             if not i % self.oracle_period and self.debug:
-                oracle_dict, oracle_times = self.sample(
-                    self.oracle_nsamples,
-                    self.env.max_seq_length,
-                    self.env.min_seq_length,
-                    self.env.nalphabet,
-                    self.env.min_word_len,
-                    self.env.max_word_len,
-                    self.env.oracle,
-                    get_uncertainties=False,
+                oracle_batch, oracle_times = self.sample_batch(
+                    self.env, self.oracle_nsamples, train=False
+                )
+                oracle_dict, oracle_times = batch2dict(
+                    oracle_batch, self.env, get_uncertainties=False
                 )
                 scores = oracle_dict["energies"]
                 scores_sorted = np.sort(scores)
@@ -980,191 +970,28 @@ class GFlowNetAgent:
         if self.comet and self.al_iter == -1:
             self.comet.end()
 
-    def sample(
-        self,
-        n_samples,
-        max_seq_length,
-        min_seq_length,
-        nalphabet,
-        min_word_len,
-        max_word_len,
-        proxy,
-        mask_eos=True,
-        get_uncertainties=True,
-        al_query_function=None,
-    ):
-        times = {
-            "all": 0.0,
-            "actions_model": 0.0,
-            "actions_envs": 0.0,
-            "proxy": 0.0,
-            "sanitycheck": 0.0,
-        }
-        t0_all = time.time()
-        batch = []
-        envs = [
-            AptamerSeq(
-                max_seq_length=max_seq_length,
-                min_seq_length=min_seq_length,
-                nalphabet=nalphabet,
-                min_word_len=min_word_len,
-                max_word_len=max_word_len,
-                proxy=proxy,
-                stats_scores=self.stats_scores_tr,
-            )
-            for i in range(n_samples)
-        ]
-        envs = [env.reset() for env in envs]
-        while envs:
-            seqs = [env.seq2obs() for env in envs]
-            mask = [len(env.seq) < env.min_seq_length for env in envs]
-            with torch.no_grad():
-                t0_a_model = time.time()
-                action_probs = self.model(tf(seqs))
-                if mask_eos:
-                    action_probs[mask, -1] = -1000
-                t1_a_model = time.time()
-                times["actions_model"] += t1_a_model - t0_a_model
-                if all(torch.isfinite(action_probs).flatten()):
-                    actions = Categorical(logits=action_probs).sample()
-                else:
-                    actions = np.random.randint(
-                        low=0, high=action_probs.shape[1], size=action_probs.shape[0]
-                    )
-                    if self.debug:
-                        print("Action could not be sampled from model!")
-            t0_a_envs = time.time()
-            assert len(envs) == actions.shape[0]
-            for env, action in zip(envs, actions):
-                seq, valid = env.step(action)
-                if valid and env.done:
-                    batch.append(env.seq2oracle([seq])[0])
-            envs = [env for env in envs if not env.done]
-            t1_a_envs = time.time()
-            times["actions_envs"] += t1_a_envs - t0_a_envs
-        t0_proxy = time.time()
-        batch = np.asarray(batch)
 
-        if get_uncertainties:
-            if self.al_query_function == "fancy_acquisition":
-                scores, proxy_vals, uncertainties = env.proxy(
-                    batch, "fancy_acquisition"
-                )
-            else:
-                proxy_vals, uncertainties = env.proxy(batch, "Both")
-                scores = proxy_vals
-        else:
-            proxy_vals = env.proxy(batch)
-            uncertainties = None
-            scores = proxy_vals
-        t1_proxy = time.time()
-        times["proxy"] += t1_proxy - t0_proxy
-        samples = {
-            "samples": batch.astype(np.int64),
-            "scores": scores,
-            "energies": proxy_vals,
-            "uncertainties": uncertainties,
-        }
-
-        # Sanity-check: absolute zero pad
-        t0_sanitycheck = time.time()
-        zeros = np.where(batch == 0)
-        row_unique, row_unique_idx = np.unique(zeros[0], return_index=True)
-        for row, idx in zip(row_unique, row_unique_idx):
-            if np.sum(batch[row, zeros[1][idx] :]):
-                print(f"Found sequence with positive values after last 0, row {row}")
-                import ipdb
-
-                ipdb.set_trace()
-        t1_sanitycheck = time.time()
-        times["sanitycheck"] += t1_sanitycheck - t0_sanitycheck
-        t1_all = time.time()
-        times["all"] += t1_all - t0_all
-        return samples, times
-
-
-def sample(
-    model,
-    n_samples,
-    max_seq_length,
-    min_seq_length,
-    nalphabet,
-    min_word_len,
-    max_word_len,
-    func,
-    mask_eos=True,
-    stats_scores_tr=None,
-):
-    times = {
-        "all": 0.0,
-        "actions_model": 0.0,
-        "actions_envs": 0.0,
-        "proxy": 0.0,
-        "sanitycheck": 0.0,
-    }
-    t0_all = time.time()
-    batch = []
-    envs = [
-        AptamerSeq(
-            max_seq_length=max_seq_length,
-            min_seq_length=min_seq_length,
-            nalphabet=nalphabet,
-            min_word_len=min_word_len,
-            max_word_len=max_word_len,
-            func=func,
-            stats_scores=stats_scores_tr,
-        )
-        for i in range(n_samples)
-    ]
-    envs = [env.reset() for env in envs]
-    while envs:
-        seqs = [env.seq2obs() for env in envs]
-        mask = [len(env.seq) < env.min_seq_length for env in envs]
-        with torch.no_grad():
-            t0_a_model = time.time()
-            action_probs = model(tf(seqs))
-            if mask_eos:
-                action_probs[mask, -1] = -1000
-            t1_a_model = time.time()
-            times["actions_model"] += t1_a_model - t0_a_model
-            if all(torch.isfinite(action_probs).flatten()):
-                actions = Categorical(logits=action_probs).sample()
-            else:
-                actions = np.random.randint(
-                    low=0, high=action_probs.shape[1], size=action_probs.shape[0]
-                )
-        t0_a_envs = time.time()
-        assert len(envs) == actions.shape[0]
-        for env, action in zip(envs, actions):
-            seq, valid = env.step(action)
-            if valid and env.done:
-                batch.append(env.seq2oracle([seq])[0])
-        envs = [env for env in envs if not env.done]
-        t1_a_envs = time.time()
-        times["actions_envs"] += t1_a_envs - t0_a_envs
+def batch2dict(batch, env, get_uncertainties=False, query_function="Both"):
+    batch = np.asarray(env.state2oracle(batch))
     t0_proxy = time.time()
-    batch = np.asarray(batch)
-    proxy_vals = env.proxy(batch)
+    if get_uncertainties:
+        if query_function == "fancy_acquisition":
+            scores, proxy_vals, uncertainties = env.proxy(batch, query_function)
+        else:
+            proxy_vals, uncertainties = env.proxy(batch, query_function)
+            scores = proxy_vals
+    else:
+        proxy_vals = env.proxy(batch)
+        uncertainties = None
+        scores = proxy_vals
     t1_proxy = time.time()
     times["proxy"] += t1_proxy - t0_proxy
     samples = {
         "samples": batch.astype(np.int64),
-        "scores": proxy_vals,
+        "scores": scores,
+        "energies": proxy_vals,
+        "uncertainties": uncertainties,
     }
-    # Sanity-check: absolute zero pad
-    t0_sanitycheck = time.time()
-    zeros = np.where(batch == 0)
-    row_unique, row_unique_idx = np.unique(zeros[0], return_index=True)
-    for row, idx in zip(row_unique, row_unique_idx):
-        if np.sum(batch[row, zeros[1][idx] :]):
-            print(f"Found sequence with positive values after last 0, row {row}")
-            import ipdb
-
-            ipdb.set_trace()
-    t1_sanitycheck = time.time()
-    times["sanitycheck"] += t1_sanitycheck - t0_sanitycheck
-    t1_all = time.time()
-    times["all"] += t1_all - t0_all
     return samples, times
 
 
@@ -1314,17 +1141,10 @@ def main(args):
     gflownet_agent.train()
 
     # sample from the oracle, not from a proxy model
-    samples, times = gflownet_agent.sample(
-        args.gflownet.n_samples,
-        args.gflownet.max_seq_length,
-        args.gflownet.min_seq_length,
-        args.gflownet.nalphabet,
-        args.gflownet.min_word_len,
-        args.gflownet.max_word_len,
-        gflownet_agent.env.oracle,
-        mask_eos=True,
-        get_uncertainties=False,
+    batch, times = gflownet_agent.sample_batch(
+        gflownet_agent.env, args.gflownet.n_samples, train=False
     )
+    samples, times = batch2dict(batch, gflownet_agent.env, get_uncertainties=False)
 
 
 if __name__ == "__main__":

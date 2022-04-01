@@ -1,7 +1,7 @@
 """import statements"""
 import numpy as np
 from sampler import *
-from gflownet import GFlowNetAgent
+from gflownet import GFlowNetAgent, batch2dict
 import multiprocessing as mp
 
 '''
@@ -197,13 +197,10 @@ class Querier():
             gflownet.train()
             printRecord('Training GFlowNet took {} seconds'.format(int(time.time()-t0)))
             t0 = time.time()
-            outputs, times = gflownet.sample(
-                self.config.gflownet.n_samples, self.config.dataset.max_length,
-                self.config.dataset.min_length, self.config.dataset.dict_size,
-                self.config.gflownet.min_word_len,
-                self.config.gflownet.max_word_len, model.evaluate,
-                al_query_function=self.config.al.query_mode,
-            )
+            outputs, times = gflownet.sample_batch(gflownet.env, 
+                self.config.gflownet.n_samples, train=False)
+            outputs, times_batch = batch2dict(outputs, gflownet_agent.env,
+                    get_uncertainties=True, query_function=self.config.al.query_mode)
             printRecord('Sampling {} samples from GFlowNet took {} seconds'.format(self.config.gflownet.n_samples, int(time.time()-t0)))
             outputs = filterOutputs(outputs)
 
