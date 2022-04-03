@@ -793,7 +793,6 @@ class GFlowNetAgent:
             ]
             idx_best = np.argmax(rewards)
             seq_best = "".join(self.env.seq2letters(seqs_batch[idx_best]))
-            import ipdb; ipdb.set_trace()
             if self.lightweight:
                 all_losses = all_losses[-100:]
                 all_visited = seqs_batch
