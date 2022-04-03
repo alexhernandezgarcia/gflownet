@@ -394,25 +394,25 @@ class GFlowNetAgent:
                 output_csv=args.gflownet.train.output,
             )
         if self.df_train is not None:
-            min_scores_tr = self.df_train["scores"].min()
-            max_scores_tr = self.df_train["scores"].max()
-            mean_scores_tr = self.df_train["scores"].mean()
-            std_scores_tr = self.df_train["scores"].std()
-            scores_tr_norm = (
-                self.df_train["scores"].values - mean_scores_tr
-            ) / std_scores_tr
-            max_norm_scores_tr = np.max(scores_tr_norm)
-            self.scores_stats_tr = [
-                min_scores_tr,
-                max_scores_tr,
-                mean_scores_tr,
-                std_scores_tr,
-                max_norm_scores_tr,
+            min_energies_tr = self.df_train["energies"].min()
+            max_energies_tr = self.df_train["energies"].max()
+            mean_energies_tr = self.df_train["energies"].mean()
+            std_energies_tr = self.df_train["energies"].std()
+            energies_tr_norm = (
+                self.df_train["energies"].values - mean_energies_tr
+            ) / std_energies_tr
+            max_norm_energies_tr = np.max(energies_tr_norm)
+            self.energies_stats_tr = [
+                min_energies_tr,
+                max_energies_tr,
+                mean_energies_tr,
+                std_energies_tr,
+                max_norm_energies_tr,
             ]
         else:
-            self.scores_stats_tr = None
-        if self.reward_norm_std_mult > 0 and self.scores_stats_tr is not None:
-            self.reward_norm = self.reward_norm_std_mult * self.scores_stats_tr[3]
+            self.energies_stats_tr = None
+        if self.reward_norm_std_mult > 0 and self.energies_stats_tr is not None:
+            self.reward_norm = self.reward_norm_std_mult * self.energies_stats_tr[3]
         # Test set
         self.test_period = args.gflownet.test.period
         if self.test_period in [None, -1]:
@@ -440,8 +440,8 @@ class GFlowNetAgent:
             print(f"\tStd score: {self.df_test[self.test_score].std()}")
             print(f"\tMin score: {self.df_test[self.test_score].min()}")
             print(f"\tMax score: {self.df_test[self.test_score].max()}")
-        # Set scores stats
-        self.env.set_scores_stats(self.scores_stats_tr)
+        # Set energies stats
+        self.env.set_energies_stats(self.energies_stats_tr)
         # Model
         self.model = make_mlp(
             [self.env.obs_dim]
@@ -878,11 +878,11 @@ class GFlowNetAgent:
                 oracle_dict, oracle_times = batch2dict(
                     oracle_batch, self.env, get_uncertainties=False
                 )
-                scores = oracle_dict["energies"]
-                scores_sorted = np.sort(scores)
+                energies = oracle_dict["energies"]
+                energies_sorted = np.sort(energies)
                 dict_topk = {}
                 for k in self.oracle_k:
-                    mean_topk = np.mean(scores_sorted[:k])
+                    mean_topk = np.mean(energies_sorted[:k])
                     dict_topk.update(
                         {"oracle_mean_top{}{}".format(k, self.al_iter): mean_topk}
                     )

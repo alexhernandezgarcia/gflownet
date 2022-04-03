@@ -37,7 +37,7 @@ class Grid:
         reward_beta=1,
         reward_norm=1.0,
         denorm_proxy=False,
-        stats_scores=[-1.0, 0.0, 0.5, 1.0, -1.0],
+        stats_energies=[-1.0, 0.0, 0.5, 1.0, -1.0],
         proxy=None,
         oracle_func="default",
         debug=False,
@@ -52,7 +52,7 @@ class Grid:
         self.done = False
         self.id = env_id
         self.n_actions = 0
-        self.stats_scores = stats_scores
+        self.stats_energies = stats_energies
         self.oracle = {
             "default": None,
             "cos_N": self.func_cos_N,
@@ -84,8 +84,8 @@ class Grid:
         self.seq2obs = self.state2obs
         self.obs2seq = self.obs2state
 
-    def set_scores_stats(self, scores_stats):
-        self.scores_stats = scores_stats
+    def set_energies_stats(self, energies_stats):
+        self.energies_stats = energies_stats
 
     def get_actions_space(self, n_dim, valid_steplens):
         """
@@ -127,7 +127,7 @@ class Grid:
         Prepares the output of an oracle for GFlowNet.
         """
         if self.denorm_proxy:
-            proxy_vals = proxy_vals * self.stats_scores[3] + self.stats_scores[2]
+            proxy_vals = proxy_vals * self.stats_energies[3] + self.stats_energies[2]
         return np.clip(
             (-1.0 * proxy_vals / self.reward_norm) ** self.reward_beta,
             self.min_reward,

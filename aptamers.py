@@ -52,7 +52,7 @@ class AptamerSeq:
         reward_beta=1,
         env_id=None,
         oracle_func=None,
-        scores_stats=None,
+        energies_stats=None,
         reward_norm=1.0,
         denorm_proxy=False,
     ):
@@ -66,7 +66,7 @@ class AptamerSeq:
         self.done = False
         self.id = env_id
         self.n_actions = 0
-        self.scores_stats = scores_stats
+        self.energies_stats = energies_stats
         self.oracle = oracle_func
         if proxy:
             self.proxy = proxy
@@ -88,8 +88,8 @@ class AptamerSeq:
         )
         self.eos = len(self.action_space)
 
-    def set_scores_stats(self, scores_stats):
-        self.scores_stats = scores_stats
+    def set_energies_stats(self, energies_stats):
+        self.energies_stats = energies_stats
 
     def get_actions_space(self, nalphabet, valid_wordlens):
         """
@@ -140,7 +140,7 @@ class AptamerSeq:
         Prepares the output of an oracle for GFlowNet.
         """
         if self.denorm_proxy:
-            proxy_vals = proxy_vals * self.scores_stats[3] + self.scores_stats[2]
+            proxy_vals = proxy_vals * self.energies_stats[3] + self.energies_stats[2]
         return np.clip(
             (-1.0 * proxy_vals / self.reward_norm) ** self.reward_beta,
             self.min_reward,
@@ -421,7 +421,7 @@ class AptamerSeq:
             df_train = pd.DataFrame(energies)
         else:
             df_train = pd.DataFrame(
-                {"letters": seq_letters, "indices": seq_ints, "scores": energies}
+                {"letters": seq_letters, "indices": seq_ints, "energies": energies}
             )
         if output_csv:
             df_train.to_csv(output_csv)
@@ -476,15 +476,15 @@ class AptamerSeq:
             (df_base["letters"].map(len) >= min_length)
             & (df_base["letters"].map(len) <= max_length)
         ]
-        scores_base = df_base[score].values
-        min_base = scores_base.min()
-        max_base = scores_base.max()
+        energies_base = df_base[score].values
+        min_base = energies_base.min()
+        max_base = energies_base.max()
         distr_unif = np.random.uniform(low=min_base, high=max_base, size=ntest)
         # Get minimum distance samples without duplicates
         t0_indices = time.time()
         idx_samples = []
         for idx in tqdm(range(ntest)):
-            dist = np.abs(scores_base - distr_unif[idx])
+            dist = np.abs(energies_base - distr_unif[idx])
             idx_min = np.argmin(dist)
             if idx_min in idx_samples:
                 idx_sort = np.argsort(dist)
