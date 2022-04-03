@@ -388,10 +388,10 @@ class GFlowNetAgent:
         else:
             self.df_data = None
             self.df_train = self.env.make_train_set(
-                self.oracle,
-                args.gflownet.train.n,
-                args.gflownet.train.seed,
-                args.gflownet.train.output,
+                ntrain=args.gflownet.train.n,
+                oracle=None,
+                seed=args.gflownet.train.seed,
+                output_csv=args.gflownet.train.output,
             )
         if self.df_train is not None:
             min_scores_tr = self.df_train["scores"].min()
@@ -793,6 +793,7 @@ class GFlowNetAgent:
             ]
             idx_best = np.argmax(rewards)
             seq_best = "".join(self.env.seq2letters(seqs_batch[idx_best]))
+            import ipdb; ipdb.set_trace()
             if self.lightweight:
                 all_losses = all_losses[-100:]
                 all_visited = seqs_batch

@@ -388,10 +388,10 @@ class AptamerSeq:
         )
         return self._true_density
 
-    @staticmethod
     def make_train_set(
-        oracle,
+        self,
         ntrain,
+        oracle=None,
         seed=168,
         output_csv=None,
     ):

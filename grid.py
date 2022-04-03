@@ -3,6 +3,7 @@ Classes to represent a hyper-grid environments
 """
 import itertools
 import numpy as np
+import pandas as pd
 
 
 class Grid:
@@ -401,18 +402,28 @@ class Grid:
 
         return np.asarray([_func_cos_N(x) for x in x_list])
 
-    @staticmethod
-    def make_train_set(*args):
+    def make_train_set(self, ntrain, oracle=None, seed=168, output_csv=None):
         """
         Constructs a randomly sampled train set.
 
         Args
         ----
         """
-        return None
+        rng = np.random.default_rng(seed)
+        samples = rng.integers(low=0, high=self.length, size=(ntrain,) + (self.n_dim,))
+        if oracle:
+            energies = oracle(self.state2oracle(samples))
+        else:
+            energies = self.oracle(self.state2oracle(samples))
+        df_train = pd.DataFrame(
+            {"samples": list(samples), "energies": energies}
+        )
+        if output_csv:
+            df_train.to_csv(output_csv)
+        return df_train
 
-    @staticmethod
-    def make_approx_uniform_test_set(*args):
+    def make_approx_uniform_test_set(self, ntest, path_base_dataset, oracle=None, seed=167,
+            output_csv=None,):
         """
         Constructs an approximately uniformly distributed (on the score) set, by
         selecting samples from a larger base set.
