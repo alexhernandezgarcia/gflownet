@@ -368,7 +368,7 @@ class Grid:
                 + 1e-1
             )
 
-        return np.asarray([_func_corners(x) for x in x_list])
+        return np.asarray([_func_corners(x).prod(-1) for x in x_list])
 
     @staticmethod
     def func_corners_floor_B(x_list):
@@ -380,7 +380,7 @@ class Grid:
                 + 1e-2
             )
 
-        return np.asarray([_func_corners_floor_B(x) for x in x_list])
+        return np.asarray([_func_corners_floor_B(x).prod(-1) for x in x_list])
 
     @staticmethod
     def func_corners_floor_A(x_list):
@@ -392,7 +392,7 @@ class Grid:
                 + 1e-3
             )
 
-        return np.asarray([_func_corners_floor_A(x) for x in x_list])
+        return np.asarray([_func_corners_floor_A(x).prod(-1) for x in x_list])
 
     @staticmethod
     def func_cos_N(x_list):
@@ -400,7 +400,7 @@ class Grid:
             ax = abs(x)
             return ((np.cos(x * 50) + 1) * norm.pdf(x * 5)).prod(-1) + 0.01
 
-        return np.asarray([_func_cos_N(x) for x in x_list])
+        return np.asarray([_func_cos_N(x).prod(-1) for x in x_list])
 
     def make_train_set(self, ntrain, oracle=None, seed=168, output_csv=None):
         """
