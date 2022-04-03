@@ -417,11 +417,11 @@ class AptamerSeq:
         seq_letters = oracle.numbers2letters(samples_mat)
         seq_ints = ["".join([str(el) for el in seq if el > 0]) for seq in samples_mat]
         if isinstance(energies, dict):
-            energies.update({"letters": seq_letters, "indices": seq_ints})
+            energies.update({"samples": seq_letters, "indices": seq_ints})
             df_train = pd.DataFrame(energies)
         else:
             df_train = pd.DataFrame(
-                {"letters": seq_letters, "indices": seq_ints, "energies": energies}
+                {"samples": seq_letters, "indices": seq_ints, "energies": energies}
             )
         if output_csv:
             df_train.to_csv(output_csv)

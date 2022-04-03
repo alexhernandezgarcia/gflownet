@@ -312,19 +312,24 @@ class GFlowNetAgent:
             self.al_iter = ""
         self.logsoftmax = torch.nn.LogSoftmax(dim=1)
         self.batch_reward = args.gflownet.batch_reward
-        # Oracle
-        self.oracle = Oracle(
-            seed=args.oracle.seed,
-            seq_len=args.gflownet.max_seq_length,
-            dict_size=args.gflownet.nalphabet,
-            min_len=args.gflownet.min_seq_length,
-            max_len=args.gflownet.max_seq_length,
-            oracle=args.gflownet.func,
-            energy_weight=args.oracle.nupack_energy_reweighting,
-            nupack_target_motif=args.oracle.nupack_target_motif,
-        )
-        # Environment
         self.env_id = args.gflownet.env_id.lower()
+        # Oracle
+        if self.env_id == "aptamers":
+            self.oracle = Oracle(
+                seed=args.oracle.seed,
+                seq_len=args.gflownet.max_seq_length,
+                dict_size=args.gflownet.nalphabet,
+                min_len=args.gflownet.min_seq_length,
+                max_len=args.gflownet.max_seq_length,
+                oracle=args.gflownet.func,
+                energy_weight=args.oracle.nupack_energy_reweighting,
+                nupack_target_motif=args.oracle.nupack_target_motif,
+            )
+        elif self.env_id == "grid":
+            self.oracle = None
+        else:
+            raise NotImplemented
+        # Environment
         if self.env_id == "aptamers":
             self.env = AptamerSeq(
                 args.gflownet.max_seq_length,
@@ -389,7 +394,7 @@ class GFlowNetAgent:
             self.df_data = None
             self.df_train = self.env.make_train_set(
                 ntrain=args.gflownet.train.n,
-                oracle=None,
+                oracle=self.oracle,
                 seed=args.gflownet.train.seed,
                 output_csv=args.gflownet.train.output,
             )
@@ -530,8 +535,8 @@ class GFlowNetAgent:
             n_empirical = int(self.pct_batch_empirical * len(envs))
             for env in envs[:n_empirical]:
                 env.done = True
-                seq_letters = self.rng.permutation(self.df_train.letters.values)[0]
-                seq = env.letters2seq(seq_letters)
+                seq_readable = self.rng.permutation(self.df_train.samples.values)[0]
+                seq = env.letters2seq(seq_readable)
                 done = True
                 action = env.eos
                 while len(seq) > 0:
@@ -839,7 +844,7 @@ class GFlowNetAgent:
                 )
                 # TODO: this could be done just once and store it
                 for seqstr, score in tqdm(
-                    zip(self.df_test.letters, self.df_test[self.test_score])
+                    zip(self.df_test.samples, self.df_test[self.test_score])
                 ):
                     t0_test_traj = time.time()
                     traj_list, actions = self.env.get_trajectories(
@@ -972,7 +977,7 @@ class GFlowNetAgent:
 
 
 def batch2dict(batch, env, get_uncertainties=False, query_function="Both"):
-    batch = np.asarray(env.state2oracle(batch))
+    batch = np.asarray(env.seq2oracle(batch))
     t0_proxy = time.time()
     if get_uncertainties:
         if query_function == "fancy_acquisition":

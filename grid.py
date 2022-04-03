@@ -83,6 +83,8 @@ class Grid:
         self.seq = self.state
         self.seq2obs = self.state2obs
         self.obs2seq = self.obs2state
+        self.seq2oracle = self.state2oracle
+        self.letters2seq = self.readable2state
 
     def set_energies_stats(self, energies_stats):
         self.energies_stats = energies_stats
@@ -181,11 +183,12 @@ class Grid:
         """
         return str(state)
 
-    def letters2seq(self, letters, alphabet={}):
+    def readable2state(self, readable, alphabet={}):
         """
-        Dummy function for compatibility reasons.
+        Converts a human-readable string representing a state into a state as a list of
+        positions.
         """
-        return letters
+        return [int(el) for el in readable.strip("[]").split(" ")]
 
     def reset(self, env_id=None):
         """
