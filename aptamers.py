@@ -4,7 +4,7 @@ Classes to represent aptamers environments
 import itertools
 import numpy as np
 import pandas as pd
-from gflownet import GFlowNetEnv
+from gflownetenv import GFlowNetEnv
 
 class AptamerSeq(GFlowNetEnv):
     """
