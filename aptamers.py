@@ -4,9 +4,9 @@ Classes to represent aptamers environments
 import itertools
 import numpy as np
 import pandas as pd
+from gflownet import GFlowNetEnv
 
-
-class AptamerSeq:
+class AptamerSeq(GFlowNetEnv):
     """
     Aptamer sequence environment
 
@@ -56,17 +56,14 @@ class AptamerSeq:
         reward_norm=1.0,
         denorm_proxy=False,
     ):
+        super(AptamerSeq, self).__init__()
+        self.seq = []
         self.max_seq_length = max_seq_length
         self.min_seq_length = min_seq_length
         self.nalphabet = nalphabet
         self.obs_dim = self.nalphabet * self.max_seq_length
         self.min_word_len = min_word_len
         self.max_word_len = max_word_len
-        self.seq = []
-        self.done = False
-        self.id = env_id
-        self.n_actions = 0
-        self.energies_stats = energies_stats
         self.oracle = oracle_func
         if proxy:
             self.proxy = proxy
@@ -78,24 +75,23 @@ class AptamerSeq:
             else self.proxy2reward(self.proxy(self.seq2oracle(x)))
         )
         self._true_density = None
-        self.debug = debug
-        self.reward_beta = reward_beta
-        self.min_reward = 1e-8
-        self.reward_norm = reward_norm
         self.denorm_proxy = denorm_proxy
-        self.action_space = self.get_actions_space(
-            self.nalphabet, np.arange(self.min_word_len, self.max_word_len + 1)
-        )
+        self.action_space = self.get_actions_space()
         self.eos = len(self.action_space)
+        # Aliases and compatibility
+        self.state = self.seq
+        self.state2oracle = self.seq2oracle
+        self.state2obs = self.seq2obs
+        self.obs2state = self.obs2seq
+        self.state2readable = seq2letters
+        self.readable2state = self.letters2seq
 
-    def set_energies_stats(self, energies_stats):
-        self.energies_stats = energies_stats
-
-    def get_actions_space(self, nalphabet, valid_wordlens):
+    def get_actions_space(self):
         """
         Constructs list with all possible actions
         """
-        alphabet = [a for a in range(nalphabet)]
+        valid_wordlens = np.arange(self.min_word_len, self.max_word_len + 1)
+        alphabet = [a for a in range(self.nalphabet)]
         actions = []
         for r in valid_wordlens:
             actions_r = [el for el in itertools.product(alphabet, repeat=r)]
@@ -128,33 +124,6 @@ class AptamerSeq:
             ipdb.set_trace()
             queries = np.column_stack((queries, np.zeros(queries.shape[0])))
         return queries
-
-    def reward_batch(self, seq, done):
-        seq = [s for s, d in zip(seq, done) if d]
-        reward = np.zeros(len(done))
-        reward[list(done)] = self.proxy2reward(self.proxy(self.seq2oracle(seq)))
-        return reward
-
-    def proxy2reward(self, proxy_vals):
-        """
-        Prepares the output of an oracle for GFlowNet.
-        """
-        if self.denorm_proxy:
-            proxy_vals = proxy_vals * self.energies_stats[3] + self.energies_stats[2]
-        return np.clip(
-            (-1.0 * proxy_vals / self.reward_norm) ** self.reward_beta,
-            self.min_reward,
-            None,
-        )
-
-    def reward2proxy(self, reward):
-        """
-        Converts a "GFlowNet reward" into energy or values as returned by an oracle.
-        """
-        return -np.exp(
-            (np.log(reward) + self.reward_beta * np.log(self.reward_norm))
-            / self.reward_beta
-        )
 
     def seq2obs(self, seq=None):
         """
@@ -218,16 +187,6 @@ class AptamerSeq:
         alphabet = {v: k for k, v in alphabet.items()}
         return [alphabet[el] for el in letters]
 
-    def reset(self, env_id=None):
-        """
-        Resets the environment
-        """
-        self.seq = []
-        self.n_actions = 0
-        self.done = False
-        self.id = env_id
-        return self
-
     def parent_transitions(self, seq, action):
         # TODO: valid parents must satisfy max_seq_length constraint!!!
         """
@@ -261,42 +220,6 @@ class AptamerSeq:
                     parents.append(self.seq2obs(seq[: -len(a)]))
                     actions.append(idx)
         return parents, actions
-
-    def get_trajectories(self, traj_list, actions):
-        """
-        Determines all trajectories to leading to each sequence in traj_list,
-        recursively.
-
-        Args
-        ----
-        traj_list : list
-            List of trajectories (lists)
-
-        actions : list
-            List of actions within each trajectory
-
-        Returns
-        -------
-        traj_list : list
-            List of trajectories (lists)
-
-        actions : list
-            List of actions within each trajectory
-        """
-        current_traj = traj_list[-1].copy()
-        current_traj_actions = actions[-1].copy()
-        parents, parents_actions = self.parent_transitions(list(current_traj[-1]), -1)
-        parents = [self.obs2seq(el).tolist() for el in parents]
-        if parents == []:
-            return traj_list, actions
-        for idx, (p, a) in enumerate(zip(parents, parents_actions)):
-            if idx > 0:
-                traj_list.append(current_traj)
-                actions.append(current_traj_actions)
-            traj_list[-1] += [p]
-            actions[-1] += [a]
-            traj_list, actions = self.get_trajectories(traj_list, actions)
-        return traj_list, actions
 
     def step(self, action):
         """
@@ -428,8 +351,7 @@ class AptamerSeq:
         return df_train
 
     # TODO: improve approximation of uniform
-    @staticmethod
-    def make_approx_uniform_test_set(
+    def make_test_set(
         path_base_dataset,
         score,
         ntest,

@@ -4,9 +4,10 @@ Classes to represent a hyper-grid environments
 import itertools
 import numpy as np
 import pandas as pd
+from gflownet import GFlowNetEnv
 
 
-class Grid:
+class Grid(GFlowNetEnv):
     """
     Hyper-grid environment
 
@@ -37,22 +38,19 @@ class Grid:
         reward_beta=1,
         reward_norm=1.0,
         denorm_proxy=False,
-        stats_energies=[-1.0, 0.0, 0.5, 1.0, -1.0],
+        energies_stats=None,
         proxy=None,
         oracle_func="default",
         debug=False,
     ):
-        self.n_dim = n_dim
+        super(Grid, self).__init__()
         self.state = [0] * self.n_dim
+        self.n_dim = n_dim
         self.length = length
         self.obs_dim = self.length * self.n_dim
         self.min_step_len = min_step_len
         self.max_step_len = max_step_len
         self.cells = np.linspace(cell_min, cell_max, length)
-        self.done = False
-        self.id = env_id
-        self.n_actions = 0
-        self.stats_energies = stats_energies
         self.oracle = {
             "default": None,
             "cos_N": self.func_cos_N,
@@ -70,14 +68,8 @@ class Grid:
             else self.proxy2reward(self.proxy(self.state2oracle(x)))
         )
         self._true_density = None
-        self.debug = debug
-        self.reward_beta = reward_beta
-        self.min_reward = 1e-8
-        self.reward_norm = reward_norm
         self.denorm_proxy = denorm_proxy
-        self.action_space = self.get_actions_space(
-            self.n_dim, np.arange(self.min_step_len, self.max_step_len + 1)
-        )
+        self.action_space = self.get_actions_space()
         self.eos = len(self.action_space)
         # Aliases and compatibility
         self.seq = self.state
@@ -86,14 +78,12 @@ class Grid:
         self.seq2oracle = self.state2oracle
         self.letters2seq = self.readable2state
 
-    def set_energies_stats(self, energies_stats):
-        self.energies_stats = energies_stats
-
-    def get_actions_space(self, n_dim, valid_steplens):
+    def get_actions_space(self):
         """
         Constructs list with all possible actions
         """
-        dims = [a for a in range(n_dim)]
+        valid_steplens = np.arange(self.min_step_len, self.max_step_len + 1)
+        dims = [a for a in range(self.n_dim)]
         actions = []
         for r in valid_steplens:
             actions_r = [el for el in itertools.product(dims, repeat=r)]
@@ -117,33 +107,6 @@ class Grid:
             ).sum(axis=1)
             for state in state_list
         ]
-
-    def reward_batch(self, state, done):
-        state = [s for s, d in zip(state, done) if d]
-        reward = np.zeros(len(done))
-        reward[list(done)] = self.proxy2reward(self.proxy(self.state2oracle(state)))
-        return reward
-
-    def proxy2reward(self, proxy_vals):
-        """
-        Prepares the output of an oracle for GFlowNet.
-        """
-        if self.denorm_proxy:
-            proxy_vals = proxy_vals * self.stats_energies[3] + self.stats_energies[2]
-        return np.clip(
-            (-1.0 * proxy_vals / self.reward_norm) ** self.reward_beta,
-            self.min_reward,
-            None,
-        )
-
-    def reward2proxy(self, reward):
-        """
-        Converts a "GFlowNet reward" into energy or values as returned by an oracle.
-        """
-        return -np.exp(
-            (np.log(reward) + self.reward_beta * np.log(self.reward_norm))
-            / self.reward_beta
-        )
 
     def state2obs(self, state=None):
         """
@@ -176,12 +139,6 @@ class Grid:
         obs_mat = np.reshape(obs, (self.n_dim, self.length))
         state = np.where(obs_mat)[1]
         return state
-
-    def seq2letters(self, state, alphabet={}):
-        """
-        Dummy function for compatibility reasons.
-        """
-        return str(state)
 
     def readable2state(self, readable, alphabet={}):
         """
@@ -238,41 +195,6 @@ class Grid:
                     actions.append(idx)
         return parents, actions
 
-    def get_trajectories(self, traj_list, actions):
-        """
-        Determines all trajectories leading to each state in traj_list, recursively.
-
-        Args
-        ----
-        traj_list : list
-            List of trajectories (lists)
-
-        actions : list
-            List of actions within each trajectory
-
-        Returns
-        -------
-        traj_list : list
-            List of trajectories (lists)
-
-        actions : list
-            List of actions within each trajectory
-        """
-        current_traj = traj_list[-1].copy()
-        current_traj_actions = actions[-1].copy()
-        parents, parents_actions = self.parent_transitions(list(current_traj[-1]), -1)
-        parents = [self.obs2state(el).tolist() for el in parents]
-        if parents == []:
-            return traj_list, actions
-        for idx, (p, a) in enumerate(zip(parents, parents_actions)):
-            if idx > 0:
-                traj_list.append(current_traj)
-                actions.append(current_traj_actions)
-            traj_list[-1] += [p]
-            actions[-1] += [a]
-            traj_list, actions = self.get_trajectories(traj_list, actions)
-        return traj_list, actions
-
     def step(self, action):
         """
         Executes step given an action.
@@ -314,52 +236,6 @@ class Grid:
             self.n_actions += 1
 
         return self.state, valid
-
-    def no_eos_mask(self, state=None):
-        """
-        Returns True if no eos action is allowed given state
-        """
-        if state is None:
-            state = self.state
-        return False
-
-    def true_density(self, max_states=1e6):
-        """
-        Computes the reward density (reward / sum(rewards)) of the whole space, if the
-        dimensionality is smaller than specified in the arguments.
-
-        Returns
-        -------
-        Tuple:
-          - normalized reward for each state
-          - states
-          - (un-normalized) reward)
-        """
-        if self._true_density is not None:
-            return self._true_density
-        if self.nalphabet ** self.max_state_length > max_states:
-            return (None, None, None)
-        state_all = np.int32(
-            list(
-                itertools.product(
-                    *[list(range(self.nalphabet))] * self.max_state_length
-                )
-            )
-        )
-        traj_rewards, state_end = zip(
-            *[
-                (self.proxy(state), state)
-                for state in state_all
-                if len(self.parent_transitions(state, 0)[0]) > 0 or sum(state) == 0
-            ]
-        )
-        traj_rewards = np.array(traj_rewards)
-        self._true_density = (
-            traj_rewards / traj_rewards.sum(),
-            list(map(tuple, state_end)),
-            traj_rewards,
-        )
-        return self._true_density
 
     @staticmethod
     def func_corners(x_list):
@@ -424,22 +300,3 @@ class Grid:
         if output_csv:
             df_train.to_csv(output_csv)
         return df_train
-
-    def make_approx_uniform_test_set(self, ntest, path_base_dataset, oracle=None, seed=167,
-            output_csv=None,):
-        """
-        Constructs an approximately uniformly distributed (on the score) set, by
-        selecting samples from a larger base set.
-
-        Args
-        ----
-        """
-        return None
-
-    @staticmethod
-    def np2df(*args):
-        """
-        Args
-        ----
-        """
-        return None
