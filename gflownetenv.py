@@ -52,6 +52,9 @@ class GFlowNetEnv:
     def set_energies_stats(self, energies_stats):
         self.energies_stats = energies_stats
 
+    def set_reward_norm(self, reward_norm):
+        self.reward_norm = reward_norm
+
     def get_actions_space(self):
         """
         Constructs list with all possible actions (excluding end of sequence)

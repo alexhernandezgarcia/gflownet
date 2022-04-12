@@ -414,10 +414,12 @@ class GFlowNetAgent:
                 std_energies_tr,
                 max_norm_energies_tr,
             ]
+            self.env.set_energies_stats(self.energies_stats_tr)
         else:
             self.energies_stats_tr = None
         if self.reward_norm_std_mult > 0 and self.energies_stats_tr is not None:
             self.reward_norm = self.reward_norm_std_mult * self.energies_stats_tr[3]
+            self.env.set_reward_norm(self.reward_norm)
         # Test set
         self.test_period = args.gflownet.test.period
         if self.test_period in [None, -1]:
@@ -445,8 +447,6 @@ class GFlowNetAgent:
             print(f"\tStd score: {self.df_test[self.test_score].std()}")
             print(f"\tMin score: {self.df_test[self.test_score].min()}")
             print(f"\tMax score: {self.df_test[self.test_score].max()}")
-        # Set energies stats
-        self.env.set_energies_stats(self.energies_stats_tr)
         # Model
         self.model = make_mlp(
             [self.env.obs_dim]
