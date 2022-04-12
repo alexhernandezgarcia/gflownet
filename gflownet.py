@@ -549,7 +549,7 @@ class GFlowNetAgent:
                             tf([env.seq2obs(seq)]),
                             done,
                             tl([env.id] * len(parents)),
-                            tl([env.n_actions]),
+                            tl([env.n_actions - 1]),
                         ]
                     )
                     seq = env.obs2seq(self.rng.permutation(parents)[0])
@@ -595,7 +595,7 @@ class GFlowNetAgent:
                                 tf([env.seq2obs()]),
                                 env.done,
                                 tl([env.id] * len(parents)),
-                                tl([env.n_actions]),
+                                tl([env.n_actions - 1]),
                             ]
                         )
                     else:
@@ -746,6 +746,23 @@ class GFlowNetAgent:
         loss = (self.Z.sum() + sumlogprobs - torch.log((rewards))).pow(2).mean()
         return loss, loss, loss
 
+    def unpack_terminal_states(self, batch):
+        actions = [[] for _ in range(self.mbsize)]
+        states = [None] * self.mbsize
+        rewards = [None] * self.mbsize
+        seq_ids = [[-1] for _ in range(self.mbsize)]
+        for el in batch:
+            traj_id = el[5][:1].item()
+            seq_id = el[6][:1].item()
+            assert seq_ids[traj_id][-1] + 1 == seq_id
+            seq_ids[traj_id].append(seq_id)
+            actions[traj_id].append(el[1][0].item())
+            if bool(el[4].item()):
+                states[traj_id] = tuple(self.env.obs2seq(el[3][0].tolist()))
+                rewards[traj_id] = el[2][0].item()
+        actions = [tuple(el) for el in actions]
+        return states, actions, rewards
+
     def train(self):
         # Metrics
         all_losses = []
@@ -762,8 +779,6 @@ class GFlowNetAgent:
             for j in range(self.sttr):
                 batch, times = self.sample_batch(envs)
                 data += batch
-            rewards = [d[2][0].item() for d in data if bool(d[4].item())]
-            proxy_vals = self.env.reward2proxy(rewards)
             for j in range(self.ttsr):
                 if self.loss == "flowmatch":
                     losses = self.flowmatch_loss(
@@ -791,19 +806,16 @@ class GFlowNetAgent:
                     self.opt.zero_grad()
                     all_losses.append([i.item() for i in losses])
             # Log
-            seqs_batch = [
-                tuple(self.env.obs2seq(d[3][0].tolist()))
-                for d in data
-                if bool(d[4].item())
-            ]
+            seqs_term, rewards, actions_term = self.unpack_terminal_states(batch)
+            proxy_vals = self.env.reward2proxy(rewards)
             idx_best = np.argmax(rewards)
-            seq_best = "".join(self.env.seq2letters(seqs_batch[idx_best]))
+            seq_best = "".join(self.env.seq2letters(seqs_term[idx_best]))
             if self.lightweight:
                 all_losses = all_losses[-100:]
-                all_visited = seqs_batch
+                all_visited = seqs_term
 
             else:
-                all_visited.extend(seqs_batch)
+                all_visited.extend(seqs_term)
             if self.comet:
                 self.comet.log_text(
                     seq_best + " / proxy: {}".format(proxy_vals[idx_best]), step=i
@@ -826,7 +838,7 @@ class GFlowNetAgent:
                                 np.mean(proxy_vals),
                                 np.min(proxy_vals),
                                 np.max(proxy_vals),
-                                np.mean([len(seq) for seq in seqs_batch]),
+                                np.mean([len(seq) for seq in seqs_term]),
                                 len(data),
                             ],
                         )
@@ -974,7 +986,6 @@ class GFlowNetAgent:
         # Close comet
         if self.comet and self.al_iter == -1:
             self.comet.end()
-
 
 def batch2dict(batch, env, get_uncertainties=False, query_function="Both"):
     batch = np.asarray(env.seq2oracle(batch))
