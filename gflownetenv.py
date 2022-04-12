@@ -289,3 +289,41 @@ class GFlowNetEnv:
         ----
         """
         return None
+
+
+class ReplayBuffer:
+    def __init__(self, capacity, env, output_csv=None):
+        self.capacity = capacity
+        self.env = env
+        self.action_space = self.env.get_actions_space()
+        self.buffer = ()
+
+    def add(
+            self,
+            obs,
+            seq,
+            rewards,
+        ):
+        pass
+
+    def sample(self,):
+        pass
+
+    def __len__(self):
+        return self.capacity
+
+    @property
+    def transitions(self):
+        pass
+
+    def save(self,):
+        pass
+
+    @classmethod
+    def load():
+        pass
+
+    @property
+    def dummy(self):
+        pass
+
