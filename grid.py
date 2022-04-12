@@ -43,7 +43,16 @@ class Grid(GFlowNetEnv):
         oracle_func="default",
         debug=False,
     ):
-        super(Grid, self).__init__()
+        super(Grid, self).__init__(
+            env_id,
+            reward_beta,
+            reward_norm,
+            energies_stats,
+            denorm_proxy,
+            proxy,
+            oracle_func,
+            debug,
+        )
         self.state = [0] * self.n_dim
         self.n_dim = n_dim
         self.length = length
@@ -187,7 +196,7 @@ class Grid(GFlowNetEnv):
                 state_aux = state.copy()
                 for a_sub in a:
                     if state_aux[a_sub] > 0:
-                        state_aux[a_sub] -= 1 
+                        state_aux[a_sub] -= 1
                     else:
                         break
                 else:
@@ -294,9 +303,7 @@ class Grid(GFlowNetEnv):
             energies = oracle(self.state2oracle(samples))
         else:
             energies = self.oracle(self.state2oracle(samples))
-        df_train = pd.DataFrame(
-            {"samples": list(samples), "energies": energies}
-        )
+        df_train = pd.DataFrame({"samples": list(samples), "energies": energies})
         if output_csv:
             df_train.to_csv(output_csv)
         return df_train

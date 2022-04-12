@@ -4,6 +4,7 @@ Base class of GFlowNet environments
 import numpy as np
 import pandas as pd
 
+
 class GFlowNetEnv:
     """
     Base class of GFlowNet environments
@@ -41,7 +42,7 @@ class GFlowNetEnv:
         )
         self._true_density = None
         self.debug = debug
-        self.action_space = self.get_actions_space()
+        self.action_space = []
         self.eos = len(self.action_space)
         # Assertions
         assert self.reward_norm > 0
@@ -68,13 +69,13 @@ class GFlowNetEnv:
         """
         return state_list
 
-    def reward_batch(self, state, done):
+    def reward_batch(self, states, done):
         """
         Computes the rewards of a batch of states, given a list of states and 'dones'
         """
-        state = [s for s, d in zip(state, done) if d]
+        states = [s for s, d in zip(states, done) if d]
         reward = np.zeros(len(done))
-        reward[list(done)] = self.proxy2reward(self.proxy(self.state2oracle(state)))
+        reward[list(done)] = self.proxy2reward(self.proxy(self.state2oracle(states)))
         return reward
 
     def proxy2reward(self, proxy_vals):
@@ -263,8 +264,13 @@ class GFlowNetEnv:
         """
         return None
 
-    def make_test_set(self, ntest, oracle=None, seed=167,
-            output_csv=None,):
+    def make_test_set(
+        self,
+        ntest,
+        oracle=None,
+        seed=167,
+        output_csv=None,
+    ):
         """
         Constructs a test set.
 

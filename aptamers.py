@@ -6,6 +6,7 @@ import numpy as np
 import pandas as pd
 from gflownetenv import GFlowNetEnv
 
+
 class AptamerSeq(GFlowNetEnv):
     """
     Aptamer sequence environment
@@ -56,7 +57,16 @@ class AptamerSeq(GFlowNetEnv):
         reward_norm=1.0,
         denorm_proxy=False,
     ):
-        super(AptamerSeq, self).__init__()
+        super(AptamerSeq, self).__init__(
+            env_id,
+            reward_beta,
+            reward_norm,
+            energies_stats,
+            denorm_proxy,
+            proxy,
+            oracle_func,
+            debug,
+        )
         self.seq = []
         self.max_seq_length = max_seq_length
         self.min_seq_length = min_seq_length
@@ -79,11 +89,10 @@ class AptamerSeq(GFlowNetEnv):
         self.action_space = self.get_actions_space()
         self.eos = len(self.action_space)
         # Aliases and compatibility
-        self.state = self.seq
         self.state2oracle = self.seq2oracle
         self.state2obs = self.seq2obs
         self.obs2state = self.obs2seq
-        self.state2readable = seq2letters
+        self.state2readable = self.seq2letters
         self.readable2state = self.letters2seq
 
     def get_actions_space(self):
@@ -186,6 +195,17 @@ class AptamerSeq(GFlowNetEnv):
         """
         alphabet = {v: k for k, v in alphabet.items()}
         return [alphabet[el] for el in letters]
+
+    def reset(self, env_id=None):
+        """
+        Resets the environment.
+        """
+        self.state = []
+        self.seq = []
+        self.n_actions = 0
+        self.done = False
+        self.id = env_id
+        return self
 
     def parent_transitions(self, seq, action):
         # TODO: valid parents must satisfy max_seq_length constraint!!!
@@ -427,7 +447,9 @@ class AptamerSeq(GFlowNetEnv):
         return df_test, times
 
     @staticmethod
-    def np2df(test_path, score, al_init_length, al_queries_per_iter, pct_test, data_seed):
+    def np2df(
+        test_path, score, al_init_length, al_queries_per_iter, pct_test, data_seed
+    ):
         data_dict = np.load(test_path, allow_pickle=True).item()
         letters = numbers2letters(data_dict["samples"])
         df = pd.DataFrame(
@@ -458,6 +480,3 @@ class AptamerSeq(GFlowNetEnv):
             df.loc[indices_tr, "train"] = True
             idx += al_queries_per_iter
         return df
-
-
-
