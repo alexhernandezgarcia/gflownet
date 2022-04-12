@@ -806,7 +806,7 @@ class GFlowNetAgent:
                     self.opt.zero_grad()
                     all_losses.append([i.item() for i in losses])
             # Log
-            seqs_term, rewards, actions_term = self.unpack_terminal_states(batch)
+            seqs_term, actions_term, rewards = self.unpack_terminal_states(batch)
             proxy_vals = self.env.reward2proxy(rewards)
             idx_best = np.argmax(rewards)
             seq_best = "".join(self.env.seq2letters(seqs_term[idx_best]))
