@@ -583,7 +583,7 @@ class GFlowNetAgent:
             t0_a_envs = time.time()
             assert len(envs) == actions.shape[0]
             for env, action in zip(envs, actions):
-                seq, valid = env.step(action)
+                seq, action, valid = env.step(action)
                 if valid:
                     parents, parents_a = env.parent_transitions(seq, action)
                     if train:

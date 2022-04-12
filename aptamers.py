@@ -268,7 +268,7 @@ class AptamerSeq(GFlowNetEnv):
         if len(self.seq) == self.max_seq_length:
             self.done = True
             self.n_actions += 1
-            return self.seq, True
+            return self.seq, self.eos, True
         if action < self.eos:
             seq_next = self.seq + list(self.action_space[action])
             if len(seq_next) > self.max_seq_length:
@@ -285,7 +285,7 @@ class AptamerSeq(GFlowNetEnv):
                 valid = True
                 self.n_actions += 1
 
-        return self.seq, valid
+        return self.seq, action, valid
 
     def no_eos_mask(self, seq=None):
         """

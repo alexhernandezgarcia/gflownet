@@ -226,7 +226,7 @@ class Grid(GFlowNetEnv):
         if all([s == self.length - 1 for s in self.state]):
             self.done = True
             self.n_actions += 1
-            return self.state, True
+            return self.state, self.eos, True
         if action < self.eos:
             state_next = self.state.copy()
             if action.ndim == 0:
@@ -244,7 +244,7 @@ class Grid(GFlowNetEnv):
             valid = True
             self.n_actions += 1
 
-        return self.state, valid
+        return self.state, action, valid
 
     @staticmethod
     def func_corners(x_list):

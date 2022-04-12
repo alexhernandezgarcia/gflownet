@@ -235,7 +235,7 @@ class GFlowNetEnv:
             self.done = True
             valid = True
             self.n_actions += 1
-        return self.state, valid
+        return self.state, action, valid
 
     def no_eos_mask(self, state=None):
         """
