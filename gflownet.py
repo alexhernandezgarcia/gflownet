@@ -505,8 +505,8 @@ class GFlowNetAgent:
                 - [2] reward of the state
                 - [3] the state, as seq2obs(seq)
                 - [4] done
-                - [5] trajectory id: identifies each trajectory
-                - [6] seq id: identifies each sequence within a trajectory
+                - [5] path id: identifies each path
+                - [6] seq id: identifies each sequence within a path
         else:
             Each item in the batch is a list of 1 element:
                 - [0] the states (seq)
@@ -605,14 +605,14 @@ class GFlowNetAgent:
             times["actions_envs"] += t1_a_envs - t0_a_envs
         # Compute rewards
         if train:
-            parents, parents_a, seqs, obs, done, traj_id, seq_id = zip(*batch)
+            parents, parents_a, seqs, obs, done, path_id, seq_id = zip(*batch)
             t0_rewards = time.time()
             rewards = env.reward_batch(seqs, done)
             t1_rewards = time.time()
             times["rewards"] += t1_rewards - t0_rewards
             rewards = [tf([r]) for r in rewards]
             done = [tl([d]) for d in done]
-            batch = list(zip(parents, parents_a, rewards, obs, done, traj_id, seq_id))
+            batch = list(zip(parents, parents_a, rewards, obs, done, path_id, seq_id))
         t1_all = time.time()
         times["all"] += t1_all - t0_all
         return batch, times
@@ -727,10 +727,10 @@ class GFlowNetAgent:
             Loss of the intermediate nodes only
         """
         # Unpack batch
-        parents, actions, rewards, _, done, traj_id_parents, _ = zip(*batch)
-        traj_id = torch.cat([el[:1] for el in traj_id_parents])
-        parents, actions, rewards, done, traj_id_parents = map(
-            torch.cat, [parents, actions, rewards, done, traj_id_parents]
+        parents, actions, rewards, _, done, path_id_parents, _ = zip(*batch)
+        path_id = torch.cat([el[:1] for el in path_id_parents])
+        parents, actions, rewards, done, path_id_parents = map(
+            torch.cat, [parents, actions, rewards, done, path_id_parents]
         )
         # Log probs of each (s, a)
         logprobs = self.logsoftmax(self.model(parents))[
@@ -738,30 +738,30 @@ class GFlowNetAgent:
         ]
         # Sum of log probs
         sumlogprobs = tf(
-            torch.zeros(len(torch.unique(traj_id, sorted=True)))
-        ).index_add_(0, traj_id_parents, logprobs)
-        # Sort rewards of done sequences by ascending traj id
-        rewards = rewards[done.eq(1)][torch.argsort(traj_id[done.eq(1)])]
+            torch.zeros(len(torch.unique(path_id, sorted=True)))
+        ).index_add_(0, path_id_parents, logprobs)
+        # Sort rewards of done sequences by ascending path id
+        rewards = rewards[done.eq(1)][torch.argsort(path_id[done.eq(1)])]
         # Trajectory balance loss
         loss = (self.Z.sum() + sumlogprobs - torch.log((rewards))).pow(2).mean()
         return loss, loss, loss
 
     def unpack_terminal_states(self, batch):
-        actions = [[] for _ in range(self.mbsize)]
+        paths = [[] for _ in range(self.mbsize)]
         states = [None] * self.mbsize
         rewards = [None] * self.mbsize
         seq_ids = [[-1] for _ in range(self.mbsize)]
         for el in batch:
-            traj_id = el[5][:1].item()
+            path_id = el[5][:1].item()
             seq_id = el[6][:1].item()
-            assert seq_ids[traj_id][-1] + 1 == seq_id
-            seq_ids[traj_id].append(seq_id)
-            actions[traj_id].append(el[1][0].item())
+            assert seq_ids[path_id][-1] + 1 == seq_id
+            seq_ids[path_id].append(seq_id)
+            paths[path_id].append(el[1][0].item())
             if bool(el[4].item()):
-                states[traj_id] = tuple(self.env.obs2seq(el[3][0].tolist()))
-                rewards[traj_id] = el[2][0].item()
-        actions = [tuple(el) for el in actions]
-        return states, actions, rewards
+                states[path_id] = tuple(self.env.obs2seq(el[3][0].tolist()))
+                rewards[path_id] = el[2][0].item()
+        paths = [tuple(el) for el in paths]
+        return states, paths, rewards
 
     def train(self):
         # Metrics
@@ -806,7 +806,7 @@ class GFlowNetAgent:
                     self.opt.zero_grad()
                     all_losses.append([i.item() for i in losses])
             # Log
-            seqs_term, actions_term, rewards = self.unpack_terminal_states(batch)
+            seqs_term, paths_term, rewards = self.unpack_terminal_states(batch)
             proxy_vals = self.env.reward2proxy(rewards)
             idx_best = np.argmax(rewards)
             seq_best = "".join(self.env.seq2letters(seqs_term[idx_best]))
@@ -850,7 +850,7 @@ class GFlowNetAgent:
                 data_logq = []
                 times.update(
                     {
-                        "test_traj": 0.0,
+                        "test_paths": 0.0,
                         "test_logq": 0.0,
                     }
                 )
@@ -858,15 +858,15 @@ class GFlowNetAgent:
                 for seqstr, score in tqdm(
                     zip(self.df_test.samples, self.df_test[self.test_score])
                 ):
-                    t0_test_traj = time.time()
-                    traj_list, actions = self.env.get_trajectories(
+                    t0_test_path = time.time()
+                    path_list, actions = self.env.get_paths(
                         [[self.env.letters2seq(seqstr)]],
                         [[self.env.eos]],
                     )
-                    t1_test_traj = time.time()
-                    times["test_traj"] += t1_test_traj - t0_test_traj
+                    t1_test_path = time.time()
+                    times["test_paths"] += t1_test_path - t0_test_path
                     t0_test_logq = time.time()
-                    data_logq.append(logq(traj_list, actions, self.model, self.env))
+                    data_logq.append(logq(path_list, actions, self.model, self.env))
                     t1_test_logq = time.time()
                     times["test_logq"] += t1_test_logq - t0_test_logq
                 corr = np.corrcoef(data_logq, self.df_test[self.test_score])
@@ -1129,26 +1129,26 @@ def compute_empirical_distribution_error(env, visited):
     return k1, kl
 
 
-def logq(traj_list, actions_list, model, env):
+def logq(path_list, actions_list, model, env):
     # TODO: this method is probably suboptimal, since it may repeat forward calls for
     # the same nodes.
     log_q = torch.tensor(1.0)
-    for traj, actions in zip(traj_list, actions_list):
-        traj = traj[::-1]
+    for path, actions in zip(path_list, actions_list):
+        path = path[::-1]
         actions = actions[::-1]
-        traj_obs = np.asarray([env.seq2obs(seq) for seq in traj])
+        path_obs = np.asarray([env.seq2obs(seq) for seq in path])
         with torch.no_grad():
-            logits_traj = model(tf(traj_obs))
+            logits_path = model(tf(path_obs))
         logsoftmax = torch.nn.LogSoftmax(dim=1)
-        logprobs_traj = logsoftmax(logits_traj)
-        log_q_traj = torch.tensor(0.0)
-        for s, a, logprobs in zip(*[traj, actions, logprobs_traj]):
-            log_q_traj = log_q_traj + logprobs[a]
-        # Accumulate log prob of trajectory
+        logprobs_path = logsoftmax(logits_path)
+        log_q_path = torch.tensor(0.0)
+        for s, a, logprobs in zip(*[path, actions, logprobs_path]):
+            log_q_path = log_q_path + logprobs[a]
+        # Accumulate log prob of path
         if torch.le(log_q, 0.0):
-            log_q = torch.logaddexp(log_q, log_q_traj)
+            log_q = torch.logaddexp(log_q, log_q_path)
         else:
-            log_q = log_q_traj
+            log_q = log_q_path
     return log_q.item()
 
 

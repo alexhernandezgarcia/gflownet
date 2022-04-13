@@ -316,18 +316,18 @@ class AptamerSeq(GFlowNetEnv):
                 itertools.product(*[list(range(self.nalphabet))] * self.max_seq_length)
             )
         )
-        traj_rewards, seq_end = zip(
+        path_rewards, seq_end = zip(
             *[
                 (self.proxy(seq), seq)
                 for seq in seq_all
                 if len(self.parent_transitions(seq, 0)[0]) > 0 or sum(seq) == 0
             ]
         )
-        traj_rewards = np.array(traj_rewards)
+        path_rewards = np.array(path_rewards)
         self._true_density = (
-            traj_rewards / traj_rewards.sum(),
+            path_rewards / path_rewards.sum(),
             list(map(tuple, seq_end)),
-            traj_rewards,
+            path_rewards,
         )
         return self._true_density
 
