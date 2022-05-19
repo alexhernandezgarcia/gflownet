@@ -53,8 +53,8 @@ class Grid(GFlowNetEnv):
             oracle_func,
             debug,
         )
-        self.state = [0] * self.n_dim
         self.n_dim = n_dim
+        self.state = [0] * self.n_dim
         self.length = length
         self.obs_dim = self.length * self.n_dim
         self.min_step_len = min_step_len
