@@ -44,6 +44,7 @@ class GFlowNetEnv:
         self.debug = debug
         self.action_space = []
         self.eos = len(self.action_space)
+        self.max_path_len = self.get_max_path_len()
         # Assertions
         assert self.reward_norm > 0
         assert self.reward_beta > 0
@@ -60,6 +61,9 @@ class GFlowNetEnv:
         Constructs list with all possible actions (excluding end of sequence)
         """
         return []
+
+    def get_max_path_len(self, ):
+        return 1
 
     def state2oracle(self, state_list):
         """
@@ -296,15 +300,19 @@ class ReplayBuffer:
         self.capacity = capacity
         self.env = env
         self.action_space = self.env.get_actions_space()
-        self.buffer = ()
+        self.buffer = pd.DataFrame(columns=["readable", "reward", "energy", "iter"])
 
     def add(
             self,
-            obs,
-            seq,
-            rewards,
+            states, paths, rewards, energies, it, criterion="better",
         ):
         pass
+
+    def _add_better(
+            self,
+            rewards_batch,
+        ):
+        rewards_buffer = self.buffer["rewards"]
 
     def sample(self,):
         pass
