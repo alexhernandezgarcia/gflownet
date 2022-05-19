@@ -86,6 +86,7 @@ class Grid(GFlowNetEnv):
         self.obs2seq = self.obs2state
         self.seq2oracle = self.state2oracle
         self.letters2seq = self.readable2state
+        self.seq2letters = self.state2readable
 
     def get_actions_space(self):
         """
@@ -155,6 +156,13 @@ class Grid(GFlowNetEnv):
         positions.
         """
         return [int(el) for el in readable.strip("[]").split(" ")]
+
+    def state2readable(self, state, alphabet={}):
+        """
+        Converts a state (a list of positions) into a human-readable string
+        representing a state.
+        """
+        return str(state).replace("(", "[").replace(")", "]").replace(",", "")
 
     def reset(self, env_id=None):
         """
