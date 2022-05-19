@@ -805,9 +805,10 @@ class GFlowNetAgent:
                     self.lr_scheduler.step()
                     self.opt.zero_grad()
                     all_losses.append([i.item() for i in losses])
-            # Log
+            # Buffer
             seqs_term, paths_term, rewards = self.unpack_terminal_states(batch)
             proxy_vals = self.env.reward2proxy(rewards)
+            # Log
             idx_best = np.argmax(rewards)
             seq_best = "".join(self.env.seq2letters(seqs_term[idx_best]))
             if self.lightweight:

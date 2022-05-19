@@ -107,6 +107,9 @@ class AptamerSeq(GFlowNetEnv):
             actions += actions_r
         return actions
 
+    def get_max_path_len(self, ):
+        return self.max_seq_length / self.min_word_len + 1
+
     def reward_arbitrary_i(self, seq):
         if len(seq) > 0:
             return (seq[-1] + 1) * len(seq)
