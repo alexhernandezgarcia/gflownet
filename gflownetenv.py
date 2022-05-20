@@ -295,12 +295,13 @@ class GFlowNetEnv:
         return None
 
 
-class ReplayBuffer:
+class Buffer:
     def __init__(self, capacity, env, output_csv=None):
         self.capacity = capacity
         self.env = env
         self.action_space = self.env.get_actions_space()
         self.buffer = pd.DataFrame(columns=["readable", "reward", "energy", "iter"])
+        self.replaybuffer = pd.DataFrame(columns=["readable", "reward", "energy", "iter"])
 
     def add(
             self,
