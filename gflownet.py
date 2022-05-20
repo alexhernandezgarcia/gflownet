@@ -500,6 +500,15 @@ class GFlowNetAgent:
 
         if train == True:
             Each item in the batch is a list of 7 elements (all tensors):
+                - [0] the state, as seq2obs(seq)
+                - [1] the action
+                - [2] reward of the state
+                - [3] all parents of the state
+                - [4] actions that lead to the state from each parent
+                - [5] done [True, False]
+                - [6] path id: identifies each path
+                - [7] seq id: identifies each sequence within a path
+                ===
                 - [0] all parents of the state
                 - [1] actions that lead to the state from each parent
                 - [2] reward of the state
@@ -543,10 +552,11 @@ class GFlowNetAgent:
                     parents, parents_a = env.parent_transitions(seq, action)
                     batch.append(
                         [
+                            tf([env.seq2obs(seq)]),
+                            tl(action),
+                            seq,
                             tf(parents),
                             tl(parents_a),
-                            seq,
-                            tf([env.seq2obs(seq)]),
                             done,
                             tl([env.id] * len(parents)),
                             tl([env.n_actions - 1]),
@@ -583,16 +593,19 @@ class GFlowNetAgent:
             t0_a_envs = time.time()
             assert len(envs) == actions.shape[0]
             for env, action in zip(envs, actions):
+                print("Before: ", env.state, action)
                 seq, action, valid = env.step(action)
                 if valid:
+                    print("After: ", seq, action, valid)
                     parents, parents_a = env.parent_transitions(seq, action)
                     if train:
                         batch.append(
                             [
+                                tf([env.seq2obs()]),
+                                tl(action),
+                                seq,
                                 tf(parents),
                                 tl(parents_a),
-                                seq,
-                                tf([env.seq2obs()]),
                                 env.done,
                                 tl([env.id] * len(parents)),
                                 tl([env.n_actions - 1]),
@@ -605,16 +618,17 @@ class GFlowNetAgent:
             times["actions_envs"] += t1_a_envs - t0_a_envs
         # Compute rewards
         if train:
-            parents, parents_a, seqs, obs, done, path_id, seq_id = zip(*batch)
+            obs, actions, seqs, parents, parents_a, done, path_id, seq_id = zip(*batch)
             t0_rewards = time.time()
             rewards = env.reward_batch(seqs, done)
             t1_rewards = time.time()
             times["rewards"] += t1_rewards - t0_rewards
             rewards = [tf([r]) for r in rewards]
             done = [tl([d]) for d in done]
-            batch = list(zip(parents, parents_a, rewards, obs, done, path_id, seq_id))
+            batch = list(zip(obs, actions, rewards, parents, parents_a, done, path_id, seq_id))
         t1_all = time.time()
         times["all"] += t1_all - t0_all
+        import ipdb; ipdb.set_trace()
         return batch, times
 
     def flowmatch_loss(self, it, batch):
@@ -646,12 +660,12 @@ class GFlowNetAgent:
             sum(
                 [
                     [i] * len(parents)
-                    for i, (parents, _, _, _, _, _, _) in enumerate(batch)
+                    for i, (_, _, _, parents, _, _, _, _) in enumerate(batch)
                 ],
                 [],
             )
         )
-        parents, actions, r, sp, done, _, _ = map(torch.cat, zip(*batch))
+        sp, _, r, parents, actions, done, _, _ = map(torch.cat, zip(*batch))
 
         # Sanity check if negative rewards
         if self.debug and torch.any(r < 0):
@@ -727,10 +741,11 @@ class GFlowNetAgent:
             Loss of the intermediate nodes only
         """
         # Unpack batch
-        parents, actions, rewards, _, done, path_id_parents, _ = zip(*batch)
+        _, _, rewards, parents, actions, done, path_id_parents, _ = zip(*batch)
+        import ipdb; ipdb.set_trace()
         path_id = torch.cat([el[:1] for el in path_id_parents])
-        parents, actions, rewards, done, path_id_parents = map(
-            torch.cat, [parents, actions, rewards, done, path_id_parents]
+        rewards, parents, actions, done, path_id_parents = map(
+            torch.cat, [rewards, parents, actions, done, path_id_parents]
         )
         # Log probs of each (s, a)
         logprobs = self.logsoftmax(self.model(parents))[
@@ -752,13 +767,13 @@ class GFlowNetAgent:
         rewards = [None] * self.mbsize
         seq_ids = [[-1] for _ in range(self.mbsize)]
         for el in batch:
-            path_id = el[5][:1].item()
-            seq_id = el[6][:1].item()
+            path_id = el[6][:1].item()
+            seq_id = el[7][:1].item()
             assert seq_ids[path_id][-1] + 1 == seq_id
             seq_ids[path_id].append(seq_id)
             paths[path_id].append(el[1][0].item())
-            if bool(el[4].item()):
-                states[path_id] = tuple(self.env.obs2seq(el[3][0].tolist()))
+            if bool(el[5].item()):
+                states[path_id] = tuple(self.env.obs2seq(el[0][0].tolist()))
                 rewards[path_id] = el[2][0].item()
         paths = [tuple(el) for el in paths]
         return states, paths, rewards
@@ -807,6 +822,7 @@ class GFlowNetAgent:
                     all_losses.append([i.item() for i in losses])
             # Buffer
             seqs_term, paths_term, rewards = self.unpack_terminal_states(batch)
+            import ipdb; ipdb.set_trace()
             proxy_vals = self.env.reward2proxy(rewards)
             # Log
             idx_best = np.argmax(rewards)
