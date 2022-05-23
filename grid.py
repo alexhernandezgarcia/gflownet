@@ -29,7 +29,7 @@ class Grid(GFlowNetEnv):
     def __init__(
         self,
         n_dim=2,
-        length=4,
+        length=3,
         min_step_len=1,
         max_step_len=1,
         cell_min=-1,
