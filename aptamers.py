@@ -107,7 +107,9 @@ class AptamerSeq(GFlowNetEnv):
             actions += actions_r
         return actions
 
-    def get_max_path_len(self, ):
+    def get_max_path_len(
+        self,
+    ):
         return self.max_seq_length / self.min_word_len + 1
 
     def reward_arbitrary_i(self, seq):
@@ -289,7 +291,6 @@ class AptamerSeq(GFlowNetEnv):
                 valid = True
                 self.n_actions += 1
             return self.seq, [self.eos], valid
-
 
     def no_eos_mask(self, seq=None):
         """

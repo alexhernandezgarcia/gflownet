@@ -62,7 +62,9 @@ class GFlowNetEnv:
         """
         return []
 
-    def get_max_path_len(self, ):
+    def get_max_path_len(
+        self,
+    ):
         return 1
 
     def state2oracle(self, state_list):
@@ -301,21 +303,30 @@ class Buffer:
         self.env = env
         self.action_space = self.env.get_actions_space()
         self.buffer = pd.DataFrame(columns=["readable", "reward", "energy", "iter"])
-        self.replaybuffer = pd.DataFrame(columns=["readable", "reward", "energy", "iter"])
+        self.replaybuffer = pd.DataFrame(
+            columns=["readable", "reward", "energy", "iter"]
+        )
 
     def add(
-            self,
-            states, paths, rewards, energies, it, criterion="better",
-        ):
+        self,
+        states,
+        paths,
+        rewards,
+        energies,
+        it,
+        criterion="better",
+    ):
         pass
 
     def _add_better(
-            self,
-            rewards_batch,
-        ):
+        self,
+        rewards_batch,
+    ):
         rewards_buffer = self.buffer["rewards"]
 
-    def sample(self,):
+    def sample(
+        self,
+    ):
         pass
 
     def __len__(self):
@@ -325,7 +336,9 @@ class Buffer:
     def transitions(self):
         pass
 
-    def save(self,):
+    def save(
+        self,
+    ):
         pass
 
     @classmethod
@@ -335,4 +348,3 @@ class Buffer:
     @property
     def dummy(self):
         pass
-

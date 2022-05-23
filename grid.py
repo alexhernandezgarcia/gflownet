@@ -253,7 +253,6 @@ class Grid(GFlowNetEnv):
             self.n_actions += 1
             return self.state, [self.eos], True
 
-
     @staticmethod
     def func_corners(x_list):
         def _func_corners(x):

@@ -625,7 +625,9 @@ class GFlowNetAgent:
             times["rewards"] += t1_rewards - t0_rewards
             rewards = [tf([r]) for r in rewards]
             done = [tl([d]) for d in done]
-            batch = list(zip(obs, actions, rewards, parents, parents_a, done, path_id, seq_id))
+            batch = list(
+                zip(obs, actions, rewards, parents, parents_a, done, path_id, seq_id)
+            )
         t1_all = time.time()
         times["all"] += t1_all - t0_all
         return batch, times
@@ -1000,6 +1002,7 @@ class GFlowNetAgent:
         # Close comet
         if self.comet and self.al_iter == -1:
             self.comet.end()
+
 
 def batch2dict(batch, env, get_uncertainties=False, query_function="Both"):
     batch = np.asarray(env.seq2oracle(batch))
