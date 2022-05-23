@@ -195,8 +195,8 @@ class Grid(GFlowNetEnv):
         actions : list
             List of actions that lead to state for each parent in parents
         """
-        if action == self.eos:
-            return [self.state2obs(state)], [action]
+        if action[0] == self.eos:
+            return [self.state2obs(state)], action
         else:
             parents = []
             actions = []

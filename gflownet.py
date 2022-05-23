@@ -628,7 +628,6 @@ class GFlowNetAgent:
             batch = list(zip(obs, actions, rewards, parents, parents_a, done, path_id, seq_id))
         t1_all = time.time()
         times["all"] += t1_all - t0_all
-        import ipdb; ipdb.set_trace()
         return batch, times
 
     def flowmatch_loss(self, it, batch):
@@ -742,7 +741,6 @@ class GFlowNetAgent:
         """
         # Unpack batch
         _, _, rewards, parents, actions, done, path_id_parents, _ = zip(*batch)
-        import ipdb; ipdb.set_trace()
         path_id = torch.cat([el[:1] for el in path_id_parents])
         rewards, parents, actions, done, path_id_parents = map(
             torch.cat, [rewards, parents, actions, done, path_id_parents]
@@ -822,7 +820,6 @@ class GFlowNetAgent:
                     all_losses.append([i.item() for i in losses])
             # Buffer
             seqs_term, paths_term, rewards = self.unpack_terminal_states(batch)
-            import ipdb; ipdb.set_trace()
             proxy_vals = self.env.reward2proxy(rewards)
             # Log
             idx_best = np.argmax(rewards)
