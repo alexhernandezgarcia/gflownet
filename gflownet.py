@@ -541,6 +541,8 @@ class GFlowNetAgent:
             return None
         # Sequences from empirical distribution
         if train:
+            # TODO: review this piece of code: implement backward sampling function
+            # The action = -1 may be aptamer specific
             n_empirical = int(self.pct_batch_empirical * len(envs))
             for env in envs[:n_empirical]:
                 env.done = True

@@ -233,8 +233,8 @@ class AptamerSeq(GFlowNetEnv):
         actions : list
             List of actions that lead to seq for each parent in parents
         """
-        if action == self.eos:
-            return [self.seq2obs(seq)], [action]
+        if action[0] == self.eos:
+            return [self.seq2obs(seq)], action
         else:
             parents = []
             actions = []
@@ -271,8 +271,8 @@ class AptamerSeq(GFlowNetEnv):
         if len(self.seq) == self.max_seq_length:
             self.done = True
             self.n_actions += 1
-            return self.seq, self.eos, True
-        if action < self.eos:
+            return self.seq, [self.eos], True
+        if action != self.eos:
             seq_next = self.seq + list(self.action_space[action])
             if len(seq_next) > self.max_seq_length:
                 valid = False
@@ -280,6 +280,7 @@ class AptamerSeq(GFlowNetEnv):
                 self.seq = seq_next
                 valid = True
                 self.n_actions += 1
+            return self.seq, [action], valid
         else:
             if len(self.seq) < self.min_seq_length:
                 valid = False
@@ -287,8 +288,8 @@ class AptamerSeq(GFlowNetEnv):
                 self.done = True
                 valid = True
                 self.n_actions += 1
+            return self.seq, [self.eos], valid
 
-        return self.seq, action, valid
 
     def no_eos_mask(self, seq=None):
         """
@@ -323,7 +324,7 @@ class AptamerSeq(GFlowNetEnv):
             *[
                 (self.proxy(seq), seq)
                 for seq in seq_all
-                if len(self.parent_transitions(seq, 0)[0]) > 0 or sum(seq) == 0
+                if len(self.parent_transitions(seq, [0])[0]) > 0 or sum(seq) == 0
             ]
         )
         path_rewards = np.array(path_rewards)
