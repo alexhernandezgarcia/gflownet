@@ -595,10 +595,8 @@ class GFlowNetAgent:
             t0_a_envs = time.time()
             assert len(envs) == actions.shape[0]
             for env, action in zip(envs, actions):
-                print("Before: ", env.state, action)
                 seq, action, valid = env.step(action)
                 if valid:
-                    print("After: ", seq, action, valid)
                     parents, parents_a = env.parent_transitions(seq, action)
                     if train:
                         batch.append(
