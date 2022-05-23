@@ -57,6 +57,8 @@ def add_args(parser):
     args2config.update({"device": ["gflownet", "device"]})
     parser.add_argument("--progress", action="store_true")
     args2config.update({"progress": ["gflownet", "progress"]})
+    parser.add_argument("--no_lightweight", action="store_true")
+    args2config.update({"no_lightweight": ["no_lightweight"]})
     parser.add_argument("--debug", action="store_true")
     args2config.update({"debug": ["debug"]})
     parser.add_argument("--model_ckpt", default=None, type=str)
@@ -302,7 +304,7 @@ class GFlowNetAgent:
             self.loss == "flowmatch"
             self.Z = None
         self.loss_eps = torch.tensor(float(1e-5)).to(self.device)
-        self.lightweight = True
+        self.lightweight = not args.no_lightweight
         self.tau = args.gflownet.bootstrap_tau
         self.ema_alpha = args.gflownet.ema_alpha
         self.early_stopping = args.gflownet.early_stopping
@@ -741,13 +743,12 @@ class GFlowNetAgent:
         # Metrics
         all_losses = []
         all_visited = []
-        empirical_distrib_losses = []
         loss_term_ema = None
         loss_flow_ema = None
         # Generate list of environments
         envs = [copy.deepcopy(self.env).reset() for _ in range(self.mbsize)]
         # Train loop
-        for it in tqdm(range(self.n_train_steps + 1)):  # , disable=not self.progress):
+        for it in tqdm(range(self.n_train_steps + 1), disable=not self.progress):
             t0_iter = time.time()
             data = []
             for j in range(self.sttr):
@@ -835,7 +836,8 @@ class GFlowNetAgent:
                 )
                 # TODO: this could be done just once and store it
                 for seqstr, score in tqdm(
-                    zip(self.buffer.test.samples, self.buffer.test[self.test_score])
+                    zip(self.buffer.test.samples, self.buffer.test[self.test_score]),
+                    disable=self.test_period < 10,
                 ):
                     t0_test_path = time.time()
                     path_list, actions = self.env.get_paths(
@@ -885,17 +887,14 @@ class GFlowNetAgent:
                         self.comet.log_metrics(dict_topk)
             if not it % 100:
                 if not self.lightweight:
-                    empirical_distrib_losses.append(
-                        compute_empirical_distribution_error(
-                            self.env, all_visited[-self.num_empirical_loss :]
-                        )
+                    l1_error, kl_div = empirical_distribution_error(
+                        self.env, all_visited[-self.num_empirical_loss :]
                     )
                 else:
-                    empirical_distrib_losses.append((None, None))
+                    l1_error, kl_div = 1, 100
                 if self.progress:
-                    k1, kl = empirical_distrib_losses[-1]
                     if self.debug:
-                        print("Empirical L1 distance", k1, "KL", kl)
+                        print("Empirical L1 distance", l1_error, "KL", kl_div)
                         if len(all_losses):
                             print(
                                 *[
@@ -911,8 +910,10 @@ class GFlowNetAgent:
                                     "loss{}".format(self.al_iter),
                                     "term_loss{}".format(self.al_iter),
                                     "flow_loss{}".format(self.al_iter),
+                                    "l1{}".format(self.al_iter),
+                                    "kl{}".format(self.al_iter),
                                 ],
-                                [loss.item() for loss in losses],
+                                [loss.item() for loss in losses] + [l1_error, kl_div],
                             )
                         ),
                         step=it,
@@ -1086,27 +1087,28 @@ def make_opt(params, Z, args):
     return opt, lr_scheduler
 
 
-def compute_empirical_distribution_error(env, visited):
+def empirical_distribution_error(env, visited):
     """
     Computes the empirical distribution errors, as the mean L1 error and the KL
     divergence between the true density of the space and the estimated density from all
     states visited.
     """
-    td, end_states, true_r = env.true_density()
-    if td is None:
+    true_density, _, states_term = env.true_density()
+    if true_density is None:
         return None, None
-    true_density = tf(td)
+    true_density = tf(true_density)
     if not len(visited):
         return 1, 100
     hist = defaultdict(int)
-    for i in visited:
-        hist[i] += 1
-    Z = sum([hist[i] for i in end_states])
-    estimated_density = tf([hist[i] / Z for i in end_states])
-    k1 = abs(estimated_density - true_density).mean().item()
+    for s in visited:
+        hist[s] += 1
+    Z = sum([hist[s] for s in states_term])
+    estimated_density = tf([hist[s] / Z for s in states_term])
+    # L1 error
+    l1 = abs(estimated_density - true_density).mean().item()
     # KL divergence
     kl = (true_density * torch.log(estimated_density / true_density)).sum().item()
-    return k1, kl
+    return l1, kl
 
 
 def logq(path_list, actions_list, model, env):

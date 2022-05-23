@@ -265,8 +265,8 @@ class GFlowNetEnv:
         -------
         Tuple:
           - normalized reward for each state
+          - un-normalized reward
           - states
-          - (un-normalized) reward)
         """
         return (None, None, None)
 
@@ -346,7 +346,7 @@ class Buffer:
                     }
                 )
             )
-        elif buffer == "replay":
+        elif buffer == "replay" and self.replay_capacity > 0:
             if criterion == "greater":
                 self.replay = self._add_greater(states, paths, rewards, energies, it)
 
@@ -374,7 +374,7 @@ class Buffer:
         return self.replay
 
     def make_train_test(
-        data_path=None, train_path=None, test_path=None, oracle=None, *args
+        self, data_path=None, train_path=None, test_path=None, oracle=None, *args
     ):
         """
         Initializes the train and test sets. Depending on the arguments, the sets can
@@ -416,7 +416,6 @@ class Buffer:
                     output_csv=args.gflownet.train.output,
                 )
             # Test set
-            self.test_score = args.gflownet.test.score
             # (2) Separate test file path is provided
             if test_path:
                 self.test = pd.read_csv(test_path, index_col=0)
