@@ -209,7 +209,7 @@ class GFlowNetEnv:
         """
         current_path = path_list[-1].copy()
         current_path_actions = actions[-1].copy()
-        parents, parents_actions = self.parent_transitions(list(current_path[-1]), -1)
+        parents, parents_actions = self.parent_transitions(list(current_path[-1]), [-1])
         parents = [self.obs2state(el).tolist() for el in parents]
         if parents == []:
             return path_list, actions
