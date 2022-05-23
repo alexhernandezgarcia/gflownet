@@ -371,44 +371,22 @@ class GFlowNetAgent:
             else:
                 self.comet = None
         self.no_log_times = args.gflownet.no_log_times
-        # Train set or empirical data from active learning
-        if data_path:
-            self.data_path = Path(data_path)
-            self.al_init_length = args.dataset.init_length
-            self.al_queries_per_iter = args.al.queries_per_iter
-            self.pct_test = args.gflownet.test.pct_test
-            self.data_seed = args.seeds.dataset
-            if self.data_path.suffix == ".npy":
-                self.df_data = self.env.np2df(
-                    self.data_path,
-                    args.gflownet.test.score,
-                    self.al_init_length,
-                    self.al_queries_per_iter,
-                    self.pct_test,
-                    self.data_seed,
-                )
-                self.df_train = self.df_data.loc[self.df_data.train]
-            else:
-                self.df_data = None
-                self.df_train = None
-        elif args.gflownet.train.path:
-            self.df_data = None
-            self.df_train = pd.read_csv(args.gflownet.train.path, index_col=0)
-        else:
-            self.df_data = None
-            self.df_train = self.env.make_train_set(
-                ntrain=args.gflownet.train.n,
-                oracle=self.oracle,
-                seed=args.gflownet.train.seed,
-                output_csv=args.gflownet.train.output,
-            )
-        if self.df_train is not None:
-            min_energies_tr = self.df_train["energies"].min()
-            max_energies_tr = self.df_train["energies"].max()
-            mean_energies_tr = self.df_train["energies"].mean()
-            std_energies_tr = self.df_train["energies"].std()
+        # Make train and test sets
+        self.buffer.make_train_test(
+            data_path, args.gflownet.train.path, args.gflownet.test.path, self.oracle
+        )
+        self.test_period = args.gflownet.test.period
+        self.test_score = args.gflownet.test.score
+        if self.test_period in [None, -1]:
+            self.test_period = np.inf
+        # Train set statistics
+        if self.buffer.train is not None:
+            min_energies_tr = self.buffer.train["energies"].min()
+            max_energies_tr = self.buffer.train["energies"].max()
+            mean_energies_tr = self.buffer.train["energies"].mean()
+            std_energies_tr = self.buffer.train["energies"].std()
             energies_tr_norm = (
-                self.df_train["energies"].values - mean_energies_tr
+                self.buffer.train["energies"].values - mean_energies_tr
             ) / std_energies_tr
             max_norm_energies_tr = np.max(energies_tr_norm)
             self.energies_stats_tr = [
@@ -419,38 +397,23 @@ class GFlowNetAgent:
                 max_norm_energies_tr,
             ]
             self.env.set_energies_stats(self.energies_stats_tr)
+            print("\nTrain data")
+            print(f"\tAverage score: {mean_energies_tr}")
+            print(f"\tStd score: {std_energies_tr}")
+            print(f"\tMin score: {min_energies_tr}")
+            print(f"\tMax score: {max_energies_tr}")
         else:
             self.energies_stats_tr = None
         if self.reward_norm_std_mult > 0 and self.energies_stats_tr is not None:
             self.reward_norm = self.reward_norm_std_mult * self.energies_stats_tr[3]
             self.env.set_reward_norm(self.reward_norm)
-        # Test set
-        self.test_period = args.gflownet.test.period
-        if self.test_period in [None, -1]:
-            self.test_period = np.inf
-            self.df_test = None
-        else:
-            self.test_score = args.gflownet.test.score
-            if self.df_data is not None:
-                self.df_test = self.df_data.loc[self.df_data.test]
-            elif args.gflownet.test.path:
-                self.df_test = pd.read_csv(args.gflownet.test.path, index_col=0)
-            else:
-                self.df_test, test_set_times = self.env.make_test_set(
-                    path_base_dataset=args.gflownet.test.base,
-                    score=self.test_score,
-                    ntest=args.gflownet.test.n,
-                    min_length=args.gflownet.test.min_length,
-                    max_length=args.gflownet.max_seq_length,
-                    seed=args.gflownet.test.seed,
-                    output_csv=args.gflownet.test.output,
-                )
-        if self.df_test is not None:
+        # Test set statistics
+        if self.buffer.test is not None:
             print("\nTest data")
-            print(f"\tAverage score: {self.df_test[self.test_score].mean()}")
-            print(f"\tStd score: {self.df_test[self.test_score].std()}")
-            print(f"\tMin score: {self.df_test[self.test_score].min()}")
-            print(f"\tMax score: {self.df_test[self.test_score].max()}")
+            print(f"\tAverage score: {self.buffer.test[self.test_score].mean()}")
+            print(f"\tStd score: {self.buffer.test[self.test_score].std()}")
+            print(f"\tMin score: {self.buffer.test[self.test_score].min()}")
+            print(f"\tMax score: {self.buffer.test[self.test_score].max()}")
         # Model
         self.model = make_mlp(
             [self.env.obs_dim]
@@ -542,7 +505,7 @@ class GFlowNetAgent:
             n_empirical = int(self.pct_batch_empirical * len(envs))
             for env in envs[:n_empirical]:
                 env.done = True
-                seq_readable = self.rng.permutation(self.df_train.samples.values)[0]
+                seq_readable = self.rng.permutation(self.buffer.train.samples.values)[0]
                 seq = env.letters2seq(seq_readable)
                 done = True
                 action = env.eos
@@ -862,7 +825,7 @@ class GFlowNetAgent:
                     step=it,
                 )
             # Test set metrics
-            if not it % self.test_period and self.df_test is not None:
+            if not it % self.test_period and self.buffer.test is not None:
                 data_logq = []
                 times.update(
                     {
@@ -872,7 +835,7 @@ class GFlowNetAgent:
                 )
                 # TODO: this could be done just once and store it
                 for seqstr, score in tqdm(
-                    zip(self.df_test.samples, self.df_test[self.test_score])
+                    zip(self.buffer.test.samples, self.buffer.test[self.test_score])
                 ):
                     t0_test_path = time.time()
                     path_list, actions = self.env.get_paths(
@@ -885,7 +848,7 @@ class GFlowNetAgent:
                     data_logq.append(logq(path_list, actions, self.model, self.env))
                     t1_test_logq = time.time()
                     times["test_logq"] += t1_test_logq - t0_test_logq
-                corr = np.corrcoef(data_logq, self.df_test[self.test_score])
+                corr = np.corrcoef(data_logq, self.buffer.test[self.test_score])
                 if self.comet:
                     self.comet.log_metrics(
                         dict(
