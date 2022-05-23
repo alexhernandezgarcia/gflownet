@@ -144,6 +144,12 @@ class GFlowNetEnv:
         """
         return readable
 
+    def path2readable(self, path=None):
+        """
+        Converts a path into a human-readable string.
+        """
+        return str(path).replace("(", "[").replace(")", "]").replace(",", "")
+
     def reset(self, env_id=None):
         """
         Resets the environment.
@@ -298,13 +304,15 @@ class GFlowNetEnv:
 
 
 class Buffer:
-    def __init__(self, capacity, env, output_csv=None):
-        self.capacity = capacity
+    def __init__(self, env, replay_capacity=0, output_csv=None):
         self.env = env
+        self.replay_capacity = replay_capacity
         self.action_space = self.env.get_actions_space()
-        self.buffer = pd.DataFrame(columns=["readable", "reward", "energy", "iter"])
+        self.buffer = pd.DataFrame(
+            columns=["state", "path", "reward", "energy", "iter"]
+        )
         self.replaybuffer = pd.DataFrame(
-            columns=["readable", "reward", "energy", "iter"]
+            columns=["state", "path", "reward", "energy", "iter"]
         )
 
     def add(
@@ -314,9 +322,21 @@ class Buffer:
         rewards,
         energies,
         it,
+        buffer="main",
         criterion="better",
     ):
-        pass
+        if buffer == "main":
+            self.buffer = self.buffer.append(
+                pd.DataFrame(
+                    {
+                        "state": [self.env.state2readable(s) for s in states],
+                        "path": [self.env.path2readable(p) for p in paths],
+                        "reward": rewards,
+                        "energy": energies,
+                        "iter": it,
+                    }
+                )
+            )
 
     def _add_better(
         self,

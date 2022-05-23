@@ -19,6 +19,7 @@ import yaml
 from torch.distributions.categorical import Categorical
 from tqdm import tqdm
 
+from gflownetenv import Buffer
 from aptamers import AptamerSeq
 from grid import Grid
 from oracle import numbers2letters, Oracle
@@ -347,6 +348,7 @@ class GFlowNetAgent:
             self.env = Grid(oracle_func=args.gflownet.func)
         else:
             raise NotImplemented
+        self.buffer = Buffer(self.env)
         # Comet
         if args.gflownet.comet.project and not args.gflownet.comet.skip:
             self.comet = Experiment(
@@ -788,7 +790,7 @@ class GFlowNetAgent:
         # Generate list of environments
         envs = [copy.deepcopy(self.env).reset() for _ in range(self.mbsize)]
         # Train loop
-        for i in tqdm(range(self.n_train_steps + 1)):  # , disable=not self.progress):
+        for it in tqdm(range(self.n_train_steps + 1)):  # , disable=not self.progress):
             t0_iter = time.time()
             data = []
             for j in range(self.sttr):
@@ -797,11 +799,11 @@ class GFlowNetAgent:
             for j in range(self.ttsr):
                 if self.loss == "flowmatch":
                     losses = self.flowmatch_loss(
-                        i * self.ttsr + j, data
+                        it * self.ttsr + j, data
                     )  # returns (opt loss, *metrics)
                 elif self.loss == "trajectorybalance":
                     losses = self.trajectorybalance_loss(
-                        i * self.ttsr + j, data
+                        it * self.ttsr + j, data
                     )  # returns (opt loss, *metrics)
                 else:
                     print("Unknown loss!")
@@ -823,6 +825,8 @@ class GFlowNetAgent:
             # Buffer
             seqs_term, paths_term, rewards = self.unpack_terminal_states(batch)
             proxy_vals = self.env.reward2proxy(rewards)
+            self.buffer.add(seqs_term, paths_term, rewards, proxy_vals, it)
+            import ipdb; ipdb.set_trace()
             # Log
             idx_best = np.argmax(rewards)
             seq_best = "".join(self.env.seq2letters(seqs_term[idx_best]))
@@ -834,7 +838,7 @@ class GFlowNetAgent:
                 all_visited.extend(seqs_term)
             if self.comet:
                 self.comet.log_text(
-                    seq_best + " / proxy: {}".format(proxy_vals[idx_best]), step=i
+                    seq_best + " / proxy: {}".format(proxy_vals[idx_best]), step=it
                 )
                 self.comet.log_metrics(
                     dict(
@@ -859,10 +863,10 @@ class GFlowNetAgent:
                             ],
                         )
                     ),
-                    step=i,
+                    step=it,
                 )
             # Test set metrics
-            if not i % self.test_period and self.df_test is not None:
+            if not it % self.test_period and self.df_test is not None:
                 data_logq = []
                 times.update(
                     {
@@ -900,10 +904,10 @@ class GFlowNetAgent:
                                 ],
                             )
                         ),
-                        step=i,
+                        step=it,
                     )
             # Oracle metrics (for monitoring)
-            if not i % self.oracle_period and self.debug:
+            if not it % self.oracle_period and self.debug:
                 oracle_batch, oracle_times = self.sample_batch(
                     self.env, self.oracle_nsamples, train=False
                 )
@@ -920,7 +924,7 @@ class GFlowNetAgent:
                     )
                     if self.comet:
                         self.comet.log_metrics(dict_topk)
-            if not i % 100:
+            if not it % 100:
                 if not self.lightweight:
                     empirical_distrib_losses.append(
                         compute_empirical_distribution_error(
@@ -952,19 +956,19 @@ class GFlowNetAgent:
                                 [loss.item() for loss in losses],
                             )
                         ),
-                        step=i,
+                        step=it,
                     )
                     if not self.lightweight:
                         self.comet.log_metric(
                             "unique_states{}".format(self.al_iter),
                             np.unique(all_visited).shape[0],
-                            step=i,
+                            step=it,
                         )
             # Save intermediate model
-            if not i % self.ckpt_period and self.model_path:
+            if not it % self.ckpt_period and self.model_path:
                 path = self.model_path.parent / Path(
                     self.model_path.stem
-                    + "{}_iter{:06d}".format(self.al_iter, i)
+                    + "{}_iter{:06d}".format(self.al_iter, it)
                     + self.model_path.suffix
                 )
                 torch.save(self.model.state_dict(), path)
@@ -990,7 +994,7 @@ class GFlowNetAgent:
             times.update({"iter": t1_iter - t0_iter})
             times = {"time_{}{}".format(k, self.al_iter): v for k, v in times.items()}
             if self.comet and not self.no_log_times:
-                self.comet.log_metrics(times, step=i)
+                self.comet.log_metrics(times, step=it)
         # Save final model
         if self.model_path:
             path = self.model_path.parent / Path(
