@@ -308,12 +308,14 @@ class Buffer:
         self.env = env
         self.replay_capacity = replay_capacity
         self.action_space = self.env.get_actions_space()
-        self.buffer = pd.DataFrame(
-            columns=["state", "path", "reward", "energy", "iter"]
+        self.main = pd.DataFrame(columns=["state", "path", "reward", "energy", "iter"])
+        self.replay = pd.DataFrame(
+            np.empty((self.replay_capacity, 5), dtype=object),
+            columns=["state", "path", "reward", "energy", "iter"],
         )
-        self.replaybuffer = pd.DataFrame(
-            columns=["state", "path", "reward", "energy", "iter"]
-        )
+        self.replay.reward = pd.to_numeric(self.replay.reward)
+        self.replay.energy = pd.to_numeric(self.replay.energy)
+        self.replay.reward = [-1] * self.replay_capacity
 
     def add(
         self,
@@ -323,10 +325,10 @@ class Buffer:
         energies,
         it,
         buffer="main",
-        criterion="better",
+        criterion="greater",
     ):
         if buffer == "main":
-            self.buffer = self.buffer.append(
+            self.main = self.main.append(
                 pd.DataFrame(
                     {
                         "state": [self.env.state2readable(s) for s in states],
@@ -337,12 +339,32 @@ class Buffer:
                     }
                 )
             )
+        elif buffer == "replay":
+            if criterion == "greater":
+                self.replay = self._add_greater(states, paths, rewards, energies, it)
 
-    def _add_better(
+    def _add_greater(
         self,
-        rewards_batch,
+        states,
+        paths,
+        rewards,
+        energies,
+        it,
     ):
-        rewards_buffer = self.buffer["rewards"]
+        rewards_old = self.replay["reward"].values
+        rewards_new = rewards.copy()
+        while np.max(rewards_new) > np.min(rewards_old):
+            idx_new_max = np.argmax(rewards_new)
+            self.replay.iloc[self.replay.reward.argmin()] = {
+                "state": self.env.state2readable(states[idx_new_max]),
+                "path": self.env.path2readable(paths[idx_new_max]),
+                "reward": rewards[idx_new_max],
+                "energy": energies[idx_new_max],
+                "iter": it,
+            }
+            rewards_new[idx_new_max] = -1
+            rewards_old = self.replay["reward"].values
+        return self.replay
 
     def sample(
         self,

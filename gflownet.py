@@ -181,6 +181,8 @@ def add_args(parser):
     args2config.update({"random_action_prob": ["gflownet", "random_action_prob"]})
     parser.add_argument("--pct_batch_empirical", default=0.0, type=float)
     args2config.update({"pct_batch_empirical": ["gflownet", "pct_batch_empirical"]})
+    parser.add_argument("--replay_capacity", default=0, type=int)
+    args2config.update({"replay_capacity": ["gflownet", "replay_capacity"]})
     # Environment
     parser.add_argument("--env_id", default="aptamers")
     args2config.update({"env_id": ["gflownet", "env_id"]})
@@ -348,7 +350,7 @@ class GFlowNetAgent:
             self.env = Grid(oracle_func=args.gflownet.func)
         else:
             raise NotImplemented
-        self.buffer = Buffer(self.env)
+        self.buffer = Buffer(self.env, replay_capacity=args.gflownet.replay_capacity)
         # Comet
         if args.gflownet.comet.project and not args.gflownet.comet.skip:
             self.comet = Experiment(
@@ -826,7 +828,9 @@ class GFlowNetAgent:
             seqs_term, paths_term, rewards = self.unpack_terminal_states(batch)
             proxy_vals = self.env.reward2proxy(rewards)
             self.buffer.add(seqs_term, paths_term, rewards, proxy_vals, it)
-            import ipdb; ipdb.set_trace()
+            self.buffer.add(
+                seqs_term, paths_term, rewards, proxy_vals, it, buffer="replay"
+            )
             # Log
             idx_best = np.argmax(rewards)
             seq_best = "".join(self.env.seq2letters(seqs_term[idx_best]))
