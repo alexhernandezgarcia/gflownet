@@ -512,14 +512,6 @@ class GFlowNetAgent:
                 - [5] done [True, False]
                 - [6] path id: identifies each path
                 - [7] seq id: identifies each sequence within a path
-                ===
-                - [0] all parents of the state
-                - [1] actions that lead to the state from each parent
-                - [2] reward of the state
-                - [3] the state, as seq2obs(seq)
-                - [4] done
-                - [5] path id: identifies each path
-                - [6] seq id: identifies each sequence within a path
         else:
             Each item in the batch is a list of 1 element:
                 - [0] the states (seq)
