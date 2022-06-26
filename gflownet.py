@@ -318,7 +318,7 @@ class GFlowNetAgent:
         self.logsoftmax = torch.nn.LogSoftmax(dim=1)
         self.batch_reward = args.gflownet.batch_reward
         self.env_id = args.gflownet.env_id.lower()
-        # Oracle
+        Oracle
         if self.env_id == "aptamers":
             self.oracle = Oracle(
                 seed=args.oracle.seed,
@@ -1152,6 +1152,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
     config = get_config(args, override_args, args2config)
     config = process_config(config)
+    #print('CONFIG', config)
     print("Config file: " + config.yaml_config)
     print("Working dir: " + config.workdir)
     print(

@@ -522,6 +522,91 @@ def add_args(parser):
     args2config.update({"stun_min_gamma": ["mcmc", "stun_min_gamma"]})
     parser.add_argument("--stun_max_gamma", type=float, default=1)
     args2config.update({"stun_max_gamma": ["mcmc", "stun_max_gamma"]})
+
+    #added by Bao because the parser is imcomplete : needs to merge with parser of gflownet.py
+    parser.add_argument("--no_lightweight", action="store_true")
+    args2config.update({"no_lightweight": ["no_lightweight"]})
+
+    # Oracle
+    parser.add_argument(
+        "--oracle_seed",
+        type=int,
+        default=0,
+        help="Seed for oracle",
+    )
+    args2config.update({"oracle_seed": ["oracle", "seed"]})
+    #parser = add_bool_arg(parser, "nupack_energy_reweighting", default=False)
+    # args2config.update(
+    #     {"nupack_energy_reweighting": ["oracle", "nupack_energy_reweighting"]}
+    # )
+    # parser.add_argument(
+    #     "--nupack_target_motif",
+    #     type=str,
+    #     default=".....(((((.......))))).....",
+    #     help="if using 'nupack motif' oracle, return value is the binary distance to this fold, must be <= max sequence length",
+    # )
+    #args2config.update({"nupack_target_motif": ["oracle", "nupack_target_motif"]})
+
+    parser.add_argument("--overwrite_workdir", action="store_true", default=False)
+    args2config.update({"overwrite_workdir": ["overwrite_workdir"]})
+
+    parser.add_argument(
+        "--lr_decay_period", default=1e6, help="Learning rate decay period", type=int
+    )
+    args2config.update({"lr_decay_period": ["gflownet", "lr", "decay_period"]})
+    parser.add_argument(
+        "--lr_decay_gamma", default=0.5, help="Learning rate decay gamma", type=float
+    )
+    args2config.update({"lr_decay_gamma": ["gflownet", "lr", "decay_gamma"]})
+
+    parser.add_argument("--pct_batch_empirical", default=0.0, type=float)
+    args2config.update({"pct_batch_empirical": ["gflownet", "pct_batch_empirical"]})
+    parser.add_argument("--replay_capacity", default=0, type=int)
+    args2config.update({"replay_capacity": ["gflownet", "replay_capacity"]})
+
+    parser.add_argument(
+        "--reward_norm",
+        default=1.0,
+        type=float,
+        help="Factor for the reward normalization",
+    )
+    args2config.update({"reward_norm": ["gflownet", "reward_norm"]})
+    parser.add_argument(
+        "--reward_norm_std_mult",
+        default=0.0,
+        type=float,
+        help="Multiplier of the standard deviation for the reward normalization",
+    )
+    args2config.update({"reward_norm_std_mult": ["gflownet", "reward_norm_std_mult"]})
+
+#test
+    parser.add_argument("--test_set_path", default=None, type=str)
+    args2config.update({"test_set_path": ["gflownet", "test", "path"]})
+    parser.add_argument("--test_set_base", default=None, type=str)
+    args2config.update({"test_set_base": ["gflownet", "test", "base"]})
+    parser.add_argument("--test_set_seed", default=167, type=int)
+    args2config.update({"test_set_seed": ["gflownet", "test", "seed"]})
+    parser.add_argument("--ntest", default=10000, type=int)
+    args2config.update({"ntest": ["gflownet", "test", "n"]})
+    parser.add_argument("--min_length", default=1, type=int)
+    args2config.update({"min_length": ["gflownet", "test", "min_length"]})
+    parser.add_argument("--test_output", default=None, type=str)
+    args2config.update({"test_output": ["gflownet", "test", "output"]})
+    parser.add_argument("--test_period", default=500, type=int)
+    args2config.update({"test_period": ["gflownet", "test", "period"]})
+
+#train
+    parser.add_argument("--train_set_path", default=None, type=str)
+    args2config.update({"train_set_path": ["gflownet", "train", "path"]})
+    parser.add_argument("--ntrain", default=10000, type=int)
+    args2config.update({"ntrain": ["gflownet", "train", "n"]})
+    parser.add_argument("--train_set_seed", default=167, type=int)
+    args2config.update({"train_set_seed": ["gflownet", "train", "seed"]})
+    parser.add_argument("--train_output", default=None, type=str)
+    args2config.update({"train_output": ["gflownet", "train", "output"]})
+
+
+
     return parser, args2config
 
 
@@ -561,9 +646,12 @@ def process_config(config):
     config.gflownet.func = config.dataset.oracle
     config.gflownet.test.score = config.gflownet.func.replace("nupack ", "")
     # Comet: same project for AL and GFlowNet
-    if config.comet_project:
-        config.gflownet.comet.project = config.comet_project
-        config.al.comet.project = config.comet_project
+    # if config.comet_project:
+    config.gflownet.comet.project = config.comet_project
+    config.al.comet.project = config.comet_project
+    # if not(config.comet_project):
+    #     config.gflownet.comet.project = None
+    #     config.al.comet.project = None
     # sampling method - in case we forget to revert ensemble size
     if config.proxy.uncertainty_estimation == "dropout":
         config.proxy.ensemble_size = 1
@@ -572,7 +660,7 @@ def process_config(config):
     if not config.workdir and config.machine == "cluster":
         config.workdir = "/home/kilgourm/scratch/learnerruns"
     elif not config.workdir and config.machine == "local":
-        config.workdir = "/home/mkilgour/learnerruns"  # "C:/Users\mikem\Desktop/activeLearningRuns"  #
+        config.workdir = "C:\mila\learnerruns"  # "C:/Users\mikem\Desktop/activeLearningRuns"  # "/home/mkilgour/learnerruns" 
     return config
 
 
@@ -581,6 +669,9 @@ if __name__ == "__main__":
     parser = ArgumentParser()
     _, override_args = parser.parse_known_args()
     parser, args2config = add_args(parser)
+    #doesn't work to merge parsers like this
+    # parser, args2config_bis = gflownet.add_args(parser)
+    # args2config = args2config.update(args2config_bis)
     args = parser.parse_args()
     config = get_config(args, override_args, args2config)
     config = process_config(config)

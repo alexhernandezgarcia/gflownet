@@ -194,7 +194,7 @@ class modelNet():
             inputs = torch.Tensor(inputs).cuda()
 
         outputs = l2r(self.model(inputs))
-        self.best_f = np.percentile(outputs, self.config.al.EI_percentile)
+        self.best_f = np.percentile(outputs, self.config.al.EI_max_percentile)
 
 
     def checkConvergence(self):

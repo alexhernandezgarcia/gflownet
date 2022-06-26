@@ -190,8 +190,8 @@ class Querier():
             printRecord('Random sampling and annealing took {} seconds'.format(int(time.time()-t0)))
 
         elif method.lower() == "gflownet":
-            gflownet = GFlowNetAgent(self.config, comet = self.comet, proxy=model.raw,
-                                     al_iter=al_iter, data_path='datasets/' + self.config.dataset.oracle + '.npy')
+            gflownet = GFlowNetAgent(self.config, proxy=model.raw,
+                                     al_iter=al_iter, data_path='datasets/' + self.config.dataset.oracle + '.npy') #comet = self.come, let's drop this
 
             t0 = time.time()
             gflownet.train()
