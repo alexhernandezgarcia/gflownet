@@ -327,8 +327,8 @@ class GFlowNetAgent:
                 min_len=args.gflownet.min_seq_length,
                 max_len=args.gflownet.max_seq_length,
                 oracle=args.gflownet.func,
-                energy_weight=args.oracle.nupack_energy_reweighting,
-                nupack_target_motif=args.oracle.nupack_target_motif,
+                energy_weight=args.dataset.nupack_energy_reweighting,#oracle
+                nupack_target_motif=args.dataset.nupack_target_motif,#oracle
             )
         elif self.env_id == "grid":
             self.oracle = None
@@ -375,20 +375,20 @@ class GFlowNetAgent:
         self.no_log_times = args.gflownet.no_log_times
         # Make train and test sets
         self.buffer.make_train_test(
-            data_path, args.gflownet.train.path, args.gflownet.test.path, self.oracle
+            data_path, args.gflownet.train.path, args.gflownet.test.path, self.oracle, args = args
         )
         self.test_period = args.gflownet.test.period
         self.test_score = args.gflownet.test.score
         if self.test_period in [None, -1]:
             self.test_period = np.inf
         # Train set statistics
-        if self.buffer.train is not None:
-            min_energies_tr = self.buffer.train["energies"].min()
-            max_energies_tr = self.buffer.train["energies"].max()
-            mean_energies_tr = self.buffer.train["energies"].mean()
-            std_energies_tr = self.buffer.train["energies"].std()
+        if self.buffer.train is not None: 
+            min_energies_tr = self.buffer.train[self.test_score].min()#"energies"
+            max_energies_tr = self.buffer.train[self.test_score].max()
+            mean_energies_tr = self.buffer.train[self.test_score].mean()
+            std_energies_tr = self.buffer.train[self.test_score].std()
             energies_tr_norm = (
-                self.buffer.train["energies"].values - mean_energies_tr
+                self.buffer.train[self.test_score].values - mean_energies_tr
             ) / std_energies_tr
             max_norm_energies_tr = np.max(energies_tr_norm)
             self.energies_stats_tr = [
@@ -507,7 +507,7 @@ class GFlowNetAgent:
             n_empirical = int(self.pct_batch_empirical * len(envs))
             for env in envs[:n_empirical]:
                 env.done = True
-                seq_readable = self.rng.permutation(self.buffer.train.samples.values)[0]
+                seq_readable = self.rng.permutation(self.buffer.train.letters.values)[0]#samples
                 seq = env.letters2seq(seq_readable)
                 done = True
                 action = env.eos
@@ -835,8 +835,9 @@ class GFlowNetAgent:
                     }
                 )
                 # TODO: this could be done just once and store it
+                #print("TEST", self.buffer.test.letters.values)
                 for seqstr, score in tqdm(
-                    zip(self.buffer.test.samples, self.buffer.test[self.test_score]),
+                    zip(self.buffer.test.letters, self.buffer.test[self.test_score]),#samples
                     disable=self.test_period < 10,
                 ):
                     t0_test_path = time.time()

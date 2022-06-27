@@ -428,7 +428,7 @@ def add_args(parser):
     args2config.update({"gflownet_annealing": ["gflownet", "annealing"]})
     parser.add_argument("--gflownet_test_period", default=500, type=int)
     args2config.update({"gflownet_test_period": ["gflownet", "test", "period"]})
-    parser.add_argument("--gflownet_pct_test", default=500, type=int)
+    parser.add_argument("--gflownet_pct_test", default=0.5, type=int)#500
     args2config.update({"gflownet_pct_test": ["gflownet", "test", "pct_test"]})
     parser.add_argument("--gflownet_oracle_period", default=500, type=int)
     args2config.update({"gflownet_oracle_period": ["gflownet", "oracle", "period"]})
