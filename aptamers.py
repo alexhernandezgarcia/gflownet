@@ -6,6 +6,7 @@ import numpy as np
 import pandas as pd
 from gflownetenv import GFlowNetEnv
 from oracle import numbers2letters
+import time
 
 class AptamerSeq(GFlowNetEnv):
     """

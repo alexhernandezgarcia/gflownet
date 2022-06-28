@@ -43,6 +43,7 @@ class ActiveLearning():
         # Comet
         if config.al.comet.project:
             self.comet = Experiment(
+                api_key="lAz977drmroFjHIteDtBGKlx0", workspace="baobabtou",
                 project_name=config.al.comet.project, display_summary_level=0,
             )
             if config.al.comet.tags:
@@ -502,7 +503,7 @@ class ActiveLearning():
                 'scores': np.zeros(len(samples)),
                 'uncertainties': np.zeros(len(samples))
             }
-            sampleDict = self.querier.doAnnealing([1,0], model, outputs, useOracle=True)
+            sampleDict = self.querier.doAnnealing([1,0], self.model, outputs, useOracle=True)
         elif self.config.al.sample_method == 'gflownet':
             gflownet = GFlowNetAgent(self.config, comet = self.comet, proxy=None, al_iter=0, data_path=None)
 
@@ -518,7 +519,7 @@ class ActiveLearning():
             sampleDict = filterOutputs(sampleDict)
 
             if self.config.gflownet.annealing:
-                sampleDict = self.querier.doAnnealing([1, 0], model, sampleDict, useOracle=True)
+                sampleDict = self.querier.doAnnealing([1, 0], self.model, sampleDict, useOracle=True)
 
 
         sampleDict = filterOutputs(sampleDict) # remove duplicates

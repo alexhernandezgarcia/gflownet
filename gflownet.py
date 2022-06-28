@@ -298,6 +298,7 @@ class GFlowNetAgent:
             self.Z = None
         elif args.gflownet.loss in ["trajectorybalance", "tb"]:
             self.loss = "trajectorybalance"
+            #TO MODIFY ?
             self.Z = nn.Parameter(torch.ones(64) * 150.0 / 64)
         else:
             print("Unkown loss. Using flowmatch as default")
@@ -356,6 +357,7 @@ class GFlowNetAgent:
         # Comet
         if args.gflownet.comet.project and not args.gflownet.comet.skip:
             self.comet = Experiment(
+                api_key="lAz977drmroFjHIteDtBGKlx0", workspace="baobabtou",
                 project_name=args.gflownet.comet.project, display_summary_level=0
             )
             if args.gflownet.comet.tags:

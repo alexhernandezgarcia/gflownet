@@ -32,6 +32,7 @@ def add_args(parser):
     )
     args2config.update({"yaml_config": ["yaml_config"]})
     # General
+    #you have to modify the default parameters of test_mode with another option : multifidelity
     parser.add_argument(
         "--test_mode",
         action="store_true",
@@ -41,6 +42,7 @@ def add_args(parser):
     args2config.update({"test_mode": ["test_mode"]})
     parser.add_argument("--debug", action="store_true", default=False)
     args2config.update({"debug": ["debug"]})
+    #no debug is not very useful
     parser.add_argument("--no_debug", action="store_false", dest="debug", default=False)
     args2config.update({"no_debug": ["debug"]})
     parser.add_argument("--run_num", type=int, default=0, help="Experiment ID")
@@ -647,7 +649,7 @@ def process_config(config):
     config.gflownet.test.score = config.gflownet.func.replace("nupack ", "")
     # Comet: same project for AL and GFlowNet
     # if config.comet_project:
-    config.gflownet.comet.project = config.comet_project
+    config.gflownet.comet.project = config.comet_project#same project if there is a config.comet_project. There could be one just for the gflow
     config.al.comet.project = config.comet_project
     # if not(config.comet_project):
     #     config.gflownet.comet.project = None

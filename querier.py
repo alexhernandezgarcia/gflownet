@@ -191,16 +191,15 @@ class Querier():
 
         elif method.lower() == "gflownet":
             gflownet = GFlowNetAgent(self.config, proxy=model.raw,
-                                     al_iter=al_iter, data_path='datasets/' + self.config.dataset.oracle + '.npy') #comet = self.come, let's drop this
-
+                                     al_iter=al_iter, data_path='datasets/' + self.config.dataset.oracle + '.npy') #comet = self.comet, let's drop this
             t0 = time.time()
             gflownet.train()
             printRecord('Training GFlowNet took {} seconds'.format(int(time.time()-t0)))
             t0 = time.time()
             outputs, times = gflownet.sample_batch(gflownet.env, 
                 self.config.gflownet.n_samples, train=False)
-            outputs, times_batch = batch2dict(outputs, gflownet_agent.env,
-                    get_uncertainties=True, query_function=self.config.al.query_mode)
+            outputs, times_batch = batch2dict(outputs, gflownet.env,
+                    get_uncertainties=True)#gflownet_agent.env, , query_function=self.config.al.query_mode
             printRecord('Sampling {} samples from GFlowNet took {} seconds'.format(self.config.gflownet.n_samples, int(time.time()-t0)))
             outputs = filterOutputs(outputs)
 
