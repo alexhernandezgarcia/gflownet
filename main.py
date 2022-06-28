@@ -607,6 +607,9 @@ def add_args(parser):
     parser.add_argument("--train_output", default=None, type=str)
     args2config.update({"train_output": ["gflownet", "train", "output"]})
 
+    parser.add_argument("--energy_uncertainty_tradeoff", default=0, type=float)
+    args2config.update({"energy_uncertainty_tradeoff": ["al", "energy_uncertainty_tradeoff"]})
+
 
 
     return parser, args2config
