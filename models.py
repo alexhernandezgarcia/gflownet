@@ -248,6 +248,7 @@ class modelNet():
             self.model.train(True) # need this to be true to activate dropout
             with torch.no_grad():
                 outputs = torch.hstack([self.model(Data) for _ in range(self.config.proxy.dropout_samples)]).cpu().detach().numpy()
+            outputs = torch.from_numpy(outputs)
             mean = torch.mean(outputs, dim=1)
             std = torch.std(outputs, dim=1)
         else:

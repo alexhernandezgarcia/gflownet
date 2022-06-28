@@ -621,11 +621,11 @@ def process_config(config):
     config.seeds.gflownet = config.seeds.gflownet % 10
     # Evaluation mode
     if config.al.mode == "evaluation":
-        config.al.pipeline_iterations = 1
+        config.al.n_iter = 1
     # Test mode
     if config.test_mode:
         config.gflownet.n_train_steps = 100
-        config.al.pipeline_iterations = 3
+        config.al.n_iter = 3 #n_iter non ?
         config.dataset.init_length = 100
         config.al.queries_per_iter = 100
         config.mcmc.sampling_time = int(1e3)
