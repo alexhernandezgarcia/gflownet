@@ -1,6 +1,8 @@
 '''import statements'''
 from seqfold import dg, fold
 from utils import *
+from potts_utils import load_potts_model
+from potts_utils import potts_energy
 import sys
 try: # we don't always install these on every platform
     from nupack import *
