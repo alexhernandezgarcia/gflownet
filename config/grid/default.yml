@@ -37,7 +37,7 @@ gflownet:
   reward_norm_std_mult: 8
   reward_beta: 8.0
   test:
-    path: /network/scratch/a/alex.hernandez-garcia/datasets/grid/corners_d2l3_r0.csv
+    path: data/corners_d2l3_r0.csv
     period: 1
     score: energies
   oracle:
