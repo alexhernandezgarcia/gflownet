@@ -178,6 +178,8 @@ class Oracle():
             return self.linearToy(queries)
         elif self.oracle == 'potts':
             return self.PottsEnergy(queries)
+        elif self.oracle == 'potts new':
+            return self.PottsEnergyNew(queries)
         elif self.oracle == 'inner product':
             return self.toyHamiltonian(queries)
         elif self.oracle == 'seqfold':
@@ -300,6 +302,19 @@ class Oracle():
 
                 for jj in range(ii,nnz): # this is duplicated on lower triangle so we only need to do it from i-L
                     energies[k] += 2 * self.pottsJ[ii, jj, queries[k,ii] - 1, queries[k,jj] - 1]  # site-specific couplings
+
+        return energies
+
+
+    def PottsEnergyNew(self, sequences):
+
+        # Load the potts model
+        J, h = load_potts_model(435);
+
+        # Compute energies
+        energies = np.zeros(len(sequences))
+        for idx, seq in enumerate(queries):
+            energies[idx] = potts_energy(J, h, seq)
 
         return energies
 
