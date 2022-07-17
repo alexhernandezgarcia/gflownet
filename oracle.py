@@ -203,6 +203,8 @@ class Oracle():
             return self.BB_DOB_functions(queries)
         elif isinstance(self.oracle, list) and all(["nupack " in el for el in self.oracle]):
             return self.nupackScore(queries, returnFunc=[el.replace("nupack ", "") for el in self.oracle])
+        elif isinstance(self.oracle, list) and self.oracle[0] == "potts new":
+            return self.PottsEnergyNew(queries)
         else:
             raise NotImplementedError("Unknown oracle type")
 
@@ -315,7 +317,7 @@ class Oracle():
 
         # Compute energies
         energies = np.zeros(len(sequences))
-        for idx, seq in enumerate(queries):
+        for idx, seq in enumerate(sequences):
             energies[idx] = potts_energy(J, h, seq)
 
         return energies
