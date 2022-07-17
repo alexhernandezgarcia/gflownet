@@ -479,7 +479,7 @@ class Oracle():
 
         if energy_weighting:
             for key in dict_return.keys():
-                if key is not 'energy':
+                if key != 'energy':
                     dict_return[key] = dict_return[key] * np.tanh(np.abs(energies)/2) # positive tahn of the energies, scaled
 
         if isinstance(returnFunc, list):
