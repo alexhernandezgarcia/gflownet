@@ -44,7 +44,6 @@ class GFlowNetEnv:
         self.debug = debug
         self.action_space = []
         self.eos = len(self.action_space)
-        self.max_path_len = self.get_max_path_len()
         # Assertions
         assert self.reward_norm > 0
         assert self.reward_beta > 0

@@ -88,6 +88,7 @@ class AptamerSeq(GFlowNetEnv):
         self.denorm_proxy = denorm_proxy
         self.action_space = self.get_actions_space()
         self.eos = len(self.action_space)
+        self.max_path_len = self.get_max_path_len()
         # Aliases and compatibility
         self.state2oracle = self.seq2oracle
         self.state2obs = self.seq2obs
