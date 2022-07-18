@@ -1153,12 +1153,13 @@ if __name__ == "__main__":
     config = get_config(args, override_args, args2config)
     config = process_config(config)
     print("Config file: " + config.yaml_config)
-    print("Working dir: " + config.workdir)
+    if config.workdir is not None:
+        print("Working dir: " + config.workdir)
     print(
         "Config:\n"
         + "\n".join([f"    {k:20}: {v}" for k, v in vars(config.gflownet).items()])
     )
-    if "workdir" in config:
+    if "workdir" in config and config.workdir is not None:
         if not Path(config.workdir).exists() or config.overwrite_workdir:
             Path(config.workdir).mkdir(parents=True, exist_ok=True)
             with open(config.workdir + "/config.yml", "w") as f:
@@ -1170,4 +1171,4 @@ if __name__ == "__main__":
         else:
             print(f"workdir {config.workdir} already exists! - Ending run...")
     else:
-        print(f"workdir not defined - Ending run...")
+        print(f"working directory not defined - Ending run...")
