@@ -583,7 +583,8 @@ class GFlowNetAgent:
                             ]
                         )
                     else:
-                        batch.append(seq)
+                        if env.done:
+                            batch.append(seq)
             envs = [env for env in envs if not env.done]
             t1_a_envs = time.time()
             times["actions_envs"] += t1_a_envs - t0_a_envs

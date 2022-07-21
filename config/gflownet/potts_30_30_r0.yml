@@ -1,5 +1,6 @@
 debug: 1
 gflownet:
+  env_id: aptamers
   adam_beta1: 0.9
   adam_beta2: 0.999
   batch_reward: 1

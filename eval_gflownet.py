@@ -23,7 +23,7 @@ import torch
 import torch.nn as nn
 from torch.distributions.categorical import Categorical
 
-from oracles import linearToy, toyHamiltonian, PottsEnergy, seqfoldScore, nupackScore
+from oracle import Oracle
 from utils import get_config, namespace2dict, numpy2python
 from gflownet import GFlowNetAgent, make_mlp, batch2dict
 from aptamers import AptamerSeq
@@ -98,16 +98,16 @@ def indstr2seq(indstr):
     return [int(el) - 1 for el in str(indstr)]
 
 
-def logq(traj, actions, model, env):
-    traj = traj[::-1]
+def logq(path_list, actions, model, env):
+    path_list = path_list[::-1]
     actions = actions[::-1]
-    traj_obs = np.asarray([env.seq2obs(seq) for seq in traj])
+    paths_obs = np.asarray([env.seq2obs(seq) for seq in path_list])
     with torch.no_grad():
-        logits_traj = model(tf(traj_obs))
+        logits_paths = model(tf(paths_obs))
     logsoftmax = torch.nn.LogSoftmax(dim=1)
-    logprobs_traj = logsoftmax(logits_traj)
+    logprobs_paths = logsoftmax(logits_paths)
     log_q = torch.tensor(0.0)
-    for s, a, logprobs in zip(*[traj, actions, logprobs_traj]):
+    for s, a, logprobs in zip(*[path_list, actions, logprobs_paths]):
         log_q = log_q + logprobs[a]
     return log_q.item()
 
@@ -119,15 +119,36 @@ def main(args):
     workdir = Path(args.config_file).parent
     # GFlowNet agent (just for sampling)
     gflownet = GFlowNetAgent(args)
+    # Oracle
+    if args.gflownet.env_id == "aptamers":
+        oracle = Oracle(
+            seed=args.oracle.seed,
+            seq_len=args.gflownet.max_seq_length,
+            dict_size=args.gflownet.nalphabet,
+            min_len=args.gflownet.min_seq_length,
+            max_len=args.gflownet.max_seq_length,
+            oracle=args.gflownet.func,
+            energy_weight=args.oracle.nupack_energy_reweighting,
+            nupack_target_motif=args.oracle.nupack_target_motif,
+        )
+    elif args.gflownet.env_id == "grid":
+        oracle = None
+    else:
+        raise NotImplemented
     # Environment
-    env = AptamerSeq(
-        args.gflownet.max_seq_length,
-        args.gflownet.min_seq_length,
-        args.gflownet.nalphabet,
-        args.gflownet.min_word_len,
-        args.gflownet.max_word_len,
-        func=args.gflownet.func,
-    )
+    if args.gflownet.env_id == "aptamers":
+        env = AptamerSeq(
+            args.gflownet.max_seq_length,
+            args.gflownet.min_seq_length,
+            args.gflownet.nalphabet,
+            args.gflownet.min_word_len,
+            args.gflownet.max_word_len,
+            oracle_func=oracle.score,
+        )
+    elif args.gflownet.env_id == "grid":
+        env = Grid(oracle_func=args.gflownet.func)
+    else:
+        raise NotImplemented
     # Model
     model = make_mlp(
         [args.gflownet.max_seq_length * args.gflownet.nalphabet]
@@ -146,16 +167,16 @@ def main(args):
         model_alias = "rand"
         print("No trained model will be loaded - using random weights")
     # Data set
-    if args.n_samples:
-        n_samples = args.n_samples
     if args.test_data:
         df_test = pd.read_csv(args.test_data, index_col=0)
         n_samples = len(df_test)
         print("\nTest data")
-        print(f"\tAverage score: {df_test.scores.mean()}")
-        print(f"\tStd score: {df_test.scores.std()}")
-        print(f"\tMin score: {df_test.scores.min()}")
-        print(f"\tMax score: {df_test.scores.max()}")
+        print(f"\tAverage score: {df_test.energies.mean()}")
+        print(f"\tStd score: {df_test.energies.std()}")
+        print(f"\tMin score: {df_test.energies.min()}")
+        print(f"\tMax score: {df_test.energies.max()}")
+    if args.n_samples:
+        n_samples = args.n_samples
 
     # Sample data
     if args.do_sample:
@@ -172,36 +193,36 @@ def main(args):
         ]
         df_samples = pd.DataFrame(
             {
-                "letters": seq_letters,
+                "samples": seq_letters,
                 "indices": seq_ints,
-                "scores": samples_dict["scores"],
+                "energies": samples_dict["energies"],
             }
         )
         print("Sampled data")
-        print(f"\tAverage score: {df_samples.scores.mean()}")
-        print(f"\tStd score: {df_samples.scores.std()}")
-        print(f"\tMin score: {df_samples.scores.min()}")
-        print(f"\tMax score: {df_samples.scores.max()}")
+        print(f"\tAverage score: {df_samples.energies.mean()}")
+        print(f"\tStd score: {df_samples.energies.std()}")
+        print(f"\tMin score: {df_samples.energies.min()}")
+        print(f"\tMax score: {df_samples.energies.max()}")
         output_samples = workdir / "{}_samples_n{}.csv".format(model_alias, n_samples)
         df_samples.to_csv(output_samples)
-        if any([s in env.func for s in ["pins", "pairs"]]):
-            scores_sorted = np.sort(df_samples["scores"].values)[::-1]
+        if any([s in args.gflownet.func for s in ["pins", "pairs"]]):
+            energies_sorted = np.sort(df_samples["energies"].values)[::-1]
         else:
-            scores_sorted = np.sort(df_samples["scores"].values)
+            energies_sorted = np.sort(df_samples["energies"].values)
         for k in args.k:
-            mean_topk = np.mean(scores_sorted[:k])
+            mean_topk = np.mean(energies_sorted[:k])
             print(f"\tAverage score top-{k}: {mean_topk}")
 
     # log q(x)
     if args.do_logq:
         print("\nComputing log q(x)")
         data_logq = []
-        for seqint, score in tqdm(zip(df_test.indices, df_test.scores)):
-            traj, actions = env.trajectories(
-                indstr2seq(seqint), [indstr2seq(seqint)], [env.eos]
+        for seqint, score in tqdm(zip(df_test.indices, df_test.energies)):
+            path_list, actions = env.get_paths(
+                [[indstr2seq(seqint)]], [[env.eos]]
             )
-            data_logq.append(logq(traj, actions, model, env))
-        corr = np.corrcoef(data_logq, df_test.scores)
+            data_logq.append(logq(path_list[0], actions[0], model, env))
+        corr = np.corrcoef(data_logq, df_test.energies)
         df_test["logq"] = data_logq
         print(f"Correlation between e(x) and q(x): {corr[0, 1]}")
         print(f"Data log-likelihood: {df_test.logq.sum()}")
