@@ -55,12 +55,14 @@ class AptamerSeq(GFlowNetEnv):
         oracle_func=None,
         energies_stats=None,
         reward_norm=1.0,
+        reward_func="power",
         denorm_proxy=False,
     ):
         super(AptamerSeq, self).__init__(
             env_id,
             reward_beta,
             reward_norm,
+            reward_func,
             energies_stats,
             denorm_proxy,
             proxy,

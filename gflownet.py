@@ -158,6 +158,13 @@ def add_args(parser):
         help="Multiplier of the standard deviation for the reward normalization",
     )
     args2config.update({"reward_norm_std_mult": ["gflownet", "reward_norm_std_mult"]})
+    parser.add_argument(
+        "--reward_func",
+        default=1,
+        type=float,
+        help="Function for rewards transformation: power or boltzmann",
+    )
+    args2config.update({"reward_func": ["gflownet", "reward_func"]})
     parser.add_argument("--momentum", default=0.9, type=float)
     args2config.update({"momentum": ["gflownet", "momentum"]})
     parser.add_argument("--mbsize", default=16, help="Minibatch size", type=int)
@@ -311,6 +318,7 @@ class GFlowNetAgent:
         self.reward_norm = np.abs(args.gflownet.reward_norm)
         self.reward_norm_std_mult = args.gflownet.reward_norm_std_mult
         self.reward_beta = args.gflownet.reward_beta
+        self.reward_func = args.gflownet.reward_func
         if al_iter >= 0:
             self.al_iter = "_iter{}".format(al_iter)
         else:
@@ -345,6 +353,7 @@ class GFlowNetAgent:
                 proxy=proxy,
                 reward_beta=self.reward_beta,
                 reward_norm=self.reward_norm,
+                reward_func=self.reward_func,
                 oracle_func=self.oracle.score,
                 debug=self.debug,
             )
@@ -375,7 +384,8 @@ class GFlowNetAgent:
         self.no_log_times = args.gflownet.no_log_times
         # Make train and test sets
         self.buffer.make_train_test(
-            data_path, args.gflownet.train.path, args.gflownet.test.path, self.oracle
+            data_path, args.gflownet.train.path, args.gflownet.test.path, self.oracle,
+            args
         )
         self.test_period = args.gflownet.test.period
         self.test_score = args.gflownet.test.score

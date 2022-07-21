@@ -15,6 +15,7 @@ class GFlowNetEnv:
         env_id=None,
         reward_beta=1,
         reward_norm=1.0,
+        reward_func="power",
         energies_stats=None,
         denorm_proxy=False,
         proxy=None,
@@ -28,6 +29,7 @@ class GFlowNetEnv:
         self.min_reward = 1e-8
         self.reward_beta = reward_beta
         self.reward_norm = reward_norm
+        self.reward_func = reward_func
         self.energies_stats = energies_stats
         self.denorm_proxy = denorm_proxy
         self.oracle = oracle_func
@@ -97,21 +99,35 @@ class GFlowNetEnv:
         """
         if self.denorm_proxy:
             proxy_vals = proxy_vals * self.energies_stats[3] + self.energies_stats[2]
-        return np.clip(
-            (-1.0 * proxy_vals / self.reward_norm) ** self.reward_beta,
-            self.min_reward,
-            None,
-        )
+        if self.reward_func == "power":
+            return np.clip(
+                (-1.0 * proxy_vals / self.reward_norm) ** self.reward_beta,
+                self.min_reward,
+                None,
+            )
+        elif self.reward_func == "boltzmann":
+            return np.clip(
+                np.exp(-1.0 * self.reward_beta * proxy_vals),
+                self.min_reward,
+                None,
+            )
+        else:
+            raise NotImplemented
 
     def reward2proxy(self, reward):
         """
         Converts a "GFlowNet reward" into a (negative) energy or values as returned by
         an oracle.
         """
-        return -np.exp(
-            (np.log(reward) + self.reward_beta * np.log(self.reward_norm))
-            / self.reward_beta
-        )
+        if self.reward_func == "power":
+            return -np.exp(
+                (np.log(reward) + self.reward_beta * np.log(self.reward_norm))
+                / self.reward_beta
+            )
+        elif self.reward_func == "boltzmann":
+            return -1.0 * np.log(reward) / self.reward_beta
+        else:
+            raise NotImplemented
 
     def state2obs(self, state=None):
         """
@@ -392,11 +408,11 @@ class Buffer:
             if data_path.suffix == ".npy":
                 df_data = self.env.np2df(
                     data_path,
-                    args.gflownet.test.score,
-                    args.dataset.init_length,
-                    args.al.queries_per_iter,
-                    args.gflownet.test.pct_test,
-                    args.seeds.dataset,
+                    args[0].gflownet.test.score,
+                    args[0].dataset.init_length,
+                    args[0].al.queries_per_iter,
+                    args[0].gflownet.test.pct_test,
+                    args[0].seeds.dataset,
                 )
                 self.train = df_data.loc[df_data.train]
                 self.test = df_data.loc[df_data.test]
@@ -409,10 +425,10 @@ class Buffer:
             # (3) Make environment specific train set
             elif oracle is not None:
                 self.train = self.env.make_train_set(
-                    ntrain=args.gflownet.train.n,
+                    ntrain=args[0].gflownet.train.n,
                     oracle=oracle,
-                    seed=args.gflownet.train.seed,
-                    output_csv=args.gflownet.train.output,
+                    seed=args[0].gflownet.train.seed,
+                    output_csv=args[0].gflownet.train.output,
                 )
             # Test set
             # (2) Separate test file path is provided
@@ -421,13 +437,13 @@ class Buffer:
             # (3) Make environment specific test set
             else:
                 self.test, _ = self.env.make_test_set(
-                    path_base_dataset=args.gflownet.test.base,
-                    score=args.gflownet.test.score,
-                    ntest=args.gflownet.test.n,
-                    min_length=args.gflownet.test.min_length,
-                    max_length=args.gflownet.max_seq_length,
-                    seed=args.gflownet.test.seed,
-                    output_csv=args.gflownet.test.output,
+                    path_base_dataset=args[0].gflownet.test.base,
+                    score=args[0].gflownet.test.score,
+                    ntest=args[0].gflownet.test.n,
+                    min_length=args[0].gflownet.test.min_length,
+                    max_length=args[0].gflownet.max_seq_length,
+                    seed=args[0].gflownet.test.seed,
+                    output_csv=args[0].gflownet.test.output,
                 )
 
     def sample(
