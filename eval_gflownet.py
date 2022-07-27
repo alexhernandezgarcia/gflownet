@@ -194,7 +194,6 @@ def main(args):
         df_samples = pd.DataFrame(
             {
                 "samples": seq_letters,
-                "indices": seq_ints,
                 "energies": samples_dict["energies"],
             }
         )
