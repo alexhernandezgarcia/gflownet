@@ -50,6 +50,13 @@ def add_args(parser):
         help="Configuration file of the experiment",
     )
     args2config.update({"yaml_config": ["yaml_config"]})
+    parser.add_argument(
+        "--batch_size",
+        default=1000,
+        type=int,
+        help="Maximum batch size",
+    )
+    args2config.update({"batch_size": ["batch_size"]})
     parser.add_argument("--device", default="cpu", type=str)
     args2config.update({"device": ["device"]})
     parser.add_argument(
@@ -181,20 +188,31 @@ def main(args):
     # Sample data
     if args.do_sample:
         print("\nSampling from GFlowNet model")
-        samples, times = gflownet.sample_batch(env, n_samples, train=False, model=model)
-        samples_dict, times_proxy = batch2dict(samples, env)
-        samples_mat = samples_dict["samples"]
-        seq_ints = ["".join([str(el) for el in seq if el > 0]) for seq in samples_mat]
-        seq_letters = [
-            "".join(
-                env.seq2letters(seq[seq > 0], alphabet={1: "A", 2: "T", 3: "C", 4: "G"})
-            )
-            for seq in samples_mat
-        ]
+        samples_list = []
+        energies_list = []
+        n_full = n_samples // args.batch_size
+        size_last = n_samples % args.batch_size
+        batch_sizes = [args.batch_size for _ in range(n_full)]
+        if size_last > 0:
+            batch_sizes += [size_last]
+        for batch_size in tqdm(batch_sizes):
+            samples, _ = gflownet.sample_batch(env, batch_size, train=False,
+                    model=model)
+            samples_dict, _ = batch2dict(samples, env)
+            samples_mat = samples_dict["samples"]
+            seq_ints = ["".join([str(el) for el in seq if el > 0]) for seq in samples_mat]
+            seq_letters = [
+                "".join(
+                    env.seq2letters(seq[seq > 0], alphabet={1: "A", 2: "T", 3: "C", 4: "G"})
+                )
+                for seq in samples_mat
+            ]
+            samples_list.extend(seq_letters)
+            energies_list.extend(samples_dict["energies"])
         df_samples = pd.DataFrame(
             {
-                "samples": seq_letters,
-                "energies": samples_dict["energies"],
+                "samples": samples_list,
+                "energies": energies_list,
             }
         )
         print("Sampled data")
