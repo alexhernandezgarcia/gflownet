@@ -125,43 +125,13 @@ def main(args):
     set_device(device_torch)
     workdir = Path(args.config_file).parent
     # GFlowNet agent (just for sampling)
-    gflownet = GFlowNetAgent(args)
+    gflownet = GFlowNetAgent(args, sample_only=True)
     # Oracle
-    if args.gflownet.env_id == "aptamers":
-        oracle = Oracle(
-            seed=args.oracle.seed,
-            seq_len=args.gflownet.max_seq_length,
-            dict_size=args.gflownet.nalphabet,
-            min_len=args.gflownet.min_seq_length,
-            max_len=args.gflownet.max_seq_length,
-            oracle=args.gflownet.func,
-            energy_weight=args.oracle.nupack_energy_reweighting,
-            nupack_target_motif=args.oracle.nupack_target_motif,
-        )
-    elif args.gflownet.env_id == "grid":
-        oracle = None
-    else:
-        raise NotImplemented
+    oracle = gflownet.oracle
     # Environment
-    if args.gflownet.env_id == "aptamers":
-        env = AptamerSeq(
-            args.gflownet.max_seq_length,
-            args.gflownet.min_seq_length,
-            args.gflownet.nalphabet,
-            args.gflownet.min_word_len,
-            args.gflownet.max_word_len,
-            oracle_func=oracle.score,
-        )
-    elif args.gflownet.env_id == "grid":
-        env = Grid(oracle_func=args.gflownet.func)
-    else:
-        raise NotImplemented
+    env = gflownet.env
     # Model
-    model = make_mlp(
-        [args.gflownet.max_seq_length * args.gflownet.nalphabet]
-        + [args.gflownet.n_hid] * args.gflownet.n_layers
-        + [len(env.action_space) + 1]
-    )
+    model = gflownet.model
     model.to(device_torch)
     if not args.rand_model:
         model_alias = "gfn"

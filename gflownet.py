@@ -293,7 +293,8 @@ def set_device(dev):
 
 
 class GFlowNetAgent:
-    def __init__(self, args, comet=None, proxy=None, al_iter=-1, data_path=None):
+    def __init__(self, args, comet=None, proxy=None, al_iter=-1, data_path=None,
+            sample_only=False):
         # Misc
         self.rng = np.random.default_rng(args.seeds.gflownet)
         self.debug = args.debug
@@ -310,7 +311,8 @@ class GFlowNetAgent:
             print("Unkown loss. Using flowmatch as default")
             self.loss == "flowmatch"
             self.Z = None
-        self.loss_eps = torch.tensor(float(1e-5)).to(self.device)
+        if not sample_only:
+            self.loss_eps = torch.tensor(float(1e-5)).to(self.device)
         self.lightweight = not args.no_lightweight
         self.tau = args.gflownet.bootstrap_tau
         self.ema_alpha = args.gflownet.ema_alpha
@@ -363,7 +365,7 @@ class GFlowNetAgent:
             raise NotImplemented
         self.buffer = Buffer(self.env, replay_capacity=args.gflownet.replay_capacity)
         # Comet
-        if args.gflownet.comet.project and not args.gflownet.comet.skip:
+        if args.gflownet.comet.project and not args.gflownet.comet.skip and not sample_only:
             self.comet = Experiment(
                 project_name=args.gflownet.comet.project, display_summary_level=0
             )
@@ -383,10 +385,11 @@ class GFlowNetAgent:
                 self.comet = None
         self.no_log_times = args.gflownet.no_log_times
         # Make train and test sets
-        self.buffer.make_train_test(
-            data_path, args.gflownet.train.path, args.gflownet.test.path, self.oracle,
-            args
-        )
+        if not sample_only:
+            self.buffer.make_train_test(
+                data_path, args.gflownet.train.path, args.gflownet.test.path, self.oracle,
+                args
+            )
         self.test_period = args.gflownet.test.period
         self.test_score = args.gflownet.test.score
         if self.test_period in [None, -1]:
@@ -473,7 +476,7 @@ class GFlowNetAgent:
     def parameters(self):
         return self.model.parameters()
 
-    def sample_batch(self, envs, n_samples=None, train=True, model=None):
+    def sample_batch(self, envs, n_samples=None, train=True, model=None, progress=False):
         """
         Builds a batch of data
 
@@ -506,10 +509,10 @@ class GFlowNetAgent:
             model = self.model
         if isinstance(envs, list):
             envs = [env.reset(idx) for idx, env in enumerate(envs)]
-        elif n_samples is not None:
+        elif n_samples is not None and n_samples > 0:
             envs = [copy.deepcopy(envs).reset(idx) for idx in range(n_samples)]
         else:
-            return None
+            return None, None
         # Sequences from empirical distribution
         if train:
             # TODO: review this piece of code: implement backward sampling function
@@ -588,6 +591,8 @@ class GFlowNetAgent:
             envs = [env for env in envs if not env.done]
             t1_a_envs = time.time()
             times["actions_envs"] += t1_a_envs - t0_a_envs
+            if progress and n_samples is not None:
+                print(f"{n_samples - len(envs)}/{n_samples} done")
         # Compute rewards
         if train:
             obs, actions, seqs, parents, parents_a, done, path_id, seq_id = zip(*batch)
