@@ -1,6 +1,8 @@
 '''import statements'''
 from seqfold import dg, fold
 from utils import *
+from potts_utils import load_potts_model
+from potts_utils import potts_energy
 import sys
 try: # we don't always install these on every platform
     from nupack import *
@@ -178,6 +180,8 @@ class Oracle():
             return self.linearToy(queries)
         elif self.oracle == 'potts':
             return self.PottsEnergy(queries)
+        elif self.oracle == 'potts new':
+            return self.PottsEnergyNew(queries)
         elif self.oracle == 'inner product':
             return self.toyHamiltonian(queries)
         elif self.oracle == 'seqfold':
@@ -199,6 +203,8 @@ class Oracle():
             return self.BB_DOB_functions(queries)
         elif isinstance(self.oracle, list) and all(["nupack " in el for el in self.oracle]):
             return self.nupackScore(queries, returnFunc=[el.replace("nupack ", "") for el in self.oracle])
+        elif isinstance(self.oracle, list) and self.oracle[0] == "potts new":
+            return self.PottsEnergyNew(queries)
         else:
             raise NotImplementedError("Unknown oracle type")
 
@@ -300,6 +306,19 @@ class Oracle():
 
                 for jj in range(ii,nnz): # this is duplicated on lower triangle so we only need to do it from i-L
                     energies[k] += 2 * self.pottsJ[ii, jj, queries[k,ii] - 1, queries[k,jj] - 1]  # site-specific couplings
+
+        return energies
+
+
+    def PottsEnergyNew(self, sequences):
+
+        # Load the potts model
+        J, h = load_potts_model(435);
+
+        # Compute energies
+        energies = np.zeros(len(sequences))
+        for idx, seq in enumerate(sequences):
+            energies[idx] = potts_energy(J, h, seq)
 
         return energies
 
@@ -479,7 +498,7 @@ class Oracle():
 
         if energy_weighting:
             for key in dict_return.keys():
-                if key is not 'energy':
+                if key != 'energy':
                     dict_return[key] = dict_return[key] * np.tanh(np.abs(energies)/2) # positive tahn of the energies, scaled
 
         if isinstance(returnFunc, list):

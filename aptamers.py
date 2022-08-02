@@ -55,12 +55,14 @@ class AptamerSeq(GFlowNetEnv):
         oracle_func=None,
         energies_stats=None,
         reward_norm=1.0,
+        reward_func="power",
         denorm_proxy=False,
     ):
         super(AptamerSeq, self).__init__(
             env_id,
             reward_beta,
             reward_norm,
+            reward_func,
             energies_stats,
             denorm_proxy,
             proxy,
@@ -88,6 +90,7 @@ class AptamerSeq(GFlowNetEnv):
         self.denorm_proxy = denorm_proxy
         self.action_space = self.get_actions_space()
         self.eos = len(self.action_space)
+        self.max_path_len = self.get_max_path_len()
         # Aliases and compatibility
         self.state2oracle = self.seq2oracle
         self.state2obs = self.seq2obs

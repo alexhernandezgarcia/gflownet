@@ -54,7 +54,7 @@ class Grid(GFlowNetEnv):
             debug,
         )
         self.n_dim = n_dim
-        self.state = [0] * self.n_dim
+        self.state = [0 for _ in range(self.n_dim)]
         self.length = length
         self.obs_dim = self.length * self.n_dim
         self.min_step_len = min_step_len
@@ -191,7 +191,7 @@ class Grid(GFlowNetEnv):
         """
         Resets the environment.
         """
-        self.state = [0] * self.n_dim
+        self.state = [0 for _ in range(self.n_dim)]
         self.n_actions = 0
         self.done = False
         self.id = env_id

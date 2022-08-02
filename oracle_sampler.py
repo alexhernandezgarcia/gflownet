@@ -113,10 +113,10 @@ def main(args):
     seq_letters = oracle.numbers2letters(samples_mat)
     seq_ints = ["".join([str(el) for el in seq if el > 0]) for seq in samples_mat]
     if isinstance(energies, dict):
-        energies.update({"letters": seq_letters, "indices": seq_ints})
+        energies.update({"samples": seq_letters, "indices": seq_ints})
         df = pd.DataFrame(energies)
     else:
-        df = pd.DataFrame({"letters": seq_letters, "indices": seq_ints, "energies": energies})
+        df = pd.DataFrame({"samples": seq_letters, "indices": seq_ints, "energies": energies})
     if args.output:
         output_yml = Path(args.output).with_suffix(".yml")
         with open(output_yml, "w") as f:
@@ -132,4 +132,5 @@ if __name__ == "__main__":
     parser, args2config = add_args(parser)
     args = parser.parse_args()
     config = get_config(args, override_args, args2config)
+    print("Args:\n" + "\n".join([f"    {k:20}: {v}" for k, v in vars(config).items()]))
     main(config)
