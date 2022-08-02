@@ -93,7 +93,7 @@ def add_args(parser):
     )
     args2config.update({"gflownet_seed": ["seeds", "gflownet"]})
     # Misc
-    args2config.update({"toy_oracle_seed": ["seeds", "toy_oracle"]})
+    #args2config.update({"toy_oracle_seed": ["seeds", "toy_oracle"]})
     parser.add_argument(
         "--machine",
         type=str,

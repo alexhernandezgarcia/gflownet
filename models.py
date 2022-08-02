@@ -180,7 +180,6 @@ class modelNet():
         if self.config.device == 'cuda':
             inputs = inputs.cuda()
             targets = targets.cuda()
-
         output = self.model(inputs.float())
         targets = (targets - self.mean)/self.std # standardize the targets during training
         #return F.smooth_l1_loss(output[:,0], targets.float())

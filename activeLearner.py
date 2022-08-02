@@ -189,8 +189,6 @@ class ActiveLearning():
             t0 = time.time()
             energies = self.oracle.score(query) # score Samples
             printRecord('Oracle scoring took {} seconds'.format(int(time.time()-t0)))
-            printRecord('Oracle scored' + bcolors.OKBLUE + ' {} '.format(len(energies)) + bcolors.ENDC + 'queries with average score of' + bcolors.OKGREEN + ' {:.3f}'.format(np.average(energies)) + bcolors.ENDC + ' and minimum score of {:.3f}'.format(np.amin(energies)))
-
             self.updateDataset(query, energies) # add scored Samples to dataset
 
             if self.comet: # report query scores to comet
