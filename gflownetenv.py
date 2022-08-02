@@ -335,7 +335,7 @@ class Buffer:
         )
         self.replay.reward = pd.to_numeric(self.replay.reward)
         self.replay.energy = pd.to_numeric(self.replay.energy)
-        self.replay.reward = [-1] * self.replay_capacity
+        self.replay.reward = [-1 for _ in range(self.replay_capacity)]
         self.train = None
         self.test = None
 
