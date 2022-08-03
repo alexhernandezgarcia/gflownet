@@ -158,6 +158,13 @@ def add_args(parser):
         help="Multiplier of the standard deviation for the reward normalization",
     )
     args2config.update({"reward_norm_std_mult": ["gflownet", "reward_norm_std_mult"]})
+    parser.add_argument(
+        "--reward_func",
+        default=1,
+        type=float,
+        help="Function for rewards transformation: power or boltzmann",
+    )
+    args2config.update({"reward_func": ["gflownet", "reward_func"]})
     parser.add_argument("--momentum", default=0.9, type=float)
     args2config.update({"momentum": ["gflownet", "momentum"]})
     parser.add_argument("--mbsize", default=16, help="Minibatch size", type=int)
@@ -286,7 +293,8 @@ def set_device(dev):
 
 
 class GFlowNetAgent:
-    def __init__(self, args, comet=None, proxy=None, al_iter=-1, data_path=None):
+    def __init__(self, args, comet=None, proxy=None, al_iter=-1, data_path=None,
+            sample_only=False):
         # Misc
         self.rng = np.random.default_rng(args.seeds.gflownet)
         self.debug = args.debug
@@ -303,7 +311,8 @@ class GFlowNetAgent:
             print("Unkown loss. Using flowmatch as default")
             self.loss == "flowmatch"
             self.Z = None
-        self.loss_eps = torch.tensor(float(1e-5)).to(self.device)
+        if not sample_only:
+            self.loss_eps = torch.tensor(float(1e-5)).to(self.device)
         self.lightweight = not args.no_lightweight
         self.tau = args.gflownet.bootstrap_tau
         self.ema_alpha = args.gflownet.ema_alpha
@@ -311,6 +320,7 @@ class GFlowNetAgent:
         self.reward_norm = np.abs(args.gflownet.reward_norm)
         self.reward_norm_std_mult = args.gflownet.reward_norm_std_mult
         self.reward_beta = args.gflownet.reward_beta
+        self.reward_func = args.gflownet.reward_func
         if al_iter >= 0:
             self.al_iter = "_iter{}".format(al_iter)
         else:
@@ -345,6 +355,7 @@ class GFlowNetAgent:
                 proxy=proxy,
                 reward_beta=self.reward_beta,
                 reward_norm=self.reward_norm,
+                reward_func=self.reward_func,
                 oracle_func=self.oracle.score,
                 debug=self.debug,
             )
@@ -354,7 +365,7 @@ class GFlowNetAgent:
             raise NotImplemented
         self.buffer = Buffer(self.env, replay_capacity=args.gflownet.replay_capacity)
         # Comet
-        if args.gflownet.comet.project and not args.gflownet.comet.skip:
+        if args.gflownet.comet.project and not args.gflownet.comet.skip and not sample_only:
             self.comet = Experiment(
                 project_name=args.gflownet.comet.project, display_summary_level=0
             )
@@ -374,9 +385,11 @@ class GFlowNetAgent:
                 self.comet = None
         self.no_log_times = args.gflownet.no_log_times
         # Make train and test sets
-        self.buffer.make_train_test(
-            data_path, args.gflownet.train.path, args.gflownet.test.path, self.oracle
-        )
+        if not sample_only:
+            self.buffer.make_train_test(
+                data_path, args.gflownet.train.path, args.gflownet.test.path, self.oracle,
+                args
+            )
         self.test_period = args.gflownet.test.period
         self.test_score = args.gflownet.test.score
         if self.test_period in [None, -1]:
@@ -463,7 +476,7 @@ class GFlowNetAgent:
     def parameters(self):
         return self.model.parameters()
 
-    def sample_batch(self, envs, n_samples=None, train=True, model=None):
+    def sample_batch(self, envs, n_samples=None, train=True, model=None, progress=False):
         """
         Builds a batch of data
 
@@ -496,10 +509,10 @@ class GFlowNetAgent:
             model = self.model
         if isinstance(envs, list):
             envs = [env.reset(idx) for idx, env in enumerate(envs)]
-        elif n_samples is not None:
+        elif n_samples is not None and n_samples > 0:
             envs = [copy.deepcopy(envs).reset(idx) for idx in range(n_samples)]
         else:
-            return None
+            return None, None
         # Sequences from empirical distribution
         if train:
             # TODO: review this piece of code: implement backward sampling function
@@ -573,10 +586,13 @@ class GFlowNetAgent:
                             ]
                         )
                     else:
-                        batch.append(seq)
+                        if env.done:
+                            batch.append(seq)
             envs = [env for env in envs if not env.done]
             t1_a_envs = time.time()
             times["actions_envs"] += t1_a_envs - t0_a_envs
+            if progress and n_samples is not None:
+                print(f"{n_samples - len(envs)}/{n_samples} done")
         # Compute rewards
         if train:
             obs, actions, seqs, parents, parents_a, done, path_id, seq_id = zip(*batch)
@@ -1153,12 +1169,13 @@ if __name__ == "__main__":
     config = get_config(args, override_args, args2config)
     config = process_config(config)
     print("Config file: " + config.yaml_config)
-    print("Working dir: " + config.workdir)
+    if config.workdir is not None:
+        print("Working dir: " + config.workdir)
     print(
         "Config:\n"
         + "\n".join([f"    {k:20}: {v}" for k, v in vars(config.gflownet).items()])
     )
-    if "workdir" in config:
+    if "workdir" in config and config.workdir is not None:
         if not Path(config.workdir).exists() or config.overwrite_workdir:
             Path(config.workdir).mkdir(parents=True, exist_ok=True)
             with open(config.workdir + "/config.yml", "w") as f:
@@ -1170,4 +1187,4 @@ if __name__ == "__main__":
         else:
             print(f"workdir {config.workdir} already exists! - Ending run...")
     else:
-        print(f"workdir not defined - Ending run...")
+        print(f"working directory not defined - Ending run...")
