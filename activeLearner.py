@@ -43,9 +43,9 @@ class ActiveLearning():
         # Comet
         if config.al.comet.project:
             self.comet = Experiment(
-                api_key="lAz977drmroFjHIteDtBGKlx0", workspace="baobabtou",
+                api_key="lAz977drmroFjHIteDtBGKlx0", workspace="baobabtou", #depending on the user
                 project_name=config.al.comet.project, display_summary_level=0,
-            )
+            ) 
             if config.al.comet.tags:
                 if isinstance(config.al.comet.tags, list):
                     self.comet.add_tags(config.al.comet.tags)

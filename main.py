@@ -32,7 +32,6 @@ def add_args(parser):
     )
     args2config.update({"yaml_config": ["yaml_config"]})
     # General
-    #you have to modify the default parameters of test_mode with another option : multifidelity
     parser.add_argument(
         "--test_mode",
         action="store_true",
@@ -42,7 +41,7 @@ def add_args(parser):
     args2config.update({"test_mode": ["test_mode"]})
     parser.add_argument("--debug", action="store_true", default=False)
     args2config.update({"debug": ["debug"]})
-    #no debug is not very useful
+   
     parser.add_argument("--no_debug", action="store_false", dest="debug", default=False)
     args2config.update({"no_debug": ["debug"]})
     parser.add_argument("--run_num", type=int, default=0, help="Experiment ID")
@@ -93,7 +92,7 @@ def add_args(parser):
     )
     args2config.update({"gflownet_seed": ["seeds", "gflownet"]})
     # Misc
-    #args2config.update({"toy_oracle_seed": ["seeds", "toy_oracle"]})
+
     parser.add_argument(
         "--machine",
         type=str,
@@ -525,7 +524,7 @@ def add_args(parser):
     parser.add_argument("--stun_max_gamma", type=float, default=1)
     args2config.update({"stun_max_gamma": ["mcmc", "stun_max_gamma"]})
 
-    #added by Bao because the parser is imcomplete : needs to merge with parser of gflownet.py
+    #added by Bao because the parser was imcomplete : needs to merge with parser of gflownet.py
     parser.add_argument("--no_lightweight", action="store_true")
     args2config.update({"no_lightweight": ["no_lightweight"]})
 
@@ -628,7 +627,7 @@ def process_config(config):
     # Test mode
     if config.test_mode:
         config.gflownet.n_train_steps = 100
-        config.al.n_iter = 3 #n_iter non ?
+        config.al.n_iter = 3 #n_iter instead of pipeline_iterations
         config.dataset.init_length = 100
         config.al.queries_per_iter = 100
         config.mcmc.sampling_time = int(1e3)
@@ -665,7 +664,7 @@ def process_config(config):
     if not config.workdir and config.machine == "cluster":
         config.workdir = "/home/kilgourm/scratch/learnerruns"
     elif not config.workdir and config.machine == "local":
-        config.workdir = "C:\mila\learnerruns"  # "C:/Users\mikem\Desktop/activeLearningRuns"  # "/home/mkilgour/learnerruns" 
+        config.workdir = "C:\mila\learnerruns"  # "C:/Users\mikem\Desktop/activeLearningRuns"  # "/home/mkilgour/learnerruns"  #depending on the user
     return config
 
 
@@ -674,9 +673,6 @@ if __name__ == "__main__":
     parser = ArgumentParser()
     _, override_args = parser.parse_known_args()
     parser, args2config = add_args(parser)
-    #doesn't work to merge parsers like this
-    # parser, args2config_bis = gflownet.add_args(parser)
-    # args2config = args2config.update(args2config_bis)
     args = parser.parse_args()
     config = get_config(args, override_args, args2config)
     config = process_config(config)

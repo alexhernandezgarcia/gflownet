@@ -58,9 +58,9 @@ class AptamerSeq(GFlowNetEnv):
         reward_norm=1.0,
         denorm_proxy=False,
     ):
-        #need to initiate before calling the super , which calls get_max_path_len
-        self.max_seq_length = max_seq_length
+        self.max_seq_length = max_seq_length #have to be initialized before calling super ?
         self.min_word_len = min_word_len
+
         super(AptamerSeq, self).__init__(
             env_id,
             reward_beta,

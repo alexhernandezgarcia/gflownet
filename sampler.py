@@ -2,6 +2,7 @@
 from utils import *
 from oracle import *
 import tqdm
+import torch
 
 '''
 This script uses Markov Chain Monte Carlo, including the STUN algorithm, to optimize a given function
@@ -296,7 +297,7 @@ class Sampler:
             self.initOptima(self.scores, self.energy, self.std_dev)
 
         self.F, self.DE = self.getDelta(self.scores)
-        import torch
+       
         self.acceptanceRatio = np.minimum(1, np.exp(-self.DE / torch.as_tensor(self.temperature)))
         self.updateConfigs()
 

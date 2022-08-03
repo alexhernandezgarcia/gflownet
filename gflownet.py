@@ -298,7 +298,7 @@ class GFlowNetAgent:
             self.Z = None
         elif args.gflownet.loss in ["trajectorybalance", "tb"]:
             self.loss = "trajectorybalance"
-            #TO MODIFY ?
+            
             self.Z = nn.Parameter(torch.ones(64) * 150.0 / 64)
         else:
             print("Unkown loss. Using flowmatch as default")
@@ -319,7 +319,7 @@ class GFlowNetAgent:
         self.logsoftmax = torch.nn.LogSoftmax(dim=1)
         self.batch_reward = args.gflownet.batch_reward
         self.env_id = args.gflownet.env_id.lower()
-        Oracle
+        # Oracle
         if self.env_id == "aptamers":
             self.oracle = Oracle(
                 seed=args.oracle.seed,
@@ -357,7 +357,7 @@ class GFlowNetAgent:
         # Comet
         if args.gflownet.comet.project and not args.gflownet.comet.skip:
             self.comet = Experiment(
-                api_key="lAz977drmroFjHIteDtBGKlx0", workspace="baobabtou",
+                api_key="lAz977drmroFjHIteDtBGKlx0", workspace="baobabtou", #depending on user
                 project_name=args.gflownet.comet.project, display_summary_level=0
             )
             if args.gflownet.comet.tags:
@@ -410,8 +410,8 @@ class GFlowNetAgent:
         else:
             self.energies_stats_tr = None
         if self.reward_norm_std_mult > 0 and self.energies_stats_tr is not None:
-            self.reward_norm = self.reward_norm_std_mult * self.energies_stats_tr[3] #std_energies_tr = 0 given that self.reward_norm_std_mult = 0 ...
-            self.env.set_reward_norm(self.reward_norm)#lien de cette stat encofe avec l'environnement
+            self.reward_norm = self.reward_norm_std_mult * self.energies_stats_tr[3]
+            self.env.set_reward_norm(self.reward_norm)
         # Test set statistics
         if self.buffer.test is not None:
             print("\nTest data")
@@ -438,30 +438,29 @@ class GFlowNetAgent:
                 self.model_path = args.gflownet.model_ckpt
             if self.model_path.exists() and self.reload_ckpt:
                 self.model.load_state_dict(torch.load(self.model_path))
-                print("Reloaded GFN Model Checkpoint") #LOAD GFN
+                print("Reloaded GFN Model Checkpoint")
         else:
             self.model_path = None
-        self.ckpt_period = args.gflownet.ckpt_period #None
+        self.ckpt_period = args.gflownet.ckpt_period 
         if self.ckpt_period in [None, -1]:
-            self.ckpt_period = np.inf #pas de checkpoint pour nous
+            self.ckpt_period = np.inf 
         self.model.to(self.device_torch)
-        self.target = copy.deepcopy(self.model) #using this copy in flomatch loss
+        self.target = copy.deepcopy(self.model) 
         # Training
-        self.opt, self.lr_scheduler = make_opt(self.parameters(), self.Z, args) #creates the optimizer (Adam) in train
-        self.n_train_steps = args.gflownet.n_iter #20000, tqdm train
-        self.mbsize = args.gflownet.mbsize #16 minivatch size, unpack terminal states / train
-        self.mask_eos = True #sample batch
-        self.progress = args.gflownet.progress #False default,t rain
-        self.clip_grad_norm = args.gflownet.clip_grad_norm #0, train
-        self.num_empirical_loss = args.gflownet.num_empirical_loss #200000, nb of samples to estimate the loss
-        self.ttsr = max(int(args.gflownet.train_to_sample_ratio), 1) #1
+        self.opt, self.lr_scheduler = make_opt(self.parameters(), self.Z, args) 
+        self.n_train_steps = args.gflownet.n_iter 
+        self.mbsize = args.gflownet.mbsize 
+        self.mask_eos = True 
+        self.progress = args.gflownet.progress 
+        self.clip_grad_norm = args.gflownet.clip_grad_norm
+        self.num_empirical_loss = args.gflownet.num_empirical_loss 
+        self.ttsr = max(int(args.gflownet.train_to_sample_ratio), 1) 
         self.sttr = max(int(1 / args.gflownet.train_to_sample_ratio), 1)
-        self.random_action_prob = args.gflownet.random_action_prob #0sample batch
-        self.pct_batch_empirical = args.gflownet.pct_batch_empirical #0 in sample batch
-        # Oracle metrics
-        self.oracle_period = args.gflownet.oracle.period #500 in training
-        self.oracle_nsamples = args.gflownet.oracle.nsamples #nsamples = 500 in train
-        self.oracle_k = args.gflownet.oracle.k #[1, 10, 100] in training
+        self.random_action_prob = args.gflownet.random_action_prob
+        self.pct_batch_empirical = args.gflownet.pct_batch_empirical
+        self.oracle_period = args.gflownet.oracle.period 
+        self.oracle_nsamples = args.gflownet.oracle.nsamples
+        self.oracle_k = args.gflownet.oracle.k 
 
     def parameters(self):
         return self.model.parameters()
@@ -497,15 +496,15 @@ class GFlowNetAgent:
         batch = []
         if model is None:
             model = self.model
-        #initialize envs : either list of envs either just the number of samples with the env to get !!
+  
 
-        if isinstance(envs, list): #why several envs ?
+        if isinstance(envs, list): 
             envs = [env.reset(idx) for idx, env in enumerate(envs)]
         elif n_samples is not None:
             envs = [copy.deepcopy(envs).reset(idx) for idx in range(n_samples)]
         else:
             return None
-        #print("ENVS", envs)
+ 
         # Sequences from empirical distribution
         if train:
             # TODO: review this piece of code: implement backward sampling function
@@ -540,28 +539,23 @@ class GFlowNetAgent:
             envs = [env for env in envs if not env.done]
 
         # Rest of batch
-        while envs: #tous en même temps
+        while envs: 
             seqs = [env.seq2obs() for env in envs]
-            #pour chaque environnement list des états inputs du gflow ! 
-            mask = [env.no_eos_mask() for env in envs] #mask ??? pas capté le mask
-         
-            # print("SEQS", seqs)
-            # print("MASK", mask)
+            mask = [env.no_eos_mask() for env in envs]
 
-            random_action = self.rng.uniform() #the same for ALL environments ? weird non ?
-            if train is False or random_action > self.random_action_prob: #weird use of random action
+            random_action = self.rng.uniform() #the same for ALL environments ? 
+            if train is False or random_action > self.random_action_prob: 
                 with torch.no_grad():
                     t0_a_model = time.time()
-                    print("INPTUMODEL", tf(seqs).size(), tf(seqs))
-                    action_probs = model(tf(seqs)) #~policy network
+                    action_probs = model(tf(seqs)) 
                     if self.mask_eos:
-                        action_probs[mask, -1] = -1000 #mask : to understand #ici c'est pas la dernière forcément
+                        action_probs[mask, -1] = -1000 
                     t1_a_model = time.time()
                     times["actions_model"] += t1_a_model - t0_a_model
                     if all(torch.isfinite(action_probs).flatten()):
-                        actions = Categorical(logits=action_probs).sample() #choice of the action
+                        actions = Categorical(logits=action_probs).sample() 
                     else:
-                        random_action = -1 #si bug, vrai random pas eos ?
+                        random_action = -1 
                         if self.debug:
                             print("Action could not be sampled from model!")
             if train and random_action < self.random_action_prob:
@@ -571,12 +565,10 @@ class GFlowNetAgent:
                 actions = self.rng.integers(low=0, high=high, size=len(envs))
             t0_a_envs = time.time()
             assert len(envs) == actions.shape[0]
-            for env, action in zip(envs, actions): #take the action in the env
-                # print("BEFORE STEP", env.seq, action)
-                seq, action, valid = env.step(action) #[2], tensor[2], True
-                # print('after step', seq, action)
+            for env, action in zip(envs, actions): 
+                seq, action, valid = env.step(action) 
                 
-                if valid: #if not valid ? mdr
+                if valid:
                     parents, parents_a = env.parent_transitions(seq, action) #array ohe befre, tensor([2])
                  
                     if train:
@@ -595,7 +587,7 @@ class GFlowNetAgent:
 
                         
                     else:
-                        batch.append(seq) #[2]. Un peu useless en vrai, après on unpack pour avoir le state final non ? #not the final ones in batch : all the intermediate ?? how to pick the final ones ??
+                        batch.append(seq) 
             envs = [env for env in envs if not env.done] #remaining undone env
             t1_a_envs = time.time()
             times["actions_envs"] += t1_a_envs - t0_a_envs
@@ -605,9 +597,6 @@ class GFlowNetAgent:
         if train:
             obs, actions, seqs, parents, parents_a, done, path_id, seq_id = zip(*batch)
             t0_rewards = time.time()
-            #print('BEFORE SCORING', seqs) #le premier est pas un array c'est un peu bizarre 
-            print("SEQS", seqs)
-            print("DONE", done)
             rewards = env.reward_batch(seqs, done)
             
             t1_rewards = time.time()
@@ -617,11 +606,11 @@ class GFlowNetAgent:
             batch = list(
                 zip(obs, actions, rewards, parents, parents_a, done, path_id, seq_id)
             )
-            #print("final batch", batch)
+ 
         t1_all = time.time()
         times["all"] += t1_all - t0_all
      
-        return batch, times #batch weird ... format des batch retournés
+        return batch, times 
 
     def flowmatch_loss(self, it, batch):
         """
@@ -658,9 +647,9 @@ class GFlowNetAgent:
             )
         )
 
-        print("BATCH IDX", batch_idxs)
+   
         sp, _, r, parents, actions, done, _, _ = map(torch.cat, zip(*batch))
-        #print("SP, reward", sp, r)
+  
 
         # Sanity check if negative rewards
         if self.debug and torch.any(r < 0):
@@ -671,39 +660,32 @@ class GFlowNetAgent:
                 seq_oracle = self.env.seq2oracle([seq])
                 output_proxy = self.env.proxy(seq_oracle)
                 reward = self.env.proxy2reward(output_proxy)
-                print(idx, output_proxy, reward)
                 import ipdb
 
                 ipdb.set_trace()
 
         # Q(s,a)
         parents_Qsa = self.model(parents)[torch.arange(parents.shape[0]), actions]
-        #print(self.model(parents))
-        #print("pARETS", parents_Qsa)
+
 
         # log(eps + exp(log(Q(s,a)))) : qsa
         in_flow = torch.log(self.loss_eps + 
             tf(torch.zeros((sp.shape[0],))).index_add_(
                 0, batch_idxs, torch.exp(parents_Qsa)
             ) #add the epsilon + self.loss_eps
-        ) #used batch_idxs trivial here (just the same) : index_add some of flows here individual
-        #print("INFLOW", in_flow)
+        ) 
+
         # the following with work if autoregressive
         #         in_flow = torch.logaddexp(parents_Qsa[batch_idxs], torch.log(self.loss_eps))
-        #print(in_flow)
+
         if self.tau > 0:
             with torch.no_grad():
-                next_q = self.target(sp) #difference ?
+                next_q = self.target(sp) 
         else:
-            print("INPUT NETWORK", sp.size())
-            print("INPUT NW", sp[0])
             next_q = self.model(sp)
-            print("output nw", next_q[0])
-            #print("NEXT Q", next_q)
+
         qsp = torch.logsumexp(next_q, 1)
-        #print("après exp", qsp) #attention quand on est ohe puis on choisit fidélité : ajouter tous les flots accurate (pas celui du padding 0) et renormalisé.
-        # qsp: qsp if not done; -loginf if done ???? WHY - 1000 for exit if done ?
-        qsp = qsp * (1 - done) - loginf * done #logits if done bah on a plus rien
+        qsp = qsp * (1 - done) - loginf * done 
         out_flow = torch.logaddexp(torch.log(r + self.loss_eps), qsp)
         loss = (in_flow - out_flow).pow(2).mean()
 
@@ -719,7 +701,7 @@ class GFlowNetAgent:
             for a, b in zip(self.model.parameters(), self.target.parameters()):
                 b.data.mul_(1 - self.tau).add_(self.tau * a)
 
-        return loss, term_loss, flow_loss#utility of term loss and flow loss ?
+        return loss, term_loss, flow_loss
 
     def trajectorybalance_loss(self, it, batch):
         """
@@ -812,7 +794,7 @@ class GFlowNetAgent:
                 if not all([torch.isfinite(loss) for loss in losses]):
                     if self.debug:
                         print("Loss is not finite - skipping iteration")
-                    if len(all_losses) > 0: #on ne fait rien...
+                    if len(all_losses) > 0:
                         all_losses.append([loss for loss in all_losses[-1]])
                 else:
                     losses[0].backward()
@@ -826,7 +808,6 @@ class GFlowNetAgent:
                     all_losses.append([i.item() for i in losses])
             # Buffer
             seqs_term, paths_term, rewards = self.unpack_terminal_states(batch)
-            print("TEST", seqs_term, paths_term, rewards)
             proxy_vals = self.env.reward2proxy(rewards)
             self.buffer.add(seqs_term, paths_term, rewards, proxy_vals, it)
             self.buffer.add(
@@ -836,7 +817,7 @@ class GFlowNetAgent:
             idx_best = np.argmax(rewards)
             seq_best = "".join(self.env.seq2letters(seqs_term[idx_best]))
             if self.lightweight:
-                all_losses = all_losses[-100:] #les 100 dernières
+                all_losses = all_losses[-100:]
                 all_visited = seqs_term
 
             else:
@@ -1024,7 +1005,7 @@ def batch2dict(batch, env, get_uncertainties=False, query_function="Both"):
             proxy_vals, uncertainties = env.proxy(batch, query_function)
             scores = proxy_vals
     else:
-        proxy_vals = env.proxy(batch) #même ceux qui sont pas done sont dedans ...???
+        proxy_vals = env.proxy(batch)
         uncertainties = None
         scores = proxy_vals
     t1_proxy = time.time()
@@ -1189,39 +1170,39 @@ def main(args):
     gflownet_agent = GFlowNetAgent(args)
     gflownet_agent.train()
 
-    # sample from the oracle, not from a proxy model
+    # sample for the oracle, not from a proxy model
     batch, times = gflownet_agent.sample_batch(
         gflownet_agent.env, args.gflownet.n_samples, train=False
     )
     samples, times = batch2dict(batch, gflownet_agent.env, get_uncertainties=False)
 
 
-# if __name__ == "__main__":
-#     parser = ArgumentParser()
-#     _, override_args = parser.parse_known_args()
-#     parser, args2config = add_args(parser)
-#     args = parser.parse_args()
-#     config = get_config(args, override_args, args2config)
-#     config = process_config(config)
-#     #print('CONFIG', config)
-#     print("Config file: " + config.yaml_config)
-#     print("Working dir: " + config.workdir)
-#     print(
-#         "Config:\n"
-#         + "\n".join([f"    {k:20}: {v}" for k, v in vars(config.gflownet).items()])
-#     )
-#     if "workdir" in config:
-#         if not Path(config.workdir).exists() or config.overwrite_workdir:
-#             Path(config.workdir).mkdir(parents=True, exist_ok=True)
-#             with open(config.workdir + "/config.yml", "w") as f:
-#                 yaml.dump(
-#                     numpy2python(namespace2dict(config)), f, default_flow_style=False
-#                 )
-#             torch.set_num_threads(1)
-#             main(config)
-#         else:
-#             print(f"workdir {config.workdir} already exists! - Ending run...")
-#     else:
-#         print(f"workdir not defined - Ending run...")
+if __name__ == "__main__":
+    parser = ArgumentParser()
+    _, override_args = parser.parse_known_args()
+    parser, args2config = add_args(parser)
+    args = parser.parse_args()
+    config = get_config(args, override_args, args2config)
+    config = process_config(config)
+    print('CONFIG', config)
+    print("Config file: " + config.yaml_config)
+    print("Working dir: " + config.workdir)
+    print(
+        "Config:\n"
+        + "\n".join([f"    {k:20}: {v}" for k, v in vars(config.gflownet).items()])
+    )
+    if "workdir" in config:
+        if not Path(config.workdir).exists() or config.overwrite_workdir:
+            Path(config.workdir).mkdir(parents=True, exist_ok=True)
+            with open(config.workdir + "/config.yml", "w") as f:
+                yaml.dump(
+                    numpy2python(namespace2dict(config)), f, default_flow_style=False
+                )
+            torch.set_num_threads(1)
+            main(config)
+        else:
+            print(f"workdir {config.workdir} already exists! - Ending run...")
+    else:
+        print(f"workdir not defined - Ending run...")
 
 
