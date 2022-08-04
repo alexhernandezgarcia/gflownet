@@ -293,8 +293,15 @@ def set_device(dev):
 
 
 class GFlowNetAgent:
-    def __init__(self, args, comet=None, proxy=None, al_iter=-1, data_path=None,
-            sample_only=False):
+    def __init__(
+        self,
+        args,
+        comet=None,
+        proxy=None,
+        al_iter=-1,
+        data_path=None,
+        sample_only=False,
+    ):
         # Misc
         self.rng = np.random.default_rng(args.seeds.gflownet)
         self.debug = args.debug
@@ -309,7 +316,7 @@ class GFlowNetAgent:
             self.Z = nn.Parameter(torch.ones(64) * 150.0 / 64)
         else:
             print("Unkown loss. Using flowmatch as default")
-            self.loss == "flowmatch"
+            self.loss = "flowmatch"
             self.Z = None
         if not sample_only:
             self.loss_eps = torch.tensor(float(1e-5)).to(self.device)
@@ -337,8 +344,8 @@ class GFlowNetAgent:
                 min_len=args.gflownet.min_seq_length,
                 max_len=args.gflownet.max_seq_length,
                 oracle=args.gflownet.func,
-                energy_weight=args.oracle.nupack_energy_reweighting,
-                nupack_target_motif=args.oracle.nupack_target_motif,
+                energy_weight=args.dataset.nupack_energy_reweighting,
+                nupack_target_motif=args.dataset.nupack_target_motif,
             )
         elif self.env_id == "grid":
             self.oracle = None
@@ -365,7 +372,11 @@ class GFlowNetAgent:
             raise NotImplemented
         self.buffer = Buffer(self.env, replay_capacity=args.gflownet.replay_capacity)
         # Comet
-        if args.gflownet.comet.project and not args.gflownet.comet.skip and not sample_only:
+        if (
+            args.gflownet.comet.project
+            and not args.gflownet.comet.skip
+            and not sample_only
+        ):
             self.comet = Experiment(
                 project_name=args.gflownet.comet.project, display_summary_level=0
             )
@@ -387,8 +398,11 @@ class GFlowNetAgent:
         # Make train and test sets
         if not sample_only:
             self.buffer.make_train_test(
-                data_path, args.gflownet.train.path, args.gflownet.test.path, self.oracle,
-                args
+                data_path,
+                args.gflownet.train.path,
+                args.gflownet.test.path,
+                self.oracle,
+                args,
             )
         self.test_period = args.gflownet.test.period
         self.test_score = args.gflownet.test.score
@@ -476,7 +490,9 @@ class GFlowNetAgent:
     def parameters(self):
         return self.model.parameters()
 
-    def sample_batch(self, envs, n_samples=None, train=True, model=None, progress=False):
+    def sample_batch(
+        self, envs, n_samples=None, train=True, model=None, progress=False
+    ):
         """
         Builds a batch of data
 
@@ -540,7 +556,7 @@ class GFlowNetAgent:
                     )
                     seq = env.obs2seq(self.rng.permutation(parents)[0])
                     done = False
-                    action = -1
+                    action = [-1]
             envs = [env for env in envs if not env.done]
         # Rest of batch
         while envs:
@@ -644,7 +660,6 @@ class GFlowNetAgent:
             )
         )
         sp, _, r, parents, actions, done, _, _ = map(torch.cat, zip(*batch))
-
         # Sanity check if negative rewards
         if self.debug and torch.any(r < 0):
             neg_r_idx = torch.where(r < 0)[0].tolist()
@@ -654,7 +669,6 @@ class GFlowNetAgent:
                 seq_oracle = self.env.seq2oracle([seq])
                 output_proxy = self.env.proxy(seq_oracle)
                 reward = self.env.proxy2reward(output_proxy)
-                print(idx, output_proxy, reward)
                 import ipdb
 
                 ipdb.set_trace()
@@ -664,7 +678,8 @@ class GFlowNetAgent:
 
         # log(eps + exp(log(Q(s,a)))) : qsa
         in_flow = torch.log(
-            tf(torch.zeros((sp.shape[0],))).index_add_(
+            self.loss_eps
+            + tf(torch.zeros((sp.shape[0],))).index_add_(
                 0, batch_idxs, torch.exp(parents_Qsa)
             )
         )

@@ -131,7 +131,7 @@ class Sampler:
 
         # set initial values
         self.E0 = scores[1]  # initialize the 'best score' value
-        self.absMin = np.amin(self.E0)
+        self.absMin = np.amin(np.array(self.E0))
         self.all_scores[0] = scores[1]
         self.all_energies[0] = energy[1]
         self.all_uncertainties[0] = std_dev[1]
