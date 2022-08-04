@@ -297,8 +297,7 @@ class GFlowNetAgent:
             self.loss = "flowmatch"
             self.Z = None
         elif args.gflownet.loss in ["trajectorybalance", "tb"]:
-            self.loss = "trajectorybalance"
-            
+            self.loss = "trajectorybalance"  
             self.Z = nn.Parameter(torch.ones(64) * 150.0 / 64)
         else:
             print("Unkown loss. Using flowmatch as default")
@@ -328,8 +327,8 @@ class GFlowNetAgent:
                 min_len=args.gflownet.min_seq_length,
                 max_len=args.gflownet.max_seq_length,
                 oracle=args.gflownet.func,
-                energy_weight=args.dataset.nupack_energy_reweighting,#oracle
-                nupack_target_motif=args.dataset.nupack_target_motif,#oracle
+                energy_weight=args.dataset.nupack_energy_reweighting,
+                nupack_target_motif=args.dataset.nupack_target_motif,
             )
         elif self.env_id == "grid":
             self.oracle = None
@@ -357,7 +356,7 @@ class GFlowNetAgent:
         # Comet
         if args.gflownet.comet.project and not args.gflownet.comet.skip:
             self.comet = Experiment(
-                api_key="lAz977drmroFjHIteDtBGKlx0", workspace="baobabtou", #depending on user
+
                 project_name=args.gflownet.comet.project, display_summary_level=0
             )
             if args.gflownet.comet.tags:
@@ -379,14 +378,13 @@ class GFlowNetAgent:
         self.buffer.make_train_test(
             data_path, args.gflownet.train.path, args.gflownet.test.path, self.oracle, args = args
         )#data_path='datasets/' + self.config.dataset.oracle + '.npy' 
-   
         self.test_period = args.gflownet.test.period 
         self.test_score = args.gflownet.test.score 
         if self.test_period in [None, -1]:
             self.test_period = np.inf
         # Train set statistics
         if self.buffer.train is not None: 
-            min_energies_tr = self.buffer.train[self.test_score].min()#"energies"
+            min_energies_tr = self.buffer.train[self.test_score].min()
             max_energies_tr = self.buffer.train[self.test_score].max()
             mean_energies_tr = self.buffer.train[self.test_score].mean()
             std_energies_tr = self.buffer.train[self.test_score].std()
@@ -424,7 +422,7 @@ class GFlowNetAgent:
             [self.env.obs_dim]
             + [args.gflownet.n_hid] * args.gflownet.n_layers
             + [len(self.env.action_space) + 1]
-        ) 
+        )
         self.reload_ckpt = args.gflownet.reload_ckpt
         if args.gflownet.model_ckpt:
             if "workdir" in args and Path(args.workdir).exists():
@@ -441,26 +439,26 @@ class GFlowNetAgent:
                 print("Reloaded GFN Model Checkpoint")
         else:
             self.model_path = None
-        self.ckpt_period = args.gflownet.ckpt_period 
+        self.ckpt_period = args.gflownet.ckpt_period
         if self.ckpt_period in [None, -1]:
-            self.ckpt_period = np.inf 
+            self.ckpt_period = np.inf
         self.model.to(self.device_torch)
-        self.target = copy.deepcopy(self.model) 
+        self.target = copy.deepcopy(self.model)
         # Training
-        self.opt, self.lr_scheduler = make_opt(self.parameters(), self.Z, args) 
-        self.n_train_steps = args.gflownet.n_iter 
-        self.mbsize = args.gflownet.mbsize 
-        self.mask_eos = True 
-        self.progress = args.gflownet.progress 
+        self.opt, self.lr_scheduler = make_opt(self.parameters(), self.Z, args)
+        self.n_train_steps = args.gflownet.n_iter
+        self.mbsize = args.gflownet.mbsize
+        self.mask_eos = True
+        self.progress = args.gflownet.progress
         self.clip_grad_norm = args.gflownet.clip_grad_norm
-        self.num_empirical_loss = args.gflownet.num_empirical_loss 
-        self.ttsr = max(int(args.gflownet.train_to_sample_ratio), 1) 
+        self.num_empirical_loss = args.gflownet.num_empirical_loss
+        self.ttsr = max(int(args.gflownet.train_to_sample_ratio), 1)
         self.sttr = max(int(1 / args.gflownet.train_to_sample_ratio), 1)
         self.random_action_prob = args.gflownet.random_action_prob
         self.pct_batch_empirical = args.gflownet.pct_batch_empirical
-        self.oracle_period = args.gflownet.oracle.period 
+        self.oracle_period = args.gflownet.oracle.period
         self.oracle_nsamples = args.gflownet.oracle.nsamples
-        self.oracle_k = args.gflownet.oracle.k 
+        self.oracle_k = args.gflownet.oracle.k
 
     def parameters(self):
         return self.model.parameters()
@@ -496,15 +494,12 @@ class GFlowNetAgent:
         batch = []
         if model is None:
             model = self.model
-  
-
         if isinstance(envs, list): 
             envs = [env.reset(idx) for idx, env in enumerate(envs)]
         elif n_samples is not None:
             envs = [copy.deepcopy(envs).reset(idx) for idx in range(n_samples)]
         else:
             return None
- 
         # Sequences from empirical distribution
         if train:
             # TODO: review this piece of code: implement backward sampling function
@@ -512,8 +507,7 @@ class GFlowNetAgent:
             n_empirical = int(self.pct_batch_empirical * len(envs))
             for env in envs[:n_empirical]:
                 env.done = True
-                seq_readable = self.rng.permutation(self.buffer.train.letters.values)[0]#samples
-                seq = env.letters2seq(seq_readable)
+                seq_readable = self.rng.permutation(self.buffer.train.letters.values)[0]
                 done = True
                 action = env.eos
                 while len(seq) > 0:
@@ -522,40 +516,35 @@ class GFlowNetAgent:
                         [
                             tf([env.seq2obs(seq)]),
                             tl(action),
-                            seq, 
+                            seq,
                             tf(parents),
                             tl(parents_a),
                             done,
                             tl([env.id] * len(parents)),
-                            tl([env.n_actions - 1]), 
+                            tl([env.n_actions - 1]),
                         ]
                     )
-
                     seq = env.obs2seq(self.rng.permutation(parents)[0])
                     done = False
-                    action = [-1]
-
-                
+                    action = [-1]               
             envs = [env for env in envs if not env.done]
-
         # Rest of batch
         while envs: 
             seqs = [env.seq2obs() for env in envs]
             mask = [env.no_eos_mask() for env in envs]
-
-            random_action = self.rng.uniform() #the same for ALL environments ? 
+            random_action = self.rng.uniform()
             if train is False or random_action > self.random_action_prob: 
                 with torch.no_grad():
                     t0_a_model = time.time()
-                    action_probs = model(tf(seqs)) 
+                    action_probs = model(tf(seqs))
                     if self.mask_eos:
-                        action_probs[mask, -1] = -1000 
+                        action_probs[mask, -1] = -1000
                     t1_a_model = time.time()
                     times["actions_model"] += t1_a_model - t0_a_model
                     if all(torch.isfinite(action_probs).flatten()):
-                        actions = Categorical(logits=action_probs).sample() 
+                        actions = Categorical(logits=action_probs).sample()
                     else:
-                        random_action = -1 
+                        random_action = -1
                         if self.debug:
                             print("Action could not be sampled from model!")
             if train and random_action < self.random_action_prob:
@@ -566,11 +555,9 @@ class GFlowNetAgent:
             t0_a_envs = time.time()
             assert len(envs) == actions.shape[0]
             for env, action in zip(envs, actions): 
-                seq, action, valid = env.step(action) 
-                
+                seq, action, valid = env.step(action)    
                 if valid:
-                    parents, parents_a = env.parent_transitions(seq, action) #array ohe befre, tensor([2])
-                 
+                    parents, parents_a = env.parent_transitions(seq, action)               
                     if train:
                         batch.append(
                             [
@@ -583,22 +570,17 @@ class GFlowNetAgent:
                                 tl([env.id] * len(parents)),
                                 tl([env.n_actions - 1]),
                             ]
-                        )
-
-                        
+                        )          
                     else:
                         batch.append(seq) 
             envs = [env for env in envs if not env.done] #remaining undone env
             t1_a_envs = time.time()
             times["actions_envs"] += t1_a_envs - t0_a_envs
-       
-       
         # Compute rewards, both empirical and sampling
         if train:
             obs, actions, seqs, parents, parents_a, done, path_id, seq_id = zip(*batch)
             t0_rewards = time.time()
             rewards = env.reward_batch(seqs, done)
-            
             t1_rewards = time.time()
             times["rewards"] += t1_rewards - t0_rewards
             rewards = [tf([r]) for r in rewards]
@@ -606,10 +588,8 @@ class GFlowNetAgent:
             batch = list(
                 zip(obs, actions, rewards, parents, parents_a, done, path_id, seq_id)
             )
- 
         t1_all = time.time()
-        times["all"] += t1_all - t0_all
-     
+        times["all"] += t1_all - t0_all    
         return batch, times 
 
     def flowmatch_loss(self, it, batch):
@@ -646,11 +626,8 @@ class GFlowNetAgent:
                 [],
             )
         )
-
-   
         sp, _, r, parents, actions, done, _, _ = map(torch.cat, zip(*batch))
   
-
         # Sanity check if negative rewards
         if self.debug and torch.any(r < 0):
             neg_r_idx = torch.where(r < 0)[0].tolist()
@@ -671,20 +648,16 @@ class GFlowNetAgent:
         # log(eps + exp(log(Q(s,a)))) : qsa
         in_flow = torch.log(self.loss_eps + 
             tf(torch.zeros((sp.shape[0],))).index_add_(
-                0, batch_idxs, torch.exp(parents_Qsa)
-            ) #add the epsilon + self.loss_eps
-        ) 
-
+                0, batch_idxs, torch.exp(parents_Qsa))) 
         # the following with work if autoregressive
         #         in_flow = torch.logaddexp(parents_Qsa[batch_idxs], torch.log(self.loss_eps))
-
         if self.tau > 0:
             with torch.no_grad():
-                next_q = self.target(sp) 
+                next_q = self.target(sp)
         else:
             next_q = self.model(sp)
-
         qsp = torch.logsumexp(next_q, 1)
+        #qsp: qsp if not done; -loginf if done
         qsp = qsp * (1 - done) - loginf * done 
         out_flow = torch.logaddexp(torch.log(r + self.loss_eps), qsp)
         loss = (in_flow - out_flow).pow(2).mean()
@@ -775,8 +748,8 @@ class GFlowNetAgent:
         for it in tqdm(range(self.n_train_steps + 1), disable=not self.progress):
             t0_iter = time.time()
             data = []
-            for j in range(self.sttr): #1 fois quoi ,on sample 1000 trucs déjà
-                batch, times = self.sample_batch(envs)  #size of sampling
+            for j in range(self.sttr):
+                batch, times = self.sample_batch(envs)
                 data += batch
 
             for j in range(self.ttsr):
@@ -784,7 +757,6 @@ class GFlowNetAgent:
                     losses = self.flowmatch_loss(
                         it * self.ttsr + j, data
                     )  # returns (opt loss, *metrics)
-                    return
                 elif self.loss == "trajectorybalance":
                     losses = self.trajectorybalance_loss(
                         it * self.ttsr + j, data
@@ -861,9 +833,8 @@ class GFlowNetAgent:
                     }
                 )
                 # TODO: this could be done just once and store it
-                #print("TEST", self.buffer.test.letters.values)
                 for seqstr, score in tqdm(
-                    zip(self.buffer.test.letters, self.buffer.test[self.test_score]),#samples
+                    zip(self.buffer.test.letters, self.buffer.test[self.test_score]),
                     disable=self.test_period < 10,
                 ):
                     t0_test_path = time.time()
@@ -1067,11 +1038,6 @@ def make_mlp(layers_dim, act=nn.LeakyReLU(), tail=[]):
     act : Activation
         Activation function
     """
-        # self.model = make_mlp(
-        #     [self.env.obs_dim]
-        #     + [args.gflownet.n_hid] * args.gflownet.n_layers
-        #     + [len(self.env.action_space) + 1]
-        # ) 
     return nn.Sequential(
         *(
             sum(
@@ -1170,7 +1136,7 @@ def main(args):
     gflownet_agent = GFlowNetAgent(args)
     gflownet_agent.train()
 
-    # sample for the oracle, not from a proxy model
+    # sample from the oracle, not from a proxy model
     batch, times = gflownet_agent.sample_batch(
         gflownet_agent.env, args.gflownet.n_samples, train=False
     )
@@ -1184,7 +1150,6 @@ if __name__ == "__main__":
     args = parser.parse_args()
     config = get_config(args, override_args, args2config)
     config = process_config(config)
-    print('CONFIG', config)
     print("Config file: " + config.yaml_config)
     print("Working dir: " + config.workdir)
     print(
@@ -1204,5 +1169,3 @@ if __name__ == "__main__":
             print(f"workdir {config.workdir} already exists! - Ending run...")
     else:
         print(f"workdir not defined - Ending run...")
-
-

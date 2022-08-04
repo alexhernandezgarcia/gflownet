@@ -58,9 +58,8 @@ class AptamerSeq(GFlowNetEnv):
         reward_norm=1.0,
         denorm_proxy=False,
     ):
-        self.max_seq_length = max_seq_length #have to be initialized before calling super ?
+        self.max_seq_length = max_seq_length 
         self.min_word_len = min_word_len
-
         super(AptamerSeq, self).__init__(
             env_id,
             reward_beta,
@@ -72,11 +71,9 @@ class AptamerSeq(GFlowNetEnv):
             debug,
         )
         self.seq = []
-        #self.max_seq_length = max_seq_length
         self.min_seq_length = min_seq_length
         self.nalphabet = nalphabet
         self.obs_dim = self.nalphabet * self.max_seq_length
-        #self.min_word_len = min_word_len
         self.max_word_len = max_word_len
         self.oracle = oracle_func
         if proxy:

@@ -41,7 +41,6 @@ def add_args(parser):
     args2config.update({"test_mode": ["test_mode"]})
     parser.add_argument("--debug", action="store_true", default=False)
     args2config.update({"debug": ["debug"]})
-   
     parser.add_argument("--no_debug", action="store_false", dest="debug", default=False)
     args2config.update({"no_debug": ["debug"]})
     parser.add_argument("--run_num", type=int, default=0, help="Experiment ID")
@@ -627,7 +626,7 @@ def process_config(config):
     # Test mode
     if config.test_mode:
         config.gflownet.n_train_steps = 100
-        config.al.n_iter = 3 #n_iter instead of pipeline_iterations
+        config.al.n_iter = 3 
         config.dataset.init_length = 100
         config.al.queries_per_iter = 100
         config.mcmc.sampling_time = int(1e3)
@@ -650,12 +649,14 @@ def process_config(config):
     config.gflownet.func = config.dataset.oracle
     config.gflownet.test.score = config.gflownet.func.replace("nupack ", "")
     # Comet: same project for AL and GFlowNet
-    # if config.comet_project:
-    config.gflownet.comet.project = config.comet_project#same project if there is a config.comet_project. There could be one just for the gflow
     config.al.comet.project = config.comet_project
-    # if not(config.comet_project):
-    #     config.gflownet.comet.project = None
-    #     config.al.comet.project = None
+    if config.comet_project:
+        config.gflownet.comet.project = config.comet_project
+    config.gflownet.comet.project = config.comet_project
+    config.al.comet.project = config.comet_project
+    if not(config.comet_project):
+        config.gflownet.comet.project = None
+        config.al.comet.project = None
     # sampling method - in case we forget to revert ensemble size
     if config.proxy.uncertainty_estimation == "dropout":
         config.proxy.ensemble_size = 1
@@ -664,7 +665,7 @@ def process_config(config):
     if not config.workdir and config.machine == "cluster":
         config.workdir = "/home/kilgourm/scratch/learnerruns"
     elif not config.workdir and config.machine == "local":
-        config.workdir = "C:\mila\learnerruns"  # "C:/Users\mikem\Desktop/activeLearningRuns"  # "/home/mkilgour/learnerruns"  #depending on the user
+        config.workdir = "C:\mila\learnerruns"  # have to modify this
     return config
 
 
