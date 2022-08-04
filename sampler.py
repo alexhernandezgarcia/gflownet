@@ -295,9 +295,6 @@ class Sampler:
 
         if self.iter == 0: # initialize optima recording
             self.initOptima(self.scores, self.energy, self.std_dev)
-
-        self.F, self.DE = self.getDelta(self.scores)
-       
         self.acceptanceRatio = np.minimum(1, np.exp(-self.DE / torch.as_tensor(self.temperature)))
         self.updateConfigs()
 

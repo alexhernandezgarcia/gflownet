@@ -398,7 +398,7 @@ class Buffer:
                     args.al.queries_per_iter,
                     args.gflownet.test.pct_test,
                     args.seeds.dataset,
-                )      
+                )
                 self.train = df_data.loc[df_data.train]
                 self.test = df_data.loc[df_data.test]
         # Otherwise
