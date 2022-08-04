@@ -396,12 +396,12 @@ class GFlowNetAgent:
             self.test_period = np.inf
         # Train set statistics
         if self.buffer.train is not None:
-            min_energies_tr = self.buffer.train[self.test_score].min()
-            max_energies_tr = self.buffer.train[self.test_score].max()
-            mean_energies_tr = self.buffer.train[self.test_score].mean()
-            std_energies_tr = self.buffer.train[self.test_score].std()
+            min_energies_tr = self.buffer.train["energies"].min()
+            max_energies_tr = self.buffer.train["energies"].max()
+            mean_energies_tr = self.buffer.train["energies"].mean()
+            std_energies_tr = self.buffer.train["energies"].std()
             energies_tr_norm = (
-                self.buffer.train[self.test_score].values - mean_energies_tr
+                self.buffer.train["energies"].values - mean_energies_tr
             ) / std_energies_tr
             max_norm_energies_tr = np.max(energies_tr_norm)
             self.energies_stats_tr = [
@@ -468,6 +468,7 @@ class GFlowNetAgent:
         self.sttr = max(int(1 / args.gflownet.train_to_sample_ratio), 1)
         self.random_action_prob = args.gflownet.random_action_prob
         self.pct_batch_empirical = args.gflownet.pct_batch_empirical
+        # Oracle metrics
         self.oracle_period = args.gflownet.oracle.period
         self.oracle_nsamples = args.gflownet.oracle.nsamples
         self.oracle_k = args.gflownet.oracle.k
@@ -519,7 +520,7 @@ class GFlowNetAgent:
             n_empirical = int(self.pct_batch_empirical * len(envs))
             for env in envs[:n_empirical]:
                 env.done = True
-                seq_readable = self.rng.permutation(self.buffer.train.letters.values)[0]
+                seq_readable = self.rng.permutation(self.buffer.train.samples.values)[0]
                 seq = env.letters2seq(seq_readable)
                 done = True
                 action = env.eos
@@ -539,7 +540,7 @@ class GFlowNetAgent:
                     )
                     seq = env.obs2seq(self.rng.permutation(parents)[0])
                     done = False
-                    action = [-1]         
+                    action = [-1]
             envs = [env for env in envs if not env.done]
         # Rest of batch
         while envs:
@@ -570,11 +571,11 @@ class GFlowNetAgent:
             for env, action in zip(envs, actions):
                 seq, action, valid = env.step(action)
                 if valid:
-                    parents, parents_a = env.parent_transitions(seq, action)        
+                    parents, parents_a = env.parent_transitions(seq, action)
                     if train:
                         batch.append(
                             [
-                                tf([env.seq2obs(seq)]),
+                                tf([env.seq2obs()]),
                                 tl(action),
                                 seq,
                                 tf(parents),
@@ -662,7 +663,9 @@ class GFlowNetAgent:
         # log(eps + exp(log(Q(s,a)))) : qsa
         in_flow = torch.log(self.loss_eps + 
             tf(torch.zeros((sp.shape[0],))).index_add_(
-                0, batch_idxs, torch.exp(parents_Qsa))) 
+                0, batch_idxs, torch.exp(parents_Qsa)
+            )
+        )
         # the following with work if autoregressive
         #         in_flow = torch.logaddexp(parents_Qsa[batch_idxs], torch.log(self.loss_eps))
         if self.tau > 0:
@@ -671,7 +674,7 @@ class GFlowNetAgent:
         else:
             next_q = self.model(sp)
         qsp = torch.logsumexp(next_q, 1)
-        #qsp: qsp if not done; -loginf if done
+        # qsp: qsp if not done; -loginf if done
         qsp = qsp * (1 - done) - loginf * done
         out_flow = torch.logaddexp(torch.log(r + self.loss_eps), qsp)
         loss = (in_flow - out_flow).pow(2).mean()
@@ -847,7 +850,7 @@ class GFlowNetAgent:
                 )
                 # TODO: this could be done just once and store it
                 for seqstr, score in tqdm(
-                    zip(self.buffer.test.letters, self.buffer.test[self.test_score]),
+                    zip(self.buffer.test.samples, self.buffer.test[self.test_score]),
                     disable=self.test_period < 10,
                 ):
                     t0_test_path = time.time()
