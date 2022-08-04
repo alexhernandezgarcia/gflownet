@@ -180,7 +180,6 @@ class modelNet():
         if self.config.device == 'cuda':
             inputs = inputs.cuda()
             targets = targets.cuda()
-
         output = self.model(inputs.float())
         targets = (targets - self.mean)/self.std # standardize the targets during training
         #return F.smooth_l1_loss(output[:,0], targets.float())
@@ -194,7 +193,7 @@ class modelNet():
             inputs = torch.Tensor(inputs).cuda()
 
         outputs = l2r(self.model(inputs))
-        self.best_f = np.percentile(outputs, self.config.al.EI_percentile)
+        self.best_f = np.percentile(outputs, self.config.al.EI_max_percentile)
 
 
     def checkConvergence(self):
@@ -248,6 +247,7 @@ class modelNet():
             self.model.train(True) # need this to be true to activate dropout
             with torch.no_grad():
                 outputs = torch.hstack([self.model(Data) for _ in range(self.config.proxy.dropout_samples)]).cpu().detach().numpy()
+            outputs = torch.from_numpy(outputs)
             mean = torch.mean(outputs, dim=1)
             std = torch.std(outputs, dim=1)
         else:

@@ -309,7 +309,7 @@ class GFlowNetAgent:
             self.Z = nn.Parameter(torch.ones(64) * 150.0 / 64)
         else:
             print("Unkown loss. Using flowmatch as default")
-            self.loss == "flowmatch"
+            self.loss = "flowmatch"
             self.Z = None
         if not sample_only:
             self.loss_eps = torch.tensor(float(1e-5)).to(self.device)
@@ -337,8 +337,8 @@ class GFlowNetAgent:
                 min_len=args.gflownet.min_seq_length,
                 max_len=args.gflownet.max_seq_length,
                 oracle=args.gflownet.func,
-                energy_weight=args.oracle.nupack_energy_reweighting,
-                nupack_target_motif=args.oracle.nupack_target_motif,
+                energy_weight=args.dataset.nupack_energy_reweighting,
+                nupack_target_motif=args.dataset.nupack_target_motif,
             )
         elif self.env_id == "grid":
             self.oracle = None
@@ -396,12 +396,12 @@ class GFlowNetAgent:
             self.test_period = np.inf
         # Train set statistics
         if self.buffer.train is not None:
-            min_energies_tr = self.buffer.train["energies"].min()
-            max_energies_tr = self.buffer.train["energies"].max()
-            mean_energies_tr = self.buffer.train["energies"].mean()
-            std_energies_tr = self.buffer.train["energies"].std()
+            min_energies_tr = self.buffer.train[self.test_score].min()
+            max_energies_tr = self.buffer.train[self.test_score].max()
+            mean_energies_tr = self.buffer.train[self.test_score].mean()
+            std_energies_tr = self.buffer.train[self.test_score].std()
             energies_tr_norm = (
-                self.buffer.train["energies"].values - mean_energies_tr
+                self.buffer.train[self.test_score].values - mean_energies_tr
             ) / std_energies_tr
             max_norm_energies_tr = np.max(energies_tr_norm)
             self.energies_stats_tr = [
@@ -468,7 +468,6 @@ class GFlowNetAgent:
         self.sttr = max(int(1 / args.gflownet.train_to_sample_ratio), 1)
         self.random_action_prob = args.gflownet.random_action_prob
         self.pct_batch_empirical = args.gflownet.pct_batch_empirical
-        # Oracle metrics
         self.oracle_period = args.gflownet.oracle.period
         self.oracle_nsamples = args.gflownet.oracle.nsamples
         self.oracle_k = args.gflownet.oracle.k
@@ -520,7 +519,7 @@ class GFlowNetAgent:
             n_empirical = int(self.pct_batch_empirical * len(envs))
             for env in envs[:n_empirical]:
                 env.done = True
-                seq_readable = self.rng.permutation(self.buffer.train.samples.values)[0]
+                seq_readable = self.rng.permutation(self.buffer.train.letters.values)[0]
                 seq = env.letters2seq(seq_readable)
                 done = True
                 action = env.eos
@@ -540,7 +539,7 @@ class GFlowNetAgent:
                     )
                     seq = env.obs2seq(self.rng.permutation(parents)[0])
                     done = False
-                    action = -1
+                    action = [-1]         
             envs = [env for env in envs if not env.done]
         # Rest of batch
         while envs:
@@ -571,11 +570,11 @@ class GFlowNetAgent:
             for env, action in zip(envs, actions):
                 seq, action, valid = env.step(action)
                 if valid:
-                    parents, parents_a = env.parent_transitions(seq, action)
+                    parents, parents_a = env.parent_transitions(seq, action)        
                     if train:
                         batch.append(
                             [
-                                tf([env.seq2obs()]),
+                                tf([env.seq2obs(seq)]),
                                 tl(action),
                                 seq,
                                 tf(parents),
@@ -644,7 +643,6 @@ class GFlowNetAgent:
             )
         )
         sp, _, r, parents, actions, done, _, _ = map(torch.cat, zip(*batch))
-
         # Sanity check if negative rewards
         if self.debug and torch.any(r < 0):
             neg_r_idx = torch.where(r < 0)[0].tolist()
@@ -654,7 +652,6 @@ class GFlowNetAgent:
                 seq_oracle = self.env.seq2oracle([seq])
                 output_proxy = self.env.proxy(seq_oracle)
                 reward = self.env.proxy2reward(output_proxy)
-                print(idx, output_proxy, reward)
                 import ipdb
 
                 ipdb.set_trace()
@@ -663,11 +660,9 @@ class GFlowNetAgent:
         parents_Qsa = self.model(parents)[torch.arange(parents.shape[0]), actions]
 
         # log(eps + exp(log(Q(s,a)))) : qsa
-        in_flow = torch.log(
+        in_flow = torch.log(self.loss_eps + 
             tf(torch.zeros((sp.shape[0],))).index_add_(
-                0, batch_idxs, torch.exp(parents_Qsa)
-            )
-        )
+                0, batch_idxs, torch.exp(parents_Qsa))) 
         # the following with work if autoregressive
         #         in_flow = torch.logaddexp(parents_Qsa[batch_idxs], torch.log(self.loss_eps))
         if self.tau > 0:
@@ -676,7 +671,7 @@ class GFlowNetAgent:
         else:
             next_q = self.model(sp)
         qsp = torch.logsumexp(next_q, 1)
-        # qsp: qsp if not done; -loginf if done
+        #qsp: qsp if not done; -loginf if done
         qsp = qsp * (1 - done) - loginf * done
         out_flow = torch.logaddexp(torch.log(r + self.loss_eps), qsp)
         loss = (in_flow - out_flow).pow(2).mean()
@@ -852,7 +847,7 @@ class GFlowNetAgent:
                 )
                 # TODO: this could be done just once and store it
                 for seqstr, score in tqdm(
-                    zip(self.buffer.test.samples, self.buffer.test[self.test_score]),
+                    zip(self.buffer.test.letters, self.buffer.test[self.test_score]),
                     disable=self.test_period < 10,
                 ):
                     t0_test_path = time.time()

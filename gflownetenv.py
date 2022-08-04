@@ -3,7 +3,7 @@ Base class of GFlowNet environments
 """
 import numpy as np
 import pandas as pd
-
+from pathlib import Path
 
 class GFlowNetEnv:
     """
@@ -389,7 +389,7 @@ class Buffer:
         return self.replay
 
     def make_train_test(
-        self, data_path=None, train_path=None, test_path=None, oracle=None, *args
+        self, data_path=None, train_path=None, test_path=None, oracle=None, args = None
     ):
         """
         Initializes the train and test sets. Depending on the arguments, the sets can
