@@ -626,7 +626,7 @@ def process_config(config):
     # Test mode
     if config.test_mode:
         config.gflownet.n_train_steps = 100
-        config.al.n_iter = 3 
+        config.al.n_iter = 3
         config.dataset.init_length = 100
         config.al.queries_per_iter = 100
         config.mcmc.sampling_time = int(1e3)

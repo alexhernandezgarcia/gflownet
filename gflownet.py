@@ -526,7 +526,7 @@ class GFlowNetAgent:
                     )
                     seq = env.obs2seq(self.rng.permutation(parents)[0])
                     done = False
-                    action = [-1]               
+                    action = [-1]         
             envs = [env for env in envs if not env.done]
         # Rest of batch
         while envs:
@@ -555,9 +555,9 @@ class GFlowNetAgent:
             t0_a_envs = time.time()
             assert len(envs) == actions.shape[0]
             for env, action in zip(envs, actions):
-                seq, action, valid = env.step(action) 
+                seq, action, valid = env.step(action)
                 if valid:
-                    parents, parents_a = env.parent_transitions(seq, action)            
+                    parents, parents_a = env.parent_transitions(seq, action)        
                     if train:
                         batch.append(
                             [
