@@ -389,7 +389,7 @@ class Buffer:
         return self.replay
 
     def make_train_test(
-        self, data_path=None, train_path=None, test_path=None, oracle=None, args = None
+        self, data_path=None, train_path=None, test_path=None, oracle=None, *args
     ):
         """
         Initializes the train and test sets. Depending on the arguments, the sets can
