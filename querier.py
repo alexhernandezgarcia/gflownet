@@ -190,15 +190,16 @@ class Querier():
             printRecord('Random sampling and annealing took {} seconds'.format(int(time.time()-t0)))
 
         elif method.lower() == "gflownet":
-            gflownet = GFlowNetAgent(self.config, proxy=model.raw,
-                                     al_iter=al_iter, data_path='datasets/' + self.config.dataset.oracle + '.npy') 
+            gflownet = GFlowNetAgent(self.config, comet = self.comet, proxy=model.raw,
+                                     al_iter=al_iter, data_path='datasets/' + self.config.dataset.oracle + '.npy')
+
             t0 = time.time()
             gflownet.train()
             printRecord('Training GFlowNet took {} seconds'.format(int(time.time()-t0)))
             outputs, times = gflownet.sample_batch(gflownet.env, 
                 self.config.gflownet.n_samples, train=False)
             outputs, times_batch = batch2dict(outputs, gflownet.env,
-                    get_uncertainties=True)
+                    get_uncertainties=True, query_function=self.config.al.query_mode)
             printRecord('Sampling {} samples from GFlowNet took {} seconds'.format(self.config.gflownet.n_samples, int(time.time()-t0)))
             outputs = filterOutputs(outputs)
 
