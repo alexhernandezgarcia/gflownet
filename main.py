@@ -428,7 +428,7 @@ def add_args(parser):
     args2config.update({"gflownet_annealing": ["gflownet", "annealing"]})
     parser.add_argument("--gflownet_test_period", default=500, type=int)
     args2config.update({"gflownet_test_period": ["gflownet", "test", "period"]})
-    parser.add_argument("--gflownet_pct_test", default=0.5, type=int)#500
+    parser.add_argument("--gflownet_pct_test", default=0.5, type=int)
     args2config.update({"gflownet_pct_test": ["gflownet", "test", "pct_test"]})
     parser.add_argument("--gflownet_oracle_period", default=500, type=int)
     args2config.update({"gflownet_oracle_period": ["gflownet", "oracle", "period"]})
@@ -523,7 +523,6 @@ def add_args(parser):
     parser.add_argument("--stun_max_gamma", type=float, default=1)
     args2config.update({"stun_max_gamma": ["mcmc", "stun_max_gamma"]})
 
-    #added by Bao because the parser was imcomplete : needs to merge with parser of gflownet.py
     parser.add_argument("--no_lightweight", action="store_true")
     args2config.update({"no_lightweight": ["no_lightweight"]})
 
@@ -579,7 +578,7 @@ def add_args(parser):
     )
     args2config.update({"reward_norm_std_mult": ["gflownet", "reward_norm_std_mult"]})
 
-#test
+    # Test
     parser.add_argument("--test_set_path", default=None, type=str)
     args2config.update({"test_set_path": ["gflownet", "test", "path"]})
     parser.add_argument("--test_set_base", default=None, type=str)
@@ -594,8 +593,7 @@ def add_args(parser):
     args2config.update({"test_output": ["gflownet", "test", "output"]})
     parser.add_argument("--test_period", default=500, type=int)
     args2config.update({"test_period": ["gflownet", "test", "period"]})
-
-#train
+    # Train
     parser.add_argument("--train_set_path", default=None, type=str)
     args2config.update({"train_set_path": ["gflownet", "train", "path"]})
     parser.add_argument("--ntrain", default=10000, type=int)
@@ -649,10 +647,9 @@ def process_config(config):
     config.gflownet.func = config.dataset.oracle
     config.gflownet.test.score = config.gflownet.func.replace("nupack ", "")
     # Comet: same project for AL and GFlowNet
-    config.al.comet.project = config.comet_project
     if config.comet_project:
         config.gflownet.comet.project = config.comet_project
-    config.gflownet.comet.project = config.comet_project
+        config.al.comet.project = config.comet_project
     # sampling method - in case we forget to revert ensemble size
     if config.proxy.uncertainty_estimation == "dropout":
         config.proxy.ensemble_size = 1
