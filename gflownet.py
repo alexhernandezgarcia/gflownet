@@ -293,8 +293,15 @@ def set_device(dev):
 
 
 class GFlowNetAgent:
-    def __init__(self, args, comet=None, proxy=None, al_iter=-1, data_path=None,
-            sample_only=False):
+    def __init__(
+        self,
+        args,
+        comet=None,
+        proxy=None,
+        al_iter=-1,
+        data_path=None,
+        sample_only=False,
+    ):
         # Misc
         self.rng = np.random.default_rng(args.seeds.gflownet)
         self.debug = args.debug
@@ -365,7 +372,11 @@ class GFlowNetAgent:
             raise NotImplemented
         self.buffer = Buffer(self.env, replay_capacity=args.gflownet.replay_capacity)
         # Comet
-        if args.gflownet.comet.project and not args.gflownet.comet.skip and not sample_only:
+        if (
+            args.gflownet.comet.project
+            and not args.gflownet.comet.skip
+            and not sample_only
+        ):
             self.comet = Experiment(
                 project_name=args.gflownet.comet.project, display_summary_level=0
             )
@@ -387,8 +398,11 @@ class GFlowNetAgent:
         # Make train and test sets
         if not sample_only:
             self.buffer.make_train_test(
-                data_path, args.gflownet.train.path, args.gflownet.test.path, self.oracle,
-                args
+                data_path,
+                args.gflownet.train.path,
+                args.gflownet.test.path,
+                self.oracle,
+                args,
             )
         self.test_period = args.gflownet.test.period
         self.test_score = args.gflownet.test.score
@@ -476,7 +490,9 @@ class GFlowNetAgent:
     def parameters(self):
         return self.model.parameters()
 
-    def sample_batch(self, envs, n_samples=None, train=True, model=None, progress=False):
+    def sample_batch(
+        self, envs, n_samples=None, train=True, model=None, progress=False
+    ):
         """
         Builds a batch of data
 
@@ -661,8 +677,9 @@ class GFlowNetAgent:
         parents_Qsa = self.model(parents)[torch.arange(parents.shape[0]), actions]
 
         # log(eps + exp(log(Q(s,a)))) : qsa
-        in_flow = torch.log(self.loss_eps + 
-            tf(torch.zeros((sp.shape[0],))).index_add_(
+        in_flow = torch.log(
+            self.loss_eps
+            + tf(torch.zeros((sp.shape[0],))).index_add_(
                 0, batch_idxs, torch.exp(parents_Qsa)
             )
         )
