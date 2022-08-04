@@ -409,7 +409,6 @@ class Buffer:
             if data_path.suffix == ".npy":
                 df_data = self.env.np2df(
                     data_path,
-                    args[0].gflownet.test.score,
                     args[0].dataset.init_length,
                     args[0].al.queries_per_iter,
                     args[0].gflownet.test.pct_test,
@@ -439,7 +438,6 @@ class Buffer:
             else:
                 self.test, _ = self.env.make_test_set(
                     path_base_dataset=args[0].gflownet.test.base,
-                    score=args[0].gflownet.test.score,
                     ntest=args[0].gflownet.test.n,
                     min_length=args[0].gflownet.test.min_length,
                     max_length=args[0].gflownet.max_seq_length,

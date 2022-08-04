@@ -405,7 +405,6 @@ class GFlowNetAgent:
                 args,
             )
         self.test_period = args.gflownet.test.period
-        self.test_score = args.gflownet.test.score
         if self.test_period in [None, -1]:
             self.test_period = np.inf
         # Train set statistics
@@ -439,10 +438,10 @@ class GFlowNetAgent:
         # Test set statistics
         if self.buffer.test is not None:
             print("\nTest data")
-            print(f"\tAverage score: {self.buffer.test[self.test_score].mean()}")
-            print(f"\tStd score: {self.buffer.test[self.test_score].std()}")
-            print(f"\tMin score: {self.buffer.test[self.test_score].min()}")
-            print(f"\tMax score: {self.buffer.test[self.test_score].max()}")
+            print(f"\tAverage score: {self.buffer.test['energies'].mean()}")
+            print(f"\tStd score: {self.buffer.test['energies'].std()}")
+            print(f"\tMin score: {self.buffer.test['energies'].min()}")
+            print(f"\tMax score: {self.buffer.test['energies'].max()}")
         # Model
         self.model = make_mlp(
             [self.env.obs_dim]
@@ -532,14 +531,13 @@ class GFlowNetAgent:
         # Sequences from empirical distribution
         if train:
             # TODO: review this piece of code: implement backward sampling function
-            # The action = -1 may be aptamer specific
             n_empirical = int(self.pct_batch_empirical * len(envs))
             for env in envs[:n_empirical]:
                 env.done = True
                 seq_readable = self.rng.permutation(self.buffer.train.samples.values)[0]
                 seq = env.letters2seq(seq_readable)
                 done = True
-                action = env.eos
+                action = [env.eos]
                 while len(seq) > 0:
                     parents, parents_a = env.parent_transitions(seq, action)
                     batch.append(
@@ -867,7 +865,7 @@ class GFlowNetAgent:
                 )
                 # TODO: this could be done just once and store it
                 for seqstr, score in tqdm(
-                    zip(self.buffer.test.samples, self.buffer.test[self.test_score]),
+                    zip(self.buffer.test.samples, self.buffer.test["energies"]),
                     disable=self.test_period < 10,
                 ):
                     t0_test_path = time.time()
@@ -881,7 +879,7 @@ class GFlowNetAgent:
                     data_logq.append(logq(path_list, actions, self.model, self.env))
                     t1_test_logq = time.time()
                     times["test_logq"] += t1_test_logq - t0_test_logq
-                corr = np.corrcoef(data_logq, self.buffer.test[self.test_score])
+                corr = np.corrcoef(data_logq, self.buffer.test["energies"])
                 if self.comet:
                     self.comet.log_metrics(
                         dict(

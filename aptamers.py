@@ -229,7 +229,7 @@ class AptamerSeq(GFlowNetEnv):
             (nalphabet - 1).
 
         action : int
-            Last action performed
+            Last action performed, only to determine if it was eos.
 
         Returns
         -------
@@ -382,7 +382,6 @@ class AptamerSeq(GFlowNetEnv):
     # TODO: improve approximation of uniform
     def make_test_set(
         path_base_dataset,
-        score,
         ntest,
         min_length=0,
         max_length=np.inf,
@@ -397,9 +396,6 @@ class AptamerSeq(GFlowNetEnv):
         ----
         path_base_dataset : str
             Path to a CSV file containing the base data set.
-
-        score : str
-            Column in the CSV file containing the score.
 
         ntest : int
             Number of test samples.
@@ -424,10 +420,10 @@ class AptamerSeq(GFlowNetEnv):
             np.random.seed(seed)
         df_base = pd.read_csv(path_base_dataset, index_col=0)
         df_base = df_base.loc[
-            (df_base["letters"].map(len) >= min_length)
-            & (df_base["letters"].map(len) <= max_length)
+            (df_base["samples"].map(len) >= min_length)
+            & (df_base["samples"].map(len) <= max_length)
         ]
-        energies_base = df_base[score].values
+        energies_base = df_base["energies"].values
         min_base = energies_base.min()
         max_base = energies_base.max()
         distr_unif = np.random.uniform(low=min_base, high=max_base, size=ntest)
@@ -457,14 +453,14 @@ class AptamerSeq(GFlowNetEnv):
 
     @staticmethod
     def np2df(
-        test_path, score, al_init_length, al_queries_per_iter, pct_test, data_seed
+        test_path, al_init_length, al_queries_per_iter, pct_test, data_seed
     ):
         data_dict = np.load(test_path, allow_pickle=True).item()
         letters = numbers2letters(data_dict["samples"])
         df = pd.DataFrame(
             {
-                "letters": letters,
-                score: data_dict["energies"],
+                "samples": letters,
+                "energies": data_dict["energies"],
                 "train": [False] * len(letters),
                 "test": [False] * len(letters),
             }
