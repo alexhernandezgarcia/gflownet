@@ -84,6 +84,13 @@ def add_args(parser):
     )
     args2config.update({"toy_oracle_seed": ["seeds", "toy_oracle"]})
     parser.add_argument(
+        "--oracle_seed",
+        type=int,
+        default=0,
+        help="Seed for the oracle",
+    )
+    args2config.update({"oracle_seed": ["seeds", "oracle"]})
+    parser.add_argument(
         "--gflownet_seed",
         type=int,
         default=0,
@@ -442,6 +449,33 @@ def add_args(parser):
         help="List of K, for Top-K",
     )
     args2config.update({"gflownet_oracle_k": ["gflownet", "oracle", "k"]})
+    parser.add_argument(
+        "--lr_decay_period", default=1e6, help="Learning rate decay period", type=int
+    )
+    args2config.update({"lr_decay_period": ["gflownet", "lr", "decay_period"]})
+    parser.add_argument(
+        "--lr_decay_gamma", default=0.5, help="Learning rate decay gamma", type=float
+    )
+    args2config.update({"lr_decay_gamma": ["gflownet", "lr", "decay_gamma"]})
+
+    parser.add_argument("--pct_batch_empirical", default=0.0, type=float)
+    args2config.update({"pct_batch_empirical": ["gflownet", "pct_batch_empirical"]})
+    parser.add_argument("--replay_capacity", default=0, type=int)
+    args2config.update({"replay_capacity": ["gflownet", "replay_capacity"]})
+    parser.add_argument(
+        "--reward_norm",
+        default=1.0,
+        type=float,
+        help="Factor for the reward normalization",
+    )
+    args2config.update({"reward_norm": ["gflownet", "reward_norm"]})
+    parser.add_argument(
+        "--reward_norm_std_mult",
+        default=0.0,
+        type=float,
+        help="Multiplier of the standard deviation for the reward normalization",
+    )
+    args2config.update({"reward_norm_std_mult": ["gflownet", "reward_norm_std_mult"]})
     # Proxy model
     parser.add_argument(
         "--proxy_model_type",
@@ -526,14 +560,6 @@ def add_args(parser):
     parser.add_argument("--no_lightweight", action="store_true")
     args2config.update({"no_lightweight": ["no_lightweight"]})
 
-    # Oracle
-    parser.add_argument(
-        "--oracle_seed",
-        type=int,
-        default=0,
-        help="Seed for oracle",
-    )
-    args2config.update({"oracle_seed": ["oracle", "seed"]})
     # parser = add_bool_arg(parser, "nupack_energy_reweighting", default=False)
     # args2config.update(
     #     {"nupack_energy_reweighting": ["oracle", "nupack_energy_reweighting"]}
@@ -549,35 +575,6 @@ def add_args(parser):
     parser.add_argument("--overwrite_workdir", action="store_true", default=False)
     args2config.update({"overwrite_workdir": ["overwrite_workdir"]})
 
-    parser.add_argument(
-        "--lr_decay_period", default=1e6, help="Learning rate decay period", type=int
-    )
-    args2config.update({"lr_decay_period": ["gflownet", "lr", "decay_period"]})
-    parser.add_argument(
-        "--lr_decay_gamma", default=0.5, help="Learning rate decay gamma", type=float
-    )
-    args2config.update({"lr_decay_gamma": ["gflownet", "lr", "decay_gamma"]})
-
-    parser.add_argument("--pct_batch_empirical", default=0.0, type=float)
-    args2config.update({"pct_batch_empirical": ["gflownet", "pct_batch_empirical"]})
-    parser.add_argument("--replay_capacity", default=0, type=int)
-    args2config.update({"replay_capacity": ["gflownet", "replay_capacity"]})
-
-    parser.add_argument(
-        "--reward_norm",
-        default=1.0,
-        type=float,
-        help="Factor for the reward normalization",
-    )
-    args2config.update({"reward_norm": ["gflownet", "reward_norm"]})
-    parser.add_argument(
-        "--reward_norm_std_mult",
-        default=0.0,
-        type=float,
-        help="Multiplier of the standard deviation for the reward normalization",
-    )
-    args2config.update({"reward_norm_std_mult": ["gflownet", "reward_norm_std_mult"]})
-
     # Test
     parser.add_argument("--test_set_path", default=None, type=str)
     args2config.update({"test_set_path": ["gflownet", "test", "path"]})
@@ -587,8 +584,6 @@ def add_args(parser):
     args2config.update({"test_set_seed": ["gflownet", "test", "seed"]})
     parser.add_argument("--ntest", default=10000, type=int)
     args2config.update({"ntest": ["gflownet", "test", "n"]})
-    parser.add_argument("--min_length", default=1, type=int)
-    args2config.update({"min_length": ["gflownet", "test", "min_length"]})
     parser.add_argument("--test_output", default=None, type=str)
     args2config.update({"test_output": ["gflownet", "test", "output"]})
     parser.add_argument("--test_period", default=500, type=int)
