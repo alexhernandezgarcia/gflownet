@@ -79,7 +79,8 @@ class Sampler:
         :return:
         '''
 
-        if self.config_main.dataset.variable_length:
+        if self.config_main.dataset.variable_length and self.config_main.dataset.min_length < self.config_main.dataset.max_length:
+            # TODO: this should be max + 1
             randChainLen = np.random.randint(self.config_main.dataset.min_length,self.config_main.dataset.max_length)
             randConfig = np.random.randint(1, self.config_main.dataset.dict_size + 1, size = (1, randChainLen))
             if randChainLen < self.config_main.dataset.max_length: # add zero padding, if necessary
