@@ -273,6 +273,19 @@ class GFlowNetEnv:
             state = self.state
         return False
 
+    def set_state(self, state, n_actions, done=False):
+        """
+        Sets the state, number of actions and done of an environment. n_actions should
+        not include the stop action, as it is incremented if done is True.
+        """
+        self.state = state
+        self.seq = self.state
+        self.done = done
+        self.n_actions = n_actions
+        if done:
+            self.n_actions += 1
+        return self
+
     def true_density(self):
         """
         Computes the reward density (reward / sum(rewards)) of the whole space
@@ -439,7 +452,7 @@ class Buffer:
                 self.test, _ = self.env.make_test_set(
                     path_base_dataset=args[0].gflownet.test.base,
                     ntest=args[0].gflownet.test.n,
-                    min_length=args[0].gflownet.test.min_length,
+                    min_length=args[0].gflownet.min_seq_length,
                     max_length=args[0].gflownet.max_seq_length,
                     seed=args[0].gflownet.test.seed,
                     output_csv=args[0].gflownet.test.output,

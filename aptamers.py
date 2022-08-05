@@ -304,6 +304,19 @@ class AptamerSeq(GFlowNetEnv):
             seq = self.seq
         return len(seq) < self.min_seq_length
 
+    def set_state(self, state, n_actions, done=False):
+        """
+        Sets the state, number of actions and done of an environment. n_actions should
+        not include the stop action, as it is incremented if done is True.
+        """
+        self.state = state
+        self.seq = self.state
+        self.done = done
+        self.n_actions = n_actions
+        if done:
+            self.n_actions += 1
+        return self
+
     def true_density(self, max_states=1e6):
         """
         Computes the reward density (reward / sum(rewards)) of the whole space, if the
