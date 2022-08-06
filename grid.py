@@ -100,6 +100,25 @@ class Grid(GFlowNetEnv):
             actions += actions_r
         return actions
 
+    def get_mask_invalid_actions(self, state=None, done=None):
+        """
+        Returns a vector of length the action space + 1: True if action is invalid
+        given the current state, False otherwise.
+        """
+        if state is None:
+            state = self.state.copy()
+        if done is None:
+            done = self.done
+        if done:
+            return [True for _ in range(len(self.action_space) + 1)]
+        mask = [False for _ in range(len(self.action_space) + 1)]
+        for idx, a in enumerate(self.action_space):
+            for d in a:
+                if state[d] + 1 >= self.length:
+                    mask[idx] = True
+                    break
+        return mask
+
     def true_density(self):
         # Return pre-computed true density if already stored
         if self._true_density is not None:
@@ -154,7 +173,7 @@ class Grid(GFlowNetEnv):
                               |     0    |      3    |      1    |
         """
         if state is None:
-            state = self.state
+            state = self.state.copy()
         obs = np.zeros(self.obs_dim, dtype=np.float32)
         obs[(np.arange(len(state)) * self.length + state)] = 1
         return obs

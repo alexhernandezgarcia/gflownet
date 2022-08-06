@@ -8,6 +8,7 @@ from gflownetenv import GFlowNetEnv
 from oracle import numbers2letters
 import time
 
+
 class AptamerSeq(GFlowNetEnv):
     """
     Aptamer sequence environment
@@ -161,7 +162,7 @@ class AptamerSeq(GFlowNetEnv):
         0s.
         """
         if seq is None:
-            seq = self.seq
+            seq = self.seq.copy()
 
         z = np.zeros(self.obs_dim, dtype=np.float32)
 
@@ -296,12 +297,32 @@ class AptamerSeq(GFlowNetEnv):
                 self.n_actions += 1
             return self.seq, [self.eos], valid
 
+    def get_mask_invalid_actions(self, seq=None, done=None):
+        """
+        Returns a vector of length the action space + 1: True if action is invalid
+        given the current state, False otherwise.
+        """
+        if seq is None:
+            seq = self.seq.copy()
+        if done is None:
+            done = self.done
+        if done:
+            return [True for _ in range(len(self.action_space) + 1)]
+        mask = [False for _ in range(len(self.action_space) + 1)]
+        seq_length = len(seq)
+        if seq_length < self.min_seq_length:
+            mask[self.eos] = True
+        for idx, a in enumerate(self.action_space):
+            if seq_length + len(a) > self.max_seq_length:
+                mask[idx] = True
+        return mask
+
     def no_eos_mask(self, seq=None):
         """
         Returns True if no eos action is allowed given seq
         """
         if seq is None:
-            seq = self.seq
+            seq = self.seq.copy()
         return len(seq) < self.min_seq_length
 
     def true_density(self, max_states=1e6):
@@ -318,7 +339,7 @@ class AptamerSeq(GFlowNetEnv):
         """
         if self._true_density is not None:
             return self._true_density
-        if self.nalphabet ** self.max_seq_length > max_states:
+        if self.nalphabet**self.max_seq_length > max_states:
             return (None, None, None)
         seq_all = np.int32(
             list(
@@ -452,9 +473,7 @@ class AptamerSeq(GFlowNetEnv):
         return df_test, times
 
     @staticmethod
-    def np2df(
-        test_path, al_init_length, al_queries_per_iter, pct_test, data_seed
-    ):
+    def np2df(test_path, al_init_length, al_queries_per_iter, pct_test, data_seed):
         data_dict = np.load(test_path, allow_pickle=True).item()
         letters = numbers2letters(data_dict["samples"])
         df = pd.DataFrame(

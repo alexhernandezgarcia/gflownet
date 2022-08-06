@@ -273,6 +273,16 @@ class GFlowNetEnv:
             state = self.state
         return False
 
+    def get_mask_invalid_actions(self, state=None):
+        """
+        Returns a vector of length the action space + 1: True if action is invalid
+        given the current state, False otherwise.
+        """
+        if state is None:
+            state = self.state
+        mask = [False for _ in range(len(self.action_space) + 1)]
+        return mask
+
     def set_state(self, state, n_actions, done=False):
         """
         Sets the state, number of actions and done of an environment. n_actions should
