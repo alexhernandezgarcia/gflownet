@@ -176,7 +176,7 @@ class GFlowNetEnv:
         self.id = env_id
         return self
 
-    def parent_transitions(self, state, action):
+    def get_parents(self, state=None, done=None):
         """
         Determines all parents and actions that lead to state.
 
@@ -196,8 +196,12 @@ class GFlowNetEnv:
         actions : list
             List of actions that lead to state for each parent in parents
         """
-        if action == self.eos:
-            return [self.state2obs(state)], [action]
+        if state is None:
+            state = self.state.copy()
+        if done is None:
+            done = self.done
+        if done:
+            return [self.state2obs(state)], [self.eos]
         else:
             parents = []
             actions = []
@@ -225,7 +229,7 @@ class GFlowNetEnv:
         """
         current_path = path_list[-1].copy()
         current_path_actions = actions[-1].copy()
-        parents, parents_actions = self.parent_transitions(list(current_path[-1]), [-1])
+        parents, parents_actions = self.get_parents(list(current_path[-1]), False)
         parents = [self.obs2state(el).tolist() for el in parents]
         if parents == []:
             return path_list, actions
@@ -459,6 +463,7 @@ class Buffer:
                 self.test = pd.read_csv(test_path, index_col=0)
             # (3) Make environment specific test set
             else:
+                import ipdb; ipdb.set_trace()
                 self.test, _ = self.env.make_test_set(
                     path_base_dataset=args[0].gflownet.test.base,
                     ntest=args[0].gflownet.test.n,

@@ -129,7 +129,7 @@ class Grid(GFlowNetEnv):
         )
         state_mask = np.array(
             [
-                len(self.parent_transitions(s, [0])[0]) > 0 or sum(s) == 0
+                len(self.get_parents(s, False)[0]) > 0 or sum(s) == 0
                 for s in all_states
             ]
         )
@@ -216,7 +216,7 @@ class Grid(GFlowNetEnv):
         self.id = env_id
         return self
 
-    def parent_transitions(self, state, action):
+    def get_parents(self, state=None, done=None):
         """
         Determines all parents and actions that lead to state.
 
@@ -237,8 +237,12 @@ class Grid(GFlowNetEnv):
         actions : list
             List of actions that lead to state for each parent in parents
         """
-        if action[0] == self.eos:
-            return [self.state2obs(state)], action
+        if state is None:
+            state = self.state.copy()
+        if done is None:
+            done = self.done
+        if done:
+            return [self.state2obs(state)], [self.eos]
         else:
             parents = []
             actions = []

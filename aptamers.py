@@ -217,8 +217,7 @@ class AptamerSeq(GFlowNetEnv):
         self.id = env_id
         return self
 
-    def parent_transitions(self, seq, action):
-        # TODO: valid parents must satisfy max_seq_length constraint!!!
+    def get_parents(self, state=None, done=None):
         """
         Determines all parents and actions that lead to sequence (state) seq
 
@@ -240,8 +239,12 @@ class AptamerSeq(GFlowNetEnv):
         actions : list
             List of actions that lead to seq for each parent in parents
         """
-        if action[0] == self.eos:
-            return [self.seq2obs(seq)], action
+        if state is None:
+            state = self.state.copy()
+        if done is None:
+            done = self.done
+        if done:
+            return [self.state2obs(state)], [self.eos]
         else:
             parents = []
             actions = []
@@ -350,7 +353,7 @@ class AptamerSeq(GFlowNetEnv):
             *[
                 (self.proxy(seq), seq)
                 for seq in seq_all
-                if len(self.parent_transitions(seq, [0])[0]) > 0 or sum(seq) == 0
+                if len(self.get_parents(seq, False)[0]) > 0 or sum(seq) == 0
             ]
         )
         path_rewards = np.array(path_rewards)
