@@ -104,6 +104,7 @@ class AptamerSeq(GFlowNetEnv):
         """
         Constructs list with all possible actions
         """
+        assert self.max_word_len >= self.min_word_len
         valid_wordlens = np.arange(self.min_word_len, self.max_word_len + 1)
         alphabet = [a for a in range(self.nalphabet)]
         actions = []
