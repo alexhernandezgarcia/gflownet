@@ -463,7 +463,6 @@ class Buffer:
                 self.test = pd.read_csv(test_path, index_col=0)
             # (3) Make environment specific test set
             else:
-                import ipdb; ipdb.set_trace()
                 self.test, _ = self.env.make_test_set(
                     path_base_dataset=args[0].gflownet.test.base,
                     ntest=args[0].gflownet.test.n,
