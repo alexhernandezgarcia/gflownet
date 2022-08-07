@@ -405,6 +405,7 @@ class AptamerSeq(GFlowNetEnv):
 
     # TODO: improve approximation of uniform
     def make_test_set(
+        self,
         path_base_dataset,
         ntest,
         min_length=0,
@@ -434,7 +435,7 @@ class AptamerSeq(GFlowNetEnv):
             Optional path to store the test set as CSV.
         """
         if path_base_dataset is None:
-            return None
+            return None, None
         times = {
             "all": 0.0,
             "indices": 0.0,
