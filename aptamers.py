@@ -248,6 +248,14 @@ class AptamerSeq(GFlowNetEnv):
                     actions.append(idx)
         return parents, actions
 
+    def get_parents_debug(self, state=None, done=None):
+        """
+        Like get_parents(), but returns state format
+        """
+        obs, actions = self.get_parents(state, done)
+        parents = [self.obs2state(el) for el in obs]
+        return parents, actions
+
     def step(self, action):
         """
         Executes step given an action
