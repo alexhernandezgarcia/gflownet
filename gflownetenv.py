@@ -287,17 +287,12 @@ class GFlowNetEnv:
         mask = [False for _ in range(len(self.action_space) + 1)]
         return mask
 
-    def set_state(self, state, n_actions, done=False):
+    def set_state(self, state, done):
         """
-        Sets the state, number of actions and done of an environment. n_actions should
-        not include the stop action, as it is incremented if done is True.
+        Sets the state and done of an environment.
         """
         self.state = state
-        self.seq = self.state
         self.done = done
-        self.n_actions = n_actions
-        if done:
-            self.n_actions += 1
         return self
 
     def true_density(self):
