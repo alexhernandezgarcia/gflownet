@@ -93,12 +93,6 @@ class AptamerSeq(GFlowNetEnv):
         self.action_space = self.get_actions_space()
         self.eos = len(self.action_space)
         self.max_path_len = self.get_max_path_len()
-        # Aliases and compatibility
-        self.state2oracle = self.seq2oracle
-        self.state2obs = self.seq2obs
-        self.obs2state = self.obs2seq
-        self.state2readable = self.seq2letters
-        self.readable2state = self.letters2seq
 
     def get_actions_space(self):
         """
