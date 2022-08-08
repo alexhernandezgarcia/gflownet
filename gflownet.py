@@ -576,7 +576,9 @@ class GFlowNetAgent:
                             tl([n_actions]),
                         ]
                     )
-                    env, state, action, parents, parents_a = self.backward_sample(env, policy="uniform")
+                    env, state, action, parents, parents_a = self.backward_sample(
+                        env, policy="uniform"
+                    )
                     n_actions += 1
             envs = envs[n_empirical:]
         # Rest of batch
@@ -634,7 +636,9 @@ class GFlowNetAgent:
                 print(f"{n_samples - len(envs)}/{n_samples} done")
         # Compute rewards
         if train:
-            obs, actions, states, parents, parents_a, done, path_id, state_id = zip(*batch)
+            obs, actions, states, parents, parents_a, done, path_id, state_id = zip(
+                *batch
+            )
             t0_rewards = time.time()
             rewards = env.reward_batch(states, done)
             t1_rewards = time.time()
@@ -780,12 +784,12 @@ class GFlowNetAgent:
         paths = [[] for _ in range(self.mbsize)]
         states = [None] * self.mbsize
         rewards = [None] * self.mbsize
-#         state_ids = [[-1] for _ in range(self.mbsize)]
+        #         state_ids = [[-1] for _ in range(self.mbsize)]
         for el in batch:
             path_id = el[6][:1].item()
             state_id = el[7][:1].item()
-#             assert state_ids[path_id][-1] + 1 == state_id
-#             state_ids[path_id].append(state_id)
+            #             assert state_ids[path_id][-1] + 1 == state_id
+            #             state_ids[path_id].append(state_id)
             paths[path_id].append(el[1][0].item())
             if bool(el[5].item()):
                 states[path_id] = tuple(self.env.obs2state(el[0][0].tolist()))

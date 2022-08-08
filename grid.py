@@ -128,10 +128,7 @@ class Grid(GFlowNetEnv):
             list(itertools.product(*[list(range(self.length))] * self.n_dim))
         )
         state_mask = np.array(
-            [
-                len(self.get_parents(s, False)[0]) > 0 or sum(s) == 0
-                for s in all_states
-            ]
+            [len(self.get_parents(s, False)[0]) > 0 or sum(s) == 0 for s in all_states]
         )
         all_oracle = self.state2oracle(all_states)
         rewards = self.oracle(all_oracle)[state_mask]

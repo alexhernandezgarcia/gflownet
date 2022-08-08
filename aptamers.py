@@ -393,7 +393,9 @@ class AptamerSeq(GFlowNetEnv):
         energies = samples_dict["energies"]
         samples_mat = samples_dict["samples"]
         state_letters = oracle.numbers2letters(samples_mat)
-        state_ints = ["".join([str(el) for el in state if el > 0]) for state in samples_mat]
+        state_ints = [
+            "".join([str(el) for el in state if el > 0]) for state in samples_mat
+        ]
         if isinstance(energies, dict):
             energies.update({"samples": state_letters, "indices": state_ints})
             df_train = pd.DataFrame(energies)
