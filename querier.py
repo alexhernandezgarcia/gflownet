@@ -196,10 +196,9 @@ class Querier():
             t0 = time.time()
             gflownet.train()
             printRecord('Training GFlowNet took {} seconds'.format(int(time.time()-t0)))
-            t0 = time.time()
             outputs, times = gflownet.sample_batch(gflownet.env, 
                 self.config.gflownet.n_samples, train=False)
-            outputs, times_batch = batch2dict(outputs, gflownet_agent.env,
+            outputs, times_batch = batch2dict(outputs, gflownet.env,
                     get_uncertainties=True, query_function=self.config.al.query_mode)
             printRecord('Sampling {} samples from GFlowNet took {} seconds'.format(self.config.gflownet.n_samples, int(time.time()-t0)))
             outputs = filterOutputs(outputs)

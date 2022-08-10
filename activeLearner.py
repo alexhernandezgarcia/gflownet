@@ -10,7 +10,7 @@ import torch
 from Agent import ParameterUpdateAgent
 from replay_buffer import ParameterUpdateReplayMemory
 import pandas as pd
-
+from oracle import Oracle
 import numpy
 import os
 import glob
@@ -189,7 +189,6 @@ class ActiveLearning():
             energies = self.oracle.score(query) # score Samples
             printRecord('Oracle scoring took {} seconds'.format(int(time.time()-t0)))
             printRecord('Oracle scored' + bcolors.OKBLUE + ' {} '.format(len(energies)) + bcolors.ENDC + 'queries with average score of' + bcolors.OKGREEN + ' {:.3f}'.format(np.average(energies)) + bcolors.ENDC + ' and minimum score of {:.3f}'.format(np.amin(energies)))
-
             self.updateDataset(query, energies) # add scored Samples to dataset
 
             if self.comet: # report query scores to comet
@@ -502,7 +501,7 @@ class ActiveLearning():
                 'scores': np.zeros(len(samples)),
                 'uncertainties': np.zeros(len(samples))
             }
-            sampleDict = self.querier.doAnnealing([1,0], model, outputs, useOracle=True)
+            sampleDict = self.querier.doAnnealing([1,0], self.model, outputs, useOracle=True)
         elif self.config.al.sample_method == 'gflownet':
             gflownet = GFlowNetAgent(self.config, comet = self.comet, proxy=None, al_iter=0, data_path=None)
 
@@ -518,7 +517,7 @@ class ActiveLearning():
             sampleDict = filterOutputs(sampleDict)
 
             if self.config.gflownet.annealing:
-                sampleDict = self.querier.doAnnealing([1, 0], model, sampleDict, useOracle=True)
+                sampleDict = self.querier.doAnnealing([1, 0], self.model, sampleDict, useOracle=True)
 
 
         sampleDict = filterOutputs(sampleDict) # remove duplicates
