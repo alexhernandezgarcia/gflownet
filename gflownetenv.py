@@ -3,6 +3,7 @@ Base class of GFlowNet environments
 """
 import numpy as np
 import pandas as pd
+from pathlib import Path
 
 
 class GFlowNetEnv:
@@ -175,7 +176,7 @@ class GFlowNetEnv:
         self.id = env_id
         return self
 
-    def parent_transitions(self, state, action):
+    def get_parents(self, state=None, done=None):
         """
         Determines all parents and actions that lead to state.
 
@@ -195,8 +196,12 @@ class GFlowNetEnv:
         actions : list
             List of actions that lead to state for each parent in parents
         """
-        if action == self.eos:
-            return [self.state2obs(state)], [action]
+        if state is None:
+            state = self.state.copy()
+        if done is None:
+            done = self.done
+        if done:
+            return [self.state2obs(state)], [self.eos]
         else:
             parents = []
             actions = []
@@ -224,7 +229,7 @@ class GFlowNetEnv:
         """
         current_path = path_list[-1].copy()
         current_path_actions = actions[-1].copy()
-        parents, parents_actions = self.parent_transitions(list(current_path[-1]), [-1])
+        parents, parents_actions = self.get_parents(list(current_path[-1]), False)
         parents = [self.obs2state(el).tolist() for el in parents]
         if parents == []:
             return path_list, actions
@@ -271,6 +276,24 @@ class GFlowNetEnv:
         if state is None:
             state = self.state
         return False
+
+    def get_mask_invalid_actions(self, state=None):
+        """
+        Returns a vector of length the action space + 1: True if action is invalid
+        given the current state, False otherwise.
+        """
+        if state is None:
+            state = self.state
+        mask = [False for _ in range(len(self.action_space) + 1)]
+        return mask
+
+    def set_state(self, state, done):
+        """
+        Sets the state and done of an environment.
+        """
+        self.state = state
+        self.done = done
+        return self
 
     def true_density(self):
         """
@@ -408,7 +431,6 @@ class Buffer:
             if data_path.suffix == ".npy":
                 df_data = self.env.np2df(
                     data_path,
-                    args[0].gflownet.test.score,
                     args[0].dataset.init_length,
                     args[0].al.queries_per_iter,
                     args[0].gflownet.test.pct_test,
@@ -438,9 +460,8 @@ class Buffer:
             else:
                 self.test, _ = self.env.make_test_set(
                     path_base_dataset=args[0].gflownet.test.base,
-                    score=args[0].gflownet.test.score,
                     ntest=args[0].gflownet.test.n,
-                    min_length=args[0].gflownet.test.min_length,
+                    min_length=args[0].gflownet.min_seq_length,
                     max_length=args[0].gflownet.max_seq_length,
                     seed=args[0].gflownet.test.seed,
                     output_csv=args[0].gflownet.test.output,

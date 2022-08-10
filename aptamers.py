@@ -5,6 +5,8 @@ import itertools
 import numpy as np
 import pandas as pd
 from gflownetenv import GFlowNetEnv
+from oracle import numbers2letters
+import time
 
 
 class AptamerSeq(GFlowNetEnv):
@@ -22,7 +24,7 @@ class AptamerSeq(GFlowNetEnv):
     nalphabet : int
         Number of letters in the alphabet
 
-    seq : list
+    state : list
         Representation of a sequence (state), as a list of length max_seq_length where
         each element is the index of a letter in the alphabet, from 0 to (nalphabet -
         1).
@@ -69,9 +71,9 @@ class AptamerSeq(GFlowNetEnv):
             oracle_func,
             debug,
         )
-        self.seq = []
-        self.max_seq_length = max_seq_length
+        self.state = []
         self.min_seq_length = min_seq_length
+        self.max_seq_length = max_seq_length
         self.nalphabet = nalphabet
         self.obs_dim = self.nalphabet * self.max_seq_length
         self.min_word_len = min_word_len
@@ -84,24 +86,19 @@ class AptamerSeq(GFlowNetEnv):
         self.reward = (
             lambda x: [0]
             if not self.done
-            else self.proxy2reward(self.proxy(self.seq2oracle(x)))
+            else self.proxy2reward(self.proxy(self.state2oracle(x)))
         )
         self._true_density = None
         self.denorm_proxy = denorm_proxy
         self.action_space = self.get_actions_space()
         self.eos = len(self.action_space)
         self.max_path_len = self.get_max_path_len()
-        # Aliases and compatibility
-        self.state2oracle = self.seq2oracle
-        self.state2obs = self.seq2obs
-        self.obs2state = self.obs2seq
-        self.state2readable = self.seq2letters
-        self.readable2state = self.letters2seq
 
     def get_actions_space(self):
         """
         Constructs list with all possible actions
         """
+        assert self.max_word_len >= self.min_word_len
         valid_wordlens = np.arange(self.min_word_len, self.max_word_len + 1)
         alphabet = [a for a in range(self.nalphabet)]
         actions = []
@@ -115,22 +112,22 @@ class AptamerSeq(GFlowNetEnv):
     ):
         return self.max_seq_length / self.min_word_len + 1
 
-    def reward_arbitrary_i(self, seq):
-        if len(seq) > 0:
-            return (seq[-1] + 1) * len(seq)
+    def reward_arbitrary_i(self, state):
+        if len(state) > 0:
+            return (state[-1] + 1) * len(state)
         else:
             return 0
 
-    def seq2oracle(self, seq_list):
+    def state2oracle(self, state_list):
         """
         Prepares a sequence in "GFlowNet format" for the oracles.
 
         Args
         ----
-        seq_list : list of lists
+        state_list : list of lists
             List of sequences.
         """
-        queries = [s + [-1] * (self.max_seq_length - len(s)) for s in seq_list]
+        queries = [s + [-1] * (self.max_seq_length - len(s)) for s in state_list]
         queries = np.array(queries, dtype=int)
         if queries.ndim == 1:
             queries = queries[np.newaxis, ...]
@@ -142,38 +139,38 @@ class AptamerSeq(GFlowNetEnv):
             queries = np.column_stack((queries, np.zeros(queries.shape[0])))
         return queries
 
-    def seq2obs(self, seq=None):
+    def state2obs(self, state=None):
         """
-        Transforms the sequence (state) given as argument (or self.seq if None) into a
+        Transforms the sequence (state) given as argument (or self.state if None) into a
         one-hot encoding. The output is a list of length nalphabet * max_seq_length,
         where each n-th successive block of nalphabet elements is a one-hot encoding of
         the letter in the n-th position.
 
         Example:
           - Sequence: AATGC
-          - State, seq: [0, 0, 1, 3, 2]
-                         A, A, T, G, C
-          - seq2obs(seq): [1, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0]
-                          |     A    |      A    |      T    |      G    |      C    |
+          - state: [0, 1, 3, 2]
+                    A, T, G, C
+          - state2obs(state): [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0]
+                              |     A    |      T    |      G    |      C    |
 
         If max_seq_length > len(s), the last (max_seq_length - len(s)) blocks are all
         0s.
         """
-        if seq is None:
-            seq = self.seq
+        if state is None:
+            state = self.state.copy()
 
         z = np.zeros(self.obs_dim, dtype=np.float32)
 
-        if len(seq) > 0:
+        if len(state) > 0:
             if hasattr(
-                seq[0], "device"
+                state[0], "device"
             ):  # if it has a device at all, it will be cuda (CPU numpy array has no dev
-                seq = [subseq.cpu().detach().numpy() for subseq in seq]
+                state = [subseq.cpu().detach().numpy() for subseq in state]
 
-            z[(np.arange(len(seq)) * self.nalphabet + seq)] = 1
+            z[(np.arange(len(state)) * self.nalphabet + state)] = 1
         return z
 
-    def obs2seq(self, obs):
+    def obs2state(self, obs):
         """
         Transforms the one-hot encoding version of a sequence (state) given as argument
         into a a sequence of letter indices.
@@ -182,21 +179,21 @@ class AptamerSeq(GFlowNetEnv):
           - Sequence: AATGC
           - obs: [1, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0]
                  |     A    |      A    |      T    |      G    |      C    |
-          - seq: [0, 0, 1, 3, 2]
-                  A, A, T, G, C
+          - state: [0, 0, 1, 3, 2]
+                    A, A, T, G, C
         """
         obs_mat = np.reshape(obs, (self.max_seq_length, self.nalphabet))
-        seq = np.where(obs_mat)[1]
-        return seq
+        state = np.where(obs_mat)[1]
+        return state
 
-    def seq2letters(self, seq, alphabet={0: "A", 1: "T", 2: "C", 3: "G"}):
+    def state2letters(self, state, alphabet={0: "A", 1: "T", 2: "C", 3: "G"}):
         """
         Transforms a sequence given as a list of indices into a sequence of letters
         according to an alphabet.
         """
-        return [alphabet[el] for el in seq]
+        return [alphabet[el] for el in state]
 
-    def letters2seq(self, letters, alphabet={0: "A", 1: "T", 2: "C", 3: "G"}):
+    def letters2state(self, letters, alphabet={0: "A", 1: "T", 2: "C", 3: "G"}):
         """
         Transforms a sequence given as a list of indices into a sequence of letters
         according to an alphabet.
@@ -209,44 +206,54 @@ class AptamerSeq(GFlowNetEnv):
         Resets the environment.
         """
         self.state = []
-        self.seq = []
         self.n_actions = 0
         self.done = False
         self.id = env_id
         return self
 
-    def parent_transitions(self, seq, action):
-        # TODO: valid parents must satisfy max_seq_length constraint!!!
+    def get_parents(self, state=None, done=None):
         """
-        Determines all parents and actions that lead to sequence (state) seq
+        Determines all parents and actions that lead to sequence state
 
         Args
         ----
-        seq : list
+        state : list
             Representation of a sequence (state), as a list of length max_seq_length
             where each element is the index of a letter in the alphabet, from 0 to
             (nalphabet - 1).
 
         action : int
-            Last action performed
+            Last action performed, only to determine if it was eos.
 
         Returns
         -------
         parents : list
-            List of parents as seq2obs(seq)
+            List of parents as state2obs(state)
 
         actions : list
-            List of actions that lead to seq for each parent in parents
+            List of actions that lead to state for each parent in parents
         """
-        if action[0] == self.eos:
-            return [self.seq2obs(seq)], action
+        if state is None:
+            state = self.state.copy()
+        if done is None:
+            done = self.done
+        if done:
+            return [self.state2obs(state)], [self.eos]
         else:
             parents = []
             actions = []
             for idx, a in enumerate(self.action_space):
-                if seq[-len(a) :] == list(a):
-                    parents.append(self.seq2obs(seq[: -len(a)]))
+                if state[-len(a) :] == list(a):
+                    parents.append(self.state2obs(state[: -len(a)]))
                     actions.append(idx)
+        return parents, actions
+
+    def get_parents_debug(self, state=None, done=None):
+        """
+        Like get_parents(), but returns state format
+        """
+        obs, actions = self.get_parents(state, done)
+        parents = [self.obs2state(el) for el in obs]
         return parents, actions
 
     def step(self, action):
@@ -266,42 +273,62 @@ class AptamerSeq(GFlowNetEnv):
 
         Returns
         -------
-        self.seq : list
+        self.state : list
             The sequence after executing the action
 
         valid : bool
             False, if the action is not allowed for the current state, e.g. stop at the
             root state
         """
-        if len(self.seq) == self.max_seq_length:
+        if len(self.state) == self.max_seq_length:
             self.done = True
             self.n_actions += 1
-            return self.seq, [self.eos], True
+            return self.state, [self.eos], True
         if action != self.eos:
-            seq_next = self.seq + list(self.action_space[action])
-            if len(seq_next) > self.max_seq_length:
+            state_next = self.state + list(self.action_space[action])
+            if len(state_next) > self.max_seq_length:
                 valid = False
             else:
-                self.seq = seq_next
+                self.state = state_next
                 valid = True
                 self.n_actions += 1
-            return self.seq, [action], valid
+            return self.state, [action], valid
         else:
-            if len(self.seq) < self.min_seq_length:
+            if len(self.state) < self.min_seq_length:
                 valid = False
             else:
                 self.done = True
                 valid = True
                 self.n_actions += 1
-            return self.seq, [self.eos], valid
+            return self.state, [self.eos], valid
 
-    def no_eos_mask(self, seq=None):
+    def get_mask_invalid_actions(self, state=None, done=None):
         """
-        Returns True if no eos action is allowed given seq
+        Returns a vector of length the action space + 1: True if action is invalid
+        given the current state, False otherwise.
         """
-        if seq is None:
-            seq = self.seq
-        return len(seq) < self.min_seq_length
+        if state is None:
+            state = self.state.copy()
+        if done is None:
+            done = self.done
+        if done:
+            return [True for _ in range(len(self.action_space) + 1)]
+        mask = [False for _ in range(len(self.action_space) + 1)]
+        seq_length = len(state)
+        if seq_length < self.min_seq_length:
+            mask[self.eos] = True
+        for idx, a in enumerate(self.action_space):
+            if seq_length + len(a) > self.max_seq_length:
+                mask[idx] = True
+        return mask
+
+    def no_eos_mask(self, state=None):
+        """
+        Returns True if no eos action is allowed given state
+        """
+        if state is None:
+            state = self.state.copy()
+        return len(state) < self.min_seq_length
 
     def true_density(self, max_states=1e6):
         """
@@ -317,24 +344,24 @@ class AptamerSeq(GFlowNetEnv):
         """
         if self._true_density is not None:
             return self._true_density
-        if self.nalphabet ** self.max_seq_length > max_states:
+        if self.nalphabet**self.max_seq_length > max_states:
             return (None, None, None)
-        seq_all = np.int32(
+        state_all = np.int32(
             list(
                 itertools.product(*[list(range(self.nalphabet))] * self.max_seq_length)
             )
         )
-        path_rewards, seq_end = zip(
+        path_rewards, state_end = zip(
             *[
-                (self.proxy(seq), seq)
-                for seq in seq_all
-                if len(self.parent_transitions(seq, [0])[0]) > 0 or sum(seq) == 0
+                (self.proxy(state), state)
+                for state in state_all
+                if len(self.get_parents(state, False)[0]) > 0 or sum(state) == 0
             ]
         )
         path_rewards = np.array(path_rewards)
         self._true_density = (
             path_rewards / path_rewards.sum(),
-            list(map(tuple, seq_end)),
+            list(map(tuple, state_end)),
             path_rewards,
         )
         return self._true_density
@@ -365,14 +392,16 @@ class AptamerSeq(GFlowNetEnv):
         )
         energies = samples_dict["energies"]
         samples_mat = samples_dict["samples"]
-        seq_letters = oracle.numbers2letters(samples_mat)
-        seq_ints = ["".join([str(el) for el in seq if el > 0]) for seq in samples_mat]
+        state_letters = oracle.numbers2letters(samples_mat)
+        state_ints = [
+            "".join([str(el) for el in state if el > 0]) for state in samples_mat
+        ]
         if isinstance(energies, dict):
-            energies.update({"samples": seq_letters, "indices": seq_ints})
+            energies.update({"samples": state_letters, "indices": state_ints})
             df_train = pd.DataFrame(energies)
         else:
             df_train = pd.DataFrame(
-                {"samples": seq_letters, "indices": seq_ints, "energies": energies}
+                {"samples": state_letters, "indices": state_ints, "energies": energies}
             )
         if output_csv:
             df_train.to_csv(output_csv)
@@ -380,8 +409,8 @@ class AptamerSeq(GFlowNetEnv):
 
     # TODO: improve approximation of uniform
     def make_test_set(
+        self,
         path_base_dataset,
-        score,
         ntest,
         min_length=0,
         max_length=np.inf,
@@ -397,9 +426,6 @@ class AptamerSeq(GFlowNetEnv):
         path_base_dataset : str
             Path to a CSV file containing the base data set.
 
-        score : str
-            Column in the CSV file containing the score.
-
         ntest : int
             Number of test samples.
 
@@ -413,7 +439,7 @@ class AptamerSeq(GFlowNetEnv):
             Optional path to store the test set as CSV.
         """
         if path_base_dataset is None:
-            return None
+            return None, None
         times = {
             "all": 0.0,
             "indices": 0.0,
@@ -423,10 +449,10 @@ class AptamerSeq(GFlowNetEnv):
             np.random.seed(seed)
         df_base = pd.read_csv(path_base_dataset, index_col=0)
         df_base = df_base.loc[
-            (df_base["letters"].map(len) >= min_length)
-            & (df_base["letters"].map(len) <= max_length)
+            (df_base["samples"].map(len) >= min_length)
+            & (df_base["samples"].map(len) <= max_length)
         ]
-        energies_base = df_base[score].values
+        energies_base = df_base["energies"].values
         min_base = energies_base.min()
         max_base = energies_base.max()
         distr_unif = np.random.uniform(low=min_base, high=max_base, size=ntest)
@@ -455,15 +481,13 @@ class AptamerSeq(GFlowNetEnv):
         return df_test, times
 
     @staticmethod
-    def np2df(
-        test_path, score, al_init_length, al_queries_per_iter, pct_test, data_seed
-    ):
+    def np2df(test_path, al_init_length, al_queries_per_iter, pct_test, data_seed):
         data_dict = np.load(test_path, allow_pickle=True).item()
         letters = numbers2letters(data_dict["samples"])
         df = pd.DataFrame(
             {
-                "letters": letters,
-                score: data_dict["energies"],
+                "samples": letters,
+                "energies": data_dict["energies"],
                 "train": [False] * len(letters),
                 "test": [False] * len(letters),
             }
