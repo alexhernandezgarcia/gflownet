@@ -471,7 +471,7 @@ class GFlowNetAgent:
         self.opt, self.lr_scheduler = make_opt(self.parameters(), self.Z, args)
         self.n_train_steps = args.gflownet.n_iter
         self.mbsize = args.gflownet.mbsize
-        self.mask_eos = True
+        self.mask_invalid_actions = True
         self.progress = args.gflownet.progress
         self.clip_grad_norm = args.gflownet.clip_grad_norm
         self.num_empirical_loss = args.gflownet.num_empirical_loss
@@ -584,14 +584,14 @@ class GFlowNetAgent:
         # Rest of batch
         while envs:
             states = [env.state2obs() for env in envs]
-            mask = [env.no_eos_mask() for env in envs]
+            mask_invalid_actions = [env.get_mask_invalid_actions() for env in envs]
             random_action = self.rng.uniform()
             if train is False or random_action > self.random_action_prob:
                 with torch.no_grad():
                     t0_a_model = time.time()
                     action_probs = model(tf(states))
-                    if self.mask_eos:
-                        action_probs[mask, -1] = -1000
+                    if self.mask_invalid_actions:
+                        action_probs[torch.tensor(mask_invalid_actions)] = -1000
                     t1_a_model = time.time()
                     times["actions_model"] += t1_a_model - t0_a_model
                     if all(torch.isfinite(action_probs).flatten()):
@@ -604,7 +604,7 @@ class GFlowNetAgent:
             # TODO: review: if random from numpy, tl(x) gives weird results for scalars
             if train and random_action < self.random_action_prob:
                 high = (len(self.env.action_space) + 1) * np.ones(len(envs), dtype=int)
-                if self.mask_eos:
+                if self.mask_invalid_actions:
                     high[mask] -= 1
                 actions = self.rng.integers(low=0, high=high, size=len(envs))
             t0_a_envs = time.time()
