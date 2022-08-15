@@ -365,7 +365,10 @@ class GFlowNetAgent:
                 debug=self.debug,
             )
         elif self.env_id == "grid":
-            self.env = Grid(oracle_func=args.gflownet.func)
+            self.env = Grid(
+                reward_func=self.reward_func,
+                oracle_func=args.gflownet.func,
+            )
         else:
             raise NotImplemented
         self.buffer = Buffer(self.env, replay_capacity=args.gflownet.replay_capacity)
@@ -558,7 +561,7 @@ class GFlowNetAgent:
             n_empirical = int(self.pct_batch_empirical * len(envs))
             for env in envs[:n_empirical]:
                 readable = self.rng.permutation(self.buffer.train.samples.values)[0]
-                env = env.set_state(env.letters2state(readable), done=True)
+                env = env.set_state(env.readable2state(readable), done=True)
                 action = env.eos
                 parents = [env.state2obs(env.state)]
                 parents_a = [action]
@@ -848,7 +851,7 @@ class GFlowNetAgent:
             )
             # Log
             idx_best = np.argmax(rewards)
-            state_best = "".join(self.env.state2letters(states_term[idx_best]))
+            state_best = "".join(self.env.state2readable(states_term[idx_best]))
             if self.lightweight:
                 all_losses = all_losses[-100:]
                 all_visited = states_term
@@ -900,7 +903,7 @@ class GFlowNetAgent:
                 ):
                     t0_test_path = time.time()
                     path_list, actions = self.env.get_paths(
-                        [[self.env.letters2state(statestr)]],
+                        [[self.env.readable2state(statestr)]],
                         [[self.env.eos]],
                     )
                     t1_test_path = time.time()

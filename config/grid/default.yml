@@ -35,7 +35,8 @@ gflownet:
   random_action_prob: 0.01
   replay_capacity: 0
   reward_norm_std_mult: 8
-  reward_beta: 8.0
+  reward_beta: 2.0
+  reward_func: boltzmann
   test:
     path: data/corners_d2l3_r0.csv
     period: 1
