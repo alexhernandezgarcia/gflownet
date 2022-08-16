@@ -558,6 +558,7 @@ class GFlowNetAgent:
         """
         parents, parents_a = env.get_parents(env.state, done)
         if policy == "model":
+            # TODO
             raise NotImplemented
         elif policy == "uniform":
             action_idx = self.rng.integers(low=0, high=len(parents_a))
