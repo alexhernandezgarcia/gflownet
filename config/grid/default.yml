@@ -38,7 +38,7 @@ gflownet:
   reward_beta: 8.0
   reward_func: power
   test:
-    path: data/corners_d2l3_r0.csv
+    path: ~/scratch/datasets/grid/corners_d2l3_r0.csv
     period: 1
     score: energies
   oracle:
