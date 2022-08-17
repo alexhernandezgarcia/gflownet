@@ -243,7 +243,10 @@ class AptamerSeq(GFlowNetEnv):
             parents = []
             actions = []
             for idx, a in enumerate(self.action_space):
-                if state[-len(a) :] == list(a):
+                is_parent = state[-len(a) :] == list(a)
+                if not isinstance(is_parent, bool):
+                    is_parent = all(is_parent)
+                if is_parent:
                     parents.append(self.state2obs(state[: -len(a)]))
                     actions.append(idx)
         return parents, actions
