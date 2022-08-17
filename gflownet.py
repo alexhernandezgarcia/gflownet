@@ -540,9 +540,11 @@ class GFlowNetAgent:
         _, _, valids = zip(*[env.step(action) for env, action in zip(envs, actions)])
         return envs, actions, valids
 
-    def backward_sample(self, env, policy="model", done=False):
+    def backward_sample(
+        self, env, policy="model", model=None, temperature=1.0, done=False
+    ):
         """
-        Performs a backward action
+        Performs a backward action on one environment.
 
         Args
         ----
@@ -553,13 +555,27 @@ class GFlowNetAgent:
             - model: uses the current policy to obtain the sampling probabilities.
             - uniform: samples uniformly from the parents of the current state.
 
+        model : torch model
+            Model to use as policy if policy="model"
+
+        temperature : float
+            Temperature to adjust the logits by logits /= temperature
+
         done : bool
             If True, it will sample eos action
         """
         parents, parents_a = env.get_parents(env.state, done)
         if policy == "model":
-            # TODO
-            raise NotImplemented
+            with torch.no_grad():
+                action_logits = model(tf(parents))[
+                    torch.arange(len(parents)), parents_a
+                ]
+            action_logits /= temperature
+            if all(torch.isfinite(action_logits).flatten()):
+                action_idx = Categorical(logits=action_logits).sample().item()
+            else:
+                if self.debug:
+                    raise ValueError("Action could not be sampled from model!")
         elif policy == "uniform":
             action_idx = self.rng.integers(low=0, high=len(parents_a))
         else:
@@ -608,6 +624,7 @@ class GFlowNetAgent:
         else:
             return None, None
         # Offline trajectories
+        # TODO: Replay Buffer
         if train:
             n_empirical = int(self.pct_batch_empirical * len(envs))
             for env in envs[:n_empirical]:
@@ -632,7 +649,10 @@ class GFlowNetAgent:
                     )
                     # Backward sampling
                     env, state, action, parents, parents_a = self.backward_sample(
-                        env, policy="uniform"
+                        env,
+                        policy="model",
+                        model=model,
+                        temperature=self.temperature_logits,
                     )
                     n_actions += 1
             envs = envs[n_empirical:]
