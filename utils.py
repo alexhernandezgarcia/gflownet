@@ -47,7 +47,7 @@ def get_config(args, override_args, args2config):
     # Read YAML config
     if args.yaml_config:
         yaml_path = Path(args.yaml_config)
-        assert yaml_path.exists()
+        assert yaml_path.exists(), "yaml_config = {}".format(args.yaml_config)
         assert yaml_path.suffix in {".yaml", ".yml"}
         with yaml_path.open("r") as f:
             config = yaml.safe_load(f)

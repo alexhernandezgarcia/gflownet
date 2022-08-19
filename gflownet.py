@@ -186,9 +186,9 @@ def add_args(parser):
     args2config.update({"num_empirical_loss": ["gflownet", "num_empirical_loss"]})
     parser.add_argument("--clip_grad_norm", default=0.0, type=float)
     args2config.update({"clip_grad_norm": ["gflownet", "clip_grad_norm"]})
-    parser.add_argument("--random_action_prob", default=0.0, type=float)
-    args2config.update({"random_action_prob": ["gflownet", "random_action_prob"]})
-    parser.add_argument("--pct_batch_empirical", default=0.0, type=float)
+    parser.add_argument("--temperature_logits", default=0.0, type=float)
+    args2config.update({"temperature_logits": ["gflownet", "temperature_logits"]})
+    parser.add_argument("--pct_batch_empirical", default=1.0, type=float)
     args2config.update({"pct_batch_empirical": ["gflownet", "pct_batch_empirical"]})
     parser.add_argument("--replay_capacity", default=0, type=int)
     args2config.update({"replay_capacity": ["gflownet", "replay_capacity"]})
@@ -365,7 +365,10 @@ class GFlowNetAgent:
                 debug=self.debug,
             )
         elif self.env_id == "grid":
-            self.env = Grid(oracle_func=args.gflownet.func)
+            self.env = Grid(
+                reward_func=self.reward_func,
+                oracle_func=args.gflownet.func,
+            )
         else:
             raise NotImplemented
         self.buffer = Buffer(self.env, replay_capacity=args.gflownet.replay_capacity)
@@ -471,13 +474,13 @@ class GFlowNetAgent:
         self.opt, self.lr_scheduler = make_opt(self.parameters(), self.Z, args)
         self.n_train_steps = args.gflownet.n_iter
         self.mbsize = args.gflownet.mbsize
-        self.mask_eos = True
+        self.mask_invalid_actions = True
         self.progress = args.gflownet.progress
         self.clip_grad_norm = args.gflownet.clip_grad_norm
         self.num_empirical_loss = args.gflownet.num_empirical_loss
         self.ttsr = max(int(args.gflownet.train_to_sample_ratio), 1)
         self.sttr = max(int(1 / args.gflownet.train_to_sample_ratio), 1)
-        self.random_action_prob = args.gflownet.random_action_prob
+        self.temperature_logits = args.gflownet.temperature_logits
         self.pct_batch_empirical = args.gflownet.pct_batch_empirical
         # Oracle metrics
         self.oracle_period = args.gflownet.oracle.period
@@ -487,9 +490,61 @@ class GFlowNetAgent:
     def parameters(self):
         return self.model.parameters()
 
-    def backward_sample(self, env, policy="model", done=False):
+    def forward_sample(self, envs, times, policy="model", model=None, temperature=1.0):
         """
-        Performs a backward action
+        Performs a forward action on each environment of a list.
+
+        Args
+        ----
+        env : list of GFlowNetEnv or derived
+            A list of instances of the environment
+
+        times : dict
+            Dictionary to store times
+
+        policy : string
+            - model: uses self.model to obtain the sampling probabilities.
+            - uniform: samples uniformly from the action space.
+
+        model : torch model
+            Model to use as policy if policy="model"
+
+        temperature : float
+            Temperature to adjust the logits by logits /= temperature
+        """
+        if not isinstance(envs, list):
+            envs = [envs]
+        states = [env.state2obs() for env in envs]
+        mask_invalid_actions = [env.get_mask_invalid_actions() for env in envs]
+        random_action = self.rng.uniform()
+        t0_a_model = time.time()
+        if policy == "model":
+            with torch.no_grad():
+                action_logits = model(tf(states))
+            action_logits /= temperature
+        elif policy == "uniform":
+            action_logits = tf(np.zeros(len(states)), len(self.env.action_space) + 1)
+        else:
+            raise NotImplemented
+        if self.mask_invalid_actions:
+            action_logits[torch.tensor(mask_invalid_actions)] = -1000
+        if all(torch.isfinite(action_logits).flatten()):
+            actions = Categorical(logits=action_logits).sample()
+        else:
+            if self.debug:
+                raise ValueError("Action could not be sampled from model!")
+        t1_a_model = time.time()
+        times["actions_model"] += t1_a_model - t0_a_model
+        assert len(envs) == actions.shape[0]
+        # Execute actions
+        _, _, valids = zip(*[env.step(action) for env, action in zip(envs, actions)])
+        return envs, actions, valids
+
+    def backward_sample(
+        self, env, policy="model", model=None, temperature=1.0, done=False
+    ):
+        """
+        Performs a backward action on one environment.
 
         Args
         ----
@@ -497,15 +552,30 @@ class GFlowNetAgent:
             An instance of the environment
 
         policy : string
-            - model: uses self.model to obtain the sampling probabilities.
+            - model: uses the current policy to obtain the sampling probabilities.
             - uniform: samples uniformly from the parents of the current state.
+
+        model : torch model
+            Model to use as policy if policy="model"
+
+        temperature : float
+            Temperature to adjust the logits by logits /= temperature
 
         done : bool
             If True, it will sample eos action
         """
         parents, parents_a = env.get_parents(env.state, done)
         if policy == "model":
-            raise NotImplemented
+            with torch.no_grad():
+                action_logits = model(tf(parents))[
+                    torch.arange(len(parents)), parents_a
+                ]
+            action_logits /= temperature
+            if all(torch.isfinite(action_logits).flatten()):
+                action_idx = Categorical(logits=action_logits).sample().item()
+            else:
+                if self.debug:
+                    raise ValueError("Action could not be sampled from model!")
         elif policy == "uniform":
             action_idx = self.rng.integers(low=0, high=len(parents_a))
         else:
@@ -553,12 +623,13 @@ class GFlowNetAgent:
             envs = [copy.deepcopy(envs).reset(idx) for idx in range(n_samples)]
         else:
             return None, None
-        # States from empirical distribution
+        # Offline trajectories
+        # TODO: Replay Buffer
         if train:
             n_empirical = int(self.pct_batch_empirical * len(envs))
             for env in envs[:n_empirical]:
                 readable = self.rng.permutation(self.buffer.train.samples.values)[0]
-                env = env.set_state(env.letters2state(readable), done=True)
+                env = env.set_state(env.readable2state(readable), done=True)
                 action = env.eos
                 parents = [env.state2obs(env.state)]
                 parents_a = [action]
@@ -576,49 +647,41 @@ class GFlowNetAgent:
                             tl([n_actions]),
                         ]
                     )
+                    # Backward sampling
                     env, state, action, parents, parents_a = self.backward_sample(
-                        env, policy="uniform"
+                        env,
+                        policy="model",
+                        model=model,
+                        temperature=self.temperature_logits,
                     )
                     n_actions += 1
             envs = envs[n_empirical:]
-        # Rest of batch
+        # Policy trajectories
         while envs:
-            states = [env.state2obs() for env in envs]
-            mask = [env.no_eos_mask() for env in envs]
-            random_action = self.rng.uniform()
-            if train is False or random_action > self.random_action_prob:
-                with torch.no_grad():
-                    t0_a_model = time.time()
-                    action_probs = model(tf(states))
-                    if self.mask_eos:
-                        action_probs[mask, -1] = -1000
-                    t1_a_model = time.time()
-                    times["actions_model"] += t1_a_model - t0_a_model
-                    if all(torch.isfinite(action_probs).flatten()):
-                        actions = Categorical(logits=action_probs).sample()
-                    else:
-                        random_action = -1
-                        if self.debug:
-                            print("Action could not be sampled from model!")
-            # TODO: review: random actions sampled for all envs!
-            # TODO: review: if random from numpy, tl(x) gives weird results for scalars
-            if train and random_action < self.random_action_prob:
-                high = (len(self.env.action_space) + 1) * np.ones(len(envs), dtype=int)
-                if self.mask_eos:
-                    high[mask] -= 1
-                actions = self.rng.integers(low=0, high=high, size=len(envs))
+            # Forward sampling
+            if train is False:
+                envs, actions, valids = self.forward_sample(
+                    envs, times, policy="model", model=model, temperature=1.0
+                )
+            else:
+                envs, actions, valids = self.forward_sample(
+                    envs,
+                    times,
+                    policy="model",
+                    model=model,
+                    temperature=self.temperature_logits,
+                )
             t0_a_envs = time.time()
-            assert len(envs) == actions.shape[0]
-            for env, action in zip(envs, actions):
-                state, action, valid = env.step(action)
+            # Add to batch
+            for env, action, valid in zip(envs, actions, valids):
                 if valid:
-                    parents, parents_a = env.get_parents(state, env.done)
+                    parents, parents_a = env.get_parents()
                     if train:
                         batch.append(
                             [
                                 tf([env.state2obs()]),
-                                tl(action),
-                                state,
+                                tl([action]),
+                                env.state,
                                 tf(parents),
                                 tl(parents_a),
                                 env.done,
@@ -628,14 +691,15 @@ class GFlowNetAgent:
                         )
                     else:
                         if env.done:
-                            batch.append(state)
+                            batch.append(env.state)
+            # Filter out finished trajectories
             envs = [env for env in envs if not env.done]
             t1_a_envs = time.time()
             times["actions_envs"] += t1_a_envs - t0_a_envs
             if progress and n_samples is not None:
                 print(f"{n_samples - len(envs)}/{n_samples} done")
-        # Compute rewards
         if train:
+            # Compute rewards
             obs, actions, states, parents, parents_a, done, path_id, state_id = zip(
                 *batch
             )
@@ -716,6 +780,7 @@ class GFlowNetAgent:
             with torch.no_grad():
                 next_q = self.target(sp)
         else:
+            # TODO: potentially mask invalid actions next_q
             next_q = self.model(sp)
         qsp = torch.logsumexp(next_q, 1)
         # qsp: qsp if not done; -loginf if done
@@ -847,7 +912,7 @@ class GFlowNetAgent:
             )
             # Log
             idx_best = np.argmax(rewards)
-            state_best = "".join(self.env.state2letters(states_term[idx_best]))
+            state_best = "".join(self.env.state2readable(states_term[idx_best]))
             if self.lightweight:
                 all_losses = all_losses[-100:]
                 all_visited = states_term
@@ -899,7 +964,7 @@ class GFlowNetAgent:
                 ):
                     t0_test_path = time.time()
                     path_list, actions = self.env.get_paths(
-                        [[self.env.letters2state(statestr)]],
+                        [[self.env.readable2state(statestr)]],
                         [[self.env.eos]],
                     )
                     t1_test_path = time.time()
@@ -1178,6 +1243,7 @@ def logq(path_list, actions_list, model, env):
         actions = actions[::-1]
         path_obs = np.asarray([env.state2obs(state) for state in path])
         with torch.no_grad():
+            # TODO: potentially mask invalid actions next_q
             logits_path = model(tf(path_obs))
         logsoftmax = torch.nn.LogSoftmax(dim=1)
         logprobs_path = logsoftmax(logits_path)

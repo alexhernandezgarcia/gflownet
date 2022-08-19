@@ -37,6 +37,7 @@ class Grid(GFlowNetEnv):
         env_id=None,
         reward_beta=1,
         reward_norm=1.0,
+        reward_func="power",
         denorm_proxy=False,
         energies_stats=None,
         proxy=None,
@@ -47,6 +48,7 @@ class Grid(GFlowNetEnv):
             env_id,
             reward_beta,
             reward_norm,
+            reward_func,
             energies_stats,
             denorm_proxy,
             proxy,
@@ -80,13 +82,6 @@ class Grid(GFlowNetEnv):
         self.denorm_proxy = denorm_proxy
         self.action_space = self.get_actions_space()
         self.eos = len(self.action_space)
-        # Aliases and compatibility
-        self.seq = self.state
-        self.seq2obs = self.state2obs
-        self.obs2seq = self.obs2state
-        self.seq2oracle = self.state2oracle
-        self.letters2seq = self.readable2state
-        self.seq2letters = self.state2readable
 
     def get_actions_space(self):
         """

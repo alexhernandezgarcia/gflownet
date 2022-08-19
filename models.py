@@ -824,3 +824,4 @@ def l2r(x):
     r_norm = 1
     score = torch.clip(x, min=-np.inf, max=r_max).sigmoid() / r_norm
     return score.cpu().detach().numpy()
+

@@ -186,14 +186,14 @@ class AptamerSeq(GFlowNetEnv):
         state = np.where(obs_mat)[1]
         return state
 
-    def state2letters(self, state, alphabet={0: "A", 1: "T", 2: "C", 3: "G"}):
+    def state2readable(self, state, alphabet={0: "A", 1: "T", 2: "C", 3: "G"}):
         """
         Transforms a sequence given as a list of indices into a sequence of letters
         according to an alphabet.
         """
         return [alphabet[el] for el in state]
 
-    def letters2state(self, letters, alphabet={0: "A", 1: "T", 2: "C", 3: "G"}):
+    def readable2state(self, letters, alphabet={0: "A", 1: "T", 2: "C", 3: "G"}):
         """
         Transforms a sequence given as a list of indices into a sequence of letters
         according to an alphabet.
@@ -243,7 +243,10 @@ class AptamerSeq(GFlowNetEnv):
             parents = []
             actions = []
             for idx, a in enumerate(self.action_space):
-                if state[-len(a) :] == list(a):
+                is_parent = state[-len(a) :] == list(a)
+                if not isinstance(is_parent, bool):
+                    is_parent = all(is_parent)
+                if is_parent:
                     parents.append(self.state2obs(state[: -len(a)]))
                     actions.append(idx)
         return parents, actions
