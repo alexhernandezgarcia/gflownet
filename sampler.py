@@ -36,12 +36,12 @@ class Sampler:
 
         if self.config_main.dataset.type == 'toy':
             self.oracle = Oracle(
+                oracle = self.config_main.dataset.oracle,
                 seed = self.config_main.seeds.dataset,
                 seq_len = self.config_main.dataset.max_length,
                 dict_size = self.config_main.dataset.dict_size,
                 min_len = self.config_main.dataset.min_length,
                 max_len = self.config_main.dataset.max_length,
-                oracle = self.config_main.dataset.oracle,
                 variable_len = self.config_main.dataset.variable_length,
                 init_len = self.config_main.dataset.init_length,
                 energy_weight = self.config_main.dataset.nupack_energy_reweighting,

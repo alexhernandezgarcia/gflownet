@@ -207,12 +207,12 @@ class DQN:
         # large random sample
         numSamples = min(int(1e4), self.config.dataset.dict_size ** self.config.dataset.max_length // 100) # either 1e4, or 1% of the sample space, whichever is smaller
         dataoracle = Oracle(
+            oracle = self.config.dataset.oracle,
             seed = self.config.seeds.dataset,
             seq_len = self.config.dataset.max_length,
             dict_size = self.config.dataset.dict_size,
             min_len = self.config.dataset.min_length,
             max_len = self.config.dataset.max_length,
-            oracle = self.config.dataset.oracle,
             variable_len = self.config.dataset.variable_length,
             init_len = self.config.dataset.init_length,
             energy_weight = self.config.dataset.nupack_energy_reweighting,

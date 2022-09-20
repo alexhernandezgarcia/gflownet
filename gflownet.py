@@ -336,12 +336,12 @@ class GFlowNetAgent:
         # Oracle
         if self.env_id == "aptamers":
             self.oracle = Oracle(
+                oracle=args.gflownet.func,
                 seed=args.seeds.oracle,
                 seq_len=args.gflownet.max_seq_length,
                 dict_size=args.gflownet.nalphabet,
                 min_len=args.gflownet.min_seq_length,
                 max_len=args.gflownet.max_seq_length,
-                oracle=args.gflownet.func,
                 energy_weight=args.dataset.nupack_energy_reweighting,
                 nupack_target_motif=args.dataset.nupack_target_motif,
             )

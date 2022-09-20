@@ -1,4 +1,5 @@
 '''import statements'''
+from omegaconf import ListConfig
 from seqfold import dg, fold
 from utils import *
 from potts_utils import load_potts_model
@@ -33,7 +34,7 @@ config
 
 
 class Oracle():
-    def __init__(self, seed, seq_len, dict_size, min_len, max_len, oracle,
+    def __init__(self, oracle, seed=0, seq_len=30, dict_size=4, min_len=30, max_len=30,
             variable_len=True, init_len=0, energy_weight=False, nupack_target_motif="",
             seed_toy=0):
         '''
@@ -201,9 +202,9 @@ class Oracle():
         elif (self.oracle == 'onemax') or (self.oracle == 'twomin') or (self.oracle == 'fourpeaks')\
                 or (self.oracle == 'deceptivetrap') or (self.oracle == 'nklandscape') or (self.oracle == 'wmodel'):
             return self.BB_DOB_functions(queries)
-        elif isinstance(self.oracle, list) and all(["nupack " in el for el in self.oracle]):
+        elif isinstance(self.oracle, (list, ListConfig)) and all(["nupack " in el for el in self.oracle]):
             return self.nupackScore(queries, returnFunc=[el.replace("nupack ", "") for el in self.oracle])
-        elif isinstance(self.oracle, list) and self.oracle[0] == "potts new":
+        elif isinstance(self.oracle, (list, ListConfig)) and self.oracle[0] == "potts new":
             return self.PottsEnergyNew(queries)
         else:
             raise NotImplementedError("Unknown oracle type")
@@ -428,7 +429,10 @@ class Oracle():
 
         temperature = 310.0  # Kelvin
         ionicStrength = 1.0 # molar
-        sequences = self.numbers2letters(queries)
+        if not isinstance(queries[0], str):
+            sequences = self.numbers2letters(queries)
+        else:
+            sequences = queries
 
         energies = np.zeros(len(sequences))
         nPins = np.zeros(len(sequences)).astype(int)
