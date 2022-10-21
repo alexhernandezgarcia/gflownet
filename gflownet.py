@@ -24,11 +24,11 @@ import hydra
 from omegaconf import OmegaConf, DictConfig
 
 from gflownetenv import Buffer
-from aptamers import AptamerSeq
-from grid import Grid
-from oracle import numbers2letters, Oracle
+#from aptamers import AptamerSeq
+#from grid import Grid
+#from oracle import numbers2letters, Oracle
 from utils.common import flatten_config
-from utils import get_config, namespace2dict, numpy2python, add_bool_arg
+#from utils import get_config, namespace2dict, numpy2python, add_bool_arg
 
 # Float and Long tensors
 _dev = [torch.device("cpu")]
@@ -1217,7 +1217,7 @@ def logq(path_list, actions_list, model, env):
 
 
 @hydra.main(config_path='./config', config_name='main')
-def main(args):
+def main(config):
     # Reset seed for job-name generation in multirun jobs
     random.seed(None)
     # Log config
