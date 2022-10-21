@@ -1,3 +1,5 @@
+from collections.abc import MutableMapping
+
 def flatten_config(d, parent_key='', sep='_'):
     items = []
     for k, v in d.items():
