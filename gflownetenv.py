@@ -373,16 +373,21 @@ class Buffer:
         criterion="greater",
     ):
         if buffer == "main":
-            self.main = self.main.append(
-                pd.DataFrame(
-                    {
-                        "state": [self.env.state2readable(s) for s in states],
-                        "path": [self.env.path2readable(p) for p in paths],
-                        "reward": rewards,
-                        "energy": energies,
-                        "iter": it,
-                    }
-                )
+            self.main = pd.concat(
+                [
+                    self.main,
+                    pd.DataFrame(
+                        {
+                            "state": [self.env.state2readable(s) for s in states],
+                            "path": [self.env.path2readable(p) for p in paths],
+                            "reward": rewards,
+                            "energy": energies,
+                            "iter": it,
+                        }
+                    ),
+                ],
+                axis=0,
+                join="outer",
             )
         elif buffer == "replay" and self.replay_capacity > 0:
             if criterion == "greater":
