@@ -3,6 +3,7 @@ GFlowNet
 TODO:
     - Seeds
 """
+import sys
 import copy
 import time
 from argparse import ArgumentParser
@@ -18,11 +19,15 @@ import torch.nn as nn
 import yaml
 from torch.distributions.categorical import Categorical
 from tqdm import tqdm
+import random
+import hydra
+from omegaconf import OmegaConf, DictConfig
 
 from gflownetenv import Buffer
 from aptamers import AptamerSeq
 from grid import Grid
 from oracle import numbers2letters, Oracle
+from utils.common import flatten_config
 from utils import get_config, namespace2dict, numpy2python, add_bool_arg
 
 # Float and Long tensors
@@ -38,35 +43,7 @@ def add_args(parser):
     Returns:
         argparse.Namespace: the parsed arguments
     """
-    args2config = {}
-    # YAML config
-    parser.add_argument(
-        "-y",
-        "--yaml_config",
-        default=None,
-        type=str,
-        help="YAML configuration file",
-    )
-    args2config.update({"yaml_config": ["yaml_config"]})
     # General
-    parser.add_argument("--workdir", default=None, type=str)
-    args2config.update({"workdir": ["workdir"]})
-    parser.add_argument("--overwrite_workdir", action="store_true", default=False)
-    args2config.update({"overwrite_workdir": ["overwrite_workdir"]})
-    parser.add_argument("--device", default="cpu", type=str)
-    args2config.update({"device": ["gflownet", "device"]})
-    parser.add_argument("--progress", action="store_true")
-    args2config.update({"progress": ["gflownet", "progress"]})
-    parser.add_argument("--no_lightweight", action="store_true")
-    args2config.update({"no_lightweight": ["no_lightweight"]})
-    parser.add_argument("--debug", action="store_true")
-    args2config.update({"debug": ["debug"]})
-    parser.add_argument("--model_ckpt", default=None, type=str)
-    args2config.update({"model_ckpt": ["gflownet", "model_ckpt"]})
-    parser.add_argument("--reload_ckpt", action="store_true")
-    args2config.update({"reload_ckpt": ["gflownet", "reload_ckpt"]})
-    parser.add_argument("--ckpt_period", default=None, type=int)
-    args2config.update({"ckpt_period": ["gflownet", "ckpt_period"]})
     parser.add_argument(
         "--rng_seed",
         type=int,
@@ -74,25 +51,6 @@ def add_args(parser):
         help="Seed for random number generator",
     )
     args2config.update({"rng_seed": ["seeds", "gflownet"]})
-    # Oracle
-    parser.add_argument(
-        "--oracle_seed",
-        type=int,
-        default=0,
-        help="Seed for oracle",
-    )
-    args2config.update({"oracle_seed": ["seeds", "oracle"]})
-    parser = add_bool_arg(parser, "nupack_energy_reweighting", default=False)
-    args2config.update(
-        {"nupack_energy_reweighting": ["dataset", "nupack_energy_reweighting"]}
-    )
-    parser.add_argument(
-        "--nupack_target_motif",
-        type=str,
-        default=".....(((((.......))))).....",
-        help="if using 'nupack motif' oracle, return value is the binary distance to this fold, must be <= max sequence length",
-    )
-    args2config.update({"nupack_target_motif": ["dataset", "nupack_target_motif"]})
     # Training hyperparameters
     parser.add_argument(
         "--loss", default="flowmatch", type=str, help="flowmatch | trajectorybalance/tb"
@@ -387,8 +345,8 @@ class GFlowNetAgent:
                 else:
                     self.comet.add_tag(args.gflownet.comet.tags)
             self.comet.log_parameters(vars(args))
-            if "workdir" in args and Path(args.workdir).exists():
-                with open(Path(args.workdir) / "comet.url", "w") as f:
+            if "logdir" in args and Path(args.logdir).exists():
+                with open(Path(args.logdir) / "comet.url", "w") as f:
                     f.write(self.comet.url + "\n")
         else:
             if isinstance(comet, Experiment):
@@ -451,13 +409,13 @@ class GFlowNetAgent:
         )
         self.reload_ckpt = args.gflownet.reload_ckpt
         if args.gflownet.model_ckpt:
-            if "workdir" in args and Path(args.workdir).exists():
-                if (Path(args.workdir) / "ckpts").exists():
+            if "logdir" in args and Path(args.logdir).exists():
+                if (Path(args.logdir) / "ckpts").exists():
                     self.model_path = (
-                        Path(args.workdir) / "ckpts" / args.gflownet.model_ckpt
+                        Path(args.logdir) / "ckpts" / args.gflownet.model_ckpt
                     )
                 else:
-                    self.model_path = Path(args.workdir) / args.gflownet.model_ckpt
+                    self.model_path = Path(args.logdir) / args.gflownet.model_ckpt
             else:
                 self.model_path = args.gflownet.model_ckpt
             if self.model_path.exists() and self.reload_ckpt:
@@ -1258,7 +1216,15 @@ def logq(path_list, actions_list, model, env):
     return log_q.item()
 
 
+@hydra.main(config_path='./config', config_name='main')
 def main(args):
+    # Reset seed for job-name generation in multirun jobs
+    random.seed(None)
+    # Log config
+    log_config = flatten_config(OmegaConf.to_container(config, resolve=True), sep='/')
+    log_config = {'/'.join(('config', key)): val for key, val in log_config.items()}
+    import ipdb; ipdb.set_trace()
+
     gflownet_agent = GFlowNetAgent(args)
     gflownet_agent.train()
 
@@ -1270,29 +1236,5 @@ def main(args):
 
 
 if __name__ == "__main__":
-    parser = ArgumentParser()
-    _, override_args = parser.parse_known_args()
-    parser, args2config = add_args(parser)
-    args = parser.parse_args()
-    config = get_config(args, override_args, args2config)
-    config = process_config(config)
-    print("Config file: " + config.yaml_config)
-    if config.workdir is not None:
-        print("Working dir: " + config.workdir)
-    print(
-        "Config:\n"
-        + "\n".join([f"    {k:20}: {v}" for k, v in vars(config.gflownet).items()])
-    )
-    if "workdir" in config and config.workdir is not None:
-        if not Path(config.workdir).exists() or config.overwrite_workdir:
-            Path(config.workdir).mkdir(parents=True, exist_ok=True)
-            with open(config.workdir + "/config.yml", "w") as f:
-                yaml.dump(
-                    numpy2python(namespace2dict(config)), f, default_flow_style=False
-                )
-            torch.set_num_threads(1)
-            main(config)
-        else:
-            print(f"workdir {config.workdir} already exists! - Ending run...")
-    else:
-        print(f"working directory not defined - Ending run...")
+    main()
+    sys.exit()
