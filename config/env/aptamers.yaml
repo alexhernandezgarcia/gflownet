@@ -1,7 +1,7 @@
 defaults:
   - base
 
-_target_: aptamers.AptamerSeq
+_target_: src.gflownet.envs.aptamers.AptamerSeq
 
 id: aptamers
 func: nupack energy

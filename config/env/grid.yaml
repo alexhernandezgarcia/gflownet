@@ -1,7 +1,7 @@
 defaults:
   - base
 
-_target_: grid.Grid
+_target_: src.gflownet.envs.grid.Grid
 
 id: grid
 func: corners

@@ -4,7 +4,7 @@ Classes to represent a hyper-grid environments
 import itertools
 import numpy as np
 import pandas as pd
-from gflownetenv import GFlowNetEnv
+from src.gflownet.envs.base import GFlowNetEnv
 
 
 class Grid(GFlowNetEnv):
