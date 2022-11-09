@@ -24,10 +24,10 @@ import hydra
 from omegaconf import OmegaConf, DictConfig
 
 # from gflownetenv import Buffer
-#from aptamers import AptamerSeq
-#from grid import Grid
-#from oracle import numbers2letters, Oracle
-#from utils import get_config, namespace2dict, numpy2python, add_bool_arg
+# from aptamers import AptamerSeq
+# from grid import Grid
+# from oracle import numbers2letters, Oracle
+# from utils import get_config, namespace2dict, numpy2python, add_bool_arg
 
 # Float and Long tensors
 _dev = [torch.device("cpu")]
@@ -953,9 +953,7 @@ def make_opt(params, Z, args):
                 }
             )
     elif args.gflownet.opt == "msgd":
-        opt = torch.optim.SGD(
-            params, args.gflownet.lr, momentum=args.gflownet.momentum
-        )
+        opt = torch.optim.SGD(params, args.gflownet.lr, momentum=args.gflownet.momentum)
     # Learning rate scheduling
     lr_scheduler = torch.optim.lr_scheduler.StepLR(
         opt,
@@ -1011,4 +1009,3 @@ def logq(path_list, actions_list, model, env):
         else:
             log_q = log_q_path
     return log_q.item()
-
