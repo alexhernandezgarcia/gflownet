@@ -44,23 +44,35 @@ def set_device(dev):
 class GFlowNetAgent:
     def __init__(
         self,
-        args,
+        env,
+        debug,
+        lightweight,
+        seed,
+        device,
+        optimizer,
         comet=None,
         proxy=None,
         al_iter=-1,
         data_path=None,
         sample_only=False,
+        **kwargs,
     ):
+        # Environment
+        self.env = env
         # Misc
-        self.rng = np.random.default_rng(args.seeds.gflownet)
-        self.debug = args.debug
-        self.device_torch = torch.device(args.gflownet.device)
+        self.debug = debug
+        self.lightweight = lightweight
+        # Seed
+        self.rng = np.random.default_rng(seed)
+        # Device
+        self.device_torch = torch.device(device)
         self.device = self.device_torch
         set_device(self.device_torch)
-        if args.gflownet.loss in ["flowmatch"]:
+        # Loss
+        if optimizer.loss in ["flowmatch"]:
             self.loss = "flowmatch"
             self.Z = None
-        elif args.gflownet.loss in ["trajectorybalance", "tb"]:
+        elif optimizer.loss in ["trajectorybalance", "tb"]:
             self.loss = "trajectorybalance"
             self.Z = nn.Parameter(torch.ones(64) * 150.0 / 64)
         else:
@@ -69,14 +81,10 @@ class GFlowNetAgent:
             self.Z = None
         if not sample_only:
             self.loss_eps = torch.tensor(float(1e-5)).to(self.device)
-        self.lightweight = not args.no_lightweight
-        self.tau = args.gflownet.bootstrap_tau
-        self.ema_alpha = args.gflownet.ema_alpha
-        self.early_stopping = args.gflownet.early_stopping
-        self.reward_norm = np.abs(args.gflownet.reward_norm)
-        self.reward_norm_std_mult = args.gflownet.reward_norm_std_mult
-        self.reward_beta = args.gflownet.reward_beta
-        self.reward_func = args.gflownet.reward_func
+        # Optimizer
+        self.tau = optimizer.bootstrap_tau
+        self.ema_alpha = optimizer.ema_alpha
+        self.early_stopping = optimizer.early_stopping
         if al_iter >= 0:
             self.al_iter = "_iter{}".format(al_iter)
         else:
@@ -98,28 +106,6 @@ class GFlowNetAgent:
             )
         elif self.env_id == "grid":
             self.oracle = None
-        else:
-            raise NotImplemented
-        # Environment
-        if self.env_id == "aptamers":
-            self.env = AptamerSeq(
-                args.gflownet.max_seq_length,
-                args.gflownet.min_seq_length,
-                args.gflownet.nalphabet,
-                args.gflownet.min_word_len,
-                args.gflownet.max_word_len,
-                proxy=proxy,
-                reward_beta=self.reward_beta,
-                reward_norm=self.reward_norm,
-                reward_func=self.reward_func,
-                oracle_func=self.oracle.score,
-                debug=self.debug,
-            )
-        elif self.env_id == "grid":
-            self.env = Grid(
-                reward_func=self.reward_func,
-                oracle_func=args.gflownet.func,
-            )
         else:
             raise NotImplemented
         self.buffer = Buffer(self.env, replay_capacity=args.gflownet.replay_capacity)
@@ -184,9 +170,9 @@ class GFlowNetAgent:
             print(f"\tMax score: {max_energies_tr}")
         else:
             self.energies_stats_tr = None
-        if self.reward_norm_std_mult > 0 and self.energies_stats_tr is not None:
-            self.reward_norm = self.reward_norm_std_mult * self.energies_stats_tr[3]
-            self.env.set_reward_norm(self.reward_norm)
+        if self.env.reward_norm_std_mult > 0 and self.energies_stats_tr is not None:
+            self.env.reward_norm = self.env.reward_norm_std_mult * self.energies_stats_tr[3]
+            self.env.set_reward_norm(self.env.reward_norm)
         # Test set statistics
         if self.buffer.test is not None:
             print("\nTest data")

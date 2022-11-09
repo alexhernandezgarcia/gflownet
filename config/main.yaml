@@ -2,8 +2,3 @@ defaults:
   - env: grid
   - gflownet: flowmatch
 
-logdir: /network/scratch/a/alex.hernandez-garcia/logs/gflownet
-overwrite_logdir: False
-device: cpu
-debug: False
-seed: 0

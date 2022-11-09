@@ -17,9 +17,9 @@ def main(config):
     log_config = {"/".join(("config", key)): val for key, val in log_config.items()}
 
     env = hydra.utils.instantiate(config.env)
+    gflownet = hydra.utils.instantiate(config.gflownet, env=env)
     import ipdb; ipdb.set_trace()
-    gflownet_agent = GFlowNetAgent(args)
-    gflownet_agent.train()
+    gflownet.train()
 
     # sample from the oracle, not from a proxy model
     batch, times = gflownet_agent.sample_batch(

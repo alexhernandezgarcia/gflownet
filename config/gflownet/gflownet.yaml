@@ -1,25 +1,45 @@
-_target_: gflownet.GFlowNetAgent
-progress: True
-no_lightweight: False
+_target_: src.gflownet.gflownet.GFlowNetAgent
+
+# General
+logdir: /network/scratch/a/alex.hernandez-garcia/logs/gflownet
+overwrite_logdir: False
 debug: False
+# Random seeds
+seed: 0
+# Device
+device: cpu
+# Logging
+progress: True
+lightweight: False
+# Checkpoints
 model_ckpt: null
 reload_ckpt: False
 ckpt_period: null
-# Threshold loss for early stopping
-early_stopping: 0.01
-# Coefficient for exponential moving average
-ema_alpha: 0.5
-# Optimizer: adam, sgd
-opt: adam
-adam_beta1: 0.9
-adam_beta2: 0.999
-# Momentum for SGD
-momentum: 0.9
-# Mini-batch size
-mbsize: 16
-train_to_sample_ratio: 1
-# Number of training iterations
-n_train_steps: 1000
+# Optimizer
+optimizer:
+  # Loss function
+  loss: flowmatch
+  # Learning rates
+  lr: 0.0001
+  lr_decay_period: 1000000
+  lr_decay_gamma: 0.5
+  method: adam
+  # Threshold loss for early stopping
+  early_stopping: 0.01
+  # Coefficient for exponential moving average
+  ema_alpha: 0.5
+  # Optimizer: adam, sgd
+  adam_beta1: 0.9
+  adam_beta2: 0.999
+  # Momentum for SGD
+  sgd_momentum: 0.9
+  # Mini-batch size
+  batch_size: 10
+  # Train to sample ratio
+  train_to_sample_ratio: 1
+  # Number of training iterations
+  n_train_steps: 1000
+  bootstrap_tau: 0.0
 # Period (number of iterations) for computing test metrics
 test_period: 100
 # Period (number of iterations) for computing oracle metrics
@@ -43,4 +63,3 @@ pct_batch_empirical: 1.0
 replay_capacity: 0
 # From original implementation
 clip_grad_norm: 0.0
-bootstrap_tau: 0.0
