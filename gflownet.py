@@ -36,208 +36,6 @@ tf = lambda x: torch.FloatTensor(x).to(_dev[0])
 tl = lambda x: torch.LongTensor(x).to(_dev[0])
 
 
-def add_args(parser):
-    """
-    Adds command-line arguments to parser
-
-    Returns:
-        argparse.Namespace: the parsed arguments
-    """
-    # General
-    parser.add_argument(
-        "--rng_seed",
-        type=int,
-        default=0,
-        help="Seed for random number generator",
-    )
-    args2config.update({"rng_seed": ["seeds", "gflownet"]})
-    # Training hyperparameters
-    parser.add_argument(
-        "--loss", default="flowmatch", type=str, help="flowmatch | trajectorybalance/tb"
-    )
-    args2config.update({"loss": ["gflownet", "loss"]})
-    parser.add_argument(
-        "--lr_z_mult",
-        default=10,
-        type=int,
-        help="Multiplicative factor of the Z learning rate",
-    )
-    args2config.update({"lr_z_mult": ["gflownet", "lr_z_mult"]})
-    parser.add_argument(
-        "--early_stopping",
-        default=0.01,
-        help="Threshold loss for early stopping",
-        type=float,
-    )
-    args2config.update({"early_stopping": ["gflownet", "early_stopping"]})
-    parser.add_argument(
-        "--ema_alpha",
-        default=0.5,
-        help="alpha coefficient for exponential moving average",
-        type=float,
-    )
-    args2config.update({"ema_alpha": ["gflownet", "ema_alpha"]})
-    parser.add_argument(
-        "--learning_rate", default=1e-4, help="Learning rate", type=float
-    )
-    args2config.update({"learning_rate": ["gflownet", "learning_rate"]})
-    parser.add_argument(
-        "--lr_decay_period", default=1e6, help="Learning rate decay period", type=int
-    )
-    args2config.update({"lr_decay_period": ["gflownet", "lr", "decay_period"]})
-    parser.add_argument(
-        "--lr_decay_gamma", default=0.5, help="Learning rate decay gamma", type=float
-    )
-    args2config.update({"lr_decay_gamma": ["gflownet", "lr", "decay_gamma"]})
-    parser.add_argument("--opt", default="adam", type=str)
-    args2config.update({"opt": ["gflownet", "opt"]})
-    parser.add_argument("--adam_beta1", default=0.9, type=float)
-    args2config.update({"adam_beta1": ["gflownet", "adam_beta1"]})
-    parser.add_argument("--adam_beta2", default=0.999, type=float)
-    args2config.update({"adam_beta2": ["gflownet", "adam_beta2"]})
-    parser.add_argument(
-        "--reward_beta",
-        default=1,
-        type=float,
-        help="Initial beta for exponential reward scaling",
-    )
-    args2config.update({"reward_beta": ["gflownet", "reward_beta"]})
-    parser.add_argument(
-        "--reward_norm",
-        default=1.0,
-        type=float,
-        help="Factor for the reward normalization",
-    )
-    args2config.update({"reward_norm": ["gflownet", "reward_norm"]})
-    parser.add_argument(
-        "--reward_norm_std_mult",
-        default=0.0,
-        type=float,
-        help="Multiplier of the standard deviation for the reward normalization",
-    )
-    args2config.update({"reward_norm_std_mult": ["gflownet", "reward_norm_std_mult"]})
-    parser.add_argument(
-        "--reward_func",
-        default=1,
-        type=float,
-        help="Function for rewards transformation: power or boltzmann",
-    )
-    args2config.update({"reward_func": ["gflownet", "reward_func"]})
-    parser.add_argument("--momentum", default=0.9, type=float)
-    args2config.update({"momentum": ["gflownet", "momentum"]})
-    parser.add_argument("--mbsize", default=16, help="Minibatch size", type=int)
-    args2config.update({"mbsize": ["gflownet", "mbsize"]})
-    parser.add_argument("--train_to_sample_ratio", default=1, type=float)
-    args2config.update({"train_to_sample_ratio": ["gflownet", "train_to_sample_ratio"]})
-    parser.add_argument("--n_hid", default=256, type=int)
-    args2config.update({"n_hid": ["gflownet", "n_hid"]})
-    parser.add_argument("--n_layers", default=2, type=int)
-    args2config.update({"n_layers": ["gflownet", "n_layers"]})
-    parser.add_argument("--n_train_steps", default=20000, type=int)
-    args2config.update({"n_train_steps": ["gflownet", "n_iter"]})
-    parser.add_argument(
-        "--num_empirical_loss",
-        default=200000,
-        type=int,
-        help="Number of samples used to compute the empirical distribution loss",
-    )
-    args2config.update({"num_empirical_loss": ["gflownet", "num_empirical_loss"]})
-    parser.add_argument("--clip_grad_norm", default=0.0, type=float)
-    args2config.update({"clip_grad_norm": ["gflownet", "clip_grad_norm"]})
-    parser.add_argument("--temperature_logits", default=0.0, type=float)
-    args2config.update({"temperature_logits": ["gflownet", "temperature_logits"]})
-    parser.add_argument("--pct_batch_empirical", default=1.0, type=float)
-    args2config.update({"pct_batch_empirical": ["gflownet", "pct_batch_empirical"]})
-    parser.add_argument("--replay_capacity", default=0, type=int)
-    args2config.update({"replay_capacity": ["gflownet", "replay_capacity"]})
-    # Environment
-    parser.add_argument("--env_id", default="aptamers")
-    args2config.update({"env_id": ["gflownet", "env_id"]})
-    parser.add_argument("--func", default="arbitrary_i")
-    args2config.update({"func": ["gflownet", "func"]})
-    parser.add_argument(
-        "--max_seq_length",
-        default=40,
-        help="Maximum number of episodes; maximum sequence length",
-        type=int,
-    )
-    args2config.update({"max_seq_length": ["gflownet", "max_seq_length"]})
-    parser.add_argument(
-        "--min_seq_length",
-        default=1,
-        help="Minimum sequence length",
-        type=int,
-    )
-    args2config.update({"min_seq_length": ["gflownet", "min_seq_length"]})
-    parser.add_argument("--nalphabet", default=4, type=int)
-    args2config.update({"nalphabet": ["gflownet", "nalphabet"]})
-    parser.add_argument("--min_word_len", default=1, type=int)
-    args2config.update({"min_word_len": ["gflownet", "min_word_len"]})
-    parser.add_argument("--max_word_len", default=1, type=int)
-    args2config.update({"max_word_len": ["gflownet", "max_word_len"]})
-    args2config.update({"learning_rate": ["gflownet", "learning_rate"]})
-    # Sampling
-    parser.add_argument("--bootstrap_tau", default=0.0, type=float)
-    args2config.update({"bootstrap_tau": ["gflownet", "bootstrap_tau"]})
-    parser.add_argument("--batch_reward", action="store_true")
-    args2config.update({"batch_reward": ["gflownet", "batch_reward"]})
-    # Train set
-    parser.add_argument("--train_set_path", default=None, type=str)
-    args2config.update({"train_set_path": ["gflownet", "train", "path"]})
-    parser.add_argument("--ntrain", default=10000, type=int)
-    args2config.update({"ntrain": ["gflownet", "train", "n"]})
-    parser.add_argument("--train_set_seed", default=167, type=int)
-    args2config.update({"train_set_seed": ["gflownet", "train", "seed"]})
-    parser.add_argument("--train_output", default=None, type=str)
-    args2config.update({"train_output": ["gflownet", "train", "output"]})
-    # Test set
-    parser.add_argument("--test_set_path", default=None, type=str)
-    args2config.update({"test_set_path": ["gflownet", "test", "path"]})
-    parser.add_argument("--test_set_base", default=None, type=str)
-    args2config.update({"test_set_base": ["gflownet", "test", "base"]})
-    parser.add_argument("--test_set_seed", default=167, type=int)
-    args2config.update({"test_set_seed": ["gflownet", "test", "seed"]})
-    parser.add_argument("--ntest", default=10000, type=int)
-    args2config.update({"ntest": ["gflownet", "test", "n"]})
-    parser.add_argument("--test_output", default=None, type=str)
-    args2config.update({"test_output": ["gflownet", "test", "output"]})
-    parser.add_argument("--test_period", default=500, type=int)
-    args2config.update({"test_period": ["gflownet", "test", "period"]})
-    # Oracle metrics
-    parser.add_argument("--oracle_period", default=500, type=int)
-    args2config.update({"oracle_period": ["gflownet", "oracle", "period"]})
-    parser.add_argument("--oracle_nsamples", default=500, type=int)
-    args2config.update({"oracle_nsamples": ["gflownet", "oracle", "nsamples"]})
-    parser.add_argument(
-        "--oracle_k",
-        default=[1, 10, 100],
-        nargs="*",
-        type=int,
-        help="List of K, for Top-K",
-    )
-    args2config.update({"oracle_k": ["gflownet", "oracle", "k"]})
-    # Comet
-    parser.add_argument("--comet_project", default=None, type=str)
-    args2config.update({"comet_project": ["gflownet", "comet", "project"]})
-    parser.add_argument(
-        "-t", "--tags", nargs="*", help="Comet.ml tags", default=[], type=str
-    )
-    args2config.update({"tags": ["gflownet", "comet", "tags"]})
-    parser.add_argument("--no_comet", action="store_true")
-    args2config.update({"no_comet": ["gflownet", "comet", "skip"]})
-    parser.add_argument("--no_log_times", action="store_true")
-    args2config.update({"no_log_times": ["gflownet", "no_log_times"]})
-    parser.add_argument(
-        "--n_samples",
-        type=int,
-        default=10000,
-        help="Sequences to sample",
-    )
-    args2config.update({"n_samples": ["gflownet", "n_samples"]})
-
-    return parser, args2config
-
-
 def process_config(config):
     if "score" not in config.gflownet.test or "nupack" in config.gflownet.test.score:
         config.gflownet.test.score = config.gflownet.func.replace("nupack ", "")
@@ -1145,19 +943,19 @@ def make_opt(params, Z, args):
     if args.gflownet.opt == "adam":
         opt = torch.optim.Adam(
             params,
-            args.gflownet.learning_rate,
+            args.gflownet.lr,
             betas=(args.gflownet.adam_beta1, args.gflownet.adam_beta2),
         )
         if Z is not None:
             opt.add_param_group(
                 {
                     "params": Z,
-                    "lr": args.gflownet.learning_rate * args.gflownet.lr_z_mult,
+                    "lr": args.gflownet.lr * args.gflownet.lr_z_mult,
                 }
             )
     elif args.gflownet.opt == "msgd":
         opt = torch.optim.SGD(
-            params, args.gflownet.learning_rate, momentum=args.gflownet.momentum
+            params, args.gflownet.lr, momentum=args.gflownet.momentum
         )
     # Learning rate scheduling
     lr_scheduler = torch.optim.lr_scheduler.StepLR(

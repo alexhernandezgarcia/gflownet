@@ -5,4 +5,42 @@ debug: False
 model_ckpt: null
 reload_ckpt: False
 ckpt_period: null
-
+# Threshold loss for early stopping
+early_stopping: 0.01
+# Coefficient for exponential moving average
+ema_alpha: 0.5
+# Optimizer: adam, sgd
+opt: adam
+adam_beta1: 0.9
+adam_beta2: 0.999
+# Momentum for SGD
+momentum: 0.9
+# Mini-batch size
+mbsize: 16
+train_to_sample_ratio: 1
+# Number of training iterations
+n_train_steps: 1000
+# Period (number of iterations) for computing test metrics
+test_period: 100
+# Period (number of iterations) for computing oracle metrics
+oracle_period: 100
+# Number of samples for oracle metrics
+oracle_nsamples: 500
+# List of K, for Top-K oracle metrics
+oracle_k:
+  - 1
+  - 10
+  - 100
+# Number of samples used to compute the empirical distribution loss
+num_empirical_loss: 200000
+# If True, compute rewards in batches
+batch_reward: True
+# Temperature for the logits /= temperature_logits
+temperature_logits: 1.0
+# Percentage of trajectories in a batch from an empirical distribution
+pct_batch_empirical: 1.0
+# Replay buffer
+replay_capacity: 0
+# From original implementation
+clip_grad_norm: 0.0
+bootstrap_tau: 0.0
