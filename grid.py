@@ -42,7 +42,7 @@ class Grid(GFlowNetEnv):
         energies_stats=None,
         proxy=None,
         oracle_func="default",
-        debug=False,
+        **kwargs,
     ):
         super(Grid, self).__init__(
             env_id,
@@ -53,7 +53,7 @@ class Grid(GFlowNetEnv):
             denorm_proxy,
             proxy,
             oracle_func,
-            debug,
+            **kwargs,
         )
         self.n_dim = n_dim
         self.state = [0 for _ in range(self.n_dim)]

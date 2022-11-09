@@ -5,7 +5,6 @@ import itertools
 import numpy as np
 import pandas as pd
 from gflownetenv import GFlowNetEnv
-from oracle import numbers2letters
 import time
 
 
@@ -51,7 +50,6 @@ class AptamerSeq(GFlowNetEnv):
         min_word_len=1,
         max_word_len=1,
         proxy=None,
-        debug=False,
         reward_beta=1,
         env_id=None,
         oracle_func=None,
@@ -59,6 +57,7 @@ class AptamerSeq(GFlowNetEnv):
         reward_norm=1.0,
         reward_func="power",
         denorm_proxy=False,
+        **kwargs,
     ):
         super(AptamerSeq, self).__init__(
             env_id,
@@ -69,7 +68,7 @@ class AptamerSeq(GFlowNetEnv):
             denorm_proxy,
             proxy,
             oracle_func,
-            debug,
+            **kwargs,
         )
         self.state = []
         self.min_seq_length = min_seq_length

@@ -1,6 +1,8 @@
 defaults:
   - base
 
+_target_: grid.Grid
+
 id: grid
 func: corners
 # Dimensions of hypergrid

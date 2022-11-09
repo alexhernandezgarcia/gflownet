@@ -21,7 +21,7 @@ class GFlowNetEnv:
         denorm_proxy=False,
         proxy=None,
         oracle_func=None,
-        debug=False,
+        **kwargs,
     ):
         self.state = []
         self.done = False
@@ -44,7 +44,6 @@ class GFlowNetEnv:
             else self.proxy2reward(self.proxy(self.state2oracle(x)))
         )
         self._true_density = None
-        self.debug = debug
         self.action_space = []
         self.eos = len(self.action_space)
         # Assertions

@@ -1021,8 +1021,9 @@ def main(config):
     # Log config
     log_config = flatten_config(OmegaConf.to_container(config, resolve=True), sep='/')
     log_config = {'/'.join(('config', key)): val for key, val in log_config.items()}
-    import ipdb; ipdb.set_trace()
 
+    env = hydra.utils.instantiate(config.env)
+    import ipdb; ipdb.set_trace()
     gflownet_agent = GFlowNetAgent(args)
     gflownet_agent.train()
 
