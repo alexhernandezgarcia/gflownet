@@ -23,11 +23,10 @@ import random
 import hydra
 from omegaconf import OmegaConf, DictConfig
 
-from gflownetenv import Buffer
+# from gflownetenv import Buffer
 #from aptamers import AptamerSeq
 #from grid import Grid
 #from oracle import numbers2letters, Oracle
-from utils.common import flatten_config
 #from utils import get_config, namespace2dict, numpy2python, add_bool_arg
 
 # Float and Long tensors
@@ -1013,27 +1012,3 @@ def logq(path_list, actions_list, model, env):
             log_q = log_q_path
     return log_q.item()
 
-
-@hydra.main(config_path='./config', config_name='main')
-def main(config):
-    # Reset seed for job-name generation in multirun jobs
-    random.seed(None)
-    # Log config
-    log_config = flatten_config(OmegaConf.to_container(config, resolve=True), sep='/')
-    log_config = {'/'.join(('config', key)): val for key, val in log_config.items()}
-
-    env = hydra.utils.instantiate(config.env)
-    import ipdb; ipdb.set_trace()
-    gflownet_agent = GFlowNetAgent(args)
-    gflownet_agent.train()
-
-    # sample from the oracle, not from a proxy model
-    batch, times = gflownet_agent.sample_batch(
-        gflownet_agent.env, args.gflownet.n_samples, train=False
-    )
-    samples, times = batch2dict(batch, gflownet_agent.env, get_uncertainties=False)
-
-
-if __name__ == "__main__":
-    main()
-    sys.exit()
