@@ -8,13 +8,13 @@ from omegaconf import OmegaConf, DictConfig
 from src.gflownet.utils.common import flatten_config
 
 
-@hydra.main(config_path='./config', config_name='main')
+@hydra.main(config_path="./config", config_name="main")
 def main(config):
     # Reset seed for job-name generation in multirun jobs
     random.seed(None)
     # Log config
-    log_config = flatten_config(OmegaConf.to_container(config, resolve=True), sep='/')
-    log_config = {'/'.join(('config', key)): val for key, val in log_config.items()}
+    log_config = flatten_config(OmegaConf.to_container(config, resolve=True), sep="/")
+    log_config = {"/".join(("config", key)): val for key, val in log_config.items()}
 
     env = hydra.utils.instantiate(config.env)
     import ipdb; ipdb.set_trace()
