@@ -29,6 +29,8 @@ from utils import get_config, namespace2dict, numpy2python, add_bool_arg
 _dev = [torch.device("cpu")]
 tf = lambda x: torch.FloatTensor(x).to(_dev[0])
 tl = lambda x: torch.LongTensor(x).to(_dev[0])
+index_where_equal = lambda x: (x[0] == x[1]).nonzero()
+select_index = lambda x: torch.index_select(x[0], 0, x[1])
 
 
 def add_args(parser):
@@ -379,7 +381,9 @@ class GFlowNetAgent:
             and not sample_only
         ):
             self.comet = Experiment(
-                project_name=args.gflownet.comet.project, display_summary_level=0
+                api_key="yfb47DTb672JJIZS0YKVaCKOX",
+                project_name=args.gflownet.comet.project,
+                display_summary_level=0,
             )
             if args.gflownet.comet.tags:
                 if isinstance(args.gflownet.comet.tags, list):
@@ -447,7 +451,7 @@ class GFlowNetAgent:
         self.model = make_mlp(
             [self.env.obs_dim]
             + [args.gflownet.n_hid] * args.gflownet.n_layers
-            + [(len(self.env.action_space) + 1)*2]
+            + [(len(self.env.action_space) + 1) * 2]
         )
         self.reload_ckpt = args.gflownet.reload_ckpt
         if args.gflownet.model_ckpt:
@@ -521,7 +525,7 @@ class GFlowNetAgent:
         t0_a_model = time.time()
         if policy == "model":
             with torch.no_grad():
-                action_logits = model(tf(states))[..., :len(self.env.action_space) + 1]
+                action_logits = model(tf(states))[..., : len(self.env.action_space) + 1]
             action_logits /= temperature
         elif policy == "uniform":
             action_logits = tf(np.zeros(len(states)), len(self.env.action_space) + 1)
@@ -568,9 +572,9 @@ class GFlowNetAgent:
         parents, parents_a = env.get_parents(env.state, done)
         if policy == "model":
             with torch.no_grad():
-                action_logits = model(tf(parents))[..., :len(self.env.action_space) + 1][
-                    torch.arange(len(parents)), parents_a
-                ]
+                action_logits = model(tf(parents))[
+                    ..., : len(self.env.action_space) + 1
+                ][torch.arange(len(parents)), parents_a]
             action_logits /= temperature
             if all(torch.isfinite(action_logits).flatten()):
                 action_idx = Categorical(logits=action_logits).sample().item()
@@ -772,7 +776,9 @@ class GFlowNetAgent:
                 ipdb.set_trace()
 
         # Q(s,a)
-        parents_Qsa = self.model(parents)[..., :len(self.env.action_space) + 1][torch.arange(parents.shape[0]), actions]
+        parents_Qsa = self.model(parents)[..., : len(self.env.action_space) + 1][
+            torch.arange(parents.shape[0]), actions
+        ]
 
         # log(eps + exp(log(Q(s,a)))) : qsa
         in_flow = torch.log(
@@ -788,7 +794,7 @@ class GFlowNetAgent:
                 next_q = self.target(sp)
         else:
             # TODO: potentially mask invalid actions next_q
-            next_q = self.model(sp)[..., :len(self.env.action_space) + 1]
+            next_q = self.model(sp)[..., : len(self.env.action_space) + 1]
         # basically outflow, ie sum of all outgoing edges from the state
         qsp = torch.logsumexp(next_q, 1)
         # outflow is 0 if state is done
@@ -839,41 +845,67 @@ class GFlowNetAgent:
         # End Delete
 
         # Unpack batch
-        # parents_a here is the all the parents of that state
-        # actions_a is all actions from each parent
-        states_a, _, rewards_a, parents_a, actions_a, done_a, path_id_parents_a, _ = zip(*batch)
-        path_id = torch.cat([el[:1] for el in path_id_parents_a]) #path_id.shape = parents.shape, analogous to batch_idx
-        # Begin Delete
-        states_cat = torch.cat(states_a)
-        # End Delete
+        (
+            states_b,
+            actions_b,
+            rewards_b,
+            parents_b,
+            parents_action_b,
+            done_b,
+            path_id_parents_b,
+            _,
+        ) = zip(*batch)
+        indices = list(map(index_where_equal, zip(parents_action_b, actions_b)))
+        indices = torch.cat(indices)
+        parent_of_state_in_traj = list(map(select_index, zip(parents_b, indices)))
+
+        path_id = torch.cat(
+            [el[:1] for el in path_id_parents_b]
+        )  # path_id.shape = parents.shape, analogous to batch_idx
         # first modify states_a to have duplicates here and then feed states_a into the below mapping
-        
+
         states, rewards, parents, actions, done, path_id_parents = map(
-            torch.cat, [states_a, rewards_a, parents_a, actions_a, done_a, path_id_parents_a]
+            torch.cat,
+            [
+                states_b,
+                rewards_b,
+                parent_of_state_in_traj,
+                actions_b,
+                done_b,
+                path_id_parents_b,
+            ],
         )
         # states = (38, 6)
         # parents = (46, 6)
         # Log probs of each (s, a)
         y = self.model(parents)
-        logprobs_f_1 = self.logsoftmax(self.model(parents)[..., :len(self.env.action_space)+1]) #(46, 3)
-        logprobs_f = logprobs_f_1[
-            torch.arange(parents.shape[0]), actions
-        ]
-        # logprobs_b_1 = self.logsoftmax(self.model(states)[..., len(self.env.action_space)+1:])
-        # logprobs_b = logprobs_b_1[
-        #     torch.arange(states.shape[0]), actions
-        # ]
+        logprobs_f_1 = self.logsoftmax(
+            self.model(parents)[..., : len(self.env.action_space) + 1]
+        )  # (46, 3)
+        logprobs_f = logprobs_f_1[torch.arange(parents.shape[0]), actions]
+        logprobs_b_1 = self.logsoftmax(
+            self.model(states)[..., len(self.env.action_space) + 1 :]
+        )
+        logprobs_b = logprobs_b_1[torch.arange(states.shape[0]), actions]
         # Sum of log probs
         sumlogprobs_f = tf(
             torch.zeros(len(torch.unique(path_id, sorted=True)))
-        ).index_add_(0, path_id_parents, logprobs_f)
-        # sumlogprobs_b = tf(
-        #     torch.zeros(len(torch.unique(path_id, sorted=True)))
-        # ).index_add_(0, path_id_parents, logprobs_b)
+        ).index_add_(0, path_id, logprobs_f)
+        sumlogprobs_b = tf(
+            torch.zeros(len(torch.unique(path_id, sorted=True)))
+        ).index_add_(0, path_id, logprobs_b)
         # Sort rewards of done states by ascending path id
         rewards = rewards[done.eq(1)][torch.argsort(path_id[done.eq(1)])]
         # Trajectory balance loss
-        loss = (self.Z.sum() + sumlogprobs_f - torch.log((rewards).clamp_min(self.reward_clip_min))).pow(2).mean()
+        loss = (
+            (
+                self.Z.sum()
+                + sumlogprobs_f
+                - torch.log((rewards).clamp_min(self.reward_clip_min))
+            )
+            .pow(2)
+            .mean()
+        )
 
         # loss = (self.Z.sum() + sumlogprobs_f - torch.log((rewards).clamp_min(self.reward_clip_min))- sumlogprobs_b).pow(2).mean()
         return loss, loss, loss
@@ -1271,13 +1303,22 @@ def logq(path_list, actions_list, model, env):
     # TODO: this method is probably suboptimal, since it may repeat forward calls for
     # the same nodes.
     log_q = torch.tensor(1.0)
+    loginf = 1e3
     for path, actions in zip(path_list, actions_list):
         path = path[::-1]
         actions = actions[::-1]
         path_obs = np.asarray([env.state2obs(state) for state in path])
+        done = [0 for _ in range(len(path))]
+        masks = tf(
+            [
+                env.get_mask_invalid_actions(path[idx], done[idx])
+                for idx in range(len(path))
+            ]
+        )
         with torch.no_grad():
             # TODO: potentially mask invalid actions next_q
-            logits_path = model(tf(path_obs))[..., :len(env.action_space) + 1]
+            logits_path = model(tf(path_obs))[..., : len(env.action_space) + 1]
+        logits_path = torch.where(masks == 0, logits_path, -loginf)
         logsoftmax = torch.nn.LogSoftmax(dim=1)
         logprobs_path = logsoftmax(logits_path)
         log_q_path = torch.tensor(0.0)
@@ -1308,14 +1349,16 @@ if __name__ == "__main__":
     parser, args2config = add_args(parser)
     # Begin Delete
     args = parser.parse_args()
-    args.yaml_config = "/home/mila/n/nikita.saxena/ActiveLearningPipeline/config/grid/default.yml"
+    args.yaml_config = (
+        "/home/mila/n/nikita.saxena/ActiveLearningPipeline/config/grid/default.yml"
+    )
     args.workdir = "/home/mila/n/nikita.saxena/ActiveLearningPipeline/dummy"
     args.overwrite_workdir = True
     # End Delete
     config = get_config(args, override_args, args2config)
     config = process_config(config)
     # Begin Delete
-    config.gflownet.comet.skip = True
+    config.gflownet.comet.skip = False
     config.gflownet.loss = "tb"
     # End Delete
     print("Config file: " + config.yaml_config)
