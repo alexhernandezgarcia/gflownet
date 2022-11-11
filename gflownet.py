@@ -788,9 +788,7 @@ class GFlowNetAgent:
         else:
             # TODO: potentially mask invalid actions next_q
             next_q = self.model(sp)[..., : len(self.env.action_space) + 1]
-        # basically outflow, ie sum of all outgoing edges from the state
         qsp = torch.logsumexp(next_q, 1)
-        # outflow is 0 if state is done
         # qsp: qsp if not done; -loginf if done
         qsp = qsp * (1 - done) - loginf * done
         out_flow = torch.logaddexp(torch.log(r + self.loss_eps), qsp)
@@ -878,12 +876,8 @@ class GFlowNetAgent:
         ).index_add_(0, path_id, logprobs_b)
         # Sort rewards of done states by ascending path id
         reward = reward[done.eq(1)][torch.argsort(path_id[done.eq(1)])]
-        # Trajectory balance loss
-        loss = (
-            (self.Z.sum() + sumlogprobs_f - torch.log(reward) - sumlogprobs_b)
-            .pow(2)
-            .mean()
-        )
+        # Trajectory balance loss sumlogprobs_b
+        loss = (self.Z.sum() + sumlogprobs_f - torch.log(reward)).pow(2).mean()
         return loss, loss, loss
 
     def unpack_terminal_states(self, batch):
@@ -1293,11 +1287,8 @@ def logq(path_list, actions_list, model, env):
         )
         with torch.no_grad():
             # TODO: potentially mask invalid actions next_q
-            logits_path = model(tf(path_obs))
-        logits_path = torch.where(
-            masks == 0, logits_path[..., : len(env.action_space) + 1], -loginf
-        )
-        logits_path[..., len(env.action_space) + 1 :] = -loginf
+            logits_path = model(tf(path_obs))[..., : len(env.action_space) + 1]
+        logits_path = torch.where(masks == 0, logits_path, -loginf)
         logsoftmax = torch.nn.LogSoftmax(dim=1)
         logprobs_path = logsoftmax(logits_path)
         log_q_path = torch.tensor(0.0)
@@ -1326,6 +1317,7 @@ if __name__ == "__main__":
     parser = ArgumentParser()
     _, override_args = parser.parse_known_args()
     parser, args2config = add_args(parser)
+    args = parser.parse_args()
     config = get_config(args, override_args, args2config)
     config = process_config(config)
     print("Config file: " + config.yaml_config)
