@@ -379,7 +379,9 @@ class GFlowNetAgent:
             and not sample_only
         ):
             self.comet = Experiment(
-                project_name=args.gflownet.comet.project, display_summary_level=0
+                api_key="yfb47DTb672JJIZS0YKVaCKOX",
+                project_name=args.gflownet.comet.project,
+                display_summary_level=0,
             )
             if args.gflownet.comet.tags:
                 if isinstance(args.gflownet.comet.tags, list):
@@ -1267,7 +1269,7 @@ def logq(path_list, actions_list, model, env):
         path = path[::-1]
         actions = actions[::-1]
         path_obs = np.asarray([env.state2obs(state) for state in path])
-        done = [0] * len(path)
+        done = [0 for _ in range(len(path))]
         masks = tf(
             [
                 env.get_mask_invalid_actions(path[idx], done[idx])
