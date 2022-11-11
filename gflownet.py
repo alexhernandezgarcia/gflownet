@@ -600,6 +600,7 @@ class GFlowNetAgent:
                 - [5] done [True, False]
                 - [6] path id: identifies each path
                 - [7] state id: identifies each state within a path
+                - [8] mask: invalid actions for that state are 1
         else:
             Each item in the batch is a list of 1 element:
                 - [0] the states (state)
@@ -633,6 +634,7 @@ class GFlowNetAgent:
                 action = env.eos
                 parents = [env.state2obs(env.state)]
                 parents_a = [action]
+                mask = env.get_mask_invalid_actions()
                 n_actions = 0
                 while len(env.state) > 0:
                     batch.append(
@@ -645,6 +647,7 @@ class GFlowNetAgent:
                             env.done,
                             tl([env.id] * len(parents)),
                             tl([n_actions]),
+                            tf([mask]),
                         ]
                     )
                     # Backward sampling
@@ -676,6 +679,7 @@ class GFlowNetAgent:
             for env, action, valid in zip(envs, actions, valids):
                 if valid:
                     parents, parents_a = env.get_parents()
+                    mask = env.get_mask_invalid_actions()
                     if train:
                         batch.append(
                             [
@@ -687,6 +691,7 @@ class GFlowNetAgent:
                                 env.done,
                                 tl([env.id] * len(parents)),
                                 tl([env.n_actions - 1]),
+                                tf([mask]),
                             ]
                         )
                     else:
@@ -750,7 +755,7 @@ class GFlowNetAgent:
                 [],
             )
         )
-        sp, _, r, parents, actions, done, _, _ = map(torch.cat, zip(*batch))
+        sp, _, r, parents, actions, done, _, _, masks = map(torch.cat, zip(*batch))
         # Sanity check if negative rewards
         if self.debug and torch.any(r < 0):
             neg_r_idx = torch.where(r < 0)[0].tolist()
@@ -782,6 +787,7 @@ class GFlowNetAgent:
         else:
             # TODO: potentially mask invalid actions next_q
             next_q = self.model(sp)
+        next_q = torch.where(masks == 0, next_q, -self.loginf)
         qsp = torch.logsumexp(next_q, 1)
         # qsp: qsp if not done; -loginf if done
         qsp = qsp * (1 - done) - loginf * done
@@ -826,7 +832,7 @@ class GFlowNetAgent:
             Loss of the intermediate nodes only
         """
         # Unpack batch
-        _, _, rewards, parents, actions, done, path_id_parents, _ = zip(*batch)
+        _, _, rewards, parents, actions, done, path_id_parents, _, _ = zip(*batch)
         path_id = torch.cat([el[:1] for el in path_id_parents])
         rewards, parents, actions, done, path_id_parents = map(
             torch.cat, [rewards, parents, actions, done, path_id_parents]
@@ -1238,13 +1244,19 @@ def logq(path_list, actions_list, model, env):
     # TODO: this method is probably suboptimal, since it may repeat forward calls for
     # the same nodes.
     log_q = torch.tensor(1.0)
+    loginf = 1e3
     for path, actions in zip(path_list, actions_list):
         path = path[::-1]
         actions = actions[::-1]
         path_obs = np.asarray([env.state2obs(state) for state in path])
+        done = [0] * len(path)
+        masks = tf(
+                [env.get_mask_invalid_actions(path[idx], done[idx]) for idx in range(len(path))]
+            )
         with torch.no_grad():
             # TODO: potentially mask invalid actions next_q
             logits_path = model(tf(path_obs))
+        logits_path = torch.where(masks == 0, logits_path, loginf)
         logsoftmax = torch.nn.LogSoftmax(dim=1)
         logprobs_path = logsoftmax(logits_path)
         log_q_path = torch.tensor(0.0)
