@@ -381,7 +381,6 @@ class GFlowNetAgent:
             and not sample_only
         ):
             self.comet = Experiment(
-                api_key="yfb47DTb672JJIZS0YKVaCKOX",
                 project_name=args.gflownet.comet.project,
                 display_summary_level=0,
             )
@@ -573,7 +572,7 @@ class GFlowNetAgent:
         if policy == "model":
             with torch.no_grad():
                 action_logits = model(tf(parents))[
-                    ..., : len(self.env.action_space) + 1
+                    ..., len(self.env.action_space) + 1 :
                 ][torch.arange(len(parents)), parents_a]
             action_logits /= temperature
             if all(torch.isfinite(action_logits).flatten()):
@@ -618,9 +617,6 @@ class GFlowNetAgent:
             "actions_envs": 0.0,
             "rewards": 0.0,
         }
-        # Begin Delete
-        # states_a, _, rewards_a, parents_a, actions_a, done_a, path_id_parents_a, _
-        # End Delete
         t0_all = time.time()
         batch = []
         if model is None:
@@ -758,9 +754,6 @@ class GFlowNetAgent:
                 [],
             )
         )
-        # Begin Delete
-        # states_a, _, rewards_a, parents_a, actions_a, done_a, path_id_parents_a, _
-        # End Delete
         sp, _, r, parents, actions, done, _, _ = map(torch.cat, zip(*batch))
         # Sanity check if negative rewards
         if self.debug and torch.any(r < 0):
@@ -840,53 +833,42 @@ class GFlowNetAgent:
         flow_loss : float
             Loss of the intermediate nodes only
         """
-        # Begin Delete
-        # obs, actions, rewards, parents, parents_a, done, path_id, state_id
-        # End Delete
-
         # Unpack batch
         (
-            states_b,
-            actions_b,
-            rewards_b,
-            parents_b,
-            parents_action_b,
-            done_b,
-            path_id_parents_b,
+            state,
+            last_action,
+            reward,
+            parents,
+            parents_a,
+            done,
+            path_id_parents,
             _,
         ) = zip(*batch)
-        indices = list(map(index_where_equal, zip(parents_action_b, actions_b)))
+        indices = list(map(index_where_equal, zip(parents_a, last_action)))
         indices = torch.cat(indices)
-        parent_of_state_in_traj = list(map(select_index, zip(parents_b, indices)))
+        parent_of_state_in_traj = list(map(select_index, zip(parents, indices)))
 
-        path_id = torch.cat(
-            [el[:1] for el in path_id_parents_b]
-        )  # path_id.shape = parents.shape, analogous to batch_idx
-        # first modify states_a to have duplicates here and then feed states_a into the below mapping
+        path_id = torch.cat([el[:1] for el in path_id_parents])
 
-        states, rewards, parents, actions, done, path_id_parents = map(
+        state, reward, parents, last_action, done = map(
             torch.cat,
             [
-                states_b,
-                rewards_b,
+                state,
+                reward,
                 parent_of_state_in_traj,
-                actions_b,
-                done_b,
-                path_id_parents_b,
+                last_action,
+                done,
             ],
         )
-        # states = (38, 6)
-        # parents = (46, 6)
-        # Log probs of each (s, a)
-        y = self.model(parents)
+        # Forward and Backward log probs of each (s, a)
         logprobs_f_1 = self.logsoftmax(
             self.model(parents)[..., : len(self.env.action_space) + 1]
-        )  # (46, 3)
-        logprobs_f = logprobs_f_1[torch.arange(parents.shape[0]), actions]
-        logprobs_b_1 = self.logsoftmax(
-            self.model(states)[..., len(self.env.action_space) + 1 :]
         )
-        logprobs_b = logprobs_b_1[torch.arange(states.shape[0]), actions]
+        logprobs_f = logprobs_f_1[torch.arange(parents.shape[0]), last_action]
+        logprobs_b_1 = self.logsoftmax(
+            self.model(state)[..., len(self.env.action_space) + 1 :]
+        )
+        logprobs_b = logprobs_b_1[torch.arange(state.shape[0]), last_action]
         # Sum of log probs
         sumlogprobs_f = tf(
             torch.zeros(len(torch.unique(path_id, sorted=True)))
@@ -895,19 +877,13 @@ class GFlowNetAgent:
             torch.zeros(len(torch.unique(path_id, sorted=True)))
         ).index_add_(0, path_id, logprobs_b)
         # Sort rewards of done states by ascending path id
-        rewards = rewards[done.eq(1)][torch.argsort(path_id[done.eq(1)])]
+        reward = reward[done.eq(1)][torch.argsort(path_id[done.eq(1)])]
         # Trajectory balance loss
         loss = (
-            (
-                self.Z.sum()
-                + sumlogprobs_f
-                - torch.log((rewards).clamp_min(self.reward_clip_min))
-            )
+            (self.Z.sum() + sumlogprobs_f - torch.log(reward) - sumlogprobs_b)
             .pow(2)
             .mean()
         )
-
-        # loss = (self.Z.sum() + sumlogprobs_f - torch.log((rewards).clamp_min(self.reward_clip_min))- sumlogprobs_b).pow(2).mean()
         return loss, loss, loss
 
     def unpack_terminal_states(self, batch):
@@ -1317,8 +1293,11 @@ def logq(path_list, actions_list, model, env):
         )
         with torch.no_grad():
             # TODO: potentially mask invalid actions next_q
-            logits_path = model(tf(path_obs))[..., : len(env.action_space) + 1]
-        logits_path = torch.where(masks == 0, logits_path, -loginf)
+            logits_path = model(tf(path_obs))
+        logits_path = torch.where(
+            masks == 0, logits_path[..., : len(env.action_space) + 1], -loginf
+        )
+        logits_path[..., len(env.action_space) + 1 :] = -loginf
         logsoftmax = torch.nn.LogSoftmax(dim=1)
         logprobs_path = logsoftmax(logits_path)
         log_q_path = torch.tensor(0.0)
@@ -1347,20 +1326,8 @@ if __name__ == "__main__":
     parser = ArgumentParser()
     _, override_args = parser.parse_known_args()
     parser, args2config = add_args(parser)
-    # Begin Delete
-    args = parser.parse_args()
-    args.yaml_config = (
-        "/home/mila/n/nikita.saxena/ActiveLearningPipeline/config/grid/default.yml"
-    )
-    args.workdir = "/home/mila/n/nikita.saxena/ActiveLearningPipeline/dummy"
-    args.overwrite_workdir = True
-    # End Delete
     config = get_config(args, override_args, args2config)
     config = process_config(config)
-    # Begin Delete
-    config.gflownet.comet.skip = False
-    config.gflownet.loss = "tb"
-    # End Delete
     print("Config file: " + config.yaml_config)
     if config.workdir is not None:
         print("Working dir: " + config.workdir)
