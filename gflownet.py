@@ -602,7 +602,7 @@ class GFlowNetAgent:
                 - [5] done [True, False]
                 - [6] path id: identifies each path
                 - [7] state id: identifies each state within a path
-                - [8] mask: invalid actions for that state are 1
+                - [8] mask: invalid actions from that state are 1
         else:
             Each item in the batch is a list of 1 element:
                 - [0] the states (state)
