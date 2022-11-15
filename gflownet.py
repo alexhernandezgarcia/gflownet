@@ -649,7 +649,7 @@ class GFlowNetAgent:
                             env.done,
                             tl([env.id] * len(parents)),
                             tl([n_actions]),
-                            tf([mask]),
+                            tl([mask]),
                         ]
                     )
                     # Backward sampling
