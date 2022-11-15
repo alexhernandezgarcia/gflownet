@@ -379,7 +379,6 @@ class GFlowNetAgent:
             and not sample_only
         ):
             self.comet = Experiment(
-                api_key="yfb47DTb672JJIZS0YKVaCKOX",
                 project_name=args.gflownet.comet.project,
                 display_summary_level=0,
             )
