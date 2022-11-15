@@ -571,7 +571,6 @@ class GFlowNetAgent:
                 action_logits = model(tf(parents))[
                     torch.arange(len(parents)), parents_a
                 ]
-            # TODO: is there a need to mask the logits here?
             action_logits /= temperature
             if all(torch.isfinite(action_logits).flatten()):
                 action_idx = Categorical(logits=action_logits).sample().item()
