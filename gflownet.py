@@ -1268,7 +1268,7 @@ def logq(path_list, actions_list, model, env, loginf=1000):
         actions = actions[::-1]
         path_obs = np.asarray([env.state2obs(state) for state in path])
         done = [0 for _ in range(len(path))]
-        masks = tf(
+        masks = tl(
             [
                 env.get_mask_invalid_actions(path[idx], done[idx])
                 for idx in range(len(path))
