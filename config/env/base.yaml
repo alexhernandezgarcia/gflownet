@@ -24,3 +24,5 @@ test_set_base: None
 test_set_seed: 167
 ntest: 10000
 test_output: None
+# Format to feed to proxy (oracle, ohe, embedding)
+proxy_state_format: oracle
