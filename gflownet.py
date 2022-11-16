@@ -692,7 +692,7 @@ class GFlowNetAgent:
                                 env.done,
                                 tl([env.id] * len(parents)),
                                 tl([env.n_actions - 1]),
-                                tf([mask]),
+                                tl([mask]),
                             ]
                         )
                     else:
@@ -806,6 +806,7 @@ class GFlowNetAgent:
         else:
             # TODO: potentially mask invalid actions next_q
             next_q = self.model(sp)
+        import ipdb; ipdb.set_trace()
         next_q = torch.where(masks == 0, next_q, -loginf)
         qsp = torch.logsumexp(next_q, 1)
         # qsp: qsp if not done; -loginf if done
@@ -1259,11 +1260,11 @@ def empirical_distribution_error(env, visited):
     return l1, kl
 
 
-def logq(path_list, actions_list, model, env):
+def logq(path_list, actions_list, model, env, loginf=1000):
     # TODO: this method is probably suboptimal, since it may repeat forward calls for
     # the same nodes.
     log_q = torch.tensor(1.0)
-    loginf = 1e3
+    loginf = tf([loginf])
     for path, actions in zip(path_list, actions_list):
         path = path[::-1]
         actions = actions[::-1]
