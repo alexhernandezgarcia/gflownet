@@ -1270,7 +1270,7 @@ def logq(path_list, actions_list, model, env, loginf=1000):
         masks = tl([env.get_mask_invalid_actions(state, 0) for state in path])
         with torch.no_grad():
             logits_path = model(tf(path_obs))
-        logits_path = logits_path[masks] = -loginf
+        logits_path[masks] = -loginf
         logsoftmax = torch.nn.LogSoftmax(dim=1)
         logprobs_path = logsoftmax(logits_path)
         log_q_path = torch.tensor(0.0)
