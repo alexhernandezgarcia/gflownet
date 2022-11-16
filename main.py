@@ -21,9 +21,7 @@ def main(config):
     # The above instantiated proxy is fed to env (no matter what it is, oracle or model) and directly used for scoring
     env = hydra.utils.instantiate(config.env, proxy=proxy)
     gflownet = hydra.utils.instantiate(config.gflownet, env=env)
-    import ipdb
-
-    ipdb.set_trace()
+    import ipdb; ipdb.set_trace()
     gflownet.train()
 
     # sample from the oracle, not from a proxy model
