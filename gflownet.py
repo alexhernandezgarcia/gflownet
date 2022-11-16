@@ -806,8 +806,7 @@ class GFlowNetAgent:
         else:
             # TODO: potentially mask invalid actions next_q
             next_q = self.model(sp)
-        import ipdb; ipdb.set_trace()
-        next_q = torch.where(masks == 0, next_q, -loginf)
+        next_q[masks] = -loginf
         qsp = torch.logsumexp(next_q, 1)
         # qsp: qsp if not done; -loginf if done
         qsp = qsp * (1 - done) - loginf * done
@@ -1278,7 +1277,7 @@ def logq(path_list, actions_list, model, env, loginf=1000):
         )
         with torch.no_grad():
             logits_path = model(tf(path_obs))
-        logits_path = torch.where(masks == 0, logits_path, -loginf)
+        logits_path = logits_path[masks] = -loginf
         logsoftmax = torch.nn.LogSoftmax(dim=1)
         logprobs_path = logsoftmax(logits_path)
         log_q_path = torch.tensor(0.0)
