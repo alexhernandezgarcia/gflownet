@@ -539,7 +539,7 @@ class GFlowNetAgent:
         assert len(envs) == actions.shape[0]
         # Execute actions
         _, _, valids = zip(*[env.step(action) for env, action in zip(envs, actions)])
-        return envs, actions, mask_invalid_actions, valids
+        return envs, actions, valids
 
     def backward_sample(
         self, env, policy="model", model=None, temperature=1.0, done=False
@@ -664,11 +664,11 @@ class GFlowNetAgent:
         while envs:
             # Forward sampling
             if train is False:
-                envs, actions, masks, valids = self.forward_sample(
+                envs, actions, valids = self.forward_sample(
                     envs, times, policy="model", model=model, temperature=1.0
                 )
             else:
-                envs, actions, masks, valids = self.forward_sample(
+                envs, actions, valids = self.forward_sample(
                     envs,
                     times,
                     policy="model",
@@ -677,9 +677,10 @@ class GFlowNetAgent:
                 )
             t0_a_envs = time.time()
             # Add to batch
-            for env, action, mask, valid in zip(envs, actions, masks, valids):
+            for env, action, valid in zip(envs, actions, valids):
                 if valid:
                     parents, parents_a = env.get_parents()
+                    mask = env.get_mask_invalid_actions()
                     if train:
                         batch.append(
                             [
