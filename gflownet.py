@@ -680,6 +680,7 @@ class GFlowNetAgent:
             for env, action, mask, valid in zip(envs, actions, masks, valids):
                 if valid:
                     parents, parents_a = env.get_parents()
+                    mask = env.get_mask_invalid_actions()
                     if train:
                         batch.append(
                             [
@@ -804,7 +805,7 @@ class GFlowNetAgent:
                 next_q = self.target(sp)
         else:
             next_q = self.model(sp)
-        next_q[masks] = -loginf
+        next_q[masks==1] = -loginf
         qsp = torch.logsumexp(next_q, 1)
         # qsp: qsp if not done; -loginf if done
         qsp = qsp * (1 - done) - loginf * done
@@ -1269,7 +1270,7 @@ def logq(path_list, actions_list, model, env, loginf=1000):
         masks = tl([env.get_mask_invalid_actions(state, 0) for state in path])
         with torch.no_grad():
             logits_path = model(tf(path_obs))
-        logits_path[masks] = -loginf
+        logits_path[masks==1] = -loginf
         logsoftmax = torch.nn.LogSoftmax(dim=1)
         logprobs_path = logsoftmax(logits_path)
         log_q_path = torch.tensor(0.0)
@@ -1299,8 +1300,17 @@ if __name__ == "__main__":
     _, override_args = parser.parse_known_args()
     parser, args2config = add_args(parser)
     args = parser.parse_args()
+    # Begin Delete
+    args.yaml_config = "/home/mila/n/nikita.saxena/ActiveLearningPipeline/config/grid/default.yml"
+    args.workdir = "/home/mila/n/nikita.saxena/ActiveLearningPipeline/dummy"
+    args.overwrite_workdir = True
+    # End Delete
     config = get_config(args, override_args, args2config)
     config = process_config(config)
+    # Begin Delete
+    config.gflownet.comet.skip = False
+    config.gflownet.loss = "flowmatch"
+    # End Delete
     print("Config file: " + config.yaml_config)
     if config.workdir is not None:
         print("Working dir: " + config.workdir)
