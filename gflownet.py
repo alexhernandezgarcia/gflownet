@@ -739,7 +739,7 @@ class GFlowNetAgent:
         times["all"] += t1_all - t0_all
         return batch, times
 
-    def flowmatch_loss(self, it, batch):
+    def flowmatch_loss(self, it, batch, loginf=1000):
         """
         Computes the loss of a batch
 
@@ -763,7 +763,7 @@ class GFlowNetAgent:
         flow_loss : float
             Loss of the intermediate nodes only
         """
-        loginf = tf([1000])
+        loginf = tf([loginf])
         batch_idxs = tl(
             sum(
                 [
