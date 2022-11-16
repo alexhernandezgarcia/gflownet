@@ -804,7 +804,6 @@ class GFlowNetAgent:
             with torch.no_grad():
                 next_q = self.target(sp)
         else:
-            # TODO: potentially mask invalid actions next_q
             next_q = self.model(sp)
         next_q[masks] = -loginf
         qsp = torch.logsumexp(next_q, 1)
