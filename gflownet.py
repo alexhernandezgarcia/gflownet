@@ -29,6 +29,7 @@ from utils import get_config, namespace2dict, numpy2python, add_bool_arg
 _dev = [torch.device("cpu")]
 tf = lambda x: torch.FloatTensor(x).to(_dev[0])
 tl = lambda x: torch.LongTensor(x).to(_dev[0])
+tb = lambda x: torch.BoolTensor(x).to(_dev[0])
 
 
 def add_args(parser):
@@ -516,7 +517,7 @@ class GFlowNetAgent:
         if not isinstance(envs, list):
             envs = [envs]
         states = [env.state2obs() for env in envs]
-        mask_invalid_actions = [env.get_mask_invalid_actions() for env in envs]
+        mask_invalid_actions = tb([env.get_mask_invalid_actions() for env in envs])
         random_action = self.rng.uniform()
         t0_a_model = time.time()
         if policy == "model":
@@ -528,7 +529,7 @@ class GFlowNetAgent:
         else:
             raise NotImplemented
         if self.mask_invalid_actions:
-            action_logits[torch.tensor(mask_invalid_actions)] = -1000
+            action_logits[mask_invalid_actions] = -1000
         if all(torch.isfinite(action_logits).flatten()):
             actions = Categorical(logits=action_logits).sample()
         else:
@@ -648,7 +649,7 @@ class GFlowNetAgent:
                             env.done,
                             tl([env.id] * len(parents)),
                             tl([n_actions]),
-                            tl([mask]),
+                            tb([mask]),
                         ]
                     )
                     # Backward sampling
@@ -692,7 +693,7 @@ class GFlowNetAgent:
                                 env.done,
                                 tl([env.id] * len(parents)),
                                 tl([env.n_actions - 1]),
-                                tl([mask]),
+                                tb([mask]),
                             ]
                         )
                     else:
@@ -1267,7 +1268,7 @@ def logq(path_list, actions_list, model, env, loginf=1000):
         path = path[::-1]
         actions = actions[::-1]
         path_obs = np.asarray([env.state2obs(state) for state in path])
-        masks = tl([env.get_mask_invalid_actions(state, 0) for state in path])
+        masks = tb([env.get_mask_invalid_actions(state, 0) for state in path])
         with torch.no_grad():
             logits_path = model(tf(path_obs))
         logits_path[masks] = -loginf
