@@ -843,7 +843,9 @@ class GFlowNetAgent:
             _,
         ) = zip(*batch)
         # Keep only parents in trajectory
-        parents = [p[torch.where(a == p_a)] for a, p, p_a in zip(actions, parents, parents_a)]
+        parents = [
+            p[torch.where(a == p_a)] for a, p, p_a in zip(actions, parents, parents_a)
+        ]
         path_id = torch.cat([el[:1] for el in path_id_parents])
         # Concatenate lists of tensors
         states, actions, rewards, parents, done = map(
@@ -857,17 +859,27 @@ class GFlowNetAgent:
             ],
         )
         # Forward trajectories
-        logprobs_f = self.logsoftmax(self.model(parents)[..., : len(self.env.action_space) + 1])[torch.arange(parents.shape[0]), actions]
-        sumlogprobs_f = tf(torch.zeros(len(torch.unique(path_id, sorted=True)))
+        logprobs_f = self.logsoftmax(
+            self.model(parents)[..., : len(self.env.action_space) + 1]
+        )[torch.arange(parents.shape[0]), actions]
+        sumlogprobs_f = tf(
+            torch.zeros(len(torch.unique(path_id, sorted=True)))
         ).index_add_(0, path_id, logprobs_f)
         # Backward trajectories
-        logprobs_b = self.logsoftmax(self.model(states)[..., len(self.env.action_space) + 1 :])[torch.arange(states.shape[0]), actions]
-        sumlogprobs_b = tf(torch.zeros(len(torch.unique(path_id, sorted=True)))
+        logprobs_b = self.logsoftmax(
+            self.model(states)[..., len(self.env.action_space) + 1 :]
+        )[torch.arange(states.shape[0]), actions]
+        sumlogprobs_b = tf(
+            torch.zeros(len(torch.unique(path_id, sorted=True)))
         ).index_add_(0, path_id, logprobs_b)
         # Sort rewards of done states by ascending path id
         rewards = rewards[done.eq(1)][torch.argsort(path_id[done.eq(1)])]
         # Trajectory balance loss
-        loss = (self.Z.sum() + sumlogprobs_f - sumlogprobs_b - torch.log(rewards)).pow(2).mean()
+        loss = (
+            (self.Z.sum() + sumlogprobs_f - sumlogprobs_b - torch.log(rewards))
+            .pow(2)
+            .mean()
+        )
         return loss, loss, loss
 
     def unpack_terminal_states(self, batch):
