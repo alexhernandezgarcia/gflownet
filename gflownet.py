@@ -29,8 +29,6 @@ from utils import get_config, namespace2dict, numpy2python, add_bool_arg
 _dev = [torch.device("cpu")]
 tf = lambda x: torch.FloatTensor(x).to(_dev[0])
 tl = lambda x: torch.LongTensor(x).to(_dev[0])
-index_where_equal = lambda x: (x[0] == x[1]).nonzero()
-select_index = lambda x: torch.index_select(x[0], 0, x[1])
 
 
 def add_args(parser):
@@ -833,51 +831,53 @@ class GFlowNetAgent:
         """
         # Unpack batch
         (
-            state,
-            last_action,
-            reward,
+            states,
+            actions,
+            rewards,
             parents,
             parents_a,
             done,
             path_id_parents,
             _,
         ) = zip(*batch)
-        indices = list(map(index_where_equal, zip(parents_a, last_action)))
-        indices = torch.cat(indices)
-        parent_of_state_in_traj = list(map(select_index, zip(parents, indices)))
-
+        # Keep only parents in trajectory
+        parents = [
+            p[torch.where(a == p_a)] for a, p, p_a in zip(actions, parents, parents_a)
+        ]
         path_id = torch.cat([el[:1] for el in path_id_parents])
-
-        state, reward, parents, last_action, done = map(
+        # Concatenate lists of tensors
+        states, actions, rewards, parents, done = map(
             torch.cat,
             [
-                state,
-                reward,
-                parent_of_state_in_traj,
-                last_action,
+                states,
+                actions,
+                rewards,
+                parents,
                 done,
             ],
         )
-        # Forward and Backward log probs of each (s, a)
-        logprobs_f_1 = self.logsoftmax(
+        # Forward trajectories
+        logprobs_f = self.logsoftmax(
             self.model(parents)[..., : len(self.env.action_space) + 1]
-        )
-        logprobs_f = logprobs_f_1[torch.arange(parents.shape[0]), last_action]
-        logprobs_b_1 = self.logsoftmax(
-            self.model(state)[..., len(self.env.action_space) + 1 :]
-        )
-        logprobs_b = logprobs_b_1[torch.arange(state.shape[0]), last_action]
-        # Sum of log probs
+        )[torch.arange(parents.shape[0]), actions]
         sumlogprobs_f = tf(
             torch.zeros(len(torch.unique(path_id, sorted=True)))
         ).index_add_(0, path_id, logprobs_f)
+        # Backward trajectories
+        logprobs_b = self.logsoftmax(
+            self.model(states)[..., len(self.env.action_space) + 1 :]
+        )[torch.arange(states.shape[0]), actions]
         sumlogprobs_b = tf(
             torch.zeros(len(torch.unique(path_id, sorted=True)))
         ).index_add_(0, path_id, logprobs_b)
         # Sort rewards of done states by ascending path id
-        reward = reward[done.eq(1)][torch.argsort(path_id[done.eq(1)])]
-        # Trajectory balance loss sumlogprobs_b
-        loss = (self.Z.sum() + sumlogprobs_f - torch.log(reward)).pow(2).mean()
+        rewards = rewards[done.eq(1)][torch.argsort(path_id[done.eq(1)])]
+        # Trajectory balance loss
+        loss = (
+            (self.Z.sum() + sumlogprobs_f - sumlogprobs_b - torch.log(rewards))
+            .pow(2)
+            .mean()
+        )
         return loss, loss, loss
 
     def unpack_terminal_states(self, batch):
