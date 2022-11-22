@@ -193,6 +193,8 @@ def add_args(parser):
     args2config.update({"pct_batch_empirical": ["gflownet", "pct_batch_empirical"]})
     parser.add_argument("--replay_capacity", default=0, type=int)
     args2config.update({"replay_capacity": ["gflownet", "replay_capacity"]})
+    parser.add_argument("--proba_random_action", default=0.1, type=float)
+    args2config.update({"proba_random_action": ["gflownet", "proba_random_action"]})
     # Environment
     parser.add_argument("--env_id", default="aptamers")
     args2config.update({"env_id": ["gflownet", "env_id"]})
@@ -507,6 +509,7 @@ class GFlowNetAgent:
         policy : string
             - model: uses self.model to obtain the sampling probabilities.
             - uniform: samples uniformly from the action space.
+            - mixt: mix of model and uniform policy depending on a random number generated for each env
 
         model : torch model
             Model to use as policy if policy="model"
@@ -1303,7 +1306,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
     config = get_config(args, override_args, args2config)
     config = process_config(config)
-    print("Config file: " + config.yaml_config)
+    #print("Config file: " + config.yaml_config)
     if config.workdir is not None:
         print("Working dir: " + config.workdir)
     print(
