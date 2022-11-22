@@ -479,6 +479,7 @@ class GFlowNetAgent:
         self.n_train_steps = args.gflownet.n_iter
         self.mbsize = args.gflownet.mbsize
         self.mask_invalid_actions = True
+        self.proba_random_action = args.gflownet.proba_random_action
         self.progress = args.gflownet.progress
         self.clip_grad_norm = args.gflownet.clip_grad_norm
         self.num_empirical_loss = args.gflownet.num_empirical_loss
@@ -521,7 +522,6 @@ class GFlowNetAgent:
             envs = [envs]
         states = [env.state2obs() for env in envs]
         mask_invalid_actions = tb([env.get_mask_invalid_actions() for env in envs])
-        random_action = self.rng.uniform()
         t0_a_model = time.time()
         if policy == "model":
             with torch.no_grad():
@@ -529,6 +529,25 @@ class GFlowNetAgent:
             action_logits /= temperature
         elif policy == "uniform":
             action_logits = tf(np.zeros(len(states)), len(self.env.action_space) + 1)
+        elif policy == "mixt":
+            #Generating random numbers to sample envs that will be updated with a random (possible) action below a threshold
+            random_values = [self.rng.uniform() for _ in range(len(envs))]
+            envs_random = [env for i, env in enumerate(envs) if random_values[i] <= self.proba_random_action]
+            envs_no_random = [env for i, env in enumerate(envs) if random_values[i] > self.proba_random_action]
+            #Calling the uniform policy on the envs that will be randomly updated, the model policy on the others
+            if envs_random:
+                envs_random, actions_random, valids_random = self.forward_sample(envs_random, times, policy = "uniform", model, temperature)
+            else:
+                envs_random, actions_random, valids_random = [], torch.tensor([]).to(self.device_torch), ()
+            if envs_no_random:
+                envs_no_random, actions_no_random, valids_no_random = self.forward_sample(envs_no_random, times, policy = "model", model, temperature)
+            else:
+                envs_no_random, actions_no_random, valids_no_random = [], torch.tensor([]).to(self.device_torch), ()
+            #Concatenating all the updated environments
+            envs = envs_random + envs_no_random
+            actions = torch.cat((actions_random, actions_no_random), dim = 0)
+            valids = valids_random + valids_no_random
+            return envs, actions, valids
         else:
             raise NotImplemented
         if self.mask_invalid_actions:
@@ -1306,7 +1325,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
     config = get_config(args, override_args, args2config)
     config = process_config(config)
-    #print("Config file: " + config.yaml_config)
+    print("Config file: " + config.yaml_config)
     if config.workdir is not None:
         print("Working dir: " + config.workdir)
     print(
