@@ -29,8 +29,6 @@ from utils import get_config, namespace2dict, numpy2python, add_bool_arg
 _dev = [torch.device("cpu")]
 tf = lambda x: torch.FloatTensor(x).to(_dev[0])
 tl = lambda x: torch.LongTensor(x).to(_dev[0])
-index_where_equal = lambda x: (x[0] == x[1]).nonzero()
-select_index = lambda x: torch.index_select(x[0], 0, x[1])
 
 
 def add_args(parser):
