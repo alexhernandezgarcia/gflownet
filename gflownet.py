@@ -446,6 +446,8 @@ class GFlowNetAgent:
             print(f"\tMin score: {self.buffer.test['energies'].min()}")
             print(f"\tMax score: {self.buffer.test['energies'].max()}")
         # Model
+        # self.forward_policy = forward_policy("mlp")
+        # self.backward_policy = backward_policy("mlp", shared_weight = True)
         self.model = make_mlp(
             [self.env.obs_dim]
             + [args.gflownet.n_hid] * args.gflownet.n_layers
@@ -491,6 +493,7 @@ class GFlowNetAgent:
 
     def parameters(self):
         return self.model.parameters()
+
 
     def forward_sample(self, envs, times, policy="model", model=None, temperature=1.0):
         """
@@ -1335,8 +1338,19 @@ if __name__ == "__main__":
     _, override_args = parser.parse_known_args()
     parser, args2config = add_args(parser)
     args = parser.parse_args()
+    # Begin Delete
+    args.yaml_config = "/home/mila/n/nikita.saxena/ActiveLearningPipeline/config/grid/default.yml"
+    args.workdir = "/home/mila/n/nikita.saxena/ActiveLearningPipeline/dummy"
+    args.overwrite_workdir = True
+    # End Delete
     config = get_config(args, override_args, args2config)
     config = process_config(config)
+    # Begin Delete
+    config.gflownet.comet.skip = True
+    config.gflownet.loss = "tb"
+    config.no_lightweight = True
+    # config.gflownet.
+    # End Delete
     print("Config file: " + config.yaml_config)
     if config.workdir is not None:
         print("Working dir: " + config.workdir)
