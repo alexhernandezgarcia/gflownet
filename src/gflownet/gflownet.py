@@ -19,7 +19,7 @@ import yaml
 from torch.distributions.categorical import Categorical
 from tqdm import tqdm
 
-# from gflownetenv import Buffer
+from src.gflownet.envs.base import Buffer
 # from aptamers import AptamerSeq
 # from grid import Grid
 # from oracle import numbers2letters, Oracle
@@ -50,7 +50,8 @@ class GFlowNetAgent:
         seed,
         device,
         optimizer,
-        comet=None,
+        comet,
+        buffer,
         proxy=None,
         al_iter=-1,
         data_path=None,
@@ -90,33 +91,33 @@ class GFlowNetAgent:
         else:
             self.al_iter = ""
         self.logsoftmax = torch.nn.LogSoftmax(dim=1)
-        self.env_id = args.gflownet.env_id.lower()
         # Buffer
-        self.buffer = Buffer(self.env, replay_capacity=args.gflownet.replay_capacity)
+        self.buffer = Buffer(self.env, replay_capacity=buffer.replay_capacity)
         # Comet
         if (
-            args.gflownet.comet.project
-            and not args.gflownet.comet.skip
+            comet.project
+            and not comet.skip
             and not sample_only
         ):
             self.comet = Experiment(
-                project_name=args.gflownet.comet.project, display_summary_level=0
+                project_name=comet.project, display_summary_level=0
             )
-            if args.gflownet.comet.tags:
-                if isinstance(args.gflownet.comet.tags, list):
-                    self.comet.add_tags(args.gflownet.comet.tags)
+            if comet.tags:
+                if isinstance(comet.tags, list):
+                    self.comet.add_tags(comet.tags)
                 else:
-                    self.comet.add_tag(args.gflownet.comet.tags)
+                    self.comet.add_tag(comet.tags)
             self.comet.log_parameters(vars(args))
-            if "logdir" in args and Path(args.logdir).exists():
-                with open(Path(args.logdir) / "comet.url", "w") as f:
+            import ipdb; ipdb.set_trace()
+            if Path(logdir).exists():
+                with open(Path(logdir) / "comet.url", "w") as f:
                     f.write(self.comet.url + "\n")
         else:
             if isinstance(comet, Experiment):
                 self.comet = comet
             else:
                 self.comet = None
-        self.no_log_times = args.gflownet.no_log_times
+        self.log_times = comet.log_times
         # Make train and test sets
         if not sample_only:
             self.buffer.make_train_test(
@@ -797,7 +798,7 @@ class GFlowNetAgent:
             t1_iter = time.time()
             times.update({"iter": t1_iter - t0_iter})
             times = {"time_{}{}".format(k, self.al_iter): v for k, v in times.items()}
-            if self.comet and not self.no_log_times:
+            if self.comet and self.log_times:
                 self.comet.log_metrics(times, step=it)
         # Save final model
         if self.model_path:
