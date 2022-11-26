@@ -18,8 +18,8 @@ def main(config):
 
     env = hydra.utils.instantiate(config.env)
     gflownet = hydra.utils.instantiate(config.gflownet, env=env, buffer=config.env.buffer)
-    import ipdb; ipdb.set_trace()
     gflownet.train()
+    import ipdb; ipdb.set_trace()
 
     # sample from the oracle, not from a proxy model
     batch, times = gflownet_agent.sample_batch(
