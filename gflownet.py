@@ -291,6 +291,84 @@ def set_device(dev):
     _dev[0] = dev
 
 
+class Policy:
+    def __init__(self, env, type, args, device, shared_weight=False, base_model=None):
+        self.nn_input_dim = env.obs_dim
+        self.action_space_dim = len(env.action_space)
+        self.shared_weight = shared_weight
+        self.base_model = base_model
+        self.n_hid = args.gflownet.n_hid
+        self.n_layers = args.gflownet.n_layers
+        self.tail = []
+        self.act = nn.LeakyReLU()
+        self.device = device
+        # TODO
+        # Not sure what exactly tail is for. Do we need to pass it as an argument? Or would it be defined here?
+        if type == "uniform":
+            self.model = self.uniform_distribution
+        elif type == "mlp":
+            self.model = self.make_mlp()
+
+    def __call__(self, states):
+        return self.model(states)
+
+    def make_mlp(self):
+        """
+        Defines an MLP with no top layer activation
+        If share_weight == True,
+            baseModel (the model with which weights are to be shared) must be provided
+
+        Args
+        ----
+        layers_dim : list
+            Dimensionality of each layer
+
+        act : Activation
+            Activation function
+        """
+        layers_dim = (
+            [self.nn_input_dim]
+            + [self.n_hid] * self.n_layers
+            + [(self.action_space_dim + 1)]
+        )
+        if self.shared_weight == True and self.base_model is not None:
+            mlp = nn.Sequential(
+                self.base_model[:-1], nn.Linear(layers_dim[-2], layers_dim[-1])
+            )
+            mlp.to(self.device)
+            return mlp
+        elif self.shared_weight == False:
+            mlp = nn.Sequential(
+                *(
+                    sum(
+                        [
+                            [nn.Linear(idim, odim)]
+                            + ([self.act] if n < len(layers_dim) - 2 else [])
+                            for n, (idim, odim) in enumerate(
+                                zip(layers_dim, layers_dim[1:])
+                            )
+                        ],
+                        [],
+                    )
+                    + self.tail
+                )
+            )
+            mlp.to(self.device)
+            return mlp
+        else:
+            raise ValueError(
+                "Base Model must be provided when shared_weight is set to True"
+            )
+
+    def uniform_distribution(self, states):
+        """
+        Return action logits (log probabilities) from a uniform distribution
+        Args: states: tensor
+        """
+        action_logits = tf(np.ones((len(states), self.action_space_dim + 1)))
+        return action_logits
+
+
 class GFlowNetAgent:
     def __init__(
         self,
@@ -445,11 +523,25 @@ class GFlowNetAgent:
             print(f"\tStd score: {self.buffer.test['energies'].std()}")
             print(f"\tMin score: {self.buffer.test['energies'].min()}")
             print(f"\tMax score: {self.buffer.test['energies'].max()}")
-        # Model
-        self.model = make_mlp(
-            [self.env.obs_dim]
-            + [args.gflownet.n_hid] * args.gflownet.n_layers
-            + [(len(self.env.action_space) + 1) * 2]
+        # Policy
+        # TODO
+        # The following 2 variables would directly come from the args (config) instead of being passed explicitly. Could be done once hydra is ready
+        # Ensure that backward_policy is mlp only if loss is not flowmatch.
+        # Can hydra do this check
+        self.forward_policy_type = "mlp"
+        self.backward_policy_type = "mlp"
+        self.forward_policy = Policy(
+            self.env, self.forward_policy_type, args, self.device
+        )
+        # TODO
+        # Add a check that sharedWeight=True only if fwdPolicy is not uniform. Can hydra check for valid args?
+        self.backward_policy = Policy(
+            self.env,
+            self.backward_policy_type,
+            args,
+            self.device,
+            shared_weight=True,
+            base_model=self.forward_policy.model,
         )
         self.reload_ckpt = args.gflownet.reload_ckpt
         if args.gflownet.model_ckpt:
@@ -462,16 +554,21 @@ class GFlowNetAgent:
                     self.model_path = Path(args.workdir) / args.gflownet.model_ckpt
             else:
                 self.model_path = args.gflownet.model_ckpt
-            if self.model_path.exists() and self.reload_ckpt:
-                self.model.load_state_dict(torch.load(self.model_path))
+            if (
+                self.model_path.exists()
+                and self.reload_ckpt
+                and self.forward_policy_type is not "uniform"
+            ):
+                self.forward_policy.model.load_state_dict(torch.load(self.model_path))
                 print("Reloaded GFN Model Checkpoint")
         else:
             self.model_path = None
         self.ckpt_period = args.gflownet.ckpt_period
         if self.ckpt_period in [None, -1]:
             self.ckpt_period = np.inf
-        self.model.to(self.device_torch)
-        self.target = copy.deepcopy(self.model)
+        self.target = None
+        if self.forward_policy_type is not "uniform":
+            self.target = copy.deepcopy(self.forward_policy.model)
         # Training
         self.opt, self.lr_scheduler = make_opt(self.parameters(), self.Z, args)
         self.n_train_steps = args.gflownet.n_iter
@@ -490,9 +587,18 @@ class GFlowNetAgent:
         self.oracle_k = args.gflownet.oracle.k
 
     def parameters(self):
-        return self.model.parameters()
+        if self.backward_policy_type == "uniform":
+            return list(self.forward_policy.model.parameters())
+        elif self.loss == "trajectorybalance":
+            return list(self.forward_policy.model.parameters()) + list(
+                self.backward_policy.model.parameters()
+            )
+        else:
+            raise ValueError("Backward Policy cannot be a nn in flowmatch.")
 
-    def forward_sample(self, envs, times, policy="model", model=None, temperature=1.0):
+    def forward_sample(
+        self, envs, times, sampling_method="policy", model=None, temperature=1.0
+    ):
         """
         Performs a forward action on each environment of a list.
 
@@ -504,12 +610,12 @@ class GFlowNetAgent:
         times : dict
             Dictionary to store times
 
-        policy : string
-            - model: uses self.model to obtain the sampling probabilities.
+        sampling_method : string
+            - model: uses current forward to obtain the sampling probabilities.
             - uniform: samples uniformly from the action space.
 
         model : torch model
-            Model to use as policy if policy="model"
+            Model to use as policy if sampling_method="policy"
 
         temperature : float
             Temperature to adjust the logits by logits /= temperature
@@ -520,11 +626,11 @@ class GFlowNetAgent:
         mask_invalid_actions = tb([env.get_mask_invalid_actions() for env in envs])
         random_action = self.rng.uniform()
         t0_a_model = time.time()
-        if policy == "model":
+        if sampling_method == "policy":
             with torch.no_grad():
-                action_logits = model(tf(states))[..., : len(self.env.action_space) + 1]
+                action_logits = model(tf(states))
             action_logits /= temperature
-        elif policy == "uniform":
+        elif sampling_method == "uniform":
             action_logits = tf(np.zeros(len(states)), len(self.env.action_space) + 1)
         else:
             raise NotImplemented
@@ -543,7 +649,7 @@ class GFlowNetAgent:
         return envs, actions, valids
 
     def backward_sample(
-        self, env, policy="model", model=None, temperature=1.0, done=False
+        self, env, sampling_method="policy", model=None, temperature=1.0, done=False
     ):
         """
         Performs a backward action on one environment.
@@ -553,12 +659,12 @@ class GFlowNetAgent:
         env : GFlowNetEnv or derived
             An instance of the environment
 
-        policy : string
-            - model: uses the current policy to obtain the sampling probabilities.
+        sampling_method : string
+            - model: uses the current backward policy to obtain the sampling probabilities.
             - uniform: samples uniformly from the parents of the current state.
 
         model : torch model
-            Model to use as policy if policy="model"
+            Model to use as policy if sampling_method="policy"
 
         temperature : float
             Temperature to adjust the logits by logits /= temperature
@@ -566,19 +672,23 @@ class GFlowNetAgent:
         done : bool
             If True, it will sample eos action
         """
+        # TODO: If sampling method is policy
+        # Change backward sampling with a mask for parents
+        # As we can use the backward policy to get model(states) but not all of those actions are likely
+        # Need to compute backward_masks, amsk those actions and then get the categorical distribution.
         parents, parents_a = env.get_parents(env.state, done)
-        if policy == "model":
+        if sampling_method == "policy":
             with torch.no_grad():
                 action_logits = model(tf(parents))[
-                    ..., len(self.env.action_space) + 1 :
-                ][torch.arange(len(parents)), parents_a]
+                    torch.arange(len(parents)), parents_a
+                ]
             action_logits /= temperature
             if all(torch.isfinite(action_logits).flatten()):
                 action_idx = Categorical(logits=action_logits).sample().item()
             else:
                 if self.debug:
                     raise ValueError("Action could not be sampled from model!")
-        elif policy == "uniform":
+        elif sampling_method == "uniform":
             action_idx = self.rng.integers(low=0, high=len(parents_a))
         else:
             raise NotImplemented
@@ -619,7 +729,7 @@ class GFlowNetAgent:
         t0_all = time.time()
         batch = []
         if model is None:
-            model = self.model
+            model = self.forward_policy
         if isinstance(envs, list):
             envs = [env.reset(idx) for idx, env in enumerate(envs)]
         elif n_samples is not None and n_samples > 0:
@@ -655,8 +765,8 @@ class GFlowNetAgent:
                     # Backward sampling
                     env, state, action, parents, parents_a = self.backward_sample(
                         env,
-                        policy="model",
-                        model=model,
+                        sampling_method="policy",
+                        model=self.backward_policy,
                         temperature=self.temperature_logits,
                     )
                     n_actions += 1
@@ -666,14 +776,18 @@ class GFlowNetAgent:
             # Forward sampling
             if train is False:
                 envs, actions, valids = self.forward_sample(
-                    envs, times, policy="model", model=model, temperature=1.0
+                    envs,
+                    times,
+                    sampling_method="policy",
+                    model=self.forward_policy,
+                    temperature=1.0,
                 )
             else:
                 envs, actions, valids = self.forward_sample(
                     envs,
                     times,
-                    policy="model",
-                    model=model,
+                    sampling_method="policy",
+                    model=self.forward_policy,
                     temperature=self.temperature_logits,
                 )
             t0_a_envs = time.time()
@@ -790,7 +904,7 @@ class GFlowNetAgent:
                 ipdb.set_trace()
 
         # Q(s,a)
-        parents_Qsa = self.model(parents)[..., : len(self.env.action_space) + 1][
+        parents_Qsa = self.forward_policy(parents)[
             torch.arange(parents.shape[0]), actions
         ]
 
@@ -803,11 +917,11 @@ class GFlowNetAgent:
         )
         # the following with work if autoregressive
         #         in_flow = torch.logaddexp(parents_Qsa[batch_idxs], torch.log(self.loss_eps))
-        if self.tau > 0:
+        if self.tau > 0 and self.target is not None:
             with torch.no_grad():
                 next_q = self.target(sp)
         else:
-            next_q = self.model(sp)[..., : len(self.env.action_space) + 1]
+            next_q = self.forward_policy(sp)
         next_q[masks] = -loginf
         qsp = torch.logsumexp(next_q, 1)
         # qsp: qsp if not done; -loginf if done
@@ -823,8 +937,10 @@ class GFlowNetAgent:
                 (1 - done).sum() + 1e-20
             )
 
-        if self.tau > 0:
-            for a, b in zip(self.model.parameters(), self.target.parameters()):
+        if self.tau > 0 and self.target is not None:
+            for a, b in zip(
+                self.forward_policy.model.parameters(), self.target.parameters()
+            ):
                 b.data.mul_(1 - self.tau).add_(self.tau * a)
 
         return loss, term_loss, flow_loss
@@ -881,16 +997,16 @@ class GFlowNetAgent:
             ],
         )
         # Forward trajectories
-        logprobs_f = self.logsoftmax(
-            self.model(parents)[..., : len(self.env.action_space) + 1]
-        )[torch.arange(parents.shape[0]), actions]
+        logprobs_f = self.logsoftmax(self.forward_policy(parents))[
+            torch.arange(parents.shape[0]), actions
+        ]
         sumlogprobs_f = tf(
             torch.zeros(len(torch.unique(path_id, sorted=True)))
         ).index_add_(0, path_id, logprobs_f)
         # Backward trajectories
-        logprobs_b = self.logsoftmax(
-            self.model(states)[..., len(self.env.action_space) + 1 :]
-        )[torch.arange(states.shape[0]), actions]
+        logprobs_b = self.logsoftmax(self.backward_policy(states))[
+            torch.arange(states.shape[0]), actions
+        ]
         sumlogprobs_b = tf(
             torch.zeros(len(torch.unique(path_id, sorted=True)))
         ).index_add_(0, path_id, logprobs_b)
@@ -902,6 +1018,17 @@ class GFlowNetAgent:
             .pow(2)
             .mean()
         )
+        for p1, p2 in zip(
+            self.forward_policy.model.parameters(),
+            self.backward_policy.model.parameters(),
+        ):
+            if p1.data.ne(p2.data).sum() > 0:
+                # p1.data.ne(p2.data).sum() > 0:
+                print("\n")
+                print(p1.shape)
+                print(p2.shape)
+                print(p1)
+                print(p2)
         return loss, loss, loss
 
     def unpack_terminal_states(self, batch):
@@ -1029,7 +1156,9 @@ class GFlowNetAgent:
                     t1_test_path = time.time()
                     times["test_paths"] += t1_test_path - t0_test_path
                     t0_test_logq = time.time()
-                    data_logq.append(logq(path_list, actions, self.model, self.env))
+                    data_logq.append(
+                        logq(path_list, actions, self.forward_policy, self.env)
+                    )
                     t1_test_logq = time.time()
                     times["test_logq"] += t1_test_logq - t0_test_logq
                 corr = np.corrcoef(data_logq, self.buffer.test["energies"])
@@ -1113,7 +1242,11 @@ class GFlowNetAgent:
                     + "{}_iter{:06d}".format(self.al_iter, it)
                     + self.model_path.suffix
                 )
-                torch.save(self.model.state_dict(), path)
+                # TODO:
+                # Would we want to save backward model? I wasn't sure what for.
+                # We dont need it for sampling and dont want to pass it to the next AL iteration as well because I remember we discussed re-using the same model from the previous iteration does not improve performance.
+                if self.forward_policy_type is not "uniform":
+                    torch.save(self.forward_policy.model.state_dict(), path)
             # Moving average of the loss for early stopping
             if loss_term_ema and loss_flow_ema:
                 loss_term_ema = (
@@ -1138,12 +1271,12 @@ class GFlowNetAgent:
             if self.comet and not self.no_log_times:
                 self.comet.log_metrics(times, step=it)
         # Save final model
-        if self.model_path:
+        if self.model_path and self.forward_policy_type is not "uniform":
             path = self.model_path.parent / Path(
                 self.model_path.stem + "_final" + self.model_path.suffix
             )
-            torch.save(self.model.state_dict(), path)
-            torch.save(self.model.state_dict(), self.model_path)
+            torch.save(self.forward_policy.model.state_dict(), path)
+            torch.save(self.forward_policy.model.state_dict(), self.model_path)
 
         # Close comet
         if self.comet and self.al_iter == -1:
@@ -1210,37 +1343,12 @@ class RandomTrajAgent:
         return None
 
 
-def make_mlp(layers_dim, act=nn.LeakyReLU(), tail=[]):
-    """
-    Defines an MLP with no top layer activation
-
-    Args
-    ----
-    layers_dim : list
-        Dimensionality of each layer
-
-    act : Activation
-        Activation function
-    """
-    return nn.Sequential(
-        *(
-            sum(
-                [
-                    [nn.Linear(idim, odim)] + ([act] if n < len(layers_dim) - 2 else [])
-                    for n, (idim, odim) in enumerate(zip(layers_dim, layers_dim[1:]))
-                ],
-                [],
-            )
-            + tail
-        )
-    )
-
-
 def make_opt(params, Z, args):
     """
     Set up the optimizer
     """
-    params = list(params)
+    # params = list(params)
+    params = params
     if not len(params):
         return None
     if args.gflownet.opt == "adam":
@@ -1304,7 +1412,7 @@ def logq(path_list, actions_list, model, env, loginf=1000):
         path_obs = np.asarray([env.state2obs(state) for state in path])
         masks = tb([env.get_mask_invalid_actions(state, 0) for state in path])
         with torch.no_grad():
-            logits_path = model(tf(path_obs))[..., : len(env.action_space) + 1]
+            logits_path = model(tf(path_obs))
         logits_path[masks] = -loginf
         logsoftmax = torch.nn.LogSoftmax(dim=1)
         logprobs_path = logsoftmax(logits_path)
