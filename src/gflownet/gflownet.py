@@ -53,6 +53,7 @@ class GFlowNetAgent:
         optimizer,
         comet,
         buffer,
+        policy,
         proxy=None,
         al_iter=-1,
         data_path=None,
@@ -144,33 +145,32 @@ class GFlowNetAgent:
             print(f"\tStd score: {self.buffer.test['energies'].std()}")
             print(f"\tMin score: {self.buffer.test['energies'].min()}")
             print(f"\tMax score: {self.buffer.test['energies'].max()}")
-        # Model
-        self.model = make_mlp(
-            [self.env.obs_dim]
-            + [args.gflownet.n_hid] * args.gflownet.n_layers
-            + [len(self.env.action_space) + 1]
-        )
-        self.reload_ckpt = args.gflownet.reload_ckpt
-        if args.gflownet.model_ckpt:
-            if "logdir" in args and Path(args.logdir).exists():
-                if (Path(args.logdir) / "ckpts").exists():
-                    self.model_path = (
-                        Path(args.logdir) / "ckpts" / args.gflownet.model_ckpt
-                    )
+        # Policy
+        if policy.architecture == "mlp":
+            self.model = make_mlp(
+                [self.env.obs_dim]
+                + [policy.n_hid] * policy.n_layers
+                + [len(self.env.action_space) + 1]
+            )
+        if policy.model_ckpt:
+            if Path(logdir).exists():
+                if (Path(logdir) / "ckpts").exists():
+                    self.model_path = Path(logdir) / "ckpts" / policy.model_ckpt
                 else:
-                    self.model_path = Path(args.logdir) / args.gflownet.model_ckpt
+                    self.model_path = Path(logdir) / policy.model_ckpt
             else:
-                self.model_path = args.gflownet.model_ckpt
-            if self.model_path.exists() and self.reload_ckpt:
+                self.model_path = policy.model_ckpt
+            if self.model_path.exists() and policy.reload_ckpt:
                 self.model.load_state_dict(torch.load(self.model_path))
                 print("Reloaded GFN Model Checkpoint")
         else:
             self.model_path = None
-        self.ckpt_period = args.gflownet.ckpt_period
+        self.model.to(self.device_torch)
+        # TODO: reassess need for self.target
+        self.target = copy.deepcopy(self.model)
+        self.ckpt_period = policy.ckpt_period
         if self.ckpt_period in [None, -1]:
             self.ckpt_period = np.inf
-        self.model.to(self.device_torch)
-        self.target = copy.deepcopy(self.model)
         # Training
         self.opt, self.lr_scheduler = make_opt(self.parameters(), self.Z, args)
         self.n_train_steps = args.gflownet.n_iter

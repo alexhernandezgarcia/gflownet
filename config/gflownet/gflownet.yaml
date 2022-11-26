@@ -11,10 +11,6 @@ device: cpu
 # Logging
 progress: True
 lightweight: False
-# Checkpoints
-model_ckpt: null
-reload_ckpt: False
-ckpt_period: null
 # Optimizer
 optimizer:
   # Loss function
@@ -71,3 +67,10 @@ comet:
     tags:
       - gflownet
     test_period: 500
+policy:
+    architecture: mlp
+    n_hid: 128
+    n_layers: 2
+    reload_ckpt: False
+    model_ckpt: null
+    ckpt_period: null

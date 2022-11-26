@@ -16,6 +16,7 @@ class GFlowNetEnv:
         env_id=None,
         reward_beta=1,
         reward_norm=1.0,
+        reward_norm_std_mult=0,
         reward_func="power",
         energies_stats=None,
         denorm_proxy=False,
@@ -30,6 +31,7 @@ class GFlowNetEnv:
         self.min_reward = 1e-8
         self.reward_beta = reward_beta
         self.reward_norm = reward_norm
+        self.reward_norm_std_mult = reward_norm_std_mult
         self.reward_func = reward_func
         self.energies_stats = energies_stats
         self.denorm_proxy = denorm_proxy
