@@ -21,7 +21,7 @@ class GFlowNetEnv:
         energies_stats=None,
         denorm_proxy=False,
         proxy=None,
-        oracle_func=None,
+        oracle=None,
         proxy_state_format=None,
         **kwargs,
     ):
@@ -36,9 +36,11 @@ class GFlowNetEnv:
         self.reward_func = reward_func
         self.energies_stats = energies_stats
         self.denorm_proxy = denorm_proxy
-        # TODO: remove oracle as not required in env I think
-        self.oracle = oracle_func
         self.proxy = proxy
+        if oracle is None:
+            self.oracle = self.proxy
+        else:
+            self.oracle = oracle
         if proxy_state_format == "ohe":
             self.state2proxy = self.state2obs
         elif proxy_state_format == "oracle":
