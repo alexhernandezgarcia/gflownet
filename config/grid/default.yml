@@ -37,6 +37,8 @@ gflownet:
   reward_norm_std_mult: 8
   reward_beta: 8.0
   reward_func: power
+  train:
+    path: ~/scratch/datasets/grid/corners_d2l3_r0.csv
   test:
     path: ~/scratch/datasets/grid/corners_d2l3_r0.csv
     period: 1
