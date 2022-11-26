@@ -22,13 +22,11 @@ def main(config):
     env = hydra.utils.instantiate(config.env, proxy=proxy)
     gflownet = hydra.utils.instantiate(config.gflownet, env=env, buffer=config.env.buffer)
     gflownet.train()
-    import ipdb; ipdb.set_trace()
 
     # sample from the oracle, not from a proxy model
-    batch, times = gflownet_agent.sample_batch(
-        gflownet_agent.env, args.gflownet.n_samples, train=False
+    batch, times = gflownet.sample_batch(
+        env, config.n_samples, train=False
     )
-    samples, times = batch2dict(batch, gflownet_agent.env, get_uncertainties=False)
 
 
 if __name__ == "__main__":

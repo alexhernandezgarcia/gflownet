@@ -3,3 +3,4 @@ defaults:
   - gflownet: flowmatch
   - proxy: grid_corners
 
+n_samples: 1000

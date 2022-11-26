@@ -45,6 +45,7 @@ def set_device(dev):
 class GFlowNetAgent:
     def __init__(
         self,
+        logdir,
         env,
         seed,
         device,
@@ -62,6 +63,8 @@ class GFlowNetAgent:
         sample_only=False,
         **kwargs,
     ):
+        # Log directory
+        self.logdir = Path(logdir)
         # Environment
         self.env = env
         # Seed
@@ -95,9 +98,9 @@ class GFlowNetAgent:
                     self.comet.add_tags(comet.tags)
                 else:
                     self.comet.add_tag(comet.tags)
-            self.comet.log_parameters(vars(args))
-            if Path(logdir).exists():
-                with open(Path(logdir) / "comet.url", "w") as f:
+#             self.comet.log_parameters(vars(args))
+            if self.logdir.exists():
+                with open(self.logdir / "comet.url", "w") as f:
                     f.write(self.comet.url + "\n")
         else:
             if isinstance(comet, Experiment):
@@ -150,11 +153,11 @@ class GFlowNetAgent:
                 + [len(self.env.action_space) + 1]
             )
         if policy.model_ckpt:
-            if Path(logdir).exists():
-                if (Path(logdir) / "ckpts").exists():
-                    self.model_path = Path(logdir) / "ckpts" / policy.model_ckpt
+            if self.logdir.exists():
+                if (self.logdir / "ckpts").exists():
+                    self.model_path = self.logdir / "ckpts" / policy.model_ckpt
                 else:
-                    self.model_path = Path(logdir) / policy.model_ckpt
+                    self.model_path = self.logdir / policy.model_ckpt
             else:
                 self.model_path = policy.model_ckpt
             if self.model_path.exists() and policy.reload_ckpt:
