@@ -376,6 +376,11 @@ class Buffer:
                 test,
                 data_path,
             )
+        # Compute buffer statistics
+        if self.train is not None:
+            self.mean_tr, self.std_tr, self.min_tr, self.max_tr, self.max_norm_tr = self.compute_stats(self.train)
+        if self.test is not None:
+            self.mean_tt, self.std_tt, self.min_tt, self.max_tt, _ = self.compute_stats(self.test)
 
     def add(
         self,
@@ -485,6 +490,15 @@ class Buffer:
                     output_csv=test.output,
                 )
         return self.train, self.test
+
+    def compute_stats(self, data):
+        mean_data = data["energies"].mean()
+        std_data = data["energies"].std()
+        min_data = data["energies"].min()
+        max_data = data["energies"].max()
+        data_zscores = (data["energies"] - mean_data) / std_data
+        max_norm_data = data_zscores.max()
+        return mean_data, std_data, min_data, max_data, max_norm_data
 
     def sample(
         self,

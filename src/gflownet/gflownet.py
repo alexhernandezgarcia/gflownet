@@ -115,40 +115,32 @@ class GFlowNetAgent:
             self.test_period = np.inf
         # Buffers
         self.buffer = Buffer(**buffer, env=self.env, make_train_test=not sample_only)
-        # Train set statistics
+        # Train set statistics and reward normalization constant
         if self.buffer.train is not None:
-            min_energies_tr = self.buffer.train["energies"].min()
-            max_energies_tr = self.buffer.train["energies"].max()
-            mean_energies_tr = self.buffer.train["energies"].mean()
-            std_energies_tr = self.buffer.train["energies"].std()
-            energies_tr_norm = (
-                self.buffer.train["energies"].values - mean_energies_tr
-            ) / std_energies_tr
-            max_norm_energies_tr = np.max(energies_tr_norm)
-            self.energies_stats_tr = [
-                min_energies_tr,
-                max_energies_tr,
-                mean_energies_tr,
-                std_energies_tr,
-                max_norm_energies_tr,
+            energies_stats_tr = [
+                self.buffer.min_tr,
+                self.buffer.max_tr,
+                self.buffer.mean_tr,
+                self.buffer.std_tr,
+                self.buffer.max_norm_tr,
             ]
-            self.env.set_energies_stats(self.energies_stats_tr)
+            self.env.set_energies_stats(energies_stats_tr)
             print("\nTrain data")
-            print(f"\tAverage score: {mean_energies_tr}")
-            print(f"\tStd score: {std_energies_tr}")
-            print(f"\tMin score: {min_energies_tr}")
-            print(f"\tMax score: {max_energies_tr}")
+            print(f"\tMean score: {energies_stats_tr[2]}")
+            print(f"\tStd score: {energies_stats_tr[3]}")
+            print(f"\tMin score: {energies_stats_tr[0]}")
+            print(f"\tMax score: {energies_stats_tr[1]}")
         else:
-            self.energies_stats_tr = None
-        if self.env.reward_norm_std_mult > 0 and self.energies_stats_tr is not None:
+            energies_stats_tr = None
+        if self.env.reward_norm_std_mult > 0 and energies_stats_tr is not None:
             self.env.reward_norm = (
-                self.env.reward_norm_std_mult * self.energies_stats_tr[3]
+                self.env.reward_norm_std_mult * energies_stats_tr[3]
             )
             self.env.set_reward_norm(self.env.reward_norm)
         # Test set statistics
         if self.buffer.test is not None:
             print("\nTest data")
-            print(f"\tAverage score: {self.buffer.test['energies'].mean()}")
+            print(f"\tMean score: {self.buffer.test['energies'].mean()}")
             print(f"\tStd score: {self.buffer.test['energies'].std()}")
             print(f"\tMin score: {self.buffer.test['energies'].min()}")
             print(f"\tMax score: {self.buffer.test['energies'].max()}")
