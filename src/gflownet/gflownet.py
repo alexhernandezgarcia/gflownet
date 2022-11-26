@@ -91,22 +91,7 @@ class GFlowNetAgent:
             self.al_iter = ""
         self.logsoftmax = torch.nn.LogSoftmax(dim=1)
         self.env_id = args.gflownet.env_id.lower()
-        # Oracle
-        if self.env_id == "aptamers":
-            self.oracle = Oracle(
-                oracle=args.gflownet.func,
-                seed=args.seeds.oracle,
-                seq_len=args.gflownet.max_seq_length,
-                dict_size=args.gflownet.nalphabet,
-                min_len=args.gflownet.min_seq_length,
-                max_len=args.gflownet.max_seq_length,
-                energy_weight=args.dataset.nupack_energy_reweighting,
-                nupack_target_motif=args.dataset.nupack_target_motif,
-            )
-        elif self.env_id == "grid":
-            self.oracle = None
-        else:
-            raise NotImplemented
+        # Buffer
         self.buffer = Buffer(self.env, replay_capacity=args.gflownet.replay_capacity)
         # Comet
         if (
