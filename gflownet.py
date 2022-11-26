@@ -487,7 +487,6 @@ class GFlowNetAgent:
         self.oracle_period = args.gflownet.oracle.period
         self.oracle_nsamples = args.gflownet.oracle.nsamples
         self.oracle_k = args.gflownet.oracle.k
-        self.reward_clip_min = 1e-5
 
     def parameters(self):
         return self.model.parameters()
