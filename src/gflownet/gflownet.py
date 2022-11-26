@@ -90,7 +90,6 @@ class GFlowNetAgent:
         else:
             self.al_iter = ""
         self.logsoftmax = torch.nn.LogSoftmax(dim=1)
-        self.batch_reward = args.gflownet.batch_reward
         self.env_id = args.gflownet.env_id.lower()
         # Oracle
         if self.env_id == "aptamers":
