@@ -46,14 +46,16 @@ class GFlowNetAgent:
     def __init__(
         self,
         env,
-        debug,
-        lightweight,
         seed,
         device,
         optimizer,
+        logger,
         comet,
         buffer,
         policy,
+        mask_invalid_actions,
+        temperature_logits,
+        pct_batch_empirical,
         proxy=None,
         al_iter=-1,
         data_path=None,
@@ -62,9 +64,6 @@ class GFlowNetAgent:
     ):
         # Environment
         self.env = env
-        # Misc
-        self.debug = debug
-        self.lightweight = lightweight
         # Seed
         self.rng = np.random.default_rng(seed)
         # Device
@@ -84,16 +83,11 @@ class GFlowNetAgent:
             self.Z = None
         if not sample_only:
             self.loss_eps = torch.tensor(float(1e-5)).to(self.device)
-        # Optimizer
-        self.tau = optimizer.bootstrap_tau
-        self.ema_alpha = optimizer.ema_alpha
-        self.early_stopping = optimizer.early_stopping
-        if al_iter >= 0:
-            self.al_iter = "_iter{}".format(al_iter)
-        else:
-            self.al_iter = ""
-        self.logsoftmax = torch.nn.LogSoftmax(dim=1)
-        # Comet
+        # Logging (Comet)
+        self.debug = logger.debug
+        self.lightweight = logger.lightweight
+        self.progress = logger.progress
+        self.num_empirical_loss = logger.num_empirical_loss
         if comet.project and not comet.skip and not sample_only:
             self.comet = Experiment(project_name=comet.project, display_summary_level=0)
             if comet.tags:
@@ -111,9 +105,12 @@ class GFlowNetAgent:
             else:
                 self.comet = None
         self.log_times = comet.log_times
-        self.test_period = comet.test_period
+        self.test_period = logger.test.period
         if self.test_period in [None, -1]:
             self.test_period = np.inf
+        self.oracle_period = logger.oracle.period
+        self.oracle_n = logger.oracle.n
+        self.oracle_k = logger.oracle.k
         # Buffers
         self.buffer = Buffer(**buffer, env=self.env, make_train_test=not sample_only)
         # Train set statistics and reward normalization constant
@@ -171,22 +168,25 @@ class GFlowNetAgent:
         self.ckpt_period = policy.ckpt_period
         if self.ckpt_period in [None, -1]:
             self.ckpt_period = np.inf
+        # Optimizer
+        self.opt, self.lr_scheduler = make_opt(self.parameters(), self.Z, optimizer)
+        self.n_train_steps = optimizer.n_train_steps
+        self.batch_size = optimizer.batch_size
+        self.ttsr = max(int(optimizer.train_to_sample_ratio), 1)
+        self.sttr = max(int(1 / optimizer.train_to_sample_ratio), 1)
+        self.clip_grad_norm = optimizer.clip_grad_norm
+        self.tau = optimizer.bootstrap_tau
+        self.ema_alpha = optimizer.ema_alpha
+        self.early_stopping = optimizer.early_stopping
+        if al_iter >= 0:
+            self.al_iter = "_iter{}".format(al_iter)
+        else:
+            self.al_iter = ""
+        self.logsoftmax = torch.nn.LogSoftmax(dim=1)
         # Training
-        self.opt, self.lr_scheduler = make_opt(self.parameters(), self.Z, args)
-        self.n_train_steps = args.gflownet.n_iter
-        self.mbsize = args.gflownet.mbsize
-        self.mask_invalid_actions = True
-        self.progress = args.gflownet.progress
-        self.clip_grad_norm = args.gflownet.clip_grad_norm
-        self.num_empirical_loss = args.gflownet.num_empirical_loss
-        self.ttsr = max(int(args.gflownet.train_to_sample_ratio), 1)
-        self.sttr = max(int(1 / args.gflownet.train_to_sample_ratio), 1)
-        self.temperature_logits = args.gflownet.temperature_logits
-        self.pct_batch_empirical = args.gflownet.pct_batch_empirical
-        # Oracle metrics
-        self.oracle_period = args.gflownet.oracle.period
-        self.oracle_nsamples = args.gflownet.oracle.nsamples
-        self.oracle_k = args.gflownet.oracle.k
+        self.mask_invalid_actions = mask_invalid_actions
+        self.temperature_logits = temperature_logits
+        self.pct_batch_empirical = pct_batch_empirical
 
     def parameters(self):
         return self.model.parameters()
@@ -547,10 +547,10 @@ class GFlowNetAgent:
         return loss, loss, loss
 
     def unpack_terminal_states(self, batch):
-        paths = [[] for _ in range(self.mbsize)]
-        states = [None] * self.mbsize
-        rewards = [None] * self.mbsize
-        #         state_ids = [[-1] for _ in range(self.mbsize)]
+        paths = [[] for _ in range(self.batch_size)]
+        states = [None] * self.batch_size
+        rewards = [None] * self.batch_size
+        #         state_ids = [[-1] for _ in range(self.batch_size)]
         for el in batch:
             path_id = el[6][:1].item()
             state_id = el[7][:1].item()
@@ -570,7 +570,7 @@ class GFlowNetAgent:
         loss_term_ema = None
         loss_flow_ema = None
         # Generate list of environments
-        envs = [copy.deepcopy(self.env).reset() for _ in range(self.mbsize)]
+        envs = [copy.deepcopy(self.env).reset() for _ in range(self.batch_size)]
         # Train loop
         for it in tqdm(range(self.n_train_steps + 1), disable=not self.progress):
             t0_iter = time.time()
@@ -694,7 +694,7 @@ class GFlowNetAgent:
             # Oracle metrics (for monitoring)
             if not it % self.oracle_period and self.debug:
                 oracle_batch, oracle_times = self.sample_batch(
-                    self.env, self.oracle_nsamples, train=False
+                    self.env, self.oracle_n, train=False
                 )
                 oracle_dict, oracle_times = batch2dict(
                     oracle_batch, self.env, get_uncertainties=False
@@ -818,7 +818,7 @@ def batch2dict(batch, env, get_uncertainties=False, query_function="Both"):
 
 class RandomTrajAgent:
     def __init__(self, args, envs):
-        self.mbsize = args.gflownet.mbsize  # mini-batch size
+        self.batch_size = args.gflownet.batch_size  # mini-batch size
         self.envs = envs
         self.nact = args.ndim + 1
         self.model = None
@@ -826,12 +826,12 @@ class RandomTrajAgent:
     def parameters(self):
         return []
 
-    def sample_batch(self, mbsize, all_visited):
+    def sample_batch(self, batch_size, all_visited):
         batch = []
         [i.reset()[0] for i in self.envs]  # reset envs
-        done = [False] * mbsize
+        done = [False] * batch_size
         while not all(done):
-            acts = np.random.randint(0, self.nact, mbsize)  # actions (?)
+            acts = np.random.randint(0, self.nact, batch_size)  # actions (?)
             # step : list
             # - For each e in envs, if corresponding done is False
             #   - For each element i in env, and a in acts
@@ -841,7 +841,7 @@ class RandomTrajAgent:
                 for i, a in zip([e for d, e in zip(done, self.envs) if not d], acts)
             ]
             c = count(0)
-            m = {j: next(c) for j in range(mbsize) if not done[j]}
+            m = {j: next(c) for j in range(batch_size) if not done[j]}
             done = [bool(d or step[m[i]][2]) for i, d in enumerate(done)]
             for (_, r, d, sp) in step:
                 if d:
@@ -878,33 +878,33 @@ def make_mlp(layers_dim, act=nn.LeakyReLU(), tail=[]):
     )
 
 
-def make_opt(params, Z, args):
+def make_opt(params, Z, config):
     """
     Set up the optimizer
     """
     params = list(params)
     if not len(params):
         return None
-    if args.gflownet.opt == "adam":
+    if config.method == "adam":
         opt = torch.optim.Adam(
             params,
-            args.gflownet.lr,
-            betas=(args.gflownet.adam_beta1, args.gflownet.adam_beta2),
+            config.lr,
+            betas=(config.adam_beta1, config.adam_beta2),
         )
         if Z is not None:
             opt.add_param_group(
                 {
                     "params": Z,
-                    "lr": args.gflownet.lr * args.gflownet.lr_z_mult,
+                    "lr": config.lr * config.lr_z_mult,
                 }
             )
-    elif args.gflownet.opt == "msgd":
-        opt = torch.optim.SGD(params, args.gflownet.lr, momentum=args.gflownet.momentum)
+    elif config.method == "msgd":
+        opt = torch.optim.SGD(params, config.lr, momentum=config.momentum)
     # Learning rate scheduling
     lr_scheduler = torch.optim.lr_scheduler.StepLR(
         opt,
-        step_size=args.gflownet.lr.decay_period,
-        gamma=args.gflownet.lr.decay_gamma,
+        step_size=config.lr_decay_period,
+        gamma=config.lr_decay_gamma,
     )
     return opt, lr_scheduler
 
