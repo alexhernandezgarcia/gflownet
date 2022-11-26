@@ -1,4 +1,5 @@
 defaults:
   - env: grid
   - gflownet: flowmatch
+  - proxy: grid_corners
 
