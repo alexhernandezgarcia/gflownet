@@ -15,3 +15,10 @@ max_step_len: 1
 # Mapping coordinates
 cell_min: -1
 cell_max: 1
+# Buffer
+buffer:
+  data_path: null
+  train:
+    path: ~/scratch/datasets/grid/corners_d2l3_r0.csv
+  test:
+    path: ~/scratch/datasets/grid/corners_d2l3_r0.csv

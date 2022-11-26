@@ -20,6 +20,7 @@ from torch.distributions.categorical import Categorical
 from tqdm import tqdm
 
 from src.gflownet.envs.base import Buffer
+
 # from aptamers import AptamerSeq
 # from grid import Grid
 # from oracle import numbers2letters, Oracle
@@ -91,24 +92,15 @@ class GFlowNetAgent:
         else:
             self.al_iter = ""
         self.logsoftmax = torch.nn.LogSoftmax(dim=1)
-        # Buffer
-        self.buffer = Buffer(self.env, replay_capacity=buffer.replay_capacity)
         # Comet
-        if (
-            comet.project
-            and not comet.skip
-            and not sample_only
-        ):
-            self.comet = Experiment(
-                project_name=comet.project, display_summary_level=0
-            )
+        if comet.project and not comet.skip and not sample_only:
+            self.comet = Experiment(project_name=comet.project, display_summary_level=0)
             if comet.tags:
                 if isinstance(comet.tags, list):
                     self.comet.add_tags(comet.tags)
                 else:
                     self.comet.add_tag(comet.tags)
             self.comet.log_parameters(vars(args))
-            import ipdb; ipdb.set_trace()
             if Path(logdir).exists():
                 with open(Path(logdir) / "comet.url", "w") as f:
                     f.write(self.comet.url + "\n")
@@ -118,18 +110,11 @@ class GFlowNetAgent:
             else:
                 self.comet = None
         self.log_times = comet.log_times
-        # Make train and test sets
-        if not sample_only:
-            self.buffer.make_train_test(
-                data_path,
-                args.gflownet.train.path,
-                args.gflownet.test.path,
-                self.oracle,
-                args,
-            )
-        self.test_period = args.gflownet.test.period
+        self.test_period = comet.test_period
         if self.test_period in [None, -1]:
             self.test_period = np.inf
+        # Buffers
+        self.buffer = Buffer(**buffer, env=self.env, make_train_test=not sample_only)
         # Train set statistics
         if self.buffer.train is not None:
             min_energies_tr = self.buffer.train["energies"].min()
@@ -156,7 +141,9 @@ class GFlowNetAgent:
         else:
             self.energies_stats_tr = None
         if self.env.reward_norm_std_mult > 0 and self.energies_stats_tr is not None:
-            self.env.reward_norm = self.env.reward_norm_std_mult * self.energies_stats_tr[3]
+            self.env.reward_norm = (
+                self.env.reward_norm_std_mult * self.energies_stats_tr[3]
+            )
             self.env.set_reward_norm(self.env.reward_norm)
         # Test set statistics
         if self.buffer.test is not None:

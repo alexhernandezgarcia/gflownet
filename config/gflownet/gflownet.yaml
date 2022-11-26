@@ -63,9 +63,6 @@ pct_batch_empirical: 1.0
 replay_capacity: 0
 # From original implementation
 clip_grad_norm: 0.0
-# Buffer
-buffer:
-  replay_capacity: 10
 # Comet
 comet:
     project: gflownet
@@ -73,3 +70,4 @@ comet:
     log_times: False
     tags:
       - gflownet
+    test_period: 500

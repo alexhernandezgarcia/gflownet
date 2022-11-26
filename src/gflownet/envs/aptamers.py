@@ -346,7 +346,7 @@ class AptamerSeq(GFlowNetEnv):
         """
         if self._true_density is not None:
             return self._true_density
-        if self.nalphabet**self.max_seq_length > max_states:
+        if self.nalphabet ** self.max_seq_length > max_states:
             return (None, None, None)
         state_all = np.int32(
             list(

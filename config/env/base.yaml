@@ -24,3 +24,6 @@ test_set_base: None
 test_set_seed: 167
 ntest: 10000
 test_output: None
+# Buffer
+buffer:
+  replay_capacity: 10

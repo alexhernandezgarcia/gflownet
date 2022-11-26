@@ -17,7 +17,7 @@ def main(config):
     log_config = {"/".join(("config", key)): val for key, val in log_config.items()}
 
     env = hydra.utils.instantiate(config.env)
-    gflownet = hydra.utils.instantiate(config.gflownet, env=env)
+    gflownet = hydra.utils.instantiate(config.gflownet, env=env, buffer=config.env.buffer)
     import ipdb; ipdb.set_trace()
     gflownet.train()
 
