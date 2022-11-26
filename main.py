@@ -16,13 +16,13 @@ def main(config):
     log_config = flatten_config(OmegaConf.to_container(config, resolve=True), sep="/")
     log_config = {"/".join(("config", key)): val for key, val in log_config.items()}
 
+    # The proxy is required in the env for scoring: might be an oracle or a model
     proxy = hydra.utils.instantiate(config.proxy)
-    # The proxy is required in the env for scoring.
-    # The above instantiated proxy is fed to env (no matter what it is, oracle or model) and directly used for scoring
+    # The proxy is passed to env and used for computing rewards
     env = hydra.utils.instantiate(config.env, proxy=proxy)
-    gflownet = hydra.utils.instantiate(config.gflownet, env=env)
-    import ipdb; ipdb.set_trace()
+    gflownet = hydra.utils.instantiate(config.gflownet, env=env, buffer=config.env.buffer)
     gflownet.train()
+    import ipdb; ipdb.set_trace()
 
     # sample from the oracle, not from a proxy model
     batch, times = gflownet_agent.sample_batch(

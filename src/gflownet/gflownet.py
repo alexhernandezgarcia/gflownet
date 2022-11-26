@@ -19,7 +19,8 @@ import yaml
 from torch.distributions.categorical import Categorical
 from tqdm import tqdm
 
-# from gflownetenv import Buffer
+from src.gflownet.envs.base import Buffer
+
 # from aptamers import AptamerSeq
 # from grid import Grid
 # from oracle import numbers2letters, Oracle
@@ -45,12 +46,16 @@ class GFlowNetAgent:
     def __init__(
         self,
         env,
-        debug,
-        lightweight,
         seed,
         device,
         optimizer,
-        comet=None,
+        logger,
+        comet,
+        buffer,
+        policy,
+        mask_invalid_actions,
+        temperature_logits,
+        pct_batch_empirical,
         proxy=None,
         al_iter=-1,
         data_path=None,
@@ -59,9 +64,6 @@ class GFlowNetAgent:
     ):
         # Environment
         self.env = env
-        # Misc
-        self.debug = debug
-        self.lightweight = lightweight
         # Seed
         self.rng = np.random.default_rng(seed)
         # Device
@@ -81,7 +83,98 @@ class GFlowNetAgent:
             self.Z = None
         if not sample_only:
             self.loss_eps = torch.tensor(float(1e-5)).to(self.device)
+        # Logging (Comet)
+        self.debug = logger.debug
+        self.lightweight = logger.lightweight
+        self.progress = logger.progress
+        self.num_empirical_loss = logger.num_empirical_loss
+        if comet.project and not comet.skip and not sample_only:
+            self.comet = Experiment(project_name=comet.project, display_summary_level=0)
+            if comet.tags:
+                if isinstance(comet.tags, list):
+                    self.comet.add_tags(comet.tags)
+                else:
+                    self.comet.add_tag(comet.tags)
+            self.comet.log_parameters(vars(args))
+            if Path(logdir).exists():
+                with open(Path(logdir) / "comet.url", "w") as f:
+                    f.write(self.comet.url + "\n")
+        else:
+            if isinstance(comet, Experiment):
+                self.comet = comet
+            else:
+                self.comet = None
+        self.log_times = comet.log_times
+        self.test_period = logger.test.period
+        if self.test_period in [None, -1]:
+            self.test_period = np.inf
+        self.oracle_period = logger.oracle.period
+        self.oracle_n = logger.oracle.n
+        self.oracle_k = logger.oracle.k
+        # Buffers
+        self.buffer = Buffer(**buffer, env=self.env, make_train_test=not sample_only)
+        # Train set statistics and reward normalization constant
+        if self.buffer.train is not None:
+            energies_stats_tr = [
+                self.buffer.min_tr,
+                self.buffer.max_tr,
+                self.buffer.mean_tr,
+                self.buffer.std_tr,
+                self.buffer.max_norm_tr,
+            ]
+            self.env.set_energies_stats(energies_stats_tr)
+            print("\nTrain data")
+            print(f"\tMean score: {energies_stats_tr[2]}")
+            print(f"\tStd score: {energies_stats_tr[3]}")
+            print(f"\tMin score: {energies_stats_tr[0]}")
+            print(f"\tMax score: {energies_stats_tr[1]}")
+        else:
+            energies_stats_tr = None
+        if self.env.reward_norm_std_mult > 0 and energies_stats_tr is not None:
+            self.env.reward_norm = (
+                self.env.reward_norm_std_mult * energies_stats_tr[3]
+            )
+            self.env.set_reward_norm(self.env.reward_norm)
+        # Test set statistics
+        if self.buffer.test is not None:
+            print("\nTest data")
+            print(f"\tMean score: {self.buffer.test['energies'].mean()}")
+            print(f"\tStd score: {self.buffer.test['energies'].std()}")
+            print(f"\tMin score: {self.buffer.test['energies'].min()}")
+            print(f"\tMax score: {self.buffer.test['energies'].max()}")
+        # Policy
+        if policy.architecture == "mlp":
+            self.model = make_mlp(
+                [self.env.obs_dim]
+                + [policy.n_hid] * policy.n_layers
+                + [len(self.env.action_space) + 1]
+            )
+        if policy.model_ckpt:
+            if Path(logdir).exists():
+                if (Path(logdir) / "ckpts").exists():
+                    self.model_path = Path(logdir) / "ckpts" / policy.model_ckpt
+                else:
+                    self.model_path = Path(logdir) / policy.model_ckpt
+            else:
+                self.model_path = policy.model_ckpt
+            if self.model_path.exists() and policy.reload_ckpt:
+                self.model.load_state_dict(torch.load(self.model_path))
+                print("Reloaded GFN Model Checkpoint")
+        else:
+            self.model_path = None
+        self.model.to(self.device_torch)
+        # TODO: reassess need for self.target
+        self.target = copy.deepcopy(self.model)
+        self.ckpt_period = policy.ckpt_period
+        if self.ckpt_period in [None, -1]:
+            self.ckpt_period = np.inf
         # Optimizer
+        self.opt, self.lr_scheduler = make_opt(self.parameters(), self.Z, optimizer)
+        self.n_train_steps = optimizer.n_train_steps
+        self.batch_size = optimizer.batch_size
+        self.ttsr = max(int(optimizer.train_to_sample_ratio), 1)
+        self.sttr = max(int(1 / optimizer.train_to_sample_ratio), 1)
+        self.clip_grad_norm = optimizer.clip_grad_norm
         self.tau = optimizer.bootstrap_tau
         self.ema_alpha = optimizer.ema_alpha
         self.early_stopping = optimizer.early_stopping
@@ -90,139 +183,10 @@ class GFlowNetAgent:
         else:
             self.al_iter = ""
         self.logsoftmax = torch.nn.LogSoftmax(dim=1)
-        self.batch_reward = args.gflownet.batch_reward
-        self.env_id = args.gflownet.env_id.lower()
-        # Oracle
-        if self.env_id == "aptamers":
-            self.oracle = Oracle(
-                oracle=args.gflownet.func,
-                seed=args.seeds.oracle,
-                seq_len=args.gflownet.max_seq_length,
-                dict_size=args.gflownet.nalphabet,
-                min_len=args.gflownet.min_seq_length,
-                max_len=args.gflownet.max_seq_length,
-                energy_weight=args.dataset.nupack_energy_reweighting,
-                nupack_target_motif=args.dataset.nupack_target_motif,
-            )
-        elif self.env_id == "grid":
-            self.oracle = None
-        else:
-            raise NotImplemented
-        self.buffer = Buffer(self.env, replay_capacity=args.gflownet.replay_capacity)
-        # Comet
-        if (
-            args.gflownet.comet.project
-            and not args.gflownet.comet.skip
-            and not sample_only
-        ):
-            self.comet = Experiment(
-                project_name=args.gflownet.comet.project, display_summary_level=0
-            )
-            if args.gflownet.comet.tags:
-                if isinstance(args.gflownet.comet.tags, list):
-                    self.comet.add_tags(args.gflownet.comet.tags)
-                else:
-                    self.comet.add_tag(args.gflownet.comet.tags)
-            self.comet.log_parameters(vars(args))
-            if "logdir" in args and Path(args.logdir).exists():
-                with open(Path(args.logdir) / "comet.url", "w") as f:
-                    f.write(self.comet.url + "\n")
-        else:
-            if isinstance(comet, Experiment):
-                self.comet = comet
-            else:
-                self.comet = None
-        self.no_log_times = args.gflownet.no_log_times
-        # Make train and test sets
-        if not sample_only:
-            self.buffer.make_train_test(
-                data_path,
-                args.gflownet.train.path,
-                args.gflownet.test.path,
-                self.oracle,
-                args,
-            )
-        self.test_period = args.gflownet.test.period
-        if self.test_period in [None, -1]:
-            self.test_period = np.inf
-        # Train set statistics
-        if self.buffer.train is not None:
-            min_energies_tr = self.buffer.train["energies"].min()
-            max_energies_tr = self.buffer.train["energies"].max()
-            mean_energies_tr = self.buffer.train["energies"].mean()
-            std_energies_tr = self.buffer.train["energies"].std()
-            energies_tr_norm = (
-                self.buffer.train["energies"].values - mean_energies_tr
-            ) / std_energies_tr
-            max_norm_energies_tr = np.max(energies_tr_norm)
-            self.energies_stats_tr = [
-                min_energies_tr,
-                max_energies_tr,
-                mean_energies_tr,
-                std_energies_tr,
-                max_norm_energies_tr,
-            ]
-            self.env.set_energies_stats(self.energies_stats_tr)
-            print("\nTrain data")
-            print(f"\tAverage score: {mean_energies_tr}")
-            print(f"\tStd score: {std_energies_tr}")
-            print(f"\tMin score: {min_energies_tr}")
-            print(f"\tMax score: {max_energies_tr}")
-        else:
-            self.energies_stats_tr = None
-        if self.env.reward_norm_std_mult > 0 and self.energies_stats_tr is not None:
-            self.env.reward_norm = self.env.reward_norm_std_mult * self.energies_stats_tr[3]
-            self.env.set_reward_norm(self.env.reward_norm)
-        # Test set statistics
-        if self.buffer.test is not None:
-            print("\nTest data")
-            print(f"\tAverage score: {self.buffer.test['energies'].mean()}")
-            print(f"\tStd score: {self.buffer.test['energies'].std()}")
-            print(f"\tMin score: {self.buffer.test['energies'].min()}")
-            print(f"\tMax score: {self.buffer.test['energies'].max()}")
-        # Model
-        self.model = make_mlp(
-            [self.env.obs_dim]
-            + [args.gflownet.n_hid] * args.gflownet.n_layers
-            + [len(self.env.action_space) + 1]
-        )
-        self.reload_ckpt = args.gflownet.reload_ckpt
-        if args.gflownet.model_ckpt:
-            if "logdir" in args and Path(args.logdir).exists():
-                if (Path(args.logdir) / "ckpts").exists():
-                    self.model_path = (
-                        Path(args.logdir) / "ckpts" / args.gflownet.model_ckpt
-                    )
-                else:
-                    self.model_path = Path(args.logdir) / args.gflownet.model_ckpt
-            else:
-                self.model_path = args.gflownet.model_ckpt
-            if self.model_path.exists() and self.reload_ckpt:
-                self.model.load_state_dict(torch.load(self.model_path))
-                print("Reloaded GFN Model Checkpoint")
-        else:
-            self.model_path = None
-        self.ckpt_period = args.gflownet.ckpt_period
-        if self.ckpt_period in [None, -1]:
-            self.ckpt_period = np.inf
-        self.model.to(self.device_torch)
-        self.target = copy.deepcopy(self.model)
         # Training
-        self.opt, self.lr_scheduler = make_opt(self.parameters(), self.Z, args)
-        self.n_train_steps = args.gflownet.n_iter
-        self.mbsize = args.gflownet.mbsize
-        self.mask_invalid_actions = True
-        self.progress = args.gflownet.progress
-        self.clip_grad_norm = args.gflownet.clip_grad_norm
-        self.num_empirical_loss = args.gflownet.num_empirical_loss
-        self.ttsr = max(int(args.gflownet.train_to_sample_ratio), 1)
-        self.sttr = max(int(1 / args.gflownet.train_to_sample_ratio), 1)
-        self.temperature_logits = args.gflownet.temperature_logits
-        self.pct_batch_empirical = args.gflownet.pct_batch_empirical
-        # Oracle metrics
-        self.oracle_period = args.gflownet.oracle.period
-        self.oracle_nsamples = args.gflownet.oracle.nsamples
-        self.oracle_k = args.gflownet.oracle.k
+        self.mask_invalid_actions = mask_invalid_actions
+        self.temperature_logits = temperature_logits
+        self.pct_batch_empirical = pct_batch_empirical
 
     def parameters(self):
         return self.model.parameters()
@@ -583,10 +547,10 @@ class GFlowNetAgent:
         return loss, loss, loss
 
     def unpack_terminal_states(self, batch):
-        paths = [[] for _ in range(self.mbsize)]
-        states = [None] * self.mbsize
-        rewards = [None] * self.mbsize
-        #         state_ids = [[-1] for _ in range(self.mbsize)]
+        paths = [[] for _ in range(self.batch_size)]
+        states = [None] * self.batch_size
+        rewards = [None] * self.batch_size
+        #         state_ids = [[-1] for _ in range(self.batch_size)]
         for el in batch:
             path_id = el[6][:1].item()
             state_id = el[7][:1].item()
@@ -606,7 +570,7 @@ class GFlowNetAgent:
         loss_term_ema = None
         loss_flow_ema = None
         # Generate list of environments
-        envs = [copy.deepcopy(self.env).reset() for _ in range(self.mbsize)]
+        envs = [copy.deepcopy(self.env).reset() for _ in range(self.batch_size)]
         # Train loop
         for it in tqdm(range(self.n_train_steps + 1), disable=not self.progress):
             t0_iter = time.time()
@@ -730,7 +694,7 @@ class GFlowNetAgent:
             # Oracle metrics (for monitoring)
             if not it % self.oracle_period and self.debug:
                 oracle_batch, oracle_times = self.sample_batch(
-                    self.env, self.oracle_nsamples, train=False
+                    self.env, self.oracle_n, train=False
                 )
                 oracle_dict, oracle_times = batch2dict(
                     oracle_batch, self.env, get_uncertainties=False
@@ -813,7 +777,7 @@ class GFlowNetAgent:
             t1_iter = time.time()
             times.update({"iter": t1_iter - t0_iter})
             times = {"time_{}{}".format(k, self.al_iter): v for k, v in times.items()}
-            if self.comet and not self.no_log_times:
+            if self.comet and self.log_times:
                 self.comet.log_metrics(times, step=it)
         # Save final model
         if self.model_path:
@@ -854,7 +818,7 @@ def batch2dict(batch, env, get_uncertainties=False, query_function="Both"):
 
 class RandomTrajAgent:
     def __init__(self, args, envs):
-        self.mbsize = args.gflownet.mbsize  # mini-batch size
+        self.batch_size = args.gflownet.batch_size  # mini-batch size
         self.envs = envs
         self.nact = args.ndim + 1
         self.model = None
@@ -862,12 +826,12 @@ class RandomTrajAgent:
     def parameters(self):
         return []
 
-    def sample_batch(self, mbsize, all_visited):
+    def sample_batch(self, batch_size, all_visited):
         batch = []
         [i.reset()[0] for i in self.envs]  # reset envs
-        done = [False] * mbsize
+        done = [False] * batch_size
         while not all(done):
-            acts = np.random.randint(0, self.nact, mbsize)  # actions (?)
+            acts = np.random.randint(0, self.nact, batch_size)  # actions (?)
             # step : list
             # - For each e in envs, if corresponding done is False
             #   - For each element i in env, and a in acts
@@ -877,7 +841,7 @@ class RandomTrajAgent:
                 for i, a in zip([e for d, e in zip(done, self.envs) if not d], acts)
             ]
             c = count(0)
-            m = {j: next(c) for j in range(mbsize) if not done[j]}
+            m = {j: next(c) for j in range(batch_size) if not done[j]}
             done = [bool(d or step[m[i]][2]) for i, d in enumerate(done)]
             for (_, r, d, sp) in step:
                 if d:
@@ -914,33 +878,33 @@ def make_mlp(layers_dim, act=nn.LeakyReLU(), tail=[]):
     )
 
 
-def make_opt(params, Z, args):
+def make_opt(params, Z, config):
     """
     Set up the optimizer
     """
     params = list(params)
     if not len(params):
         return None
-    if args.gflownet.opt == "adam":
+    if config.method == "adam":
         opt = torch.optim.Adam(
             params,
-            args.gflownet.lr,
-            betas=(args.gflownet.adam_beta1, args.gflownet.adam_beta2),
+            config.lr,
+            betas=(config.adam_beta1, config.adam_beta2),
         )
         if Z is not None:
             opt.add_param_group(
                 {
                     "params": Z,
-                    "lr": args.gflownet.lr * args.gflownet.lr_z_mult,
+                    "lr": config.lr * config.lr_z_mult,
                 }
             )
-    elif args.gflownet.opt == "msgd":
-        opt = torch.optim.SGD(params, args.gflownet.lr, momentum=args.gflownet.momentum)
+    elif config.method == "msgd":
+        opt = torch.optim.SGD(params, config.lr, momentum=config.momentum)
     # Learning rate scheduling
     lr_scheduler = torch.optim.lr_scheduler.StepLR(
         opt,
-        step_size=args.gflownet.lr.decay_period,
-        gamma=args.gflownet.lr.decay_gamma,
+        step_size=config.lr_decay_period,
+        gamma=config.lr_decay_gamma,
     )
     return opt, lr_scheduler
 
