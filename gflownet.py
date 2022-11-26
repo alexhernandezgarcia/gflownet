@@ -1018,17 +1018,6 @@ class GFlowNetAgent:
             .pow(2)
             .mean()
         )
-        for p1, p2 in zip(
-            self.forward_policy.model.parameters(),
-            self.backward_policy.model.parameters(),
-        ):
-            if p1.data.ne(p2.data).sum() > 0:
-                # p1.data.ne(p2.data).sum() > 0:
-                print("\n")
-                print(p1.shape)
-                print(p2.shape)
-                print(p1)
-                print(p2)
         return loss, loss, loss
 
     def unpack_terminal_states(self, batch):
@@ -1347,7 +1336,6 @@ def make_opt(params, Z, args):
     """
     Set up the optimizer
     """
-    # params = list(params)
     params = params
     if not len(params):
         return None
