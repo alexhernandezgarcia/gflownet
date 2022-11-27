@@ -509,7 +509,7 @@ class GFlowNetAgent:
                 next_q = self.target(sp)
         else:
             next_q = self.model(sp)
-        next_q[masks==1] = -loginf
+        next_q[masks] = -loginf
         qsp = torch.logsumexp(next_q, 1)
         # qsp: qsp if not done; -loginf if done
         qsp = qsp * (1 - done) - loginf * done
@@ -972,7 +972,7 @@ def logq(path_list, actions_list, model, env, loginf=1000):
         masks = tb([env.get_mask_invalid_actions(state, 0) for state in path])
         with torch.no_grad():
             logits_path = model(tf(path_obs))
-        logits_path[masks==1] = -loginf
+        logits_path[masks] = -loginf
         logsoftmax = torch.nn.LogSoftmax(dim=1)
         logprobs_path = logsoftmax(logits_path)
         log_q_path = torch.tensor(0.0)
