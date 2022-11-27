@@ -55,6 +55,7 @@ class AptamerSeq(GFlowNetEnv):
         oracle_func=None,
         energies_stats=None,
         reward_norm=1.0,
+        reward_norm_std_mult=0.0,
         reward_func="power",
         denorm_proxy=False,
         **kwargs,
@@ -63,6 +64,7 @@ class AptamerSeq(GFlowNetEnv):
             env_id,
             reward_beta,
             reward_norm,
+            reward_norm_std_mult,
             reward_func,
             energies_stats,
             denorm_proxy,
@@ -346,7 +348,7 @@ class AptamerSeq(GFlowNetEnv):
         """
         if self._true_density is not None:
             return self._true_density
-        if self.nalphabet**self.max_seq_length > max_states:
+        if self.nalphabet ** self.max_seq_length > max_states:
             return (None, None, None)
         state_all = np.int32(
             list(

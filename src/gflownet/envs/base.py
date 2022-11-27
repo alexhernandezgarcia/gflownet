@@ -16,11 +16,13 @@ class GFlowNetEnv:
         env_id=None,
         reward_beta=1,
         reward_norm=1.0,
+        reward_norm_std_mult=0,
         reward_func="power",
         energies_stats=None,
         denorm_proxy=False,
         proxy=None,
         oracle_func=None,
+        proxy_state_format=None,
         **kwargs,
     ):
         self.state = []
@@ -30,18 +32,21 @@ class GFlowNetEnv:
         self.min_reward = 1e-8
         self.reward_beta = reward_beta
         self.reward_norm = reward_norm
+        self.reward_norm_std_mult = reward_norm_std_mult
         self.reward_func = reward_func
         self.energies_stats = energies_stats
         self.denorm_proxy = denorm_proxy
+        # TODO: remove oracle as not required in env I think
         self.oracle = oracle_func
-        if proxy:
-            self.proxy = proxy
-        else:
-            self.proxy = self.oracle
+        self.proxy = proxy
+        if proxy_state_format == "ohe":
+            self.state2proxy = self.state2obs
+        elif proxy_state_format == "oracle":
+            self.state2proxy = self.state2oracle
         self.reward = (
             lambda x: [0]
             if not self.done
-            else self.proxy2reward(self.proxy(self.state2oracle(x)))
+            else self.proxy2reward(self.proxy(self.state2proxy(x)))
         )
         self._true_density = None
         self.action_space = []
@@ -348,7 +353,17 @@ class Buffer:
     training samples, the train and test data sets, a replay buffer for training, etc.
     """
 
-    def __init__(self, env, replay_capacity=0, output_csv=None):
+    def __init__(
+        self,
+        env,
+        make_train_test=False,
+        replay_capacity=0,
+        output_csv=None,
+        data_path=None,
+        train=None,
+        test=None,
+        **kwargs,
+    ):
         self.env = env
         self.replay_capacity = replay_capacity
         self.action_space = self.env.get_actions_space()
@@ -362,6 +377,17 @@ class Buffer:
         self.replay.reward = [-1 for _ in range(self.replay_capacity)]
         self.train = None
         self.test = None
+        if make_train_test and train and test:
+            self.train, self.test = self.make_train_test(
+                train,
+                test,
+                data_path,
+            )
+        # Compute buffer statistics
+        if self.train is not None:
+            self.mean_tr, self.std_tr, self.min_tr, self.max_tr, self.max_norm_tr = self.compute_stats(self.train)
+        if self.test is not None:
+            self.mean_tt, self.std_tt, self.min_tt, self.max_tt, _ = self.compute_stats(self.test)
 
     def add(
         self,
@@ -417,9 +443,7 @@ class Buffer:
             rewards_old = self.replay["reward"].values
         return self.replay
 
-    def make_train_test(
-        self, data_path=None, train_path=None, test_path=None, oracle=None, *args
-    ):
+    def make_train_test(self, train, test, data_path=None, *args):
         """
         Initializes the train and test sets. Depending on the arguments, the sets can
         be formed in different ways:
@@ -448,30 +472,40 @@ class Buffer:
         else:
             # Train set
             # (2) Separate train file path is provided
-            if train_path:
-                self.train = pd.read_csv(train_path, index_col=0)
+            if train.path:
+                self.train = pd.read_csv(train.path, index_col=0)
             # (3) Make environment specific train set
-            elif oracle is not None:
+            elif train.n and train.seed and train.output:
                 self.train = self.env.make_train_set(
-                    ntrain=args[0].gflownet.train.n,
-                    oracle=oracle,
-                    seed=args[0].gflownet.train.seed,
-                    output_csv=args[0].gflownet.train.output,
+                    ntrain=train.n,
+                    oracle=env.oracle,
+                    seed=train.seed,
+                    output_csv=train.output,
                 )
             # Test set
             # (2) Separate test file path is provided
-            if test_path:
-                self.test = pd.read_csv(test_path, index_col=0)
+            if test.path:
+                self.test = pd.read_csv(test.path, index_col=0)
             # (3) Make environment specific test set
-            else:
+            elif test.base and test.n and test.seed and test.output:
                 self.test, _ = self.env.make_test_set(
-                    path_base_dataset=args[0].gflownet.test.base,
-                    ntest=args[0].gflownet.test.n,
-                    min_length=args[0].gflownet.min_seq_length,
-                    max_length=args[0].gflownet.max_seq_length,
-                    seed=args[0].gflownet.test.seed,
-                    output_csv=args[0].gflownet.test.output,
+                    path_base_dataset=test.base,
+                    ntest=test.n,
+                    min_length=self.env.min_seq_length,
+                    max_length=self.env.max_seq_length,
+                    seed=test.seed,
+                    output_csv=test.output,
                 )
+        return self.train, self.test
+
+    def compute_stats(self, data):
+        mean_data = data["energies"].mean()
+        std_data = data["energies"].std()
+        min_data = data["energies"].min()
+        max_data = data["energies"].max()
+        data_zscores = (data["energies"] - mean_data) / std_data
+        max_norm_data = data_zscores.max()
+        return mean_data, std_data, min_data, max_data, max_norm_data
 
     def sample(
         self,
