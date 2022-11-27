@@ -1,0 +1,10 @@
+defaults:
+  - gflownet
+
+optimizer:
+  loss: trajectorybalance
+  lr: 0.0001
+  lr_z_mult: 10
+  lr_decay_period: 1000000
+  lr_decay_gamma: 0.5
+

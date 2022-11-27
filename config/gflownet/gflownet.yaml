@@ -1,0 +1,65 @@
+_target_: src.gflownet.gflownet.GFlowNetAgent
+
+# General
+logdir: /network/scratch/a/alex.hernandez-garcia/logs/gflownet
+overwrite_logdir: False
+debug: False
+# Random seeds
+seed: 0
+# Device
+device: cpu
+# Logging
+progress: True
+lightweight: False
+# Checkpoints
+model_ckpt: null
+reload_ckpt: False
+ckpt_period: null
+# Optimizer
+optimizer:
+  # Loss function
+  loss: flowmatch
+  # Learning rates
+  lr: 0.0001
+  lr_decay_period: 1000000
+  lr_decay_gamma: 0.5
+  method: adam
+  # Threshold loss for early stopping
+  early_stopping: 0.01
+  # Coefficient for exponential moving average
+  ema_alpha: 0.5
+  # Optimizer: adam, sgd
+  adam_beta1: 0.9
+  adam_beta2: 0.999
+  # Momentum for SGD
+  sgd_momentum: 0.9
+  # Mini-batch size
+  batch_size: 10
+  # Train to sample ratio
+  train_to_sample_ratio: 1
+  # Number of training iterations
+  n_train_steps: 1000
+  bootstrap_tau: 0.0
+# Period (number of iterations) for computing test metrics
+test_period: 100
+# Period (number of iterations) for computing oracle metrics
+oracle_period: 100
+# Number of samples for oracle metrics
+oracle_nsamples: 500
+# List of K, for Top-K oracle metrics
+oracle_k:
+  - 1
+  - 10
+  - 100
+# Number of samples used to compute the empirical distribution loss
+num_empirical_loss: 200000
+# If True, compute rewards in batches
+batch_reward: True
+# Temperature for the logits /= temperature_logits
+temperature_logits: 1.0
+# Percentage of trajectories in a batch from an empirical distribution
+pct_batch_empirical: 1.0
+# Replay buffer
+replay_capacity: 0
+# From original implementation
+clip_grad_norm: 0.0
