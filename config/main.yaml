@@ -1,0 +1,4 @@
+defaults:
+  - env: grid
+  - gflownet: flowmatch
+

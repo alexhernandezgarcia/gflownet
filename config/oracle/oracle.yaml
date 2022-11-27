@@ -1,0 +1,3 @@
+seed: ${seed}
+nupack_energy_reweighting: False
+nupack_target_motif: ".....(((((.......))))).....",

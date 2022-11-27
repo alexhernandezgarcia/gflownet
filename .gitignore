@@ -5,9 +5,7 @@ easy_run_1
 old
 *.pyc
 *.pyo
-RLAptamer/
-sequenceModel2
-distanceTests.py
+*.sw*
 sh/
 
 *.txt
