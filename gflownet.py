@@ -312,7 +312,7 @@ class GFlowNetAgent:
             self.Z = None
         elif args.gflownet.loss in ["trajectorybalance", "tb"]:
             self.loss = "trajectorybalance"
-            self.Z = nn.Parameter(torch.ones(64) * 150.0 / 64)
+            self.Z = nn.Parameter(torch.ones(16) * 150.0 / 64)
         else:
             print("Unkown loss. Using flowmatch as default")
             self.loss = "flowmatch"
@@ -493,7 +493,6 @@ class GFlowNetAgent:
 
     def parameters(self):
         return self.model.parameters()
-
 
     def forward_sample(self, envs, times, policy="model", model=None, temperature=1.0):
         """
@@ -694,7 +693,9 @@ class GFlowNetAgent:
                                 tf(parents),
                                 tl(parents_a),
                                 env.done,
-                                tl([env.id] * len(parents)),
+                                tl(
+                                    [env.id] * len(parents)
+                                ),  # repeats that env id len(parents) number of times, no multiplication
                                 tl([env.n_actions - 1]),
                                 tb([mask]),
                             ]
@@ -883,17 +884,31 @@ class GFlowNetAgent:
                 done,
             ],
         )
+        loginf = tf([1000])
         # Forward trajectories
-        logprobs_f = self.logsoftmax(
-            self.model(parents)[..., : len(self.env.action_space) + 1]
-        )[torch.arange(parents.shape[0]), actions]
+        logits_parent = self.model(parents)[..., : len(self.env.action_space) + 1]
+        mask_parents = tb(
+            [self.env.get_mask_invalid_actions(parent, 0, True) for parent in parents]
+        )
+        logits_parent[mask_parents] = -loginf
+        logprobs_f = self.logsoftmax(logits_parent)[
+            torch.arange(parents.shape[0]), actions
+        ]
         sumlogprobs_f = tf(
             torch.zeros(len(torch.unique(path_id, sorted=True)))
         ).index_add_(0, path_id, logprobs_f)
         # Backward trajectories
-        logprobs_b = self.logsoftmax(
-            self.model(states)[..., len(self.env.action_space) + 1 :]
-        )[torch.arange(states.shape[0]), actions]
+        logits_state = self.model(states)[..., len(self.env.action_space) + 1 :]
+        mask_states = tb(
+            [
+                self.env.get_backward_mask(state, done[idx], True)
+                for idx, state in enumerate(states)
+            ]
+        )
+        logits_state[mask_states] = -loginf
+        logprobs_b = self.logsoftmax(logits_state)[
+            torch.arange(states.shape[0]), actions
+        ]
         sumlogprobs_b = tf(
             torch.zeros(len(torch.unique(path_id, sorted=True)))
         ).index_add_(0, path_id, logprobs_b)
@@ -1289,9 +1304,7 @@ def empirical_distribution_error(env, visited):
         hist[s] += 1
     Z = sum([hist[s] for s in states_term])
     estimated_density = tf([hist[s] / Z for s in states_term])
-    # L1 error
     l1 = abs(estimated_density - true_density).mean().item()
-    # KL divergence
     kl = (true_density * torch.log(estimated_density / true_density)).sum().item()
     return l1, kl
 
@@ -1338,19 +1351,8 @@ if __name__ == "__main__":
     _, override_args = parser.parse_known_args()
     parser, args2config = add_args(parser)
     args = parser.parse_args()
-    # Begin Delete
-    args.yaml_config = "/home/mila/n/nikita.saxena/ActiveLearningPipeline/config/grid/default.yml"
-    args.workdir = "/home/mila/n/nikita.saxena/ActiveLearningPipeline/dummy"
-    args.overwrite_workdir = True
-    # End Delete
     config = get_config(args, override_args, args2config)
     config = process_config(config)
-    # Begin Delete
-    config.gflownet.comet.skip = True
-    config.gflownet.loss = "tb"
-    config.no_lightweight = True
-    # config.gflownet.
-    # End Delete
     print("Config file: " + config.yaml_config)
     if config.workdir is not None:
         print("Working dir: " + config.workdir)
