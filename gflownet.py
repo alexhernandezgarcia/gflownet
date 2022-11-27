@@ -446,8 +446,6 @@ class GFlowNetAgent:
             print(f"\tMin score: {self.buffer.test['energies'].min()}")
             print(f"\tMax score: {self.buffer.test['energies'].max()}")
         # Model
-        # self.forward_policy = forward_policy("mlp")
-        # self.backward_policy = backward_policy("mlp", shared_weight = True)
         self.model = make_mlp(
             [self.env.obs_dim]
             + [args.gflownet.n_hid] * args.gflownet.n_layers
@@ -693,9 +691,7 @@ class GFlowNetAgent:
                                 tf(parents),
                                 tl(parents_a),
                                 env.done,
-                                tl(
-                                    [env.id] * len(parents)
-                                ),  # repeats that env id len(parents) number of times, no multiplication
+                                tl([env.id] * len(parents)),
                                 tl([env.n_actions - 1]),
                                 tb([mask]),
                             ]
@@ -1304,7 +1300,9 @@ def empirical_distribution_error(env, visited):
         hist[s] += 1
     Z = sum([hist[s] for s in states_term])
     estimated_density = tf([hist[s] / Z for s in states_term])
+    # L1 error
     l1 = abs(estimated_density - true_density).mean().item()
+    # KL divergence
     kl = (true_density * torch.log(estimated_density / true_density)).sum().item()
     return l1, kl
 
