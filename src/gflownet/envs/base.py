@@ -22,7 +22,6 @@ class GFlowNetEnv:
         denorm_proxy=False,
         proxy=None,
         oracle=None,
-        proxy_state_format=None,
         **kwargs,
     ):
         self.state = []
@@ -41,10 +40,6 @@ class GFlowNetEnv:
             self.oracle = self.proxy
         else:
             self.oracle = oracle
-        if proxy_state_format == "ohe":
-            self.state2proxy = self.state2obs
-        elif proxy_state_format == "oracle":
-            self.state2proxy = self.state2oracle
         self.reward = (
             lambda x: [0]
             if not self.done
@@ -325,6 +320,7 @@ class GFlowNetEnv:
 
     def make_test_set(
         self,
+        path_base_dataset,
         ntest,
         oracle=None,
         seed=167,
@@ -475,10 +471,10 @@ class Buffer:
             if train.path:
                 self.train = pd.read_csv(train.path, index_col=0)
             # (3) Make environment specific train set
-            elif train.n and train.seed and train.output:
+            elif train.n and train.seed:
                 self.train = self.env.make_train_set(
                     ntrain=train.n,
-                    oracle=env.oracle,
+                    oracle=self.env.oracle,
                     seed=train.seed,
                     output_csv=train.output,
                 )
@@ -487,7 +483,8 @@ class Buffer:
             if test.path:
                 self.test = pd.read_csv(test.path, index_col=0)
             # (3) Make environment specific test set
-            elif test.base and test.n and test.seed and test.output:
+            elif test.n and test.seed:
+                # TODO: make this general for all environments
                 self.test, _ = self.env.make_test_set(
                     path_base_dataset=test.base,
                     ntest=test.n,

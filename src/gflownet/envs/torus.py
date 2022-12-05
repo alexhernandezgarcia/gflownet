@@ -150,7 +150,7 @@ class Torus(GFlowNetEnv):
         state_list : list of lists
             List of states.
         """
-        return state2proxy(state_list)
+        return self.state2proxy(state_list)
 
     def state2obs(self, state=None):
         """
@@ -349,9 +349,16 @@ class Torus(GFlowNetEnv):
         ----
         """
         rng = np.random.default_rng(seed)
-        samples = rng.integers(
+        angles = rng.integers(
             low=0, high=self.n_angles, size=(ntrain,) + (self.n_dim,)
         )
+        if self.max_rounds > 0:
+            rounds = rng.integers(
+                low=0, high=self.max_rounds, size=(ntrain,) + (self.n_dim,)
+            )
+        else:
+            rounds = np.zeros([ntrain, self.n_dim])
+        samples = np.concatenate([angles, rounds], axis=1)
         if oracle:
             energies = oracle(self.state2oracle(samples))
         else:

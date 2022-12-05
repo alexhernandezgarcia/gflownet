@@ -43,6 +43,7 @@ class Grid(GFlowNetEnv):
         energies_stats=None,
         proxy=None,
         oracle=None,
+        proxy_state_format=None,
         **kwargs,
     ):
         super(Grid, self).__init__(
@@ -55,6 +56,7 @@ class Grid(GFlowNetEnv):
             denorm_proxy,
             proxy,
             oracle,
+            proxy_state_format,
             **kwargs,
         )
         self.n_dim = n_dim
@@ -66,6 +68,10 @@ class Grid(GFlowNetEnv):
         self.cells = np.linspace(cell_min, cell_max, length)
         self.action_space = self.get_actions_space()
         self.eos = len(self.action_space)
+        if proxy_state_format == "ohe":
+            self.state2proxy = self.state2obs
+        elif proxy_state_format == "oracle":
+            self.state2proxy = self.state2oracle
 
     def get_actions_space(self):
         """
@@ -336,3 +342,12 @@ class Grid(GFlowNetEnv):
         if output_csv:
             df_train.to_csv(output_csv)
         return df_train
+
+    def make_test_set(self, path_base_dataset, ntest, oracle=None, seed=168, output_csv=None):
+        """
+        Constructs a randomly sampled test set, by calling make_train_set.
+
+        Args
+        ----
+        """
+        return self.make_train_set(ntest, oracle, seed, output_csv)
