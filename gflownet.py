@@ -885,7 +885,6 @@ class GFlowNetAgent:
             ],
         )
         # Build forward masks from state masks
-        mask_source = masks[torch.where((state_id == 0) & (path_id == 0))]
         masks_f = torch.cat(
             [
                 masks[torch.where((state_id == sid - 1) & (path_id == pid))]
