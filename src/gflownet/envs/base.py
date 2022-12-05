@@ -22,6 +22,7 @@ class GFlowNetEnv:
         denorm_proxy=False,
         proxy=None,
         oracle=None,
+        proxy_state_format=None,
         **kwargs,
     ):
         self.state = []
@@ -45,6 +46,7 @@ class GFlowNetEnv:
             if not self.done
             else self.proxy2reward(self.proxy(self.state2proxy(x)))
         )
+        self.proxy_state_format=proxy_state_format,
         self._true_density = None
         self.action_space = []
         self.eos = len(self.action_space)
@@ -468,7 +470,7 @@ class Buffer:
         else:
             # Train set
             # (2) Separate train file path is provided
-            if train.path:
+            if train.path and Path(train.path).exists():
                 self.train = pd.read_csv(train.path, index_col=0)
             # (3) Make environment specific train set
             elif train.n and train.seed:
@@ -480,7 +482,7 @@ class Buffer:
                 )
             # Test set
             # (2) Separate test file path is provided
-            if test.path:
+            if test.path and Path(train.path).exists():
                 self.test = pd.read_csv(test.path, index_col=0)
             # (3) Make environment specific test set
             elif test.n and test.seed:

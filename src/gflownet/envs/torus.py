@@ -106,23 +106,19 @@ class Torus(GFlowNetEnv):
         return mask
 
     def true_density(self):
-        # TODO
         # Return pre-computed true density if already stored
         if self._true_density is not None:
             return self._true_density
         # Calculate true density
-        all_states = np.int32(
+        all_angles = np.int32(
             list(itertools.product(*[list(range(self.n_angles))] * self.n_dim))
         )
-        state_mask = np.array(
-            [len(self.get_parents(s, False)[0]) > 0 or sum(s) == 0 for s in all_states]
-        )
-        all_oracle = self.state2oracle(all_states)
-        rewards = self.oracle(all_oracle)[state_mask]
+        all_oracle = self.state2oracle(all_angles)
+        rewards = self.oracle(all_oracle)
         self._true_density = (
             rewards / rewards.sum(),
             rewards,
-            list(map(tuple, all_states[state_mask])),
+            list(map(tuple, all_angles)),
         )
         return self._true_density
 
