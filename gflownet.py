@@ -372,6 +372,7 @@ class GFlowNetAgent:
             )
         else:
             raise NotImplemented
+        self.mask_source = tb(self.env.get_mask_invalid_actions())
         self.buffer = Buffer(self.env, replay_capacity=args.gflownet.replay_capacity)
         # Comet
         if (
@@ -862,8 +863,8 @@ class GFlowNetAgent:
             parents_a,
             done,
             path_id_parents,
-            _,
-            masks
+            state_id,
+            masks,
         ) = zip(*batch)
         # Keep only parents in trajectory
         parents = [
@@ -871,7 +872,7 @@ class GFlowNetAgent:
         ]
         path_id = torch.cat([el[:1] for el in path_id_parents])
         # Concatenate lists of tensors
-        states, actions, rewards, parents, done, masks = map(
+        states, actions, rewards, parents, done, state_id, masks = map(
             torch.cat,
             [
                 states,
@@ -879,8 +880,19 @@ class GFlowNetAgent:
                 rewards,
                 parents,
                 done,
+                state_id,
                 masks,
             ],
+        )
+        # Build parents masks from state masks
+        mask_source = masks[torch.where((state_id == 0) & (path_id == 0))]
+        masks_parents = torch.cat(
+            [
+                masks[torch.where((state_id == sid - 1) & (path_id == pid))]
+                if sid > 0
+                else self.mask_source
+                for sid, pid in zip(state_id, path_id)
+            ]
         )
         # Forward trajectories
         logits_parent = self.model(parents)[..., : len(self.env.action_space) + 1]
