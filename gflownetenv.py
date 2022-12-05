@@ -277,10 +277,10 @@ class GFlowNetEnv:
             state = self.state
         return False
 
-    def get_mask_invalid_actions(self, state=None, done=None, obs2state=None):
+    def get_mask_invalid_actions(self, state=None, done=None):
         """
-        Returns a vector of length the action space + 1: True if forward action is invalid
-        given the current state, False otherwise.
+        Returns a vector of length the action space + 1: True if forward action is
+        invalid given the current state, False otherwise.
         """
         if state is None:
             state = self.state

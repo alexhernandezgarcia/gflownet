@@ -97,8 +97,8 @@ class Grid(GFlowNetEnv):
 
     def get_mask_invalid_actions(self, state=None, done=None, obs2state=False):
         """
-        Returns a vector of length the action space + 1: True if forward action is invalid
-        given the current state, False otherwise.
+        Returns a vector of length the action space + 1: True if forward action is
+        invalid given the current state, False otherwise.
         """
         if state is None:
             state = self.state.copy()
@@ -106,35 +106,10 @@ class Grid(GFlowNetEnv):
             done = self.done
         if done:
             return [True for _ in range(len(self.action_space) + 1)]
-        if obs2state == True:
-            state = self.obs2state(state.cpu().numpy())
         mask = [False for _ in range(len(self.action_space) + 1)]
         for idx, a in enumerate(self.action_space):
             for d in a:
                 if state[d] + 1 >= self.length:
-                    mask[idx] = True
-                    break
-        return mask
-
-    def get_backward_mask(self, state=None, done=None, obs2state=False):
-        """
-        Returns a vector of length the action space + 1: True if backward action is invalid
-        given the current state, False otherwise.
-        """
-        if state is None:
-            state = self.state.copy()
-        if done is None:
-            done = self.done
-        if done:
-            mask = [True for _ in range(len(self.action_space))]
-            mask.append(False)
-            return mask
-        if obs2state == True:
-            state = self.obs2state(state.cpu().numpy())
-        mask = [False for _ in range(len(self.action_space) + 1)]
-        for idx, a in enumerate(self.action_space):
-            for d in a:
-                if state[d] - 1 < 0:
                     mask[idx] = True
                     break
         return mask
