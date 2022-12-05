@@ -20,10 +20,10 @@ buffer:
   train:
     path: null
     seed: 167
-    n: 1000
+    n: 100
     output: null
   test:
     path: null
     seed: 167
-    n: 1000
+    n: null
     output: null
