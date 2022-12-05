@@ -281,13 +281,15 @@ class GFlowNetEnv:
             state = self.state
         return False
 
-    def get_mask_invalid_actions(self, state=None):
+    def get_mask_invalid_actions(self, state=None, done=None):
         """
         Returns a vector of length the action space + 1: True if action is invalid
         given the current state, False otherwise.
         """
         if state is None:
             state = self.state
+        if done is None:
+            done = self.done
         mask = [False for _ in range(len(self.action_space) + 1)]
         return mask
 
