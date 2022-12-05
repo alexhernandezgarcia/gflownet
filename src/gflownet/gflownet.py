@@ -225,7 +225,7 @@ class GFlowNetAgent:
         t0_a_model = time.time()
         if policy == "model":
             with torch.no_grad():
-                action_logits = model(tf(states))
+                action_logits = model(tf(states))[..., : len(self.env.action_space) + 1]
             action_logits /= temperature
         elif policy == "uniform":
             action_logits = tf(np.zeros(len(states)), len(self.env.action_space) + 1)
@@ -273,8 +273,8 @@ class GFlowNetAgent:
         if policy == "model":
             with torch.no_grad():
                 action_logits = model(tf(parents))[
-                    torch.arange(len(parents)), parents_a
-                ]
+                    ..., len(self.env.action_space) + 1 :
+                ][torch.arange(len(parents)), parents_a]
             action_logits /= temperature
             if all(torch.isfinite(action_logits).flatten()):
                 action_idx = Categorical(logits=action_logits).sample().item()
@@ -300,8 +300,8 @@ class GFlowNetAgent:
                 - [0] the state, as state2obs(state)
                 - [1] the action
                 - [2] reward of the state
-                - [3] all parents of the state
-                - [4] actions that lead to the state from each parent
+                - [3] all parents of the state, parents
+                - [4] actions that lead to the state from each parent, parents_a
                 - [5] done [True, False]
                 - [6] path id: identifies each path
                 - [7] state id: identifies each state within a path
@@ -493,7 +493,9 @@ class GFlowNetAgent:
                 ipdb.set_trace()
 
         # Q(s,a)
-        parents_Qsa = self.model(parents)[torch.arange(parents.shape[0]), actions]
+        parents_Qsa = self.model(parents)[..., : len(self.env.action_space) + 1][
+            torch.arange(parents.shape[0]), actions
+        ]
 
         # log(eps + exp(log(Q(s,a)))) : qsa
         in_flow = torch.log(
@@ -508,7 +510,7 @@ class GFlowNetAgent:
             with torch.no_grad():
                 next_q = self.target(sp)
         else:
-            next_q = self.model(sp)
+            next_q = self.model(sp)[..., : len(self.env.action_space) + 1]
         next_q[masks] = -loginf
         qsp = torch.logsumexp(next_q, 1)
         # qsp: qsp if not done; -loginf if done
@@ -554,23 +556,55 @@ class GFlowNetAgent:
             Loss of the intermediate nodes only
         """
         # Unpack batch
-        _, _, rewards, parents, actions, done, path_id_parents, _, _ = zip(*batch)
-        path_id = torch.cat([el[:1] for el in path_id_parents])
-        rewards, parents, actions, done, path_id_parents = map(
-            torch.cat, [rewards, parents, actions, done, path_id_parents]
-        )
-        # Log probs of each (s, a)
-        logprobs = self.logsoftmax(self.model(parents))[
-            torch.arange(parents.shape[0]), actions
+        (
+            states,
+            actions,
+            rewards,
+            parents,
+            parents_a,
+            done,
+            path_id_parents,
+            _,
+            _,
+        ) = zip(*batch)
+        # Keep only parents in trajectory
+        parents = [
+            p[torch.where(a == p_a)] for a, p, p_a in zip(actions, parents, parents_a)
         ]
-        # Sum of log probs
-        sumlogprobs = tf(
+        path_id = torch.cat([el[:1] for el in path_id_parents])
+        # Concatenate lists of tensors
+        states, actions, rewards, parents, done = map(
+            torch.cat,
+            [
+                states,
+                actions,
+                rewards,
+                parents,
+                done,
+            ],
+        )
+        # Forward trajectories
+        logprobs_f = self.logsoftmax(
+            self.model(parents)[..., : len(self.env.action_space) + 1]
+        )[torch.arange(parents.shape[0]), actions]
+        sumlogprobs_f = tf(
             torch.zeros(len(torch.unique(path_id, sorted=True)))
-        ).index_add_(0, path_id_parents, logprobs)
+        ).index_add_(0, path_id, logprobs_f)
+        # Backward trajectories
+        logprobs_b = self.logsoftmax(
+            self.model(states)[..., len(self.env.action_space) + 1 :]
+        )[torch.arange(states.shape[0]), actions]
+        sumlogprobs_b = tf(
+            torch.zeros(len(torch.unique(path_id, sorted=True)))
+        ).index_add_(0, path_id, logprobs_b)
         # Sort rewards of done states by ascending path id
         rewards = rewards[done.eq(1)][torch.argsort(path_id[done.eq(1)])]
         # Trajectory balance loss
-        loss = (self.Z.sum() + sumlogprobs - torch.log((rewards))).pow(2).mean()
+        loss = (
+            (self.Z.sum() + sumlogprobs_f - sumlogprobs_b - torch.log(rewards))
+            .pow(2)
+            .mean()
+        )
         return loss, loss, loss
 
     def unpack_terminal_states(self, batch):
@@ -971,7 +1005,7 @@ def logq(path_list, actions_list, model, env, loginf=1000):
         path_obs = np.asarray([env.state2obs(state) for state in path])
         masks = tb([env.get_mask_invalid_actions(state, 0) for state in path])
         with torch.no_grad():
-            logits_path = model(tf(path_obs))
+            logits_path = model(tf(path_obs))[..., : len(env.action_space) + 1]
         logits_path[masks] = -loginf
         logsoftmax = torch.nn.LogSoftmax(dim=1)
         logprobs_path = logsoftmax(logits_path)
