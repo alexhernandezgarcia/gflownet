@@ -829,7 +829,7 @@ class GFlowNetAgent:
 
         return loss, term_loss, flow_loss
 
-    def trajectorybalance_loss(self, it, batch):
+    def trajectorybalance_loss(self, it, batch, loginf=1000):
         """
         Computes the trajectory balance loss of a batch
 
@@ -852,6 +852,7 @@ class GFlowNetAgent:
         flow_loss : float
             Loss of the intermediate nodes only
         """
+        loginf = tf([loginf])
         # Unpack batch
         (
             states,
@@ -862,7 +863,7 @@ class GFlowNetAgent:
             done,
             path_id_parents,
             _,
-            _,
+            masks
         ) = zip(*batch)
         # Keep only parents in trajectory
         parents = [
@@ -870,7 +871,7 @@ class GFlowNetAgent:
         ]
         path_id = torch.cat([el[:1] for el in path_id_parents])
         # Concatenate lists of tensors
-        states, actions, rewards, parents, done = map(
+        states, actions, rewards, parents, done, masks = map(
             torch.cat,
             [
                 states,
@@ -878,9 +879,9 @@ class GFlowNetAgent:
                 rewards,
                 parents,
                 done,
+                masks,
             ],
         )
-        loginf = tf([1000])
         # Forward trajectories
         logits_parent = self.model(parents)[..., : len(self.env.action_space) + 1]
         mask_parents = tb(
