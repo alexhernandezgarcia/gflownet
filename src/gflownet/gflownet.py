@@ -146,21 +146,6 @@ class GFlowNetAgent:
             print(f"\tStd score: {self.buffer.test['energies'].std()}")
             print(f"\tMin score: {self.buffer.test['energies'].min()}")
             print(f"\tMax score: {self.buffer.test['energies'].max()}")
-<<<<<<< HEAD
-        # Model
-        self.model = make_mlp(
-            [self.env.obs_dim]
-            + [args.gflownet.n_hid] * args.gflownet.n_layers
-            + [(len(self.env.action_space) + 1) * 2]
-        )
-        self.reload_ckpt = args.gflownet.reload_ckpt
-        if args.gflownet.model_ckpt:
-            if "logdir" in args and Path(args.logdir).exists():
-                if (Path(args.logdir) / "ckpts").exists():
-                    self.model_path = (
-                        Path(args.logdir) / "ckpts" / args.gflownet.model_ckpt
-                    )
-=======
         # Policy
         if policy.architecture == "mlp":
             self.model = make_mlp(
@@ -172,7 +157,6 @@ class GFlowNetAgent:
             if self.logdir.exists():
                 if (self.logdir / "ckpts").exists():
                     self.model_path = self.logdir / "ckpts" / policy.model_ckpt
->>>>>>> 6112e389ff6b1024999a1d0de16dcc4eb581fb08
                 else:
                     self.model_path = self.logdir / policy.model_ckpt
             else:
