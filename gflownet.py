@@ -372,7 +372,7 @@ class GFlowNetAgent:
             )
         else:
             raise NotImplemented
-        self.mask_source = tb(self.env.get_mask_invalid_actions())
+        self.mask_source = tb([self.env.get_mask_invalid_actions()])
         self.buffer = Buffer(self.env, replay_capacity=args.gflownet.replay_capacity)
         # Comet
         if (
@@ -895,12 +895,9 @@ class GFlowNetAgent:
             ]
         )
         # Forward trajectories
-        logits_parent = self.model(parents)[..., : len(self.env.action_space) + 1]
-        mask_parents = tb(
-            [self.env.get_mask_invalid_actions(parent, 0, True) for parent in parents]
-        )
-        logits_parent[mask_parents] = -loginf
-        logprobs_f = self.logsoftmax(logits_parent)[
+        logits_parents = self.model(parents)[..., : len(self.env.action_space) + 1]
+        logits_parents[masks_parents] = -loginf
+        logprobs_f = self.logsoftmax(logits_parents)[
             torch.arange(parents.shape[0]), actions
         ]
         sumlogprobs_f = tf(
