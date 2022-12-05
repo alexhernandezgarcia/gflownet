@@ -20,7 +20,7 @@ class Torus(GFlowNetEnv):
         Number of angles into which each dimension is divided
 
     max_rounds : int
-        If larger than zero, the action space allows for reaching the initial angle and
+        If larger than one, the action space allows for reaching the initial angle and
         restart again up to max_rounds; and the state space contain the round number.
         If zero, only one round is allowed, without reaching the initial angle.
     """
@@ -29,7 +29,7 @@ class Torus(GFlowNetEnv):
         self,
         n_dim=2,
         n_angles=3,
-        max_rounds=0,
+        max_rounds=1,
         min_step_len=1,
         max_step_len=1,
         env_id=None,
@@ -99,7 +99,7 @@ class Torus(GFlowNetEnv):
             for d in a:
                 if (
                     state[d] + 1 >= self.n_angles
-                    and state[self.n_dim + d] + 1 >= self.max_rounds
+                    and state[self.n_dim + d] + 1 > self.max_rounds
                 ):
                     mask[idx] = True
                     break
@@ -348,12 +348,9 @@ class Torus(GFlowNetEnv):
         angles = rng.integers(
             low=0, high=self.n_angles, size=(ntrain,) + (self.n_dim,)
         )
-        if self.max_rounds > 0:
-            rounds = rng.integers(
-                low=0, high=self.max_rounds, size=(ntrain,) + (self.n_dim,)
-            )
-        else:
-            rounds = np.zeros([ntrain, self.n_dim])
+        rounds = rng.integers(
+            low=0, high=self.max_rounds, size=(ntrain,) + (self.n_dim,)
+        )
         samples = np.concatenate([angles, rounds], axis=1)
         if oracle:
             energies = oracle(self.state2oracle(samples))
