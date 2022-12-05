@@ -900,19 +900,19 @@ class GFlowNetAgent:
         for idx, pa in enumerate(parents_a):
             masks_b[idx, pa] = False
         # Forward trajectories
-        logits_parents = self.model(parents)[..., : len(self.env.action_space) + 1]
-        logits_parents[masks_f] = -loginf
-        logprobs_f = self.logsoftmax(logits_parents)[
-            torch.arange(logits_parents.shape[0]), actions
+        logits_f = self.model(parents)[..., : len(self.env.action_space) + 1]
+        logits_f[masks_f] = -loginf
+        logprobs_f = self.logsoftmax(logits_f)[
+            torch.arange(logits_f.shape[0]), actions
         ]
         sumlogprobs_f = tf(
             torch.zeros(len(torch.unique(path_id, sorted=True)))
         ).index_add_(0, path_id, logprobs_f)
         # Backward trajectories
-        logits_states = self.model(states)[..., len(self.env.action_space) + 1 :]
-        logits_states[masks_b] = -loginf
-        logprobs_b = self.logsoftmax(logits_states)[
-            torch.arange(states.shape[0]), actions
+        logits_b = self.model(states)[..., len(self.env.action_space) + 1 :]
+        logits_b[masks_b] = -loginf
+        logprobs_b = self.logsoftmax(logits_b)[
+            torch.arange(logits_b.shape[0]), actions
         ]
         sumlogprobs_b = tf(
             torch.zeros(len(torch.unique(path_id, sorted=True)))
