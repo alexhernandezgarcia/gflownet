@@ -902,18 +902,14 @@ class GFlowNetAgent:
         # Forward trajectories
         logits_f = self.model(parents)[..., : len(self.env.action_space) + 1]
         logits_f[masks_f] = -loginf
-        logprobs_f = self.logsoftmax(logits_f)[
-            torch.arange(logits_f.shape[0]), actions
-        ]
+        logprobs_f = self.logsoftmax(logits_f)[torch.arange(logits_f.shape[0]), actions]
         sumlogprobs_f = tf(
             torch.zeros(len(torch.unique(path_id, sorted=True)))
         ).index_add_(0, path_id, logprobs_f)
         # Backward trajectories
         logits_b = self.model(states)[..., len(self.env.action_space) + 1 :]
         logits_b[masks_b] = -loginf
-        logprobs_b = self.logsoftmax(logits_b)[
-            torch.arange(logits_b.shape[0]), actions
-        ]
+        logprobs_b = self.logsoftmax(logits_b)[torch.arange(logits_b.shape[0]), actions]
         sumlogprobs_b = tf(
             torch.zeros(len(torch.unique(path_id, sorted=True)))
         ).index_add_(0, path_id, logprobs_b)
