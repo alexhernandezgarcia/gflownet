@@ -8,7 +8,6 @@ from src.gflownet.envs.base import GFlowNetEnv
 import time
 from functools import partial
 from tqdm import tqdm
-
 # from utils.legacy import filterDuplicateSamples
 
 

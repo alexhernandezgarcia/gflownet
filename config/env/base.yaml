@@ -11,3 +11,10 @@ reward_norm: 1.0
 # If > 0, reward_norm = reward_norm_std_mult * std(energies)
 proxy_state_format: oracle
 reward_norm_std_mult: 8
+# Buffer
+buffer:
+  replay_capacity: 10
+  train:
+    path: null
+  test:
+    path: null
