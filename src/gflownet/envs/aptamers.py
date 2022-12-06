@@ -125,17 +125,7 @@ class AptamerSeq(GFlowNetEnv):
         state_list : list of lists
             List of sequences.
         """
-        queries = [s + [-1] * (self.max_seq_length - len(s)) for s in state_list]
-        queries = np.array(queries, dtype=int)
-        if queries.ndim == 1:
-            queries = queries[np.newaxis, ...]
-        queries += 1
-        if queries.shape[1] == 1:
-            import ipdb
-
-            ipdb.set_trace()
-            queries = np.column_stack((queries, np.zeros(queries.shape[0])))
-        return queries
+        return ["".join(self.state2readable(state)) for state in state_list]
 
     def state2obs(self, state=None):
         """
