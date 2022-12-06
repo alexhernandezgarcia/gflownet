@@ -52,12 +52,13 @@ class AptamerSeq(GFlowNetEnv):
         proxy=None,
         reward_beta=1,
         env_id=None,
-        oracle_func=None,
+        oracle=None,
         energies_stats=None,
         reward_norm=1.0,
         reward_norm_std_mult=0.0,
         reward_func="power",
         denorm_proxy=False,
+        variable_len=False,
         **kwargs,
     ):
         super(AptamerSeq, self).__init__(
@@ -69,7 +70,7 @@ class AptamerSeq(GFlowNetEnv):
             energies_stats,
             denorm_proxy,
             proxy,
-            oracle_func,
+            oracle,
             **kwargs,
         )
         self.state = []
@@ -79,18 +80,7 @@ class AptamerSeq(GFlowNetEnv):
         self.obs_dim = self.nalphabet * self.max_seq_length
         self.min_word_len = min_word_len
         self.max_word_len = max_word_len
-        self.oracle = oracle_func
-        if proxy:
-            self.proxy = proxy
-        else:
-            self.proxy = self.oracle
-        self.reward = (
-            lambda x: [0]
-            if not self.done
-            else self.proxy2reward(self.proxy(self.state2oracle(x)))
-        )
         self._true_density = None
-        self.denorm_proxy = denorm_proxy
         self.action_space = self.get_actions_space()
         self.eos = len(self.action_space)
         self.max_path_len = self.get_max_path_len()

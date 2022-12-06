@@ -42,7 +42,7 @@ class Grid(GFlowNetEnv):
         denorm_proxy=False,
         energies_stats=None,
         proxy=None,
-        oracle_func="default",
+        oracle=None,
         **kwargs,
     ):
         super(Grid, self).__init__(
@@ -54,7 +54,7 @@ class Grid(GFlowNetEnv):
             energies_stats,
             denorm_proxy,
             proxy,
-            oracle_func,
+            oracle,
             **kwargs,
         )
         self.n_dim = n_dim
@@ -64,24 +64,6 @@ class Grid(GFlowNetEnv):
         self.min_step_len = min_step_len
         self.max_step_len = max_step_len
         self.cells = np.linspace(cell_min, cell_max, length)
-        self.oracle = {
-            "default": None,
-            "cos_N": self.func_cos_N,
-            "corners": self.func_corners,
-            "corners_floor_A": self.func_corners_floor_A,
-            "corners_floor_B": self.func_corners_floor_B,
-        }[oracle_func]
-        if proxy:
-            self.proxy = proxy
-        else:
-            self.proxy = self.oracle
-        self.reward = (
-            lambda x: [0]
-            if not self.done
-            else self.proxy2reward(self.proxy(self.state2oracle(x)))
-        )
-        self._true_density = None
-        self.denorm_proxy = denorm_proxy
         self.action_space = self.get_actions_space()
         self.eos = len(self.action_space)
 
@@ -292,50 +274,6 @@ class Grid(GFlowNetEnv):
             self.done = True
             self.n_actions += 1
             return self.state, [self.eos], True
-
-    @staticmethod
-    def func_corners(x_list):
-        def _func_corners(x):
-            ax = abs(x)
-            return -1.0 * (
-                (ax > 0.5).prod(-1) * 0.5
-                + ((ax < 0.8) * (ax > 0.6)).prod(-1) * 2
-                + 1e-1
-            )
-
-        return np.asarray([_func_corners(x) for x in x_list])
-
-    @staticmethod
-    def func_corners_floor_B(x_list):
-        def _func_corners_floor_B(x_list):
-            ax = abs(x)
-            return -1.0 * (
-                (ax > 0.5).prod(-1) * 0.5
-                + ((ax < 0.8) * (ax > 0.6)).prod(-1) * 2
-                + 1e-2
-            )
-
-        return np.asarray([_func_corners_floor_B(x) for x in x_list])
-
-    @staticmethod
-    def func_corners_floor_A(x_list):
-        def _func_corners_floor_A(x_list):
-            ax = abs(x)
-            return -1.0 * (
-                (ax > 0.5).prod(-1) * 0.5
-                + ((ax < 0.8) * (ax > 0.6)).prod(-1) * 2
-                + 1e-3
-            )
-
-        return np.asarray([_func_corners_floor_A(x) for x in x_list])
-
-    @staticmethod
-    def func_cos_N(x_list):
-        def _func_cos_N(x_list):
-            ax = abs(x)
-            return -1.0 * (((np.cos(x * 50) + 1) * norm.pdf(x * 5)).prod(-1) + 0.01)
-
-        return np.asarray([_func_cos_N(x) for x in x_list])
 
     def make_train_set(self, ntrain, oracle=None, seed=168, output_csv=None):
         """

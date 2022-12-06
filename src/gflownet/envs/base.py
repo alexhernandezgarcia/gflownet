@@ -21,7 +21,7 @@ class GFlowNetEnv:
         energies_stats=None,
         denorm_proxy=False,
         proxy=None,
-        oracle_func=None,
+        oracle=None,
         proxy_state_format=None,
         **kwargs,
     ):
@@ -36,9 +36,11 @@ class GFlowNetEnv:
         self.reward_func = reward_func
         self.energies_stats = energies_stats
         self.denorm_proxy = denorm_proxy
-        # TODO: remove oracle as not required in env I think
-        self.oracle = oracle_func
         self.proxy = proxy
+        if oracle is None:
+            self.oracle = self.proxy
+        else:
+            self.oracle = oracle
         if proxy_state_format == "ohe":
             self.state2proxy = self.state2obs
         elif proxy_state_format == "oracle":
@@ -385,9 +387,17 @@ class Buffer:
             )
         # Compute buffer statistics
         if self.train is not None:
-            self.mean_tr, self.std_tr, self.min_tr, self.max_tr, self.max_norm_tr = self.compute_stats(self.train)
+            (
+                self.mean_tr,
+                self.std_tr,
+                self.min_tr,
+                self.max_tr,
+                self.max_norm_tr,
+            ) = self.compute_stats(self.train)
         if self.test is not None:
-            self.mean_tt, self.std_tt, self.min_tt, self.max_tt, _ = self.compute_stats(self.test)
+            self.mean_tt, self.std_tt, self.min_tt, self.max_tt, _ = self.compute_stats(
+                self.test
+            )
 
     def add(
         self,
@@ -478,7 +488,7 @@ class Buffer:
             elif train.n and train.seed and train.output:
                 self.train = self.env.make_train_set(
                     ntrain=train.n,
-                    oracle=env.oracle,
+                    oracle=self.env.oracle,
                     seed=train.seed,
                     output_csv=train.output,
                 )

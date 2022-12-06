@@ -4,7 +4,7 @@ Base class of GFlowNet environments
 from abc import abstractmethod
 
 
-class ProxyBase:
+class Proxy:
     """
     Generic proxy class
     """
