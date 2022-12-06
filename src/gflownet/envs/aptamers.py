@@ -6,6 +6,10 @@ import numpy as np
 import pandas as pd
 from src.gflownet.envs.base import GFlowNetEnv
 import time
+from functools import partial
+from tqdm import tqdm
+
+# from utils.legacy import filterDuplicateSamples
 
 
 class AptamerSeq(GFlowNetEnv):
@@ -58,7 +62,6 @@ class AptamerSeq(GFlowNetEnv):
         reward_norm_std_mult=0.0,
         reward_func="power",
         denorm_proxy=False,
-        variable_len=False,
         **kwargs,
     ):
         super(AptamerSeq, self).__init__(
@@ -84,6 +87,10 @@ class AptamerSeq(GFlowNetEnv):
         self.action_space = self.get_actions_space()
         self.eos = len(self.action_space)
         self.max_path_len = self.get_max_path_len()
+        if self.min_seq_length == self.max_seq_length:
+            self.variable_len = False
+        else:
+            self.variable_len = True
 
     def get_actions_space(self):
         """
@@ -368,12 +375,12 @@ class AptamerSeq(GFlowNetEnv):
         output_csv=None,
     ):
         """
-        Constructs a randomly sampled train set.
+        Constructs a randomly sampled train set by calling th desired oracle.
 
         Args
         ----
-        ntest : int
-            Number of test samples.
+        ntrain : int
+            Number of train samples.
 
         seed : int
             Random seed.
@@ -381,22 +388,66 @@ class AptamerSeq(GFlowNetEnv):
         output_csv: str
             Optional path to store the test set as CSV.
         """
-        samples_dict = oracle.initializeDataset(
-            save=False, returnData=True, customSize=ntrain, custom_seed=seed
-        )
-        energies = samples_dict["energies"]
-        samples_mat = samples_dict["samples"]
-        state_letters = oracle.numbers2letters(samples_mat)
-        state_ints = [
-            "".join([str(el) for el in state if el > 0]) for state in samples_mat
-        ]
-        if isinstance(energies, dict):
-            energies.update({"samples": state_letters, "indices": state_ints})
-            df_train = pd.DataFrame(energies)
+        np.random.seed(seed)
+
+        if ntrain == None:
+            datasetLength = self.init_len
         else:
-            df_train = pd.DataFrame(
-                {"samples": state_letters, "indices": state_ints, "energies": energies}
+            datasetLength = ntrain
+
+        if self.variable_len:
+            samples = []
+            while len(samples) < datasetLength:
+                for i in range(self.min_seq_length, self.max_len + 1):
+                    samples.extend(
+                        np.random.randint(
+                            0 + 1,
+                            self.nalphabet + 1,
+                            size=(int(10 * self.nalphabet * i), i),
+                        )
+                    )
+
+                samples = self.numpy_fillna(
+                    np.asarray(samples, dtype=object)
+                )  # pad sequences up to maximum length
+                # samples = filterDuplicateSamples(samples) # this will naturally proportionally punish shorter sequences
+                if len(samples) < datasetLength:
+                    samples = samples.tolist()
+            np.random.shuffle(
+                samples
+            )  # shuffle so that sequences with different lengths are randomly distributed
+            samples = samples[
+                :datasetLength
+            ]  # after shuffle, reduce dataset to desired size, with properly weighted samples
+        else:  # fixed sample size
+            samples = np.random.randint(
+                1, self.nalphabet + 1, size=(datasetLength, self.max_seq_length)
             )
+            # samples = filterDuplicateSamples(samples)
+            while len(samples) < datasetLength:
+                samples = np.concatenate(
+                    (
+                        samples,
+                        np.random.randint(
+                            1,
+                            self.nalphabet + 1,
+                            size=(datasetLength, self.max_seq_length),
+                        ),
+                    ),
+                    0,
+                )
+                # samples = filterDuplicateSamples(samples)
+
+        partial_func = partial(
+            self.state2readable, alphabet={1: "A", 2: "T", 3: "C", 4: "G"}
+        )
+        sequences = list(map(partial_func, samples))
+        sequences = list(map("".join, sequences))
+        energies = oracle(sequences)
+        state_ints = ["".join([str(el) for el in state if el > 0]) for state in samples]
+        df_train = pd.DataFrame(
+            {"samples": sequences, "energies": energies, "indices": state_ints}
+        )
         if output_csv:
             df_train.to_csv(output_csv)
         return df_train

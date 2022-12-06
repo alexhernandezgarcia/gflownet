@@ -18,7 +18,7 @@ class Nupack(Proxy):
     def __call__(self, sequences):
         """
         args:
-            inputs: list of arrays in desired format interpretable by oracle
+            inputs: list of strings like "ACCTG"
         returns:
             array of scores
         function:
