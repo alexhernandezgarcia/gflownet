@@ -372,6 +372,7 @@ class GFlowNetAgent:
             )
         else:
             raise NotImplemented
+        self.mask_source = tb([self.env.get_mask_invalid_actions()])
         self.buffer = Buffer(self.env, replay_capacity=args.gflownet.replay_capacity)
         # Comet
         if (
@@ -829,7 +830,7 @@ class GFlowNetAgent:
 
         return loss, term_loss, flow_loss
 
-    def trajectorybalance_loss(self, it, batch):
+    def trajectorybalance_loss(self, it, batch, loginf=1000):
         """
         Computes the trajectory balance loss of a batch
 
@@ -852,6 +853,7 @@ class GFlowNetAgent:
         flow_loss : float
             Loss of the intermediate nodes only
         """
+        loginf = tf([loginf])
         # Unpack batch
         (
             states,
@@ -861,8 +863,8 @@ class GFlowNetAgent:
             parents_a,
             done,
             path_id_parents,
-            _,
-            _,
+            state_id,
+            masks,
         ) = zip(*batch)
         # Keep only parents in trajectory
         parents = [
@@ -870,7 +872,7 @@ class GFlowNetAgent:
         ]
         path_id = torch.cat([el[:1] for el in path_id_parents])
         # Concatenate lists of tensors
-        states, actions, rewards, parents, done = map(
+        states, actions, rewards, parents, done, state_id, masks = map(
             torch.cat,
             [
                 states,
@@ -878,33 +880,35 @@ class GFlowNetAgent:
                 rewards,
                 parents,
                 done,
+                state_id,
+                masks,
             ],
         )
-        loginf = tf([1000])
-        # Forward trajectories
-        logits_parent = self.model(parents)[..., : len(self.env.action_space) + 1]
-        mask_parents = tb(
-            [self.env.get_mask_invalid_actions(parent, 0, True) for parent in parents]
+        # Build forward masks from state masks
+        masks_f = torch.cat(
+            [
+                masks[torch.where((state_id == sid - 1) & (path_id == pid))]
+                if sid > 0
+                else self.mask_source
+                for sid, pid in zip(state_id, path_id)
+            ]
         )
-        logits_parent[mask_parents] = -loginf
-        logprobs_f = self.logsoftmax(logits_parent)[
-            torch.arange(parents.shape[0]), actions
-        ]
+        # Build backward masks from parents actions
+        masks_b = torch.ones(masks.shape, dtype=bool)
+        # TODO: this should be possible with a matrix operation
+        for idx, pa in enumerate(parents_a):
+            masks_b[idx, pa] = False
+        # Forward trajectories
+        logits_f = self.model(parents)[..., : len(self.env.action_space) + 1]
+        logits_f[masks_f] = -loginf
+        logprobs_f = self.logsoftmax(logits_f)[torch.arange(logits_f.shape[0]), actions]
         sumlogprobs_f = tf(
             torch.zeros(len(torch.unique(path_id, sorted=True)))
         ).index_add_(0, path_id, logprobs_f)
         # Backward trajectories
-        logits_state = self.model(states)[..., len(self.env.action_space) + 1 :]
-        mask_states = tb(
-            [
-                self.env.get_backward_mask(state, done[idx], True)
-                for idx, state in enumerate(states)
-            ]
-        )
-        logits_state[mask_states] = -loginf
-        logprobs_b = self.logsoftmax(logits_state)[
-            torch.arange(states.shape[0]), actions
-        ]
+        logits_b = self.model(states)[..., len(self.env.action_space) + 1 :]
+        logits_b[masks_b] = -loginf
+        logprobs_b = self.logsoftmax(logits_b)[torch.arange(logits_b.shape[0]), actions]
         sumlogprobs_b = tf(
             torch.zeros(len(torch.unique(path_id, sorted=True)))
         ).index_add_(0, path_id, logprobs_b)
