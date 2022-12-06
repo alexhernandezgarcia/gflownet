@@ -32,6 +32,7 @@ comet:
   project: gflownet
   skip: True
   log_times: False
+  use_context: False
   tags:
     - gflownet
 # Optimizer

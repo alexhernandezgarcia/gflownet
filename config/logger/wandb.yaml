@@ -1,0 +1,1 @@
+_target_: src.gflownet.utils.logger.wandb_logger
