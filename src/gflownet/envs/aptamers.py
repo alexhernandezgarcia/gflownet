@@ -8,6 +8,7 @@ from src.gflownet.envs.base import GFlowNetEnv
 import time
 from functools import partial
 from tqdm import tqdm
+
 # from utils.legacy import filterDuplicateSamples
 
 
@@ -379,14 +380,12 @@ class AptamerSeq(GFlowNetEnv):
         """
         np.random.seed(seed)
 
-        if ntrain == None:
-            datasetLength = self.init_len
-        else:
-            datasetLength = ntrain
+        if oracle is None:
+            oracle = self.oracle
 
         if self.variable_len:
             samples = []
-            while len(samples) < datasetLength:
+            while len(samples) < ntrain:
                 for i in range(self.min_seq_length, self.max_len + 1):
                     samples.extend(
                         np.random.randint(
@@ -400,27 +399,27 @@ class AptamerSeq(GFlowNetEnv):
                     np.asarray(samples, dtype=object)
                 )  # pad sequences up to maximum length
                 # samples = filterDuplicateSamples(samples) # this will naturally proportionally punish shorter sequences
-                if len(samples) < datasetLength:
+                if len(samples) < ntrain:
                     samples = samples.tolist()
             np.random.shuffle(
                 samples
             )  # shuffle so that sequences with different lengths are randomly distributed
             samples = samples[
-                :datasetLength
+                :ntrain
             ]  # after shuffle, reduce dataset to desired size, with properly weighted samples
         else:  # fixed sample size
             samples = np.random.randint(
-                1, self.nalphabet + 1, size=(datasetLength, self.max_seq_length)
+                1, self.nalphabet + 1, size=(ntrain, self.max_seq_length)
             )
             # samples = filterDuplicateSamples(samples)
-            while len(samples) < datasetLength:
+            while len(samples) < ntrain:
                 samples = np.concatenate(
                     (
                         samples,
                         np.random.randint(
                             1,
                             self.nalphabet + 1,
-                            size=(datasetLength, self.max_seq_length),
+                            size=(ntrain, self.max_seq_length),
                         ),
                     ),
                     0,
