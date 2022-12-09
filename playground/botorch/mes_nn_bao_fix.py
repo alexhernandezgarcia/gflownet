@@ -13,28 +13,30 @@ import numpy as np
 from abc import ABC
 
 
+from botorch.acquisition.max_value_entropy_search import qMaxValueEntropy
+from botorch.models.model import Model
+from gpytorch.distributions import MultivariateNormal, MultitaskMultivariateNormal
+from botorch.posteriors.gpytorch import GPyTorchPosterior
+from torch.distributions import Normal
+
+
+"""
+Define the Dataset
+"""
 
 neg_hartmann6 = Hartmann(dim=6, negate=True)
-
 train_x = torch.rand(10, 6)
 train_y = neg_hartmann6(train_x).unsqueeze(-1)
 
 """
-If we are doing DropoutRegressor technique, then it must have a dropout layer
+Initialise and train the MLP
+
 """
 mlp = Sequential(Linear(6, 1024), ReLU(), Dropout(0.5), Linear(1024, 1024), Dropout(0.5), ReLU(), Linear(1024, 1))
-
-"""
-For a very sparse network, with hidden_dim = 8, the expected improvement is very less even though the final loss of the mlp is similar.
-EI dec as MLP dim dec
-"""
-
 NUM_EPOCHS = 10
-
 mlp.train()
 optimizer = Adam(mlp.parameters())
 criterion = MSELoss()
-
 seed = 123
 torch.manual_seed(seed)
 
@@ -50,28 +52,14 @@ for epoch in range(NUM_EPOCHS):
     optimizer.step()
 
 
-
-from botorch.acquisition.max_value_entropy_search import qMaxValueEntropy
-from botorch.models.model import Model
-from gpytorch.distributions import MultivariateNormal, MultitaskMultivariateNormal
-from botorch.posteriors.gpytorch import GPyTorchPosterior
-# from botorch.posteriors.
-from torch.distributions import Normal
-
+"""
+Derived class for Botorch Model"""
 class NN_Model(Model):
     def __init__(self, nn):
         super().__init__()
         self.model = nn
         self._num_outputs = 1
         self.nb_samples = 20
-        """
-        train_inputs: A `n_train x d` Tensor that the model has been fitted on.
-                Not required if the model is an instance of a GPyTorch ExactGP model.
-        """
-        # self.train_inputs = train_x
-
-    # def _shaped_noise_covar(self, base_shape: torch.Size):
-    #     return self.noise_covar(*params, shape=base_shape, **kwargs)
 
     def posterior(self, X, observation_noise = False, posterior_transform = None):
         super().posterior(X, observation_noise, posterior_transform)
@@ -130,14 +118,7 @@ test_X=torch.tensor([[[0.8754, 0.9025, 0.5862, 0.1580, 0.3266, 0.7930]],
         [[0.5914, 0.8657, 0.4393, 0.6715, 0.7866, 0.7446]],
 
         [[0.6269, 0.9950, 0.0640, 0.4415, 0.1140, 0.6024]]])
- 
-#because in the forward call, qMES adds a dimension but it also 
-# does not accept textX in shape b x 1 xd
+
 with torch.no_grad():
     mes = qMES(test_X)
 print(mes)
-
-
-"""
-Always input dim to model must be of dim 3. By model I do not mean inside the posterior call, I mean mean wehn we are giving input to qMES
-"""
