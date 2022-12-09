@@ -47,6 +47,7 @@ In the GP implementation, the covar_matrix for $F*$ is one covariance matrix for
 6. `mes_nn_hardcode_gpVal.py`: Taking the covar and mean values from the GP run, and hardcoding them in this script. Conclusion: Issue is not with the way mvn is constructed from the covar and mean. Issue is with the covar values.
 7. `mes_exact_deepKernel.py`: deep Kernel method using exact GP inference (only helpful with small dataset)
 8. `mes_var_deepKernel.py`: deep Kernel with variational inference to scale GPs to larger datasets
+9. `mes_nn_explicit_batch_1.py`: In 2 and 3, `mvn.batch_shape=[]` . Here I explcitiy forced it to be 1 by unsqueezing the covariance matrix before feeding it to `mvn`
 
 # References
 1. [MaxValueEntropy Tutorial kind by Botorch](https://botorch.org/tutorials/max_value_entropy): Derives the formula.

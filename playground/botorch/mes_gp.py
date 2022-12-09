@@ -18,16 +18,6 @@ from torch import tensor
 import numpy as np
 from abc import ABC
 
-bounds = torch.tensor(Branin._bounds).T
-# train_X = bounds[0] + (bounds[1] - bounds[0]) * torch.rand(10, 2)
-# train_Y = Branin(negate=True)(train_X).unsqueeze(-1)
-
-# train_X = normalize(train_X, bounds=bounds)
-# train_Y = standardize(train_Y + 0.05 * torch.randn_like(train_Y))
-
-# trainX.shape = (10, 2)
-# trainY.shape = (10, 1)
-
 train_X = torch.rand(10, 6)
 neg_hartmann6 = Hartmann(dim=6, negate=True)
 train_Y = neg_hartmann6(train_X).unsqueeze(-1)
@@ -54,31 +44,6 @@ for epoch in range(NUM_EPOCHS):
 
 from botorch.acquisition.max_value_entropy_search import qMaxValueEntropy
 
-"""
-Before Bound Thingy
-tensor([[0.8834, 0.1320],
-        [0.4236, 0.5213],
-        [0.0094, 0.6924],
-        [0.1341, 0.2716],
-        [0.6784, 0.8944],
-        [0.3258, 0.1364],
-        [0.7805, 0.6763],
-        [0.1010, 0.7995],
-        [0.5122, 0.7684],
-        [0.6269, 0.8049]])
-After Bound Thingy
-tensor([[ 8.2503,  1.9803],
-        [ 1.3537,  7.8199],
-        [-4.8592, 10.3860],
-        [-2.9892,  4.0742],
-        [ 5.1756, 13.4161],
-        [-0.1128,  2.0460],
-        [ 6.7082, 10.1445],
-        [-3.4848, 11.9918],
-        [ 2.6837, 11.5260],
-        [ 4.4040, 12.0742]])
-"""
-
 qMES = qMaxValueEntropy(model, train_X, num_fantasies=1)
 test_X=torch.tensor([[[0.8754, 0.9025, 0.5862, 0.1580, 0.3266, 0.7930]],
 
@@ -99,9 +64,6 @@ test_X=torch.tensor([[[0.8754, 0.9025, 0.5862, 0.1580, 0.3266, 0.7930]],
         [[0.5914, 0.8657, 0.4393, 0.6715, 0.7866, 0.7446]],
 
         [[0.6269, 0.9950, 0.0640, 0.4415, 0.1140, 0.6024]]])
-# with torch.no_grad():
-#     mes = qMES(test_X)
-# print(mes)
 
 for num in range(10000):
     test_x = torch.rand(10, 6)
@@ -113,31 +75,3 @@ for num in range(10000):
     if not verdict:
         print(mes)
         
-# candidate_set = torch.rand(10, 6)
-# qMES = qMaxValueEntropy(model, candidate_set, num_fantasies=1)
-# with torch.no_grad():
-#     mes = qMES(test_X)
-# print(mes)
-
-# print("Gen batch Initial Conditions")
-# from botorch.optim.initializers import gen_batch_initial_conditions
-
-# Xinit = gen_batch_initial_conditions(
-#              qMES, bounds, q=1, num_restarts=1, raw_samples=500
-#         )
-# with torch.no_grad():
-#     mes = qMES(Xinit)
-# print(mes)
-
-# from botorch.optim import optimize_acqf
-# print("Optimize AF")
-# # for q = 1
-# candidates, acq_value = optimize_acqf(
-#     acq_function=qMES, 
-#     bounds=bounds,
-#     q=1,
-#     num_restarts=10,
-#     raw_samples=512,
-#     return_best_only=False
-# )
-# print(acq_value)

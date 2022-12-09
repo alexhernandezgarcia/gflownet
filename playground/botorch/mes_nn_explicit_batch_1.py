@@ -71,6 +71,7 @@ class NN_Model(Model):
 
         if len(X.shape)==2:
             covar = torch.diag(var)
+            covar = covar.unsqueeze(0)
         elif len(X.shape)==4:
             covar = [torch.diag(var[i][0]) for i in range(X.shape[0])]
             covar = torch.stack(covar, axis = 0)
