@@ -29,7 +29,7 @@ train_y = neg_hartmann6(train_x).unsqueeze(-1)
 Initialise and train the NN
 """
 mlp = Sequential(Linear(6, 1024), ReLU(), Dropout(0.5), Linear(1024, 1024), Dropout(0.5), ReLU(), Linear(1024, 1))
-NUM_EPOCHS = 10
+NUM_EPOCHS = 0
 
 mlp.train()
 optimizer = Adam(mlp.parameters())
@@ -70,6 +70,7 @@ class NN_Model(Model):
         var = torch.var(outputs, axis=1)
 
         if len(X.shape)==2:
+            # covar = torch.cov(outputs)
             covar = torch.diag(var)
         elif len(X.shape)==4:
             covar = [torch.diag(var[i][0]) for i in range(X.shape[0])]
