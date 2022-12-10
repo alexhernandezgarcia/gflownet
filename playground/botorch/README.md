@@ -23,7 +23,7 @@ Let $m$ be number of candidate points, i.e, test data points
 2. Posterior of $Y$
     1. Covar is `m x 1 x 1 x1`
     2. Mean is `m x 1 x 1`
-    3. mvn.batch_shape is `10 x 1`
+    3. mvn.batch_shape is `m x 1`
     4. mvn.event_shape is `[1]`
 
 # Remarks
@@ -37,6 +37,7 @@ The only check performed right now is that of strictly positive acqusition funct
 `posterior.mean` and `posterior.variance` used in `sample_max_gumbel()`
 
 #### Posterior of $Y$
+I've added links to the specific statemnts where these functions have been used.
 1. `compute_information_gain()`:
     1. `posterior.mean`
     2. `posterior.mvn.covariance_matrix`
@@ -47,24 +48,24 @@ The only check performed right now is that of strictly positive acqusition funct
     2. `posterior.rsample`: [Source](https://github.com/pytorch/botorch/blob/main/botorch/posteriors/gpytorch.py#L140)
 
 ## Where can the error be?
-1. Posterior for $F*$: 
+1. Posterior for $F*$
 2. Posterior for $Y$: *I made the shapes match and the kind of matrix (diag vs non-diag.).So I have a feeling the issue is not here. In the GP implementation, there is a different covar matrix for each test point. That makes sense from the NN point of view as well.*
 3. My implemenatation for the `posterior()` was super-basic. It did not modify  data points when `observation_noise = True`. {I tried the same for GPs, ie, did not modify the data points even when `observation_noise=True` and GP still gives postive MES values. This means that the `posterior()` should work even if `observation_noise=True` doesn't lead to a different treatment. So I feel the issue is not here.}
 
 ## What I am not clear with? 
-In the GP implementation, the covar_matrix for $F*$ is one covariance matrix for the entire batch of m test points. The covar matrix for $Y$ is a batch of m covariance matrices -- one for each test point, When the ultimate goal is to sample from these posteriors, why are they constructed in different ways? I need to dig deeper into the maths to understand this
+In the GP implementation, the covar_matrix for $F*$ is one covariance matrix for the entire batch of $m$ test points. The covar matrix for $Y$ is a batch of $m$ covariance matrices -- one for each test point, When the ultimate goal is to sample from these posteriors, why are they constructed in different ways? I need to dig deeper into the maths to understand this
 
 # Observations
 I ran a couple of random experiments with the NN-based proxy. When I say *hardcoded*, it implies I took the value given by the GP and hardcoded it in the NN script, instead of computing it on-the-fly from the data.
 
 ### Experiment 1
-Mean and Covariance for $F*$: hard-coded
-Mean and Covariance for $Y$: calculated from the data
+`mean` and `covariance` for $F*$: hard-coded
+`mean` and `covariance` for $Y$: calculated from the data
 Result: Negative MES Values
 
 ### Experiment 2
-Mean and Covariance for $F*$: calculated from the data
-Mean and Covariance for $Y$: hard-coded
+`mean` and `covariance` for $F*$: calculated from the data
+`mean` and `covariance` for $Y$: hard-coded
 Result: Positive MES Values
 
 This result was irrpespective of whether I force the covariance matrix to be diagonal or non-diagonal. 
