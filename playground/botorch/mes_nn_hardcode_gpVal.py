@@ -100,7 +100,6 @@ class NN_Model(Model):
 
 proxy = NN_Model(mlp)
 
-import ipdb; ipdb.set_trace()
 qMES = qMaxValueEntropy(proxy, candidate_set = train_x, num_fantasies=1, use_gumbel=True)
 test_X=tensor([[[8.8019e-01, 9.3754e-01, 6.6175e-01, 9.9731e-01, 9.8766e-01,
           1.2758e-01]],
@@ -132,5 +131,15 @@ test_X=tensor([[[8.8019e-01, 9.3754e-01, 6.6175e-01, 9.9731e-01, 9.8766e-01,
         [[6.0580e-01, 5.4446e-01, 9.3030e-01, 4.5117e-01, 4.6516e-01,
           1.4582e-01]]])
 
-mes = qMES(test_X)
-print(mes)
+# mes = qMES(test_X)
+# print(mes)
+
+for num in range(10000):
+    test_x = torch.rand(10, 6)
+    test_x = test_x.unsqueeze(-2)
+    with torch.no_grad():
+        mes = qMES(test_x)
+        mes_arr = mes.detach().numpy()
+        verdict = np.all(mes_arr>0)
+    if not verdict:
+        print(mes)
