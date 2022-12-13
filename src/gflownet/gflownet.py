@@ -99,7 +99,7 @@ class GFlowNetAgent:
                     self.comet.add_tags(comet.tags)
                 else:
                     self.comet.add_tag(comet.tags)
-#             self.comet.log_parameters(vars(args))
+            #             self.comet.log_parameters(vars(args))
             if self.logdir.exists():
                 with open(self.logdir / "comet.url", "w") as f:
                     f.write(self.comet.url + "\n")
@@ -135,9 +135,7 @@ class GFlowNetAgent:
         else:
             energies_stats_tr = None
         if self.env.reward_norm_std_mult > 0 and energies_stats_tr is not None:
-            self.env.reward_norm = (
-                self.env.reward_norm_std_mult * energies_stats_tr[3]
-            )
+            self.env.reward_norm = self.env.reward_norm_std_mult * energies_stats_tr[3]
             self.env.set_reward_norm(self.env.reward_norm)
         # Test set statistics
         if self.buffer.test is not None:
@@ -148,18 +146,24 @@ class GFlowNetAgent:
             print(f"\tMax score: {self.buffer.test['energies'].max()}")
         # Policy models
         self.forward_policy = Policy(
-            policy.forward, self.env.obs_dim, len(self.env.action_space),
+            policy.forward,
+            self.env.obs_dim,
+            len(self.env.action_space),
         )
         if policy.forward.checkpoint:
             if self.logdir.exists():
                 if (self.logdir / "ckpts").exists():
-                    self.policy_forward_path = self.logdir / "ckpts" / policy.forward.checkpoint
+                    self.policy_forward_path = (
+                        self.logdir / "ckpts" / policy.forward.checkpoint
+                    )
                 else:
                     self.policy_forward_path = self.logdir / policy.forward.checkpoint
             else:
                 self.policy_forward_path = policy.forward.checkpoint
             if self.policy_forward_path.exists() and policy.forward.reload_ckpt:
-                self.forward_policy.load_state_dict(torch.load(self.policy_forward_path))
+                self.forward_policy.load_state_dict(
+                    torch.load(self.policy_forward_path)
+                )
                 print("Reloaded GFN forward policy model Checkpoint")
         else:
             self.policy_forward_path = None
@@ -169,18 +173,24 @@ class GFlowNetAgent:
         else:
             self.target = None
         self.backward_policy = Policy(
-            policy.backward, self.env.obs_dim, len(self.env.action_space),
+            policy.backward,
+            self.env.obs_dim,
+            len(self.env.action_space),
         )
         if policy.backward.checkpoint:
             if self.logdir.exists():
                 if (self.logdir / "ckpts").exists():
-                    self.policy_backward_path = self.logdir / "ckpts" / policy.backward.checkpoint
+                    self.policy_backward_path = (
+                        self.logdir / "ckpts" / policy.backward.checkpoint
+                    )
                 else:
                     self.policy_backward_path = self.logdir / policy.backward.checkpoint
             else:
                 self.policy_backward_path = policy.backward.checkpoint
             if self.policy_backward_path.exists() and policy.backward.reload_ckpt:
-                self.backward_policy.load_state_dict(torch.load(self.policy_backward_path))
+                self.backward_policy.load_state_dict(
+                    torch.load(self.policy_backward_path)
+                )
                 print("Reloaded GFN backward policy model Checkpoint")
         else:
             self.policy_backward_path = None
@@ -894,8 +904,11 @@ class GFlowNetAgent:
         if self.comet and self.al_iter == -1:
             self.comet.end()
 
+
 class Policy:
-    def __init__(self, config, state_dim, n_actions, shared_weight=False, base_model=None):
+    def __init__(
+        self, config, state_dim, n_actions, shared_weight=False, base_model=None
+    ):
         self.state_dim = state_dim
         self.n_actions = n_actions
         self.shared_weight = shared_weight
@@ -940,9 +953,7 @@ class Policy:
             Activation function
         """
         layers_dim = (
-            [self.state_dim]
-            + [self.n_hid] * self.n_layers
-            + [(self.n_actions + 1)]
+            [self.state_dim] + [self.n_hid] * self.n_layers + [(self.n_actions + 1)]
         )
         if self.shared_weight == True and self.base_model is not None:
             mlp = nn.Sequential(
@@ -977,7 +988,6 @@ class Policy:
         Args: states: tensor
         """
         return tf(np.ones((len(states), self.n_actions + 1)))
-
 
 
 def batch2dict(batch, env, get_uncertainties=False, query_function="Both"):
