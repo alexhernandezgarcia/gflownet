@@ -43,92 +43,6 @@ def set_device(dev):
     _dev[0] = dev
 
 
-# TODO: move down
-class Policy:
-    def __init__(self, config, state_dim, n_actions, shared_weight=False, base_model=None):
-        self.state_dim = state_dim
-        self.n_actions = n_actions
-        self.shared_weight = shared_weight
-        self.base_model = base_model
-        if "n_hid" in config:
-            self.n_hid = config.n_hid
-        else:
-            self.n_hid = None
-        if "n_layers" in config:
-            self.n_layers = config.n_layers
-        else:
-            self.n_layers = None
-        if "tail" in config:
-            self.tail = config.tail
-        else:
-            self.tail = []
-        self.act = nn.LeakyReLU()
-        if config.type == "uniform":
-            self.model = self.uniform_distribution()
-            self.is_model = False
-        elif config.type == "mlp":
-            self.model = self.make_mlp()
-            self.is_model = True
-        else:
-            raise "Policy model type not defined"
-
-    def __call__(self, states):
-        return self.model(states)
-
-    def make_mlp(self):
-        """
-        Defines an MLP with no top layer activation
-        If share_weight == True,
-            baseModel (the model with which weights are to be shared) must be provided
-
-        Args
-        ----
-        layers_dim : list
-            Dimensionality of each layer
-
-        act : Activation
-            Activation function
-        """
-        layers_dim = (
-            [self.state_dim]
-            + [self.n_hid] * self.n_layers
-            + [(self.n_actions + 1)]
-        )
-        if self.shared_weight == True and self.base_model is not None:
-            mlp = nn.Sequential(
-                self.base_model[:-1], nn.Linear(layers_dim[-2], layers_dim[-1])
-            )
-            return mlp
-        elif self.shared_weight == False:
-            mlp = nn.Sequential(
-                *(
-                    sum(
-                        [
-                            [nn.Linear(idim, odim)]
-                            + ([self.act] if n < len(layers_dim) - 2 else [])
-                            for n, (idim, odim) in enumerate(
-                                zip(layers_dim, layers_dim[1:])
-                            )
-                        ],
-                        [],
-                    )
-                    + self.tail
-                )
-            )
-            return mlp
-        else:
-            raise ValueError(
-                "Base Model must be provided when shared_weight is set to True"
-            )
-
-    def uniform_distribution(self, states):
-        """
-        Return action logits (log probabilities) from a uniform distribution
-        Args: states: tensor
-        """
-        return tf(np.ones((len(states), self.n_actions + 1)))
-
-
 class GFlowNetAgent:
     def __init__(
         self,
@@ -979,6 +893,91 @@ class GFlowNetAgent:
         # Close comet
         if self.comet and self.al_iter == -1:
             self.comet.end()
+
+class Policy:
+    def __init__(self, config, state_dim, n_actions, shared_weight=False, base_model=None):
+        self.state_dim = state_dim
+        self.n_actions = n_actions
+        self.shared_weight = shared_weight
+        self.base_model = base_model
+        if "n_hid" in config:
+            self.n_hid = config.n_hid
+        else:
+            self.n_hid = None
+        if "n_layers" in config:
+            self.n_layers = config.n_layers
+        else:
+            self.n_layers = None
+        if "tail" in config:
+            self.tail = config.tail
+        else:
+            self.tail = []
+        self.act = nn.LeakyReLU()
+        if config.type == "uniform":
+            self.model = self.uniform_distribution()
+            self.is_model = False
+        elif config.type == "mlp":
+            self.model = self.make_mlp()
+            self.is_model = True
+        else:
+            raise "Policy model type not defined"
+
+    def __call__(self, states):
+        return self.model(states)
+
+    def make_mlp(self):
+        """
+        Defines an MLP with no top layer activation
+        If share_weight == True,
+            baseModel (the model with which weights are to be shared) must be provided
+
+        Args
+        ----
+        layers_dim : list
+            Dimensionality of each layer
+
+        act : Activation
+            Activation function
+        """
+        layers_dim = (
+            [self.state_dim]
+            + [self.n_hid] * self.n_layers
+            + [(self.n_actions + 1)]
+        )
+        if self.shared_weight == True and self.base_model is not None:
+            mlp = nn.Sequential(
+                self.base_model[:-1], nn.Linear(layers_dim[-2], layers_dim[-1])
+            )
+            return mlp
+        elif self.shared_weight == False:
+            mlp = nn.Sequential(
+                *(
+                    sum(
+                        [
+                            [nn.Linear(idim, odim)]
+                            + ([self.act] if n < len(layers_dim) - 2 else [])
+                            for n, (idim, odim) in enumerate(
+                                zip(layers_dim, layers_dim[1:])
+                            )
+                        ],
+                        [],
+                    )
+                    + self.tail
+                )
+            )
+            return mlp
+        else:
+            raise ValueError(
+                "Base Model must be provided when shared_weight is set to True"
+            )
+
+    def uniform_distribution(self, states):
+        """
+        Return action logits (log probabilities) from a uniform distribution
+        Args: states: tensor
+        """
+        return tf(np.ones((len(states), self.n_actions + 1)))
+
 
 
 def batch2dict(batch, env, get_uncertainties=False, query_function="Both"):
