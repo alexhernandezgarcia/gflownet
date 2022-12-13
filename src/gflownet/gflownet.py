@@ -43,23 +43,34 @@ def set_device(dev):
     _dev[0] = dev
 
 
+# TODO: move down
 class Policy:
-    def __init__(self, env, type, args, device, shared_weight=False, base_model=None):
-        self.nn_input_dim = env.obs_dim
-        self.action_space_dim = len(env.action_space)
+    def __init__(self, config, state_dim, n_actions, shared_weight=False, base_model=None):
+        self.state_dim = state_dim
+        self.n_actions = n_actions
         self.shared_weight = shared_weight
         self.base_model = base_model
-        self.n_hid = args.gflownet.n_hid
-        self.n_layers = args.gflownet.n_layers
-        self.tail = []
+        if "n_hid" in config:
+            self.n_hid = config.n_hid
+        else:
+            self.n_hid = None
+        if "n_layers" in config:
+            self.n_layers = config.n_layers
+        else:
+            self.n_layers = None
+        if "tail" in config:
+            self.tail = config.tail
+        else:
+            self.tail = []
         self.act = nn.LeakyReLU()
-        self.device = device
-        # TODO
-        # Not sure what exactly tail is for. Do we need to pass it as an argument? Or would it be defined here?
-        if type == "uniform":
-            self.model = self.uniform_distribution
-        elif type == "mlp":
+        if config.type == "uniform":
+            self.model = self.uniform_distribution()
+            self.is_model = False
+        elif config.type == "mlp":
             self.model = self.make_mlp()
+            self.is_model = True
+        else:
+            raise "Policy model type not defined"
 
     def __call__(self, states):
         return self.model(states)
@@ -79,15 +90,14 @@ class Policy:
             Activation function
         """
         layers_dim = (
-            [self.nn_input_dim]
+            [self.state_dim]
             + [self.n_hid] * self.n_layers
-            + [(self.action_space_dim + 1)]
+            + [(self.n_actions + 1)]
         )
         if self.shared_weight == True and self.base_model is not None:
             mlp = nn.Sequential(
                 self.base_model[:-1], nn.Linear(layers_dim[-2], layers_dim[-1])
             )
-            mlp.to(self.device)
             return mlp
         elif self.shared_weight == False:
             mlp = nn.Sequential(
@@ -105,7 +115,6 @@ class Policy:
                     + self.tail
                 )
             )
-            mlp.to(self.device)
             return mlp
         else:
             raise ValueError(
@@ -117,8 +126,7 @@ class Policy:
         Return action logits (log probabilities) from a uniform distribution
         Args: states: tensor
         """
-        action_logits = tf(np.ones((len(states), self.action_space_dim + 1)))
-        return action_logits
+        return tf(np.ones((len(states), self.n_actions + 1)))
 
 
 class GFlowNetAgent:
@@ -226,7 +234,7 @@ class GFlowNetAgent:
             print(f"\tMax score: {self.buffer.test['energies'].max()}")
         # Policy models
         self.forward_policy = Policy(
-            self.env, self.device, policy.forward,
+            policy.forward, self.env.obs_dim, len(self.env.action_space),
         )
         if policy.forward.checkpoint:
             if self.logdir.exists():
@@ -241,8 +249,13 @@ class GFlowNetAgent:
                 print("Reloaded GFN forward policy model Checkpoint")
         else:
             self.policy_forward_path = None
+        if self.forward_policy.is_model:
+            self.forward_policy.model.to(self.device)
+            self.target = copy.deepcopy(self.forward_policy.model)
+        else:
+            self.target = None
         self.backward_policy = Policy(
-            self.env, self.device, policy.backward,
+            policy.backward, self.env.obs_dim, len(self.env.action_space),
         )
         if policy.backward.checkpoint:
             if self.logdir.exists():
@@ -257,15 +270,8 @@ class GFlowNetAgent:
                 print("Reloaded GFN backward policy model Checkpoint")
         else:
             self.policy_backward_path = None
-        # TODO: consider sending model(s) to device here instead of inside Policy
-        # TODO: implement the functionality to deal with the different types of models
-        # (fixed, NN, etc.) inside Policy
-        # TODO: reassess need for self.target
-        if self.forward_policy.is_model:
-            self.target = copy.deepcopy(self.forward_policy.model)
-        else:
-            self.target = None
-        self.target = copy.deepcopy(self.model)
+        if self.backward_policy.is_model:
+            self.backward_policy.model.to(self.device)
         self.ckpt_period = policy.ckpt_period
         if self.ckpt_period in [None, -1]:
             self.ckpt_period = np.inf
