@@ -172,12 +172,16 @@ class GFlowNetAgent:
             self.target = copy.deepcopy(self.forward_policy.model)
         else:
             self.target = None
-        self.backward_policy = Policy(
-            policy.backward,
-            self.env.obs_dim,
-            len(self.env.action_space),
-        )
-        if policy.backward.checkpoint:
+        if policy.backward:
+            self.backward_policy = Policy(
+                policy.backward,
+                self.env.obs_dim,
+                len(self.env.action_space),
+                base=self.forward_policy,
+            )
+        else:
+            self.backward_policy = None
+        if self.backward_policy and policy.backward.checkpoint:
             if self.logdir.exists():
                 if (self.logdir / "ckpts").exists():
                     self.policy_backward_path = (
@@ -194,7 +198,7 @@ class GFlowNetAgent:
                 print("Reloaded GFN backward policy model Checkpoint")
         else:
             self.policy_backward_path = None
-        if self.backward_policy.is_model:
+        if self.backward_policy and self.backward_policy.is_model:
             self.backward_policy.model.to(self.device)
         self.ckpt_period = policy.ckpt_period
         if self.ckpt_period in [None, -1]:
@@ -220,7 +224,7 @@ class GFlowNetAgent:
         self.pct_batch_empirical = pct_batch_empirical
 
     def parameters(self):
-        if self.backward_policy_type == "uniform":
+        if self.backward_policy is None or self.backward_policy.is_model == False:
             return list(self.forward_policy.model.parameters())
         elif self.loss == "trajectorybalance":
             return list(self.forward_policy.model.parameters()) + list(
@@ -906,13 +910,14 @@ class GFlowNetAgent:
 
 
 class Policy:
-    def __init__(
-        self, config, state_dim, n_actions, shared_weight=False, base_model=None
-    ):
+    def __init__(self, config, state_dim, n_actions, base=None):
         self.state_dim = state_dim
         self.n_actions = n_actions
-        self.shared_weight = shared_weight
-        self.base_model = base_model
+        if "shared_weights" in config:
+            self.shared_weights = config.shared_weights
+        else:
+            self.shared_weights = False
+        self.base = base
         if "n_hid" in config:
             self.n_hid = config.n_hid
         else:
@@ -925,12 +930,17 @@ class Policy:
             self.tail = config.tail
         else:
             self.tail = []
-        self.act = nn.LeakyReLU()
-        if config.type == "uniform":
+        if "type" in config:
+            self.type = config.type
+        elif self.shared_weights:
+            self.type = self.base.type
+        else:
+            raise "Policy type must be defined if shared_weights is False"
+        if self.type == "uniform":
             self.model = self.uniform_distribution()
             self.is_model = False
-        elif config.type == "mlp":
-            self.model = self.make_mlp()
+        elif self.type == "mlp":
+            self.model = self.make_mlp(nn.LeakyReLU())
             self.is_model = True
         else:
             raise "Policy model type not defined"
@@ -938,7 +948,7 @@ class Policy:
     def __call__(self, states):
         return self.model(states)
 
-    def make_mlp(self):
+    def make_mlp(self, activation):
         """
         Defines an MLP with no top layer activation
         If share_weight == True,
@@ -949,24 +959,27 @@ class Policy:
         layers_dim : list
             Dimensionality of each layer
 
-        act : Activation
+        activation : Activation
             Activation function
         """
-        layers_dim = (
-            [self.state_dim] + [self.n_hid] * self.n_layers + [(self.n_actions + 1)]
-        )
-        if self.shared_weight == True and self.base_model is not None:
+        if self.shared_weights == True and self.base is not None:
             mlp = nn.Sequential(
-                self.base_model[:-1], nn.Linear(layers_dim[-2], layers_dim[-1])
+                self.base.model[:-1],
+                nn.Linear(
+                    self.base.model[-1].in_features, self.base.model[-1].out_features
+                ),
             )
             return mlp
-        elif self.shared_weight == False:
+        elif self.shared_weights == False:
+            layers_dim = (
+                [self.state_dim] + [self.n_hid] * self.n_layers + [(self.n_actions + 1)]
+            )
             mlp = nn.Sequential(
                 *(
                     sum(
                         [
                             [nn.Linear(idim, odim)]
-                            + ([self.act] if n < len(layers_dim) - 2 else [])
+                            + ([activation] if n < len(layers_dim) - 2 else [])
                             for n, (idim, odim) in enumerate(
                                 zip(layers_dim, layers_dim[1:])
                             )
@@ -979,7 +992,7 @@ class Policy:
             return mlp
         else:
             raise ValueError(
-                "Base Model must be provided when shared_weight is set to True"
+                "Base Model must be provided when shared_weights is set to True"
             )
 
     def uniform_distribution(self, states):

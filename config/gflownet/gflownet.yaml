@@ -78,8 +78,5 @@ policy:
     n_layers: 2
     checkpoint: null
     reload_ckpt: False
-  backward:
-    shared_weights: True
-    checkpoint: null
-    reload_ckpt: False
+  backward: null
   ckpt_period: null
