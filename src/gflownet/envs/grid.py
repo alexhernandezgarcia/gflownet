@@ -42,7 +42,7 @@ class Grid(GFlowNetEnv):
         denorm_proxy=False,
         energies_stats=None,
         proxy=None,
-        oracle_func="default",
+        oracle=None,
         **kwargs,
     ):
         super(Grid, self).__init__(
@@ -54,7 +54,7 @@ class Grid(GFlowNetEnv):
             energies_stats,
             denorm_proxy,
             proxy,
-            oracle_func,
+            oracle,
             **kwargs,
         )
         self.n_dim = n_dim
@@ -64,24 +64,6 @@ class Grid(GFlowNetEnv):
         self.min_step_len = min_step_len
         self.max_step_len = max_step_len
         self.cells = np.linspace(cell_min, cell_max, length)
-        self.oracle = {
-            "default": None,
-            "cos_N": self.func_cos_N,
-            "corners": self.func_corners,
-            "corners_floor_A": self.func_corners_floor_A,
-            "corners_floor_B": self.func_corners_floor_B,
-        }[oracle_func]
-        if proxy:
-            self.proxy = proxy
-        else:
-            self.proxy = self.oracle
-        self.reward = (
-            lambda x: [0]
-            if not self.done
-            else self.proxy2reward(self.proxy(self.state2oracle(x)))
-        )
-        self._true_density = None
-        self.denorm_proxy = denorm_proxy
         self.action_space = self.get_actions_space()
         self.eos = len(self.action_space)
 
