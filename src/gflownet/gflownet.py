@@ -167,11 +167,6 @@ class GFlowNetAgent:
                 print("Reloaded GFN forward policy model Checkpoint")
         else:
             self.policy_forward_path = None
-        if self.forward_policy.is_model:
-            self.forward_policy.model.to(self.device)
-            self.target = copy.deepcopy(self.forward_policy.model)
-        else:
-            self.target = None
         if policy.backward:
             self.backward_policy = Policy(
                 policy.backward,
@@ -204,7 +199,12 @@ class GFlowNetAgent:
         if self.ckpt_period in [None, -1]:
             self.ckpt_period = np.inf
         # Optimizer
-        self.opt, self.lr_scheduler = make_opt(self.parameters(), self.Z, optimizer)
+        if self.forward_policy.is_model:
+            self.forward_policy.model.to(self.device)
+            self.target = copy.deepcopy(self.forward_policy.model)
+            self.opt, self.lr_scheduler = make_opt(self.parameters(), self.Z, optimizer)
+        else:
+            self.opt, self.lr_scheduler, self.target = None, None, None
         self.n_train_steps = optimizer.n_train_steps
         self.batch_size = optimizer.batch_size
         self.ttsr = max(int(optimizer.train_to_sample_ratio), 1)
@@ -937,7 +937,7 @@ class Policy:
         else:
             raise "Policy type must be defined if shared_weights is False"
         if self.type == "uniform":
-            self.model = self.uniform_distribution()
+            self.model = self.uniform_distribution
             self.is_model = False
         elif self.type == "mlp":
             self.model = self.make_mlp(nn.LeakyReLU())
