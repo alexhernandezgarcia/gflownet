@@ -1,0 +1,8 @@
+defaults:
+  - gflownet
+
+optimizer:
+  loss: flowmatch
+  lr: 0.0001
+  lr_decay_period: 1000000
+  lr_decay_gamma: 0.5
