@@ -72,9 +72,11 @@ pct_batch_empirical: 0.0
 # Replay buffer
 replay_capacity: 0
 policy:
-  architecture: mlp
-  n_hid: 128
-  n_layers: 2
-  reload_ckpt: False
-  model_ckpt: null
+  forward:
+    type: mlp
+    n_hid: 128
+    n_layers: 2
+    checkpoint: null
+    reload_ckpt: False
+  backward: null
   ckpt_period: null
