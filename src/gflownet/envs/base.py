@@ -293,18 +293,6 @@ class GFlowNetEnv:
         mask = [False for _ in range(len(self.action_space) + 1)]
         return mask
 
-    def get_backward_mask(self, state=None, done=None, obs2state=None):
-        """
-        Returns a vector of length the action space + 1: True if forward action is invalid
-        given the current state, False otherwise.
-        """
-        if state is None:
-            state = self.state
-        if done is None:
-            done = self.done
-        mask = [False for _ in range(len(self.action_space) + 1)]
-        return mask
-
     def set_state(self, state, done):
         """
         Sets the state and done of an environment.
