@@ -878,18 +878,22 @@ class GFlowNetAgent:
                             np.unique(all_visited).shape[0],
                             step=it,
                         )
-            # Save intermediate model
-            if not it % self.ckpt_period and self.model_path:
-                path = self.model_path.parent / Path(
-                    self.model_path.stem
-                    + "{}_iter{:06d}".format(self.al_iter, it)
-                    + self.model_path.suffix
-                )
-                # TODO:
-                # Would we want to save backward model? I wasn't sure what for.
-                # We dont need it for sampling and dont want to pass it to the next AL iteration as well because I remember we discussed re-using the same model from the previous iteration does not improve performance.
-                if self.forward_policy_type is not "uniform":
+            # Save intermediate models
+            if not it % self.ckpt_period:
+                if self.policy_forward_path:
+                    path = self.policy_forward_path.parent / Path(
+                        self.model_path.stem
+                        + "{}_iter{:06d}".format(self.al_iter, it)
+                        + self.policy_forward_path.suffix
+                    )
                     torch.save(self.forward_policy.model.state_dict(), path)
+                if self.policy_backward_path:
+                    path = self.policy_backward_path.parent / Path(
+                        self.model_path.stem
+                        + "{}_iter{:06d}".format(self.al_iter, it)
+                        + self.policy_backward_path.suffix
+                    )
+                    torch.save(self.backward_policy.model.state_dict(), path)
             # Moving average of the loss for early stopping
             if loss_term_ema and loss_flow_ema:
                 loss_term_ema = (
