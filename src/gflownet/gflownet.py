@@ -918,12 +918,18 @@ class GFlowNetAgent:
             if self.comet and self.log_times:
                 self.comet.log_metrics(times, step=it)
         # Save final model
-        if self.model_path and self.forward_policy_type is not "uniform":
-            path = self.model_path.parent / Path(
-                self.model_path.stem + "_final" + self.model_path.suffix
+        if self.policy_forward_path:
+            path = self.policy_forward_path.parent / Path(
+                self.policy_forward_path.stem + "_final" + self.policy_forward_path.suffix
             )
             torch.save(self.forward_policy.model.state_dict(), path)
-            torch.save(self.forward_policy.model.state_dict(), self.model_path)
+            torch.save(self.forward_policy.model.state_dict(), self.policy_forward_path)
+        if self.policy_backward_path:
+            path = self.policy_backward_path.parent / Path(
+                self.policy_backward_path.stem + "_final" + self.policy_backward_path.suffix
+            )
+            torch.save(self.backward_policy.model.state_dict(), path)
+            torch.save(self.backward_policy.model.state_dict(), self.policy_backward_path)
 
         # Close comet
         if self.comet and self.al_iter == -1:
