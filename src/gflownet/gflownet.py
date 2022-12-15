@@ -68,6 +68,7 @@ class GFlowNetAgent:
         self.logdir = Path(logdir)
         # Environment
         self.env = env
+        self.mask_source = tb([self.env.get_mask_invalid_actions()])
         # Seed
         self.rng = np.random.default_rng(seed)
         # Device
