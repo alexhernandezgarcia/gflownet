@@ -21,10 +21,10 @@ buffer:
   train:
     path: ~/scratch/datasets/grid/corners_d2l3_r0.csv
     seed: 167
-    n: 1000
+    n: null
     output: null
   test:
     path: ~/scratch/datasets/grid/corners_d2l3_r0.csv
     seed: 167
-    n: 1000
+    n: null
     output: null

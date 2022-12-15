@@ -41,15 +41,12 @@ class GFlowNetEnv:
             self.oracle = self.proxy
         else:
             self.oracle = oracle
-        if proxy_state_format == "ohe":
-            self.state2proxy = self.state2obs
-        elif proxy_state_format == "oracle":
-            self.state2proxy = self.state2oracle
         self.reward = (
             lambda x: [0]
             if not self.done
             else self.proxy2reward(self.proxy(self.state2proxy(x)))
         )
+        self.proxy_state_format=proxy_state_format,
         self._true_density = None
         self.action_space = []
         self.eos = len(self.action_space)
@@ -327,6 +324,7 @@ class GFlowNetEnv:
 
     def make_test_set(
         self,
+        path_base_dataset,
         ntest,
         oracle=None,
         seed=167,
@@ -474,22 +472,23 @@ class Buffer:
         else:
             # Train set
             # (2) Separate train file path is provided
-            if train.path:
+            if train.path and Path(train.path).exists():
                 self.train = pd.read_csv(train.path, index_col=0)
             # (3) Make environment specific train set
-            elif train.n and train.seed and train.output:
+            elif train.n and train.seed:
                 self.train = self.env.make_train_set(
                     ntrain=train.n,
-                    oracle=env.oracle,
+                    oracle=self.env.oracle,
                     seed=train.seed,
                     output_csv=train.output,
                 )
             # Test set
             # (2) Separate test file path is provided
-            if test.path:
+            if test.path and Path(train.path).exists():
                 self.test = pd.read_csv(test.path, index_col=0)
             # (3) Make environment specific test set
-            elif test.base and test.n and test.seed and test.output:
+            elif test.n and test.seed:
+                # TODO: make this general for all environments
                 self.test, _ = self.env.make_test_set(
                     path_base_dataset=test.base,
                     ntest=test.n,
