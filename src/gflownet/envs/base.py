@@ -245,7 +245,7 @@ class GFlowNetEnv:
             path_list, actions = self.get_paths(path_list, actions)
         return path_list, actions
 
-    def step(self, action):
+    def step(self, action_idx):
         """
         Executes step given an action.
 
