@@ -251,13 +251,16 @@ class GFlowNetEnv:
 
         Args
         ----
-        a : int (tensor)
+        action_idx : int
             Index of action in the action space. a == eos indicates "stop action"
 
         Returns
         -------
         self.state : list
             The sequence after executing the action
+
+        action_idx : int
+            Action index
 
         valid : bool
             False, if the action is not allowed for the current state, e.g. stop at the
