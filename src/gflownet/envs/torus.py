@@ -99,7 +99,7 @@ class Torus(GFlowNetEnv):
             for d in a:
                 if (
                     state[d] + 1 >= self.n_angles
-                    and state[self.n_dim + d] + 1 > self.max_rounds
+                    and state[self.n_dim + d] + 1 >= self.max_rounds
                 ):
                     mask[idx] = True
                     break
@@ -287,13 +287,13 @@ class Torus(GFlowNetEnv):
                     actions.append(idx)
         return parents, actions
 
-    def step(self, action):
+    def step(self, action_idx):
         """
-        Executes step given an action.
+        Executes step given an action index.
 
         Args
         ----
-        a : int (tensor)
+        action_idx : int
             Index of action in the action space. a == eos indicates "stop action"
 
         Returns
@@ -301,22 +301,26 @@ class Torus(GFlowNetEnv):
         self.state : list
             The sequence after executing the action
 
+        action_idx : int
+            Action index
+
         valid : bool
             False, if the action is not allowed for the current state, e.g. stop at the
             root state
         """
+        # If only possible action is eos, then force eos
         # All dimensions are at the maximum angle and maximum round
         if all([a == self.n_angles - 1 for a in self.angles]) and all(
             [r == self.max_rounds - 1 for r in self.rounds]
         ):
             self.done = True
             self.n_actions += 1
-            return self.state, [self.eos], True
-        if action != self.eos:
+            return self.state, self.eos, True
+        # If action is not eos, then perform action
+        if action_idx != self.eos:
+            action = self.action_space[action_idx]
             angles_next = self.angles.copy()
             rounds_next = self.rounds.copy()
-            if action.ndim == 0:
-                action = [action]
             for a in action:
                 angles_next[a] += 1
                 # Increment round and reset angle if necessary
@@ -331,11 +335,12 @@ class Torus(GFlowNetEnv):
                 self.state = self.angles + self.rounds
                 valid = True
                 self.n_actions += 1
-            return self.state, action, valid
+            return self.state, action_idx, valid
+        # If action is eos, then perform eos
         else:
             self.done = True
             self.n_actions += 1
-            return self.state, [self.eos], True
+            return self.state, self.eos, True
 
     def make_train_set(self, ntrain, oracle=None, seed=168, output_csv=None):
         """
