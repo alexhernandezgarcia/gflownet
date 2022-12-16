@@ -234,13 +234,13 @@ class Grid(GFlowNetEnv):
                     actions.append(idx)
         return parents, actions
 
-    def step(self, action):
+    def step(self, action_idx):
         """
-        Executes step given an action.
+        Executes step given an action index.
 
         Args
         ----
-        a : int (tensor)
+        action_idx : int
             Index of action in the action space. a == eos indicates "stop action"
 
         Returns
@@ -248,19 +248,23 @@ class Grid(GFlowNetEnv):
         self.state : list
             The sequence after executing the action
 
+        action_idx : int
+            Action index
+
         valid : bool
             False, if the action is not allowed for the current state, e.g. stop at the
             root state
         """
+        # If only possible action is eos, then force eos
         # All dimensions are at the maximum length
         if all([s == self.length - 1 for s in self.state]):
             self.done = True
             self.n_actions += 1
-            return self.state, [self.eos], True
-        if action != self.eos:
+            return self.state, self.eos, True
+        # If action is not eos, then perform action
+        if action_idx != self.eos:
+            action = self.action_space[action_idx]
             state_next = self.state.copy()
-            if action.ndim == 0:
-                action = [action]
             for a in action:
                 state_next[a] += 1
             if any([s >= self.length for s in state_next]):
@@ -269,11 +273,12 @@ class Grid(GFlowNetEnv):
                 self.state = state_next
                 valid = True
                 self.n_actions += 1
-            return self.state, action, valid
+            return self.state, action_idx, valid
+        # If action is eos, then perform eos
         else:
             self.done = True
             self.n_actions += 1
-            return self.state, [self.eos], True
+            return self.state, self.eos, True
 
     @staticmethod
     def func_corners(x_list):

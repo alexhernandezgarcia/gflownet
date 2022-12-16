@@ -248,11 +248,11 @@ class AptamerSeq(GFlowNetEnv):
         parents = [self.obs2state(el) for el in obs]
         return parents, actions
 
-    def step(self, action):
+    def step(self, action_idx):
         """
-        Executes step given an action
+        Executes step given an action index
 
-        If action is smaller than eos (no stop), add action to next
+        If action_idx is smaller than eos (no stop), add action to next
         position.
 
         See: step_daug()
@@ -260,7 +260,7 @@ class AptamerSeq(GFlowNetEnv):
 
         Args
         ----
-        a : int (tensor)
+        action_idx : int
             Index of action in the action space. a == eos indicates "stop action"
 
         Returns
@@ -272,19 +272,23 @@ class AptamerSeq(GFlowNetEnv):
             False, if the action is not allowed for the current state, e.g. stop at the
             root state
         """
+        # If only possible action is eos, then force eos
         if len(self.state) == self.max_seq_length:
             self.done = True
             self.n_actions += 1
             return self.state, [self.eos], True
-        if action != self.eos:
-            state_next = self.state + list(self.action_space[action])
+        # If action is not eos, then perform action
+        if action_idx != self.eos:
+            action = self.action_space[action_idx]
+            state_next = self.state + list(action)
             if len(state_next) > self.max_seq_length:
                 valid = False
             else:
                 self.state = state_next
                 valid = True
                 self.n_actions += 1
-            return self.state, [action], valid
+            return self.state, action_idx, valid
+        # If action is eos, then perform eos
         else:
             if len(self.state) < self.min_seq_length:
                 valid = False
@@ -292,7 +296,7 @@ class AptamerSeq(GFlowNetEnv):
                 self.done = True
                 valid = True
                 self.n_actions += 1
-            return self.state, [self.eos], valid
+            return self.state, self.eos, valid
 
     def get_mask_invalid_actions(self, state=None, done=None):
         """
