@@ -1128,7 +1128,7 @@ def make_opt(params, Z, config):
     return opt, lr_scheduler
 
 
-def empirical_distribution_error(env, visited):
+def empirical_distribution_error(env, visited, epsilon=1e-9):
     """
     Computes the empirical distribution errors, as the mean L1 error and the KL
     divergence between the true density of the space and the estimated density from all
@@ -1143,7 +1143,7 @@ def empirical_distribution_error(env, visited):
     hist = defaultdict(int)
     for s in visited:
         hist[s] += 1
-    Z = sum([hist[s] for s in states_term])
+    Z = sum([hist[s] for s in states_term]) + epsilon
     estimated_density = tf([hist[s] / Z for s in states_term])
     # L1 error
     l1 = abs(estimated_density - true_density).mean().item()
