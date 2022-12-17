@@ -150,9 +150,89 @@ class myGPModel(SingleTaskGP):
         return self(X)
 
 from botorch.acquisition.max_value_entropy_search import qLowerBoundMaxValueEntropy, qMaxValueEntropy
+from gpytorch.functions import inv_quad
 proxy = myGPModel(gp, train_x, train_y)
 
-GIBBON = qLowerBoundMaxValueEntropy(proxy, candidate_set = train_x, use_gumbel=True)
+class myGIBBON(qLowerBoundMaxValueEntropy):
+
+    def _compute_information_gain(
+        self, X, mean_M, variance_M, covar_mM):
+        posterior_m = self.model.posterior(
+            X, observation_noise=True, posterior_transform=self.posterior_transform
+        )
+        mean_m = self.weight * posterior_m.mean.squeeze(-1)
+        # batch_shape x 1
+        variance_m = posterior_m.variance.clamp_min(CLAMP_LB).squeeze(-1)
+        # batch_shape x 1
+        check_no_nans(variance_m)
+
+        # get stdv of noiseless variance
+        stdv = variance_M.sqrt()
+        # batch_shape x 1
+
+        # define normal distribution to compute cdf and pdf
+        normal = torch.distributions.Normal(
+            torch.zeros(1, device=X.device, dtype=X.dtype),
+            torch.ones(1, device=X.device, dtype=X.dtype),
+        )
+
+        # prepare max value quantities required by GIBBON
+        mvs = torch.transpose(self.posterior_max_values, 0, 1)
+        # 1 x s_M
+        normalized_mvs = (mvs - mean_m) / stdv
+        # batch_shape x s_M
+
+        cdf_mvs = normal.cdf(normalized_mvs).clamp_min(CLAMP_LB)
+        pdf_mvs = torch.exp(normal.log_prob(normalized_mvs))
+        ratio = pdf_mvs / cdf_mvs
+        check_no_nans(ratio)
+
+        # prepare squared correlation between current and target fidelity
+        rhos_squared = torch.pow(covar_mM.squeeze(-1), 2) / (variance_m * variance_M)
+        # batch_shape x 1
+        check_no_nans(rhos_squared)
+
+        # calculate quality contribution to the GIBBON acqusition function
+        inner_term = 1 - rhos_squared * ratio * (normalized_mvs + ratio)
+        acq = -0.5 * inner_term.clamp_min(CLAMP_LB).log()
+        # average over posterior max samples
+        acq = acq.mean(dim=1).unsqueeze(0)
+
+        if self.X_pending is None:
+            # for q=1, no replusion term required
+            return acq
+
+        X_batches = torch.cat(
+            [X, self.X_pending.unsqueeze(0).repeat(X.shape[0], 1, 1)], 1
+        )
+        # batch_shape x (1 + m) x d
+        # NOTE: This is the blocker for supporting posterior transforms.
+        # We would have to process this MVN, applying whatever operations
+        # are typically applied for the corresponding posterior, then applying
+        # the posterior transform onto the resulting object.
+        V = self.model(X_batches)
+        # Evaluate terms required for A
+        A = V.lazy_covariance_matrix[:, 0, 1:].unsqueeze(1)
+        # batch_shape x 1 x m
+        # Evaluate terms required for B
+        B = self.model.posterior(
+            self.X_pending,
+            observation_noise=True,
+            posterior_transform=self.posterior_transform,
+        ).mvn.covariance_matrix.unsqueeze(0)
+        # 1 x m x m
+
+        # use determinant of block matrix formula
+        V_determinant = variance_m - inv_quad(B, A.transpose(1, 2)).unsqueeze(1)
+        # batch_shape x 1
+
+        # Take logs and convert covariances to correlations.
+        r = V_determinant.log() - variance_m.log()
+        r = 0.5 * r.transpose(0, 1)
+        return acq + r
+
+
+GIBBON = myGIBBON(proxy, candidate_set = train_x, use_gumbel=True)
 qMES = qMaxValueEntropy(proxy, candidate_set = train_x, num_fantasies=1, use_gumbel=True)
 
 test_x = torch.rand(10, 6)
@@ -160,15 +240,15 @@ test_x = test_x.unsqueeze(-2)
 with torch.no_grad():
     mes = qMES(test_x)
     gibbon = GIBBON(test_x)
-    covar = proxy.get_mvn(test_x).covariance_matrix
+    # covar = proxy.get_mvn(test_x).covariance_matrix
     # find determinant of var
-    det = torch.det(covar)
+    # det = torch.det(covar)
     # find log of determinant
-    log_det = 0.5 * torch.log(det)
+    # log_det = 0.5 * torch.log(det)
     # subtract two arrays mes and log_det
-    mes_gibbon = gibbon - log_det
+    # mes_gibbon = gibbon - log_det
     print("MES", mes)
-    print("MES-GIBBON", mes_gibbon)
+    # print("MES-GIBBON", mes_gibbon)
     print("GIBBON", gibbon)
 
 """

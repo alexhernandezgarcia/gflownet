@@ -385,6 +385,8 @@ class myQMES(qMaxValueEntropy):
         ig = ig.permute(*permute_idcs)  # num_fantasies x batch_shape x (m)
         if ig<0:
             print(ig)
+        if variance_new!=0:
+            print(variance_new)
         return ig
 
 

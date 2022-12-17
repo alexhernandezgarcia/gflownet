@@ -261,6 +261,8 @@ class myQMES(qMaxValueEntropy):
         verdict = np.all(ig.detach().numpy()>0)
         if not verdict:
             print("Ooops")
+        if variance_new<0:
+            print("Ooopsie")
         return ig
 
 qMES = myQMES(proxy, candidate_set = train_x, force_equality=True, num_fantasies=1)
