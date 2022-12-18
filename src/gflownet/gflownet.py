@@ -275,15 +275,17 @@ class GFlowNetAgent:
         if self.mask_invalid_actions:
             action_logits[mask_invalid_actions] = -1000
         if all(torch.isfinite(action_logits).flatten()):
-            actions = Categorical(logits=action_logits).sample()
+            actions = Categorical(logits=action_logits).sample().tolist()
         else:
             if self.debug:
                 raise ValueError("Action could not be sampled from model!")
         t1_a_model = time.time()
         times["actions_model"] += t1_a_model - t0_a_model
-        assert len(envs) == actions.shape[0]
+        assert len(envs) == len(actions)
         # Execute actions
-        _, _, valids = zip(*[env.step(action) for env, action in zip(envs, actions)])
+        _, actions, valids = zip(
+            *[env.step(action) for env, action in zip(envs, actions)]
+        )
         return envs, actions, valids
 
     def backward_sample(
@@ -434,6 +436,7 @@ class GFlowNetAgent:
                 if valid:
                     parents, parents_a = env.get_parents()
                     mask = env.get_mask_invalid_actions()
+                    assert action in parents_a
                     if train:
                         batch.append(
                             [
