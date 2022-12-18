@@ -7,5 +7,5 @@ this repository implements GFlowNets, generative flow networks for probabilistic
 ### pip
 
 ```
-python -m pip install --upgrade https://github.com/alexhernandezgarcia/example_pypi_package/archive/main.zip
+python -m pip install --upgrade https://github.com/alexhernandezgarcia/gflownet/archive/main.zip
 ```
