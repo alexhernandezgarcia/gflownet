@@ -348,14 +348,27 @@ class Grid(GFlowNetEnv):
             df_train.to_csv(output_csv)
         return df_train
 
-    def make_test_set(self, path_base_dataset, ntest, oracle=None, seed=168, output_csv=None):
+    def make_test_set(self, config):
         """
-        Constructs a randomly sampled test set, by calling make_train_set.
+        Constructs a test set.
 
         Args
         ----
         """
-        return self.make_train_set(ntest, oracle, seed, output_csv)
+        if "all" in config and config.all:
+            samples = self.get_all_terminating_states()
+            energies = self.oracle(self.state2oracle(samples))
+            df_test = pd.DataFrame(
+                {
+                    "samples": [self.state2readable(s) for s in samples],
+                    "energies": energies,
+                }
+            )
+        else:
+            df_test = self.make_train_set(
+                config.n, seed=config.seed, output_csv=config.output_csv
+            )
+        return df_test
 
     def get_all_terminating_states(self):
         all_x = np.int32(
