@@ -31,7 +31,7 @@ train_y = neg_hartmann6(train_x).unsqueeze(-1)
 """
 Initialise and train the NN
 """
-mlp = Sequential(Linear(6, 1024), ReLU(), Dropout(0.5), Linear(1024, 1024), Dropout(0.5), ReLU(), Linear(1024, 1))
+mlp = Sequential(Linear(6, 1024), ReLU(), Dropout(0.1), Linear(1024, 1024), Dropout(0.1), ReLU(), Linear(1024, 1))
 NUM_EPOCHS = 0
 
 mlp.train()
@@ -198,6 +198,7 @@ for num in range(10000):
     with torch.no_grad():
         mes = qMES(test_x)
         mes_arr = mes.detach().numpy()
+        print(mes_arr)
         verdict = np.all(mes_arr>0)
     if not verdict:
         print("Negative MES", mes)
