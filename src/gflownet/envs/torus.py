@@ -365,10 +365,18 @@ class Torus(GFlowNetEnv):
         return df_train
 
     def make_test_set(self, config):
+        """
+        Constructs a test set.
+
+        Args
+        ----
+        """
         if "all" in config and config.all:
             samples = self.get_all_terminating_states()
             energies = self.oracle(self.state2oracle(samples))
-        df_test = pd.DataFrame({"samples": [self.state2readable(s) for s in samples], "energies": energies})
+        df_test = pd.DataFrame(
+            {"samples": [self.state2readable(s) for s in samples], "energies": energies}
+        )
         return df_test
 
     def get_all_terminating_states(self):
