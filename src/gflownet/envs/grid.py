@@ -1,6 +1,7 @@
 """
 Classes to represent a hyper-grid environments
 """
+from typing import List
 import itertools
 import numpy as np
 import pandas as pd
@@ -160,7 +161,7 @@ class Grid(GFlowNetEnv):
         obs[(np.arange(len(state)) * self.length + state)] = 1
         return obs
 
-    def obs2state(self, obs):
+    def obs2state(self, obs: List) -> List:
         """
         Transforms the one-hot encoding version of a state given as argument
         into a state (list of the position at each dimension).
@@ -171,7 +172,7 @@ class Grid(GFlowNetEnv):
           - obs2state(obs): [0, 3, 1]
         """
         obs_mat = np.reshape(obs, (self.n_dim, self.length))
-        state = np.where(obs_mat)[1]
+        state = np.where(obs_mat)[1].tolist()
         return state
 
     def readable2state(self, readable, alphabet={}):

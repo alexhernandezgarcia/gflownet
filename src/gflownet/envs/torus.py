@@ -1,6 +1,7 @@
 """
 Classes to represent hyper-torus environments
 """
+from typing import List
 import itertools
 import numpy as np
 import pandas as pd
@@ -176,7 +177,7 @@ class Torus(GFlowNetEnv):
         ] = 1
         return obs
 
-    def obs2state(self, obs):
+    def obs2state(self, obs: List) -> List:
         """
         Transforms the one-hot encoding version of a state given as argument
         into a state (list of the position at each dimension).

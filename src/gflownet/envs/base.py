@@ -1,6 +1,7 @@
 """
 Base class of GFlowNet environments
 """
+from typing import List
 import numpy as np
 import pandas as pd
 from pathlib import Path
@@ -142,7 +143,7 @@ class GFlowNetEnv:
             state = self.state
         return state
 
-    def obs2state(self, obs):
+    def obs2state(self, obs: List) -> List:
         """
         Converts the model (e.g. one-hot encoding) version of a state given as
         argument into a state.
@@ -233,7 +234,7 @@ class GFlowNetEnv:
         current_path = path_list[-1].copy()
         current_path_actions = actions[-1].copy()
         parents, parents_actions = self.get_parents(list(current_path[-1]), False)
-        parents = [self.obs2state(el).tolist() for el in parents]
+        parents = [self.obs2state(el) for el in parents]
         if parents == []:
             return path_list, actions
         for idx, (p, a) in enumerate(zip(parents, parents_actions)):

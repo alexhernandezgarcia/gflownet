@@ -534,7 +534,7 @@ class GFlowNetAgent:
             neg_r_idx = torch.where(r < 0)[0].tolist()
             for idx in neg_r_idx:
                 obs = sp[idx].tolist()
-                state = list(self.env.obs2state(obs))
+                state = self.env.obs2state(obs)
                 state_oracle = self.env.state2oracle([state])
                 output_proxy = self.env.proxy(state_oracle)
                 reward = self.env.proxy2reward(output_proxy)
@@ -688,7 +688,7 @@ class GFlowNetAgent:
             #             state_ids[path_id].append(state_id)
             paths[path_id].append(el[1][0].item())
             if bool(el[5].item()):
-                states[path_id] = tuple(self.env.obs2state(el[0][0].tolist()))
+                states[path_id] = tuple(self.env.obs2state(el[0][0]))
                 rewards[path_id] = el[2][0].item()
         paths = [tuple(el) for el in paths]
         return states, paths, rewards
