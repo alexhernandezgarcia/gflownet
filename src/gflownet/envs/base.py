@@ -487,7 +487,9 @@ class Buffer:
                 )
             # Test set
             # (2) Separate test file path is provided
-            if test.path and Path(train.path).exists():
+            if "all" in test and test.all:
+                self.test = self.env.make_test_set(test)
+            elif test.path and Path(train.path).exists():
                 self.test = pd.read_csv(test.path, index_col=0)
             # (3) Make environment specific test set
             elif test.n and test.seed:

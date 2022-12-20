@@ -356,3 +356,9 @@ class Grid(GFlowNetEnv):
         ----
         """
         return self.make_train_set(ntest, oracle, seed, output_csv)
+
+    def get_all_terminating_states(self):
+        all_x = np.int32(
+            list(itertools.product(*[list(range(self.length))] * self.n_dim))
+        )
+        return all_x

@@ -271,8 +271,8 @@ class Torus(GFlowNetEnv):
             actions = []
             for idx, a in enumerate(self.action_space):
                 state_aux = state.copy()
-                angles_aux = state_aux[:self.n_dim]
-                rounds_aux = state_aux[self.n_dim:]
+                angles_aux = state_aux[: self.n_dim]
+                rounds_aux = state_aux[self.n_dim :]
                 for a_sub in a:
                     if angles_aux[a_sub] == 0 and rounds_aux[a_sub] > 0:
                         angles_aux[a_sub] = self.n_angles - 1
@@ -350,9 +350,7 @@ class Torus(GFlowNetEnv):
         ----
         """
         rng = np.random.default_rng(seed)
-        angles = rng.integers(
-            low=0, high=self.n_angles, size=(ntrain,) + (self.n_dim,)
-        )
+        angles = rng.integers(low=0, high=self.n_angles, size=(ntrain,) + (self.n_dim,))
         rounds = rng.integers(
             low=0, high=self.max_rounds, size=(ntrain,) + (self.n_dim,)
         )
@@ -365,3 +363,21 @@ class Torus(GFlowNetEnv):
         if output_csv:
             df_train.to_csv(output_csv)
         return df_train
+
+    def make_test_set(self, config):
+        if "all" in config and config.all:
+            samples = self.get_all_terminating_states()
+            energies = self.oracle(self.state2oracle(samples))
+        df_test = pd.DataFrame({"samples": [self.state2readable(s) for s in samples], "energies": energies})
+        return df_test
+
+    def get_all_terminating_states(self):
+        all_x = np.int32(
+            list(
+                itertools.product(
+                    *[list(range(self.n_angles))] * self.n_dim
+                    + [list(range(self.max_rounds))] * self.n_dim
+                )
+            )
+        )
+        return all_x

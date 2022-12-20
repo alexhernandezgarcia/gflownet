@@ -23,7 +23,8 @@ buffer:
     n: 100
     output: null
   test:
+    all: True
     path: null
     seed: 167
-    n: null
+    n: 100
     output: null
