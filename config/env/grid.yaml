@@ -19,12 +19,13 @@ cell_max: 1
 buffer:
   data_path: null
   train:
-    path: /home/mila/a/alex.hernandez-garcia/scratch/datasets/grid/corners_d2l3_r0.csv
+    path: null
     seed: 167
     n: null
     output: null
   test:
-    path: /home/mila/a/alex.hernandez-garcia/scratch/datasets/grid/corners_d2l3_r0.csv
+    all: True
+    path: null
     seed: 167
     n: null
     output: null
