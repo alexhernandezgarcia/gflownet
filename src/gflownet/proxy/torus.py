@@ -16,7 +16,7 @@ class Torus2D(Proxy):
         """
 
         def _func_sin_cos_cube(x):
-            return (np.sin(x[0]) + np.cos(x[1]) + 2) ** 3
+            return -1.0 * (np.sin(x[0]) + np.cos(x[1]) + 2) ** 3
 
         return np.asarray([_func_sin_cos_cube(x) for x in x_list])
 
