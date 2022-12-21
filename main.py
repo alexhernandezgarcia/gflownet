@@ -27,6 +27,7 @@ def main(config):
     batch, times = gflownet.sample_batch(
         env, config.n_samples, train=False
     )
+    print(gflownet.buffer.replay)
 
 
 if __name__ == "__main__":
