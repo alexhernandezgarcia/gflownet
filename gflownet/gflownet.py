@@ -21,11 +21,6 @@ from tqdm import tqdm
 
 from gflownet.envs.base import Buffer
 
-# from aptamers import AptamerSeq
-# from grid import Grid
-# from oracle import numbers2letters, Oracle
-# from utils import get_config, namespace2dict, numpy2python, add_bool_arg
-
 # Float and Long tensors
 _dev = [torch.device("cpu")]
 tf = lambda x: torch.FloatTensor(x).to(_dev[0])
