@@ -19,7 +19,7 @@ import yaml
 from torch.distributions.categorical import Categorical
 from tqdm import tqdm
 
-from src.gflownet.envs.base import Buffer
+from gflownet.envs.base import Buffer
 
 # from aptamers import AptamerSeq
 # from grid import Grid
