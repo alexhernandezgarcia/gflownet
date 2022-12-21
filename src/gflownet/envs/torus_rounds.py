@@ -10,11 +10,7 @@ from src.gflownet.envs.base import GFlowNetEnv
 
 class Torus(GFlowNetEnv):
     """
-    Hyper-torus environment in which the action space consists of:
-        - Increasing the angle index of dimension d
-        - Decreasing the angle index of dimension d
-        - Keeping all dimensions as are
-    and the trajectory is of fixed length length_traj.
+    Hyper-torus environment
 
     Attributes
     ----------
@@ -24,15 +20,17 @@ class Torus(GFlowNetEnv):
     n_angles : int
         Number of angles into which each dimension is divided
 
-    length_traj : int
-       Fixed length of the trajectory. 
+    max_rounds : int
+        If larger than one, the action space allows for reaching the initial angle and
+        restart again up to max_rounds; and the state space contain the round number.
+        If zero, only one round is allowed, without reaching the initial angle.
     """
 
     def __init__(
         self,
         n_dim=2,
         n_angles=3,
-        length_traj=1,
+        max_rounds=1,
         min_step_len=1,
         max_step_len=1,
         env_id=None,
@@ -60,13 +58,14 @@ class Torus(GFlowNetEnv):
         )
         self.n_dim = n_dim
         self.n_angles = n_angles
-        self.length_traj = length_traj
+        self.max_rounds = max_rounds
         # TODO: do we need to one-hot encode the coordinates and rounds?
         self.angles = [0 for _ in range(self.n_dim)]
-        # States are the concatenation of the angle state and number of actions
-        self.state = self.angles + [self.n_actions]
+        self.rounds = [0 for _ in range(self.n_dim)]
+        # States are the concatenation of the angle state and the round state
+        self.state = self.angles + self.rounds
         # TODO: A circular encoding of obs would be better
-        self.obs_dim = self.n_angles * self.n_dim + 1
+        self.obs_dim = self.n_angles * self.n_dim * 2
         self.min_step_len = min_step_len
         self.max_step_len = max_step_len
         self.action_space = self.get_actions_space()
@@ -75,20 +74,14 @@ class Torus(GFlowNetEnv):
 
     def get_actions_space(self):
         """
-        Constructs list with all possible actions. The actions are tuples with two
-        values: (dimension, direction) where dimension indicates the index of the
-        dimension on which the action is to be performed and direction indicates to
-        increment or decrement with 1 or -1, respectively. The action "keep" is
-        indicated by (-1, 0).
+        Constructs list with all possible actions
         """
         valid_steplens = np.arange(self.min_step_len, self.max_step_len + 1)
         dims = [a for a in range(self.n_dim)]
-        directions = [1, -1]
         actions = []
         for r in valid_steplens:
-            actions_r = [el for el in itertools.product(dims, directions, repeat=r)]
+            actions_r = [el for el in itertools.product(dims, repeat=r)]
             actions += actions_r
-        actions = actions + [(-1, 0)]
         return actions
 
     def get_mask_invalid_actions(self, state=None, done=None):
@@ -102,12 +95,15 @@ class Torus(GFlowNetEnv):
             done = self.done
         if done:
             return [True for _ in range(len(self.action_space) + 1)]
-        if state[-1] >= self.length_traj:
-            mask = [True for _ in range(len(self.action_space) + 1)]
-            mask[-1] = False
-        else:
-            mask = [False for _ in range(len(self.action_space) + 1)]
-            mask[-1] = True
+        mask = [False for _ in range(len(self.action_space) + 1)]
+        for idx, a in enumerate(self.action_space):
+            for d in a:
+                if (
+                    state[d] + 1 >= self.n_angles
+                    and state[self.n_dim + d] + 1 >= self.max_rounds
+                ):
+                    mask[idx] = True
+                    break
         return mask
 
     def true_density(self):
@@ -115,7 +111,6 @@ class Torus(GFlowNetEnv):
         if self._true_density is not None:
             return self._true_density
         # Calculate true density
-        # TODO
         all_angles = np.int32(
             list(itertools.product(*[list(range(self.n_angles))] * self.n_dim))
         )
@@ -140,7 +135,7 @@ class Torus(GFlowNetEnv):
         """
         # TODO: do we really need to convert back to list?
         # TODO: split angles and round?
-        return (np.array(state_list)[:, :-1] * self.angle_rad).tolist()
+        return (np.array(state_list) * self.angle_rad).tolist()
 
     def state2oracle(self, state_list):
         """
