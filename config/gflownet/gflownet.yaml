@@ -1,4 +1,4 @@
-_target_: src.gflownet.gflownet.GFlowNetAgent
+_target_: gflownet.gflownet.GFlowNetAgent
 
 # General
 logdir: /network/scratch/a/alex.hernandez-garcia/logs/gflownet
