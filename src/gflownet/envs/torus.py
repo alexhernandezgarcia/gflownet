@@ -128,10 +128,10 @@ class Torus(GFlowNetEnv):
         )
         return self._true_density
 
-    def state2proxy(self, state_list):
+    def state2proxy(self, state_list: List[List]) -> List[List]:
         """
         Prepares a list of states in "GFlowNet format" for the proxy: a list of length
-        n_dim with an angle in radians.
+        n_dim with an angle in radians. The n_actions item is removed.
 
         Args
         ----
@@ -142,10 +142,9 @@ class Torus(GFlowNetEnv):
         # TODO: split angles and round?
         return (np.array(state_list)[:, :-1] * self.angle_rad).tolist()
 
-    def state2oracle(self, state_list):
+    def state2oracle(self, state_list: List[List]) -> List[List]:
         """
-        Prepares a list of states in "GFlowNet format" for the oracles: a list of length
-        n_dim with values in the range [cell_min, cell_max] for each state.
+        Prepares a list of states in "GFlowNet format" for the oracle
 
         Args
         ----
@@ -154,18 +153,18 @@ class Torus(GFlowNetEnv):
         """
         return self.state2proxy(state_list)
 
-    def state2obs(self, state=None):
+    def state2obs(self, state=None) -> List:
         """
-        Transforms the state given as argument (or self.state if None) into a
-        one-hot encoding. The output is a list of len n_angles * n_dim,
-        where each n-th successive block of length elements is a one-hot encoding of
+        Transforms the angles part of the state given as argument (or self.state if
+        None) into a one-hot encoding. The output is a list of len n_angles * n_dim +
+        1, where each n-th successive block of length elements is a one-hot encoding of
         the position in the n-th dimension.
 
         Example, n_dim = 2, n_angles = 4:
-          - State, state: [0, 3, 1, 0]
-                          | a  |  r  | (a = angles, r = rounds)
-          - state2obs(state): [1, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 1, 0, 0, 0]
-                              |     0    |      3    |      1    |      0    |
+          - State, state: [1, 3, 4]
+                          | a  | n | (a = angles, n = n_actions)
+          - state2obs(state): [0, 1, 0, 0, 0, 0, 0, 1, 4]
+                              |     1    |     3     | 4 |
         """
         if state is None:
             state = self.state.copy()
@@ -176,10 +175,8 @@ class Torus(GFlowNetEnv):
         obs[: self.n_dim * self.n_angles][
             (np.arange(self.n_dim) * self.n_angles + state[: self.n_dim])
         ] = 1
-        # Rounds
-        obs[self.n_dim * self.n_angles :][
-            (np.arange(self.n_dim) * self.n_angles + state[self.n_dim :])
-        ] = 1
+        # Number of actions
+        obs[-1] = state[-1]
         return obs
 
     def obs2state(self, obs: List) -> List:
@@ -188,23 +185,18 @@ class Torus(GFlowNetEnv):
         into a state (list of the position at each dimension).
 
         Example, n_dim = 2, n_angles = 4:
-          - obs: [1, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 1, 0, 0, 0]
-                 |     0    |      3    |      1    |      0    |
-          - obs2state(obs): [0, 3, 1, 0]
-                            | a  |  r  | (a = angles, r = rounds)
+          - obs: [0, 1, 0, 0, 0, 0, 0, 1, 4]
+                 |     0    |     3     | 4 |
+          - obs2state(obs): [1, 3, 4]
+                            | a  | n | (a = angles, n = n_actions)
         """
         obs_mat_angles = np.reshape(
             obs[: self.n_dim * self.n_angles], (self.n_dim, self.n_angles)
         )
-        obs_mat_rounds = np.reshape(
-            obs[self.n_dim * self.n_angles :], (self.n_dim, self.n_angles)
-        )
-        angles = np.where(obs_mat_angles)[1]
-        rounds = np.where(obs_mat_rounds)[1]
-        # TODO: do we need to convert to list?
-        return np.concatenate([angles, rounds]).tolist()
+        angles = np.where(obs_mat_angles)[1].tolist()
+        return angles + [obs[-1]]
 
-    def state2readable(self, state, alphabet={}):
+    def state2readable(self, state: List) -> str:
         """
         Converts a state (a list of positions) into a human-readable string
         representing a state.
@@ -215,30 +207,25 @@ class Torus(GFlowNetEnv):
             .replace(")", "]")
             .replace(",", "")
         )
-        rounds = (
-            str(state[self.n_dim :])
-            .replace("(", "[")
-            .replace(")", "]")
-            .replace(",", "")
-        )
-        return angles + " | " + rounds
+        n_actions = str(state[-1])
+        return angles + " | " + n_actions
 
-    def readable2state(self, readable, alphabet={}):
+    def readable2state(self, readable: str) -> List:
         """
         Converts a human-readable string representing a state into a state as a list of
         positions.
         """
         pair = readable.split(" | ")
         angles = [int(el) for el in pair[0].strip("[]").split(" ")]
-        rounds = [int(el) for el in pair[1].strip("[]").split(" ")]
-        return angles + rounds
+        n_actions = [int(pair[1])]
+        return angles + n_actions
 
     def reset(self, env_id=None):
         """
         Resets the environment.
         """
+        # TODO: random start
         self.angles = [0 for _ in range(self.n_dim)]
-        self.rounds = [0 for _ in range(self.n_dim)]
         self.n_actions = 0
         self.done = False
         self.id = env_id
@@ -251,8 +238,8 @@ class Torus(GFlowNetEnv):
         Args
         ----
         state : list
-            Representation of a state, as a list of length n_angles where each element is
-            the position at each dimension.
+            Representation of a state, as a list of length n_angles where each element
+            is the position at each dimension.
 
         action : int
             Last action performed
@@ -265,32 +252,37 @@ class Torus(GFlowNetEnv):
         actions : list
             List of actions that lead to state for each parent in parents
         """
-        # TODO
+        # TODO: do we need to check if parents are valid given initial state and
+        # n_actions?
         if state is None:
             state = self.state.copy()
         if done is None:
             done = self.done
         if done:
             return [self.state2obs(state)], [self.eos]
+        # If source state
+        elif state[-1] == 0:
+            return [], []
         else:
             parents = []
             actions = []
             for idx, a in enumerate(self.action_space):
                 state_aux = state.copy()
-                angles_aux = state_aux[: self.n_dim]
-                rounds_aux = state_aux[self.n_dim :]
-                for a_sub in a:
-                    if angles_aux[a_sub] == 0 and rounds_aux[a_sub] > 0:
-                        angles_aux[a_sub] = self.n_angles - 1
-                        rounds_aux[a_sub] -= 1
-                    elif angles_aux[a_sub] > 0:
-                        angles_aux[a_sub] -= 1
-                    else:
-                        break
-                else:
-                    state_aux = angles_aux + rounds_aux
-                    parents.append(self.state2obs(state_aux))
-                    actions.append(idx)
+                angles = state_aux[: self.n_dim]
+                n_actions = state_aux[-1]
+                # Get parent
+                n_actions -= 1
+                if a[0] != -1:
+                    angles[a[0]] -= a[1]
+                    # If negative angle index, restart from the back
+                    if angles[a[0]] < 0:
+                        angles[a[0]] = self.n_angles + angles[a[0]]
+                    # If angle index larger than n_angles, restart from 0
+                    if angles[a[0]] >= self.n_angles:
+                        angles[a[0]] = angles[a[0]] - self.n_angles
+                state_aux = angles + [n_actions]
+                parents.append(self.state2obs(state_aux))
+                actions.append(idx)
         return parents, actions
 
     def step(self, action_idx):
@@ -314,39 +306,34 @@ class Torus(GFlowNetEnv):
             False, if the action is not allowed for the current state, e.g. stop at the
             root state
         """
+        if self.done:
+            return self.state, action_idx, False
         # If only possible action is eos, then force eos
-        # All dimensions are at the maximum angle and maximum round
-        if all([a == self.n_angles - 1 for a in self.angles]) and all(
-            [r == self.max_rounds - 1 for r in self.rounds]
-        ):
+        # If the number of actions is equal to maximum trajectory length
+        elif self.n_actions == self.length_traj:
             self.done = True
             self.n_actions += 1
             return self.state, self.eos, True
         # If action is not eos, then perform action
-        if action_idx != self.eos:
-            action = self.action_space[action_idx]
+        elif action_idx != self.eos:
+            a_dim, a_dir = self.action_space[action_idx]
             angles_next = self.angles.copy()
-            rounds_next = self.rounds.copy()
-            for a in action:
-                angles_next[a] += 1
-                # Increment round and reset angle if necessary
-                if angles_next[a] == self.n_angles:
-                    angles_next[a] = 0
-                    rounds_next[a] += 1
-            if any([r >= self.max_rounds for r in rounds_next]):
-                valid = False
-            else:
-                self.angles = angles_next
-                self.rounds = rounds_next
-                self.state = self.angles + self.rounds
-                valid = True
-                self.n_actions += 1
-            return self.state, action_idx, valid
-        # If action is eos, then perform eos
-        else:
-            self.done = True
+            if a_dim != -1:
+                angles_next[a_dim] += a_dir
+                # If negative angle index, restart from the back
+                if angles_next[a_dim] < 0:
+                    angles_next[a_dim] = self.n_angles + angles_next[a_dim]
+                # If angle index larger than n_angles, restart from 0
+                if angles_next[a_dim] >= self.n_angles:
+                    angles_next[a_dim] = angles_next[a_dim] - self.n_angles
+            self.angles = angles_next
             self.n_actions += 1
-            return self.state, self.eos, True
+            self.state = self.angles + [self.n_actions]
+            valid = True
+            return self.state, action_idx, valid
+        # If action is eos, then it is invalid
+        else:
+            return self.state, self.eos, False
 
     def make_train_set(self, ntrain, oracle=None, seed=168, output_csv=None):
         """
@@ -357,10 +344,8 @@ class Torus(GFlowNetEnv):
         """
         rng = np.random.default_rng(seed)
         angles = rng.integers(low=0, high=self.n_angles, size=(ntrain,) + (self.n_dim,))
-        rounds = rng.integers(
-            low=0, high=self.max_rounds, size=(ntrain,) + (self.n_dim,)
-        )
-        samples = np.concatenate([angles, rounds], axis=1)
+        n_actions = self.length_traj * np.ones([ntrain, 1], dtype=np.int32)
+        samples = np.concatenate([angles, n_actions], axis=1)
         if oracle:
             energies = oracle(self.state2oracle(samples))
         else:
@@ -387,11 +372,8 @@ class Torus(GFlowNetEnv):
 
     def get_all_terminating_states(self):
         all_x = np.int32(
-            list(
-                itertools.product(
-                    *[list(range(self.n_angles))] * self.n_dim
-                    + [list(range(self.max_rounds))] * self.n_dim
-                )
-            )
+            list(itertools.product(*[list(range(self.n_angles))] * self.n_dim))
         )
+        n_actions = self.length_traj * np.ones([all_x.shape[0], 1], dtype=np.int32)
+        all_x = np.concatenate([all_x, n_actions], axis=1)
         return all_x
