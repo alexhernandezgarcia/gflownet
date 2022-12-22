@@ -234,6 +234,7 @@ class Torus(GFlowNetEnv):
         """
         self.angles = [0 for _ in range(self.n_dim)]
         self.rounds = [0 for _ in range(self.n_dim)]
+        self.state = self.angles + self.rounds
         self.n_actions = 0
         self.done = False
         self.id = env_id
