@@ -16,6 +16,9 @@ class Torus(GFlowNetEnv):
         - Keeping all dimensions as are
     and the trajectory is of fixed length length_traj.
 
+    The states space is the concatenation of the angle index at each dimension and the
+    number of actions.
+
     Attributes
     ----------
     ndim : int
@@ -61,11 +64,10 @@ class Torus(GFlowNetEnv):
         self.n_dim = n_dim
         self.n_angles = n_angles
         self.length_traj = length_traj
-        # TODO: do we need to one-hot encode the coordinates and rounds?
-        self.angles = [0 for _ in range(self.n_dim)]
-        # States are the concatenation of the angle state and number of actions
-        self.state = self.angles + [self.n_actions]
-        # TODO: A circular encoding of obs would be better
+        # Initialize angles and state attributes
+        self.reset()
+        self.source = self.angles.copy()
+        # TODO: A circular encoding of obs would be better?
         self.obs_dim = self.n_angles * self.n_dim + 1
         self.min_step_len = min_step_len
         self.max_step_len = max_step_len
@@ -227,6 +229,8 @@ class Torus(GFlowNetEnv):
         # TODO: random start
         self.angles = [0 for _ in range(self.n_dim)]
         self.n_actions = 0
+        # States are the concatenation of the angle state and number of actions
+        self.state = self.angles + [self.n_actions]
         self.done = False
         self.id = env_id
         return self
@@ -252,8 +256,10 @@ class Torus(GFlowNetEnv):
         actions : list
             List of actions that lead to state for each parent in parents
         """
-        # TODO: do we need to check if parents are valid given initial state and
-        # n_actions?
+        def _get_min_actions_to_source(source, ref):
+            def _get_min_actions_dim(u, v):
+                return np.min([np.abs(u - v), np.abs(u - (v - self.n_angles))])
+            return np.sum([_get_min_actions_dim(u, v) for u, v in zip(source, ref)])
         if state is None:
             state = self.state.copy()
         if done is None:
@@ -267,22 +273,23 @@ class Torus(GFlowNetEnv):
             parents = []
             actions = []
             for idx, a in enumerate(self.action_space):
-                state_aux = state.copy()
-                angles = state_aux[: self.n_dim]
-                n_actions = state_aux[-1]
+                state_p = state.copy()
+                angles_p = state_p[: self.n_dim]
+                n_actions_p = state_p[-1]
                 # Get parent
-                n_actions -= 1
+                n_actions_p -= 1
                 if a[0] != -1:
-                    angles[a[0]] -= a[1]
+                    angles_p[a[0]] -= a[1]
                     # If negative angle index, restart from the back
-                    if angles[a[0]] < 0:
-                        angles[a[0]] = self.n_angles + angles[a[0]]
+                    if angles_p[a[0]] < 0:
+                        angles_p[a[0]] = self.n_angles + angles_p[a[0]]
                     # If angle index larger than n_angles, restart from 0
-                    if angles[a[0]] >= self.n_angles:
-                        angles[a[0]] = angles[a[0]] - self.n_angles
-                state_aux = angles + [n_actions]
-                parents.append(self.state2obs(state_aux))
-                actions.append(idx)
+                    if angles_p[a[0]] >= self.n_angles:
+                        angles_p[a[0]] = angles_p[a[0]] - self.n_angles
+                if _get_min_actions_to_source(self.source, angles_p) < state[-1]:
+                    state_p = angles_p + [n_actions_p]
+                    parents.append(self.state2obs(state_p))
+                    actions.append(idx)
         return parents, actions
 
     def step(self, action_idx):
