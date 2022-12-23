@@ -159,7 +159,7 @@ class AptamerSeq(GFlowNetEnv):
             z[(np.arange(len(state)) * self.nalphabet + state)] = 1
         return z
 
-    def obs2state(self, obs):
+    def obs2state(self, obs: List) -> List:
         """
         Transforms the one-hot encoding version of a sequence (state) given as argument
         into a a sequence of letter indices.
@@ -172,7 +172,7 @@ class AptamerSeq(GFlowNetEnv):
                     A, A, T, G, C
         """
         obs_mat = np.reshape(obs, (self.max_seq_length, self.nalphabet))
-        state = np.where(obs_mat)[1]
+        state = np.where(obs_mat)[1].tolist()
         return state
 
     def state2readable(self, state, alphabet={0: "A", 1: "T", 2: "C", 3: "G"}):
