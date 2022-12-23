@@ -47,7 +47,7 @@ class GFlowNetEnv:
             if not self.done
             else self.proxy2reward(self.proxy(self.state2proxy(x)))
         )
-        self.proxy_state_format=proxy_state_format,
+        self.proxy_state_format=proxy_state_format
         self._true_density = None
         self.action_space = []
         self.eos = len(self.action_space)
