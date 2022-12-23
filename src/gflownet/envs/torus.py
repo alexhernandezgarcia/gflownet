@@ -28,7 +28,7 @@ class Torus(GFlowNetEnv):
         Number of angles into which each dimension is divided
 
     length_traj : int
-       Fixed length of the trajectory. 
+       Fixed length of the trajectory.
     """
 
     def __init__(
@@ -253,10 +253,13 @@ class Torus(GFlowNetEnv):
         actions : list
             List of actions that lead to state for each parent in parents
         """
+
         def _get_min_actions_to_source(source, ref):
             def _get_min_actions_dim(u, v):
                 return np.min([np.abs(u - v), np.abs(u - (v - self.n_angles))])
+
             return np.sum([_get_min_actions_dim(u, v) for u, v in zip(source, ref)])
+
         if state is None:
             state = self.state.copy()
         if done is None:

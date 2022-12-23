@@ -283,7 +283,9 @@ class GFlowNetAgent:
         times["actions_model"] += t1_a_model - t0_a_model
         assert len(envs) == len(actions)
         # Execute actions
-        _, actions, valids = zip(*[env.step(action) for env, action in zip(envs, actions)])
+        _, actions, valids = zip(
+            *[env.step(action) for env, action in zip(envs, actions)]
+        )
         return envs, actions, valids
 
     def backward_sample(
@@ -795,7 +797,8 @@ class GFlowNetAgent:
                 ):
                     t0_test_path = time.time()
                     path_list, actions = self.env.get_paths(
-                        [], [],
+                        [],
+                        [],
                         [self.env.readable2state(statestr)],
                         [self.env.eos],
                     )

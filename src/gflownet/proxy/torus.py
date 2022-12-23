@@ -28,4 +28,3 @@ class Torus2D(Proxy):
             _func = _func_sin_cos_cube
 
         return np.asarray([_func(x) for x in x_list])
-
