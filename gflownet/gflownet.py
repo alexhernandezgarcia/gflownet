@@ -792,8 +792,9 @@ class GFlowNetAgent:
                 ):
                     t0_test_path = time.time()
                     path_list, actions = self.env.get_paths(
-                        [[self.env.readable2state(statestr)]],
-                        [[self.env.eos]],
+                        [], [],
+                        [self.env.readable2state(statestr)],
+                        [self.env.eos],
                     )
                     t1_test_path = time.time()
                     times["test_paths"] += t1_test_path - t0_test_path
