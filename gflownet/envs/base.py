@@ -42,15 +42,12 @@ class GFlowNetEnv:
             self.oracle = self.proxy
         else:
             self.oracle = oracle
-        if proxy_state_format == "ohe":
-            self.state2proxy = self.state2obs
-        elif proxy_state_format == "oracle":
-            self.state2proxy = self.state2oracle
         self.reward = (
             lambda x: [0]
             if not self.done
             else self.proxy2reward(self.proxy(self.state2proxy(x)))
         )
+        self.proxy_state_format=proxy_state_format,
         self._true_density = None
         self.action_space = []
         self.eos = len(self.action_space)
