@@ -1,6 +1,7 @@
 """
 Classes to represent aptamers environments
 """
+from typing import List
 import itertools
 import numpy as np
 import pandas as pd
