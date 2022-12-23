@@ -44,6 +44,7 @@ class Grid(GFlowNetEnv):
         energies_stats=None,
         proxy=None,
         oracle=None,
+        proxy_state_format=None,
         **kwargs,
     ):
         super(Grid, self).__init__(
@@ -56,6 +57,7 @@ class Grid(GFlowNetEnv):
             denorm_proxy,
             proxy,
             oracle,
+            proxy_state_format,
             **kwargs,
         )
         self.n_dim = n_dim
@@ -67,6 +69,10 @@ class Grid(GFlowNetEnv):
         self.cells = np.linspace(cell_min, cell_max, length)
         self.action_space = self.get_actions_space()
         self.eos = len(self.action_space)
+        if self.proxy_state_format == "ohe":
+            self.state2proxy = self.state2obs
+        elif self.proxy_state_format == "oracle":
+            self.state2proxy = self.state2oracle
 
     def get_actions_space(self):
         """
