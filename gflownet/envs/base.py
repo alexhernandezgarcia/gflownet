@@ -47,7 +47,7 @@ class GFlowNetEnv:
             if not self.done
             else self.proxy2reward(self.proxy(self.state2proxy(x)))
         )
-        self.proxy_state_format=proxy_state_format
+        self.proxy_state_format = proxy_state_format
         self._true_density = None
         self.action_space = []
         self.eos = len(self.action_space)
@@ -245,7 +245,7 @@ class GFlowNetEnv:
             return path_list, path_actions_list
         for idx, (p, a) in enumerate(zip(parents, parents_actions)):
             path_list, path_actions_list = self.get_paths(
-                    path_list, path_actions_list, current_path + [p], current_actions + [a]
+                path_list, path_actions_list, current_path + [p], current_actions + [a]
             )
         return path_list, path_actions_list
 
@@ -392,9 +392,17 @@ class Buffer:
             )
         # Compute buffer statistics
         if self.train is not None:
-            self.mean_tr, self.std_tr, self.min_tr, self.max_tr, self.max_norm_tr = self.compute_stats(self.train)
+            (
+                self.mean_tr,
+                self.std_tr,
+                self.min_tr,
+                self.max_tr,
+                self.max_norm_tr,
+            ) = self.compute_stats(self.train)
         if self.test is not None:
-            self.mean_tt, self.std_tt, self.min_tt, self.max_tt, _ = self.compute_stats(self.test)
+            self.mean_tt, self.std_tt, self.min_tt, self.max_tt, _ = self.compute_stats(
+                self.test
+            )
 
     def add(
         self,
