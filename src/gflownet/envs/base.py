@@ -211,7 +211,7 @@ class GFlowNetEnv:
             actions = []
         return parents, actions
 
-    def get_paths(self, path_list, actions):
+    def get_paths(self, path_list, path_actions_list, current_path, current_actions):
         """
         Determines all paths leading to each state in path_list, recursively.
 
@@ -220,31 +220,34 @@ class GFlowNetEnv:
         path_list : list
             List of paths (lists)
 
-        actions : list
+        path_actions_list : list
             List of actions within each path
+
+        current_path : list
+            Current path
+
+        current_actions : list
+            Actions of current path
 
         Returns
         -------
         path_list : list
             List of paths (lists)
 
-        actions : list
+        path_actions_list : list
             List of actions within each path
         """
-        current_path = path_list[-1].copy()
-        current_path_actions = actions[-1].copy()
-        parents, parents_actions = self.get_parents(list(current_path[-1]), False)
+        parents, parents_actions = self.get_parents(current_path[-1], False)
         parents = [self.obs2state(el) for el in parents]
         if parents == []:
-            return path_list, actions
+            path_list.append(current_path)
+            path_actions_list.append(current_actions)
+            return path_list, path_actions_list
         for idx, (p, a) in enumerate(zip(parents, parents_actions)):
-            if idx > 0:
-                path_list.append(current_path)
-                actions.append(current_path_actions)
-            path_list[-1] += [p]
-            actions[-1] += [a]
-            path_list, actions = self.get_paths(path_list, actions)
-        return path_list, actions
+            path_list, path_actions_list = self.get_paths(
+                    path_list, path_actions_list, current_path + [p], current_actions + [a]
+            )
+        return path_list, path_actions_list
 
     def step(self, action_idx):
         """
