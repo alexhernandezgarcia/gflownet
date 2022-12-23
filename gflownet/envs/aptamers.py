@@ -82,7 +82,7 @@ class AptamerSeq(GFlowNetEnv):
         self.max_word_len = max_word_len
         self.action_space = self.get_actions_space()
         self.eos = len(self.action_space)
-        self.max_path_len = self.get_max_path_len()
+        self.max_traj_len = self.get_max_traj_len()
 
     def get_actions_space(self):
         """
@@ -97,7 +97,7 @@ class AptamerSeq(GFlowNetEnv):
             actions += actions_r
         return actions
 
-    def get_max_path_len(
+    def get_max_traj_len(
         self,
     ):
         return self.max_seq_length / self.min_word_len + 1
@@ -348,18 +348,18 @@ class AptamerSeq(GFlowNetEnv):
                 itertools.product(*[list(range(self.nalphabet))] * self.max_seq_length)
             )
         )
-        path_rewards, state_end = zip(
+        traj_rewards, state_end = zip(
             *[
                 (self.proxy(state), state)
                 for state in state_all
                 if len(self.get_parents(state, False)[0]) > 0 or sum(state) == 0
             ]
         )
-        path_rewards = np.array(path_rewards)
+        traj_rewards = np.array(traj_rewards)
         self._true_density = (
-            path_rewards / path_rewards.sum(),
+            traj_rewards / traj_rewards.sum(),
             list(map(tuple, state_end)),
-            path_rewards,
+            traj_rewards,
         )
         return self._true_density
 
