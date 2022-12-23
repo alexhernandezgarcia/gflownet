@@ -5,7 +5,7 @@ import sys
 import random
 import hydra
 from omegaconf import OmegaConf, DictConfig
-from src.gflownet.utils.common import flatten_config
+from gflownet.utils.common import flatten_config
 
 
 @hydra.main(config_path="./config", config_name="main")

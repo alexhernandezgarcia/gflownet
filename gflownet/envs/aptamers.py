@@ -4,7 +4,7 @@ Classes to represent aptamers environments
 import itertools
 import numpy as np
 import pandas as pd
-from src.gflownet.envs.base import GFlowNetEnv
+from gflownet.envs.base import GFlowNetEnv
 import time
 
 

@@ -19,12 +19,7 @@ import yaml
 from torch.distributions.categorical import Categorical
 from tqdm import tqdm
 
-from src.gflownet.envs.base import Buffer
-
-# from aptamers import AptamerSeq
-# from grid import Grid
-# from oracle import numbers2letters, Oracle
-# from utils import get_config, namespace2dict, numpy2python, add_bool_arg
+from gflownet.envs.base import Buffer
 
 # Float and Long tensors
 _dev = [torch.device("cpu")]
