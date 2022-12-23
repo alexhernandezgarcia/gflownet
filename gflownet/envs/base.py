@@ -333,6 +333,7 @@ class GFlowNetEnv:
 
     def make_test_set(
         self,
+        path_base_dataset,
         ntest,
         oracle=None,
         seed=167,
@@ -480,22 +481,25 @@ class Buffer:
         else:
             # Train set
             # (2) Separate train file path is provided
-            if train.path:
+            if train.path and Path(train.path).exists():
                 self.train = pd.read_csv(train.path, index_col=0)
             # (3) Make environment specific train set
-            elif train.n and train.seed and train.output:
+            elif train.n and train.seed:
                 self.train = self.env.make_train_set(
                     ntrain=train.n,
-                    oracle=env.oracle,
+                    oracle=self.env.oracle,
                     seed=train.seed,
                     output_csv=train.output,
                 )
             # Test set
             # (2) Separate test file path is provided
-            if test.path:
+            if "all" in test and test.all:
+                self.test = self.env.make_test_set(test)
+            elif test.path and Path(train.path).exists():
                 self.test = pd.read_csv(test.path, index_col=0)
             # (3) Make environment specific test set
-            elif test.base and test.n and test.seed and test.output:
+            elif test.n and test.seed:
+                # TODO: make this general for all environments
                 self.test, _ = self.env.make_test_set(
                     path_base_dataset=test.base,
                     ntest=test.n,
