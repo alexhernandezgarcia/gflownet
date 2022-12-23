@@ -1,0 +1,3 @@
+_target_: src.gflownet.proxy.torus.Torus2D
+
+normalize: True
