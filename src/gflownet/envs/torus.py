@@ -117,16 +117,13 @@ class Torus(GFlowNetEnv):
         if self._true_density is not None:
             return self._true_density
         # Calculate true density
-        # TODO
-        all_angles = np.int32(
-            list(itertools.product(*[list(range(self.n_angles))] * self.n_dim))
-        )
-        all_oracle = self.state2oracle(all_angles)
+        all_x = self.get_all_terminating_states()
+        all_oracle = self.state2oracle(all_x)
         rewards = self.oracle(all_oracle)
         self._true_density = (
             rewards / rewards.sum(),
             rewards,
-            list(map(tuple, all_angles)),
+            list(map(tuple, all_x)),
         )
         return self._true_density
 
@@ -196,7 +193,7 @@ class Torus(GFlowNetEnv):
             obs[: self.n_dim * self.n_angles], (self.n_dim, self.n_angles)
         )
         angles = np.where(obs_mat_angles)[1].tolist()
-        return angles + [obs[-1]]
+        return angles + [int(obs[-1])]
 
     def state2readable(self, state: List) -> str:
         """
