@@ -1061,42 +1061,6 @@ def batch2dict(batch, env, get_uncertainties=False, query_function="Both"):
     return samples, times
 
 
-class RandomTrajAgent:
-    def __init__(self, args, envs):
-        self.batch_size = args.gflownet.batch_size  # mini-batch size
-        self.envs = envs
-        self.nact = args.ndim + 1
-        self.model = None
-
-    def parameters(self):
-        return []
-
-    def sample_batch(self, batch_size, all_visited):
-        batch = []
-        [i.reset()[0] for i in self.envs]  # reset envs
-        done = [False] * batch_size
-        while not all(done):
-            acts = np.random.randint(0, self.nact, batch_size)  # actions (?)
-            # step : list
-            # - For each e in envs, if corresponding done is False
-            #   - For each element i in env, and a in acts
-            #     - i.step(a)
-            step = [
-                i.step(a)
-                for i, a in zip([e for d, e in zip(done, self.envs) if not d], acts)
-            ]
-            c = count(0)
-            m = {j: next(c) for j in range(batch_size) if not done[j]}
-            done = [bool(d or step[m[i]][2]) for i, d in enumerate(done)]
-            for (_, r, d, sp) in step:
-                if d:
-                    all_visited.append(tuple(sp))
-        return []  # agent is stateful, no need to return minibatch data
-
-    def flowmatch_loss(self, it, batch):
-        return None
-
-
 def make_opt(params, Z, config):
     """
     Set up the optimizer
