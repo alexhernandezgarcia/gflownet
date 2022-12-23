@@ -345,8 +345,8 @@ class GFlowNetAgent:
                 - [3] all parents of the state, parents
                 - [4] actions that lead to the state from each parent, parents_a
                 - [5] done [True, False]
-                - [6] path id: identifies each path
-                - [7] state id: identifies each state within a path
+                - [6] traj id: identifies each trajectory
+                - [7] state id: identifies each state within a trajectory
                 - [8] mask: invalid actions from that state are 1
         else:
             Each item in the batch is a list of 1 element:
@@ -464,7 +464,7 @@ class GFlowNetAgent:
                 parents,
                 parents_a,
                 done,
-                path_id,
+                traj_id,
                 state_id,
                 masks,
             ) = zip(*batch)
@@ -482,7 +482,7 @@ class GFlowNetAgent:
                     parents,
                     parents_a,
                     done,
-                    path_id,
+                    traj_id,
                     state_id,
                     masks,
                 )
@@ -613,7 +613,7 @@ class GFlowNetAgent:
             parents,
             parents_a,
             done,
-            path_id_parents,
+            traj_id_parents,
             state_id,
             masks,
         ) = zip(*batch)
@@ -621,7 +621,7 @@ class GFlowNetAgent:
         parents = [
             p[torch.where(a == p_a)] for a, p, p_a in zip(actions, parents, parents_a)
         ]
-        path_id = torch.cat([el[:1] for el in path_id_parents])
+        traj_id = torch.cat([el[:1] for el in traj_id_parents])
         # Concatenate lists of tensors
         states, actions, rewards, parents, done, state_id, masks = map(
             torch.cat,
@@ -638,10 +638,10 @@ class GFlowNetAgent:
         # Build forward masks from state masks
         masks_f = torch.cat(
             [
-                masks[torch.where((state_id == sid - 1) & (path_id == pid))]
+                masks[torch.where((state_id == sid - 1) & (traj_id == pid))]
                 if sid > 0
                 else self.mask_source
-                for sid, pid in zip(state_id, path_id)
+                for sid, pid in zip(state_id, traj_id)
             ]
         )
         # Build backward masks from parents actions
@@ -654,17 +654,17 @@ class GFlowNetAgent:
         logits_f[masks_f] = -loginf
         logprobs_f = self.logsoftmax(logits_f)[torch.arange(logits_f.shape[0]), actions]
         sumlogprobs_f = tf(
-            torch.zeros(len(torch.unique(path_id, sorted=True)))
-        ).index_add_(0, path_id, logprobs_f)
+            torch.zeros(len(torch.unique(traj_id, sorted=True)))
+        ).index_add_(0, traj_id, logprobs_f)
         # Backward trajectories
         logits_b = self.backward_policy(states)
         logits_b[masks_b] = -loginf
         logprobs_b = self.logsoftmax(logits_b)[torch.arange(logits_b.shape[0]), actions]
         sumlogprobs_b = tf(
-            torch.zeros(len(torch.unique(path_id, sorted=True)))
-        ).index_add_(0, path_id, logprobs_b)
-        # Sort rewards of done states by ascending path id
-        rewards = rewards[done.eq(1)][torch.argsort(path_id[done.eq(1)])]
+            torch.zeros(len(torch.unique(traj_id, sorted=True)))
+        ).index_add_(0, traj_id, logprobs_b)
+        # Sort rewards of done states by ascending traj_id
+        rewards = rewards[done.eq(1)][torch.argsort(traj_id[done.eq(1)])]
         # Trajectory balance loss
         loss = (
             (self.Z.sum() + sumlogprobs_f - sumlogprobs_b - torch.log(rewards))
@@ -674,21 +674,21 @@ class GFlowNetAgent:
         return loss, loss, loss
 
     def unpack_terminal_states(self, batch):
-        paths = [[] for _ in range(self.batch_size)]
+        trajs = [[] for _ in range(self.batch_size)]
         states = [None] * self.batch_size
         rewards = [None] * self.batch_size
         #         state_ids = [[-1] for _ in range(self.batch_size)]
         for el in batch:
-            path_id = el[6][:1].item()
+            traj_id = el[6][:1].item()
             state_id = el[7][:1].item()
-            #             assert state_ids[path_id][-1] + 1 == state_id
-            #             state_ids[path_id].append(state_id)
-            paths[path_id].append(el[1][0].item())
+            #             assert state_ids[traj_id][-1] + 1 == state_id
+            #             state_ids[traj_id].append(state_id)
+            trajs[traj_id].append(el[1][0].item())
             if bool(el[5].item()):
-                states[path_id] = tuple(self.env.obs2state(el[0][0]))
-                rewards[path_id] = el[2][0].item()
-        paths = [tuple(el) for el in paths]
-        return states, paths, rewards
+                states[traj_id] = tuple(self.env.obs2state(el[0][0]))
+                rewards[traj_id] = el[2][0].item()
+        trajs = [tuple(el) for el in trajs]
+        return states, trajs, rewards
 
     def train(self):
         # Metrics
@@ -732,11 +732,11 @@ class GFlowNetAgent:
                     self.opt.zero_grad()
                     all_losses.append([i.item() for i in losses])
             # Buffer
-            states_term, paths_term, rewards = self.unpack_terminal_states(batch)
+            states_term, trajs_term, rewards = self.unpack_terminal_states(batch)
             proxy_vals = self.env.reward2proxy(rewards)
-            self.buffer.add(states_term, paths_term, rewards, proxy_vals, it)
+            self.buffer.add(states_term, trajs_term, rewards, proxy_vals, it)
             self.buffer.add(
-                states_term, paths_term, rewards, proxy_vals, it, buffer="replay"
+                states_term, trajs_term, rewards, proxy_vals, it, buffer="replay"
             )
             # Log
             idx_best = np.argmax(rewards)
@@ -781,7 +781,7 @@ class GFlowNetAgent:
                 data_logq = []
                 times.update(
                     {
-                        "test_paths": 0.0,
+                        "test_trajs": 0.0,
                         "test_logq": 0.0,
                     }
                 )
@@ -790,18 +790,18 @@ class GFlowNetAgent:
                     zip(self.buffer.test.samples, self.buffer.test["energies"]),
                     disable=self.test_period < 10,
                 ):
-                    t0_test_path = time.time()
-                    path_list, actions = self.env.get_paths(
+                    t0_test_traj = time.time()
+                    traj_list, actions = self.env.get_trajectories(
                         [],
                         [],
                         [self.env.readable2state(statestr)],
                         [self.env.eos],
                     )
-                    t1_test_path = time.time()
-                    times["test_paths"] += t1_test_path - t0_test_path
+                    t1_test_traj = time.time()
+                    times["test_trajs"] += t1_test_traj - t0_test_traj
                     t0_test_logq = time.time()
                     data_logq.append(
-                        logq(path_list, actions, self.forward_policy, self.env)
+                        logq(traj_list, actions, self.forward_policy, self.env)
                     )
                     t1_test_logq = time.time()
                     times["test_logq"] += t1_test_logq - t0_test_logq
@@ -1152,27 +1152,27 @@ def empirical_distribution_error(env, visited, epsilon=1e-9):
     return l1, kl
 
 
-def logq(path_list, actions_list, model, env, loginf=1000):
+def logq(traj_list, actions_list, model, env, loginf=1000):
     # TODO: this method is probably suboptimal, since it may repeat forward calls for
     # the same nodes.
     log_q = torch.tensor(1.0)
     loginf = tf([loginf])
-    for path, actions in zip(path_list, actions_list):
-        path = path[::-1]
+    for traj, actions in zip(traj_list, actions_list):
+        traj = traj[::-1]
         actions = actions[::-1]
-        path_obs = np.asarray([env.state2obs(state) for state in path])
-        masks = tb([env.get_mask_invalid_actions(state, 0) for state in path])
+        traj_obs = np.asarray([env.state2obs(state) for state in traj])
+        masks = tb([env.get_mask_invalid_actions(state, 0) for state in traj])
         with torch.no_grad():
-            logits_path = model(tf(path_obs))
-        logits_path[masks] = -loginf
+            logits_traj = model(tf(traj_obs))
+        logits_traj[masks] = -loginf
         logsoftmax = torch.nn.LogSoftmax(dim=1)
-        logprobs_path = logsoftmax(logits_path)
-        log_q_path = torch.tensor(0.0)
-        for s, a, logprobs in zip(*[path, actions, logprobs_path]):
-            log_q_path = log_q_path + logprobs[a]
-        # Accumulate log prob of path
+        logprobs_traj = logsoftmax(logits_traj)
+        log_q_traj = torch.tensor(0.0)
+        for s, a, logprobs in zip(*[traj, actions, logprobs_traj]):
+            log_q_traj = log_q_traj + logprobs[a]
+        # Accumulate log prob of trajectory
         if torch.le(log_q, 0.0):
-            log_q = torch.logaddexp(log_q, log_q_path)
+            log_q = torch.logaddexp(log_q, log_q_traj)
         else:
-            log_q = log_q_path
+            log_q = log_q_traj
     return log_q.item()

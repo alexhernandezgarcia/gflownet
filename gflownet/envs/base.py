@@ -68,7 +68,7 @@ class GFlowNetEnv:
         """
         return []
 
-    def get_max_path_len(
+    def get_max_traj_len(
         self,
     ):
         return 1
@@ -164,11 +164,11 @@ class GFlowNetEnv:
         """
         return readable
 
-    def path2readable(self, path=None):
+    def traj2readable(self, traj=None):
         """
-        Converts a path into a human-readable string.
+        Converts a trajectory into a human-readable string.
         """
-        return str(path).replace("(", "[").replace(")", "]").replace(",", "")
+        return str(traj).replace("(", "[").replace(")", "]").replace(",", "")
 
     def reset(self, env_id=None):
         """
@@ -211,43 +211,43 @@ class GFlowNetEnv:
             actions = []
         return parents, actions
 
-    def get_paths(self, path_list, path_actions_list, current_path, current_actions):
+    def get_trajectories(self, traj_list, traj_actions_list, current_traj, current_actions):
         """
-        Determines all paths leading to each state in path_list, recursively.
+        Determines all trajectories leading to each state in traj_list, recursively.
 
         Args
         ----
-        path_list : list
-            List of paths (lists)
+        traj_list : list
+            List of trajectories (lists)
 
-        path_actions_list : list
-            List of actions within each path
+        traj_actions_list : list
+            List of actions within each trajectory
 
-        current_path : list
-            Current path
+        current_traj : list
+            Current trajectory
 
         current_actions : list
-            Actions of current path
+            Actions of current trajectory
 
         Returns
         -------
-        path_list : list
-            List of paths (lists)
+        traj_list : list
+            List of trajectories (lists)
 
-        path_actions_list : list
-            List of actions within each path
+        traj_actions_list : list
+            List of actions within each trajectory
         """
-        parents, parents_actions = self.get_parents(current_path[-1], False)
+        parents, parents_actions = self.get_parents(current_traj[-1], False)
         parents = [self.obs2state(el) for el in parents]
         if parents == []:
-            path_list.append(current_path)
-            path_actions_list.append(current_actions)
-            return path_list, path_actions_list
+            traj_list.append(current_traj)
+            traj_actions_list.append(current_actions)
+            return traj_list, traj_actions_list
         for idx, (p, a) in enumerate(zip(parents, parents_actions)):
-            path_list, path_actions_list = self.get_paths(
-                path_list, path_actions_list, current_path + [p], current_actions + [a]
+            traj_list, traj_actions_list = self.get_trajectories(
+                traj_list, traj_actions_list, current_traj + [p], current_actions + [a]
             )
-        return path_list, path_actions_list
+        return traj_list, traj_actions_list
 
     def step(self, action_idx):
         """
@@ -374,10 +374,10 @@ class Buffer:
         self.env = env
         self.replay_capacity = replay_capacity
         self.action_space = self.env.get_actions_space()
-        self.main = pd.DataFrame(columns=["state", "path", "reward", "energy", "iter"])
+        self.main = pd.DataFrame(columns=["state", "traj", "reward", "energy", "iter"])
         self.replay = pd.DataFrame(
             np.empty((self.replay_capacity, 5), dtype=object),
-            columns=["state", "path", "reward", "energy", "iter"],
+            columns=["state", "traj", "reward", "energy", "iter"],
         )
         self.replay.reward = pd.to_numeric(self.replay.reward)
         self.replay.energy = pd.to_numeric(self.replay.energy)
@@ -407,7 +407,7 @@ class Buffer:
     def add(
         self,
         states,
-        paths,
+        trajs,
         rewards,
         energies,
         it,
@@ -421,7 +421,7 @@ class Buffer:
                     pd.DataFrame(
                         {
                             "state": [self.env.state2readable(s) for s in states],
-                            "path": [self.env.path2readable(p) for p in paths],
+                            "traj": [self.env.traj2readable(p) for p in trajs],
                             "reward": rewards,
                             "energy": energies,
                             "iter": it,
@@ -433,12 +433,12 @@ class Buffer:
             )
         elif buffer == "replay" and self.replay_capacity > 0:
             if criterion == "greater":
-                self.replay = self._add_greater(states, paths, rewards, energies, it)
+                self.replay = self._add_greater(states, trajs, rewards, energies, it)
 
     def _add_greater(
         self,
         states,
-        paths,
+        trajs,
         rewards,
         energies,
         it,
@@ -449,7 +449,7 @@ class Buffer:
             idx_new_max = np.argmax(rewards_new)
             self.replay.iloc[self.replay.reward.argmin()] = {
                 "state": self.env.state2readable(states[idx_new_max]),
-                "path": self.env.path2readable(paths[idx_new_max]),
+                "traj": self.env.traj2readable(trajs[idx_new_max]),
                 "reward": rewards[idx_new_max],
                 "energy": energies[idx_new_max],
                 "iter": it,
