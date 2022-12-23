@@ -145,7 +145,7 @@ class GFlowNetEnv:
             state = self.state
         return state
 
-    def obs2state(self, obs):
+    def obs2state(self, obs: List) -> List:
         """
         Converts the model (e.g. one-hot encoding) version of a state given as
         argument into a state.
