@@ -6,12 +6,13 @@ import itertools
 import numpy as np
 import pandas as pd
 from gflownet.envs.base import GFlowNetEnv
+from torch.distributions.categorical import Categorical, Uniform, VonMises
 
 
 class ContinuousTorus(GFlowNetEnv):
     """
     Continuous hyper-torus environment in which the action space consists of the
-    increment of the angle of dimension d and the trajectory is of fixed length 
+    increment of the angle of dimension d and the trajectory is of fixed length
     length_traj.
 
     The states space is the concatenation of the angle (in radians) at each dimension
@@ -60,6 +61,7 @@ class ContinuousTorus(GFlowNetEnv):
         self.source = self.angles.copy()
         self.action_space = self.get_actions_space()
         self.eos = len(self.action_space)
+        self.logsoftmax = torch.nn.LogSoftmax(dim=1)
 
     def get_actions_space(self):
         """
@@ -70,6 +72,25 @@ class ContinuousTorus(GFlowNetEnv):
         """
         actions = [(d, None) for d in range(self.n_dim)]
         return actions
+
+    def get_policy_output_dim(self):
+        """
+        Returns the dimensionality of the output of the policy model, from which an
+        action is to be determined or sampled.
+
+        For each dimension of the hyper-torus, the output of the policy should return
+        1) a logit, for the categorical distribution over dimensions and 2) the
+        location and 3) the concentration of the projected normal distribution to
+        sample the increment of the angle. Therefore, the output of the policy model
+        has dimensionality D x 3, where D is the number of dimensions, and the elements
+        of the output vector are:
+        - d * 3: logit of dimension d
+        - d * 3 + 1: location of Von Mises distribution for dimension d
+        - d * 3 + 2: concentration of Von Mises distribution for dimension d
+        with d in [0, ..., D]
+        """
+        # TODO: + 1 (eos)?
+        return self.n_dim * 3
 
     def get_mask_invalid_actions(self, state=None, done=None):
         """
@@ -132,7 +153,7 @@ class ContinuousTorus(GFlowNetEnv):
     def state2obs(self, state=None) -> List:
         """
         Maps the angles part of the state given as argument (or self.state if
-        None) onto [0, 2 * pi]. 
+        None) onto [0, 2 * pi].
         """
         if state is None:
             state = self.state.copy()
@@ -152,12 +173,7 @@ class ContinuousTorus(GFlowNetEnv):
         """
         angles = np.array(state[:-1]) % 2 * np.pi
         angles = angles * 180 / np.pi
-        angles = (
-            str(angles)
-            .replace("(", "[")
-            .replace(")", "]")
-            .replace(",", "")
-        )
+        angles = str(angles).replace("(", "[").replace(")", "]").replace(",", "")
         n_actions = str(state[-1])
         return angles + " | " + n_actions
 
@@ -175,7 +191,6 @@ class ContinuousTorus(GFlowNetEnv):
         """
         Resets the environment.
         """
-        # TODO: random start
         self.angles = [0.0 for _ in range(self.n_dim)]
         # TODO: do step encoding as in Sasha's code?
         self.n_actions = 0
@@ -245,6 +260,44 @@ class ContinuousTorus(GFlowNetEnv):
                     parents.append(self.state2obs(state_p))
                     actions.append(idx)
         return parents, actions
+
+    def sample_actions(
+        self,
+        policy_outputs,
+        sampling_method="policy",
+        masks_invalid_actions=None,
+        loginf=1000,
+    ):
+        """
+        Samples a batch of actions from a batch of policy outputs.
+        """
+        batch_size = policy_outputs.shape[0]
+        bs_range = torch.arange(batch_size)
+        # Sample dimensions
+        if sampling_method == "uniform":
+            logits_dims = torch.zeros(batch_size, self.n_dim).to(policy_outputs)
+        elif sampling_method == "policy":
+            logits_dims = policy_outputs[:, 0 :: self.n_angles]
+        if mask_invalid_actions:
+            logits_dims[mask_invalid_actions] = -loginf
+        dimensions = Categorical(logits=logits_dims).sample()
+        logprobs_dim = self.logsoftmax(logits_dims)[bs_range, dimensions]
+        # Sample angle increments
+        if sampling_method == "uniform":
+            distr_angles = Uniform(
+                torch.zeros(batch_size), 2 * torch.pi * torch.ones(batch_size)
+            )
+        elif sampling_method == "policy":
+            locations = policy_outputs[:, 1 :: self.n_angles][bs_range, dimensions]
+            concentrations = policy_outputs[:, 2 :: self.n_angles][bs_range, dimensions]
+            distr_angles = VonMises(locations, concentrations)
+        angles = distr_angles.sample()
+        logprobs_angles = distr.log_probs(angles)
+        # Combined probabilities
+        logprobs = logprobs_dim + logprobs_angles
+        # Build actions
+        actions = [(dimension, angle) for dimension, angle in zip(dimensions, angles)]
+        return actions, logprobs
 
     def step(self, action_idx):
         """
