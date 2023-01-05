@@ -144,11 +144,7 @@ class GFlowNetAgent:
             print(f"\tMin score: {self.buffer.test['energies'].min()}")
             print(f"\tMax score: {self.buffer.test['energies'].max()}")
         # Policy models
-        self.forward_policy = Policy(
-            policy.forward,
-            self.env.obs_dim,
-            self.env.policy_output_dim,
-        )
+        self.forward_policy = Policy(policy.forward, self.env)
         if policy.forward.checkpoint:
             if self.logdir.exists():
                 if (self.logdir / "ckpts").exists():
@@ -169,8 +165,7 @@ class GFlowNetAgent:
         if policy.backward:
             self.backward_policy = Policy(
                 policy.backward,
-                self.env.obs_dim,
-                self.env.policy_output_dim,
+                self.env,
                 base=self.forward_policy,
             )
         else:
@@ -1043,9 +1038,10 @@ class GFlowNetAgent:
 
 
 class Policy:
-    def __init__(self, config, state_dim, output_dim, base=None):
-        self.state_dim = state_dim
-        self.output_dim = output_dim
+    def __init__(self, config, env, base=None):
+        self.state_dim = env.obs_dim
+        self.fixed_output = env.fixed_policy_output
+        self.output_dim = len(self.fixed_output)
         if "shared_weights" in config:
             self.shared_weights = config.shared_weights
         else:
@@ -1069,7 +1065,10 @@ class Policy:
             self.type = self.base.type
         else:
             raise "Policy type must be defined if shared_weights is False"
-        if self.type == "uniform":
+        if self.type == "fixed":
+            self.model = self.fixed_distribution
+            self.is_model = False
+        elif self.type == "uniform":
             self.model = self.uniform_distribution
             self.is_model = False
         elif self.type == "mlp":
@@ -1127,6 +1126,13 @@ class Policy:
             raise ValueError(
                 "Base Model must be provided when shared_weights is set to True"
             )
+
+    def fixed_distribution(self, states):
+        """
+        Returns the fixed distribution specified by the environment.
+        Args: states: tensor
+        """
+        return tf(np.tile(self.fixed_output, (len(states), 1)))
 
     def uniform_distribution(self, states):
         """
