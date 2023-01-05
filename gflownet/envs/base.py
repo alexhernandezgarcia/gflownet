@@ -90,7 +90,7 @@ class GFlowNetEnv:
         """
         states = [s for s, d in zip(states, done) if d]
         reward = np.zeros(len(done))
-        reward[list(done)] = self.proxy2reward(self.proxy(self.state2oracle(states)))
+        reward[list(done)] = self.proxy2reward(self.proxy(self.state2proxy(states)))
         return reward
 
     def proxy2reward(self, proxy_vals):
