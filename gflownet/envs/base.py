@@ -191,7 +191,7 @@ class GFlowNetEnv:
         self.id = env_id
         return self
 
-    def get_parents(self, state=None, done=None):
+    def get_parents(self, state=None, done=None, action=None):
         """
         Determines all parents and actions that lead to state.
 
@@ -200,7 +200,10 @@ class GFlowNetEnv:
         state : list
             Representation of a state
 
-        action : int
+        done : bool
+            Whether the trajectory is done. If None, done is taken from instance.
+
+        action : tuple
             Last action performed
 
         Returns

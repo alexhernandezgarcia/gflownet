@@ -201,7 +201,7 @@ class Grid(GFlowNetEnv):
         self.id = env_id
         return self
 
-    def get_parents(self, state=None, done=None):
+    def get_parents(self, state=None, done=None, action=None):
         """
         Determines all parents and actions that lead to state.
 
@@ -211,8 +211,11 @@ class Grid(GFlowNetEnv):
             Representation of a state, as a list of length length where each element is
             the position at each dimension.
 
-        action : int
-            Last action performed
+        done : bool
+            Whether the trajectory is done. If None, done is taken from instance.
+
+        action : None
+            Ignored
 
         Returns
         -------

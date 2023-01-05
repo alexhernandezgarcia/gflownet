@@ -214,8 +214,9 @@ class ContinuousTorus(GFlowNetEnv):
         self.id = env_id
         return self
 
-    # TODO: we might have to do something with the action number
-    def get_parents(self, state=None, done=None):
+    def get_parents(
+        self, state: List = None, done: bool = None, action: Tuple[int, float] = None
+    ) -> Tuple[List[List], List[Tuple[int, float]]]:
         """
         Determines all parents and actions that lead to state.
 
@@ -224,6 +225,9 @@ class ContinuousTorus(GFlowNetEnv):
         state : list
             Representation of a state, as a list of length n_angles where each element
             is the position at each dimension.
+
+        done : bool
+            Whether the trajectory is done. If None, done is taken from instance.
 
         action : int
             Last action performed
@@ -236,44 +240,19 @@ class ContinuousTorus(GFlowNetEnv):
         actions : list
             List of actions that lead to state for each parent in parents
         """
-
-        def _get_min_actions_to_source(source, ref):
-            def _get_min_actions_dim(u, v):
-                return np.min([np.abs(u - v), np.abs(u - (v - self.n_angles))])
-
-            return np.sum([_get_min_actions_dim(u, v) for u, v in zip(source, ref)])
-
+        # TODO: we might have to include the valid discrete backward actions for the
+        # backward sampling. Otherwise, implement backward mask.
         if state is None:
             state = self.state.copy()
         if done is None:
             done = self.done
         if done:
-            return [self.state2obs(state)], [self.eos]
-        # If source state
-        elif state[-1] == 0:
-            return [], []
+            return [self.state2obs(state)], [(self.eos)]
         else:
-            parents = []
-            actions = []
-            for idx, a in enumerate(self.action_space):
-                state_p = state.copy()
-                angles_p = state_p[: self.n_dim]
-                n_actions_p = state_p[-1]
-                # Get parent
-                n_actions_p -= 1
-                if a[0] != -1:
-                    angles_p[a[0]] -= a[1]
-                    # If negative angle index, restart from the back
-                    if angles_p[a[0]] < 0:
-                        angles_p[a[0]] = self.n_angles + angles_p[a[0]]
-                    # If angle index larger than n_angles, restart from 0
-                    if angles_p[a[0]] >= self.n_angles:
-                        angles_p[a[0]] = angles_p[a[0]] - self.n_angles
-                if _get_min_actions_to_source(self.source, angles_p) < state[-1]:
-                    state_p = angles_p + [n_actions_p]
-                    parents.append(self.state2obs(state_p))
-                    actions.append(idx)
-        return parents, actions
+            state[action[0]] -= action[1]
+            state[-1] -= 1
+            parents = [state]
+            return parents, [action]
 
     def sample_actions(
         self,

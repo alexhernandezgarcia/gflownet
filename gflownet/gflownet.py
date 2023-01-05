@@ -457,8 +457,6 @@ class GFlowNetAgent:
         }
         t0_all = time.time()
         batch = []
-        if model is None:
-            model = self.forward_policy
         if isinstance(envs, list):
             envs = [env.reset(idx) for idx, env in enumerate(envs)]
         elif n_samples is not None and n_samples > 0:
@@ -523,7 +521,7 @@ class GFlowNetAgent:
             # Add to batch
             for env, action, valid in zip(envs, actions, valids):
                 if valid:
-                    parents, parents_a = env.get_parents()
+                    parents, parents_a = env.get_parents(action=action)
                     mask = env.get_mask_invalid_actions()
                     assert action in parents_a
                     if train:

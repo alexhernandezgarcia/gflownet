@@ -203,7 +203,7 @@ class AptamerSeq(GFlowNetEnv):
         self.id = env_id
         return self
 
-    def get_parents(self, state=None, done=None):
+    def get_parents(self, state=None, done=None, action=None):
         """
         Determines all parents and actions that lead to sequence state
 
@@ -214,8 +214,11 @@ class AptamerSeq(GFlowNetEnv):
             where each element is the index of a letter in the alphabet, from 0 to
             (nalphabet - 1).
 
-        action : int
-            Last action performed, only to determine if it was eos.
+        done : bool
+            Whether the trajectory is done. If None, done is taken from instance.
+
+        action : None
+            Ignored
 
         Returns
         -------
