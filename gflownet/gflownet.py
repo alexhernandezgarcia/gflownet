@@ -382,6 +382,54 @@ class GFlowNetAgent:
         env.set_state(env.obs2state((parents)[action_idx]), done=False)
         return env, env.state, action, parents, parents_a
 
+    def backward_sample_continuous(
+        self, env, sampling_method="policy", model=None, temperature=1.0, done=False
+    ):
+        """
+        Performs a backward action on one environment.
+
+        Args
+        ----
+        env : GFlowNetEnv or derived
+            An instance of the environment
+
+        sampling_method : string
+            - model: uses the current backward policy to obtain the sampling probabilities.
+            - uniform: samples uniformly from the parents of the current state.
+
+        model : torch model
+            Model to use as policy if sampling_method="policy"
+
+        temperature : float
+            Temperature to adjust the logits by logits /= temperature
+
+        done : bool
+            If True, it will sample eos action
+        """
+        # TODO: If sampling method is policy
+        # Change backward sampling with a mask for parents
+        # As we can use the backward policy to get model(states) but not all of those actions are likely
+        # Need to compute backward_masks, amsk those actions and then get the categorical distribution.
+        parents, parents_a = env.get_parents(env.state, done)
+        if sampling_method == "policy":
+            with torch.no_grad():
+                action_logits = model(tf(parents))[
+                    torch.arange(len(parents)), parents_a
+                ]
+            action_logits /= temperature
+            if all(torch.isfinite(action_logits).flatten()):
+                action_idx = Categorical(logits=action_logits).sample().item()
+            else:
+                if self.debug:
+                    raise ValueError("Action could not be sampled from model!")
+        elif sampling_method == "uniform":
+            action_idx = self.rng.integers(low=0, high=len(parents_a))
+        else:
+            raise NotImplemented
+        action = parents_a[action_idx]
+        env.set_state(env.obs2state((parents)[action_idx]), done=False)
+        return env, env.state, action, parents, parents_a
+
     def sample_batch(
         self, envs, n_samples=None, train=True, model=None, progress=False
     ):
