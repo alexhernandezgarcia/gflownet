@@ -283,7 +283,7 @@ class ContinuousTorus(GFlowNetEnv):
         if sampling_method == "uniform":
             logits_dims = torch.zeros(batch_size, self.n_dim).to(policy_outputs)
         elif sampling_method == "policy":
-            logits_dims = policy_outputs[:, 0 :: 3]
+            logits_dims = policy_outputs[:, 0::3]
             logits_dims /= temperature_logits
         if mask_invalid_actions is not None:
             logits_dims[mask_invalid_actions] = -loginf
@@ -295,66 +295,62 @@ class ContinuousTorus(GFlowNetEnv):
                 torch.zeros(batch_size), 2 * torch.pi * torch.ones(batch_size)
             )
         elif sampling_method == "policy":
-            locations = policy_outputs[:, 1 :: 3][bs_range, dimensions]
-            concentrations = policy_outputs[:, 2 :: 3][bs_range, dimensions]
+            # TODO: handle case where dimensions has eos (out of bounds)
+            locations = policy_outputs[:, 1::3][bs_range, dimensions]
+            concentrations = policy_outputs[:, 2::3][bs_range, dimensions]
             distr_angles = VonMises(locations, torch.exp(concentrations))
         angles = distr_angles.sample()
         logprobs_angles = distr_angles.log_prob(angles)
         # Combined probabilities
         logprobs = logprobs_dim + logprobs_angles
         # Build actions
-        actions = [(dimension, angle) for dimension, angle in zip(dimensions.tolist(), angles.tolist())]
+        actions = [
+            (dimension, angle)
+            for dimension, angle in zip(dimensions.tolist(), angles.tolist())
+        ]
         return actions, logprobs
 
-    def step(self, action):
+    def step(
+        self, action: Tuple[int, float]
+    ) -> Tuple[List[float], Tuple[int, float], bool]:
         """
         Executes step given an action.
 
         Args
         ----
-        action_idx : int
-            Index of action in the action space. a == eos indicates "stop action"
+        action : tuple
+            Action to be executed. An action is a tuple with two values:
+            (dimension, magnitude).
 
         Returns
         -------
         self.state : list
             The sequence after executing the action
 
-        action_idx : int
-            Action index
+        action : int
+            Action executed
 
         valid : bool
             False, if the action is not allowed for the current state, e.g. stop at the
             root state
         """
         if self.done:
-            return self.state, action_idx, False
+            return self.state, action, False
         # If only possible action is eos, then force eos
         # If the number of actions is equal to maximum trajectory length
         elif self.n_actions == self.length_traj:
             self.done = True
             self.n_actions += 1
-            return self.state, self.eos, True
+            return self.state, (self.eos, 0.0), True
         # If action is not eos, then perform action
-        elif action_idx != self.eos:
-            a_dim, a_dir = self.action_space[action_idx]
-            angles_next = self.angles.copy()
-            if a_dim != -1:
-                angles_next[a_dim] += a_dir
-                # If negative angle index, restart from the back
-                if angles_next[a_dim] < 0:
-                    angles_next[a_dim] = self.n_angles + angles_next[a_dim]
-                # If angle index larger than n_angles, restart from 0
-                if angles_next[a_dim] >= self.n_angles:
-                    angles_next[a_dim] = angles_next[a_dim] - self.n_angles
-            self.angles = angles_next
+        elif action[0] != self.eos:
             self.n_actions += 1
-            self.state = self.angles + [self.n_actions]
-            valid = True
-            return self.state, action_idx, valid
+            self.state[action[0]] += action[1]
+            self.state[-1] = self.n_actions
+            return self.state, action, True
         # If action is eos, then it is invalid
         else:
-            return self.state, self.eos, False
+            return self.state, action, False
 
     def make_train_set(self, ntrain, oracle=None, seed=168, output_csv=None):
         """
