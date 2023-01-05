@@ -1,12 +1,14 @@
 """
 Classes to represent hyper-torus environments
 """
-from typing import List
+from typing import List, Tuple
 import itertools
 import numpy as np
 import pandas as pd
+import torch
 from gflownet.envs.base import GFlowNetEnv
-from torch.distributions.categorical import Categorical, Uniform, VonMises
+from torch.distributions import Categorical, Uniform, VonMises
+from torchtyping import TensorType
 
 
 class ContinuousTorus(GFlowNetEnv):
@@ -42,7 +44,7 @@ class ContinuousTorus(GFlowNetEnv):
         oracle=None,
         **kwargs,
     ):
-        super(Torus, self).__init__(
+        super(ContinuousTorus, self).__init__(
             env_id,
             reward_beta,
             reward_norm,
@@ -54,13 +56,16 @@ class ContinuousTorus(GFlowNetEnv):
             oracle,
             **kwargs,
         )
+        self.continuous = True
         self.n_dim = n_dim
         self.length_traj = length_traj
         # Initialize angles and state attributes
         self.reset()
         self.source = self.angles.copy()
+        self.obs_dim = self.n_dim + 1
         self.action_space = self.get_actions_space()
-        self.eos = len(self.action_space)
+        self.policy_output_dim = self.get_policy_output_dim()
+        self.eos = self.n_dim
         self.logsoftmax = torch.nn.LogSoftmax(dim=1)
 
     def get_actions_space(self):
@@ -68,7 +73,7 @@ class ContinuousTorus(GFlowNetEnv):
         Constructs list with all possible actions. The actions are tuples with two
         values: (dimension, magnitude) where dimension indicates the index of the
         dimension on which the action is to be performed and magnitude indicates the
-        increment of the angle.
+        increment of the angle in radians.
         """
         actions = [(d, None) for d in range(self.n_dim)]
         return actions
@@ -82,15 +87,15 @@ class ContinuousTorus(GFlowNetEnv):
         1) a logit, for the categorical distribution over dimensions and 2) the
         location and 3) the concentration of the projected normal distribution to
         sample the increment of the angle. Therefore, the output of the policy model
-        has dimensionality D x 3, where D is the number of dimensions, and the elements
+        has dimensionality D x 3 + 1, where D is the number of dimensions, and the elements
         of the output vector are:
         - d * 3: logit of dimension d
         - d * 3 + 1: location of Von Mises distribution for dimension d
-        - d * 3 + 2: concentration of Von Mises distribution for dimension d
+        - d * 3 + 2: log concentration of Von Mises distribution for dimension d
         with d in [0, ..., D]
         """
         # TODO: + 1 (eos)?
-        return self.n_dim * 3
+        return self.n_dim * 3 + 1
 
     def get_mask_invalid_actions(self, state=None, done=None):
         """
@@ -150,7 +155,7 @@ class ContinuousTorus(GFlowNetEnv):
         """
         return self.state2proxy(state_list)
 
-    def state2obs(self, state=None) -> List:
+    def state2obs(self, state: List = None) -> List:
         """
         Maps the angles part of the state given as argument (or self.state if
         None) onto [0, 2 * pi].
@@ -158,7 +163,7 @@ class ContinuousTorus(GFlowNetEnv):
         if state is None:
             state = self.state.copy()
         angles = np.array(state[:-1]) % 2 * np.pi
-        return angles.tolist() + state[-1]
+        return angles.tolist() + [state[-1]]
 
     def obs2state(self, obs: List) -> List:
         """
@@ -263,11 +268,12 @@ class ContinuousTorus(GFlowNetEnv):
 
     def sample_actions(
         self,
-        policy_outputs,
-        sampling_method="policy",
-        masks_invalid_actions=None,
-        loginf=1000,
-    ):
+        policy_outputs: TensorType["batch_size", "policy_output_dim"],
+        sampling_method: str = "policy",
+        mask_invalid_actions: TensorType["batch_size", "policy_output_dim"] = None,
+        temperature_logits: float = 1.0,
+        loginf: float = 1000,
+    ) -> Tuple[List[Tuple], TensorType["batch_size"]]:
         """
         Samples a batch of actions from a batch of policy outputs.
         """
@@ -277,8 +283,9 @@ class ContinuousTorus(GFlowNetEnv):
         if sampling_method == "uniform":
             logits_dims = torch.zeros(batch_size, self.n_dim).to(policy_outputs)
         elif sampling_method == "policy":
-            logits_dims = policy_outputs[:, 0 :: self.n_angles]
-        if mask_invalid_actions:
+            logits_dims = policy_outputs[:, 0 :: 3]
+            logits_dims /= temperature_logits
+        if mask_invalid_actions is not None:
             logits_dims[mask_invalid_actions] = -loginf
         dimensions = Categorical(logits=logits_dims).sample()
         logprobs_dim = self.logsoftmax(logits_dims)[bs_range, dimensions]
@@ -288,20 +295,20 @@ class ContinuousTorus(GFlowNetEnv):
                 torch.zeros(batch_size), 2 * torch.pi * torch.ones(batch_size)
             )
         elif sampling_method == "policy":
-            locations = policy_outputs[:, 1 :: self.n_angles][bs_range, dimensions]
-            concentrations = policy_outputs[:, 2 :: self.n_angles][bs_range, dimensions]
-            distr_angles = VonMises(locations, concentrations)
+            locations = policy_outputs[:, 1 :: 3][bs_range, dimensions]
+            concentrations = policy_outputs[:, 2 :: 3][bs_range, dimensions]
+            distr_angles = VonMises(locations, torch.exp(concentrations))
         angles = distr_angles.sample()
-        logprobs_angles = distr.log_probs(angles)
+        logprobs_angles = distr_angles.log_prob(angles)
         # Combined probabilities
         logprobs = logprobs_dim + logprobs_angles
         # Build actions
-        actions = [(dimension, angle) for dimension, angle in zip(dimensions, angles)]
+        actions = [(dimension, angle) for dimension, angle in zip(dimensions.tolist(), angles.tolist())]
         return actions, logprobs
 
-    def step(self, action_idx):
+    def step(self, action):
         """
-        Executes step given an action index.
+        Executes step given an action.
 
         Args
         ----
