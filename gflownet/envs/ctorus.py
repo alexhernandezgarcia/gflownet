@@ -33,6 +33,8 @@ class ContinuousTorus(GFlowNetEnv):
         self,
         n_dim=2,
         length_traj=1,
+        vonmises_mean=0.0,
+        vonmises_concentration=0.5,
         env_id=None,
         reward_beta=1,
         reward_norm=1.0,
@@ -59,12 +61,16 @@ class ContinuousTorus(GFlowNetEnv):
         self.continuous = True
         self.n_dim = n_dim
         self.length_traj = length_traj
+        # Parameters of fixed policy distribution
+        self.vonmises_mean = vonmises_mean
+        self.vonmises_concentration = vonmises_concentration
         # Initialize angles and state attributes
         self.reset()
         self.source = self.angles.copy()
         self.obs_dim = self.n_dim + 1
         self.action_space = self.get_actions_space()
-        self.policy_output_dim = self.get_policy_output_dim()
+        self.fixed_policy_output = self.get_fixed_policy_output()
+        self.policy_output_dim = len(self.fixed_policy_output)
         self.eos = self.n_dim
         self.logsoftmax = torch.nn.LogSoftmax(dim=1)
 
@@ -78,10 +84,11 @@ class ContinuousTorus(GFlowNetEnv):
         actions = [(d, None) for d in range(self.n_dim)]
         return actions
 
-    def get_policy_output_dim(self):
+    def get_fixed_policy_output(self):
         """
-        Returns the dimensionality of the output of the policy model, from which an
-        action is to be determined or sampled.
+        Defines the structure of the output of the policy model, from which an
+        action is to be determined or sampled, by returning a vector with a fixed
+        random policy.
 
         For each dimension of the hyper-torus, the output of the policy should return
         1) a logit, for the categorical distribution over dimensions and 2) the
@@ -94,8 +101,10 @@ class ContinuousTorus(GFlowNetEnv):
         - d * 3 + 2: log concentration of Von Mises distribution for dimension d
         with d in [0, ..., D]
         """
-        # TODO: + 1 (eos)?
-        return self.n_dim * 3 + 1
+        policy_output_fixed = np.ones(self.n_dim * 3 + 1)
+        policy_output_fixed[1::3] = self.vonmises_mean
+        policy_output_fixed[2::3] = self.vonmises_concentration
+        return policy_output_fixed
 
     def get_mask_invalid_actions(self, state=None, done=None):
         """

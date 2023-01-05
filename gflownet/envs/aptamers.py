@@ -82,7 +82,8 @@ class AptamerSeq(GFlowNetEnv):
         self.max_word_len = max_word_len
         self.action_space = self.get_actions_space()
         self.eos = len(self.action_space)
-        self.policy_output_dim = len(self.action_space) + 1
+        self.fixed_policy_output = self.get_fixed_policy_output()
+        self.policy_output_dim = len(self.fixed_policy_output)
         self.max_path_len = self.get_max_path_len()
 
     def get_actions_space(self):

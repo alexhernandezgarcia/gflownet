@@ -1,6 +1,7 @@
 """
 Base class of GFlowNet environments
 """
+from abc import abstractmethod
 from typing import List
 import numpy as np
 import pandas as pd
@@ -62,11 +63,21 @@ class GFlowNetEnv:
     def set_reward_norm(self, reward_norm):
         self.reward_norm = reward_norm
 
+    @abstractmethod
     def get_actions_space(self):
         """
         Constructs list with all possible actions (excluding end of sequence)
         """
-        return []
+        pass
+
+    def get_fixed_policy_output(self):
+        """
+        Defines the structure of the output of the policy model, from which an
+        action is to be determined or sampled, by returning a vector with a fixed
+        random policy. As a baseline, the fixed policy is uniform over the
+        dimensionality of the action space.
+        """
+        return np.ones(len(self.action_space) + 1)
 
     def get_max_path_len(
         self,
