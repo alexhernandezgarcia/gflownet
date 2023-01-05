@@ -2,7 +2,7 @@ from gflownet.proxy.base import Proxy
 import numpy as np
 
 
-class Torus2D(Proxy):
+class Torus(Proxy):
     def __init__(self, normalize):
         super().__init__()
         self.normalize = normalize
@@ -17,10 +17,15 @@ class Torus2D(Proxy):
         """
 
         def _func_sin_cos_cube(x):
-            return -1.0 * ((np.sin(x[0]) + np.cos(x[1]) + 2) ** 3)
+            return (
+                -1 * (np.sum(np.sin(x[0::2])) + np.sum(np.cos(x[1::2])) + len(x)) ** 3
+            )
 
         def _func_sin_cos_cube_norm(x):
-            return (-1.0 / 64) * ((np.sin(x[0]) + np.cos(x[1]) + 2) ** 3)
+            norm = (len(x) * 2) ** 3
+            return (-1.0 / norm) * (
+                np.sum(np.sin(x[0::2])) + np.sum(np.cos(x[1::2])) + len(x)
+            ) ** 3
 
         if self.normalize:
             _func = _func_sin_cos_cube_norm
