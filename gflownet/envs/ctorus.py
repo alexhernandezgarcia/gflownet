@@ -247,7 +247,7 @@ class ContinuousTorus(GFlowNetEnv):
         if done is None:
             done = self.done
         if done:
-            return [self.state2obs(state)], [(self.eos)]
+            return [self.state2obs(state)], [(self.eos, 0.0)]
         else:
             state[action[0]] -= action[1]
             state[-1] -= 1
@@ -278,17 +278,21 @@ class ContinuousTorus(GFlowNetEnv):
         dimensions = Categorical(logits=logits_dims).sample()
         logprobs_dim = self.logsoftmax(logits_dims)[bs_range, dimensions]
         # Sample angle increments
+        bs_range_noeos = bs_range[dimensions != self.eos]
+        dimensions_noeos = dimensions[dimensions != self.eos]
         if sampling_method == "uniform":
             distr_angles = Uniform(
-                torch.zeros(batch_size), 2 * torch.pi * torch.ones(batch_size)
+                torch.zeros(len(bs_range_noeos)),
+                2 * torch.pi * torch.ones(len(bs_range_noeos)),
             )
         elif sampling_method == "policy":
-            # TODO: handle case where dimensions has eos (out of bounds)
-            locations = policy_outputs[:, 1::3][bs_range, dimensions]
-            concentrations = policy_outputs[:, 2::3][bs_range, dimensions]
+            locations = policy_outputs[:, 1::3][bs_range_noeos, dimensions_noeos]
+            concentrations = policy_outputs[:, 2::3][bs_range_noeos, dimensions_noeos]
             distr_angles = VonMises(locations, torch.exp(concentrations))
-        angles = distr_angles.sample()
-        logprobs_angles = distr_angles.log_prob(angles)
+        angles = torch.zeros(batch_size).to(policy_outputs)
+        angles[bs_range_noeos] = distr_angles.sample()
+        logprobs_angles = torch.zeros(batch_size).to(policy_outputs)
+        logprobs_angles[bs_range_noeos] = distr_angles.log_prob(angles[bs_range_noeos])
         # Combined probabilities
         logprobs = logprobs_dim + logprobs_angles
         # Build actions
