@@ -64,6 +64,9 @@ class GFlowNetAgent:
         # Environment
         self.env = env
         self.mask_source = tb([self.env.get_mask_invalid_actions()])
+        # Continuous environments
+        if hasattr(self.env, "continuous") and self.env.continuous:
+            self.forward_sample = self.forward_sample_continuous
         # Seed
         self.rng = np.random.default_rng(seed)
         # Device
@@ -144,7 +147,7 @@ class GFlowNetAgent:
         self.forward_policy = Policy(
             policy.forward,
             self.env.obs_dim,
-            len(self.env.action_space),
+            self.env.policy_output_dim,
         )
         if policy.forward.checkpoint:
             if self.logdir.exists():
@@ -167,7 +170,7 @@ class GFlowNetAgent:
             self.backward_policy = Policy(
                 policy.backward,
                 self.env.obs_dim,
-                len(self.env.action_space),
+                self.env.policy_output_dim,
                 base=self.forward_policy,
             )
         else:
@@ -276,6 +279,54 @@ class GFlowNetAgent:
                 raise ValueError("Action could not be sampled from model!")
         t1_a_model = time.time()
         times["actions_model"] += t1_a_model - t0_a_model
+        assert len(envs) == len(actions)
+        # Execute actions
+        _, actions, valids = zip(
+            *[env.step(action) for env, action in zip(envs, actions)]
+        )
+        return envs, actions, valids
+
+    def forward_sample_continuous(
+        self, envs, times, sampling_method="policy", model=None, temperature=1.0
+    ):
+        """
+        Performs a forward action on each environment of a list.
+
+        Args
+        ----
+        env : list of GFlowNetEnv or derived
+            A list of instances of the environment
+
+        times : dict
+            Dictionary to store times
+
+        sampling_method : string
+            - model: uses current forward to obtain the sampling probabilities.
+            - uniform: samples uniformly from the action space.
+
+        model : torch model
+            Model to use as policy if sampling_method="policy"
+
+        temperature : float
+            Temperature to adjust the logits by logits /= temperature
+        """
+        if not isinstance(envs, list):
+            envs = [envs]
+        # Build states and masks
+        states = tf([env.state2obs() for env in envs])
+        mask_invalid_actions = tb([env.get_mask_invalid_actions() for env in envs])
+        # Build policy outputs
+        if sampling_method == "policy":
+            with torch.no_grad():
+                policy_outputs = model(states)
+        elif sampling_method == "uniform":
+            policy_outputs = None
+        else:
+            raise NotImplemented
+        # Sample actions from policy outputs
+        actions, logprobs = self.env.sample_actions(
+            policy_outputs, sampling_method, mask_invalid_actions, temperature
+        )
         assert len(envs) == len(actions)
         # Execute actions
         _, actions, valids = zip(
@@ -944,9 +995,9 @@ class GFlowNetAgent:
 
 
 class Policy:
-    def __init__(self, config, state_dim, n_actions, base=None):
+    def __init__(self, config, state_dim, output_dim, base=None):
         self.state_dim = state_dim
-        self.n_actions = n_actions
+        self.output_dim = output_dim
         if "shared_weights" in config:
             self.shared_weights = config.shared_weights
         else:
@@ -1006,7 +1057,7 @@ class Policy:
             return mlp
         elif self.shared_weights == False:
             layers_dim = (
-                [self.state_dim] + [self.n_hid] * self.n_layers + [(self.n_actions + 1)]
+                [self.state_dim] + [self.n_hid] * self.n_layers + [(self.output_dim)]
             )
             mlp = nn.Sequential(
                 *(
@@ -1034,7 +1085,7 @@ class Policy:
         Return action logits (log probabilities) from a uniform distribution
         Args: states: tensor
         """
-        return tf(np.ones((len(states), self.n_actions + 1)))
+        return tf(np.ones((len(states), self.output_dim)))
 
 
 def batch2dict(batch, env, get_uncertainties=False, query_function="Both"):

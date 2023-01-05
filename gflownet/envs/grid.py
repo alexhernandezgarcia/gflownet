@@ -69,6 +69,7 @@ class Grid(GFlowNetEnv):
         self.cells = np.linspace(cell_min, cell_max, length)
         self.action_space = self.get_actions_space()
         self.eos = len(self.action_space)
+        self.policy_output_dim = len(self.action_space) + 1
         if self.proxy_state_format == "ohe":
             self.state2proxy = self.state2obs
         elif self.proxy_state_format == "oracle":

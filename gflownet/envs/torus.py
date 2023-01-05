@@ -73,6 +73,7 @@ class Torus(GFlowNetEnv):
         self.max_step_len = max_step_len
         self.action_space = self.get_actions_space()
         self.eos = len(self.action_space)
+        self.policy_output_dim = len(self.action_space) + 1
         self.angle_rad = 2 * np.pi / self.n_angles
 
     def get_actions_space(self):
