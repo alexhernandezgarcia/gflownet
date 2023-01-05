@@ -310,6 +310,36 @@ class ContinuousTorus(GFlowNetEnv):
         ]
         return actions, logprobs
 
+    def get_logprobs(
+        self,
+        policy_outputs: TensorType["batch_size", "policy_output_dim"],
+        actions: List[Tuple[int, float]],
+        mask_invalid_actions: TensorType["batch_size", "policy_output_dim"] = None,
+        loginf: float = 1000,
+    ) -> TensorType["batch_size"]:
+        """
+        Computes log probabilities of actions given policy outputs and actions.
+        """
+        dimensions, angles = zip(*actions)
+        dimensions.to(policy_outputs)
+        angles.to(policy_outputs)
+        batch_size = policy_outputs.shape[0]
+        bs_range = torch.arange(batch_size)
+        # Dimensions
+        logits_dims = policy_outputs[:, 0::3]
+        if mask_invalid_actions is not None:
+            logits_dims[mask_invalid_actions] = -loginf
+        logprobs_dim = self.logsoftmax(logits_dims)[bs_range, dimensions]
+        # Angle increments
+        # TODO: handle case where dimensions has eos (out of bounds)
+        locations = policy_outputs[:, 1::3][bs_range, dimensions]
+        concentrations = policy_outputs[:, 2::3][bs_range, dimensions]
+        distr_angles = VonMises(locations, torch.exp(concentrations))
+        logprobs_angles = distr_angles.log_prob(angles)
+        # Combined probabilities
+        logprobs = logprobs_dim + logprobs_angles
+        return logprobs
+
     def step(
         self, action: Tuple[int, float]
     ) -> Tuple[List[float], Tuple[int, float], bool]:
