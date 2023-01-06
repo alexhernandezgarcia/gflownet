@@ -403,9 +403,15 @@ class ContinuousTorus(GFlowNetEnv):
         """
         if config is None:
             return None
+        elif "uniform" in config and "n" in config and config.uniform:
+            samples = self.get_uniform_terminating_states(config.n)
+            energies = self.oracle(self.state2oracle(samples))
         else:
-            # TODO
-            pass
+            return None
+        df = pd.DataFrame(
+            {"samples": [self.state2readable(s) for s in samples], "energies": energies}
+        )
+        return df
 
     def make_test_set(self, config):
         """
@@ -414,13 +420,17 @@ class ContinuousTorus(GFlowNetEnv):
         Args
         ----
         """
-        if "uniform" in config and "n" in config and config.uniform:
+        if config is None:
+            return None
+        elif "uniform" in config and "n" in config and config.uniform:
             samples = self.get_uniform_terminating_states(config.n)
             energies = self.oracle(self.state2oracle(samples))
-        df_test = pd.DataFrame(
+        else:
+            return None
+        df = pd.DataFrame(
             {"samples": [self.state2readable(s) for s in samples], "energies": energies}
         )
-        return df_test
+        return df
 
     def get_uniform_terminating_states(self, n_states: int) -> List[List]:
         n_per_dim = int(np.ceil(n_states ** (1 / self.n_dim)))
