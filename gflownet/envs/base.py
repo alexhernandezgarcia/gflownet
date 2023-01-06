@@ -313,6 +313,15 @@ class GFlowNetEnv:
         mask = [False for _ in range(len(self.action_space) + 1)]
         return mask
 
+    def get_mask_invalid_actions_backward(self, state=None, done=None, parents_a=None):
+        """
+        Returns a vector with the length of the discrete part of the action space + 1:
+        True if action is invalid going backward given the current state, False
+        otherwise.
+        """
+        # TODO
+        pass
+
     def set_state(self, state, done):
         """
         Sets the state and done of an environment.
