@@ -1,6 +1,7 @@
 """
 Runnable script with hydra capabilities
 """
+from comet_ml import Experiment
 import sys
 import random
 import hydra
