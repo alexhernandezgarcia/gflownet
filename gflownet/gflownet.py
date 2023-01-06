@@ -875,7 +875,7 @@ class GFlowNetAgent:
             #             state_ids[path_id].append(state_id)
             paths[path_id].append(tuple(el[1][0].tolist()))
             if bool(el[5].item()):
-                states[path_id] = tuple(self.env.obs2state(el[0][0]))
+                states[path_id] = tuple(self.env.obs2state(el[0][0].tolist()))
                 rewards[path_id] = el[2][0].item()
         paths = [tuple(el) for el in paths]
         return states, paths, rewards
