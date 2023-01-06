@@ -17,8 +17,8 @@ class ContinuousTorus(GFlowNetEnv):
     increment of the angle of dimension d and the trajectory is of fixed length
     length_traj.
 
-    The states space is the concatenation of the angle (in radians) at each dimension
-    and the number of actions.
+    The states space is the concatenation of the angle (in radians and within [0, 2 *
+    pi]) at each dimension and the number of actions.
 
     Attributes
     ----------
@@ -185,17 +185,15 @@ class ContinuousTorus(GFlowNetEnv):
 
     def state2obs(self, state: List = None) -> List:
         """
-        Maps the angles part of the state given as argument (or self.state if
-        None) onto [0, 2 * pi].
+        Returns the state as is.
         """
         if state is None:
             state = self.state.copy()
-        angles = np.array(state[:-1]) % 2 * np.pi
-        return angles.tolist() + [state[-1]]
+        return state
 
     def obs2state(self, obs: List) -> List:
         """
-        Simply returns the input as is.
+        Returns the input as is.
         """
         return obs
 
@@ -204,7 +202,7 @@ class ContinuousTorus(GFlowNetEnv):
         Converts a state (a list of positions) into a human-readable string
         representing a state. Angles are converted into degrees in [0, 360]
         """
-        angles = np.array(state[:-1]) % 2 * np.pi
+        angles = np.array(state[:-1])
         angles = angles * 180 / np.pi
         angles = str(angles).replace("(", "[").replace(")", "]").replace(",", "")
         n_actions = str(int(state[-1]))
@@ -389,6 +387,7 @@ class ContinuousTorus(GFlowNetEnv):
         elif action[0] != self.eos:
             self.n_actions += 1
             self.state[action[0]] += action[1]
+            self.state[action[0]] = self.state[action[0]] % (2 * np.pi)
             self.state[-1] = self.n_actions
             return self.state, action, True
         # If action is eos, then it is invalid
