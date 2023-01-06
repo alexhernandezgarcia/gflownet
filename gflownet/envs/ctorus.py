@@ -207,7 +207,7 @@ class ContinuousTorus(GFlowNetEnv):
         angles = np.array(state[:-1]) % 2 * np.pi
         angles = angles * 180 / np.pi
         angles = str(angles).replace("(", "[").replace(")", "]").replace(",", "")
-        n_actions = str(state[-1])
+        n_actions = str(int(state[-1]))
         return angles + " | " + n_actions
 
     def readable2state(self, readable: str) -> List:
