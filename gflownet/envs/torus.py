@@ -95,7 +95,7 @@ class Torus(GFlowNetEnv):
         actions = actions + [(-1, 0)]
         return actions
 
-    def get_mask_invalid_actions(self, state=None, done=None):
+    def get_mask_invalid_actions_forward(self, state=None, done=None):
         """
         Returns a vector of length the action space + 1: True if action is invalid
         given the current state, False otherwise.

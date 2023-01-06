@@ -63,7 +63,7 @@ class GFlowNetAgent:
         self.logdir = Path(logdir)
         # Environment
         self.env = env
-        self.mask_source = tb([self.env.get_mask_invalid_actions()])
+        self.mask_source = tb([self.env.get_mask_invalid_actions_forward()])
         # Continuous environments
         if hasattr(self.env, "continuous") and self.env.continuous:
             self.forward_sample = self.forward_sample_continuous
@@ -255,7 +255,9 @@ class GFlowNetAgent:
         if not isinstance(envs, list):
             envs = [envs]
         states = [env.state2obs() for env in envs]
-        mask_invalid_actions = tb([env.get_mask_invalid_actions() for env in envs])
+        mask_invalid_actions = tb(
+            [env.get_mask_invalid_actions_forward() for env in envs]
+        )
         random_action = self.rng.uniform()
         t0_a_model = time.time()
         if sampling_method == "policy":
@@ -310,7 +312,9 @@ class GFlowNetAgent:
             envs = [envs]
         # Build states and masks
         states = tf([env.state2obs() for env in envs])
-        mask_invalid_actions = tb([env.get_mask_invalid_actions() for env in envs])
+        mask_invalid_actions = tb(
+            [env.get_mask_invalid_actions_forward() for env in envs]
+        )
         # Build policy outputs
         if sampling_method == "policy":
             with torch.no_grad():
@@ -474,7 +478,7 @@ class GFlowNetAgent:
                 action = env.eos
                 parents = [env.state2obs(env.state)]
                 parents_a = [action]
-                mask = env.get_mask_invalid_actions()
+                mask = env.get_mask_invalid_actions_forward()
                 n_actions = 0
                 while len(env.state) > 0:
                     batch.append(
@@ -523,7 +527,7 @@ class GFlowNetAgent:
             for env, action, valid in zip(envs, actions, valids):
                 if valid:
                     parents, parents_a = env.get_parents(action=action)
-                    mask = env.get_mask_invalid_actions()
+                    mask = env.get_mask_invalid_actions_forward()
                     assert action in parents_a
                     if train:
                         batch.append(
@@ -1357,7 +1361,7 @@ def logq(path_list, actions_list, model, env, loginf=1000):
         path = path[::-1]
         actions = actions[::-1]
         path_obs = np.asarray([env.state2obs(state) for state in path])
-        masks = tb([env.get_mask_invalid_actions(state, 0) for state in path])
+        masks = tb([env.get_mask_invalid_actions_forward(state, 0) for state in path])
         with torch.no_grad():
             logits_path = model(tf(path_obs))
         logits_path[masks] = -loginf
