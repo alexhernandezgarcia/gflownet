@@ -405,14 +405,13 @@ class Buffer:
         self.replay.reward = pd.to_numeric(self.replay.reward)
         self.replay.energy = pd.to_numeric(self.replay.energy)
         self.replay.reward = [-1 for _ in range(self.replay_capacity)]
-        self.train = None
-        self.test = None
-        if make_train_test and train and test:
-            self.train, self.test = self.make_train_test(
-                train,
-                test,
-                data_path,
-            )
+        # Define train and test data sets
+        self.train = self.env.make_train_set(train)
+        if self.train is not None and train.output_csv is not None:
+            self.train.to_csv(train.output_csv)
+        self.test = self.env.make_test_set(test)
+        if self.test is not None and test.output_csv is not None:
+            self.test.to_csv(test.output_csv)
         # Compute buffer statistics
         if self.train is not None:
             (
