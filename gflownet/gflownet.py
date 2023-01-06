@@ -67,6 +67,7 @@ class GFlowNetAgent:
         # Continuous environments
         if hasattr(self.env, "continuous") and self.env.continuous:
             self.forward_sample = self.forward_sample_continuous
+            self.trajectorybalance_loss = self.trajectorybalance_loss_continuous
         # Seed
         self.rng = np.random.default_rng(seed)
         # Device
@@ -479,10 +480,10 @@ class GFlowNetAgent:
                     batch.append(
                         [
                             tf([env.state2obs(env.state)]),
-                            tl([action]),
+                            tf([action]),
                             env.state,
                             tf(parents),
-                            tl(parents_a),
+                            tf(parents_a),
                             env.done,
                             tl([env.id] * len(parents)),
                             tl([n_actions]),
@@ -528,10 +529,10 @@ class GFlowNetAgent:
                         batch.append(
                             [
                                 tf([env.state2obs()]),
-                                tl([action]),
+                                tf([action]),
                                 env.state,
                                 tf(parents),
-                                tl(parents_a),
+                                tf(parents_a),
                                 env.done,
                                 tl([env.id] * len(parents)),
                                 tl([env.n_actions - 1]),
@@ -674,6 +675,98 @@ class GFlowNetAgent:
         return loss, term_loss, flow_loss
 
     def trajectorybalance_loss(self, it, batch, loginf=1000):
+        """
+        Computes the trajectory balance loss of a batch
+
+        Args
+        ----
+        it : int
+            Iteration
+
+        batch : ndarray
+            A batch of data: every row is a state (list), corresponding to all states
+            visited in each state in the batch.
+
+        Returns
+        -------
+        loss : float
+
+        term_loss : float
+            Loss of the terminal nodes only
+
+        flow_loss : float
+            Loss of the intermediate nodes only
+        """
+        loginf = tf([loginf])
+        # Unpack batch
+        (
+            states,
+            actions,
+            rewards,
+            parents,
+            parents_a,
+            done,
+            path_id_parents,
+            state_id,
+            masks,
+        ) = zip(*batch)
+        # Keep only parents in trajectory
+        parents = [
+            p[torch.where(a == p_a)] for a, p, p_a in zip(actions, parents, parents_a)
+        ]
+        path_id = torch.cat([el[:1] for el in path_id_parents])
+        # Concatenate lists of tensors
+        states, actions, rewards, parents, done, state_id, masks = map(
+            torch.cat,
+            [
+                states,
+                actions,
+                rewards,
+                parents,
+                done,
+                state_id,
+                masks,
+            ],
+        )
+        # Build forward masks from state masks
+        masks_f = torch.cat(
+            [
+                masks[torch.where((state_id == sid - 1) & (path_id == pid))]
+                if sid > 0
+                else self.mask_source
+                for sid, pid in zip(state_id, path_id)
+            ]
+        )
+        # Build backward masks from parents actions
+        masks_b = torch.ones(masks.shape, dtype=bool)
+        # TODO: this should be possible with a matrix operation
+        for idx, pa in enumerate(parents_a):
+            masks_b[idx, pa] = False
+        # Forward trajectories
+        logits_f = self.forward_policy(parents)
+        logits_f[masks_f] = -loginf
+        logprobs_f = self.logsoftmax(logits_f)[torch.arange(logits_f.shape[0]), actions]
+        sumlogprobs_f = tf(
+            torch.zeros(len(torch.unique(path_id, sorted=True)))
+        ).index_add_(0, path_id, logprobs_f)
+        # Backward trajectories
+        logits_b = self.backward_policy(states)
+        logits_b[masks_b] = -loginf
+        logprobs_b = self.logsoftmax(logits_b)[torch.arange(logits_b.shape[0]), actions]
+        sumlogprobs_b = tf(
+            torch.zeros(len(torch.unique(path_id, sorted=True)))
+        ).index_add_(0, path_id, logprobs_b)
+        # Sort rewards of done states by ascending path id
+        rewards = rewards[done.eq(1)][torch.argsort(path_id[done.eq(1)])]
+        # Trajectory balance loss
+        loss = (
+            (self.Z.sum() + sumlogprobs_f - sumlogprobs_b - torch.log(rewards))
+            .pow(2)
+            .mean()
+        )
+        return loss, loss, loss
+
+    def trajectorybalance_loss_continuous(self, it, batch, loginf=1000):
         """
         Computes the trajectory balance loss of a batch
 
