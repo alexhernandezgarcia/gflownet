@@ -109,7 +109,8 @@ class ContinuousTorus(GFlowNetEnv):
     def get_mask_invalid_actions_forward(self, state=None, done=None):
         """
         Returns a vector with the length of the discrete part of the action space + 1:
-        True if action is invalid given the current state, False otherwise.
+        True if action is invalid going forward given the current state, False
+        otherwise.
         """
         if state is None:
             state = self.state.copy()
@@ -118,6 +119,24 @@ class ContinuousTorus(GFlowNetEnv):
         if done:
             return [True for _ in range(len(self.action_space) + 1)]
         if state[-1] >= self.length_traj:
+            mask = [True for _ in range(len(self.action_space) + 1)]
+            mask[-1] = False
+        else:
+            mask = [False for _ in range(len(self.action_space) + 1)]
+            mask[-1] = True
+        return mask
+
+    def get_mask_invalid_actions_backward(self, state=None, done=None, parents_a=None):
+        """
+        Returns a vector with the length of the discrete part of the action space + 1:
+        True if action is invalid going backward given the current state, False
+        otherwise.
+        """
+        if state is None:
+            state = self.state.copy()
+        if done is None:
+            done = self.done
+        if done:
             mask = [True for _ in range(len(self.action_space) + 1)]
             mask[-1] = False
         else:
@@ -256,43 +275,43 @@ class ContinuousTorus(GFlowNetEnv):
 
     def sample_actions(
         self,
-        policy_outputs: TensorType["batch_size", "policy_output_dim"],
+        policy_outputs: TensorType["n_states", "policy_output_dim"],
         sampling_method: str = "policy",
-        mask_invalid_actions: TensorType["batch_size", "policy_output_dim"] = None,
+        mask_invalid_actions: TensorType["n_states", "policy_output_dim"] = None,
         temperature_logits: float = 1.0,
         loginf: float = 1000,
-    ) -> Tuple[List[Tuple], TensorType["batch_size"]]:
+    ) -> Tuple[List[Tuple], TensorType["n_states"]]:
         """
         Samples a batch of actions from a batch of policy outputs.
         """
-        batch_size = policy_outputs.shape[0]
-        bs_range = torch.arange(batch_size)
+        n_states = policy_outputs.shape[0]
+        ns_range = torch.arange(n_states)
         # Sample dimensions
         if sampling_method == "uniform":
-            logits_dims = torch.zeros(batch_size, self.n_dim).to(policy_outputs)
+            logits_dims = torch.zeros(n_states, self.n_dim).to(policy_outputs.device)
         elif sampling_method == "policy":
             logits_dims = policy_outputs[:, 0::3]
             logits_dims /= temperature_logits
         if mask_invalid_actions is not None:
             logits_dims[mask_invalid_actions] = -loginf
         dimensions = Categorical(logits=logits_dims).sample()
-        logprobs_dim = self.logsoftmax(logits_dims)[bs_range, dimensions]
+        logprobs_dim = self.logsoftmax(logits_dims)[ns_range, dimensions]
         # Sample angle increments
-        bs_range_noeos = bs_range[dimensions != self.eos]
+        ns_range_noeos = ns_range[dimensions != self.eos]
         dimensions_noeos = dimensions[dimensions != self.eos]
         if sampling_method == "uniform":
             distr_angles = Uniform(
-                torch.zeros(len(bs_range_noeos)),
-                2 * torch.pi * torch.ones(len(bs_range_noeos)),
+                torch.zeros(len(ns_range_noeos)),
+                2 * torch.pi * torch.ones(len(ns_range_noeos)),
             )
         elif sampling_method == "policy":
-            locations = policy_outputs[:, 1::3][bs_range_noeos, dimensions_noeos]
-            concentrations = policy_outputs[:, 2::3][bs_range_noeos, dimensions_noeos]
+            locations = policy_outputs[:, 1::3][ns_range_noeos, dimensions_noeos]
+            concentrations = policy_outputs[:, 2::3][ns_range_noeos, dimensions_noeos]
             distr_angles = VonMises(locations, torch.exp(concentrations))
-        angles = torch.zeros(batch_size).to(policy_outputs)
-        angles[bs_range_noeos] = distr_angles.sample()
-        logprobs_angles = torch.zeros(batch_size).to(policy_outputs)
-        logprobs_angles[bs_range_noeos] = distr_angles.log_prob(angles[bs_range_noeos])
+        angles = torch.zeros(n_states).to(policy_outputs)
+        angles[ns_range_noeos] = distr_angles.sample()
+        logprobs_angles = torch.zeros(n_states).to(policy_outputs.device)
+        logprobs_angles[ns_range_noeos] = distr_angles.log_prob(angles[ns_range_noeos])
         # Combined probabilities
         logprobs = logprobs_dim + logprobs_angles
         # Build actions
@@ -304,8 +323,8 @@ class ContinuousTorus(GFlowNetEnv):
 
     def get_logprobs(
         self,
-        policy_outputs: TensorType["batch_size", "policy_output_dim"],
-        actions: List[Tuple[int, float]],
+        policy_outputs: TensorType["n_states", "policy_output_dim"],
+        actions: TensorType["n_states", 2],
         mask_invalid_actions: TensorType["batch_size", "policy_output_dim"] = None,
         loginf: float = 1000,
     ) -> TensorType["batch_size"]:
@@ -313,21 +332,23 @@ class ContinuousTorus(GFlowNetEnv):
         Computes log probabilities of actions given policy outputs and actions.
         """
         dimensions, angles = zip(*actions)
-        dimensions.to(policy_outputs)
-        angles.to(policy_outputs)
-        batch_size = policy_outputs.shape[0]
-        bs_range = torch.arange(batch_size)
+        dimensions = torch.LongTensor(dimensions).to(policy_outputs.device)
+        angles = torch.FloatTensor(angles).to(policy_outputs.device)
+        n_states = policy_outputs.shape[0]
+        ns_range = torch.arange(n_states)
         # Dimensions
         logits_dims = policy_outputs[:, 0::3]
         if mask_invalid_actions is not None:
             logits_dims[mask_invalid_actions] = -loginf
-        logprobs_dim = self.logsoftmax(logits_dims)[bs_range, dimensions]
+        logprobs_dim = self.logsoftmax(logits_dims)[ns_range, dimensions]
         # Angle increments
-        # TODO: handle case where dimensions has eos (out of bounds)
-        locations = policy_outputs[:, 1::3][bs_range, dimensions]
-        concentrations = policy_outputs[:, 2::3][bs_range, dimensions]
+        ns_range_noeos = ns_range[dimensions != self.eos]
+        dimensions_noeos = dimensions[dimensions != self.eos]
+        locations = policy_outputs[:, 1::3][ns_range_noeos, dimensions_noeos]
+        concentrations = policy_outputs[:, 2::3][ns_range_noeos, dimensions_noeos]
         distr_angles = VonMises(locations, torch.exp(concentrations))
-        logprobs_angles = distr_angles.log_prob(angles)
+        logprobs_angles = torch.zeros(n_states).to(policy_outputs.device)
+        logprobs_angles[ns_range_noeos] = distr_angles.log_prob(angles[ns_range_noeos])
         # Combined probabilities
         logprobs = logprobs_dim + logprobs_angles
         return logprobs
