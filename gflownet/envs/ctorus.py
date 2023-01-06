@@ -394,25 +394,18 @@ class ContinuousTorus(GFlowNetEnv):
         else:
             return self.state, action, False
 
-    def make_train_set(self, ntrain, oracle=None, seed=168, output_csv=None):
+    def make_train_set(self, config):
         """
         Constructs a randomly sampled train set.
 
         Args
         ----
         """
-        rng = np.random.default_rng(seed)
-        angles = rng.integers(low=0, high=self.n_angles, size=(ntrain,) + (self.n_dim,))
-        n_actions = self.length_traj * np.ones([ntrain, 1], dtype=np.int32)
-        samples = np.concatenate([angles, n_actions], axis=1)
-        if oracle:
-            energies = oracle(self.state2oracle(samples))
+        if config is None:
+            return None
         else:
-            energies = self.oracle(self.state2oracle(samples))
-        df_train = pd.DataFrame({"samples": list(samples), "energies": energies})
-        if output_csv:
-            df_train.to_csv(output_csv)
-        return df_train
+            # TODO
+            pass
 
     def make_test_set(self, config):
         """
@@ -421,18 +414,17 @@ class ContinuousTorus(GFlowNetEnv):
         Args
         ----
         """
-        if "all" in config and config.all:
-            samples = self.get_all_terminating_states()
+        if "uniform" in config and "n" in config and config.uniform:
+            samples = self.get_uniform_terminating_states(config.n)
             energies = self.oracle(self.state2oracle(samples))
         df_test = pd.DataFrame(
             {"samples": [self.state2readable(s) for s in samples], "energies": energies}
         )
         return df_test
 
-    def get_all_terminating_states(self):
-        all_x = np.int32(
-            list(itertools.product(*[list(range(self.n_angles))] * self.n_dim))
-        )
-        n_actions = self.length_traj * np.ones([all_x.shape[0], 1], dtype=np.int32)
-        all_x = np.concatenate([all_x, n_actions], axis=1)
-        return all_x
+    def get_uniform_terminating_states(self, n_states: int) -> List[List]:
+        n_per_dim = int(np.ceil(n_states ** (1 / self.n_dim)))
+        linspaces = [np.linspace(0, 2 * np.pi, n_per_dim) for _ in range(self.n_dim)]
+        angles = list(itertools.product(*linspaces))
+        states = [list(el) + [self.length_traj] for el in angles]
+        return states
