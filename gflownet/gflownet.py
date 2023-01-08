@@ -66,8 +66,11 @@ class GFlowNetAgent:
         self.mask_source = tb([self.env.get_mask_invalid_actions_forward()])
         # Continuous environments
         if hasattr(self.env, "continuous") and self.env.continuous:
+            self.continuous = True
             self.forward_sample = self.forward_sample_continuous
             self.trajectorybalance_loss = self.trajectorybalance_loss_continuous
+        else:
+            self.continuous = False
         # Seed
         self.rng = np.random.default_rng(seed)
         # Device
@@ -967,7 +970,8 @@ class GFlowNetAgent:
                     step=it,
                 )
             # Test set metrics
-            if not it % self.test_period and self.buffer.test is not None:
+            if not it % self.test_period and self.buffer.test is not None and not self.continuous:
+                import ipdb; ipdb.set_trace()
                 data_logq = []
                 times.update(
                     {
