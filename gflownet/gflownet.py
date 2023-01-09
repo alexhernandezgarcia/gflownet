@@ -957,6 +957,7 @@ class GFlowNetAgent:
                                 "max_proxy{}".format(self.al_iter),
                                 "mean_seq_length{}".format(self.al_iter),
                                 "batch_size{}".format(self.al_iter),
+                                "logZ{}".format(self.al_iter),
                             ],
                             [
                                 np.mean(rewards),
@@ -966,6 +967,7 @@ class GFlowNetAgent:
                                 np.max(proxy_vals),
                                 np.mean([len(state) for state in states_term]),
                                 len(data),
+                                self.logZ.sum().item()
                             ],
                         )
                     ),
