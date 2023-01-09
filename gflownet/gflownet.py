@@ -80,14 +80,14 @@ class GFlowNetAgent:
         # Loss
         if optimizer.loss in ["flowmatch"]:
             self.loss = "flowmatch"
-            self.Z = None
+            self.logZ = None
         elif optimizer.loss in ["trajectorybalance", "tb"]:
             self.loss = "trajectorybalance"
-            self.Z = nn.Parameter(torch.ones(16) * 150.0 / 64)
+            self.logZ = nn.Parameter(torch.ones(16) * 150.0 / 64)
         else:
             print("Unkown loss. Using flowmatch as default")
             self.loss = "flowmatch"
-            self.Z = None
+            self.logZ = None
         if not sample_only:
             self.loss_eps = torch.tensor(float(1e-5)).to(self.device)
         # Logging (Comet)
@@ -200,7 +200,9 @@ class GFlowNetAgent:
         if self.forward_policy.is_model:
             self.forward_policy.model.to(self.device)
             self.target = copy.deepcopy(self.forward_policy.model)
-            self.opt, self.lr_scheduler = make_opt(self.parameters(), self.Z, optimizer)
+            self.opt, self.lr_scheduler = make_opt(
+                self.parameters(), self.logZ, optimizer
+            )
         else:
             self.opt, self.lr_scheduler, self.target = None, None, None
         self.n_train_steps = optimizer.n_train_steps
@@ -767,7 +769,7 @@ class GFlowNetAgent:
         rewards = rewards[done.eq(1)][torch.argsort(path_id[done.eq(1)])]
         # Trajectory balance loss
         loss = (
-            (self.Z.sum() + sumlogprobs_f - sumlogprobs_b - torch.log(rewards))
+            (self.logZ.sum() + sumlogprobs_f - sumlogprobs_b - torch.log(rewards))
             .pow(2)
             .mean()
         )
@@ -860,7 +862,7 @@ class GFlowNetAgent:
         rewards = rewards[done.eq(1)][torch.argsort(path_id[done.eq(1)])]
         # Trajectory balance loss
         loss = (
-            (self.Z.sum() + sumlogprobs_f - sumlogprobs_b - torch.log(rewards))
+            (self.logZ.sum() + sumlogprobs_f - sumlogprobs_b - torch.log(rewards))
             .pow(2)
             .mean()
         )
@@ -970,8 +972,14 @@ class GFlowNetAgent:
                     step=it,
                 )
             # Test set metrics
-            if not it % self.test_period and self.buffer.test is not None and not self.continuous:
-                import ipdb; ipdb.set_trace()
+            if (
+                not it % self.test_period
+                and self.buffer.test is not None
+                and not self.continuous
+            ):
+                import ipdb
+
+                ipdb.set_trace()
                 data_logq = []
                 times.update(
                     {
@@ -1302,7 +1310,7 @@ class RandomTrajAgent:
         return None
 
 
-def make_opt(params, Z, config):
+def make_opt(params, logZ, config):
     """
     Set up the optimizer
     """
@@ -1315,10 +1323,10 @@ def make_opt(params, Z, config):
             config.lr,
             betas=(config.adam_beta1, config.adam_beta2),
         )
-        if Z is not None:
+        if logZ is not None:
             opt.add_param_group(
                 {
-                    "params": Z,
+                    "params": logZ,
                     "lr": config.lr * config.lr_z_mult,
                 }
             )
