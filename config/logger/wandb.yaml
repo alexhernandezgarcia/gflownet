@@ -1,1 +1,2 @@
 _target_: gflownet.utils.logger.wandb_logger
+project_name: "ActiveLearningPipeline"
