@@ -1,8 +1,8 @@
-from src.gflownet.proxy.base import ProxyBase
+from gflownet.proxy.base import Proxy
 import numpy as np
 
 
-class GridCorners(ProxyBase):
+class GridCorners(Proxy):
     def __init__(self):
         super().__init__()
 
@@ -24,4 +24,4 @@ class GridCorners(ProxyBase):
             )
             return energies
 
-        return np.asarray([_func_corners(x) for x in inputs]).tolist()
+        return np.asarray([_func_corners(x) for x in inputs])

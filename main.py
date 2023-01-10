@@ -5,7 +5,7 @@ import sys
 import random
 import hydra
 from omegaconf import OmegaConf, DictConfig
-from src.gflownet.utils.common import flatten_config
+from gflownet.utils.common import flatten_config
 
 
 @hydra.main(config_path="./config", config_name="main")
@@ -27,7 +27,10 @@ def main(config):
     gflownet.train()
 
     # sample from the oracle, not from a proxy model
-    batch, times = gflownet.sample_batch(env, config.n_samples, train=False)
+    batch, times = gflownet.sample_batch(
+        env, config.n_samples, train=False
+    )
+    print(gflownet.buffer.replay)
 
 
 if __name__ == "__main__":

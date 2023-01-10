@@ -1,10 +1,11 @@
 """
 Classes to represent a hyper-grid environments
 """
+from typing import List
 import itertools
 import numpy as np
 import pandas as pd
-from src.gflownet.envs.base import GFlowNetEnv
+from gflownet.envs.base import GFlowNetEnv
 
 
 class Grid(GFlowNetEnv):
@@ -42,7 +43,8 @@ class Grid(GFlowNetEnv):
         denorm_proxy=False,
         energies_stats=None,
         proxy=None,
-        oracle_func="default",
+        oracle=None,
+        proxy_state_format=None,
         **kwargs,
     ):
         super(Grid, self).__init__(
@@ -54,7 +56,8 @@ class Grid(GFlowNetEnv):
             energies_stats,
             denorm_proxy,
             proxy,
-            oracle_func,
+            oracle,
+            proxy_state_format,
             **kwargs,
         )
         self.n_dim = n_dim
@@ -64,26 +67,12 @@ class Grid(GFlowNetEnv):
         self.min_step_len = min_step_len
         self.max_step_len = max_step_len
         self.cells = np.linspace(cell_min, cell_max, length)
-        self.oracle = {
-            "default": None,
-            "cos_N": self.func_cos_N,
-            "corners": self.func_corners,
-            "corners_floor_A": self.func_corners_floor_A,
-            "corners_floor_B": self.func_corners_floor_B,
-        }[oracle_func]
-        if proxy:
-            self.proxy = proxy
-        else:
-            self.proxy = self.oracle
-        self.reward = (
-            lambda x: [0]
-            if not self.done
-            else self.proxy2reward(self.proxy(self.state2oracle(x)))
-        )
-        self._true_density = None
-        self.denorm_proxy = denorm_proxy
         self.action_space = self.get_actions_space()
         self.eos = len(self.action_space)
+        if self.proxy_state_format == "ohe":
+            self.state2proxy = self.state2obs
+        elif self.proxy_state_format == "oracle":
+            self.state2proxy = self.state2oracle
 
     def get_actions_space(self):
         """
@@ -99,8 +88,8 @@ class Grid(GFlowNetEnv):
 
     def get_mask_invalid_actions(self, state=None, done=None):
         """
-        Returns a vector of length the action space + 1: True if action is invalid
-        given the current state, False otherwise.
+        Returns a vector of length the action space + 1: True if forward action is
+        invalid given the current state, False otherwise.
         """
         if state is None:
             state = self.state.copy()
@@ -172,7 +161,7 @@ class Grid(GFlowNetEnv):
         obs[(np.arange(len(state)) * self.length + state)] = 1
         return obs
 
-    def obs2state(self, obs):
+    def obs2state(self, obs: List) -> List:
         """
         Transforms the one-hot encoding version of a state given as argument
         into a state (list of the position at each dimension).
@@ -183,7 +172,7 @@ class Grid(GFlowNetEnv):
           - obs2state(obs): [0, 3, 1]
         """
         obs_mat = np.reshape(obs, (self.n_dim, self.length))
-        state = np.where(obs_mat)[1]
+        state = np.where(obs_mat)[1].tolist()
         return state
 
     def readable2state(self, readable, alphabet={}):
@@ -252,13 +241,13 @@ class Grid(GFlowNetEnv):
                     actions.append(idx)
         return parents, actions
 
-    def step(self, action):
+    def step(self, action_idx):
         """
-        Executes step given an action.
+        Executes step given an action index.
 
         Args
         ----
-        a : int (tensor)
+        action_idx : int
             Index of action in the action space. a == eos indicates "stop action"
 
         Returns
@@ -266,19 +255,23 @@ class Grid(GFlowNetEnv):
         self.state : list
             The sequence after executing the action
 
+        action_idx : int
+            Action index
+
         valid : bool
             False, if the action is not allowed for the current state, e.g. stop at the
             root state
         """
+        # If only possible action is eos, then force eos
         # All dimensions are at the maximum length
         if all([s == self.length - 1 for s in self.state]):
             self.done = True
             self.n_actions += 1
-            return self.state, [self.eos], True
-        if action != self.eos:
+            return self.state, self.eos, True
+        # If action is not eos, then perform action
+        if action_idx != self.eos:
+            action = self.action_space[action_idx]
             state_next = self.state.copy()
-            if action.ndim == 0:
-                action = [action]
             for a in action:
                 state_next[a] += 1
             if any([s >= self.length for s in state_next]):
@@ -287,11 +280,12 @@ class Grid(GFlowNetEnv):
                 self.state = state_next
                 valid = True
                 self.n_actions += 1
-            return self.state, action, valid
+            return self.state, action_idx, valid
+        # If action is eos, then perform eos
         else:
             self.done = True
             self.n_actions += 1
-            return self.state, [self.eos], True
+            return self.state, self.eos, True
 
     @staticmethod
     def func_corners(x_list):
@@ -354,3 +348,31 @@ class Grid(GFlowNetEnv):
         if output_csv:
             df_train.to_csv(output_csv)
         return df_train
+
+    def make_test_set(self, config):
+        """
+        Constructs a test set.
+
+        Args
+        ----
+        """
+        if "all" in config and config.all:
+            samples = self.get_all_terminating_states()
+            energies = self.oracle(self.state2oracle(samples))
+            df_test = pd.DataFrame(
+                {
+                    "samples": [self.state2readable(s) for s in samples],
+                    "energies": energies,
+                }
+            )
+        else:
+            df_test = self.make_train_set(
+                config.n, seed=config.seed, output_csv=config.output_csv
+            )
+        return df_test
+
+    def get_all_terminating_states(self):
+        all_x = np.int32(
+            list(itertools.product(*[list(range(self.length))] * self.n_dim))
+        )
+        return all_x
