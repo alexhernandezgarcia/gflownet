@@ -1,1 +1,4 @@
-_target_: gflownet.proxy.grid.GridCorners
+_target_: gflownet.proxy.corners.Corners
+
+mu: 0.75
+sigma: 0.1
