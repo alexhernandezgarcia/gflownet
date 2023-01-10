@@ -2,5 +2,11 @@ defaults:
   - env: grid
   - gflownet: flowmatch
   - proxy: grid_corners
+  - logger: wandb
 
 n_samples: 1000
+log: 
+  skip: False
+  tags: 
+    - dummy1
+    - dummy2
