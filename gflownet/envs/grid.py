@@ -292,50 +292,6 @@ class Grid(GFlowNetEnv):
             self.n_actions += 1
             return self.state, self.eos, True
 
-    @staticmethod
-    def func_corners(x_list):
-        def _func_corners(x):
-            ax = abs(x)
-            return -1.0 * (
-                (ax > 0.5).prod(-1) * 0.5
-                + ((ax < 0.8) * (ax > 0.6)).prod(-1) * 2
-                + 1e-1
-            )
-
-        return np.asarray([_func_corners(x) for x in x_list])
-
-    @staticmethod
-    def func_corners_floor_B(x_list):
-        def _func_corners_floor_B(x_list):
-            ax = abs(x)
-            return -1.0 * (
-                (ax > 0.5).prod(-1) * 0.5
-                + ((ax < 0.8) * (ax > 0.6)).prod(-1) * 2
-                + 1e-2
-            )
-
-        return np.asarray([_func_corners_floor_B(x) for x in x_list])
-
-    @staticmethod
-    def func_corners_floor_A(x_list):
-        def _func_corners_floor_A(x_list):
-            ax = abs(x)
-            return -1.0 * (
-                (ax > 0.5).prod(-1) * 0.5
-                + ((ax < 0.8) * (ax > 0.6)).prod(-1) * 2
-                + 1e-3
-            )
-
-        return np.asarray([_func_corners_floor_A(x) for x in x_list])
-
-    @staticmethod
-    def func_cos_N(x_list):
-        def _func_cos_N(x_list):
-            ax = abs(x)
-            return -1.0 * (((np.cos(x * 50) + 1) * norm.pdf(x * 5)).prod(-1) + 0.01)
-
-        return np.asarray([_func_cos_N(x) for x in x_list])
-
     def get_all_terminating_states(self):
         all_x = np.int32(
             list(itertools.product(*[list(range(self.length))] * self.n_dim))
