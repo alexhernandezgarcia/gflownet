@@ -113,7 +113,7 @@ class GFlowNetAgent:
                 if isinstance(comet.tags, list):
                     self.logger.add_tags(comet.tags)
                 else:
-                    self.logger.add_tag(comet.tags)
+                    self.logger.add_tags(comet.tags)
             self.use_context = comet.use_context
             self.log_times = comet.log_times
         self.test_period = logger_config.test.period
