@@ -43,11 +43,6 @@ class GFlowNetEnv:
             self.oracle = self.proxy
         else:
             self.oracle = oracle
-        self.reward = (
-            lambda x: [0]
-            if not self.done
-            else self.proxy2reward(self.proxy(self.state2proxy(x)))
-        )
         self.proxy_state_format = proxy_state_format
         self._true_density = None
         self.action_space = []
@@ -84,24 +79,39 @@ class GFlowNetEnv:
     ):
         return 1
 
-    def state2oracle(self, state_list):
+    def state2oracle(self, state: List = None):
         """
         Prepares a list of states in "GFlowNet format" for the oracle
 
         Args
         ----
-        state_list : list of lists
-            List of states.
+        state : list
+            A state
         """
-        return state_list
+        if state is None:
+            state = self.state.copy()
+        return state
+
+    def reward(self, state=None, done=None):
+        """
+        Computes the reward of a state
+        """
+        if done is None:
+            done = self.done
+        if done:
+            return np.array(0.0)
+        if state is None:
+            state = self.state.copy()
+        return self.proxy2reward(self.proxy([self.state2oracle(state)]))
 
     def reward_batch(self, states, done):
         """
         Computes the rewards of a batch of states, given a list of states and 'dones'
         """
-        states = [s for s, d in zip(states, done) if d]
+        states_oracle = [self.state2oracle(s) for s, d in zip(states, done) if d]
         reward = np.zeros(len(done))
-        reward[list(done)] = self.proxy2reward(self.proxy(self.state2oracle(states)))
+        if len(states_oracle) > 0:
+            reward[list(done)] = self.proxy2reward(self.proxy(states_oracle))
         return reward
 
     def proxy2reward(self, proxy_vals):
@@ -406,11 +416,19 @@ class Buffer:
         self.replay.energy = pd.to_numeric(self.replay.energy)
         self.replay.reward = [-1 for _ in range(self.replay_capacity)]
         # Define train and test data sets
-        self.train = self.env.make_train_set(train)
-        if self.train is not None and "output_csv" in train and train.output_csv is not None:
+        self.train = self.make_data_set(train)
+        if (
+            self.train is not None
+            and "output_csv" in train
+            and train.output_csv is not None
+        ):
             self.train.to_csv(train.output_csv)
-        self.test = self.env.make_test_set(test)
-        if self.test is not None and "output_csv" in test and test.output_csv is not None:
+        self.test = self.make_data_set(test)
+        if (
+            self.test is not None
+            and "output_csv" in test
+            and test.output_csv is not None
+        ):
             self.test.to_csv(test.output_csv)
         # Compute buffer statistics
         if self.train is not None:
@@ -479,6 +497,40 @@ class Buffer:
             rewards_new[idx_new_max] = -1
             rewards_old = self.replay["reward"].values
         return self.replay
+
+    def make_data_set(self, config):
+        """
+        Constructs a data set asa DataFrame according to the configuration.
+        """
+        if config is None:
+            return None
+        elif "type" not in config:
+            return None
+        elif config.type == "all" and hasattr(self.env, "get_all_terminating_states"):
+            samples = self.env.get_all_terminating_states()
+        elif (
+            config.type == "uniform"
+            and "n" in config
+            and hasattr(self.env, "get_uniform_terminating_states")
+        ):
+            samples = self.env.get_uniform_terminating_states(config.n)
+        elif (
+            config.type == "random"
+            and "n" in config
+            and "seed" in config
+            and hasattr(self.env, "get_random_terminating_states")
+        ):
+            samples = self.env.get_random_terminating_states(config.n, config.seed)
+        else:
+            return None
+        energies = self.env.oracle(self.env.state2oracle(samples))
+        df = pd.DataFrame(
+            {
+                "samples": [self.env.state2readable(s) for s in samples],
+                "energies": energies,
+            }
+        )
+        return df
 
     def make_train_test(self, train, test, data_path=None, *args):
         """
