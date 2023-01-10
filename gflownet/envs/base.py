@@ -5,6 +5,7 @@ from abc import abstractmethod
 from typing import List
 import numpy as np
 import pandas as pd
+import torch
 from pathlib import Path
 
 
@@ -47,6 +48,7 @@ class GFlowNetEnv:
         self._true_density = None
         self.action_space = []
         self.eos = len(self.action_space)
+        self.logsoftmax = torch.nn.LogSoftmax(dim=1)
         # Assertions
         assert self.reward_norm > 0
         assert self.reward_beta > 0
@@ -234,6 +236,53 @@ class GFlowNetEnv:
             parents = []
             actions = []
         return parents, actions
+
+    def sample_actions(
+        self,
+        policy_outputs: TensorType["n_states", "policy_output_dim"],
+        sampling_method: str = "policy",
+        mask_invalid_actions: TensorType["n_states", "policy_output_dim"] = None,
+        temperature_logits: float = 1.0,
+        loginf: float = 1000,
+    ) -> Tuple[List[Tuple], TensorType["n_states"]]:
+        """
+        Samples a batch of actions from a batch of policy outputs. This implementation
+        is generally valid for all discrete environments.
+        """
+        device = policy_outputs.device
+        ns_range = torch.arange(policy_outputs.shape[0]).to(device)
+        if sampling_method == "uniform":
+            logits = torch.ones(policy_outputs.shape).to(device)
+        elif sampling_method == "policy":
+            logits = policy_outputs
+            logits /= temperature_logits
+        if mask_invalid_actions is not None:
+            logits[mask_invalid_actions] = -loginf
+        action_indices = Categorical(logits=logits).sample()
+        logprobs = self.logsoftmax(logits)[ns_range, action_indices]
+        # Build actions
+        actions = [self.action_space[idx] for idx in action_indices]
+        return actions, logprobs
+
+    def get_logprobs(
+        self,
+        policy_outputs: TensorType["n_states", "policy_output_dim"],
+        actions: TensorType["n_states", 2],
+        mask_invalid_actions: TensorType["batch_size", "policy_output_dim"] = None,
+        loginf: float = 1000,
+    ) -> TensorType["batch_size"]:
+        """
+        Computes log probabilities of actions given policy outputs and actions. This
+        implementation is generally valid for all discrete environments.
+        """
+        device = policy_outputs.device
+        ns_range = torch.arange(policy_outputs.shape[0]).to(device)
+        logits = policy_outputs
+        if mask_invalid_actions is not None:
+            logits[mask_invalid_actions] = -loginf
+        action_indices = [self.action_space.index(action) for action in actions]
+        logprobs = self.logsoftmax(logits)[ns_range, action_indices]
+        return logprobs
 
     def get_paths(self, path_list, path_actions_list, current_path, current_actions):
         """
