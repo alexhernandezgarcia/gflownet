@@ -59,6 +59,7 @@ class AptamerSeq(GFlowNetEnv):
         reward_norm_std_mult=0.0,
         reward_func="power",
         denorm_proxy=False,
+        variable_len=False,
         **kwargs,
     ):
         super(AptamerSeq, self).__init__(

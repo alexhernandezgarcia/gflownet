@@ -211,7 +211,9 @@ class GFlowNetEnv:
             actions = []
         return parents, actions
 
-    def get_trajectories(self, traj_list, traj_actions_list, current_traj, current_actions):
+    def get_trajectories(
+        self, traj_list, traj_actions_list, current_traj, current_actions
+    ):
         """
         Determines all trajectories leading to each state in traj_list, recursively.
 
@@ -270,14 +272,14 @@ class GFlowNetEnv:
             False, if the action is not allowed for the current state, e.g. stop at the
             root state
         """
-        if action < self.eos:
+        if action_idx < self.eos:
             self.done = False
             valid = True
         else:
             self.done = True
             valid = True
             self.n_actions += 1
-        return self.state, action, valid
+        return self.state, action_idx, valid
 
     def no_eos_mask(self, state=None):
         """
