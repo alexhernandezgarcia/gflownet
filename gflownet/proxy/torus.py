@@ -3,7 +3,7 @@ import numpy as np
 
 
 class Torus2D(Proxy):
-    def __init__(self, normalize):
+    def __init__(self, normalize, **kwargs):
         super().__init__()
         self.normalize = normalize
 
