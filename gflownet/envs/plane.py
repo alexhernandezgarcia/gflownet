@@ -73,7 +73,6 @@ class Plane(GFlowNetEnv):
         self.fixed_policy_output = self.get_fixed_policy_output()
         self.policy_output_dim = len(self.fixed_policy_output)
         self.eos = self.n_dim
-        self.logsoftmax = torch.nn.LogSoftmax(dim=1)
         # Set up proxy
         self.proxy.n_dim = self.n_dim
         self.proxy.setup()
