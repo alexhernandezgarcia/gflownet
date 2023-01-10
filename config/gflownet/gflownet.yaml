@@ -8,7 +8,7 @@ seed: 0
 # Device
 device: cpu
 # Logging
-logger:
+logger_config:
   debug: False
   progress: True
   lightweight: False
