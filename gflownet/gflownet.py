@@ -59,6 +59,12 @@ class GFlowNetAgent:
         sample_only=False,
         **kwargs,
     ):
+        # Seed
+        self.rng = np.random.default_rng(seed)
+        # Device
+        self.device_torch = torch.device(device)
+        self.device = self.device_torch
+        set_device(self.device_torch)
         # Log directory
         self.logdir = Path(logdir)
         # Environment
@@ -71,12 +77,6 @@ class GFlowNetAgent:
             self.trajectorybalance_loss = self.trajectorybalance_loss_continuous
         else:
             self.continuous = False
-        # Seed
-        self.rng = np.random.default_rng(seed)
-        # Device
-        self.device_torch = torch.device(device)
-        self.device = self.device_torch
-        set_device(self.device_torch)
         # Loss
         if optimizer.loss in ["flowmatch"]:
             self.loss = "flowmatch"
