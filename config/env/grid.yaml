@@ -19,8 +19,8 @@ cell_max: 1
 buffer:
   data_path: null
   train:
-    all: True
+    type: all
     output_csv: grid_train.csv
   test:
-    all: True
+    type: all
     output_csv: grid_test.csv

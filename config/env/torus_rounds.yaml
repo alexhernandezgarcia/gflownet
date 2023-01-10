@@ -17,14 +17,5 @@ max_step_len: 1
 # Buffer
 buffer:
   data_path: null
-  train:
-    path: null
-    seed: 167
-    n: null
-    output: null
-  test:
-    all: True
-    path: null
-    seed: 167
-    n: null
-    output: null
+  train: null
+  test: null

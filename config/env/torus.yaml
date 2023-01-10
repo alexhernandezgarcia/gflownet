@@ -18,13 +18,8 @@ max_step_len: 1
 buffer:
   data_path: null
   train:
-    path: null
-    seed: 167
-    n: null
-    output: null
+    type: all
+    output_csv: torus_train.csv
   test:
-    all: True
-    path: null
-    seed: 167
-    n: null
-    output: null
+    type: all
+    output_csv: torus_test.csv
