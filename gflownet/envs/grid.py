@@ -1,7 +1,7 @@
 """
 Classes to represent a hyper-grid environments
 """
-from typing import List
+from typing import List, Tuple
 import itertools
 import numpy as np
 import pandas as pd
@@ -98,8 +98,8 @@ class Grid(GFlowNetEnv):
         if done is None:
             done = self.done
         if done:
-            return [True for _ in range(len(self.action_space) + 1)]
-        mask = [False for _ in range(len(self.action_space) + 1)]
+            return [True for _ in range(self.policy_output_dim)]
+        mask = [False for _ in range(self.policy_output_dim)]
         for idx, a in enumerate(self.action_space):
             for d in a:
                 if state[d] + 1 >= self.length:
@@ -242,39 +242,40 @@ class Grid(GFlowNetEnv):
                         break
                 else:
                     parents.append(self.state2obs(state_aux))
-                    actions.append(idx)
+                    actions.append(a)
         return parents, actions
 
-    def step(self, action_idx):
+    def step(
+        self, action: Tuple[int]
+    ) -> Tuple[List[int], Tuple[int], bool]:
         """
-        Executes step given an action index.
+        Executes step given an action.
 
         Args
         ----
-        action_idx : int
-            Index of action in the action space. a == eos indicates "stop action"
+        action : tuple
+            Action to be executed. An action is a tuple int values indicating the
+            dimensions to increment by 1.
 
         Returns
         -------
         self.state : list
             The sequence after executing the action
 
-        action_idx : int
-            Action index
+        action : int
+            Action executed
 
         valid : bool
-            False, if the action is not allowed for the current state, e.g. stop at the
-            root state
+            False, if the action is not allowed for the current state.
         """
         # If only possible action is eos, then force eos
         # All dimensions are at the maximum length
         if all([s == self.length - 1 for s in self.state]):
             self.done = True
             self.n_actions += 1
-            return self.state, self.eos, True
+            return self.state, (self.eos,), True
         # If action is not eos, then perform action
-        if action_idx != self.eos:
-            action = self.action_space[action_idx]
+        elif action[0] != self.eos:
             state_next = self.state.copy()
             for a in action:
                 state_next[a] += 1
@@ -284,7 +285,7 @@ class Grid(GFlowNetEnv):
                 self.state = state_next
                 valid = True
                 self.n_actions += 1
-            return self.state, action_idx, valid
+            return self.state, action, valid
         # If action is eos, then perform eos
         else:
             self.done = True
