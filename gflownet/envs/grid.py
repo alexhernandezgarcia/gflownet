@@ -127,23 +127,22 @@ class Grid(GFlowNetEnv):
         )
         return self._true_density
 
-    def state2oracle(self, state_list):
+    def state2oracle(self, state: List = None):
         """
-        Prepares a list of states in "GFlowNet format" for the oracles: a list of length
+        Prepares a state in "GFlowNet format" for the oracles: a list of length
         n_dim with values in the range [cell_min, cell_max] for each state.
 
         Args
         ----
-        state_list : list of lists
-            List of states.
+        state : list
+            State
         """
-        return [
-            (
-                self.state2obs(state).reshape((self.n_dim, self.length))
-                * self.cells[None, :]
-            ).sum(axis=1)
-            for state in state_list
-        ]
+        if state is None:
+            state = self.state.copy()
+        return (
+            self.state2obs(state).reshape((self.n_dim, self.length))
+            * self.cells[None, :]
+        ).sum(axis=1)
 
     def state2obs(self, state=None):
         """
@@ -336,48 +335,13 @@ class Grid(GFlowNetEnv):
 
         return np.asarray([_func_cos_N(x) for x in x_list])
 
-    def make_train_set(self, ntrain, oracle=None, seed=168, output_csv=None):
-        """
-        Constructs a randomly sampled train set.
-
-        Args
-        ----
-        """
-        rng = np.random.default_rng(seed)
-        samples = rng.integers(low=0, high=self.length, size=(ntrain,) + (self.n_dim,))
-        if oracle:
-            energies = oracle(self.state2oracle(samples))
-        else:
-            energies = self.oracle(self.state2oracle(samples))
-        df_train = pd.DataFrame({"samples": list(samples), "energies": energies})
-        if output_csv:
-            df_train.to_csv(output_csv)
-        return df_train
-
-    def make_test_set(self, config):
-        """
-        Constructs a test set.
-
-        Args
-        ----
-        """
-        if "all" in config and config.all:
-            samples = self.get_all_terminating_states()
-            energies = self.oracle(self.state2oracle(samples))
-            df_test = pd.DataFrame(
-                {
-                    "samples": [self.state2readable(s) for s in samples],
-                    "energies": energies,
-                }
-            )
-        else:
-            df_test = self.make_train_set(
-                config.n, seed=config.seed, output_csv=config.output_csv
-            )
-        return df_test
-
     def get_all_terminating_states(self):
         all_x = np.int32(
             list(itertools.product(*[list(range(self.length))] * self.n_dim))
         )
         return all_x
+
+    def get_random_terminating_states(self, n_states: int, seed: int) -> List[List]:
+        rng = np.random.default_rng(seed)
+        states = rng.integers(low=0, high=self.length, size=(n_states, self.n_dim))
+        return states
