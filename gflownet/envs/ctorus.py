@@ -64,6 +64,7 @@ class ContinuousTorus(GFlowNetEnv):
         # Parameters of fixed policy distribution
         self.vonmises_mean = vonmises_mean
         self.vonmises_concentration = vonmises_concentration
+        self.vonmises_concentration_epsilon = 1e-3
         # Initialize angles and state attributes
         self.reset()
         self.source = self.angles.copy()
@@ -282,11 +283,12 @@ class ContinuousTorus(GFlowNetEnv):
         """
         Samples a batch of actions from a batch of policy outputs.
         """
+        device = policy_outputs.device
         n_states = policy_outputs.shape[0]
-        ns_range = torch.arange(n_states)
+        ns_range = torch.arange(n_states).to(device)
         # Sample dimensions
         if sampling_method == "uniform":
-            logits_dims = torch.zeros(n_states, self.n_dim).to(policy_outputs.device)
+            logits_dims = torch.zeros(n_states, self.n_dim).to(device)
         elif sampling_method == "policy":
             logits_dims = policy_outputs[:, 0::3]
             logits_dims /= temperature_logits
@@ -297,19 +299,20 @@ class ContinuousTorus(GFlowNetEnv):
         # Sample angle increments
         ns_range_noeos = ns_range[dimensions != self.eos]
         dimensions_noeos = dimensions[dimensions != self.eos]
-        if sampling_method == "uniform":
-            distr_angles = Uniform(
-                torch.zeros(len(ns_range_noeos)),
-                2 * torch.pi * torch.ones(len(ns_range_noeos)),
-            )
-        elif sampling_method == "policy":
-            locations = policy_outputs[:, 1::3][ns_range_noeos, dimensions_noeos]
-            concentrations = policy_outputs[:, 2::3][ns_range_noeos, dimensions_noeos]
-            distr_angles = VonMises(locations, torch.exp(concentrations))
-        angles = torch.zeros(n_states).to(policy_outputs)
-        angles[ns_range_noeos] = distr_angles.sample()
-        logprobs_angles = torch.zeros(n_states).to(policy_outputs.device)
-        logprobs_angles[ns_range_noeos] = distr_angles.log_prob(angles[ns_range_noeos])
+        angles = torch.zeros(n_states).to(device)
+        logprobs_angles = torch.zeros(n_states).to(device)
+        if len(dimensions_noeos) > 0:
+            if sampling_method == "uniform":
+                distr_angles = Uniform(
+                    torch.zeros(len(ns_range_noeos)),
+                    2 * torch.pi * torch.ones(len(ns_range_noeos)),
+                )
+            elif sampling_method == "policy":
+                locations = policy_outputs[:, 1::3][ns_range_noeos, dimensions_noeos]
+                concentrations = policy_outputs[:, 2::3][ns_range_noeos, dimensions_noeos]
+                distr_angles = VonMises(locations, torch.exp(concentrations) + self.vonmises_concentration_epsilon)
+            angles[ns_range_noeos] = distr_angles.sample()
+            logprobs_angles[ns_range_noeos] = distr_angles.log_prob(angles[ns_range_noeos])
         # Combined probabilities
         logprobs = logprobs_dim + logprobs_angles
         # Build actions
@@ -329,11 +332,12 @@ class ContinuousTorus(GFlowNetEnv):
         """
         Computes log probabilities of actions given policy outputs and actions.
         """
+        device = policy_outputs.device
         dimensions, angles = zip(*actions)
-        dimensions = torch.LongTensor(dimensions).to(policy_outputs.device)
-        angles = torch.FloatTensor(angles).to(policy_outputs.device)
+        dimensions = torch.LongTensor(dimensions).to(device)
+        angles = torch.FloatTensor(angles).to(device)
         n_states = policy_outputs.shape[0]
-        ns_range = torch.arange(n_states)
+        ns_range = torch.arange(n_states).to(device)
         # Dimensions
         logits_dims = policy_outputs[:, 0::3]
         if mask_invalid_actions is not None:
@@ -342,11 +346,12 @@ class ContinuousTorus(GFlowNetEnv):
         # Angle increments
         ns_range_noeos = ns_range[dimensions != self.eos]
         dimensions_noeos = dimensions[dimensions != self.eos]
-        locations = policy_outputs[:, 1::3][ns_range_noeos, dimensions_noeos]
-        concentrations = policy_outputs[:, 2::3][ns_range_noeos, dimensions_noeos]
-        distr_angles = VonMises(locations, torch.exp(concentrations))
-        logprobs_angles = torch.zeros(n_states).to(policy_outputs.device)
-        logprobs_angles[ns_range_noeos] = distr_angles.log_prob(angles[ns_range_noeos])
+        logprobs_angles = torch.zeros(n_states).to(device)
+        if len(dimensions_noeos) > 0:
+            locations = policy_outputs[:, 1::3][ns_range_noeos, dimensions_noeos]
+            concentrations = policy_outputs[:, 2::3][ns_range_noeos, dimensions_noeos]
+            distr_angles = VonMises(locations, torch.exp(concentrations) + self.vonmises_concentration_epsilon)
+            logprobs_angles[ns_range_noeos] = distr_angles.log_prob(angles[ns_range_noeos])
         # Combined probabilities
         logprobs = logprobs_dim + logprobs_angles
         return logprobs
@@ -393,44 +398,6 @@ class ContinuousTorus(GFlowNetEnv):
         # If action is eos, then it is invalid
         else:
             return self.state, action, False
-
-    def make_train_set(self, config):
-        """
-        Constructs a randomly sampled train set.
-
-        Args
-        ----
-        """
-        if config is None:
-            return None
-        elif "uniform" in config and "n" in config and config.uniform:
-            samples = self.get_uniform_terminating_states(config.n)
-            energies = self.oracle(self.state2oracle(samples))
-        else:
-            return None
-        df = pd.DataFrame(
-            {"samples": [self.state2readable(s) for s in samples], "energies": energies}
-        )
-        return df
-
-    def make_test_set(self, config):
-        """
-        Constructs a test set.
-
-        Args
-        ----
-        """
-        if config is None:
-            return None
-        elif "uniform" in config and "n" in config and config.uniform:
-            samples = self.get_uniform_terminating_states(config.n)
-            energies = self.oracle(self.state2oracle(samples))
-        else:
-            return None
-        df = pd.DataFrame(
-            {"samples": [self.state2readable(s) for s in samples], "energies": energies}
-        )
-        return df
 
     def get_uniform_terminating_states(self, n_states: int) -> List[List]:
         n_per_dim = int(np.ceil(n_states ** (1 / self.n_dim)))
