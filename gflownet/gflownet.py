@@ -266,8 +266,7 @@ class GFlowNetAgent:
         random_action = self.rng.uniform()
         t0_a_model = time.time()
         if sampling_method == "policy":
-            with torch.no_grad():
-                action_logits = model(tf(states))
+            action_logits = model(tf(states))
             action_logits /= temperature
         elif sampling_method == "uniform":
             action_logits = tf(np.zeros(len(states)), len(self.env.action_space) + 1)
@@ -322,8 +321,7 @@ class GFlowNetAgent:
         )
         # Build policy outputs
         if sampling_method == "policy":
-            with torch.no_grad():
-                policy_outputs = model(states)
+            policy_outputs = model(states)
         elif sampling_method == "uniform":
             policy_outputs = None
         else:
@@ -369,10 +367,7 @@ class GFlowNetAgent:
         # Need to compute backward_masks, amsk those actions and then get the categorical distribution.
         parents, parents_a = env.get_parents(env.state, done)
         if sampling_method == "policy":
-            with torch.no_grad():
-                action_logits = model(tf(parents))[
-                    torch.arange(len(parents)), parents_a
-                ]
+            action_logits = model(tf(parents))[torch.arange(len(parents)), parents_a]
             action_logits /= temperature
             if all(torch.isfinite(action_logits).flatten()):
                 action_idx = Categorical(logits=action_logits).sample().item()
@@ -417,10 +412,7 @@ class GFlowNetAgent:
         # Need to compute backward_masks, amsk those actions and then get the categorical distribution.
         parents, parents_a = env.get_parents(env.state, done)
         if sampling_method == "policy":
-            with torch.no_grad():
-                action_logits = model(tf(parents))[
-                    torch.arange(len(parents)), parents_a
-                ]
+            action_logits = model(tf(parents))[torch.arange(len(parents)), parents_a]
             action_logits /= temperature
             if all(torch.isfinite(action_logits).flatten()):
                 action_idx = Categorical(logits=action_logits).sample().item()
@@ -511,22 +503,23 @@ class GFlowNetAgent:
         # Policy trajectories
         while envs:
             # Forward sampling
-            if train is False:
-                envs, actions, valids = self.forward_sample(
-                    envs,
-                    times,
-                    sampling_method="policy",
-                    model=self.forward_policy,
-                    temperature=1.0,
-                )
-            else:
-                envs, actions, valids = self.forward_sample(
-                    envs,
-                    times,
-                    sampling_method="policy",
-                    model=self.forward_policy,
-                    temperature=self.temperature_logits,
-                )
+            with torch.no_grad():
+                if train is False:
+                    envs, actions, valids = self.forward_sample(
+                        envs,
+                        times,
+                        sampling_method="policy",
+                        model=self.forward_policy,
+                        temperature=1.0,
+                    )
+                else:
+                    envs, actions, valids = self.forward_sample(
+                        envs,
+                        times,
+                        sampling_method="policy",
+                        model=self.forward_policy,
+                        temperature=self.temperature_logits,
+                    )
             t0_a_envs = time.time()
             # Add to batch
             for env, action, valid in zip(envs, actions, valids):
@@ -933,6 +926,8 @@ class GFlowNetAgent:
             self.buffer.add(
                 states_term, paths_term, rewards, proxy_vals, it, buffer="replay"
             )
+            if any([len(state) > 2 for state in states_term]):
+                import ipdb; ipdb.set_trace()
             # Log
             idx_best = np.argmax(rewards)
             state_best = "".join(self.env.state2readable(states_term[idx_best]))
