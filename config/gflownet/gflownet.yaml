@@ -6,7 +6,7 @@ overwrite_logdir: False
 # Random seeds
 seed: 0
 # Device
-device: cpu
+device: cuda
 # Logging
 logger:
   debug: False
