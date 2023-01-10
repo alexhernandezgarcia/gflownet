@@ -11,31 +11,22 @@ class wandb_logger:
     statistics of training of the generated data at real time
     """
 
-    def __init__(self, config):
+    def __init__(self, config, project_name, run_name=None):
         self.config = config
-        date_time = datetime.today().strftime("%d/%m-%H:%M:%S")
-        run_name = "al{}_{}_proxy{}_oracle{}_gfn{}_{}".format(
-            config.al.mode,
-            config.env.main.upper(),
-            config.proxy.model.upper(),
-            config.oracle.main.upper(),
-            config.gflownet.policy_model.upper(),
-            date_time,
-        )
-        self.run = wandb.init(
-            config=config, project="ActiveLearningPipeline", name=run_name
-        )
+        if run_name is None:
+            date_time = datetime.today().strftime("%d/%m-%H:%M:%S")
+            run_name = "{}".format(
+                date_time,
+            )
+        self.run = wandb.init(config=config, project=project_name, name=run_name)
+        self.add_tags(config.log.tags)
         self.context = "0"
 
     def add_tags(self, tags):
-        """
-        Docs: https://docs.wandb.ai/ref/app/features/tags
-        Need to verify input is list or a string
-        """
         self.run.tags = self.run.tags + tags
 
     def set_context(self, context):
-        self.context = context
+        self.context = str(context)
 
     def log_metric(self, key, value, use_context=True):
         if use_context:

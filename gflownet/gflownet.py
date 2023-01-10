@@ -46,14 +46,14 @@ class GFlowNetAgent:
         seed,
         device,
         optimizer,
-        logger,
+        logger_config,
         comet,
         buffer,
         policy,
         mask_invalid_actions,
         temperature_logits,
         pct_batch_empirical,
-        log_tool,
+        logger,
         proxy=None,
         al_iter=-1,
         data_path=None,
@@ -85,11 +85,11 @@ class GFlowNetAgent:
         if not sample_only:
             self.loss_eps = torch.tensor(float(1e-5)).to(self.device)
         # Logging (Comet)
-        self.debug = logger.debug
-        self.lightweight = logger.lightweight
-        self.progress = logger.progress
-        self.num_empirical_loss = logger.num_empirical_loss
-        self.log_tool = log_tool
+        self.debug = logger_config.debug
+        self.lightweight = logger_config.lightweight
+        self.progress = logger_config.progress
+        self.num_empirical_loss = logger_config.num_empirical_loss
+        self.logger = logger
         """
         if comet.project and not comet.skip and not sample_only:
             self.comet = Experiment(project_name=comet.project, display_summary_level=0)
@@ -108,20 +108,20 @@ class GFlowNetAgent:
             else:
                 self.comet = None
         """
-        if self.log_tool:
+        if self.logger:
             if comet.tags:
                 if isinstance(comet.tags, list):
-                    self.log_tool.add_tags(comet.tags)
+                    self.logger.add_tags(comet.tags)
                 else:
-                    self.log_tool.add_tag(comet.tags)
+                    self.logger.add_tag(comet.tags)
             self.use_context = comet.use_context
             self.log_times = comet.log_times
-        self.test_period = logger.test.period
+        self.test_period = logger_config.test.period
         if self.test_period in [None, -1]:
             self.test_period = np.inf
-        self.oracle_period = logger.oracle.period
-        self.oracle_n = logger.oracle.n
-        self.oracle_k = logger.oracle.k
+        self.oracle_period = logger_config.oracle.period
+        self.oracle_n = logger_config.oracle.n
+        self.oracle_k = logger_config.oracle.k
         # Buffers
         self.buffer = Buffer(**buffer, env=self.env, make_train_test=not sample_only)
         # Train set statistics and reward normalization constant
@@ -758,13 +758,13 @@ class GFlowNetAgent:
 
             else:
                 all_visited.extend(states_term)
-            if self.log_tool:
+            if self.logger:
                 """
                 self.comet.log_text(
                     state_best + " / proxy: {}".format(proxy_vals[idx_best]), step=it
                 )
                 """
-                self.log_tool.log_metrics(
+                self.logger.log_metrics(
                     dict(
                         zip(
                             [
@@ -820,8 +820,8 @@ class GFlowNetAgent:
                     t1_test_logq = time.time()
                     times["test_logq"] += t1_test_logq - t0_test_logq
                 corr = np.corrcoef(data_logq, self.buffer.test["energies"])
-                if self.log_tool:
-                    self.log_tool.log_metrics(
+                if self.logger:
+                    self.logger.log_metrics(
                         dict(
                             zip(
                                 [
@@ -853,8 +853,8 @@ class GFlowNetAgent:
                     dict_topk.update(
                         {"oracle_mean_top{}{}".format(k, self.al_iter): mean_topk}
                     )
-                    if self.log_tool:
-                        self.log_tool.log_metrics(dict_topk, self.use_context)
+                    if self.logger:
+                        self.logger.log_metrics(dict_topk, self.use_context)
             if not it % 100:
                 if not self.lightweight:
                     l1_error, kl_div = empirical_distribution_error(
@@ -872,8 +872,8 @@ class GFlowNetAgent:
                                     for j in range(len(all_losses[0]))
                                 ]
                             )
-                if self.log_tool:
-                    self.log_tool.log_metrics(
+                if self.logger:
+                    self.logger.log_metrics(
                         dict(
                             zip(
                                 [
@@ -890,7 +890,7 @@ class GFlowNetAgent:
                         step=it,
                     )
                     if not self.lightweight:
-                        self.log_tool.log_metric(
+                        self.logger.log_metric(
                             "unique_states{}".format(self.al_iter),
                             np.unique(all_visited).shape[0],
                             self.use_context,
@@ -933,8 +933,8 @@ class GFlowNetAgent:
             t1_iter = time.time()
             times.update({"iter": t1_iter - t0_iter})
             times = {"time_{}{}".format(k, self.al_iter): v for k, v in times.items()}
-            if self.log_tool and self.log_times:
-                self.log_tool.log_metrics(times, step=it, use_context=self.use_context)
+            if self.logger and self.log_times:
+                self.logger.log_metrics(times, step=it, use_context=self.use_context)
         # Save final model
         if self.policy_forward_path:
             path = self.policy_forward_path.parent / Path(
@@ -956,8 +956,8 @@ class GFlowNetAgent:
             )
 
         # Close comet
-        if self.log_tool and self.al_iter == -1:
-            self.log_tool.end()
+        if self.logger and self.al_iter == -1:
+            self.logger.end()
 
 
 class Policy:
