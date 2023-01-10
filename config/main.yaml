@@ -1,8 +1,12 @@
 defaults:
-  - env: aptamers #grid
+  - env: grid
   - gflownet: flowmatch
-  - proxy: aptamers #grid_corners
+  - proxy: grid_corners
   - logger: wandb
 
 n_samples: 1000
-log: False
+log: 
+  skip: False
+  tags: 
+    - dummy1
+    - dummy2
