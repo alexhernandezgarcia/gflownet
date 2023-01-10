@@ -1,0 +1,18 @@
+[tool.poetry]
+name = "gflownet"
+version = "0.1.0"
+description = "GFlowNets, generative flow networks for probabilistic modelling"
+authors = ["Alex <alex.hernandez-garcia@mila.quebec>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.8"
+numpy = "^1.24.0"
+pandas = "^1.5.2"
+pyyaml = "^6.0"
+torch = "^1.9.0"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

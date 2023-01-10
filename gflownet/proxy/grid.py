@@ -1,4 +1,4 @@
-from src.gflownet.proxy.base import Proxy
+from gflownet.proxy.base import Proxy
 import numpy as np
 
 

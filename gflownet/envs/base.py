@@ -1,6 +1,7 @@
 """
 Base class of GFlowNet environments
 """
+from typing import List
 import numpy as np
 import pandas as pd
 from pathlib import Path
@@ -41,15 +42,12 @@ class GFlowNetEnv:
             self.oracle = self.proxy
         else:
             self.oracle = oracle
-        if proxy_state_format == "ohe":
-            self.state2proxy = self.state2obs
-        elif proxy_state_format == "oracle":
-            self.state2proxy = self.state2oracle
         self.reward = (
             lambda x: [0]
             if not self.done
             else self.proxy2reward(self.proxy(self.state2proxy(x)))
         )
+        self.proxy_state_format = proxy_state_format
         self._true_density = None
         self.action_space = []
         self.eos = len(self.action_space)
@@ -70,7 +68,7 @@ class GFlowNetEnv:
         """
         return []
 
-    def get_max_path_len(
+    def get_max_traj_len(
         self,
     ):
         return 1
@@ -145,7 +143,7 @@ class GFlowNetEnv:
             state = self.state
         return state
 
-    def obs2state(self, obs):
+    def obs2state(self, obs: List) -> List:
         """
         Converts the model (e.g. one-hot encoding) version of a state given as
         argument into a state.
@@ -166,11 +164,11 @@ class GFlowNetEnv:
         """
         return readable
 
-    def path2readable(self, path=None):
+    def traj2readable(self, traj=None):
         """
-        Converts a path into a human-readable string.
+        Converts a trajectory into a human-readable string.
         """
-        return str(path).replace("(", "[").replace(")", "]").replace(",", "")
+        return str(traj).replace("(", "[").replace(")", "]").replace(",", "")
 
     def reset(self, env_id=None):
         """
@@ -213,48 +211,53 @@ class GFlowNetEnv:
             actions = []
         return parents, actions
 
-    def get_paths(self, path_list, actions):
+    def get_trajectories(
+        self, traj_list, traj_actions_list, current_traj, current_actions
+    ):
         """
-        Determines all paths leading to each state in path_list, recursively.
+        Determines all trajectories leading to each state in traj_list, recursively.
 
         Args
         ----
-        path_list : list
-            List of paths (lists)
+        traj_list : list
+            List of trajectories (lists)
 
-        actions : list
-            List of actions within each path
+        traj_actions_list : list
+            List of actions within each trajectory
+
+        current_traj : list
+            Current trajectory
+
+        current_actions : list
+            Actions of current trajectory
 
         Returns
         -------
-        path_list : list
-            List of paths (lists)
+        traj_list : list
+            List of trajectories (lists)
 
-        actions : list
-            List of actions within each path
+        traj_actions_list : list
+            List of actions within each trajectory
         """
-        current_path = path_list[-1].copy()
-        current_path_actions = actions[-1].copy()
-        parents, parents_actions = self.get_parents(list(current_path[-1]), False)
-        parents = [self.obs2state(el).tolist() for el in parents]
+        parents, parents_actions = self.get_parents(current_traj[-1], False)
+        parents = [self.obs2state(el) for el in parents]
         if parents == []:
-            return path_list, actions
+            traj_list.append(current_traj)
+            traj_actions_list.append(current_actions)
+            return traj_list, traj_actions_list
         for idx, (p, a) in enumerate(zip(parents, parents_actions)):
-            if idx > 0:
-                path_list.append(current_path)
-                actions.append(current_path_actions)
-            path_list[-1] += [p]
-            actions[-1] += [a]
-            path_list, actions = self.get_paths(path_list, actions)
-        return path_list, actions
+            traj_list, traj_actions_list = self.get_trajectories(
+                traj_list, traj_actions_list, current_traj + [p], current_actions + [a]
+            )
+        return traj_list, traj_actions_list
 
-    def step(self, action):
+    def step(self, action_idx):
         """
         Executes step given an action.
 
         Args
         ----
-        a : int (tensor)
+        action_idx : int
             Index of action in the action space. a == eos indicates "stop action"
 
         Returns
@@ -262,18 +265,21 @@ class GFlowNetEnv:
         self.state : list
             The sequence after executing the action
 
+        action_idx : int
+            Action index
+
         valid : bool
             False, if the action is not allowed for the current state, e.g. stop at the
             root state
         """
-        if action < self.eos:
+        if action_idx < self.eos:
             self.done = False
             valid = True
         else:
             self.done = True
             valid = True
             self.n_actions += 1
-        return self.state, action, valid
+        return self.state, action_idx, valid
 
     def no_eos_mask(self, state=None):
         """
@@ -285,8 +291,8 @@ class GFlowNetEnv:
 
     def get_mask_invalid_actions(self, state=None, done=None):
         """
-        Returns a vector of length the action space + 1: True if action is invalid
-        given the current state, False otherwise.
+        Returns a vector of length the action space + 1: True if forward action is
+        invalid given the current state, False otherwise.
         """
         if state is None:
             state = self.state
@@ -327,6 +333,7 @@ class GFlowNetEnv:
 
     def make_test_set(
         self,
+        path_base_dataset,
         ntest,
         oracle=None,
         seed=167,
@@ -369,10 +376,10 @@ class Buffer:
         self.env = env
         self.replay_capacity = replay_capacity
         self.action_space = self.env.get_actions_space()
-        self.main = pd.DataFrame(columns=["state", "path", "reward", "energy", "iter"])
+        self.main = pd.DataFrame(columns=["state", "traj", "reward", "energy", "iter"])
         self.replay = pd.DataFrame(
             np.empty((self.replay_capacity, 5), dtype=object),
-            columns=["state", "path", "reward", "energy", "iter"],
+            columns=["state", "traj", "reward", "energy", "iter"],
         )
         self.replay.reward = pd.to_numeric(self.replay.reward)
         self.replay.energy = pd.to_numeric(self.replay.energy)
@@ -402,7 +409,7 @@ class Buffer:
     def add(
         self,
         states,
-        paths,
+        trajs,
         rewards,
         energies,
         it,
@@ -416,7 +423,7 @@ class Buffer:
                     pd.DataFrame(
                         {
                             "state": [self.env.state2readable(s) for s in states],
-                            "path": [self.env.path2readable(p) for p in paths],
+                            "traj": [self.env.traj2readable(p) for p in trajs],
                             "reward": rewards,
                             "energy": energies,
                             "iter": it,
@@ -428,12 +435,12 @@ class Buffer:
             )
         elif buffer == "replay" and self.replay_capacity > 0:
             if criterion == "greater":
-                self.replay = self._add_greater(states, paths, rewards, energies, it)
+                self.replay = self._add_greater(states, trajs, rewards, energies, it)
 
     def _add_greater(
         self,
         states,
-        paths,
+        trajs,
         rewards,
         energies,
         it,
@@ -444,7 +451,7 @@ class Buffer:
             idx_new_max = np.argmax(rewards_new)
             self.replay.iloc[self.replay.reward.argmin()] = {
                 "state": self.env.state2readable(states[idx_new_max]),
-                "path": self.env.path2readable(paths[idx_new_max]),
+                "traj": self.env.traj2readable(trajs[idx_new_max]),
                 "reward": rewards[idx_new_max],
                 "energy": energies[idx_new_max],
                 "iter": it,
@@ -482,10 +489,10 @@ class Buffer:
         else:
             # Train set
             # (2) Separate train file path is provided
-            if train.path:
+            if train.path and Path(train.path).exists():
                 self.train = pd.read_csv(train.path, index_col=0)
             # (3) Make environment specific train set
-            elif train.n and train.seed and train.output:
+            elif train.n and train.seed:
                 self.train = self.env.make_train_set(
                     ntrain=train.n,
                     oracle=self.env.oracle,
@@ -494,10 +501,13 @@ class Buffer:
                 )
             # Test set
             # (2) Separate test file path is provided
-            if test.path:
+            if "all" in test and test.all:
+                self.test = self.env.make_test_set(test)
+            elif test.path and Path(train.path).exists():
                 self.test = pd.read_csv(test.path, index_col=0)
             # (3) Make environment specific test set
-            elif test.base and test.n and test.seed and test.output:
+            elif test.n and test.seed:
+                # TODO: make this general for all environments
                 self.test, _ = self.env.make_test_set(
                     path_base_dataset=test.base,
                     ntest=test.n,

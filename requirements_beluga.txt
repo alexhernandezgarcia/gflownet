@@ -1,9 +1,0 @@
-matplotlib==3.3.2
-argparse==1.4.
-scipy
-seqfold
-ipdb
-jupyter
-torch==1.9.0
-tqdm==4.50.0
-scikit_learn==0.24.2

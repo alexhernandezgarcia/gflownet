@@ -1,10 +1,11 @@
 """
 Classes to represent aptamers environments
 """
+from typing import List
 import itertools
 import numpy as np
 import pandas as pd
-from src.gflownet.envs.base import GFlowNetEnv
+from gflownet.envs.base import GFlowNetEnv
 import time
 from functools import partial
 from tqdm import tqdm
@@ -54,9 +55,9 @@ class AptamerSeq(GFlowNetEnv):
         min_word_len=1,
         max_word_len=1,
         proxy=None,
+        oracle=None,
         reward_beta=1,
         env_id=None,
-        oracle=None,
         energies_stats=None,
         reward_norm=1.0,
         reward_norm_std_mult=0.0,
@@ -83,7 +84,6 @@ class AptamerSeq(GFlowNetEnv):
         self.obs_dim = self.nalphabet * self.max_seq_length
         self.min_word_len = min_word_len
         self.max_word_len = max_word_len
-        self._true_density = None
         self.action_space = self.get_actions_space()
         self.eos = len(self.action_space)
         self.max_path_len = self.get_max_path_len()
@@ -105,7 +105,7 @@ class AptamerSeq(GFlowNetEnv):
             actions += actions_r
         return actions
 
-    def get_max_path_len(
+    def get_max_traj_len(
         self,
     ):
         return self.max_seq_length / self.min_word_len + 1
@@ -158,7 +158,7 @@ class AptamerSeq(GFlowNetEnv):
             z[(np.arange(len(state)) * self.nalphabet + state)] = 1
         return z
 
-    def obs2state(self, obs):
+    def obs2state(self, obs: List) -> List:
         """
         Transforms the one-hot encoding version of a sequence (state) given as argument
         into a a sequence of letter indices.
@@ -171,7 +171,7 @@ class AptamerSeq(GFlowNetEnv):
                     A, A, T, G, C
         """
         obs_mat = np.reshape(obs, (self.max_seq_length, self.nalphabet))
-        state = np.where(obs_mat)[1]
+        state = np.where(obs_mat)[1].tolist()
         return state
 
     def state2readable(self, state, alphabet={0: "A", 1: "T", 2: "C", 3: "G"}):
@@ -247,11 +247,11 @@ class AptamerSeq(GFlowNetEnv):
         parents = [self.obs2state(el) for el in obs]
         return parents, actions
 
-    def step(self, action):
+    def step(self, action_idx):
         """
-        Executes step given an action
+        Executes step given an action index
 
-        If action is smaller than eos (no stop), add action to next
+        If action_idx is smaller than eos (no stop), add action to next
         position.
 
         See: step_daug()
@@ -259,7 +259,7 @@ class AptamerSeq(GFlowNetEnv):
 
         Args
         ----
-        a : int (tensor)
+        action_idx : int
             Index of action in the action space. a == eos indicates "stop action"
 
         Returns
@@ -271,19 +271,23 @@ class AptamerSeq(GFlowNetEnv):
             False, if the action is not allowed for the current state, e.g. stop at the
             root state
         """
+        # If only possible action is eos, then force eos
         if len(self.state) == self.max_seq_length:
             self.done = True
             self.n_actions += 1
             return self.state, [self.eos], True
-        if action != self.eos:
-            state_next = self.state + list(self.action_space[action])
+        # If action is not eos, then perform action
+        if action_idx != self.eos:
+            action = self.action_space[action_idx]
+            state_next = self.state + list(action)
             if len(state_next) > self.max_seq_length:
                 valid = False
             else:
                 self.state = state_next
                 valid = True
                 self.n_actions += 1
-            return self.state, [action], valid
+            return self.state, action_idx, valid
+        # If action is eos, then perform eos
         else:
             if len(self.state) < self.min_seq_length:
                 valid = False
@@ -291,7 +295,7 @@ class AptamerSeq(GFlowNetEnv):
                 self.done = True
                 valid = True
                 self.n_actions += 1
-            return self.state, [self.eos], valid
+            return self.state, self.eos, valid
 
     def get_mask_invalid_actions(self, state=None, done=None):
         """
@@ -335,25 +339,25 @@ class AptamerSeq(GFlowNetEnv):
         """
         if self._true_density is not None:
             return self._true_density
-        if self.nalphabet ** self.max_seq_length > max_states:
+        if self.nalphabet**self.max_seq_length > max_states:
             return (None, None, None)
         state_all = np.int32(
             list(
                 itertools.product(*[list(range(self.nalphabet))] * self.max_seq_length)
             )
         )
-        path_rewards, state_end = zip(
+        traj_rewards, state_end = zip(
             *[
                 (self.proxy(state), state)
                 for state in state_all
                 if len(self.get_parents(state, False)[0]) > 0 or sum(state) == 0
             ]
         )
-        path_rewards = np.array(path_rewards)
+        traj_rewards = np.array(traj_rewards)
         self._true_density = (
-            path_rewards / path_rewards.sum(),
+            traj_rewards / traj_rewards.sum(),
             list(map(tuple, state_end)),
-            path_rewards,
+            traj_rewards,
         )
         return self._true_density
 
