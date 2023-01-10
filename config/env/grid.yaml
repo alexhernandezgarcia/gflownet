@@ -19,13 +19,8 @@ cell_max: 1
 buffer:
   data_path: null
   train:
-    path: null
-    seed: 167
-    n: null
-    output: null
+    all: True
+    output_csv: grid_train.csv
   test:
     all: True
-    path: null
-    seed: 167
-    n: null
-    output: null
+    output_csv: grid_test.csv
