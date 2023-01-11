@@ -52,6 +52,7 @@ class GFlowNetAgent:
         temperature_logits,
         pct_batch_empirical,
         logger,
+        log_dir,
         debug,
         lightweight,
         num_empirical_loss,
@@ -90,25 +91,8 @@ class GFlowNetAgent:
         self.progress = progress
         self.num_empirical_loss = num_empirical_loss
         self.logger = logger
+        self.logdir = Path(log_dir)
         self.oracle_n = oracle.n
-        """
-        if comet.project and not comet.skip and not sample_only:
-            self.comet = Experiment(project_name=comet.project, display_summary_level=0)
-            if comet.tags:
-                if isinstance(comet.tags, list):
-                    self.comet.add_tags(comet.tags)
-                else:
-                    self.comet.add_tag(comet.tags)
-            #             self.comet.log_parameters(vars(args))
-            if self.logdir.exists():
-                with open(self.logdir / "comet.url", "w") as f:
-                    f.write(self.comet.url + "\n")
-        else:
-            if isinstance(comet, Experiment):
-                self.comet = comet
-            else:
-                self.comet = None
-        """
         # Buffers
         self.buffer = Buffer(**buffer, env=self.env, make_train_test=not sample_only)
         # Train set statistics and reward normalization constant
@@ -146,6 +130,8 @@ class GFlowNetAgent:
         )
         if policy.forward.checkpoint:
             if self.logdir.exists():
+                # use path lib to check if directory "cktpts" exists in self.logdir
+                self
                 if (self.logdir / "ckpts").exists():
                     self.policy_forward_path = (
                         self.logdir / "ckpts" / policy.forward.checkpoint
@@ -153,7 +139,7 @@ class GFlowNetAgent:
                 else:
                     self.policy_forward_path = self.logdir / policy.forward.checkpoint
             else:
-                self.policy_forward_path = policy.forward.checkpoint
+                self.policy_forward_path = Path(policy.forward.checkpoint)
             if self.policy_forward_path.exists() and policy.forward.reload_ckpt:
                 self.forward_policy.load_state_dict(
                     torch.load(self.policy_forward_path)
@@ -179,7 +165,7 @@ class GFlowNetAgent:
                 else:
                     self.policy_backward_path = self.logdir / policy.backward.checkpoint
             else:
-                self.policy_backward_path = policy.backward.checkpoint
+                self.policy_backward_path = Path(policy.backward.checkpoint)
             if self.policy_backward_path.exists() and policy.backward.reload_ckpt:
                 self.backward_policy.load_state_dict(
                     torch.load(self.policy_backward_path)
@@ -829,24 +815,35 @@ class GFlowNetAgent:
         all_visited,
     ):
         if self.logger:
+            # train metrics
             self.logger.log_sampler_train(
                 rewards, proxy_vals, states_term, data, it, self.use_context
             )
-            """
-            self.comet.log_text(
-                state_best + " / proxy: {}".format(proxy_vals[idx_best]), step=it
-            )
-            """
-            # test metrics
-            if self.buffer.test is not None:
-                corr, data_logq, times = self.get_log_corr(times)
-                self.logger.log_sampler_test(corr, data_logq, it, self.use_context)
+            # loss
             if not self.lightweight:
                 l1_error, kl_div = empirical_distribution_error(
                     self.env, all_visited[-self.num_empirical_loss :]
                 )
             else:
                 l1_error, kl_div = 1, 100
+            self.logger.log_sampler_loss(
+                losses,
+                l1_error,
+                kl_div,
+                it,
+                self.use_context,
+            )
+
+            """
+            self.comet.log_text(
+                state_best + " / proxy: {}".format(proxy_vals[idx_best]), step=it
+            )
+            """
+
+            # test metrics
+            if self.buffer.test is not None:
+                corr, data_logq, times = self.get_log_corr(times)
+                self.logger.log_sampler_test(corr, data_logq, it, self.use_context)
 
             # oracle metrics
             oracle_batch, oracle_times = self.sample_batch(
@@ -868,28 +865,12 @@ class GFlowNetAgent:
                             for j in range(len(all_losses[0]))
                         ]
                     )
-            self.logger.log_metrics(
-                dict(
-                    zip(
-                        [
-                            "loss",
-                            "term_loss",
-                            "flow_loss",
-                            "l1",
-                            "kl",
-                        ],
-                        [loss.item() for loss in losses] + [l1_error, kl_div],
-                    )
-                ),
-                use_context=self.use_context,
-                step=it,
-            )
             if not self.lightweight:
                 self.logger.log_metric(
                     "unique_states",
                     np.unique(all_visited).shape[0],
-                    self.use_context,
                     step=it,
+                    use_context=self.use_context,
                 )
 
     def save_models(self, iter: bool):
