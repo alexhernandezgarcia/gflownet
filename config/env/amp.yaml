@@ -3,8 +3,7 @@ defaults:
 
 _target_: gflownet.envs.amp.AMP
 
-id: aptamers
-func: nupack energy
+id: amp
 # Minimum and maximum length for the sequences
 min_seq_length: 30
 max_seq_length: 30
