@@ -7,6 +7,8 @@ import numpy as np
 import pandas as pd
 from gflownet.envs.base import GFlowNetEnv
 import time
+from sklearn.model_selection import GroupKFold, train_test_split
+from clamp_common_eval.defaults import get_default_data_splits
 
 
 class AMP(GFlowNetEnv):
@@ -84,12 +86,19 @@ class AMP(GFlowNetEnv):
         self.eos = len(self.action_space)
         self.max_traj_len = self.get_max_traj_len()
         self.vocab = ['A', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'K', 'L', 'M', 'N', 'P', 'Q', 'R', 'S', 'T', 'V', 'W', 'Y']
+        if self.proxy_state_format == "ohe":
+            self.state2proxy = self.state2obs
+        elif self.proxy_state_format == "oracle":
+            self.state2proxy = self.state2oracle
 
-    def get_alphabet(self, vocab, index_int = True):
+    def get_alphabet(self, vocab=None, index_int = True):
+        if vocab is None:
+            vocab = self.vocab
         if index_int:
-            self.alphabet  = dict((i, a) for i, a in enumerate(vocab))
+            alphabet  = dict((i, a) for i, a in enumerate(vocab))
         else:
-            self.alphabet = dict((a, i) for i, a in enumerate(vocab))
+            alphabet = dict((a, i) for i, a in enumerate(vocab))
+        return alphabet
 
     def get_actions_space(self):
         """
@@ -125,16 +134,17 @@ class AMP(GFlowNetEnv):
         state_list : list of lists
             List of sequences.
         """
-        queries = [s + [-1] * (self.max_seq_length - len(s)) for s in state_list]
-        queries = np.array(queries, dtype=int)
-        if queries.ndim == 1:
-            queries = queries[np.newaxis, ...]
-        queries += 1
-        if queries.shape[1] == 1:
-            import ipdb
+        queries = [''.join(self.state2readable(state)) for state in state_list]
+        # queries = [s + [-1] * (self.max_seq_length - len(s)) for s in state_list]
+        # queries = np.array(queries, dtype=int)
+        # if queries.ndim == 1:
+        #     queries = queries[np.newaxis, ...]
+        # queries += 1
+        # if queries.shape[1] == 1:
+        #     import ipdb
 
-            ipdb.set_trace()
-            queries = np.column_stack((queries, np.zeros(queries.shape[0])))
+        #     ipdb.set_trace()
+        #     queries = np.column_stack((queries, np.zeros(queries.shape[0])))
         return queries
 
     def state2obs(self, state=None):
@@ -196,7 +206,7 @@ class AMP(GFlowNetEnv):
     def readable2state(self, letters, alphabet=None):
         # TODO
         """
-        Transforms a sequence given as a list of indices into a sequence of letters
+        Transforms a sequence given as a list of letters into a sequence of indices
         according to an alphabet.
         """
         if alphabet == None:
@@ -290,7 +300,7 @@ class AMP(GFlowNetEnv):
         if len(self.state) == self.max_seq_length:
             self.done = True
             self.n_actions += 1
-            return self.state, [self.eos], True
+            return self.state, self.eos, True
         # If action is not eos, then perform action
         if action_idx != self.eos:
             action = self.action_space[action_idx]
@@ -378,18 +388,21 @@ class AMP(GFlowNetEnv):
 
     def make_train_set(
         self,
-        ntrain,
+        ntrain=1000,
+        seed = 20,
         oracle=None,
-        seed=168,
         output_csv=None,
+        split = "D1",
+        nfold = 5,
+        load_precomputed_scores = False,
     ):
         """
-        Constructs a randomly sampled train set.
+        Constructs a randomly sampled train set by calling the oracle
 
         Args
         ----
-        ntest : int
-            Number of test samples.
+        ntrain : int
+            Number of train samples.
 
         seed : int
             Random seed.
@@ -397,25 +410,44 @@ class AMP(GFlowNetEnv):
         output_csv: str
             Optional path to store the test set as CSV.
         """
-        samples_dict = oracle.initializeDataset(
-            save=False, returnData=True, customSize=ntrain, custom_seed=seed
-        )
-        energies = samples_dict["energies"]
-        samples_mat = samples_dict["samples"]
-        state_letters = oracle.numbers2letters(samples_mat)
-        state_ints = [
-            "".join([str(el) for el in state if el > 0]) for state in samples_mat
-        ]
-        if isinstance(energies, dict):
-            energies.update({"samples": state_letters, "indices": state_ints})
-            df_train = pd.DataFrame(energies)
+        source = get_default_data_splits(setting='Target')
+        rng = np.random.RandomState(142857)
+        self.data = source.sample(split, -1) #dictionary with two keys 'AMP' and 'nonAMP' and values as lists
+        self.nfold = nfold #5
+        if split == "D1": groups = np.array(source.d1_pos.group)
+        if split == "D2": groups = np.array(source.d2_pos.group)
+        if split == "D": groups = np.concatenate((np.array(source.d1_pos.group), np.array(source.d2_pos.group)))
+
+        n_pos, n_neg = len(self.data['AMP']), len(self.data['nonAMP'])
+        pos_train, pos_valid = next(GroupKFold(nfold).split(np.arange(n_pos), groups=groups)) #makes k folds in such a way that each group will appear exactly once in the test set across all folds
+        neg_train, neg_valid = next(GroupKFold(nfold).split(np.arange(n_neg),
+                                                            groups=rng.randint(0, nfold, n_neg))) #we get indices above
+        
+        pos_train = [self.data['AMP'][i] for i in pos_train] #here we make the dataset using the indices
+        neg_train = [self.data['nonAMP'][i] for i in neg_train]
+        pos_valid = [self.data['AMP'][i] for i in pos_valid]
+        neg_valid = [self.data['nonAMP'][i] for i in neg_valid] #all these are lists of strings, just the sequences, no energies
+        self.train = pos_train + neg_train
+        self.valid = pos_valid + neg_valid
+
+        if oracle is None:
+            oracle = self.oracle
+
+        if load_precomputed_scores:
+            loaded = self._load_precomputed_scores(split)
         else:
+            self.train_scores = oracle(self.train) #train is a list of strings
+            self.valid_scores = oracle(self.valid)
             df_train = pd.DataFrame(
-                {"samples": state_letters, "indices": state_ints, "energies": energies}
+                {"samples": self.readable2state(self.train), "sequences": self.train, "energies": self.train_scores}
             )
+            df_valid = pd.DataFrame(
+                {"samples": self.readable2state(self.valid), "sequences": self.valid, "energies": self.valid_scores}
+            )
+
         if output_csv:
             df_train.to_csv(output_csv)
-        return df_train
+        return df_train, df_valid
 
     # TODO: improve approximation of uniform
     def make_test_set(
