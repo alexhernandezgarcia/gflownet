@@ -211,7 +211,9 @@ class GFlowNetEnv:
             actions = []
         return parents, actions
 
-    def get_trajectories(self, traj_list, traj_actions_list, current_traj, current_actions):
+    def get_trajectories(
+        self, traj_list, traj_actions_list, current_traj, current_actions
+    ):
         """
         Determines all trajectories leading to each state in traj_list, recursively.
 
@@ -448,8 +450,12 @@ class Buffer:
         while np.max(rewards_new) > np.min(rewards_old):
             idx_new_max = np.argmax(rewards_new)
             idx_old_min = self.replay.reward.argmin()
-            self.replay.state.iloc[idx_old_min] = self.env.state2readable(states[idx_new_max])
-            self.replay.traj.iloc[idx_old_min] = self.env.traj2readable(trajs[idx_new_max])
+            self.replay.state.iloc[idx_old_min] = self.env.state2readable(
+                states[idx_new_max]
+            )
+            self.replay.traj.iloc[idx_old_min] = self.env.traj2readable(
+                trajs[idx_new_max]
+            )
             self.replay.reward.iloc[idx_old_min] = rewards[idx_new_max]
             self.replay.energy.iloc[idx_old_min] = energies[idx_new_max]
             self.replay.iter.iloc[idx_old_min] = it
