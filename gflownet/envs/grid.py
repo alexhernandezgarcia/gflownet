@@ -155,11 +155,13 @@ class Grid(GFlowNetEnv):
           - state2obs(state): [1, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0] (length = 4)
                               |     0    |      3    |      1    |
         """
-        if state is None:
-            state = self.state.copy()
-        obs = np.zeros(self.obs_dim, dtype=np.float32)
-        obs[(np.arange(len(state)) * self.length + state)] = 1
-        return obs
+        def one_hot(state);
+            if state is None:
+                state = self.state.copy()
+            obs = np.zeros(self.obs_dim, dtype=np.float32)
+            obs[(np.arange(len(state)) * self.length + state)] = 1
+            return obs
+        return [one-hot(s) for s in state]
 
     def obs2state(self, obs: List) -> List:
         """
