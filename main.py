@@ -23,7 +23,11 @@ def main(config):
     # The proxy is passed to env and used for computing rewards
     env = hydra.utils.instantiate(config.env, proxy=proxy, logger=logger)
     gflownet = hydra.utils.instantiate(
-        config.gflownet, env=env, buffer=config.env.buffer, logger=logger
+        config.gflownet,
+        env=env,
+        buffer=config.env.buffer,
+        logger=logger,
+        log_dir=config.logger.logdir,
     )
     gflownet.train()
 
