@@ -81,8 +81,8 @@ class GFlowNetAgent:
             print("Unkown loss. Using flowmatch as default")
             self.loss = "flowmatch"
             self.Z = None
-        if not sample_only:
-            self.loss_eps = torch.tensor(float(1e-5)).to(self.device)
+        # if not sample_only:
+        self.loss_eps = torch.tensor(float(1e-5)).to(self.device)
         # Logging (Comet)
         self.debug = logger.debug
         self.lightweight = logger.lightweight
@@ -685,7 +685,7 @@ class GFlowNetAgent:
             #             state_ids[traj_id].append(state_id)
             trajs[traj_id].append(el[1][0].item())
             if bool(el[5].item()):
-                states[traj_id] = tuple(self.env.obs2state(el[0][0]))
+                states[traj_id] = tuple(self.env.obs2state(el[0][0].cpu().numpy()))
                 rewards[traj_id] = el[2][0].item()
         trajs = [tuple(el) for el in trajs]
         return states, trajs, rewards

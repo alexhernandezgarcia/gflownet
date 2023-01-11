@@ -3,7 +3,7 @@ import numpy as np
 
 
 class GridCorners(Proxy):
-    def __init__(self):
+    def __init__(self, **kwargs):
         super().__init__()
 
     def __call__(self, inputs):
