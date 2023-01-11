@@ -21,7 +21,7 @@ def main(config):
     # The proxy is required in the env for scoring: might be an oracle or a model
     proxy = hydra.utils.instantiate(config.proxy)
     # The proxy is passed to env and used for computing rewards
-    env = hydra.utils.instantiate(config.env, proxy=proxy, logger=logger)
+    env = hydra.utils.instantiate(config.env, proxy=proxy)
     gflownet = hydra.utils.instantiate(
         config.gflownet,
         env=env,

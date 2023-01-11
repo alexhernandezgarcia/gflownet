@@ -666,7 +666,7 @@ class GFlowNetAgent:
             #             state_ids[traj_id].append(state_id)
             trajs[traj_id].append(el[1][0].item())
             if bool(el[5].item()):
-                states[traj_id] = tuple(self.env.obs2state(el[0][0]))
+                states[traj_id] = tuple(self.env.obs2state(el[0][0].cpu().numpy()))
                 rewards[traj_id] = el[2][0].item()
         trajs = [tuple(el) for el in trajs]
         return states, trajs, rewards
@@ -781,7 +781,7 @@ class GFlowNetAgent:
         )
         # TODO: this could be done just once and store it
         for statestr, score in tqdm(
-            zip(self.buffer.test.samples, self.buffer.test["energies"])
+            zip(self.buffer.test.samples, self.buffer.test["energies"]), disable=True
         ):
             t0_test_traj = time.time()
             traj_list, actions = self.env.get_trajectories(
