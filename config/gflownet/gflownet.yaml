@@ -5,8 +5,6 @@ logdir: /network/scratch/a/alex.hernandez-garcia/logs/gflownet
 overwrite_logdir: False
 # Random seeds
 seed: 0
-# Device
-device: cpu
 # Logging
 logger:
   debug: False
@@ -80,3 +78,4 @@ policy:
     reload_ckpt: False
   backward: null
   ckpt_period: null
+sample_only: True
