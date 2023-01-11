@@ -2,7 +2,7 @@ _target_: gflownet.gflownet.GFlowNetAgent
 # Random seeds
 seed: 0
 # Device
-device: cpu
+device: cuda
 # Optimizer
 optimizer:
   # Loss function
@@ -55,6 +55,6 @@ oracle:
     n: 500
 # remove eventually
 sample_only: False
-debug: True 
+debug: False 
 lightweight: False 
-progress: False 
+progress: True 

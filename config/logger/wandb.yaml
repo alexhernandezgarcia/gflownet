@@ -7,11 +7,11 @@ logdir: ./logs/
 overwrite_logdir: True
 record_time: False
 sampler:
-  # Period (number of iterations) of saving models
   policy:
+    # Period (number of iterations) of saving models
     period: 10
   train:
-  # Period (number of iterations) of computing test metrics
+    # Period (number of iterations) of computing test metrics
     period: 1
   test:
     # Period (number of iterations) of computing test metrics
