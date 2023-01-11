@@ -1,32 +1,8 @@
 _target_: gflownet.gflownet.GFlowNetAgent
-
-# General
-logdir: /network/scratch/a/alex.hernandez-garcia/logs/gflownet
-overwrite_logdir: False
 # Random seeds
 seed: 0
 # Device
 device: cpu
-# Logging
-logger_config:
-  debug: False
-  progress: True
-  lightweight: False
-  # Number of samples used to compute the empirical distribution loss
-  num_empirical_loss: 200000
-  test:
-    # Period (number of iterations) for computing test metrics
-    period: 500
-  oracle:
-    # Period (number of iterations) for computing oracle metrics
-    period: 100
-    # Number of samples for oracle metrics
-    n: 500
-    # List of K, for Top-K oracle metrics
-    k:
-      - 1
-      - 10
-      - 100
 # Comet
 comet:
   project: gflownet
@@ -81,3 +57,11 @@ policy:
     reload_ckpt: False
   backward: null
   ckpt_period: null
+debug: True 
+lightweight: False 
+num_empirical_loss: 200000
+progress: False 
+sample_only: False
+oracle:
+    # Number of samples for oracle metrics
+    n: 500
