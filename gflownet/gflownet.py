@@ -45,7 +45,6 @@ class GFlowNetAgent:
         seed,
         device,
         optimizer,
-        comet,
         buffer,
         policy,
         mask_invalid_actions,
@@ -130,8 +129,6 @@ class GFlowNetAgent:
         )
         if policy.forward.checkpoint:
             if self.logdir.exists():
-                # use path lib to check if directory "cktpts" exists in self.logdir
-                self
                 if (self.logdir / "ckpts").exists():
                     self.policy_forward_path = (
                         self.logdir / "ckpts" / policy.forward.checkpoint
@@ -771,7 +768,7 @@ class GFlowNetAgent:
         self.save_models(iter=False)
 
         # Close comet
-        if self.logger and self.al_iter == -1:
+        if self.logger and self.use_context == False:
             self.logger.end()
 
     def get_log_corr(self, times):

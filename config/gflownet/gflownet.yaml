@@ -3,14 +3,6 @@ _target_: gflownet.gflownet.GFlowNetAgent
 seed: 0
 # Device
 device: cpu
-# Comet
-comet:
-  project: gflownet
-  skip: True
-  log_times: False
-  use_context: False
-  tags:
-    - gflownet
 # Optimizer
 optimizer:
   # Loss function
@@ -57,11 +49,12 @@ policy:
     reload_ckpt: False
   backward: null
   ckpt_period: null
-debug: True 
-lightweight: False 
 num_empirical_loss: 200000
-progress: False 
-sample_only: False
 oracle:
     # Number of samples for oracle metrics
     n: 500
+# remove eventually
+sample_only: False
+debug: True 
+lightweight: False 
+progress: False 
