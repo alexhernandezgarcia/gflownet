@@ -759,102 +759,25 @@ class GFlowNetAgent:
             else:
                 all_visited.extend(states_term)
             if self.logger:
+                self.logger.log_train(rewards, proxy_vals, states_term, data, it)
                 """
                 self.comet.log_text(
                     state_best + " / proxy: {}".format(proxy_vals[idx_best]), step=it
                 )
                 """
-                self.logger.log_metrics(
-                    dict(
-                        zip(
-                            [
-                                "mean_reward{}".format(self.al_iter),
-                                "max_reward{}".format(self.al_iter),
-                                "mean_proxy{}".format(self.al_iter),
-                                "min_proxy{}".format(self.al_iter),
-                                "max_proxy{}".format(self.al_iter),
-                                "mean_seq_length{}".format(self.al_iter),
-                                "batch_size{}".format(self.al_iter),
-                            ],
-                            [
-                                np.mean(rewards),
-                                np.max(rewards),
-                                np.mean(proxy_vals),
-                                np.min(proxy_vals),
-                                np.max(proxy_vals),
-                                np.mean([len(state) for state in states_term]),
-                                len(data),
-                            ],
-                        )
-                    ),
-                    self.use_context,
-                    step=it,
-                )
-            # Test set metrics
-            if not it % self.test_period and self.buffer.test is not None:
-                data_logq = []
-                times.update(
-                    {
-                        "test_trajs": 0.0,
-                        "test_logq": 0.0,
-                    }
-                )
-                # TODO: this could be done just once and store it
-                for statestr, score in tqdm(
-                    zip(self.buffer.test.samples, self.buffer.test["energies"]),
-                    disable=self.test_period < 10,
-                ):
-                    t0_test_traj = time.time()
-                    traj_list, actions = self.env.get_trajectories(
-                        [],
-                        [],
-                        [self.env.readable2state(statestr)],
-                        [self.env.eos],
+                if not it % self.test_period and self.buffer.test is not None:
+                    # test metrics
+                    corr, data_logq, times = self.get_log_corr(times)
+                    self.log_sampler_test(corr, data_logq)
+                    # oracle metrics
+                    oracle_batch, oracle_times = self.sample_batch(
+                        self.env, self.oracle_n, train=False
                     )
-                    t1_test_traj = time.time()
-                    times["test_trajs"] += t1_test_traj - t0_test_traj
-                    t0_test_logq = time.time()
-                    data_logq.append(
-                        logq(traj_list, actions, self.forward_policy, self.env)
+                    oracle_dict, oracle_times = batch2dict(
+                        oracle_batch, self.env, get_uncertainties=False
                     )
-                    t1_test_logq = time.time()
-                    times["test_logq"] += t1_test_logq - t0_test_logq
-                corr = np.corrcoef(data_logq, self.buffer.test["energies"])
-                if self.logger:
-                    self.logger.log_metrics(
-                        dict(
-                            zip(
-                                [
-                                    "test_corr_logq_score{}".format(self.al_iter),
-                                    "test_mean_logq{}".format(self.al_iter),
-                                ],
-                                [
-                                    corr[0, 1],
-                                    np.mean(data_logq),
-                                ],
-                            )
-                        ),
-                        self.use_context,
-                        step=it,
-                    )
-            # Oracle metrics (for monitoring)
-            if not it % self.oracle_period and self.debug:
-                oracle_batch, oracle_times = self.sample_batch(
-                    self.env, self.oracle_n, train=False
-                )
-                oracle_dict, oracle_times = batch2dict(
-                    oracle_batch, self.env, get_uncertainties=False
-                )
-                energies = oracle_dict["energies"]
-                energies_sorted = np.sort(energies)
-                dict_topk = {}
-                for k in self.oracle_k:
-                    mean_topk = np.mean(energies_sorted[:k])
-                    dict_topk.update(
-                        {"oracle_mean_top{}{}".format(k, self.al_iter): mean_topk}
-                    )
-                    if self.logger:
-                        self.logger.log_metrics(dict_topk, self.use_context)
+                    self.log_sampler_oracle(oracle_dict["energies"])
+
             if not it % 100:
                 if not self.lightweight:
                     l1_error, kl_div = empirical_distribution_error(
@@ -897,21 +820,20 @@ class GFlowNetAgent:
                             step=it,
                         )
             # Save intermediate models
-            if not it % self.ckpt_period:
+            if self.logger:
                 if self.policy_forward_path:
-                    path = self.policy_forward_path.parent / Path(
-                        self.model_path.stem
-                        + "{}_iter{:06d}".format(self.al_iter, it)
-                        + self.policy_forward_path.suffix
+                    self.logger.save_model(
+                        self.model_path,
+                        self.policy_forward_path,
+                        self.forward_policy.model,
                     )
-                    torch.save(self.forward_policy.model.state_dict(), path)
+
                 if self.policy_backward_path:
-                    path = self.policy_backward_path.parent / Path(
-                        self.model_path.stem
-                        + "{}_iter{:06d}".format(self.al_iter, it)
-                        + self.policy_backward_path.suffix
+                    self.logger.save_model(
+                        self.model_path,
+                        self.policy.backward_path,
+                        self.backward_policy.modelh,
                     )
-                    torch.save(self.backward_policy.model.state_dict(), path)
             # Moving average of the loss for early stopping
             if loss_term_ema and loss_flow_ema:
                 loss_term_ema = (
@@ -932,32 +854,52 @@ class GFlowNetAgent:
             # Log times
             t1_iter = time.time()
             times.update({"iter": t1_iter - t0_iter})
-            times = {"time_{}{}".format(k, self.al_iter): v for k, v in times.items()}
-            if self.logger and self.log_times:
-                self.logger.log_metrics(times, step=it, use_context=self.use_context)
+            self.logger.log_time(times, it)
         # Save final model
         if self.policy_forward_path:
-            path = self.policy_forward_path.parent / Path(
-                self.policy_forward_path.stem
-                + "_final"
-                + self.policy_forward_path.suffix
+            self.logger.save_model(
+                self.model_path,
+                self.policy_forward_path,
+                self.forward_policy.model,
+                True,
             )
-            torch.save(self.forward_policy.model.state_dict(), path)
-            torch.save(self.forward_policy.model.state_dict(), self.policy_forward_path)
         if self.policy_backward_path:
-            path = self.policy_backward_path.parent / Path(
-                self.policy_backward_path.stem
-                + "_final"
-                + self.policy_backward_path.suffix
-            )
-            torch.save(self.backward_policy.model.state_dict(), path)
-            torch.save(
-                self.backward_policy.model.state_dict(), self.policy_backward_path
+            self.logger.save_model(
+                self.model_path, self.policy.backward_path, self.backward_policy.modelh
             )
 
         # Close comet
         if self.logger and self.al_iter == -1:
             self.logger.end()
+
+    def get_log_corr(self, times):
+        data_logq = []
+        times.update(
+            {
+                "test_trajs": 0.0,
+                "test_logq": 0.0,
+            }
+        )
+        # TODO: this could be done just once and store it
+        for statestr, score in tqdm(
+            zip(self.buffer.test.samples, self.buffer.test["energies"]),
+            disable=self.test_period < 10,
+        ):
+            t0_test_traj = time.time()
+            traj_list, actions = self.env.get_trajectories(
+                [],
+                [],
+                [self.env.readable2state(statestr)],
+                [self.env.eos],
+            )
+            t1_test_traj = time.time()
+            times["test_trajs"] += t1_test_traj - t0_test_traj
+            t0_test_logq = time.time()
+            data_logq.append(logq(traj_list, actions, self.forward_policy, self.env))
+            t1_test_logq = time.time()
+            times["test_logq"] += t1_test_logq - t0_test_logq
+        corr = np.corrcoef(data_logq, self.buffer.test["energies"])
+        return corr, data_logq, times
 
 
 class Policy:
