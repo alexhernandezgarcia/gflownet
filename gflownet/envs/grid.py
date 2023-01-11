@@ -86,7 +86,7 @@ class Grid(GFlowNetEnv):
         for r in valid_steplens:
             actions_r = [el for el in itertools.product(dims, repeat=r)]
             actions += actions_r
-        actions += [(self.eos)]
+        actions += [(self.eos,)]
         return actions
 
     def get_mask_invalid_actions_forward(self, state=None, done=None):
