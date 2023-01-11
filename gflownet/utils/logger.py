@@ -3,7 +3,9 @@ import matplotlib.pyplot as plt
 from datetime import datetime
 import numpy as np
 import torch
+from torch import Tensor
 from pathlib import Path
+from numpy import array
 
 
 class Logger:
@@ -14,7 +16,15 @@ class Logger:
     """
 
     def __init__(
-        self, config, project_name, sampler, run_name=None, tags=None, log_time=False
+        self,
+        config: dict,
+        project_name: str,
+        logdir: str,
+        overwrite_logdir: bool,
+        sampler: dict,
+        run_name=None,
+        tags: list = None,
+        record_time: bool = False,
     ):
         self.config = config
         if run_name is None:
@@ -23,18 +33,41 @@ class Logger:
                 date_time,
             )
         self.run = wandb.init(config=config, project=project_name, name=run_name)
-        self.add_tags(config.log.tags)
+        self.add_tags(tags)
         self.sampler = sampler
         self.context = "0"
-        self.log_time = log_time
+        self.record_time = record_time
+        # Log directory
+        self.logdir = Path(logdir)
+        # TODO: Update
+        if self.logdir.exists():
+            with open(self.logdir / "comet.url", "w") as f:
+                f.write(self.comet.url + "\n")
+        # rewrite prettily
+        if sampler.test.period in [None, -1]:
+            self.test_period = np.inf
+        else:
+            self.test_period = sampler.test.period
+        if sampler.policy.period in [None, -1]:
+            self.policy_period = np.inf
+        else:
+            self.policy_period = sampler.policy.period
+        if sampler.train.period in [None, -1]:
+            self.train_period = np.inf
+        else:
+            self.train_period = sampler.train.period
+        if sampler.oracle.period in [None, -1]:
+            self.oracle_period = np.inf
+        else:
+            self.oracle_period = sampler.oracle.period
 
-    def add_tags(self, tags):
+    def add_tags(self, tags: list):
         self.run.tags = self.run.tags + tags
 
-    def set_context(self, context):
+    def set_context(self, context: int):
         self.context = str(context)
 
-    def log_metric(self, key, value, use_context=True):
+    def log_metric(self, key: str, value, use_context=True):
         if use_context:
             key = self.context + "/" + key
         wandb.log({key: value})
@@ -52,86 +85,95 @@ class Logger:
         fig = wandb.Image(fig)
         wandb.log({key: fig})
 
-    def log_metrics(self, metrics, step, use_context=True):
+    def log_metrics(self, metrics: dict, step: int, use_context: bool = True):
         if use_context:
             for key, _ in metrics.items():
                 key = self.context + "/" + key
         wandb.log(metrics, step)
 
-    def log_sampler_train(self, rewards, proxy_vals, states_term, data, it):
-        if not it % self.sampler.train.period:
-            self.logger.log_metrics(
-                dict(
-                    (
-                        [
-                            "mean_reward{}".format(self.al_iter),
-                            "max_reward{}".format(self.al_iter),
-                            "mean_proxy{}".format(self.al_iter),
-                            "min_proxy{}".format(self.al_iter),
-                            "max_proxy{}".format(self.al_iter),
-                            "mean_seq_length{}".format(self.al_iter),
-                            "batch_size{}".format(self.al_iter),
-                        ],
-                        [
-                            np.mean(rewards),
-                            np.max(rewards),
-                            np.mean(proxy_vals),
-                            np.min(proxy_vals),
-                            np.max(proxy_vals),
-                            np.mean([len(state) for state in states_term]),
-                            len(data),
-                        ],
-                    )
-                ),
-                self.use_context,
+    def log_sampler_train(
+        self,
+        rewards: list,
+        proxy_vals,
+        states_term: list,
+        data: list,
+        it: int,
+        use_context: bool,
+    ):
+        if not it % self.train_period:
+            train_metrics = dict(
+                zip(
+                    [
+                        "mean_reward",
+                        "max_reward",
+                        "mean_proxy",
+                        "min_proxy",
+                        "max_proxy",
+                        "mean_seq_length",
+                        "batch_size",
+                    ],
+                    [
+                        np.mean(rewards),
+                        np.max(rewards),
+                        np.mean(proxy_vals),
+                        np.min(proxy_vals),
+                        np.max(proxy_vals),
+                        np.mean([len(state) for state in states_term]),
+                        len(data),
+                    ],
+                )
+            )
+            self.log_metrics(
+                train_metrics,
+                use_context=use_context,
                 step=it,
             )
 
-    def log_sampler_test(self, corr, data_logq, it):
-        if not it % self.sampler.test.period:
-            self.logger.log_metrics(
-                dict(
-                    zip(
-                        [
-                            "test_corr_logq_score",
-                            "test_mean_log",
-                        ],
-                        [
-                            corr[0, 1],
-                            np.mean(data_logq),
-                        ],
-                    )
-                ),
-                self.use_context,
+    def log_sampler_test(self, corr, data_logq: list, it: int, use_context: bool):
+        if not it % self.test_period:
+            test_metrics = dict(
+                zip(
+                    [
+                        "test_corr_logq_score",
+                        "test_mean_log",
+                    ],
+                    [
+                        corr[0, 1],
+                        np.mean(data_logq),
+                    ],
+                )
+            )
+            self.log_metrics(
+                test_metrics,
+                use_context=use_context,
                 step=it,
             )
 
-    def log_sampler_oracle(self, energies, it):
-        if not it % self.sampler.oracle:
+    def log_sampler_oracle(self, energies, it, use_context):
+        if not it % self.oracle_period:
             energies_sorted = np.sort(energies)
             dict_topk = {}
-            for k in self.oracle_k:
+            for k in self.sampler.oracle.k:
                 mean_topk = np.mean(energies_sorted[:k])
-                dict_topk.update(
-                    {"oracle_mean_top{}{}".format(k, self.al_iter): mean_topk}
-                )
-            self.logger.log_metrics(dict_topk, self.use_context)
+                dict_topk.update({"oracle_mean_top{}".format(k): mean_topk})
+            self.log_metrics(dict_topk, use_context=use_context, step=it)
 
-    def save_model(self, policy_path, model_path, model, it, final=False):
-        if not it % self.sampler.policy.period:
+    def save_model(self, policy_path, model_path, model, it, iter=False):
+        if not it % self.policy_period:
             path = policy_path.parent / Path(
                 model_path.stem
-                + "{}_iter{:06d}".format(self.al_iter, it)
+                + self.context
+                + "_iter{:06d}".format(it)
                 + policy_path.suffix
             )
             torch.save(model.state_dict(), path)
-            if final == True:
+            if iter == False:
                 torch.save(model.state_dict(), policy_path)
 
-    def log_time(self, times, it):
-        if self.log_time:
-            times = {"time_{}{}".format(k, self.al_iter): v for k, v in times.items()}
-            self.logger.log_metrics(times, step=it, use_context=self.use_context)
+    def log_time(self, times, it, use_context):
+        if self.record_time:
+            times = {"time_{}".format(k): v for k, v in times.items()}
+            self.log_metrics(times, step=it, use_contxt=use_context)
 
     def end(self):
         wandb.finish()

@@ -56,6 +56,7 @@ class GFlowNetAgent:
         lightweight,
         num_empirical_loss,
         progress,
+        oracle,
         proxy=None,
         al_iter=-1,
         data_path=None,
@@ -82,14 +83,14 @@ class GFlowNetAgent:
             print("Unkown loss. Using flowmatch as default")
             self.loss = "flowmatch"
             self.Z = None
-        if not sample_only:
-            self.loss_eps = torch.tensor(float(1e-5)).to(self.device)
+        self.loss_eps = torch.tensor(float(1e-5)).to(self.device)
         # Logging (Comet)
         self.debug = debug
         self.lightweight = lightweight
         self.progress = progress
         self.num_empirical_loss = num_empirical_loss
         self.logger = logger
+        self.oracle_n = oracle.n
         """
         if comet.project and not comet.skip and not sample_only:
             self.comet = Experiment(project_name=comet.project, display_summary_level=0)
@@ -207,9 +208,9 @@ class GFlowNetAgent:
         self.ema_alpha = optimizer.ema_alpha
         self.early_stopping = optimizer.early_stopping
         if al_iter >= 0:
-            self.al_iter = "_iter{}".format(al_iter)
+            self.use_context = True
         else:
-            self.al_iter = ""
+            self.use_context = False
         self.logsoftmax = torch.nn.LogSoftmax(dim=1)
         # Training
         self.mask_invalid_actions = mask_invalid_actions
@@ -744,7 +745,17 @@ class GFlowNetAgent:
             else:
                 all_visited.extend(states_term)
             # log metrics
-            self.log_iter()
+            self.log_iter(
+                rewards,
+                proxy_vals,
+                states_term,
+                data,
+                it,
+                times,
+                losses,
+                all_losses,
+                all_visited,
+            )
             # save intermediate models
             self.save_models(iter=True)
 
@@ -769,7 +780,7 @@ class GFlowNetAgent:
             t1_iter = time.time()
             times.update({"iter": t1_iter - t0_iter})
             if self.logger:
-                self.logger.log_time(times, it)
+                self.logger.log_time(times, it, use_context=self.use_context)
         # Save final model
         self.save_models(iter=False)
 
@@ -787,8 +798,7 @@ class GFlowNetAgent:
         )
         # TODO: this could be done just once and store it
         for statestr, score in tqdm(
-            zip(self.buffer.test.samples, self.buffer.test["energies"]),
-            disable=self.test_period < 10,
+            zip(self.buffer.test.samples, self.buffer.test["energies"])
         ):
             t0_test_traj = time.time()
             traj_list, actions = self.env.get_trajectories(
@@ -819,7 +829,9 @@ class GFlowNetAgent:
         all_visited,
     ):
         if self.logger:
-            self.logger.log_sampler_train(rewards, proxy_vals, states_term, data, it)
+            self.logger.log_sampler_train(
+                rewards, proxy_vals, states_term, data, it, self.use_context
+            )
             """
             self.comet.log_text(
                 state_best + " / proxy: {}".format(proxy_vals[idx_best]), step=it
@@ -828,7 +840,7 @@ class GFlowNetAgent:
             # test metrics
             if self.buffer.test is not None:
                 corr, data_logq, times = self.get_log_corr(times)
-                self.log_sampler_test(corr, data_logq, it)
+                self.logger.log_sampler_test(corr, data_logq, it, self.use_context)
             if not self.lightweight:
                 l1_error, kl_div = empirical_distribution_error(
                     self.env, all_visited[-self.num_empirical_loss :]
@@ -843,7 +855,9 @@ class GFlowNetAgent:
             oracle_dict, oracle_times = batch2dict(
                 oracle_batch, self.env, get_uncertainties=False
             )
-            self.log_sampler_oracle(oracle_dict["energies"], it)
+            self.logger.log_sampler_oracle(
+                oracle_dict["energies"], it, self.use_context
+            )
 
             if self.progress:
                 print("Empirical L1 distance", l1_error, "KL", kl_div)
@@ -858,21 +872,21 @@ class GFlowNetAgent:
                 dict(
                     zip(
                         [
-                            "loss{}".format(self.al_iter),
-                            "term_loss{}".format(self.al_iter),
-                            "flow_loss{}".format(self.al_iter),
-                            "l1{}".format(self.al_iter),
-                            "kl{}".format(self.al_iter),
+                            "loss",
+                            "term_loss",
+                            "flow_loss",
+                            "l1",
+                            "kl",
                         ],
                         [loss.item() for loss in losses] + [l1_error, kl_div],
                     )
                 ),
-                self.use_context,
+                use_context=self.use_context,
                 step=it,
             )
             if not self.lightweight:
                 self.logger.log_metric(
-                    "unique_states{}".format(self.al_iter),
+                    "unique_states",
                     np.unique(all_visited).shape[0],
                     self.use_context,
                     step=it,
