@@ -61,6 +61,7 @@ class Grid(GFlowNetEnv):
             **kwargs,
         )
         self.n_dim = n_dim
+        self.eos = self.n_dim
         self.state = [0 for _ in range(self.n_dim)]
         self.length = length
         self.obs_dim = self.length * self.n_dim
@@ -68,7 +69,6 @@ class Grid(GFlowNetEnv):
         self.max_step_len = max_step_len
         self.cells = np.linspace(cell_min, cell_max, length)
         self.action_space = self.get_actions_space()
-        self.eos = len(self.action_space)
         self.fixed_policy_output = self.get_fixed_policy_output()
         self.policy_output_dim = len(self.fixed_policy_output)
         if self.proxy_state_format == "ohe":
@@ -78,7 +78,7 @@ class Grid(GFlowNetEnv):
 
     def get_actions_space(self):
         """
-        Constructs list with all possible actions
+        Constructs list with all possible actions, including eos.
         """
         valid_steplens = np.arange(self.min_step_len, self.max_step_len + 1)
         dims = [a for a in range(self.n_dim)]
@@ -86,6 +86,7 @@ class Grid(GFlowNetEnv):
         for r in valid_steplens:
             actions_r = [el for el in itertools.product(dims, repeat=r)]
             actions += actions_r
+        actions += [(self.eos)]
         return actions
 
     def get_mask_invalid_actions_forward(self, state=None, done=None):
@@ -100,7 +101,7 @@ class Grid(GFlowNetEnv):
         if done:
             return [True for _ in range(self.policy_output_dim)]
         mask = [False for _ in range(self.policy_output_dim)]
-        for idx, a in enumerate(self.action_space):
+        for idx, a in enumerate(self.action_space[:-1]):
             for d in a:
                 if state[d] + 1 >= self.length:
                     mask[idx] = True
@@ -233,7 +234,7 @@ class Grid(GFlowNetEnv):
         else:
             parents = []
             actions = []
-            for idx, a in enumerate(self.action_space):
+            for idx, a in enumerate(self.action_space[:-1]):
                 state_aux = state.copy()
                 for a_sub in a:
                     if state_aux[a_sub] > 0:

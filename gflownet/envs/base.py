@@ -74,7 +74,7 @@ class GFlowNetEnv:
         random policy. As a baseline, the fixed policy is uniform over the
         dimensionality of the action space.
         """
-        return np.ones(len(self.action_space) + 1)
+        return np.ones(len(self.action_space))
 
     def get_max_path_len(
         self,
@@ -369,7 +369,7 @@ class GFlowNetEnv:
             state = self.state
         if done is None:
             done = self.done
-        mask = [False for _ in range(len(self.action_space) + 1)]
+        mask = [False for _ in range(len(self.action_space))]
         return mask
 
     def get_mask_invalid_actions_backward(self, state=None, done=None, parents_a=None):
@@ -455,7 +455,6 @@ class Buffer:
     ):
         self.env = env
         self.replay_capacity = replay_capacity
-        self.action_space = self.env.get_actions_space()
         self.main = pd.DataFrame(columns=["state", "path", "reward", "energy", "iter"])
         self.replay = pd.DataFrame(
             np.empty((self.replay_capacity, 5), dtype=object),
