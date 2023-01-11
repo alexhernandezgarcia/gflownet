@@ -2,11 +2,13 @@
 Base class of GFlowNet environments
 """
 from abc import abstractmethod
-from typing import List
+from typing import List, Tuple
 import numpy as np
 import pandas as pd
 import torch
 from pathlib import Path
+from torch.distributions import Categorical
+from torchtyping import TensorType
 
 
 class GFlowNetEnv:
