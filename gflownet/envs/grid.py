@@ -146,6 +146,21 @@ class Grid(GFlowNetEnv):
             * self.cells[None, :]
         ).sum(axis=1)
 
+    def statebatch2oracle(self, states: List[List]):
+        """
+        Prepares a batch of states in "GFlowNet format" for the oracles: a list of
+        length n_dim with values in the range [cell_min, cell_max] for each state.
+
+        Args
+        ----
+        state : list
+            State
+        """
+        return (
+            self.statebatch2policy(states).reshape((len(states), self.n_dim, self.length))
+            * self.cells[None, :]
+        ).sum(axis=2)
+
     def state2policy(self, state: List=None) -> List:
         """
         Transforms the state given as argument (or self.state if None) into a

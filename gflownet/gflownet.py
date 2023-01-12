@@ -625,7 +625,7 @@ class GFlowNetAgent:
         if self.debug and torch.any(r < 0):
             neg_r_idx = torch.where(r < 0)[0].tolist()
             for idx in neg_r_idx:
-                state_oracle = self.env.state2oracle([sp])
+                state_oracle = self.env.state2oracle(sp)
                 output_proxy = self.env.proxy(state_oracle)
                 reward = self.env.proxy2reward(output_proxy)
                 import ipdb

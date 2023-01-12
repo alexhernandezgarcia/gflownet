@@ -110,6 +110,12 @@ class GFlowNetEnv:
             state = self.state.copy()
         return state
 
+    def statebatch2oracle(self, states: List[List]):
+        """
+        Prepares a batch of states in "GFlowNet format" for the oracles
+        """
+        return states
+
     def reward(self, state=None, done=None):
         """
         Computes the reward of a state
@@ -568,7 +574,7 @@ class Buffer:
             samples = self.env.get_random_terminating_states(config.n, config.seed)
         else:
             return None
-        energies = self.env.oracle(self.env.state2oracle(samples))
+        energies = self.env.oracle(self.env.statebatch2oracle(samples))
         df = pd.DataFrame(
             {
                 "samples": [self.env.state2readable(s) for s in samples],

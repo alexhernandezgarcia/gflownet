@@ -113,16 +113,16 @@ class AptamerSeq(GFlowNetEnv):
         else:
             return 0
 
-    def state2oracle(self, state_list):
+    def statebatch2oracle(self, states: List[List]):
         """
-        Prepares a sequence in "GFlowNet format" for the oracles.
+        Prepares a batch of sequence states for the oracles.
 
         Args
         ----
-        state_list : list of lists
+        states : list of lists
             List of sequences.
         """
-        queries = [s + [-1] * (self.max_seq_length - len(s)) for s in state_list]
+        queries = [s + [-1] * (self.max_seq_length - len(s)) for s in states]
         queries = np.array(queries, dtype=int)
         if queries.ndim == 1:
             queries = queries[np.newaxis, ...]
