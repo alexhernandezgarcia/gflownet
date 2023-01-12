@@ -69,6 +69,7 @@ temperature_logits: 1.0
 pct_batch_empirical: 0.5
 # Replay buffer
 replay_capacity: 0
+prob_random_action: 0.001
 policy:
   forward:
     type: mlp
