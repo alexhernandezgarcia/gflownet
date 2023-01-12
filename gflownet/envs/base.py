@@ -137,15 +137,15 @@ class GFlowNetEnv:
             return np.array(0.0)
         if state is None:
             state = self.state.copy()
-        return self.proxy2reward(self.proxy([self.state2proxy(state)]))
+        return self.proxy2reward(self.proxy(self.state2proxy(state)))
 
-    def reward_batch(self, states, done):
+    def reward_batch(self, states: List[List], done):
         """
         Computes the rewards of a batch of states, given a list of states and 'dones'
         """
-        states_proxy = [self.state2proxy(s) for s, d in zip(states, done) if d]
+        states_proxy = self.statebatch2proxy(states)[list(done), :]
         reward = np.zeros(len(done))
-        if len(states_proxy) > 0:
+        if states_proxy.shape[0] > 0:
             reward[list(done)] = self.proxy2reward(self.proxy(states_proxy))
         return reward
 
