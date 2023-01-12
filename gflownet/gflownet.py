@@ -259,14 +259,14 @@ class GFlowNetAgent:
         """
         if not isinstance(envs, list):
             envs = [envs]
-        states = [env.state2obs() for env in envs]
+        states = [env.state for env in envs]
         mask_invalid_actions = tb(
             [env.get_mask_invalid_actions_forward() for env in envs]
         )
         random_action = self.rng.uniform()
         t0_a_model = time.time()
         if sampling_method == "policy":
-            action_logits = model(tf(states))
+            action_logits = model(tf(env.state2obs_batch(states)))
             action_logits /= temperature
         elif sampling_method == "uniform":
             action_logits = tf(np.zeros(len(states)), len(self.env.action_space) + 1)
@@ -315,13 +315,13 @@ class GFlowNetAgent:
         if not isinstance(envs, list):
             envs = [envs]
         # Build states and masks
-        states = tf([env.state2obs() for env in envs])
+        states = [env.state for env in envs]
         mask_invalid_actions = tb(
             [env.get_mask_invalid_actions_forward() for env in envs]
         )
         # Build policy outputs
         if sampling_method == "policy":
-            policy_outputs = model(states)
+            policy_outputs = model(tf(env.state2obs_batch(states)))
         elif sampling_method == "uniform":
             policy_outputs = None
         else:
@@ -379,7 +379,7 @@ class GFlowNetAgent:
         else:
             raise NotImplemented
         action = parents_a[action_idx]
-        env.set_state(env.obs2state((parents)[action_idx]), done=False)
+        env.set_state((parents)[action_idx], done=False)
         return env, env.state, action, parents, parents_a
 
     def backward_sample_continuous(
@@ -424,7 +424,7 @@ class GFlowNetAgent:
         else:
             raise NotImplemented
         action = parents_a[action_idx]
-        env.set_state(env.obs2state((parents)[action_idx]), done=False)
+        env.set_state((parents)[action_idx], done=False)
         return env, env.state, action, parents, parents_a
 
     def sample_batch(
@@ -435,7 +435,7 @@ class GFlowNetAgent:
 
         if train == True:
             Each item in the batch is a list of 7 elements (all tensors):
-                - [0] the state, as state2obs(state)
+                - [0] the state
                 - [1] the action
                 - [2] reward of the state
                 - [3] all parents of the state, parents
@@ -473,14 +473,14 @@ class GFlowNetAgent:
                 readable = self.rng.permutation(self.buffer.train.samples.values)[0]
                 env = env.set_state(env.readable2state(readable), done=True)
                 action = env.eos
-                parents = [env.state2obs(env.state)]
+                parents = [env.state]
                 parents_a = [action]
                 mask = env.get_mask_invalid_actions_forward()
                 n_actions = 0
                 while len(env.state) > 0:
                     batch.append(
                         [
-                            tf([env.state2obs(env.state)]),
+                            tf([env.state]),
                             tf([action]),
                             env.state,
                             tf(parents),
@@ -530,7 +530,7 @@ class GFlowNetAgent:
                     if train:
                         batch.append(
                             [
-                                tf([env.state2obs()]),
+                                tf([env.state]),
                                 tf([action]),
                                 env.state,
                                 tf(parents),
@@ -625,9 +625,7 @@ class GFlowNetAgent:
         if self.debug and torch.any(r < 0):
             neg_r_idx = torch.where(r < 0)[0].tolist()
             for idx in neg_r_idx:
-                obs = sp[idx].tolist()
-                state = self.env.obs2state(obs)
-                state_oracle = self.env.state2oracle([state])
+                state_oracle = self.env.state2oracle([sp])
                 output_proxy = self.env.proxy(state_oracle)
                 reward = self.env.proxy2reward(output_proxy)
                 import ipdb
@@ -873,7 +871,7 @@ class GFlowNetAgent:
             #             state_ids[path_id].append(state_id)
             paths[path_id].append(tuple(el[1][0].tolist()))
             if bool(el[5].item()):
-                states[path_id] = tuple(self.env.obs2state(el[0][0].tolist()))
+                states[path_id] = tuple(el[0][0].tolist())
                 rewards[path_id] = el[2][0].item()
         paths = [tuple(el) for el in paths]
         return states, paths, rewards
@@ -1370,10 +1368,9 @@ def logq(path_list, actions_list, model, env, loginf=1000):
     for path, actions in zip(path_list, actions_list):
         path = path[::-1]
         actions = actions[::-1]
-        path_obs = np.asarray([env.state2obs(state) for state in path])
         masks = tb([env.get_mask_invalid_actions_forward(state, 0) for state in path])
         with torch.no_grad():
-            logits_path = model(tf(path_obs))
+            logits_path = model(tf(env.state2obs_batch(path)))
         logits_path[masks] = -loginf
         logsoftmax = torch.nn.LogSoftmax(dim=1)
         logprobs_path = logsoftmax(logits_path)
