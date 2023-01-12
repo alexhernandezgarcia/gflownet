@@ -77,6 +77,9 @@ class Torus(GFlowNetEnv):
         self.fixed_policy_output = self.get_fixed_policy_output()
         self.policy_output_dim = len(self.fixed_policy_output)
         self.angle_rad = 2 * np.pi / self.n_angles
+        # Oracle
+        self.state2oracle = self.state2proxy
+        self.statebatch2oracle = self.statebatch2proxy
 
     def get_actions_space(self):
         """
@@ -130,30 +133,13 @@ class Torus(GFlowNetEnv):
         )
         return self._true_density
 
-    def state2proxy(self, state_list: List[List]) -> List[List]:
+    def statebatch2proxy(self, states: List[List]) -> ndt.NDArray[np.float32]:
         """
-        Prepares a list of states in "GFlowNet format" for the proxy: a list of length
-        n_dim with an angle in radians. The n_actions item is removed.
-
-        Args
-        ----
-        state_list : list of lists
-            List of states.
+        Prepares a batch of states in "GFlowNet format" for the proxy: an array where
+        each state is a row of length n_dim with an angle in radians. The n_actions
+        item is removed.
         """
-        # TODO: do we really need to convert back to list?
-        # TODO: split angles and round?
-        return (np.array(state_list)[:, :-1] * self.angle_rad).tolist()
-
-    def state2oracle(self, state_list: List[List]) -> List[List]:
-        """
-        Prepares a list of states in "GFlowNet format" for the oracle
-
-        Args
-        ----
-        state_list : list of lists
-            List of states.
-        """
-        return self.state2proxy(state_list)
+        return np.array(state_list)[:, :-1] * self.angle_rad
 
     def state2policy(self, state=None) -> List:
         """

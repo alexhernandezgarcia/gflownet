@@ -76,6 +76,9 @@ class Plane(GFlowNetEnv):
         # Set up proxy
         self.proxy.n_dim = self.n_dim
         self.proxy.setup()
+        # Oracle
+        self.state2oracle = self.state2proxy
+        self.statebatch2oracle = self.statebatch2proxy
 
     def reward(self, state=None, done=None):
         """
@@ -198,7 +201,7 @@ class Plane(GFlowNetEnv):
         )
         return self._true_density
 
-    def state2proxy(self, state: List=None) -> List:
+    def statebatch2proxy(self, states: List[List]=None) -> ndt.NDArray[np.float32]:
         """
         Scales the states into [0, max_val]
 
@@ -207,22 +210,7 @@ class Plane(GFlowNetEnv):
         state : list
             State
         """
-        if state is None:
-            state = self.state.copy()
-        return [-1.0 + s * 2 / self.max_val for s in state]
-
-    def state2oracle(self, state: List=None) -> List:
-        """
-        Prepares a state in "GFlowNet format" for the oracle.
-
-        Args
-        ----
-        state : list
-            State
-        """
-        if state is None:
-            state = self.state.copy()
-        return self.state2proxy(state)
+        return -1.0 + np.array(states) * 2 / self.max_val
 
     def state2policy(self, state: List = None) -> List:
         """

@@ -74,6 +74,9 @@ class ContinuousTorus(GFlowNetEnv):
         self.policy_output_dim = len(self.fixed_policy_output)
         self.eos = self.n_dim
         self.logsoftmax = torch.nn.LogSoftmax(dim=1)
+        # Oracle
+        self.state2oracle = self.state2proxy
+        self.statebatch2oracle = self.statebatch2proxy
 
     def get_actions_space(self):
         """
@@ -161,28 +164,13 @@ class ContinuousTorus(GFlowNetEnv):
         )
         return self._true_density
 
-    def state2proxy(self, state_list: List[List]) -> List[List]:
+    def statebatch2proxy(self, states: List[List]) -> ndt.NDArray[np.float32]:
         """
-        Prepares a list of states in "GFlowNet format" for the proxy: a list of length
-        n_dim with an angle in radians. The n_actions item is removed.
-
-        Args
-        ----
-        state_list : list of lists
-            List of states.
+        Prepares a batch of states in "GFlowNet format" for the proxy: an array where
+        each state is a row of length n_dim with an angle in radians. The n_actions
+        item is removed.
         """
-        return [state[:-1] for state in state_list]
-
-    def state2oracle(self, state_list: List[List]) -> List[List]:
-        """
-        Prepares a list of states in "GFlowNet format" for the oracle
-
-        Args
-        ----
-        state_list : list of lists
-            List of states.
-        """
-        return self.state2proxy(state_list)
+        return np.array(states)[:, :-1]
 
     def state2policy(self, state: List = None) -> List:
         """

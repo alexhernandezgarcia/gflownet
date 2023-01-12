@@ -73,9 +73,9 @@ class Grid(GFlowNetEnv):
         self.fixed_policy_output = self.get_fixed_policy_output()
         self.policy_output_dim = len(self.fixed_policy_output)
         if self.proxy_state_format == "ohe":
-            self.state2proxy = self.state2policy
+            self.statebatch2proxy = self.statebatch2policy
         elif self.proxy_state_format == "oracle":
-            self.state2proxy = self.state2oracle
+            self.statebatch2proxy = self.statebatch2oracle
 
     def get_actions_space(self):
         """
@@ -146,7 +146,7 @@ class Grid(GFlowNetEnv):
             * self.cells[None, :]
         ).sum(axis=1)
 
-    def statebatch2oracle(self, states: List[List]):
+    def statebatch2oracle(self, states: List[List]) -> ndt.NDArray[np.float32]:
         """
         Prepares a batch of states in "GFlowNet format" for the oracles: a list of
         length n_dim with values in the range [cell_min, cell_max] for each state.

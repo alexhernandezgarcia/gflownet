@@ -86,7 +86,7 @@ class GFlowNetEnv:
 
     def state2proxy(self, state: List = None):
         """
-        Prepares a list of states in "GFlowNet format" for the proxy
+        Prepares a state in "GFlowNet format" for the proxy.
 
         Args
         ----
@@ -95,7 +95,18 @@ class GFlowNetEnv:
         """
         if state is None:
             state = self.state.copy()
-        return state
+        return self.statebatch2proxy([state])
+
+    def statebatch2proxy(self, states: List[List]) -> ndt.NDArray[np.float32]:
+        """
+        Prepares a batch of states in "GFlowNet format" for the proxy.
+
+        Args
+        ----
+        state : list
+            A state
+        """
+        return np.array(states)
 
     def state2oracle(self, state: List = None):
         """
