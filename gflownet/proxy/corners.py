@@ -1,6 +1,6 @@
-from typing import List
 from gflownet.proxy.base import Proxy
 import numpy as np
+import numpy.typing as npt
 
 
 class Corners(Proxy):
@@ -26,10 +26,10 @@ class Corners(Proxy):
             self.mulnormal = False
         return self.mulnormal
 
-    def __call__(self, state_list: List[List]):
+    def __call__(self, states: npt.NDArray[np.float32]) -> npt.NDArray[np.float32]:
         """
         args:
-            state_list: list of states
+            states: ndarray
 
         returns:
             list of scores
@@ -59,6 +59,6 @@ class Corners(Proxy):
             )
 
         if self.mulnormal:
-            return _mulnormal_corners(np.array(state_list))
+            return _mulnormal_corners(states)
         else:
-            return np.asarray([_func_corners(state) for state in state_list])
+            return np.asarray([_func_corners(state) for state in states])

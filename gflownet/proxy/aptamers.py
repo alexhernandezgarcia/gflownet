@@ -1,6 +1,6 @@
-from typing import List
 from gflownet.proxy.base import Proxy
 import numpy as np
+import numpy.typing as npt
 
 
 class Aptamers(Proxy):
@@ -15,19 +15,19 @@ class Aptamers(Proxy):
     def setup(self, max_seq_length, norm=True):
         self.max_seq_length = max_seq_length
 
-    def __call__(self, state_list: List[List]):
+    def __call__(self, states: npt.NDArray[np.float32]) -> npt.NDArray[np.float32]:
         """
         args:
-            state_list: list of states
+            states : ndarray
         """
 
         def _length(x):
             if self.norm:
-                return -1.0 * len(x) / self.max_seq_length
+                return -1.0 * np.sum(x, axis=1) / self.max_seq_length
             else:
-                return -1.0 * len(x)
+                return -1.0 * np.sum(x, axis=1)
 
         if self.type == "length":
-            return np.asarray([_length(state) for state in state_list])
+            return _length(states)
         else:
             raise NotImplementedError("self.type must be length")
