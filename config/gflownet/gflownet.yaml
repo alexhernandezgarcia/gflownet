@@ -14,10 +14,10 @@ logger:
   num_empirical_loss: 200000
   test:
     # Period (number of iterations) for computing test metrics
-    period: 50
+    period: 1 #50
   oracle:
     # Period (number of iterations) for computing oracle metrics
-    period: 100
+    period: 1 #00
     # Number of samples for oracle metrics
     n: 500
     # List of K, for Top-K oracle metrics
@@ -55,7 +55,7 @@ optimizer:
   # Train to sample ratio
   train_to_sample_ratio: 1
   # Number of training iterations
-  n_train_steps: 20000
+  n_train_steps: 3
   # From original implementation
   bootstrap_tau: 0.0
   clip_grad_norm: 0.0
