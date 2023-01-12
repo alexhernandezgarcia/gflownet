@@ -105,8 +105,6 @@ if __name__ == '__main__':
 
     featurizer = MolDGLFeaturizer(constants.ad_atom_types)
 
-    # check node features
-    node_feat = featurizer.get_node_features(mol)
     graph = featurizer.mol2dgl(mol)
     print("node features shape:", graph.ndata[constants.atom_feature_name].shape)
     print("edge features shape:", graph.edata[constants.edge_feature_name].shape)
