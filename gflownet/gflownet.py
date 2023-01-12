@@ -880,21 +880,21 @@ class GFlowNetAgent:
                             step=it,
                         )
             # Save intermediate models
-            if not it % self.ckpt_period:
-                if self.policy_forward_path:
-                    path = self.policy_forward_path.parent / Path(
-                        self.model_path.stem
-                        + "{}_iter{:06d}".format(self.al_iter, it)
-                        + self.policy_forward_path.suffix
-                    )
-                    torch.save(self.forward_policy.model.state_dict(), path)
-                if self.policy_backward_path:
-                    path = self.policy_backward_path.parent / Path(
-                        self.model_path.stem
-                        + "{}_iter{:06d}".format(self.al_iter, it)
-                        + self.policy_backward_path.suffix
-                    )
-                    torch.save(self.backward_policy.model.state_dict(), path)
+            # if not it % self.ckpt_period:
+            #     if self.policy_forward_path:
+            #         path = self.policy_forward_path.parent / Path(
+            #             self.model_path.stem
+            #             + "{}_iter{:06d}".format(self.al_iter, it)
+            #             + self.policy_forward_path.suffix
+            #         )
+            #         torch.save(self.forward_policy.model.state_dict(), path)
+            #     if self.policy_backward_path:
+            #         path = self.policy_backward_path.parent / Path(
+            #             self.model_path.stem
+            #             + "{}_iter{:06d}".format(self.al_iter, it)
+            #             + self.policy_backward_path.suffix
+            #         )
+            #         torch.save(self.backward_policy.model.state_dict(), path)
             # Moving average of the loss for early stopping
             if loss_term_ema and loss_flow_ema:
                 loss_term_ema = (

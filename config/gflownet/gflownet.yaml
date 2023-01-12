@@ -1,7 +1,7 @@
 _target_: gflownet.gflownet.GFlowNetAgent
 
 # General
-logdir: /network/scratch/a/alex.hernandez-garcia/logs/gflownet
+logdir: /home/mila/n/nikita.saxena/gflownet/logs
 overwrite_logdir: False
 # Random seeds
 seed: 0
@@ -55,7 +55,7 @@ optimizer:
   # Train to sample ratio
   train_to_sample_ratio: 1
   # Number of training iterations
-  n_train_steps: 5000
+  n_train_steps: 2
   # From original implementation
   bootstrap_tau: 0.0
   clip_grad_norm: 0.0
@@ -66,7 +66,7 @@ mask_invalid_actions: True
 # Temperature for the logits /= temperature_logits
 temperature_logits: 1.0
 # Percentage of trajectories in a batch from an empirical distribution
-pct_batch_empirical: 0.0
+pct_batch_empirical: 0.1
 # Replay buffer
 replay_capacity: 0
 policy:
@@ -74,8 +74,11 @@ policy:
     type: mlp
     n_hid: 128
     n_layers: 2
+    checkpoint: model.pt
+    reload_ckpt: False
+  backward: 
+    type: uniform
     checkpoint: null
     reload_ckpt: False
-  backward: null
   ckpt_period: null
-sample_only: True
+sample_only: False

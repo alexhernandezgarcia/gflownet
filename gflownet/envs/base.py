@@ -487,35 +487,36 @@ class Buffer:
                 self.test = df_data.loc[df_data.test]
         # Otherwise
         else:
-            # Train set
-            # (2) Separate train file path is provided
-            if train.path and Path(train.path).exists():
-                self.train = pd.read_csv(train.path, index_col=0)
-            # (3) Make environment specific train set
-            elif train.n and train.seed:
-                self.train = self.env.make_train_set(
-                    ntrain=train.n,
-                    oracle=self.env.oracle,
-                    seed=train.seed,
-                    output_csv=train.output,
-                )
-            # Test set
-            # (2) Separate test file path is provided
-            if "all" in test and test.all:
-                self.test = self.env.make_test_set(test)
-            elif test.path and Path(train.path).exists():
-                self.test = pd.read_csv(test.path, index_col=0)
-            # (3) Make environment specific test set
-            elif test.n and test.seed:
-                # TODO: make this general for all environments
-                self.test, _ = self.env.make_test_set(
-                    path_base_dataset=test.base,
-                    ntest=test.n,
-                    min_length=self.env.min_seq_length,
-                    max_length=self.env.max_seq_length,
-                    seed=test.seed,
-                    output_csv=test.output,
-                )
+            self.train, self.test = self.env.make_train_set()
+            # # Train set
+            # # (2) Separate train file path is provided
+            # if train.path and Path(train.path).exists():
+            #     self.train = pd.read_csv(train.path, index_col=0)
+            # # (3) Make environment specific train set
+            # elif train.n and train.seed:
+            #     self.train = self.env.make_train_set(
+            #         ntrain=train.n,
+            #         oracle=self.env.oracle,
+            #         seed=train.seed,
+            #         output_csv=train.output,
+            #     )
+            # # Test set
+            # # (2) Separate test file path is provided
+            # if "all" in test and test.all:
+            #     self.test = self.env.make_test_set(test)
+            # elif test.path and Path(train.path).exists():
+            #     self.test = pd.read_csv(test.path, index_col=0)
+            # # (3) Make environment specific test set
+            # elif test.n and test.seed:
+            #     # TODO: make this general for all environments
+            #     self.test, _ = self.env.make_test_set(
+            #         path_base_dataset=test.base,
+            #         ntest=test.n,
+            #         min_length=self.env.min_seq_length,
+            #         max_length=self.env.max_seq_length,
+            #         seed=test.seed,
+            #         output_csv=test.output,
+            #     )
         return self.train, self.test
 
     def compute_stats(self, data):

@@ -111,15 +111,7 @@ class AMP(GFlowNetEnv):
             self.state2proxy = self.state2obs
         elif self.proxy_state_format == "oracle":
             self.state2proxy = self.state2oracle
-
-    def get_alphabet(self, vocab=None, index_int=True):
-        if vocab is None:
-            vocab = self.vocab
-        if index_int:
-            alphabet = dict((i, a) for i, a in enumerate(vocab))
-        else:
-            alphabet = dict((a, i) for i, a in enumerate(vocab))
-        return alphabet
+        self.alphabet = dict((i, a) for i, a in enumerate(self.vocab))
 
     def get_actions_space(self):
         """
@@ -145,7 +137,7 @@ class AMP(GFlowNetEnv):
         else:
             return 0
 
-    def state2oracle(self, state_list):
+    def state2oracle(self, state_list: List):
         # TODO
         """
         Prepares a sequence in "GFlowNet format" for the oracles.
@@ -156,16 +148,6 @@ class AMP(GFlowNetEnv):
             List of sequences.
         """
         queries = ["".join(self.state2readable(state)) for state in state_list]
-        # queries = [s + [-1] * (self.max_seq_length - len(s)) for s in state_list]
-        # queries = np.array(queries, dtype=int)
-        # if queries.ndim == 1:
-        #     queries = queries[np.newaxis, ...]
-        # queries += 1
-        # if queries.shape[1] == 1:
-        #     import ipdb
-
-        #     ipdb.set_trace()
-        #     queries = np.column_stack((queries, np.zeros(queries.shape[0])))
         return queries
 
     def state2obs(self, state=None):
@@ -221,7 +203,7 @@ class AMP(GFlowNetEnv):
         according to an alphabet.
         """
         if alphabet == None:
-            alphabet = self.get_alphabet(index_int=True)
+            alphabet = self.alphabet
         return [alphabet[el] for el in state]
 
     def readable2state(self, letters, alphabet=None):
@@ -231,7 +213,7 @@ class AMP(GFlowNetEnv):
         according to an alphabet.
         """
         if alphabet == None:
-            alphabet = self.get_alphabet(index_int=False)
+            alphabet = self.alphabet
         alphabet = {v: k for k, v in alphabet.items()}
         return [alphabet[el] for el in letters]
 
@@ -415,7 +397,7 @@ class AMP(GFlowNetEnv):
         output_csv=None,
         split="D1",
         nfold=5,
-        load_precomputed_scores=False,
+        load_precomputed_scores=True,
     ):
         """
         Constructs a randomly sampled train set by calling the oracle
@@ -471,28 +453,64 @@ class AMP(GFlowNetEnv):
             oracle = self.oracle
 
         if load_precomputed_scores:
+            # Defne _load_precomputed_scores to read the csv file ith user-deifined name bu
             loaded = self._load_precomputed_scores(split)
         else:
             self.train_scores = oracle(self.train)  # train is a list of strings
             self.valid_scores = oracle(self.valid)
-            df_train = pd.DataFrame(
-                {
-                    "samples": self.readable2state(self.train),
-                    "sequences": self.train,
-                    "energies": self.train_scores,
-                }
+            np.save(
+                "/home/mila/n/nikita.saxena/gflownet/logs/train_scores_{}.npy".format(
+                    split
+                ),
+                self.train_scores,
             )
-            df_valid = pd.DataFrame(
-                {
-                    "samples": self.readable2state(self.valid),
-                    "sequences": self.valid,
-                    "energies": self.valid_scores,
-                }
+            np.save(
+                "/home/mila/n/nikita.saxena/gflownet/logs/valid_scores_{}.npy".format(
+                    split
+                ),
+                self.valid_scores,
             )
+
+        self.train, self.train_scores = self._filter_len(
+            self.train, self.train_scores, self.max_seq_length
+        )
+        self.valid, self.valid_scores = self._filter_len(
+            self.valid, self.valid_scores, self.max_seq_length
+        )
+        df_train = pd.DataFrame(
+            {
+                "indices": [self.readable2state(s) for s in self.train],
+                "samples": self.train,
+                "energies": self.train_scores,
+            }
+        )
+        df_valid = pd.DataFrame(
+            {
+                "indices": [self.readable2state(s) for s in self.valid],
+                "samples": self.valid,
+                "energies": self.valid_scores,
+            }
+        )
 
         if output_csv:
             df_train.to_csv(output_csv)
         return df_train, df_valid
+
+    def _load_precomputed_scores(self, split):
+        self.train_scores = np.load(
+            "/home/mila/n/nikita.saxena/gflownet/logs/train_scores_{}.npy".format(split)
+        )
+        self.valid_scores = np.load(
+            "/home/mila/n/nikita.saxena/gflownet/logs/valid_scores_{}.npy".format(split)
+        )
+
+    def _filter_len(self, x, y, max_len):
+        res = ([], [])
+        for i in range(len(x)):
+            if len(x[i]) < max_len:
+                res[0].append(x[i])
+                res[1].append(y[i])
+        return res
 
     # TODO: improve approximation of uniform
     def make_test_set(
