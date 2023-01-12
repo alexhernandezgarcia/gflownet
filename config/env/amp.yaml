@@ -5,8 +5,8 @@ _target_: gflownet.envs.amp.AMP
 
 id: amp
 # Minimum and maximum length for the sequences
-min_seq_length: 30
-max_seq_length: 30
+min_seq_length: 10
+max_seq_length: 65
 # Number of letters in alphabet
 n_alphabet: 20
 # Minimum and maximum number of steps in the action space

@@ -89,7 +89,7 @@ class GFlowNetAgent:
         self.progress = logger.progress
         self.num_empirical_loss = logger.num_empirical_loss
         if comet.project and not comet.skip and not sample_only:
-            self.comet = Experiment(project_name=comet.project, display_summary_level=0)
+            self.comet = Experiment(project_name=comet.project, display_summary_level=0, api_key="3dnsaiRbPJ03LpO5wS5DT4bUv")
             if comet.tags:
                 if isinstance(comet.tags, list):
                     self.comet.add_tags(comet.tags)
@@ -840,7 +840,7 @@ class GFlowNetAgent:
                     )
                     if self.comet:
                         self.comet.log_metrics(dict_topk)
-            if not it % 100:
+            if not it % 10:
                 if not self.lightweight:
                     l1_error, kl_div = empirical_distribution_error(
                         self.env, all_visited[-self.num_empirical_loss :]
@@ -873,12 +873,12 @@ class GFlowNetAgent:
                         ),
                         step=it,
                     )
-                    if not self.lightweight:
-                        self.comet.log_metric(
-                            "unique_states{}".format(self.al_iter),
-                            np.unique(all_visited).shape[0],
-                            step=it,
-                        )
+                    # if not self.lightweight:
+                    #     self.comet.log_metric(
+                    #         "unique_states{}".format(self.al_iter),
+                    #         np.unique(all_visited).shape[0],
+                    #         step=it,
+                    #     )
             # Save intermediate models
             # if not it % self.ckpt_period:
             #     if self.policy_forward_path:

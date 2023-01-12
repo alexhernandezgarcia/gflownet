@@ -14,7 +14,7 @@ logger:
   num_empirical_loss: 200000
   test:
     # Period (number of iterations) for computing test metrics
-    period: 500
+    period: 50
   oracle:
     # Period (number of iterations) for computing oracle metrics
     period: 100
@@ -28,7 +28,7 @@ logger:
 # Comet
 comet:
   project: gflownet
-  skip: True
+  skip: False
   log_times: False
   tags:
     - gflownet
@@ -51,11 +51,11 @@ optimizer:
   # Momentum for SGD
   sgd_momentum: 0.9
   # Mini-batch size
-  batch_size: 10
+  batch_size: 32
   # Train to sample ratio
   train_to_sample_ratio: 1
   # Number of training iterations
-  n_train_steps: 2
+  n_train_steps: 20000
   # From original implementation
   bootstrap_tau: 0.0
   clip_grad_norm: 0.0
@@ -66,7 +66,7 @@ mask_invalid_actions: True
 # Temperature for the logits /= temperature_logits
 temperature_logits: 1.0
 # Percentage of trajectories in a batch from an empirical distribution
-pct_batch_empirical: 0.1
+pct_batch_empirical: 0.5
 # Replay buffer
 replay_capacity: 0
 policy:
