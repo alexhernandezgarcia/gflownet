@@ -146,7 +146,7 @@ class Grid(GFlowNetEnv):
             * self.cells[None, :]
         ).sum(axis=1)
 
-    def statebatch2oracle(self, states: List[List]) -> ndt.NDArray[np.float32]:
+    def statebatch2oracle(self, states: List[List]) -> npt.NDArray[np.float32]:
         """
         Prepares a batch of states in "GFlowNet format" for the oracles: a list of
         length n_dim with values in the range [cell_min, cell_max] for each state.

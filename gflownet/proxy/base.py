@@ -2,6 +2,7 @@
 Base class of GFlowNet proxies
 """
 from abc import abstractmethod
+import numpy as np
 import numpy.typing as npt
 
 

@@ -201,7 +201,7 @@ class Plane(GFlowNetEnv):
         )
         return self._true_density
 
-    def statebatch2proxy(self, states: List[List]=None) -> ndt.NDArray[np.float32]:
+    def statebatch2proxy(self, states: List[List]=None) -> npt.NDArray[np.float32]:
         """
         Scales the states into [0, max_val]
 

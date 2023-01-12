@@ -97,7 +97,7 @@ class GFlowNetEnv:
             state = self.state.copy()
         return self.statebatch2proxy([state])
 
-    def statebatch2proxy(self, states: List[List]) -> ndt.NDArray[np.float32]:
+    def statebatch2proxy(self, states: List[List]) -> npt.NDArray[np.float32]:
         """
         Prepares a batch of states in "GFlowNet format" for the proxy.
 

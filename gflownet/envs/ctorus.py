@@ -164,7 +164,7 @@ class ContinuousTorus(GFlowNetEnv):
         )
         return self._true_density
 
-    def statebatch2proxy(self, states: List[List]) -> ndt.NDArray[np.float32]:
+    def statebatch2proxy(self, states: List[List]) -> npt.NDArray[np.float32]:
         """
         Prepares a batch of states in "GFlowNet format" for the proxy: an array where
         each state is a row of length n_dim with an angle in radians. The n_actions
