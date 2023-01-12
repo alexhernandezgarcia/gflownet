@@ -126,10 +126,10 @@ class GFlowNetEnv:
         """
         Computes the rewards of a batch of states, given a list of states and 'dones'
         """
-        states_oracle = [self.state2oracle(s) for s, d in zip(states, done) if d]
+        states_proxy = [self.state2proxy(s) for s, d in zip(states, done) if d]
         reward = np.zeros(len(done))
-        if len(states_oracle) > 0:
-            reward[list(done)] = self.proxy2reward(self.proxy(states_oracle))
+        if len(states_proxy) > 0:
+            reward[list(done)] = self.proxy2reward(self.proxy(states_proxy))
         return reward
 
     def proxy2reward(self, proxy_vals):
