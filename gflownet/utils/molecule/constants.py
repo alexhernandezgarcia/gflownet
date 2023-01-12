@@ -1,0 +1,15 @@
+from rdkit import Chem
+
+# Edge and node feature names in DGL graph
+atom_position_name = 'pos'
+atom_feature_name = 'atom_features'
+edge_feature_name = 'edge_features'
+
+# Options for atoms featurization
+ad_atom_types = ('H','C','N','O')
+atom_degrees = tuple(range(1,7))
+atom_hybridizations = tuple(list(Chem.rdchem.HybridizationType.names.values()))
+bond_types = tuple([Chem.rdchem.BondType.SINGLE, Chem.rdchem.BondType.DOUBLE])
+
+# SMILES strings
+ad_smiles = 'CC(C(=O)NC)NC(=O)C'
