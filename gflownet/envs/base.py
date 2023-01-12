@@ -449,16 +449,13 @@ class Buffer:
         rewards_new = rewards.copy()
         while np.max(rewards_new) > np.min(rewards_old):
             idx_new_max = np.argmax(rewards_new)
-            idx_old_min = self.replay.reward.argmin()
-            self.replay.state.iloc[idx_old_min] = self.env.state2readable(
-                states[idx_new_max]
-            )
-            self.replay.traj.iloc[idx_old_min] = self.env.traj2readable(
-                trajs[idx_new_max]
-            )
-            self.replay.reward.iloc[idx_old_min] = rewards[idx_new_max]
-            self.replay.energy.iloc[idx_old_min] = energies[idx_new_max]
-            self.replay.iter.iloc[idx_old_min] = it
+            self.replay.iloc[self.replay.reward.argmin()] = {
+                "state": self.env.state2readable(states[idx_new_max]),
+                "traj": self.env.traj2readable(trajs[idx_new_max]),
+                "reward": rewards[idx_new_max],
+                "energy": energies[idx_new_max],
+                "iter": it,
+            }
             rewards_new[idx_new_max] = -1
             rewards_old = self.replay["reward"].values
         return self.replay
