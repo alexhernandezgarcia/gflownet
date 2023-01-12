@@ -12,6 +12,9 @@ n_alphabet: 20
 # Minimum and maximum number of steps in the action space
 min_word_len: 1
 max_word_len: 1
+reward_func: power
+reward_norm: -1.0
+reward_norm_std_mult: -1.0
 # Buffer
 buffer:
   replay_capacity: 10

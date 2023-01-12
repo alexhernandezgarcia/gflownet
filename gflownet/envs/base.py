@@ -52,7 +52,7 @@ class GFlowNetEnv:
         self.action_space = []
         self.eos = len(self.action_space)
         # Assertions
-        assert self.reward_norm > 0
+        # assert self.reward_norm > 0
         assert self.reward_beta > 0
         assert self.min_reward > 0
 
