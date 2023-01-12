@@ -193,6 +193,19 @@ class Grid(GFlowNetEnv):
         obs[rows, cols.flatten()] = 1.0
         return obs
 
+    def statetorch2policy(self, states: TensorType["batch", "state_dim"]) -> TensorType["batch", "policy_output_dim"]:
+        """
+        Transforms a batch of states into a one-hot encoding. The output is a numpy
+        array of shape [n_states, length * n_dim]. 
+
+        See state2policy().
+        """
+        cols = states + torch.arange(self.n_dim) * self.length
+        rows = torch.repeat(torch.arange(states.shape[0]), self.n_dim)
+        obs = np.zeros((states.shape[0], self.obs_dim), dtype=states.dtype).to(states.device)
+        obs[rows, cols.flatten()] = 1.0
+        return obs
+
     def obs2state(self, obs: List) -> List:
         """
         Transforms the one-hot encoding version of a state given as argument
