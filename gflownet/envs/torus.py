@@ -404,4 +404,4 @@ class Torus(GFlowNetEnv):
         )
         n_actions = self.length_traj * np.ones([all_x.shape[0], 1], dtype=np.int32)
         all_x = np.concatenate([all_x, n_actions], axis=1)
-        return all_x
+        return all_x.tolist()

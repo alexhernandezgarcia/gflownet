@@ -307,13 +307,13 @@ class Grid(GFlowNetEnv):
             self.n_actions += 1
             return self.state, self.eos, True
 
-    def get_all_terminating_states(self):
+    def get_all_terminating_states(self) -> List[List]:
         all_x = np.int32(
             list(itertools.product(*[list(range(self.length))] * self.n_dim))
         )
-        return all_x
+        return all_x.tolist()
 
     def get_random_terminating_states(self, n_states: int, seed: int) -> List[List]:
         rng = np.random.default_rng(seed)
         states = rng.integers(low=0, high=self.length, size=(n_states, self.n_dim))
-        return states
+        return states.tolist()
