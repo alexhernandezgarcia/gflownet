@@ -6,6 +6,7 @@ import itertools
 import numpy as np
 import numpy.typing as npt
 import pandas as pd
+from torchtyping import TensorType
 from gflownet.envs.base import GFlowNetEnv
 
 
@@ -320,7 +321,7 @@ class Grid(GFlowNetEnv):
         else:
             self.done = True
             self.n_actions += 1
-            return self.state, self.eos, True
+            return self.state, (self.eos,), True
 
     def get_all_terminating_states(self) -> List[List]:
         all_x = np.int32(
