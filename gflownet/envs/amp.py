@@ -8,7 +8,9 @@ import pandas as pd
 from gflownet.envs.base import GFlowNetEnv
 import time
 from sklearn.model_selection import GroupKFold, train_test_split
+import itertools
 from clamp_common_eval.defaults import get_default_data_splits
+from polyleven import levenshtein
 
 
 class AMP(GFlowNetEnv):
@@ -207,7 +209,6 @@ class AMP(GFlowNetEnv):
         return [alphabet[el] for el in state]
 
     def readable2state(self, letters, alphabet=None):
-        # TODO
         """
         Transforms a sequence given as a list of letters into a sequence of indices
         according to an alphabet.
@@ -504,13 +505,16 @@ class AMP(GFlowNetEnv):
             "/home/mila/n/nikita.saxena/gflownet/logs/valid_scores_{}.npy".format(split)
         )
 
-    def _filter_len(self, x, y, max_len):
+    def _filter_len(self, x: List, y, max_len: int):
         res = ([], [])
         for i in range(len(x)):
             if len(x[i]) < max_len:
                 res[0].append(x[i])
                 res[1].append(y[i])
         return res
+
+    def get_distance(seq1, seq2):
+        return levenshtein(seq1, seq2) / 1
 
     # TODO: improve approximation of uniform
     def make_test_set(

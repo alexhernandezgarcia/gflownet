@@ -6,6 +6,8 @@ import random
 import hydra
 from omegaconf import OmegaConf, DictConfig
 from gflownet.utils.common import flatten_config
+import numpy as np
+import itertools
 
 
 @hydra.main(config_path="./config", config_name="main")
@@ -27,7 +29,21 @@ def main(config):
 
     # sample from the oracle, not from a proxy model
     batch, times = gflownet.sample_batch(env, config.n_samples, train=False)
-    print(gflownet.buffer.replay)
+
+    # calculate performance
+    queries = env.state2oracle(batch)
+    energies = proxy(queries)
+    energies_sorted = np.sort(energies)
+    for k in config.gflownet.oracle.k:
+        mean_topk = np.mean(energies_sorted[:k])
+        print(f"\tAverage score top-{k}: {mean_topk}")
+    # calculate diversity
+    dists = []
+    for pair in itertools.combinations(queries, 2):
+        dists.append(env.get_distance(*pair))
+    diversity = dists / (config.n_samples * (config.n_samples - 1))
+    print(f"\tDiversity: {diversity}")
+    # no estimate of novelty here because no original dataset
 
 
 if __name__ == "__main__":
