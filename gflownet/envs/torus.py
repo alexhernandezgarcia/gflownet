@@ -155,7 +155,7 @@ class Torus(GFlowNetEnv):
         """
         return self.state2proxy(state_list)
 
-    def state2obs(self, state=None) -> List:
+    def state2policy(self, state=None) -> List:
         """
         Transforms the angles part of the state given as argument (or self.state if
         None) into a one-hot encoding. The output is a list of len n_angles * n_dim +
@@ -165,7 +165,7 @@ class Torus(GFlowNetEnv):
         Example, n_dim = 2, n_angles = 4:
           - State, state: [1, 3, 4]
                           | a  | n | (a = angles, n = n_actions)
-          - state2obs(state): [0, 1, 0, 0, 0, 0, 0, 1, 4]
+          - state2policy(state): [0, 1, 0, 0, 0, 0, 0, 1, 4]
                               |     1    |     3     | 4 |
         """
         if state is None:
@@ -181,12 +181,12 @@ class Torus(GFlowNetEnv):
         obs[-1] = state[-1]
         return obs
 
-    def state2obs_batch(self, states: List[List]) -> npt.NDArray[np.float32]:
+    def statebatch2policy(self, states: List[List]) -> npt.NDArray[np.float32]:
         """
         Transforms a batch of states into the policy model format. The output is a numpy
         array of shape [n_states, n_angles * n_dim + 1]. 
 
-        See state2obs().
+        See state2policy().
         """
         states = np.array(states)
         cols = states[:, :-1] + np.arange(self.n_dim) * self.n_angles

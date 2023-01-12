@@ -73,7 +73,7 @@ class Grid(GFlowNetEnv):
         self.fixed_policy_output = self.get_fixed_policy_output()
         self.policy_output_dim = len(self.fixed_policy_output)
         if self.proxy_state_format == "ohe":
-            self.state2proxy = self.state2obs
+            self.state2proxy = self.state2policy
         elif self.proxy_state_format == "oracle":
             self.state2proxy = self.state2oracle
 
@@ -142,11 +142,11 @@ class Grid(GFlowNetEnv):
         if state is None:
             state = self.state.copy()
         return (
-            self.state2obs(state).reshape((self.n_dim, self.length))
+            self.state2policy(state).reshape((self.n_dim, self.length))
             * self.cells[None, :]
         ).sum(axis=1)
 
-    def state2obs(self, state: List=None) -> List:
+    def state2policy(self, state: List=None) -> List:
         """
         Transforms the state given as argument (or self.state if None) into a
         one-hot encoding. The output is a list of len length * n_dim,
@@ -155,7 +155,7 @@ class Grid(GFlowNetEnv):
 
         Example:
           - State, state: [0, 3, 1] (n_dim = 3)
-          - state2obs(state): [1, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0] (length = 4)
+          - state2policy(state): [1, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0] (length = 4)
                               |     0    |      3    |      1    |
         """
         if state is None:
@@ -164,12 +164,12 @@ class Grid(GFlowNetEnv):
         obs[(np.arange(len(state)) * self.length + state)] = 1
         return obs.tolist()
 
-    def state2obs_batch(self, states: List[List]) -> npt.NDArray[np.float32]:
+    def statebatch2policy(self, states: List[List]) -> npt.NDArray[np.float32]:
         """
         Transforms a batch of states into a one-hot encoding. The output is a numpy
         array of shape [n_states, length * n_dim]. 
 
-        See state2obs().
+        See state2policy().
         """
         cols = np.array(states) + np.arange(self.n_dim) * self.length
         rows = np.repeat(np.arange(len(states)), self.n_dim)

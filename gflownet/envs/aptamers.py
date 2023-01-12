@@ -134,7 +134,7 @@ class AptamerSeq(GFlowNetEnv):
             queries = np.column_stack((queries, np.zeros(queries.shape[0])))
         return queries
 
-    def state2obs(self, state: List = None) -> List:
+    def state2policy(self, state: List = None) -> List:
         """
         Transforms the sequence (state) given as argument (or self.state if None) into a
         one-hot encoding. The output is a list of length n_alphabet * max_seq_length,
@@ -145,7 +145,7 @@ class AptamerSeq(GFlowNetEnv):
           - Sequence: AATGC
           - state: [0, 1, 3, 2]
                     A, T, G, C
-          - state2obs(state): [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0]
+          - state2policy(state): [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0]
                               |     A    |      T    |      G    |      C    |
 
         If max_seq_length > len(s), the last (max_seq_length - len(s)) blocks are all
@@ -158,12 +158,12 @@ class AptamerSeq(GFlowNetEnv):
             obs[(np.arange(len(state)) * self.n_alphabet + state)] = 1
         return obs
 
-    def state2obs_batch(self, states: List[List]) -> npt.NDArray[np.float32]:
+    def statebatch2policy(self, states: List[List]) -> npt.NDArray[np.float32]:
         """
         Transforms a batch of states into the policy model format. The output is a numpy
         array of shape [n_states, n_angles * n_dim + 1].
 
-        See state2obs().
+        See state2policy().
         """
         cols, lengths = zip(
             *[

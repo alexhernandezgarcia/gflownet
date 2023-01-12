@@ -173,7 +173,7 @@ class GFlowNetEnv:
         else:
             raise NotImplemented
 
-    def state2obs(self, state=None):
+    def state2policy(self, state=None):
         """
         Converts a state into a format suitable for a machine learning model, such as a
         one-hot encoding.
@@ -182,7 +182,7 @@ class GFlowNetEnv:
             state = self.state
         return state
 
-    def state2obs_batch(self, states: List[List]) -> npt.NDArray[np.float32]:
+    def statebatch2policy(self, states: List[List]) -> npt.NDArray[np.float32]:
         """
         Converts a batch of states into a format suitable for a machine learning model,
         such as a one-hot encoding. Returns a numpy array.

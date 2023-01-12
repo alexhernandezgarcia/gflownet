@@ -184,7 +184,7 @@ class ContinuousTorus(GFlowNetEnv):
         """
         return self.state2proxy(state_list)
 
-    def state2obs(self, state: List = None) -> List:
+    def state2policy(self, state: List = None) -> List:
         """
         Returns the state as is.
         """

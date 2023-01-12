@@ -224,7 +224,7 @@ class Plane(GFlowNetEnv):
             state = self.state.copy()
         return self.state2proxy(state)
 
-    def state2obs(self, state: List = None) -> List:
+    def state2policy(self, state: List = None) -> List:
         """
         Returns the state as is.
         """

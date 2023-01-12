@@ -266,7 +266,7 @@ class GFlowNetAgent:
         random_action = self.rng.uniform()
         t0_a_model = time.time()
         if sampling_method == "policy":
-            action_logits = model(tf(env.state2obs_batch(states)))
+            action_logits = model(tf(env.statebatch2policy(states)))
             action_logits /= temperature
         elif sampling_method == "uniform":
             action_logits = tf(np.zeros(len(states)), len(self.env.action_space) + 1)
@@ -321,7 +321,7 @@ class GFlowNetAgent:
         )
         # Build policy outputs
         if sampling_method == "policy":
-            policy_outputs = model(tf(env.state2obs_batch(states)))
+            policy_outputs = model(tf(env.statebatch2policy(states)))
         elif sampling_method == "uniform":
             policy_outputs = None
         else:
@@ -1370,7 +1370,7 @@ def logq(path_list, actions_list, model, env, loginf=1000):
         actions = actions[::-1]
         masks = tb([env.get_mask_invalid_actions_forward(state, 0) for state in path])
         with torch.no_grad():
-            logits_path = model(tf(env.state2obs_batch(path)))
+            logits_path = model(tf(env.statebatch2policy(path)))
         logits_path[masks] = -loginf
         logsoftmax = torch.nn.LogSoftmax(dim=1)
         logprobs_path = logsoftmax(logits_path)
