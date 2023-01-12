@@ -4,6 +4,7 @@ Base class of GFlowNet environments
 from abc import abstractmethod
 from typing import List, Tuple
 import numpy as np
+import numpy.typing as npt
 import pandas as pd
 import torch
 from pathlib import Path
@@ -83,6 +84,19 @@ class GFlowNetEnv:
     ):
         return 1
 
+    def state2proxy(self, state: List = None):
+        """
+        Prepares a list of states in "GFlowNet format" for the proxy
+
+        Args
+        ----
+        state : list
+            A state
+        """
+        if state is None:
+            state = self.state.copy()
+        return state
+
     def state2oracle(self, state: List = None):
         """
         Prepares a list of states in "GFlowNet format" for the oracle
@@ -106,7 +120,7 @@ class GFlowNetEnv:
             return np.array(0.0)
         if state is None:
             state = self.state.copy()
-        return self.proxy2reward(self.proxy([self.state2oracle(state)]))
+        return self.proxy2reward(self.proxy([self.state2proxy(state)]))
 
     def reward_batch(self, states, done):
         """
@@ -168,6 +182,13 @@ class GFlowNetEnv:
             state = self.state
         return state
 
+    def state2obs_batch(self, states: List[List]) -> npt.NDArray[np.float32]:
+        """
+        Converts a batch of states into a format suitable for a machine learning model,
+        such as a one-hot encoding. Returns a numpy array.
+        """
+        return np.array(states)
+
     def obs2state(self, obs: List) -> List:
         """
         Converts the model (e.g. one-hot encoding) version of a state given as
@@ -223,7 +244,7 @@ class GFlowNetEnv:
         Returns
         -------
         parents : list
-            List of parents as state2obs(state)
+            List of parents in state format
 
         actions : list
             List of actions that lead to state for each parent in parents
@@ -233,7 +254,7 @@ class GFlowNetEnv:
         if done is None:
             done = self.done
         if done:
-            return [self.state2obs(state)], [self.eos]
+            return [state], [self.eos]
         else:
             parents = []
             actions = []
@@ -313,7 +334,6 @@ class GFlowNetEnv:
             List of actions within each path
         """
         parents, parents_actions = self.get_parents(current_path[-1], False)
-        parents = [self.obs2state(el) for el in parents]
         if parents == []:
             path_list.append(current_path)
             path_actions_list.append(current_actions)

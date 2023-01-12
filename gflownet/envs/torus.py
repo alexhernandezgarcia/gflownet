@@ -4,6 +4,7 @@ Classes to represent hyper-torus environments
 from typing import List
 import itertools
 import numpy as np
+import numpy.typing as npt
 import pandas as pd
 from gflownet.envs.base import GFlowNetEnv
 
@@ -180,6 +181,21 @@ class Torus(GFlowNetEnv):
         obs[-1] = state[-1]
         return obs
 
+    def state2obs_batch(self, states: List[List]) -> npt.NDArray[np.float32]:
+        """
+        Transforms a batch of states into the policy model format. The output is a numpy
+        array of shape [n_states, n_angles * n_dim + 1]. 
+
+        See state2obs().
+        """
+        states = np.array(states)
+        cols = states[:, :-1] + np.arange(self.n_dim) * self.n_angles
+        rows = np.repeat(np.arange(states.shape[0]), self.n_dim)
+        obs = np.zeros((len(states), self.obs_dim), dtype=np.float32)
+        obs[rows, cols.flatten()] = 1.0
+        obs[:, -1] = states[:, -1]
+        return obs
+
     def obs2state(self, obs: List) -> List:
         """
         Transforms the one-hot encoding version of a state given as argument
@@ -253,7 +269,7 @@ class Torus(GFlowNetEnv):
         Returns
         -------
         parents : list
-            List of parents as state2obs(state)
+            List of parents in state format
 
         actions : list
             List of actions that lead to state for each parent in parents
@@ -270,7 +286,7 @@ class Torus(GFlowNetEnv):
         if done is None:
             done = self.done
         if done:
-            return [self.state2obs(state)], [self.eos]
+            return [state], [self.eos]
         # If source state
         elif state[-1] == 0:
             return [], []
@@ -293,7 +309,7 @@ class Torus(GFlowNetEnv):
                         angles_p[a[0]] = angles_p[a[0]] - self.n_angles
                 if _get_min_actions_to_source(self.source, angles_p) < state[-1]:
                     state_p = angles_p + [n_actions_p]
-                    parents.append(self.state2obs(state_p))
+                    parents.append(state_p)
                     actions.append(idx)
         return parents, actions
 

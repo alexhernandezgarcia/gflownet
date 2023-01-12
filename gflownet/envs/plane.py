@@ -282,7 +282,7 @@ class Plane(GFlowNetEnv):
         Returns
         -------
         parents : list
-            List of parents as state2obs(state)
+            List of parents in state format
 
         actions : list
             List of actions that lead to state for each parent in parents
@@ -292,7 +292,7 @@ class Plane(GFlowNetEnv):
         if done is None:
             done = self.done
         if done:
-            return [self.state2obs(state)], [(self.eos, 0.0)]
+            return [state], [(self.eos, 0.0)]
         else:
             state[action[0]] -= action[1]
             parents = [state]
