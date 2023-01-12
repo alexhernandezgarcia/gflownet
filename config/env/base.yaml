@@ -1,0 +1,20 @@
+_target_: gflownet.envs.base.GFlowNetEnv
+
+# Reward function: power or boltzmann
+# boltzmann: exp(-1.0 * reward_beta * proxy)
+# power: (-1.0 * proxy / reward_norm) ** self.reward_beta
+reward_func: boltzmann
+# Beta parameter of the reward function
+reward_beta: 1.0
+# Reward normalization for "power" reward function
+reward_norm: 1.0
+# If > 0, reward_norm = reward_norm_std_mult * std(energies)
+proxy_state_format: oracle
+reward_norm_std_mult: 8
+# Buffer
+buffer:
+  replay_capacity: 10
+  train:
+    path: null
+  test:
+    path: null
