@@ -6,6 +6,7 @@ import itertools
 import numpy as np
 import numpy.typing as npt
 import pandas as pd
+import torch
 from torchtyping import TensorType
 from gflownet.envs.base import GFlowNetEnv
 
@@ -62,6 +63,7 @@ class Grid(GFlowNetEnv):
             proxy_state_format,
             **kwargs,
         )
+        self.continuous = True
         self.n_dim = n_dim
         self.eos = self.n_dim
         self.state = [0 for _ in range(self.n_dim)]
@@ -200,9 +202,10 @@ class Grid(GFlowNetEnv):
 
         See state2policy().
         """
-        cols = states + torch.arange(self.n_dim) * self.length
-        rows = torch.repeat(torch.arange(states.shape[0]), self.n_dim)
-        obs = np.zeros((states.shape[0], self.obs_dim), dtype=states.dtype).to(states.device)
+        device = states.device
+        cols = (states + torch.arange(self.n_dim).to(device) * self.length).to(int)
+        rows = torch.repeat_interleave(torch.arange(states.shape[0]).to(device), self.n_dim)
+        obs = torch.zeros((states.shape[0], self.obs_dim), dtype=states.dtype).to(device)
         obs[rows, cols.flatten()] = 1.0
         return obs
 
@@ -273,7 +276,7 @@ class Grid(GFlowNetEnv):
         if done is None:
             done = self.done
         if done:
-            return [state], [self.eos]
+            return [state], [(self.eos,)]
         else:
             parents = []
             actions = []
