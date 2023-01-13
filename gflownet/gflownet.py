@@ -266,7 +266,7 @@ class GFlowNetAgent:
         random_action = self.rng.uniform()
         t0_a_model = time.time()
         if sampling_method == "policy":
-            action_logits = model(tf(env.statebatch2policy(states)))
+            action_logits = model(tf(self.env.statebatch2policy(states)))
             action_logits /= temperature
         elif sampling_method == "uniform":
             action_logits = tf(np.zeros(len(states)), len(self.env.action_space) + 1)
@@ -321,7 +321,7 @@ class GFlowNetAgent:
         )
         # Build policy outputs
         if sampling_method == "policy":
-            policy_outputs = model(tf(env.statebatch2policy(states)))
+            policy_outputs = model(tf(self.env.statebatch2policy(states)))
         elif sampling_method == "uniform":
             policy_outputs = None
         else:
@@ -443,7 +443,8 @@ class GFlowNetAgent:
                 - [5] done [True, False]
                 - [6] path id: identifies each path
                 - [7] state id: identifies each state within a path
-                - [8] mask: invalid actions from that state are 1
+                - [8] mask_f: invalid forward actions from that state are 1
+                - [9] mask_b: invalid backward actions from that state are 1
         else:
             Each item in the batch is a list of 1 element:
                 - [0] the states (state)
@@ -475,7 +476,8 @@ class GFlowNetAgent:
                 action = env.eos
                 parents = [env.state]
                 parents_a = [action]
-                mask = env.get_mask_invalid_actions_forward()
+                mask_f = env.get_mask_invalid_actions_forward()
+                mask_b = env.get_mask_invalid_actions_backward(env.state, env.done, parents_a)
                 n_actions = 0
                 while len(env.state) > 0:
                     batch.append(
@@ -488,7 +490,8 @@ class GFlowNetAgent:
                             env.done,
                             tl([env.id] * len(parents)),
                             tl([n_actions]),
-                            tb([mask]),
+                            tb([mask_f]),
+                            tb([mask_b]),
                         ]
                     )
                     # Backward sampling
@@ -525,7 +528,8 @@ class GFlowNetAgent:
             for env, action, valid in zip(envs, actions, valids):
                 if valid:
                     parents, parents_a = env.get_parents(action=action)
-                    mask = env.get_mask_invalid_actions_forward()
+                    mask_f = env.get_mask_invalid_actions_forward()
+                    mask_b = env.get_mask_invalid_actions_backward(env.state, env.done, parents_a)
                     assert action in parents_a
                     if train:
                         batch.append(
@@ -538,7 +542,8 @@ class GFlowNetAgent:
                                 env.done,
                                 tl([env.id] * len(parents)),
                                 tl([env.n_actions - 1]),
-                                tb([mask]),
+                                tb([mask_f]),
+                                tb([mask_b]),
                             ]
                         )
                     else:
@@ -561,7 +566,8 @@ class GFlowNetAgent:
                 done,
                 path_id,
                 state_id,
-                masks,
+                masks_f,
+                masks_b,
             ) = zip(*batch)
             t0_rewards = time.time()
             rewards = env.reward_batch(states, done)
@@ -579,7 +585,8 @@ class GFlowNetAgent:
                     done,
                     path_id,
                     state_id,
-                    masks,
+                    masks_f,
+                    masks_b,
                 )
             )
         t1_all = time.time()
@@ -800,7 +807,8 @@ class GFlowNetAgent:
             done,
             path_id_parents,
             state_id,
-            masks,
+            masks_sf,
+            masks_b,
         ) = zip(*batch)
         # Keep only parents in trajectory
         parents = [
@@ -809,7 +817,7 @@ class GFlowNetAgent:
         ]
         path_id = torch.cat([el[:1] for el in path_id_parents])
         # Concatenate lists of tensors
-        states, actions, rewards, parents, done, state_id, masks = map(
+        states, actions, rewards, parents, done, state_id, masks_sf, masks_b = map(
             torch.cat,
             [
                 states,
@@ -818,33 +826,27 @@ class GFlowNetAgent:
                 parents,
                 done,
                 state_id,
-                masks,
+                masks_sf,
+                masks_b,
             ],
         )
-        # Build forward masks from state masks
+        # Build parents forward masks from state masks
         masks_f = torch.cat(
             [
-                masks[torch.where((state_id == sid - 1) & (path_id == pid))]
+                masks_sf[torch.where((state_id == sid - 1) & (path_id == pid))]
                 if sid > 0
                 else self.mask_source
                 for sid, pid in zip(state_id, path_id)
             ]
         )
-        # Get backward masks
-        masks_b = torch.cat(
-            [
-                tb([self.env.get_mask_invalid_actions_backward(s, d)])
-                for s, d in zip(states, done)
-            ]
-        )
         # Forward trajectories
-        policy_output_f = self.forward_policy(parents)
+        policy_output_f = self.forward_policy(self.env.statetorch2policy(parents))
         logprobs_f = self.env.get_logprobs(policy_output_f, actions, masks_f, loginf)
         sumlogprobs_f = tf(
             torch.zeros(len(torch.unique(path_id, sorted=True)))
         ).index_add_(0, path_id, logprobs_f)
         # Backward trajectories
-        policy_output_b = self.backward_policy(states)
+        policy_output_b = self.backward_policy(self.env.statetorch2policy(states))
         logprobs_b = self.env.get_logprobs(policy_output_b, actions, masks_b, loginf)
         sumlogprobs_b = tf(
             torch.zeros(len(torch.unique(path_id, sorted=True)))
