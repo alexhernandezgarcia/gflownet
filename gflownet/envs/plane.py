@@ -4,6 +4,7 @@ Classes to represent hyperplane environments
 from typing import List, Tuple
 import itertools
 import numpy as np
+import numpy.typing as npt
 import pandas as pd
 import torch
 from gflownet.envs.base import GFlowNetEnv
@@ -211,6 +212,17 @@ class Plane(GFlowNetEnv):
             State
         """
         return -1.0 + np.array(states) * 2 / self.max_val
+
+    def statetorch2policy(self, states: TensorType["batch", "state_dim"]) -> TensorType["batch", "policy_output_dim"]:
+        """
+        Scales the states into [0, max_val]
+
+        Args
+        ----
+        state : list
+            State
+        """
+        return -1.0 + states * 2 / self.max_val
 
     def state2policy(self, state: List = None) -> List:
         """
