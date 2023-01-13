@@ -52,6 +52,7 @@ class GFlowNetAgent:
         policy,
         mask_invalid_actions,
         temperature_logits,
+        random_action_prob,
         pct_batch_empirical,
         proxy=None,
         al_iter=-1,
@@ -83,7 +84,7 @@ class GFlowNetAgent:
             self.logZ = None
         elif optimizer.loss in ["trajectorybalance", "tb"]:
             self.loss = "trajectorybalance"
-            self.logZ = nn.Parameter(torch.ones(16) * 150.0 / 64)
+            self.logZ = nn.Parameter(torch.ones(optimizer.z_dim) * 150.0 / 64)
         else:
             print("Unkown loss. Using flowmatch as default")
             self.loss = "flowmatch"
@@ -221,6 +222,7 @@ class GFlowNetAgent:
         # Training
         self.mask_invalid_actions = mask_invalid_actions
         self.temperature_logits = temperature_logits
+        self.random_action_prob = random_action_prob
         self.pct_batch_empirical = pct_batch_empirical
 
     def parameters(self):
@@ -289,7 +291,8 @@ class GFlowNetAgent:
         return envs, actions, valids
 
     def forward_sample_continuous(
-        self, envs, times, sampling_method="policy", model=None, temperature=1.0
+        self, envs, times, sampling_method="policy", model=None, temperature=1.0,
+        random_action_prob=0.0,
     ):
         """
         Performs a forward action on each environment of a list.
@@ -323,12 +326,14 @@ class GFlowNetAgent:
         if sampling_method == "policy":
             policy_outputs = model(tf(self.env.statebatch2policy(states)))
         elif sampling_method == "uniform":
+            # TODO
             policy_outputs = None
         else:
             raise NotImplemented
         # Sample actions from policy outputs
         actions, logprobs = self.env.sample_actions(
-            policy_outputs, sampling_method, mask_invalid_actions, temperature
+            policy_outputs, sampling_method, mask_invalid_actions, temperature,
+            random_action_prob,
         )
         assert len(envs) == len(actions)
         # Execute actions
@@ -522,6 +527,7 @@ class GFlowNetAgent:
                         sampling_method="policy",
                         model=self.forward_policy,
                         temperature=self.temperature_logits,
+                        random_action_prob=self.random_action_prob,
                     )
             t0_a_envs = time.time()
             # Add to batch
@@ -926,8 +932,6 @@ class GFlowNetAgent:
             self.buffer.add(
                 states_term, paths_term, rewards, proxy_vals, it, buffer="replay"
             )
-            if any([len(state) > 2 for state in states_term]):
-                import ipdb; ipdb.set_trace()
             # Log
             idx_best = np.argmax(rewards)
             state_best = "".join(self.env.state2readable(states_term[idx_best]))
@@ -938,9 +942,9 @@ class GFlowNetAgent:
             else:
                 all_visited.extend(states_term)
             if self.comet:
-                self.comet.log_text(
-                    state_best + " / proxy: {}".format(proxy_vals[idx_best]), step=it
-                )
+#                 self.comet.log_text(
+#                     state_best + " / proxy: {}".format(proxy_vals[idx_best]), step=it
+#                 )
                 self.comet.log_metrics(
                     dict(
                         zip(

@@ -267,6 +267,7 @@ class ContinuousTorus(GFlowNetEnv):
         sampling_method: str = "policy",
         mask_invalid_actions: TensorType["n_states", "policy_output_dim"] = None,
         temperature_logits: float = 1.0,
+        random_action_prob=0.0,
         loginf: float = 1000,
     ) -> Tuple[List[Tuple], TensorType["n_states"]]:
         """
@@ -275,9 +276,13 @@ class ContinuousTorus(GFlowNetEnv):
         device = policy_outputs.device
         n_states = policy_outputs.shape[0]
         ns_range = torch.arange(n_states).to(device)
+        # Random actions
+        n_random = int(n_states * random_action_prob)
+        idx_random = torch.randint(high=n_states, size=(n_random,))
+        policy_outputs[idx_random, :] = torch.tensor(self.fixed_policy_output).to(policy_outputs)
         # Sample dimensions
         if sampling_method == "uniform":
-            logits_dims = torch.zeros(n_states, self.n_dim).to(device)
+            logits_dims = torch.ones(n_states, self.policy_output_dim).to(device)
         elif sampling_method == "policy":
             logits_dims = policy_outputs[:, 0::3]
             logits_dims /= temperature_logits

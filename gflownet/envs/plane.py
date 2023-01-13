@@ -293,6 +293,7 @@ class Plane(GFlowNetEnv):
         sampling_method: str = "policy",
         mask_invalid_actions: TensorType["n_states", "policy_output_dim"] = None,
         temperature_logits: float = 1.0,
+        random_action_prob=0.0,
         loginf: float = 1000,
     ) -> Tuple[List[Tuple], TensorType["n_states"]]:
         """
@@ -301,6 +302,10 @@ class Plane(GFlowNetEnv):
         device = policy_outputs.device
         n_states = policy_outputs.shape[0]
         ns_range = torch.arange(n_states).to(device)
+        # Random actions
+        n_random = int(n_states * random_action_prob)
+        idx_random = torch.randint(high=n_states, size=(n_random,))
+        policy_outputs[idx_random, :] = torch.tensor(self.fixed_policy_output).to(policy_outputs)
         # Sample dimensions
         if sampling_method == "uniform":
             logits_dims = torch.zeros(n_states, self.n_dim).to(device)
