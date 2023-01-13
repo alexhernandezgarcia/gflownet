@@ -417,8 +417,10 @@ class GFlowNetEnv:
         True if action is invalid going backward given the current state, False
         otherwise.
         """
-        # TODO
-        pass
+        mask = [True for _ in range(len(self.action_space))]
+        for pa in parents_a:
+            mask[self.action_space.index(pa)] = False
+        return mask
 
     def set_state(self, state, done):
         """
