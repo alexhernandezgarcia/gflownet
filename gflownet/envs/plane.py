@@ -62,6 +62,7 @@ class Plane(GFlowNetEnv):
         # Main properties
         self.continuous = True
         self.n_dim = n_dim
+        self.eos = self.n_dim
         self.max_val = max_val
         self.max_traj_length = max_traj_length
         # Parameters of fixed policy distribution
@@ -73,7 +74,6 @@ class Plane(GFlowNetEnv):
         self.action_space = self.get_actions_space()
         self.fixed_policy_output = self.get_fixed_policy_output()
         self.policy_output_dim = len(self.fixed_policy_output)
-        self.eos = self.n_dim
         # Set up proxy
         self.proxy.n_dim = self.n_dim
         self.proxy.setup()
@@ -123,6 +123,7 @@ class Plane(GFlowNetEnv):
         increment of the dimension value.
         """
         actions = [(d, None) for d in range(self.n_dim)]
+        actions += [(self.eos, None)]
         return actions
 
     def get_fixed_policy_output(self):
@@ -160,12 +161,12 @@ class Plane(GFlowNetEnv):
         if done is None:
             done = self.done
         if done:
-            return [True for _ in range(len(self.action_space) + 1)]
+            return [True for _ in range(len(self.action_space))]
         if any([s > self.max_val for s in self.state]) or self.n_actions >= self.max_traj_length:
-            mask = [True for _ in range(len(self.action_space) + 1)]
+            mask = [True for _ in range(len(self.action_space))]
             mask[-1] = False
         else:
-            mask = [False for _ in range(len(self.action_space) + 1)]
+            mask = [False for _ in range(len(self.action_space))]
         return mask
 
     def get_mask_invalid_actions_backward(self, state=None, done=None, parents_a=None):
@@ -179,10 +180,10 @@ class Plane(GFlowNetEnv):
         if done is None:
             done = self.done
         if done:
-            mask = [True for _ in range(len(self.action_space) + 1)]
+            mask = [True for _ in range(len(self.action_space))]
             mask[-1] = False
         else:
-            mask = [False for _ in range(len(self.action_space) + 1)]
+            mask = [False for _ in range(len(self.action_space))]
         # TODO: review: anything to do with max_value?
         return mask
 

@@ -61,6 +61,7 @@ class ContinuousTorus(GFlowNetEnv):
         )
         self.continuous = True
         self.n_dim = n_dim
+        self.eos = self.n_dim
         self.length_traj = length_traj
         # Parameters of fixed policy distribution
         self.vonmises_mean = vonmises_mean
@@ -73,7 +74,6 @@ class ContinuousTorus(GFlowNetEnv):
         self.action_space = self.get_actions_space()
         self.fixed_policy_output = self.get_fixed_policy_output()
         self.policy_output_dim = len(self.fixed_policy_output)
-        self.eos = self.n_dim
         self.logsoftmax = torch.nn.LogSoftmax(dim=1)
         # Oracle
         self.state2oracle = self.state2proxy
@@ -87,6 +87,7 @@ class ContinuousTorus(GFlowNetEnv):
         increment of the angle in radians.
         """
         actions = [(d, None) for d in range(self.n_dim)]
+        actions += [(self.eos, None)]
         return actions
 
     def get_fixed_policy_output(self):
@@ -122,12 +123,12 @@ class ContinuousTorus(GFlowNetEnv):
         if done is None:
             done = self.done
         if done:
-            return [True for _ in range(len(self.action_space) + 1)]
+            return [True for _ in range(len(self.action_space))]
         if state[-1] >= self.length_traj:
-            mask = [True for _ in range(len(self.action_space) + 1)]
+            mask = [True for _ in range(len(self.action_space))]
             mask[-1] = False
         else:
-            mask = [False for _ in range(len(self.action_space) + 1)]
+            mask = [False for _ in range(len(self.action_space))]
             mask[-1] = True
         return mask
 
@@ -142,10 +143,10 @@ class ContinuousTorus(GFlowNetEnv):
         if done is None:
             done = self.done
         if done:
-            mask = [True for _ in range(len(self.action_space) + 1)]
+            mask = [True for _ in range(len(self.action_space))]
             mask[-1] = False
         else:
-            mask = [False for _ in range(len(self.action_space) + 1)]
+            mask = [False for _ in range(len(self.action_space))]
             mask[-1] = True
         return mask
 
