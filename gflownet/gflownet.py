@@ -41,26 +41,28 @@ def set_device(dev):
 class GFlowNetAgent:
     def __init__(
         self,
-        logdir,
         env,
         seed,
         device,
         optimizer,
-        logger,
-        comet,
         buffer,
         policy,
         mask_invalid_actions,
         temperature_logits,
         pct_batch_empirical,
+        logger,
+        log_dir,
+        debug,
+        lightweight,
+        num_empirical_loss,
+        progress,
+        oracle,
         proxy=None,
         al_iter=-1,
         data_path=None,
         sample_only=False,
         **kwargs,
     ):
-        # Log directory
-        self.logdir = Path(logdir)
         # Environment
         self.env = env
         self.mask_source = tb([self.env.get_mask_invalid_actions()])
@@ -81,36 +83,15 @@ class GFlowNetAgent:
             print("Unkown loss. Using flowmatch as default")
             self.loss = "flowmatch"
             self.Z = None
-        if not sample_only:
-            self.loss_eps = torch.tensor(float(1e-5)).to(self.device)
+        self.loss_eps = torch.tensor(float(1e-5)).to(self.device)
         # Logging (Comet)
-        self.debug = logger.debug
-        self.lightweight = logger.lightweight
-        self.progress = logger.progress
-        self.num_empirical_loss = logger.num_empirical_loss
-        if comet.project and not comet.skip and not sample_only:
-            self.comet = Experiment(project_name=comet.project, display_summary_level=0)
-            if comet.tags:
-                if isinstance(comet.tags, list):
-                    self.comet.add_tags(comet.tags)
-                else:
-                    self.comet.add_tag(comet.tags)
-            #             self.comet.log_parameters(vars(args))
-            if self.logdir.exists():
-                with open(self.logdir / "comet.url", "w") as f:
-                    f.write(self.comet.url + "\n")
-        else:
-            if isinstance(comet, Experiment):
-                self.comet = comet
-            else:
-                self.comet = None
-        self.log_times = comet.log_times
-        self.test_period = logger.test.period
-        if self.test_period in [None, -1]:
-            self.test_period = np.inf
-        self.oracle_period = logger.oracle.period
-        self.oracle_n = logger.oracle.n
-        self.oracle_k = logger.oracle.k
+        self.debug = debug
+        self.lightweight = lightweight
+        self.progress = progress
+        self.num_empirical_loss = num_empirical_loss
+        self.logger = logger
+        self.logdir = Path(log_dir)
+        self.oracle_n = oracle.n
         # Buffers
         self.buffer = Buffer(**buffer, env=self.env, make_train_test=not sample_only)
         # Train set statistics and reward normalization constant
@@ -155,7 +136,7 @@ class GFlowNetAgent:
                 else:
                     self.policy_forward_path = self.logdir / policy.forward.checkpoint
             else:
-                self.policy_forward_path = policy.forward.checkpoint
+                self.policy_forward_path = Path(policy.forward.checkpoint)
             if self.policy_forward_path.exists() and policy.forward.reload_ckpt:
                 self.forward_policy.load_state_dict(
                     torch.load(self.policy_forward_path)
@@ -181,7 +162,7 @@ class GFlowNetAgent:
                 else:
                     self.policy_backward_path = self.logdir / policy.backward.checkpoint
             else:
-                self.policy_backward_path = policy.backward.checkpoint
+                self.policy_backward_path = Path(policy.backward.checkpoint)
             if self.policy_backward_path.exists() and policy.backward.reload_ckpt:
                 self.backward_policy.load_state_dict(
                     torch.load(self.policy_backward_path)
@@ -210,9 +191,9 @@ class GFlowNetAgent:
         self.ema_alpha = optimizer.ema_alpha
         self.early_stopping = optimizer.early_stopping
         if al_iter >= 0:
-            self.al_iter = "_iter{}".format(al_iter)
+            self.use_context = True
         else:
-            self.al_iter = ""
+            self.use_context = False
         self.logsoftmax = torch.nn.LogSoftmax(dim=1)
         # Training
         self.mask_invalid_actions = mask_invalid_actions
@@ -685,7 +666,7 @@ class GFlowNetAgent:
             #             state_ids[traj_id].append(state_id)
             trajs[traj_id].append(el[1][0].item())
             if bool(el[5].item()):
-                states[traj_id] = tuple(self.env.obs2state(el[0][0]))
+                states[traj_id] = tuple(self.env.obs2state(el[0][0].cpu().numpy()))
                 rewards[traj_id] = el[2][0].item()
         trajs = [tuple(el) for el in trajs]
         return states, trajs, rewards
@@ -744,157 +725,23 @@ class GFlowNetAgent:
             if self.lightweight:
                 all_losses = all_losses[-100:]
                 all_visited = states_term
-
             else:
                 all_visited.extend(states_term)
-            if self.comet:
-                self.comet.log_text(
-                    state_best + " / proxy: {}".format(proxy_vals[idx_best]), step=it
-                )
-                self.comet.log_metrics(
-                    dict(
-                        zip(
-                            [
-                                "mean_reward{}".format(self.al_iter),
-                                "max_reward{}".format(self.al_iter),
-                                "mean_proxy{}".format(self.al_iter),
-                                "min_proxy{}".format(self.al_iter),
-                                "max_proxy{}".format(self.al_iter),
-                                "mean_seq_length{}".format(self.al_iter),
-                                "batch_size{}".format(self.al_iter),
-                            ],
-                            [
-                                np.mean(rewards),
-                                np.max(rewards),
-                                np.mean(proxy_vals),
-                                np.min(proxy_vals),
-                                np.max(proxy_vals),
-                                np.mean([len(state) for state in states_term]),
-                                len(data),
-                            ],
-                        )
-                    ),
-                    step=it,
-                )
-            # Test set metrics
-            if not it % self.test_period and self.buffer.test is not None:
-                data_logq = []
-                times.update(
-                    {
-                        "test_trajs": 0.0,
-                        "test_logq": 0.0,
-                    }
-                )
-                # TODO: this could be done just once and store it
-                for statestr, score in tqdm(
-                    zip(self.buffer.test.samples, self.buffer.test["energies"]),
-                    disable=self.test_period < 10,
-                ):
-                    t0_test_traj = time.time()
-                    traj_list, actions = self.env.get_trajectories(
-                        [],
-                        [],
-                        [self.env.readable2state(statestr)],
-                        [self.env.eos],
-                    )
-                    t1_test_traj = time.time()
-                    times["test_trajs"] += t1_test_traj - t0_test_traj
-                    t0_test_logq = time.time()
-                    data_logq.append(
-                        logq(traj_list, actions, self.forward_policy, self.env)
-                    )
-                    t1_test_logq = time.time()
-                    times["test_logq"] += t1_test_logq - t0_test_logq
-                corr = np.corrcoef(data_logq, self.buffer.test["energies"])
-                if self.comet:
-                    self.comet.log_metrics(
-                        dict(
-                            zip(
-                                [
-                                    "test_corr_logq_score{}".format(self.al_iter),
-                                    "test_mean_logq{}".format(self.al_iter),
-                                ],
-                                [
-                                    corr[0, 1],
-                                    np.mean(data_logq),
-                                ],
-                            )
-                        ),
-                        step=it,
-                    )
-            # Oracle metrics (for monitoring)
-            if not it % self.oracle_period and self.debug:
-                oracle_batch, oracle_times = self.sample_batch(
-                    self.env, self.oracle_n, train=False
-                )
-                oracle_dict, oracle_times = batch2dict(
-                    oracle_batch, self.env, get_uncertainties=False
-                )
-                energies = oracle_dict["energies"]
-                energies_sorted = np.sort(energies)
-                dict_topk = {}
-                for k in self.oracle_k:
-                    mean_topk = np.mean(energies_sorted[:k])
-                    dict_topk.update(
-                        {"oracle_mean_top{}{}".format(k, self.al_iter): mean_topk}
-                    )
-                    if self.comet:
-                        self.comet.log_metrics(dict_topk)
-            if not it % 100:
-                if not self.lightweight:
-                    l1_error, kl_div = empirical_distribution_error(
-                        self.env, all_visited[-self.num_empirical_loss :]
-                    )
-                else:
-                    l1_error, kl_div = 1, 100
-                if self.progress:
-                    if self.debug:
-                        print("Empirical L1 distance", l1_error, "KL", kl_div)
-                        if len(all_losses):
-                            print(
-                                *[
-                                    f"{np.mean([i[j] for i in all_losses[-100:]]):.5f}"
-                                    for j in range(len(all_losses[0]))
-                                ]
-                            )
-                if self.comet:
-                    self.comet.log_metrics(
-                        dict(
-                            zip(
-                                [
-                                    "loss{}".format(self.al_iter),
-                                    "term_loss{}".format(self.al_iter),
-                                    "flow_loss{}".format(self.al_iter),
-                                    "l1{}".format(self.al_iter),
-                                    "kl{}".format(self.al_iter),
-                                ],
-                                [loss.item() for loss in losses] + [l1_error, kl_div],
-                            )
-                        ),
-                        step=it,
-                    )
-                    if not self.lightweight:
-                        self.comet.log_metric(
-                            "unique_states{}".format(self.al_iter),
-                            np.unique(all_visited).shape[0],
-                            step=it,
-                        )
-            # Save intermediate models
-            if not it % self.ckpt_period:
-                if self.policy_forward_path:
-                    path = self.policy_forward_path.parent / Path(
-                        self.model_path.stem
-                        + "{}_iter{:06d}".format(self.al_iter, it)
-                        + self.policy_forward_path.suffix
-                    )
-                    torch.save(self.forward_policy.model.state_dict(), path)
-                if self.policy_backward_path:
-                    path = self.policy_backward_path.parent / Path(
-                        self.model_path.stem
-                        + "{}_iter{:06d}".format(self.al_iter, it)
-                        + self.policy_backward_path.suffix
-                    )
-                    torch.save(self.backward_policy.model.state_dict(), path)
+            # log metrics
+            self.log_iter(
+                rewards,
+                proxy_vals,
+                states_term,
+                data,
+                it,
+                times,
+                losses,
+                all_losses,
+                all_visited,
+            )
+            # save intermediate models
+            self.save_models(iter=True)
+
             # Moving average of the loss for early stopping
             if loss_term_ema and loss_flow_ema:
                 loss_term_ema = (
@@ -915,32 +762,130 @@ class GFlowNetAgent:
             # Log times
             t1_iter = time.time()
             times.update({"iter": t1_iter - t0_iter})
-            times = {"time_{}{}".format(k, self.al_iter): v for k, v in times.items()}
-            if self.comet and self.log_times:
-                self.comet.log_metrics(times, step=it)
+            if self.logger:
+                self.logger.log_time(times, it, use_context=self.use_context)
         # Save final model
-        if self.policy_forward_path:
-            path = self.policy_forward_path.parent / Path(
-                self.policy_forward_path.stem
-                + "_final"
-                + self.policy_forward_path.suffix
-            )
-            torch.save(self.forward_policy.model.state_dict(), path)
-            torch.save(self.forward_policy.model.state_dict(), self.policy_forward_path)
-        if self.policy_backward_path:
-            path = self.policy_backward_path.parent / Path(
-                self.policy_backward_path.stem
-                + "_final"
-                + self.policy_backward_path.suffix
-            )
-            torch.save(self.backward_policy.model.state_dict(), path)
-            torch.save(
-                self.backward_policy.model.state_dict(), self.policy_backward_path
-            )
+        self.save_models(iter=False)
 
         # Close comet
-        if self.comet and self.al_iter == -1:
-            self.comet.end()
+        if self.logger and self.use_context == False:
+            self.logger.end()
+
+    def get_log_corr(self, times):
+        data_logq = []
+        times.update(
+            {
+                "test_trajs": 0.0,
+                "test_logq": 0.0,
+            }
+        )
+        # TODO: this could be done just once and store it
+        for statestr, score in tqdm(
+            zip(self.buffer.test.samples, self.buffer.test["energies"]), disable=True
+        ):
+            t0_test_traj = time.time()
+            traj_list, actions = self.env.get_trajectories(
+                [],
+                [],
+                [self.env.readable2state(statestr)],
+                [self.env.eos],
+            )
+            t1_test_traj = time.time()
+            times["test_trajs"] += t1_test_traj - t0_test_traj
+            t0_test_logq = time.time()
+            data_logq.append(logq(traj_list, actions, self.forward_policy, self.env))
+            t1_test_logq = time.time()
+            times["test_logq"] += t1_test_logq - t0_test_logq
+        corr = np.corrcoef(data_logq, self.buffer.test["energies"])
+        return corr, data_logq, times
+
+    def log_iter(
+        self,
+        rewards,
+        proxy_vals,
+        states_term,
+        data,
+        it,
+        times,
+        losses,
+        all_losses,
+        all_visited,
+    ):
+        if self.logger:
+            # train metrics
+            self.logger.log_sampler_train(
+                rewards, proxy_vals, states_term, data, it, self.use_context
+            )
+            # loss
+            if not self.lightweight:
+                l1_error, kl_div = empirical_distribution_error(
+                    self.env, all_visited[-self.num_empirical_loss :]
+                )
+            else:
+                l1_error, kl_div = 1, 100
+            self.logger.log_sampler_loss(
+                losses,
+                l1_error,
+                kl_div,
+                it,
+                self.use_context,
+            )
+
+            """
+            self.comet.log_text(
+                state_best + " / proxy: {}".format(proxy_vals[idx_best]), step=it
+            )
+            """
+
+            # test metrics
+            if self.buffer.test is not None:
+                corr, data_logq, times = self.get_log_corr(times)
+                self.logger.log_sampler_test(corr, data_logq, it, self.use_context)
+
+            # oracle metrics
+            oracle_batch, oracle_times = self.sample_batch(
+                self.env, self.oracle_n, train=False
+            )
+            oracle_dict, oracle_times = batch2dict(
+                oracle_batch, self.env, get_uncertainties=False
+            )
+            self.logger.log_sampler_oracle(
+                oracle_dict["energies"], it, self.use_context
+            )
+
+            if self.progress:
+                print("Empirical L1 distance", l1_error, "KL", kl_div)
+                if len(all_losses):
+                    print(
+                        *[
+                            f"{np.mean([i[j] for i in all_losses[-100:]]):.5f}"
+                            for j in range(len(all_losses[0]))
+                        ]
+                    )
+            if not self.lightweight:
+                self.logger.log_metric(
+                    "unique_states",
+                    np.unique(all_visited).shape[0],
+                    step=it,
+                    use_context=self.use_context,
+                )
+
+    def save_models(self, iter: bool):
+        if self.policy_forward_path:
+            self.logger.save_model(
+                self.model_path,
+                self.policy_forward_path,
+                self.forward_policy.model,
+                iter=iter,
+            )
+
+        if self.policy_backward_path:
+            self.logger.save_model(
+                self.model_path,
+                self.policy.backward_path,
+                self.backward_policy.model,
+                iter=iter,
+            )
 
 
 class Policy:
