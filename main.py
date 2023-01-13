@@ -39,7 +39,7 @@ def main(config):
     # Sample from trained GFlowNet
     if config.n_samples > 0 and config.n_samples <= 1e5:
         samples, times = gflownet.sample_batch(env, config.n_samples, train=False)
-        energies = env.oracle([env.state2oracle(s) for s in samples])
+        energies = env.oracle(env.statebatch2oracle(samples))
         df = pd.DataFrame(
             {
                 "readable": [env.state2readable(s) for s in samples],
