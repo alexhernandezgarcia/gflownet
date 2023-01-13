@@ -320,7 +320,8 @@ class GFlowNetEnv:
         logits = policy_outputs
         if mask_invalid_actions is not None:
             logits[mask_invalid_actions] = -loginf
-        action_indices = [self.action_space.index(action) for action in actions]
+        # TODO: fix need to convert to tuple: implement as in continuous
+        action_indices = torch.tensor([self.action_space.index(tuple(action.tolist())) for action in actions]).to(int).to(device)
         logprobs = self.logsoftmax(logits)[ns_range, action_indices]
         return logprobs
 
