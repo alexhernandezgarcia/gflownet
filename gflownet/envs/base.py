@@ -172,6 +172,8 @@ class GFlowNetEnv:
                 self.min_reward,
                 None,
             )
+        elif self.reward_func == "identity":
+            return -1.0 * proxy_vals
         else:
             raise NotImplemented
 
@@ -187,6 +189,8 @@ class GFlowNetEnv:
             )
         elif self.reward_func == "boltzmann":
             return -1.0 * np.log(reward) / self.reward_beta
+        elif self.reward_func == "identity":
+            return -1.0 * np.array(reward)
         else:
             raise NotImplemented
 
@@ -289,6 +293,7 @@ class GFlowNetEnv:
         sampling_method: str = "policy",
         mask_invalid_actions: TensorType["n_states", "policy_output_dim"] = None,
         temperature_logits: float = 1.0,
+        random_action_prob=0.0,
         loginf: float = 1000,
     ) -> Tuple[List[Tuple], TensorType["n_states"]]:
         """
