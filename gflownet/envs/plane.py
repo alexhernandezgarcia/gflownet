@@ -213,17 +213,6 @@ class Plane(GFlowNetEnv):
         """
         return -1.0 + np.array(states) * 2 / self.max_val
 
-    def statetorch2policy(self, states: TensorType["batch", "state_dim"]) -> TensorType["batch", "policy_output_dim"]:
-        """
-        Scales the states into [0, max_val]
-
-        Args
-        ----
-        state : list
-            State
-        """
-        return -1.0 + states * 2 / self.max_val
-
     def state2policy(self, state: List = None) -> List:
         """
         Returns the state as is.

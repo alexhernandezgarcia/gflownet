@@ -4,6 +4,7 @@ Classes to represent hyper-torus environments
 from typing import List, Tuple
 import itertools
 import numpy as np
+import numpy.typing as npt
 import pandas as pd
 import torch
 from gflownet.envs.base import GFlowNetEnv
