@@ -51,7 +51,6 @@ class GFlowNetAgent:
         random_action_prob,
         pct_batch_empirical,
         logger,
-        log_dir,
         debug,
         lightweight,
         num_empirical_loss,
@@ -69,8 +68,6 @@ class GFlowNetAgent:
         self.device_torch = torch.device(device)
         self.device = self.device_torch
         set_device(self.device_torch)
-        # Log directory
-        self.logdir = Path(logdir)
         # Environment
         self.env = env
         self.mask_source = tb([self.env.get_mask_invalid_actions_forward()])
@@ -100,7 +97,6 @@ class GFlowNetAgent:
         self.progress = progress
         self.num_empirical_loss = num_empirical_loss
         self.logger = logger
-        self.logdir = Path(log_dir)
         self.oracle_n = oracle.n
         # Buffers
         self.buffer = Buffer(**buffer, env=self.env, make_train_test=not sample_only)
