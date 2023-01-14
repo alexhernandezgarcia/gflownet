@@ -858,7 +858,8 @@ class GFlowNetAgent:
         # Generate list of environments
         envs = [copy.deepcopy(self.env).reset() for _ in range(self.batch_size)]
         # Train loop
-        for it in tqdm(range(1, self.n_train_steps + 1), disable=not self.progress):
+        pbar = tqdm(range(1, self.n_train_steps + 1), disable=not self.progress)
+        for it in pbar:
             t0_iter = time.time()
             data = []
             for j in range(self.sttr):
@@ -907,6 +908,7 @@ class GFlowNetAgent:
                 all_visited.extend(states_term)
             # log metrics
             self.log_iter(
+                pbar,
                 rewards,
                 proxy_vals,
                 states_term,
@@ -978,6 +980,7 @@ class GFlowNetAgent:
 
     def log_iter(
         self,
+        pbar,
         rewards,
         proxy_vals,
         states_term,
@@ -1024,14 +1027,10 @@ class GFlowNetAgent:
         )
 
         if self.progress:
-            print("Empirical L1 distance", l1_error, "KL", kl_div)
-            if len(all_losses):
-                print(
-                    *[
-                        f"{np.mean([i[j] for i in all_losses[-100:]]):.5f}"
-                        for j in range(len(all_losses[0]))
-                    ]
-                )
+            mean_main_loss = np.mean(np.array(all_losses)[-100:, 0], axis=0)
+            description = "Loss: {:.4f} | L1: {:.4f} | KL: {:.4f}".format(mean_main_loss, l1_error, kl_div)
+            pbar.set_description(description)
+
         if not self.lightweight:
             self.logger.log_metric(
                 "unique_states",
