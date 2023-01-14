@@ -115,6 +115,24 @@ class AMP(GFlowNetEnv):
             self.state2proxy = self.state2oracle
         self.alphabet = dict((i, a) for i, a in enumerate(self.vocab))
 
+    def copy(self):
+        return AMP(
+            self.max_seq_length,
+            self.min_seq_length,
+            self.nalphabet,
+            self.min_word_len,
+            self.max_word_len,
+            self.proxy,
+            self.oracle,
+            self.reward_beta,
+            self.id,
+            self.energies_stats,
+            self.reward_norm,
+            self.reward_norm_std_mult,
+            self.reward_func,
+            self.denorm_proxy,
+        )
+
     def get_actions_space(self):
         """
         Constructs list with all possible actions
@@ -398,7 +416,7 @@ class AMP(GFlowNetEnv):
         output_csv=None,
         split="D1",
         nfold=5,
-        load_precomputed_scores=True,
+        load_precomputed_scores=False,
     ):
         """
         Constructs a randomly sampled train set by calling the oracle
@@ -414,94 +432,107 @@ class AMP(GFlowNetEnv):
         output_csv: str
             Optional path to store the test set as CSV.
         """
-        source = get_default_data_splits(setting="Target")
-        rng = np.random.RandomState(142857)
-        self.data = source.sample(
-            split, -1
-        )  # dictionary with two keys 'AMP' and 'nonAMP' and values as lists
-        self.nfold = nfold  # 5
-        if split == "D1":
-            groups = np.array(source.d1_pos.group)
-        if split == "D2":
-            groups = np.array(source.d2_pos.group)
-        if split == "D":
-            groups = np.concatenate(
-                (np.array(source.d1_pos.group), np.array(source.d2_pos.group))
+        df_train = pd.read_csv(
+            "/home/mila/n/nikita.saxena/gflownet/logs/train_dataset_{}.csv".format(
+                split
             )
-
-        n_pos, n_neg = len(self.data["AMP"]), len(self.data["nonAMP"])
-        pos_train, pos_valid = next(
-            GroupKFold(nfold).split(np.arange(n_pos), groups=groups)
-        )  # makes k folds in such a way that each group will appear exactly once in the test set across all folds
-        neg_train, neg_valid = next(
-            GroupKFold(nfold).split(
-                np.arange(n_neg), groups=rng.randint(0, nfold, n_neg)
-            )
-        )  # we get indices above
-
-        pos_train = [
-            self.data["AMP"][i] for i in pos_train
-        ]  # here we make the dataset using the indices
-        neg_train = [self.data["nonAMP"][i] for i in neg_train]
-        pos_valid = [self.data["AMP"][i] for i in pos_valid]
-        neg_valid = [
-            self.data["nonAMP"][i] for i in neg_valid
-        ]  # all these are lists of strings, just the sequences, no energies
-        self.train = pos_train + neg_train
-        self.valid = pos_valid + neg_valid
-
-        if oracle is None:
-            oracle = self.oracle
-
-        if load_precomputed_scores:
-            # Defne _load_precomputed_scores to read the csv file ith user-deifined name bu
-            loaded = self._load_precomputed_scores(split)
-        else:
-            self.train_scores = oracle(self.train)  # train is a list of strings
-            self.valid_scores = oracle(self.valid)
-            np.save(
-                "/home/mila/n/nikita.saxena/gflownet/logs/train_scores_{}.npy".format(
-                    split
-                ),
-                self.train_scores,
-            )
-            np.save(
-                "/home/mila/n/nikita.saxena/gflownet/logs/valid_scores_{}.npy".format(
-                    split
-                ),
-                self.valid_scores,
-            )
-
-        self.train, self.train_scores = self._filter_len(
-            self.train, self.train_scores, self.max_seq_length
         )
-        self.valid, self.valid_scores = self._filter_len(
-            self.valid, self.valid_scores, self.max_seq_length
+        df_valid = pd.read_csv(
+            "/home/mila/n/nikita.saxena/gflownet/logs/valid_dataset_{}.csv".format(
+                split
+            )
         )
+        # source = get_default_data_splits(setting="Target")
+        # rng = np.random.RandomState(142857)
+        # self.data = source.sample(
+        #     split, -1
+        # )  # dictionary with two keys 'AMP' and 'nonAMP' and values as lists
+        # self.nfold = nfold  # 5
+        # if split == "D1":
+        #     groups = np.array(source.d1_pos.group)
+        # if split == "D2":
+        #     groups = np.array(source.d2_pos.group)
+        # if split == "D":
+        #     groups = np.concatenate(
+        #         (np.array(source.d1_pos.group), np.array(source.d2_pos.group))
+        #     )
+
+        # n_pos, n_neg = len(self.data["AMP"]), len(self.data["nonAMP"])
+        # pos_train, pos_valid = next(
+        #     GroupKFold(nfold).split(np.arange(n_pos), groups=groups)
+        # )
+        # neg_train, neg_valid = next(
+        #     GroupKFold(nfold).split(
+        #         np.arange(n_neg), groups=rng.randint(0, nfold, n_neg)
+        #     )
+        # )
+
+        # pos_train = [
+        #     self.data["AMP"][i] for i in pos_train
+        # ]
+        # neg_train = [self.data["nonAMP"][i] for i in neg_train]
+        # pos_valid = [self.data["AMP"][i] for i in pos_valid]
+        # neg_valid = [
+        #     self.data["nonAMP"][i] for i in neg_valid
+        # ]
+        # self.train = pos_train + neg_train
+        # self.valid = pos_valid + neg_valid
+
+        # if oracle is None:
+        #     oracle = self.oracle
+
+        # if load_precomputed_scores:
+        #     # Defne _load_precomputed_scores to read the csv file ith user-deifined name bu
+        #     loaded = self._load_precomputed_scores(split)
+        # else:
+        #     self.train_scores = oracle(self.train)  # train is a list of strings
+        #     self.valid_scores = oracle(self.valid)
+        #     np.save(
+        #         "/home/mila/n/nikita.saxena/gflownet/logs/train_scores_{}.npy".format(
+        #             split
+        #         ),
+        #         self.train_scores,
+        #     )
+        #     np.save(
+        #         "/home/mila/n/nikita.saxena/gflownet/logs/valid_scores_{}.npy".format(
+        #             split
+        #         ),
+        #         self.valid_scores,
+        #     )
+        train = df_train["samples"].values
+        valid = df_valid["samples"].values
+        train_scores = df_train["energies"].values
+        valid_scores = df_valid["energies"].values
+
+        train, train_scores = self._filter_len(train, train_scores, self.max_seq_length)
+        valid, valid_scores = self._filter_len(valid, valid_scores, self.max_seq_length)
+
         df_train = pd.DataFrame(
             {
-                "indices": [self.readable2state(s) for s in self.train],
-                "samples": self.train,
-                "energies": self.train_scores,
+                "indices": [self.readable2state(s) for s in train],
+                "samples": train,
+                "energies": train_scores,
             }
         )
         df_valid = pd.DataFrame(
             {
-                "indices": [self.readable2state(s) for s in self.valid],
-                "samples": self.valid,
-                "energies": self.valid_scores,
+                "indices": [self.readable2state(s) for s in valid],
+                "samples": valid,
+                "energies": valid_scores,
             }
         )
-
-        if output_csv:
-            df_train.to_csv(output_csv)
         return df_train, df_valid
+        # # if output_csv:
+        # df_train.to_csv("/home/mila/n/nikita.saxena/gflownet/logs/train_dataset_{}.csv".format(split))
+        # df_valid.to_csv("/home/mila/n/nikita.saxena/gflownet/logs/valid_dataset_{}.csv".format(split))
+
+        # return df_train, df_valid
 
     def _load_precomputed_scores(self, split):
-        self.train_scores = np.load(
+        train_scores = np.load(
             "/home/mila/n/nikita.saxena/gflownet/logs/train_scores_{}.npy".format(split)
         )
-        self.valid_scores = np.load(
+        valid_scores = np.load(
             "/home/mila/n/nikita.saxena/gflownet/logs/valid_scores_{}.npy".format(split)
         )
 
@@ -513,7 +544,7 @@ class AMP(GFlowNetEnv):
                 res[1].append(y[i])
         return res
 
-    def get_distance(seq1, seq2):
+    def get_distance(self, seq1, seq2):
         return levenshtein(seq1, seq2) / 1
 
     # TODO: improve approximation of uniform
