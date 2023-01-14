@@ -16,6 +16,7 @@ from gflownet.utils.common import flatten_config
 def main(config):
     # Get current directory and set it as logdir for the GFlowNet agent
     cwd = os.getcwd()
+    # TODO: set logger logdir instead
     config.gflownet.logdir = cwd
     # Reset seed for job-name generation in multirun jobs
     random.seed(None)
@@ -27,12 +28,19 @@ def main(config):
     with open(cwd + "/config.yml", "w") as f:
         yaml.dump(log_config, f, default_flow_style=False)
 
+    # Logger
+    logger = None
+    if config.log.skip == False:
+        logger = hydra.utils.instantiate(config.logger, config, _recursive_=False)
     # The proxy is required in the env for scoring: might be an oracle or a model
     proxy = hydra.utils.instantiate(config.proxy)
     # The proxy is passed to env and used for computing rewards
     env = hydra.utils.instantiate(config.env, proxy=proxy)
     gflownet = hydra.utils.instantiate(
-        config.gflownet, env=env, buffer=config.env.buffer
+        config.gflownet,
+        env=env,
+        buffer=config.env.buffer,
+        logger=logger,
     )
     gflownet.train()
 
