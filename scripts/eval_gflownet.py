@@ -1,7 +1,6 @@
 """
 Computes evaluation metrics from a pre-trained GFlowNet model.
 """
-from comet_ml import Experiment
 from argparse import ArgumentParser
 import copy
 import gzip
