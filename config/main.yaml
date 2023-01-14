@@ -2,6 +2,9 @@ defaults:
   - env: amp
   - gflownet: flowmatch
   - proxy: amp
+  - logger: wandb
 
 n_samples: 1000
 device: 'cuda'
+log: 
+  skip: False
