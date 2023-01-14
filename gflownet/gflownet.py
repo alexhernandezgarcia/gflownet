@@ -1008,7 +1008,7 @@ class GFlowNetAgent:
         )
 
         # test metrics
-        if self.buffer.test is not None:
+        if not self.lightweight and self.buffer.test is not None:
             corr, data_logq, times = self.get_log_corr(times)
             self.logger.log_sampler_test(corr, data_logq, it, self.use_context)
 
