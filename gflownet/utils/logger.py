@@ -18,7 +18,7 @@ class Logger:
         self,
         config: dict,
         project_name: str,
-        logdir: str,
+        logdir: dict,
         overwrite_logdir: bool,
         sampler: dict,
         run_name=None,
@@ -37,11 +37,14 @@ class Logger:
         self.context = "0"
         self.record_time = record_time
         # Log directory
-        self.logdir = Path(logdir)
+        self.logdir = Path(logdir.root)
         if self.logdir.exists() or overwrite_logdir:
             self.logdir.mkdir(parents=True, exist_ok=True)
         else:
+            # TODO: this message seems contradictory with the logic
             print(f"logdir {logdir} already exists! - Ending run...")
+        self.ckpts_dir = self.logdir / logdir.ckpts
+        self.ckpts_dir.mkdir(parents=True, exist_ok=True)
         self.test_period = (
             np.inf
             if sampler.test.period == None or sampler.test.period == -1
@@ -68,6 +71,12 @@ class Logger:
 
     def set_context(self, context: int):
         self.context = str(context)
+
+    def set_forward_policy_cktp_path(self, ckpt_id: str = None):
+        self.pf_ckpt_path = self.ckpts_dir / f"_{ckpt_id}"
+
+    def set_backward_policy_cktp_path(self, ckpt_id: str = None):
+        self.pb_ckpt_path = self.ckpts_dir / f"_{ckpt_id}"
 
     def log_metric(self, key: str, value, step, use_context=True):
         if use_context:
@@ -181,17 +190,18 @@ class Logger:
             step=step,
         )
 
-    def save_model(self, policy_path, model_path, model, step, iter=False):
-        if not step % self.policy_period:
-            path = policy_path.parent / Path(
-                model_path.stem
-                + self.context
-                + "_iter{:06d}".format(step)
-                + policy_path.suffix
-            )
-            torch.save(model.state_dict(), path)
-            if iter == False:
-                torch.save(model.state_dict(), policy_path)
+    def save_models(self, forward_policy, backward_policy, step: int=1e9, final=False):
+        if not step % self.policy_period or final:
+            if final:
+                ckpt_id = "final"
+            else:
+                ckpt_id = "_iter{:06d}".format(step)
+            if forward_policy.is_model and self.pf_ckpt_path is not None:
+                path = self.pf_ckpt_path + self.context + ckpt_id + ".ckpt"
+                torch.save(forward_policy.model.state_dict(), path)
+            if backward_policy.is_model and self.pf_ckpt_path is not None:
+                path = self.pb_ckpt_path + self.context + ckpt_id + ".ckpt"
+                torch.save(backward_policy.model.state_dict(), path)
 
     def log_time(self, times: dict, step: int, use_context: bool):
         if self.record_time:

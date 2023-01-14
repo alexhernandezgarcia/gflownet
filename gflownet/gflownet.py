@@ -134,22 +134,15 @@ class GFlowNetAgent:
         # Policy models
         self.forward_policy = Policy(policy.forward, self.env)
         if policy.forward.checkpoint:
-            if self.logdir.exists():
-                if (self.logdir / "ckpts").exists():
-                    self.policy_forward_path = (
-                        self.logdir / "ckpts" / policy.forward.checkpoint
-                    )
-                else:
-                    self.policy_forward_path = self.logdir / policy.forward.checkpoint
-            else:
-                self.policy_forward_path = Path(policy.forward.checkpoint)
-            if self.policy_forward_path.exists() and policy.forward.reload_ckpt:
+            self.logger.set_forward_policy_cktp_path(policy.forward.checkpoint)
+            # TODO: re-write the logic and conditions to reload a model
+            if False:
                 self.forward_policy.load_state_dict(
                     torch.load(self.policy_forward_path)
                 )
                 print("Reloaded GFN forward policy model Checkpoint")
         else:
-            self.policy_forward_path = None
+            self.logger.set_forward_policy_cktp_path(None)
         if policy.backward:
             self.backward_policy = Policy(
                 policy.backward,
@@ -158,23 +151,16 @@ class GFlowNetAgent:
             )
         else:
             self.backward_policy = None
-        if self.backward_policy and policy.backward.checkpoint:
-            if self.logdir.exists():
-                if (self.logdir / "ckpts").exists():
-                    self.policy_backward_path = (
-                        self.logdir / "ckpts" / policy.backward.checkpoint
-                    )
-                else:
-                    self.policy_backward_path = self.logdir / policy.backward.checkpoint
-            else:
-                self.policy_backward_path = Path(policy.backward.checkpoint)
-            if self.policy_backward_path.exists() and policy.backward.reload_ckpt:
+        if self.backward_policy and policy.forward.checkpoint:
+            self.logger.set_backward_policy_cktp_path(policy.backward.checkpoint)
+            # TODO: re-write the logic and conditions to reload a model
+            if False:
                 self.backward_policy.load_state_dict(
                     torch.load(self.policy_backward_path)
                 )
                 print("Reloaded GFN backward policy model Checkpoint")
         else:
-            self.policy_backward_path = None
+            self.logger.set_backward_policy_cktp_path(None)
         if self.backward_policy and self.backward_policy.is_model:
             self.backward_policy.model.to(self.device)
         self.ckpt_period = policy.ckpt_period
@@ -935,8 +921,8 @@ class GFlowNetAgent:
                 all_losses,
                 all_visited,
             )
-            # save intermediate models
-            self.save_models(iter=True)
+            # Save intermediate models
+            self.logger.save_models(self.forward_policy, self.backward_policy, step=it)
 
             # Moving average of the loss for early stopping
             if loss_term_ema and loss_flow_ema:
@@ -961,7 +947,7 @@ class GFlowNetAgent:
             if self.logger:
                 self.logger.log_time(times, it, use_context=self.use_context)
         # Save final model
-        self.save_models(iter=False)
+        self.logger.save_models(self.forward_policy, self.backward_policy, final=True)
 
         # Close logger
         if self.logger and self.use_context == False:
@@ -1059,23 +1045,6 @@ class GFlowNetAgent:
                     step=it,
                     use_context=self.use_context,
                 )
-
-    def save_models(self, iter: bool):
-        if self.policy_forward_path:
-            self.logger.save_model(
-                self.model_path,
-                self.policy_forward_path,
-                self.forward_policy.model,
-                iter=iter,
-            )
-
-        if self.policy_backward_path:
-            self.logger.save_model(
-                self.model_path,
-                self.policy.backward_path,
-                self.backward_policy.model,
-                iter=iter,
-            )
 
 
 class Policy:
