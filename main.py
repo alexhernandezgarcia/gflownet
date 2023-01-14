@@ -21,6 +21,7 @@ def main(config):
     # Set other random seeds
     set_seeds(config.seed)
     # Log config
+    # TODO: Move log config to Logger
     log_config = flatten_config(OmegaConf.to_container(config, resolve=True), sep="/")
     log_config = {"/".join(("config", key)): val for key, val in log_config.items()}
     with open(cwd + "/config.yml", "w") as f:
