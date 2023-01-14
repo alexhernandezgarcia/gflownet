@@ -7,7 +7,6 @@ import sys
 import copy
 import time
 from collections import defaultdict
-from itertools import count
 from pathlib import Path
 
 from comet_ml import Experiment
@@ -18,6 +17,7 @@ import torch.nn as nn
 import yaml
 from torch.distributions.categorical import Categorical
 from tqdm import tqdm
+import itertools
 
 from gflownet.envs.base import Buffer
 
@@ -264,10 +264,12 @@ class GFlowNetAgent:
         states = [env.state2obs() for env in envs]
         mask_invalid_actions = tb([env.get_mask_invalid_actions() for env in envs])
         t0_a_model = time.time()
+
         if sampling_method == "uniform":
             actions = self.rng.integers(
                 0, len(self.env.action_space), len(states)
             ).tolist()
+
         elif sampling_method == "policy" or sampling_method == "mixt":
             with torch.no_grad():
                 action_logits = model(tf(states))
@@ -293,6 +295,7 @@ class GFlowNetAgent:
                 ]
         else:
             raise NotImplementedError("Sampling method not implemented")
+
         t1_a_model = time.time()
         times["actions_model"] += t1_a_model - t0_a_model
         assert len(envs) == len(actions)
@@ -972,6 +975,39 @@ class GFlowNetAgent:
         # Close comet
         if self.comet and self.al_iter == -1:
             self.comet.end()
+
+    def eval(self, batch, performance, diversity, novelty, k=10):
+        """Evaluate the policy on a set of queries.
+
+        Args:
+            queries (list): List of queries to evaluate the policy on.
+
+        Returns:
+            dictionary with topk performance, diversity and novelty scores
+        """
+        queries = self.env.state2oracle(batch)
+        topk_performance = {}
+        if performance:
+            energies = self.proxy(queries)
+            energies = np.sort(energies)[::-1]
+        if diversity:
+            dists = []
+            for pair in itertools.combinations(queries, 2):
+                dists.append(self.env.get_distance(*pair))
+            dists = np.array(dists)
+            dists = np.sort(dists)[::-1]
+            # itertools.combinations(queries, 2) contains one pair only once
+        if novelty:
+            pass
+        for k in self.oracle_k:
+            if performance:
+                mean_energy_topk = np.mean(energies[:k])
+                print(f"\tAverage energy top-{k}: {mean_energy_topk}")
+            if diversity:
+                mean_diversity_topk = np.mean(dists[:k])
+                print(f"\tAverage diversity top-{k}: {mean_diversity_topk}")
+            if novelty:
+                pass
 
 
 class Policy:
