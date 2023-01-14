@@ -7,7 +7,7 @@ import hydra
 from omegaconf import OmegaConf, DictConfig
 from gflownet.utils.common import flatten_config
 import numpy as np
-import itertools
+import copy
 
 
 @hydra.main(config_path="./config", config_name="main")
@@ -28,22 +28,16 @@ def main(config):
     gflownet.train()
 
     # sample from the oracle, not from a proxy model
+    envs = []
+    # for idx in range(config.n_samples):
+    #     env = hydra.utils.instantiate(config.env, proxy=proxy)
+    #     envs.append(env)
+    env2 = hydra.utils.instantiate(config.env, proxy=proxy)
+    # envs = [env2.copy() for _ in range(32)]
+    envs = [copy.deepcopy(env2) for _ in range(32)]
     batch, times = gflownet.sample_batch(env, config.n_samples, train=False)
-
-    # calculate performance
-    queries = env.state2oracle(batch)
-    energies = proxy(queries)
-    energies_sorted = np.sort(energies)
-    for k in config.gflownet.oracle.k:
-        mean_topk = np.mean(energies_sorted[:k])
-        print(f"\tAverage score top-{k}: {mean_topk}")
-    # calculate diversity
-    dists = []
-    for pair in itertools.combinations(queries, 2):
-        dists.append(env.get_distance(*pair))
-    diversity = dists / (config.n_samples * (config.n_samples - 1))
-    print(f"\tDiversity: {diversity}")
-    # no estimate of novelty here because no original dataset
+    _, _, _ = gflownet.evaluate(batch, oracle = proxy, performance = True, diversity=True, novelty=False)
+    
 
 
 if __name__ == "__main__":

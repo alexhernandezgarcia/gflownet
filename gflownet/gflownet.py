@@ -396,6 +396,7 @@ class GFlowNetAgent:
         if isinstance(envs, list):
             envs = [env.reset(idx) for idx, env in enumerate(envs)]
         elif n_samples is not None and n_samples > 0:
+            # envs = [self.env.copy().reset(idx) for idx in range(n_samples)]
             # envs = [copy.deepcopy(self.env).reset() for _ in range(self.batch_size)]
             envs = [copy.deepcopy(envs).reset(idx) for idx in range(n_samples)]
         else:
@@ -853,12 +854,10 @@ class GFlowNetAgent:
                     )
             # Oracle metrics (for monitoring)
             if not it % self.oracle_period and self.debug:
-                batch_size = 8
                 oracle_batch = []
-                envs = [copy.deepcopy(self.env).reset(idx) for idx in range(batch_size)]
-                for i in range(0, self.oracle_n, batch_size):
+                for i in range(0, self.oracle_n, 32):
                     batch, oracle_times = self.sample_batch(
-                        envs, batch_size, train=False
+                        self.env, 32, train=False
                     )
                     oracle_batch.extend(batch)
                 oracle_dict, oracle_times = batch2dict(
