@@ -12,7 +12,7 @@ from omegaconf import OmegaConf, DictConfig
 from gflownet.utils.common import flatten_config
 
 
-@hydra.main(config_path="./config", config_name="main")
+@hydra.main(config_path="./config", config_name="main", version_base="1.1")
 def main(config):
     # Get current directory and set it as logdir for the GFlowNet agent
     cwd = os.getcwd()
