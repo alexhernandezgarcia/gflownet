@@ -2,3 +2,7 @@ _target_: logger.Logger
 
 skip: False
 log_times: False
+logdir:
+  root: ./logs
+  cktps: ckpts
+overwrite_logdir: True
