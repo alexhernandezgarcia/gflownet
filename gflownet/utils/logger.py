@@ -1,5 +1,3 @@
-import wandb
-import matplotlib.pyplot as plt
 from datetime import datetime
 import numpy as np
 import torch
@@ -24,20 +22,22 @@ class Logger:
         sampler: dict,
         run_name=None,
         tags: list = None,
-        record_time: bool = False,
     ):
         self.config = config
         self.do = do
+        self.do.times = self.do.times and self.do.online
         if run_name is None:
             date_time = datetime.today().strftime("%d/%m-%H:%M:%S")
             run_name = "{}".format(
                 date_time,
             )
-        self.run = wandb.init(config=config, project=project_name, name=run_name)
+        if self.do.online:
+            import wandb
+            import matplotlib.pyplot as plt
+            self.run = wandb.init(config=config, project=project_name, name=run_name)
         self.add_tags(tags)
         self.sampler = sampler
         self.context = "0"
-        self.record_time = record_time and self.do.online
         # Log directory
         self.logdir = Path(logdir.root)
         if self.logdir.exists() or overwrite_logdir:
@@ -69,6 +69,8 @@ class Logger:
         )
 
     def add_tags(self, tags: list):
+        if not self.do.online:
+            return
         self.run.tags = self.run.tags + tags
 
     def set_context(self, context: int):
@@ -81,14 +83,14 @@ class Logger:
         self.pb_ckpt_path = self.ckpts_dir / f"_{ckpt_id}"
 
     def log_metric(self, key: str, value, step, use_context=True):
-        if not do.online:
+        if not self.do.online:
             return
         if use_context:
             key = self.context + "/" + key
         wandb.log({key: value}, step)
 
     def log_histogram(self, key, value, step, use_context=True):
-        if not do.online:
+        if not self.do.online:
             return
         if use_context:
             key = self.context + "/" + key
@@ -101,7 +103,7 @@ class Logger:
         wandb.log({key: fig}, step)
 
     def log_metrics(self, metrics: dict, step: int, use_context: bool = True):
-        if not do.online:
+        if not self.do.online:
             return
         if use_context:
             for key, _ in metrics.items():
@@ -117,7 +119,7 @@ class Logger:
         step: int,
         use_context: bool,
     ):
-        if not do.online:
+        if not self.do.online:
             return
         if not step % self.train_period:
             train_metrics = dict(
@@ -151,7 +153,7 @@ class Logger:
     def log_sampler_test(
         self, corr: array, data_logq: list, step: int, use_context: bool
     ):
-        if not do.online:
+        if not self.do.online:
             return
         if not step % self.test_period:
             test_metrics = dict(
@@ -173,7 +175,7 @@ class Logger:
             )
 
     def log_sampler_oracle(self, energies: array, step: int, use_context: bool):
-        if not do.online:
+        if not self.do.online:
             return
         if not step % self.oracle_period:
             energies_sorted = np.sort(energies)
@@ -186,7 +188,7 @@ class Logger:
     def log_sampler_loss(
         self, losses: list, l1_error: float, kl_div, step, use_context: bool
     ):
-        if not do.online:
+        if not self.do.online:
             return
         loss_metrics = dict(
             zip(
@@ -220,9 +222,11 @@ class Logger:
                 torch.save(backward_policy.model.state_dict(), path)
 
     def log_time(self, times: dict, step: int, use_context: bool):
-        if self.record_time:
+        if self.do.times:
             times = {"time_{}".format(k): v for k, v in times.items()}
             self.log_metrics(times, step=step, use_contxt=use_context)
 
     def end(self):
+        if not self.do.online:
+            return
         wandb.finish()

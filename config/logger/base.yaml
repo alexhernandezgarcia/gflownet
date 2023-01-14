@@ -2,8 +2,8 @@ _target_: logger.Logger
 
 do:
   online: False
-log_times: False
+  times: False
 logdir:
   root: ./logs
-  cktps: ckpts
+  ckpts: ckpts
 overwrite_logdir: True

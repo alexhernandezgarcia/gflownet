@@ -10,7 +10,6 @@ project_name: "ActiveLearningPipeline"
 tags: 
     - dummy1
     - dummy2
-record_time: False
 sampler:
   policy:
     # Period (number of iterations) of saving models
