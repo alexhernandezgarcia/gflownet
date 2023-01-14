@@ -355,7 +355,7 @@ class Plane(GFlowNetEnv):
         """
         device = policy_outputs.device
         dimensions, steps = zip(*actions)
-        dimensions = torch.LongTensor(dimensions).to(device)
+        dimensions = torch.LongTensor([d.long() for d in dimensions]).to(device)
         steps = torch.FloatTensor(steps).to(device)
         n_states = policy_outputs.shape[0]
         ns_range = torch.arange(n_states).to(device)
