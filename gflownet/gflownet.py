@@ -130,7 +130,7 @@ class GFlowNetAgent:
         # Policy models
         self.forward_policy = Policy(policy.forward, self.env)
         if policy.forward.checkpoint:
-            self.logger.set_forward_policy_cktp_path(policy.forward.checkpoint)
+            self.logger.set_forward_policy_ckpt_path(policy.forward.checkpoint)
             # TODO: re-write the logic and conditions to reload a model
             if False:
                 self.forward_policy.load_state_dict(
@@ -138,7 +138,7 @@ class GFlowNetAgent:
                 )
                 print("Reloaded GFN forward policy model Checkpoint")
         else:
-            self.logger.set_forward_policy_cktp_path(None)
+            self.logger.set_forward_policy_ckpt_path(None)
         if policy.backward:
             self.backward_policy = Policy(
                 policy.backward,
@@ -148,7 +148,7 @@ class GFlowNetAgent:
         else:
             self.backward_policy = None
         if self.backward_policy and policy.forward.checkpoint:
-            self.logger.set_backward_policy_cktp_path(policy.backward.checkpoint)
+            self.logger.set_backward_policy_ckpt_path(policy.backward.checkpoint)
             # TODO: re-write the logic and conditions to reload a model
             if False:
                 self.backward_policy.load_state_dict(
@@ -156,7 +156,7 @@ class GFlowNetAgent:
                 )
                 print("Reloaded GFN backward policy model Checkpoint")
         else:
-            self.logger.set_backward_policy_cktp_path(None)
+            self.logger.set_backward_policy_ckpt_path(None)
         if self.backward_policy and self.backward_policy.is_model:
             self.backward_policy.model.to(self.device)
         self.ckpt_period = policy.ckpt_period
