@@ -940,13 +940,12 @@ class GFlowNetAgent:
             # Log times
             t1_iter = time.time()
             times.update({"iter": t1_iter - t0_iter})
-            if self.logger:
-                self.logger.log_time(times, it, use_context=self.use_context)
+            self.logger.log_time(times, it, use_context=self.use_context)
         # Save final model
         self.logger.save_models(self.forward_policy, self.backward_policy, final=True)
 
         # Close logger
-        if self.logger and self.use_context == False:
+        if self.use_context == False:
             self.logger.end()
 
     def get_log_corr(self, times):
@@ -989,58 +988,57 @@ class GFlowNetAgent:
         all_losses,
         all_visited,
     ):
-        if self.logger:
-            # train metrics
-            self.logger.log_sampler_train(
-                rewards, proxy_vals, states_term, data, it, self.use_context
+        # train metrics
+        self.logger.log_sampler_train(
+            rewards, proxy_vals, states_term, data, it, self.use_context
+        )
+        # loss
+        if not self.lightweight:
+            l1_error, kl_div = empirical_distribution_error(
+                self.env, all_visited[-self.num_empirical_loss :]
             )
-            # loss
-            if not self.lightweight:
-                l1_error, kl_div = empirical_distribution_error(
-                    self.env, all_visited[-self.num_empirical_loss :]
+        else:
+            l1_error, kl_div = 1, 100
+        self.logger.log_sampler_loss(
+            losses,
+            l1_error,
+            kl_div,
+            it,
+            self.use_context,
+        )
+
+        # test metrics
+        if self.buffer.test is not None:
+            corr, data_logq, times = self.get_log_corr(times)
+            self.logger.log_sampler_test(corr, data_logq, it, self.use_context)
+
+        # oracle metrics
+        oracle_batch, oracle_times = self.sample_batch(
+            self.env, self.oracle_n, train=False
+        )
+        oracle_dict, oracle_times = batch2dict(
+            oracle_batch, self.env, get_uncertainties=False
+        )
+        self.logger.log_sampler_oracle(
+            oracle_dict["energies"], it, self.use_context
+        )
+
+        if self.progress:
+            print("Empirical L1 distance", l1_error, "KL", kl_div)
+            if len(all_losses):
+                print(
+                    *[
+                        f"{np.mean([i[j] for i in all_losses[-100:]]):.5f}"
+                        for j in range(len(all_losses[0]))
+                    ]
                 )
-            else:
-                l1_error, kl_div = 1, 100
-            self.logger.log_sampler_loss(
-                losses,
-                l1_error,
-                kl_div,
-                it,
-                self.use_context,
+        if not self.lightweight:
+            self.logger.log_metric(
+                "unique_states",
+                np.unique(all_visited).shape[0],
+                step=it,
+                use_context=self.use_context,
             )
-
-            # test metrics
-            if self.buffer.test is not None:
-                corr, data_logq, times = self.get_log_corr(times)
-                self.logger.log_sampler_test(corr, data_logq, it, self.use_context)
-
-            # oracle metrics
-            oracle_batch, oracle_times = self.sample_batch(
-                self.env, self.oracle_n, train=False
-            )
-            oracle_dict, oracle_times = batch2dict(
-                oracle_batch, self.env, get_uncertainties=False
-            )
-            self.logger.log_sampler_oracle(
-                oracle_dict["energies"], it, self.use_context
-            )
-
-            if self.progress:
-                print("Empirical L1 distance", l1_error, "KL", kl_div)
-                if len(all_losses):
-                    print(
-                        *[
-                            f"{np.mean([i[j] for i in all_losses[-100:]]):.5f}"
-                            for j in range(len(all_losses[0]))
-                        ]
-                    )
-            if not self.lightweight:
-                self.logger.log_metric(
-                    "unique_states",
-                    np.unique(all_visited).shape[0],
-                    step=it,
-                    use_context=self.use_context,
-                )
 
 
 class Policy:

@@ -1,6 +1,7 @@
 _target_: logger.Logger
 
-skip: False
+do:
+  online: False
 log_times: False
 logdir:
   root: ./logs

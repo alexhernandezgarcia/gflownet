@@ -2,6 +2,10 @@ defaults:
   - base
 
 _target_: gflownet.utils.logger.Logger
+
+do:
+  online: True
+
 project_name: "ActiveLearningPipeline"
 tags: 
     - dummy1

@@ -28,9 +28,7 @@ def main(config):
         yaml.dump(log_config, f, default_flow_style=False)
 
     # Logger
-    logger = None
-    if config.log.skip == False:
-        logger = hydra.utils.instantiate(config.logger, config, _recursive_=False)
+    logger = hydra.utils.instantiate(config.logger, config, _recursive_=False)
     # The proxy is required in the env for scoring: might be an oracle or a model
     proxy = hydra.utils.instantiate(config.proxy)
     # The proxy is passed to env and used for computing rewards
