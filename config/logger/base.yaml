@@ -6,4 +6,4 @@ do:
 logdir:
   root: ./logs
   ckpts: ckpts
-overwrite_logdir: True
+  overwrite: True

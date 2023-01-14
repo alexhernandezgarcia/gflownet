@@ -18,7 +18,6 @@ class Logger:
         do: dict,
         project_name: str,
         logdir: dict,
-        overwrite_logdir: bool,
         sampler: dict,
         run_name=None,
         tags: list = None,
@@ -42,7 +41,7 @@ class Logger:
         self.context = "0"
         # Log directory
         self.logdir = Path(logdir.root)
-        if self.logdir.exists() or overwrite_logdir:
+        if self.logdir.exists() or logdir.overwrite:
             self.logdir.mkdir(parents=True, exist_ok=True)
         else:
             # TODO: this message seems contradictory with the logic
