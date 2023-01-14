@@ -90,7 +90,11 @@ class GFlowNetAgent:
         self.progress = logger.progress
         self.num_empirical_loss = logger.num_empirical_loss
         if comet.project and not comet.skip and not sample_only:
-            self.comet = Experiment(project_name=comet.project, display_summary_level=0, api_key="3dnsaiRbPJ03LpO5wS5DT4bUv")
+            self.comet = Experiment(
+                project_name=comet.project,
+                display_summary_level=0,
+                api_key="3dnsaiRbPJ03LpO5wS5DT4bUv",
+            )
             if comet.tags:
                 if isinstance(comet.tags, list):
                     self.comet.add_tags(comet.tags)
@@ -259,42 +263,36 @@ class GFlowNetAgent:
             envs = [envs]
         states = [env.state2obs() for env in envs]
         mask_invalid_actions = tb([env.get_mask_invalid_actions() for env in envs])
-        random_action = self.rng.uniform()
         t0_a_model = time.time()
-        if sampling_method == "policy":
+        if sampling_method == "uniform":
+            actions = self.rng.integers(
+                0, len(self.env.action_space), len(states)
+            ).tolist()
+        elif sampling_method == "policy" or sampling_method == "mixt":
             with torch.no_grad():
                 action_logits = model(tf(states))
             action_logits /= temperature
-        elif sampling_method == "uniform":
-            action_logits = tf(np.zeros(len(states)), len(self.env.action_space) + 1)
-        elif sampling_method == "mixt":
-            #Generating random numbers to sample envs that will be updated with a random (possible) action below a threshold
-            random_values = [self.rng.uniform() for _ in range(len(envs))]
-            envs_random = [env for i, env in enumerate(envs) if random_values[i] <= self.prob_random_action]
-            envs_no_random = [env for i, env in enumerate(envs) if random_values[i] > self.prob_random_action]
-            #Calling the uniform policy on the envs that will be randomly updated, the model policy on the others
-            if envs_random:
-                envs_random, actions_random, valids_random = self.forward_sample(envs_random, times, sampling_method = "uniform", model = model, temperature = temperature)
+            if self.mask_invalid_actions:
+                action_logits[mask_invalid_actions] = -1000
+            if all(torch.isfinite(action_logits).flatten()):
+                actions = Categorical(logits=action_logits).sample().tolist()
             else:
-                envs_random, actions_random, valids_random = [], torch.tensor([]).to(self.device_torch), ()
-            if envs_no_random:
-                envs_no_random, actions_no_random, valids_no_random = self.forward_sample(envs_no_random, times, sampling_method = "model", model = model, temperature = temperature)
-            else:
-                envs_no_random, actions_no_random, valids_no_random = [], torch.tensor([]).to(self.device_torch), ()
-            #Concatenating all the updated environments
-            envs = envs_random + envs_no_random
-            actions = torch.cat((actions_random, actions_no_random), dim = 0)
-            valids = valids_random + valids_no_random
-            return envs, actions, valids
+                if self.debug:
+                    raise ValueError("Action could not be sampled from model!")
+
+            if sampling_method == "mixt":
+                random_values = [self.rng.uniform() for _ in range(len(envs))]
+                uniform_actions = self.rng.integers(
+                    0, len(self.env.action_space), len(states)
+                ).tolist()
+                actions = [
+                    uniform_actions[i]
+                    if random_values[i] <= self.prob_random_action
+                    else actions[i]
+                    for i in range(len(envs))
+                ]
         else:
-            raise NotImplemented
-        if self.mask_invalid_actions:
-            action_logits[mask_invalid_actions] = -1000
-        if all(torch.isfinite(action_logits).flatten()):
-            actions = Categorical(logits=action_logits).sample().tolist()
-        else:
-            if self.debug:
-                raise ValueError("Action could not be sampled from model!")
+            raise NotImplementedError("Sampling method not implemented")
         t1_a_model = time.time()
         times["actions_model"] += t1_a_model - t0_a_model
         assert len(envs) == len(actions)
@@ -333,40 +331,27 @@ class GFlowNetAgent:
         # As we can use the backward policy to get model(states) but not all of those actions are likely
         # Need to compute backward_masks, amsk those actions and then get the categorical distribution.
         parents, parents_a = env.get_parents(env.state, done)
-        if sampling_method == "policy":
-            with torch.no_grad():
-                action_logits = model(tf(parents))[
-                    torch.arange(len(parents)), parents_a
-                ]
+        if sampling_method == "uniform":
+            action_idx = self.rng.integers(low=0, high=len(parents_a))
+        elif sampling_method == "policy" or sampling_method == "mixt":
+            action_logits = model(tf(parents))[torch.arange(len(parents)), parents_a]
             action_logits /= temperature
             if all(torch.isfinite(action_logits).flatten()):
                 action_idx = Categorical(logits=action_logits).sample().item()
             else:
                 if self.debug:
                     raise ValueError("Action could not be sampled from model!")
-        elif sampling_method == "uniform":
-            action_idx = self.rng.integers(low=0, high=len(parents_a))
-        elif sampling_method == "mixt":
-            #Generating random numbers to sample envs that will be updated with a random (possible) action below a threshold
-            random_values = [self.rng.uniform() for _ in range(len(envs))]
-            envs_random = [env for i, env in enumerate(envs) if random_values[i] <= self.proba_random_action]
-            envs_no_random = [env for i, env in enumerate(envs) if random_values[i] > self.proba_random_action]
-            #Calling the uniform policy on the envs that will be randomly updated, the model policy on the others
-            if envs_random:
-                envs_random, actions_random, valids_random = self.forward_sample(envs_random, sampling_method = "uniform", model = model, temperature = temperature)
-            else:
-                envs_random, actions_random, valids_random = [], torch.tensor([]).to(self.device_torch), ()
-            if envs_no_random:
-                envs_no_random, actions_no_random, valids_no_random = self.forward_sample(envs_no_random, sampling_method = "model", model = model, temperature = temperature)
-            else:
-                envs_no_random, actions_no_random, valids_no_random = [], torch.tensor([]).to(self.device_torch), ()
-            #Concatenating all the updated environments
-            envs = envs_random + envs_no_random
-            actions = torch.cat((actions_random, actions_no_random), dim = 0)
-            valids = valids_random + valids_no_random
-            return envs, actions, valids
+
+            if sampling_method == "mixt":
+                random_value = self.rng.uniform()
+                uniform_action_idx = self.rng.integers(low=0, high=len(parents_a))
+                action_idx = (
+                    uniform_action_idx
+                    if random_value <= self.prob_random_action
+                    else action_idx
+                )
         else:
-            raise NotImplemented
+            raise NotImplementedError("Sampling method not implemented")
         action = parents_a[action_idx]
         env.set_state(env.obs2state((parents)[action_idx]), done=False)
         return env, env.state, action, parents, parents_a
@@ -408,6 +393,7 @@ class GFlowNetAgent:
         if isinstance(envs, list):
             envs = [env.reset(idx) for idx, env in enumerate(envs)]
         elif n_samples is not None and n_samples > 0:
+            # envs = [copy.deepcopy(self.env).reset() for _ in range(self.batch_size)]
             envs = [copy.deepcopy(envs).reset(idx) for idx in range(n_samples)]
         else:
             return None, None
@@ -864,9 +850,14 @@ class GFlowNetAgent:
                     )
             # Oracle metrics (for monitoring)
             if not it % self.oracle_period and self.debug:
-                oracle_batch, oracle_times = self.sample_batch(
-                    self.env, self.oracle_n, train=False
-                )
+                batch_size = 8
+                oracle_batch = []
+                envs = [copy.deepcopy(self.env).reset(idx) for idx in range(batch_size)]
+                for i in range(0, self.oracle_n, batch_size):
+                    batch, oracle_times = self.sample_batch(
+                        envs, batch_size, train=False
+                    )
+                    oracle_batch.extend(batch)
                 oracle_dict, oracle_times = batch2dict(
                     oracle_batch, self.env, get_uncertainties=False
                 )
