@@ -106,7 +106,7 @@ class GFlowNetEnv:
             proxy_vals = proxy_vals * self.energies_stats[3] + self.energies_stats[2]
         if self.reward_func == "power":
             return np.clip(
-                (-1.0 * proxy_vals / self.reward_norm) ** self.reward_beta,
+                (proxy_vals / self.reward_norm) ** self.reward_beta,
                 self.min_reward,
                 None,
             )
@@ -125,7 +125,7 @@ class GFlowNetEnv:
         an oracle.
         """
         if self.reward_func == "power":
-            return -np.exp(
+            return np.exp(
                 (np.log(reward) + self.reward_beta * np.log(self.reward_norm))
                 / self.reward_beta
             )
