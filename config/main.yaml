@@ -3,5 +3,5 @@ defaults:
   - gflownet: flowmatch
   - proxy: amp
 
-n_samples: 10
+n_samples: 1000
 device: 'cuda'

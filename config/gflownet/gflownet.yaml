@@ -7,7 +7,7 @@ overwrite_logdir: False
 seed: 0
 # Logging
 logger:
-  debug: False
+  debug: True
   progress: True
   lightweight: False
   # Number of samples used to compute the empirical distribution loss
@@ -55,7 +55,7 @@ optimizer:
   # Train to sample ratio
   train_to_sample_ratio: 1
   # Number of training iterations
-  n_train_steps: 3
+  n_train_steps: 2
   # From original implementation
   bootstrap_tau: 0.0
   clip_grad_norm: 0.0
