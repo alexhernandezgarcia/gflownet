@@ -34,7 +34,9 @@ class Logger:
         if self.do.online:
             import wandb
             import matplotlib.pyplot as plt
-            self.run = wandb.init(config=config, project=project_name, name=run_name)
+            self.wandb = wandb
+            self.plt = plt
+            self.run = self.wandb.init(config=config, project=project_name, name=run_name)
         self.add_tags(tags)
         self.sampler = sampler
         self.context = "0"
@@ -93,20 +95,20 @@ class Logger:
             return
         if use_context:
             key = self.context + "/" + key
-        wandb.log({key: value}, step)
+        self.wandb.log({key: value}, step)
 
     def log_histogram(self, key, value, step, use_context=True):
         if not self.do.online:
             return
         if use_context:
             key = self.context + "/" + key
-        fig = plt.figure()
-        plt.hist(value)
-        plt.title(key)
-        plt.ylabel("Frequency")
-        plt.xlabel(key)
-        fig = wandb.Image(fig)
-        wandb.log({key: fig}, step)
+        fig = self.plt.figure()
+        self.plt.hist(value)
+        self.plt.title(key)
+        self.plt.ylabel("Frequency")
+        self.plt.xlabel(key)
+        fig = self.wandb.Image(fig)
+        self.wandb.log({key: fig}, step)
 
     def log_metrics(self, metrics: dict, step: int, use_context: bool = True):
         if not self.do.online:
@@ -114,7 +116,7 @@ class Logger:
         if use_context:
             for key, _ in metrics.items():
                 key = self.context + "/" + key
-        wandb.log(metrics, step)
+        self.wandb.log(metrics, step)
 
     def log_sampler_train(
         self,
@@ -238,4 +240,4 @@ class Logger:
     def end(self):
         if not self.do.online:
             return
-        wandb.finish()
+        self.wandb.finish()
