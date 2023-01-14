@@ -13,10 +13,9 @@ from gflownet.utils.common import flatten_config
 
 @hydra.main(config_path="./config", config_name="main", version_base="1.1")
 def main(config):
-    # Get current directory and set it as logdir for the GFlowNet agent
+    # Get current directory and set it as root log dir for Logger
     cwd = os.getcwd()
-    # TODO: set logger logdir instead
-    config.gflownet.logdir = cwd
+    config.logger.logdir.root = cwd
     # Reset seed for job-name generation in multirun jobs
     random.seed(None)
     # Set other random seeds
