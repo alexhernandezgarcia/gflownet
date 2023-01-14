@@ -72,10 +72,10 @@ class Logger:
     def set_context(self, context: int):
         self.context = str(context)
 
-    def set_forward_policy_cktp_path(self, ckpt_id: str = None):
+    def set_forward_policy_ckpt_path(self, ckpt_id: str = None):
         self.pf_ckpt_path = self.ckpts_dir / f"_{ckpt_id}"
 
-    def set_backward_policy_cktp_path(self, ckpt_id: str = None):
+    def set_backward_policy_ckpt_path(self, ckpt_id: str = None):
         self.pb_ckpt_path = self.ckpts_dir / f"_{ckpt_id}"
 
     def log_metric(self, key: str, value, step, use_context=True):
