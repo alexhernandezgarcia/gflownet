@@ -148,6 +148,12 @@ class ContinuousTorus(GFlowNetEnv):
         else:
             mask = [False for _ in range(len(self.action_space))]
             mask[-1] = True
+        # Catch cases where it would not be possible to reach the initial state
+        noninit_states = [s for s, ss in zip(state[:-1], self.source) if s != ss]
+        if len(noninit_states) > state[-1]:
+            print("This state should never be reached!")
+        elif len(noninit_states) <= state[-1] and len(noninit_states) >= state[-1] - 1:
+            mask = [True if s == ss else m for m, s, ss in zip(mask, state[:-1], self.source)] + [mask[-1]]
         return mask
 
     def true_density(self):
