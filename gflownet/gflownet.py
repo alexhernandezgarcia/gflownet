@@ -976,7 +976,7 @@ class GFlowNetAgent:
         if self.comet and self.al_iter == -1:
             self.comet.end()
 
-    def eval(self, batch, performance, diversity, novelty, k=10):
+    def evaluate(self, batch, oracle, performance, diversity, novelty, k=10):
         """Evaluate the policy on a set of queries.
 
         Args:
@@ -987,8 +987,10 @@ class GFlowNetAgent:
         """
         queries = self.env.state2oracle(batch)
         topk_performance = {}
+        topk_diversity = {}
+        topk_novelty = {}
         if performance:
-            energies = self.proxy(queries)
+            energies = oracle(queries)
             energies = np.sort(energies)[::-1]
         if diversity:
             dists = []
@@ -1002,12 +1004,16 @@ class GFlowNetAgent:
         for k in self.oracle_k:
             if performance:
                 mean_energy_topk = np.mean(energies[:k])
+                topk_performance[k] = mean_energy_topk
                 print(f"\tAverage energy top-{k}: {mean_energy_topk}")
             if diversity:
                 mean_diversity_topk = np.mean(dists[:k])
+                topk_diversity[k] = mean_diversity_topk
                 print(f"\tAverage diversity top-{k}: {mean_diversity_topk}")
             if novelty:
                 pass
+
+        return topk_performance, topk_diversity, topk_novelty
 
 
 class Policy:
