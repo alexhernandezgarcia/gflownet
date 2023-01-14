@@ -27,17 +27,10 @@ def main(config):
     )
     gflownet.train()
 
-    # sample from the oracle, not from a proxy model
-    envs = []
-    # for idx in range(config.n_samples):
-    #     env = hydra.utils.instantiate(config.env, proxy=proxy)
-    #     envs.append(env)
-    env2 = hydra.utils.instantiate(config.env, proxy=proxy)
-    # envs = [env2.copy() for _ in range(32)]
-    envs = [copy.deepcopy(env2) for _ in range(32)]
     batch, times = gflownet.sample_batch(env, config.n_samples, train=False)
-    _, _, _ = gflownet.evaluate(batch, oracle = proxy, performance = True, diversity=True, novelty=False)
-    
+    _, _, _ = gflownet.evaluate(
+        batch, oracle=proxy, performance=True, diversity=True, novelty=False
+    )
 
 
 if __name__ == "__main__":
