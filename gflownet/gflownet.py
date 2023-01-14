@@ -10,7 +10,6 @@ from collections import defaultdict
 from itertools import count
 from pathlib import Path
 
-from comet_ml import Experiment
 import numpy as np
 import pandas as pd
 import torch
@@ -95,7 +94,7 @@ class GFlowNetAgent:
             self.logZ = None
         if not sample_only:
             self.loss_eps = torch.tensor(float(1e-5)).to(self.device)
-        # Logging (Comet)
+        # Logging
         self.debug = debug
         self.lightweight = lightweight
         self.progress = progress
@@ -964,7 +963,7 @@ class GFlowNetAgent:
         # Save final model
         self.save_models(iter=False)
 
-        # Close comet
+        # Close logger
         if self.logger and self.use_context == False:
             self.logger.end()
 
@@ -1027,12 +1026,6 @@ class GFlowNetAgent:
                 it,
                 self.use_context,
             )
-
-            """
-            self.comet.log_text(
-                state_best + " / proxy: {}".format(proxy_vals[idx_best]), step=it
-            )
-            """
 
             # test metrics
             if self.buffer.test is not None:
