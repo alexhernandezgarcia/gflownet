@@ -396,9 +396,7 @@ class GFlowNetAgent:
         if isinstance(envs, list):
             envs = [env.reset(idx) for idx, env in enumerate(envs)]
         elif n_samples is not None and n_samples > 0:
-            # envs = [self.env.copy().reset(idx) for idx in range(n_samples)]
-            # envs = [copy.deepcopy(self.env).reset() for _ in range(self.batch_size)]
-            envs = [copy.deepcopy(envs).reset(idx) for idx in range(n_samples)]
+            envs = [self.env.copy().reset(idx) for idx in range(n_samples)]
         else:
             return None, None
         # Offline trajectories
@@ -852,16 +850,13 @@ class GFlowNetAgent:
                         ),
                         step=it,
                     )
-            # Oracle metrics (for monitoring)
+            # Oracle metrics (for monitoring)n
             if not it % self.oracle_period and self.debug:
-                oracle_batch = []
-                for i in range(0, self.oracle_n, 32):
-                    batch, oracle_times = self.sample_batch(
-                        self.env, 32, train=False
-                    )
-                    oracle_batch.extend(batch)
+                batch, oracle_times = self.sample_batch(
+                    self.env, self.oracle_n, train=False
+                )
                 oracle_dict, oracle_times = batch2dict(
-                    oracle_batch, self.env, get_uncertainties=False
+                    batch, self.env, get_uncertainties=False
                 )
                 energies = oracle_dict["energies"]
                 energies_sorted = np.sort(energies)
@@ -1125,7 +1120,7 @@ def batch2dict(batch, env, get_uncertainties=False, query_function="Both"):
     t1_proxy = time.time()
     times = {"proxy": t1_proxy - t0_proxy}
     samples = {
-        "samples": batch.astype(np.int64),
+        "samples": batch,
         "scores": scores,
         "energies": proxy_vals,
         "uncertainties": uncertainties,
