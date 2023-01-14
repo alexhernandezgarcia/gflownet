@@ -1,3 +1,6 @@
+defaults:
+  - base
+
 _target_: gflownet.utils.logger.Logger
 project_name: "ActiveLearningPipeline"
 tags: 
