@@ -858,7 +858,7 @@ class GFlowNetAgent:
         # Generate list of environments
         envs = [copy.deepcopy(self.env).reset() for _ in range(self.batch_size)]
         # Train loop
-        for it in tqdm(range(self.n_train_steps + 1), disable=not self.progress):
+        for it in tqdm(range(1, self.n_train_steps + 1), disable=not self.progress):
             t0_iter = time.time()
             data = []
             for j in range(self.sttr):
