@@ -22,11 +22,11 @@ optimizer:
   # Momentum for SGD
   sgd_momentum: 0.9
   # Mini-batch size
-  batch_size: 32
+  batch_size: 10
   # Train to sample ratio
   train_to_sample_ratio: 1
   # Number of training iterations
-  n_train_steps: 2
+  n_train_steps: 5000
   # From original implementation
   bootstrap_tau: 0.0
   clip_grad_norm: 0.0
@@ -36,22 +36,20 @@ batch_reward: True
 mask_invalid_actions: True
 # Temperature for the logits /= temperature_logits
 temperature_logits: 1.0
+# Percentage of random actions
+random_action_prob: 0.0
 # Percentage of trajectories in a batch from an empirical distribution
-pct_batch_empirical: 0.5
+pct_batch_empirical: 0.0
 # Replay buffer
 replay_capacity: 0
-prob_random_action: 0.001
 policy:
   forward:
     type: mlp
     n_hid: 128
     n_layers: 2
-    checkpoint: model.pt
-    reload_ckpt: False
-  backward: 
-    type: uniform
     checkpoint: null
     reload_ckpt: False
+  backward: null
   ckpt_period: null
 num_empirical_loss: 200000
 oracle:
@@ -59,6 +57,3 @@ oracle:
     n: 500
 # remove eventually
 sample_only: False
-debug: False 
-lightweight: False 
-progress: True 
