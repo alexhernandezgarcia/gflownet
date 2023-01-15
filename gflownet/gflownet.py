@@ -87,8 +87,7 @@ class GFlowNetAgent:
             print("Unkown loss. Using flowmatch as default")
             self.loss = "flowmatch"
             self.logZ = None
-        if not sample_only:
-            self.loss_eps = torch.tensor(float(1e-5)).to(self.device)
+        self.loss_eps = torch.tensor(float(1e-5)).to(self.device)
         # Logging
         self.debug = debug
         self.num_empirical_loss = num_empirical_loss
