@@ -13,24 +13,22 @@ from gflownet.utils.common import flatten_config
 
 @hydra.main(config_path="./config", config_name="main", version_base="1.1")
 def main(config):
-    # Get current directory and set it as logdir for the GFlowNet agent
+    # Get current directory and set it as root log dir for Logger
     cwd = os.getcwd()
-    # TODO: set logger logdir instead
-    config.gflownet.logdir = cwd
+    config.logger.logdir.root = cwd
     # Reset seed for job-name generation in multirun jobs
     random.seed(None)
     # Set other random seeds
     set_seeds(config.seed)
     # Log config
+    # TODO: Move log config to Logger
     log_config = flatten_config(OmegaConf.to_container(config, resolve=True), sep="/")
     log_config = {"/".join(("config", key)): val for key, val in log_config.items()}
     with open(cwd + "/config.yml", "w") as f:
         yaml.dump(log_config, f, default_flow_style=False)
 
     # Logger
-    logger = None
-    if config.log.skip == False:
-        logger = hydra.utils.instantiate(config.logger, config, _recursive_=False)
+    logger = hydra.utils.instantiate(config.logger, config, _recursive_=False)
     # The proxy is required in the env for scoring: might be an oracle or a model
     proxy = hydra.utils.instantiate(config.proxy)
     # The proxy is passed to env and used for computing rewards

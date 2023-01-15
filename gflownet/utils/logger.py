@@ -1,5 +1,3 @@
-import wandb
-import matplotlib.pyplot as plt
 from datetime import datetime
 import numpy as np
 import torch
@@ -17,31 +15,45 @@ class Logger:
     def __init__(
         self,
         config: dict,
+        do: dict,
         project_name: str,
-        logdir: str,
-        overwrite_logdir: bool,
+        logdir: dict,
         sampler: dict,
+        progress: bool,
+        lightweight: bool,
+        debug: bool,
         run_name=None,
         tags: list = None,
-        record_time: bool = False,
     ):
         self.config = config
+        self.do = do
+        self.do.times = self.do.times and self.do.online
         if run_name is None:
             date_time = datetime.today().strftime("%d/%m-%H:%M:%S")
             run_name = "{}".format(
                 date_time,
             )
-        self.run = wandb.init(config=config, project=project_name, name=run_name)
+        if self.do.online:
+            import wandb
+            import matplotlib.pyplot as plt
+            self.wandb = wandb
+            self.plt = plt
+            self.run = self.wandb.init(config=config, project=project_name, name=run_name)
         self.add_tags(tags)
         self.sampler = sampler
         self.context = "0"
-        self.record_time = record_time
+        self.progress = progress
+        self.lightweight = lightweight
+        self.debug = debug
         # Log directory
-        self.logdir = Path(logdir)
-        if self.logdir.exists() or overwrite_logdir:
+        self.logdir = Path(logdir.root)
+        if self.logdir.exists() or logdir.overwrite:
             self.logdir.mkdir(parents=True, exist_ok=True)
         else:
+            # TODO: this message seems contradictory with the logic
             print(f"logdir {logdir} already exists! - Ending run...")
+        self.ckpts_dir = self.logdir / logdir.ckpts
+        self.ckpts_dir.mkdir(parents=True, exist_ok=True)
         self.test_period = (
             np.inf
             if sampler.test.period == None or sampler.test.period == -1
@@ -64,32 +76,52 @@ class Logger:
         )
 
     def add_tags(self, tags: list):
+        if not self.do.online:
+            return
         self.run.tags = self.run.tags + tags
 
     def set_context(self, context: int):
         self.context = str(context)
 
+    def set_forward_policy_ckpt_path(self, ckpt_id: str = None):
+        if ckpt_id is None:
+            self.pf_ckpt_path = None
+        else:
+            self.pf_ckpt_path = self.ckpts_dir / f"_{ckpt_id}"
+
+    def set_backward_policy_ckpt_path(self, ckpt_id: str = None):
+        if ckpt_id is None:
+            self.pb_ckpt_path = None
+        else:
+            self.pb_ckpt_path = self.ckpts_dir / f"_{ckpt_id}"
+
     def log_metric(self, key: str, value, step, use_context=True):
+        if not self.do.online:
+            return
         if use_context:
             key = self.context + "/" + key
-        wandb.log({key: value}, step)
+        self.wandb.log({key: value}, step)
 
     def log_histogram(self, key, value, step, use_context=True):
+        if not self.do.online:
+            return
         if use_context:
             key = self.context + "/" + key
-        fig = plt.figure()
-        plt.hist(value)
-        plt.title(key)
-        plt.ylabel("Frequency")
-        plt.xlabel(key)
-        fig = wandb.Image(fig)
-        wandb.log({key: fig}, step)
+        fig = self.plt.figure()
+        self.plt.hist(value)
+        self.plt.title(key)
+        self.plt.ylabel("Frequency")
+        self.plt.xlabel(key)
+        fig = self.wandb.Image(fig)
+        self.wandb.log({key: fig}, step)
 
     def log_metrics(self, metrics: dict, step: int, use_context: bool = True):
+        if not self.do.online:
+            return
         if use_context:
             for key, _ in metrics.items():
                 key = self.context + "/" + key
-        wandb.log(metrics, step)
+        self.wandb.log(metrics, step)
 
     def log_sampler_train(
         self,
@@ -100,6 +132,8 @@ class Logger:
         step: int,
         use_context: bool,
     ):
+        if not self.do.online:
+            return
         if not step % self.train_period:
             train_metrics = dict(
                 zip(
@@ -132,6 +166,8 @@ class Logger:
     def log_sampler_test(
         self, corr: array, data_logq: list, step: int, use_context: bool
     ):
+        if not self.do.online:
+            return
         if not step % self.test_period:
             test_metrics = dict(
                 zip(
@@ -152,6 +188,8 @@ class Logger:
             )
 
     def log_sampler_oracle(self, energies: array, step: int, use_context: bool):
+        if not self.do.online:
+            return
         if not step % self.oracle_period:
             energies_sorted = np.sort(energies)
             dict_topk = {}
@@ -163,6 +201,8 @@ class Logger:
     def log_sampler_loss(
         self, losses: list, l1_error: float, kl_div, step, use_context: bool
     ):
+        if not self.do.online:
+            return
         loss_metrics = dict(
             zip(
                 [
@@ -181,22 +221,28 @@ class Logger:
             step=step,
         )
 
-    def save_model(self, policy_path, model_path, model, step, iter=False):
-        if not step % self.policy_period:
-            path = policy_path.parent / Path(
-                model_path.stem
-                + self.context
-                + "_iter{:06d}".format(step)
-                + policy_path.suffix
-            )
-            torch.save(model.state_dict(), path)
-            if iter == False:
-                torch.save(model.state_dict(), policy_path)
+    def save_models(self, forward_policy, backward_policy, step: int=1e9, final=False):
+        if not step % self.policy_period or final:
+            if final:
+                ckpt_id = "final"
+            else:
+                ckpt_id = "_iter{:06d}".format(step)
+            if forward_policy.is_model and self.pf_ckpt_path is not None:
+                import ipdb; ipdb.set_trace()
+                stem = self.pf_ckpt_path.stem + self.context + ckpt_id + ".ckpt"
+                path = self.pf_ckpt_path.parent + stem
+                torch.save(forward_policy.model.state_dict(), path)
+            if backward_policy.is_model and self.pf_ckpt_path is not None:
+                stem = self.pb_ckpt_path.stem + self.context + ckpt_id + ".ckpt"
+                path = self.pb_ckpt_path.parent + stem
+                torch.save(backward_policy.model.state_dict(), path)
 
     def log_time(self, times: dict, step: int, use_context: bool):
-        if self.record_time:
+        if self.do.times:
             times = {"time_{}".format(k): v for k, v in times.items()}
             self.log_metrics(times, step=step, use_contxt=use_context)
 
     def end(self):
-        wandb.finish()
+        if not self.do.online:
+            return
+        self.wandb.finish()

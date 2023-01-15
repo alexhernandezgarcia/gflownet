@@ -57,6 +57,4 @@ oracle:
     n: 500
 # remove eventually
 sample_only: False
-debug: False 
-lightweight: False 
-progress: True 
+debug: False

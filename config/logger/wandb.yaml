@@ -1,11 +1,15 @@
+defaults:
+  - base
+
 _target_: gflownet.utils.logger.Logger
+
+do:
+  online: True
+
 project_name: "ActiveLearningPipeline"
 tags: 
     - dummy1
     - dummy2
-logdir: ./logs/
-overwrite_logdir: True
-record_time: False
 sampler:
   policy:
     # Period (number of iterations) of saving models

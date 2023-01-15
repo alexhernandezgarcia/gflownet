@@ -51,11 +51,7 @@ class GFlowNetAgent:
         random_action_prob,
         pct_batch_empirical,
         logger,
-        log_dir,
-        debug,
-        lightweight,
         num_empirical_loss,
-        progress,
         oracle,
         proxy=None,
         al_iter=-1,
@@ -69,8 +65,6 @@ class GFlowNetAgent:
         self.device_torch = torch.device(device)
         self.device = self.device_torch
         set_device(self.device_torch)
-        # Log directory
-        self.logdir = Path(logdir)
         # Environment
         self.env = env
         self.mask_source = tb([self.env.get_mask_invalid_actions_forward()])
@@ -95,12 +89,9 @@ class GFlowNetAgent:
         if not sample_only:
             self.loss_eps = torch.tensor(float(1e-5)).to(self.device)
         # Logging
-        self.debug = debug
-        self.lightweight = lightweight
-        self.progress = progress
+        self.debug = logger.debug
         self.num_empirical_loss = num_empirical_loss
         self.logger = logger
-        self.logdir = Path(log_dir)
         self.oracle_n = oracle.n
         # Buffers
         self.buffer = Buffer(**buffer, env=self.env, make_train_test=not sample_only)
@@ -134,22 +125,15 @@ class GFlowNetAgent:
         # Policy models
         self.forward_policy = Policy(policy.forward, self.env)
         if policy.forward.checkpoint:
-            if self.logdir.exists():
-                if (self.logdir / "ckpts").exists():
-                    self.policy_forward_path = (
-                        self.logdir / "ckpts" / policy.forward.checkpoint
-                    )
-                else:
-                    self.policy_forward_path = self.logdir / policy.forward.checkpoint
-            else:
-                self.policy_forward_path = Path(policy.forward.checkpoint)
-            if self.policy_forward_path.exists() and policy.forward.reload_ckpt:
+            self.logger.set_forward_policy_ckpt_path(policy.forward.checkpoint)
+            # TODO: re-write the logic and conditions to reload a model
+            if False:
                 self.forward_policy.load_state_dict(
                     torch.load(self.policy_forward_path)
                 )
                 print("Reloaded GFN forward policy model Checkpoint")
         else:
-            self.policy_forward_path = None
+            self.logger.set_forward_policy_ckpt_path(None)
         if policy.backward:
             self.backward_policy = Policy(
                 policy.backward,
@@ -158,23 +142,16 @@ class GFlowNetAgent:
             )
         else:
             self.backward_policy = None
-        if self.backward_policy and policy.backward.checkpoint:
-            if self.logdir.exists():
-                if (self.logdir / "ckpts").exists():
-                    self.policy_backward_path = (
-                        self.logdir / "ckpts" / policy.backward.checkpoint
-                    )
-                else:
-                    self.policy_backward_path = self.logdir / policy.backward.checkpoint
-            else:
-                self.policy_backward_path = Path(policy.backward.checkpoint)
-            if self.policy_backward_path.exists() and policy.backward.reload_ckpt:
+        if self.backward_policy and policy.forward.checkpoint:
+            self.logger.set_backward_policy_ckpt_path(policy.backward.checkpoint)
+            # TODO: re-write the logic and conditions to reload a model
+            if False:
                 self.backward_policy.load_state_dict(
                     torch.load(self.policy_backward_path)
                 )
                 print("Reloaded GFN backward policy model Checkpoint")
         else:
-            self.policy_backward_path = None
+            self.logger.set_backward_policy_ckpt_path(None)
         if self.backward_policy and self.backward_policy.is_model:
             self.backward_policy.model.to(self.device)
         self.ckpt_period = policy.ckpt_period
@@ -429,8 +406,8 @@ class GFlowNetAgent:
                 - [3] all parents of the state, parents
                 - [4] actions that lead to the state from each parent, parents_a
                 - [5] done [True, False]
-                - [6] path id: identifies each path
-                - [7] state id: identifies each state within a path
+                - [6] traj id: identifies each trajectory
+                - [7] state id: identifies each state within a traj
                 - [8] mask_f: invalid forward actions from that state are 1
                 - [9] mask_b: invalid backward actions from that state are 1
         else:
@@ -794,7 +771,7 @@ class GFlowNetAgent:
             parents,
             parents_a,
             done,
-            path_id_parents,
+            traj_id_parents,
             state_id,
             masks_sf,
             masks_b,
@@ -804,7 +781,7 @@ class GFlowNetAgent:
             p[torch.where(torch.all(a == p_a))]
             for a, p, p_a in zip(actions, parents, parents_a)
         ]
-        path_id = torch.cat([el[:1] for el in path_id_parents])
+        traj_id = torch.cat([el[:1] for el in traj_id_parents])
         # Concatenate lists of tensors
         states, actions, rewards, parents, done, state_id, masks_sf, masks_b = map(
             torch.cat,
@@ -822,26 +799,26 @@ class GFlowNetAgent:
         # Build parents forward masks from state masks
         masks_f = torch.cat(
             [
-                masks_sf[torch.where((state_id == sid - 1) & (path_id == pid))]
+                masks_sf[torch.where((state_id == sid - 1) & (traj_id == pid))]
                 if sid > 0
                 else self.mask_source
-                for sid, pid in zip(state_id, path_id)
+                for sid, pid in zip(state_id, traj_id)
             ]
         )
         # Forward trajectories
         policy_output_f = self.forward_policy(self.env.statetorch2policy(parents))
         logprobs_f = self.env.get_logprobs(policy_output_f, actions, masks_f, loginf)
         sumlogprobs_f = tf(
-            torch.zeros(len(torch.unique(path_id, sorted=True)))
-        ).index_add_(0, path_id, logprobs_f)
+            torch.zeros(len(torch.unique(traj_id, sorted=True)))
+        ).index_add_(0, traj_id, logprobs_f)
         # Backward trajectories
         policy_output_b = self.backward_policy(self.env.statetorch2policy(states))
         logprobs_b = self.env.get_logprobs(policy_output_b, actions, masks_b, loginf)
         sumlogprobs_b = tf(
-            torch.zeros(len(torch.unique(path_id, sorted=True)))
-        ).index_add_(0, path_id, logprobs_b)
-        # Sort rewards of done states by ascending path id
-        rewards = rewards[done.eq(1)][torch.argsort(path_id[done.eq(1)])]
+            torch.zeros(len(torch.unique(traj_id, sorted=True)))
+        ).index_add_(0, traj_id, logprobs_b)
+        # Sort rewards of done states by ascending traj id
+        rewards = rewards[done.eq(1)][torch.argsort(traj_id[done.eq(1)])]
         # Trajectory balance loss
         loss = (
             (self.logZ.sum() + sumlogprobs_f - sumlogprobs_b - torch.log(rewards))
@@ -858,13 +835,13 @@ class GFlowNetAgent:
         for el in batch:
             traj_id = el[6][:1].item()
             state_id = el[7][:1].item()
-            #             assert state_ids[path_id][-1] + 1 == state_id
-            #             state_ids[path_id].append(state_id)
-            trajs[path_id].append(tuple(el[1][0].tolist()))
+            #             assert state_ids[traj_id][-1] + 1 == state_id
+            #             state_ids[traj_id].append(state_id)
+            trajs[traj_id].append(tuple(el[1][0].tolist()))
             if bool(el[5].item()):
                 states[traj_id] = tuple(el[0][0].tolist())
                 rewards[traj_id] = el[2][0].item()
-        trajs = [tuple(el) for el in paths]
+        trajs = [tuple(el) for el in trajs]
         return states, trajs, rewards
 
     def train(self):
@@ -876,7 +853,8 @@ class GFlowNetAgent:
         # Generate list of environments
         envs = [copy.deepcopy(self.env).reset() for _ in range(self.batch_size)]
         # Train loop
-        for it in tqdm(range(self.n_train_steps + 1), disable=not self.progress):
+        pbar = tqdm(range(1, self.n_train_steps + 1), disable=not self.logger.progress)
+        for it in pbar:
             t0_iter = time.time()
             data = []
             for j in range(self.sttr):
@@ -918,13 +896,14 @@ class GFlowNetAgent:
             # Log
             idx_best = np.argmax(rewards)
             state_best = "".join(self.env.state2readable(states_term[idx_best]))
-            if self.lightweight:
+            if self.logger.lightweight:
                 all_losses = all_losses[-100:]
                 all_visited = states_term
             else:
                 all_visited.extend(states_term)
             # log metrics
             self.log_iter(
+                pbar,
                 rewards,
                 proxy_vals,
                 states_term,
@@ -935,8 +914,8 @@ class GFlowNetAgent:
                 all_losses,
                 all_visited,
             )
-            # save intermediate models
-            self.save_models(iter=True)
+            # Save intermediate models
+            self.logger.save_models(self.forward_policy, self.backward_policy, step=it)
 
             # Moving average of the loss for early stopping
             if loss_term_ema and loss_flow_ema:
@@ -958,13 +937,12 @@ class GFlowNetAgent:
             # Log times
             t1_iter = time.time()
             times.update({"iter": t1_iter - t0_iter})
-            if self.logger:
-                self.logger.log_time(times, it, use_context=self.use_context)
+            self.logger.log_time(times, it, use_context=self.use_context)
         # Save final model
-        self.save_models(iter=False)
+        self.logger.save_models(self.forward_policy, self.backward_policy, final=True)
 
         # Close logger
-        if self.logger and self.use_context == False:
+        if self.use_context == False:
             self.logger.end()
 
     def get_log_corr(self, times):
@@ -997,6 +975,7 @@ class GFlowNetAgent:
 
     def log_iter(
         self,
+        pbar,
         rewards,
         proxy_vals,
         states_term,
@@ -1007,74 +986,52 @@ class GFlowNetAgent:
         all_losses,
         all_visited,
     ):
-        if self.logger:
-            # train metrics
-            self.logger.log_sampler_train(
-                rewards, proxy_vals, states_term, data, it, self.use_context
+        # train metrics
+        self.logger.log_sampler_train(
+            rewards, proxy_vals, states_term, data, it, self.use_context
+        )
+        # loss
+        if not self.logger.lightweight:
+            l1_error, kl_div = empirical_distribution_error(
+                self.env, all_visited[-self.num_empirical_loss :]
             )
-            # loss
-            if not self.lightweight:
-                l1_error, kl_div = empirical_distribution_error(
-                    self.env, all_visited[-self.num_empirical_loss :]
-                )
-            else:
-                l1_error, kl_div = 1, 100
-            self.logger.log_sampler_loss(
-                losses,
-                l1_error,
-                kl_div,
-                it,
-                self.use_context,
-            )
+        else:
+            l1_error, kl_div = 1, 100
+        self.logger.log_sampler_loss(
+            losses,
+            l1_error,
+            kl_div,
+            it,
+            self.use_context,
+        )
 
-            # test metrics
-            if self.buffer.test is not None:
-                corr, data_logq, times = self.get_log_corr(times)
-                self.logger.log_sampler_test(corr, data_logq, it, self.use_context)
+        # test metrics
+        if not self.logger.lightweight and self.buffer.test is not None:
+            corr, data_logq, times = self.get_log_corr(times)
+            self.logger.log_sampler_test(corr, data_logq, it, self.use_context)
 
-            # oracle metrics
-            oracle_batch, oracle_times = self.sample_batch(
-                self.env, self.oracle_n, train=False
-            )
-            oracle_dict, oracle_times = batch2dict(
-                oracle_batch, self.env, get_uncertainties=False
-            )
-            self.logger.log_sampler_oracle(
-                oracle_dict["energies"], it, self.use_context
-            )
+        # oracle metrics
+        oracle_batch, oracle_times = self.sample_batch(
+            self.env, self.oracle_n, train=False
+        )
+        oracle_dict, oracle_times = batch2dict(
+            oracle_batch, self.env, get_uncertainties=False
+        )
+        self.logger.log_sampler_oracle(
+            oracle_dict["energies"], it, self.use_context
+        )
 
-            if self.progress:
-                print("Empirical L1 distance", l1_error, "KL", kl_div)
-                if len(all_losses):
-                    print(
-                        *[
-                            f"{np.mean([i[j] for i in all_losses[-100:]]):.5f}"
-                            for j in range(len(all_losses[0]))
-                        ]
-                    )
-            if not self.lightweight:
-                self.logger.log_metric(
-                    "unique_states",
-                    np.unique(all_visited).shape[0],
-                    step=it,
-                    use_context=self.use_context,
-                )
+        if self.logger.progress:
+            mean_main_loss = np.mean(np.array(all_losses)[-100:, 0], axis=0)
+            description = "Loss: {:.4f} | L1: {:.4f} | KL: {:.4f}".format(mean_main_loss, l1_error, kl_div)
+            pbar.set_description(description)
 
-    def save_models(self, iter: bool):
-        if self.policy_forward_path:
-            self.logger.save_model(
-                self.model_path,
-                self.policy_forward_path,
-                self.forward_policy.model,
-                iter=iter,
-            )
-
-        if self.policy_backward_path:
-            self.logger.save_model(
-                self.model_path,
-                self.policy.backward_path,
-                self.backward_policy.model,
-                iter=iter,
+        if not self.logger.lightweight:
+            self.logger.log_metric(
+                "unique_states",
+                np.unique(all_visited).shape[0],
+                step=it,
+                use_context=self.use_context,
             )
 
 
