@@ -19,6 +19,9 @@ class Logger:
         project_name: str,
         logdir: dict,
         sampler: dict,
+        progress: bool,
+        lightweight: bool,
+        debug: bool,
         run_name=None,
         tags: list = None,
     ):
@@ -39,6 +42,9 @@ class Logger:
         self.add_tags(tags)
         self.sampler = sampler
         self.context = "0"
+        self.progress = progress
+        self.lightweight = lightweight
+        self.debug = debug
         # Log directory
         self.logdir = Path(logdir.root)
         if self.logdir.exists() or logdir.overwrite:
