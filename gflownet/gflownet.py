@@ -748,7 +748,7 @@ class GFlowNetAgent:
                 all_visited,
             )
             # Save intermediate models
-            self.logger.save_(self.forward_policy, self.backward_policy, step=it)
+            self.logger.save_models(self.forward_policy, self.backward_policy, step=it)
 
             # Moving average of the loss for early stopping
             if loss_term_ema and loss_flow_ema:
