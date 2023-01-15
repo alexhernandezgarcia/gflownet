@@ -51,6 +51,7 @@ class GFlowNetAgent:
         random_action_prob,
         pct_batch_empirical,
         logger,
+        debug,
         num_empirical_loss,
         oracle,
         proxy=None,
@@ -89,7 +90,7 @@ class GFlowNetAgent:
         if not sample_only:
             self.loss_eps = torch.tensor(float(1e-5)).to(self.device)
         # Logging
-        self.debug = logger.debug
+        self.debug = debug
         self.num_empirical_loss = num_empirical_loss
         self.logger = logger
         self.oracle_n = oracle.n

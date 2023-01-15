@@ -21,7 +21,6 @@ class Logger:
         sampler: dict,
         progress: bool,
         lightweight: bool,
-        debug: bool,
         run_name=None,
         tags: list = None,
     ):
@@ -44,7 +43,6 @@ class Logger:
         self.context = "0"
         self.progress = progress
         self.lightweight = lightweight
-        self.debug = debug
         # Log directory
         self.logdir = Path(logdir.root)
         if self.logdir.exists() or logdir.overwrite:
