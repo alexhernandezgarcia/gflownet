@@ -117,7 +117,11 @@ class GFlowNetAgent:
             print(f"\tMin score: {self.buffer.test['energies'].min()}")
             print(f"\tMax score: {self.buffer.test['energies'].max()}")
         # Policy models
-        self.forward_policy = Policy(policy.forward, self.env)
+        self.forward_policy = Policy(
+            policy.forward,
+            self.env.obs_dim,
+            len(self.env.action_space),
+        )
         if policy.forward.checkpoint:
             self.logger.set_forward_policy_ckpt_path(policy.forward.checkpoint)
             # TODO: re-write the logic and conditions to reload a model
@@ -131,7 +135,8 @@ class GFlowNetAgent:
         if policy.backward:
             self.backward_policy = Policy(
                 policy.backward,
-                self.env,
+                self.env.obs_dim,
+                len(self.env.action_space),
                 base=self.forward_policy,
             )
         else:
