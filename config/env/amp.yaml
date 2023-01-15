@@ -5,7 +5,7 @@ _target_: gflownet.envs.amp.AMP
 
 id: amp
 # Minimum and maximum length for the sequences
-min_seq_length: 1
+min_seq_length: 7
 max_seq_length: 50
 # Number of letters in alphabet
 n_alphabet: 20
