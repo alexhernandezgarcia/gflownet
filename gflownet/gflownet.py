@@ -90,8 +90,6 @@ class GFlowNetAgent:
             self.loss_eps = torch.tensor(float(1e-5)).to(self.device)
         # Logging
         self.debug = logger.debug
-        self.lightweight = logger.lightweight
-        self.progress = logger.progress
         self.num_empirical_loss = num_empirical_loss
         self.logger = logger
         self.oracle_n = oracle.n
@@ -855,7 +853,7 @@ class GFlowNetAgent:
         # Generate list of environments
         envs = [copy.deepcopy(self.env).reset() for _ in range(self.batch_size)]
         # Train loop
-        pbar = tqdm(range(1, self.n_train_steps + 1), disable=not self.progress)
+        pbar = tqdm(range(1, self.n_train_steps + 1), disable=not self.logger.progress)
         for it in pbar:
             t0_iter = time.time()
             data = []
@@ -898,7 +896,7 @@ class GFlowNetAgent:
             # Log
             idx_best = np.argmax(rewards)
             state_best = "".join(self.env.state2readable(states_term[idx_best]))
-            if self.lightweight:
+            if self.logger.lightweight:
                 all_losses = all_losses[-100:]
                 all_visited = states_term
             else:
@@ -993,7 +991,7 @@ class GFlowNetAgent:
             rewards, proxy_vals, states_term, data, it, self.use_context
         )
         # loss
-        if not self.lightweight:
+        if not self.logger.lightweight:
             l1_error, kl_div = empirical_distribution_error(
                 self.env, all_visited[-self.num_empirical_loss :]
             )
@@ -1008,7 +1006,7 @@ class GFlowNetAgent:
         )
 
         # test metrics
-        if not self.lightweight and self.buffer.test is not None:
+        if not self.logger.lightweight and self.buffer.test is not None:
             corr, data_logq, times = self.get_log_corr(times)
             self.logger.log_sampler_test(corr, data_logq, it, self.use_context)
 
@@ -1023,12 +1021,12 @@ class GFlowNetAgent:
             oracle_dict["energies"], it, self.use_context
         )
 
-        if self.progress:
+        if self.logger.progress:
             mean_main_loss = np.mean(np.array(all_losses)[-100:, 0], axis=0)
             description = "Loss: {:.4f} | L1: {:.4f} | KL: {:.4f}".format(mean_main_loss, l1_error, kl_div)
             pbar.set_description(description)
 
-        if not self.lightweight:
+        if not self.logger.lightweight:
             self.logger.log_metric(
                 "unique_states",
                 np.unique(all_visited).shape[0],
