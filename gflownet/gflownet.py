@@ -684,7 +684,7 @@ class GFlowNetAgent:
         loss_term_ema = None
         loss_flow_ema = None
         # Generate list of environments
-        envs = [copy.deepcopy(self.env).reset() for _ in range(self.batch_size)]
+        envs = [self.env.copy().reset() for _ in range(self.batch_size)]
         # Train loop
         pbar = tqdm(range(1, self.n_train_steps + 1), disable=not self.progress)
         for it in pbar:
@@ -748,7 +748,7 @@ class GFlowNetAgent:
                 all_visited,
             )
             # Save intermediate models
-            self.logger.save_models(self.forward_policy, self.backward_policy, step=it)
+            self.logger.save_(self.forward_policy, self.backward_policy, step=it)
 
             # Moving average of the loss for early stopping
             if loss_term_ema and loss_flow_ema:
