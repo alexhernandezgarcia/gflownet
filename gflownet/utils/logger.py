@@ -98,7 +98,7 @@ class Logger:
         else:
             self.pb_ckpt_path = self.ckpts_dir / f"_{ckpt_id}"
 
-    def log_metric(self, key: str, value, step, use_context=True):
+    def log_metric(self, key: str, value, step:int = None, use_context=True):
         if not self.do.online:
             return
         if use_context:
@@ -223,7 +223,7 @@ class Logger:
             use_context=use_context,
             step=step,
         )
-
+    
     def save_models(
         self, forward_policy, backward_policy, step: int = 1e9, final=False
     ):
