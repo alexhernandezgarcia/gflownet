@@ -45,9 +45,9 @@ def main(config):
     # Sample from trained GFlowNet
     if config.n_samples > 0 and config.n_samples <= 1e5:
         samples, times = gflownet.sample_batch(env, config.n_samples, train=False)
-        energies = env.oracle(env.statebatch2oracle(samples))
+        energies = env.oracle(env.state2oracle(samples))
         _, _, _ = gflownet.evaluate(
-        samples, oracle=proxy, performance=True, diversity=True, novelty=False
+            samples, oracle=proxy, performance=True, diversity=True, novelty=False
         )
         df = pd.DataFrame(
             {
@@ -58,9 +58,11 @@ def main(config):
         df.to_csv("gfn_samples.csv")
     print(gflownet.buffer.replay)
 
+
 def set_seeds(seed):
     import torch
     import numpy as np
+
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
     random.seed(seed)

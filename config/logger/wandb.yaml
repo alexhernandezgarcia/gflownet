@@ -13,7 +13,7 @@ tags:
 sampler:
   policy:
     # Period (number of iterations) of saving models
-    period: 10
+    period: 1
   train:
     # Period (number of iterations) of computing test metrics
     period: 1
@@ -22,7 +22,7 @@ sampler:
     period: 1
   oracle:
     # Period (number of iterations) for computing oracle metrics
-    period: 10
+    period: 1
     # List of K, for Top-K oracle metrics
     k:
       - 1

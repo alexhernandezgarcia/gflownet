@@ -36,9 +36,12 @@ class Logger:
         if self.do.online:
             import wandb
             import matplotlib.pyplot as plt
+
             self.wandb = wandb
             self.plt = plt
-            self.run = self.wandb.init(config=config, project=project_name, name=run_name)
+            self.run = self.wandb.init(
+                config=config, project=project_name, name=run_name
+            )
         self.add_tags(tags)
         self.sampler = sampler
         self.context = "0"
@@ -221,18 +224,26 @@ class Logger:
             step=step,
         )
 
-    def save_models(self, forward_policy, backward_policy, step: int=1e9, final=False):
+    def save_models(
+        self, forward_policy, backward_policy, step: int = 1e9, final=False
+    ):
         if not step % self.policy_period or final:
             if final:
                 ckpt_id = "final"
             else:
                 ckpt_id = "_iter{:06d}".format(step)
             if forward_policy.is_model and self.pf_ckpt_path is not None:
-                import ipdb; ipdb.set_trace()
+                import ipdb
+
+                ipdb.set_trace()
                 stem = self.pf_ckpt_path.stem + self.context + ckpt_id + ".ckpt"
                 path = self.pf_ckpt_path.parent + stem
                 torch.save(forward_policy.model.state_dict(), path)
-            if backward_policy.is_model and self.pf_ckpt_path is not None:
+            if (
+                backward_policy
+                and backward_policy.is_model
+                and self.pf_ckpt_path is not None
+            ):
                 stem = self.pb_ckpt_path.stem + self.context + ckpt_id + ".ckpt"
                 path = self.pb_ckpt_path.parent + stem
                 torch.save(backward_policy.model.state_dict(), path)

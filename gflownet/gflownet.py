@@ -248,7 +248,7 @@ class GFlowNetAgent:
                 ).tolist()
                 actions = [
                     uniform_actions[i]
-                    if random_values[i] <= self.prob_random_action
+                    if random_values[i] <= self.random_action_prob
                     else actions[i]
                     for i in range(len(envs))
                 ]
@@ -309,7 +309,7 @@ class GFlowNetAgent:
                 uniform_action_idx = self.rng.integers(low=0, high=len(parents_a))
                 action_idx = (
                     uniform_action_idx
-                    if random_value <= self.prob_random_action
+                    if random_value <= self.random_action_prob
                     else action_idx
                 )
         else:
@@ -860,9 +860,10 @@ class GFlowNetAgent:
             pbar.set_description(description)
 
         if not self.lightweight:
+            all_visited_set = set(all_visited)
             self.logger.log_metric(
                 "unique_states",
-                np.unique(all_visited).shape[0],
+                len(all_visited),
                 step=it,
                 use_context=self.use_context,
             )
@@ -1062,7 +1063,7 @@ def empirical_distribution_error(env, visited, epsilon=1e-9):
     """
     true_density, _, states_term = env.true_density()
     if true_density is None:
-        return None, None
+        return 1, 100
     true_density = tf(true_density)
     if not len(visited):
         return 1, 100
