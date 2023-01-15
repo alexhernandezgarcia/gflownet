@@ -544,6 +544,14 @@ class AMP(GFlowNetEnv):
                 res[1].append(y[i])
         return res
 
+    def calculate_diversity(self, samples):
+        samples = [self.state2oracle(s) for s in samples]
+        dists = []
+        for pair in itertools.combinations(samples, 2):
+            dists.append(self.get_distance(*pair))
+        dists = np.array(dists)
+        return dists
+
     def get_distance(self, seq1, seq2):
         return levenshtein(seq1, seq2) / 1
 

@@ -774,10 +774,6 @@ class GFlowNetAgent:
         # Save final model
         self.logger.save_models(self.forward_policy, self.backward_policy, final=True)
 
-        # Close comet
-        if self.use_context == False:
-            self.logger.end()
-
     def get_log_corr(self, times):
         data_logq = []
         times.update(
@@ -868,7 +864,7 @@ class GFlowNetAgent:
                 use_context=self.use_context,
             )
 
-    def evaluate(self, samples, energies, performance, diversity, novelty, k=10):
+    def evaluate(self, samples, energies, performance, diversity, novelty):
         """Evaluate the policy on a set of queries.
 
         Args:
@@ -883,10 +879,7 @@ class GFlowNetAgent:
         if performance:
             energies = np.sort(energies)[::-1]
         if diversity:
-            dists = []
-            for pair in itertools.combinations(samples, 2):
-                dists.append(self.env.get_distance(*pair))
-            dists = np.array(dists)
+            dists = self.env.calculate_diversity(samples)
             dists = np.sort(dists)[::-1]
             # itertools.combinations(queries, 2) contains one pair only once
         if novelty:

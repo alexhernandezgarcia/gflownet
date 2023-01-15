@@ -47,7 +47,7 @@ def main(config):
         samples, times = gflownet.sample_batch(env, config.n_samples, train=False)
         energies = env.oracle(env.state2oracle(samples))
         _, _, _ = gflownet.evaluate(
-            samples, oracle=proxy, performance=True, diversity=True, novelty=False
+            samples, energies, performance=True, diversity=True, novelty=False
         )
         df = pd.DataFrame(
             {
@@ -58,6 +58,7 @@ def main(config):
         df.to_csv("gfn_samples.csv")
     print(gflownet.buffer.replay)
 
+    logger.end()
 
 def set_seeds(seed):
     import torch
