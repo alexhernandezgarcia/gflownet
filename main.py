@@ -46,8 +46,8 @@ def main(config):
     if config.n_samples > 0 and config.n_samples <= 1e5:
         samples, times = gflownet.sample_batch(env, config.n_samples, train=False)
         energies = env.oracle(env.state2oracle(samples))
-        _, _, _ = gflownet.evaluate(
-            samples, energies, performance=True, diversity=True, novelty=False
+        gflownet.evaluate(
+            samples, energies
         )
         df = pd.DataFrame(
             {
