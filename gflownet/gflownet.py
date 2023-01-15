@@ -867,7 +867,7 @@ class GFlowNetAgent:
                 use_context=self.use_context,
             )
 
-    def evaluate(self, batch, oracle, performance, diversity, novelty, k=10):
+    def evaluate(self, samples, energies, performance, diversity, novelty, k=10):
         """Evaluate the policy on a set of queries.
 
         Args:
@@ -876,16 +876,14 @@ class GFlowNetAgent:
         Returns:
             dictionary with topk performance, diversity and novelty scores
         """
-        queries = self.env.state2oracle(batch)
         topk_performance = {}
         topk_diversity = {}
         topk_novelty = {}
         if performance:
-            energies = oracle(queries)
             energies = np.sort(energies)[::-1]
         if diversity:
             dists = []
-            for pair in itertools.combinations(queries, 2):
+            for pair in itertools.combinations(samples, 2):
                 dists.append(self.env.get_distance(*pair))
             dists = np.array(dists)
             dists = np.sort(dists)[::-1]

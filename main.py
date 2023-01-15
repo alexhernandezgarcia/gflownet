@@ -30,7 +30,7 @@ def main(config):
     # Logger
     logger = hydra.utils.instantiate(config.logger, config, _recursive_=False)
     # The proxy is required in the env for scoring: might be an oracle or a model
-    proxy = hydra.utils.instantiate(config.proxy)
+    proxy = hydra.utils.instantiate(config.proxy, device=config.device)
     # The proxy is passed to env and used for computing rewards
     env = hydra.utils.instantiate(config.env, proxy=proxy)
     gflownet = hydra.utils.instantiate(
@@ -38,6 +38,7 @@ def main(config):
         env=env,
         buffer=config.env.buffer,
         logger=logger,
+        device=config.device,
     )
     gflownet.train()
 
