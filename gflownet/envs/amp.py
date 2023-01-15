@@ -545,7 +545,7 @@ class AMP(GFlowNetEnv):
         return res
 
     def calculate_diversity(self, samples):
-        samples = [self.state2oracle(s) for s in samples]
+        samples = self.state2oracle(samples)
         dists = []
         for pair in itertools.combinations(samples, 2):
             dists.append(self.get_distance(*pair))

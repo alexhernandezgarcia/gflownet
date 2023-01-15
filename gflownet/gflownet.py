@@ -864,7 +864,7 @@ class GFlowNetAgent:
                 use_context=self.use_context,
             )
 
-    def evaluate(self, samples, energies, performance, diversity, novelty):
+    def evaluate(self, samples, energies):
         """Evaluate the policy on a set of queries.
 
         Args:
@@ -873,30 +873,31 @@ class GFlowNetAgent:
         Returns:
             dictionary with topk performance, diversity and novelty scores
         """
-        topk_performance = {}
-        topk_diversity = {}
-        topk_novelty = {}
-        if performance:
-            energies = np.sort(energies)[::-1]
-        if diversity:
-            dists = self.env.calculate_diversity(samples)
-            dists = np.sort(dists)[::-1]
-            # itertools.combinations(queries, 2) contains one pair only once
-        if novelty:
+        energies = np.sort(energies)[::-1]
+        dists = self.env.calculate_diversity(samples)
+        dists = np.sort(dists)[::-1]
+        dict_topk = {}
+        # itertools.combinations(queries, 2) contains one pair only once
+        if self.use_context:
+            # TODO: add novelty calculation
             pass
-        for k in self.oracle_k:
-            if performance:
-                mean_energy_topk = np.mean(energies[:k])
-                topk_performance[k] = mean_energy_topk
-                print(f"\tAverage energy top-{k}: {mean_energy_topk}")
-            if diversity:
-                mean_diversity_topk = np.mean(dists[:k])
-                topk_diversity[k] = mean_diversity_topk
-                print(f"\tAverage diversity top-{k}: {mean_diversity_topk}")
-            if novelty:
+        for k in self.logger.sampler.oracle.k:
+            mean_energy_topk = np.mean(energies[:k])
+            mean_diversity_topk = np.mean(dists[:k])
+            dict_topk.update({"energy_mean_top{}".format(k): mean_energy_topk})
+            dict_topk.update({"distance_mean_top{}".format(k): mean_diversity_topk})
+            if self.use_context:
+                # TODO: add novelty calculation and update dictiorary
                 pass
-
-        return topk_performance, topk_diversity, topk_novelty
+            if self.progress:
+                print(f"\tAverage energy top-{k}: {mean_energy_topk}")
+                print(f"\tAverage diversity top-{k}: {mean_diversity_topk}")
+            if self.use_context:
+                # TODO: print novelty
+                pass
+            self.logger.log_metrics(
+                dict_topk, step=self.n_train_steps + 1, use_context=self.use_context
+            )
 
 
 class Policy:
