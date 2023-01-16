@@ -161,7 +161,7 @@ class Logger:
             self.log_metrics(
                 train_metrics,
                 use_context=use_context,
-                step=step,
+                # step=step,
             )
 
     def log_sampler_test(
@@ -185,7 +185,7 @@ class Logger:
             self.log_metrics(
                 test_metrics,
                 use_context=use_context,
-                step=step,
+                # step=step,
             )
 
     def log_sampler_oracle(self, energies: array, step: int, use_context: bool):
@@ -219,7 +219,7 @@ class Logger:
         self.log_metrics(
             loss_metrics,
             use_context=use_context,
-            step=step,
+            # step=step,
         )
 
     def save_models(

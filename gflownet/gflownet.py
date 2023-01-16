@@ -54,7 +54,7 @@ class GFlowNetAgent:
         num_empirical_loss,
         oracle,
         proxy=None,
-        al_iter=-1,
+        al=False,
         data_path=None,
         sample_only=False,
         **kwargs,
@@ -175,10 +175,7 @@ class GFlowNetAgent:
         self.tau = optimizer.bootstrap_tau
         self.ema_alpha = optimizer.ema_alpha
         self.early_stopping = optimizer.early_stopping
-        if al_iter >= 0:
-            self.use_context = True
-        else:
-            self.use_context = False
+        self.use_context = al
         self.logsoftmax = torch.nn.LogSoftmax(dim=1)
         # Training
         self.mask_invalid_actions = mask_invalid_actions
@@ -885,16 +882,19 @@ class GFlowNetAgent:
             # TODO: add novelty calculation
             pass
         for k in self.logger.sampler.oracle.k:
+            print(f"\n Top-{k} Performance")
             mean_energy_topk = np.mean(energies[:k])
             mean_diversity_topk = np.mean(dists[:k])
-            dict_topk.update({"energy_mean_top{}".format(k): mean_energy_topk})
-            dict_topk.update({"distance_mean_top{}".format(k): mean_diversity_topk})
+            dict_topk.update({"mean_energy_top{}".format(k): mean_energy_topk})
+            dict_topk.update(
+                {"mean_pairwise_distance_top{}".format(k): mean_diversity_topk}
+            )
             if self.use_context:
                 # TODO: add novelty calculation and update dictiorary
                 pass
             if self.progress:
-                print(f"\tAverage energy top-{k}: {mean_energy_topk}")
-                print(f"\tAverage diversity top-{k}: {mean_diversity_topk}")
+                print(f"\t Mean Energy: {mean_energy_topk}")
+                print(f"\t Mean Pairwise Distance: {mean_diversity_topk}")
             if self.use_context:
                 # TODO: print novelty
                 pass
