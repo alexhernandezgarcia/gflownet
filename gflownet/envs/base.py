@@ -487,21 +487,21 @@ class Buffer:
                 self.test = df_data.loc[df_data.test]
         # Otherwise
         else:
-            self.train, self.test = self.env.make_train_set()
-            # # Train set
-            # # (2) Separate train file path is provided
-            # if train.path and Path(train.path).exists():
-            #     self.train = pd.read_csv(train.path, index_col=0)
-            # # (3) Make environment specific train set
-            # elif train.n and train.seed:
-            #     self.train = self.env.make_train_set(
-            #         ntrain=train.n,
-            #         oracle=self.env.oracle,
-            #         seed=train.seed,
-            #         output_csv=train.output,
-            #     )
-            # # Test set
-            # # (2) Separate test file path is provided
+            # Train set
+            # (2) Separate train file path is provided
+            if train.path and Path(train.path).exists():
+                self.train = pd.read_csv(train.path, index_col=0)
+            # (3) Make environment specific train set
+            elif train.n and train.seed:
+                self.train = self.env.make_train_set(
+                    ntrain=train.n,
+                    oracle=self.env.oracle,
+                    seed=train.seed,
+                    output_csv=train.output,
+                )
+            # Test set
+            self.test = None
+            # (2) Separate test file path is provided
             # if "all" in test and test.all:
             #     self.test = self.env.make_test_set(test)
             # elif test.path and Path(train.path).exists():
