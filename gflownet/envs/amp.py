@@ -421,8 +421,7 @@ class AMP(GFlowNetEnv):
         source = get_default_data_splits(setting="Target")
         rng = np.random.RandomState()
         # returns a dictionary with two keys 'AMP' and 'nonAMP' and values as lists
-        self.data = source.sample(split, -1)
-        self.nfold = nfold  # 5
+        data = source.sample(split, -1)
         if split == "D1":
             groups = np.array(source.d1_pos.group)
         if split == "D2":
@@ -432,7 +431,7 @@ class AMP(GFlowNetEnv):
                 (np.array(source.d1_pos.group), np.array(source.d2_pos.group))
             )
 
-        n_pos, n_neg = len(self.data["AMP"]), len(self.data["nonAMP"])
+        n_pos, n_neg = len(data["AMP"]), len(data["nonAMP"])
         pos_train, pos_test = next(
             GroupKFold(nfold).split(np.arange(n_pos), groups=groups)
         )
@@ -442,10 +441,10 @@ class AMP(GFlowNetEnv):
             )
         )
 
-        pos_train = [self.data["AMP"][i] for i in pos_train]
-        neg_train = [self.data["nonAMP"][i] for i in neg_train]
-        pos_test = [self.data["AMP"][i] for i in pos_test]
-        neg_test = [self.data["nonAMP"][i] for i in neg_test]
+        pos_train = [data["AMP"][i] for i in pos_train]
+        neg_train = [data["nonAMP"][i] for i in neg_train]
+        pos_test = [data["AMP"][i] for i in pos_test]
+        neg_test = [data["nonAMP"][i] for i in neg_test]
         train = pos_train + neg_train
         test = pos_test + neg_test
 
