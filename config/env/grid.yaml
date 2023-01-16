@@ -21,11 +21,11 @@ buffer:
   train:
     path: null
     seed: 167
-    n: 20
+    n: null
     output: null
   test:
     all: True
     path: null
     seed: 167
-    n: 20
+    n: null
     output: null

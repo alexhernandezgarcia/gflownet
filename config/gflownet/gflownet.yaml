@@ -54,4 +54,4 @@ oracle:
     # Number of samples for oracle metrics
     n: 500
 # remove eventually
-sample_only: True
+sample_only: False
