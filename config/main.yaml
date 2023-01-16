@@ -1,11 +1,11 @@
 defaults:
   - _self_
-  - env: amp
+  - env: grid
   - gflownet: flowmatch
-  - proxy: amp
+  - proxy: grid_corners
   - logger: wandb
-  - user: nikita
-
+  
+user: nikita
 # Number of objects to sample at the end of training
 n_samples: 1000
 # Random seeds

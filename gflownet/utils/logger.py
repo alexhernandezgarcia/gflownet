@@ -121,10 +121,8 @@ class Logger:
     def log_metrics(self, metrics: dict, step: int = None, use_context: bool = True):
         if not self.do.online:
             return
-        if use_context:
-            for key, _ in metrics.items():
-                key = self.context + "/" + key
-        self.wandb.log(metrics, step)
+        for key, _ in metrics.items():
+            self.log_metric(key, metrics[key], step, use_context)
 
     def log_sampler_train(
         self,

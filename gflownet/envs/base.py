@@ -376,6 +376,8 @@ class Buffer:
         logger=None,
         **kwargs,
     ):
+        # HACK
+        self.logger = logger
         self.env = env
         self.replay_capacity = replay_capacity
         self.action_space = self.env.get_actions_space()
@@ -493,7 +495,7 @@ class Buffer:
             # Train set
             # (2) Separate train file path is provided
             if train.path:
-                path = self.logger.log_dir / Path("data") / train.path
+                path = self.logger.logdir / Path("data") / train.path
                 self.train = pd.read_csv(path, index_col=0)
             # (3) Make environment specific train set
             elif train.n and train.seed:
@@ -504,6 +506,7 @@ class Buffer:
                     output_csv=train.output,
                 )
             # Test set
+            # HACK
             self.test = None
             # (2) Separate test file path is provided
             # if "all" in test and test.all:

@@ -416,42 +416,61 @@ class AMP(GFlowNetEnv):
         return self._true_density
 
     def load_dataset(self, split="D1", nfold=5):
-        # TODO: Make updated-buffer compatible with this
-        source = get_default_data_splits(setting="Target")
-        rng = np.random.RandomState()
-        # returns a dictionary with two keys 'AMP' and 'nonAMP' and values as lists
-        self.data = source.sample(split, -1)
-        self.nfold = nfold  # 5
-        if split == "D1":
-            groups = np.array(source.d1_pos.group)
-        if split == "D2":
-            groups = np.array(source.d2_pos.group)
-        if split == "D":
-            groups = np.concatenate(
-                (np.array(source.d1_pos.group), np.array(source.d2_pos.group))
-            )
 
-        n_pos, n_neg = len(self.data["AMP"]), len(self.data["nonAMP"])
-        pos_train, pos_test = next(
-            GroupKFold(nfold).split(np.arange(n_pos), groups=groups)
+        df_train = pd.read_csv(
+            "/home/mila/n/nikita.saxena/activelearning/logs/2023-01-15_20-22-56/data/data_train.csv".format(
+                split
+            )
         )
-        neg_train, neg_test = next(
-            GroupKFold(nfold).split(
-                np.arange(n_neg), groups=rng.randint(0, nfold, n_neg)
+        df_valid = pd.read_csv(
+            "/home/mila/n/nikita.saxena/activelearning/logs/2023-01-15_20-22-56/data/data_test.csv".format(
+                split
             )
         )
 
-        pos_train = [self.data["AMP"][i] for i in pos_train]
-        neg_train = [self.data["nonAMP"][i] for i in neg_train]
-        pos_test = [self.data["AMP"][i] for i in pos_test]
-        neg_test = [self.data["nonAMP"][i] for i in neg_test]
-        train = pos_train + neg_train
-        test = pos_test + neg_test
+        return (
+            df_train["samples"].values.tolist(),
+            df_train["energies"].values.tolist(),
+            df_valid["samples"].values.tolist(),
+            df_valid["energies"].values.tolist(),
+        )
 
-        train = [sample for sample in train if len(sample) < self.max_seq_length]
-        test = [sample for sample in test if len(sample) < self.max_seq_length]
+        # # TODO: Make updated-buffer compatible with this
+        # source = get_default_data_splits(setting="Target")
+        # rng = np.random.RandomState()
+        # # returns a dictionary with two keys 'AMP' and 'nonAMP' and values as lists
+        # self.data = source.sample(split, -1)
+        # self.nfold = nfold  # 5
+        # if split == "D1":
+        #     groups = np.array(source.d1_pos.group)
+        # if split == "D2":
+        #     groups = np.array(source.d2_pos.group)
+        # if split == "D":
+        #     groups = np.concatenate(
+        #         (np.array(source.d1_pos.group), np.array(source.d2_pos.group))
+        #     )
 
-        return train, test
+        # n_pos, n_neg = len(self.data["AMP"]), len(self.data["nonAMP"])
+        # pos_train, pos_test = next(
+        #     GroupKFold(nfold).split(np.arange(n_pos), groups=groups)
+        # )
+        # neg_train, neg_test = next(
+        #     GroupKFold(nfold).split(
+        #         np.arange(n_neg), groups=rng.randint(0, nfold, n_neg)
+        #     )
+        # )
+
+        # pos_train = [self.data["AMP"][i] for i in pos_train]
+        # neg_train = [self.data["nonAMP"][i] for i in neg_train]
+        # pos_test = [self.data["AMP"][i] for i in pos_test]
+        # neg_test = [self.data["nonAMP"][i] for i in neg_test]
+        # train = pos_train + neg_train
+        # test = pos_test + neg_test
+
+        # train = [sample for sample in train if len(sample) < self.max_seq_length]
+        # test = [sample for sample in test if len(sample) < self.max_seq_length]
+
+        # return train, test
 
     def make_train_set(
         self,
