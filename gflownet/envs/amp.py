@@ -112,7 +112,7 @@ class AMP(GFlowNetEnv):
         if self.proxy_state_format == "ohe":
             self.state2proxy = self.state2obs
         elif self.proxy_state_format == "oracle":
-            self.state2proxy = self.state2oracle
+            self.state2proxy = self.statebatch2oracle
         self.alphabet = dict((i, a) for i, a in enumerate(self.vocab))
 
     def copy(self):
@@ -131,6 +131,7 @@ class AMP(GFlowNetEnv):
             self.reward_norm_std_mult,
             self.reward_func,
             self.denorm_proxy,
+            self.state2proxy,
         )
 
     def get_actions_space(self):
@@ -409,6 +410,24 @@ class AMP(GFlowNetEnv):
         return self._true_density
 
     def load_dataset(self, split="D1", nfold=5):
+
+        df_train = pd.read_csv(
+            "/home/mila/n/nikita.saxena/gflownet/logs/train_dataset_{}.csv".format(
+                split
+            )
+        )
+        df_valid = pd.read_csv(
+            "/home/mila/n/nikita.saxena/gflownet/logs/valid_dataset_{}.csv".format(
+                split
+            )
+        )
+
+        return (
+            df_train["samples"].values.tolist(),
+            df_train["energies"].values.tolist(),
+            df_valid["samples"].values.tolist(),
+            df_valid["energies"].values.tolist(),
+        )
         # TODO: Make updated-buffer compatible with this
         source = get_default_data_splits(setting="Target")
         rng = np.random.RandomState()

@@ -400,7 +400,7 @@ class GFlowNetAgent:
                 envs, actions, valids = self.forward_sample(
                     envs,
                     times,
-                    sampling_method="mixt",
+                    sampling_method="policy",
                     model=self.forward_policy,
                     temperature=1.0,
                 )
