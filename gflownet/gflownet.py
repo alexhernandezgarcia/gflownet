@@ -819,13 +819,13 @@ class GFlowNetAgent:
         )
         # Forward trajectories
         policy_output_f = self.forward_policy(self.env.statetorch2policy(parents))
-        logprobs_f = self.env.get_logprobs(policy_output_f, actions, masks_f, loginf)
+        logprobs_f = self.env.get_logprobs(policy_output_f, actions, states, masks_f, loginf)
         sumlogprobs_f = tf(
             torch.zeros(len(torch.unique(traj_id, sorted=True)))
         ).index_add_(0, traj_id, logprobs_f)
         # Backward trajectories
         policy_output_b = self.backward_policy(self.env.statetorch2policy(states))
-        logprobs_b = self.env.get_logprobs(policy_output_b, actions, masks_b, loginf)
+        logprobs_b = self.env.get_logprobs(policy_output_b, actions, parents, masks_b, loginf)
         # Make last backward transition probability - log p(s0 | s1) = 0.0
         logprobs_b[state_id == 0] = 0.0
         sumlogprobs_b = tf(
