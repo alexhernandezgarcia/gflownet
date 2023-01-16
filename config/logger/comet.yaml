@@ -1,5 +1,8 @@
 defaults:
-  - logger
+  - base
+
+do:
+  online: True
 
 project: None
 tags:

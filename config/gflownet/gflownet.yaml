@@ -1,39 +1,8 @@
 _target_: gflownet.gflownet.GFlowNetAgent
-
-# General
-logdir: /network/scratch/a/alex.hernandez-garcia/logs/gflownet
-overwrite_logdir: False
 # Random seeds
 seed: 0
 # Device
 device: cuda
-# Logging
-logger:
-  debug: False
-  progress: True
-  lightweight: False
-  # Number of samples used to compute the empirical distribution loss
-  num_empirical_loss: 200000
-  test:
-    # Period (number of iterations) for computing test metrics
-    period: 500
-  oracle:
-    # Period (number of iterations) for computing oracle metrics
-    period: 100
-    # Number of samples for oracle metrics
-    n: 500
-    # List of K, for Top-K oracle metrics
-    k:
-      - 1
-      - 10
-      - 100
-# Comet
-comet:
-  project: gflownet
-  skip: True
-  log_times: False
-  tags:
-    - gflownet
 # Optimizer
 optimizer:
   # Loss function
@@ -67,6 +36,8 @@ batch_reward: True
 mask_invalid_actions: True
 # Temperature for the logits /= temperature_logits
 temperature_logits: 1.0
+# Percentage of random actions
+random_action_prob: 0.0
 # Percentage of trajectories in a batch from an empirical distribution
 pct_batch_empirical: 0.0
 # Replay buffer
@@ -80,3 +51,10 @@ policy:
     reload_ckpt: False
   backward: null
   ckpt_period: null
+num_empirical_loss: 200000
+oracle:
+    # Number of samples for oracle metrics
+    n: 500
+# remove eventually
+sample_only: False
+debug: False

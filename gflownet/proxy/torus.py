@@ -1,5 +1,6 @@
 from gflownet.proxy.base import Proxy
 import numpy as np
+import numpy.typing as npt
 
 
 class Torus(Proxy):
@@ -7,10 +8,10 @@ class Torus(Proxy):
         super().__init__()
         self.normalize = normalize
 
-    def __call__(self, x_list):
+    def __call__(self, states: npt.NDArray[np.float32]) -> npt.NDArray[np.float32]:
         """
         args:
-            x_list: list of arrays in desired format interpretable by oracle
+            states: ndarray
         returns:
             list of scores
         technically an oracle, hence used variable name energies
@@ -18,18 +19,24 @@ class Torus(Proxy):
 
         def _func_sin_cos_cube(x):
             return (
-                -1 * (np.sum(np.sin(x[0::2])) + np.sum(np.cos(x[1::2])) + len(x)) ** 3
+                -1
+                * (
+                    np.sum(np.sin(x[:, 0::2]), axis=1)
+                    + np.sum(np.cos(x[:, 1::2]), axis=1)
+                    + x.shape[1]
+                )
+                ** 3
             )
 
         def _func_sin_cos_cube_norm(x):
-            norm = (len(x) * 2) ** 3
+            norm = (x.shape[1] * 2) ** 3
             return (-1.0 / norm) * (
-                np.sum(np.sin(x[0::2])) + np.sum(np.cos(x[1::2])) + len(x)
+                np.sum(np.sin(x[:, 0::2]), axis=1)
+                + np.sum(np.cos(x[:, 1::2]), axis=1)
+                + x.shape[1]
             ) ** 3
 
         if self.normalize:
-            _func = _func_sin_cos_cube_norm
+            return _func_sin_cos_cube_norm(states)
         else:
-            _func = _func_sin_cos_cube
-
-        return np.asarray([_func(x) for x in x_list])
+            return _func_sin_cos_cube(states)

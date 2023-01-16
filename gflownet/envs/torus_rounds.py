@@ -149,7 +149,7 @@ class Torus(GFlowNetEnv):
         """
         return self.state2proxy(state_list)
 
-    def state2obs(self, state=None):
+    def state2policy(self, state=None):
         """
         Transforms the state given as argument (or self.state if None) into a
         one-hot encoding. The output is a list of len n_angles * n_dim,
@@ -159,7 +159,7 @@ class Torus(GFlowNetEnv):
         Example, n_dim = 2, n_angles = 4:
           - State, state: [0, 3, 1, 0]
                           | a  |  r  | (a = angles, r = rounds)
-          - state2obs(state): [1, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 1, 0, 0, 0]
+          - state2policy(state): [1, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 1, 0, 0, 0]
                               |     0    |      3    |      1    |      0    |
         """
         if state is None:
@@ -256,7 +256,7 @@ class Torus(GFlowNetEnv):
         Returns
         -------
         parents : list
-            List of parents as state2obs(state)
+            List of parents as state2policy(state)
 
         actions : list
             List of actions that lead to state for each parent in parents
@@ -267,7 +267,7 @@ class Torus(GFlowNetEnv):
         if done is None:
             done = self.done
         if done:
-            return [self.state2obs(state)], [self.eos]
+            return [self.state2policy(state)], [self.eos]
         else:
             parents = []
             actions = []
@@ -285,7 +285,7 @@ class Torus(GFlowNetEnv):
                         break
                 else:
                     state_aux = angles_aux + rounds_aux
-                    parents.append(self.state2obs(state_aux))
+                    parents.append(self.state2policy(state_aux))
                     actions.append(idx)
         return parents, actions
 

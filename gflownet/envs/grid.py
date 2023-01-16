@@ -4,7 +4,10 @@ Classes to represent a hyper-grid environments
 from typing import List, Tuple
 import itertools
 import numpy as np
+import numpy.typing as npt
 import pandas as pd
+import torch
+from torchtyping import TensorType
 from gflownet.envs.base import GFlowNetEnv
 
 
@@ -60,6 +63,7 @@ class Grid(GFlowNetEnv):
             proxy_state_format,
             **kwargs,
         )
+        self.continuous = True
         self.n_dim = n_dim
         self.eos = self.n_dim
         self.state = [0 for _ in range(self.n_dim)]
@@ -72,9 +76,9 @@ class Grid(GFlowNetEnv):
         self.fixed_policy_output = self.get_fixed_policy_output()
         self.policy_output_dim = len(self.fixed_policy_output)
         if self.proxy_state_format == "ohe":
-            self.state2proxy = self.state2obs
+            self.statebatch2proxy = self.statebatch2policy
         elif self.proxy_state_format == "oracle":
-            self.state2proxy = self.state2oracle
+            self.statebatch2proxy = self.statebatch2oracle
 
     def get_actions_space(self):
         """
@@ -86,7 +90,7 @@ class Grid(GFlowNetEnv):
         for r in valid_steplens:
             actions_r = [el for el in itertools.product(dims, repeat=r)]
             actions += actions_r
-        actions += [(self.eos)]
+        actions += [(self.eos,)]
         return actions
 
     def get_mask_invalid_actions_forward(self, state=None, done=None):
@@ -141,11 +145,26 @@ class Grid(GFlowNetEnv):
         if state is None:
             state = self.state.copy()
         return (
-            self.state2obs(state).reshape((self.n_dim, self.length))
+            self.state2policy(state).reshape((self.n_dim, self.length))
             * self.cells[None, :]
         ).sum(axis=1)
 
-    def state2obs(self, state=None):
+    def statebatch2oracle(self, states: List[List]) -> npt.NDArray[np.float32]:
+        """
+        Prepares a batch of states in "GFlowNet format" for the oracles: a list of
+        length n_dim with values in the range [cell_min, cell_max] for each state.
+
+        Args
+        ----
+        state : list
+            State
+        """
+        return (
+            self.statebatch2policy(states).reshape((len(states), self.n_dim, self.length))
+            * self.cells[None, :]
+        ).sum(axis=2)
+
+    def state2policy(self, state: List=None) -> List:
         """
         Transforms the state given as argument (or self.state if None) into a
         one-hot encoding. The output is a list of len length * n_dim,
@@ -154,13 +173,40 @@ class Grid(GFlowNetEnv):
 
         Example:
           - State, state: [0, 3, 1] (n_dim = 3)
-          - state2obs(state): [1, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0] (length = 4)
+          - state2policy(state): [1, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0] (length = 4)
                               |     0    |      3    |      1    |
         """
         if state is None:
             state = self.state.copy()
         obs = np.zeros(self.obs_dim, dtype=np.float32)
         obs[(np.arange(len(state)) * self.length + state)] = 1
+        return obs.tolist()
+
+    def statebatch2policy(self, states: List[List]) -> npt.NDArray[np.float32]:
+        """
+        Transforms a batch of states into a one-hot encoding. The output is a numpy
+        array of shape [n_states, length * n_dim]. 
+
+        See state2policy().
+        """
+        cols = np.array(states) + np.arange(self.n_dim) * self.length
+        rows = np.repeat(np.arange(len(states)), self.n_dim)
+        obs = np.zeros((len(states), self.obs_dim), dtype=np.float32)
+        obs[rows, cols.flatten()] = 1.0
+        return obs
+
+    def statetorch2policy(self, states: TensorType["batch", "state_dim"]) -> TensorType["batch", "policy_output_dim"]:
+        """
+        Transforms a batch of states into a one-hot encoding. The output is a numpy
+        array of shape [n_states, length * n_dim]. 
+
+        See state2policy().
+        """
+        device = states.device
+        cols = (states + torch.arange(self.n_dim).to(device) * self.length).to(int)
+        rows = torch.repeat_interleave(torch.arange(states.shape[0]).to(device), self.n_dim)
+        obs = torch.zeros((states.shape[0], self.obs_dim), dtype=states.dtype).to(device)
+        obs[rows, cols.flatten()] = 1.0
         return obs
 
     def obs2state(self, obs: List) -> List:
@@ -220,7 +266,7 @@ class Grid(GFlowNetEnv):
         Returns
         -------
         parents : list
-            List of parents as state2obs(state)
+            List of parents in state format
 
         actions : list
             List of actions that lead to state for each parent in parents
@@ -230,7 +276,7 @@ class Grid(GFlowNetEnv):
         if done is None:
             done = self.done
         if done:
-            return [self.state2obs(state)], [self.eos]
+            return [state], [(self.eos,)]
         else:
             parents = []
             actions = []
@@ -242,7 +288,7 @@ class Grid(GFlowNetEnv):
                     else:
                         break
                 else:
-                    parents.append(self.state2obs(state_aux))
+                    parents.append(state_aux)
                     actions.append(a)
         return parents, actions
 
@@ -291,15 +337,15 @@ class Grid(GFlowNetEnv):
         else:
             self.done = True
             self.n_actions += 1
-            return self.state, self.eos, True
+            return self.state, (self.eos,), True
 
-    def get_all_terminating_states(self):
+    def get_all_terminating_states(self) -> List[List]:
         all_x = np.int32(
             list(itertools.product(*[list(range(self.length))] * self.n_dim))
         )
-        return all_x
+        return all_x.tolist()
 
     def get_random_terminating_states(self, n_states: int, seed: int) -> List[List]:
         rng = np.random.default_rng(seed)
         states = rng.integers(low=0, high=self.length, size=(n_states, self.n_dim))
-        return states
+        return states.tolist()

@@ -4,6 +4,7 @@ Classes to represent hyperplane environments
 from typing import List, Tuple
 import itertools
 import numpy as np
+import numpy.typing as npt
 import pandas as pd
 import torch
 from gflownet.envs.base import GFlowNetEnv
@@ -61,6 +62,7 @@ class Plane(GFlowNetEnv):
         # Main properties
         self.continuous = True
         self.n_dim = n_dim
+        self.eos = self.n_dim
         self.max_val = max_val
         self.max_traj_length = max_traj_length
         # Parameters of fixed policy distribution
@@ -72,10 +74,12 @@ class Plane(GFlowNetEnv):
         self.action_space = self.get_actions_space()
         self.fixed_policy_output = self.get_fixed_policy_output()
         self.policy_output_dim = len(self.fixed_policy_output)
-        self.eos = self.n_dim
         # Set up proxy
         self.proxy.n_dim = self.n_dim
         self.proxy.setup()
+        # Oracle
+        self.state2oracle = self.state2proxy
+        self.statebatch2oracle = self.statebatch2proxy
 
     def reward(self, state=None, done=None):
         """
@@ -119,6 +123,7 @@ class Plane(GFlowNetEnv):
         increment of the dimension value.
         """
         actions = [(d, None) for d in range(self.n_dim)]
+        actions += [(self.eos, None)]
         return actions
 
     def get_fixed_policy_output(self):
@@ -156,12 +161,12 @@ class Plane(GFlowNetEnv):
         if done is None:
             done = self.done
         if done:
-            return [True for _ in range(len(self.action_space) + 1)]
+            return [True for _ in range(len(self.action_space))]
         if any([s > self.max_val for s in self.state]) or self.n_actions >= self.max_traj_length:
-            mask = [True for _ in range(len(self.action_space) + 1)]
+            mask = [True for _ in range(len(self.action_space))]
             mask[-1] = False
         else:
-            mask = [False for _ in range(len(self.action_space) + 1)]
+            mask = [False for _ in range(len(self.action_space))]
         return mask
 
     def get_mask_invalid_actions_backward(self, state=None, done=None, parents_a=None):
@@ -175,10 +180,10 @@ class Plane(GFlowNetEnv):
         if done is None:
             done = self.done
         if done:
-            mask = [True for _ in range(len(self.action_space) + 1)]
+            mask = [True for _ in range(len(self.action_space))]
             mask[-1] = False
         else:
-            mask = [False for _ in range(len(self.action_space) + 1)]
+            mask = [False for _ in range(len(self.action_space))]
         # TODO: review: anything to do with max_value?
         return mask
 
@@ -198,7 +203,7 @@ class Plane(GFlowNetEnv):
         )
         return self._true_density
 
-    def state2proxy(self, state: List=None) -> List:
+    def statebatch2proxy(self, states: List[List]=None) -> npt.NDArray[np.float32]:
         """
         Scales the states into [0, max_val]
 
@@ -207,24 +212,9 @@ class Plane(GFlowNetEnv):
         state : list
             State
         """
-        if state is None:
-            state = self.state.copy()
-        return [-1.0 + s * 2 / self.max_val for s in state]
+        return -1.0 + np.array(states) * 2 / self.max_val
 
-    def state2oracle(self, state: List=None) -> List:
-        """
-        Prepares a state in "GFlowNet format" for the oracle.
-
-        Args
-        ----
-        state : list
-            State
-        """
-        if state is None:
-            state = self.state.copy()
-        return self.state2proxy(state)
-
-    def state2obs(self, state: List = None) -> List:
+    def state2policy(self, state: List = None) -> List:
         """
         Returns the state as is.
         """
@@ -282,7 +272,7 @@ class Plane(GFlowNetEnv):
         Returns
         -------
         parents : list
-            List of parents as state2obs(state)
+            List of parents in state format
 
         actions : list
             List of actions that lead to state for each parent in parents
@@ -292,7 +282,7 @@ class Plane(GFlowNetEnv):
         if done is None:
             done = self.done
         if done:
-            return [self.state2obs(state)], [(self.eos, 0.0)]
+            return [state], [(self.eos, 0.0)]
         else:
             state[action[0]] -= action[1]
             parents = [state]
@@ -304,6 +294,7 @@ class Plane(GFlowNetEnv):
         sampling_method: str = "policy",
         mask_invalid_actions: TensorType["n_states", "policy_output_dim"] = None,
         temperature_logits: float = 1.0,
+        random_action_prob=0.0,
         loginf: float = 1000,
     ) -> Tuple[List[Tuple], TensorType["n_states"]]:
         """
@@ -312,6 +303,10 @@ class Plane(GFlowNetEnv):
         device = policy_outputs.device
         n_states = policy_outputs.shape[0]
         ns_range = torch.arange(n_states).to(device)
+        # Random actions
+        n_random = int(n_states * random_action_prob)
+        idx_random = torch.randint(high=n_states, size=(n_random,))
+        policy_outputs[idx_random, :] = torch.tensor(self.fixed_policy_output).to(policy_outputs)
         # Sample dimensions
         if sampling_method == "uniform":
             logits_dims = torch.zeros(n_states, self.n_dim).to(device)
@@ -360,7 +355,7 @@ class Plane(GFlowNetEnv):
         """
         device = policy_outputs.device
         dimensions, steps = zip(*actions)
-        dimensions = torch.LongTensor(dimensions).to(device)
+        dimensions = torch.LongTensor([d.long() for d in dimensions]).to(device)
         steps = torch.FloatTensor(steps).to(device)
         n_states = policy_outputs.shape[0]
         ns_range = torch.arange(n_states).to(device)

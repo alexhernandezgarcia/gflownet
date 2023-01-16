@@ -2,11 +2,14 @@
 Base class of GFlowNet environments
 """
 from abc import abstractmethod
-from typing import List
+from typing import List, Tuple
 import numpy as np
+import numpy.typing as npt
 import pandas as pd
 import torch
 from pathlib import Path
+from torch.distributions import Categorical
+from torchtyping import TensorType
 
 
 class GFlowNetEnv:
@@ -76,10 +79,34 @@ class GFlowNetEnv:
         """
         return np.ones(len(self.action_space))
 
-    def get_max_path_len(
+    def get_max_traj_len(
         self,
     ):
         return 1
+
+    def state2proxy(self, state: List = None):
+        """
+        Prepares a state in "GFlowNet format" for the proxy.
+
+        Args
+        ----
+        state : list
+            A state
+        """
+        if state is None:
+            state = self.state.copy()
+        return self.statebatch2proxy([state])
+
+    def statebatch2proxy(self, states: List[List]) -> npt.NDArray[np.float32]:
+        """
+        Prepares a batch of states in "GFlowNet format" for the proxy.
+
+        Args
+        ----
+        state : list
+            A state
+        """
+        return np.array(states)
 
     def state2oracle(self, state: List = None):
         """
@@ -94,6 +121,12 @@ class GFlowNetEnv:
             state = self.state.copy()
         return state
 
+    def statebatch2oracle(self, states: List[List]):
+        """
+        Prepares a batch of states in "GFlowNet format" for the oracles
+        """
+        return states
+
     def reward(self, state=None, done=None):
         """
         Computes the reward of a state
@@ -104,16 +137,16 @@ class GFlowNetEnv:
             return np.array(0.0)
         if state is None:
             state = self.state.copy()
-        return self.proxy2reward(self.proxy([self.state2oracle(state)]))
+        return self.proxy2reward(self.proxy(self.state2proxy(state)))
 
-    def reward_batch(self, states, done):
+    def reward_batch(self, states: List[List], done):
         """
         Computes the rewards of a batch of states, given a list of states and 'dones'
         """
-        states_oracle = [self.state2oracle(s) for s, d in zip(states, done) if d]
+        states_proxy = self.statebatch2proxy(states)[list(done), :]
         reward = np.zeros(len(done))
-        if len(states_oracle) > 0:
-            reward[list(done)] = self.proxy2reward(self.proxy(states_oracle))
+        if states_proxy.shape[0] > 0:
+            reward[list(done)] = self.proxy2reward(self.proxy(states_proxy))
         return reward
 
     def proxy2reward(self, proxy_vals):
@@ -139,6 +172,8 @@ class GFlowNetEnv:
                 self.min_reward,
                 None,
             )
+        elif self.reward_func == "identity":
+            return -1.0 * proxy_vals
         else:
             raise NotImplemented
 
@@ -154,10 +189,18 @@ class GFlowNetEnv:
             )
         elif self.reward_func == "boltzmann":
             return -1.0 * np.log(reward) / self.reward_beta
+        elif self.reward_func == "identity":
+            return -1.0 * np.array(reward)
         else:
             raise NotImplemented
 
-    def state2obs(self, state=None):
+    def statetorch2policy(self, states: TensorType["batch", "state_dim"]) -> TensorType["batch", "policy_output_dim"]:
+        """
+        Prepares a batch of states in torch "GFlowNet format" for the policy
+        """
+        return states
+
+    def state2policy(self, state=None):
         """
         Converts a state into a format suitable for a machine learning model, such as a
         one-hot encoding.
@@ -165,6 +208,13 @@ class GFlowNetEnv:
         if state is None:
             state = self.state
         return state
+
+    def statebatch2policy(self, states: List[List]) -> npt.NDArray[np.float32]:
+        """
+        Converts a batch of states into a format suitable for a machine learning model,
+        such as a one-hot encoding. Returns a numpy array.
+        """
+        return np.array(states)
 
     def obs2state(self, obs: List) -> List:
         """
@@ -187,11 +237,11 @@ class GFlowNetEnv:
         """
         return readable
 
-    def path2readable(self, path=None):
+    def traj2readable(self, traj=None):
         """
-        Converts a path into a human-readable string.
+        Converts a trajectory into a human-readable string.
         """
-        return str(path).replace("(", "[").replace(")", "]").replace(",", "")
+        return str(traj).replace("(", "[").replace(")", "]").replace(",", "")
 
     def reset(self, env_id=None):
         """
@@ -221,7 +271,7 @@ class GFlowNetEnv:
         Returns
         -------
         parents : list
-            List of parents as state2obs(state)
+            List of parents in state format
 
         actions : list
             List of actions that lead to state for each parent in parents
@@ -231,7 +281,7 @@ class GFlowNetEnv:
         if done is None:
             done = self.done
         if done:
-            return [self.state2obs(state)], [self.eos]
+            return [state], [self.eos]
         else:
             parents = []
             actions = []
@@ -243,6 +293,7 @@ class GFlowNetEnv:
         sampling_method: str = "policy",
         mask_invalid_actions: TensorType["n_states", "policy_output_dim"] = None,
         temperature_logits: float = 1.0,
+        random_action_prob=0.0,
         loginf: float = 1000,
     ) -> Tuple[List[Tuple], TensorType["n_states"]]:
         """
@@ -280,47 +331,47 @@ class GFlowNetEnv:
         logits = policy_outputs
         if mask_invalid_actions is not None:
             logits[mask_invalid_actions] = -loginf
-        action_indices = [self.action_space.index(action) for action in actions]
+        # TODO: fix need to convert to tuple: implement as in continuous
+        action_indices = torch.tensor([self.action_space.index(tuple(action.tolist())) for action in actions]).to(int).to(device)
         logprobs = self.logsoftmax(logits)[ns_range, action_indices]
         return logprobs
 
-    def get_paths(self, path_list, path_actions_list, current_path, current_actions):
+    def get_trajectories(self, traj_list, traj_actions_list, current_traj, current_actions):
         """
-        Determines all paths leading to each state in path_list, recursively.
+        Determines all trajectories leading to each state in traj_list, recursively.
 
         Args
         ----
-        path_list : list
-            List of paths (lists)
+        traj_list : list
+            List of trajectories (lists)
 
-        path_actions_list : list
-            List of actions within each path
+        traj_actions_list : list
+            List of actions within each trajectory
 
-        current_path : list
-            Current path
+        current_traj : list
+            Current trajectory
 
         current_actions : list
-            Actions of current path
+            Actions of current trajectory
 
         Returns
         -------
-        path_list : list
-            List of paths (lists)
+        traj_list : list
+            List of trajectories (lists)
 
-        path_actions_list : list
-            List of actions within each path
+        traj_actions_list : list
+            List of actions within each trajectory
         """
-        parents, parents_actions = self.get_parents(current_path[-1], False)
-        parents = [self.obs2state(el) for el in parents]
+        parents, parents_actions = self.get_parents(current_traj[-1], False)
         if parents == []:
-            path_list.append(current_path)
-            path_actions_list.append(current_actions)
-            return path_list, path_actions_list
+            traj_list.append(current_traj)
+            traj_actions_list.append(current_actions)
+            return traj_list, traj_actions_list
         for idx, (p, a) in enumerate(zip(parents, parents_actions)):
-            path_list, path_actions_list = self.get_paths(
-                path_list, path_actions_list, current_path + [p], current_actions + [a]
+            traj_list, traj_actions_list = self.get_trajectories(
+                traj_list, traj_actions_list, current_traj + [p], current_actions + [a]
             )
-        return path_list, path_actions_list
+        return traj_list, traj_actions_list
 
     def step(self, action_idx):
         """
@@ -378,8 +429,10 @@ class GFlowNetEnv:
         True if action is invalid going backward given the current state, False
         otherwise.
         """
-        # TODO
-        pass
+        mask = [True for _ in range(len(self.action_space))]
+        for pa in parents_a:
+            mask[self.action_space.index(pa)] = False
+        return mask
 
     def set_state(self, state, done):
         """
@@ -401,31 +454,6 @@ class GFlowNetEnv:
           - states
         """
         return (None, None, None)
-
-    def make_train_set(self, ntrain, oracle=None, seed=168, output_csv=None):
-        """
-        Constructs a randomly sampled train set.
-
-        Args
-        ----
-        """
-        return None
-
-    def make_test_set(
-        self,
-        path_base_dataset,
-        ntest,
-        oracle=None,
-        seed=167,
-        output_csv=None,
-    ):
-        """
-        Constructs a test set.
-
-        Args
-        ----
-        """
-        return None
 
     @staticmethod
     def np2df(*args):
@@ -455,10 +483,10 @@ class Buffer:
     ):
         self.env = env
         self.replay_capacity = replay_capacity
-        self.main = pd.DataFrame(columns=["state", "path", "reward", "energy", "iter"])
+        self.main = pd.DataFrame(columns=["state", "traj", "reward", "energy", "iter"])
         self.replay = pd.DataFrame(
             np.empty((self.replay_capacity, 5), dtype=object),
-            columns=["state", "path", "reward", "energy", "iter"],
+            columns=["state", "traj", "reward", "energy", "iter"],
         )
         self.replay.reward = pd.to_numeric(self.replay.reward)
         self.replay.energy = pd.to_numeric(self.replay.energy)
@@ -495,7 +523,7 @@ class Buffer:
     def add(
         self,
         states,
-        paths,
+        trajs,
         rewards,
         energies,
         it,
@@ -509,7 +537,7 @@ class Buffer:
                     pd.DataFrame(
                         {
                             "state": [self.env.state2readable(s) for s in states],
-                            "path": [self.env.path2readable(p) for p in paths],
+                            "traj": [self.env.traj2readable(p) for p in trajs],
                             "reward": rewards,
                             "energy": energies,
                             "iter": it,
@@ -521,12 +549,12 @@ class Buffer:
             )
         elif buffer == "replay" and self.replay_capacity > 0:
             if criterion == "greater":
-                self.replay = self._add_greater(states, paths, rewards, energies, it)
+                self.replay = self._add_greater(states, trajs, rewards, energies, it)
 
     def _add_greater(
         self,
         states,
-        paths,
+        trajs,
         rewards,
         energies,
         it,
@@ -537,7 +565,7 @@ class Buffer:
             idx_new_max = np.argmax(rewards_new)
             self.replay.iloc[self.replay.reward.argmin()] = {
                 "state": self.env.state2readable(states[idx_new_max]),
-                "path": self.env.path2readable(paths[idx_new_max]),
+                "traj": self.env.traj2readable(trajs[idx_new_max]),
                 "reward": rewards[idx_new_max],
                 "energy": energies[idx_new_max],
                 "iter": it,
@@ -571,7 +599,7 @@ class Buffer:
             samples = self.env.get_random_terminating_states(config.n, config.seed)
         else:
             return None
-        energies = self.env.oracle(self.env.state2oracle(samples))
+        energies = self.env.oracle(self.env.statebatch2oracle(samples))
         df = pd.DataFrame(
             {
                 "samples": [self.env.state2readable(s) for s in samples],
@@ -579,64 +607,6 @@ class Buffer:
             }
         )
         return df
-
-    def make_train_test(self, train, test, data_path=None, *args):
-        """
-        Initializes the train and test sets. Depending on the arguments, the sets can
-        be formed in different ways:
-
-        (1) data_path is not None and is ".npy": data_path is the path to a npy file
-        containing data set of the (aptamers) active learning pipeline. An aptamers
-        specific function creates the train/test split.
-        (2) separate train and test file paths are provided
-        (3) no file paths are provided and the train and test data are generated by
-          environment-specific functions.
-        """
-        # (1) data_path is not None
-        if data_path:
-            data_path = Path(data_path)
-            if data_path.suffix == ".npy":
-                df_data = self.env.np2df(
-                    data_path,
-                    args[0].dataset.init_length,
-                    args[0].al.queries_per_iter,
-                    args[0].gflownet.test.pct_test,
-                    args[0].seeds.dataset,
-                )
-                self.train = df_data.loc[df_data.train]
-                self.test = df_data.loc[df_data.test]
-        # Otherwise
-        else:
-            # Train set
-            # (2) Separate train file path is provided
-            if train.path and Path(train.path).exists():
-                self.train = pd.read_csv(train.path, index_col=0)
-            # (3) Make environment specific train set
-            elif train.n and train.seed:
-                self.train = self.env.make_train_set(
-                    ntrain=train.n,
-                    oracle=self.env.oracle,
-                    seed=train.seed,
-                    output_csv=train.output,
-                )
-            # Test set
-            # (2) Separate test file path is provided
-            if "all" in test and test.all:
-                self.test = self.env.make_test_set(test)
-            elif test.path and Path(train.path).exists():
-                self.test = pd.read_csv(test.path, index_col=0)
-            # (3) Make environment specific test set
-            elif test.n and test.seed:
-                # TODO: make this general for all environments
-                self.test, _ = self.env.make_test_set(
-                    path_base_dataset=test.base,
-                    ntest=test.n,
-                    min_length=self.env.min_seq_length,
-                    max_length=self.env.max_seq_length,
-                    seed=test.seed,
-                    output_csv=test.output,
-                )
-        return self.train, self.test
 
     def compute_stats(self, data):
         mean_data = data["energies"].mean()

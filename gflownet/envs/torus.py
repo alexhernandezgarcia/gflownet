@@ -4,6 +4,7 @@ Classes to represent hyper-torus environments
 from typing import List
 import itertools
 import numpy as np
+import numpy.typing as npt
 import pandas as pd
 from gflownet.envs.base import GFlowNetEnv
 
@@ -76,6 +77,9 @@ class Torus(GFlowNetEnv):
         self.fixed_policy_output = self.get_fixed_policy_output()
         self.policy_output_dim = len(self.fixed_policy_output)
         self.angle_rad = 2 * np.pi / self.n_angles
+        # Oracle
+        self.state2oracle = self.state2proxy
+        self.statebatch2oracle = self.statebatch2proxy
 
     def get_actions_space(self):
         """
@@ -129,32 +133,15 @@ class Torus(GFlowNetEnv):
         )
         return self._true_density
 
-    def state2proxy(self, state_list: List[List]) -> List[List]:
+    def statebatch2proxy(self, states: List[List]) -> npt.NDArray[np.float32]:
         """
-        Prepares a list of states in "GFlowNet format" for the proxy: a list of length
-        n_dim with an angle in radians. The n_actions item is removed.
-
-        Args
-        ----
-        state_list : list of lists
-            List of states.
+        Prepares a batch of states in "GFlowNet format" for the proxy: an array where
+        each state is a row of length n_dim with an angle in radians. The n_actions
+        item is removed.
         """
-        # TODO: do we really need to convert back to list?
-        # TODO: split angles and round?
-        return (np.array(state_list)[:, :-1] * self.angle_rad).tolist()
+        return np.array(state_list)[:, :-1] * self.angle_rad
 
-    def state2oracle(self, state_list: List[List]) -> List[List]:
-        """
-        Prepares a list of states in "GFlowNet format" for the oracle
-
-        Args
-        ----
-        state_list : list of lists
-            List of states.
-        """
-        return self.state2proxy(state_list)
-
-    def state2obs(self, state=None) -> List:
+    def state2policy(self, state=None) -> List:
         """
         Transforms the angles part of the state given as argument (or self.state if
         None) into a one-hot encoding. The output is a list of len n_angles * n_dim +
@@ -164,7 +151,7 @@ class Torus(GFlowNetEnv):
         Example, n_dim = 2, n_angles = 4:
           - State, state: [1, 3, 4]
                           | a  | n | (a = angles, n = n_actions)
-          - state2obs(state): [0, 1, 0, 0, 0, 0, 0, 1, 4]
+          - state2policy(state): [0, 1, 0, 0, 0, 0, 0, 1, 4]
                               |     1    |     3     | 4 |
         """
         if state is None:
@@ -178,6 +165,21 @@ class Torus(GFlowNetEnv):
         ] = 1
         # Number of actions
         obs[-1] = state[-1]
+        return obs
+
+    def statebatch2policy(self, states: List[List]) -> npt.NDArray[np.float32]:
+        """
+        Transforms a batch of states into the policy model format. The output is a numpy
+        array of shape [n_states, n_angles * n_dim + 1]. 
+
+        See state2policy().
+        """
+        states = np.array(states)
+        cols = states[:, :-1] + np.arange(self.n_dim) * self.n_angles
+        rows = np.repeat(np.arange(states.shape[0]), self.n_dim)
+        obs = np.zeros((len(states), self.obs_dim), dtype=np.float32)
+        obs[rows, cols.flatten()] = 1.0
+        obs[:, -1] = states[:, -1]
         return obs
 
     def obs2state(self, obs: List) -> List:
@@ -253,7 +255,7 @@ class Torus(GFlowNetEnv):
         Returns
         -------
         parents : list
-            List of parents as state2obs(state)
+            List of parents in state format
 
         actions : list
             List of actions that lead to state for each parent in parents
@@ -270,7 +272,7 @@ class Torus(GFlowNetEnv):
         if done is None:
             done = self.done
         if done:
-            return [self.state2obs(state)], [self.eos]
+            return [state], [self.eos]
         # If source state
         elif state[-1] == 0:
             return [], []
@@ -293,7 +295,7 @@ class Torus(GFlowNetEnv):
                         angles_p[a[0]] = angles_p[a[0]] - self.n_angles
                 if _get_min_actions_to_source(self.source, angles_p) < state[-1]:
                     state_p = angles_p + [n_actions_p]
-                    parents.append(self.state2obs(state_p))
+                    parents.append(state_p)
                     actions.append(idx)
         return parents, actions
 
@@ -388,4 +390,4 @@ class Torus(GFlowNetEnv):
         )
         n_actions = self.length_traj * np.ones([all_x.shape[0], 1], dtype=np.int32)
         all_x = np.concatenate([all_x, n_actions], axis=1)
-        return all_x
+        return all_x.tolist()

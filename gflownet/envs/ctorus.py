@@ -4,6 +4,7 @@ Classes to represent hyper-torus environments
 from typing import List, Tuple
 import itertools
 import numpy as np
+import numpy.typing as npt
 import pandas as pd
 import torch
 from gflownet.envs.base import GFlowNetEnv
@@ -60,6 +61,7 @@ class ContinuousTorus(GFlowNetEnv):
         )
         self.continuous = True
         self.n_dim = n_dim
+        self.eos = self.n_dim
         self.length_traj = length_traj
         # Parameters of fixed policy distribution
         self.vonmises_mean = vonmises_mean
@@ -72,8 +74,10 @@ class ContinuousTorus(GFlowNetEnv):
         self.action_space = self.get_actions_space()
         self.fixed_policy_output = self.get_fixed_policy_output()
         self.policy_output_dim = len(self.fixed_policy_output)
-        self.eos = self.n_dim
         self.logsoftmax = torch.nn.LogSoftmax(dim=1)
+        # Oracle
+        self.state2oracle = self.state2proxy
+        self.statebatch2oracle = self.statebatch2proxy
 
     def get_actions_space(self):
         """
@@ -83,6 +87,7 @@ class ContinuousTorus(GFlowNetEnv):
         increment of the angle in radians.
         """
         actions = [(d, None) for d in range(self.n_dim)]
+        actions += [(self.eos, None)]
         return actions
 
     def get_fixed_policy_output(self):
@@ -118,12 +123,12 @@ class ContinuousTorus(GFlowNetEnv):
         if done is None:
             done = self.done
         if done:
-            return [True for _ in range(len(self.action_space) + 1)]
+            return [True for _ in range(len(self.action_space))]
         if state[-1] >= self.length_traj:
-            mask = [True for _ in range(len(self.action_space) + 1)]
+            mask = [True for _ in range(len(self.action_space))]
             mask[-1] = False
         else:
-            mask = [False for _ in range(len(self.action_space) + 1)]
+            mask = [False for _ in range(len(self.action_space))]
             mask[-1] = True
         return mask
 
@@ -138,11 +143,17 @@ class ContinuousTorus(GFlowNetEnv):
         if done is None:
             done = self.done
         if done:
-            mask = [True for _ in range(len(self.action_space) + 1)]
+            mask = [True for _ in range(len(self.action_space))]
             mask[-1] = False
         else:
-            mask = [False for _ in range(len(self.action_space) + 1)]
+            mask = [False for _ in range(len(self.action_space))]
             mask[-1] = True
+        # Catch cases where it would not be possible to reach the initial state
+        noninit_states = [s for s, ss in zip(state[:-1], self.source) if s != ss]
+        if len(noninit_states) > state[-1]:
+            print("This state should never be reached!")
+        elif len(noninit_states) <= state[-1] and len(noninit_states) >= state[-1] - 1:
+            mask = [True if s == ss else m for m, s, ss in zip(mask, state[:-1], self.source)] + [mask[-1]]
         return mask
 
     def true_density(self):
@@ -161,30 +172,15 @@ class ContinuousTorus(GFlowNetEnv):
         )
         return self._true_density
 
-    def state2proxy(self, state_list: List[List]) -> List[List]:
+    def statebatch2proxy(self, states: List[List]) -> npt.NDArray[np.float32]:
         """
-        Prepares a list of states in "GFlowNet format" for the proxy: a list of length
-        n_dim with an angle in radians. The n_actions item is removed.
-
-        Args
-        ----
-        state_list : list of lists
-            List of states.
+        Prepares a batch of states in "GFlowNet format" for the proxy: an array where
+        each state is a row of length n_dim with an angle in radians. The n_actions
+        item is removed.
         """
-        return [state[:-1] for state in state_list]
+        return np.array(states)[:, :-1]
 
-    def state2oracle(self, state_list: List[List]) -> List[List]:
-        """
-        Prepares a list of states in "GFlowNet format" for the oracle
-
-        Args
-        ----
-        state_list : list of lists
-            List of states.
-        """
-        return self.state2proxy(state_list)
-
-    def state2obs(self, state: List = None) -> List:
+    def state2policy(self, state: List = None) -> List:
         """
         Returns the state as is.
         """
@@ -253,7 +249,7 @@ class ContinuousTorus(GFlowNetEnv):
         Returns
         -------
         parents : list
-            List of parents as state2obs(state)
+            List of parents in state format
 
         actions : list
             List of actions that lead to state for each parent in parents
@@ -265,7 +261,7 @@ class ContinuousTorus(GFlowNetEnv):
         if done is None:
             done = self.done
         if done:
-            return [self.state2obs(state)], [(self.eos, 0.0)]
+            return [state], [(self.eos, 0.0)]
         else:
             state[action[0]] -= action[1]
             state[-1] -= 1
@@ -278,6 +274,7 @@ class ContinuousTorus(GFlowNetEnv):
         sampling_method: str = "policy",
         mask_invalid_actions: TensorType["n_states", "policy_output_dim"] = None,
         temperature_logits: float = 1.0,
+        random_action_prob=0.0,
         loginf: float = 1000,
     ) -> Tuple[List[Tuple], TensorType["n_states"]]:
         """
@@ -286,9 +283,13 @@ class ContinuousTorus(GFlowNetEnv):
         device = policy_outputs.device
         n_states = policy_outputs.shape[0]
         ns_range = torch.arange(n_states).to(device)
+        # Random actions
+        n_random = int(n_states * random_action_prob)
+        idx_random = torch.randint(high=n_states, size=(n_random,))
+        policy_outputs[idx_random, :] = torch.tensor(self.fixed_policy_output).to(policy_outputs)
         # Sample dimensions
         if sampling_method == "uniform":
-            logits_dims = torch.zeros(n_states, self.n_dim).to(device)
+            logits_dims = torch.ones(n_states, self.policy_output_dim).to(device)
         elif sampling_method == "policy":
             logits_dims = policy_outputs[:, 0::3]
             logits_dims /= temperature_logits
@@ -334,7 +335,7 @@ class ContinuousTorus(GFlowNetEnv):
         """
         device = policy_outputs.device
         dimensions, angles = zip(*actions)
-        dimensions = torch.LongTensor(dimensions).to(device)
+        dimensions = torch.LongTensor([d.long() for d in dimensions]).to(device)
         angles = torch.FloatTensor(angles).to(device)
         n_states = policy_outputs.shape[0]
         ns_range = torch.arange(n_states).to(device)
