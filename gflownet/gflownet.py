@@ -88,7 +88,9 @@ class GFlowNetAgent:
         self.logger = logger
         self.oracle_n = oracle.n
         # Buffers
-        self.buffer = Buffer(**buffer, env=self.env, make_train_test=not sample_only)
+        self.buffer = Buffer(
+            **buffer, env=self.env, make_train_test=not sample_only, logger=logger
+        )
         # Train set statistics and reward normalization constant
         if self.buffer.train is not None:
             energies_stats_tr = [
@@ -843,6 +845,7 @@ class GFlowNetAgent:
         oracle_batch, oracle_times = self.sample_batch(
             self.env, self.oracle_n, train=False
         )
+
         oracle_dict, oracle_times = batch2dict(
             oracle_batch, self.env, get_uncertainties=False
         )
@@ -995,23 +998,25 @@ class Policy:
 
 
 def batch2dict(batch, env, get_uncertainties=False, query_function="Both"):
-    batch = np.asarray(env.state2oracle(batch))
+    batch = [env.state2proxy(state) for state in batch]
+    input_proxy = torch.Tensor(batch)
+    # input_oracle = np.asarray(env.state2oracle(batch))
     t0_proxy = time.time()
-    if get_uncertainties:
-        if query_function == "fancy_acquisition":
-            scores, proxy_vals, uncertainties = env.proxy(batch, query_function)
-        else:
-            proxy_vals, uncertainties = env.proxy(batch, query_function)
-            scores = proxy_vals
-    else:
-        proxy_vals = env.proxy(batch)
-        uncertainties = None
-        scores = proxy_vals
+    # if get_uncertainties:
+    #     if query_function == "fancy_acquisition":
+    #         scores, proxy_vals, uncertainties = env.proxy(batch, query_function)
+    #     else:
+    #         proxy_vals, uncertainties = env.proxy(batch, query_function)
+    #         scores = proxy_vals
+    # else:
+    proxy_vals = env.proxy(input_proxy)
+    uncertainties = None
+    # scores = env.oracle(input_oracle)
     t1_proxy = time.time()
     times = {"proxy": t1_proxy - t0_proxy}
     samples = {
         "samples": batch,
-        "scores": scores,
+        # "scores": scores,
         "energies": proxy_vals,
         "uncertainties": uncertainties,
     }
