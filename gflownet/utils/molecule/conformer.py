@@ -42,29 +42,38 @@ class Conformer():
         self.randomize_freely_rotatable_ta()
         
     def get_mol_from_smiles(self, smiles):
-        """Create RDKit molecule from SMILES string"""
+        """Create RDKit molecule from SMILES string
+        :param smiles: python string
+        :returns: rdkit.Chem.rdchem.Mol object"""
         mol = Chem.MolFromSmiles(smiles)
         mol = Chem.AddHs(mol)
         return mol
     
     def embed_mol_and_get_conformer(self, mol, extra_opt=False):
         """Embed RDkit mol with a conformer and return the RDKit conformer object 
-        (which is synchronized with the RDKit molecule object)"""
+        (which is synchronized with the RDKit molecule object)
+        :param mol: rdkit.Chem.rdchem.Mol object defining the molecule
+        :param extre_opt: bool, if True, an additional optimisation of the conformer will be performed"""
         AllChem.EmbedMolecule(mol)
         if extra_opt:
             AllChem.MMFFOptimizeMolecule(mol, confId=0, maxIters=1000)
         return mol.GetConformer()
     
     def set_atom_positions_rdk(self, atom_positions):
+        """Set atom positions of the self.rdk_conf to the input atom_positions values
+        :param atom_positions: 2d numpy array of shape [num atoms, 3] with new atom positions"""
         for idx, pos in enumerate(atom_positions):
             self.rdk_conf.SetAtomPosition(idx, Point3D(*pos))
     
     def set_atom_positions_dgl(self, atom_positions):
+        """Set atom positions of the self.dgl_graph to the input atom_positions values
+        :param atom_positions: 2d numpy array of shape [num atoms, 3] with new atom positions"""
         self.dgl_graph.ndata[constants.atom_position_name] = torch.Tensor(atom_positions)
         
     def apply_actions(self, actions):
         """
-        :param actions: a sequence of torsion angle updates of length  = number of bonds in the molecule.
+        Apply torsion angles updates defined by agent's actions
+        :param actions: a sequence of torsion angle updates of length = number of bonds in the molecule.
         The order corresponds to the order of edges in self.dgl_graph, such that action[i] is 
         an update for the torsion angle corresponding to the edge[2i]
         """
@@ -78,6 +87,9 @@ class Conformer():
         assert self.dgl_and_rdkit_pos_are_quial
     
     def randomize_freely_rotatable_ta(self):
+        """
+        Uniformly randomize torsion angles defined by self.freely_rotatable_tas
+        """
         for torsion_angle in self.freely_rotatable_tas:
             increment = np.random.uniform(0, 2*np.pi)
             self.increment_torsion_angle(torsion_angle, increment)
@@ -94,9 +106,12 @@ class Conformer():
         self.set_atom_positions_dgl(new_pos)
     
     def get_ta_index_in_dgl_graph(self, torsion_angle):
-        """returns an index in the dgl graph of the first edge corresponding to the input torsion_angle
+        """
+        Get an index in the dgl graph of the first edge corresponding to the input torsion_angle
         :param torsion_angle: tuple of 4 integers defining torsion angle 
-        (these integers are indexes of the atoms in both self.rdk_mol and self.dgl_graph)"""
+        (these integers are indexes of the atoms in both self.rdk_mol and self.dgl_graph)
+        :returns: int, index of the torsion_angle's edge in self.dgl_graph
+        """
         if self.ta_to_index[torsion_angle] is None:
             for idx, (s,d) in enumerate(zip(*self.dgl_graph.edges())):
                 if torsion_angle[1:3] == (s,d):
@@ -106,10 +121,16 @@ class Conformer():
         return self.ta_to_index[torsion_angle]
     
     def get_torsion_angles(self):
+        """
+        :returns: a dict of tostion angles with their values
+        """
         return get_torsion_angles(self.rdk_mol, self.rdk_conf)
     
     @property
     def dgl_and_rdkit_pos_are_quial(self):
+        """
+        indicator of whether self.rdk_conf and self.dgl_graph have the same atom positions
+        """
         rdk_pos = torch.tensor(self.rdk_conf.GetPositions(), dtype=torch.float32)
         return self.dgl_graph.ndata[constants.atom_position_name].allclose(rdk_pos)
 
