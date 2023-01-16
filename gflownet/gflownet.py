@@ -825,6 +825,8 @@ class GFlowNetAgent:
             .pow(2)
             .mean()
         )
+        if self.debug:
+            self.logger.log_metric("mean_logprobs_b", torch.mean(logprobs_b[state_id == 0]), it, use_context=False)
         return loss, loss, loss
 
     def unpack_terminal_states(self, batch):
@@ -1004,6 +1006,9 @@ class GFlowNetAgent:
             it,
             self.use_context,
         )
+
+        # logZ
+        self.logger.log_metric("logZ", self.logZ.sum(), it, use_context=False)
 
         # test metrics
         if not self.logger.lightweight and self.buffer.test is not None:
