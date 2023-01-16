@@ -90,7 +90,9 @@ class GFlowNetEnv:
         """
         states = [s for s, d in zip(states, done) if d]
         reward = np.zeros(len(done))
-        reward[list(done)] = self.proxy2reward(self.proxy(self.state2proxy(states)))
+        # TODO: Modify to statebatch
+        states = [self.state2proxy(s) for s in states]
+        reward[list(done)] = self.proxy2reward(self.proxy(states))
         return reward
 
     def proxy2reward(self, proxy_vals):
@@ -371,6 +373,7 @@ class Buffer:
         data_path=None,
         train=None,
         test=None,
+        logger=None,
         **kwargs,
     ):
         self.env = env
@@ -489,8 +492,9 @@ class Buffer:
         else:
             # Train set
             # (2) Separate train file path is provided
-            if train.path and Path(train.path).exists():
-                self.train = pd.read_csv(train.path, index_col=0)
+            if train.path:
+                path = self.logger.log_dir / Path("data") / train.path
+                self.train = pd.read_csv(path, index_col=0)
             # (3) Make environment specific train set
             elif train.n and train.seed:
                 self.train = self.env.make_train_set(
