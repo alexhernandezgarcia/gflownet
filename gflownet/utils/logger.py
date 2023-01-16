@@ -197,7 +197,7 @@ class Logger:
             for k in self.sampler.oracle.k:
                 mean_topk = np.mean(energies_sorted[:k])
                 dict_topk.update({"oracle_mean_top{}".format(k): mean_topk})
-            self.log_metrics(dict_topk, use_context=use_context, step=step)
+            self.log_metrics(dict_topk, use_context=use_context, step=None)
 
     def log_sampler_loss(
         self, losses: list, l1_error: float, kl_div, step, use_context: bool
