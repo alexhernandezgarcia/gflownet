@@ -251,7 +251,12 @@ class GFlowNetAgent:
         return envs, actions, valids
 
     def forward_sample_continuous(
-        self, envs, times, sampling_method="policy", model=None, temperature=1.0,
+        self,
+        envs,
+        times,
+        sampling_method="policy",
+        model=None,
+        temperature=1.0,
         random_action_prob=0.0,
     ):
         """
@@ -292,7 +297,10 @@ class GFlowNetAgent:
             raise NotImplemented
         # Sample actions from policy outputs
         actions, logprobs = self.env.sample_actions(
-            policy_outputs, sampling_method, mask_invalid_actions, temperature,
+            policy_outputs,
+            sampling_method,
+            mask_invalid_actions,
+            temperature,
             random_action_prob,
         )
         assert len(envs) == len(actions)
@@ -442,7 +450,9 @@ class GFlowNetAgent:
                 parents = [env.state]
                 parents_a = [action]
                 mask_f = env.get_mask_invalid_actions_forward()
-                mask_b = env.get_mask_invalid_actions_backward(env.state, env.done, parents_a)
+                mask_b = env.get_mask_invalid_actions_backward(
+                    env.state, env.done, parents_a
+                )
                 n_actions = 0
                 while len(env.state) > 0:
                     batch.append(
@@ -495,7 +505,9 @@ class GFlowNetAgent:
                 if valid:
                     parents, parents_a = env.get_parents(action=action)
                     mask_f = env.get_mask_invalid_actions_forward()
-                    mask_b = env.get_mask_invalid_actions_backward(env.state, env.done, parents_a)
+                    mask_b = env.get_mask_invalid_actions_backward(
+                        env.state, env.done, parents_a
+                    )
                     assert action in parents_a
                     if train:
                         batch.append(
@@ -828,7 +840,12 @@ class GFlowNetAgent:
             .mean()
         )
         if self.debug:
-            self.logger.log_metric("mean_logprobs_b", torch.mean(logprobs_b[state_id == 0]), it, use_context=False)
+            self.logger.log_metric(
+                "mean_logprobs_b",
+                torch.mean(logprobs_b[state_id == 0]),
+                it,
+                use_context=False,
+            )
         return loss, loss, loss
 
     def unpack_terminal_states(self, batch):
@@ -1024,13 +1041,13 @@ class GFlowNetAgent:
         oracle_dict, oracle_times = batch2dict(
             oracle_batch, self.env, get_uncertainties=False
         )
-        self.logger.log_sampler_oracle(
-            oracle_dict["energies"], it, self.use_context
-        )
+        self.logger.log_sampler_oracle(oracle_dict["energies"], it, self.use_context)
 
         if self.logger.progress:
             mean_main_loss = np.mean(np.array(all_losses)[-100:, 0], axis=0)
-            description = "Loss: {:.4f} | L1: {:.4f} | KL: {:.4f}".format(mean_main_loss, l1_error, kl_div)
+            description = "Loss: {:.4f} | L1: {:.4f} | KL: {:.4f}".format(
+                mean_main_loss, l1_error, kl_div
+            )
             pbar.set_description(description)
 
         if not self.logger.lightweight:

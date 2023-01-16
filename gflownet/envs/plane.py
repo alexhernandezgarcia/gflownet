@@ -114,7 +114,6 @@ class Plane(GFlowNetEnv):
         reward[within_plane] = super().reward_batch(states_super, done_super)
         return reward
 
-
     def get_actions_space(self):
         """
         Constructs list with all possible actions. The actions are tuples with two
@@ -162,7 +161,10 @@ class Plane(GFlowNetEnv):
             done = self.done
         if done:
             return [True for _ in range(len(self.action_space))]
-        if any([s > self.max_val for s in self.state]) or self.n_actions >= self.max_traj_length:
+        if (
+            any([s > self.max_val for s in self.state])
+            or self.n_actions >= self.max_traj_length
+        ):
             mask = [True for _ in range(len(self.action_space))]
             mask[-1] = False
         else:
@@ -203,7 +205,7 @@ class Plane(GFlowNetEnv):
         )
         return self._true_density
 
-    def statebatch2proxy(self, states: List[List]=None) -> npt.NDArray[np.float32]:
+    def statebatch2proxy(self, states: List[List] = None) -> npt.NDArray[np.float32]:
         """
         Scales the states into [0, max_val]
 
@@ -306,7 +308,9 @@ class Plane(GFlowNetEnv):
         # Random actions
         n_random = int(n_states * random_action_prob)
         idx_random = torch.randint(high=n_states, size=(n_random,))
-        policy_outputs[idx_random, :] = torch.tensor(self.fixed_policy_output).to(policy_outputs)
+        policy_outputs[idx_random, :] = torch.tensor(self.fixed_policy_output).to(
+            policy_outputs
+        )
         # Sample dimensions
         if sampling_method == "uniform":
             logits_dims = torch.zeros(n_states, self.n_dim).to(device)

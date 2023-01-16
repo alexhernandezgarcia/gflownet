@@ -194,7 +194,9 @@ class GFlowNetEnv:
         else:
             raise NotImplemented
 
-    def statetorch2policy(self, states: TensorType["batch", "state_dim"]) -> TensorType["batch", "policy_output_dim"]:
+    def statetorch2policy(
+        self, states: TensorType["batch", "state_dim"]
+    ) -> TensorType["batch", "policy_output_dim"]:
         """
         Prepares a batch of states in torch "GFlowNet format" for the policy
         """
@@ -332,11 +334,19 @@ class GFlowNetEnv:
         if mask_invalid_actions is not None:
             logits[mask_invalid_actions] = -loginf
         # TODO: fix need to convert to tuple: implement as in continuous
-        action_indices = torch.tensor([self.action_space.index(tuple(action.tolist())) for action in actions]).to(int).to(device)
+        action_indices = (
+            torch.tensor(
+                [self.action_space.index(tuple(action.tolist())) for action in actions]
+            )
+            .to(int)
+            .to(device)
+        )
         logprobs = self.logsoftmax(logits)[ns_range, action_indices]
         return logprobs
 
-    def get_trajectories(self, traj_list, traj_actions_list, current_traj, current_actions):
+    def get_trajectories(
+        self, traj_list, traj_actions_list, current_traj, current_actions
+    ):
         """
         Determines all trajectories leading to each state in traj_list, recursively.
 
