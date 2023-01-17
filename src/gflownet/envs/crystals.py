@@ -1,6 +1,7 @@
 """
 Classes to represent a hyper-grid environments
 """
+from typing import List
 import itertools
 import numpy as np
 import pandas as pd
@@ -28,12 +29,15 @@ class Crystal(GFlowNetEnv):
 
     def __init__(
         self,
-        n_dim=2,
-        length=3,
-        min_step_len=1,
-        max_step_len=1,
-        cell_min=-1,
-        cell_max=1,
+        max_diff_elem=4,
+        min_diff_elem=2,
+        periodic_table=84,
+        oxidation_states,
+        alphabet={},
+        min_atoms=2,
+        max_atoms=20,
+        min_atom_i=1,
+        max_atom_i=10,
         env_id=None,
         reward_beta=1,
         reward_norm=1.0,
@@ -45,7 +49,7 @@ class Crystal(GFlowNetEnv):
         oracle=None,
         **kwargs,
     ):
-        super(Grid, self).__init__(
+        super(Crystal, self).__init__(
             env_id,
             reward_beta,
             reward_norm,
@@ -57,33 +61,52 @@ class Crystal(GFlowNetEnv):
             oracle,
             **kwargs,
         )
-        self.n_dim = n_dim
-        self.state = [0 for _ in range(self.n_dim)]
-        self.length = length
-        self.obs_dim = self.length * self.n_dim
-        self.min_step_len = min_step_len
-        self.max_step_len = max_step_len
-        self.cells = np.linspace(cell_min, cell_max, length)
+        # self.state = []
+        self.state = [0 for _ in range(periodic_table)]
+        self.max_diff_elem = max_diff_elem
+        self.min_diff_elem = min_diff_elem
+        self.periodic_table = periodic_table
+        self.alphabet = alphabet
+        self.oxidation_states = oxidation_states
+        self.min_atoms = min_atoms
+        self.max_atoms = max_atoms
+        self.min_atom_i = min_atom_i
+        self.max_atom_i = max_atom_i
+        self.obs_dim = self.periodic_table
         self.action_space = self.get_actions_space()
         self.eos = len(self.action_space)
-
+        
     def get_actions_space(self):
         """
         Constructs list with all possible actions
         """
-        valid_steplens = np.arange(self.min_step_len, self.max_step_len + 1)
-        dims = [a for a in range(self.n_dim)]
-        actions = []
-        for r in valid_steplens:
-            actions_r = [el for el in itertools.product(dims, repeat=r)]
-            actions += actions_r
+        assert self.max_diff_elem > self.min_diff_elem
+        assert self.max_atom_i > self.min_atom_i
+        valid_word_len = np.arange(self.min_atom_i, self.max_atom_i + 1)
+        valid_elem_types = np.arange(self.min_diff_elem, self.max_diff_elem + 1)
+        # alphabet = [combo
+        #            for i in valid_elem_types
+        #            for combo in itertools.combinations(self.periodic_table, i)
+        #        ]
+        # alphabet = np.arange(self.periodic_table)
+        # actions = []
+        actions = [[(elem, r) for r in valid_word_len] for elem in alphabet]
+        # for r in valid_word_len:
+        #     # for combo in alphabet:
+        #     actions_r = [el for el in itertools.product(alphabet, repeat=r)]
+        #     actions += actions_r
         return actions
-
+    
+    def get_max_traj_len(self):
+        return self.max_atoms / self.min_atom_i
+    
     def get_mask_invalid_actions(self, state=None, done=None):
         """
         Returns a vector of length the action space + 1: True if forward action is
         invalid given the current state, False otherwise.
         """
+        state_elem = [e for i in e, i in enumerate(state) if i > 0]
+        state_atoms = sum(state)
         if state is None:
             state = self.state.copy()
         if done is None:
@@ -91,11 +114,15 @@ class Crystal(GFlowNetEnv):
         if done:
             return [True for _ in range(len(self.action_space) + 1)]
         mask = [False for _ in range(len(self.action_space) + 1)]
+        if state_atoms < self.min_atoms:
+            mask[self.eos] = True
         for idx, a in enumerate(self.action_space):
-            for d in a:
-                if state[d] + 1 >= self.length:
+            if state_atoms + action[1] > self.max_atoms:
+                mask[idx] = True
+            else:
+                new_elem = action[0] in state_elem
+                if new_elem and len(state_elem)  >= self.max_diff_elems:
                     mask[idx] = True
-                    break
         return mask
 
     def true_density(self):
@@ -117,7 +144,7 @@ class Crystal(GFlowNetEnv):
             list(map(tuple, all_states[state_mask])),
         )
         return self._true_density
-
+    
     def state2oracle(self, state_list):
         """
         Prepares a list of states in "GFlowNet format" for the oracles: a list of length
@@ -150,66 +177,80 @@ class Crystal(GFlowNetEnv):
         """
         if state is None:
             state = self.state.copy()
-        obs = np.zeros(self.obs_dim, dtype=np.float32)
-        obs[(np.arange(len(state)) * self.length + state)] = 1
-        return obs
 
-    def obs2state(self, obs):
+        # z = np.zeros(self.obs_dim, dtype=np.float32)
+
+        if len(state) > 0:
+            if hasattr(
+                state[0], "device"
+            ):  # if it has a device at all, it will be cuda (CPU numpy array has no dev
+                state = [subseq.cpu().detach().numpy() for subseq in state]
+
+            z = np.bincount(state)
+        return z
+
+    def obs2state(self, obs: List) -> List:
         """
-        Transforms the one-hot encoding version of a state given as argument
-        into a state (list of the position at each dimension).
-
+        Transforms the one-hot encoding version of a sequence (state) given as argument
+        into a a sequence of letter indices.
         Example:
-          - obs: [1, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0] (length = 4, n_dim = 3)
-                 |     0    |      3    |      1    |
-          - obs2state(obs): [0, 3, 1]
+          - Sequence: AATGC
+          - obs: [1, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0]
+                 |     A    |      A    |      T    |      G    |      C    |
+          - state: [0, 0, 1, 3, 2]
+                    A, A, T, G, C
         """
-        obs_mat = np.reshape(obs, (self.n_dim, self.length))
-        state = np.where(obs_mat)[1]
+        # obs_mat = np.reshape(obs, (self.max_atoms, self.periodic_table))
+        # state = np.where(obs_mat)[1].tolist()
+        state = []
+
+        for e, i in enumerate(obs):
+            state += [e for _ in range(i)]
         return state
 
-    def readable2state(self, readable, alphabet={}):
+    def state2readable(self, state):
         """
-        Converts a human-readable string representing a state into a state as a list of
-        positions.
+        Transforms a sequence given as a list of indices into a sequence of letters
+        according to an alphabet.
         """
-        return [int(el) for el in readable.strip("[]").split(" ")]
+        values, counts = np.unique(state, return_counts=True)
+        values = [self.alphabet[v] for v in values]
+        formula = {v: c for v, c in zip(values, counts)}
+        # return ''.join(formula)
+        return formula
 
-    def state2readable(self, state, alphabet={}):
+    def readable2state(self, letters):
         """
-        Converts a state (a list of positions) into a human-readable string
-        representing a state.
+        Transforms a sequence given as a list of indices into a sequence of letters
+        according to an alphabet.
         """
-        return str(state).replace("(", "[").replace(")", "]").replace(",", "")
+        alphabet = {v: k for k, v in self.alphabet.items()}
+        return [alphabet[el] for el in letters]
 
     def reset(self, env_id=None):
         """
         Resets the environment.
         """
-        self.state = [0 for _ in range(self.n_dim)]
+        self.state = []
         self.n_actions = 0
         self.done = False
         self.id = env_id
         return self
-
     def get_parents(self, state=None, done=None):
         """
-        Determines all parents and actions that lead to state.
-
+        Determines all parents and actions that lead to sequence state
         Args
         ----
         state : list
-            Representation of a state, as a list of length length where each element is
-            the position at each dimension.
-
+            Representation of a sequence (state), as a list of length max_seq_length
+            where each element is the index of a letter in the alphabet, from 0 to
+            (nalphabet - 1).
         action : int
-            Last action performed
-
+            Last action performed, only to determine if it was eos.
         Returns
         -------
         parents : list
             List of parents as state2obs(state)
-
         actions : list
             List of actions that lead to state for each parent in parents
         """
@@ -223,51 +264,52 @@ class Crystal(GFlowNetEnv):
             parents = []
             actions = []
             for idx, a in enumerate(self.action_space):
-                state_aux = state.copy()
-                for a_sub in a:
-                    if state_aux[a_sub] > 0:
-                        state_aux[a_sub] -= 1
-                    else:
-                        break
-                else:
-                    parents.append(self.state2obs(state_aux))
+                is_parent = state[-len(a) :] == list(a)
+                if not isinstance(is_parent, bool):
+                    is_parent = all(is_parent)
+                if is_parent:
+                    parents.append(self.state2obs(state[: -len(a)]))
                     actions.append(idx)
+        return parents, actions
+
+    def get_parents_debug(self, state=None, done=None):
+        """
+        Like get_parents(), but returns state format
+        """
+        obs, actions = self.get_parents(state, done)
+        parents = [self.obs2state(el) for el in obs]
         return parents, actions
 
     def step(self, action_idx):
         """
-        Executes step given an action index.
-
+        Executes step given an action index
+        If action_idx is smaller than eos (no stop), add action to next
+        position.
+        See: step_daug()
+        See: step_chain()
         Args
         ----
         action_idx : int
             Index of action in the action space. a == eos indicates "stop action"
-
         Returns
         -------
         self.state : list
             The sequence after executing the action
-
-        action_idx : int
-            Action index
-
         valid : bool
             False, if the action is not allowed for the current state, e.g. stop at the
             root state
         """
         # If only possible action is eos, then force eos
-        # All dimensions are at the maximum length
-        if all([s == self.length - 1 for s in self.state]):
+        if len(self.state) == self.max_atoms:
             self.done = True
             self.n_actions += 1
-            return self.state, self.eos, True
+            return self.state, [self.eos], True
         # If action is not eos, then perform action
         if action_idx != self.eos:
-            action = self.action_space[action_idx]
-            state_next = self.state.copy()
-            for a in action:
-                state_next[a] += 1
-            if any([s >= self.length for s in state_next]):
+            atomic_number, num = self.action_space[action_idx]
+            state_next = self.state[:]
+			state_next = state_next[atmoic_number] + num
+            if len(state_next) > self.max_atoms:
                 valid = False
             else:
                 self.state = state_next
@@ -276,9 +318,13 @@ class Crystal(GFlowNetEnv):
             return self.state, action_idx, valid
         # If action is eos, then perform eos
         else:
-            self.done = True
-            self.n_actions += 1
-            return self.state, self.eos, True
+            if len(self.state) < self.min_atoms:
+                valid = False
+            else:
+                self.done = True
+                valid = True
+                self.n_actions += 1
+            return self.state, self.eos, valid
 
     @staticmethod
     def func_corners(x_list):
@@ -324,20 +370,3 @@ class Crystal(GFlowNetEnv):
 
         return np.asarray([_func_cos_N(x) for x in x_list])
 
-    def make_train_set(self, ntrain, oracle=None, seed=168, output_csv=None):
-        """
-        Constructs a randomly sampled train set.
-
-        Args
-        ----
-        """
-        rng = np.random.default_rng(seed)
-        samples = rng.integers(low=0, high=self.length, size=(ntrain,) + (self.n_dim,))
-        if oracle:
-            energies = oracle(self.state2oracle(samples))
-        else:
-            energies = self.oracle(self.state2oracle(samples))
-        df_train = pd.DataFrame({"samples": list(samples), "energies": energies})
-        if output_csv:
-            df_train.to_csv(output_csv)
-        return df_train
