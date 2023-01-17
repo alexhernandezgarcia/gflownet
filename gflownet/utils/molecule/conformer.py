@@ -77,6 +77,13 @@ class Conformer():
         """
         self.set_atom_positions_rdk(atom_positions)
         self.set_atom_positions_dgl(atom_positions)
+
+    def get_atom_positions(self):
+        """
+        :returns: numpy array of atom positions of shape [num_atoms, 3]
+        """
+        assert self.dgl_and_rdkit_pos_are_quial()
+        return self.rdk_conf.GetPositions()
         
     def apply_actions(self, actions):
         """

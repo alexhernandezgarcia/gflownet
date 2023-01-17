@@ -79,6 +79,10 @@ class MolDGLFeaturizer():
             edge_features.extend([self.one_hot_encode(bond.GetBondType(), self.bond_types)]*2)
         edge_features = torch.stack(edge_features, dim=0)
         return (sources, destinations), edge_features
+
+    def get_atomic_numbers(self, mol):
+        atomic_numbers = [atom.GetAtomicNum() for atom in mol.GetAtoms()]
+        return torch.tensor(atomic_numbers)
     
     def mol2dgl(self, mol):
         """
@@ -93,6 +97,7 @@ class MolDGLFeaturizer():
         edges, edge_features = self.get_edges_and_edge_features(mol)
         graph = dgl.graph(edges)
         graph.ndata[constants.atom_feature_name] = node_features
+        graph.ndata[constants.atomic_numbers_name] = self.get_atomic_numbers(mol)
         graph.edata[constants.edge_feature_name] = edge_features
         return graph
 
