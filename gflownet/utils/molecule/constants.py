@@ -4,6 +4,7 @@ from rdkit import Chem
 atom_position_name = 'pos'
 atom_feature_name = 'atom_features'
 edge_feature_name = 'edge_features'
+step_feature_name = 'step'
 
 # Options for atoms featurization
 ad_atom_types = ('H','C','N','O')

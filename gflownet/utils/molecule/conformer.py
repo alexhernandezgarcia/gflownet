@@ -2,6 +2,7 @@ import numpy as np
 import torch
 
 from collections import defaultdict
+from copy import deepcopy
 from rdkit import Chem
 from rdkit.Chem import AllChem
 from rdkit.Chem import rdMolTransforms
@@ -20,7 +21,7 @@ def get_torsion_angles_values(conf, torsion_angles_atoms_list):
     return [rdMolTransforms.GetDihedralRad(conf, *ta) for ta in torsion_angles_atoms_list]
 
 
-def get_torsion_angles(mol, conf):
+def get_all_torsion_angles(mol, conf):
     ta_atoms = get_torsion_angles_atoms_list(mol)
     ta_values = get_torsion_angles_values(conf, ta_atoms)
     return {k:v for k,v in zip(ta_atoms, ta_values)}
@@ -69,6 +70,13 @@ class Conformer():
         """Set atom positions of the self.dgl_graph to the input atom_positions values
         :param atom_positions: 2d numpy array of shape [num atoms, 3] with new atom positions"""
         self.dgl_graph.ndata[constants.atom_position_name] = torch.Tensor(atom_positions)
+
+    def set_atom_positions(self, atom_positions):
+        """
+        :param atom_positions: 2d numpy array of shape [num atoms, 3] with new atom positions
+        """
+        self.set_atom_positions_rdk(atom_positions)
+        self.set_atom_positions_dgl(atom_positions)
         
     def apply_actions(self, actions):
         """
@@ -101,7 +109,10 @@ class Conformer():
         :param increment: a float value of the increment of the angle (in radians)
         """
         initial_value = rdMolTransforms.GetDihedralRad(self.rdk_conf, *torsion_angle)
-        rdMolTransforms.SetDihedralRad(self.rdk_conf, *torsion_angle, initial_value + increment)
+        self.set_torsion_angle(torsion_angle, initial_value+ increment)
+
+    def set_torsion_angle(self, torsion_angle, value):
+        rdMolTransforms.SetDihedralRad(self.rdk_conf, *torsion_angle, value)
         new_pos = self.rdk_conf.GetPositions()
         self.set_atom_positions_dgl(new_pos)
     
@@ -120,11 +131,17 @@ class Conformer():
             raise Exception("Cannot find torsion angle {}".format(torsion_angle))
         return self.ta_to_index[torsion_angle]
     
-    def get_torsion_angles(self):
+    def get_all_torsion_angles(self):
         """
-        :returns: a dict of tostion angles with their values
+        :returns: a dict of all tostion angles in the molecule with their values
         """
-        return get_torsion_angles(self.rdk_mol, self.rdk_conf)
+        return get_all_torsion_angles(self.rdk_mol, self.rdk_conf)
+
+    def get_freely_rotatable_ta_values(self):
+        """
+         :returns: a list of values of self.freely_rotatable_tas
+        """
+        return get_torsion_angles_values(self.rdk_conf, self.freely_rotatable_tas)
     
     @property
     def dgl_and_rdkit_pos_are_quial(self):
@@ -133,6 +150,9 @@ class Conformer():
         """
         rdk_pos = torch.tensor(self.rdk_conf.GetPositions(), dtype=torch.float32)
         return self.dgl_graph.ndata[constants.atom_position_name].allclose(rdk_pos)
+
+    def get_n_atoms(self):
+        return self.rdk_mol.GetNumAtoms()
 
 
 if __name__ == '__main__':
@@ -143,11 +163,11 @@ if __name__ == '__main__':
     AllChem.EmbedMolecule(rmol)
     rconf = rmol.GetConformer()
     test_pos = rconf.GetPositions()
-    initial_tas = get_torsion_angles(rmol, rconf)
+    initial_tas = get_all_torsion_angles(rmol, rconf)
 
     conf = Conformer(test_pos, constants.ad_smiles, constants.ad_atom_types)
     # check torsion angles randomisation
-    conf_tas = conf.get_torsion_angles()
+    conf_tas = conf.get_all_torsion_angles()
     for k, v in conf_tas.items():
         if k in conf.freely_rotatable_tas:
            assert not np.isclose(v, initial_tas[k])
@@ -161,7 +181,7 @@ if __name__ == '__main__':
     actions = np.random.uniform(-1, 1, size=len(conf.dgl_graph.edges()[0]) // 2)*np.pi
     print('actions', {ta: actions[conf.get_ta_index_in_dgl_graph(ta)//2] for ta in conf.freely_rotatable_tas}, sep='\n')
     conf.apply_actions(actions)
-    new_conf_tas = conf.get_torsion_angles()
+    new_conf_tas = conf.get_all_torsion_angles()
     data = [[k, v1, v2] for (k, v1), v2 in zip(conf_tas.items(), new_conf_tas.values())]
     print(tabulate(data, headers=["torsion angle", 'before action', 'after action']))
     
