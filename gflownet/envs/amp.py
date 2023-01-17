@@ -188,19 +188,22 @@ class AMP(GFlowNetEnv):
         If max_seq_length > len(s), the last (max_seq_length - len(s)) blocks are all
         0s.
         """
-        if state is None:
-            state = self.state.copy()
-
-        z = np.zeros(self.obs_dim, dtype=np.float32)
-
-        if len(state) > 0:
-            if hasattr(
-                state[0], "device"
-            ):  # if it has a device at all, it will be cuda (CPU numpy array has no dev
-                state = [subseq.cpu().detach().numpy() for subseq in state]
-
-            z[(np.arange(len(state)) * self.n_alphabet + state)] = 1
-        return z
+        
+        def one_hot(state):
+            if state is None:
+                state = self.state.copy()
+    
+            z = np.zeros(self.obs_dim, dtype=np.float32)
+    
+            if len(state) > 0:
+                if hasattr(
+                    state[0], "device"
+                ):  # if it has a device at all, it will be cuda (CPU numpy array has no dev
+                    state = [subseq.cpu().detach().numpy() for subseq in state]
+    
+                z[(np.arange(len(state)) * self.n_alphabet + state)] = 1
+            return z
+        return [one_hot(s) for s in state]
 
     def obs2state(self, obs: List) -> List:
         """
