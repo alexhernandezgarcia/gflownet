@@ -90,7 +90,7 @@ class GFlowNetEnv:
         """
         states = [s for s, d in zip(states, done) if d]
         reward = np.zeros(len(done))
-        # TODO: Modify to statebatch
+        # HACK: Modify to statebatch
         states = [self.state2proxy(s) for s in states]
         reward[list(done)] = self.proxy2reward(self.proxy(states))
         return reward

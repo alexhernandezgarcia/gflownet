@@ -9,7 +9,7 @@ reward_beta: 1.0
 # Reward normalization for "power" reward function
 reward_norm: 1.0
 # If > 0, reward_norm = reward_norm_std_mult * std(energies)
-proxy_state_format: ohe
+proxy_state_format: oracle
 reward_norm_std_mult: 8
 # Buffer
 buffer:

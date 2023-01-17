@@ -5,6 +5,7 @@ _target_: gflownet.utils.logger.Logger
 
 do:
   online: True
+  times: True
 
 project_name: "ActiveLearningPipeline"
 tags: 

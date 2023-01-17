@@ -5,7 +5,7 @@ _target_: gflownet.envs.amp.AMP
 
 id: amp
 # Minimum and maximum length for the sequences
-min_seq_length: 7
+min_seq_length: 1
 max_seq_length: 50
 # Number of letters in alphabet
 n_alphabet: 20
@@ -20,7 +20,7 @@ reward_beta: 8.0
 buffer:
   replay_capacity: 10
   train:
-    path: null
+    path: data_train.csv
     n: 20
     seed: 168
     output: None

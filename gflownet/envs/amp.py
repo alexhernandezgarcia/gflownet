@@ -76,6 +76,7 @@ class AMP(GFlowNetEnv):
             denorm_proxy,
             proxy,
             oracle,
+            proxy_state_format,
             **kwargs,
         )
         self.state = []
@@ -110,11 +111,10 @@ class AMP(GFlowNetEnv):
             "W",
             "Y",
         ]
-        self.proxy_state_format = proxy_state_format
-        if proxy_state_format == "ohe":
+        if self.proxy_state_format == "ohe":
             self.state2proxy = self.state2obs
-        elif proxy_state_format == "oracle":
-            self.state2proxy = self.statebatch2oracle
+        elif self.proxy_state_format == "oracle":
+            self.state2proxy = self.state2oracle
         else:
             raise ValueError(
                 "Invalid proxy_state_format: {}".format(self.proxy_state_format)
@@ -157,12 +157,6 @@ class AMP(GFlowNetEnv):
         self,
     ):
         return self.max_seq_length / self.min_word_len + 1
-
-    def reward_arbitrary_i(self, state):
-        if len(state) > 0:
-            return (state[-1] + 1) * len(state)
-        else:
-            return 0
 
     def state2oracle(self, state_list: List):
         # TODO
@@ -416,8 +410,6 @@ class AMP(GFlowNetEnv):
         return self._true_density
 
     def load_dataset(self, split="D1", nfold=5):
-
-        # TODO: Make updated-buffer compatible with this
         source = get_default_data_splits(setting="Target")
         rng = np.random.RandomState()
         # returns a dictionary with two keys 'AMP' and 'nonAMP' and values as lists
@@ -581,6 +573,19 @@ class AMP(GFlowNetEnv):
             dists.append(self.get_distance(*pair))
         dists = np.array(dists)
         return dists
+
+    def calculate_novelty(self, samples, dataset):
+        # TODO: check if this is correct
+        samples = self.state2oracle(samples)
+        dataset = [self.obs2state(el) for el in dataset]
+        dataset = self.state2oracle(dataset)
+        dists = []
+        min_dist = []
+        for sample in samples:
+            for pair in itertools.zip_longest(sample, dataset):
+                dists.append(self.get_distance(pair[0], pair[1]))
+            min_dist.append(np.min(np.array(dists)))
+        return np.array(min_dist)
 
     def get_distance(self, seq1, seq2):
         return levenshtein(seq1, seq2) / 1
