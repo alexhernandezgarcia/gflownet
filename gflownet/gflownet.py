@@ -805,16 +805,20 @@ class GFlowNetAgent:
         logprobs_f = self.env.get_logprobs(
             policy_output_f, actions, states, masks_f, loginf
         )
-        sumlogprobs_f = self._tfloat(
-            torch.zeros(len(torch.unique(traj_id, sorted=True)))
+        sumlogprobs_f = torch.zeros(
+            len(torch.unique(traj_id, sorted=True)),
+            dtype=self.float,
+            device=self.device,
         ).index_add_(0, traj_id, logprobs_f)
         # Backward trajectories
         policy_output_b = self.backward_policy(self.env.statetorch2policy(states))
         logprobs_b = self.env.get_logprobs(
             policy_output_b, actions, parents, masks_b, loginf
         )
-        sumlogprobs_b = self._tfloat(
-            torch.zeros(len(torch.unique(traj_id, sorted=True)))
+        sumlogprobs_b = torch.zeros(
+            len(torch.unique(traj_id, sorted=True)),
+            dtype=self.float,
+            device=self.device,
         ).index_add_(0, traj_id, logprobs_b)
         # Sort rewards of done states by ascending traj id
         rewards = rewards[done.eq(1)][torch.argsort(traj_id[done.eq(1)])]
