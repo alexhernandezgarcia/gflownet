@@ -35,6 +35,8 @@ def main(config):
     env = hydra.utils.instantiate(config.env, proxy=proxy)
     gflownet = hydra.utils.instantiate(
         config.gflownet,
+        device=config.device,
+        float_precision=config.float_precision,
         env=env,
         buffer=config.env.buffer,
         logger=logger,

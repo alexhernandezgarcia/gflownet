@@ -1,6 +1,6 @@
 from gflownet.proxy.base import Proxy
-import numpy as np
-import numpy.typing as npt
+import torch
+from torchtyping import TensorType
 
 
 class Torus(Proxy):
@@ -8,10 +8,10 @@ class Torus(Proxy):
         super().__init__()
         self.normalize = normalize
 
-    def __call__(self, states: npt.NDArray[np.float32]) -> npt.NDArray[np.float32]:
+    def __call__(self, states: TensorType["batch", "state_dim"]) -> TensorType["batch"]:
         """
         args:
-            states: ndarray
+            states: tensor
         returns:
             list of scores
         technically an oracle, hence used variable name energies
@@ -21,8 +21,8 @@ class Torus(Proxy):
             return (
                 -1
                 * (
-                    np.sum(np.sin(x[:, 0::2]), axis=1)
-                    + np.sum(np.cos(x[:, 1::2]), axis=1)
+                    torch.sum(torch.sin(x[:, 0::2]), axis=1)
+                    + torch.sum(torch.cos(x[:, 1::2]), axis=1)
                     + x.shape[1]
                 )
                 ** 3
@@ -31,8 +31,8 @@ class Torus(Proxy):
         def _func_sin_cos_cube_norm(x):
             norm = (x.shape[1] * 2) ** 3
             return (-1.0 / norm) * (
-                np.sum(np.sin(x[:, 0::2]), axis=1)
-                + np.sum(np.cos(x[:, 1::2]), axis=1)
+                torch.sum(torch.sin(x[:, 0::2]), axis=1)
+                + torch.sum(torch.cos(x[:, 1::2]), axis=1)
                 + x.shape[1]
             ) ** 3
 

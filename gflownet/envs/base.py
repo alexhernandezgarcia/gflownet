@@ -57,6 +57,12 @@ class GFlowNetEnv:
         assert self.reward_beta > 0
         assert self.min_reward > 0
 
+    def set_device(self, device):
+        self.device = device
+
+    def set_float_precision(self, dtype):
+        self.float = dtype
+
     def set_energies_stats(self, energies_stats):
         self.energies_stats = energies_stats
 
@@ -108,6 +114,14 @@ class GFlowNetEnv:
         """
         return np.array(states)
 
+    def statetorch2proxy(
+        self, states: TensorType["batch", "state_dim"]
+    ) -> TensorType["batch", "state_proxy_dim"]:
+        """
+        Prepares a batch of states in torch "GFlowNet format" for the proxy.
+        """
+        return states
+
     def state2oracle(self, state: List = None):
         """
         Prepares a list of states in "GFlowNet format" for the oracle
@@ -149,6 +163,16 @@ class GFlowNetEnv:
             reward[list(done)] = self.proxy2reward(self.proxy(states_proxy))
         return reward
 
+    def reward_torchbatch(self, states: TensorType["batch", "state_dim"], done: TensorType["batch"]):
+        """
+        Computes the rewards of a batch of states, given a list of states and 'dones'
+        """
+        states_proxy = self.statetorch2proxy(states)[done, :]
+        reward = torch.zeros(done.shape[0], dtype=self.float, device=self.device)
+        if states_proxy.shape[0] > 0:
+            reward[done] = self.proxy2reward(self.proxy(states_proxy))
+        return reward
+
     def proxy2reward(self, proxy_vals):
         """
         Prepares the output of an oracle for GFlowNet: the inputs proxy_vals is
@@ -159,18 +183,19 @@ class GFlowNetEnv:
         positive - and larger than self.min_reward.
         """
         if self.denorm_proxy:
+            # TODO: do with torch
             proxy_vals = proxy_vals * self.energies_stats[3] + self.energies_stats[2]
         if self.reward_func == "power":
-            return np.clip(
+            return torch.clamp(
                 (-1.0 * proxy_vals / self.reward_norm) ** self.reward_beta,
-                self.min_reward,
-                None,
+                min=self.min_reward,
+                max=None,
             )
         elif self.reward_func == "boltzmann":
-            return np.clip(
-                np.exp(-1.0 * self.reward_beta * proxy_vals),
-                self.min_reward,
-                None,
+            return torch.clamp(
+                torch.exp(-1.0 * self.reward_beta * proxy_vals),
+                min=self.min_reward,
+                max=None,
             )
         elif self.reward_func == "identity":
             return -1.0 * proxy_vals
@@ -183,14 +208,14 @@ class GFlowNetEnv:
         an oracle.
         """
         if self.reward_func == "power":
-            return -np.exp(
-                (np.log(reward) + self.reward_beta * np.log(self.reward_norm))
+            return -1.0 * torch.exp(
+                (torch.log(reward) + self.reward_beta * torch.log(self.reward_norm))
                 / self.reward_beta
             )
         elif self.reward_func == "boltzmann":
-            return -1.0 * np.log(reward) / self.reward_beta
+            return -1.0 * torch.log(reward) / self.reward_beta
         elif self.reward_func == "identity":
-            return -1.0 * np.array(reward)
+            return -1.0 * reward
         else:
             raise NotImplemented
 
@@ -614,7 +639,7 @@ class Buffer:
         df = pd.DataFrame(
             {
                 "samples": [self.env.state2readable(s) for s in samples],
-                "energies": energies,
+                "energies": energies.tolist(),
             }
         )
         return df
