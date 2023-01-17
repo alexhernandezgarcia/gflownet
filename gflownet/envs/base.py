@@ -194,7 +194,9 @@ class GFlowNetEnv:
         else:
             raise NotImplemented
 
-    def statetorch2policy(self, states: TensorType["batch", "state_dim"]) -> TensorType["batch", "policy_output_dim"]:
+    def statetorch2policy(
+        self, states: TensorType["batch", "state_dim"]
+    ) -> TensorType["batch", "policy_output_dim"]:
         """
         Prepares a batch of states in torch "GFlowNet format" for the policy
         """
@@ -216,12 +218,12 @@ class GFlowNetEnv:
         """
         return np.array(states)
 
-    def obs2state(self, obs: List) -> List:
+    def policy2state(self, state_policy: List) -> List:
         """
         Converts the model (e.g. one-hot encoding) version of a state given as
         argument into a state.
         """
-        return obs
+        return state_policy
 
     def state2readable(self, state=None):
         """
@@ -319,6 +321,7 @@ class GFlowNetEnv:
         self,
         policy_outputs: TensorType["n_states", "policy_output_dim"],
         actions: TensorType["n_states", 2],
+        states_target: TensorType["n_states", "policy_input_dim"],
         mask_invalid_actions: TensorType["batch_size", "policy_output_dim"] = None,
         loginf: float = 1000,
     ) -> TensorType["batch_size"]:
@@ -332,11 +335,19 @@ class GFlowNetEnv:
         if mask_invalid_actions is not None:
             logits[mask_invalid_actions] = -loginf
         # TODO: fix need to convert to tuple: implement as in continuous
-        action_indices = torch.tensor([self.action_space.index(tuple(action.tolist())) for action in actions]).to(int).to(device)
+        action_indices = (
+            torch.tensor(
+                [self.action_space.index(tuple(action.tolist())) for action in actions]
+            )
+            .to(int)
+            .to(device)
+        )
         logprobs = self.logsoftmax(logits)[ns_range, action_indices]
         return logprobs
 
-    def get_trajectories(self, traj_list, traj_actions_list, current_traj, current_actions):
+    def get_trajectories(
+        self, traj_list, traj_actions_list, current_traj, current_actions
+    ):
         """
         Determines all trajectories leading to each state in traj_list, recursively.
 

@@ -70,10 +70,10 @@ class Plane(GFlowNetEnv):
         self.distr_beta = distr_beta
         # Initialize angles and state attributes
         self.reset()
-        self.obs_dim = self.n_dim
         self.action_space = self.get_actions_space()
         self.fixed_policy_output = self.get_fixed_policy_output()
         self.policy_output_dim = len(self.fixed_policy_output)
+        self.policy_input_dim = len(self.state2policy())
         # Set up proxy
         self.proxy.n_dim = self.n_dim
         self.proxy.setup()
@@ -113,7 +113,6 @@ class Plane(GFlowNetEnv):
         reward = self.min_reward * np.ones(len(within_plane))
         reward[within_plane] = super().reward_batch(states_super, done_super)
         return reward
-
 
     def get_actions_space(self):
         """
@@ -162,7 +161,10 @@ class Plane(GFlowNetEnv):
             done = self.done
         if done:
             return [True for _ in range(len(self.action_space))]
-        if any([s > self.max_val for s in self.state]) or self.n_actions >= self.max_traj_length:
+        if (
+            any([s > self.max_val for s in self.state])
+            or self.n_actions >= self.max_traj_length
+        ):
             mask = [True for _ in range(len(self.action_space))]
             mask[-1] = False
         else:
@@ -203,7 +205,7 @@ class Plane(GFlowNetEnv):
         )
         return self._true_density
 
-    def statebatch2proxy(self, states: List[List]=None) -> npt.NDArray[np.float32]:
+    def statebatch2proxy(self, states: List[List] = None) -> npt.NDArray[np.float32]:
         """
         Scales the states into [0, max_val]
 
@@ -222,11 +224,11 @@ class Plane(GFlowNetEnv):
             state = self.state.copy()
         return state
 
-    def obs2state(self, obs: List) -> List:
+    def policy2state(self, state_policy: List) -> List:
         """
         Returns the input as is.
         """
-        return obs
+        return state_policy
 
     def state2readable(self, state: List) -> str:
         """
@@ -306,7 +308,9 @@ class Plane(GFlowNetEnv):
         # Random actions
         n_random = int(n_states * random_action_prob)
         idx_random = torch.randint(high=n_states, size=(n_random,))
-        policy_outputs[idx_random, :] = torch.tensor(self.fixed_policy_output).to(policy_outputs)
+        policy_outputs[idx_random, :] = torch.tensor(self.fixed_policy_output).to(
+            policy_outputs
+        )
         # Sample dimensions
         if sampling_method == "uniform":
             logits_dims = torch.zeros(n_states, self.n_dim).to(device)
@@ -347,6 +351,7 @@ class Plane(GFlowNetEnv):
         self,
         policy_outputs: TensorType["n_states", "policy_output_dim"],
         actions: TensorType["n_states", 2],
+        states_target: TensorType["n_states", "policy_input_dim"],
         mask_invalid_actions: TensorType["batch_size", "policy_output_dim"] = None,
         loginf: float = 1000,
     ) -> TensorType["batch_size"]:

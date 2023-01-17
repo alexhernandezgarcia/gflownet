@@ -70,10 +70,10 @@ class ContinuousTorus(GFlowNetEnv):
         # Initialize angles and state attributes
         self.reset()
         self.source = self.angles.copy()
-        self.obs_dim = self.n_dim + 1
         self.action_space = self.get_actions_space()
         self.fixed_policy_output = self.get_fixed_policy_output()
         self.policy_output_dim = len(self.fixed_policy_output)
+        self.policy_input_dim = len(self.state2policy())
         self.logsoftmax = torch.nn.LogSoftmax(dim=1)
         # Oracle
         self.state2oracle = self.state2proxy
@@ -153,7 +153,10 @@ class ContinuousTorus(GFlowNetEnv):
         if len(noninit_states) > state[-1]:
             print("This state should never be reached!")
         elif len(noninit_states) <= state[-1] and len(noninit_states) >= state[-1] - 1:
-            mask = [True if s == ss else m for m, s, ss in zip(mask, state[:-1], self.source)] + [mask[-1]]
+            mask = [
+                True if s == ss else m
+                for m, s, ss in zip(mask, state[:-1], self.source)
+            ] + [mask[-1]]
         return mask
 
     def true_density(self):
@@ -188,11 +191,11 @@ class ContinuousTorus(GFlowNetEnv):
             state = self.state.copy()
         return state
 
-    def obs2state(self, obs: List) -> List:
+    def policy2state(self, state_policy: List) -> List:
         """
         Returns the input as is.
         """
-        return obs
+        return state_policy
 
     def state2readable(self, state: List) -> str:
         """
@@ -286,7 +289,9 @@ class ContinuousTorus(GFlowNetEnv):
         # Random actions
         n_random = int(n_states * random_action_prob)
         idx_random = torch.randint(high=n_states, size=(n_random,))
-        policy_outputs[idx_random, :] = torch.tensor(self.fixed_policy_output).to(policy_outputs)
+        policy_outputs[idx_random, :] = torch.tensor(self.fixed_policy_output).to(
+            policy_outputs
+        )
         # Sample dimensions
         if sampling_method == "uniform":
             logits_dims = torch.ones(n_states, self.policy_output_dim).to(device)
@@ -310,10 +315,17 @@ class ContinuousTorus(GFlowNetEnv):
                 )
             elif sampling_method == "policy":
                 locations = policy_outputs[:, 1::3][ns_range_noeos, dimensions_noeos]
-                concentrations = policy_outputs[:, 2::3][ns_range_noeos, dimensions_noeos]
-                distr_angles = VonMises(locations, torch.exp(concentrations) + self.vonmises_concentration_epsilon)
+                concentrations = policy_outputs[:, 2::3][
+                    ns_range_noeos, dimensions_noeos
+                ]
+                distr_angles = VonMises(
+                    locations,
+                    torch.exp(concentrations) + self.vonmises_concentration_epsilon,
+                )
             angles[ns_range_noeos] = distr_angles.sample()
-            logprobs_angles[ns_range_noeos] = distr_angles.log_prob(angles[ns_range_noeos])
+            logprobs_angles[ns_range_noeos] = distr_angles.log_prob(
+                angles[ns_range_noeos]
+            )
         # Combined probabilities
         logprobs = logprobs_dim + logprobs_angles
         # Build actions
@@ -327,6 +339,7 @@ class ContinuousTorus(GFlowNetEnv):
         self,
         policy_outputs: TensorType["n_states", "policy_output_dim"],
         actions: TensorType["n_states", 2],
+        states_target: TensorType["n_states", "policy_input_dim"],
         mask_invalid_actions: TensorType["batch_size", "policy_output_dim"] = None,
         loginf: float = 1000,
     ) -> TensorType["batch_size"]:
@@ -345,14 +358,22 @@ class ContinuousTorus(GFlowNetEnv):
             logits_dims[mask_invalid_actions] = -loginf
         logprobs_dim = self.logsoftmax(logits_dims)[ns_range, dimensions]
         # Angle increments
-        ns_range_noeos = ns_range[dimensions != self.eos]
-        dimensions_noeos = dimensions[dimensions != self.eos]
+        nofix_indices = torch.where(
+            (dimensions != self.eos) & (states_target[:, -1].to(int) != 0)
+        )
+        ns_range_nofix = ns_range[nofix_indices]
+        dimensions_nofix = dimensions[nofix_indices]
         logprobs_angles = torch.zeros(n_states).to(device)
-        if len(dimensions_noeos) > 0:
-            locations = policy_outputs[:, 1::3][ns_range_noeos, dimensions_noeos]
-            concentrations = policy_outputs[:, 2::3][ns_range_noeos, dimensions_noeos]
-            distr_angles = VonMises(locations, torch.exp(concentrations) + self.vonmises_concentration_epsilon)
-            logprobs_angles[ns_range_noeos] = distr_angles.log_prob(angles[ns_range_noeos])
+        if len(dimensions_nofix) > 0:
+            locations = policy_outputs[:, 1::3][ns_range_nofix, dimensions_nofix]
+            concentrations = policy_outputs[:, 2::3][ns_range_nofix, dimensions_nofix]
+            distr_angles = VonMises(
+                locations,
+                torch.exp(concentrations) + self.vonmises_concentration_epsilon,
+            )
+            logprobs_angles[ns_range_nofix] = distr_angles.log_prob(
+                angles[ns_range_nofix]
+            )
         # Combined probabilities
         logprobs = logprobs_dim + logprobs_angles
         return logprobs

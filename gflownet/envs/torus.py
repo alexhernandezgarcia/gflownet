@@ -68,14 +68,13 @@ class Torus(GFlowNetEnv):
         # Initialize angles and state attributes
         self.reset()
         self.source = self.angles.copy()
-        # TODO: A circular encoding of obs would be better?
-        self.obs_dim = self.n_angles * self.n_dim + 1
         self.min_step_len = min_step_len
         self.max_step_len = max_step_len
         self.action_space = self.get_actions_space()
         self.eos = len(self.action_space)
         self.fixed_policy_output = self.get_fixed_policy_output()
         self.policy_output_dim = len(self.fixed_policy_output)
+        self.policy_input_dim = len(self.state2policy())
         self.angle_rad = 2 * np.pi / self.n_angles
         # Oracle
         self.state2oracle = self.state2proxy
@@ -141,6 +140,7 @@ class Torus(GFlowNetEnv):
         """
         return np.array(state_list)[:, :-1] * self.angle_rad
 
+    # TODO: A circular encoding of the policy state would be better?
     def state2policy(self, state=None) -> List:
         """
         Transforms the angles part of the state given as argument (or self.state if
@@ -152,52 +152,54 @@ class Torus(GFlowNetEnv):
           - State, state: [1, 3, 4]
                           | a  | n | (a = angles, n = n_actions)
           - state2policy(state): [0, 1, 0, 0, 0, 0, 0, 1, 4]
-                              |     1    |     3     | 4 |
+                                 |     1    |     3     | 4 |
         """
         if state is None:
             state = self.state.copy()
         # TODO: do we need float32?
         # TODO: do we need one-hot?
-        obs = np.zeros(self.obs_dim, dtype=np.float32)
+        state_policy = np.zeros(self.n_angles * self.n_dim + 1, dtype=np.float32)
         # Angles
-        obs[: self.n_dim * self.n_angles][
+        state_policy[: self.n_dim * self.n_angles][
             (np.arange(self.n_dim) * self.n_angles + state[: self.n_dim])
         ] = 1
         # Number of actions
-        obs[-1] = state[-1]
-        return obs
+        state_policy[-1] = state[-1]
+        return state_policy
 
     def statebatch2policy(self, states: List[List]) -> npt.NDArray[np.float32]:
         """
         Transforms a batch of states into the policy model format. The output is a numpy
-        array of shape [n_states, n_angles * n_dim + 1]. 
+        array of shape [n_states, n_angles * n_dim + 1].
 
         See state2policy().
         """
         states = np.array(states)
         cols = states[:, :-1] + np.arange(self.n_dim) * self.n_angles
         rows = np.repeat(np.arange(states.shape[0]), self.n_dim)
-        obs = np.zeros((len(states), self.obs_dim), dtype=np.float32)
-        obs[rows, cols.flatten()] = 1.0
-        obs[:, -1] = states[:, -1]
-        return obs
+        state_policy = np.zeros(
+            (len(states), self.n_angles * self.n_dim + 1), dtype=np.float32
+        )
+        state_policy[rows, cols.flatten()] = 1.0
+        state_policy[:, -1] = states[:, -1]
+        return state_policy
 
-    def obs2state(self, obs: List) -> List:
+    def policy2state(self, state_policy: List) -> List:
         """
         Transforms the one-hot encoding version of a state given as argument
         into a state (list of the position at each dimension).
 
         Example, n_dim = 2, n_angles = 4:
-          - obs: [0, 1, 0, 0, 0, 0, 0, 1, 4]
-                 |     0    |     3     | 4 |
-          - obs2state(obs): [1, 3, 4]
+          - state_policy: [0, 1, 0, 0, 0, 0, 0, 1, 4]
+                          |     0    |     3     | 4 |
+          - policy2state(state_policy): [1, 3, 4]
                             | a  | n | (a = angles, n = n_actions)
         """
-        obs_mat_angles = np.reshape(
-            obs[: self.n_dim * self.n_angles], (self.n_dim, self.n_angles)
+        mat_angles_policy = np.reshape(
+            state_policy[: self.n_dim * self.n_angles], (self.n_dim, self.n_angles)
         )
-        angles = np.where(obs_mat_angles)[1].tolist()
-        return angles + [int(obs[-1])]
+        angles = np.where(mat_angles_policy)[1].tolist()
+        return angles + [int(state_policy[-1])]
 
     def state2readable(self, state: List) -> str:
         """

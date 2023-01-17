@@ -68,13 +68,13 @@ class Grid(GFlowNetEnv):
         self.eos = self.n_dim
         self.state = [0 for _ in range(self.n_dim)]
         self.length = length
-        self.obs_dim = self.length * self.n_dim
         self.min_step_len = min_step_len
         self.max_step_len = max_step_len
         self.cells = np.linspace(cell_min, cell_max, length)
         self.action_space = self.get_actions_space()
         self.fixed_policy_output = self.get_fixed_policy_output()
         self.policy_output_dim = len(self.fixed_policy_output)
+        self.policy_input_dim = len(self.state2policy())
         if self.proxy_state_format == "ohe":
             self.statebatch2proxy = self.statebatch2policy
         elif self.proxy_state_format == "oracle":
@@ -160,11 +160,13 @@ class Grid(GFlowNetEnv):
             State
         """
         return (
-            self.statebatch2policy(states).reshape((len(states), self.n_dim, self.length))
+            self.statebatch2policy(states).reshape(
+                (len(states), self.n_dim, self.length)
+            )
             * self.cells[None, :]
         ).sum(axis=2)
 
-    def state2policy(self, state: List=None) -> List:
+    def state2policy(self, state: List = None) -> List:
         """
         Transforms the state given as argument (or self.state if None) into a
         one-hot encoding. The output is a list of len length * n_dim,
@@ -178,50 +180,56 @@ class Grid(GFlowNetEnv):
         """
         if state is None:
             state = self.state.copy()
-        obs = np.zeros(self.obs_dim, dtype=np.float32)
-        obs[(np.arange(len(state)) * self.length + state)] = 1
-        return obs.tolist()
+        state_policy = np.zeros(self.length * self.n_dim, dtype=np.float32)
+        state_policy[(np.arange(len(state)) * self.length + state)] = 1
+        return state_policy.tolist()
 
     def statebatch2policy(self, states: List[List]) -> npt.NDArray[np.float32]:
         """
         Transforms a batch of states into a one-hot encoding. The output is a numpy
-        array of shape [n_states, length * n_dim]. 
+        array of shape [n_states, length * n_dim].
 
         See state2policy().
         """
         cols = np.array(states) + np.arange(self.n_dim) * self.length
         rows = np.repeat(np.arange(len(states)), self.n_dim)
-        obs = np.zeros((len(states), self.obs_dim), dtype=np.float32)
-        obs[rows, cols.flatten()] = 1.0
-        return obs
+        state_policy = np.zeros(
+            (len(states), self.length * self.n_dim), dtype=np.float32
+        )
+        state_policy[rows, cols.flatten()] = 1.0
+        return state_policy
 
-    def statetorch2policy(self, states: TensorType["batch", "state_dim"]) -> TensorType["batch", "policy_output_dim"]:
+    def statetorch2policy(
+        self, states: TensorType["batch", "state_dim"]
+    ) -> TensorType["batch", "policy_output_dim"]:
         """
         Transforms a batch of states into a one-hot encoding. The output is a numpy
-        array of shape [n_states, length * n_dim]. 
+        array of shape [n_states, length * n_dim].
 
         See state2policy().
         """
         device = states.device
         cols = (states + torch.arange(self.n_dim).to(device) * self.length).to(int)
-        rows = torch.repeat_interleave(torch.arange(states.shape[0]).to(device), self.n_dim)
-        obs = torch.zeros((states.shape[0], self.obs_dim), dtype=states.dtype).to(device)
-        obs[rows, cols.flatten()] = 1.0
-        return obs
+        rows = torch.repeat_interleave(
+            torch.arange(states.shape[0]).to(device), self.n_dim
+        )
+        state_policy = torch.zeros(
+            (states.shape[0], self.length * self.n_dim), dtype=states.dtype
+        ).to(device)
+        state_policy[rows, cols.flatten()] = 1.0
+        return state_policy
 
-    def obs2state(self, obs: List) -> List:
+    def policy2state(self, state_policy: List) -> List:
         """
         Transforms the one-hot encoding version of a state given as argument
         into a state (list of the position at each dimension).
 
         Example:
-          - obs: [1, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0] (length = 4, n_dim = 3)
-                 |     0    |      3    |      1    |
-          - obs2state(obs): [0, 3, 1]
+          - state_policy: [1, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0] (length = 4, n_dim = 3)
+                          |     0    |      3    |      1    |
+          - policy2state(state_policy): [0, 3, 1]
         """
-        obs_mat = np.reshape(obs, (self.n_dim, self.length))
-        state = np.where(obs_mat)[1].tolist()
-        return state
+        return np.where(np.reshape(state_policy, (self.n_dim, self.length)))[1].tolist()
 
     def readable2state(self, readable, alphabet={}):
         """
@@ -292,9 +300,7 @@ class Grid(GFlowNetEnv):
                     actions.append(a)
         return parents, actions
 
-    def step(
-        self, action: Tuple[int]
-    ) -> Tuple[List[int], Tuple[int], bool]:
+    def step(self, action: Tuple[int]) -> Tuple[List[int], Tuple[int], bool]:
         """
         Executes step given an action.
 
