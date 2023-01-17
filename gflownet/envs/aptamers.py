@@ -78,13 +78,13 @@ class AptamerSeq(GFlowNetEnv):
         self.min_seq_length = min_seq_length
         self.max_seq_length = max_seq_length
         self.n_alphabet = n_alphabet
-        self.obs_dim = self.n_alphabet * self.max_seq_length
         self.min_word_len = min_word_len
         self.max_word_len = max_word_len
         self.action_space = self.get_actions_space()
         self.eos = len(self.action_space)
         self.fixed_policy_output = self.get_fixed_policy_output()
         self.policy_output_dim = len(self.fixed_policy_output)
+        self.policy_input_dim = len(self.state2policy())
         self.max_traj_len = self.get_max_traj_len()
         # Set up proxy
         self.proxy.setup(self.max_seq_length)
@@ -146,17 +146,17 @@ class AptamerSeq(GFlowNetEnv):
           - state: [0, 1, 3, 2]
                     A, T, G, C
           - state2policy(state): [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0]
-                              |     A    |      T    |      G    |      C    |
+                                 |     A    |      T    |      G    |      C    |
 
         If max_seq_length > len(s), the last (max_seq_length - len(s)) blocks are all
         0s.
         """
         if state is None:
             state = self.state.copy()
-        obs = np.zeros(self.obs_dim, dtype=np.float32)
+        state_policy = np.zeros(self.n_alphabet * self.max_seq_length, dtype=np.float32)
         if len(state) > 0:
-            obs[(np.arange(len(state)) * self.n_alphabet + state)] = 1
-        return obs
+            state_policy[(np.arange(len(state)) * self.n_alphabet + state)] = 1
+        return state_policy
 
     def statebatch2policy(self, states: List[List]) -> npt.NDArray[np.float32]:
         """
@@ -172,25 +172,27 @@ class AptamerSeq(GFlowNetEnv):
             ]
         )
         rows = np.repeat(np.arange(len(states)), lengths)
-        obs = np.zeros((len(states), self.obs_dim), dtype=np.float32)
-        obs[rows, np.concatenate(cols)] = 1.0
-        return obs
+        state_policy = np.zeros(
+            (len(states), self.n_alphabet * self.max_seq_length), dtype=np.float32
+        )
+        state_policy[rows, np.concatenate(cols)] = 1.0
+        return state_policy
 
-    def obs2state(self, obs: List) -> List:
+    def policy2state(self, state_policy: List) -> List:
         """
         Transforms the one-hot encoding version of a sequence (state) given as argument
         into a a sequence of letter indices.
 
         Example:
           - Sequence: AATGC
-          - obs: [1, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0]
-                 |     A    |      A    |      T    |      G    |      C    |
+          - state_policy: [1, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0]
+                          |     A    |      A    |      T    |      G    |      C    |
           - state: [0, 0, 1, 3, 2]
                     A, A, T, G, C
         """
-        obs_mat = np.reshape(obs, (self.max_seq_length, self.n_alphabet))
-        state = np.where(obs_mat)[1].tolist()
-        return state
+        return np.where(
+            np.reshape(state_policy, (self.max_seq_length, self.n_alphabet))
+        )[1].tolist()
 
     def state2readable(self, state, alphabet={0: "A", 1: "T", 2: "C", 3: "G"}):
         """

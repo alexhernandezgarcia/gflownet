@@ -70,10 +70,10 @@ class Plane(GFlowNetEnv):
         self.distr_beta = distr_beta
         # Initialize angles and state attributes
         self.reset()
-        self.obs_dim = self.n_dim
         self.action_space = self.get_actions_space()
         self.fixed_policy_output = self.get_fixed_policy_output()
         self.policy_output_dim = len(self.fixed_policy_output)
+        self.policy_input_dim = len(self.state2policy())
         # Set up proxy
         self.proxy.n_dim = self.n_dim
         self.proxy.setup()
@@ -224,11 +224,11 @@ class Plane(GFlowNetEnv):
             state = self.state.copy()
         return state
 
-    def obs2state(self, obs: List) -> List:
+    def policy2state(self, state_policy: List) -> List:
         """
         Returns the input as is.
         """
-        return obs
+        return state_policy
 
     def state2readable(self, state: List) -> str:
         """

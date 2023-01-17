@@ -70,10 +70,10 @@ class ContinuousTorus(GFlowNetEnv):
         # Initialize angles and state attributes
         self.reset()
         self.source = self.angles.copy()
-        self.obs_dim = self.n_dim + 1
         self.action_space = self.get_actions_space()
         self.fixed_policy_output = self.get_fixed_policy_output()
         self.policy_output_dim = len(self.fixed_policy_output)
+        self.policy_input_dim = len(self.state2policy())
         self.logsoftmax = torch.nn.LogSoftmax(dim=1)
         # Oracle
         self.state2oracle = self.state2proxy
@@ -191,11 +191,11 @@ class ContinuousTorus(GFlowNetEnv):
             state = self.state.copy()
         return state
 
-    def obs2state(self, obs: List) -> List:
+    def policy2state(self, state_policy: List) -> List:
         """
         Returns the input as is.
         """
-        return obs
+        return state_policy
 
     def state2readable(self, state: List) -> str:
         """

@@ -1059,7 +1059,7 @@ class GFlowNetAgent:
 
 class Policy:
     def __init__(self, config, env, base=None):
-        self.state_dim = env.obs_dim
+        self.state_dim = env.policy_input_dim
         self.fixed_output = env.fixed_policy_output
         self.output_dim = len(self.fixed_output)
         if "shared_weights" in config:

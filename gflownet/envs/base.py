@@ -218,12 +218,12 @@ class GFlowNetEnv:
         """
         return np.array(states)
 
-    def obs2state(self, obs: List) -> List:
+    def policy2state(self, state_policy: List) -> List:
         """
         Converts the model (e.g. one-hot encoding) version of a state given as
         argument into a state.
         """
-        return obs
+        return state_policy
 
     def state2readable(self, state=None):
         """
