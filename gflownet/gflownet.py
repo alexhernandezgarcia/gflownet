@@ -260,7 +260,13 @@ class GFlowNetAgent:
         return envs, actions, valids
 
     def backward_sample(
-        self, env, times, sampling_method="policy", model=None, temperature=1.0, done=False
+        self,
+        env,
+        times,
+        sampling_method="policy",
+        model=None,
+        temperature=1.0,
+        done=False,
     ):
         """
         Performs a backward action on one environment.
@@ -870,15 +876,19 @@ class GFlowNetAgent:
                 self.env, self.oracle_n, train=False
             )
             t1_sampling_for_oracle = time.time()
-        
-            times.update({"oracle_sampling": t1_sampling_for_oracle - t0_sampling_for_oracle})
+
+            times.update(
+                {"oracle_sampling": t1_sampling_for_oracle - t0_sampling_for_oracle}
+            )
             t0_get_scores = time.time()
             oracle_dict, oracle_times = batch2dict(
                 oracle_batch, self.env, get_uncertainties=False
             )
             t1_get_scores = time.time()
             times.update({"oracle_get_scores": t1_get_scores - t0_get_scores})
-            self.logger.log_sampler_oracle(oracle_dict["energies"], it, self.use_context)
+            self.logger.log_sampler_oracle(
+                oracle_dict["energies"], it, self.use_context
+            )
         t1_oracle = time.time()
         times.update({"log_oracle": t1_oracle - t0_oracle})
 
@@ -935,9 +945,7 @@ class GFlowNetAgent:
                 if self.use_context:
                     pass
                     # print(f"\t Min Distance from D0: {mean_novelty_topk}")
-            self.logger.log_metrics(
-                dict_topk, use_context=self.use_context
-            )
+            self.logger.log_metrics(dict_topk, use_context=self.use_context)
 
 
 class Policy:
