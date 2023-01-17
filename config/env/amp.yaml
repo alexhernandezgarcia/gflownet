@@ -13,7 +13,6 @@ n_alphabet: 20
 min_word_len: 1
 max_word_len: 1
 reward_func: power
-reward_norm: 1.0
 reward_norm_std_mult: -1.0
 reward_beta: 8.0
 # Buffer

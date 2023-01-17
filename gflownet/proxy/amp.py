@@ -27,7 +27,7 @@ class AMPOracleWrapper(Proxy):
     def __call__(self, sequences, batch_size=256):
         """
         oracle.evaluate_many() returns a dictionary
-            confidence: 2D array (bartch, 2) where confidence[i][k] is the probability of the ith element being part of category "k"
+            confidence: 2D array (batch, 2) where confidence[i][k] is the probability of the ith element being part of category "k"
             prediction: 1D array, essentially argmax(probability)
             entropy: 1D array, uncertainty in the prediction
         """

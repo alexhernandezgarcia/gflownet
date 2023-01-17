@@ -469,16 +469,6 @@ class AMP(GFlowNetEnv):
         output_csv: str
             Optional path to store the test set as CSV.
         """
-        df_train = pd.read_csv(
-            "/home/mila/n/nikita.saxena/gflownet/logs/train_dataset_{}.csv".format(
-                split
-            )
-        )
-        df_valid = pd.read_csv(
-            "/home/mila/n/nikita.saxena/gflownet/logs/valid_dataset_{}.csv".format(
-                split
-            )
-        )
         # TODO: Delete because deprecated.
         # source = get_default_data_splits(setting="Target")
         # rng = np.random.RandomState(142857)
