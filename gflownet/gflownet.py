@@ -21,12 +21,6 @@ from tqdm import tqdm
 from gflownet.envs.base import Buffer
 
 
-def process_config(config):
-    if "score" not in config.gflownet.test or "nupack" in config.gflownet.test.score:
-        config.gflownet.test.score = config.gflownet.func.replace("nupack ", "")
-    return config
-
-
 class GFlowNetAgent:
     def __init__(
         self,
@@ -1031,10 +1025,6 @@ class GFlowNetAgent:
         oracle_batch, oracle_times = self.sample_batch(
             self.env, self.oracle_n, train=False
         )
-        oracle_dict, oracle_times = batch2dict(
-            oracle_batch, self.env, get_uncertainties=False
-        )
-        self.logger.log_sampler_oracle(oracle_dict["energies"], it, self.use_context)
 
         if self.logger.progress:
             mean_main_loss = np.mean(np.array(all_losses)[-100:, 0], axis=0)
@@ -1155,30 +1145,6 @@ class Policy:
         Args: states: tensor
         """
         return self._tfloat(torch.ones((len(states), self.output_dim)))
-
-
-def batch2dict(batch, env, get_uncertainties=False, query_function="Both"):
-    batch = np.asarray(env.state2oracle(batch))
-    t0_proxy = time.time()
-    if get_uncertainties:
-        if query_function == "fancy_acquisition":
-            scores, proxy_vals, uncertainties = env.proxy(batch, query_function)
-        else:
-            proxy_vals, uncertainties = env.proxy(batch, query_function)
-            scores = proxy_vals
-    else:
-        proxy_vals = env.proxy(batch)
-        uncertainties = None
-        scores = proxy_vals
-    t1_proxy = time.time()
-    times = {"proxy": t1_proxy - t0_proxy}
-    samples = {
-        "samples": batch.astype(np.int64),
-        "scores": scores,
-        "energies": proxy_vals,
-        "uncertainties": uncertainties,
-    }
-    return samples, times
 
 
 def make_opt(params, logZ, config):
