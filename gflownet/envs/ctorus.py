@@ -358,18 +358,21 @@ class ContinuousTorus(GFlowNetEnv):
             logits_dims[mask_invalid_actions] = -loginf
         logprobs_dim = self.logsoftmax(logits_dims)[ns_range, dimensions]
         # Angle increments
-        ns_range_noeos = ns_range[dimensions != self.eos]
-        dimensions_noeos = dimensions[dimensions != self.eos]
+        nofix_indices = torch.where(
+            (dimensions != self.eos) & (states_target[:, -1].to(int) != 0)
+        )
+        ns_range_nofix = ns_range[nofix_indices]
+        dimensions_nofix = dimensions[nofix_indices]
         logprobs_angles = torch.zeros(n_states).to(device)
-        if len(dimensions_noeos) > 0:
-            locations = policy_outputs[:, 1::3][ns_range_noeos, dimensions_noeos]
-            concentrations = policy_outputs[:, 2::3][ns_range_noeos, dimensions_noeos]
+        if len(dimensions_nofix) > 0:
+            locations = policy_outputs[:, 1::3][ns_range_nofix, dimensions_nofix]
+            concentrations = policy_outputs[:, 2::3][ns_range_nofix, dimensions_nofix]
             distr_angles = VonMises(
                 locations,
                 torch.exp(concentrations) + self.vonmises_concentration_epsilon,
             )
-            logprobs_angles[ns_range_noeos] = distr_angles.log_prob(
-                angles[ns_range_noeos]
+            logprobs_angles[ns_range_nofix] = distr_angles.log_prob(
+                angles[ns_range_nofix]
             )
         # Combined probabilities
         logprobs = logprobs_dim + logprobs_angles
