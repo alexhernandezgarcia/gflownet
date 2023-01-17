@@ -14,7 +14,7 @@ min_word_len: 1
 max_word_len: 1
 reward_func: power
 reward_norm_std_mult: -1.0
-reward_beta: 8.0
+reward_beta: 3.0
 # Buffer
 buffer:
   replay_capacity: 10

@@ -112,7 +112,7 @@ class AMP(GFlowNetEnv):
             "Y",
         ]
         if self.proxy_state_format == "ohe":
-            self.state2proxy = self.state2obs
+            self.state2proxy = self.statebatch2obs
         elif self.proxy_state_format == "oracle":
             self.state2proxy = self.state2oracle
         else:
@@ -189,21 +189,21 @@ class AMP(GFlowNetEnv):
         0s.
         """
         
-        def one_hot(state):
-            if state is None:
-                state = self.state.copy()
-    
-            z = np.zeros(self.obs_dim, dtype=np.float32)
-    
-            if len(state) > 0:
-                if hasattr(
-                    state[0], "device"
-                ):  # if it has a device at all, it will be cuda (CPU numpy array has no dev
-                    state = [subseq.cpu().detach().numpy() for subseq in state]
-    
-                z[(np.arange(len(state)) * self.n_alphabet + state)] = 1
-            return z
-        return [one_hot(s) for s in state]
+        if state is None:
+            state = self.state.copy()
+
+        z = np.zeros(self.obs_dim, dtype=np.float32)
+        if len(state) > 0:
+            if hasattr(
+                state[0], "device"
+            ):  # if it has a device at all, it will be cuda (CPU numpy array has no dev
+                state = [subseq.cpu().detach().numpy() for subseq in state]
+
+            z[(np.arange(len(state)) * self.n_alphabet + state)] = 1
+        return z
+
+    def statebatch2obs(self, statebatch):
+        return [self.state2obs(s) for s in statebatch]
 
     def obs2state(self, obs: List) -> List:
         """

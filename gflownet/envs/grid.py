@@ -70,7 +70,7 @@ class Grid(GFlowNetEnv):
         self.action_space = self.get_actions_space()
         self.eos = len(self.action_space)
         if self.proxy_state_format == "ohe":
-            self.state2proxy = self.state2obs
+            self.state2proxy = self.statebatch2obs
         elif self.proxy_state_format == "oracle":
             self.state2proxy = self.state2oracle
 
@@ -175,13 +175,15 @@ class Grid(GFlowNetEnv):
           - state2obs(state): [1, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0] (length = 4)
                               |     0    |      3    |      1    |
         """
-        def one_hot(state);
-            if state is None:
-                state = self.state.copy()
-            obs = np.zeros(self.obs_dim, dtype=np.float32)
-            obs[(np.arange(len(state)) * self.length + state)] = 1
-            return obs
-        return [one-hot(s) for s in state]
+    
+        if state is None:
+            state = self.state.copy()
+        obs = np.zeros(self.obs_dim, dtype=np.float32)
+        obs[(np.arange(len(state)) * self.length + state)] = 1
+        return obs
+
+    def statebatch2obs(self, stateList):
+        return [self.state2obs(s) for s in stateList]
 
     def obs2state(self, obs: List) -> List:
         """

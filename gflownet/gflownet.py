@@ -979,7 +979,8 @@ class Policy:
             self.model = self.uniform_distribution
             self.is_model = False
         elif self.type == "mlp":
-            self.model = self.make_mlp(nn.LeakyReLU())
+            # TODO: activation dictionary
+            self.model = self.make_mlp(nn.ReLU())
             self.is_model = True
         else:
             raise "Policy model type not defined"
@@ -1028,6 +1029,7 @@ class Policy:
                     + self.tail
                 )
             )
+            print(mlp)
             return mlp
         else:
             raise ValueError(
@@ -1044,8 +1046,7 @@ class Policy:
 
 def batch2dict(batch, env, get_uncertainties=False, query_function="Both"):
     # HACK
-    input_proxy = env.state2proxy(batch)
-    input_proxy = torch.Tensor(input_proxy)
+    
     t0_proxy = time.time()
     # if get_uncertainties:
     #     if query_function == "fancy_acquisition":
@@ -1054,7 +1055,12 @@ def batch2dict(batch, env, get_uncertainties=False, query_function="Both"):
     #         proxy_vals, uncertainties = env.proxy(batch, query_function)
     #         scores = proxy_vals
     # else:
-    proxy_vals = env.proxy(input_proxy)
+    input_proxy = env.state2proxy(batch)
+    # # FOR PROXY
+    # input_proxy = torch.Tensor(batch)
+    # proxy_vals = env.proxy(input_proxy)
+    # FOR ORACLE
+    proxy_vals = env.oracle(input_proxy)
     uncertainties = None
     # scores = env.oracle(input_oracle)
     t1_proxy = time.time()
@@ -1085,7 +1091,7 @@ def make_opt(params, logZ, config):
             opt.add_param_group(
                 {
                     "params": logZ,
-                    "lr": config.lr * config.lr_z_mult,
+                    "lr": config.lr_logZ,
                 }
             )
     elif config.method == "msgd":
