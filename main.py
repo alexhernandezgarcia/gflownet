@@ -50,7 +50,7 @@ def main(config):
         df = pd.DataFrame(
             {
                 "readable": [env.state2readable(s) for s in samples],
-                "energies": energies,
+                "energies": energies.tolist(),
             }
         )
         df.to_csv("gfn_samples.csv")
