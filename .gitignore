@@ -10,3 +10,4 @@ sh/
 outputs/
 *.txt
 !requirements.txt
+config/dummy_exp/
