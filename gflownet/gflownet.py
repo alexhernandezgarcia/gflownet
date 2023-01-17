@@ -536,7 +536,7 @@ class GFlowNetAgent:
         if train:
             # Compute rewards
             (
-                obs,
+                states,
                 actions,
                 states,
                 parents,
@@ -555,7 +555,7 @@ class GFlowNetAgent:
             done = [tl([d]) for d in done]
             batch = list(
                 zip(
-                    obs,
+                    states,
                     actions,
                     rewards,
                     parents,
