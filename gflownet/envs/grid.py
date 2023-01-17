@@ -160,11 +160,13 @@ class Grid(GFlowNetEnv):
             State
         """
         return (
-            self.statebatch2policy(states).reshape((len(states), self.n_dim, self.length))
+            self.statebatch2policy(states).reshape(
+                (len(states), self.n_dim, self.length)
+            )
             * self.cells[None, :]
         ).sum(axis=2)
 
-    def state2policy(self, state: List=None) -> List:
+    def state2policy(self, state: List = None) -> List:
         """
         Transforms the state given as argument (or self.state if None) into a
         one-hot encoding. The output is a list of len length * n_dim,
@@ -185,27 +187,35 @@ class Grid(GFlowNetEnv):
     def statebatch2policy(self, states: List[List]) -> npt.NDArray[np.float32]:
         """
         Transforms a batch of states into a one-hot encoding. The output is a numpy
-        array of shape [n_states, length * n_dim]. 
+        array of shape [n_states, length * n_dim].
 
         See state2policy().
         """
         cols = np.array(states) + np.arange(self.n_dim) * self.length
         rows = np.repeat(np.arange(len(states)), self.n_dim)
-        state_policy = np.zeros((len(states), self.length * self.n_dim), dtype=np.float32)
+        state_policy = np.zeros(
+            (len(states), self.length * self.n_dim), dtype=np.float32
+        )
         state_policy[rows, cols.flatten()] = 1.0
         return state_policy
 
-    def statetorch2policy(self, states: TensorType["batch", "state_dim"]) -> TensorType["batch", "policy_output_dim"]:
+    def statetorch2policy(
+        self, states: TensorType["batch", "state_dim"]
+    ) -> TensorType["batch", "policy_output_dim"]:
         """
         Transforms a batch of states into a one-hot encoding. The output is a numpy
-        array of shape [n_states, length * n_dim]. 
+        array of shape [n_states, length * n_dim].
 
         See state2policy().
         """
         device = states.device
         cols = (states + torch.arange(self.n_dim).to(device) * self.length).to(int)
-        rows = torch.repeat_interleave(torch.arange(states.shape[0]).to(device), self.n_dim)
-        state_policy = torch.zeros((states.shape[0], self.length * self.n_dim), dtype=states.dtype).to(device)
+        rows = torch.repeat_interleave(
+            torch.arange(states.shape[0]).to(device), self.n_dim
+        )
+        state_policy = torch.zeros(
+            (states.shape[0], self.length * self.n_dim), dtype=states.dtype
+        ).to(device)
         state_policy[rows, cols.flatten()] = 1.0
         return state_policy
 
@@ -290,9 +300,7 @@ class Grid(GFlowNetEnv):
                     actions.append(a)
         return parents, actions
 
-    def step(
-        self, action: Tuple[int]
-    ) -> Tuple[List[int], Tuple[int], bool]:
+    def step(self, action: Tuple[int]) -> Tuple[List[int], Tuple[int], bool]:
         """
         Executes step given an action.
 

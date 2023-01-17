@@ -170,14 +170,16 @@ class Torus(GFlowNetEnv):
     def statebatch2policy(self, states: List[List]) -> npt.NDArray[np.float32]:
         """
         Transforms a batch of states into the policy model format. The output is a numpy
-        array of shape [n_states, n_angles * n_dim + 1]. 
+        array of shape [n_states, n_angles * n_dim + 1].
 
         See state2policy().
         """
         states = np.array(states)
         cols = states[:, :-1] + np.arange(self.n_dim) * self.n_angles
         rows = np.repeat(np.arange(states.shape[0]), self.n_dim)
-        state_policy = np.zeros((len(states), self.n_angles * self.n_dim + 1), dtype=np.float32)
+        state_policy = np.zeros(
+            (len(states), self.n_angles * self.n_dim + 1), dtype=np.float32
+        )
         state_policy[rows, cols.flatten()] = 1.0
         state_policy[:, -1] = states[:, -1]
         return state_policy
