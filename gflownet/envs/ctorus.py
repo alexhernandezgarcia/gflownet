@@ -175,13 +175,21 @@ class ContinuousTorus(GFlowNetEnv):
         )
         return self._true_density
 
-    def statebatch2proxy(self, states: List[List]) -> TensorType["batch", "state_dim"]:
+    def statebatch2proxy(self, states: List[List]) -> TensorType["batch", "state_proxy_dim"]:
         """
         Prepares a batch of states in "GFlowNet format" for the proxy: a tensor where
         each state is a row of length n_dim with an angle in radians. The n_actions
         item is removed.
         """
         return torch.tensor(states, device=self.device)[:, :-1]
+
+    def statetorch2proxy(
+        self, states: TensorType["batch", "state_dim"]
+    ) -> TensorType["batch", "state_proxy_dim"]:
+        """
+        Prepares a batch of states in torch "GFlowNet format" for the proxy.
+        """
+        return states[:, :-1]
 
     def state2policy(self, state: List = None) -> List:
         """
