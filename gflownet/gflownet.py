@@ -1044,10 +1044,8 @@ class Policy:
 
 def batch2dict(batch, env, get_uncertainties=False, query_function="Both"):
     # HACK
-    batch = [env.state2proxy(state) for state in batch]
-    input_proxy = torch.Tensor(batch)
-    # input_proxy = env.state2proxy(batch)
-    # input_oracle = np.asarray(env.state2oracle(batch))
+    input_proxy = env.state2proxy(batch)
+    input_proxy = torch.Tensor(input_proxy)
     t0_proxy = time.time()
     # if get_uncertainties:
     #     if query_function == "fancy_acquisition":
