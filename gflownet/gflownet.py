@@ -54,7 +54,7 @@ class GFlowNetAgent:
         num_empirical_loss,
         oracle,
         proxy=None,
-        al_iter=-1,
+        al=False,
         data_path=None,
         sample_only=False,
         **kwargs,
@@ -81,14 +81,13 @@ class GFlowNetAgent:
             self.logZ = None
         self.loss_eps = torch.tensor(float(1e-5)).to(self.device)
         # Logging (Comet)
-        self.debug = logger.debug
-        self.lightweight = logger.lightweight
-        self.progress = logger.progress
         self.num_empirical_loss = num_empirical_loss
         self.logger = logger
         self.oracle_n = oracle.n
         # Buffers
-        self.buffer = Buffer(**buffer, env=self.env, make_train_test=not sample_only)
+        self.buffer = Buffer(
+            **buffer, env=self.env, make_train_test=not sample_only, logger=logger
+        )
         # Train set statistics and reward normalization constant
         if self.buffer.train is not None:
             energies_stats_tr = [
@@ -173,10 +172,7 @@ class GFlowNetAgent:
         self.tau = optimizer.bootstrap_tau
         self.ema_alpha = optimizer.ema_alpha
         self.early_stopping = optimizer.early_stopping
-        if al_iter >= 0:
-            self.use_context = True
-        else:
-            self.use_context = False
+        self.use_context = al
         self.logsoftmax = torch.nn.LogSoftmax(dim=1)
         # Training
         self.mask_invalid_actions = mask_invalid_actions
@@ -238,7 +234,7 @@ class GFlowNetAgent:
             if all(torch.isfinite(action_logits).flatten()):
                 actions = Categorical(logits=action_logits).sample().tolist()
             else:
-                if self.debug:
+                if self.logger.debug:
                     raise ValueError("Action could not be sampled from model!")
 
             if sampling_method == "mixt":
@@ -301,7 +297,7 @@ class GFlowNetAgent:
             if all(torch.isfinite(action_logits).flatten()):
                 action_idx = Categorical(logits=action_logits).sample().item()
             else:
-                if self.debug:
+                if self.logger.debug:
                     raise ValueError("Action could not be sampled from model!")
 
             if sampling_method == "mixt":
@@ -400,7 +396,7 @@ class GFlowNetAgent:
                 envs, actions, valids = self.forward_sample(
                     envs,
                     times,
-                    sampling_method="mixt",
+                    sampling_method="policy",
                     model=self.forward_policy,
                     temperature=1.0,
                 )
@@ -514,7 +510,7 @@ class GFlowNetAgent:
         )
         sp, _, r, parents, actions, done, _, _, masks = map(torch.cat, zip(*batch))
         # Sanity check if negative rewards
-        if self.debug and torch.any(r < 0):
+        if self.logger.debug and torch.any(r < 0):
             neg_r_idx = torch.where(r < 0)[0].tolist()
             for idx in neg_r_idx:
                 obs = sp[idx].tolist()
@@ -684,9 +680,9 @@ class GFlowNetAgent:
         loss_term_ema = None
         loss_flow_ema = None
         # Generate list of environments
-        envs = [copy.deepcopy(self.env).reset() for _ in range(self.batch_size)]
+        envs = [self.env.copy() for _ in range(self.batch_size)]
         # Train loop
-        pbar = tqdm(range(1, self.n_train_steps + 1), disable=not self.progress)
+        pbar = tqdm(range(1, self.n_train_steps + 1), disable=not self.logger.progress)
         for it in pbar:
             t0_iter = time.time()
             data = []
@@ -705,7 +701,7 @@ class GFlowNetAgent:
                 else:
                     print("Unknown loss!")
                 if not all([torch.isfinite(loss) for loss in losses]):
-                    if self.debug:
+                    if self.logger.debug:
                         print("Loss is not finite - skipping iteration")
                     if len(all_losses) > 0:
                         all_losses.append([loss for loss in all_losses[-1]])
@@ -729,7 +725,7 @@ class GFlowNetAgent:
             # Log
             idx_best = np.argmax(rewards)
             state_best = "".join(self.env.state2readable(states_term[idx_best]))
-            if self.lightweight:
+            if self.logger.lightweight:
                 all_losses = all_losses[-100:]
                 all_visited = states_term
             else:
@@ -770,7 +766,7 @@ class GFlowNetAgent:
             # Log times
             t1_iter = time.time()
             times.update({"iter": t1_iter - t0_iter})
-            self.logger.log_time(times, it, use_context=self.use_context)
+            self.logger.log_time(times, use_context=self.use_context)
         # Save final model
         self.logger.save_models(self.forward_policy, self.backward_policy, final=True)
 
@@ -820,7 +816,7 @@ class GFlowNetAgent:
             rewards, proxy_vals, states_term, data, it, self.use_context
         )
         # loss
-        if not self.lightweight:
+        if not self.logger.lightweight:
             l1_error, kl_div = empirical_distribution_error(
                 self.env, all_visited[-self.num_empirical_loss :]
             )
@@ -830,12 +826,11 @@ class GFlowNetAgent:
             losses,
             l1_error,
             kl_div,
-            it,
             self.use_context,
         )
 
         # test metrics
-        if not self.lightweight and self.buffer.test is not None:
+        if not self.logger.lightweight and self.buffer.test is not None:
             corr, data_logq, times = self.get_log_corr(times)
             self.logger.log_sampler_test(corr, data_logq, it, self.use_context)
 
@@ -848,19 +843,18 @@ class GFlowNetAgent:
         )
         self.logger.log_sampler_oracle(oracle_dict["energies"], it, self.use_context)
 
-        if self.progress:
+        if self.logger.progress:
             mean_main_loss = np.mean(np.array(all_losses)[-100:, 0], axis=0)
             description = "Loss: {:.4f} | L1: {:.4f} | KL: {:.4f}".format(
                 mean_main_loss, l1_error, kl_div
             )
             pbar.set_description(description)
 
-        if not self.lightweight:
+        if not self.logger.lightweight:
             all_visited_set = set(all_visited)
             self.logger.log_metric(
                 "unique_states",
                 len(all_visited),
-                step=it,
                 use_context=self.use_context,
             )
 
@@ -882,21 +876,24 @@ class GFlowNetAgent:
             # TODO: add novelty calculation
             pass
         for k in self.logger.sampler.oracle.k:
+            print(f"\n Top-{k} Performance")
             mean_energy_topk = np.mean(energies[:k])
             mean_diversity_topk = np.mean(dists[:k])
-            dict_topk.update({"energy_mean_top{}".format(k): mean_energy_topk})
-            dict_topk.update({"distance_mean_top{}".format(k): mean_diversity_topk})
+            dict_topk.update({"mean_energy_top{}".format(k): mean_energy_topk})
+            dict_topk.update(
+                {"mean_pairwise_distance_top{}".format(k): mean_diversity_topk}
+            )
             if self.use_context:
                 # TODO: add novelty calculation and update dictiorary
                 pass
-            if self.progress:
-                print(f"\tAverage energy top-{k}: {mean_energy_topk}")
-                print(f"\tAverage diversity top-{k}: {mean_diversity_topk}")
+            if self.logger.progress:
+                print(f"\t Mean Energy: {mean_energy_topk}")
+                print(f"\t Mean Pairwise Distance: {mean_diversity_topk}")
             if self.use_context:
                 # TODO: print novelty
                 pass
             self.logger.log_metrics(
-                dict_topk, step=self.n_train_steps + 1, use_context=self.use_context
+                dict_topk, use_context=self.use_context
             )
 
 
@@ -995,23 +992,25 @@ class Policy:
 
 
 def batch2dict(batch, env, get_uncertainties=False, query_function="Both"):
-    batch = np.asarray(env.state2oracle(batch))
+    batch = [env.state2proxy(state) for state in batch]
+    input_proxy = torch.Tensor(batch)
+    # input_oracle = np.asarray(env.state2oracle(batch))
     t0_proxy = time.time()
-    if get_uncertainties:
-        if query_function == "fancy_acquisition":
-            scores, proxy_vals, uncertainties = env.proxy(batch, query_function)
-        else:
-            proxy_vals, uncertainties = env.proxy(batch, query_function)
-            scores = proxy_vals
-    else:
-        proxy_vals = env.proxy(batch)
-        uncertainties = None
-        scores = proxy_vals
+    # if get_uncertainties:
+    #     if query_function == "fancy_acquisition":
+    #         scores, proxy_vals, uncertainties = env.proxy(batch, query_function)
+    #     else:
+    #         proxy_vals, uncertainties = env.proxy(batch, query_function)
+    #         scores = proxy_vals
+    # else:
+    proxy_vals = env.proxy(input_proxy)
+    uncertainties = None
+    # scores = env.oracle(input_oracle)
     t1_proxy = time.time()
     times = {"proxy": t1_proxy - t0_proxy}
     samples = {
         "samples": batch,
-        "scores": scores,
+        # "scores": scores,
         "energies": proxy_vals,
         "uncertainties": uncertainties,
     }

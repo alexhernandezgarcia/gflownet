@@ -51,7 +51,7 @@ class AMP(GFlowNetEnv):
         self,
         max_seq_length=50,
         min_seq_length=1,
-        nalphabet=20,
+        n_alphabet=20,
         min_word_len=1,
         max_word_len=1,
         proxy=None,
@@ -63,6 +63,7 @@ class AMP(GFlowNetEnv):
         reward_norm_std_mult=0.0,
         reward_func="power",
         denorm_proxy=False,
+        proxy_state_format="ohe",
         **kwargs,
     ):
         super(AMP, self).__init__(
@@ -80,8 +81,8 @@ class AMP(GFlowNetEnv):
         self.state = []
         self.min_seq_length = min_seq_length
         self.max_seq_length = max_seq_length
-        self.nalphabet = nalphabet
-        self.obs_dim = self.nalphabet * self.max_seq_length
+        self.n_alphabet = n_alphabet
+        self.obs_dim = self.n_alphabet * self.max_seq_length
         self.min_word_len = min_word_len
         self.max_word_len = max_word_len
         self.action_space = self.get_actions_space()
@@ -109,17 +110,22 @@ class AMP(GFlowNetEnv):
             "W",
             "Y",
         ]
-        if self.proxy_state_format == "ohe":
+        self.proxy_state_format = proxy_state_format
+        if proxy_state_format == "ohe":
             self.state2proxy = self.state2obs
-        elif self.proxy_state_format == "oracle":
-            self.state2proxy = self.state2oracle
+        elif proxy_state_format == "oracle":
+            self.state2proxy = self.statebatch2oracle
+        else:
+            raise ValueError(
+                "Invalid proxy_state_format: {}".format(self.proxy_state_format)
+            )
         self.alphabet = dict((i, a) for i, a in enumerate(self.vocab))
 
     def copy(self):
         return AMP(
             self.max_seq_length,
             self.min_seq_length,
-            self.nalphabet,
+            self.n_alphabet,
             self.min_word_len,
             self.max_word_len,
             self.proxy,
@@ -131,6 +137,7 @@ class AMP(GFlowNetEnv):
             self.reward_norm_std_mult,
             self.reward_func,
             self.denorm_proxy,
+            self.proxy_state_format,
         )
 
     def get_actions_space(self):
@@ -139,7 +146,7 @@ class AMP(GFlowNetEnv):
         """
         assert self.max_word_len >= self.min_word_len
         valid_wordlens = np.arange(self.min_word_len, self.max_word_len + 1)
-        alphabet = [a for a in range(self.nalphabet)]
+        alphabet = [a for a in range(self.n_alphabet)]
         actions = []
         for r in valid_wordlens:
             actions_r = [el for el in itertools.product(alphabet, repeat=r)]
@@ -198,7 +205,7 @@ class AMP(GFlowNetEnv):
             ):  # if it has a device at all, it will be cuda (CPU numpy array has no dev
                 state = [subseq.cpu().detach().numpy() for subseq in state]
 
-            z[(np.arange(len(state)) * self.nalphabet + state)] = 1
+            z[(np.arange(len(state)) * self.n_alphabet + state)] = 1
         return z
 
     def obs2state(self, obs: List) -> List:
@@ -213,7 +220,7 @@ class AMP(GFlowNetEnv):
           - state: [0, 0, 1, 3, 2]
                     A, A, T, G, C
         """
-        obs_mat = np.reshape(obs, (self.max_seq_length, self.nalphabet))
+        obs_mat = np.reshape(obs, (self.max_seq_length, self.n_alphabet))
         state = np.where(obs_mat)[1].tolist()
         return state
 
@@ -386,11 +393,11 @@ class AMP(GFlowNetEnv):
         """
         if self._true_density is not None:
             return self._true_density
-        if self.nalphabet**self.max_seq_length > max_states:
+        if self.n_alphabet**self.max_seq_length > max_states:
             return (None, None, None)
         state_all = np.int32(
             list(
-                itertools.product(*[list(range(self.nalphabet))] * self.max_seq_length)
+                itertools.product(*[list(range(self.n_alphabet))] * self.max_seq_length)
             )
         )
         traj_rewards, state_end = zip(
@@ -407,6 +414,44 @@ class AMP(GFlowNetEnv):
             traj_rewards,
         )
         return self._true_density
+
+    def load_dataset(self, split="D1", nfold=5):
+
+        # TODO: Make updated-buffer compatible with this
+        source = get_default_data_splits(setting="Target")
+        rng = np.random.RandomState()
+        # returns a dictionary with two keys 'AMP' and 'nonAMP' and values as lists
+        data = source.sample(split, -1)
+        if split == "D1":
+            groups = np.array(source.d1_pos.group)
+        if split == "D2":
+            groups = np.array(source.d2_pos.group)
+        if split == "D":
+            groups = np.concatenate(
+                (np.array(source.d1_pos.group), np.array(source.d2_pos.group))
+            )
+
+        n_pos, n_neg = len(data["AMP"]), len(data["nonAMP"])
+        pos_train, pos_test = next(
+            GroupKFold(nfold).split(np.arange(n_pos), groups=groups)
+        )
+        neg_train, neg_test = next(
+            GroupKFold(nfold).split(
+                np.arange(n_neg), groups=rng.randint(0, nfold, n_neg)
+            )
+        )
+
+        pos_train = [data["AMP"][i] for i in pos_train]
+        neg_train = [data["nonAMP"][i] for i in neg_train]
+        pos_test = [data["AMP"][i] for i in pos_test]
+        neg_test = [data["nonAMP"][i] for i in neg_test]
+        train = pos_train + neg_train
+        test = pos_test + neg_test
+
+        train = [sample for sample in train if len(sample) < self.max_seq_length]
+        test = [sample for sample in test if len(sample) < self.max_seq_length]
+
+        return train, test
 
     def make_train_set(
         self,
@@ -442,6 +487,7 @@ class AMP(GFlowNetEnv):
                 split
             )
         )
+        # TODO: Delete because deprecated.
         # source = get_default_data_splits(setting="Target")
         # rng = np.random.RandomState(142857)
         # self.data = source.sample(
@@ -527,22 +573,6 @@ class AMP(GFlowNetEnv):
         # df_valid.to_csv("/home/mila/n/nikita.saxena/gflownet/logs/valid_dataset_{}.csv".format(split))
 
         # return df_train, df_valid
-
-    def _load_precomputed_scores(self, split):
-        train_scores = np.load(
-            "/home/mila/n/nikita.saxena/gflownet/logs/train_scores_{}.npy".format(split)
-        )
-        valid_scores = np.load(
-            "/home/mila/n/nikita.saxena/gflownet/logs/valid_scores_{}.npy".format(split)
-        )
-
-    def _filter_len(self, x: List, y, max_len: int):
-        res = ([], [])
-        for i in range(len(x)):
-            if len(x[i]) < max_len:
-                res[0].append(x[i])
-                res[1].append(y[i])
-        return res
 
     def calculate_diversity(self, samples):
         samples = self.state2oracle(samples)

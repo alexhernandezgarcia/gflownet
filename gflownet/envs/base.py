@@ -90,7 +90,9 @@ class GFlowNetEnv:
         """
         states = [s for s, d in zip(states, done) if d]
         reward = np.zeros(len(done))
-        reward[list(done)] = self.proxy2reward(self.proxy(self.state2proxy(states)))
+        # TODO: Modify to statebatch
+        states = [self.state2proxy(s) for s in states]
+        reward[list(done)] = self.proxy2reward(self.proxy(states))
         return reward
 
     def proxy2reward(self, proxy_vals):
@@ -371,8 +373,11 @@ class Buffer:
         data_path=None,
         train=None,
         test=None,
+        logger=None,
         **kwargs,
     ):
+        # HACK
+        self.logger = logger
         self.env = env
         self.replay_capacity = replay_capacity
         self.action_space = self.env.get_actions_space()
@@ -487,21 +492,23 @@ class Buffer:
                 self.test = df_data.loc[df_data.test]
         # Otherwise
         else:
-            self.train, self.test = self.env.make_train_set()
-            # # Train set
-            # # (2) Separate train file path is provided
-            # if train.path and Path(train.path).exists():
-            #     self.train = pd.read_csv(train.path, index_col=0)
-            # # (3) Make environment specific train set
-            # elif train.n and train.seed:
-            #     self.train = self.env.make_train_set(
-            #         ntrain=train.n,
-            #         oracle=self.env.oracle,
-            #         seed=train.seed,
-            #         output_csv=train.output,
-            #     )
-            # # Test set
-            # # (2) Separate test file path is provided
+            # Train set
+            # (2) Separate train file path is provided
+            if train.path:
+                path = self.logger.logdir / Path("data") / train.path
+                self.train = pd.read_csv(path, index_col=0)
+            # (3) Make environment specific train set
+            elif train.n and train.seed:
+                self.train = self.env.make_train_set(
+                    ntrain=train.n,
+                    oracle=self.env.oracle,
+                    seed=train.seed,
+                    output_csv=train.output,
+                )
+            # Test set
+            # HACK
+            self.test = None
+            # (2) Separate test file path is provided
             # if "all" in test and test.all:
             #     self.test = self.env.make_test_set(test)
             # elif test.path and Path(train.path).exists():
