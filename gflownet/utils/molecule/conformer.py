@@ -40,7 +40,7 @@ class Conformer():
         self.set_atom_positions_dgl(atom_positions)
         self.ta_to_index = defaultdict(lambda: None)
         self.freely_rotatable_tas = ((0, 1, 2, 3), (0, 1, 6, 7))
-        self.randomize_freely_rotatable_ta()
+        # self.randomize_freely_rotatable_ta()
         
     def get_mol_from_smiles(self, smiles):
         """Create RDKit molecule from SMILES string
@@ -175,6 +175,7 @@ if __name__ == '__main__':
     conf = Conformer(test_pos, constants.ad_smiles, constants.ad_atom_types)
     # check torsion angles randomisation
     conf_tas = conf.get_all_torsion_angles()
+    conf.randomize_freely_rotatable_ta()
     for k, v in conf_tas.items():
         if k in conf.freely_rotatable_tas:
            assert not np.isclose(v, initial_tas[k])

@@ -103,7 +103,6 @@ class ADMolecule(ContinuousTorus):
 
     def get_fixed_policy_output(self):
         #todo
-        
         pass
 
     def sample_actions(
@@ -118,8 +117,6 @@ class ADMolecule(ContinuousTorus):
         """
         Samples a batch of actions from a batch of policy outputs.
         """
-        # todo
-
         device = policy_outputs.device
         n_states = policy_outputs.shape[0]
         ns_range = torch.arange(n_states).to(device)
@@ -183,8 +180,6 @@ class ADMolecule(ContinuousTorus):
         """
         Computes log probabilities of actions given policy outputs and actions.
         """
-        #todo
-
         device = policy_outputs.device
         dimensions, angles = zip(*actions)
         dimensions = torch.LongTensor([d.long() for d in dimensions]).to(device)
