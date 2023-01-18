@@ -2,6 +2,9 @@ import dgl
 import numpy as np
 import numpy.typing as npt
 
+from typing import List, Tuple
+from torchtyping import TensorType
+
 from gflownet.envs.ctorus import ContinuousTorus
 from gflownet.utils.molecule import constants
 from gflownet.utils.molecule.atom_positions_dataset import AtomPositionsDataset
@@ -83,3 +86,23 @@ class ADMoleculeSimple(ContinuousTorus):
         super().reset()
         # no resets of the condition, keep it simple
         return self
+
+
+if __name__ == '__main__':
+    import sys
+    path_to_data = sys.argv[1]
+    print(path_to_data)
+    env = ADMoleculeSimple(path_to_data)
+    print('initial state:', env.state)
+    conf = env.sync_conformer_with_state()
+    tas = conf.get_freely_rotatable_tas_values()
+    print('initial conf torsion angles:', tas)
+    
+    # apply simple action
+    new_state, action, done =  env.step((0, 1.2))
+    print('action:', action)
+    print('new_state:', new_state)
+    conf = env.sync_conformer_with_state()
+    tas = conf.get_freely_rotatable_tas_values()
+    print('new conf torsion angles:', tas)
+    print('done:', done)

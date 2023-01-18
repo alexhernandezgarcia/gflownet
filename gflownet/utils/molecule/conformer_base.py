@@ -15,7 +15,7 @@ def get_torsion_angles_atoms_list(mol):
 
 
 def get_torsion_angles_values(conf, torsion_angles_atoms_list):
-    return [rdMolTransforms.GetDihedralRad(conf, *ta) for ta in torsion_angles_atoms_list]
+    return [np.float32(rdMolTransforms.GetDihedralRad(conf, *ta)) for ta in torsion_angles_atoms_list]
 
 
 def get_all_torsion_angles(mol, conf):
