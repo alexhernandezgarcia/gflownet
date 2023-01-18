@@ -907,7 +907,7 @@ class GFlowNetAgent:
                 use_context=self.use_context,
             )
 
-    def evaluate(self, samples, energies, dataset=None):
+    def evaluate(self, samples, energies, dataset_states=None):
         """Evaluate the policy on a set of queries.
 
         Args:
@@ -920,32 +920,28 @@ class GFlowNetAgent:
         dists = self.env.calculate_diversity(samples)
         dists = np.sort(dists)[::-1]
         dict_topk = {}
-        # itertools.combinations(queries, 2) contains one pair only once
         if self.use_context:
-            pass
-            # novelty = self.env.calculate_novelty(samples, dataset)
+            novelty = self.env.calculate_novelty(samples, dataset_states)
+            novelty = np.sort(novelty)[::-1]
         for k in self.logger.sampler.oracle.k:
             print(f"\n Top-{k} Performance")
             mean_energy_topk = np.mean(energies[:k])
             mean_diversity_topk = np.mean(dists[:k])
-            # mean_novelty_topk = np.mean(novelty[:k])
+            mean_novelty_topk = np.mean(novelty[:k])
             dict_topk.update({"mean_energy_top{}".format(k): mean_energy_topk})
             dict_topk.update(
                 {"mean_pairwise_distance_top{}".format(k): mean_diversity_topk}
             )
             if self.use_context:
-                # TODO: add novelty calculation and update dictiorary
-                pass
-                # dict_topk.update(
-                # {"min_distance_from_D0_top{}".format(k): mean_novelty_topk}
-            # )
+                dict_topk.update(
+                    {"min_distance_from_D0_top{}".format(k): mean_novelty_topk}
+                )
             if self.logger.progress:
                 print(f"\t Mean Energy: {mean_energy_topk}")
                 print(f"\t Mean Pairwise Distance: {mean_diversity_topk}")
                 if self.use_context:
-                    pass
-                    # print(f"\t Min Distance from D0: {mean_novelty_topk}")
-            self.logger.log_metrics(dict_topk, use_context=self.use_context)
+                    print(f"\t Min Distance from D0: {mean_novelty_topk}")
+            self.logger.log_metrics(dict_topk, use_context=False)
 
 
 class Policy:
@@ -1046,7 +1042,7 @@ class Policy:
 
 def batch2dict(batch, env, get_uncertainties=False, query_function="Both"):
     # HACK
-    
+
     t0_proxy = time.time()
     # if get_uncertainties:
     #     if query_function == "fancy_acquisition":
@@ -1055,12 +1051,13 @@ def batch2dict(batch, env, get_uncertainties=False, query_function="Both"):
     #         proxy_vals, uncertainties = env.proxy(batch, query_function)
     #         scores = proxy_vals
     # else:
-    input_proxy = env.state2proxy(batch)
+    input_oracle = env.state2oracle(batch)
     # # FOR PROXY
-    # input_proxy = torch.Tensor(batch)
+    # input_proxy = env.state2proxy(batch)
+    # input_proxy = torch.Tensor(input_proxy)
     # proxy_vals = env.proxy(input_proxy)
     # FOR ORACLE
-    proxy_vals = env.oracle(input_proxy)
+    proxy_vals = env.oracle(input_oracle)
     uncertainties = None
     # scores = env.oracle(input_oracle)
     t1_proxy = time.time()

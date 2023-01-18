@@ -188,7 +188,7 @@ class AMP(GFlowNetEnv):
         If max_seq_length > len(s), the last (max_seq_length - len(s)) blocks are all
         0s.
         """
-        
+
         if state is None:
             state = self.state.copy()
 
@@ -413,6 +413,24 @@ class AMP(GFlowNetEnv):
         return self._true_density
 
     def load_dataset(self, split="D1", nfold=5):
+        # df_train = pd.read_csv(
+        #     "/home/mila/n/nikita.saxena/activelearning/storage/amp/data_train.csv".format(
+        #         split
+        #     )
+        # )
+        # df_valid = pd.read_csv(
+        #     "/home/mila/n/nikita.saxena/activelearning/storage/amp/data_test.csv".format(
+        #         split
+        #     )
+        # )
+
+        # return (
+        #     df_train["samples"].values.tolist(),
+        #     df_train["energies"].values.tolist(),
+        #     df_valid["samples"].values.tolist(),
+        #     df_valid["energies"].values.tolist(),
+        # )
+
         source = get_default_data_splits(setting="Target")
         rng = np.random.RandomState()
         # returns a dictionary with two keys 'AMP' and 'nonAMP' and values as lists
@@ -476,25 +494,24 @@ class AMP(GFlowNetEnv):
         pass
 
     def calculate_diversity(self, samples):
-        samples = self.state2oracle(samples)
         dists = []
         for pair in itertools.combinations(samples, 2):
             dists.append(self.get_distance(*pair))
         dists = np.array(dists)
         return dists
 
-    def calculate_novelty(self, samples, dataset):
-        # TODO: check if this is correct
-        samples = self.state2oracle(samples)
-        dataset = [self.obs2state(el) for el in dataset]
-        dataset = self.state2oracle(dataset)
-        dists = []
-        min_dist = []
+    def calculate_novelty(self, samples, dataset_obs):
+        # TODO: optimize
+        dataset_states = [self.obs2state(el) for el in dataset_obs]
+        dataset_samples = self.state2oracle(dataset_states)
+        min_dists = []
         for sample in samples:
-            for pair in itertools.zip_longest(sample, dataset):
-                dists.append(self.get_distance(pair[0], pair[1]))
-            min_dist.append(np.min(np.array(dists)))
-        return np.array(min_dist)
+            dists = []
+            sample_repeated = itertools.repeat(sample, len(dataset_samples))
+            for s_0, x_0 in zip(sample_repeated, dataset_samples):
+                dists.append(self.get_distance(s_0, x_0))
+            min_dists.append(np.min(np.array(dists)))
+        return np.array(min_dists)
 
     def get_distance(self, seq1, seq2):
         return levenshtein(seq1, seq2) / 1
