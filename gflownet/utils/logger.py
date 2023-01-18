@@ -190,7 +190,7 @@ class Logger:
         if not self.do.online:
             return
         if not step % self.oracle_period:
-            energies_sorted = np.sort(energies)
+            energies_sorted = np.sort(energies)[::-1]
             dict_topk = {}
             for k in self.sampler.oracle.k:
                 mean_topk = np.mean(energies_sorted[:k])

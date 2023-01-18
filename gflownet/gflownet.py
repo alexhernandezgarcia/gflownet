@@ -948,6 +948,8 @@ class Policy:
     def __init__(self, config, state_dim, n_actions, base=None):
         self.state_dim = state_dim
         self.n_actions = n_actions
+        # TODO: shared_weights cannot be True when type is uniform
+        # TODO: if shared_wights is False, type must be defined, but type must not be uniform
         if "shared_weights" in config:
             self.shared_weights = config.shared_weights
         else:
