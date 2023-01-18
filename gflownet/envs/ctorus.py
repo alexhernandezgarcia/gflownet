@@ -175,7 +175,9 @@ class ContinuousTorus(GFlowNetEnv):
         )
         return self._true_density
 
-    def statebatch2proxy(self, states: List[List]) -> TensorType["batch", "state_proxy_dim"]:
+    def statebatch2proxy(
+        self, states: List[List]
+    ) -> TensorType["batch", "state_proxy_dim"]:
         """
         Prepares a batch of states in "GFlowNet format" for the proxy: a tensor where
         each state is a row of length n_dim with an angle in radians. The n_actions
@@ -274,7 +276,7 @@ class ContinuousTorus(GFlowNetEnv):
         if done:
             return [state], [(self.eos, 0.0)]
         else:
-            state[action[0]] -= action[1]
+            state[action[0]] = (state[action[0]] - action[1]) % (2 * np.pi)
             state[-1] -= 1
             parents = [state]
             return parents, [action]
@@ -366,8 +368,25 @@ class ContinuousTorus(GFlowNetEnv):
             logits_dims[mask_invalid_actions] = -loginf
         logprobs_dim = self.logsoftmax(logits_dims)[ns_range, dimensions]
         # Angle increments
-        nofix_indices = torch.where(
-            (dimensions != self.eos) & (states_target[:, -1].to(int) != 0)
+        # Cases where only one angle transition is possible (logp(angle) = 1):
+        # - (A: Number of dimensions different to source == number of states, and
+        # - B: Angle of selected dimension == source), or
+        # - C: Dimension == eos
+        # Cases where angles should be sampled from the distribution:
+        # ~((A & B) | C) = ~(A & B) & ~C = (~A | ~B) & ~C
+        source = torch.tensor(self.source, device=device)
+        source_aux = torch.tensor(self.source + [-1], device=device)
+        nsource_ne_nsteps = torch.ne(
+            torch.sum(torch.ne(states_target[:, :-1], source), axis=1),
+            states_target[:, -1],
+        )
+        angledim_ne_source = torch.ne(
+            states_target[ns_range, dimensions], source_aux[dimensions]
+        )
+        noeos = torch.ne(dimensions, self.eos)
+        nofix_indices = torch.logical_and(
+            torch.logical_or(nsource_ne_nsteps, angledim_ne_source),
+            noeos,
         )
         ns_range_nofix = ns_range[nofix_indices]
         dimensions_nofix = dimensions[nofix_indices]
