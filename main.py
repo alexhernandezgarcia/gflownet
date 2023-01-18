@@ -57,7 +57,7 @@ def main(config):
         )
         df = df.sort_values(by=["energies"])
         path = logger.logdir / Path("gfn_samples.csv")
-        df.to_csv("gfn_samples.csv")
+        df.to_csv(path)
     print(gflownet.buffer.replay)
 
     logger.end()
