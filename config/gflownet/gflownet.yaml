@@ -1,8 +1,6 @@
 _target_: gflownet.gflownet.GFlowNetAgent
 # Random seeds
 seed: 0
-# Device
-device: cuda
 # Optimizer
 optimizer:
   # Loss function

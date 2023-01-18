@@ -6,6 +6,10 @@ defaults:
   - logger: wandb
   - user: alex
 
+# Device
+device: cuda
+# Float precision
+float_precision: 32
 # Number of objects to sample at the end of training
 n_samples: 1000
 # Random seeds
