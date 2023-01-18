@@ -64,6 +64,7 @@ class Torus(GFlowNetEnv):
             oracle,
             **kwargs,
         )
+        self.continuous = True
         self.n_dim = n_dim
         self.n_angles = n_angles
         self.length_traj = length_traj
