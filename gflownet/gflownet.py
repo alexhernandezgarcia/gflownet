@@ -176,7 +176,7 @@ class GFlowNetAgent:
         if device.lower() == "cuda" and torch.cuda.is_available():
             return torch.device("cuda")
         else:
-            return torch.cuda.is_available()
+            return torch.device("cpu")
 
     def _set_float_precision(self, precision: int):
         if precision == 16:
