@@ -116,7 +116,7 @@ class Conformer():
         :param increment: a float value of the increment of the angle (in radians)
         """
         initial_value = rdMolTransforms.GetDihedralRad(self.rdk_conf, *torsion_angle)
-        self.set_torsion_angle(torsion_angle, initial_value+ increment)
+        self.set_torsion_angle(torsion_angle, initial_value + increment)
 
     def set_torsion_angle(self, torsion_angle, value):
         rdMolTransforms.SetDihedralRad(self.rdk_conf, *torsion_angle, value)
