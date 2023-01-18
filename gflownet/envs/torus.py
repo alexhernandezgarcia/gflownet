@@ -66,6 +66,7 @@ class Torus(GFlowNetEnv):
         )
         self.continuous = True
         self.n_dim = n_dim
+        self.eos = self.n_dim
         self.n_angles = n_angles
         self.length_traj = length_traj
         # Initialize angles and state attributes
@@ -74,7 +75,6 @@ class Torus(GFlowNetEnv):
         self.min_step_len = min_step_len
         self.max_step_len = max_step_len
         self.action_space = self.get_actions_space()
-        self.eos = len(self.action_space)
         self.fixed_policy_output = self.get_fixed_policy_output()
         self.policy_output_dim = len(self.fixed_policy_output)
         self.policy_input_dim = len(self.state2policy())
@@ -98,7 +98,10 @@ class Torus(GFlowNetEnv):
         for r in valid_steplens:
             actions_r = [el for el in itertools.product(dims, directions, repeat=r)]
             actions += actions_r
+        # Add "keep" action
         actions = actions + [(-1, 0)]
+        # Add "eos" action
+        actions = actions + [(self.eos, 0)]
         return actions
 
     def get_mask_invalid_actions_forward(self, state=None, done=None):
