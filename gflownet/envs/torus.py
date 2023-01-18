@@ -138,7 +138,15 @@ class Torus(GFlowNetEnv):
         each state is a row of length n_dim with an angle in radians. The n_actions
         item is removed.
         """
-        return np.array(state_list)[:, :-1] * self.angle_rad
+        return torch.tensor(states, device=self.device)[:, :-1] * self.angle_rad
+
+    def statetorch2proxy(
+        self, states: TensorType["batch", "state_dim"]
+    ) -> TensorType["batch", "state_proxy_dim"]:
+        """
+        Prepares a batch of states in torch "GFlowNet format" for the proxy.
+        """
+        return states[:, :-1] * self.angle_rad
 
     # TODO: A circular encoding of the policy state would be better?
     def state2policy(self, state=None) -> List:
