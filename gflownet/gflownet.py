@@ -907,7 +907,7 @@ class GFlowNetAgent:
                 use_context=self.use_context,
             )
 
-    def evaluate(self, samples, energies, dataset):
+    def evaluate(self, samples, energies, dataset=None):
         """Evaluate the policy on a set of queries.
 
         Args:

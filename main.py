@@ -9,7 +9,7 @@ import pandas as pd
 import yaml
 from omegaconf import OmegaConf, DictConfig
 from gflownet.utils.common import flatten_config
-
+from pathlib import Path
 
 @hydra.main(config_path="./config", config_name="main", version_base="1.1")
 def main(config):
@@ -55,6 +55,8 @@ def main(config):
                 "energies": energies,
             }
         )
+        df = df.sort_values(by=["energies"])
+        path = logger.logdir / Path("gfn_samples.csv")
         df.to_csv("gfn_samples.csv")
     print(gflownet.buffer.replay)
 
