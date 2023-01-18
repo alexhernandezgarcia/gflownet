@@ -15,3 +15,6 @@ bond_types = tuple([Chem.rdchem.BondType.SINGLE, Chem.rdchem.BondType.DOUBLE])
 
 # SMILES strings
 ad_smiles = 'CC(C(=O)NC)NC(=O)C'
+
+# Freely rotatable torsion angles
+ad_free_tas = ((0, 1, 2, 3), (0, 1, 6, 7))

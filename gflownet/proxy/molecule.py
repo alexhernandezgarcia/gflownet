@@ -1,5 +1,6 @@
 import numpy as np
 import numpy.typing as npt
+import torch
 
 from xtb.interface import Calculator, Param
 from xtb.libxtb import VERBOSITY_MUTED
@@ -11,9 +12,9 @@ class MoleculeEnergy(Proxy):
     def __init__(self):
         super().__init__()
         
-    def __call__(self, states):
+    def __call__(self, states_proxy):
         # todo: probably make it parallel with mpi
-        pass
+        return torch.tensor([self.get_energy(*st) for st in states_proxy])
 
     def get_energy(atom_positions: npt.NDArray[np.float32], atomic_numbers: npt.NDArray[np.int64]) -> float:
         """
