@@ -2,7 +2,7 @@ import numpy as np
 import numpy.typing as npt
 import torch
 
-from xtb.interface import Calculator, Param
+from xtb.interface import Calculator, Param, XTBException
 from xtb.libxtb import VERBOSITY_MUTED
 
 
@@ -22,7 +22,17 @@ class MoleculeEnergy(Proxy):
         """
         calc = Calculator(Param.GFN2xTB, atomic_numbers, atom_positions)
         calc.set_verbosity(VERBOSITY_MUTED)
-        res = calc.singlepoint()
+        try:
+            res = calc.singlepoint()
+        except XTBException as exc:
+            print(exc)
+            print('try again')
+            try:
+                res = calc.singlepoint()
+            except XTBException as exc:
+                print(exc)
+                print('try again')
+                res = calc.singlepoint()
         return res.get_energy()
 
 if __name__ == '__main__':

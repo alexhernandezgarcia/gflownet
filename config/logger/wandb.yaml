@@ -9,8 +9,7 @@ do:
 project_name: "GFlowNet"
 
 tags: 
-    - dummy1
-    - dummy2
+    - molecule
 sampler:
   policy:
     # Period (number of iterations) of saving models

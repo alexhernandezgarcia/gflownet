@@ -6,7 +6,7 @@ _target_: gflownet.envs.ad_molecule_simple.ADMoleculeSimple
 path_to_dataset: ???
 id: ad_molecule_simple
 # Fixed length of trajectories
-length_traj: 3
+length_traj: 10
 # Parameters of the fixed policy output distribution
 vonmises_mean: 0.0
 vonmises_concentration: 0.5
