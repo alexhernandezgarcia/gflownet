@@ -5,7 +5,6 @@ from typing import List, Tuple
 import itertools
 import numpy as np
 import numpy.typing as npt
-import pandas as pd
 import torch
 from torchtyping import TensorType
 from gflownet.envs.base import GFlowNetEnv
@@ -315,12 +314,14 @@ class Grid(GFlowNetEnv):
         self.state : list
             The sequence after executing the action
 
-        action : int
+        action : tuple
             Action executed
 
         valid : bool
             False, if the action is not allowed for the current state.
         """
+        if self.done:
+            return self.state, action_idx, False
         # If only possible action is eos, then force eos
         # All dimensions are at the maximum length
         if all([s == self.length - 1 for s in self.state]):
