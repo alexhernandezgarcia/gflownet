@@ -163,7 +163,9 @@ class GFlowNetEnv:
             reward[list(done)] = self.proxy2reward(self.proxy(states_proxy))
         return reward
 
-    def reward_torchbatch(self, states: TensorType["batch", "state_dim"], done: TensorType["batch"]):
+    def reward_torchbatch(
+        self, states: TensorType["batch", "state_dim"], done: TensorType["batch"]
+    ):
         """
         Computes the rewards of a batch of states, given a list of states and 'dones'
         """

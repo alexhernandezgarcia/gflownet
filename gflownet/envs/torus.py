@@ -208,8 +208,12 @@ class Torus(GFlowNetEnv):
         See state2policy().
         """
         device = states.device
-        cols = (states[:, :-1] + torch.arange(self.n_dim).to(device) * self.n_angles).to(int)
-        rows = torch.repeat_interleave(torch.arange(states.shape[0]).to(device), self.n_dim)
+        cols = (
+            states[:, :-1] + torch.arange(self.n_dim).to(device) * self.n_angles
+        ).to(int)
+        rows = torch.repeat_interleave(
+            torch.arange(states.shape[0]).to(device), self.n_dim
+        )
         state_policy = torch.zeros(
             (states.shape[0], self.n_angles * self.n_dim + 1)
         ).to(states)
@@ -299,6 +303,7 @@ class Torus(GFlowNetEnv):
         def _get_min_actions_to_source(source, ref):
             def _get_min_actions_dim(u, v):
                 return np.min([np.abs(u - v), np.abs(u - (v - self.n_angles))])
+
             return np.sum([_get_min_actions_dim(u, v) for u, v in zip(source, ref)])
 
         if state is None:
