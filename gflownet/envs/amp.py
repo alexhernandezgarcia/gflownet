@@ -121,25 +121,6 @@ class AMP(GFlowNetEnv):
             )
         self.alphabet = dict((i, a) for i, a in enumerate(self.vocab))
 
-    def copy(self):
-        return AMP(
-            self.max_seq_length,
-            self.min_seq_length,
-            self.n_alphabet,
-            self.min_word_len,
-            self.max_word_len,
-            self.proxy,
-            self.oracle,
-            self.reward_beta,
-            self.id,
-            self.energies_stats,
-            self.reward_norm,
-            self.reward_norm_std_mult,
-            self.reward_func,
-            self.denorm_proxy,
-            self.proxy_state_format,
-        )
-
     def get_actions_space(self):
         """
         Constructs list with all possible actions

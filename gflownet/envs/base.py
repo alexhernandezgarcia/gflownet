@@ -56,6 +56,10 @@ class GFlowNetEnv:
         assert self.reward_beta > 0
         assert self.min_reward > 0
 
+    def copy(self):
+        # return an instance of the environment
+        return self.__class__(**self.__dict__)
+
     def set_energies_stats(self, energies_stats):
         self.energies_stats = energies_stats
 
@@ -493,20 +497,23 @@ class Buffer:
         else:
             # Train set
             # (2) Separate train file path is provided
-            if train.path:
-                path = self.logger.logdir / Path("data") / train.path
-                self.train = pd.read_csv(path, index_col=0)
-            # (3) Make environment specific train set
-            elif train.n and train.seed:
-                self.train = self.env.make_train_set(
-                    ntrain=train.n,
-                    oracle=self.env.oracle,
-                    seed=train.seed,
-                    output_csv=train.output,
-                )
+            if train:
+                if train.path:
+                    path = self.logger.logdir / Path("data") / train.path
+                    self.train = pd.read_csv(path, index_col=0)
+                # (3) Make environment specific train set
+                elif train.n and train.seed:
+                    self.train = self.env.make_train_set(
+                        ntrain=train.n,
+                        oracle=self.env.oracle,
+                        seed=train.seed,
+                        output_csv=train.output,
+                    )
             # Test set
             # HACK
             self.test = None
+            if test:
+                self.test = pd.read_csv(test.path, index_col=0)
             # (2) Separate test file path is provided
             # if "all" in test and test.all:
             #     self.test = self.env.make_test_set(test)

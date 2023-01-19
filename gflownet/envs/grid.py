@@ -74,26 +74,6 @@ class Grid(GFlowNetEnv):
         elif self.proxy_state_format == "oracle":
             self.state2proxy = self.state2oracle
 
-    def copy(self):
-        return Grid(
-            self.n_dim,
-            self.length,
-            self.min_step_len,
-            self.max_step_len,
-            self.cells[0],
-            self.cells[-1],
-            self.id,
-            self.reward_beta,
-            self.reward_norm,
-            self.reward_norm_std_mult,
-            self.reward_func,
-            self.denorm_proxy,
-            self.energies_stats,
-            self.proxy,
-            self.oracle,
-            self.proxy_state_format,
-        )
-
     def get_actions_space(self):
         """
         Constructs list with all possible actions
@@ -175,7 +155,7 @@ class Grid(GFlowNetEnv):
           - state2obs(state): [1, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0] (length = 4)
                               |     0    |      3    |      1    |
         """
-    
+
         if state is None:
             state = self.state.copy()
         obs = np.zeros(self.obs_dim, dtype=np.float32)
