@@ -198,6 +198,25 @@ class Torus(GFlowNetEnv):
         state_policy[:, -1] = states[:, -1]
         return state_policy
 
+    def statetorch2policy(
+        self, states: TensorType["batch", "state_dim"]
+    ) -> TensorType["batch", "policy_output_dim"]:
+        """
+        Transforms a batch of torch states into the policy model format. The output is
+        a tensor of shape [n_states, n_angles * n_dim + 1].
+
+        See state2policy().
+        """
+        device = states.device
+        cols = (states[:, :-1] + torch.arange(self.n_dim).to(device) * self.n_angles).to(int)
+        rows = torch.repeat_interleave(torch.arange(states.shape[0]).to(device), self.n_dim)
+        state_policy = torch.zeros(
+            (states.shape[0], self.n_angles * self.n_dim + 1)
+        ).to(states)
+        state_policy[rows, cols.flatten()] = 1.0
+        state_policy[:, -1] = states[:, -1]
+        return state_policy
+
     def policy2state(self, state_policy: List) -> List:
         """
         Transforms the one-hot encoding version of a state given as argument
