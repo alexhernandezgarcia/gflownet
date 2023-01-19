@@ -125,18 +125,23 @@ class Torus(GFlowNetEnv):
 
     def true_density(self):
         # Return pre-computed true density if already stored
-        if self._true_density is not None:
-            return self._true_density
+        if self._true_density is not None and self._log_z is not None:
+            return self._true_density, self._log_z
         # Calculate true density
-        all_x = self.get_all_terminating_states()
-        all_oracle = self.state2oracle(all_x)
-        rewards = self.oracle(all_oracle)
+        x = self.get_all_terminating_states()
+        rewards = self.reward_batch(x)
+        self._z = rewards.sum()
         self._true_density = (
-            rewards / rewards.sum(),
+            rewards / self._z,
             rewards,
-            list(map(tuple, all_x)),
+            list(map(tuple, x)),
         )
+        import ipdb; ipdb.set_trace()
         return self._true_density
+
+    def fit_kde(x, kernel="exponential", bandwidth=0.1):
+        kde = KernelDensity(kernel=kernel, bandwidth=bandwidth).fit(last_states.numpy())
+
 
     def statebatch2proxy(self, states: List[List]) -> npt.NDArray[np.float32]:
         """

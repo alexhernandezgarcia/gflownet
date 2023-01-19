@@ -18,6 +18,7 @@ class Logger:
         do: dict,
         project_name: str,
         logdir: dict,
+        test: dict,
         sampler: dict,
         progress: bool,
         lightweight: bool,
@@ -27,6 +28,7 @@ class Logger:
         self.config = config
         self.do = do
         self.do.times = self.do.times and self.do.online
+        self.test = test
         if run_name is None:
             date_time = datetime.today().strftime("%d/%m-%H:%M:%S")
             run_name = "{}".format(
@@ -52,11 +54,6 @@ class Logger:
             print(f"logdir {logdir} already exists! - Ending run...")
         self.ckpts_dir = self.logdir / logdir.ckpts
         self.ckpts_dir.mkdir(parents=True, exist_ok=True)
-        self.test_period = (
-            np.inf
-            if sampler.test.period == None or sampler.test.period == -1
-            else sampler.test.period
-        )
         self.policy_period = (
             np.inf
             if sampler.policy.period == None or sampler.policy.period == -1
@@ -72,6 +69,12 @@ class Logger:
             if sampler.oracle.period == None or sampler.oracle.period == -1
             else sampler.oracle.period
         )
+
+    def do_test(self, step):
+        if self.test.period is None or self.test.period < 0:
+            return False
+        else:
+            return not step % self.test.period
 
     def add_tags(self, tags: list):
         if not self.do.online:

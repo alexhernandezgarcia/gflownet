@@ -17,9 +17,6 @@ sampler:
   train:
     # Period (number of iterations) of computing test metrics
     period: 1
-  test:
-    # Period (number of iterations) of computing test metrics
-    period: 1
   oracle:
     # Period (number of iterations) for computing oracle metrics
     period: 10

@@ -15,6 +15,7 @@ import pandas as pd
 import torch
 import torch.nn as nn
 import yaml
+import pickle
 from torch.distributions.categorical import Categorical
 from tqdm import tqdm
 
@@ -913,6 +914,9 @@ class GFlowNetAgent:
                 all_visited = states_term
             else:
                 all_visited.extend(states_term)
+            # Test
+            if self.logger.do_test(it):
+                test_metrics = self.test()
             # log metrics
             self.log_iter(
                 pbar,
@@ -956,6 +960,62 @@ class GFlowNetAgent:
         # Close logger
         if self.use_context == False:
             self.logger.end()
+
+    def test(self):
+        """
+        Computes the empirical distribution errors, as the mean L1 error and the KL
+        divergence between the true density of the space and the estimated density from all
+        states visited.
+        """
+        if self.buffer.test_pkl is not None:
+            with open(self.buffer.test_pkl, 'rb') as f:
+                dict_tt = pickle.load(f)
+                x_tt = dict_tt["x"]
+                if "reward" in dict_tt:
+                    rewards = dict_tt["reward"]
+                    update_pickle = False
+                else:
+                    rewards = self.env.reward_batch(x_tt)
+                    update_pickle = True
+            x_sampled, _ = self.sample_batch(self.env, self.logger.test.n, train=False)
+            if self.buffer.test_type is not None and self.buffer.test_type == "all":
+                z_true = rewards.sum()
+                density_true = self._tfloat(rewards / z_true)
+                hist = defaultdict(int)
+                for x in x_sampled:
+                    hist[tuple(x)] += 1
+                z_pred = sum([hist[tuple(x)] for x in x_tt]) + 1e-9
+                density_pred = self._tfloat([hist[tuple(x)] / z_pred for x in x_tt])
+            # L1 error
+            l1 = torch.abs(density_pred - density_true).mean().item()
+            # KL divergence
+            kl = (density_true * torch.log(density_pred / density_true)).sum().item()
+            # Update pickled test data
+            if update_pickle:
+                with open(self.buffer.test_pkl, 'wb') as f:
+                    dict_tt["reward"] = rewards
+                    pickle.dump(dict_tt, f)
+            return l1, kl
+
+        else:
+            return None
+        true_density, _, states_term = env.true_density()
+        if true_density is None:
+            return None, None
+        true_density = self._tfloat(true_density)
+        if not len(visited):
+            return 1, 100
+        for s in visited:
+            hist[s] += 1
+        Z = sum([hist[s] for s in states_term]) + epsilon
+        estimated_density = self._tfloat([hist[s] / Z for s in states_term])
+        # L1 error
+        l1 = abs(estimated_density - true_density).mean().item()
+        # KL divergence
+        kl = (true_density * torch.log(estimated_density / true_density)).sum().item()
+        import ipdb; ipdb.set_trace()
+        return l1, kl
+
 
     def get_log_corr(self, times):
         data_logq = []
@@ -1004,6 +1064,7 @@ class GFlowNetAgent:
         )
         # loss
         if not self.logger.lightweight:
+            import ipdb; ipdb.set_trace()
             l1_error, kl_div = empirical_distribution_error(
                 self.env, all_visited[-self.num_empirical_loss :]
             )
@@ -1181,29 +1242,6 @@ def make_opt(params, logZ, config):
     )
     return opt, lr_scheduler
 
-
-def empirical_distribution_error(env, visited, epsilon=1e-9):
-    """
-    Computes the empirical distribution errors, as the mean L1 error and the KL
-    divergence between the true density of the space and the estimated density from all
-    states visited.
-    """
-    true_density, _, states_term = env.true_density()
-    if true_density is None:
-        return None, None
-    true_density = self._tfloat(true_density)
-    if not len(visited):
-        return 1, 100
-    hist = defaultdict(int)
-    for s in visited:
-        hist[s] += 1
-    Z = sum([hist[s] for s in states_term]) + epsilon
-    estimated_density = self._tfloat([hist[s] / Z for s in states_term])
-    # L1 error
-    l1 = abs(estimated_density - true_density).mean().item()
-    # KL divergence
-    kl = (true_density * torch.log(estimated_density / true_density)).sum().item()
-    return l1, kl
 
 
 def logq(traj_list, actions_list, model, env, loginf=1000):

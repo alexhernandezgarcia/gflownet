@@ -3,6 +3,13 @@ _target_: logger.Logger
 do:
   online: False
   times: False
+
+# Test metrics
+test:
+  period: 1
+  n: 100
+
+# Log dir
 logdir:
   root: ./logs
   ckpts: ckpts
