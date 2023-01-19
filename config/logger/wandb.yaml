@@ -6,7 +6,8 @@ _target_: gflownet.utils.logger.Logger
 do:
   online: True
 
-project_name: "gflownet"
+project_name: "GFlowNet"
+
 tags: 
     - dummy1
     - dummy2
