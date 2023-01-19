@@ -18,6 +18,7 @@ from torch.distributions.categorical import Categorical
 from tqdm import tqdm
 
 from gflownet.envs.base import Buffer
+from memory_profiler import profile
 
 # Float and Long tensors
 _dev = [torch.device("cpu")]
@@ -322,6 +323,7 @@ class GFlowNetAgent:
         times["backward_actions"] += t1_a_model - t0_a_model
         return env, env.state, action, parents, parents_a
 
+    # @profile
     def sample_batch(
         self, envs, n_samples=None, train=True, model=None, progress=False
     ):
