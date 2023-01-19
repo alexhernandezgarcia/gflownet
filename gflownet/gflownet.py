@@ -18,7 +18,7 @@ from torch.distributions.categorical import Categorical
 from tqdm import tqdm
 
 from gflownet.envs.base import Buffer
-from memory_profiler import profile
+# from memory_profiler import profile
 
 # Float and Long tensors
 _dev = [torch.device("cpu")]
@@ -694,6 +694,7 @@ class GFlowNetAgent:
         loss_flow_ema = None
         # Generate list of environments
         envs = [self.env.copy() for _ in range(self.batch_size)]
+        print(envs)
         # envs = [copy.deepcopy(self.env).reset() for _ in range(self.batch_size)]
         # Train loop
         pbar = tqdm(range(1, self.n_train_steps + 1), disable=not self.logger.progress)
