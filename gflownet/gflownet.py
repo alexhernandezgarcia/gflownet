@@ -18,6 +18,7 @@ from torch.distributions.categorical import Categorical
 from tqdm import tqdm
 
 from gflownet.envs.base import Buffer
+
 # from memory_profiler import profile
 
 # Float and Long tensors
@@ -922,6 +923,7 @@ class GFlowNetAgent:
         dists = self.env.calculate_diversity(samples)
         dists = np.sort(dists)[::-1]
         dict_topk = {}
+        # todo: modify condition to evaluate novelty wither in AL setting or when we have buffer-train available
         if self.use_context:
             novelty = self.env.calculate_novelty(samples, dataset_states)
             novelty = np.sort(novelty)[::-1]
@@ -929,7 +931,8 @@ class GFlowNetAgent:
             print(f"\n Top-{k} Performance")
             mean_energy_topk = np.mean(energies[:k])
             mean_diversity_topk = np.mean(dists[:k])
-            mean_novelty_topk = np.mean(novelty[:k])
+            if self.use_context:
+                mean_novelty_topk = np.mean(novelty[:k])
             dict_topk.update({"mean_energy_top{}".format(k): mean_energy_topk})
             dict_topk.update(
                 {"mean_pairwise_distance_top{}".format(k): mean_diversity_topk}
@@ -942,7 +945,7 @@ class GFlowNetAgent:
                 print(f"\t Mean Energy: {mean_energy_topk}")
                 print(f"\t Mean Pairwise Distance: {mean_diversity_topk}")
                 if self.use_context:
-                    print(f"\t Min Distance from D0: {mean_novelty_topk}")
+                    print(f"\t Mean Min Distance from D0: {mean_novelty_topk}")
             self.logger.log_metrics(dict_topk, use_context=False)
 
 

@@ -11,6 +11,7 @@ from omegaconf import OmegaConf, DictConfig
 from gflownet.utils.common import flatten_config
 from pathlib import Path
 
+
 @hydra.main(config_path="./config", config_name="main", version_base="1.1")
 def main(config):
     # Get current directory and set it as root log dir for Logger
@@ -44,14 +45,13 @@ def main(config):
 
     # Sample from trained GFlowNet
     if config.n_samples > 0 and config.n_samples <= 1e5:
-        samples, times = gflownet.sample_batch(env, config.n_samples, train=False)
-        energies = env.oracle(env.state2oracle(samples))
-        gflownet.evaluate(
-            samples, energies
-        )
+        states, times = gflownet.sample_batch(env, config.n_samples, train=False)
+        samples = env.state2oracle(states)
+        energies = env.oracle(samples)
+        gflownet.evaluate(samples, energies)
         df = pd.DataFrame(
             {
-                "readable": [env.state2readable(s) for s in samples],
+                "readable": [env.state2readable(s) for s in states],
                 "energies": energies,
             }
         )
@@ -61,6 +61,7 @@ def main(config):
     print(gflownet.buffer.replay)
 
     logger.end()
+
 
 def set_seeds(seed):
     import torch
