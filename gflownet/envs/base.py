@@ -169,7 +169,7 @@ class GFlowNetEnv:
         """
         states_proxy = self.statetorch2proxy(states[done, :])
         reward = torch.zeros(done.shape[0], dtype=self.float, device=self.device)
-        if states_proxy.shape[0] > 0:
+        if states[done, :].shape[0] > 0:
             reward[done] = self.proxy2reward(self.proxy(states_proxy))
         return reward
 
