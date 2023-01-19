@@ -198,7 +198,11 @@ class GFlowNetEnv:
                 max=None,
             )
         elif self.reward_func == "identity":
-            return -1.0 * proxy_vals
+            return torch.clamp(
+                -1.0 * proxy_vals,
+                min=self.min_reward,
+                max=None,
+            )
         else:
             raise NotImplemented
 
