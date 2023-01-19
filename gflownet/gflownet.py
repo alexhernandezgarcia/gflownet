@@ -772,7 +772,7 @@ class GFlowNetAgent:
         ) = zip(*batch)
         # Keep only parents in trajectory
         parents = [
-            p[torch.where(torch.all(a == p_a))]
+            p[torch.where(torch.all(torch.eq(a, p_a), axis=1))]
             for a, p, p_a in zip(actions, parents, parents_a)
         ]
         traj_id = torch.cat([el[:1] for el in traj_id_parents])
