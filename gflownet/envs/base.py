@@ -167,7 +167,7 @@ class GFlowNetEnv:
         """
         Computes the rewards of a batch of states, given a list of states and 'dones'
         """
-        states_proxy = self.statetorch2proxy(states)[done, :]
+        states_proxy = self.statetorch2proxy(states[done, :])
         reward = torch.zeros(done.shape[0], dtype=self.float, device=self.device)
         if states_proxy.shape[0] > 0:
             reward[done] = self.proxy2reward(self.proxy(states_proxy))
