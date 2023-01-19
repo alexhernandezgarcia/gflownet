@@ -1,6 +1,7 @@
 import dgl
 import numpy as np
 import numpy.typing as npt
+import torch
 
 from typing import List, Tuple
 from torchtyping import TensorType
@@ -32,10 +33,8 @@ class ADMoleculeSimple(ContinuousTorus):
     ):
         self.atom_positions_dataset = AtomPositionsDataset(path_to_dataset)
         atom_positions = self.atom_positions_dataset.sample()
-        self.conformer = ConformerBase(atom_positions, constants.ad_smiles, 
-                                       constants.ad_atom_types, constants.ad_free_tas)
+        self.conformer = ConformerBase(atom_positions, constants.ad_smiles, constants.ad_free_tas)
         n_dim = len(self.conformer.freely_rotatable_tas)
-        print(n_dim)
         super(ADMoleculeSimple, self).__init__(
             n_dim=n_dim,
             length_traj=length_traj,
@@ -77,8 +76,19 @@ class ADMoleculeSimple(ContinuousTorus):
             np_states = states.numpy()
         else: 
             np_states = states.cpu().numpy()
+        result = self.statebatch2proxy(np_states)
+        return result
+
+    def statebatch2proxy(
+        self, states: List[List]
+    ) -> List[Tuple[npt.NDArray, npt.NDArray]]:
+        """
+        Prepares a batch of states in "GFlowNet format" for the proxy: a tensor where
+        each state is a row of length n_dim with an angle in radians. The n_actions
+        item is removed.
+        """
         states_proxy = []
-        for st in np_states:
+        for st in states:
             conf = self.sync_conformer_with_state(st)
             states_proxy.append((conf.get_atom_positions(), conf.get_atomic_numbers()))
         return states_proxy

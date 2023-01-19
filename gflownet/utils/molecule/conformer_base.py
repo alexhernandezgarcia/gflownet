@@ -38,16 +38,23 @@ def get_dummy_ad_conf_base():
 
 
 class ConformerBase():
-    def __init__(self, atom_positions, smiles, atom_types, freely_rotatable_tas=None):
+    def __init__(self, atom_positions, smiles, freely_rotatable_tas=None):
         """
         :param atom_positions: numpy.ndarray of shape [num_atoms, 3] of dtype float64
         """
+        self.smiles = smiles
         self.rdk_mol = self.get_mol_from_smiles(smiles)
         self.rdk_conf = self.embed_mol_and_get_conformer(self.rdk_mol)
 
         self.set_atom_positions(atom_positions)
 
-        self.freely_rotatable_tas = freely_rotatable_tas 
+        self.freely_rotatable_tas = freely_rotatable_tas
+
+    def __deepcopy__(self, memo):
+        atom_positions = self.get_atom_positions()
+        cls = self.__class__
+        new_obj = cls.__new__(cls, atom_positions, self.smiles, self.freely_rotatable_tas)
+        return new_obj
         
     def get_mol_from_smiles(self, smiles):
         """Create RDKit molecule from SMILES string
@@ -89,7 +96,7 @@ class ConformerBase():
         return self.rdk_mol.GetNumAtoms()
 
     def set_torsion_angle(self, torsion_angle, value):
-        rdMolTransforms.SetDihedralRad(self.rdk_conf, *torsion_angle, value)
+        rdMolTransforms.SetDihedralRad(self.rdk_conf, *torsion_angle, float(value))
     
     def get_all_torsion_angles(self):
         """

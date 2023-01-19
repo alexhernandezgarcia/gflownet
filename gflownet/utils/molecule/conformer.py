@@ -19,7 +19,7 @@ class Conformer(ConformerBase):
         """
         :param atom_positions: numpy.ndarray of shape [num_atoms, 3] of dtype float64
         """
-        super(Conformer, self).__init__(atom_positions, smiles, atom_types, freely_rotatable_tas)
+        super(Conformer, self).__init__(atom_positions, smiles, freely_rotatable_tas)
         
         self.featuraiser = MolDGLFeaturizer(atom_types)
         # dgl graph is not supposed to be consistent with rdk_conf untill it is returned via .dgl_graph
