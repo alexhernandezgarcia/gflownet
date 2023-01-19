@@ -35,6 +35,7 @@ class ADMoleculeSimple(ContinuousTorus):
         self.conformer = ConformerBase(atom_positions, constants.ad_smiles, 
                                        constants.ad_atom_types, constants.ad_free_tas)
         n_dim = len(self.conformer.freely_rotatable_tas)
+        print(n_dim)
         super(ADMoleculeSimple, self).__init__(
             n_dim=n_dim,
             length_traj=length_traj,
@@ -79,13 +80,13 @@ class ADMoleculeSimple(ContinuousTorus):
         states_proxy = []
         for st in np_states:
             conf = self.sync_conformer_with_state(st)
-            states_proxy.append((conf.get_atomic_numbers(), conf.get_atom_positions()))
+            states_proxy.append((conf.get_atom_positions(), conf.get_atomic_numbers()))
         return states_proxy
 
-    def reset(self):
-        super().reset()
-        # no resets of the condition, keep it simple
-        return self
+    # def reset(self):
+    #     super().reset()
+    #     # no resets of the condition, keep it simple
+    #     return self
 
 
 if __name__ == '__main__':

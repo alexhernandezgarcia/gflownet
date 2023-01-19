@@ -9,6 +9,7 @@ from rdkit.Chem import rdMolTransforms
 from rdkit.Chem import TorsionFingerprints
 from rdkit.Geometry.rdGeometry import Point3D
 
+from gflownet.utils.molecule import constants
 
 def get_torsion_angles_atoms_list(mol):
     return [x[0][0] for x in TorsionFingerprints.CalculateTorsionLists(mol)[0]]
@@ -22,6 +23,18 @@ def get_all_torsion_angles(mol, conf):
     ta_atoms = get_torsion_angles_atoms_list(mol)
     ta_values = get_torsion_angles_values(conf, ta_atoms)
     return {k:v for k,v in zip(ta_atoms, ta_values)}
+
+def get_dummy_ad_atom_positions():
+    rmol = Chem.MolFromSmiles(constants.ad_smiles)
+    rmol = Chem.AddHs(rmol)
+    AllChem.EmbedMolecule(rmol)
+    rconf = rmol.GetConformer()
+    return rconf.GetPositions()
+
+def get_dummy_ad_conf_base():
+    pos = get_dummy_ad_atom_positions()
+    conf = ConformerBase(pos, constants.ad_smiles, constants.ad_atom_types, constants.ad_free_tas)
+    return conf
 
 
 class ConformerBase():
@@ -107,12 +120,8 @@ class ConformerBase():
         self.set_torsion_angle(torsion_angle, initial_value + increment)
 
 
-
-
-
 if __name__ == '__main__':
     from tabulate import tabulate
-    from gflownet.utils.molecule import constants
 
     rmol = Chem.MolFromSmiles(constants.ad_smiles)
     rmol = Chem.AddHs(rmol)
