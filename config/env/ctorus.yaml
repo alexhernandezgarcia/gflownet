@@ -1,7 +1,7 @@
 defaults:
   - base
 
-_target_: gflownet.envs.ctorus.HybridTorus
+_target_: gflownet.envs.ctorus.ContinuousTorus
 
 id: ctorus
 func: sincos
