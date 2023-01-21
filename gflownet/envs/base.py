@@ -528,7 +528,6 @@ class Buffer:
         logger=None,
         **kwargs,
     ):
-        # HACK
         self.logger = logger
         self.env = env
         self.replay_capacity = replay_capacity
@@ -629,6 +628,12 @@ class Buffer:
         """
         if config is None:
             return None
+        elif "path" in config and config.path is not None:
+            path = self.logger.logdir / Path("data") / config.path
+            df = pd.read_csv(path, index_col=0)
+            # No need to compute energies, return df
+            # TODO: check if state2readable transformation is required.
+            return df
         elif "type" not in config:
             return None
         elif config.type == "all" and hasattr(self.env, "get_all_terminating_states"):
