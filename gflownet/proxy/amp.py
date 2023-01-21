@@ -15,6 +15,8 @@ class AMPOracleWrapper(Proxy):
         device,
     ):
         super().__init__()
+        # TODO: assert oracle_split in ["D2_target", "D2_target_fid1", "D2_target_fid2"]
+        # TODO: assert oracle_type in ["MLP"]
         self.oracle = get_test_oracle(
             oracle_split,
             model=oracle_type,
