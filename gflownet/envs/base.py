@@ -62,7 +62,7 @@ class GFlowNetEnv:
 
     def set_float_precision(self, dtype):
         self.float = dtype
-        
+
     def copy(self):
         # return an instance of the environment
         return self.__class__(**self.__dict__)

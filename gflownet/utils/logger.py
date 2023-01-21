@@ -36,6 +36,7 @@ class Logger:
         if self.do.online:
             import wandb
             import matplotlib.pyplot as plt
+
             self.wandb = wandb
             self.plt = plt
             self.run = self.wandb.init(
