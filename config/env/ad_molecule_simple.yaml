@@ -3,7 +3,7 @@ defaults:
 
 _target_: gflownet.envs.ad_molecule_simple.ADMoleculeSimple
 
-path_to_dataset: ???
+path_to_dataset: ${user.data.alanine_dipeptide}
 id: ad_molecule_simple
 # Fixed length of trajectories
 length_traj: 10
