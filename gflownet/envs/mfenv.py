@@ -8,9 +8,6 @@ import numpy as np
 class MultiFidelityEnvWrapper(GFlowNetEnv):
     """
     Multi-fidelity environment for GFlowNet.
-    Define a class that takes any instance of the derived GFlowNetEnv class and adds support for multi-fidelity.
-    The following members must be defined:
-    self.fidelities: List[int] = [0, 1, 2, 3]
     """
     def __init__(self, env, n_fid, oracle):
         self.env = env
