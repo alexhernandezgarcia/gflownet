@@ -214,6 +214,10 @@ class ContinuousTorus(HybridTorus):
             .to(dtype=self.float, device=device)
         )
         actions_tensor[mask_states_sample, 1::2] = angles[mask_states_sample]
+        actions_tensor[mask_stop_actions.flatten()] = torch.zeros(
+            actions_tensor.shape[1]
+        ).to(actions_tensor)
+        actions_tensor[mask_stop_actions.flatten(), 0] = 2.0
         actions = [tuple(a.tolist()) for a in actions_tensor]
         return actions, logprobs
 
