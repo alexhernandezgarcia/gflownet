@@ -7,7 +7,7 @@ import numpy as np
 import numpy.typing as npt
 import pandas as pd
 import torch
-from gflownet.envs.ctorus import HybridTorus
+from gflownet.envs.htorus import HybridTorus
 from torch.distributions import Categorical, Uniform, VonMises
 from torchtyping import TensorType
 
