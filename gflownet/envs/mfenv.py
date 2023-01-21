@@ -58,7 +58,7 @@ class MultiFidelityEnvWrapper(GFlowNetEnv):
         return mask
         # TODO: do we need check done if fid is invalid?
 
-    def state2polciy(self, state: List = None):
+    def state2policy(self, state: List = None):
         state_proxy = self.env.state2policy(state)
         fid_proxy = np.zeros((self.n_fid), dtype=np.float32)
         fid_proxy[state[-1]] = 1
