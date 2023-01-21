@@ -207,7 +207,13 @@ class GFlowNetAgent:
             raise ValueError("Backward Policy cannot be a nn in flowmatch.")
 
     def forward_sample(
-        self, envs, times, sampling_method="policy", model=None, temperature=1.0
+        self,
+        envs,
+        times,
+        sampling_method="policy",
+        model=None,
+        temperature=1.0,
+        random_action_prob=0.0,
     ):
         """
         Performs a forward action on each environment of a list.
@@ -238,9 +244,8 @@ class GFlowNetAgent:
         )
         t0_a_model = time.time()
         if sampling_method == "uniform":
-            # TODO: update with policy_output_dim
             actions = self.rng.integers(
-                0, len(self.env.action_space), len(states)
+                0, self.env.policy_output_dim, len(states)
             ).tolist()
         elif sampling_method == "policy" or sampling_method == "mixt":
             with torch.no_grad():
@@ -254,13 +259,14 @@ class GFlowNetAgent:
                 if self.logger.debug:
                     raise ValueError("Action could not be sampled from model!")
             if sampling_method == "mixt":
+                # TODO: change to action_logits implementation if need be
                 random_values = [self.rng.uniform() for _ in range(len(envs))]
                 uniform_actions = self.rng.integers(
-                    0, len(self.env.action_space), len(states)
+                    0, self.env.policy_output_dim, len(states)
                 ).tolist()
                 actions = [
                     uniform_actions[i]
-                    if random_values[i] <= self.random_action_prob
+                    if random_values[i] <= random_action_prob
                     else actions[i]
                     for i in range(len(envs))
                 ]
@@ -374,7 +380,9 @@ class GFlowNetAgent:
         if sampling_method == "uniform":
             action_idx = self.rng.integers(low=0, high=len(parents_a))
         elif sampling_method == "policy" or sampling_method == "mixt":
-            action_logits = model(tf(parents))[torch.arange(len(parents)), parents_a]
+            action_logits = model(self._tfloat(parents))[
+                torch.arange(len(parents)), parents_a
+            ]
             action_logits /= temperature
             if all(torch.isfinite(action_logits).flatten()):
                 action_idx = Categorical(logits=action_logits).sample().item()
@@ -534,6 +542,7 @@ class GFlowNetAgent:
                         sampling_method="policy",
                         model=self.forward_policy,
                         temperature=1.0,
+                        random_action_prob=self.random_action_prob,
                     )
                 else:
                     envs, actions, valids = self.forward_sample(

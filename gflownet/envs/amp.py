@@ -88,8 +88,9 @@ class AMP(GFlowNetEnv):
         # TODO: self.proxy_input_dim = self.n_alphabet * self.max_seq_length
         self.min_word_len = min_word_len
         self.max_word_len = max_word_len
+        # TODO: eos re-initalised in ger_actions_space
+        self.eos = self.n_alphabet
         self.action_space = self.get_actions_space()
-        self.eos = len(self.action_space)
         self.fixed_policy_output = self.get_fixed_policy_output()
         self.policy_output_dim = len(self.fixed_policy_output)
         self.policy_input_dim = len(self.state2policy())
@@ -131,6 +132,7 @@ class AMP(GFlowNetEnv):
     def get_actions_space(self):
         """
         Constructs list with all possible actions
+        If min_word_len = n_alphabet = 2, actions: [(0, 0,), (1, 1)] and so on
         """
         assert self.max_word_len >= self.min_word_len
         valid_wordlens = np.arange(self.min_word_len, self.max_word_len + 1)
@@ -140,7 +142,8 @@ class AMP(GFlowNetEnv):
             actions_r = [el for el in itertools.product(alphabet, repeat=r)]
             actions += actions_r
         # Add "eos" action
-        actions = actions + [(self.eos,)]
+        # eos != n_alphabet in the init because it would break if max_word_len >1
+        actions = actions + [(len(actions),)]
         return actions
 
     def get_mask_invalid_actions_forward(self, state=None, done=None):
@@ -159,8 +162,9 @@ class AMP(GFlowNetEnv):
         if seq_length < self.min_seq_length:
             mask[self.eos] = True
         # Iterate till before the eos action
+        # TODO: ensure it does not break in multi-fidelity
         for idx, a in enumerate(self.action_space[:-1]):
-            if seq_length + len(a[0]) > self.max_seq_length:
+            if seq_length + len(list(a)) > self.max_seq_length:
                 mask[idx] = True
         return mask
 
@@ -200,12 +204,10 @@ class AMP(GFlowNetEnv):
         )
         return self._true_density
 
-
     def state2oracle(self, state: List = None):
         return "".join(self.state2readable(state))
 
     def statebatch2oracle(self, state_batch: List[List]):
-        # TODO
         """
         Prepares a sequence in "GFlowNet format" for the oracles.
 
@@ -255,28 +257,33 @@ class AMP(GFlowNetEnv):
     def statebatch2policy(self, states: List[List]) -> npt.NDArray[np.float32]:
         """
         Transforms a batch of states into the policy model format. The output is a numpy
-        array of shape [n_states, n_angles * n_dim + 1].
+        array of shape [n_states, n_alphabet * max_seq_len].
 
         See state2policy().
         """
-        cols, lengths = zip(
-            *[
-                (state + np.arange(len(state)) * self.n_alphabet, len(state))
-                for state in states
-            ]
-        )
-        rows = np.repeat(np.arange(len(states)), lengths)
         state_policy = np.zeros(
             (len(states), self.n_alphabet * self.max_seq_length), dtype=np.float32
         )
-        state_policy[rows, np.concatenate(cols)] = 1.0
+        if list(map(len, states)) != [0 for s in states]:
+            states = np.array(states)
+            cols = states + np.arange(len(states)) * self.n_alphabet
+            rows = np.repeat(np.arange(len(states)), self.max_seq_length)
+            state_policy = np.zeros(
+                (len(states), self.n_alphabet * self.max_seq_length), dtype=np.float32
+            )
+            state_policy[rows, np.concatenate(cols)] = 1.0
         return state_policy
 
-    def statetorch2policy(self, states: TensorType["batch", "state_dim"]) -> TensorType["batch", "policy_output_dim"]:
+    def statetorch2policy(
+        self, states: TensorType["batch", "state_dim"]
+    ) -> TensorType["batch", "policy_output_dim"]:
         device = states.device
         cols, lengths = zip(
             *[
-                (states + torch.arange(len(states)).to(device) * self.n_alphabet, len(state))
+                (
+                    states + torch.arange(len(states)).to(device) * self.n_alphabet,
+                    len(state),
+                )
                 for state in states
             ]
         )
@@ -284,7 +291,9 @@ class AMP(GFlowNetEnv):
             torch.arange(states.shape[0]).to(device), lengths
         )
         state_policy = torch.zeros(
-            (states.shape[0], self.n_alphabet * self.max_seq_length), dtype=torch.float32, device=device
+            (states.shape[0], self.n_alphabet * self.max_seq_length),
+            dtype=torch.float32,
+            device=device,
         ).to(states)
         state_policy[rows, cols.flatten()] = 1.0
         return state_policy
@@ -301,7 +310,9 @@ class AMP(GFlowNetEnv):
           - policy2state(state_policy): [0, 0, 1, 3, 2]
                     A, A, T, G, C
         """
-        mat_state_policy = np.reshape(state_policy, (self.max_seq_length, self.n_alphabet))
+        mat_state_policy = np.reshape(
+            state_policy, (self.max_seq_length, self.n_alphabet)
+        )
         state = np.where(mat_state_policy)[1].tolist()
         return state
 
@@ -388,9 +399,6 @@ class AMP(GFlowNetEnv):
         If action_idx is smaller than eos (no stop), add action to next
         position.
 
-        See: step_daug()
-        See: step_chain()
-
         Args
         ----
         action_idx : int
@@ -414,7 +422,7 @@ class AMP(GFlowNetEnv):
             return self.state, (self.eos,), True
         # If action is not eos, then perform action
         if action[0] != self.eos:
-            action = self.action_space[action[0]]
+            action = self.action_space[action]
             state_next = self.state + list(action)
             if len(state_next) > self.max_seq_length:
                 valid = False
@@ -431,9 +439,7 @@ class AMP(GFlowNetEnv):
                 self.done = True
                 valid = True
                 self.n_actions += 1
-            return self.state, (self.eos, ), valid
-
-
+            return self.state, (self.eos,), valid
 
     # TODO: Remove because deprecated
     # def no_eos_mask(self, state=None):
@@ -443,7 +449,6 @@ class AMP(GFlowNetEnv):
     #     if state is None:
     #         state = self.state.copy()
     #     return len(state) < self.min_seq_length
-
 
     def load_dataset(self, split="D1", nfold=5):
         # df_train = pd.read_csv(
@@ -509,7 +514,7 @@ class AMP(GFlowNetEnv):
         nfold=5,
         load_precomputed_scores=False,
     ):
-    # TODO: Disciuss whether we want to make dataset as we did for aptamers because the dataset here is a little specifc (exclusive of oracle)
+        # TODO: Disciuss whether we want to make dataset as we did for aptamers because the dataset here is a little specifc (exclusive of oracle)
         """
         Constructs a randomly sampled train set by calling the oracle
 
