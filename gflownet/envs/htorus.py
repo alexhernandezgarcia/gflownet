@@ -454,5 +454,3 @@ class HybridTorus(GFlowNetEnv):
         angles = list(itertools.product(*linspaces))
         states = [list(el) + [self.length_traj] for el in angles]
         return states
-
-
