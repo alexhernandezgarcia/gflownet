@@ -92,7 +92,7 @@ class AMP(GFlowNetEnv):
         self.eos = len(self.action_space)
         self.fixed_policy_output = self.get_fixed_policy_output()
         self.policy_output_dim = len(self.fixed_policy_output)
-        self.policy_input_dim = self.n_alphabet * self.max_seq_length
+        self.policy_input_dim = len(self.state2policy())
         self.max_traj_len = self.get_max_traj_len()
         self.vocab = [
             "A",
@@ -118,9 +118,9 @@ class AMP(GFlowNetEnv):
         ]
         # TODO: Change depening on how it is assigned for the torus
         if self.proxy_state_format == "ohe":
-            self.state2proxy = self.statebatch2obs
+            self.state2proxy = self.statebatch2policy
         elif self.proxy_state_format == "oracle":
-            self.state2proxy = self.state2oracle
+            self.state2proxy = self.statebatch2oracle
         else:
             raise ValueError(
                 "Invalid proxy_state_format: {}".format(self.proxy_state_format)
@@ -140,15 +140,71 @@ class AMP(GFlowNetEnv):
             actions_r = [el for el in itertools.product(alphabet, repeat=r)]
             actions += actions_r
         # Add "eos" action
-        actions = actions + [(self.eos, 0)]
+        actions = actions + [(self.eos,)]
         return actions
 
-    def get_max_traj_len(
-        self,
-    ):
-        return self.max_seq_length / self.min_word_len + 1
+    def get_mask_invalid_actions_forward(self, state=None, done=None):
+        """
+        Returns a vector of length the action space (where action space includes eos): True if action is invalid
+        given the current state, False otherwise.
+        """
+        if state is None:
+            state = self.state.copy()
+        if done is None:
+            done = self.done
+        if done:
+            return [True for _ in range(len(self.action_space))]
+        mask = [False for _ in range(len(self.action_space))]
+        seq_length = len(state)
+        if seq_length < self.min_seq_length:
+            mask[self.eos] = True
+        # Iterate till before the eos action
+        for idx, a in enumerate(self.action_space[:-1]):
+            if seq_length + len(a[0]) > self.max_seq_length:
+                mask[idx] = True
+        return mask
 
-    def state2oracle(self, state_list: List):
+    def true_density(self, max_states=1e6):
+        """
+        Computes the reward density (reward / sum(rewards)) of the whole space, if the
+        dimensionality is smaller than specified in the arguments.
+
+        Returns
+        -------
+        Tuple:
+          - normalized reward for each state
+          - states
+          - (un-normalized) reward)
+        """
+        if self._true_density is not None:
+            return self._true_density
+        if self.n_alphabet**self.max_seq_length > max_states:
+            return (None, None, None)
+        state_all = np.int32(
+            list(
+                itertools.product(*[list(range(self.n_alphabet))] * self.max_seq_length)
+            )
+        )
+        traj_rewards, state_end = zip(
+            *[
+                (self.proxy(state), state)
+                for state in state_all
+                if len(self.get_parents(state, False)[0]) > 0 or sum(state) == 0
+            ]
+        )
+        traj_rewards = np.array(traj_rewards)
+        self._true_density = (
+            traj_rewards / traj_rewards.sum(),
+            list(map(tuple, state_end)),
+            traj_rewards,
+        )
+        return self._true_density
+
+
+    def state2oracle(self, state: List = None):
+        return "".join(self.state2readable(state))
+
+    def statebatch2oracle(self, state_batch: List[List]):
         # TODO
         """
         Prepares a sequence in "GFlowNet format" for the oracles.
@@ -158,8 +214,15 @@ class AMP(GFlowNetEnv):
         state_list : list of lists
             List of sequences.
         """
-        queries = ["".join(self.state2readable(state)) for state in state_list]
-        return queries
+        state_oracle = [self.state2oracle(state) for state in state_batch]
+        return state_oracle
+
+    def get_max_traj_len(
+        self,
+    ):
+        return self.max_seq_length / self.min_word_len + 1
+
+    # TODO: statetorch2oracle?
 
     def state2policy(self, state=None):
         """
@@ -175,46 +238,55 @@ class AMP(GFlowNetEnv):
           - state2obs(state): [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0]
                               |     A    |      T    |      G    |      C    |
 
-        If max_seq_length > len(s), the last (max_seq_length - len(s)) blocks are all
+        If max_seq_length > len(state), the last (max_seq_length - len(state)) blocks are all
         0s.
         """
-
         if state is None:
             state = self.state.copy()
-
-        state_policy = np.zeros(self.max_seq_length * self.n_alphabet + 1, dtype=np.float32)
+        state_policy = np.zeros(self.max_seq_length * self.n_alphabet, dtype=np.float32)
         if len(state) > 0:
             if hasattr(
                 state[0], "device"
             ):  # if it has a device at all, it will be cuda (CPU numpy array has no dev
                 state = [subseq.cpu().detach().numpy() for subseq in state]
-            # TODO: should this be len(state) or max_seq_length?
             state_policy[(np.arange(len(state)) * self.n_alphabet + state)] = 1
         return state_policy
 
     def statebatch2policy(self, states: List[List]) -> npt.NDArray[np.float32]:
-        states = np.array(states)
-        cols = states + np.arange(self.max_seq_length) * self.n_alphabet 
-        rows = np.repeat(np.arange(self.max_seq_length), self.n_alphabet)
-        state_policy = np.zeros(
-            (len(states), self.max_seq_length * self.n_alphabet + 1), dtype=np.float32
+        """
+        Transforms a batch of states into the policy model format. The output is a numpy
+        array of shape [n_states, n_angles * n_dim + 1].
+
+        See state2policy().
+        """
+        cols, lengths = zip(
+            *[
+                (state + np.arange(len(state)) * self.n_alphabet, len(state))
+                for state in states
+            ]
         )
-        state_policy[rows, cols.flatten()] = 1.0
+        rows = np.repeat(np.arange(len(states)), lengths)
+        state_policy = np.zeros(
+            (len(states), self.n_alphabet * self.max_seq_length), dtype=np.float32
+        )
+        state_policy[rows, np.concatenate(cols)] = 1.0
         return state_policy
 
     def statetorch2policy(self, states: TensorType["batch", "state_dim"]) -> TensorType["batch", "policy_output_dim"]:
         device = states.device
-        cols = (
-            states[:, :-1] + torch.arange(len(states)).to(device) * self.n_alphabet
-        ).to(int)
+        cols, lengths = zip(
+            *[
+                (states + torch.arange(len(states)).to(device) * self.n_alphabet, len(state))
+                for state in states
+            ]
+        )
         rows = torch.repeat_interleave(
-            torch.arange(states.shape[0]).to(device), self.n_alphabet
+            torch.arange(states.shape[0]).to(device), lengths
         )
         state_policy = torch.zeros(
-            (states.shape[0], self.n_alphabet * self.max_seq_length + 1)
+            (states.shape[0], self.n_alphabet * self.max_seq_length), dtype=torch.float32, device=device
         ).to(states)
         state_policy[rows, cols.flatten()] = 1.0
-        state_policy[:, -1] = states[:, -1]
         return state_policy
 
     def policy2state(self, state_policy: List) -> List:
@@ -232,9 +304,6 @@ class AMP(GFlowNetEnv):
         mat_state_policy = np.reshape(state_policy, (self.max_seq_length, self.n_alphabet))
         state = np.where(mat_state_policy)[1].tolist()
         return state
-
-    # TODO:
-    # statebatch2proxy, statetorch2proxy after discussing whether it should be proxy or one-hot
 
     def state2readable(self, state: List) -> str:
         """
@@ -258,6 +327,8 @@ class AMP(GFlowNetEnv):
         self.state = []
         self.done = False
         self.id = env_id
+        # TODO: (Discuss) Apatamer implementation has n_actions -- it is not required right?
+        self.n_actions = 0
         return self
 
     def get_parents(self, state=None, done=None, action=None):
@@ -288,7 +359,7 @@ class AMP(GFlowNetEnv):
         if done is None:
             done = self.done
         if done:
-            return [self.state2obs(state)], [self.eos]
+            return [state], [self.eos]
         else:
             parents = []
             actions = []
@@ -297,7 +368,7 @@ class AMP(GFlowNetEnv):
                 if not isinstance(is_parent, bool):
                     is_parent = all(is_parent)
                 if is_parent:
-                    parents.append(self.state2obs(state[: -len(a)]))
+                    parents.append(state[: -len(a)])
                     actions.append(idx)
         return parents, actions
 
@@ -340,7 +411,7 @@ class AMP(GFlowNetEnv):
         if len(self.state) == self.max_seq_length:
             self.done = True
             self.n_actions += 1
-            return self.state, (self.eos, 0), True
+            return self.state, (self.eos,), True
         # If action is not eos, then perform action
         if action[0] != self.eos:
             action = self.action_space[action[0]]
@@ -360,27 +431,9 @@ class AMP(GFlowNetEnv):
                 self.done = True
                 valid = True
                 self.n_actions += 1
-            return self.state, (self.eos, 0), valid
+            return self.state, (self.eos, ), valid
 
-    def get_mask_invalid_actions_forward(self, state=None, done=None):
-        """
-        Returns a vector of length the action space (where action space includes eos): True if action is invalid
-        given the current state, False otherwise.
-        """
-        if state is None:
-            state = self.state.copy()
-        if done is None:
-            done = self.done
-        if done:
-            return [True for _ in range(len(self.action_space))]
-        mask = [False for _ in range(len(self.action_space))]
-        seq_length = len(state)
-        if seq_length < self.min_seq_length:
-            mask[self.eos] = True
-        for idx, a in enumerate(self.action_space):
-            if seq_length + len(a) > self.max_seq_length:
-                mask[idx] = True
-        return mask
+
 
     # TODO: Remove because deprecated
     # def no_eos_mask(self, state=None):
@@ -391,41 +444,6 @@ class AMP(GFlowNetEnv):
     #         state = self.state.copy()
     #     return len(state) < self.min_seq_length
 
-    def true_density(self, max_states=1e6):
-        """
-        Computes the reward density (reward / sum(rewards)) of the whole space, if the
-        dimensionality is smaller than specified in the arguments.
-
-        Returns
-        -------
-        Tuple:
-          - normalized reward for each state
-          - states
-          - (un-normalized) reward)
-        """
-        if self._true_density is not None:
-            return self._true_density
-        if self.n_alphabet**self.max_seq_length > max_states:
-            return (None, None, None)
-        state_all = np.int32(
-            list(
-                itertools.product(*[list(range(self.n_alphabet))] * self.max_seq_length)
-            )
-        )
-        traj_rewards, state_end = zip(
-            *[
-                (self.proxy(state), state)
-                for state in state_all
-                if len(self.get_parents(state, False)[0]) > 0 or sum(state) == 0
-            ]
-        )
-        traj_rewards = np.array(traj_rewards)
-        self._true_density = (
-            traj_rewards / traj_rewards.sum(),
-            list(map(tuple, state_end)),
-            traj_rewards,
-        )
-        return self._true_density
 
     def load_dataset(self, split="D1", nfold=5):
         # df_train = pd.read_csv(
