@@ -110,7 +110,7 @@ class GFlowNetAgent:
             print(f"\tMin score: {self.buffer.test['energies'].min()}")
             print(f"\tMax score: {self.buffer.test['energies'].max()}")
         # Policy models
-        self.forward_policy = Policy(policy.forward, self.env)
+        self.forward_policy = Policy(policy.forward, self.env, self.device, self.float)
         if policy.forward.checkpoint:
             self.logger.set_forward_policy_ckpt_path(policy.forward.checkpoint)
             # TODO: re-write the logic and conditions to reload a model
@@ -124,7 +124,7 @@ class GFlowNetAgent:
         if policy.backward:
             self.backward_policy = Policy(
                 policy.backward,
-                self.env,
+                self.env, self.device, self.float,
                 base=self.forward_policy,
             )
         else:
@@ -139,14 +139,11 @@ class GFlowNetAgent:
                 print("Reloaded GFN backward policy model Checkpoint")
         else:
             self.logger.set_backward_policy_ckpt_path(None)
-        if self.backward_policy and self.backward_policy.is_model:
-            self.backward_policy.model.to(self.device)
         self.ckpt_period = policy.ckpt_period
         if self.ckpt_period in [None, -1]:
             self.ckpt_period = np.inf
         # Optimizer
         if self.forward_policy.is_model:
-            self.forward_policy.model.to(self.device)
             self.target = copy.deepcopy(self.forward_policy.model)
             self.opt, self.lr_scheduler = make_opt(
                 self.parameters(), self.logZ, optimizer
@@ -1047,9 +1044,13 @@ class GFlowNetAgent:
 
 
 class Policy:
-    def __init__(self, config, env, base=None):
+    def __init__(self, config, env, device, float_precision, base=None):
+        # Device and float precision
+        self.device = device
+        self.float = float_precision
+        # Input and output dimensions
         self.state_dim = env.policy_input_dim
-        self.fixed_output = env.fixed_policy_output
+        self.fixed_output = torch.tensor(env.fixed_policy_output).to(dtype=self.float, device=self.device)
         self.output_dim = len(self.fixed_output)
         if "shared_weights" in config:
             self.shared_weights = config.shared_weights
@@ -1074,6 +1075,7 @@ class Policy:
             self.type = self.base.type
         else:
             raise "Policy type must be defined if shared_weights is False"
+        # Instantiate policy
         if self.type == "fixed":
             self.model = self.fixed_distribution
             self.is_model = False
@@ -1085,6 +1087,8 @@ class Policy:
             self.is_model = True
         else:
             raise "Policy model type not defined"
+        if self.is_model:
+            self.model.to(self.device)
 
     def __call__(self, states):
         return self.model(states)
@@ -1141,14 +1145,14 @@ class Policy:
         Returns the fixed distribution specified by the environment.
         Args: states: tensor
         """
-        return self._tfloat(torch.tile(self.fixed_output, (len(states), 1)))
+        return torch.tile(self.fixed_output, (len(states), 1)).to(dtype=self.float, device=self.device)
 
     def uniform_distribution(self, states):
         """
         Return action logits (log probabilities) from a uniform distribution
         Args: states: tensor
         """
-        return self._tfloat(torch.ones((len(states), self.output_dim)))
+        return torch.ones((len(states), self.output_dim), dtype=self.float, device=self.device)
 
 
 def make_opt(params, logZ, config):
