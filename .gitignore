@@ -7,6 +7,7 @@ old
 *.pyo
 *.sw*
 sh/
-
+outputs/
 *.txt
 !requirements.txt
+config/dummy_exp/

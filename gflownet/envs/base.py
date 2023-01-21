@@ -53,7 +53,7 @@ class GFlowNetEnv:
         self.eos = len(self.action_space)
         self.logsoftmax = torch.nn.LogSoftmax(dim=1)
         # Assertions
-        assert self.reward_norm > 0
+        # assert self.reward_norm > 0
         assert self.reward_beta > 0
         assert self.min_reward > 0
 
@@ -62,6 +62,10 @@ class GFlowNetEnv:
 
     def set_float_precision(self, dtype):
         self.float = dtype
+        
+    def copy(self):
+        # return an instance of the environment
+        return self.__class__(**self.__dict__)
 
     def set_energies_stats(self, energies_stats):
         self.energies_stats = energies_stats
@@ -189,7 +193,7 @@ class GFlowNetEnv:
             proxy_vals = proxy_vals * self.energies_stats[3] + self.energies_stats[2]
         if self.reward_func == "power":
             return torch.clamp(
-                (-1.0 * proxy_vals / self.reward_norm) ** self.reward_beta,
+                (proxy_vals / self.reward_norm) ** self.reward_beta,
                 min=self.min_reward,
                 max=None,
             )
@@ -214,7 +218,7 @@ class GFlowNetEnv:
         an oracle.
         """
         if self.reward_func == "power":
-            return -1.0 * torch.exp(
+            return torch.exp(
                 (torch.log(reward) + self.reward_beta * torch.log(self.reward_norm))
                 / self.reward_beta
             )
@@ -521,8 +525,11 @@ class Buffer:
         data_path=None,
         train=None,
         test=None,
+        logger=None,
         **kwargs,
     ):
+        # HACK
+        self.logger = logger
         self.env = env
         self.replay_capacity = replay_capacity
         self.main = pd.DataFrame(columns=["state", "traj", "reward", "energy", "iter"])

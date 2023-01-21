@@ -5,24 +5,26 @@ _target_: gflownet.utils.logger.Logger
 
 do:
   online: True
+  times: True
 
 project_name: "GFlowNet"
+
 tags: 
     - dummy1
     - dummy2
 sampler:
   policy:
     # Period (number of iterations) of saving models
-    period: 10
+    period: 1000
   train:
     # Period (number of iterations) of computing test metrics
     period: 1
   test:
     # Period (number of iterations) of computing test metrics
-    period: 1
+    period: 1000
   oracle:
     # Period (number of iterations) for computing oracle metrics
-    period: 10
+    period: 1000
     # List of K, for Top-K oracle metrics
     k:
       - 1

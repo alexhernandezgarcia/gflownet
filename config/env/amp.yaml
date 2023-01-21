@@ -1,0 +1,32 @@
+defaults:
+  - base
+
+_target_: gflownet.envs.amp.AMP
+
+id: amp
+# Minimum and maximum length for the sequences
+min_seq_length: 1
+max_seq_length: 50
+# Number of letters in alphabet
+n_alphabet: 20
+# Minimum and maximum number of steps in the action space
+min_word_len: 1
+max_word_len: 1
+reward_func: power
+reward_norm_std_mult: -1.0
+reward_beta: 3.0
+# Buffer
+buffer:
+  replay_capacity: 10
+  train:
+    path: data_train.csv
+    n: 20
+    seed: 168
+    output: None
+# TODO: Might need to delete irrelevant params after updating buffer
+  test:
+    base: None
+    path: null
+    n: 10
+    seed: 168
+    output: None

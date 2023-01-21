@@ -20,11 +20,11 @@ optimizer:
   # Momentum for SGD
   sgd_momentum: 0.9
   # Mini-batch size
-  batch_size: 10
+  batch_size: 32
   # Train to sample ratio
   train_to_sample_ratio: 1
   # Number of training iterations
-  n_train_steps: 5000
+  n_train_steps: 20000
   # From original implementation
   bootstrap_tau: 0.0
   clip_grad_norm: 0.0
@@ -53,6 +53,4 @@ num_empirical_loss: 200000
 oracle:
     # Number of samples for oracle metrics
     n: 500
-# remove eventually
 sample_only: False
-debug: False
