@@ -550,7 +550,11 @@ class Buffer:
             and train.output_csv is not None
         ):
             self.train.to_csv(train.output_csv)
-        if dict_tr is not None and "output_pkl" in train and train.output_pkl is not None:
+        if (
+            dict_tr is not None
+            and "output_pkl" in train
+            and train.output_pkl is not None
+        ):
             with open(train.output_pkl, "wb") as f:
                 pickle.dump(dict_tr, f)
                 self.train_pkl = train.output_pkl

@@ -458,11 +458,13 @@ class ContinuousTorus(GFlowNetEnv):
         return states
 
     def sample_from_reward(self, n_samples, epsilon=1e-4):
-    # Implement rejection sampling, with proposal being uniform distribution in [0, 2pi]]^n_dim
+        # Implement rejection sampling, with proposal being uniform distribution in [0, 2pi]]^n_dim
         accepted = []
         while len(accepted) < n_samples:
-            samples = np.random.rand(n_samples, self.n_dim)*2*np.pi
-            states = np.concatenate([samples, np.ones([n_samples, 1])*self.length_traj], 1)
+            samples = np.random.rand(n_samples, self.n_dim) * 2 * np.pi
+            states = np.concatenate(
+                [samples, np.ones([n_samples, 1]) * self.length_traj], 1
+            )
             rewards = self.reward_batch(states)
             max_reward = self.proxy2reward(torch.tensor([self.proxy.min])).item()
             mask = np.random.rand(n_samples) * (max_reward + epsilon) < rewards

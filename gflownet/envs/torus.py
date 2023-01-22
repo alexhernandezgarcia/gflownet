@@ -136,12 +136,13 @@ class Torus(GFlowNetEnv):
             rewards,
             list(map(tuple, x)),
         )
-        import ipdb; ipdb.set_trace()
+        import ipdb
+
+        ipdb.set_trace()
         return self._true_density
 
     def fit_kde(x, kernel="exponential", bandwidth=0.1):
         kde = KernelDensity(kernel=kernel, bandwidth=bandwidth).fit(last_states.numpy())
-
 
     def statebatch2proxy(self, states: List[List]) -> npt.NDArray[np.float32]:
         """

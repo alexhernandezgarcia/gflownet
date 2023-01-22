@@ -37,9 +37,12 @@ class Logger:
         if self.do.online:
             import wandb
             import matplotlib.pyplot as plt
+
             self.wandb = wandb
             self.plt = plt
-            self.run = self.wandb.init(config=config, project=project_name, name=run_name)
+            self.run = self.wandb.init(
+                config=config, project=project_name, name=run_name
+            )
         self.add_tags(tags)
         self.sampler = sampler
         self.context = "0"
@@ -200,20 +203,19 @@ class Logger:
             self.log_metrics(dict_topk, use_context=use_context, step=step)
 
     def log_sampler_loss(
-        self, losses: list, l1_error: float, kl_div: float, jsd: float, step: int, use_context: bool
+        self,
+        losses: list,
+        l1_error: float,
+        kl_div: float,
+        jsd: float,
+        step: int,
+        use_context: bool,
     ):
         if not self.do.online:
             return
         loss_metrics = dict(
             zip(
-                [
-                    "loss",
-                    "term_loss",
-                    "flow_loss",
-                    "l1",
-                    "kl",
-                    "jsd"
-                ],
+                ["loss", "term_loss", "flow_loss", "l1", "kl", "jsd"],
                 [loss.item() for loss in losses] + [l1_error, kl_div, jsd],
             )
         )
@@ -223,14 +225,18 @@ class Logger:
             step=step,
         )
 
-    def save_models(self, forward_policy, backward_policy, step: int=1e9, final=False):
+    def save_models(
+        self, forward_policy, backward_policy, step: int = 1e9, final=False
+    ):
         if not step % self.policy_period or final:
             if final:
                 ckpt_id = "final"
             else:
                 ckpt_id = "_iter{:06d}".format(step)
             if forward_policy.is_model and self.pf_ckpt_path is not None:
-                import ipdb; ipdb.set_trace()
+                import ipdb
+
+                ipdb.set_trace()
                 stem = self.pf_ckpt_path.stem + self.context + ckpt_id + ".ckpt"
                 path = self.pf_ckpt_path.parent + stem
                 torch.save(forward_policy.model.state_dict(), path)
