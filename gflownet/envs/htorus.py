@@ -34,8 +34,8 @@ class HybridTorus(GFlowNetEnv):
         self,
         n_dim=2,
         length_traj=1,
-        vonmises_mean=0.0,
-        vonmises_concentration=0.5,
+        fixed_distribution=dict,
+        random_distribution=dict,
         env_id=None,
         reward_beta=1,
         reward_norm=1.0,
@@ -63,15 +63,13 @@ class HybridTorus(GFlowNetEnv):
         self.n_dim = n_dim
         self.eos = self.n_dim
         self.length_traj = length_traj
-        # Parameters of fixed policy distribution
-        self.vonmises_mean = vonmises_mean
-        self.vonmises_concentration = vonmises_concentration
         self.vonmises_concentration_epsilon = 1e-3
         # Initialize angles and state attributes
         self.reset()
         self.source = self.angles.copy()
         self.action_space = self.get_actions_space()
-        self.fixed_policy_output = self.get_fixed_policy_output()
+        self.fixed_policy_output = self.get_policy_output(fixed_distribution)
+        self.random_policy_output = self.get_policy_output(random_distribution)
         self.policy_output_dim = len(self.fixed_policy_output)
         self.policy_input_dim = len(self.state2policy())
         self.logsoftmax = torch.nn.LogSoftmax(dim=1)
@@ -90,7 +88,7 @@ class HybridTorus(GFlowNetEnv):
         actions += [(self.eos, 0.0)]
         return actions
 
-    def get_fixed_policy_output(self):
+    def get_policy_output(self, params: dict):
         """
         Defines the structure of the output of the policy model, from which an
         action is to be determined or sampled, by returning a vector with a fixed
@@ -107,10 +105,10 @@ class HybridTorus(GFlowNetEnv):
         - d * 3 + 2: log concentration of Von Mises distribution for dimension d
         with d in [0, ..., D]
         """
-        policy_output_fixed = np.ones(self.n_dim * 3 + 1)
-        policy_output_fixed[1::3] = self.vonmises_mean
-        policy_output_fixed[2::3] = self.vonmises_concentration
-        return policy_output_fixed
+        policy_output = np.ones(self.n_dim * 3 + 1)
+        policy_output[1::3] = params.vonmises_mean
+        policy_output[2::3] = params.vonmises_concentration
+        return policy_output
 
     def get_mask_invalid_actions_forward(self, state=None, done=None):
         """
@@ -287,7 +285,6 @@ class HybridTorus(GFlowNetEnv):
         sampling_method: str = "policy",
         mask_invalid_actions: TensorType["n_states", "n_dim"] = None,
         temperature_logits: float = 1.0,
-        random_action_prob=0.0,
         loginf: float = 1000,
     ) -> Tuple[List[Tuple], TensorType["n_states"]]:
         """
@@ -296,12 +293,6 @@ class HybridTorus(GFlowNetEnv):
         device = policy_outputs.device
         n_states = policy_outputs.shape[0]
         ns_range = torch.arange(n_states).to(device)
-        # Random actions
-        n_random = int(n_states * random_action_prob)
-        idx_random = torch.randint(high=n_states, size=(n_random,))
-        policy_outputs[idx_random, :] = torch.tensor(self.fixed_policy_output).to(
-            policy_outputs
-        )
         # Sample dimensions
         if sampling_method == "uniform":
             logits_dims = torch.ones(n_states, self.policy_output_dim).to(device)

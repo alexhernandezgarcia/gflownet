@@ -83,6 +83,7 @@ class AptamerSeq(GFlowNetEnv):
         self.action_space = self.get_actions_space()
         self.eos = len(self.action_space)
         self.fixed_policy_output = self.get_fixed_policy_output()
+        self.random_policy_output = self.get_fixed_policy_output()
         self.policy_output_dim = len(self.fixed_policy_output)
         self.policy_input_dim = len(self.state2policy())
         self.max_traj_len = self.get_max_traj_len()

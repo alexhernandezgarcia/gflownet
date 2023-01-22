@@ -10,8 +10,13 @@ n_dim: 2
 # Fixed length of trajectories
 length_traj: 3
 # Parameters of the fixed policy output distribution
-vonmises_mean: 0.0
-vonmises_concentration: 0.5
+fixed_distribution:
+  vonmises_mean: 0.0
+  vonmises_concentration: 0.5
+# Parameters of the random policy output distribution
+random_distribution:
+  vonmises_mean: 0.0
+  vonmises_concentration: 0.001
 # Buffer
 buffer:
   data_path: null
