@@ -8,7 +8,7 @@ import numpy.typing as npt
 import pandas as pd
 import torch
 from gflownet.envs.base import GFlowNetEnv
-from torch.distributions import Categorical, Uniform, VonMises
+from torch.distributions import Categorical, Uniform, VonMises, Bernoulli
 from torchtyping import TensorType
 
 
@@ -385,7 +385,7 @@ class HybridTorus(GFlowNetEnv):
         logprobs_dim = self.logsoftmax(logits_dims)[ns_range, dimensions]
         # Angle increments
         # Cases where only one angle transition is possible (logp(angle) = 1):
-        # - (A: Number of dimensions different to source == number of states, and
+        # - (A: Number of dimensions different to source == number of steps, and
         # - B: Angle of selected dimension == source), or
         # - C: Dimension == eos
         # Cases where angles should be sampled from the distribution:
@@ -407,6 +407,7 @@ class HybridTorus(GFlowNetEnv):
         ns_range_nofix = ns_range[nofix_indices]
         dimensions_nofix = dimensions[nofix_indices]
         logprobs_angles = torch.zeros(n_states).to(device)
+        logprobs_nosource = torch.zeros(n_states).to(device)
         if len(dimensions_nofix) > 0:
             locations = policy_outputs[:, 1 :: self.n_params_per_dim][
                 ns_range_nofix, dimensions_nofix
@@ -421,8 +422,16 @@ class HybridTorus(GFlowNetEnv):
             logprobs_angles[ns_range_nofix] = distr_angles.log_prob(
                 angles[ns_range_nofix]
             )
+            if self.n_params_per_dim == 4:
+                logits_nosource = policy_outputs[:, 3 :: self.n_params_per_dim][
+                    ns_range_nofix, dimensions_nofix
+                ]
+                distr_nosource = Bernoulli(logits=logits_nosource)
+                logprobs_nosource[ns_range_nofix] = distr_nosource.log_prob(
+                    angledim_ne_source[ns_range_nofix].to(self.float)
+                )
         # Combined probabilities
-        logprobs = logprobs_dim + logprobs_angles
+        logprobs = logprobs_dim + logprobs_angles + logprobs_nosource
         return logprobs
 
     def step(
