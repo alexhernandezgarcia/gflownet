@@ -316,7 +316,7 @@ class GFlowNetAgent:
         idx_random = (
             Bernoulli(random_action_prob * torch.ones(len(states), device=self.device))
             .sample()
-            .to(int)
+            .to(bool)
         )
         policy_outputs[idx_random, :] = self._tfloat(self.env.random_policy_output)
         # Sample actions from policy outputs
