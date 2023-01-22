@@ -305,20 +305,27 @@ class GFlowNetAgent:
             [env.get_mask_invalid_actions_forward() for env in envs]
         )
         # Build policy outputs
+        policy_outputs = model.random_distribution(states)
+        idx_norandom = (
+            Bernoulli(
+                (1 - random_action_prob) * torch.ones(len(states), device=self.device)
+            )
+            .sample()
+            .to(bool)
+        )
         if sampling_method == "policy":
-            policy_outputs = model(self._tfloat(self.env.statebatch2policy(states)))
+            policy_outputs[idx_norandom, :] = model(
+                self._tfloat(
+                    self.env.statebatch2policy(
+                        [s for s, do in zip(states, idx_norandom) if do]
+                    )
+                )
+            )
         elif sampling_method == "uniform":
             # TODO
             policy_outputs = None
         else:
             raise NotImplementedError
-        # Random actions
-        idx_random = (
-            Bernoulli(random_action_prob * torch.ones(len(states), device=self.device))
-            .sample()
-            .to(bool)
-        )
-        policy_outputs[idx_random, :] = self._tfloat(self.env.random_policy_output)
         # Sample actions from policy outputs
         actions, logprobs = self.env.sample_actions(
             policy_outputs,
@@ -1061,6 +1068,9 @@ class Policy:
         self.fixed_output = torch.tensor(env.fixed_policy_output).to(
             dtype=self.float, device=self.device
         )
+        self.random_output = torch.tensor(env.random_policy_output).to(
+            dtype=self.float, device=self.device
+        )
         self.output_dim = len(self.fixed_output)
         if "shared_weights" in config:
             self.shared_weights = config.shared_weights
@@ -1156,6 +1166,15 @@ class Policy:
         Args: states: tensor
         """
         return torch.tile(self.fixed_output, (len(states), 1)).to(
+            dtype=self.float, device=self.device
+        )
+
+    def random_distribution(self, states):
+        """
+        Returns the random distribution specified by the environment.
+        Args: states: tensor
+        """
+        return torch.tile(self.random_output, (len(states), 1)).to(
             dtype=self.float, device=self.device
         )
 
