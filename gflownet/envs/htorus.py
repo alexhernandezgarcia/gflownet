@@ -364,6 +364,7 @@ class HybridTorus(GFlowNetEnv):
     def get_logprobs(
         self,
         policy_outputs: TensorType["n_states", "policy_output_dim"],
+        is_forward: bool,
         actions: TensorType["n_states", 2],
         states_target: TensorType["n_states", "policy_input_dim"],
         mask_invalid_actions: TensorType["batch_size", "policy_output_dim"] = None,
@@ -384,12 +385,17 @@ class HybridTorus(GFlowNetEnv):
             logits_dims[mask_invalid_actions] = -loginf
         logprobs_dim = self.logsoftmax(logits_dims)[ns_range, dimensions]
         # Angle increments
-        # Cases where only one angle transition is possible (logp(angle) = 1):
-        # - (A: Number of dimensions different to source == number of steps, and
-        # - B: Angle of selected dimension == source), or
-        # - C: Dimension == eos
-        # Cases where angles should be sampled from the distribution:
-        # ~((A & B) | C) = ~(A & B) & ~C = (~A | ~B) & ~C
+        # Cases where p(angle) should be computed (nofix):
+        # - A: Dimension != eos, and (
+        # - B: (# dimensions different to source != # steps, or
+        # - C: Angle of selected dimension != source) or
+        # - D: is_forward)
+        # nofix: A & ((B | C) | D)
+        # Mixing p(angle) with discrete probability of going backwards to the source
+        # The mixed (backward) probability of sampling angle, p(angle_mixed) is:
+        # - p(angle) * p(no_source), if angle of target != source
+        # - p(source), if angle of target == source
+        # Mixing should be applied if p(angle) is computed AND is backward:
         source = torch.tensor(self.source, device=device)
         source_aux = torch.tensor(self.source + [-1], device=device)
         nsource_ne_nsteps = torch.ne(
@@ -401,14 +407,13 @@ class HybridTorus(GFlowNetEnv):
         )
         noeos = torch.ne(dimensions, self.eos)
         nofix_indices = torch.logical_and(
-            torch.logical_or(nsource_ne_nsteps, angledim_ne_source),
-            noeos,
+            torch.logical_or(nsource_ne_nsteps, angledim_ne_source) | is_forward, noeos
         )
-        ns_range_nofix = ns_range[nofix_indices]
-        dimensions_nofix = dimensions[nofix_indices]
         logprobs_angles = torch.zeros(n_states).to(device)
         logprobs_nosource = torch.zeros(n_states).to(device)
-        if len(dimensions_nofix) > 0:
+        if torch.any(nofix_indices):
+            ns_range_nofix = ns_range[nofix_indices]
+            dimensions_nofix = dimensions[nofix_indices]
             locations = policy_outputs[:, 1 :: self.n_params_per_dim][
                 ns_range_nofix, dimensions_nofix
             ]
@@ -422,7 +427,7 @@ class HybridTorus(GFlowNetEnv):
             logprobs_angles[ns_range_nofix] = distr_angles.log_prob(
                 angles[ns_range_nofix]
             )
-            if self.n_params_per_dim == 4:
+            if self.n_params_per_dim == 4 and (not is_forward):
                 logits_nosource = policy_outputs[:, 3 :: self.n_params_per_dim][
                     ns_range_nofix, dimensions_nofix
                 ]
