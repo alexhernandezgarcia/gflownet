@@ -313,7 +313,11 @@ class GFlowNetAgent:
         else:
             raise NotImplementedError
         # Random actions
-        idx_random = Bernoulli(random_action_prob * torch.ones(len(states), device=self.device)).sample().to(int)
+        idx_random = (
+            Bernoulli(random_action_prob * torch.ones(len(states), device=self.device))
+            .sample()
+            .to(int)
+        )
         policy_outputs[idx_random, :] = self._tfloat(self.env.random_policy_output)
         # Sample actions from policy outputs
         actions, logprobs = self.env.sample_actions(
