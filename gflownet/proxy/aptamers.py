@@ -7,6 +7,7 @@ class Aptamers(Proxy):
     """
     DNA Aptamer oracles
     """
+
     def __init__(self, oracle_id, norm):
         super().__init__()
         self.type = oracle_id

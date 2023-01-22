@@ -4,8 +4,9 @@ import numpy as np
 from gflownet.envs.ctorus import ContinuousTorus
 from gflownet.utils.molecule import constants
 from gflownet.utils.molecule.atom_positions_dataset import AtomPositionsDataset
-from gflownet.utils.molecule.conformer import Conformer 
+from gflownet.utils.molecule.conformer import Conformer
 from gflownet.utils.molecule.distributions import get_mixture_of_projected_normals
+
 
 class ADMolecule(ContinuousTorus):
     def __init__(
@@ -25,7 +26,9 @@ class ADMolecule(ContinuousTorus):
     ):
         self.atom_positions_dataset = AtomPositionsDataset(path_to_dataset)
         atom_positions = self.atom_positions_dataset.sample()
-        self.conformer = Conformer(atom_positions, constants.ad_smiles, constants.ad_atom_types)
+        self.conformer = Conformer(
+            atom_positions, constants.ad_smiles, constants.ad_atom_types
+        )
         n_dim = len(self.conformer.freely_rotatable_tas)
         super(ADMolecule, self).__init__(
             n_dim=n_dim,
@@ -58,7 +61,7 @@ class ADMolecule(ContinuousTorus):
 
     def state2policy(self, state: List = None) -> "dgl graph (w/ time)":
         self.sync_conformer_with_state(state)
-        graph =  self.conformer.dgl_graph
+        graph = self.conformer.dgl_graph
         n_atoms = self.conformer.get_n_atoms()
         step_feature = torch.ones(n_atoms, 1) * state[-1]
         graph.ndata[constants.step_feature_name] = step_feature
@@ -87,12 +90,14 @@ class ADMolecule(ContinuousTorus):
         Prepares a batch of states in torch "GFlowNet format" for the policy
         """
         device = states.device
-        if device == torch.device('cpu'):
+        if device == torch.device("cpu"):
             np_states = states.numpy()
-        else: 
+        else:
             np_states = states.cpu().numpy()
 
-        state_policy_batch = dgl.batch([self.state2policy(st) for st in np_states]).to(device)
+        state_policy_batch = dgl.batch([self.state2policy(st) for st in np_states]).to(
+            device
+        )
         return state_policy_batch
 
     def reset(self):

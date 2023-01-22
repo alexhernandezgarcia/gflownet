@@ -8,11 +8,13 @@ from torchtyping import TensorType
 from gflownet.envs.ctorus import ContinuousTorus
 from gflownet.utils.molecule import constants
 from gflownet.utils.molecule.atom_positions_dataset import AtomPositionsDataset
-from gflownet.utils.molecule.conformer_base import ConformerBase 
+from gflownet.utils.molecule.conformer_base import ConformerBase
+
 
 class ADMoleculeSimple(ContinuousTorus):
-    """Simple extension of 2d continuous torus where reward function is defined by the 
-    energy of the alanine dipeptide molecule"""  
+    """Simple extension of 2d continuous torus where reward function is defined by the
+    energy of the alanine dipeptide molecule"""
+
     def __init__(
         self,
         path_to_dataset,
@@ -32,7 +34,9 @@ class ADMoleculeSimple(ContinuousTorus):
     ):
         self.atom_positions_dataset = AtomPositionsDataset(path_to_dataset)
         atom_positions = self.atom_positions_dataset.sample()
-        self.conformer = ConformerBase(atom_positions, constants.ad_smiles, constants.ad_free_tas)
+        self.conformer = ConformerBase(
+            atom_positions, constants.ad_smiles, constants.ad_free_tas
+        )
         n_dim = len(self.conformer.freely_rotatable_tas)
         super(ADMoleculeSimple, self).__init__(
             n_dim=n_dim,
@@ -79,9 +83,9 @@ class ADMoleculeSimple(ContinuousTorus):
         Prepares a batch of states in torch "GFlowNet format" for the proxy.
         """
         device = states.device
-        if device == torch.device('cpu'):
+        if device == torch.device("cpu"):
             np_states = states.numpy()
-        else: 
+        else:
             np_states = states.cpu().numpy()
         result = self.statebatch2proxy(np_states)
         return result
@@ -106,21 +110,22 @@ class ADMoleculeSimple(ContinuousTorus):
     #     return self
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     import sys
+
     path_to_data = sys.argv[1]
     print(path_to_data)
     env = ADMoleculeSimple(path_to_data)
-    print('initial state:', env.state)
+    print("initial state:", env.state)
     conf = env.sync_conformer_with_state()
     tas = conf.get_freely_rotatable_tas_values()
-    print('initial conf torsion angles:', tas)
-    
+    print("initial conf torsion angles:", tas)
+
     # apply simple action
-    new_state, action, done =  env.step((0, 1.2))
-    print('action:', action)
-    print('new_state:', new_state)
+    new_state, action, done = env.step((0, 1.2))
+    print("action:", action)
+    print("new_state:", new_state)
     conf = env.sync_conformer_with_state()
     tas = conf.get_freely_rotatable_tas_values()
-    print('new conf torsion angles:', tas)
-    print('done:', done)
+    print("new conf torsion angles:", tas)
+    print("done:", done)

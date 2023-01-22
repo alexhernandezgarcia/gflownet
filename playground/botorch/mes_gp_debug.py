@@ -15,7 +15,6 @@ import gpytorch
 from gpytorch.priors.torch_priors import GammaPrior
 
 
-
 neg_hartmann6 = Hartmann(dim=6, negate=True)
 
 train_x = torch.rand(10, 6)
@@ -27,20 +26,21 @@ class ExactGPModel(gpytorch.models.ExactGP):
         super(ExactGPModel, self).__init__(train_x, train_y, likelihood)
         self.mean_module = gpytorch.means.ConstantMean(batch_shape=torch.Size([]))
         self.covar_module = gpytorch.kernels.ScaleKernel(
-                gpytorch.kernels.MaternKernel(
-                    nu=2.5,
-                    ard_num_dims=train_x.shape[-1],
-                    batch_shape=torch.Size([]),
-                    lengthscale_prior=GammaPrior(3.0, 6.0),
-                ),
+            gpytorch.kernels.MaternKernel(
+                nu=2.5,
+                ard_num_dims=train_x.shape[-1],
                 batch_shape=torch.Size([]),
-                outputscale_prior=GammaPrior(2.0, 0.15),
-            )
+                lengthscale_prior=GammaPrior(3.0, 6.0),
+            ),
+            batch_shape=torch.Size([]),
+            outputscale_prior=GammaPrior(2.0, 0.15),
+        )
 
     def forward(self, x):
-        mean_x = self.mean_module(x) #101
-        covar_x = self.covar_module(x) #(train+test, train+test)
+        mean_x = self.mean_module(x)  # 101
+        covar_x = self.covar_module(x)  # (train+test, train+test)
         return gpytorch.distributions.MultivariateNormal(mean_x, covar_x)
+
 
 # initialize likelihood and model
 likelihood = gpytorch.likelihoods.GaussianLikelihood()
@@ -59,7 +59,7 @@ class myGPModel(SingleTaskGP):
     def __init__(self, gp, trainX=None, trainY=None):
         super().__init__(trainX, trainY)
         self.model = gp
-    
+
     @property
     def num_outputs(self) -> int:
         return super().num_outputs
@@ -74,7 +74,9 @@ class myGPModel(SingleTaskGP):
         """
         return super().batch_shape
 
-    def posterior(self, X, output_indices = None, observation_noise= False, posterior_transform= None):
+    def posterior(
+        self, X, output_indices=None, observation_noise=False, posterior_transform=None
+    ):
         """
         Args:
             X: A `(batch_shape) x q x d`-dim Tensor, where `d` is the dimension
@@ -104,10 +106,12 @@ class myGPModel(SingleTaskGP):
         posterior = GPyTorchPosterior(mvn=mvn)
         return posterior
 
+
 from botorch.acquisition.max_value_entropy_search import qMaxValueEntropy
+
 proxy = myGPModel(gp, train_x, train_y)
 
-qMES = qMaxValueEntropy(proxy, candidate_set = train_x, num_fantasies=1, use_gumbel=True)
+qMES = qMaxValueEntropy(proxy, candidate_set=train_x, num_fantasies=1, use_gumbel=True)
 
 for num in range(10000):
     test_x = torch.rand(10, 6)
@@ -115,6 +119,6 @@ for num in range(10000):
     with torch.no_grad():
         mes = qMES(test_x)
         mes_arr = mes.detach().numpy()
-        verdict = np.all(mes_arr>0)
+        verdict = np.all(mes_arr > 0)
     if not verdict:
         print(mes)

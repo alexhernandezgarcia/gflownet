@@ -56,9 +56,11 @@ def main(config):
         df.to_csv("gfn_samples.csv")
     print(gflownet.buffer.replay)
 
+
 def set_seeds(seed):
     import torch
     import numpy as np
+
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
     random.seed(seed)

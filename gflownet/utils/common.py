@@ -1,6 +1,7 @@
 from collections.abc import MutableMapping
 
-def flatten_config(d, parent_key='', sep='_'):
+
+def flatten_config(d, parent_key="", sep="_"):
     items = []
     for k, v in d.items():
         new_key = parent_key + sep + k if parent_key else k
@@ -9,6 +10,7 @@ def flatten_config(d, parent_key='', sep='_'):
         else:
             items.append((new_key, v))
     return dict(items)
+
 
 def handle_logdir():
     # TODO - just copy-pasted

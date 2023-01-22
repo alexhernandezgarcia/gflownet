@@ -124,7 +124,9 @@ class GFlowNetAgent:
         if policy.backward:
             self.backward_policy = Policy(
                 policy.backward,
-                self.env, self.device, self.float,
+                self.env,
+                self.device,
+                self.float,
                 base=self.forward_policy,
             )
         else:
@@ -1050,7 +1052,9 @@ class Policy:
         self.float = float_precision
         # Input and output dimensions
         self.state_dim = env.policy_input_dim
-        self.fixed_output = torch.tensor(env.fixed_policy_output).to(dtype=self.float, device=self.device)
+        self.fixed_output = torch.tensor(env.fixed_policy_output).to(
+            dtype=self.float, device=self.device
+        )
         self.output_dim = len(self.fixed_output)
         if "shared_weights" in config:
             self.shared_weights = config.shared_weights
@@ -1145,14 +1149,18 @@ class Policy:
         Returns the fixed distribution specified by the environment.
         Args: states: tensor
         """
-        return torch.tile(self.fixed_output, (len(states), 1)).to(dtype=self.float, device=self.device)
+        return torch.tile(self.fixed_output, (len(states), 1)).to(
+            dtype=self.float, device=self.device
+        )
 
     def uniform_distribution(self, states):
         """
         Return action logits (log probabilities) from a uniform distribution
         Args: states: tensor
         """
-        return torch.ones((len(states), self.output_dim), dtype=self.float, device=self.device)
+        return torch.ones(
+            (len(states), self.output_dim), dtype=self.float, device=self.device
+        )
 
 
 def make_opt(params, logZ, config):
