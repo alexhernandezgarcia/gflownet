@@ -36,6 +36,7 @@ class HybridTorus(GFlowNetEnv):
         length_traj=1,
         vonmises_mean=0.0,
         vonmises_concentration=0.5,
+        do_nonzero_source_prob=True,
         env_id=None,
         reward_beta=1,
         reward_norm=1.0,
@@ -64,6 +65,10 @@ class HybridTorus(GFlowNetEnv):
         self.eos = self.n_dim
         self.length_traj = length_traj
         # Parameters of fixed policy distribution
+        if do_nonzero_source_prob:
+            self.n_params_per_dim = 4
+        else:
+            self.n_params_per_dim = 3
         self.vonmises_mean = vonmises_mean
         self.vonmises_concentration = vonmises_concentration
         self.vonmises_concentration_epsilon = 1e-3
@@ -99,17 +104,26 @@ class HybridTorus(GFlowNetEnv):
         For each dimension of the hyper-torus, the output of the policy should return
         1) a logit, for the categorical distribution over dimensions and 2) the
         location and 3) the concentration of the projected normal distribution to
-        sample the increment of the angle. Therefore, the output of the policy model
-        has dimensionality D x 3 + 1, where D is the number of dimensions, and the elements
-        of the output vector are:
-        - d * 3: logit of dimension d
-        - d * 3 + 1: location of Von Mises distribution for dimension d
-        - d * 3 + 2: log concentration of Von Mises distribution for dimension d
+        sample the increment of the angle and 4) (if do_nonzero_source_prob is True)
+        the logit of a Bernoulli distribution to model the (discrete) backward
+        probability of returning to the value of the source node.
+
+        Thus:
+        - n_params_per_dim = 4 if do_nonzero_source_prob is True
+        - n_params_per_dim = 3 if do_nonzero_source_prob is False
+
+        Therefore, the output of the policy model has dimensionality D x
+        n_params_per_dim + 1, where D is the number of dimensions, and the elements of
+        the output vector are:
+        - d * n_params_per_dim: logit of dimension d
+        - d * n_params_per_dim + 1: location of Von Mises distribution for dimension d
+        - d * n_params_per_dim + 2: log concentration of Von Mises distribution for dimension d
+        - d * n_params_per_dim + 3: logit of Bernoulli distribution
         with d in [0, ..., D]
         """
-        policy_output_fixed = np.ones(self.n_dim * 3 + 1)
-        policy_output_fixed[1::3] = self.vonmises_mean
-        policy_output_fixed[2::3] = self.vonmises_concentration
+        policy_output_fixed = np.ones(self.n_dim * self.n_params_per_dim + 1)
+        policy_output_fixed[1 :: self.n_params_per_dim] = self.vonmises_mean
+        policy_output_fixed[2 :: self.n_params_per_dim] = self.vonmises_concentration
         return policy_output_fixed
 
     def get_mask_invalid_actions_forward(self, state=None, done=None):
@@ -306,7 +320,7 @@ class HybridTorus(GFlowNetEnv):
         if sampling_method == "uniform":
             logits_dims = torch.ones(n_states, self.policy_output_dim).to(device)
         elif sampling_method == "policy":
-            logits_dims = policy_outputs[:, 0::3]
+            logits_dims = policy_outputs[:, 0 :: self.n_params_per_dim]
             logits_dims /= temperature_logits
         if mask_invalid_actions is not None:
             logits_dims[mask_invalid_actions] = -loginf
@@ -324,8 +338,10 @@ class HybridTorus(GFlowNetEnv):
                     2 * torch.pi * torch.ones(len(ns_range_noeos)),
                 )
             elif sampling_method == "policy":
-                locations = policy_outputs[:, 1::3][ns_range_noeos, dimensions_noeos]
-                concentrations = policy_outputs[:, 2::3][
+                locations = policy_outputs[:, 1 :: self.n_params_per_dim][
+                    ns_range_noeos, dimensions_noeos
+                ]
+                concentrations = policy_outputs[:, 2 :: self.n_params_per_dim][
                     ns_range_noeos, dimensions_noeos
                 ]
                 distr_angles = VonMises(
@@ -363,7 +379,7 @@ class HybridTorus(GFlowNetEnv):
         n_states = policy_outputs.shape[0]
         ns_range = torch.arange(n_states).to(device)
         # Dimensions
-        logits_dims = policy_outputs[:, 0::3]
+        logits_dims = policy_outputs[:, 0 :: self.n_params_per_dim]
         if mask_invalid_actions is not None:
             logits_dims[mask_invalid_actions] = -loginf
         logprobs_dim = self.logsoftmax(logits_dims)[ns_range, dimensions]
@@ -392,8 +408,12 @@ class HybridTorus(GFlowNetEnv):
         dimensions_nofix = dimensions[nofix_indices]
         logprobs_angles = torch.zeros(n_states).to(device)
         if len(dimensions_nofix) > 0:
-            locations = policy_outputs[:, 1::3][ns_range_nofix, dimensions_nofix]
-            concentrations = policy_outputs[:, 2::3][ns_range_nofix, dimensions_nofix]
+            locations = policy_outputs[:, 1 :: self.n_params_per_dim][
+                ns_range_nofix, dimensions_nofix
+            ]
+            concentrations = policy_outputs[:, 2 :: self.n_params_per_dim][
+                ns_range_nofix, dimensions_nofix
+            ]
             distr_angles = VonMises(
                 locations,
                 torch.exp(concentrations) + self.vonmises_concentration_epsilon,
