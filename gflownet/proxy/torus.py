@@ -8,6 +8,13 @@ class Torus(Proxy):
         super().__init__()
         self.normalize = normalize
 
+    @property
+    def min(self):
+        if self.normalize:
+            return 1
+        else:
+            return -(self.n_dim * 2) ** 3
+
     def __call__(self, states: TensorType["batch", "state_dim"]) -> TensorType["batch"]:
         """
         args:

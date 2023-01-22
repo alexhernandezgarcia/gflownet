@@ -20,6 +20,7 @@ from torch.distributions.categorical import Categorical
 from tqdm import tqdm
 
 from gflownet.envs.base import Buffer
+from gflownet.utils.metrics import fit_kde, estimate_jsd
 
 
 class GFlowNetAgent:
@@ -916,7 +917,10 @@ class GFlowNetAgent:
                 all_visited.extend(states_term)
             # Test
             if self.logger.do_test(it):
-                test_metrics = self.test()
+                l1_error, kl_div, jsd = self.test()
+
+            self.logger.log_sampler_loss(
+                losses, l1_error, kl_div, jsd, it, self.use_context)
             # log metrics
             self.log_iter(
                 pbar,
@@ -971,50 +975,58 @@ class GFlowNetAgent:
             with open(self.buffer.test_pkl, 'rb') as f:
                 dict_tt = pickle.load(f)
                 x_tt = dict_tt["x"]
-                if "reward" in dict_tt:
-                    rewards = dict_tt["reward"]
-                    update_pickle = False
-                else:
-                    rewards = self.env.reward_batch(x_tt)
-                    update_pickle = True
             x_sampled, _ = self.sample_batch(self.env, self.logger.test.n, train=False)
             if self.buffer.test_type is not None and self.buffer.test_type == "all":
+                if "reward" in dict_tt:
+                    rewards = dict_tt["reward"]
+                else:
+                    rewards = self.env.reward_batch(x_tt)
+                    with open(self.buffer.test_pkl, 'wb') as f:
+                        dict_tt["reward"] = rewards
+                        pickle.dump(dict_tt, f)
                 z_true = rewards.sum()
-                density_true = self._tfloat(rewards / z_true)
+                density_true = rewards / z_true
                 hist = defaultdict(int)
                 for x in x_sampled:
                     hist[tuple(x)] += 1
                 z_pred = sum([hist[tuple(x)] for x in x_tt]) + 1e-9
-                density_pred = self._tfloat([hist[tuple(x)] / z_pred for x in x_tt])
+                density_pred = np.array([hist[tuple(x)] / z_pred for x in x_tt])
+                log_density_true = np.log(density_true + 1e-8)
+                log_density_pred = np.log(density_pred + 1e-8)
+
+            elif self.continuous:
+                x_tt = np.array(x_tt)
+                # import ipdb; ipdb.set_trace()
+                kde_pred = fit_kde(np.array(x_sampled)[:,:-1], kernel=self.logger.test.kde.kernel, 
+                                   bandwidth=self.logger.test.kde.bandwidth)
+                if "log_density_true" in dict_tt:
+                    log_density_true = dict_tt["log_density_true"]
+                else:
+                    samples_from_reward = self.env.sample_from_reward(n_samples=self.logger.test.n)
+                    kde_true = fit_kde(samples_from_reward, kernel=self.logger.test.kde.kernel, 
+                                   bandwidth=self.logger.test.kde.bandwidth)
+                    log_density_true = kde_true.score_samples(x_tt[:,:-1])
+                    with open(self.buffer.test_pkl, 'wb') as f:
+                        dict_tt["log_density_true"] = log_density_true
+                        pickle.dump(dict_tt, f)
+                log_density_pred = kde_pred.score_samples(x_tt[:,:-1])
+                density_true = np.exp(log_density_true) 
+                density_pred = np.exp(log_density_pred)
+
             # L1 error
-            l1 = torch.abs(density_pred - density_true).mean().item()
+            l1 = np.abs(density_pred - density_true).mean()
             # KL divergence
-            kl = (density_true * torch.log(density_pred / density_true)).sum().item()
+            kl = (density_true * (log_density_true - log_density_pred)).mean()
+            # Jensen-Shannon divergence
+            log_mean_dens = np.logaddexp(log_density_true, log_density_pred) + np.log(0.5)
+            jsd = np.mean(density_true * (log_density_true - log_mean_dens))
+            jsd += np.mean(density_pred * (log_density_pred - log_mean_dens))
             # Update pickled test data
-            if update_pickle:
-                with open(self.buffer.test_pkl, 'wb') as f:
-                    dict_tt["reward"] = rewards
-                    pickle.dump(dict_tt, f)
-            return l1, kl
+
+            return l1, kl, jsd
 
         else:
             return None
-        true_density, _, states_term = env.true_density()
-        if true_density is None:
-            return None, None
-        true_density = self._tfloat(true_density)
-        if not len(visited):
-            return 1, 100
-        for s in visited:
-            hist[s] += 1
-        Z = sum([hist[s] for s in states_term]) + epsilon
-        estimated_density = self._tfloat([hist[s] / Z for s in states_term])
-        # L1 error
-        l1 = abs(estimated_density - true_density).mean().item()
-        # KL divergence
-        kl = (true_density * torch.log(estimated_density / true_density)).sum().item()
-        import ipdb; ipdb.set_trace()
-        return l1, kl
 
 
     def get_log_corr(self, times):
@@ -1063,20 +1075,20 @@ class GFlowNetAgent:
             rewards, proxy_vals, states_term, data, it, self.use_context
         )
         # loss
-        if not self.logger.lightweight:
-            import ipdb; ipdb.set_trace()
-            l1_error, kl_div = empirical_distribution_error(
-                self.env, all_visited[-self.num_empirical_loss :]
-            )
-        else:
-            l1_error, kl_div = 1, 100
-        self.logger.log_sampler_loss(
-            losses,
-            l1_error,
-            kl_div,
-            it,
-            self.use_context,
-        )
+        # if not self.logger.lightweight:
+        #     import ipdb; ipdb.set_trace()
+        #     l1_error, kl_div = empirical_distribution_error(
+        #         self.env, all_visited[-self.num_empirical_loss :]
+        #     )
+        # else:
+        l1_error, kl_div = 1, 100
+        # self.logger.log_sampler_loss(
+        #     losses,
+        #     l1_error,
+        #     kl_div,
+        #     it,
+        #     self.use_context,
+        # )
 
         # logZ
         self.logger.log_metric("logZ", self.logZ.sum(), it, use_context=False)

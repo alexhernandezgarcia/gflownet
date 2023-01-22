@@ -78,6 +78,8 @@ class ContinuousTorus(GFlowNetEnv):
         # Oracle
         self.state2oracle = self.state2proxy
         self.statebatch2oracle = self.statebatch2proxy
+        # Setup proxy
+        self.proxy.n_dim = self.n_dim
 
     def get_actions_space(self):
         """
@@ -454,3 +456,16 @@ class ContinuousTorus(GFlowNetEnv):
         angles = list(itertools.product(*linspaces))
         states = [list(el) + [self.length_traj] for el in angles]
         return states
+
+    def sample_from_reward(self, n_samples, epsilon=1e-4):
+    # Implement rejection sampling, with proposal being uniform distribution in [0, 2pi]]^n_dim
+        accepted = []
+        while len(accepted) < n_samples:
+            samples = np.random.rand(n_samples, self.n_dim)*2*np.pi
+            states = np.concatenate([samples, np.ones([n_samples, 1])*self.length_traj], 1)
+            rewards = self.reward_batch(states)
+            max_reward = self.proxy2reward(torch.tensor([self.proxy.min])).item()
+            mask = np.random.rand(n_samples) * (max_reward + epsilon) < rewards
+            true_samples = samples[mask]
+            accepted.extend(true_samples[-(n_samples - len(accepted)) :])
+        return np.array(accepted)

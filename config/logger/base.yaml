@@ -8,6 +8,9 @@ do:
 test:
   period: 1
   n: 100
+  kde:
+    bandwidth: 0.1
+    kernel: gaussian
 
 # Log dir
 logdir:

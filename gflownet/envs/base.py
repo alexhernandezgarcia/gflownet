@@ -539,7 +539,7 @@ class Buffer:
         self.replay.energy = pd.to_numeric(self.replay.energy)
         self.replay.reward = [-1 for _ in range(self.replay_capacity)]
         # Define train and test data sets
-        if "type" in train:
+        if train is not None and "type" in train:
             self.train_type = train.type
         else:
             self.train_type = None
@@ -556,7 +556,7 @@ class Buffer:
                 self.train_pkl = train.output_pkl
         else:
             self.train_npy = None
-        if "type" in test:
+        if test is not None and "type" in test:
             self.test_type = test.type
         else:
             self.train_type = None
@@ -572,7 +572,7 @@ class Buffer:
                 pickle.dump(dict_tt, f)
                 self.test_pkl = test.output_pkl
         else:
-            self.test_npy = None
+            self.test_pkl = None
         # Compute buffer statistics
         if self.train is not None:
             (

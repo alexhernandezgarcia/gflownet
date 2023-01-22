@@ -200,7 +200,7 @@ class Logger:
             self.log_metrics(dict_topk, use_context=use_context, step=step)
 
     def log_sampler_loss(
-        self, losses: list, l1_error: float, kl_div, step, use_context: bool
+        self, losses: list, l1_error: float, kl_div: float, jsd: float, step: int, use_context: bool
     ):
         if not self.do.online:
             return
@@ -212,8 +212,9 @@ class Logger:
                     "flow_loss",
                     "l1",
                     "kl",
+                    "jsd"
                 ],
-                [loss.item() for loss in losses] + [l1_error, kl_div],
+                [loss.item() for loss in losses] + [l1_error, kl_div, jsd],
             )
         )
         self.log_metrics(
