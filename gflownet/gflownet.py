@@ -15,7 +15,7 @@ import pandas as pd
 import torch
 import torch.nn as nn
 import yaml
-from torch.distributions.categorical import Categorical
+from torch.distributions import Categorical, Bernoulli
 from tqdm import tqdm
 
 from gflownet.envs.base import Buffer
@@ -311,14 +311,17 @@ class GFlowNetAgent:
             # TODO
             policy_outputs = None
         else:
-            raise NotImplemented
+            raise NotImplementedError
+        # Random actions
+        bernoulli = Bernoulli(random_action_prob * torch.ones(len(states), device=self.device))
+        idx_random = bernoulli.sample().to(int)
+        policy_outputs[idx_random, :] = self._tfloat(self.env.random_policy_output)
         # Sample actions from policy outputs
         actions, logprobs = self.env.sample_actions(
             policy_outputs,
             sampling_method,
             mask_invalid_actions,
             temperature,
-            random_action_prob,
         )
         assert len(envs) == len(actions)
         # Execute actions
