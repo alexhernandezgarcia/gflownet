@@ -326,7 +326,6 @@ class GFlowNetEnv:
         sampling_method: str = "policy",
         mask_invalid_actions: TensorType["n_states", "policy_output_dim"] = None,
         temperature_logits: float = 1.0,
-        random_action_prob=0.0,
         loginf: float = 1000,
     ) -> Tuple[List[Tuple], TensorType["n_states"]]:
         """

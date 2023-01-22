@@ -34,8 +34,8 @@ class ContinuousTorus(HybridTorus):
         self,
         n_dim=2,
         length_traj=1,
-        vonmises_mean=0.0,
-        vonmises_concentration=0.5,
+        fixed_distribution=dict,
+        random_distribution=dict,
         env_id=None,
         reward_beta=1,
         reward_norm=1.0,
@@ -50,8 +50,8 @@ class ContinuousTorus(HybridTorus):
         super(ContinuousTorus, self).__init__(
             n_dim,
             length_traj,
-            vonmises_mean,
-            vonmises_concentration,
+            fixed_distribution,
+            random_distribution,
             env_id,
             reward_beta,
             reward_norm,
@@ -75,7 +75,7 @@ class ContinuousTorus(HybridTorus):
         actions += [tuple([self.eos] + [0.0 for _ in range(self.n_dim * 2 - 1)])]
         return actions
 
-    def get_fixed_policy_output(self):
+    def get_policy_output(self, params: dict):
         """
         Defines the structure of the output of the policy model, from which an
         action is to be determined or sampled, by returning a vector with a fixed
@@ -90,10 +90,10 @@ class ContinuousTorus(HybridTorus):
         - d * 2 + 1: log concentration of Von Mises distribution for dimension d
         with d in [0, ..., D]
         """
-        policy_output_fixed = np.ones(self.n_dim * 2)
-        policy_output_fixed[0::2] = self.vonmises_mean
-        policy_output_fixed[1::2] = self.vonmises_concentration
-        return policy_output_fixed
+        policy_output = np.ones(self.n_dim * 2)
+        policy_output[0::2] = params.vonmises_mean
+        policy_output[1::2] = params.vonmises_concentration
+        return policy_output
 
     def get_mask_invalid_actions_forward(self, state=None, done=None):
         """
@@ -171,7 +171,6 @@ class ContinuousTorus(HybridTorus):
         sampling_method: str = "policy",
         mask_stop_actions: TensorType["n_states", "1"] = None,
         temperature_logits: float = 1.0,
-        random_action_prob=0.0,
         loginf: float = 1000,
     ) -> Tuple[List[Tuple], TensorType["n_states"]]:
         """
@@ -180,12 +179,6 @@ class ContinuousTorus(HybridTorus):
         device = policy_outputs.device
         mask_states_sample = ~mask_stop_actions.flatten()
         n_states = policy_outputs.shape[0]
-        # Random actions
-        n_random = int(n_states * random_action_prob)
-        idx_random = torch.randint(high=n_states, size=(n_random,))
-        policy_outputs[idx_random, :] = torch.tensor(self.fixed_policy_output).to(
-            policy_outputs
-        )
         # Sample angle increments
         angles = torch.zeros(n_states, self.n_dim).to(device)
         logprobs = torch.zeros(n_states, self.n_dim).to(device)
