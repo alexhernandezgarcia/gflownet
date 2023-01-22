@@ -1357,7 +1357,7 @@ def make_opt(params, logZ, config):
             opt.add_param_group(
                 {
                     "params": logZ,
-                    "lr": config.lr_logZ,
+                    "lr": config.lr * config.lr_z_mult,
                 }
             )
     elif config.method == "msgd":

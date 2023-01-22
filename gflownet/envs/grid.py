@@ -177,7 +177,6 @@ class Grid(GFlowNetEnv):
           - state2policy(state): [1, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0] (length = 4)
                               |     0    |      3    |      1    |
         """
-
         if state is None:
             state = self.state.copy()
         state_policy = np.zeros(self.length * self.n_dim, dtype=np.float32)

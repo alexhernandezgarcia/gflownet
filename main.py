@@ -12,7 +12,7 @@ from gflownet.utils.common import flatten_config
 from pathlib import Path
 
 
-@hydra.main(config_path="./config", config_name="main", version_base="1.1")
+@hydra.main(config_path="./config", config_name="torus_test", version_base="1.1")
 def main(config):
     # Get current directory and set it as root log dir for Logger
     cwd = os.getcwd()
@@ -41,7 +41,6 @@ def main(config):
         env=env,
         buffer=config.env.buffer,
         logger=logger,
-        device=config.device,
     )
     gflownet.train()
 
