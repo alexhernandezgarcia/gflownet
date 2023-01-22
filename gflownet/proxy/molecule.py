@@ -14,7 +14,13 @@ class MoleculeEnergy(Proxy):
         
     def __call__(self, states_proxy):
         # todo: probably make it parallel with mpi
-        return torch.tensor([self.get_energy(*st) for st in states_proxy])
+        return torch.tensor([self.get_energy(*st) for st in states_proxy], dtype=self.float, device=self.device)
+
+    def set_device(self, device):
+        self.device = device
+
+    def set_float_precision(self, dtype):
+        self.float = dtype
 
     def get_energy(self, atom_positions: npt.NDArray[np.float32], atomic_numbers: npt.NDArray[np.int64]) -> float:
         """

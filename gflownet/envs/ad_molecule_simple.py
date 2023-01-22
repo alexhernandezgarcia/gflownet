@@ -50,6 +50,14 @@ class ADMoleculeSimple(ContinuousTorus):
         )
         self.sync_conformer_with_state()
 
+    def set_device(self, device):
+        super().set_device(device)
+        self.proxy.set_device(device)
+
+    def set_float_precision(self, dtype):
+        super().set_float_precision(dtype)
+        self.proxy.set_float_precision(dtype)
+
     def sync_conformer_with_state(self, state: List = None):
         if state is None:
             state = self.state
