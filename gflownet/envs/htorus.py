@@ -82,6 +82,8 @@ class HybridTorus(GFlowNetEnv):
         # Oracle
         self.state2oracle = self.state2proxy
         self.statebatch2oracle = self.statebatch2proxy
+        # Setup proxy
+        self.proxy.n_dim = self.n_dim
 
     def get_actions_space(self):
         """
@@ -491,10 +493,12 @@ class HybridTorus(GFlowNetEnv):
         Returns a tensor in GFloNet (state) format.
         """
         samples_final = []
-        max_reward = self.proxy2reward(torch.tensor([self.proxy.min]))
-        while len(accepted) < n_samples:
+        max_reward = self.proxy2reward(torch.tensor([self.proxy.min])).to(self.device)
+        while len(samples_final) < n_samples:
             angles_uniform = (
-                torch.rand((n_samples, self.n_dim), dtype=self.float, device=device)
+                torch.rand(
+                    (n_samples, self.n_dim), dtype=self.float, device=self.device
+                )
                 * 2
                 * np.pi
             )
@@ -506,7 +510,11 @@ class HybridTorus(GFlowNetEnv):
                 axis=1,
             )
             rewards = self.reward_torchbatch(samples)
-            mask = torch.rand(n_samples) * (max_reward + epsilon) < rewards
+            mask = (
+                torch.rand(n_samples, dtype=self.float, device=self.device)
+                * (max_reward + epsilon)
+                < rewards
+            )
             samples_accepted = samples[mask, :]
             samples_final.extend(samples_accepted[-(n_samples - len(samples_final)) :])
-        return torch.cat(samples_final)
+        return torch.vstack(samples_final)
