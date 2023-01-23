@@ -90,7 +90,7 @@ class Logger:
 
     def write_url_file(self):
         if self.wandb is not None:
-            self.url = wandb.run.get_url()
+            self.url = self.wandb.run.get_url()
             if self.url:
                 with open(self.logdir / "wandb.url", "w") as f:
                     f.write(self.url + "\n")
@@ -146,6 +146,7 @@ class Logger:
             if fig is not None:
                 figimg = self.wandb.Image(fig)
                 self.wandb.log({key: figimg}, step)
+                self.plt.close(fig)
 
     def log_metrics(self, metrics: dict, step: int, use_context: bool = True):
         if not self.do.online:
