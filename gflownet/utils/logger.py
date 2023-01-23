@@ -18,7 +18,10 @@ class Logger:
         do: dict,
         project_name: str,
         logdir: dict,
+        train: dict,
         test: dict,
+        oracle: dict,
+        checkpoints: dict,
         sampler: dict,
         progress: bool,
         lightweight: bool,
@@ -28,7 +31,10 @@ class Logger:
         self.config = config
         self.do = do
         self.do.times = self.do.times and self.do.online
+        self.train = train
         self.test = test
+        self.oracle = oracle
+        self.checkpoints = checkpoints
         if run_name is None:
             date_time = datetime.today().strftime("%d/%m-%H:%M:%S")
             run_name = "{}".format(
@@ -57,27 +63,30 @@ class Logger:
             print(f"logdir {logdir} already exists! - Ending run...")
         self.ckpts_dir = self.logdir / logdir.ckpts
         self.ckpts_dir.mkdir(parents=True, exist_ok=True)
-        self.policy_period = (
-            np.inf
-            if sampler.policy.period == None or sampler.policy.period == -1
-            else sampler.policy.period
-        )
-        self.train_period = (
-            np.inf
-            if sampler.train.period == None or sampler.train.period == -1
-            else sampler.train.period
-        )
-        self.oracle_period = (
-            np.inf
-            if sampler.oracle.period == None or sampler.oracle.period == -1
-            else sampler.oracle.period
-        )
+
+    def do_train(self, step):
+        if self.train.period is None or self.train.period < 0:
+            return False
+        else:
+            return not step % self.train.period
 
     def do_test(self, step):
         if self.test.period is None or self.test.period < 0:
             return False
         else:
             return not step % self.test.period
+
+    def do_oracle(self, step):
+        if self.oracle.period is None or self.oracle.period < 0:
+            return False
+        else:
+            return not step % self.oracle.period
+
+    def do_checkpoints(self, step):
+        if self.checkpoints.period is None or self.checkpoints.period < 0:
+            return False
+        else:
+            return not step % self.checkpoints.period
 
     def add_tags(self, tags: list):
         if not self.do.online:
@@ -138,7 +147,7 @@ class Logger:
     ):
         if not self.do.online:
             return
-        if not step % self.train_period:
+        if self.do_train(step):
             train_metrics = dict(
                 zip(
                     [
@@ -172,7 +181,7 @@ class Logger:
     ):
         if not self.do.online:
             return
-        if not step % self.test_period:
+        if self.do_test(step):
             test_metrics = dict(
                 zip(
                     [
@@ -194,7 +203,7 @@ class Logger:
     def log_sampler_oracle(self, energies: array, step: int, use_context: bool):
         if not self.do.online:
             return
-        if not step % self.oracle_period:
+        if step.do_oracle(step):
             energies_sorted = np.sort(energies)
             dict_topk = {}
             for k in self.sampler.oracle.k:
@@ -228,7 +237,7 @@ class Logger:
     def save_models(
         self, forward_policy, backward_policy, step: int = 1e9, final=False
     ):
-        if not step % self.policy_period or final:
+        if self.do_checkpoint(step) or final:
             if final:
                 ckpt_id = "final"
             else:
