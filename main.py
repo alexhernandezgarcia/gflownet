@@ -35,6 +35,8 @@ def main(config):
     env = hydra.utils.instantiate(config.env, proxy=proxy)
     gflownet = hydra.utils.instantiate(
         config.gflownet,
+        device=config.device,
+        float_precision=config.float_precision,
         env=env,
         buffer=config.env.buffer,
         logger=logger,
@@ -48,7 +50,7 @@ def main(config):
         df = pd.DataFrame(
             {
                 "readable": [env.state2readable(s) for s in samples],
-                "energies": energies,
+                "energies": energies.tolist(),
             }
         )
         df.to_csv("gfn_samples.csv")

@@ -1,11 +1,13 @@
 """
 Classes to represent hyper-torus environments
 """
-from typing import List
+from typing import List, Tuple
 import itertools
 import numpy as np
 import numpy.typing as npt
 import pandas as pd
+import torch
+from torchtyping import TensorType
 from gflownet.envs.base import GFlowNetEnv
 
 
@@ -62,7 +64,9 @@ class Torus(GFlowNetEnv):
             oracle,
             **kwargs,
         )
+        self.continuous = True
         self.n_dim = n_dim
+        self.eos = self.n_dim
         self.n_angles = n_angles
         self.length_traj = length_traj
         # Initialize angles and state attributes
@@ -71,7 +75,6 @@ class Torus(GFlowNetEnv):
         self.min_step_len = min_step_len
         self.max_step_len = max_step_len
         self.action_space = self.get_actions_space()
-        self.eos = len(self.action_space)
         self.fixed_policy_output = self.get_fixed_policy_output()
         self.policy_output_dim = len(self.fixed_policy_output)
         self.policy_input_dim = len(self.state2policy())
@@ -95,7 +98,10 @@ class Torus(GFlowNetEnv):
         for r in valid_steplens:
             actions_r = [el for el in itertools.product(dims, directions, repeat=r)]
             actions += actions_r
+        # Add "keep" action
         actions = actions + [(-1, 0)]
+        # Add "eos" action
+        actions = actions + [(self.eos, 0)]
         return actions
 
     def get_mask_invalid_actions_forward(self, state=None, done=None):
@@ -108,12 +114,12 @@ class Torus(GFlowNetEnv):
         if done is None:
             done = self.done
         if done:
-            return [True for _ in range(len(self.action_space) + 1)]
+            return [True for _ in range(len(self.action_space))]
         if state[-1] >= self.length_traj:
-            mask = [True for _ in range(len(self.action_space) + 1)]
+            mask = [True for _ in range(len(self.action_space))]
             mask[-1] = False
         else:
-            mask = [False for _ in range(len(self.action_space) + 1)]
+            mask = [False for _ in range(len(self.action_space))]
             mask[-1] = True
         return mask
 
@@ -138,7 +144,15 @@ class Torus(GFlowNetEnv):
         each state is a row of length n_dim with an angle in radians. The n_actions
         item is removed.
         """
-        return np.array(state_list)[:, :-1] * self.angle_rad
+        return torch.tensor(states, device=self.device)[:, :-1] * self.angle_rad
+
+    def statetorch2proxy(
+        self, states: TensorType["batch", "state_dim"]
+    ) -> TensorType["batch", "state_proxy_dim"]:
+        """
+        Prepares a batch of states in torch "GFlowNet format" for the proxy.
+        """
+        return states[:, :-1] * self.angle_rad
 
     # TODO: A circular encoding of the policy state would be better?
     def state2policy(self, state=None) -> List:
@@ -180,6 +194,29 @@ class Torus(GFlowNetEnv):
         state_policy = np.zeros(
             (len(states), self.n_angles * self.n_dim + 1), dtype=np.float32
         )
+        state_policy[rows, cols.flatten()] = 1.0
+        state_policy[:, -1] = states[:, -1]
+        return state_policy
+
+    def statetorch2policy(
+        self, states: TensorType["batch", "state_dim"]
+    ) -> TensorType["batch", "policy_output_dim"]:
+        """
+        Transforms a batch of torch states into the policy model format. The output is
+        a tensor of shape [n_states, n_angles * n_dim + 1].
+
+        See state2policy().
+        """
+        device = states.device
+        cols = (
+            states[:, :-1] + torch.arange(self.n_dim).to(device) * self.n_angles
+        ).to(int)
+        rows = torch.repeat_interleave(
+            torch.arange(states.shape[0]).to(device), self.n_dim
+        )
+        state_policy = torch.zeros(
+            (states.shape[0], self.n_angles * self.n_dim + 1)
+        ).to(states)
         state_policy[rows, cols.flatten()] = 1.0
         state_policy[:, -1] = states[:, -1]
         return state_policy
@@ -274,66 +311,67 @@ class Torus(GFlowNetEnv):
         if done is None:
             done = self.done
         if done:
-            return [state], [self.eos]
+            return [state], [(self.eos, 0)]
         # If source state
         elif state[-1] == 0:
             return [], []
         else:
             parents = []
             actions = []
-            for idx, a in enumerate(self.action_space):
+            for idx, (a_dim, a_dir) in enumerate(self.action_space[:-1]):
                 state_p = state.copy()
                 angles_p = state_p[: self.n_dim]
                 n_actions_p = state_p[-1]
                 # Get parent
                 n_actions_p -= 1
-                if a[0] != -1:
-                    angles_p[a[0]] -= a[1]
+                if a_dim != -1:
+                    angles_p[a_dim] -= a_dir
                     # If negative angle index, restart from the back
-                    if angles_p[a[0]] < 0:
-                        angles_p[a[0]] = self.n_angles + angles_p[a[0]]
+                    if angles_p[a_dim] < 0:
+                        angles_p[a_dim] = self.n_angles + angles_p[a_dim]
                     # If angle index larger than n_angles, restart from 0
-                    if angles_p[a[0]] >= self.n_angles:
-                        angles_p[a[0]] = angles_p[a[0]] - self.n_angles
+                    if angles_p[a_dim] >= self.n_angles:
+                        angles_p[a_dim] = angles_p[a_dim] - self.n_angles
                 if _get_min_actions_to_source(self.source, angles_p) < state[-1]:
                     state_p = angles_p + [n_actions_p]
                     parents.append(state_p)
-                    actions.append(idx)
+                    actions.append((a_dim, a_dir))
         return parents, actions
 
-    def step(self, action_idx):
+    def step(self, action: Tuple[int]) -> Tuple[List[int], Tuple[int, int], bool]:
         """
-        Executes step given an action index.
+        Executes step given an action.
 
         Args
         ----
-        action_idx : int
-            Index of action in the action space. a == eos indicates "stop action"
+        action : tuple
+            Action to be executed. See: get_actions_space()
 
         Returns
         -------
         self.state : list
             The sequence after executing the action
 
-        action_idx : int
-            Action index
+        action : tuple
+            Action executed
 
         valid : bool
-            False, if the action is not allowed for the current state, e.g. stop at the
-            root state
+            False, if the action is not allowed for the current state.
         """
+        assert action in self.action_space
+        a_dim, a_dir = action
         if self.done:
-            return self.state, action_idx, False
+            return self.state, action, False
         # If only possible action is eos, then force eos
-        # If the number of actions is equal to maximum trajectory length
+        # If the number of actions is equal to trajectory length
         elif self.n_actions == self.length_traj:
             self.done = True
             self.n_actions += 1
-            return self.state, self.eos, True
+            return self.state, (self.eos, 0), True
         # If action is not eos, then perform action
-        elif action_idx != self.eos:
-            a_dim, a_dir = self.action_space[action_idx]
+        elif a_dim != self.eos:
             angles_next = self.angles.copy()
+            # If action is not "keep"
             if a_dim != -1:
                 angles_next[a_dim] += a_dir
                 # If negative angle index, restart from the back
@@ -346,10 +384,10 @@ class Torus(GFlowNetEnv):
             self.n_actions += 1
             self.state = self.angles + [self.n_actions]
             valid = True
-            return self.state, action_idx, valid
+            return self.state, action, valid
         # If action is eos, then it is invalid
         else:
-            return self.state, self.eos, False
+            return self.state, (self.eos, 0), False
 
     def make_train_set(self, ntrain, oracle=None, seed=168, output_csv=None):
         """
