@@ -247,10 +247,11 @@ class AMP(GFlowNetEnv):
             state = self.state.copy()
         state_policy = np.zeros(self.max_seq_length * self.n_alphabet, dtype=np.float32)
         if len(state) > 0:
-            if hasattr(
-                state[0], "device"
-            ):  # if it has a device at all, it will be cuda (CPU numpy array has no dev
-                state = [subseq.cpu().detach().numpy() for subseq in state]
+            # TODO: Check if the following is required.
+            # if hasattr(
+                # state[0], "device"
+            # ):  # if it has a device at all, it will be cuda (CPU numpy array has no dev
+            state = [subseq.cpu().detach().numpy() for subseq in state]
             state_policy[(np.arange(len(state)) * self.n_alphabet + state)] = 1
         return state_policy
 
@@ -265,18 +266,20 @@ class AMP(GFlowNetEnv):
             (len(states), self.n_alphabet * self.max_seq_length), dtype=np.float32
         )
         if list(map(len, states)) != [0 for s in states]:
-            states = np.array(states)
-            cols = states + np.arange(len(states)) * self.n_alphabet
-            rows = np.repeat(np.arange(len(states)), self.max_seq_length)
-            state_policy = np.zeros(
-                (len(states), self.n_alphabet * self.max_seq_length), dtype=np.float32
+            cols, lengths = zip(
+            *[
+                (state + np.arange(len(state)) * self.n_alphabet, len(state))
+                for state in states
+            ]
             )
+            rows = np.repeat(np.arange(len(states)), lengths)
             state_policy[rows, np.concatenate(cols)] = 1.0
         return state_policy
 
     def statetorch2policy(
         self, states: TensorType["batch", "state_dim"]
     ) -> TensorType["batch", "policy_output_dim"]:
+        # TODO: check if this break on emtpy state tensor
         device = states.device
         cols, lengths = zip(
             *[
@@ -422,7 +425,7 @@ class AMP(GFlowNetEnv):
             return self.state, (self.eos,), True
         # If action is not eos, then perform action
         if action[0] != self.eos:
-            action = self.action_space[action]
+            action = self.action_space[action][0]
             state_next = self.state + list(action)
             if len(state_next) > self.max_seq_length:
                 valid = False
