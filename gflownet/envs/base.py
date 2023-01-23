@@ -615,8 +615,8 @@ class Buffer:
                         {
                             "state": [self.env.state2readable(s) for s in states],
                             "traj": [self.env.traj2readable(p) for p in trajs],
-                            "reward": rewards,
-                            "energy": energies,
+                            "reward": rewards.cpu(),
+                            "energy": energies.cpu(),
                             "iter": it,
                         }
                     ),
@@ -637,7 +637,7 @@ class Buffer:
         it,
     ):
         rewards_old = self.replay["reward"].values
-        rewards_new = rewards.copy()
+        rewards_new = rewards().copy()
         while np.max(rewards_new) > np.min(rewards_old):
             idx_new_max = np.argmax(rewards_new)
             self.replay.iloc[self.replay.reward.argmin()] = {
@@ -653,7 +653,7 @@ class Buffer:
 
     def make_data_set(self, config):
         """
-        Constructs a data set asa DataFrame according to the configuration.
+        Constructs a data set as a DataFrame according to the configuration.
         """
         if config is None:
             return None

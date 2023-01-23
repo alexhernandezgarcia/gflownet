@@ -567,7 +567,7 @@ class GFlowNetAgent:
                     envs, actions, valids = self.forward_sample(
                         envs,
                         times,
-                        sampling_method="mixt",
+                        sampling_method="policy",
                         model=self.forward_policy,
                         temperature=self.temperature_logits,
                         random_action_prob=self.random_action_prob,
@@ -953,7 +953,7 @@ class GFlowNetAgent:
                     all_losses.append([i.item() for i in losses])
             # Buffer
             t0_buffer = time.time()
-            states_term, trajs_term, rewards = self.unpack_terminal_states(batch)
+            states_term, trajs_term = self.unpack_terminal_states(batch)
             proxy_vals = self.env.reward2proxy(rewards)
             self.buffer.add(states_term, trajs_term, rewards, proxy_vals, it)
             self.buffer.add(
