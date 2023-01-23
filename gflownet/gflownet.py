@@ -990,7 +990,7 @@ class GFlowNetAgent:
         """
         Computes metrics by sampling trajectories from the forward policy.
         """
-        if self.buffer.test_pkl is not None:
+        if self.buffer.test_pkl is None:
             return None, None, None
         with open(self.buffer.test_pkl, "rb") as f:
             dict_tt = pickle.load(f)
