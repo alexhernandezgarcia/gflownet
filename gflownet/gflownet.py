@@ -18,9 +18,9 @@ import yaml
 import pickle
 from torch.distributions import Categorical, Bernoulli
 from tqdm import tqdm
+from scipy.special import logsumexp
 
 from gflownet.envs.base import Buffer
-from gflownet.utils.metrics import fit_kde
 from gflownet.utils.common import torch2np
 
 
@@ -1016,7 +1016,7 @@ class GFlowNetAgent:
         elif self.continuous:
             x_sampled = torch2np(self.env.statebatch2proxy(x_sampled))
             x_tt = torch2np(self.env.statebatch2proxy(x_tt))
-            kde_pred = fit_kde(
+            kde_pred = self.env.fit_kde(
                 x_sampled,
                 kernel=self.logger.test.kde.kernel,
                 bandwidth=self.logger.test.kde.bandwidth,
@@ -1030,19 +1030,21 @@ class GFlowNetAgent:
                 )
                 x_from_reward = torch2np(self.env.statetorch2proxy(x_from_reward))
                 # Fit KDE with samples from reward
-                kde_true = fit_kde(
+                kde_true = self.env.fit_kde(
                     x_from_reward,
                     kernel=self.logger.test.kde.kernel,
                     bandwidth=self.logger.test.kde.bandwidth,
                 )
                 # Estimate true log density using test samples
-                log_density_true = kde_true.score_samples(x_tt)
+                scores_true = kde_true.score_samples(x_tt)
+                log_density_true = scores_true - logsumexp(scores_true, axis=0)
                 # Add log_density_true to pickled test dict
                 with open(self.buffer.test_pkl, "wb") as f:
                     dict_tt["log_density_true"] = log_density_true
                     pickle.dump(dict_tt, f)
             # Estimate pred log density using test samples
-            log_density_pred = kde_pred.score_samples(x_tt)
+            scores_pred = kde_pred.score_samples(x_tt)
+            log_density_pred = scores_pred - logsumexp(scores_pred, axis=0)
             density_true = np.exp(log_density_true)
             density_pred = np.exp(log_density_pred)
         else:
@@ -1055,8 +1057,8 @@ class GFlowNetAgent:
         log_mean_dens = np.logaddexp(log_density_true, log_density_pred) + np.log(
             0.5
         )
-        jsd = np.mean(density_true * (log_density_true - log_mean_dens))
-        jsd += np.mean(density_pred * (log_density_pred - log_mean_dens))
+        jsd = 0.5 * np.sum(density_true * (log_density_true - log_mean_dens))
+        jsd += 0.5 * np.sum(density_pred * (log_density_pred - log_mean_dens))
         return l1, kl, jsd
 
     def get_log_corr(self, times):

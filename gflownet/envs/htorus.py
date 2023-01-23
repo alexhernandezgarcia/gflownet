@@ -10,6 +10,7 @@ import torch
 from gflownet.envs.base import GFlowNetEnv
 from torch.distributions import Categorical, Uniform, VonMises, Bernoulli
 from torchtyping import TensorType
+from sklearn.neighbors import KernelDensity
 
 
 class HybridTorus(GFlowNetEnv):
@@ -518,3 +519,12 @@ class HybridTorus(GFlowNetEnv):
             samples_accepted = samples[mask, :]
             samples_final.extend(samples_accepted[-(n_samples - len(samples_final)) :])
         return torch.vstack(samples_final)
+
+    def fit_kde(self, samples, kernel="gaussian", bandwidth=0.1):
+        aug_samples = []
+        for add_0 in [0, -2*np.pi, 2*np.pi]:
+            for add_1 in [0, -2*np.pi, 2*np.pi]:
+                aug_samples.append(np.stack([samples[:, 0] + add_0, samples[:, 1] + add_1], axis=1))
+        aug_samples = np.concatenate(aug_samples)
+        kde = KernelDensity(kernel=kernel, bandwidth=bandwidth).fit(aug_samples)
+        return kde
