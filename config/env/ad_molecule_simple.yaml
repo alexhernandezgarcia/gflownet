@@ -8,8 +8,13 @@ id: ad_molecule_simple
 # Fixed length of trajectories
 length_traj: 10
 # Parameters of the fixed policy output distribution
-vonmises_mean: 0.0
-vonmises_concentration: 0.5
+fixed_distribution:
+  vonmises_mean: 0.0
+  vonmises_concentration: 0.5
+# Parameters of the random policy output distribution
+random_distribution:
+  vonmises_mean: 0.0
+  vonmises_concentration: 0.001
 # Buffer
 buffer:
   data_path: null
