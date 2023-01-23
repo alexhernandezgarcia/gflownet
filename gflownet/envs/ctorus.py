@@ -10,7 +10,6 @@ import torch
 from gflownet.envs.htorus import HybridTorus
 from torch.distributions import Categorical, Uniform, VonMises
 from torchtyping import TensorType
-from sklearn.neighbors import KernelDensity
 
 
 class ContinuousTorus(HybridTorus):

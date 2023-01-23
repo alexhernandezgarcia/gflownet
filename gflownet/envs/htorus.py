@@ -10,6 +10,7 @@ import torch
 from gflownet.envs.base import GFlowNetEnv
 from torch.distributions import Categorical, Uniform, VonMises, Bernoulli
 from torchtyping import TensorType
+from sklearn.neighbors import KernelDensity
 
 
 class HybridTorus(GFlowNetEnv):
