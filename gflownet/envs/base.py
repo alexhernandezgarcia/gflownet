@@ -174,9 +174,9 @@ class GFlowNetEnv:
         """
         if done is None:
             done = torch.ones(states.shape[0], dtype=torch.bool, device=self.device)
-        states_proxy = self.statetorch2proxy(states)[done, :]
+        states_proxy = self.statetorch2proxy(states[done, :])
         reward = torch.zeros(done.shape[0], dtype=self.float, device=self.device)
-        if states_proxy.shape[0] > 0:
+        if states[done, :].shape[0] > 0:
             reward[done] = self.proxy2reward(self.proxy(states_proxy))
         return reward
 
@@ -331,7 +331,6 @@ class GFlowNetEnv:
         sampling_method: str = "policy",
         mask_invalid_actions: TensorType["n_states", "policy_output_dim"] = None,
         temperature_logits: float = 1.0,
-        random_action_prob=0.0,
         loginf: float = 1000,
     ) -> Tuple[List[Tuple], TensorType["n_states"]]:
         """
@@ -356,6 +355,7 @@ class GFlowNetEnv:
     def get_logprobs(
         self,
         policy_outputs: TensorType["n_states", "policy_output_dim"],
+        is_forward: bool,
         actions: TensorType["n_states", 2],
         states_target: TensorType["n_states", "policy_input_dim"],
         mask_invalid_actions: TensorType["batch_size", "policy_output_dim"] = None,
@@ -550,7 +550,11 @@ class Buffer:
             and train.output_csv is not None
         ):
             self.train.to_csv(train.output_csv)
-        if dict_tr is not None and "output_pkl" in train and train.output_pkl is not None:
+        if (
+            dict_tr is not None
+            and "output_pkl" in train
+            and train.output_pkl is not None
+        ):
             with open(train.output_pkl, "wb") as f:
                 pickle.dump(dict_tr, f)
                 self.train_pkl = train.output_pkl
@@ -652,18 +656,18 @@ class Buffer:
         elif config.type == "all" and hasattr(self.env, "get_all_terminating_states"):
             samples = self.env.get_all_terminating_states()
         elif (
+            config.type == "grid"
+            and "n" in config
+            and hasattr(self.env, "get_grid_terminating_states")
+        ):
+            samples = self.env.get_grid_terminating_states(config.n)
+        elif (
             config.type == "uniform"
             and "n" in config
+            and "seed" in config
             and hasattr(self.env, "get_uniform_terminating_states")
         ):
-            samples = self.env.get_uniform_terminating_states(config.n)
-        elif (
-            config.type == "random"
-            and "n" in config
-            and "seed" in config
-            and hasattr(self.env, "get_random_terminating_states")
-        ):
-            samples = self.env.get_random_terminating_states(config.n, config.seed)
+            samples = self.env.get_uniform_terminating_states(config.n, config.seed)
         else:
             return None, None
         energies = self.env.oracle(self.env.statebatch2oracle(samples)).tolist()

@@ -72,6 +72,7 @@ class Grid(GFlowNetEnv):
         self.cells = np.linspace(cell_min, cell_max, length)
         self.action_space = self.get_actions_space()
         self.fixed_policy_output = self.get_fixed_policy_output()
+        self.random_policy_output = self.get_fixed_policy_output()
         self.policy_output_dim = len(self.fixed_policy_output)
         self.policy_input_dim = len(self.state2policy())
         if self.proxy_state_format == "ohe":
@@ -352,7 +353,7 @@ class Grid(GFlowNetEnv):
         )
         return all_x.tolist()
 
-    def get_random_terminating_states(self, n_states: int, seed: int) -> List[List]:
+    def get_uniform_terminating_states(self, n_states: int, seed: int) -> List[List]:
         rng = np.random.default_rng(seed)
         states = rng.integers(low=0, high=self.length, size=(n_states, self.n_dim))
         return states.tolist()

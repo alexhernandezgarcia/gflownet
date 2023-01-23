@@ -7,6 +7,7 @@ class Corners(Proxy):
     """
     It is assumed that the state values will be in the range [-1.0, 1.0].
     """
+
     def __init__(self, n_dim=None, mu=None, sigma=None):
         super().__init__()
         self.n_dim = n_dim
@@ -46,13 +47,17 @@ class Corners(Proxy):
             return energies
 
         def _mulnormal_corners(x):
-            return -1.0 * self.mulnormal_norm * np.exp(
-                -0.5
-                * (
-                    np.diag(
-                        np.dot(
-                            np.dot((np.abs(x) - self.mu_vec), self.cov_inv),
-                            (np.abs(x) - self.mu_vec).T,
+            return (
+                -1.0
+                * self.mulnormal_norm
+                * np.exp(
+                    -0.5
+                    * (
+                        np.diag(
+                            np.dot(
+                                np.dot((np.abs(x) - self.mu_vec), self.cov_inv),
+                                (np.abs(x) - self.mu_vec).T,
+                            )
                         )
                     )
                 )

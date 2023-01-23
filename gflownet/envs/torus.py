@@ -76,6 +76,7 @@ class Torus(GFlowNetEnv):
         self.max_step_len = max_step_len
         self.action_space = self.get_actions_space()
         self.fixed_policy_output = self.get_fixed_policy_output()
+        self.random_policy_output = self.get_fixed_policy_output()
         self.policy_output_dim = len(self.fixed_policy_output)
         self.policy_input_dim = len(self.state2policy())
         self.angle_rad = 2 * np.pi / self.n_angles
@@ -136,12 +137,13 @@ class Torus(GFlowNetEnv):
             rewards,
             list(map(tuple, x)),
         )
-        import ipdb; ipdb.set_trace()
+        import ipdb
+
+        ipdb.set_trace()
         return self._true_density
 
     def fit_kde(x, kernel="exponential", bandwidth=0.1):
         kde = KernelDensity(kernel=kernel, bandwidth=bandwidth).fit(last_states.numpy())
-
 
     def statebatch2proxy(self, states: List[List]) -> npt.NDArray[np.float32]:
         """
