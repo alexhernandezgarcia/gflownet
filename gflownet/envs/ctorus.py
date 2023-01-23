@@ -457,17 +457,32 @@ class ContinuousTorus(GFlowNetEnv):
         states = [list(el) + [self.length_traj] for el in angles]
         return states
 
-    def sample_from_reward(self, n_samples, epsilon=1e-4):
-        # Implement rejection sampling, with proposal being uniform distribution in [0, 2pi]]^n_dim
-        accepted = []
+    # TODO: make generic for all environments
+    def sample_from_reward(
+        self, n_samples: int, epsilon=1e-4
+    ) -> TensorType["n_samples", "state_dim"]:
+        """
+        Rejection sampling  with proposal the uniform distribution in [0, 2pi]]^n_dim.
+
+        Returns a tensor in GFloNet (state) format.
+        """
+        samples_final = []
+        max_reward = self.proxy2reward(torch.tensor([self.proxy.min]))
         while len(accepted) < n_samples:
-            samples = np.random.rand(n_samples, self.n_dim) * 2 * np.pi
-            states = np.concatenate(
-                [samples, np.ones([n_samples, 1]) * self.length_traj], 1
+            angles_uniform = (
+                torch.rand((n_samples, self.n_dim), dtype=self.float, device=device)
+                * 2
+                * np.pi
             )
-            rewards = self.reward_batch(states)
-            max_reward = self.proxy2reward(torch.tensor([self.proxy.min])).item()
-            mask = np.random.rand(n_samples) * (max_reward + epsilon) < rewards
-            true_samples = samples[mask]
-            accepted.extend(true_samples[-(n_samples - len(accepted)) :])
-        return np.array(accepted)
+            samples = torch.cat(
+                (
+                    angles_uniform,
+                    torch.ones((angles_uniform.shape[0], 1)).to(angles_uniform),
+                ),
+                axis=1,
+            )
+            rewards = self.reward_torchbatch(samples)
+            mask = torch.rand(n_samples) * (max_reward + epsilon) < rewards
+            samples_accepted = samples[mask, :]
+            samples_final.extend(samples_accepted[-(n_samples - len(samples_final)) :])
+        return torch.cat(samples_final)
