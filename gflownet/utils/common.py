@@ -1,5 +1,10 @@
 from collections.abc import MutableMapping
 
+def torch2np(x):
+    if hasattr(x, "is_cuda") and x.is_cuda:
+        x = x.detach().cpu()
+    return np.array(x)
+
 
 def flatten_config(d, parent_key="", sep="_"):
     items = []

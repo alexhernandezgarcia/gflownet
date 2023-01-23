@@ -21,6 +21,7 @@ from tqdm import tqdm
 
 from gflownet.envs.base import Buffer
 from gflownet.utils.metrics import fit_kde, estimate_jsd
+from gflownet.utils.common import torch2np
 
 
 class GFlowNetAgent:
@@ -968,76 +969,76 @@ class GFlowNetAgent:
 
     def test(self):
         """
-        Computes the empirical distribution errors, as the mean L1 error and the KL
-        divergence between the true density of the space and the estimated density from all
-        states visited.
+        Computes metrics by sampling trajectories from the forward policy.
         """
         if self.buffer.test_pkl is not None:
-            with open(self.buffer.test_pkl, "rb") as f:
-                dict_tt = pickle.load(f)
-                x_tt = dict_tt["x"]
-            x_sampled, _ = self.sample_batch(self.env, self.logger.test.n, train=False)
-            if self.buffer.test_type is not None and self.buffer.test_type == "all":
-                if "reward" in dict_tt:
-                    rewards = dict_tt["reward"]
-                else:
-                    rewards = self.env.reward_batch(x_tt)
-                    with open(self.buffer.test_pkl, "wb") as f:
-                        dict_tt["reward"] = rewards
-                        pickle.dump(dict_tt, f)
+            return None, None, None
+        with open(self.buffer.test_pkl, "rb") as f:
+            dict_tt = pickle.load(f)
+            x_tt = dict_tt["x"]
+        x_sampled, _ = self.sample_batch(self.env, self.logger.test.n, train=False)
+        if self.buffer.test_type is not None and self.buffer.test_type == "all":
+            if "density_true" in dict_tt:
+                density_true = dict_tt["density_true"]
+            else:
+                rewards = self.env.reward_batch(x_tt)
                 z_true = rewards.sum()
                 density_true = rewards / z_true
-                hist = defaultdict(int)
-                for x in x_sampled:
-                    hist[tuple(x)] += 1
-                z_pred = sum([hist[tuple(x)] for x in x_tt]) + 1e-9
-                density_pred = np.array([hist[tuple(x)] / z_pred for x in x_tt])
-                log_density_true = np.log(density_true + 1e-8)
-                log_density_pred = np.log(density_pred + 1e-8)
-
-            elif self.continuous:
-                x_tt = np.array(x_tt)
-                # import ipdb; ipdb.set_trace()
-                kde_pred = fit_kde(
-                    np.array(x_sampled)[:, :-1],
+                with open(self.buffer.test_pkl, "wb") as f:
+                    dict_tt["density_true"] = density_true
+                    pickle.dump(dict_tt, f)
+            hist = defaultdict(int)
+            for x in x_sampled:
+                hist[tuple(x)] += 1
+            z_pred = sum([hist[tuple(x)] for x in x_tt]) + 1e-9
+            density_pred = np.array([hist[tuple(x)] / z_pred for x in x_tt])
+            log_density_true = np.log(density_true + 1e-8)
+            log_density_pred = np.log(density_pred + 1e-8)
+        elif self.continuous:
+            x_sampled = torch2np(self.env.statebatch2proxy(x_sampled))
+            x_tt = torch2np(self.env.statebatch2proxy(x_tt))
+            kde_pred = fit_kde(
+                x_sampled,
+                kernel=self.logger.test.kde.kernel,
+                bandwidth=self.logger.test.kde.bandwidth,
+            )
+            if "log_density_true" in dict_tt:
+                log_density_true = dict_tt["log_density_true"]
+            else:
+                # Sample from reward via rejection sampling
+                x_from_reward = self.env.sample_from_reward(
+                    n_samples=self.logger.test.n
+                )
+                x_from_reward = torch2np(self.env.statebatch2proxy(x_from_reward))
+                # Fit KDE with samples from reward
+                kde_true = fit_kde(
+                    x_from_reward,
                     kernel=self.logger.test.kde.kernel,
                     bandwidth=self.logger.test.kde.bandwidth,
                 )
-                if "log_density_true" in dict_tt:
-                    log_density_true = dict_tt["log_density_true"]
-                else:
-                    samples_from_reward = self.env.sample_from_reward(
-                        n_samples=self.logger.test.n
-                    )
-                    kde_true = fit_kde(
-                        samples_from_reward,
-                        kernel=self.logger.test.kde.kernel,
-                        bandwidth=self.logger.test.kde.bandwidth,
-                    )
-                    log_density_true = kde_true.score_samples(x_tt[:, :-1])
-                    with open(self.buffer.test_pkl, "wb") as f:
-                        dict_tt["log_density_true"] = log_density_true
-                        pickle.dump(dict_tt, f)
-                log_density_pred = kde_pred.score_samples(x_tt[:, :-1])
-                density_true = np.exp(log_density_true)
-                density_pred = np.exp(log_density_pred)
-
-            # L1 error
-            l1 = np.abs(density_pred - density_true).mean()
-            # KL divergence
-            kl = (density_true * (log_density_true - log_density_pred)).mean()
-            # Jensen-Shannon divergence
-            log_mean_dens = np.logaddexp(log_density_true, log_density_pred) + np.log(
-                0.5
-            )
-            jsd = np.mean(density_true * (log_density_true - log_mean_dens))
-            jsd += np.mean(density_pred * (log_density_pred - log_mean_dens))
-            # Update pickled test data
-
-            return l1, kl, jsd
-
+                # Estimate true log density using test samples
+                log_density_true = kde_true.score_samples(x_tt)
+                # Add log_density_true to pickled test dict
+                with open(self.buffer.test_pkl, "wb") as f:
+                    dict_tt["log_density_true"] = log_density_true
+                    pickle.dump(dict_tt, f)
+            # Estimate pred log density using test samples
+            log_density_pred = kde_pred.score_samples(x_tt)
+            density_true = np.exp(log_density_true)
+            density_pred = np.exp(log_density_pred)
         else:
-            return None
+            raise NotImplementedError
+        # L1 error
+        l1 = np.abs(density_pred - density_true).mean()
+        # KL divergence
+        kl = (density_true * (log_density_true - log_density_pred)).mean()
+        # Jensen-Shannon divergence
+        log_mean_dens = np.logaddexp(log_density_true, log_density_pred) + np.log(
+            0.5
+        )
+        jsd = np.mean(density_true * (log_density_true - log_mean_dens))
+        jsd += np.mean(density_pred * (log_density_pred - log_mean_dens))
+        return l1, kl, jsd
 
     def get_log_corr(self, times):
         data_logq = []
