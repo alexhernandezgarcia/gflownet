@@ -541,9 +541,9 @@ class HybridTorus(GFlowNetEnv):
         xx, yy = np.meshgrid(x, y)
         X = np.stack([xx, yy], axis=-1)
         samples_mesh = torch.tensor(
-            X.reshape(-1, 2), dtype=self.float, device=self.device
-        )
-        rewards = torch2np(self.proxy2reward(self.proxy(samples_mesh)))
+            X.reshape(-1, 2), dtype=self.float)
+        states_mesh = torch.cat([samples_mesh, torch.ones(samples_mesh.shape[0], 1)], 1).to(self.device)
+        rewards = torch2np(self.proxy2reward(self.proxy(self.statetorch2proxy(states_mesh))))
         # Init figure
         fig, ax = plt.subplots()
         fig.set_dpi(dpi)

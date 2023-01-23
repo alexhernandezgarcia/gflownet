@@ -990,7 +990,7 @@ class GFlowNetAgent:
         Computes metrics by sampling trajectories from the forward policy.
         """
         if self.buffer.test_pkl is None:
-            return self.l1, self.kl, self.jsd
+            return self.l1, self.kl, self.jsd, [None, None]
         with open(self.buffer.test_pkl, "rb") as f:
             dict_tt = pickle.load(f)
             x_tt = dict_tt["x"]
@@ -1060,6 +1060,7 @@ class GFlowNetAgent:
         jsd += 0.5 * np.sum(density_pred * (log_density_pred - log_mean_dens))
 
         # Plots
+
         if hasattr(self.env, "plot_reward_samples"):
             fig_reward_samples = self.env.plot_reward_samples(x_sampled)
         else:

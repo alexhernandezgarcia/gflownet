@@ -20,6 +20,7 @@ buffer:
   data_path: null
   train: null
   test:
-    type: uniform
+    type: grid
     n: 1000
     output_csv: ad_molecule_simple_test.csv
+    output_pkl: ad_molecule_simple_test.pkl
