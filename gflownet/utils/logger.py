@@ -48,6 +48,10 @@ class Logger:
             self.run = self.wandb.init(
                 config=config, project=project_name, name=run_name
             )
+        else:
+            self.wandb = None
+            self.plt = None
+            self.run = None
         self.add_tags(tags)
         self.context = "0"
         self.progress = progress
