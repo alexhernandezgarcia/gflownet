@@ -1028,7 +1028,7 @@ class GFlowNetAgent:
                 x_from_reward = self.env.sample_from_reward(
                     n_samples=self.logger.test.n
                 )
-                x_from_reward = torch2np(self.env.statebatch2proxy(x_from_reward))
+                x_from_reward = torch2np(self.env.statetorch2proxy(x_from_reward))
                 # Fit KDE with samples from reward
                 kde_true = fit_kde(
                     x_from_reward,
@@ -1104,21 +1104,6 @@ class GFlowNetAgent:
         self.logger.log_sampler_train(
             rewards, proxy_vals, states_term, data, it, self.use_context
         )
-        # loss
-        # if not self.logger.lightweight:
-        #     import ipdb; ipdb.set_trace()
-        #     l1_error, kl_div = empirical_distribution_error(
-        #         self.env, all_visited[-self.num_empirical_loss :]
-        #     )
-        # else:
-        l1_error, kl_div = 1, 100
-        # self.logger.log_sampler_loss(
-        #     losses,
-        #     l1_error,
-        #     kl_div,
-        #     it,
-        #     self.use_context,
-        # )
 
         # logZ
         self.logger.log_metric("logZ", self.logZ.sum(), it, use_context=False)
@@ -1136,7 +1121,7 @@ class GFlowNetAgent:
         if self.logger.progress:
             mean_main_loss = np.mean(np.array(all_losses)[-100:, 0], axis=0)
             description = "Loss: {:.4f} | Mean rewards: {:.2f} | KL: {:.4f}".format(
-                mean_main_loss, np.mean(rewards), kl_div
+                mean_main_loss, np.mean(rewards), self.kl
             )
             pbar.set_description(description)
 
