@@ -32,7 +32,7 @@ class Crystal(GFlowNetEnv):
         max_diff_elem=4,
         min_diff_elem=2,
         periodic_table=84,
-        oxidation_states,
+        oxidation_states=None,
         alphabet={},
         min_atoms=2,
         max_atoms=20,
@@ -75,7 +75,7 @@ class Crystal(GFlowNetEnv):
         self.obs_dim = self.periodic_table
         self.action_space = self.get_actions_space()
         self.eos = len(self.action_space)
-        
+
     def get_actions_space(self):
         """
         Constructs list with all possible actions
@@ -96,16 +96,16 @@ class Crystal(GFlowNetEnv):
         #     actions_r = [el for el in itertools.product(alphabet, repeat=r)]
         #     actions += actions_r
         return actions
-    
+
     def get_max_traj_len(self):
         return self.max_atoms / self.min_atom_i
-    
+
     def get_mask_invalid_actions(self, state=None, done=None):
         """
         Returns a vector of length the action space + 1: True if forward action is
         invalid given the current state, False otherwise.
         """
-        state_elem = [e for i in e, i in enumerate(state) if i > 0]
+        state_elem = [e for i, e in enumerate(state) if i > 0]
         state_atoms = sum(state)
         if state is None:
             state = self.state.copy()
@@ -121,7 +121,7 @@ class Crystal(GFlowNetEnv):
                 mask[idx] = True
             else:
                 new_elem = action[0] in state_elem
-                if new_elem and len(state_elem)  >= self.max_diff_elems:
+                if new_elem and len(state_elem) >= self.max_diff_elems:
                     mask[idx] = True
         return mask
 
@@ -144,7 +144,7 @@ class Crystal(GFlowNetEnv):
             list(map(tuple, all_states[state_mask])),
         )
         return self._true_density
-    
+
     def state2oracle(self, state_list):
         """
         Prepares a list of states in "GFlowNet format" for the oracles: a list of length
@@ -236,6 +236,7 @@ class Crystal(GFlowNetEnv):
         self.done = False
         self.id = env_id
         return self
+
     def get_parents(self, state=None, done=None):
         """
         Determines all parents and actions that lead to sequence state
@@ -308,7 +309,7 @@ class Crystal(GFlowNetEnv):
         if action_idx != self.eos:
             atomic_number, num = self.action_space[action_idx]
             state_next = self.state[:]
-			state_next = state_next[atmoic_number] + num
+            state_next = state_next[atmoic_number] + [num]
             if len(state_next) > self.max_atoms:
                 valid = False
             else:
@@ -325,4 +326,3 @@ class Crystal(GFlowNetEnv):
                 valid = True
                 self.n_actions += 1
             return self.state, self.eos, valid
-
