@@ -92,6 +92,7 @@ class AMP(GFlowNetEnv):
         self.eos = self.n_alphabet
         self.action_space = self.get_actions_space()
         self.fixed_policy_output = self.get_fixed_policy_output()
+        self.random_policy_output = self.get_fixed_policy_output()
         self.policy_output_dim = len(self.fixed_policy_output)
         self.policy_input_dim = len(self.state2policy())
         self.max_traj_len = self.get_max_traj_len()
@@ -128,6 +129,7 @@ class AMP(GFlowNetEnv):
             )
         self.alphabet = dict((i, a) for i, a in enumerate(self.vocab))
         self.reset()
+        self.continuous = True
 
     def get_actions_space(self):
         """
@@ -249,7 +251,7 @@ class AMP(GFlowNetEnv):
         if len(state) > 0:
             # TODO: Check if the following is required.
             # if hasattr(
-                # state[0], "device"
+            # state[0], "device"
             # ):  # if it has a device at all, it will be cuda (CPU numpy array has no dev
             state = [subseq.cpu().detach().numpy() for subseq in state]
             state_policy[(np.arange(len(state)) * self.n_alphabet + state)] = 1
@@ -267,10 +269,10 @@ class AMP(GFlowNetEnv):
         )
         if list(map(len, states)) != [0 for s in states]:
             cols, lengths = zip(
-            *[
-                (state + np.arange(len(state)) * self.n_alphabet, len(state))
-                for state in states
-            ]
+                *[
+                    (state + np.arange(len(state)) * self.n_alphabet, len(state))
+                    for state in states
+                ]
             )
             rows = np.repeat(np.arange(len(states)), lengths)
             state_policy[rows, np.concatenate(cols)] = 1.0
@@ -373,7 +375,7 @@ class AMP(GFlowNetEnv):
         if done is None:
             done = self.done
         if done:
-            return [state], [self.eos]
+            return [state], [(self.eos,)]
         else:
             parents = []
             actions = []
@@ -383,7 +385,7 @@ class AMP(GFlowNetEnv):
                     is_parent = all(is_parent)
                 if is_parent:
                     parents.append(state[: -len(a)])
-                    actions.append(idx)
+                    actions.append(a)
         return parents, actions
 
     # TODO: Remove as deprecated
@@ -425,7 +427,6 @@ class AMP(GFlowNetEnv):
             return self.state, (self.eos,), True
         # If action is not eos, then perform action
         if action[0] != self.eos:
-            action = self.action_space[action][0]
             state_next = self.state + list(action)
             if len(state_next) > self.max_seq_length:
                 valid = False
