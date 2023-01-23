@@ -934,14 +934,13 @@ class GFlowNetAgent:
                 all_visited.extend(states_term)
             # Test
             if self.logger.do_test(it):
-                self.l1, self.kl, self.jsd = self.test()
+                self.l1, self.kl, self.jsd, figs = self.test()
                 self.logger.log_test_metrics(
                     self.l1, self.kl, self.jsd, it, self.use_context
                 )
+                self.logger.log_plots(figs, it, self.use_context)
 
-            self.logger.log_losses(
-                losses, it, self.use_context
-            )
+            self.logger.log_losses(losses, it, self.use_context)
             # log metrics
             self.log_iter(
                 pbar,
@@ -1056,12 +1055,20 @@ class GFlowNetAgent:
         # KL divergence
         kl = (density_true * (log_density_true - log_density_pred)).mean()
         # Jensen-Shannon divergence
-        log_mean_dens = np.logaddexp(log_density_true, log_density_pred) + np.log(
-            0.5
-        )
+        log_mean_dens = np.logaddexp(log_density_true, log_density_pred) + np.log(0.5)
         jsd = 0.5 * np.sum(density_true * (log_density_true - log_mean_dens))
         jsd += 0.5 * np.sum(density_pred * (log_density_pred - log_mean_dens))
-        return l1, kl, jsd
+
+        # Plots
+        if hasattr(self.env, "plot_reward_samples"):
+            fig_reward_samples = self.env.plot_reward_samples(x_sampled)
+        else:
+            fig_reward_samples = None
+        if hasattr(self.env, "plot_kde"):
+            fig_kde = self.env.plot_kde(kde_pred)
+        else:
+            fig_kde = None
+        return l1, kl, jsd, [fig_reward_samples, fig_kde]
 
     def get_log_corr(self, times):
         data_logq = []
