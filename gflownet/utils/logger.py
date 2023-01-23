@@ -61,6 +61,8 @@ class Logger:
             print(f"logdir {logdir} already exists! - Ending run...")
         self.ckpts_dir = self.logdir / logdir.ckpts
         self.ckpts_dir.mkdir(parents=True, exist_ok=True)
+        # Write wandb URL
+        self.write_url_file()
 
     def do_train(self, step):
         if self.train.period is None or self.train.period < 0:
@@ -85,6 +87,14 @@ class Logger:
             return False
         else:
             return not step % self.checkpoints.period
+
+    def write_url_file(self):
+        if self.wandb is not None:
+            self.url = wandb.run.get_url()
+            if self.url:
+                with open(self.logdir / "wandb.url", "w") as f:
+                    f.write(self.url + "\n")
+
 
     def add_tags(self, tags: list):
         if not self.do.online:
