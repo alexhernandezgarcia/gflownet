@@ -21,7 +21,7 @@ class MultiFidelityEnvWrapper(GFlowNetEnv):
         self.action_space = self.get_actions_space()
         self.fixed_policy_output = self.get_fixed_policy_output()
         self.reset()
-        # TODO: I think some memeber variable of the base env that are accessed by gflownet.py will be required to be part of this class so as to not break the existing sf-compatible code
+
         # Fid in the state should range from 0 to self.n_fid -1 for easy one hot encoding
 
     def get_actions_space(self): 
@@ -30,21 +30,25 @@ class MultiFidelityEnvWrapper(GFlowNetEnv):
             actions = actions +[(self.fid, fid_index)] 
 
     def get_fixed_policy_output(self):
-        return self.env.get_fixed_policy_output()
+        output = self.env.get_fixed_policy_output()
+        fixed_policy_output = np.concatenate(output, np.ones((self.n_fid)))
+        return fixed_policy_output
 
     def reset(self, env_id=None, fid: int = None):
         # Offline Trajectory: might want to reset the env with a specific fid
-        # TODO: should this be self.env or env?
         # TODO: env is a member variable of MFENV
         # TODO: all member variables of env are also members of MFENV. Is this desired?
         self.env = self.env.reset(env_id)
         # TODO: check if fid as a member variable is required.
         self.fid = fid
-        self.state = self.state + [self.fid]
+        self.state = self.env.state + [self.fid]
         return self
 
     def get_mask_invalid_actions_forward(self, state=None, done=None):
-        mask = self.env.get_mask_invalid_actions_forward(state, done)
+        if state is None:
+            state = self.state
+            done = self.done
+        mask = self.env.get_mask_invalid_actions_forward(state[:-1], done)
         # if fidelity has not been chosen, done is invalid and fid is valid
         if state[-1] == -1:
             mask[-1] = True
@@ -56,7 +60,7 @@ class MultiFidelityEnvWrapper(GFlowNetEnv):
         # TODO: do we need check done if fid is invalid?
 
     def state2policy(self, state: List = None):
-        state_proxy = self.env.state2policy(state)
+        state_proxy = self.env.state2policy(state[:-1])
         fid_proxy = np.zeros((self.n_fid), dtype=np.float32)
         fid_proxy[state[-1]] = 1
         return np.concatenate((state_proxy, fid_proxy), axis=0)
