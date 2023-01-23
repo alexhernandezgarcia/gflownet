@@ -3,6 +3,29 @@ _target_: logger.Logger
 do:
   online: False
   times: False
+
+# Train metrics
+train:
+  period: 1
+# Test metrics
+test:
+  period: 100
+  n: 100
+  kde:
+    bandwidth: 0.1
+    kernel: gaussian
+# Oracle metrics
+oracle:
+  period: 100000
+  k:
+    - 1
+    - 10
+    - 100
+# Policy model checkpoints
+checkpoints:
+  period: 1000
+
+# Log dir
 logdir:
   root: ./logs
   ckpts: ckpts

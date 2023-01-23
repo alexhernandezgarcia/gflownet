@@ -437,7 +437,7 @@ class Plane(GFlowNetEnv):
         if config is None:
             return None
         elif "uniform" in config and "n" in config and config.uniform:
-            samples = self.get_uniform_terminating_states(config.n)
+            samples = self.get_grid_terminating_states(config.n)
             energies = self.oracle(self.state2oracle(samples))
         else:
             return None
@@ -456,7 +456,7 @@ class Plane(GFlowNetEnv):
         if config is None:
             return None
         elif "uniform" in config and "n" in config and config.uniform:
-            samples = self.get_uniform_terminating_states(config.n)
+            samples = self.get_grid_terminating_states(config.n)
             energies = self.oracle(self.state2oracle(samples))
         else:
             return None
@@ -465,7 +465,7 @@ class Plane(GFlowNetEnv):
         )
         return df
 
-    def get_uniform_terminating_states(self, n_states: int) -> List[List]:
+    def get_grid_terminating_states(self, n_states: int) -> List[List]:
         n_per_dim = int(np.ceil(n_states ** (1 / self.n_dim)))
         linspaces = [np.linspace(0, self.max_val, n_per_dim) for _ in range(self.n_dim)]
         states = list(itertools.product(*linspaces))

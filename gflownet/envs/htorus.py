@@ -82,6 +82,8 @@ class HybridTorus(GFlowNetEnv):
         # Oracle
         self.state2oracle = self.state2proxy
         self.statebatch2oracle = self.statebatch2proxy
+        # Setup proxy
+        self.proxy.n_dim = self.n_dim
 
     def get_actions_space(self):
         """
@@ -474,9 +476,45 @@ class HybridTorus(GFlowNetEnv):
         else:
             return self.state, action, False
 
-    def get_uniform_terminating_states(self, n_states: int) -> List[List]:
+    def get_grid_terminating_states(self, n_states: int) -> List[List]:
         n_per_dim = int(np.ceil(n_states ** (1 / self.n_dim)))
         linspaces = [np.linspace(0, 2 * np.pi, n_per_dim) for _ in range(self.n_dim)]
         angles = list(itertools.product(*linspaces))
         states = [list(el) + [self.length_traj] for el in angles]
         return states
+
+    # TODO: make generic for all environments
+    def sample_from_reward(
+        self, n_samples: int, epsilon=1e-4
+    ) -> TensorType["n_samples", "state_dim"]:
+        """
+        Rejection sampling  with proposal the uniform distribution in [0, 2pi]]^n_dim.
+
+        Returns a tensor in GFloNet (state) format.
+        """
+        samples_final = []
+        max_reward = self.proxy2reward(torch.tensor([self.proxy.min])).to(self.device)
+        while len(samples_final) < n_samples:
+            angles_uniform = (
+                torch.rand(
+                    (n_samples, self.n_dim), dtype=self.float, device=self.device
+                )
+                * 2
+                * np.pi
+            )
+            samples = torch.cat(
+                (
+                    angles_uniform,
+                    torch.ones((angles_uniform.shape[0], 1)).to(angles_uniform),
+                ),
+                axis=1,
+            )
+            rewards = self.reward_torchbatch(samples)
+            mask = (
+                torch.rand(n_samples, dtype=self.float, device=self.device)
+                * (max_reward + epsilon)
+                < rewards
+            )
+            samples_accepted = samples[mask, :]
+            samples_final.extend(samples_accepted[-(n_samples - len(samples_final)) :])
+        return torch.vstack(samples_final)
