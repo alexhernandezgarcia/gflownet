@@ -20,7 +20,7 @@ from torch.distributions import Categorical, Bernoulli
 from tqdm import tqdm
 
 from gflownet.envs.base import Buffer
-from gflownet.utils.metrics import fit_kde, estimate_jsd
+from gflownet.utils.metrics import fit_kde
 from gflownet.utils.common import torch2np
 
 
@@ -173,6 +173,10 @@ class GFlowNetAgent:
         self.temperature_logits = temperature_logits
         self.random_action_prob = random_action_prob
         self.pct_batch_empirical = pct_batch_empirical
+        # Metrics
+        self.l1 = -1.0
+        self.kl = -1.0
+        self.jsd = -1.0
 
     def _set_device(self, device: str):
         if device.lower() == "cuda" and torch.cuda.is_available():
@@ -930,10 +934,10 @@ class GFlowNetAgent:
                 all_visited.extend(states_term)
             # Test
             if self.logger.do_test(it):
-                l1_error, kl_div, jsd = self.test()
+                self.l1, self.kl, self.jsd = self.test()
 
             self.logger.log_sampler_loss(
-                losses, l1_error, kl_div, jsd, it, self.use_context
+                losses, self.l1, self.kl, self.jsd, it, self.use_context
             )
             # log metrics
             self.log_iter(
