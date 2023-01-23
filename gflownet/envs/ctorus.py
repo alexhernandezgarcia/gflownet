@@ -10,6 +10,7 @@ import torch
 from gflownet.envs.base import GFlowNetEnv
 from torch.distributions import Categorical, Uniform, VonMises
 from torchtyping import TensorType
+from sklearn.neighbors import KernelDensity
 
 
 class ContinuousTorus(GFlowNetEnv):
@@ -469,3 +470,12 @@ class ContinuousTorus(GFlowNetEnv):
             true_samples = samples[mask]
             accepted.extend(true_samples[-(n_samples - len(accepted)) :])
         return np.array(accepted)
+
+    def fit_kde(self, samples, kernel="gaussian", bandwidth=0.1):
+        aug_samples = []
+        for add_0 in [0, -2*np.pi, 2*np.pi]:
+            for add_1 in [0, -2*np.pi, 2*np.pi]:
+                aug_samples.append(np.stack([samples[:, 0] + add_0, samples[:, 1] + add_1], axis=1))
+        aug_samples = np.concatenate(aug_samples)
+        kde = KernelDensity(kernel=kernel, bandwidth=bandwidth).fit(aug_samples)
+        return kde

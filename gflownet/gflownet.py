@@ -18,9 +18,9 @@ import yaml
 import pickle
 from torch.distributions.categorical import Categorical
 from tqdm import tqdm
+from scipy.special import logsumexp
 
 from gflownet.envs.base import Buffer
-from gflownet.utils.metrics import fit_kde, estimate_jsd
 
 
 class GFlowNetAgent:
@@ -997,19 +997,21 @@ class GFlowNetAgent:
             elif self.continuous:
                 x_tt = np.array(x_tt)
                 # import ipdb; ipdb.set_trace()
-                kde_pred = fit_kde(np.array(x_sampled)[:,:-1], kernel=self.logger.test.kde.kernel, 
+                kde_pred = self.env.fit_kde(np.array(x_sampled)[:,:-1], kernel=self.logger.test.kde.kernel, 
                                    bandwidth=self.logger.test.kde.bandwidth)
                 if "log_density_true" in dict_tt:
                     log_density_true = dict_tt["log_density_true"]
                 else:
                     samples_from_reward = self.env.sample_from_reward(n_samples=self.logger.test.n)
-                    kde_true = fit_kde(samples_from_reward, kernel=self.logger.test.kde.kernel, 
+                    kde_true = self.env.fit_kde(samples_from_reward, kernel=self.logger.test.kde.kernel, 
                                    bandwidth=self.logger.test.kde.bandwidth)
-                    log_density_true = kde_true.score_samples(x_tt[:,:-1])
+                    scores_true = kde_true.score_samples(x_tt[:,:-1])
+                    log_density_true = scores_true - logsumexp(scores_true, axis=0)
                     with open(self.buffer.test_pkl, 'wb') as f:
                         dict_tt["log_density_true"] = log_density_true
                         pickle.dump(dict_tt, f)
-                log_density_pred = kde_pred.score_samples(x_tt[:,:-1])
+                scores_pred = kde_pred.score_samples(x_tt[:,:-1])
+                log_density_pred = scores_pred - logsumexp(scores_pred, axis=0)
                 density_true = np.exp(log_density_true) 
                 density_pred = np.exp(log_density_pred)
 
@@ -1019,8 +1021,8 @@ class GFlowNetAgent:
             kl = (density_true * (log_density_true - log_density_pred)).mean()
             # Jensen-Shannon divergence
             log_mean_dens = np.logaddexp(log_density_true, log_density_pred) + np.log(0.5)
-            jsd = np.mean(density_true * (log_density_true - log_mean_dens))
-            jsd += np.mean(density_pred * (log_density_pred - log_mean_dens))
+            jsd = np.sum(density_true * (log_density_true - log_mean_dens))
+            jsd += np.sum(density_pred * (log_density_pred - log_mean_dens))
             # Update pickled test data
 
             return l1, kl, jsd
