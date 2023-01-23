@@ -450,7 +450,7 @@ class ContinuousTorus(GFlowNetEnv):
         else:
             return self.state, action, False
 
-    def get_uniform_terminating_states(self, n_states: int) -> List[List]:
+    def get_grid_terminating_states(self, n_states: int) -> List[List]:
         n_per_dim = int(np.ceil(n_states ** (1 / self.n_dim)))
         linspaces = [np.linspace(0, 2 * np.pi, n_per_dim) for _ in range(self.n_dim)]
         angles = list(itertools.product(*linspaces))

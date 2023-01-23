@@ -656,18 +656,18 @@ class Buffer:
         elif config.type == "all" and hasattr(self.env, "get_all_terminating_states"):
             samples = self.env.get_all_terminating_states()
         elif (
+            config.type == "grid"
+            and "n" in config
+            and hasattr(self.env, "get_grid_terminating_states")
+        ):
+            samples = self.env.get_grid_terminating_states(config.n)
+        elif (
             config.type == "uniform"
             and "n" in config
+            and "seed" in config
             and hasattr(self.env, "get_uniform_terminating_states")
         ):
-            samples = self.env.get_uniform_terminating_states(config.n)
-        elif (
-            config.type == "random"
-            and "n" in config
-            and "seed" in config
-            and hasattr(self.env, "get_random_terminating_states")
-        ):
-            samples = self.env.get_random_terminating_states(config.n, config.seed)
+            samples = self.env.get_uniform_terminating_states(config.n, config.seed)
         else:
             return None, None
         energies = self.env.oracle(self.env.statebatch2oracle(samples)).tolist()
