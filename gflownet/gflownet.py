@@ -1057,8 +1057,8 @@ class GFlowNetAgent:
         log_mean_dens = np.logaddexp(log_density_true, log_density_pred) + np.log(
             0.5
         )
-        jsd = np.sum(density_true * (log_density_true - log_mean_dens))
-        jsd += np.sum(density_pred * (log_density_pred - log_mean_dens))
+        jsd = 0.5 * np.sum(density_true * (log_density_true - log_mean_dens))
+        jsd += 0.5 * np.sum(density_pred * (log_density_pred - log_mean_dens))
         return l1, kl, jsd
 
     def get_log_corr(self, times):
