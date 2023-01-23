@@ -1036,6 +1036,7 @@ class GFlowNetAgent:
                     bandwidth=self.logger.test.kde.bandwidth,
                 )
                 # Estimate true log density using test samples
+                # TODO: this may be specific-ish for the torus or not
                 scores_true = kde_true.score_samples(x_tt)
                 log_density_true = scores_true - logsumexp(scores_true, axis=0)
                 # Add log_density_true to pickled test dict
@@ -1043,6 +1044,7 @@ class GFlowNetAgent:
                     dict_tt["log_density_true"] = log_density_true
                     pickle.dump(dict_tt, f)
             # Estimate pred log density using test samples
+            # TODO: this may be specific-ish for the torus or not
             scores_pred = kde_pred.score_samples(x_tt)
             log_density_pred = scores_pred - logsumexp(scores_pred, axis=0)
             density_true = np.exp(log_density_true)
