@@ -6,7 +6,9 @@ import itertools
 import numpy as np
 import numpy.typing as npt
 import pandas as pd
+import matplotlib.pyplot as plt
 import torch
+from gflownet.utils.common import torch2np
 from gflownet.envs.base import GFlowNetEnv
 from torch.distributions import Categorical, Uniform, VonMises, Bernoulli
 from torchtyping import TensorType
@@ -522,9 +524,66 @@ class HybridTorus(GFlowNetEnv):
 
     def fit_kde(self, samples, kernel="gaussian", bandwidth=0.1):
         aug_samples = []
-        for add_0 in [0, -2*np.pi, 2*np.pi]:
-            for add_1 in [0, -2*np.pi, 2*np.pi]:
-                aug_samples.append(np.stack([samples[:, 0] + add_0, samples[:, 1] + add_1], axis=1))
+        for add_0 in [0, -2 * np.pi, 2 * np.pi]:
+            for add_1 in [0, -2 * np.pi, 2 * np.pi]:
+                aug_samples.append(
+                    np.stack([samples[:, 0] + add_0, samples[:, 1] + add_1], axis=1)
+                )
         aug_samples = np.concatenate(aug_samples)
         kde = KernelDensity(kernel=kernel, bandwidth=bandwidth).fit(aug_samples)
         return kde
+
+    def plot_reward_samples(
+        self, samples, alpha=0.5, low=-np.pi * 0.5, high=2.5 * np.pi, dpi=150
+    ):
+        x = np.linspace(low, high, 201)
+        y = np.linspace(low, high, 201)
+        xx, yy = np.meshgrid(x, y)
+        X = np.stack([xx, yy], axis=-1)
+        samples_mesh = torch.tensor(
+            X.reshape(-1, 2), dtype=self.float, device=self.device
+        )
+        rewards = torch2np(self.proxy2reward(self.proxy(samples_mesh)))
+        # Init figure
+        fig, ax = plt.subplots()
+        fig.set_dpi(dpi)
+        # Plot reward contour
+        h = ax.contourf(xx, yy, rewards.reshape(xx.shape), alpha=alpha)
+        ax.axis("scaled")
+        fig.colorbar(h, ax=ax)
+        ax.plot([0, 0], [0, 2 * np.pi], "-w", alpha=alpha)
+        ax.plot([0, 2 * np.pi], [0, 0], "-w", alpha=alpha)
+        ax.plot([2 * np.pi, 2 * np.pi], [2 * np.pi, 0], "-w", alpha=alpha)
+        ax.plot([2 * np.pi, 0], [2 * np.pi, 2 * np.pi], "-w", alpha=alpha)
+        # Plot samples
+        extra_samples = []
+        for add_0 in [0, -2 * np.pi, 2 * np.pi]:
+            for add_1 in [0, -2 * np.pi, 2 * np.pi]:
+                if not (add_0 == add_1 == 0):
+                    extra_samples.append(
+                        np.stack([samples[:, 0] + add_0, samples[:, 1] + add_1], axis=1)
+                    )
+        extra_samples = np.concatenate(extra_samples)
+        ax.scatter(samples[:, 0], samples[:, 1], alpha=alpha)
+        ax.scatter(extra_samples[:, 0], extra_samples[:, 1], alpha=alpha, color="white")
+        ax.grid()
+        # Set tight layout
+        plt.tight_layout()
+        return fig
+
+    def plot_kde(self, kde, alpha=0.5, low=-np.pi * 0.5, high=2.5 * np.pi, dpi=150):
+        x = np.linspace(0, 2 * np.pi, 101)
+        y = np.linspace(0, 2 * np.pi, 101)
+        xx, yy = np.meshgrid(x, y)
+        X = np.stack([xx, yy], axis=-1)
+        Z = np.exp(kde.score_samples(X.reshape(-1, 2))).reshape(xx.shape)
+        # Init figure
+        fig, ax = plt.subplots()
+        fig.set_dpi(dpi)
+        # Plot KDE
+        h = ax.contourf(xx, yy, Z, alpha=alpha)
+        ax.axis("scaled")
+        fig.colorbar(h, ax=ax)
+        # Set tight layout
+        plt.tight_layout()
+        return fig

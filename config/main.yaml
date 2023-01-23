@@ -2,7 +2,7 @@ defaults:
   - _self_
   - env: grid
   - gflownet: flowmatch
-  - proxy: grid_corners
+  - proxy: corners
   - logger: wandb
   - user: alex
 

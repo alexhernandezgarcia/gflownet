@@ -48,6 +48,10 @@ class Logger:
             self.run = self.wandb.init(
                 config=config, project=project_name, name=run_name
             )
+        else:
+            self.wandb = None
+            self.plt = None
+            self.run = None
         self.add_tags(tags)
         self.context = "0"
         self.progress = progress
@@ -61,6 +65,8 @@ class Logger:
             print(f"logdir {logdir} already exists! - Ending run...")
         self.ckpts_dir = self.logdir / logdir.ckpts
         self.ckpts_dir.mkdir(parents=True, exist_ok=True)
+        # Write wandb URL
+        self.write_url_file()
 
     def do_train(self, step):
         if self.train.period is None or self.train.period < 0:
@@ -85,6 +91,14 @@ class Logger:
             return False
         else:
             return not step % self.checkpoints.period
+
+    def write_url_file(self):
+        if self.wandb is not None:
+            self.url = self.wandb.run.get_url()
+            if self.url:
+                with open(self.logdir / "wandb.url", "w") as f:
+                    f.write(self.url + "\n")
+
 
     def add_tags(self, tags: list):
         if not self.do.online:
@@ -125,6 +139,18 @@ class Logger:
         self.plt.xlabel(key)
         fig = self.wandb.Image(fig)
         self.wandb.log({key: fig}, step)
+
+    def log_plots(self, figs: list, step, use_context=True):
+        if not self.do.online:
+            return
+        keys = ["True reward and GFlowNet samples", "GFlowNet KDE Policy"]
+        for key, fig in zip(keys, figs):
+            if use_context:
+                context = self.context + "/" + key
+            if fig is not None:
+                figimg = self.wandb.Image(fig)
+                self.wandb.log({key: figimg}, step)
+                self.plt.close(fig)
 
     def log_metrics(self, metrics: dict, step: int, use_context: bool = True):
         if not self.do.online:
