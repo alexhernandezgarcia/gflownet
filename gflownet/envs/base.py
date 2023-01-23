@@ -355,6 +355,7 @@ class GFlowNetEnv:
     def get_logprobs(
         self,
         policy_outputs: TensorType["n_states", "policy_output_dim"],
+        is_forward: bool,
         actions: TensorType["n_states", 2],
         states_target: TensorType["n_states", "policy_input_dim"],
         mask_invalid_actions: TensorType["batch_size", "policy_output_dim"] = None,
