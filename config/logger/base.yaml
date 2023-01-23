@@ -9,6 +9,7 @@ train:
   period: 1
 # Test metrics
 test:
+  first_it: True
   period: 100
   n: 100
   kde:
