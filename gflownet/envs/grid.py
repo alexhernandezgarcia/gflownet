@@ -72,6 +72,7 @@ class Grid(GFlowNetEnv):
         self.cells = np.linspace(cell_min, cell_max, length)
         self.action_space = self.get_actions_space()
         self.fixed_policy_output = self.get_fixed_policy_output()
+        self.random_policy_output = self.get_fixed_policy_output()
         self.policy_output_dim = len(self.fixed_policy_output)
         self.policy_input_dim = len(self.state2policy())
         if self.proxy_state_format == "ohe":

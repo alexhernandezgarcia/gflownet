@@ -5,7 +5,6 @@ def torch2np(x):
         x = x.detach().cpu()
     return np.array(x)
 
-
 def flatten_config(d, parent_key="", sep="_"):
     items = []
     for k, v in d.items():

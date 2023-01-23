@@ -16,7 +16,7 @@ import torch
 import torch.nn as nn
 import yaml
 import pickle
-from torch.distributions.categorical import Categorical
+from torch.distributions import Categorical, Bernoulli
 from tqdm import tqdm
 
 from gflownet.envs.base import Buffer
@@ -113,7 +113,7 @@ class GFlowNetAgent:
             print(f"\tMin score: {self.buffer.test['energies'].min()}")
             print(f"\tMax score: {self.buffer.test['energies'].max()}")
         # Policy models
-        self.forward_policy = Policy(policy.forward, self.env)
+        self.forward_policy = Policy(policy.forward, self.env, self.device, self.float)
         if policy.forward.checkpoint:
             self.logger.set_forward_policy_ckpt_path(policy.forward.checkpoint)
             # TODO: re-write the logic and conditions to reload a model
@@ -128,6 +128,8 @@ class GFlowNetAgent:
             self.backward_policy = Policy(
                 policy.backward,
                 self.env,
+                self.device,
+                self.float,
                 base=self.forward_policy,
             )
         else:
@@ -142,14 +144,11 @@ class GFlowNetAgent:
                 print("Reloaded GFN backward policy model Checkpoint")
         else:
             self.logger.set_backward_policy_ckpt_path(None)
-        if self.backward_policy and self.backward_policy.is_model:
-            self.backward_policy.model.to(self.device)
         self.ckpt_period = policy.ckpt_period
         if self.ckpt_period in [None, -1]:
             self.ckpt_period = np.inf
         # Optimizer
         if self.forward_policy.is_model:
-            self.forward_policy.model.to(self.device)
             self.target = copy.deepcopy(self.forward_policy.model)
             self.opt, self.lr_scheduler = make_opt(
                 self.parameters(), self.logZ, optimizer
@@ -309,20 +308,33 @@ class GFlowNetAgent:
             [env.get_mask_invalid_actions_forward() for env in envs]
         )
         # Build policy outputs
+        policy_outputs = model.random_distribution(states)
+        idx_norandom = (
+            Bernoulli(
+                (1 - random_action_prob) * torch.ones(len(states), device=self.device)
+            )
+            .sample()
+            .to(bool)
+        )
         if sampling_method == "policy":
-            policy_outputs = model(self._tfloat(self.env.statebatch2policy(states)))
+            policy_outputs[idx_norandom, :] = model(
+                self._tfloat(
+                    self.env.statebatch2policy(
+                        [s for s, do in zip(states, idx_norandom) if do]
+                    )
+                )
+            )
         elif sampling_method == "uniform":
             # TODO
             policy_outputs = None
         else:
-            raise NotImplemented
+            raise NotImplementedError
         # Sample actions from policy outputs
         actions, logprobs = self.env.sample_actions(
             policy_outputs,
             sampling_method,
             mask_invalid_actions,
             temperature,
-            random_action_prob,
         )
         assert len(envs) == len(actions)
         # Execute actions
@@ -806,7 +818,7 @@ class GFlowNetAgent:
         # Forward trajectories
         policy_output_f = self.forward_policy(self.env.statetorch2policy(parents))
         logprobs_f = self.env.get_logprobs(
-            policy_output_f, actions, states, masks_f, loginf
+            policy_output_f, True, actions, states, masks_f, loginf
         )
         sumlogprobs_f = torch.zeros(
             len(torch.unique(traj_id, sorted=True)),
@@ -816,7 +828,7 @@ class GFlowNetAgent:
         # Backward trajectories
         policy_output_b = self.backward_policy(self.env.statetorch2policy(states))
         logprobs_b = self.env.get_logprobs(
-            policy_output_b, actions, parents, masks_b, loginf
+            policy_output_b, False, actions, parents, masks_b, loginf
         )
         sumlogprobs_b = torch.zeros(
             len(torch.unique(traj_id, sorted=True)),
@@ -1116,8 +1128,8 @@ class GFlowNetAgent:
 
         if self.logger.progress:
             mean_main_loss = np.mean(np.array(all_losses)[-100:, 0], axis=0)
-            description = "Loss: {:.4f} | L1: {:.4f} | KL: {:.4f}".format(
-                mean_main_loss, l1_error, kl_div
+            description = "Loss: {:.4f} | Mean rewards: {:.2f} | KL: {:.4f}".format(
+                mean_main_loss, np.mean(rewards), kl_div
             )
             pbar.set_description(description)
 
@@ -1131,9 +1143,18 @@ class GFlowNetAgent:
 
 
 class Policy:
-    def __init__(self, config, env, base=None):
+    def __init__(self, config, env, device, float_precision, base=None):
+        # Device and float precision
+        self.device = device
+        self.float = float_precision
+        # Input and output dimensions
         self.state_dim = env.policy_input_dim
-        self.fixed_output = env.fixed_policy_output
+        self.fixed_output = torch.tensor(env.fixed_policy_output).to(
+            dtype=self.float, device=self.device
+        )
+        self.random_output = torch.tensor(env.random_policy_output).to(
+            dtype=self.float, device=self.device
+        )
         self.output_dim = len(self.fixed_output)
         if "shared_weights" in config:
             self.shared_weights = config.shared_weights
@@ -1158,6 +1179,7 @@ class Policy:
             self.type = self.base.type
         else:
             raise "Policy type must be defined if shared_weights is False"
+        # Instantiate policy
         if self.type == "fixed":
             self.model = self.fixed_distribution
             self.is_model = False
@@ -1169,6 +1191,8 @@ class Policy:
             self.is_model = True
         else:
             raise "Policy model type not defined"
+        if self.is_model:
+            self.model.to(self.device)
 
     def __call__(self, states):
         return self.model(states)
@@ -1225,14 +1249,27 @@ class Policy:
         Returns the fixed distribution specified by the environment.
         Args: states: tensor
         """
-        return self._tfloat(torch.tile(self.fixed_output, (len(states), 1)))
+        return torch.tile(self.fixed_output, (len(states), 1)).to(
+            dtype=self.float, device=self.device
+        )
+
+    def random_distribution(self, states):
+        """
+        Returns the random distribution specified by the environment.
+        Args: states: tensor
+        """
+        return torch.tile(self.random_output, (len(states), 1)).to(
+            dtype=self.float, device=self.device
+        )
 
     def uniform_distribution(self, states):
         """
         Return action logits (log probabilities) from a uniform distribution
         Args: states: tensor
         """
-        return self._tfloat(torch.ones((len(states), self.output_dim)))
+        return torch.ones(
+            (len(states), self.output_dim), dtype=self.float, device=self.device
+        )
 
 
 def make_opt(params, logZ, config):

@@ -1,7 +1,7 @@
 defaults:
   - base
 
-_target_: gflownet.envs.ctorus.ContinuousTorus
+_target_: gflownet.envs.htorus.HybridTorus
 
 id: ctorus
 func: sincos
@@ -22,7 +22,6 @@ buffer:
   data_path: null
   train: null
   test:
-    type: grid
+    type: uniform
     n: 1000
     output_csv: ctorus_test.csv
-    output_pkl: ctorus_test.pkl

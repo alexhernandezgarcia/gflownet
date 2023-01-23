@@ -7,9 +7,9 @@ do:
   online: True
 
 project_name: "GFlowNet"
+
 tags: 
-    - dummy1
-    - dummy2
+    - gflownet
 sampler:
   policy:
     # Period (number of iterations) of saving models
