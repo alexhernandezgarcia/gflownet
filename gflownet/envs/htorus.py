@@ -52,15 +52,15 @@ class HybridTorus(GFlowNetEnv):
         **kwargs,
     ):
         super(HybridTorus, self).__init__(
-            env_id,
-            reward_beta,
-            reward_norm,
-            reward_norm_std_mult,
-            reward_func,
-            energies_stats,
-            denorm_proxy,
-            proxy,
-            oracle,
+            env_id=env_id,
+            reward_beta=reward_beta,
+            reward_norm=reward_norm,
+            reward_norm_std_mult=reward_norm_std_mult,
+            reward_func=reward_func,
+            energies_stats=energies_stats,
+            denorm_proxy=denorm_proxy,
+            proxy=proxy,
+            oracle=oracle,
             **kwargs,
         )
         self.continuous = True

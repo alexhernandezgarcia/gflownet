@@ -77,6 +77,8 @@ class Logger:
     def do_test(self, step):
         if self.test.period is None or self.test.period < 0:
             return False
+        elif step == 1 and self.test.first_it:
+            return True
         else:
             return not step % self.test.period
 
