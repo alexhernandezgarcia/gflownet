@@ -235,7 +235,7 @@ class Logger:
     def save_models(
         self, forward_policy, backward_policy, step: int = 1e9, final=False
     ):
-        if self.do_checkpoint(step) or final:
+        if self.do_checkpoints(step) or final:
             if final:
                 ckpt_id = "final"
             else:
