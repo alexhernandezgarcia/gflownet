@@ -441,9 +441,7 @@ class GFlowNetAgent:
         env.set_state((parents)[action_idx], done=False)
         return env, env.state, action, parents, parents_a
 
-    def sample_batch(
-        self, envs, n_samples=None, train=True, model=None, progress=False
-    ):
+    def sample_batch(self, envs, n_samples=None, train=True, progress=False):
         """
         Builds a batch of data
 
@@ -528,6 +526,7 @@ class GFlowNetAgent:
                         sampling_method="policy",
                         model=self.forward_policy,
                         temperature=1.0,
+                        random_action_prob=0.0,
                     )
                 else:
                     envs, actions, valids = self.forward_sample(
@@ -842,19 +841,9 @@ class GFlowNetAgent:
         # Sort rewards of done states by ascending traj id
         rewards = rewards[done.eq(1)][torch.argsort(traj_id[done.eq(1)])]
         # Trajectory balance loss
-        loss = (
-            (self.logZ.sum() + sumlogprobs_f - sumlogprobs_b - torch.log(rewards))
-            .pow(2)
-            .mean()
-        )
-        if self.debug:
-            self.logger.log_metric(
-                "mean_logprobs_b",
-                torch.mean(logprobs_b[state_id == 0]),
-                it,
-                use_context=False,
-            )
-        return (loss, loss, loss), rewards
+        logZ = torch.log(rewards) + sumlogprobs_b - sumlogprobs_f
+        loss = (self.logZ.sum() - logZ).pow(2).mean()
+        return (loss, loss, loss), rewards, logZ.mean()
 
     def unpack_terminal_states(self, batch):
         """
@@ -896,7 +885,7 @@ class GFlowNetAgent:
                         it * self.ttsr + j, data
                     )  # returns (opt loss, *metrics)
                 elif self.loss == "trajectorybalance":
-                    losses, rewards = self.trajectorybalance_loss(
+                    losses, rewards, mean_log_z = self.trajectorybalance_loss(
                         it * self.ttsr + j, data
                     )  # returns (opt loss, *metrics)
                 else:
@@ -939,9 +928,7 @@ class GFlowNetAgent:
                     self.l1, self.kl, self.jsd, it, self.use_context
                 )
 
-            self.logger.log_losses(
-                losses, it, self.use_context
-            )
+            self.logger.log_losses(losses, it, self.use_context)
             # log metrics
             self.log_iter(
                 pbar,
@@ -1056,9 +1043,7 @@ class GFlowNetAgent:
         # KL divergence
         kl = (density_true * (log_density_true - log_density_pred)).mean()
         # Jensen-Shannon divergence
-        log_mean_dens = np.logaddexp(log_density_true, log_density_pred) + np.log(
-            0.5
-        )
+        log_mean_dens = np.logaddexp(log_density_true, log_density_pred) + np.log(0.5)
         jsd = 0.5 * np.sum(density_true * (log_density_true - log_mean_dens))
         jsd += 0.5 * np.sum(density_pred * (log_density_pred - log_mean_dens))
         return l1, kl, jsd
