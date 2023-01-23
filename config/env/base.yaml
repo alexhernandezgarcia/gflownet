@@ -1,4 +1,4 @@
-_target_: src.gflownet.envs.base.GFlowNetEnv
+_target_: gflownet.envs.base.GFlowNetEnv
 
 # Reward function: power or boltzmann
 # boltzmann: exp(-1.0 * reward_beta * proxy)

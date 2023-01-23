@@ -1,0 +1,20 @@
+defaults:
+  - base
+
+_target_: gflownet.envs.ad_molecule_simple.ADMoleculeSimple
+
+path_to_dataset: ${user.data.alanine_dipeptide}
+id: ad_molecule_simple
+# Fixed length of trajectories
+length_traj: 10
+# Parameters of the fixed policy output distribution
+vonmises_mean: 0.0
+vonmises_concentration: 0.5
+# Buffer
+buffer:
+  data_path: null
+  train: null
+  test:
+    type: uniform
+    n: 1000
+    output_csv: ad_molecule_simple_test.csv

@@ -1,10 +1,12 @@
 """
 Classes to represent aptamers environments
 """
+from typing import List
 import itertools
 import numpy as np
+import numpy.typing as npt
 import pandas as pd
-from src.gflownet.envs.base import GFlowNetEnv
+from gflownet.envs.base import GFlowNetEnv
 import time
 
 
@@ -20,12 +22,12 @@ class AptamerSeq(GFlowNetEnv):
     min_seq_length : int
         Minimum length of the sequences
 
-    nalphabet : int
+    n_alphabet : int
         Number of letters in the alphabet
 
     state : list
         Representation of a sequence (state), as a list of length max_seq_length where
-        each element is the index of a letter in the alphabet, from 0 to (nalphabet -
+        each element is the index of a letter in the alphabet, from 0 to (n_alphabet -
         1).
 
     done : bool
@@ -46,7 +48,7 @@ class AptamerSeq(GFlowNetEnv):
         self,
         max_seq_length=42,
         min_seq_length=1,
-        nalphabet=4,
+        n_alphabet=4,
         min_word_len=1,
         max_word_len=1,
         proxy=None,
@@ -75,13 +77,18 @@ class AptamerSeq(GFlowNetEnv):
         self.state = []
         self.min_seq_length = min_seq_length
         self.max_seq_length = max_seq_length
-        self.nalphabet = nalphabet
-        self.obs_dim = self.nalphabet * self.max_seq_length
+        self.n_alphabet = n_alphabet
         self.min_word_len = min_word_len
         self.max_word_len = max_word_len
         self.action_space = self.get_actions_space()
         self.eos = len(self.action_space)
-        self.max_path_len = self.get_max_path_len()
+        self.fixed_policy_output = self.get_fixed_policy_output()
+        self.random_policy_output = self.get_fixed_policy_output()
+        self.policy_output_dim = len(self.fixed_policy_output)
+        self.policy_input_dim = len(self.state2policy())
+        self.max_traj_len = self.get_max_traj_len()
+        # Set up proxy
+        self.proxy.setup(self.max_seq_length)
 
     def get_actions_space(self):
         """
@@ -89,14 +96,14 @@ class AptamerSeq(GFlowNetEnv):
         """
         assert self.max_word_len >= self.min_word_len
         valid_wordlens = np.arange(self.min_word_len, self.max_word_len + 1)
-        alphabet = [a for a in range(self.nalphabet)]
+        alphabet = [a for a in range(self.n_alphabet)]
         actions = []
         for r in valid_wordlens:
             actions_r = [el for el in itertools.product(alphabet, repeat=r)]
             actions += actions_r
         return actions
 
-    def get_max_path_len(
+    def get_max_traj_len(
         self,
     ):
         return self.max_seq_length / self.min_word_len + 1
@@ -107,16 +114,16 @@ class AptamerSeq(GFlowNetEnv):
         else:
             return 0
 
-    def state2oracle(self, state_list):
+    def statebatch2oracle(self, states: List[List]):
         """
-        Prepares a sequence in "GFlowNet format" for the oracles.
+        Prepares a batch of sequence states for the oracles.
 
         Args
         ----
-        state_list : list of lists
+        states : list of lists
             List of sequences.
         """
-        queries = [s + [-1] * (self.max_seq_length - len(s)) for s in state_list]
+        queries = [s + [-1] * (self.max_seq_length - len(s)) for s in states]
         queries = np.array(queries, dtype=int)
         if queries.ndim == 1:
             queries = queries[np.newaxis, ...]
@@ -128,52 +135,65 @@ class AptamerSeq(GFlowNetEnv):
             queries = np.column_stack((queries, np.zeros(queries.shape[0])))
         return queries
 
-    def state2obs(self, state=None):
+    def state2policy(self, state: List = None) -> List:
         """
         Transforms the sequence (state) given as argument (or self.state if None) into a
-        one-hot encoding. The output is a list of length nalphabet * max_seq_length,
-        where each n-th successive block of nalphabet elements is a one-hot encoding of
+        one-hot encoding. The output is a list of length n_alphabet * max_seq_length,
+        where each n-th successive block of n_alphabet elements is a one-hot encoding of
         the letter in the n-th position.
 
         Example:
           - Sequence: AATGC
           - state: [0, 1, 3, 2]
                     A, T, G, C
-          - state2obs(state): [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0]
-                              |     A    |      T    |      G    |      C    |
+          - state2policy(state): [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0]
+                                 |     A    |      T    |      G    |      C    |
 
         If max_seq_length > len(s), the last (max_seq_length - len(s)) blocks are all
         0s.
         """
         if state is None:
             state = self.state.copy()
-
-        z = np.zeros(self.obs_dim, dtype=np.float32)
-
+        state_policy = np.zeros(self.n_alphabet * self.max_seq_length, dtype=np.float32)
         if len(state) > 0:
-            if hasattr(
-                state[0], "device"
-            ):  # if it has a device at all, it will be cuda (CPU numpy array has no dev
-                state = [subseq.cpu().detach().numpy() for subseq in state]
+            state_policy[(np.arange(len(state)) * self.n_alphabet + state)] = 1
+        return state_policy
 
-            z[(np.arange(len(state)) * self.nalphabet + state)] = 1
-        return z
+    def statebatch2policy(self, states: List[List]) -> npt.NDArray[np.float32]:
+        """
+        Transforms a batch of states into the policy model format. The output is a numpy
+        array of shape [n_states, n_angles * n_dim + 1].
 
-    def obs2state(self, obs):
+        See state2policy().
+        """
+        cols, lengths = zip(
+            *[
+                (state + np.arange(len(state)) * self.n_alphabet, len(state))
+                for state in states
+            ]
+        )
+        rows = np.repeat(np.arange(len(states)), lengths)
+        state_policy = np.zeros(
+            (len(states), self.n_alphabet * self.max_seq_length), dtype=np.float32
+        )
+        state_policy[rows, np.concatenate(cols)] = 1.0
+        return state_policy
+
+    def policy2state(self, state_policy: List) -> List:
         """
         Transforms the one-hot encoding version of a sequence (state) given as argument
         into a a sequence of letter indices.
 
         Example:
           - Sequence: AATGC
-          - obs: [1, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0]
-                 |     A    |      A    |      T    |      G    |      C    |
+          - state_policy: [1, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0]
+                          |     A    |      A    |      T    |      G    |      C    |
           - state: [0, 0, 1, 3, 2]
                     A, A, T, G, C
         """
-        obs_mat = np.reshape(obs, (self.max_seq_length, self.nalphabet))
-        state = np.where(obs_mat)[1]
-        return state
+        return np.where(
+            np.reshape(state_policy, (self.max_seq_length, self.n_alphabet))
+        )[1].tolist()
 
     def state2readable(self, state, alphabet={0: "A", 1: "T", 2: "C", 3: "G"}):
         """
@@ -200,7 +220,7 @@ class AptamerSeq(GFlowNetEnv):
         self.id = env_id
         return self
 
-    def get_parents(self, state=None, done=None):
+    def get_parents(self, state=None, done=None, action=None):
         """
         Determines all parents and actions that lead to sequence state
 
@@ -209,15 +229,18 @@ class AptamerSeq(GFlowNetEnv):
         state : list
             Representation of a sequence (state), as a list of length max_seq_length
             where each element is the index of a letter in the alphabet, from 0 to
-            (nalphabet - 1).
+            (n_alphabet - 1).
 
-        action : int
-            Last action performed, only to determine if it was eos.
+        done : bool
+            Whether the trajectory is done. If None, done is taken from instance.
+
+        action : None
+            Ignored
 
         Returns
         -------
         parents : list
-            List of parents as state2obs(state)
+            List of parents in state format
 
         actions : list
             List of actions that lead to state for each parent in parents
@@ -227,7 +250,7 @@ class AptamerSeq(GFlowNetEnv):
         if done is None:
             done = self.done
         if done:
-            return [self.state2obs(state)], [self.eos]
+            return [state], [self.eos]
         else:
             parents = []
             actions = []
@@ -236,16 +259,8 @@ class AptamerSeq(GFlowNetEnv):
                 if not isinstance(is_parent, bool):
                     is_parent = all(is_parent)
                 if is_parent:
-                    parents.append(self.state2obs(state[: -len(a)]))
+                    parents.append(state[: -len(a)])
                     actions.append(idx)
-        return parents, actions
-
-    def get_parents_debug(self, state=None, done=None):
-        """
-        Like get_parents(), but returns state format
-        """
-        obs, actions = self.get_parents(state, done)
-        parents = [self.obs2state(el) for el in obs]
         return parents, actions
 
     def step(self, action_idx):
@@ -298,7 +313,7 @@ class AptamerSeq(GFlowNetEnv):
                 self.n_actions += 1
             return self.state, self.eos, valid
 
-    def get_mask_invalid_actions(self, state=None, done=None):
+    def get_mask_invalid_actions_forward(self, state=None, done=None):
         """
         Returns a vector of length the action space + 1: True if action is invalid
         given the current state, False otherwise.
@@ -340,25 +355,25 @@ class AptamerSeq(GFlowNetEnv):
         """
         if self._true_density is not None:
             return self._true_density
-        if self.nalphabet ** self.max_seq_length > max_states:
+        if self.n_alphabet**self.max_seq_length > max_states:
             return (None, None, None)
         state_all = np.int32(
             list(
-                itertools.product(*[list(range(self.nalphabet))] * self.max_seq_length)
+                itertools.product(*[list(range(self.n_alphabet))] * self.max_seq_length)
             )
         )
-        path_rewards, state_end = zip(
+        traj_rewards, state_end = zip(
             *[
                 (self.proxy(state), state)
                 for state in state_all
                 if len(self.get_parents(state, False)[0]) > 0 or sum(state) == 0
             ]
         )
-        path_rewards = np.array(path_rewards)
+        traj_rewards = np.array(traj_rewards)
         self._true_density = (
-            path_rewards / path_rewards.sum(),
+            traj_rewards / traj_rewards.sum(),
             list(map(tuple, state_end)),
-            path_rewards,
+            traj_rewards,
         )
         return self._true_density
 

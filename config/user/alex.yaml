@@ -1,0 +1,4 @@
+logdir:
+  root: /network/scratch/a/alex.hernandez-garcia/logs/gflownet
+data:
+  alanine_dipeptide: /home/mila/a/alex.hernandez-garcia/gflownet/data/alanine_dipeptide_conformers_1.npy

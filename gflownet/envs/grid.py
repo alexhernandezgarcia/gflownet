@@ -1,10 +1,13 @@
 """
 Classes to represent a hyper-grid environments
 """
+from typing import List, Tuple
 import itertools
 import numpy as np
-import pandas as pd
-from src.gflownet.envs.base import GFlowNetEnv
+import numpy.typing as npt
+import torch
+from torchtyping import TensorType
+from gflownet.envs.base import GFlowNetEnv
 
 
 class Grid(GFlowNetEnv):
@@ -43,6 +46,7 @@ class Grid(GFlowNetEnv):
         energies_stats=None,
         proxy=None,
         oracle=None,
+        proxy_state_format=None,
         **kwargs,
     ):
         super(Grid, self).__init__(
@@ -55,21 +59,30 @@ class Grid(GFlowNetEnv):
             denorm_proxy,
             proxy,
             oracle,
+            proxy_state_format,
             **kwargs,
         )
+        self.continuous = True
         self.n_dim = n_dim
+        self.eos = self.n_dim
         self.state = [0 for _ in range(self.n_dim)]
         self.length = length
-        self.obs_dim = self.length * self.n_dim
         self.min_step_len = min_step_len
         self.max_step_len = max_step_len
         self.cells = np.linspace(cell_min, cell_max, length)
         self.action_space = self.get_actions_space()
-        self.eos = len(self.action_space)
+        self.fixed_policy_output = self.get_fixed_policy_output()
+        self.random_policy_output = self.get_fixed_policy_output()
+        self.policy_output_dim = len(self.fixed_policy_output)
+        self.policy_input_dim = len(self.state2policy())
+        if self.proxy_state_format == "ohe":
+            self.statebatch2proxy = self.statebatch2policy
+        elif self.proxy_state_format == "oracle":
+            self.statebatch2proxy = self.statebatch2oracle
 
     def get_actions_space(self):
         """
-        Constructs list with all possible actions
+        Constructs list with all possible actions, including eos.
         """
         valid_steplens = np.arange(self.min_step_len, self.max_step_len + 1)
         dims = [a for a in range(self.n_dim)]
@@ -77,9 +90,10 @@ class Grid(GFlowNetEnv):
         for r in valid_steplens:
             actions_r = [el for el in itertools.product(dims, repeat=r)]
             actions += actions_r
+        actions += [(self.eos,)]
         return actions
 
-    def get_mask_invalid_actions(self, state=None, done=None):
+    def get_mask_invalid_actions_forward(self, state=None, done=None):
         """
         Returns a vector of length the action space + 1: True if forward action is
         invalid given the current state, False otherwise.
@@ -89,9 +103,9 @@ class Grid(GFlowNetEnv):
         if done is None:
             done = self.done
         if done:
-            return [True for _ in range(len(self.action_space) + 1)]
-        mask = [False for _ in range(len(self.action_space) + 1)]
-        for idx, a in enumerate(self.action_space):
+            return [True for _ in range(self.policy_output_dim)]
+        mask = [False for _ in range(self.policy_output_dim)]
+        for idx, a in enumerate(self.action_space[:-1]):
             for d in a:
                 if state[d] + 1 >= self.length:
                     mask[idx] = True
@@ -118,25 +132,41 @@ class Grid(GFlowNetEnv):
         )
         return self._true_density
 
-    def state2oracle(self, state_list):
+    def state2oracle(self, state: List = None):
         """
-        Prepares a list of states in "GFlowNet format" for the oracles: a list of length
+        Prepares a state in "GFlowNet format" for the oracles: a list of length
         n_dim with values in the range [cell_min, cell_max] for each state.
 
         Args
         ----
-        state_list : list of lists
-            List of states.
+        state : list
+            State
         """
-        return [
-            (
-                self.state2obs(state).reshape((self.n_dim, self.length))
-                * self.cells[None, :]
-            ).sum(axis=1)
-            for state in state_list
-        ]
+        if state is None:
+            state = self.state.copy()
+        return (
+            self.state2policy(state).reshape((self.n_dim, self.length))
+            * self.cells[None, :]
+        ).sum(axis=1)
 
-    def state2obs(self, state=None):
+    def statebatch2oracle(self, states: List[List]) -> npt.NDArray[np.float32]:
+        """
+        Prepares a batch of states in "GFlowNet format" for the oracles: a list of
+        length n_dim with values in the range [cell_min, cell_max] for each state.
+
+        Args
+        ----
+        state : list
+            State
+        """
+        return (
+            self.statebatch2policy(states).reshape(
+                (len(states), self.n_dim, self.length)
+            )
+            * self.cells[None, :]
+        ).sum(axis=2)
+
+    def state2policy(self, state: List = None) -> List:
         """
         Transforms the state given as argument (or self.state if None) into a
         one-hot encoding. The output is a list of len length * n_dim,
@@ -145,28 +175,61 @@ class Grid(GFlowNetEnv):
 
         Example:
           - State, state: [0, 3, 1] (n_dim = 3)
-          - state2obs(state): [1, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0] (length = 4)
+          - state2policy(state): [1, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0] (length = 4)
                               |     0    |      3    |      1    |
         """
         if state is None:
             state = self.state.copy()
-        obs = np.zeros(self.obs_dim, dtype=np.float32)
-        obs[(np.arange(len(state)) * self.length + state)] = 1
-        return obs
+        state_policy = np.zeros(self.length * self.n_dim, dtype=np.float32)
+        state_policy[(np.arange(len(state)) * self.length + state)] = 1
+        return state_policy.tolist()
 
-    def obs2state(self, obs):
+    def statebatch2policy(self, states: List[List]) -> npt.NDArray[np.float32]:
+        """
+        Transforms a batch of states into a one-hot encoding. The output is a numpy
+        array of shape [n_states, length * n_dim].
+
+        See state2policy().
+        """
+        cols = np.array(states) + np.arange(self.n_dim) * self.length
+        rows = np.repeat(np.arange(len(states)), self.n_dim)
+        state_policy = np.zeros(
+            (len(states), self.length * self.n_dim), dtype=np.float32
+        )
+        state_policy[rows, cols.flatten()] = 1.0
+        return state_policy
+
+    def statetorch2policy(
+        self, states: TensorType["batch", "state_dim"]
+    ) -> TensorType["batch", "policy_output_dim"]:
+        """
+        Transforms a batch of states into a one-hot encoding. The output is a numpy
+        array of shape [n_states, length * n_dim].
+
+        See state2policy().
+        """
+        device = states.device
+        cols = (states + torch.arange(self.n_dim).to(device) * self.length).to(int)
+        rows = torch.repeat_interleave(
+            torch.arange(states.shape[0]).to(device), self.n_dim
+        )
+        state_policy = torch.zeros(
+            (states.shape[0], self.length * self.n_dim), dtype=states.dtype
+        ).to(device)
+        state_policy[rows, cols.flatten()] = 1.0
+        return state_policy
+
+    def policy2state(self, state_policy: List) -> List:
         """
         Transforms the one-hot encoding version of a state given as argument
         into a state (list of the position at each dimension).
 
         Example:
-          - obs: [1, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0] (length = 4, n_dim = 3)
-                 |     0    |      3    |      1    |
-          - obs2state(obs): [0, 3, 1]
+          - state_policy: [1, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0] (length = 4, n_dim = 3)
+                          |     0    |      3    |      1    |
+          - policy2state(state_policy): [0, 3, 1]
         """
-        obs_mat = np.reshape(obs, (self.n_dim, self.length))
-        state = np.where(obs_mat)[1]
-        return state
+        return np.where(np.reshape(state_policy, (self.n_dim, self.length)))[1].tolist()
 
     def readable2state(self, readable, alphabet={}):
         """
@@ -192,7 +255,7 @@ class Grid(GFlowNetEnv):
         self.id = env_id
         return self
 
-    def get_parents(self, state=None, done=None):
+    def get_parents(self, state=None, done=None, action=None):
         """
         Determines all parents and actions that lead to state.
 
@@ -202,13 +265,16 @@ class Grid(GFlowNetEnv):
             Representation of a state, as a list of length length where each element is
             the position at each dimension.
 
-        action : int
-            Last action performed
+        done : bool
+            Whether the trajectory is done. If None, done is taken from instance.
+
+        action : None
+            Ignored
 
         Returns
         -------
         parents : list
-            List of parents as state2obs(state)
+            List of parents in state format
 
         actions : list
             List of actions that lead to state for each parent in parents
@@ -218,11 +284,11 @@ class Grid(GFlowNetEnv):
         if done is None:
             done = self.done
         if done:
-            return [self.state2obs(state)], [self.eos]
+            return [state], [(self.eos,)]
         else:
             parents = []
             actions = []
-            for idx, a in enumerate(self.action_space):
+            for idx, a in enumerate(self.action_space[:-1]):
                 state_aux = state.copy()
                 for a_sub in a:
                     if state_aux[a_sub] > 0:
@@ -230,40 +296,41 @@ class Grid(GFlowNetEnv):
                     else:
                         break
                 else:
-                    parents.append(self.state2obs(state_aux))
-                    actions.append(idx)
+                    parents.append(state_aux)
+                    actions.append(a)
         return parents, actions
 
-    def step(self, action_idx):
+    def step(self, action: Tuple[int]) -> Tuple[List[int], Tuple[int], bool]:
         """
-        Executes step given an action index.
+        Executes step given an action.
 
         Args
         ----
-        action_idx : int
-            Index of action in the action space. a == eos indicates "stop action"
+        action : tuple
+            Action to be executed. An action is a tuple int values indicating the
+            dimensions to increment by 1.
 
         Returns
         -------
         self.state : list
             The sequence after executing the action
 
-        action_idx : int
-            Action index
+        action : tuple
+            Action executed
 
         valid : bool
-            False, if the action is not allowed for the current state, e.g. stop at the
-            root state
+            False, if the action is not allowed for the current state.
         """
+        if self.done:
+            return self.state, action_idx, False
         # If only possible action is eos, then force eos
         # All dimensions are at the maximum length
         if all([s == self.length - 1 for s in self.state]):
             self.done = True
             self.n_actions += 1
-            return self.state, self.eos, True
+            return self.state, (self.eos,), True
         # If action is not eos, then perform action
-        if action_idx != self.eos:
-            action = self.action_space[action_idx]
+        elif action[0] != self.eos:
             state_next = self.state.copy()
             for a in action:
                 state_next[a] += 1
@@ -273,71 +340,20 @@ class Grid(GFlowNetEnv):
                 self.state = state_next
                 valid = True
                 self.n_actions += 1
-            return self.state, action_idx, valid
+            return self.state, action, valid
         # If action is eos, then perform eos
         else:
             self.done = True
             self.n_actions += 1
-            return self.state, self.eos, True
+            return self.state, (self.eos,), True
 
-    @staticmethod
-    def func_corners(x_list):
-        def _func_corners(x):
-            ax = abs(x)
-            return -1.0 * (
-                (ax > 0.5).prod(-1) * 0.5
-                + ((ax < 0.8) * (ax > 0.6)).prod(-1) * 2
-                + 1e-1
-            )
+    def get_all_terminating_states(self) -> List[List]:
+        all_x = np.int32(
+            list(itertools.product(*[list(range(self.length))] * self.n_dim))
+        )
+        return all_x.tolist()
 
-        return np.asarray([_func_corners(x) for x in x_list])
-
-    @staticmethod
-    def func_corners_floor_B(x_list):
-        def _func_corners_floor_B(x_list):
-            ax = abs(x)
-            return -1.0 * (
-                (ax > 0.5).prod(-1) * 0.5
-                + ((ax < 0.8) * (ax > 0.6)).prod(-1) * 2
-                + 1e-2
-            )
-
-        return np.asarray([_func_corners_floor_B(x) for x in x_list])
-
-    @staticmethod
-    def func_corners_floor_A(x_list):
-        def _func_corners_floor_A(x_list):
-            ax = abs(x)
-            return -1.0 * (
-                (ax > 0.5).prod(-1) * 0.5
-                + ((ax < 0.8) * (ax > 0.6)).prod(-1) * 2
-                + 1e-3
-            )
-
-        return np.asarray([_func_corners_floor_A(x) for x in x_list])
-
-    @staticmethod
-    def func_cos_N(x_list):
-        def _func_cos_N(x_list):
-            ax = abs(x)
-            return -1.0 * (((np.cos(x * 50) + 1) * norm.pdf(x * 5)).prod(-1) + 0.01)
-
-        return np.asarray([_func_cos_N(x) for x in x_list])
-
-    def make_train_set(self, ntrain, oracle=None, seed=168, output_csv=None):
-        """
-        Constructs a randomly sampled train set.
-
-        Args
-        ----
-        """
+    def get_uniform_terminating_states(self, n_states: int, seed: int) -> List[List]:
         rng = np.random.default_rng(seed)
-        samples = rng.integers(low=0, high=self.length, size=(ntrain,) + (self.n_dim,))
-        if oracle:
-            energies = oracle(self.state2oracle(samples))
-        else:
-            energies = self.oracle(self.state2oracle(samples))
-        df_train = pd.DataFrame({"samples": list(samples), "energies": energies})
-        if output_csv:
-            df_train.to_csv(output_csv)
-        return df_train
+        states = rng.integers(low=0, high=self.length, size=(n_states, self.n_dim))
+        return states.tolist()

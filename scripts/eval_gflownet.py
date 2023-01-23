@@ -1,7 +1,6 @@
 """
 Computes evaluation metrics from a pre-trained GFlowNet model.
 """
-from comet_ml import Experiment
 from argparse import ArgumentParser
 import copy
 import gzip
@@ -166,14 +165,19 @@ def main(args):
         if size_last > 0:
             batch_sizes += [size_last]
         for batch_size in tqdm(batch_sizes):
-            samples, _ = gflownet.sample_batch(env, batch_size, train=False,
-                    model=model)
+            samples, _ = gflownet.sample_batch(
+                env, batch_size, train=False, model=model
+            )
             samples_dict, _ = batch2dict(samples, env)
             samples_mat = samples_dict["samples"]
-            seq_ints = ["".join([str(el) for el in seq if el > 0]) for seq in samples_mat]
+            seq_ints = [
+                "".join([str(el) for el in seq if el > 0]) for seq in samples_mat
+            ]
             seq_letters = [
                 "".join(
-                    env.seq2letters(seq[seq > 0], alphabet={1: "A", 2: "T", 3: "C", 4: "G"})
+                    env.seq2letters(
+                        seq[seq > 0], alphabet={1: "A", 2: "T", 3: "C", 4: "G"}
+                    )
                 )
                 for seq in samples_mat
             ]
@@ -205,9 +209,7 @@ def main(args):
         print("\nComputing log q(x)")
         data_logq = []
         for seqint, score in tqdm(zip(df_test.indices, df_test.energies)):
-            path_list, actions = env.get_paths(
-                [[indstr2seq(seqint)]], [[env.eos]]
-            )
+            path_list, actions = env.get_paths([[indstr2seq(seqint)]], [[env.eos]])
             data_logq.append(logq(path_list[0], actions[0], model, env))
         corr = np.corrcoef(data_logq, df_test.energies)
         df_test["logq"] = data_logq
