@@ -22,7 +22,6 @@ class Logger:
         test: dict,
         oracle: dict,
         checkpoints: dict,
-        sampler: dict,
         progress: bool,
         lightweight: bool,
         run_name=None,
@@ -50,7 +49,6 @@ class Logger:
                 config=config, project=project_name, name=run_name
             )
         self.add_tags(tags)
-        self.sampler = sampler
         self.context = "0"
         self.progress = progress
         self.lightweight = lightweight
@@ -206,7 +204,7 @@ class Logger:
         if step.do_oracle(step):
             energies_sorted = np.sort(energies)
             dict_topk = {}
-            for k in self.sampler.oracle.k:
+            for k in self.oracle.k:
                 mean_topk = np.mean(energies_sorted[:k])
                 dict_topk.update({"oracle_mean_top{}".format(k): mean_topk})
             self.log_metrics(dict_topk, use_context=use_context, step=step)
