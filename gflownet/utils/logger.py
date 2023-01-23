@@ -209,12 +209,9 @@ class Logger:
                 dict_topk.update({"oracle_mean_top{}".format(k): mean_topk})
             self.log_metrics(dict_topk, use_context=use_context, step=step)
 
-    def log_sampler_loss(
+    def log_losses(
         self,
         losses: list,
-        l1_error: float,
-        kl_div: float,
-        jsd: float,
         step: int,
         use_context: bool,
     ):
@@ -222,12 +219,34 @@ class Logger:
             return
         loss_metrics = dict(
             zip(
-                ["loss", "term_loss", "flow_loss", "l1", "kl", "jsd"],
-                [loss.item() for loss in losses] + [l1_error, kl_div, jsd],
+                ["loss", "term_loss", "flow_loss"],
+                [loss.item() for loss in losses],
             )
         )
         self.log_metrics(
             loss_metrics,
+            use_context=use_context,
+            step=step,
+        )
+
+    def log_test_metrics(
+        self,
+        l1: float,
+        kl: float,
+        jsd: float,
+        step: int,
+        use_context: bool,
+    ):
+        if not self.do.online:
+            return
+        metrics = dict(
+            zip(
+                ["L1 error", "KL Div.", "Jensen Shannon Div."],
+                [l1, kl, jsd],
+            )
+        )
+        self.log_metrics(
+            metrics,
             use_context=use_context,
             step=step,
         )

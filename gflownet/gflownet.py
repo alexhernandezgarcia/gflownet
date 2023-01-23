@@ -935,9 +935,12 @@ class GFlowNetAgent:
             # Test
             if self.logger.do_test(it):
                 self.l1, self.kl, self.jsd = self.test()
+                self.logger.log_test_metrics(
+                    self.l1, self.kl, self.jsd, it, self.use_context
+                )
 
-            self.logger.log_sampler_loss(
-                losses, self.l1, self.kl, self.jsd, it, self.use_context
+            self.logger.log_losses(
+                losses, it, self.use_context
             )
             # log metrics
             self.log_iter(
