@@ -1,7 +1,7 @@
 defaults:
   - base
 
-_target_: gflownet.envs.ctorus.ContinuousTorus
+_target_: gflownet.envs.ctorusmixture.ContinuousTorusMixture
 
 id: ctorus
 func: sincos
@@ -10,6 +10,7 @@ n_dim: 2
 # Fixed length of trajectories
 length_traj: 3
 # Parameters of the fixed policy output distribution
+n_comp: 3
 fixed_distribution:
   vonmises_mean: 0.0
   vonmises_concentration: 1.0

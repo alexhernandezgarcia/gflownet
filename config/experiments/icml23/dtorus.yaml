@@ -1,7 +1,7 @@
 # @package _global_
 
 defaults:
-   - override /env: htorus
+   - override /env: torus
    - override /gflownet: trajectorybalance
    - override /proxy: torus
    - override /logger: wandb
@@ -10,29 +10,30 @@ defaults:
 # Environment
 env:
   n_dim: 2
-  length_traj: 5
+  n_angles: 20
+  length_traj: 20
   reward_func: identity
 
 # Proxy
 proxy:
   normalize: False
-  alpha: 1.0
-  beta: 1.0
+  alpha: 3.0
+  beta: 2.0
 
 # GFlowNet hyperparameters
 gflownet:
   random_action_prob: 0.1
   optimizer:
-    batch_size: 512
+    batch_size: 100
     lr: 0.001
-    z_dim: 25
+    z_dim: 16
     lr_z_mult: 50
-    n_train_steps: 250
+    n_train_steps: 15000
   policy:
     forward:
       type: mlp
-      n_hid: 256
-      n_layers: 3
+      n_hid: 128
+      n_layers: 2
       checkpoint: forward
     backward:
       shared_weights: True
@@ -45,15 +46,14 @@ logger:
   tags: 
     - gflownet
     - continuous
-    - htorus
-    - dryrun
+    - dtorus
   test:
-    period: 100
-    k: 1000
+    period: 25
+    n: 1000
   checkpoints:
-    period: 1000
+    period: 500
 
 # Hydra
 hydra:
   run:
-    dir: ${user.logdir.root}/icml23/htorus/dryrun/${now:%Y-%m-%d_%H-%M-%S}
+    dir: ${user.logdir.root}/icml23/dtorus/${now:%Y-%m-%d_%H-%M-%S}

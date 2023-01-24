@@ -114,14 +114,13 @@ class Logger:
         if ckpt_id is None:
             self.pf_ckpt_path = None
         else:
-            self.pf_ckpt_path = self.ckpts_dir / f"_{ckpt_id}"
-            # .mkdir(parents=True, exist_ok=True)
+            self.pf_ckpt_path = self.ckpts_dir / f"{ckpt_id}_"
 
     def set_backward_policy_ckpt_path(self, ckpt_id: str = None):
         if ckpt_id is None:
             self.pb_ckpt_path = None
         else:
-            self.pb_ckpt_path = self.ckpts_dir / f"_{ckpt_id}"
+            self.pb_ckpt_path = self.ckpts_dir / f"{ckpt_id}_"
 
     def log_metric(self, key: str, value, step, use_context=True):
         if not self.do.online:
