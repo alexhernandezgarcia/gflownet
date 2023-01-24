@@ -34,11 +34,13 @@ gflownet:
       type: mlp
       n_hid: 128
       n_layers: 2
+      checkpoint: forward
     backward:
       type: mlp
       n_hid: 128
       n_layers: 2
       shared_weights: True
+      checkpoint: backward
 
 # WandB
 logger:
