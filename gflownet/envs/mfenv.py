@@ -12,16 +12,13 @@ class MultiFidelityEnvWrapper(GFlowNetEnv):
     def __init__(self, env, n_fid, oracle):
         self.env = env
         self.n_fid = n_fid
+        self.oracle = oracle
         self.fid = self.env.eos + 1
-        if isinstance(oracle, list):
-            # TODO: make state2oracle a list too
-            pass
-        else:
-            self.state2oracle = self.env.state2oracle
         self.action_space = self.get_actions_space()
         self.fixed_policy_output = self.get_fixed_policy_output()
+        # Assumes that all oracle srequired the same kind of transformed dtata
+        self.state2oracle = self.env.state2oracle
         self.reset()
-
         # Fid in the state should range from 0 to self.n_fid -1 for easy one hot encoding
 
     def get_actions_space(self): 
@@ -70,10 +67,10 @@ class MultiFidelityEnvWrapper(GFlowNetEnv):
         # Feed states (without fidelity) to state2policy
         # print last element of each state in states
         # print(states[:, -1])
-        state_proxy =  self.env.statebatch2policy(states[:, -1])
-        fid_proxy = np.zeros((len(states), self.n_fid), dtype=np.float32)
-        fid_proxy[np.arange(len(states)), states[:, -1]] = 1
-        return np.concatenate((state_proxy, fid_proxy), axis=1)
+        state_policy =  self.env.statebatch2policy(states[:, -1])
+        fid_policy = np.zeros((len(states), self.n_fid), dtype=np.float32)
+        fid_policy[np.arange(len(states)), states[:, -1]] = 1
+        return np.concatenate((state_policy, fid_policy), axis=1)
 
     def policy2state(self, state_policy: List) -> List:
         policy_no_fid = state_policy[:, :-self.n_fid]
@@ -93,10 +90,6 @@ class MultiFidelityEnvWrapper(GFlowNetEnv):
         state = state + [fid]
         return state
 
-    def state2oracle(self, state: List = None):
-        state_oracle = self.env.state2oracle(state)
-        return state_oracle, self.fid
-
     def get_parents(self, state=None, done=None, action=None):
         parents, actions = super().get_parents(state[:, :-1], done, action)
         # TODO: optimize code
@@ -108,18 +101,18 @@ class MultiFidelityEnvWrapper(GFlowNetEnv):
                 parents[idx].append(parent)
         return parents, actions
 
-    def step(self, action_idx, state=None, done = None):
+    def step(self, action, state=None, done = None):
         if state is None:
             state = self.state
         if done is None:
             done = self.done
         if done:
-            return state, action_idx, False
-        if action_idx == self.fid:
-            state[-1] = self.action_space[action_idx]
-            return state, action_idx, True
+            return state, action, False
+        if action[0] == self.fid:
+            state[-1] = action[1]
+            return state, action, True
         else:
             fid = state[-1]
-            state, action_idx, done = self.env.step(action_idx, state[:-1], done)
+            state, action, done = self.env.step(action, state[:-1], done)
             state = state + [fid]
-            return state, action_idx, done
+            return state, action, done
