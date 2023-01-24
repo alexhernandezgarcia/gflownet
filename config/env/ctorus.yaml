@@ -12,11 +12,11 @@ length_traj: 3
 # Parameters of the fixed policy output distribution
 fixed_distribution:
   vonmises_mean: 0.0
-  vonmises_concentration: 0.5
+  vonmises_concentration: 1.0
 # Parameters of the random policy output distribution
 random_distribution:
   vonmises_mean: 0.0
-  vonmises_concentration: 0.001
+  vonmises_concentration: 0.01
 # Buffer
 buffer:
   data_path: null
