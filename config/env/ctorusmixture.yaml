@@ -9,6 +9,7 @@ func: sincos
 n_dim: 2
 # Fixed length of trajectories
 length_traj: 3
+vonmises_min_concentration: 1e-3
 # Parameters of the fixed policy output distribution
 n_comp: 3
 fixed_distribution:

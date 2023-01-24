@@ -36,6 +36,7 @@ class ContinuousTorus(HybridTorus):
         length_traj=1,
         fixed_distribution=dict,
         random_distribution=dict,
+        vonmises_min_concentration=1e-3,
         env_id=None,
         reward_beta=1,
         reward_norm=1.0,
@@ -52,6 +53,7 @@ class ContinuousTorus(HybridTorus):
             length_traj=length_traj,
             fixed_distribution=fixed_distribution,
             random_distribution=random_distribution,
+            vonmises_min_concentration=vonmises_min_concentration,
             env_id=env_id,
             reward_beta=reward_beta,
             reward_norm=reward_norm,
@@ -193,7 +195,7 @@ class ContinuousTorus(HybridTorus):
                 concentrations = policy_outputs[mask_states_sample, 1::2]
                 distr_angles = VonMises(
                     locations,
-                    torch.exp(concentrations) + self.vonmises_concentration_epsilon,
+                    torch.exp(concentrations) + self.vonmises_min_concentration,
                 )
             angles[mask_states_sample] = distr_angles.sample()
             logprobs[mask_states_sample] = distr_angles.log_prob(
@@ -236,7 +238,7 @@ class ContinuousTorus(HybridTorus):
             concentrations = policy_outputs[mask_states_sample, 1::2]
             distr_angles = VonMises(
                 locations,
-                torch.exp(concentrations) + self.vonmises_concentration_epsilon,
+                torch.exp(concentrations) + self.vonmises_min_concentration,
             )
             logprobs[mask_states_sample] = distr_angles.log_prob(
                 angles[mask_states_sample]
