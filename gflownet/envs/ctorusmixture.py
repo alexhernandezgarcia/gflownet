@@ -37,6 +37,7 @@ class ContinuousTorusMixture(ContinuousTorus):
         n_comp=3,
         fixed_distribution=dict,
         random_distribution=dict,
+        vonmises_min_concentration=1e-3,
         env_id=None,
         reward_beta=1,
         reward_norm=1.0,
@@ -54,6 +55,7 @@ class ContinuousTorusMixture(ContinuousTorus):
             length_traj=length_traj,
             fixed_distribution=fixed_distribution,
             random_distribution=random_distribution,
+            vonmises_min_concentration=vonmises_min_concentration,
             env_id=env_id,
             reward_beta=reward_beta,
             reward_norm=reward_norm,
@@ -116,7 +118,7 @@ class ContinuousTorusMixture(ContinuousTorus):
                 )
                 vonmises = VonMises(
                     locations,
-                    torch.exp(concentrations) + self.vonmises_concentration_epsilon,
+                    torch.exp(concentrations) + self.vonmises_min_concentration,
                 )
                 distr_angles = MixtureSameFamily(mix, vonmises)
             angles[mask_states_sample] = distr_angles.sample()
@@ -168,7 +170,7 @@ class ContinuousTorusMixture(ContinuousTorus):
             )
             vonmises = VonMises(
                 locations,
-                torch.exp(concentrations) + self.vonmises_concentration_epsilon,
+                torch.exp(concentrations) + self.vonmises_min_concentration,
             )
             distr_angles = MixtureSameFamily(mix, vonmises)
             logprobs[mask_states_sample] = distr_angles.log_prob(

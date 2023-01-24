@@ -40,6 +40,7 @@ class HybridTorus(GFlowNetEnv):
         do_nonzero_source_prob=True,
         fixed_distribution=dict,
         random_distribution=dict,
+        vonmises_min_concentration=1e-3,
         env_id=None,
         reward_beta=1,
         reward_norm=1.0,
@@ -72,7 +73,7 @@ class HybridTorus(GFlowNetEnv):
             self.n_params_per_dim = 4
         else:
             self.n_params_per_dim = 3
-        self.vonmises_concentration_epsilon = 1e-3
+        self.vonmises_min_concentration = vonmises_min_concentration
         # Initialize angles and state attributes
         self.reset()
         self.source = self.angles.copy()
@@ -343,7 +344,7 @@ class HybridTorus(GFlowNetEnv):
                 ]
                 distr_angles = VonMises(
                     locations,
-                    torch.exp(concentrations) + self.vonmises_concentration_epsilon,
+                    torch.exp(concentrations) + self.vonmises_min_concentration,
                 )
             angles[ns_range_noeos] = distr_angles.sample()
             logprobs_angles[ns_range_noeos] = distr_angles.log_prob(
@@ -419,7 +420,7 @@ class HybridTorus(GFlowNetEnv):
             ]
             distr_angles = VonMises(
                 locations,
-                torch.exp(concentrations) + self.vonmises_concentration_epsilon,
+                torch.exp(concentrations) + self.vonmises_min_concentration,
             )
             logprobs_angles[ns_range_nofix] = distr_angles.log_prob(
                 angles[ns_range_nofix]
