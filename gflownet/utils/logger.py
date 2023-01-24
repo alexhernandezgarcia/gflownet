@@ -115,6 +115,7 @@ class Logger:
             self.pf_ckpt_path = None
         else:
             self.pf_ckpt_path = self.ckpts_dir / f"_{ckpt_id}"
+            # .mkdir(parents=True, exist_ok=True)
 
     def set_backward_policy_ckpt_path(self, ckpt_id: str = None):
         if ckpt_id is None:
@@ -288,15 +289,12 @@ class Logger:
             else:
                 ckpt_id = "_iter{:06d}".format(step)
             if forward_policy.is_model and self.pf_ckpt_path is not None:
-                import ipdb
-
-                ipdb.set_trace()
                 stem = self.pf_ckpt_path.stem + self.context + ckpt_id + ".ckpt"
-                path = self.pf_ckpt_path.parent + stem
+                path = self.pf_ckpt_path.parent / stem
                 torch.save(forward_policy.model.state_dict(), path)
-            if backward_policy.is_model and self.pf_ckpt_path is not None:
+            if backward_policy.is_model and self.pb_ckpt_path is not None:
                 stem = self.pb_ckpt_path.stem + self.context + ckpt_id + ".ckpt"
-                path = self.pb_ckpt_path.parent + stem
+                path = self.pb_ckpt_path.parent / stem
                 torch.save(backward_policy.model.state_dict(), path)
 
     def log_time(self, times: dict, step: int, use_context: bool):
