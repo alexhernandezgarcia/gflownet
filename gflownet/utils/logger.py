@@ -288,9 +288,6 @@ class Logger:
             else:
                 ckpt_id = "_iter{:06d}".format(step)
             if forward_policy.is_model and self.pf_ckpt_path is not None:
-                import ipdb
-
-                ipdb.set_trace()
                 stem = self.pf_ckpt_path.stem + self.context + ckpt_id + ".ckpt"
                 path = self.pf_ckpt_path.parent + stem
                 torch.save(forward_policy.model.state_dict(), path)
