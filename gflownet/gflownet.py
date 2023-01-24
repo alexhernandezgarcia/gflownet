@@ -15,10 +15,13 @@ import pandas as pd
 import torch
 import torch.nn as nn
 import yaml
-from torch.distributions.categorical import Categorical
+import pickle
+from torch.distributions import Categorical, Bernoulli
 from tqdm import tqdm
+from scipy.special import logsumexp
 
 from gflownet.envs.base import Buffer
+from gflownet.utils.common import torch2np
 
 
 class GFlowNetAgent:
@@ -110,7 +113,7 @@ class GFlowNetAgent:
             print(f"\tMin score: {self.buffer.test['energies'].min()}")
             print(f"\tMax score: {self.buffer.test['energies'].max()}")
         # Policy models
-        self.forward_policy = Policy(policy.forward, self.env)
+        self.forward_policy = Policy(policy.forward, self.env, self.device, self.float)
         if policy.forward.checkpoint:
             self.logger.set_forward_policy_ckpt_path(policy.forward.checkpoint)
             # TODO: re-write the logic and conditions to reload a model
@@ -125,6 +128,8 @@ class GFlowNetAgent:
             self.backward_policy = Policy(
                 policy.backward,
                 self.env,
+                self.device,
+                self.float,
                 base=self.forward_policy,
             )
         else:
@@ -139,14 +144,11 @@ class GFlowNetAgent:
                 print("Reloaded GFN backward policy model Checkpoint")
         else:
             self.logger.set_backward_policy_ckpt_path(None)
-        if self.backward_policy and self.backward_policy.is_model:
-            self.backward_policy.model.to(self.device)
         self.ckpt_period = policy.ckpt_period
         if self.ckpt_period in [None, -1]:
             self.ckpt_period = np.inf
         # Optimizer
         if self.forward_policy.is_model:
-            self.forward_policy.model.to(self.device)
             self.target = copy.deepcopy(self.forward_policy.model)
             self.opt, self.lr_scheduler = make_opt(
                 self.parameters(), self.logZ, optimizer
@@ -171,6 +173,10 @@ class GFlowNetAgent:
         self.temperature_logits = temperature_logits
         self.random_action_prob = random_action_prob
         self.pct_batch_empirical = pct_batch_empirical
+        # Metrics
+        self.l1 = -1.0
+        self.kl = -1.0
+        self.jsd = -1.0
 
     def _set_device(self, device: str):
         if device.lower() == "cuda" and torch.cuda.is_available():
@@ -306,20 +312,33 @@ class GFlowNetAgent:
             [env.get_mask_invalid_actions_forward() for env in envs]
         )
         # Build policy outputs
+        policy_outputs = model.random_distribution(states)
+        idx_norandom = (
+            Bernoulli(
+                (1 - random_action_prob) * torch.ones(len(states), device=self.device)
+            )
+            .sample()
+            .to(bool)
+        )
         if sampling_method == "policy":
-            policy_outputs = model(self._tfloat(self.env.statebatch2policy(states)))
+            policy_outputs[idx_norandom, :] = model(
+                self._tfloat(
+                    self.env.statebatch2policy(
+                        [s for s, do in zip(states, idx_norandom) if do]
+                    )
+                )
+            )
         elif sampling_method == "uniform":
             # TODO
             policy_outputs = None
         else:
-            raise NotImplemented
+            raise NotImplementedError
         # Sample actions from policy outputs
         actions, logprobs = self.env.sample_actions(
             policy_outputs,
             sampling_method,
             mask_invalid_actions,
             temperature,
-            random_action_prob,
         )
         assert len(envs) == len(actions)
         # Execute actions
@@ -803,7 +822,7 @@ class GFlowNetAgent:
         # Forward trajectories
         policy_output_f = self.forward_policy(self.env.statetorch2policy(parents))
         logprobs_f = self.env.get_logprobs(
-            policy_output_f, actions, states, masks_f, loginf
+            policy_output_f, True, actions, states, masks_f, loginf
         )
         sumlogprobs_f = torch.zeros(
             len(torch.unique(traj_id, sorted=True)),
@@ -813,7 +832,7 @@ class GFlowNetAgent:
         # Backward trajectories
         policy_output_b = self.backward_policy(self.env.statetorch2policy(states))
         logprobs_b = self.env.get_logprobs(
-            policy_output_b, actions, parents, masks_b, loginf
+            policy_output_b, False, actions, parents, masks_b, loginf
         )
         sumlogprobs_b = torch.zeros(
             len(torch.unique(traj_id, sorted=True)),
@@ -913,6 +932,15 @@ class GFlowNetAgent:
                 all_visited = states_term
             else:
                 all_visited.extend(states_term)
+            # Test
+            if self.logger.do_test(it):
+                self.l1, self.kl, self.jsd, figs = self.test()
+                self.logger.log_test_metrics(
+                    self.l1, self.kl, self.jsd, it, self.use_context
+                )
+                self.logger.log_plots(figs, it, self.use_context)
+
+            self.logger.log_losses(losses, it, self.use_context)
             # log metrics
             self.log_iter(
                 pbar,
@@ -956,6 +984,91 @@ class GFlowNetAgent:
         # Close logger
         if self.use_context == False:
             self.logger.end()
+
+    def test(self):
+        """
+        Computes metrics by sampling trajectories from the forward policy.
+        """
+        if self.buffer.test_pkl is None:
+            return self.l1, self.kl, self.jsd
+        with open(self.buffer.test_pkl, "rb") as f:
+            dict_tt = pickle.load(f)
+            x_tt = dict_tt["x"]
+        x_sampled, _ = self.sample_batch(self.env, self.logger.test.n, train=False)
+        if self.buffer.test_type is not None and self.buffer.test_type == "all":
+            if "density_true" in dict_tt:
+                density_true = dict_tt["density_true"]
+            else:
+                rewards = self.env.reward_batch(x_tt)
+                z_true = rewards.sum()
+                density_true = rewards / z_true
+                with open(self.buffer.test_pkl, "wb") as f:
+                    dict_tt["density_true"] = density_true
+                    pickle.dump(dict_tt, f)
+            hist = defaultdict(int)
+            for x in x_sampled:
+                hist[tuple(x)] += 1
+            z_pred = sum([hist[tuple(x)] for x in x_tt]) + 1e-9
+            density_pred = np.array([hist[tuple(x)] / z_pred for x in x_tt])
+            log_density_true = np.log(density_true + 1e-8)
+            log_density_pred = np.log(density_pred + 1e-8)
+        elif self.continuous:
+            x_sampled = torch2np(self.env.statebatch2proxy(x_sampled))
+            x_tt = torch2np(self.env.statebatch2proxy(x_tt))
+            kde_pred = self.env.fit_kde(
+                x_sampled,
+                kernel=self.logger.test.kde.kernel,
+                bandwidth=self.logger.test.kde.bandwidth,
+            )
+            if "log_density_true" in dict_tt:
+                log_density_true = dict_tt["log_density_true"]
+            else:
+                # Sample from reward via rejection sampling
+                x_from_reward = self.env.sample_from_reward(
+                    n_samples=self.logger.test.n
+                )
+                x_from_reward = torch2np(self.env.statetorch2proxy(x_from_reward))
+                # Fit KDE with samples from reward
+                kde_true = self.env.fit_kde(
+                    x_from_reward,
+                    kernel=self.logger.test.kde.kernel,
+                    bandwidth=self.logger.test.kde.bandwidth,
+                )
+                # Estimate true log density using test samples
+                # TODO: this may be specific-ish for the torus or not
+                scores_true = kde_true.score_samples(x_tt)
+                log_density_true = scores_true - logsumexp(scores_true, axis=0)
+                # Add log_density_true to pickled test dict
+                with open(self.buffer.test_pkl, "wb") as f:
+                    dict_tt["log_density_true"] = log_density_true
+                    pickle.dump(dict_tt, f)
+            # Estimate pred log density using test samples
+            # TODO: this may be specific-ish for the torus or not
+            scores_pred = kde_pred.score_samples(x_tt)
+            log_density_pred = scores_pred - logsumexp(scores_pred, axis=0)
+            density_true = np.exp(log_density_true)
+            density_pred = np.exp(log_density_pred)
+        else:
+            raise NotImplementedError
+        # L1 error
+        l1 = np.abs(density_pred - density_true).mean()
+        # KL divergence
+        kl = (density_true * (log_density_true - log_density_pred)).mean()
+        # Jensen-Shannon divergence
+        log_mean_dens = np.logaddexp(log_density_true, log_density_pred) + np.log(0.5)
+        jsd = 0.5 * np.sum(density_true * (log_density_true - log_mean_dens))
+        jsd += 0.5 * np.sum(density_pred * (log_density_pred - log_mean_dens))
+
+        # Plots
+        if hasattr(self.env, "plot_reward_samples"):
+            fig_reward_samples = self.env.plot_reward_samples(x_sampled)
+        else:
+            fig_reward_samples = None
+        if hasattr(self.env, "plot_kde"):
+            fig_kde = self.env.plot_kde(kde_pred)
+        else:
+            fig_kde = None
+        return l1, kl, jsd, [fig_reward_samples, fig_kde]
 
     def get_log_corr(self, times):
         data_logq = []
@@ -1002,20 +1115,6 @@ class GFlowNetAgent:
         self.logger.log_sampler_train(
             rewards, proxy_vals, states_term, data, it, self.use_context
         )
-        # loss
-        if not self.logger.lightweight:
-            l1_error, kl_div = empirical_distribution_error(
-                self.env, all_visited[-self.num_empirical_loss :]
-            )
-        else:
-            l1_error, kl_div = 1, 100
-        self.logger.log_sampler_loss(
-            losses,
-            l1_error,
-            kl_div,
-            it,
-            self.use_context,
-        )
 
         # logZ
         self.logger.log_metric("logZ", self.logZ.sum(), it, use_context=False)
@@ -1032,8 +1131,8 @@ class GFlowNetAgent:
 
         if self.logger.progress:
             mean_main_loss = np.mean(np.array(all_losses)[-100:, 0], axis=0)
-            description = "Loss: {:.4f} | L1: {:.4f} | KL: {:.4f}".format(
-                mean_main_loss, l1_error, kl_div
+            description = "Loss: {:.4f} | Mean rewards: {:.2f} | KL: {:.4f}".format(
+                mean_main_loss, np.mean(rewards), self.kl
             )
             pbar.set_description(description)
 
@@ -1047,9 +1146,18 @@ class GFlowNetAgent:
 
 
 class Policy:
-    def __init__(self, config, env, base=None):
+    def __init__(self, config, env, device, float_precision, base=None):
+        # Device and float precision
+        self.device = device
+        self.float = float_precision
+        # Input and output dimensions
         self.state_dim = env.policy_input_dim
-        self.fixed_output = env.fixed_policy_output
+        self.fixed_output = torch.tensor(env.fixed_policy_output).to(
+            dtype=self.float, device=self.device
+        )
+        self.random_output = torch.tensor(env.random_policy_output).to(
+            dtype=self.float, device=self.device
+        )
         self.output_dim = len(self.fixed_output)
         if "shared_weights" in config:
             self.shared_weights = config.shared_weights
@@ -1074,6 +1182,7 @@ class Policy:
             self.type = self.base.type
         else:
             raise "Policy type must be defined if shared_weights is False"
+        # Instantiate policy
         if self.type == "fixed":
             self.model = self.fixed_distribution
             self.is_model = False
@@ -1085,6 +1194,8 @@ class Policy:
             self.is_model = True
         else:
             raise "Policy model type not defined"
+        if self.is_model:
+            self.model.to(self.device)
 
     def __call__(self, states):
         return self.model(states)
@@ -1141,14 +1252,27 @@ class Policy:
         Returns the fixed distribution specified by the environment.
         Args: states: tensor
         """
-        return self._tfloat(torch.tile(self.fixed_output, (len(states), 1)))
+        return torch.tile(self.fixed_output, (len(states), 1)).to(
+            dtype=self.float, device=self.device
+        )
+
+    def random_distribution(self, states):
+        """
+        Returns the random distribution specified by the environment.
+        Args: states: tensor
+        """
+        return torch.tile(self.random_output, (len(states), 1)).to(
+            dtype=self.float, device=self.device
+        )
 
     def uniform_distribution(self, states):
         """
         Return action logits (log probabilities) from a uniform distribution
         Args: states: tensor
         """
-        return self._tfloat(torch.ones((len(states), self.output_dim)))
+        return torch.ones(
+            (len(states), self.output_dim), dtype=self.float, device=self.device
+        )
 
 
 def make_opt(params, logZ, config):
@@ -1180,30 +1304,6 @@ def make_opt(params, logZ, config):
         gamma=config.lr_decay_gamma,
     )
     return opt, lr_scheduler
-
-
-def empirical_distribution_error(env, visited, epsilon=1e-9):
-    """
-    Computes the empirical distribution errors, as the mean L1 error and the KL
-    divergence between the true density of the space and the estimated density from all
-    states visited.
-    """
-    true_density, _, states_term = env.true_density()
-    if true_density is None:
-        return None, None
-    true_density = self._tfloat(true_density)
-    if not len(visited):
-        return 1, 100
-    hist = defaultdict(int)
-    for s in visited:
-        hist[s] += 1
-    Z = sum([hist[s] for s in states_term]) + epsilon
-    estimated_density = self._tfloat([hist[s] / Z for s in states_term])
-    # L1 error
-    l1 = abs(estimated_density - true_density).mean().item()
-    # KL divergence
-    kl = (true_density * torch.log(estimated_density / true_density)).sum().item()
-    return l1, kl
 
 
 def logq(traj_list, actions_list, model, env, loginf=1000):

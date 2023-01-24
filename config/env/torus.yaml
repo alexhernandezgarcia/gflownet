@@ -8,9 +8,9 @@ func: sincos
 # Dimensions of hypertorus
 n_dim: 2
 # Number of angles per dimension
-n_angles: 4
+n_angles: 8
 # Maximum number of rounds
-length_traj: 10
+length_traj: 12
 # Minimum and maximum number of steps in the action space
 min_step_len: 1
 max_step_len: 1
@@ -23,3 +23,4 @@ buffer:
   test:
     type: all
     output_csv: torus_test.csv
+    output_pkl: torus_test.pkl

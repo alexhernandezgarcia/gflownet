@@ -10,13 +10,19 @@ n_dim: 2
 # Fixed length of trajectories
 length_traj: 3
 # Parameters of the fixed policy output distribution
-vonmises_mean: 0.0
-vonmises_concentration: 0.5
+fixed_distribution:
+  vonmises_mean: 0.0
+  vonmises_concentration: 1.0
+# Parameters of the random policy output distribution
+random_distribution:
+  vonmises_mean: 0.0
+  vonmises_concentration: 0.01
 # Buffer
 buffer:
   data_path: null
   train: null
   test:
-    type: uniform
+    type: grid
     n: 1000
     output_csv: ctorus_test.csv
+    output_pkl: ctorus_test.pkl
