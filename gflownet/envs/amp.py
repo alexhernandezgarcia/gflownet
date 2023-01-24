@@ -282,25 +282,27 @@ class AMP(GFlowNetEnv):
         self, states: TensorType["batch", "state_dim"]
     ) -> TensorType["batch", "policy_output_dim"]:
         # TODO: check if this break on emtpy state tensor
-        device = states.device
+        # device = states.device
+        device = "cuda"
         cols, lengths = zip(
             *[
                 (
-                    states + torch.arange(len(states)).to(device) * self.n_alphabet,
-                    len(state),
+                    state + torch.arange(len(state)).to(device) * self.n_alphabet,
+                    state.shape[1],
                 )
                 for state in states
             ]
         )
-        rows = torch.repeat_interleave(
-            torch.arange(states.shape[0]).to(device), lengths
-        )
+        # create a tensor of integers from the list of lengths
+        lengths = torch.Tensor(list(lengths)).to(device).to(torch.int64)
+        cols = torch.cat(cols, dim=1).to(torch.int64).to(device)
+        rows = torch.repeat_interleave(torch.arange(len(states)).to(device), lengths)
         state_policy = torch.zeros(
-            (states.shape[0], self.n_alphabet * self.max_seq_length),
+            (len(states), self.n_alphabet * self.max_seq_length),
             dtype=torch.float32,
             device=device,
-        ).to(states)
-        state_policy[rows, cols.flatten()] = 1.0
+        ).to(states[0])
+        state_policy[rows, cols] = 1.0
         return state_policy
 
     def policy2state(self, state_policy: List) -> List:
