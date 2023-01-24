@@ -34,6 +34,9 @@ gflownet:
       n_hid: 128
       n_layers: 2
     backward:
+      type: mlp
+      n_hid: 128
+      n_layers: 2
       shared_weights: True
 
 # WandB
