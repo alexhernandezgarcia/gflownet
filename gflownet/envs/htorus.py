@@ -534,7 +534,7 @@ class HybridTorus(GFlowNetEnv):
         return kde
 
     def plot_reward_samples(
-        self, samples, alpha=0.5, low=-np.pi * 0.5, high=2.5 * np.pi, dpi=150
+        self, samples, alpha=0.5, low=-np.pi * 0.5, high=2.5 * np.pi, dpi=150, limit_n_samples=500
     ):
         x = np.linspace(low, high, 201)
         y = np.linspace(low, high, 201)
@@ -561,10 +561,10 @@ class HybridTorus(GFlowNetEnv):
             for add_1 in [0, -2 * np.pi, 2 * np.pi]:
                 if not (add_0 == add_1 == 0):
                     extra_samples.append(
-                        np.stack([samples[:, 0] + add_0, samples[:, 1] + add_1], axis=1)
+                        np.stack([samples[:limit_n_samples, 0] + add_0, samples[:limit_n_samples, 1] + add_1], axis=1)
                     )
         extra_samples = np.concatenate(extra_samples)
-        ax.scatter(samples[:, 0], samples[:, 1], alpha=alpha)
+        ax.scatter(samples[:limit_n_samples, 0], samples[:limit_n_samples, 1], alpha=alpha)
         ax.scatter(extra_samples[:, 0], extra_samples[:, 1], alpha=alpha, color="white")
         ax.grid()
         # Set tight layout
