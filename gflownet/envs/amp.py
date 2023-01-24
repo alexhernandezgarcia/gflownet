@@ -120,9 +120,9 @@ class AMP(GFlowNetEnv):
         ]
         # TODO: Change depening on how it is assigned for the torus
         if self.proxy_state_format == "ohe":
-            self.state2proxy = self.statebatch2policy
+            self.statebatch2proxy = self.statebatch2policy
         elif self.proxy_state_format == "oracle":
-            self.state2proxy = self.statebatch2oracle
+            self.statebatch2proxy = self.statebatch2oracle
         else:
             raise ValueError(
                 "Invalid proxy_state_format: {}".format(self.proxy_state_format)
