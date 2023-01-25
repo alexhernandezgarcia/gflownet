@@ -7,8 +7,10 @@ id: ctorus
 func: sincos
 # Dimensions of hypertorus
 n_dim: 2
+policy_ecoding_dim_per_angle: null
 # Fixed length of trajectories
 length_traj: 3
+vonmises_min_concentration: 1e-3
 # Parameters of the fixed policy output distribution
 fixed_distribution:
   vonmises_mean: 0.0
