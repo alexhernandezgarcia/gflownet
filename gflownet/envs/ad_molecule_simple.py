@@ -30,6 +30,7 @@ class ADMoleculeSimple(ContinuousTorus):
         energies_stats=None,
         proxy=None,
         oracle=None,
+        policy_ecoding_dim_per_angle=None,
         **kwargs,
     ):
         self.atom_positions_dataset = AtomPositionsDataset(path_to_dataset)
@@ -52,6 +53,7 @@ class ADMoleculeSimple(ContinuousTorus):
             energies_stats=energies_stats,
             proxy=proxy,
             oracle=oracle,
+            policy_ecoding_dim_per_angle=policy_ecoding_dim_per_angle,
             **kwargs,
         )
         self.sync_conformer_with_state()
