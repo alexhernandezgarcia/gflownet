@@ -37,6 +37,7 @@ class HybridTorus(GFlowNetEnv):
         self,
         n_dim=2,
         length_traj=1,
+        policy_ecoding_dim_per_angle=None,
         do_nonzero_source_prob=True,
         fixed_distribution=dict,
         random_distribution=dict,
@@ -50,7 +51,6 @@ class HybridTorus(GFlowNetEnv):
         energies_stats=None,
         proxy=None,
         oracle=None,
-        policy_ecoding_dim_per_angle=None,
         **kwargs,
     ):
         super(HybridTorus, self).__init__(
