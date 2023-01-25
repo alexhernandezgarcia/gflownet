@@ -216,7 +216,9 @@ class HybridTorus(GFlowNetEnv):
 
     def state2policy(self, state: List = None) -> List:
         """
-        Returns the state as is.
+        Returns the policy encoding of the state.
+
+        See: statebatch2policy()
         """
         if state is None:
             state = self.state.copy()
@@ -226,9 +228,11 @@ class HybridTorus(GFlowNetEnv):
         self, states: TensorType["batch", "state_dim"]
     ) -> TensorType["batch", "policy_input_dim"]:
         """
-        Prepares a batch of states in torch "GFlowNet format" for the policy
+        Prepares a batch of states in torch "GFlowNet format" for the policy.
+
+        See: statebatch2policy()
         """
-        if self.policy_ecoding_dim_per_angle is not None:
+        if self.policy_ecoding_dim_per_angle is not None and self.policy_ecoding_dim_per_angle >= 2:
             step = states[:, -1]
             code_half_size = self.policy_ecoding_dim_per_angle // 2
             int_coeff = torch.arange(1, code_half_size + 1).repeat(states.shape[-1] - 1).to(states)
@@ -238,11 +242,12 @@ class HybridTorus(GFlowNetEnv):
 
     def statebatch2policy(self, states: List[List]) -> npt.NDArray[np.float32]:
         """
-        Converts a batch of states into a format suitable for a machine learning model,
-        such as a one-hot encoding. Returns a numpy array.
+        Converts a batch of states into a format suitable for a machine learning model.
+        If policy_ecoding_dim_per_angle >= 2, then the state (angles) is encoded using
+        trigonometric components.
         """
         np_states = np.array(states)
-        if self.policy_ecoding_dim_per_angle is not None:
+        if self.policy_ecoding_dim_per_angle is not None and self.policy_ecoding_dim_per_angle >= 2:
             step = np_states[:, -1]
             code_half_size = self.policy_ecoding_dim_per_angle // 2
             int_coeff = np.tile(np.arange(1, code_half_size + 1), np_states.shape[-1] - 1)
