@@ -3,7 +3,7 @@ Computes evaluation metrics and plots from a pre-trained GFlowNet model.
 """
 from argparse import ArgumentParser
 import hydra
-from hydra import compose, initialize
+from hydra import compose, initialize, initialize_config_dir
 from omegaconf import OmegaConf
 from pathlib import Path
 import torch
@@ -31,6 +31,7 @@ def add_args(parser):
         type=int,
         help="Number of sequences to sample",
     )
+    parser.add_argument("--device", default="cpu", type=str)
     return parser
 
 
@@ -43,8 +44,8 @@ def set_device(device: str):
 
 def main(args):
     # Load config
-    with initialize(
-        version_base=None, config_path=args.run_path + "/.hydra", job_name="xxx"
+    with initialize_config_dir(
+        version_base=None, config_dir=args.run_path + "/.hydra", job_name="xxx"
     ):
         config = compose(config_name="config")
         print(OmegaConf.to_yaml(config))
