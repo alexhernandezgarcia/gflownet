@@ -5,7 +5,7 @@ _target_: gflownet.envs.ad_molecule_simple.ADMoleculeSimple
 
 path_to_dataset: ${user.data.alanine_dipeptide}
 id: ad_molecule_simple
-policy_ecoding_dim_per_angle: null
+policy_encoding_dim_per_angle: null
 # Fixed length of trajectories
 length_traj: 10
 # Parameters of the fixed policy output distribution
