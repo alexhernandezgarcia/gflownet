@@ -34,6 +34,7 @@ class ContinuousTorusMixture(ContinuousTorus):
         self,
         n_dim=2,
         length_traj=1,
+        policy_encoding_dim_per_angle=None,
         n_comp=3,
         fixed_distribution=dict,
         random_distribution=dict,
@@ -53,6 +54,7 @@ class ContinuousTorusMixture(ContinuousTorus):
         super(ContinuousTorusMixture, self).__init__(
             n_dim=n_dim,
             length_traj=length_traj,
+            policy_encoding_dim_per_angle=policy_encoding_dim_per_angle,
             fixed_distribution=fixed_distribution,
             random_distribution=random_distribution,
             vonmises_min_concentration=vonmises_min_concentration,
@@ -107,14 +109,14 @@ class ContinuousTorusMixture(ContinuousTorus):
                 )
             elif sampling_method == "policy":
                 mix_logits = policy_outputs[mask_states_sample, 0::3].reshape(
-                    -1, self.n_dim, self.n_comp 
+                    -1, self.n_dim, self.n_comp
                 )
                 mix = Categorical(logits=mix_logits)
                 locations = policy_outputs[mask_states_sample, 1::3].reshape(
-                    -1, self.n_dim, self.n_comp 
+                    -1, self.n_dim, self.n_comp
                 )
                 concentrations = policy_outputs[mask_states_sample, 2::3].reshape(
-                    -1, self.n_dim, self.n_comp 
+                    -1, self.n_dim, self.n_comp
                 )
                 vonmises = VonMises(
                     locations,
@@ -159,14 +161,14 @@ class ContinuousTorusMixture(ContinuousTorus):
         logprobs = torch.zeros(n_states, self.n_dim).to(device)
         if torch.any(mask_states_sample):
             mix_logits = policy_outputs[mask_states_sample, 0::3].reshape(
-                -1, self.n_dim, self.n_comp 
+                -1, self.n_dim, self.n_comp
             )
             mix = Categorical(logits=mix_logits)
             locations = policy_outputs[mask_states_sample, 1::3].reshape(
-                -1, self.n_dim, self.n_comp 
+                -1, self.n_dim, self.n_comp
             )
             concentrations = policy_outputs[mask_states_sample, 2::3].reshape(
-                -1, self.n_dim, self.n_comp 
+                -1, self.n_dim, self.n_comp
             )
             vonmises = VonMises(
                 locations,
