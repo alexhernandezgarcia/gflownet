@@ -46,6 +46,7 @@ class ContinuousTorus(HybridTorus):
         energies_stats=None,
         proxy=None,
         oracle=None,
+        policy_ecoding_dim_per_angle=None,
         **kwargs,
     ):
         super(ContinuousTorus, self).__init__(
@@ -63,6 +64,7 @@ class ContinuousTorus(HybridTorus):
             energies_stats=energies_stats,
             proxy=proxy,
             oracle=oracle,
+            policy_ecoding_dim_per_angle=policy_ecoding_dim_per_angle,
             **kwargs,
         )
 

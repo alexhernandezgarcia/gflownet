@@ -50,6 +50,7 @@ class HybridTorus(GFlowNetEnv):
         energies_stats=None,
         proxy=None,
         oracle=None,
+        policy_ecoding_dim_per_angle=None,
         **kwargs,
     ):
         super(HybridTorus, self).__init__(
@@ -64,6 +65,7 @@ class HybridTorus(GFlowNetEnv):
             oracle=oracle,
             **kwargs,
         )
+        self.policy_ecoding_dim_per_angle = policy_ecoding_dim_per_angle
         self.continuous = True
         self.n_dim = n_dim
         self.eos = self.n_dim
@@ -218,12 +220,42 @@ class HybridTorus(GFlowNetEnv):
         """
         if state is None:
             state = self.state.copy()
-        return state
+        return self.statebatch2policy([state]).tolist()[0]
+
+    def statetorch2policy(
+        self, states: TensorType["batch", "state_dim"]
+    ) -> TensorType["batch", "policy_input_dim"]:
+        """
+        Prepares a batch of states in torch "GFlowNet format" for the policy
+        """
+        if self.policy_ecoding_dim_per_angle is not None:
+            step = states[:, -1]
+            code_half_size = self.policy_ecoding_dim_per_angle // 2
+            int_coeff = torch.arange(1, code_half_size + 1).repeat(states.shape[-1] - 1).to(states)
+            encoding = torch.repeat_interleave(states[:, :-1], repeats=code_half_size, dim=1) * int_coeff
+            states = torch.cat([torch.cos(encoding), torch.sin(encoding), torch.unsqueeze(step, 1)], dim=1)
+        return states
+
+    def statebatch2policy(self, states: List[List]) -> npt.NDArray[np.float32]:
+        """
+        Converts a batch of states into a format suitable for a machine learning model,
+        such as a one-hot encoding. Returns a numpy array.
+        """
+        np_states = np.array(states)
+        if self.policy_ecoding_dim_per_angle is not None:
+            step = np_states[:, -1]
+            code_half_size = self.policy_ecoding_dim_per_angle // 2
+            int_coeff = np.tile(np.arange(1, code_half_size + 1), np_states.shape[-1] - 1)
+            encoding = np.repeat(np_states[:, :-1], repeats=code_half_size, axis=1) * int_coeff
+            np_states = np.concatenate([np.cos(encoding), np.sin(encoding), step[:,np.newaxis]], axis=1) 
+        return np_states
 
     def policy2state(self, state_policy: List) -> List:
         """
         Returns the input as is.
         """
+        if self.policy_ecoding_dim_per_angle is not None:
+            raise NotImplementedError("Convertion from encoded policy_state to state is not impemented")
         return state_policy
 
     def state2readable(self, state: List) -> str:
