@@ -109,14 +109,14 @@ class ContinuousTorusMixture(ContinuousTorus):
                 )
             elif sampling_method == "policy":
                 mix_logits = policy_outputs[mask_states_sample, 0::3].reshape(
-                    -1, self.n_dim, self.n_comp 
+                    -1, self.n_dim, self.n_comp
                 )
                 mix = Categorical(logits=mix_logits)
                 locations = policy_outputs[mask_states_sample, 1::3].reshape(
-                    -1, self.n_dim, self.n_comp 
+                    -1, self.n_dim, self.n_comp
                 )
                 concentrations = policy_outputs[mask_states_sample, 2::3].reshape(
-                    -1, self.n_dim, self.n_comp 
+                    -1, self.n_dim, self.n_comp
                 )
                 vonmises = VonMises(
                     locations,
@@ -161,14 +161,14 @@ class ContinuousTorusMixture(ContinuousTorus):
         logprobs = torch.zeros(n_states, self.n_dim).to(device)
         if torch.any(mask_states_sample):
             mix_logits = policy_outputs[mask_states_sample, 0::3].reshape(
-                -1, self.n_dim, self.n_comp 
+                -1, self.n_dim, self.n_comp
             )
             mix = Categorical(logits=mix_logits)
             locations = policy_outputs[mask_states_sample, 1::3].reshape(
-                -1, self.n_dim, self.n_comp 
+                -1, self.n_dim, self.n_comp
             )
             concentrations = policy_outputs[mask_states_sample, 2::3].reshape(
-                -1, self.n_dim, self.n_comp 
+                -1, self.n_dim, self.n_comp
             )
             vonmises = VonMises(
                 locations,
