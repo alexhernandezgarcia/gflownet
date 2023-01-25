@@ -1,7 +1,7 @@
 defaults:
   - base
 
-_target_: gflownet.envs.ad_molecule_simple.ADMoleculeSimple
+_target_: gflownet.envs.ad_molecule_simple_mixture.ADMoleculeSimpleMixture
 
 path_to_dataset: ${user.data.alanine_dipeptide}
 id: ad_molecule_simple
@@ -10,6 +10,7 @@ policy_encoding_dim_per_angle: null
 length_traj: 10
 vonmises_min_concentration: 1e-3
 # Parameters of the fixed policy output distribution
+n_comp: 3
 fixed_distribution:
   vonmises_mean: 0.0
   vonmises_concentration: 0.5
@@ -24,5 +25,5 @@ buffer:
   test:
     type: grid
     n: 1000
-    output_csv: ad_molecule_simple_test.csv
-    output_pkl: ad_molecule_simple_test.pkl
+    output_csv: ad_molecule_simple_mixture_test.csv
+    output_pkl: ad_molecule_simple_mixture_test.pkl

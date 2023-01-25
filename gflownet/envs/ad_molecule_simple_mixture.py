@@ -5,13 +5,13 @@ import torch
 from typing import List, Tuple
 from torchtyping import TensorType
 
-from gflownet.envs.ctorus import ContinuousTorus
+from gflownet.envs.ctorusmixture import ContinuousTorusMixture 
 from gflownet.utils.molecule import constants
 from gflownet.utils.molecule.atom_positions_dataset import AtomPositionsDataset
 from gflownet.utils.molecule.conformer_base import ConformerBase
 
 
-class ADMoleculeSimple(ContinuousTorus):
+class ADMoleculeSimpleMixture(ContinuousTorusMixture):
     """Simple extension of 2d continuous torus where reward function is defined by the
     energy of the alanine dipeptide molecule"""
 
@@ -32,6 +32,7 @@ class ADMoleculeSimple(ContinuousTorus):
         proxy=None,
         oracle=None,
         policy_encoding_dim_per_angle=None,
+        n_comp=3,
         **kwargs,
     ):
         self.atom_positions_dataset = AtomPositionsDataset(path_to_dataset)
@@ -40,7 +41,7 @@ class ADMoleculeSimple(ContinuousTorus):
             atom_positions, constants.ad_smiles, constants.ad_free_tas
         )
         n_dim = len(self.conformer.freely_rotatable_tas)
-        super(ADMoleculeSimple, self).__init__(
+        super(ADMoleculeSimpleMixture, self).__init__(
             n_dim=n_dim,
             length_traj=length_traj,
             fixed_distribution=fixed_distribution,
@@ -56,6 +57,7 @@ class ADMoleculeSimple(ContinuousTorus):
             proxy=proxy,
             oracle=oracle,
             policy_encoding_dim_per_angle=policy_encoding_dim_per_angle,
+            n_comp=n_comp,
             **kwargs,
         )
         self.sync_conformer_with_state()
