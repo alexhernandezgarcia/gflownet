@@ -37,7 +37,7 @@ class HybridTorus(GFlowNetEnv):
         self,
         n_dim=2,
         length_traj=1,
-        policy_ecoding_dim_per_angle=None,
+        policy_encoding_dim_per_angle=None,
         do_nonzero_source_prob=True,
         fixed_distribution=dict,
         random_distribution=dict,
@@ -65,7 +65,7 @@ class HybridTorus(GFlowNetEnv):
             oracle=oracle,
             **kwargs,
         )
-        self.policy_ecoding_dim_per_angle = policy_ecoding_dim_per_angle
+        self.policy_encoding_dim_per_angle = policy_encoding_dim_per_angle
         self.continuous = True
         self.n_dim = n_dim
         self.eos = self.n_dim
@@ -232,9 +232,9 @@ class HybridTorus(GFlowNetEnv):
 
         See: statebatch2policy()
         """
-        if self.policy_ecoding_dim_per_angle is not None and self.policy_ecoding_dim_per_angle >= 2:
+        if self.policy_encoding_dim_per_angle is not None and self.policy_encoding_dim_per_angle >= 2:
             step = states[:, -1]
-            code_half_size = self.policy_ecoding_dim_per_angle // 2
+            code_half_size = self.policy_encoding_dim_per_angle // 2
             int_coeff = torch.arange(1, code_half_size + 1).repeat(states.shape[-1] - 1).to(states)
             encoding = torch.repeat_interleave(states[:, :-1], repeats=code_half_size, dim=1) * int_coeff
             states = torch.cat([torch.cos(encoding), torch.sin(encoding), torch.unsqueeze(step, 1)], dim=1)
@@ -243,13 +243,13 @@ class HybridTorus(GFlowNetEnv):
     def statebatch2policy(self, states: List[List]) -> npt.NDArray[np.float32]:
         """
         Converts a batch of states into a format suitable for a machine learning model.
-        If policy_ecoding_dim_per_angle >= 2, then the state (angles) is encoded using
+        If policy_encoding_dim_per_angle >= 2, then the state (angles) is encoded using
         trigonometric components.
         """
         np_states = np.array(states)
-        if self.policy_ecoding_dim_per_angle is not None and self.policy_ecoding_dim_per_angle >= 2:
+        if self.policy_encoding_dim_per_angle is not None and self.policy_encoding_dim_per_angle >= 2:
             step = np_states[:, -1]
-            code_half_size = self.policy_ecoding_dim_per_angle // 2
+            code_half_size = self.policy_encoding_dim_per_angle // 2
             int_coeff = np.tile(np.arange(1, code_half_size + 1), np_states.shape[-1] - 1)
             encoding = np.repeat(np_states[:, :-1], repeats=code_half_size, axis=1) * int_coeff
             np_states = np.concatenate([np.cos(encoding), np.sin(encoding), step[:,np.newaxis]], axis=1) 
@@ -259,7 +259,7 @@ class HybridTorus(GFlowNetEnv):
         """
         Returns the input as is.
         """
-        if self.policy_ecoding_dim_per_angle is not None:
+        if self.policy_encoding_dim_per_angle is not None:
             raise NotImplementedError("Convertion from encoded policy_state to state is not impemented")
         return state_policy
 

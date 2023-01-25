@@ -34,7 +34,7 @@ class ContinuousTorus(HybridTorus):
         self,
         n_dim=2,
         length_traj=1,
-        policy_ecoding_dim_per_angle=None,
+        policy_encoding_dim_per_angle=None,
         fixed_distribution=dict,
         random_distribution=dict,
         vonmises_min_concentration=1e-3,
@@ -52,7 +52,7 @@ class ContinuousTorus(HybridTorus):
         super(ContinuousTorus, self).__init__(
             n_dim=n_dim,
             length_traj=length_traj,
-            policy_ecoding_dim_per_angle=policy_ecoding_dim_per_angle,
+            policy_encoding_dim_per_angle=policy_encoding_dim_per_angle,
             fixed_distribution=fixed_distribution,
             random_distribution=random_distribution,
             vonmises_min_concentration=vonmises_min_concentration,
