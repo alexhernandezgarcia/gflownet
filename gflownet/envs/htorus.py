@@ -259,23 +259,23 @@ class HybridTorus(GFlowNetEnv):
         If policy_encoding_dim_per_angle >= 2, then the state (angles) is encoded using
         trigonometric components.
         """
-        np_states = np.array(states)
+        states = np.array(states)
         if (
             self.policy_encoding_dim_per_angle is not None
             and self.policy_encoding_dim_per_angle >= 2
         ):
-            step = np_states[:, -1]
+            step = states[:, -1]
             code_half_size = self.policy_encoding_dim_per_angle // 2
             int_coeff = np.tile(
-                np.arange(1, code_half_size + 1), np_states.shape[-1] - 1
+                np.arange(1, code_half_size + 1), states.shape[-1] - 1
             )
             encoding = (
-                np.repeat(np_states[:, :-1], repeats=code_half_size, axis=1) * int_coeff
+                np.repeat(states[:, :-1], repeats=code_half_size, axis=1) * int_coeff
             )
-            np_states = np.concatenate(
+            states = np.concatenate(
                 [np.cos(encoding), np.sin(encoding), step[:, np.newaxis]], axis=1
             )
-        return np_states
+        return states
 
     def policy2state(self, state_policy: List) -> List:
         """
