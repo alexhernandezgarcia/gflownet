@@ -1065,10 +1065,11 @@ class GFlowNetAgent:
         else:
             fig_reward_samples = None
         if hasattr(self.env, "plot_kde"):
-            fig_kde = self.env.plot_kde(kde_pred)
+            fig_kde_pred = self.env.plot_kde(kde_pred)
+            fig_kde_true = self.env.plot_kde(kde_true)
         else:
             fig_kde = None
-        return l1, kl, jsd, [fig_reward_samples, fig_kde]
+        return l1, kl, jsd, [fig_reward_samples, fig_kde_pred, fig_kde_true]
 
     def get_log_corr(self, times):
         data_logq = []
