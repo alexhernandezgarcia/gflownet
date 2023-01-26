@@ -2,7 +2,7 @@
 Classes to represent a hyper-grid environments
 """
 import itertools
-from typing import List
+from typing import List, Optional
 
 import numpy as np
 
@@ -15,30 +15,45 @@ class Crystal(GFlowNetEnv):
 
     Attributes
     ----------
-    ndim : int
-        Dimensionality of the grid
+    max_diff_elem : int
+        Maximum number of unique elements in the crystal
 
-    length : int
-        Size of the grid (cells per dimension)
+    min_diff_elem : int
+        Minimum number of unique elements in the crystal
 
-    cell_min : float
-        Lower bound of the cells range
+    periodic_table : int
+        Total number of unique elements that can be used for building the crystal
 
-    cell_max : float
-        Upper bound of the cells range
+    oxidation_states : (optional) dict
+        Mapping from ints (representing elements) to lists of different oxidation states
+
+    alphabet : dict
+        Mapping from ints (representing elements) to strings containing human-readable elements' names
+
+    min_atoms : int
+        Minimum number of atoms that needs to be used to construct a crystal
+
+    max_atoms : int
+        Maximum number of atoms that can be used to construct a crystal
+
+    min_atom_i : int
+        Minimum number of elements of each used kind that needs to be used to construct a crystal
+
+    max_atom_i : int
+        Maximum number of elements of each kind that can be used to construct a crystal
     """
 
     def __init__(
         self,
-        max_diff_elem=4,
-        min_diff_elem=2,
-        periodic_table=84,
-        oxidation_states=None,
-        alphabet=None,
-        min_atoms=2,
-        max_atoms=20,
-        min_atom_i=1,
-        max_atom_i=10,
+        max_diff_elem: int = 4,
+        min_diff_elem: int = 2,
+        periodic_table: int = 84,
+        oxidation_states: Optional[dict] = None,
+        alphabet: Optional[dict] = None,
+        min_atoms: int = 2,
+        max_atoms: int = 20,
+        min_atom_i: int = 1,
+        max_atom_i=10,  #
         env_id=None,
         reward_beta=1,
         reward_norm=1.0,
@@ -84,18 +99,8 @@ class Crystal(GFlowNetEnv):
         assert self.max_diff_elem > self.min_diff_elem
         assert self.max_atom_i > self.min_atom_i
         valid_word_len = np.arange(self.min_atom_i, self.max_atom_i + 1)
-        valid_elem_types = np.arange(self.min_diff_elem, self.max_diff_elem + 1)
-        # alphabet = [combo
-        #            for i in valid_elem_types
-        #            for combo in itertools.combinations(self.periodic_table, i)
-        #        ]
-        # alphabet = np.arange(self.periodic_table)
-        # actions = []
-        actions = [[(elem, r) for r in valid_word_len] for elem in alphabet]
-        # for r in valid_word_len:
-        #     # for combo in alphabet:
-        #     actions_r = [el for el in itertools.product(alphabet, repeat=r)]
-        #     actions += actions_r
+        elements = np.arange(self.periodic_table)
+        actions = [[(elem, r) for r in valid_word_len] for elem in elements]
         return actions
 
     def get_max_traj_len(self):
@@ -193,7 +198,7 @@ class Crystal(GFlowNetEnv):
     def obs2state(self, obs: List) -> List:
         """
         Transforms the one-hot encoding version of a sequence (state) given as argument
-        into a a sequence of letter indices.
+        into a sequence of letter indices.
         Example:
           - Sequence: AATGC
           - obs: [1, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0]
