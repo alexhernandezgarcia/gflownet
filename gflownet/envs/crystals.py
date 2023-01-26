@@ -1,9 +1,11 @@
 """
 Classes to represent a hyper-grid environments
 """
-from typing import List
 import itertools
+from typing import List
+
 import numpy as np
+
 from gflownet.envs.base import GFlowNetEnv
 
 
