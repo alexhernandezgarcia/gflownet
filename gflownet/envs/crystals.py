@@ -67,9 +67,7 @@ class Crystal(GFlowNetEnv):
         self.max_diff_elem = max_diff_elem
         self.min_diff_elem = min_diff_elem
         self.periodic_table = periodic_table
-        if alphabet is None:
-            alphabet = {}
-        self.alphabet = alphabet
+        self.alphabet = alphabet if alphabet is not None else {}
         self.oxidation_states = oxidation_states
         self.min_atoms = min_atoms
         self.max_atoms = max_atoms
