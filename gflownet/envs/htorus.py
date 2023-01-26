@@ -596,7 +596,7 @@ class HybridTorus(GFlowNetEnv):
         return kde
 
     def plot_reward_samples(
-        self, samples, alpha=0.5, low=-np.pi * 0.5, high=2.5 * np.pi, dpi=150, limit_n_samples=500
+        self, samples, alpha=0.5, low=-np.pi * 0.5, high=2.5 * np.pi, dpi=150, limit_n_samples=500, **kwargs
     ):
         x = np.linspace(low, high, 201)
         y = np.linspace(low, high, 201)
@@ -633,7 +633,7 @@ class HybridTorus(GFlowNetEnv):
         plt.tight_layout()
         return fig
 
-    def plot_kde(self, kde, alpha=0.5, low=-np.pi * 0.5, high=2.5 * np.pi, dpi=150):
+    def plot_kde(self, kde, alpha=0.5, low=-np.pi * 0.5, high=2.5 * np.pi, dpi=150, colorbar=True, **kwargs):
         x = np.linspace(0, 2 * np.pi, 101)
         y = np.linspace(0, 2 * np.pi, 101)
         xx, yy = np.meshgrid(x, y)
@@ -645,7 +645,8 @@ class HybridTorus(GFlowNetEnv):
         # Plot KDE
         h = ax.contourf(xx, yy, Z, alpha=alpha)
         ax.axis("scaled")
-        fig.colorbar(h, ax=ax)
+        if colorbar:
+            fig.colorbar(h, ax=ax)
         # Set tight layout
         plt.tight_layout()
         return fig

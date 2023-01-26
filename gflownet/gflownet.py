@@ -985,7 +985,7 @@ class GFlowNetAgent:
         if self.use_context == False:
             self.logger.end()
 
-    def test(self):
+    def test(self,**plot_kwargs):
         """
         Computes metrics by sampling trajectories from the forward policy.
         """
@@ -1064,12 +1064,12 @@ class GFlowNetAgent:
         # Plots
 
         if hasattr(self.env, "plot_reward_samples"):
-            fig_reward_samples = self.env.plot_reward_samples(x_sampled)
+            fig_reward_samples = self.env.plot_reward_samples(x_sampled, **plot_kwargs)
         else:
             fig_reward_samples = None
         if hasattr(self.env, "plot_kde"):
-            fig_kde_pred = self.env.plot_kde(kde_pred)
-            fig_kde_true = self.env.plot_kde(kde_true)
+            fig_kde_pred = self.env.plot_kde(kde_pred, **plot_kwargs)
+            fig_kde_true = self.env.plot_kde(kde_true, **plot_kwargs)
         else:
             fig_kde = None
         return l1, kl, jsd, [fig_reward_samples, fig_kde_pred, fig_kde_true]
