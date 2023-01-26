@@ -240,7 +240,7 @@ class Crystal(GFlowNetEnv):
         self.id = env_id
         return self
 
-    def get_parents(self, state=None, done=None):
+    def get_parents(self, state=None, done=None, actions=None):
         """
         Determines all parents and actions that lead to sequence state
         Args
@@ -276,11 +276,11 @@ class Crystal(GFlowNetEnv):
                     actions.append(idx)
         return parents, actions
 
-    def get_parents_debug(self, state=None, done=None):
+    def get_parents_debug(self, state=None, done=None, actions=None):
         """
         Like get_parents(), but returns state format
         """
-        obs, actions = self.get_parents(state, done)
+        obs, actions = self.get_parents(state, done, actions)
         parents = [self.obs2state(el) for el in obs]
         return parents, actions
 
