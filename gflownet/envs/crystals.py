@@ -53,7 +53,7 @@ class Crystal(GFlowNetEnv):
         min_atoms: int = 2,
         max_atoms: int = 20,
         min_atom_i: int = 1,
-        max_atom_i=10,  #
+        max_atom_i: int = 10,
         env_id=None,
         reward_beta=1,
         reward_norm=1.0,
