@@ -9,6 +9,7 @@ class Torus(Proxy):
         self.normalize = normalize
         self.alpha = alpha
         self.beta = beta
+        self.n_dim = 2
 
     @property
     def min(self):
