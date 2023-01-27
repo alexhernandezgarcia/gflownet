@@ -1,5 +1,5 @@
 """
-Classes to represent a hyper-grid environments
+Classes to represent crystal environments
 """
 import itertools
 from typing import List, Optional
@@ -77,8 +77,8 @@ class Crystal(GFlowNetEnv):
             oracle,
             **kwargs,
         )
-        # self.state = []
-        self.state = [0 for _ in range(periodic_table)]
+
+        self.state = [0 for _ in range(periodic_table)]  # atom counts for each element
         self.max_diff_elem = max_diff_elem
         self.min_diff_elem = min_diff_elem
         self.periodic_table = periodic_table
@@ -94,13 +94,15 @@ class Crystal(GFlowNetEnv):
 
     def get_actions_space(self):
         """
-        Constructs list with all possible actions
+        Constructs list with all possible actions. An action is described by a
+        tuple (`elem`, `r`), indicating that the count of element `elem` will be
+        increased by `r`.
         """
         assert self.max_diff_elem > self.min_diff_elem
         assert self.max_atom_i > self.min_atom_i
         valid_word_len = np.arange(self.min_atom_i, self.max_atom_i + 1)
         elements = np.arange(self.periodic_table)
-        actions = [[(elem, r) for r in valid_word_len] for elem in elements]
+        actions = sum([[(elem, r) for r in valid_word_len] for elem in elements], [])
         return actions
 
     def get_max_traj_len(self):
@@ -237,7 +239,7 @@ class Crystal(GFlowNetEnv):
         """
         Resets the environment.
         """
-        self.state = []
+        self.state = [0 for _ in range(self.periodic_table)]
         self.n_actions = 0
         self.done = False
         self.id = env_id
@@ -245,19 +247,27 @@ class Crystal(GFlowNetEnv):
 
     def get_parents(self, state=None, done=None, actions=None):
         """
-        Determines all parents and actions that lead to sequence state
+        Determines all parents and actions that lead to a state. We treat parent
+        as a valid state if it has a non-negative atom count for every element.
+
         Args
         ----
         state : list
-            Representation of a sequence (state), as a list of length max_seq_length
-            where each element is the index of a letter in the alphabet, from 0 to
-            (nalphabet - 1).
-        action : int
-            Last action performed, only to determine if it was eos.
+            Representation of a state as a list of length self.periodic_table,
+            where i-th value contains the count of atoms for i-th element, from 0 to
+            self.max_atoms_i.
+
+        done : bool
+            Whether the trajectory is done. If None, done is taken from instance.
+
+        actions : None
+            Ignored
+
         Returns
         -------
         parents : list
-            List of parents as state2obs(state)
+            List of parents in state format
+
         actions : list
             List of actions that lead to state for each parent in parents
         """
@@ -266,16 +276,15 @@ class Crystal(GFlowNetEnv):
         if done is None:
             done = self.done
         if done:
-            return [self.state2obs(state)], [self.eos]
+            return [state], [self.eos]
         else:
             parents = []
             actions = []
             for idx, a in enumerate(self.action_space):
-                is_parent = state[-len(a) :] == list(a)
-                if not isinstance(is_parent, bool):
-                    is_parent = all(is_parent)
-                if is_parent:
-                    parents.append(self.state2obs(state[: -len(a)]))
+                if state[a[0]] >= a[1]:
+                    parent = state.copy()
+                    parent[a[0]] -= a[1]
+                    parents.append(parent)
                     actions.append(idx)
         return parents, actions
 
