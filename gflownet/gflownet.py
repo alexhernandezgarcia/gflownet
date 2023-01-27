@@ -829,14 +829,13 @@ class GFlowNetAgent:
             for a, p, p_a in zip(actions, parents, parents_a)
         ]
         traj_id = torch.cat([el[:1] for el in traj_id_parents])
-        parents = self.env.statetorch2policy(parents)
+        states_policy = self.env.statetorch2policy(states)
+        parents_policy = self.env.statetorch2policy(parents)
         # Concatenate lists of tensors
-        states, actions, parents, done, state_id, masks_sf, masks_b = map(
+        actions, done, state_id, masks_sf, masks_b = map(
             torch.cat,
             [
-                states,
                 actions,
-                parents,
                 done,
                 state_id,
                 masks_sf,
@@ -855,7 +854,7 @@ class GFlowNetAgent:
             ]
         )
         # Forward trajectories
-        policy_output_f = self.forward_policy(parents)
+        policy_output_f = self.forward_policy(parents_policy)
         logprobs_f = self.env.get_logprobs(
             policy_output_f, True, actions, states, masks_f, loginf
         )
@@ -865,7 +864,7 @@ class GFlowNetAgent:
             device=self.device,
         ).index_add_(0, traj_id, logprobs_f)
         # Backward trajectories
-        policy_output_b = self.backward_policy(self.env.statetorch2policy(states))
+        policy_output_b = self.backward_policy(states_policy)
         logprobs_b = self.env.get_logprobs(
             policy_output_b, False, actions, parents, masks_b, loginf
         )
