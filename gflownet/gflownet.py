@@ -321,13 +321,14 @@ class GFlowNetAgent:
             .to(bool)
         )
         if sampling_method == "policy":
-            policy_outputs[idx_norandom, :] = model(
-                self._tfloat(
-                    self.env.statebatch2policy(
-                        [s for s, do in zip(states, idx_norandom) if do]
-                    )
+            policy_inputs = self._tfloat(
+                self.env.statebatch2policy(
+                    [s for s, do in zip(states, idx_norandom) if do]
                 )
             )
+            # check if policy_inputs is an empty tensor
+            if policy_inputs.shape[0] > 0:
+                policy_outputs[idx_norandom, :] = model(policy_inputs)
         elif sampling_method == "uniform":
             # TODO
             policy_outputs = None
@@ -1070,7 +1071,8 @@ class GFlowNetAgent:
             fig_kde_pred = self.env.plot_kde(kde_pred)
             fig_kde_true = self.env.plot_kde(kde_true)
         else:
-            fig_kde = None
+            fig_kde_pred = None
+            fig_kde_true = None
         return l1, kl, jsd, [fig_reward_samples, fig_kde_pred, fig_kde_true]
 
     def get_log_corr(self, times):
