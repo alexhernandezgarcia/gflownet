@@ -216,24 +216,35 @@ class Crystal(GFlowNetEnv):
             state += [e for _ in range(i)]
         return state
 
-    def state2readable(self, state):
+    def state2readable(self, state=None):
         """
-        Transforms a sequence given as a list of indices into a sequence of letters
-        according to an alphabet.
-        """
-        values, counts = np.unique(state, return_counts=True)
-        values = [self.alphabet[v] for v in values]
-        formula = {v: c for v, c in zip(values, counts)}
-        # return ''.join(formula)
-        return formula
+        Transforms the state, represented as a list of elements' counts, into a
+        human-readable dict mapping elements' names to their corresponding counts.
 
-    def readable2state(self, letters):
+        Example:
+            state: [2, 0, 1, 0]
+            self.alphabet: {0: "Li", 1: "O", 2: "C", 3: "S"}
+            output: {"Li": 2, "C": 1}
         """
-        Transforms a sequence given as a list of indices into a sequence of letters
-        according to an alphabet.
+        if state is None:
+            state = self.state
+        readable = {self.alphabet[i]: s_i for i, s_i in enumerate(state) if s_i > 0}
+        return readable
+
+    def readable2state(self, readable):
         """
-        alphabet = {v: k for k, v in self.alphabet.items()}
-        return [alphabet[el] for el in letters]
+        Converts a human-readable representation of a state into the standard format.
+
+        Example:
+            readable: {"Li": 2, "C": 1} OR {"Li": 2, "C": 1, "O": 0, "S": 0}
+            self.alphabet: {0: "Li", 1: "O", 2: "C", 3: "S"}
+            output: [2, 0, 1, 0]
+        """
+        state = [0 for _ in range(self.periodic_table)]
+        rev_alphabet = {v: k for k, v in self.alphabet.items()}
+        for k, v in readable.items():
+            state[rev_alphabet[k]] = v
+        return state
 
     def reset(self, env_id=None):
         """
