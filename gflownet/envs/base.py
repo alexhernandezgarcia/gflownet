@@ -236,7 +236,7 @@ class GFlowNetEnv:
 
     def statetorch2policy(
         self, states: TensorType["batch", "state_dim"]
-    ) -> TensorType["batch", "policy_output_dim"]:
+    ) -> TensorType["batch", "policy_input_dim"]:
         """
         Prepares a batch of states in torch "GFlowNet format" for the policy
         """

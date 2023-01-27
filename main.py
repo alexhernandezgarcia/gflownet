@@ -25,7 +25,7 @@ def main(config):
     # TODO: Move log config to Logger
     log_config = flatten_config(OmegaConf.to_container(config, resolve=True), sep="/")
     log_config = {"/".join(("config", key)): val for key, val in log_config.items()}
-    with open(cwd + "/config.yml", "w") as f:
+    with open(cwd + "/config_flatten.yml", "w") as f:
         yaml.dump(log_config, f, default_flow_style=False)
 
     # Logger

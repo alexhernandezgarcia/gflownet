@@ -1063,8 +1063,9 @@ class GFlowNetAgent:
                 kernel=self.logger.test.kde.kernel,
                 bandwidth=self.logger.test.kde.bandwidth,
             )
-            if "log_density_true" in dict_tt:
+            if "log_density_true" in dict_tt and "kde_true" in dict_tt:
                 log_density_true = dict_tt["log_density_true"]
+                kde_true = dict_tt["kde_true"]
             else:
                 # Sample from reward via rejection sampling
                 x_from_reward = self.env.sample_from_reward(
@@ -1081,9 +1082,10 @@ class GFlowNetAgent:
                 # TODO: this may be specific-ish for the torus or not
                 scores_true = kde_true.score_samples(x_tt)
                 log_density_true = scores_true - logsumexp(scores_true, axis=0)
-                # Add log_density_true to pickled test dict
+                # Add log_density_true and kde_true to pickled test dict
                 with open(self.buffer.test_pkl, "wb") as f:
                     dict_tt["log_density_true"] = log_density_true
+                    dict_tt["kde_true"] = kde_true
                     pickle.dump(dict_tt, f)
             # Estimate pred log density using test samples
             # TODO: this may be specific-ish for the torus or not
@@ -1108,10 +1110,11 @@ class GFlowNetAgent:
         else:
             fig_reward_samples = None
         if hasattr(self.env, "plot_kde"):
-            fig_kde = self.env.plot_kde(kde_pred)
+            fig_kde_pred = self.env.plot_kde(kde_pred)
+            fig_kde_true = self.env.plot_kde(kde_true)
         else:
             fig_kde = None
-        return l1, kl, jsd, [fig_reward_samples, fig_kde]
+        return l1, kl, jsd, [fig_reward_samples, fig_kde_pred, fig_kde_true]
 
     def get_log_corr(self, times):
         data_logq = []
