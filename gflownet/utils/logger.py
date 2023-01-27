@@ -145,7 +145,7 @@ class Logger:
     def log_plots(self, figs: list, step, use_context=True):
         if not self.do.online:
             return
-        keys = ["True reward and GFlowNet samples", "GFlowNet KDE Policy"]
+        keys = ["True reward and GFlowNet samples", "GFlowNet KDE Policy", "Reward KDE"]
         for key, fig in zip(keys, figs):
             if use_context:
                 context = self.context + "/" + key
