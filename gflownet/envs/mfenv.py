@@ -4,6 +4,7 @@ import numpy.typing as npt
 from torchtyping import TensorType
 from .base import GFlowNetEnv
 import numpy as np
+import torch
 
 
 class MultiFidelityEnvWrapper(GFlowNetEnv):
@@ -44,7 +45,8 @@ class MultiFidelityEnvWrapper(GFlowNetEnv):
         # then it should not be named self.fid as self.fid represents fidelity action
         self.state = self.env.state + [fid]
         # Update the variables that were reset and are required in mf
-        self.done = False
+        self.fid_done = self.state[-1] != -1
+        self.done = self.env.done and self.fid_done
         self.id = self.env.id
         return self
 
@@ -55,11 +57,8 @@ class MultiFidelityEnvWrapper(GFlowNetEnv):
             done = self.done
         if done:
             return [True for _ in range(len(self.action_space))]
-        mask = self.env.get_mask_invalid_actions_forward(state[:-1], done)
-        if state[-1] == -1:
-            mask = mask + [False for _ in range(self.n_fid)]
-        else:
-            mask = mask + [True for _ in range(self.n_fid)]
+        mask = self.env.get_mask_invalid_actions_forward(state[:-1])
+        mask = mask + [self.fid_done for _ in range(self.n_fid)]
         return mask
 
     def state2policy(self, state: List = None):
@@ -95,10 +94,10 @@ class MultiFidelityEnvWrapper(GFlowNetEnv):
     def state2readable(self, state=None):
         readable_state = super().state2readable(state[-1])
         fid = str(state[-1])
-        return readable_state + "?" + fid
+        return readable_state + ";" + fid
 
     def readable2state(self, readable):
-        fid = readable.split("?")[-1]
+        fid = readable.split(";")[-1]
         state = super().readable2state(readable)
         state = state + [fid]
         return state
@@ -122,18 +121,32 @@ class MultiFidelityEnvWrapper(GFlowNetEnv):
 
     def step(self, action):
         assert self.state[:-1] == self.env.state
-        if self.done:
-            return self.state, action, False
         if action[0] == self.fid:
-            # unnecessary to check because already implemented in  mask
-            if self.state[-1] != -1:
-                return state, action, False
-            self.state[-1] = action[1]
-            if self.env.done == True:
-                self.done = True
+            if self.fid_done == False:
+                self.state[-1] = action[1]
+                self.fid_done = True
+            else:
+                raise ValueError("Fidelity has been chosen")
+            self.done = self.env.done and self.fid_done
+            # TODO: action or eos in else
             return self.state, action, True
         else:
             fid = self.state[-1]
             state, action, valid = self.env.step(action)
             self.state = state + [fid]
+            self.done = self.env.done and self.fid_done
             return self.state, action, valid
+
+    def statetorch2policy(
+        self, states: TensorType["batch", "state_dim"]
+    ) -> TensorType["batch", "policy_input_dim"]:
+        state_policy = states[:, :-1]
+        state_policy = self.env.statetorch2policy(state_policy)
+        fid_policy = torch.zeros(
+            (states.shape[0], self.n_fid), dtype=torch.float32, device=self.device
+        )
+        index = torch.where(states[:, -1] != -1)[0]
+        if index.size:
+            fid_policy[index, states[index, -1].long()] = 1
+        state_fid_policy = torch.cat((state_policy, fid_policy), dim=1)
+        return state_fid_policy
