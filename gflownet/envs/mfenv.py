@@ -44,7 +44,7 @@ class MultiFidelityEnvWrapper(GFlowNetEnv):
         # then it should not be named self.fid as self.fid represents fidelity action
         self.state = self.env.state + [fid]
         # Update the variables that were reset and are required in mf
-        self.done = self.env.done
+        self.done = False
         self.id = self.env.id
         return self
 
@@ -73,6 +73,8 @@ class MultiFidelityEnvWrapper(GFlowNetEnv):
         return state_fid_policy
 
     def statebatch2policy(self, states: List[List]) -> npt.NDArray[np.float32]:
+        if not states:
+            return np.array(states)
         state_policy, fid_list = zip(*[(state[:-1], state[-1]) for state in states])
         state_policy = self.env.statebatch2policy(state_policy)
         fid_policy = np.zeros((len(states), self.n_fid), dtype=np.float32)
