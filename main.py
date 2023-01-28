@@ -12,7 +12,7 @@ from gflownet.utils.common import flatten_config
 from pathlib import Path
 
 
-@hydra.main(config_path="./config", config_name="main", version_base="1.1")
+@hydra.main(config_path="./config", config_name="amp_sweep_default", version_base="1.1")
 def main(config):
     # Get current directory and set it as root log dir for Logger
     cwd = os.getcwd()
@@ -29,6 +29,7 @@ def main(config):
         yaml.dump(log_config, f, default_flow_style=False)
 
     # Logger
+    # logger_config = OmegaConf.to_container(config.logger, resolve=True, throw_on_missing=True)
     logger = hydra.utils.instantiate(config.logger, config, _recursive_=False)
     # The proxy is required in the env for scoring: might be an oracle or a model
     proxy = hydra.utils.instantiate(config.proxy, device=config.device)

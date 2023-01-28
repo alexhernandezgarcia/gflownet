@@ -884,7 +884,7 @@ class GFlowNetAgent:
                 {"oracle_sampling": t1_sampling_for_oracle - t0_sampling_for_oracle}
             )
             t0_get_scores = time.time()
-            oracle_dict, oracle_times = batch2dict(
+            oracle_dict, oracle_times = get_oracle_metrics(
                 oracle_batch, self.env, get_uncertainties=False
             )
             t1_get_scores = time.time()
@@ -894,6 +894,8 @@ class GFlowNetAgent:
             )
         t1_oracle = time.time()
         times.update({"log_oracle": t1_oracle - t0_oracle})
+
+        self.logger.log_metric("logZ", self.logZ.sum(), use_context=self.use_context)
 
         if self.logger.progress:
             mean_main_loss = np.mean(np.array(all_losses)[-100:, 0], axis=0)
@@ -906,7 +908,7 @@ class GFlowNetAgent:
             all_visited_set = set(all_visited)
             self.logger.log_metric(
                 "unique_states",
-                len(all_visited),
+                len(all_visited_set),
                 use_context=self.use_context,
             )
 
@@ -1047,7 +1049,7 @@ class Policy:
         return tf(np.ones((len(states), self.n_actions + 1)))
 
 
-def batch2dict(batch, env, get_uncertainties=False, query_function="Both"):
+def get_oracle_metrics(batch, env, get_uncertainties=False, query_function="Both"):
     # HACK
 
     t0_proxy = time.time()
@@ -1066,6 +1068,7 @@ def batch2dict(batch, env, get_uncertainties=False, query_function="Both"):
     # FOR ORACLE
     proxy_vals = env.oracle(input_oracle)
     uncertainties = None
+    proxy_vals = np.sort(proxy_vals)[::-1]
     # scores = env.oracle(input_oracle)
     t1_proxy = time.time()
     times = {"proxy": t1_proxy - t0_proxy}
@@ -1095,7 +1098,7 @@ def make_opt(params, logZ, config):
             opt.add_param_group(
                 {
                     "params": logZ,
-                    "lr": config.lr_logZ,
+                    "lr": config.lr_z_mult * config.lr,
                 }
             )
     elif config.method == "msgd":

@@ -7,7 +7,7 @@ do:
   online: True
   times: True
 
-project_name: "ActiveLearningPipeline"
+project_name: "scratch"
 tags: 
     - dummy1
     - dummy2
