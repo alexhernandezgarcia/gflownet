@@ -48,7 +48,6 @@ class Logger:
                 config=wandb_config,
                 project=project_name,
                 name=run_name,
-                settings=wandb.Settings(start_method="thread"),
             )
         self.add_tags(tags)
         self.sampler = sampler
