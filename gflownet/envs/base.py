@@ -95,7 +95,10 @@ class GFlowNetEnv:
         states = [s for s, d in zip(states, done) if d]
         reward = np.zeros(len(done))
         # HACK: Modify to statebatch
-        reward[list(done)] = self.proxy2reward(self.proxy(self.state2proxy(states)))
+        proxy_val = self.proxy(self.state2proxy(states))
+        mean_proxy_val = np.mean(proxy_val)
+        reward_output = self.proxy2reward(proxy_val)
+        reward[list(done)] = reward_output
         return reward
 
     def proxy2reward(self, proxy_vals):
@@ -513,7 +516,9 @@ class Buffer:
             # HACK
             self.test = None
             if test:
-                self.test = pd.read_csv(test.path, index_col=0)
+                path = self.logger.logdir / Path("data") / test.path
+                self.test = pd.read_csv(path, index_col=0)
+                # self.test = pd.read_csv(test.path, index_col=0)
             # (2) Separate test file path is provided
             # if "all" in test and test.all:
             #     self.test = self.env.make_test_set(test)

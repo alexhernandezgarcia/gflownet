@@ -54,6 +54,7 @@ class GFlowNetAgent:
         logger,
         num_empirical_loss,
         oracle,
+        sampling_method = 'policy',
         proxy=None,
         al=False,
         data_path=None,
@@ -180,6 +181,7 @@ class GFlowNetAgent:
         self.temperature_logits = temperature_logits
         self.random_action_prob = random_action_prob
         self.pct_batch_empirical = pct_batch_empirical
+        self.sampling_method = sampling_method
 
     def parameters(self):
         if self.backward_policy is None or self.backward_policy.is_model == False:
@@ -239,13 +241,13 @@ class GFlowNetAgent:
                     raise ValueError("Action could not be sampled from model!")
 
             if sampling_method == "mixt":
-                random_values = [self.rng.uniform() for _ in range(len(envs))]
+                random_values = [self.rng.uniform(0,1) for _ in range(len(envs))]
                 uniform_actions = self.rng.integers(
                     0, len(self.env.action_space), len(states)
                 ).tolist()
                 actions = [
                     uniform_actions[i]
-                    if random_values[i] <= self.random_action_prob
+                    if random_values[i] < self.random_action_prob
                     else actions[i]
                     for i in range(len(envs))
                 ]
@@ -410,7 +412,7 @@ class GFlowNetAgent:
                 envs, actions, valids = self.forward_sample(
                     envs,
                     times,
-                    sampling_method="policy",
+                    sampling_method=self.sampling_method,
                     model=self.forward_policy,
                     temperature=1.0,
                 )
@@ -418,7 +420,7 @@ class GFlowNetAgent:
                 envs, actions, valids = self.forward_sample(
                     envs,
                     times,
-                    sampling_method="mixt",
+                    sampling_method=self.sampling_method,
                     model=self.forward_policy,
                     temperature=self.temperature_logits,
                 )
@@ -678,6 +680,8 @@ class GFlowNetAgent:
         for el in batch:
             traj_id = el[6][:1].item()
             state_id = el[7][:1].item()
+            # if el[2][0].item() !=0:
+                # print("here")
             #             assert state_ids[traj_id][-1] + 1 == state_id
             #             state_ids[traj_id].append(state_id)
             trajs[traj_id].append(el[1][0].item())
@@ -726,14 +730,23 @@ class GFlowNetAgent:
                         torch.nn.utils.clip_grad_norm_(
                             self.parameters(), self.clip_grad_norm
                         )
-                    self.opt.step()
-                    self.lr_scheduler.step()
-                    self.opt.zero_grad()
+                    if self.opt:
+                        self.opt.step()
+                        self.lr_scheduler.step()
+                        self.opt.zero_grad()
                     all_losses.append([i.item() for i in losses])
             # Buffer
             t0_buffer = time.time()
             states_term, trajs_term, rewards = self.unpack_terminal_states(batch)
+            rewards_arr = np.array(rewards)
             proxy_vals = self.env.reward2proxy(rewards)
+            # if self.use_context == True:
+            #     oracle_input = self.env.state2oracle(states_term)
+            #     oracle_output = self.env.oracle(oracle_input)
+            #     # find mse between oracle_output and proxy_vals
+            #     mse = np.mean((oracle_output - proxy_vals) ** 2)
+            #     if mse > 1e-3:
+                    # print("here")
             self.buffer.add(states_term, trajs_term, rewards, proxy_vals, it)
             self.buffer.add(
                 states_term, trajs_term, rewards, proxy_vals, it, buffer="replay"
