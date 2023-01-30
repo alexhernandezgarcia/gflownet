@@ -311,7 +311,8 @@ class AMP(GFlowNetEnv):
         # If action is not eos, then perform action
         if action_idx != self.eos:
             action = self.action_space[action_idx]
-            state_next = self.state + list(action)
+            state_next = self.state.copy()
+            state_next = state_next + list(action)
             if len(state_next) > self.max_seq_length:
                 valid = False
             else:
@@ -320,7 +321,7 @@ class AMP(GFlowNetEnv):
                 self.n_actions += 1
             return self.state, action_idx, valid
         # If action is eos, then perform eos
-        else:
+        elif action_idx == self.eos:
             if len(self.state) < self.min_seq_length:
                 valid = False
             else:

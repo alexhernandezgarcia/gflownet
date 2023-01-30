@@ -516,9 +516,12 @@ class Buffer:
             # HACK
             self.test = None
             if test:
-                path = self.logger.logdir / Path("data") / test.path
-                self.test = pd.read_csv(path, index_col=0)
-                # self.test = pd.read_csv(test.path, index_col=0)
+                if test.path:
+                    if test.path[0] == "/":
+                        self.test = pd.read_csv(test.path, index_col=0)
+                    else:
+                        path = self.logger.logdir / Path("data") / test.path
+                        self.test = pd.read_csv(path, index_col=0)
             # (2) Separate test file path is provided
             # if "all" in test and test.all:
             #     self.test = self.env.make_test_set(test)

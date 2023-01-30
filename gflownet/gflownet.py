@@ -234,6 +234,7 @@ class GFlowNetAgent:
             action_logits /= temperature
             if self.mask_invalid_actions:
                 action_logits[mask_invalid_actions] = -1000
+            # print(action_logits[0])
             if all(torch.isfinite(action_logits).flatten()):
                 actions = Categorical(logits=action_logits).sample().tolist()
             else:
@@ -603,6 +604,63 @@ class GFlowNetAgent:
         flow_loss : float
             Loss of the intermediate nodes only
         """
+        # Unpack batch
+        # index_where_equal = lambda x: (x[0] == x[1]).nonzero()
+        # select_index = lambda x: torch.index_select(x[0], 0, x[1])
+
+        # (
+        #     state,
+        #     last_action,
+        #     reward,
+        #     parents,
+        #     parents_a,
+        #     done,
+        #     path_id_parents,
+        #     _,
+        #     _,
+        # ) = zip(*batch)
+        # indices = list(map(index_where_equal, zip(parents_a, last_action)))
+        # indices = torch.cat(indices)
+        # parent_of_state_in_traj = list(map(select_index, zip(parents, indices)))
+
+        # path_id = torch.cat([el[:1] for el in path_id_parents])
+
+        # state, reward, parents, last_action, done = map(
+        #     torch.cat,
+        #     [
+        #         state,
+        #         reward,
+        #         parent_of_state_in_traj,
+        #         last_action,
+        #         done,
+        #     ],
+        # )
+    #    logits_parent = self.forward_policy(parents)
+    #     mask_parents = tb(
+    #         [self.env.get_mask_invalid_actions(parent, 0, True) for parent in parents]
+    #     )
+    #     logits_parent[mask_parents] = -loginf
+    #     logprobs_f = self.logsoftmax(logits_parent)[
+    #         torch.arange(parents.shape[0]), actions
+    #     ]
+    #  sumlogprobs_f = tf(
+    #         torch.zeros(len(torch.unique(path_id, sorted=True)))
+    #     ).index_add_(0, path_id, logprobs_f)
+    #     logits_state = self.model(states)[..., len(self.env.action_space) + 1 :]
+    #     mask_states = tb(
+    #         [
+    #             self.env.get_backward_mask(state, done[idx], True)
+    #             for idx, state in enumerate(states)
+    #         ]
+    #     )
+    #     logits_state[mask_states] = -loginf
+    #     logprobs_b = self.logsoftmax(logits_state)[
+    #         torch.arange(states.shape[0]), actions
+    #     ]
+    #     sumlogprobs_b = tf(
+    #         torch.zeros(len(torch.unique(path_id, sorted=True)))
+    #     ).index_add_(0, path_id, logprobs_b)
+
         loginf = tf([loginf])
         # Unpack batch
         (
@@ -698,7 +756,7 @@ class GFlowNetAgent:
         loss_term_ema = None
         loss_flow_ema = None
         # Generate list of environments
-        envs = [self.env.copy().reset() for _ in range(self.batch_size)]
+        envs = [self.env.copy().reset(idx) for idx in range(self.batch_size)]
         # envs = [copy.deepcopy(self.env).reset() for _ in range(self.batch_size)]
         # Train loop
         pbar = tqdm(range(1, self.n_train_steps + 1), disable=not self.logger.progress)
@@ -907,8 +965,8 @@ class GFlowNetAgent:
             )
         t1_oracle = time.time()
         times.update({"log_oracle": t1_oracle - t0_oracle})
-
-        self.logger.log_metric("logZ", self.logZ.sum(), use_context=self.use_context)
+        if self.logZ is not None:
+            self.logger.log_metric("logZ", self.logZ.sum(), use_context=self.use_context)
 
         if self.logger.progress:
             mean_main_loss = np.mean(np.array(all_losses)[-100:, 0], axis=0)

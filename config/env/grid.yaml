@@ -25,7 +25,7 @@ buffer:
     output: null
   test:
     all: True
-    path: null
+    path: /home/mila/n/nikita.saxena/scratch/datasets/grid/corners_d2l3_r0.csv
     seed: 167
     n: null
     output: null
