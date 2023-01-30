@@ -3,6 +3,7 @@ import numpy as np
 import torch
 from pathlib import Path
 from numpy import array
+from omegaconf import OmegaConf
 
 
 class Logger:
@@ -45,8 +46,9 @@ class Logger:
 
             self.wandb = wandb
             self.plt = plt
+            wandb_config = OmegaConf.to_container(config, resolve=True, throw_on_missing=True)
             self.run = self.wandb.init(
-                config=config, project=project_name, name=run_name
+                config=wandb_config, project=project_name, name=run_name
             )
         else:
             self.wandb = None
