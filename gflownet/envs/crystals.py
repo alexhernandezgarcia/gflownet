@@ -6,8 +6,7 @@ from typing import List, Optional
 
 import numpy as np
 
-# from gflownet.envs.base import GFlowNetEnv
-from .base import GFlowNetEnv
+from gflownet.envs.base import GFlowNetEnv
 
 
 class Crystal(GFlowNetEnv):
@@ -338,7 +337,6 @@ class Crystal(GFlowNetEnv):
                 for n, c in nums_charges:
                     charges = [list(c) for c in itertools.product(c, repeat=n)]
                     sum_diff_elem += [sum(ci) for ci in charges]
-                charge_sum = [sum(combo) for combo in itertools.product(sum_diff_elem)]
                 poss_charge_sum = [sum(combo) == 0 for combo in itertools.product(sum_diff_elem)]
                 if any(poss_charge_sum):
                     self.done = True
