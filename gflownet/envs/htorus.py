@@ -647,6 +647,14 @@ class HybridTorus(GFlowNetEnv):
         ax.axis("scaled")
         if colorbar:
             fig.colorbar(h, ax=ax)
+        ax.set_xticks([])
+        ax.set_yticks([])
+        ax.text(0, -0.3, r'$0$', fontsize=15)
+        ax.text(-0.28, 0, r'$0$', fontsize=15)
+        ax.text(2*np.pi-0.4, -0.3, r'$2\pi$', fontsize=15)
+        ax.text(-0.45, 2*np.pi-0.3, r'$2\pi$', fontsize=15)
+        for spine in ax.spines.values():
+            spine.set_visible(False)
         # Set tight layout
         plt.tight_layout()
         return fig
