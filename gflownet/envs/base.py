@@ -120,7 +120,7 @@ class GFlowNetEnv:
             )
         elif self.reward_func == "boltzmann":
             return np.clip(
-                np.exp(-1.0 * self.reward_beta * proxy_vals),
+                np.exp(1.0 * self.reward_beta * proxy_vals),
                 self.min_reward,
                 None,
             )
@@ -138,7 +138,7 @@ class GFlowNetEnv:
                 / self.reward_beta
             )
         elif self.reward_func == "boltzmann":
-            return -1.0 * np.log(reward) / self.reward_beta
+            return 1.0 * np.log(reward) / self.reward_beta
         else:
             raise NotImplemented
 
@@ -458,17 +458,19 @@ class Buffer:
     ):
         rewards_old = self.replay["reward"].values
         rewards_new = rewards.copy()
-        while np.max(rewards_new) > np.min(rewards_old):
+        while np.max(rewards_new) >= np.min(rewards_old):
             idx_new_max = np.argmax(rewards_new)
-            self.replay.iloc[self.replay.reward.argmin()] = {
-                "state": self.env.state2readable(states[idx_new_max]),
-                "traj": self.env.traj2readable(trajs[idx_new_max]),
-                "reward": rewards[idx_new_max],
-                "energy": energies[idx_new_max],
-                "iter": it,
-            }
-            rewards_new[idx_new_max] = -1
-            rewards_old = self.replay["reward"].values
+            readable_state = self.env.state2readable(states[idx_new_max])
+            if self.replay['state'].isin([readable_state]).sum() == 0:
+                self.replay.iloc[self.replay.reward.argmin()] = {
+                    "state": readable_state,
+                    "traj": self.env.traj2readable(trajs[idx_new_max]),
+                    "reward": rewards[idx_new_max],
+                    "energy": energies[idx_new_max],
+                    "iter": it,
+                }
+                rewards_new[idx_new_max] = -1
+                rewards_old = self.replay["reward"].values
         return self.replay
 
     def make_train_test(self, train, test, data_path=None, *args):
