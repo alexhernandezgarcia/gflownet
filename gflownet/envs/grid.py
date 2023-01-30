@@ -79,6 +79,7 @@ class Grid(GFlowNetEnv):
             self.statebatch2proxy = self.statebatch2policy
         elif self.proxy_state_format == "oracle":
             self.statebatch2proxy = self.statebatch2oracle
+            self.statetorch2proxy = self.statetorch2oracle
 
     def get_actions_space(self):
         """
@@ -164,6 +165,19 @@ class Grid(GFlowNetEnv):
                 (len(states), self.n_dim, self.length)
             )
             * self.cells[None, :]
+        ).sum(axis=2)
+
+    def statetorch2oracle(
+        self, states: TensorType["batch", "state_dim"]
+    ) -> TensorType["batch", "state_oracle_dim"]:
+        """
+        Prepares a batch of states in torch "GFlowNet format" for the oracle.
+        """
+        return (
+            self.statetorch2policy(states).reshape(
+                (len(states), self.n_dim, self.length)
+            )
+            * torch.tensor(self.cells[None, :]).to(states)
         ).sum(axis=2)
 
     def state2policy(self, state: List = None) -> List:
