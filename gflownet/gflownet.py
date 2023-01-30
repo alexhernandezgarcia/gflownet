@@ -60,12 +60,7 @@ class GFlowNetAgent:
         self.env.set_float_precision(self.float)
         self.mask_source = self._tbool([self.env.get_mask_invalid_actions_forward()])
         # Continuous environments
-        if hasattr(self.env, "continuous") and self.env.continuous:
-            self.continuous = True
-            self.forward_sample = self.forward_sample_continuous
-            self.trajectorybalance_loss = self.trajectorybalance_loss_continuous
-        else:
-            self.continuous = False
+        self.continuous = hasattr(self.env, "continuous") and self.env.continuous:
         # Loss
         if optimizer.loss in ["flowmatch"]:
             self.loss = "flowmatch"
@@ -217,64 +212,6 @@ class GFlowNetAgent:
             raise ValueError("Backward Policy cannot be a nn in flowmatch.")
 
     def forward_sample(
-        self, envs, times, sampling_method="policy", model=None, temperature=1.0
-    ):
-        """
-        Performs a forward action on each environment of a list.
-
-        Args
-        ----
-        env : list of GFlowNetEnv or derived
-            A list of instances of the environment
-
-        times : dict
-            Dictionary to store times
-
-        sampling_method : string
-            - model: uses current forward to obtain the sampling probabilities.
-            - uniform: samples uniformly from the action space.
-
-        model : torch model
-            Model to use as policy if sampling_method="policy"
-
-        temperature : float
-            Temperature to adjust the logits by logits /= temperature
-        """
-        if not isinstance(envs, list):
-            envs = [envs]
-        states = [env.state for env in envs]
-        mask_invalid_actions = self._tbool(
-            [env.get_mask_invalid_actions_forward() for env in envs]
-        )
-        random_action = self.rng.uniform()
-        t0_a_model = time.time()
-        if sampling_method == "policy":
-            action_logits = model(self._tfloat(self.env.statebatch2policy(states)))
-            action_logits /= temperature
-        elif sampling_method == "uniform":
-            # TODO: update with policy_output_dim
-            action_logits = self._float(
-                torch.zeros((len(states), len(self.env.action_space) + 1))
-            )
-        else:
-            raise NotImplemented
-        if self.mask_invalid_actions:
-            action_logits[mask_invalid_actions] = -1000
-        if all(torch.isfinite(action_logits).flatten()):
-            actions = Categorical(logits=action_logits).sample().tolist()
-        else:
-            if self.debug:
-                raise ValueError("Action could not be sampled from model!")
-        t1_a_model = time.time()
-        times["actions_model"] += t1_a_model - t0_a_model
-        assert len(envs) == len(actions)
-        # Execute actions
-        _, actions, valids = zip(
-            *[env.step(action) for env, action in zip(envs, actions)]
-        )
-        return envs, actions, valids
-
-    def forward_sample_continuous(
         self,
         envs,
         times,
@@ -662,98 +599,6 @@ class GFlowNetAgent:
         return loss, term_loss, flow_loss
 
     def trajectorybalance_loss(self, it, batch, loginf=1000):
-        """
-        Computes the trajectory balance loss of a batch
-
-        Args
-        ----
-        it : int
-            Iteration
-
-        batch : ndarray
-            A batch of data: every row is a state (list), corresponding to all states
-            visited in each state in the batch.
-
-        Returns
-        -------
-        loss : float
-
-        term_loss : float
-            Loss of the terminal nodes only
-
-        flow_loss : float
-            Loss of the intermediate nodes only
-        """
-        loginf = self._tfloat([loginf])
-        # Unpack batch
-        (
-            states,
-            actions,
-            rewards,
-            parents,
-            parents_a,
-            done,
-            traj_id_parents,
-            state_id,
-            masks,
-        ) = zip(*batch)
-        # Keep only parents in trajectory
-        parents = [
-            p[torch.where(a == p_a)] for a, p, p_a in zip(actions, parents, parents_a)
-        ]
-        traj_id = torch.cat([el[:1] for el in traj_id_parents])
-        # Concatenate lists of tensors
-        states, actions, rewards, parents, done, state_id, masks = map(
-            torch.cat,
-            [
-                states,
-                actions,
-                rewards,
-                parents,
-                done,
-                state_id,
-                masks,
-            ],
-        )
-        # Build forward masks from state masks
-        masks_f = torch.cat(
-            [
-                masks[torch.where((state_id == sid - 1) & (traj_id == pid))]
-                if sid > 0
-                else self.mask_source
-                for sid, pid in zip(state_id, traj_id)
-            ]
-        )
-        # Build backward masks from parents actions
-        masks_b = torch.ones(masks.shape, dtype=bool)
-        # TODO: this should be possible with a matrix operation
-        for idx, pa in enumerate(parents_a):
-            masks_b[idx, pa] = False
-        # Forward trajectories
-        logits_f = self.forward_policy(parents)
-        logits_f[masks_f] = -loginf
-        logprobs_f = self.logsoftmax(logits_f)[torch.arange(logits_f.shape[0]), actions]
-        sumlogprobs_f = self._tfloat(
-            torch.zeros(len(torch.unique(traj_id, sorted=True)))
-        ).index_add_(0, traj_id, logprobs_f)
-        # Backward trajectories
-        logits_b = self.backward_policy(states)
-        logits_b[masks_b] = -loginf
-        logprobs_b = self.logsoftmax(logits_b)[torch.arange(logits_b.shape[0]), actions]
-        sumlogprobs_b = self._tfloat(
-            torch.zeros(len(torch.unique(traj_id, sorted=True)))
-        ).index_add_(0, traj_id, logprobs_b)
-        # Sort rewards of done states by ascending traj_id
-        rewards = rewards[done.eq(1)][torch.argsort(traj_id[done.eq(1)])]
-        # Trajectory balance loss
-        loss = (
-            (self.logZ.sum() + sumlogprobs_f - sumlogprobs_b - torch.log(rewards))
-            .pow(2)
-            .mean()
-        )
-        return loss, loss, loss
-
-    def trajectorybalance_loss_continuous(self, it, batch, loginf=1000):
         """
         Computes the trajectory balance loss of a batch
 
