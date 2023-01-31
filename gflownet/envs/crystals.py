@@ -272,7 +272,7 @@ class Crystal(GFlowNetEnv):
             parents = []
             actions = []
             for idx, a in enumerate(self.action_space):
-                if state[a[0]] >= a[1]:
+                if state[a[0]] == a[1] > 0:
                     parent = state.copy()
                     parent[a[0]] -= a[1]
                     parents.append(parent)
