@@ -96,7 +96,7 @@ class Crystal(GFlowNetEnv):
         """
         Constructs list with all possible actions. An action is described by a
         tuple (`elem`, `r`), indicating that the count of element `elem` will be
-        increased by `r`.
+        set to `r`.
         """
         assert self.max_diff_elem > self.min_diff_elem
         assert self.max_atom_i > self.min_atom_i
