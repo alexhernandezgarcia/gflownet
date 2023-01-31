@@ -752,13 +752,26 @@ class GFlowNetAgent:
                 states_term, trajs_term, rewards, proxy_vals, it, buffer="replay"
             )
             # Log
-            idx_best = np.argmax(rewards)
-            state_best = "".join(self.env.state2readable(states_term[idx_best]))
             if self.logger.lightweight:
                 all_losses = all_losses[-100:]
                 all_visited = states_term
             else:
                 all_visited.extend(states_term)
+            # Progress bar
+            self.logger.progressbar_update(
+                pbar, all_losses, rewards, self.jsd, it, self.use_context
+            )
+            # Train logs
+            self.logger.log_train(
+                losses,
+                rewards,
+                proxy_vals,
+                states_term,
+                len(data),
+                self.logZ.sum(),
+                it,
+                self.use_context,
+            )
             # Test
             if self.logger.do_test(it):
                 self.l1, self.kl, self.jsd, figs = self.test()
@@ -766,21 +779,6 @@ class GFlowNetAgent:
                     self.l1, self.kl, self.jsd, it, self.use_context
                 )
                 self.logger.log_plots(figs, it, self.use_context)
-
-            self.logger.log_losses(losses, it, self.use_context)
-            # log metrics
-            self.log_iter(
-                pbar,
-                rewards,
-                proxy_vals,
-                states_term,
-                data,
-                it,
-                times,
-                losses,
-                all_losses,
-                all_visited,
-            )
             # Save intermediate models
             self.logger.save_models(self.forward_policy, self.backward_policy, step=it)
 
@@ -800,14 +798,13 @@ class GFlowNetAgent:
             else:
                 loss_term_ema = losses[1]
                 loss_flow_ema = losses[2]
-
             # Log times
             t1_iter = time.time()
             times.update({"iter": t1_iter - t0_iter})
             self.logger.log_time(times, it, use_context=self.use_context)
+
         # Save final model
         self.logger.save_models(self.forward_policy, self.backward_policy, final=True)
-
         # Close logger
         if self.use_context == False:
             self.logger.end()
@@ -817,7 +814,7 @@ class GFlowNetAgent:
         Computes metrics by sampling trajectories from the forward policy.
         """
         if self.buffer.test_pkl is None:
-            return self.l1, self.kl, self.jsd
+            return self.l1, self.kl, self.jsd, (None,)
         with open(self.buffer.test_pkl, "rb") as f:
             dict_tt = pickle.load(f)
             x_tt = dict_tt["x"]
@@ -928,6 +925,7 @@ class GFlowNetAgent:
         corr = np.corrcoef(data_logq, self.buffer.test["energies"])
         return corr, data_logq, times
 
+    # TODO: reorganize and remove
     def log_iter(
         self,
         pbar,
@@ -950,6 +948,7 @@ class GFlowNetAgent:
         self.logger.log_metric("logZ", self.logZ.sum(), it, use_context=False)
 
         # test metrics
+        # TODO: integrate corr into test()
         if not self.logger.lightweight and self.buffer.test is not None:
             corr, data_logq, times = self.get_log_corr(times)
             self.logger.log_sampler_test(corr, data_logq, it, self.use_context)
@@ -958,13 +957,6 @@ class GFlowNetAgent:
         oracle_batch, oracle_times = self.sample_batch(
             self.env, self.oracle_n, train=False
         )
-
-        if self.logger.progress:
-            mean_main_loss = np.mean(np.array(all_losses)[-100:, 0], axis=0)
-            description = "Loss: {:.4f} | Mean rewards: {:.2f} | KL: {:.4f}".format(
-                mean_main_loss, np.mean(rewards), self.kl
-            )
-            pbar.set_description(description)
 
         if not self.logger.lightweight:
             self.logger.log_metric(
