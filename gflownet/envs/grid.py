@@ -37,31 +37,9 @@ class Grid(GFlowNetEnv):
         max_step_len=1,
         cell_min=-1,
         cell_max=1,
-        env_id=None,
-        reward_beta=1,
-        reward_norm=1.0,
-        reward_norm_std_mult=0,
-        reward_func="power",
-        denorm_proxy=False,
-        energies_stats=None,
-        proxy=None,
-        oracle=None,
-        proxy_state_format=None,
         **kwargs,
     ):
-        super(Grid, self).__init__(
-            env_id,
-            reward_beta,
-            reward_norm,
-            reward_norm_std_mult,
-            reward_func,
-            energies_stats,
-            denorm_proxy,
-            proxy,
-            oracle,
-            proxy_state_format,
-            **kwargs,
-        )
+        super().__init__(**kwargs)
         self.continuous = True
         self.n_dim = n_dim
         self.eos = self.n_dim
@@ -80,6 +58,9 @@ class Grid(GFlowNetEnv):
         elif self.proxy_state_format == "oracle":
             self.statebatch2proxy = self.statebatch2oracle
             self.statetorch2proxy = self.statetorch2oracle
+        # Set up proxy
+        self.proxy.n_dim = self.n_dim
+        self.proxy.setup()
 
     def get_actions_space(self):
         """
@@ -150,7 +131,9 @@ class Grid(GFlowNetEnv):
             * self.cells[None, :]
         ).sum(axis=1)
 
-    def statebatch2oracle(self, states: List[List]) -> npt.NDArray[np.float32]:
+    def statebatch2oracle(
+        self, states: List[List]
+    ) -> TensorType["batch", "state_oracle_dim"]:
         """
         Prepares a batch of states in "GFlowNet format" for the oracles: a list of
         length n_dim with values in the range [cell_min, cell_max] for each state.
@@ -160,12 +143,9 @@ class Grid(GFlowNetEnv):
         state : list
             State
         """
-        return (
-            self.statebatch2policy(states).reshape(
-                (len(states), self.n_dim, self.length)
-            )
-            * self.cells[None, :]
-        ).sum(axis=2)
+        return self.statetorch2oracle(
+            torch.tensor(states, device=self.device, dtype=self.float)
+        )
 
     def statetorch2oracle(
         self, states: TensorType["batch", "state_dim"]

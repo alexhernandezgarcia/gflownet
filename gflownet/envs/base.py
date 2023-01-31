@@ -10,6 +10,7 @@ import torch
 from torch.distributions import Categorical
 from torchtyping import TensorType
 import pickle
+from gflownet.utils.common import set_device, set_float_precision
 
 
 class GFlowNetEnv:
@@ -19,6 +20,8 @@ class GFlowNetEnv:
 
     def __init__(
         self,
+        device="cpu",
+        float_precision=32,
         env_id=None,
         reward_beta=1,
         reward_norm=1.0,
@@ -31,6 +34,11 @@ class GFlowNetEnv:
         proxy_state_format=None,
         **kwargs,
     ):
+        # Device
+        self.device = set_device(device)
+        # Float precision
+        self.float = set_float_precision(float_precision)
+        # Environment
         self.state = []
         self.done = False
         self.n_actions = 0
@@ -57,12 +65,6 @@ class GFlowNetEnv:
         assert self.reward_norm > 0
         assert self.reward_beta > 0
         assert self.min_reward > 0
-
-    def set_device(self, device):
-        self.device = device
-
-    def set_float_precision(self, dtype):
-        self.float = dtype
 
     def set_energies_stats(self, energies_stats):
         self.energies_stats = energies_stats
