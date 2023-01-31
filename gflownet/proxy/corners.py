@@ -18,13 +18,16 @@ class Corners(Proxy):
 
     def setup(self):
         if self.sigma and self.mu and self.n_dim:
-            self.mu_vec = self.mu * torch.ones(self.n_dim, device=self.device, dtype=self.float)
-            cov = self.sigma * torch.eye(self.n_dim, device=self.device, dtype=self.float)
+            self.mu_vec = self.mu * torch.ones(
+                self.n_dim, device=self.device, dtype=self.float
+            )
+            cov = self.sigma * torch.eye(
+                self.n_dim, device=self.device, dtype=self.float
+            )
             cov_det = torch.linalg.det(cov)
             self.cov_inv = torch.linalg.inv(cov)
             self.mulnormal_norm = 1.0 / ((2 * torch.pi) ** 2 * cov_det) ** 0.5
-#             self.mulnormal = True
-            self.mulnormal = False
+            self.mulnormal = True
         else:
             self.mulnormal = False
         return self.mulnormal
@@ -49,7 +52,6 @@ class Corners(Proxy):
             return energies
 
         def _mulnormal_corners(x):
-            import ipdb; ipdb.set_trace()
             return (
                 -1.0
                 * self.mulnormal_norm
@@ -57,9 +59,12 @@ class Corners(Proxy):
                     -0.5
                     * (
                         torch.diag(
-                            torch.dot(
-                                torch.dot((torch.abs(x) - self.mu_vec), self.cov_inv),
+                            torch.tensordot(
+                                torch.tensordot(
+                                    (torch.abs(x) - self.mu_vec), self.cov_inv, dims=1
+                                ),
                                 (torch.abs(x) - self.mu_vec).T,
+                                dims=1,
                             )
                         )
                     )
@@ -67,10 +72,6 @@ class Corners(Proxy):
             )
 
         if self.mulnormal:
-            import ipdb; ipdb.set_trace()
             return _mulnormal_corners(states)
         else:
-            snp = states.cpu().numpy()
-            pnp =  np.asarray([_func_corners(state) for state in snp])
-            import ipdb; ipdb.set_trace()
             return np.asarray([_func_corners(state) for state in states])
