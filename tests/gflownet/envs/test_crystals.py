@@ -64,7 +64,9 @@ def test__get_actions_space__returns_correct_number_of_actions(
         periodic_table=periodic_table, min_atom_i=min_atom_i, max_atom_i=max_atom_i
     )
 
-    assert len(environment.get_actions_space()) == periodic_table * max_atom_i
+    assert len(environment.get_actions_space()) == periodic_table * (
+        max_atom_i - min_atom_i + 1
+    )
 
 
 def test__get_parents__returns_no_parents_in_initial_state(env):
