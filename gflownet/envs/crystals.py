@@ -133,26 +133,6 @@ class Crystal(GFlowNetEnv):
                     mask[idx] = True
         return mask
 
-    def true_density(self):
-        # Return pre-computed true density if already stored
-        if self._true_density is not None:
-            return self._true_density
-        # Calculate true density
-        all_states = np.int32(
-            list(itertools.product(*[list(range(self.length))] * self.n_dim))
-        )
-        state_mask = np.array(
-            [len(self.get_parents(s, False)[0]) > 0 or sum(s) == 0 for s in all_states]
-        )
-        all_oracle = self.state2oracle(all_states)
-        rewards = self.oracle(all_oracle)[state_mask]
-        self._true_density = (
-            rewards / rewards.sum(),
-            rewards,
-            list(map(tuple, all_states[state_mask])),
-        )
-        return self._true_density
-
     def state2oracle(self, state_list):
         """
         Prepares a list of states in "GFlowNet format" for the oracles: a list of length
