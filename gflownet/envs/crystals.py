@@ -115,7 +115,6 @@ class Crystal(GFlowNetEnv):
             state = self.state.copy()
         if done is None:
             done = self.done
-        print(state)
         state_elem = [i for i, e in enumerate(state) if e > 0]
         state_atoms = sum(state)
         if done:
@@ -131,6 +130,8 @@ class Crystal(GFlowNetEnv):
                 mask[idx] = True
             else:
                 new_elem = a[0] not in state_elem
+                if not new_elem:
+                    mask[idx] = True
                 if new_elem and len(state_elem) >= self.max_diff_elem:
                     mask[idx] = True
         return mask
@@ -241,7 +242,7 @@ class Crystal(GFlowNetEnv):
         """
         Resets the environment.
         """
-        self.state = []
+        self.state = [0 for _ in range(self.periodic_table)]
         self.n_actions = 0
         self.done = False
         self.id = env_id
@@ -335,7 +336,11 @@ class Crystal(GFlowNetEnv):
                 nums_charges = [(num, self.oxidation_states[i]) for i, num in enumerate(self.state) if num > 0]
                 sum_diff_elem = []
                 for n, c in nums_charges:
-                    charges = [list(c) for c in itertools.product(c, repeat=n)]
+                    charges = []
+                    for c in itertools.product(c, repeat=n):
+                        sc = sorted(c)
+                        if sc not in charges:
+                            charges.append(sc)
                     sum_diff_elem.append([sum(ci) for ci in charges])
                 poss_charge_sum = [sum(combo) == 0 for combo in itertools.product(*sum_diff_elem)]
                 if any(poss_charge_sum):
