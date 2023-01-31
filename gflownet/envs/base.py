@@ -578,6 +578,12 @@ class Buffer:
                 pickle.dump(dict_tt, f)
                 self.test_pkl = test.output_pkl
         else:
+            print("""
+            Important: test metrics will NOT be computed. In order to compute
+            test metrics the test configuration of the buffer should be complete and
+            feasible and an output pkl file should be defined in
+            env.buffer.test.output_pkl.
+            """)
             self.test_pkl = None
         # Compute buffer statistics
         if self.train is not None:

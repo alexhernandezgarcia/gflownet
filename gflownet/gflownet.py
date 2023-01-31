@@ -712,6 +712,13 @@ class GFlowNetAgent:
         # Train loop
         pbar = tqdm(range(1, self.n_train_steps + 1), disable=not self.logger.progress)
         for it in pbar:
+            # Test
+            if self.logger.do_test(it):
+                self.l1, self.kl, self.jsd, figs = self.test()
+                self.logger.log_test_metrics(
+                    self.l1, self.kl, self.jsd, it, self.use_context
+                )
+                self.logger.log_plots(figs, it, self.use_context)
             t0_iter = time.time()
             data = []
             for j in range(self.sttr):
@@ -772,13 +779,6 @@ class GFlowNetAgent:
                 it,
                 self.use_context,
             )
-            # Test
-            if self.logger.do_test(it):
-                self.l1, self.kl, self.jsd, figs = self.test()
-                self.logger.log_test_metrics(
-                    self.l1, self.kl, self.jsd, it, self.use_context
-                )
-                self.logger.log_plots(figs, it, self.use_context)
             # Save intermediate models
             self.logger.save_models(self.forward_policy, self.backward_policy, step=it)
 
@@ -894,7 +894,8 @@ class GFlowNetAgent:
             fig_kde_pred = self.env.plot_kde(kde_pred)
             fig_kde_true = self.env.plot_kde(kde_true)
         else:
-            fig_kde = None
+            fig_kde_pred = None
+            fig_kde_true = None
         return l1, kl, jsd, [fig_reward_samples, fig_kde_pred, fig_kde_true]
 
     def get_log_corr(self, times):
