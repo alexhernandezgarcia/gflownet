@@ -238,8 +238,7 @@ class Crystal(GFlowNetEnv):
 
     def get_parents(self, state=None, done=None, actions=None):
         """
-        Determines all parents and actions that lead to a state. We treat parent
-        as a valid state if it has a non-negative atom count for every element.
+        Determines all parents and actions that lead to a state.
 
         Args
         ----
