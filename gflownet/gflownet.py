@@ -21,7 +21,7 @@ from tqdm import tqdm
 from scipy.special import logsumexp
 
 from gflownet.envs.base import Buffer
-from gflownet.utils.common import torch2np
+from gflownet.utils.common import set_device, set_float_precision, torch2np
 
 
 class GFlowNetAgent:
@@ -51,13 +51,11 @@ class GFlowNetAgent:
         # Seed
         self.rng = np.random.default_rng(seed)
         # Device
-        self.device = self._set_device(device)
+        self.device = set_device(device)
         # Float precision
-        self.float = self._set_float_precision(float_precision)
+        self.float = set_float_precision(float_precision)
         # Environment
         self.env = env
-        self.env.set_device(self.device)
-        self.env.set_float_precision(self.float)
         self.mask_source = self._tbool([self.env.get_mask_invalid_actions_forward()])
         # Continuous environments
         self.continuous = hasattr(self.env, "continuous") and self.env.continuous
@@ -172,22 +170,6 @@ class GFlowNetAgent:
         self.l1 = -1.0
         self.kl = -1.0
         self.jsd = -1.0
-
-    def _set_device(self, device: str):
-        if device.lower() == "cuda" and torch.cuda.is_available():
-            return torch.device("cuda")
-        else:
-            return torch.device("cpu")
-
-    def _set_float_precision(self, precision: int):
-        if precision == 16:
-            return torch.float16
-        elif precision == 32:
-            return torch.float32
-        elif precision == 64:
-            return torch.float64
-        else:
-            raise ValueError("Precision must be one of [16, 32, 64]")
 
     def _tfloat(self, x):
         return torch.tensor(x, dtype=self.float, device=self.device)
