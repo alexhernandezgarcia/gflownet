@@ -37,9 +37,9 @@ class Corners(Proxy):
                     torch.diag(
                         torch.tensordot(
                             torch.tensordot(
-                                (torch.abs(x) - self.mu_vec), self.cov_inv, dims=1
+                                (torch.abs(states) - self.mu_vec), self.cov_inv, dims=1
                             ),
-                            (torch.abs(x) - self.mu_vec).T,
+                            (torch.abs(states) - self.mu_vec).T,
                             dims=1,
                         )
                     )
