@@ -14,7 +14,6 @@ class Corners(Proxy):
         self.n_dim = n_dim
         self.mu = mu
         self.sigma = sigma
-        self.mulnormal = self.setup()
 
     def setup(self):
         if self.sigma and self.mu and self.n_dim:
@@ -27,51 +26,23 @@ class Corners(Proxy):
             cov_det = torch.linalg.det(cov)
             self.cov_inv = torch.linalg.inv(cov)
             self.mulnormal_norm = 1.0 / ((2 * torch.pi) ** 2 * cov_det) ** 0.5
-            self.mulnormal = True
-        else:
-            self.mulnormal = False
-        return self.mulnormal
 
     def __call__(self, states: TensorType["batch", "state_dim"]) -> TensorType["batch"]:
-        """
-        args:
-            states: ndarray
-
-        returns:
-            list of scores
-        technically an oracle, hence used variable name energies
-        """
-
-        def _func_corners(x):
-            ax = abs(x)
-            energies = -1.0 * (
-                (ax > 0.5).prod(-1) * 0.5
-                + ((ax < 0.8) * (ax > 0.6)).prod(-1) * 2
-                + 1e-1
-            )
-            return energies
-
-        def _mulnormal_corners(x):
-            return (
-                -1.0
-                * self.mulnormal_norm
-                * torch.exp(
-                    -0.5
-                    * (
-                        torch.diag(
+        return (
+            -1.0
+            * self.mulnormal_norm
+            * torch.exp(
+                -0.5
+                * (
+                    torch.diag(
+                        torch.tensordot(
                             torch.tensordot(
-                                torch.tensordot(
-                                    (torch.abs(x) - self.mu_vec), self.cov_inv, dims=1
-                                ),
-                                (torch.abs(x) - self.mu_vec).T,
-                                dims=1,
-                            )
+                                (torch.abs(x) - self.mu_vec), self.cov_inv, dims=1
+                            ),
+                            (torch.abs(x) - self.mu_vec).T,
+                            dims=1,
                         )
                     )
                 )
             )
-
-        if self.mulnormal:
-            return _mulnormal_corners(states)
-        else:
-            return np.asarray([_func_corners(state) for state in states])
+        )
