@@ -336,8 +336,8 @@ class Crystal(GFlowNetEnv):
                 sum_diff_elem = []
                 for n, c in nums_charges:
                     charges = [list(c) for c in itertools.product(c, repeat=n)]
-                    sum_diff_elem += [sum(ci) for ci in charges]
-                poss_charge_sum = [sum(combo) == 0 for combo in itertools.product(sum_diff_elem)]
+                    sum_diff_elem.append([sum(ci) for ci in charges])
+                poss_charge_sum = [sum(combo) == 0 for combo in itertools.product(*sum_diff_elem)]
                 if any(poss_charge_sum):
                     self.done = True
                     valid = True
