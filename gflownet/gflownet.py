@@ -54,7 +54,7 @@ class GFlowNetAgent:
         logger,
         num_empirical_loss,
         oracle,
-        sampling_method = 'policy',
+        sampling_method="policy",
         proxy=None,
         al=False,
         data_path=None,
@@ -242,7 +242,7 @@ class GFlowNetAgent:
                     raise ValueError("Action could not be sampled from model!")
 
             if sampling_method == "mixt":
-                random_values = [self.rng.uniform(0,1) for _ in range(len(envs))]
+                random_values = [self.rng.uniform(0, 1) for _ in range(len(envs))]
                 uniform_actions = self.rng.integers(
                     0, len(self.env.action_space), len(states)
                 ).tolist()
@@ -682,7 +682,7 @@ class GFlowNetAgent:
             traj_id = el[6][:1].item()
             state_id = el[7][:1].item()
             # if el[2][0].item() !=0:
-                # print("here")
+            # print("here")
             #             assert state_ids[traj_id][-1] + 1 == state_id
             #             state_ids[traj_id].append(state_id)
             trajs[traj_id].append(el[1][0].item())
@@ -747,7 +747,7 @@ class GFlowNetAgent:
             #     # find mse between oracle_output and proxy_vals
             #     mse = np.mean((oracle_output - proxy_vals) ** 2)
             #     if mse > 1e-3:
-                    # print("here")
+            # print("here")
             self.buffer.add(states_term, trajs_term, rewards, proxy_vals, it)
             self.buffer.add(
                 states_term, trajs_term, rewards, proxy_vals, it, buffer="replay"
@@ -909,7 +909,9 @@ class GFlowNetAgent:
         t1_oracle = time.time()
         times.update({"log_oracle": t1_oracle - t0_oracle})
         if self.logZ is not None:
-            self.logger.log_metric("logZ", self.logZ.sum(), use_context=self.use_context)
+            self.logger.log_metric(
+                "logZ", self.logZ.sum(), use_context=self.use_context
+            )
 
         if self.logger.progress:
             mean_main_loss = np.mean(np.array(all_losses)[-100:, 0], axis=0)

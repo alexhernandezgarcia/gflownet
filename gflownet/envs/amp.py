@@ -115,6 +115,8 @@ class AMP(GFlowNetEnv):
             self.state2proxy = self.statebatch2obs
         elif self.proxy_state_format == "oracle":
             self.state2proxy = self.state2oracle
+        # elif self.proxy_state_format == "state":
+        #     self.state2proxy = lambda x: x
         else:
             raise ValueError(
                 "Invalid proxy_state_format: {}".format(self.proxy_state_format)

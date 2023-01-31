@@ -461,7 +461,7 @@ class Buffer:
         while np.max(rewards_new) >= np.min(rewards_old):
             idx_new_max = np.argmax(rewards_new)
             readable_state = self.env.state2readable(states[idx_new_max])
-            if self.replay['state'].isin([readable_state]).sum() == 0:
+            if self.replay["state"].isin([readable_state]).sum() == 0:
                 self.replay.iloc[self.replay.reward.argmin()] = {
                     "state": readable_state,
                     "traj": self.env.traj2readable(trajs[idx_new_max]),
