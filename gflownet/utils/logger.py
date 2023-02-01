@@ -129,7 +129,7 @@ class Logger:
         if self.progress:
             mean_main_loss = np.mean(np.array(losses)[-n_mean:, 0], axis=0)
             description = "Loss: {:.4f} | Mean rewards: {:.2f} | JSD: {:.4f}".format(
-                mean_main_loss, torch.mean(rewards), jsd
+                mean_main_loss, np.mean(rewards), jsd
             )
             pbar.set_description(description)
 

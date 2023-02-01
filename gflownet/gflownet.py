@@ -761,7 +761,8 @@ class GFlowNetAgent:
             # Buffer
             t0_buffer = time.time()
             states_term, trajs_term = self.unpack_terminal_states(batch)
-            proxy_vals = self.env.reward2proxy(rewards)
+            proxy_vals = self.env.reward2proxy(rewards).tolist()
+            rewards = rewards.tolist()
             self.buffer.add(states_term, trajs_term, rewards, proxy_vals, it)
             self.buffer.add(
                 states_term, trajs_term, rewards, proxy_vals, it, buffer="replay"
@@ -817,7 +818,7 @@ class GFlowNetAgent:
             # Log times
             t1_iter = time.time()
             times.update({"iter": t1_iter - t0_iter})
-            self.logger.log_time(times, it, use_context=self.use_context)
+            self.logger.log_time(times, use_context=self.use_context)
 
         # Save final model
         self.logger.save_models(self.forward_policy, self.backward_policy, final=True)
@@ -1165,34 +1166,3 @@ def logq(traj_list, actions_list, model, env, loginf=1000):
         else:
             log_q = log_q_traj
     return log_q.item()
-
-
-def batch2dict(batch, env, get_uncertainties=False, query_function="Both"):
-    # HACK
-
-    t0_proxy = time.time()
-    # if get_uncertainties:
-    #     if query_function == "fancy_acquisition":
-    #         scores, proxy_vals, uncertainties = env.proxy(batch, query_function)
-    #     else:
-    #         proxy_vals, uncertainties = env.proxy(batch, query_function)
-    #         scores = proxy_vals
-    # else:
-    input_oracle = env.state2oracle(batch)
-    # # FOR PROXY
-    # input_proxy = env.state2proxy(batch)
-    # input_proxy = torch.Tensor(input_proxy)
-    # proxy_vals = env.proxy(input_proxy)
-    # FOR ORACLE
-    proxy_vals = env.oracle(input_oracle)
-    uncertainties = None
-    # scores = env.oracle(input_oracle)
-    t1_proxy = time.time()
-    times = {"proxy": t1_proxy - t0_proxy}
-    samples = {
-        "samples": batch,
-        # "scores": scores,
-        "energies": proxy_vals,
-        "uncertainties": uncertainties,
-    }
-    return samples, times

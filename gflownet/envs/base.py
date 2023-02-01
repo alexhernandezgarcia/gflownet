@@ -69,12 +69,6 @@ class GFlowNetEnv:
         assert self.reward_beta > 0
         assert self.min_reward > 0
 
-    def set_device(self, device):
-        self.device = device
-
-    def set_float_precision(self, dtype):
-        self.float = dtype
-
     def copy(self):
         # return an instance of the environment
         return self.__class__(**self.__dict__)
@@ -209,7 +203,7 @@ class GFlowNetEnv:
             proxy_vals = proxy_vals * self.energies_stats[3] + self.energies_stats[2]
         if self.reward_func == "power":
             return torch.clamp(
-                (proxy_vals / self.reward_norm) ** self.reward_beta,
+                (-1.0*proxy_vals / self.reward_norm) ** self.reward_beta,
                 min=self.min_reward,
                 max=None,
             )
@@ -234,7 +228,7 @@ class GFlowNetEnv:
         an oracle.
         """
         if self.reward_func == "power":
-            return torch.exp(
+            return -1.0 * torch.exp(
                 (torch.log(reward) + self.reward_beta * torch.log(self.reward_norm))
                 / self.reward_beta
             )
@@ -634,8 +628,8 @@ class Buffer:
                         {
                             "state": [self.env.state2readable(s) for s in states],
                             "traj": [self.env.traj2readable(p) for p in trajs],
-                            "reward": rewards.cpu(),
-                            "energy": energies.cpu(),
+                            "reward": rewards,
+                            "energy": energies,
                             "iter": it,
                         }
                     ),
@@ -655,21 +649,21 @@ class Buffer:
         energies,
         it,
     ):
-        rewards_old = torch.Tensor(self.replay["reward"].values)
-        rewards_new = rewards.clone()
-        while torch.max(rewards_new) > torch.min(rewards_old):
-            idx_new_max = torch.argmax(rewards_new)
+        rewards_old = self.replay["reward"].values
+        rewards_new = rewards.copy()
+        while np.max(rewards_new) > np.min(rewards_old):
+            idx_new_max = np.argmax(rewards_new)
             readable_state = self.env.state2readable(states[idx_new_max])
             if self.replay["state"].isin([readable_state]).sum() == 0:
                 self.replay.iloc[self.replay.reward.argmin()] = {
                     "state": self.env.state2readable(states[idx_new_max]),
                     "traj": self.env.traj2readable(trajs[idx_new_max]),
-                    "reward": rewards[idx_new_max].cpu().numpy(),
-                    "energy": energies[idx_new_max].cpu().numpy(),
+                    "reward": rewards[idx_new_max],
+                    "energy": energies[idx_new_max],
                     "iter": it,
                 }
                 rewards_new[idx_new_max] = -1
-                rewards_old = torch.Tensor(self.replay["reward"].values)
+                rewards_old = self.replay["reward"].values
         return self.replay
 
     def make_data_set(self, config):
