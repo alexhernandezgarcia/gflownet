@@ -630,13 +630,20 @@ class GFlowNetAgent:
             for a, p, p_a in zip(actions, parents, parents_a)
         ]
         traj_id = torch.cat([el[:1] for el in traj_id_parents])
+        # preprocessing for variable length tensors
+        parents = [p.squeeze(0) for p in parents]
+        parents = torch.nn.utils.rnn.pad_sequence(
+            parents, batch_first=True, padding_value=self.env.invalid_action
+        )
+        states = [s.squeeze(0) for s in states]
+        states = torch.nn.utils.rnn.pad_sequence(
+            states, batch_first=True, padding_value=self.env.invalid_action
+        )
         # Concatenate lists of tensors
-        states, actions, parents, done, state_id, masks_sf, masks_b = map(
+        actions, done, state_id, masks_sf, masks_b = map(
             torch.cat,
             [
-                states,
                 actions,
-                parents,
                 done,
                 state_id,
                 masks_sf,
@@ -980,6 +987,43 @@ class GFlowNetAgent:
                 step=it,
                 use_context=self.use_context,
             )
+
+    def evaluate(self, samples, energies, dataset_states=None):
+        """Evaluate the policy on a set of queries.
+        Args:
+            queries (list): List of queries to evaluate the policy on.
+        Returns:
+            dictionary with topk performance, diversity and novelty scores
+        """
+        # TODO: descending for AMP but ascending for molecules?
+        energies = torch.sort(energies, descending=True)[0]
+        pairwise_dists = self.env.get_pairwise_distance(samples)
+        pairwise_dists = torch.sort(pairwise_dists, descending=True)[0]
+        dict_topk = {}
+        if self.use_context or self.buffer.train is not None:
+            dists_from_D0 = self.env.get_distance_from_D0(samples, dataset_states)
+            dists_from_D0 = torch.sort(dists_from_D0, descending=True)[0]
+        for k in self.logger.oracle.k:
+            print(f"\n Top-{k} Performance")
+            mean_energy_topk = torch.mean(energies[:k])
+            mean_pairwise_dist_topk = torch.mean(pairwise_dists[:k])
+            if self.use_context:
+                mean_dist_from_D0_topk = torch.mean(dists_from_D0[:k])
+            dict_topk.update({"mean_energy_top{}".format(k): mean_energy_topk})
+            dict_topk.update(
+                {"mean_pairwise_distance_top{}".format(k): mean_pairwise_dist_topk}
+            )
+            if self.use_context:
+                dict_topk.update(
+                    {"min_distance_from_D0_top{}".format(k): mean_dist_from_D0_topk}
+                )
+            if self.logger.progress:
+                print(f"\t Mean Energy: {mean_energy_topk}")
+                print(f"\t Mean Pairwise Distance: {mean_pairwise_dist_topk}")
+                if self.use_context:
+                    print(f"\t Mean Min Distance from D0: {mean_dist_from_D0_topk}")
+            # TODO: logging a tensor is an issue?
+            self.logger.log_metrics(dict_topk, use_context=False)
 
 
 class Policy:
