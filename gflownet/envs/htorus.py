@@ -42,29 +42,9 @@ class HybridTorus(GFlowNetEnv):
         fixed_distribution=dict,
         random_distribution=dict,
         vonmises_min_concentration=1e-3,
-        env_id=None,
-        reward_beta=1,
-        reward_norm=1.0,
-        reward_norm_std_mult=0,
-        reward_func="boltzmann",
-        denorm_proxy=False,
-        energies_stats=None,
-        proxy=None,
-        oracle=None,
         **kwargs,
     ):
-        super(HybridTorus, self).__init__(
-            env_id=env_id,
-            reward_beta=reward_beta,
-            reward_norm=reward_norm,
-            reward_norm_std_mult=reward_norm_std_mult,
-            reward_func=reward_func,
-            energies_stats=energies_stats,
-            denorm_proxy=denorm_proxy,
-            proxy=proxy,
-            oracle=oracle,
-            **kwargs,
-        )
+        super().__init__(**kwargs)
         self.policy_encoding_dim_per_angle = policy_encoding_dim_per_angle
         self.continuous = True
         self.n_dim = n_dim
@@ -89,7 +69,7 @@ class HybridTorus(GFlowNetEnv):
         self.state2oracle = self.state2proxy
         self.statebatch2oracle = self.statebatch2proxy
         # Setup proxy
-        self.proxy.n_dim = self.n_dim
+        self.proxy.set_n_dim(self.n_dim)
 
     def get_actions_space(self):
         """

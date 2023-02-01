@@ -3,6 +3,7 @@ import numpy as np
 import torch
 from pathlib import Path
 from numpy import array
+import matplotlib.pyplot as plt
 
 
 class Logger:
@@ -41,16 +42,13 @@ class Logger:
             )
         if self.do.online:
             import wandb
-            import matplotlib.pyplot as plt
 
             self.wandb = wandb
-            self.plt = plt
             self.run = self.wandb.init(
                 config=config, project=project_name, name=run_name
             )
         else:
             self.wandb = None
-            self.plt = None
             self.run = None
         self.add_tags(tags)
         self.context = "0"
@@ -101,7 +99,6 @@ class Logger:
                 with open(self.logdir / "wandb.url", "w") as f:
                     f.write(self.url + "\n")
 
-
     def add_tags(self, tags: list):
         if not self.do.online:
             return
@@ -122,6 +119,16 @@ class Logger:
         else:
             self.pb_ckpt_path = self.ckpts_dir / f"{ckpt_id}_"
 
+    def progressbar_update(
+        self, pbar, losses, rewards, jsd, step, use_context=True, n_mean=100
+    ):
+        if self.progress:
+            mean_main_loss = np.mean(np.array(losses)[-n_mean:, 0], axis=0)
+            description = "Loss: {:.4f} | Mean rewards: {:.2f} | JSD: {:.4f}".format(
+                mean_main_loss, np.mean(rewards), jsd
+            )
+            pbar.set_description(description)
+
     def log_metric(self, key: str, value, step, use_context=True):
         if not self.do.online:
             return
@@ -134,16 +141,17 @@ class Logger:
             return
         if use_context:
             key = self.context + "/" + key
-        fig = self.plt.figure()
-        self.plt.hist(value)
-        self.plt.title(key)
-        self.plt.ylabel("Frequency")
-        self.plt.xlabel(key)
+        fig = plt.figure()
+        plt.hist(value)
+        plt.title(key)
+        plt.ylabel("Frequency")
+        plt.xlabel(key)
         fig = self.wandb.Image(fig)
         self.wandb.log({key: fig}, step)
 
     def log_plots(self, figs: list, step, use_context=True):
         if not self.do.online:
+            self.close_figs(figs)
             return
         keys = ["True reward and GFlowNet samples", "GFlowNet KDE Policy", "Reward KDE"]
         for key, fig in zip(keys, figs):
@@ -152,7 +160,12 @@ class Logger:
             if fig is not None:
                 figimg = self.wandb.Image(fig)
                 self.wandb.log({key: figimg}, step)
-                self.plt.close(fig)
+                plt.close(fig)
+
+    def close_figs(self, figs: list):
+        for fig in figs:
+            if fig is not None:
+                plt.close(fig)
 
     def log_metrics(self, metrics: dict, step: int, use_context: bool = True):
         if not self.do.online:
@@ -162,45 +175,59 @@ class Logger:
                 key = self.context + "/" + key
         self.wandb.log(metrics, step)
 
-    def log_sampler_train(
+    def log_train(
         self,
+        losses,
         rewards: list,
         proxy_vals: array,
         states_term: list,
-        data: list,
+        batch_size: int,
+        logz,
         step: int,
         use_context: bool,
     ):
-        if not self.do.online:
+        if not self.do.online or not self.do_train(step):
             return
-        if self.do_train(step):
-            train_metrics = dict(
-                zip(
-                    [
-                        "mean_reward",
-                        "max_reward",
-                        "mean_proxy",
-                        "min_proxy",
-                        "max_proxy",
-                        "mean_seq_length",
-                        "batch_size",
-                    ],
-                    [
-                        np.mean(rewards),
-                        np.max(rewards),
-                        np.mean(proxy_vals),
-                        np.min(proxy_vals),
-                        np.max(proxy_vals),
-                        np.mean([len(state) for state in states_term]),
-                        len(data),
-                    ],
-                )
+        train_metrics = dict(
+            zip(
+                [
+                    "mean_reward",
+                    "max_reward",
+                    "mean_proxy",
+                    "min_proxy",
+                    "max_proxy",
+                    "mean_seq_length",
+                    "batch_size",
+                    "logZ",
+                ],
+                [
+                    np.mean(rewards),
+                    np.max(rewards),
+                    np.mean(proxy_vals),
+                    np.min(proxy_vals),
+                    np.max(proxy_vals),
+                    np.mean([len(state) for state in states_term]),
+                    batch_size,
+                    logz,
+                ],
             )
-            self.log_metrics(
-                train_metrics,
-                use_context=use_context,
-                step=step,
+        )
+        self.log_metrics(
+            train_metrics,
+            use_context=use_context,
+            step=step,
+        )
+        loss_metrics = dict(
+            zip(
+                ["Loss", "Loss (terminating)", "Loss (non-term.)"],
+                [loss.item() for loss in losses],
             )
+        )
+        self.log_metrics(
+            loss_metrics,
+            use_context=use_context,
+            step=step,
+        )
 
     def log_sampler_test(
         self, corr: array, data_logq: list, step: int, use_context: bool

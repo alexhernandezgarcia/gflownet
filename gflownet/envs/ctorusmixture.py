@@ -30,45 +30,9 @@ class ContinuousTorusMixture(ContinuousTorus):
        Fixed length of the trajectory.
     """
 
-    def __init__(
-        self,
-        n_dim=2,
-        length_traj=1,
-        policy_encoding_dim_per_angle=None,
-        n_comp=3,
-        fixed_distribution=dict,
-        random_distribution=dict,
-        vonmises_min_concentration=1e-3,
-        env_id=None,
-        reward_beta=1,
-        reward_norm=1.0,
-        reward_norm_std_mult=0,
-        reward_func="boltzmann",
-        denorm_proxy=False,
-        energies_stats=None,
-        proxy=None,
-        oracle=None,
-        **kwargs,
-    ):
+    def __init__(self, n_comp=3, **kwargs):
         self.n_comp = n_comp
-        super(ContinuousTorusMixture, self).__init__(
-            n_dim=n_dim,
-            length_traj=length_traj,
-            policy_encoding_dim_per_angle=policy_encoding_dim_per_angle,
-            fixed_distribution=fixed_distribution,
-            random_distribution=random_distribution,
-            vonmises_min_concentration=vonmises_min_concentration,
-            env_id=env_id,
-            reward_beta=reward_beta,
-            reward_norm=reward_norm,
-            reward_norm_std_mult=reward_norm_std_mult,
-            reward_func=reward_func,
-            denorm_proxy=denorm_proxy,
-            energies_stats=energies_stats,
-            proxy=proxy,
-            oracle=oracle,
-            **kwargs,
-        )
+        super().__init__(**kwargs)
 
     def get_policy_output(self, params: dict):
         """

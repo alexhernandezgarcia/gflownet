@@ -21,7 +21,7 @@ from tqdm import tqdm
 from scipy.special import logsumexp
 
 from gflownet.envs.base import Buffer
-from gflownet.utils.common import torch2np
+from gflownet.utils.common import set_device, set_float_precision, torch2np
 
 
 class GFlowNetAgent:
@@ -51,21 +51,14 @@ class GFlowNetAgent:
         # Seed
         self.rng = np.random.default_rng(seed)
         # Device
-        self.device = self._set_device(device)
+        self.device = set_device(device)
         # Float precision
-        self.float = self._set_float_precision(float_precision)
+        self.float = set_float_precision(float_precision)
         # Environment
         self.env = env
-        self.env.set_device(self.device)
-        self.env.set_float_precision(self.float)
         self.mask_source = self._tbool([self.env.get_mask_invalid_actions_forward()])
         # Continuous environments
-        if hasattr(self.env, "continuous") and self.env.continuous:
-            self.continuous = True
-            self.forward_sample = self.forward_sample_continuous
-            self.trajectorybalance_loss = self.trajectorybalance_loss_continuous
-        else:
-            self.continuous = False
+        self.continuous = hasattr(self.env, "continuous") and self.env.continuous
         # Loss
         if optimizer.loss in ["flowmatch"]:
             self.loss = "flowmatch"
@@ -178,22 +171,6 @@ class GFlowNetAgent:
         self.kl = -1.0
         self.jsd = -1.0
 
-    def _set_device(self, device: str):
-        if device.lower() == "cuda" and torch.cuda.is_available():
-            return torch.device("cuda")
-        else:
-            return torch.device("cpu")
-
-    def _set_float_precision(self, precision: int):
-        if precision == 16:
-            return torch.float16
-        elif precision == 32:
-            return torch.float32
-        elif precision == 64:
-            return torch.float64
-        else:
-            raise ValueError("Precision must be one of [16, 32, 64]")
-
     def _tfloat(self, x):
         return torch.tensor(x, dtype=self.float, device=self.device)
 
@@ -217,64 +194,6 @@ class GFlowNetAgent:
             raise ValueError("Backward Policy cannot be a nn in flowmatch.")
 
     def forward_sample(
-        self, envs, times, sampling_method="policy", model=None, temperature=1.0
-    ):
-        """
-        Performs a forward action on each environment of a list.
-
-        Args
-        ----
-        env : list of GFlowNetEnv or derived
-            A list of instances of the environment
-
-        times : dict
-            Dictionary to store times
-
-        sampling_method : string
-            - model: uses current forward to obtain the sampling probabilities.
-            - uniform: samples uniformly from the action space.
-
-        model : torch model
-            Model to use as policy if sampling_method="policy"
-
-        temperature : float
-            Temperature to adjust the logits by logits /= temperature
-        """
-        if not isinstance(envs, list):
-            envs = [envs]
-        states = [env.state for env in envs]
-        mask_invalid_actions = self._tbool(
-            [env.get_mask_invalid_actions_forward() for env in envs]
-        )
-        random_action = self.rng.uniform()
-        t0_a_model = time.time()
-        if sampling_method == "policy":
-            action_logits = model(self._tfloat(self.env.statebatch2policy(states)))
-            action_logits /= temperature
-        elif sampling_method == "uniform":
-            # TODO: update with policy_output_dim
-            action_logits = self._float(
-                torch.zeros((len(states), len(self.env.action_space) + 1))
-            )
-        else:
-            raise NotImplemented
-        if self.mask_invalid_actions:
-            action_logits[mask_invalid_actions] = -1000
-        if all(torch.isfinite(action_logits).flatten()):
-            actions = Categorical(logits=action_logits).sample().tolist()
-        else:
-            if self.debug:
-                raise ValueError("Action could not be sampled from model!")
-        t1_a_model = time.time()
-        times["actions_model"] += t1_a_model - t0_a_model
-        assert len(envs) == len(actions)
-        # Execute actions
-        _, actions, valids = zip(
-            *[env.step(action) for env, action in zip(envs, actions)]
-        )
-        return envs, actions, valids
-
-    def forward_sample_continuous(
         self,
         envs,
         times,
@@ -689,98 +608,6 @@ class GFlowNetAgent:
         (
             states,
             actions,
-            rewards,
-            parents,
-            parents_a,
-            done,
-            traj_id_parents,
-            state_id,
-            masks,
-        ) = zip(*batch)
-        # Keep only parents in trajectory
-        parents = [
-            p[torch.where(a == p_a)] for a, p, p_a in zip(actions, parents, parents_a)
-        ]
-        traj_id = torch.cat([el[:1] for el in traj_id_parents])
-        # Concatenate lists of tensors
-        states, actions, rewards, parents, done, state_id, masks = map(
-            torch.cat,
-            [
-                states,
-                actions,
-                rewards,
-                parents,
-                done,
-                state_id,
-                masks,
-            ],
-        )
-        # Build forward masks from state masks
-        masks_f = torch.cat(
-            [
-                masks[torch.where((state_id == sid - 1) & (traj_id == pid))]
-                if sid > 0
-                else self.mask_source
-                for sid, pid in zip(state_id, traj_id)
-            ]
-        )
-        # Build backward masks from parents actions
-        masks_b = torch.ones(masks.shape, dtype=bool)
-        # TODO: this should be possible with a matrix operation
-        for idx, pa in enumerate(parents_a):
-            masks_b[idx, pa] = False
-        # Forward trajectories
-        logits_f = self.forward_policy(parents)
-        logits_f[masks_f] = -loginf
-        logprobs_f = self.logsoftmax(logits_f)[torch.arange(logits_f.shape[0]), actions]
-        sumlogprobs_f = self._tfloat(
-            torch.zeros(len(torch.unique(traj_id, sorted=True)))
-        ).index_add_(0, traj_id, logprobs_f)
-        # Backward trajectories
-        logits_b = self.backward_policy(states)
-        logits_b[masks_b] = -loginf
-        logprobs_b = self.logsoftmax(logits_b)[torch.arange(logits_b.shape[0]), actions]
-        sumlogprobs_b = self._tfloat(
-            torch.zeros(len(torch.unique(traj_id, sorted=True)))
-        ).index_add_(0, traj_id, logprobs_b)
-        # Sort rewards of done states by ascending traj_id
-        rewards = rewards[done.eq(1)][torch.argsort(traj_id[done.eq(1)])]
-        # Trajectory balance loss
-        loss = (
-            (self.logZ.sum() + sumlogprobs_f - sumlogprobs_b - torch.log(rewards))
-            .pow(2)
-            .mean()
-        )
-        return loss, loss, loss
-
-    def trajectorybalance_loss_continuous(self, it, batch, loginf=1000):
-        """
-        Computes the trajectory balance loss of a batch
-
-        Args
-        ----
-        it : int
-            Iteration
-
-        batch : ndarray
-            A batch of data: every row is a state (list), corresponding to all states
-            visited in each state in the batch.
-
-        Returns
-        -------
-        loss : float
-
-        term_loss : float
-            Loss of the terminal nodes only
-
-        flow_loss : float
-            Loss of the intermediate nodes only
-        """
-        loginf = self._tfloat([loginf])
-        # Unpack batch
-        (
-            states,
-            actions,
             parents,
             parents_a,
             done,
@@ -885,6 +712,13 @@ class GFlowNetAgent:
         # Train loop
         pbar = tqdm(range(1, self.n_train_steps + 1), disable=not self.logger.progress)
         for it in pbar:
+            # Test
+            if self.logger.do_test(it):
+                self.l1, self.kl, self.jsd, figs = self.test()
+                self.logger.log_test_metrics(
+                    self.l1, self.kl, self.jsd, it, self.use_context
+                )
+                self.logger.log_plots(figs, it, self.use_context)
             t0_iter = time.time()
             data = []
             for j in range(self.sttr):
@@ -925,34 +759,25 @@ class GFlowNetAgent:
                 states_term, trajs_term, rewards, proxy_vals, it, buffer="replay"
             )
             # Log
-            idx_best = np.argmax(rewards)
-            state_best = "".join(self.env.state2readable(states_term[idx_best]))
             if self.logger.lightweight:
                 all_losses = all_losses[-100:]
                 all_visited = states_term
             else:
                 all_visited.extend(states_term)
-            # Test
-            if self.logger.do_test(it):
-                self.l1, self.kl, self.jsd, figs = self.test()
-                self.logger.log_test_metrics(
-                    self.l1, self.kl, self.jsd, it, self.use_context
-                )
-                self.logger.log_plots(figs, it, self.use_context)
-
-            self.logger.log_losses(losses, it, self.use_context)
-            # log metrics
-            self.log_iter(
-                pbar,
+            # Progress bar
+            self.logger.progressbar_update(
+                pbar, all_losses, rewards, self.jsd, it, self.use_context
+            )
+            # Train logs
+            self.logger.log_train(
+                losses,
                 rewards,
                 proxy_vals,
                 states_term,
-                data,
+                len(data),
+                self.logZ.sum(),
                 it,
-                times,
-                losses,
-                all_losses,
-                all_visited,
+                self.use_context,
             )
             # Save intermediate models
             self.logger.save_models(self.forward_policy, self.backward_policy, step=it)
@@ -973,14 +798,13 @@ class GFlowNetAgent:
             else:
                 loss_term_ema = losses[1]
                 loss_flow_ema = losses[2]
-
             # Log times
             t1_iter = time.time()
             times.update({"iter": t1_iter - t0_iter})
             self.logger.log_time(times, it, use_context=self.use_context)
+
         # Save final model
         self.logger.save_models(self.forward_policy, self.backward_policy, final=True)
-
         # Close logger
         if self.use_context == False:
             self.logger.end()
@@ -990,7 +814,7 @@ class GFlowNetAgent:
         Computes metrics by sampling trajectories from the forward policy.
         """
         if self.buffer.test_pkl is None:
-            return self.l1, self.kl, self.jsd
+            return self.l1, self.kl, self.jsd, (None,)
         with open(self.buffer.test_pkl, "rb") as f:
             dict_tt = pickle.load(f)
             x_tt = dict_tt["x"]
@@ -1070,7 +894,8 @@ class GFlowNetAgent:
             fig_kde_pred = self.env.plot_kde(kde_pred)
             fig_kde_true = self.env.plot_kde(kde_true)
         else:
-            fig_kde = None
+            fig_kde_pred = None
+            fig_kde_true = None
         return l1, kl, jsd, [fig_reward_samples, fig_kde_pred, fig_kde_true]
 
     def get_log_corr(self, times):
@@ -1101,6 +926,7 @@ class GFlowNetAgent:
         corr = np.corrcoef(data_logq, self.buffer.test["energies"])
         return corr, data_logq, times
 
+    # TODO: reorganize and remove
     def log_iter(
         self,
         pbar,
@@ -1123,6 +949,7 @@ class GFlowNetAgent:
         self.logger.log_metric("logZ", self.logZ.sum(), it, use_context=False)
 
         # test metrics
+        # TODO: integrate corr into test()
         if not self.logger.lightweight and self.buffer.test is not None:
             corr, data_logq, times = self.get_log_corr(times)
             self.logger.log_sampler_test(corr, data_logq, it, self.use_context)
@@ -1131,13 +958,6 @@ class GFlowNetAgent:
         oracle_batch, oracle_times = self.sample_batch(
             self.env, self.oracle_n, train=False
         )
-
-        if self.logger.progress:
-            mean_main_loss = np.mean(np.array(all_losses)[-100:, 0], axis=0)
-            description = "Loss: {:.4f} | Mean rewards: {:.2f} | KL: {:.4f}".format(
-                mean_main_loss, np.mean(rewards), self.kl
-            )
-            pbar.set_description(description)
 
         if not self.logger.lightweight:
             self.logger.log_metric(
