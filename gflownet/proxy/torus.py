@@ -10,6 +10,9 @@ class Torus(Proxy):
         self.alpha = alpha
         self.beta = beta
 
+    def set_n_dim(self, n_dim):
+        self.n_dim = n_dim
+
     @property
     def min(self):
         if self.normalize:

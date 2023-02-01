@@ -63,6 +63,8 @@ class Torus(GFlowNetEnv):
         # Oracle
         self.state2oracle = self.state2proxy
         self.statebatch2oracle = self.statebatch2proxy
+        # Setup proxy
+        self.proxy.set_n_dim(self.n_dim)
 
     def get_actions_space(self):
         """
