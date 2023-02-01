@@ -656,7 +656,6 @@ class Buffer:
         it,
     ):
         rewards_old = torch.Tensor(self.replay["reward"].values)
-        # write code to copy tensor rewards to another tensor
         rewards_new = rewards.clone()
         while torch.max(rewards_new) > torch.min(rewards_old):
             idx_new_max = torch.argmax(rewards_new)
@@ -682,10 +681,8 @@ class Buffer:
         elif "path" in config and config.path is not None:
             path = self.logger.logdir / Path("data") / config.path
             df = pd.read_csv(path, index_col=0)
-            # No need to compute energies, return df
             # TODO: check if state2readable transformation is required.
             return df
-            return None, None
         elif "type" not in config:
             return None, None
         elif config.type == "all" and hasattr(self.env, "get_all_terminating_states"):

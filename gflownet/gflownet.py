@@ -298,11 +298,8 @@ class GFlowNetAgent:
         # Change backward sampling with a mask for parents
         # As we can use the backward policy to get model(states) but not all of those actions are likely
         # Need to compute backward_masks, amsk those actions and then get the categorical distribution.
-        t0_a_model = time.time()
         parents, parents_a = env.get_parents(env.state, done)
-        if sampling_method == "uniform":
-            action_idx = self.rng.integers(low=0, high=len(parents_a))
-        elif sampling_method == "policy" or sampling_method == "mixt":
+        if sampling_method == "policy":
             action_logits = model(self._tfloat(parents))[
                 torch.arange(len(parents)), parents_a
             ]
@@ -310,19 +307,12 @@ class GFlowNetAgent:
             if all(torch.isfinite(action_logits).flatten()):
                 action_idx = Categorical(logits=action_logits).sample().item()
             else:
-                if self.logger.debug:
+                if self.debug:
                     raise ValueError("Action could not be sampled from model!")
-
-            if sampling_method == "mixt":
-                random_value = self.rng.uniform()
-                uniform_action_idx = self.rng.integers(low=0, high=len(parents_a))
-                action_idx = (
-                    uniform_action_idx
-                    if random_value <= self.random_action_prob
-                    else action_idx
-                )
+        elif sampling_method == "uniform":
+            action_idx = self.rng.integers(low=0, high=len(parents_a))
         else:
-            raise NotImplementedError("Sampling method not implemented")
+            raise NotImplemented
         action = parents_a[action_idx]
         env.set_state((parents)[action_idx], done=False)
         return env, env.state, action, parents, parents_a
@@ -807,6 +797,30 @@ class GFlowNetAgent:
             self.logger.save_models(self.forward_policy, self.backward_policy, step=it)
             t1_model = time.time()
             times.update({"save_interim_model": t1_model - t0_model})
+
+            # Moving average of the loss for early stopping
+            if loss_term_ema and loss_flow_ema:
+                loss_term_ema = (
+                    self.ema_alpha * losses[1] + (1.0 - self.ema_alpha) * loss_term_ema
+                )
+                loss_flow_ema = (
+                    self.ema_alpha * losses[2] + (1.0 - self.ema_alpha) * loss_flow_ema
+                )
+                if (
+                    loss_term_ema < self.early_stopping
+                    and loss_flow_ema < self.early_stopping
+                ):
+                    break
+            else:
+                loss_term_ema = losses[1]
+                loss_flow_ema = losses[2]
+            # Log times
+            t1_iter = time.time()
+            times.update({"iter": t1_iter - t0_iter})
+            self.logger.log_time(times, it, use_context=self.use_context)
+
+        # Save final model
+        self.logger.save_models(self.forward_policy, self.backward_policy, final=True)
 
     def test(self):
         """
