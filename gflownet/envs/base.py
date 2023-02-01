@@ -653,19 +653,22 @@ class Buffer:
         energies,
         it,
     ):
-        rewards_old = self.replay["reward"].values
-        rewards_new = rewards().copy()
-        while np.max(rewards_new) > np.min(rewards_old):
-            idx_new_max = np.argmax(rewards_new)
-            self.replay.iloc[self.replay.reward.argmin()] = {
-                "state": self.env.state2readable(states[idx_new_max]),
-                "traj": self.env.traj2readable(trajs[idx_new_max]),
-                "reward": rewards[idx_new_max],
-                "energy": energies[idx_new_max],
-                "iter": it,
-            }
-            rewards_new[idx_new_max] = -1
-            rewards_old = self.replay["reward"].values
+        rewards_old = torch.Tensor(self.replay["reward"].values)
+        # write code to copy tensor rewards to another tensor
+        rewards_new = rewards.clone()
+        while torch.max(rewards_new) > torch.min(rewards_old):
+            idx_new_max = torch.argmax(rewards_new)
+            readable_state = self.env.state2readable(states[idx_new_max])
+            if self.replay["state"].isin([readable_state]).sum() == 0:
+                self.replay.iloc[self.replay.reward.argmin()] = {
+                    "state": self.env.state2readable(states[idx_new_max]),
+                    "traj": self.env.traj2readable(trajs[idx_new_max]),
+                    "reward": rewards[idx_new_max].cpu().numpy(),
+                    "energy": energies[idx_new_max].cpu().numpy(),
+                    "iter": it,
+                }
+                rewards_new[idx_new_max] = -1
+                rewards_old = torch.Tensor(self.replay["reward"].values)
         return self.replay
 
     def make_data_set(self, config):
