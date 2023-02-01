@@ -65,7 +65,7 @@ class GFlowNetEnv:
         self.eos = len(self.action_space)
         self.logsoftmax = torch.nn.LogSoftmax(dim=1)
         # Assertions
-        # assert self.reward_norm > 0
+        assert self.reward_norm > 0
         assert self.reward_beta > 0
         assert self.min_reward > 0
 
