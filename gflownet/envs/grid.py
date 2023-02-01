@@ -58,9 +58,9 @@ class Grid(GFlowNetEnv):
         elif self.proxy_state_format == "oracle":
             self.statebatch2proxy = self.statebatch2oracle
             self.statetorch2proxy = self.statetorch2oracle
-        # Set up proxy
-        self.proxy.n_dim = self.n_dim
-        self.proxy.setup()
+        # Set up oracle
+        self.oracle.n_dim = self.n_dim
+        self.oracle.setup()
 
     def get_actions_space(self):
         """
