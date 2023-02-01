@@ -206,7 +206,7 @@ class GFlowNetEnv:
             )
         elif self.reward_func == "boltzmann":
             return torch.clamp(
-                torch.exp(self.factor * self.reward_beta * proxy_vals),
+                torch.exp(self.proxy_factor * self.reward_beta * proxy_vals),
                 min=self.min_reward,
                 max=None,
             )
