@@ -64,6 +64,7 @@ def main(config):
         )
         df.to_csv("gfn_samples.csv")
     print(gflownet.buffer.replay)
+    gflownet.logger.close()
 
 
 def set_seeds(seed):
