@@ -235,19 +235,21 @@ class GFlowNetAgent:
             .sample()
             .to(bool)
         )
-        if sampling_method == "policy":
-            policy_outputs[idx_norandom, :] = model(
-                self._tfloat(
-                    self.env.statebatch2policy(
-                        [s for s, do in zip(states, idx_norandom) if do]
+        # check for at least one non-random action
+        if idx_norandom.sum()>0:
+            if sampling_method == "policy":
+                policy_outputs[idx_norandom, :] = model(
+                    self._tfloat(
+                        self.env.statebatch2policy(
+                            [s for s, do in zip(states, idx_norandom) if do]
+                        )
                     )
                 )
-            )
-        elif sampling_method == "uniform":
-            # TODO
-            policy_outputs = None
-        else:
-            raise NotImplementedError
+            elif sampling_method == "uniform":
+                # TODO
+                policy_outputs = None
+            else:
+                raise NotImplementedError
         # Sample actions from policy outputs
         actions, logprobs = self.env.sample_actions(
             policy_outputs,
@@ -409,7 +411,6 @@ class GFlowNetAgent:
         if isinstance(envs, list):
             envs = [env.reset(idx) for idx, env in enumerate(envs)]
         elif n_samples is not None and n_samples > 0:
-            # envs = [copy.deepcopy(self.env).reset(idx) for idx in range(n_samples)]
             envs = [self.env.copy().reset(idx) for idx in range(n_samples)]
         else:
             return None, None
@@ -639,13 +640,13 @@ class GFlowNetAgent:
             for a, p, p_a in zip(actions, parents, parents_a)
         ]
         traj_id = torch.cat([el[:1] for el in traj_id_parents])
-        states_policy = self.env.statetorch2policy(states)
-        parents_policy = self.env.statetorch2policy(parents)
         # Concatenate lists of tensors
-        actions, done, state_id, masks_sf, masks_b = map(
+        states, actions, parents, done, state_id, masks_sf, masks_b = map(
             torch.cat,
             [
+                states,
                 actions,
+                parents,
                 done,
                 state_id,
                 masks_sf,
@@ -664,7 +665,7 @@ class GFlowNetAgent:
             ]
         )
         # Forward trajectories
-        policy_output_f = self.forward_policy(parents_policy)
+        policy_output_f = self.forward_policy(self.env.statetorch2policy(parents))
         logprobs_f = self.env.get_logprobs(
             policy_output_f, True, actions, states, masks_f, loginf
         )
@@ -674,7 +675,7 @@ class GFlowNetAgent:
             device=self.device,
         ).index_add_(0, traj_id, logprobs_f)
         # Backward trajectories
-        policy_output_b = self.backward_policy(states_policy)
+        policy_output_b = self.backward_policy(self.env.statetorch2policy(states))
         logprobs_b = self.env.get_logprobs(
             policy_output_b, False, actions, parents, masks_b, loginf
         )
