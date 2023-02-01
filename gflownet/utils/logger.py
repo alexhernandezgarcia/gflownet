@@ -103,7 +103,6 @@ class Logger:
                 with open(self.logdir / "wandb.url", "w") as f:
                     f.write(self.url + "\n")
 
-
     def add_tags(self, tags: list):
         if not self.do.online:
             return
@@ -124,7 +123,17 @@ class Logger:
         else:
             self.pb_ckpt_path = self.ckpts_dir / f"{ckpt_id}_"
 
-    def log_metric(self, key: str, value, use_context=True):
+    def progressbar_update(
+        self, pbar, losses, rewards, jsd, step, use_context=True, n_mean=100
+    ):
+        if self.progress:
+            mean_main_loss = np.mean(np.array(losses)[-n_mean:, 0], axis=0)
+            description = "Loss: {:.4f} | Mean rewards: {:.2f} | JSD: {:.4f}".format(
+                mean_main_loss, np.mean(rewards), jsd
+            )
+            pbar.set_description(description)
+
+    def log_metric(self, key: str, value, step, use_context=True):
         if not self.do.online:
             return
         if use_context:
@@ -162,44 +171,59 @@ class Logger:
         for key, _ in metrics.items():
             self.log_metric(key, metrics[key], use_context)
 
-    def log_sampler_train(
+    def log_train(
         self,
+        losses,
         rewards: list,
         proxy_vals: array,
         states_term: list,
-        data: list,
+        batch_size: int,
+        logz,
         step: int,
         use_context: bool,
     ):
-        if not self.do.online:
+        if not self.do.online or not self.do_train(step):
             return
-        if self.do_train(step):
-            train_metrics = dict(
-                zip(
-                    [
-                        "mean_reward",
-                        "max_reward",
-                        "mean_proxy",
-                        "min_proxy",
-                        "max_proxy",
-                        "mean_seq_length",
-                        "batch_size",
-                    ],
-                    [
-                        np.mean(rewards),
-                        np.max(rewards),
-                        np.mean(proxy_vals),
-                        np.min(proxy_vals),
-                        np.max(proxy_vals),
-                        np.mean([len(state) for state in states_term]),
-                        len(data),
-                    ],
-                )
+        train_metrics = dict(
+            zip(
+                [
+                    "mean_reward",
+                    "max_reward",
+                    "mean_proxy",
+                    "min_proxy",
+                    "max_proxy",
+                    "mean_seq_length",
+                    "batch_size",
+                    "logZ",
+                ],
+                [
+                    np.mean(rewards),
+                    np.max(rewards),
+                    np.mean(proxy_vals),
+                    np.min(proxy_vals),
+                    np.max(proxy_vals),
+                    np.mean([len(state) for state in states_term]),
+                    batch_size,
+                    logz,
+                ],
             )
-            self.log_metrics(
-                train_metrics,
-                use_context=use_context,
+        )
+        self.log_metrics(
+            train_metrics,
+            use_context=use_context,
+            step=step,
+        )
+        loss_metrics = dict(
+            zip(
+                ["Loss", "Loss (terminating)", "Loss (non-term.)"],
+                [loss.item() for loss in losses],
             )
+        )
+        self.log_metrics(
+            loss_metrics,
+            use_context=use_context,
+            step=step,
+        )
 
     def log_sampler_test(
         self, corr: array, data_logq: list, step: int, use_context: bool

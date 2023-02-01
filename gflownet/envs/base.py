@@ -10,6 +10,7 @@ import torch
 from torch.distributions import Categorical
 from torchtyping import TensorType
 import pickle
+from gflownet.utils.common import set_device, set_float_precision
 
 
 class GFlowNetEnv:
@@ -19,6 +20,8 @@ class GFlowNetEnv:
 
     def __init__(
         self,
+        device="cpu",
+        float_precision=32,
         env_id=None,
         reward_beta=1,
         reward_norm=1.0,
@@ -31,6 +34,11 @@ class GFlowNetEnv:
         proxy_state_format=None,
         **kwargs,
     ):
+        # Device
+        self.device = set_device(device)
+        # Float precision
+        self.float = set_float_precision(float_precision)
+        # Environment
         self.state = []
         self.done = False
         self.n_actions = 0
@@ -582,6 +590,12 @@ class Buffer:
                 pickle.dump(dict_tt, f)
                 self.test_pkl = test.output_pkl
         else:
+            print("""
+            Important: test metrics will NOT be computed. In order to compute
+            test metrics the test configuration of the buffer should be complete and
+            feasible and an output pkl file should be defined in
+            env.buffer.test.output_pkl.
+            """)
             self.test_pkl = None
         # Compute buffer statistics
         if self.train is not None:

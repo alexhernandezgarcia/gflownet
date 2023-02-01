@@ -20,7 +20,7 @@ from tqdm import tqdm
 from scipy.special import logsumexp
 
 from gflownet.envs.base import Buffer
-from gflownet.utils.common import torch2np
+from gflownet.utils.common import set_device, set_float_precision, torch2np
 
 
 class GFlowNetAgent:
@@ -49,21 +49,14 @@ class GFlowNetAgent:
         # Seed
         self.rng = np.random.default_rng(seed)
         # Device
-        self.device = self._set_device(device)
+        self.device = set_device(device)
         # Float precision
-        self.float = self._set_float_precision(float_precision)
+        self.float = set_float_precision(float_precision)
         # Environment
         self.env = env
-        self.env.set_device(self.device)
-        self.env.set_float_precision(self.float)
         self.mask_source = self._tbool([self.env.get_mask_invalid_actions_forward()])
         # Continuous environments
-        if hasattr(self.env, "continuous") and self.env.continuous:
-            self.continuous = True
-            self.forward_sample = self.forward_sample_continuous
-            self.trajectorybalance_loss = self.trajectorybalance_loss_continuous
-        else:
-            self.continuous = False
+        self.continuous = hasattr(self.env, "continuous") and self.env.continuous
         # Loss
         if optimizer.loss in ["flowmatch"]:
             self.loss = "flowmatch"
@@ -174,22 +167,6 @@ class GFlowNetAgent:
         self.kl = -1.0
         self.jsd = -1.0
 
-    def _set_device(self, device: str):
-        if device.lower() == "cuda" and torch.cuda.is_available():
-            return torch.device("cuda")
-        else:
-            return torch.device("cpu")
-
-    def _set_float_precision(self, precision: int):
-        if precision == 16:
-            return torch.float16
-        elif precision == 32:
-            return torch.float32
-        elif precision == 64:
-            return torch.float64
-        else:
-            raise ValueError("Precision must be one of [16, 32, 64]")
-
     def _tfloat(self, x):
         return torch.tensor(x, dtype=self.float, device=self.device)
 
@@ -213,81 +190,6 @@ class GFlowNetAgent:
             raise ValueError("Backward Policy cannot be a nn in flowmatch.")
 
     def forward_sample(
-        self,
-        envs,
-        times,
-        sampling_method="policy",
-        model=None,
-        temperature=1.0,
-        random_action_prob=0.0,
-    ):
-        """
-        Performs a forward action on each environment of a list.
-
-        Args
-        ----
-        env : list of GFlowNetEnv or derived
-            A list of instances of the environment
-
-        times : dict
-            Dictionary to store times
-
-        sampling_method : string
-            - model: uses current forward to obtain the sampling probabilities.
-            - uniform: samples uniformly from the action space.
-
-        model : torch model
-            Model to use as policy if sampling_method="policy"
-
-        temperature : float
-            Temperature to adjust the logits by logits /= temperature
-        """
-        if not isinstance(envs, list):
-            envs = [envs]
-        states = [env.state for env in envs]
-        mask_invalid_actions = self._tbool(
-            [env.get_mask_invalid_actions_forward() for env in envs]
-        )
-        t0_a_model = time.time()
-        if sampling_method == "uniform":
-            actions = self.rng.integers(
-                0, self.env.policy_output_dim, len(states)
-            ).tolist()
-        elif sampling_method == "policy" or sampling_method == "mixt":
-            with torch.no_grad():
-                action_logits = model(self._tfloat(self.env.statebatch2policy(states)))
-            action_logits /= temperature
-            if self.mask_invalid_actions:
-                action_logits[mask_invalid_actions] = -1000
-            if all(torch.isfinite(action_logits).flatten()):
-                actions = Categorical(logits=action_logits).sample().tolist()
-            else:
-                if self.logger.debug:
-                    raise ValueError("Action could not be sampled from model!")
-            if sampling_method == "mixt":
-                # TODO: change to action_logits implementation if need be
-                random_values = [self.rng.uniform() for _ in range(len(envs))]
-                uniform_actions = self.rng.integers(
-                    0, self.env.policy_output_dim, len(states)
-                ).tolist()
-                actions = [
-                    uniform_actions[i]
-                    if random_values[i] <= random_action_prob
-                    else actions[i]
-                    for i in range(len(envs))
-                ]
-        else:
-            raise NotImplementedError("Sampling method not implemented")
-        t1_a_model = time.time()
-        times["forward_actions"] += t1_a_model - t0_a_model
-        assert len(envs) == len(actions)
-        # Execute actions
-        _, actions, valids = zip(
-            *[env.step(action) for env, action in zip(envs, actions)]
-        )
-        return envs, actions, valids
-
-    def forward_sample_continuous(
         self,
         envs,
         times,
@@ -723,98 +625,6 @@ class GFlowNetAgent:
         (
             states,
             actions,
-            rewards,
-            parents,
-            parents_a,
-            done,
-            traj_id_parents,
-            state_id,
-            masks,
-        ) = zip(*batch)
-        # Keep only parents in trajectory
-        parents = [
-            p[torch.where(a == p_a)] for a, p, p_a in zip(actions, parents, parents_a)
-        ]
-        traj_id = torch.cat([el[:1] for el in traj_id_parents])
-        # Concatenate lists of tensors
-        states, actions, rewards, parents, done, state_id, masks = map(
-            torch.cat,
-            [
-                states,
-                actions,
-                rewards,
-                parents,
-                done,
-                state_id,
-                masks,
-            ],
-        )
-        # Build forward masks from state masks
-        masks_f = torch.cat(
-            [
-                masks[torch.where((state_id == sid - 1) & (traj_id == pid))]
-                if sid > 0
-                else self.mask_source
-                for sid, pid in zip(state_id, traj_id)
-            ]
-        )
-        # Build backward masks from parents actions
-        masks_b = torch.ones(masks.shape, dtype=bool)
-        # TODO: this should be possible with a matrix operation
-        for idx, pa in enumerate(parents_a):
-            masks_b[idx, pa] = False
-        # Forward trajectories
-        logits_f = self.forward_policy(parents)
-        logits_f[masks_f] = -loginf
-        logprobs_f = self.logsoftmax(logits_f)[torch.arange(logits_f.shape[0]), actions]
-        sumlogprobs_f = self._tfloat(
-            torch.zeros(len(torch.unique(traj_id, sorted=True)))
-        ).index_add_(0, traj_id, logprobs_f)
-        # Backward trajectories
-        logits_b = self.backward_policy(states)
-        logits_b[masks_b] = -loginf
-        logprobs_b = self.logsoftmax(logits_b)[torch.arange(logits_b.shape[0]), actions]
-        sumlogprobs_b = self._tfloat(
-            torch.zeros(len(torch.unique(traj_id, sorted=True)))
-        ).index_add_(0, traj_id, logprobs_b)
-        # Sort rewards of done states by ascending traj_id
-        rewards = rewards[done.eq(1)][torch.argsort(traj_id[done.eq(1)])]
-        # Trajectory balance loss
-        loss = (
-            (self.logZ.sum() + sumlogprobs_f - sumlogprobs_b - torch.log(rewards))
-            .pow(2)
-            .mean()
-        )
-        return loss, loss, loss
-
-    def trajectorybalance_loss_continuous(self, it, batch, loginf=1000):
-        """
-        Computes the trajectory balance loss of a batch
-
-        Args
-        ----
-        it : int
-            Iteration
-
-        batch : ndarray
-            A batch of data: every row is a state (list), corresponding to all states
-            visited in each state in the batch.
-
-        Returns
-        -------
-        loss : float
-
-        term_loss : float
-            Loss of the terminal nodes only
-
-        flow_loss : float
-            Loss of the intermediate nodes only
-        """
-        loginf = self._tfloat([loginf])
-        # Unpack batch
-        (
-            states,
-            actions,
             parents,
             parents_a,
             done,
@@ -915,11 +725,17 @@ class GFlowNetAgent:
         loss_term_ema = None
         loss_flow_ema = None
         # Generate list of environments
-        envs = [self.env.copy() for _ in range(self.batch_size)]
-        # envs = [copy.deepcopy(self.env).reset() for _ in range(self.batch_size)]
+        envs = [self.env.copy().reset() for _ in range(self.batch_size)]
         # Train loop
         pbar = tqdm(range(1, self.n_train_steps + 1), disable=not self.logger.progress)
         for it in pbar:
+            # Test
+            if self.logger.do_test(it):
+                self.l1, self.kl, self.jsd, figs = self.test()
+                self.logger.log_test_metrics(
+                    self.l1, self.kl, self.jsd, it, self.use_context
+                )
+                self.logger.log_plots(figs, it, self.use_context)
             t0_iter = time.time()
             data = []
             for j in range(self.sttr):
@@ -962,35 +778,26 @@ class GFlowNetAgent:
             t1_buffer = time.time()
             times.update({"buffer": t1_buffer - t0_buffer})
             # Log
-            idx_best = np.argmax(rewards)
-            state_best = "".join(self.env.state2readable(states_term[idx_best]))
             if self.logger.lightweight:
                 all_losses = all_losses[-100:]
                 all_visited = states_term
             else:
                 all_visited.extend(states_term)
-            # Test
-            if self.logger.do_test(it):
-                self.l1, self.kl, self.jsd, figs = self.test()
-                self.logger.log_test_metrics(
-                    self.l1, self.kl, self.jsd, it, self.use_context
-                )
-                self.logger.log_plots(figs, it, self.use_context)
-
-            self.logger.log_losses(losses, it, self.use_context)
-            # log metrics
+            # Progress bar
+            self.logger.progressbar_update(
+                pbar, all_losses, rewards, self.jsd, it, self.use_context
+            )
+            # Train logs
             t0_log = time.time()
-            self.log_iter(
-                pbar,
+            self.logger.log_train(
+                losses,
                 rewards,
                 proxy_vals,
                 states_term,
-                data,
+                len(data),
+                self.logZ.sum(),
                 it,
-                times,
-                losses,
-                all_losses,
-                all_visited,
+                self.use_context,
             )
             t1_log = time.time()
             times.update({"log": t1_log - t0_log})
@@ -1000,39 +807,12 @@ class GFlowNetAgent:
             t1_model = time.time()
             times.update({"save_interim_model": t1_model - t0_model})
 
-            # Moving average of the loss for early stopping
-            t0_moving_avg = time.time()
-            if loss_term_ema and loss_flow_ema:
-                loss_term_ema = (
-                    self.ema_alpha * losses[1] + (1.0 - self.ema_alpha) * loss_term_ema
-                )
-                loss_flow_ema = (
-                    self.ema_alpha * losses[2] + (1.0 - self.ema_alpha) * loss_flow_ema
-                )
-                if (
-                    loss_term_ema < self.early_stopping
-                    and loss_flow_ema < self.early_stopping
-                ):
-                    break
-            else:
-                loss_term_ema = losses[1]
-                loss_flow_ema = losses[2]
-            t1_moving_avg = time.time()
-            times.update({"moving_avg": t1_moving_avg - t0_moving_avg})
-
-            # Log times
-            t1_iter = time.time()
-            times.update({"iter": t1_iter - t0_iter})
-            self.logger.log_time(times, use_context=self.use_context)
-        # Save final model
-        self.logger.save_models(self.forward_policy, self.backward_policy, final=True)
-
     def test(self):
         """
         Computes metrics by sampling trajectories from the forward policy.
         """
         if self.buffer.test_pkl is None:
-            return self.l1, self.kl, self.jsd
+            return self.l1, self.kl, self.jsd, (None,)
         with open(self.buffer.test_pkl, "rb") as f:
             dict_tt = pickle.load(f)
             x_tt = dict_tt["x"]
@@ -1112,7 +892,8 @@ class GFlowNetAgent:
             fig_kde_pred = self.env.plot_kde(kde_pred)
             fig_kde_true = self.env.plot_kde(kde_true)
         else:
-            fig_kde = None
+            fig_kde_pred = None
+            fig_kde_true = None
         return l1, kl, jsd, [fig_reward_samples, fig_kde_pred, fig_kde_true]
 
     def get_log_corr(self, times):
@@ -1143,6 +924,7 @@ class GFlowNetAgent:
         corr = np.corrcoef(data_logq, self.buffer.test["energies"])
         return corr, data_logq, times
 
+    # TODO: reorganize and remove
     def log_iter(
         self,
         pbar,
@@ -1157,150 +939,31 @@ class GFlowNetAgent:
         all_visited,
     ):
         # train metrics
-        t0_train = time.time()
         self.logger.log_sampler_train(
             rewards, proxy_vals, states_term, data, it, self.use_context
         )
-        t1_train = time.time()
-        times.update({"log_train": t1_train - t0_train})
 
         # logZ
         self.logger.log_metric("logZ", self.logZ.sum(), it, use_context=False)
 
         # test metrics
-        t0_test = time.time()
+        # TODO: integrate corr into test()
         if not self.logger.lightweight and self.buffer.test is not None:
             corr, data_logq, times = self.get_log_corr(times)
             self.logger.log_sampler_test(corr, data_logq, it, self.use_context)
-        t1_test = time.time()
-        times.update({"log_test": t1_test - t0_test})
 
         # oracle metrics
-        t0_oracle = time.time()
-        if not it % self.logger.oracle_period:
-            t0_sampling_for_oracle = time.time()
-            oracle_batch, oracle_times = self.sample_batch(
-                self.env, self.oracle_n, train=False
-            )
-            t1_sampling_for_oracle = time.time()
-
-            times.update(
-                {"oracle_sampling": t1_sampling_for_oracle - t0_sampling_for_oracle}
-            )
-            t0_get_scores = time.time()
-            oracle_dict, oracle_times = batch2dict(
-                oracle_batch, self.env, get_uncertainties=False
-            )
-            t1_get_scores = time.time()
-            times.update({"oracle_get_scores": t1_get_scores - t0_get_scores})
-            self.logger.log_sampler_oracle(
-                oracle_dict["energies"], it, self.use_context
-            )
-        t1_oracle = time.time()
-        times.update({"log_oracle": t1_oracle - t0_oracle})
-
-        if self.logger.progress:
-            mean_main_loss = np.mean(np.array(all_losses)[-100:, 0], axis=0)
-            description = "Loss: {:.4f} | Mean rewards: {:.2f} | KL: {:.4f}".format(
-                mean_main_loss, np.mean(rewards), self.kl
-            )
-            pbar.set_description(description)
+        oracle_batch, oracle_times = self.sample_batch(
+            self.env, self.oracle_n, train=False
+        )
 
         if not self.logger.lightweight:
-            all_visited_set = set(all_visited)
             self.logger.log_metric(
                 "unique_states",
-                len(all_visited),
+                np.unique(all_visited).shape[0],
+                step=it,
                 use_context=self.use_context,
             )
-
-    def evaluate(self, samples, energies, dataset_states=None):
-        """Evaluate the policy on a set of queries.
-
-        Args:
-            queries (list): List of queries to evaluate the policy on.
-
-        Returns:
-            dictionary with topk performance, diversity and novelty scores
-        """
-        energies = np.sort(energies)[::-1]
-        dists = self.env.calculate_diversity(samples)
-        dists = np.sort(dists)[::-1]
-        dict_topk = {}
-        # todo: modify condition to evaluate novelty wither in AL setting or when we have buffer-train available
-        if self.use_context:
-            novelty = self.env.calculate_novelty(samples, dataset_states)
-            novelty = np.sort(novelty)[::-1]
-        for k in self.logger.sampler.oracle.k:
-            print(f"\n Top-{k} Performance")
-            mean_energy_topk = np.mean(energies[:k])
-            mean_diversity_topk = np.mean(dists[:k])
-            if self.use_context:
-                mean_novelty_topk = np.mean(novelty[:k])
-            dict_topk.update({"mean_energy_top{}".format(k): mean_energy_topk})
-            dict_topk.update(
-                {"mean_pairwise_distance_top{}".format(k): mean_diversity_topk}
-            )
-            if self.use_context:
-                dict_topk.update(
-                    {"min_distance_from_D0_top{}".format(k): mean_novelty_topk}
-                )
-            if self.logger.progress:
-                print(f"\t Mean Energy: {mean_energy_topk}")
-                print(f"\t Mean Pairwise Distance: {mean_diversity_topk}")
-                if self.use_context:
-                    print(f"\t Mean Min Distance from D0: {mean_novelty_topk}")
-            self.logger.log_metrics(dict_topk, use_context=False)
-
-    def logq(self, traj_list, actions_list, model, env, loginf=1000):
-        # TODO: this method is probably suboptimal, since it may repeat forward calls for
-        # the same nodes.
-        log_q = torch.tensor(1.0)
-        loginf = self._tfloat([loginf])
-        for traj, actions in zip(traj_list, actions_list):
-            traj = traj[::-1]
-            actions = actions[::-1]
-            masks = self._tbool(
-                [env.get_mask_invalid_actions_forward(state, 0) for state in traj]
-            )
-            with torch.no_grad():
-                logits_traj = model(self._tfloat(env.statebatch2policy(traj)))
-            logits_traj[masks] = -loginf
-            logsoftmax = torch.nn.LogSoftmax(dim=1)
-            logprobs_traj = logsoftmax(logits_traj)
-            log_q_traj = torch.tensor(0.0)
-            for s, a, logprobs in zip(*[traj, actions, logprobs_traj]):
-                log_q_traj = log_q_traj + logprobs[a]
-            # Accumulate log prob of trajectory
-            if torch.le(log_q, 0.0):
-                log_q = torch.logaddexp(log_q, log_q_traj)
-            else:
-                log_q = log_q_traj
-        return log_q.item()
-
-    def empirical_distribution_error(self, env, visited, epsilon=1e-9):
-        """
-        Computes the empirical distribution errors, as the mean L1 error and the KL
-        divergence between the true density of the space and the estimated density from all
-        states visited.
-        """
-        true_density, _, states_term = env.true_density()
-        if true_density is None:
-            return None, None
-        true_density = self._tfloat(true_density)
-        if not len(visited):
-            return 1, 100
-        hist = defaultdict(int)
-        for s in visited:
-            hist[s] += 1
-        Z = sum([hist[s] for s in states_term]) + epsilon
-        estimated_density = self._tfloat([hist[s] / Z for s in states_term])
-        # L1 error
-        l1 = abs(estimated_density - true_density).mean().item()
-        # KL divergence
-        kl = (true_density * torch.log(estimated_density / true_density)).sum().item()
-        return l1, kl
-
 
 class Policy:
     def __init__(self, config, env, device, float_precision, base=None):
@@ -1316,8 +979,6 @@ class Policy:
             dtype=self.float, device=self.device
         )
         self.output_dim = len(self.fixed_output)
-        # TODO: shared_weights cannot be True when type is uniform
-        # TODO: if shared_wights is False, type must be defined, but type must not be uniform
         if "shared_weights" in config:
             self.shared_weights = config.shared_weights
         else:
@@ -1349,8 +1010,7 @@ class Policy:
             self.model = self.uniform_distribution
             self.is_model = False
         elif self.type == "mlp":
-            # TODO: activation dictionary
-            self.model = self.make_mlp(nn.ReLU())
+            self.model = self.make_mlp(nn.LeakyReLU())
             self.is_model = True
         else:
             raise "Policy model type not defined"
@@ -1365,12 +1025,10 @@ class Policy:
         Defines an MLP with no top layer activation
         If share_weight == True,
             baseModel (the model with which weights are to be shared) must be provided
-
         Args
         ----
         layers_dim : list
             Dimensionality of each layer
-
         activation : Activation
             Activation function
         """
@@ -1401,7 +1059,6 @@ class Policy:
                     + self.tail
                 )
             )
-            print(mlp)
             return mlp
         else:
             raise ValueError(
@@ -1436,37 +1093,6 @@ class Policy:
         )
 
 
-def batch2dict(batch, env, get_uncertainties=False, query_function="Both"):
-    # HACK
-
-    t0_proxy = time.time()
-    # if get_uncertainties:
-    #     if query_function == "fancy_acquisition":
-    #         scores, proxy_vals, uncertainties = env.proxy(batch, query_function)
-    #     else:
-    #         proxy_vals, uncertainties = env.proxy(batch, query_function)
-    #         scores = proxy_vals
-    # else:
-    input_oracle = env.state2oracle(batch)
-    # # FOR PROXY
-    # input_proxy = env.state2proxy(batch)
-    # input_proxy = torch.Tensor(input_proxy)
-    # proxy_vals = env.proxy(input_proxy)
-    # FOR ORACLE
-    proxy_vals = env.oracle(input_oracle)
-    uncertainties = None
-    # scores = env.oracle(input_oracle)
-    t1_proxy = time.time()
-    times = {"proxy": t1_proxy - t0_proxy}
-    samples = {
-        "samples": batch,
-        # "scores": scores,
-        "energies": proxy_vals,
-        "uncertainties": uncertainties,
-    }
-    return samples, times
-
-
 def make_opt(params, logZ, config):
     """
     Set up the optimizer
@@ -1496,3 +1122,61 @@ def make_opt(params, logZ, config):
         gamma=config.lr_decay_gamma,
     )
     return opt, lr_scheduler
+
+
+def logq(traj_list, actions_list, model, env, loginf=1000):
+    # TODO: this method is probably suboptimal, since it may repeat forward calls for
+    # the same nodes.
+    log_q = torch.tensor(1.0)
+    loginf = self._tfloat([loginf])
+    for traj, actions in zip(traj_list, actions_list):
+        traj = traj[::-1]
+        actions = actions[::-1]
+        masks = self._tbool(
+            [env.get_mask_invalid_actions_forward(state, 0) for state in traj]
+        )
+        with torch.no_grad():
+            logits_traj = model(self._tfloat(env.statebatch2policy(traj)))
+        logits_traj[masks] = -loginf
+        logsoftmax = torch.nn.LogSoftmax(dim=1)
+        logprobs_traj = logsoftmax(logits_traj)
+        log_q_traj = torch.tensor(0.0)
+        for s, a, logprobs in zip(*[traj, actions, logprobs_traj]):
+            log_q_traj = log_q_traj + logprobs[a]
+        # Accumulate log prob of trajectory
+        if torch.le(log_q, 0.0):
+            log_q = torch.logaddexp(log_q, log_q_traj)
+        else:
+            log_q = log_q_traj
+    return log_q.item()
+
+
+def batch2dict(batch, env, get_uncertainties=False, query_function="Both"):
+    # HACK
+
+    t0_proxy = time.time()
+    # if get_uncertainties:
+    #     if query_function == "fancy_acquisition":
+    #         scores, proxy_vals, uncertainties = env.proxy(batch, query_function)
+    #     else:
+    #         proxy_vals, uncertainties = env.proxy(batch, query_function)
+    #         scores = proxy_vals
+    # else:
+    input_oracle = env.state2oracle(batch)
+    # # FOR PROXY
+    # input_proxy = env.state2proxy(batch)
+    # input_proxy = torch.Tensor(input_proxy)
+    # proxy_vals = env.proxy(input_proxy)
+    # FOR ORACLE
+    proxy_vals = env.oracle(input_oracle)
+    uncertainties = None
+    # scores = env.oracle(input_oracle)
+    t1_proxy = time.time()
+    times = {"proxy": t1_proxy - t0_proxy}
+    samples = {
+        "samples": batch,
+        # "scores": scores,
+        "energies": proxy_vals,
+        "uncertainties": uncertainties,
+    }
+    return samples, times
