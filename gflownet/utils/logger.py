@@ -26,7 +26,7 @@ class Logger:
         checkpoints: dict,
         progress: bool,
         lightweight: bool,
-        debug: bool,
+        debug: bool = False,
         run_name=None,
         tags: list = None,
     ):
