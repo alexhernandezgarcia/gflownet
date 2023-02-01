@@ -12,7 +12,7 @@ from gflownet.utils.common import flatten_config
 from pathlib import Path
 
 
-@hydra.main(config_path="./config", config_name="torus_test", version_base="1.1")
+@hydra.main(config_path="./config", config_name="main", version_base="1.1")
 def main(config):
     # Get current directory and set it as root log dir for Logger
     cwd = os.getcwd()
@@ -56,7 +56,7 @@ def main(config):
     # Sample from trained GFlowNet
     if config.n_samples > 0 and config.n_samples <= 1e5:
         states, times = gflownet.sample_batch(env, config.n_samples, train=False)
-        samples = env.state2oracle(states)
+        samples = env.statebatch2oracle(states)
         energies = env.oracle(samples)
         gflownet.evaluate(samples, energies)
         df = pd.DataFrame(
