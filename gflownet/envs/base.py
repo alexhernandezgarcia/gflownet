@@ -203,7 +203,7 @@ class GFlowNetEnv:
             proxy_vals = proxy_vals * self.energies_stats[3] + self.energies_stats[2]
         if self.reward_func == "power":
             return torch.clamp(
-                (-1.0*proxy_vals / self.reward_norm) ** self.reward_beta,
+                (-1.0 * proxy_vals / self.reward_norm) ** self.reward_beta,
                 min=self.min_reward,
                 max=None,
             )
@@ -229,7 +229,7 @@ class GFlowNetEnv:
         """
         if self.reward_func == "power":
             return -1.0 * torch.exp(
-                (torch.log(reward) + self.reward_beta * torch.log(self.reward_norm))
+                (torch.log(reward) + self.reward_beta * np.log(self.reward_norm))
                 / self.reward_beta
             )
         elif self.reward_func == "boltzmann":
