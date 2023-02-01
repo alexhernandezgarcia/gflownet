@@ -57,29 +57,11 @@ class AMP(GFlowNetEnv):
         n_alphabet=20,
         min_word_len=1,
         max_word_len=1,
-        env_id=None,
-        reward_beta=1,
-        energies_stats=None,
-        reward_norm=1.0,
-        reward_norm_std_mult=0.0,
-        reward_func="power",
-        denorm_proxy=False,
-        proxy_state_format="ohe",
-        proxy=None,
-        oracle=None,
+        # env_id=None,
+        # energies_stats=None,
         **kwargs,
     ):
-        super(AMP, self).__init__(
-            env_id,
-            reward_beta,
-            reward_norm,
-            reward_norm_std_mult,
-            reward_func,
-            energies_stats,
-            denorm_proxy,
-            proxy,
-            oracle,
-            proxy_state_format,
+        super().__init__(
             **kwargs,
         )
         self.min_seq_length = min_seq_length
@@ -123,13 +105,14 @@ class AMP(GFlowNetEnv):
             self.statebatch2proxy = self.statebatch2policy
         elif self.proxy_state_format == "oracle":
             self.statebatch2proxy = self.statebatch2oracle
+            self.statetorch2proxy = self.statetorch2oracle
         else:
             raise ValueError(
                 "Invalid proxy_state_format: {}".format(self.proxy_state_format)
             )
         self.alphabet = dict((i, a) for i, a in enumerate(self.vocab))
         self.reset()
-        self.continuous = True
+        self.invalid_action = -1
 
     def get_actions_space(self):
         """
@@ -226,7 +209,16 @@ class AMP(GFlowNetEnv):
     ):
         return self.max_seq_length / self.min_word_len + 1
 
-    # TODO: statetorch2oracle?
+    def statetorch2oracle(
+        self, states: TensorType["batch", "state_dim"]
+    ) -> TensorType["batch", "state_proxy_dim"]:
+        state_oracle = []
+        for state in states:
+            if state[-1] == self.invalid_action:
+                state = state[: torch.where(state == self.invalid_action)[0][0]]
+            state_numpy = state.detach().cpu().numpy()
+            state_oracle.append(self.state2oracle(state_numpy))
+        return state_oracle
 
     def state2policy(self, state=None):
         """
@@ -249,10 +241,6 @@ class AMP(GFlowNetEnv):
             state = self.state.copy()
         state_policy = np.zeros(self.max_seq_length * self.n_alphabet, dtype=np.float32)
         if len(state) > 0:
-            # TODO: Check if the following is required.
-            # if hasattr(
-            # state[0], "device"
-            # ):  # if it has a device at all, it will be cuda (CPU numpy array has no dev
             state = [subseq.cpu().detach().numpy() for subseq in state]
             state_policy[(np.arange(len(state)) * self.n_alphabet + state)] = 1
         return state_policy
@@ -281,26 +269,43 @@ class AMP(GFlowNetEnv):
     def statetorch2policy(
         self, states: TensorType["batch", "state_dim"]
     ) -> TensorType["batch", "policy_output_dim"]:
-        # TODO: check if this break on emtpy state tensor
-        # device = states.device
-        device = "cuda"
+        # TODO: prettify and verify logic
         cols, lengths = zip(
             *[
                 (
-                    state + torch.arange(len(state)).to(device) * self.n_alphabet,
-                    state.shape[1],
+                    (
+                        state[
+                            : torch.where(state == self.invalid_action)[0][0]
+                            if state[-1] == self.invalid_action
+                            else len(state)
+                        ]
+                        + torch.arange(
+                            len(
+                                state[
+                                    : torch.where(state == self.invalid_action)[0][0]
+                                    if state[-1] == self.invalid_action
+                                    else len(state)
+                                ]
+                            )
+                        ).to(self.device)
+                        * self.n_alphabet
+                    ),
+                    torch.where(state == self.invalid_action)[0][0]
+                    if state[-1] == self.invalid_action
+                    else len(state),
                 )
                 for state in states
             ]
         )
-        # create a tensor of integers from the list of lengths
-        lengths = torch.Tensor(list(lengths)).to(device).to(torch.int64)
-        cols = torch.cat(cols, dim=1).to(torch.int64).to(device)
-        rows = torch.repeat_interleave(torch.arange(len(states)).to(device), lengths)
+        lengths = torch.Tensor(list(lengths)).to(self.device).to(torch.int64)
+        cols = torch.cat(cols, dim=0).to(torch.int64).to(self.device)
+        rows = torch.repeat_interleave(
+            torch.arange(len(states)).to(self.device), lengths
+        )
         state_policy = torch.zeros(
             (len(states), self.n_alphabet * self.max_seq_length),
             dtype=torch.float32,
-            device=device,
+            device=self.device,
         ).to(states[0])
         state_policy[rows, cols] = 1.0
         return state_policy
@@ -345,7 +350,6 @@ class AMP(GFlowNetEnv):
         self.state = []
         self.done = False
         self.id = env_id
-        # TODO: (Discuss) Apatamer implementation has n_actions -- it is not required right?
         self.n_actions = 0
         return self
 
@@ -390,15 +394,6 @@ class AMP(GFlowNetEnv):
                     actions.append(a)
         return parents, actions
 
-    # TODO: Remove as deprecated
-    # def get_parents_debug(self, state=None, done=None):
-    #     """
-    #     Like get_parents(), but returns state format
-    #     """
-    #     obs, actions = self.get_parents(state, done)
-    #     parents = [self.obs2state(el) for el in obs]
-    #     return parents, actions
-
     def step(self, action: Tuple[int]) -> Tuple[List[int], Tuple[int, int], bool]:
         """
         Executes step given an action index
@@ -421,7 +416,6 @@ class AMP(GFlowNetEnv):
             root state
         """
         assert action in self.action_space
-        # TODO: Adapt action to a tuple
         # If only possible action is eos, then force eos
         if len(self.state) == self.max_seq_length:
             self.done = True
@@ -447,34 +441,8 @@ class AMP(GFlowNetEnv):
                 self.n_actions += 1
             return self.state, (self.eos,), valid
 
-    # TODO: Remove because deprecated
-    # def no_eos_mask(self, state=None):
-    #     """
-    #     Returns True if no eos action is allowed given state
-    #     """
-    #     if state is None:
-    #         state = self.state.copy()
-    #     return len(state) < self.min_seq_length
-
     def load_dataset(self, split="D1", nfold=5):
-        # df_train = pd.read_csv(
-        #     "/home/mila/n/nikita.saxena/activelearning/storage/amp/data_train.csv".format(
-        #         split
-        #     )
-        # )
-        # df_valid = pd.read_csv(
-        #     "/home/mila/n/nikita.saxena/activelearning/storage/amp/data_test.csv".format(
-        #         split
-        #     )
-        # )
-
-        # return (
-        #     df_train["samples"].values.tolist(),
-        #     df_train["energies"].values.tolist(),
-        #     df_valid["samples"].values.tolist(),
-        #     df_valid["energies"].values.tolist(),
-        # )
-
+        # TODO: rename to make_dataset()?
         source = get_default_data_splits(setting="Target")
         rng = np.random.RandomState()
         # returns a dictionary with two keys 'AMP' and 'nonAMP' and values as lists
@@ -510,42 +478,14 @@ class AMP(GFlowNetEnv):
 
         return train, test
 
-    def make_train_set(
-        self,
-        ntrain=1000,
-        seed=20,
-        oracle=None,
-        output_csv=None,
-        split="D1",
-        nfold=5,
-        load_precomputed_scores=False,
-    ):
-        # TODO: Disciuss whether we want to make dataset as we did for aptamers because the dataset here is a little specifc (exclusive of oracle)
-        """
-        Constructs a randomly sampled train set by calling the oracle
-
-        Args
-        ----
-        ntrain : int
-            Number of train samples.
-
-        seed : int
-            Random seed.
-
-        output_csv: str
-            Optional path to store the test set as CSV.
-        """
-        # TODO: Delete because deprecated.
-        pass
-
-    def calculate_diversity(self, samples):
+    def get_pairwise_distance(self, samples):
         dists = []
         for pair in itertools.combinations(samples, 2):
             dists.append(self.get_distance(*pair))
-        dists = np.array(dists)
+        dists = torch.FloatTensor(dists)
         return dists
 
-    def calculate_novelty(self, samples, dataset_obs):
+    def get_distance_from_D0(self, samples, dataset_obs):
         # TODO: optimize
         dataset_states = [self.obs2state(el) for el in dataset_obs]
         dataset_samples = self.state2oracle(dataset_states)
@@ -556,7 +496,7 @@ class AMP(GFlowNetEnv):
             for s_0, x_0 in zip(sample_repeated, dataset_samples):
                 dists.append(self.get_distance(s_0, x_0))
             min_dists.append(np.min(np.array(dists)))
-        return np.array(min_dists)
+        return torch.FloatTensor(min_dists)
 
     def get_distance(self, seq1, seq2):
         return levenshtein(seq1, seq2) / 1
