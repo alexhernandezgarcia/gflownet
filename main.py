@@ -62,7 +62,7 @@ def main(config):
         df = pd.DataFrame(
             {
                 "readable": [env.state2readable(s) for s in states],
-                "energies": energies,
+                "energies": energies.cpu().numpy(),
             }
         )
         df = df.sort_values(by=["energies"])
@@ -70,8 +70,7 @@ def main(config):
         df.to_csv(path)
     print(gflownet.buffer.replay)
 
-    logger.end()
-
+    gflownet.logger.end()
 
 def set_seeds(seed):
     import torch
