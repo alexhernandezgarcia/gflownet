@@ -12,9 +12,9 @@ class AMPOracleWrapper(Proxy):
         oracle_features,
         dist_fn,
         medoid_oracle_norm,
-        device,
+        **kwargs
     ):
-        super().__init__()
+        super().__init__(**kwargs)
         # TODO: assert oracle_split in ["D2_target", "D2_target_fid1", "D2_target_fid2"]
         # TODO: assert oracle_type in ["MLP"]
         self.oracle = get_test_oracle(
@@ -24,7 +24,7 @@ class AMPOracleWrapper(Proxy):
             dist_fn=dist_fn,
             norm_constant=medoid_oracle_norm,
         )
-        self.oracle.to(device)
+        self.oracle.to(self.device)
 
     def __call__(self, sequences, batch_size=256):
         """
@@ -43,4 +43,4 @@ class AMPOracleWrapper(Proxy):
                 scores += s["confidence"][:, 1].tolist()
             else:
                 scores += s.tolist()
-        return np.float32(scores)
+        return torch.FloatTensor(scores).to(self.device)
