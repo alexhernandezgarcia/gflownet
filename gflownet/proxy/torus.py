@@ -9,7 +9,6 @@ class Torus(Proxy):
         self.normalize = normalize
         self.alpha = alpha
         self.beta = beta
-        self.n_dim = 2
 
     def set_n_dim(self, n_dim):
         self.n_dim = n_dim
