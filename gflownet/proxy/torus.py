@@ -4,12 +4,15 @@ from torchtyping import TensorType
 
 
 class Torus(Proxy):
-    def __init__(self, normalize, alpha=1.0, beta=1.0):
-        super().__init__()
+    def __init__(self, normalize, alpha=1.0, beta=1.0, **kwargs):
+        super().__init__(**kwargs)
         self.normalize = normalize
         self.alpha = alpha
         self.beta = beta
         self.n_dim = 2
+
+    def set_n_dim(self, n_dim):
+        self.n_dim = n_dim
 
     @property
     def min(self):

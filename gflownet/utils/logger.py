@@ -4,6 +4,8 @@ import torch
 from pathlib import Path
 from numpy import array
 from omegaconf import OmegaConf
+import matplotlib.pyplot as plt
+
 
 class Logger:
     """
@@ -42,7 +44,6 @@ class Logger:
             )
         if self.do.online:
             import wandb
-            import matplotlib.pyplot as plt
 
             self.wandb = wandb
             self.plt = plt
@@ -52,7 +53,6 @@ class Logger:
             )
         else:
             self.wandb = None
-            self.plt = None
             self.run = None
         self.add_tags(tags)
         self.context = "0"
@@ -146,16 +146,17 @@ class Logger:
             return
         if use_context:
             key = self.context + "/" + key
-        fig = self.plt.figure()
-        self.plt.hist(value)
-        self.plt.title(key)
-        self.plt.ylabel("Frequency")
-        self.plt.xlabel(key)
+        fig = plt.figure()
+        plt.hist(value)
+        plt.title(key)
+        plt.ylabel("Frequency")
+        plt.xlabel(key)
         fig = self.wandb.Image(fig)
         self.wandb.log({key: fig}, step)
 
     def log_plots(self, figs: list, step, use_context=True):
         if not self.do.online:
+            self.close_figs(figs)
             return
         keys = ["True reward and GFlowNet samples", "GFlowNet KDE Policy", "Reward KDE"]
         for key, fig in zip(keys, figs):
@@ -164,7 +165,12 @@ class Logger:
             if fig is not None:
                 figimg = self.wandb.Image(fig)
                 self.wandb.log({key: figimg}, step)
-                self.plt.close(fig)
+                plt.close(fig)
+
+    def close_figs(self, figs: list):
+        for fig in figs:
+            if fig is not None:
+                plt.close(fig)
 
     def log_metrics(self, metrics: dict, step: int, use_context: bool = True):
         if not self.do.online:
