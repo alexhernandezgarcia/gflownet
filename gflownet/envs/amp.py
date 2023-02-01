@@ -102,6 +102,7 @@ class AMP(GFlowNetEnv):
         # TODO: Change depening on how it is assigned for the torus
         if self.proxy_state_format == "ohe":
             self.statebatch2proxy = self.statebatch2policy
+            self.statetorch2proxy = self.statetorch2policy
         elif self.proxy_state_format == "oracle":
             self.statebatch2proxy = self.statebatch2oracle
             self.statetorch2proxy = self.statetorch2oracle
@@ -251,6 +252,8 @@ class AMP(GFlowNetEnv):
 
         See state2policy().
         """
+        # TODO: ensure that un-padded state is fed here 
+        # if not modify to implementation similar to that of statetorch2policy
         state_policy = np.zeros(
             (len(states), self.n_alphabet * self.max_seq_length), dtype=np.float32
         )
@@ -277,7 +280,7 @@ class AMP(GFlowNetEnv):
                             : torch.where(state == self.invalid_action)[0][0]
                             if state[-1] == self.invalid_action
                             else len(state)
-                        ]
+                        ].to(self.device)
                         + torch.arange(
                             len(
                                 state[
@@ -486,8 +489,9 @@ class AMP(GFlowNetEnv):
 
     def get_distance_from_D0(self, samples, dataset_obs):
         # TODO: optimize
-        dataset_states = [self.obs2state(el) for el in dataset_obs]
-        dataset_samples = self.state2oracle(dataset_states)
+        # TODO: should this be proxy2state?
+        dataset_states = [self.policy2state(el) for el in dataset_obs]
+        dataset_samples = self.statebatch2oracle(dataset_states)
         min_dists = []
         for sample in samples:
             dists = []
