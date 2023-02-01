@@ -35,7 +35,10 @@ class GFlowNetEnv:
         **kwargs,
     ):
         # Device
-        self.device = set_device(device)
+        if isinstance(device, str):
+            self.device = set_device(device)
+        else:
+            self.device = device
         # Float precision
         self.float = set_float_precision(float_precision)
         # Environment
@@ -62,9 +65,13 @@ class GFlowNetEnv:
         self.eos = len(self.action_space)
         self.logsoftmax = torch.nn.LogSoftmax(dim=1)
         # Assertions
-        assert self.reward_norm > 0
+        # assert self.reward_norm > 0
         assert self.reward_beta > 0
         assert self.min_reward > 0
+
+    def copy(self):
+        # return an instance of the environment
+        return self.__class__(**self.__dict__)
 
     def set_energies_stats(self, energies_stats):
         self.energies_stats = energies_stats
@@ -196,7 +203,7 @@ class GFlowNetEnv:
             proxy_vals = proxy_vals * self.energies_stats[3] + self.energies_stats[2]
         if self.reward_func == "power":
             return torch.clamp(
-                (-1.0 * proxy_vals / self.reward_norm) ** self.reward_beta,
+                (-1.0*proxy_vals / self.reward_norm) ** self.reward_beta,
                 min=self.min_reward,
                 max=None,
             )
@@ -528,8 +535,10 @@ class Buffer:
         data_path=None,
         train=None,
         test=None,
+        logger=None,
         **kwargs,
     ):
+        self.logger = logger
         self.env = env
         self.replay_capacity = replay_capacity
         self.main = pd.DataFrame(columns=["state", "traj", "reward", "energy", "iter"])
@@ -578,12 +587,14 @@ class Buffer:
                 pickle.dump(dict_tt, f)
                 self.test_pkl = test.output_pkl
         else:
-            print("""
+            print(
+                """
             Important: test metrics will NOT be computed. In order to compute
             test metrics the test configuration of the buffer should be complete and
             feasible and an output pkl file should be defined in
             env.buffer.test.output_pkl.
-            """)
+            """
+            )
             self.test_pkl = None
         # Compute buffer statistics
         if self.train is not None:
@@ -642,23 +653,30 @@ class Buffer:
         rewards_new = rewards.copy()
         while np.max(rewards_new) > np.min(rewards_old):
             idx_new_max = np.argmax(rewards_new)
-            self.replay.iloc[self.replay.reward.argmin()] = {
-                "state": self.env.state2readable(states[idx_new_max]),
-                "traj": self.env.traj2readable(trajs[idx_new_max]),
-                "reward": rewards[idx_new_max],
-                "energy": energies[idx_new_max],
-                "iter": it,
-            }
-            rewards_new[idx_new_max] = -1
-            rewards_old = self.replay["reward"].values
+            readable_state = self.env.state2readable(states[idx_new_max])
+            if self.replay["state"].isin([readable_state]).sum() == 0:
+                self.replay.iloc[self.replay.reward.argmin()] = {
+                    "state": self.env.state2readable(states[idx_new_max]),
+                    "traj": self.env.traj2readable(trajs[idx_new_max]),
+                    "reward": rewards[idx_new_max],
+                    "energy": energies[idx_new_max],
+                    "iter": it,
+                }
+                rewards_new[idx_new_max] = -1
+                rewards_old = self.replay["reward"].values
         return self.replay
 
     def make_data_set(self, config):
         """
-        Constructs a data set asa DataFrame according to the configuration.
+        Constructs a data set as a DataFrame according to the configuration.
         """
         if config is None:
-            return None, None
+            return None
+        elif "path" in config and config.path is not None:
+            path = self.logger.logdir / Path("data") / config.path
+            df = pd.read_csv(path, index_col=0)
+            # TODO: check if state2readable transformation is required.
+            return df
         elif "type" not in config:
             return None, None
         elif config.type == "all" and hasattr(self.env, "get_all_terminating_states"):
