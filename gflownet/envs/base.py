@@ -35,7 +35,10 @@ class GFlowNetEnv:
         **kwargs,
     ):
         # Device
-        self.device = set_device(device)
+        if isinstance(device, str):
+            self.device = set_device(device)
+        else:
+            self.device = device
         # Float precision
         self.float = set_float_precision(float_precision)
         # Environment
