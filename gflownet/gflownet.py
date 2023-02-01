@@ -236,7 +236,7 @@ class GFlowNetAgent:
             .to(bool)
         )
         # check for at least one non-random action
-        if idx_norandom.sum()>0:
+        if idx_norandom.sum() > 0:
             if sampling_method == "policy":
                 policy_outputs[idx_norandom, :] = model(
                     self._tfloat(
@@ -965,6 +965,7 @@ class GFlowNetAgent:
                 step=it,
                 use_context=self.use_context,
             )
+
 
 class Policy:
     def __init__(self, config, env, device, float_precision, base=None):
