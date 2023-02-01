@@ -58,7 +58,6 @@ class AMP(GFlowNetEnv):
         min_word_len=1,
         max_word_len=1,
         # env_id=None,
-        # energies_stats=None,
         **kwargs,
     ):
         super().__init__(
