@@ -61,6 +61,7 @@ class Grid(GFlowNetEnv):
         # Set up oracle
         self.oracle.n_dim = self.n_dim
         self.oracle.setup()
+        self.invalid_action = self.n_dim + 5
 
     def get_actions_space(self):
         """
@@ -71,6 +72,7 @@ class Grid(GFlowNetEnv):
         actions = []
         for r in valid_steplens:
             actions_r = [el for el in itertools.product(dims, repeat=r)]
+            # actions_r = tuple(list(actions_r) + [0])
             actions += actions_r
         actions += [(self.eos,)]
         return actions
@@ -348,6 +350,8 @@ class Grid(GFlowNetEnv):
         return all_x.tolist()
 
     def get_uniform_terminating_states(self, n_states: int, seed: int) -> List[List]:
+        # To Discuss: don't we want this seed to be the same as the one set in main()
         rng = np.random.default_rng(seed)
         states = rng.integers(low=0, high=self.length, size=(n_states, self.n_dim))
+        # To Discuss: can we return a tensor?
         return states.tolist()

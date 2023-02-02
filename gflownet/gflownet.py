@@ -167,6 +167,14 @@ class GFlowNetAgent:
         self.kl = -1.0
         self.jsd = -1.0
 
+    # def _tfloat_pad(self, x):
+    #  Can't do because we are modifying the actions itself which might lead to an issue when we are searching by action in tb
+    #     if len(x)==1:
+    #         return self._tfloat(x)
+    #     else:
+    #         x = torch.nn.utils.rnn.pad_sequence(x, batch_first=True).to(self.device).to(self.float)
+    #         return x
+
     def _tfloat(self, x):
         return torch.tensor(x, dtype=self.float, device=self.device)
 
@@ -770,10 +778,11 @@ class GFlowNetAgent:
             states_term, trajs_term = self.unpack_terminal_states(batch)
             proxy_vals = self.env.reward2proxy(rewards).tolist()
             rewards = rewards.tolist()
-            self.buffer.add(states_term, trajs_term, rewards, proxy_vals, it)
-            self.buffer.add(
-                states_term, trajs_term, rewards, proxy_vals, it, buffer="replay"
-            )
+            # TODO: fix infinite loop in buffer
+            # self.buffer.add(states_term, trajs_term, rewards, proxy_vals, it)
+            # self.buffer.add(
+            #     states_term, trajs_term, rewards, proxy_vals, it, buffer="replay"
+            # )
             t1_buffer = time.time()
             times.update({"buffer": t1_buffer - t0_buffer})
             # Log

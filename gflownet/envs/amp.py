@@ -199,7 +199,7 @@ class AMP(GFlowNetEnv):
         Args
         ----
         state_list : list of lists
-            List of sequences.
+            List of sequences (not numpy array).
         """
         state_oracle = [self.state2oracle(state) for state in state_batch]
         return state_oracle
