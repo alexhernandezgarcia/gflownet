@@ -26,8 +26,8 @@ neg_hartmann6 = AugmentedHartmann(negate=True)
 fidelities = torch.tensor([0.5, 0.75, 1.0])
 
 
-train_seq = torch.rand(10, 6)
-train_f = fidelities[torch.randint(3, (10,1))]
+train_seq = torch.rand(50, 6)
+train_f = fidelities[torch.randint(3, (50,1))]
 train_x = torch.cat((train_seq, train_f), dim=1)
 train_y = neg_hartmann6(train_x).unsqueeze(-1)
 
@@ -129,7 +129,7 @@ def project(X):
 
 
 from botorch.acquisition.max_value_entropy_search import qMultiFidelityLowerBoundMaxValueEntropy
-qMES = qMultiFidelityLowerBoundMaxValueEntropy(proxy, candidate_set = train_x, project = project)
+qMES = qMultiFidelityLowerBoundMaxValueEntropy(proxy, candidate_set = train_x, project = project, num_mv_samples=32)
 
 for num in range(10000):
     test_seq = torch.rand(10, 6)

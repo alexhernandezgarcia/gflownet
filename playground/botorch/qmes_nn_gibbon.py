@@ -24,7 +24,7 @@ Initialise the Dataset
 """
 neg_hartmann6 = Hartmann(dim=6, negate=True)
 
-train_x = torch.rand(10, 6)
+train_x = torch.rand(50, 6)
 train_y = neg_hartmann6(train_x).unsqueeze(-1)
 
 
@@ -73,13 +73,15 @@ class NN_Model(Model):
         var = torch.var(outputs, axis=1)
 
         if len(X.shape)==2:
-            # covar = torch.cov(outputs)
+            # candidate set
             covar = torch.diag(var)
         elif len(X.shape)==4:
+            # fidelity
             covar = [torch.diag(var[i][0]) for i in range(X.shape[0])]
             covar = torch.stack(covar, axis = 0)
             covar = covar.unsqueeze(-1)
         elif len(X.shape)==3:
+            # max samples
             covar = [torch.diag(var[i]) for i in range(X.shape[0])]
             covar = torch.stack(covar, axis = 0)
         
@@ -188,7 +190,7 @@ class myGIBBON(qLowerBoundMaxValueEntropy):
         # return acq + r
 
 
-qMES = myGIBBON(proxy, candidate_set = train_x, use_gumbel=True)
+qMES = myGIBBON(proxy, candidate_set = train_x, use_gumbel=True, num_mv_samples=32)
 
 # qMES = qLowerBoundMaxValueEntropy(proxy, candidate_set = train_x, use_gumbel=True)
 
