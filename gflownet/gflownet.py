@@ -166,15 +166,7 @@ class GFlowNetAgent:
         self.l1 = -1.0
         self.kl = -1.0
         self.jsd = -1.0
-
-    # def _tfloat_pad(self, x):
-    #  Can't do because we are modifying the actions itself which might lead to an issue when we are searching by action in tb
-    #     if len(x)==1:
-    #         return self._tfloat(x)
-    #     else:
-    #         x = torch.nn.utils.rnn.pad_sequence(x, batch_first=True).to(self.device).to(self.float)
-    #         return x
-
+        
     def _tfloat(self, x):
         return torch.tensor(x, dtype=self.float, device=self.device)
 

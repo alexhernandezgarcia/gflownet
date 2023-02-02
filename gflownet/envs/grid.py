@@ -72,7 +72,6 @@ class Grid(GFlowNetEnv):
         actions = []
         for r in valid_steplens:
             actions_r = [el for el in itertools.product(dims, repeat=r)]
-            # actions_r = tuple(list(actions_r) + [0])
             actions += actions_r
         actions += [(self.eos,)]
         return actions
