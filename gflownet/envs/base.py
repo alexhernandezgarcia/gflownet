@@ -58,6 +58,10 @@ class GFlowNetEnv:
             self.oracle = self.proxy
         else:
             self.oracle = oracle
+        if self.oracle.higher_is_better:
+            self.proxy_factor = 1.0
+        else:
+            self.proxy_factor = -1.0
         self.proxy_state_format = proxy_state_format
         self._true_density = None
         self._z = None
@@ -203,19 +207,19 @@ class GFlowNetEnv:
             proxy_vals = proxy_vals * self.energies_stats[3] + self.energies_stats[2]
         if self.reward_func == "power":
             return torch.clamp(
-                (-1.0 * proxy_vals / self.reward_norm) ** self.reward_beta,
+                (self.proxy_factor * proxy_vals / self.reward_norm) ** self.reward_beta,
                 min=self.min_reward,
                 max=None,
             )
         elif self.reward_func == "boltzmann":
             return torch.clamp(
-                torch.exp(-1.0 * self.reward_beta * proxy_vals),
+                torch.exp(self.proxy_factor * self.reward_beta * proxy_vals),
                 min=self.min_reward,
                 max=None,
             )
         elif self.reward_func == "identity":
             return torch.clamp(
-                -1.0 * proxy_vals,
+                self.proxy_factor * proxy_vals,
                 min=self.min_reward,
                 max=None,
             )
@@ -228,14 +232,14 @@ class GFlowNetEnv:
         an oracle.
         """
         if self.reward_func == "power":
-            return -1.0 * torch.exp(
+            return self.proxy_factor * torch.exp(
                 (torch.log(reward) + self.reward_beta * torch.log(self.reward_norm))
                 / self.reward_beta
             )
         elif self.reward_func == "boltzmann":
-            return -1.0 * torch.log(reward) / self.reward_beta
+            return self.proxy_factor * torch.log(reward) / self.reward_beta
         elif self.reward_func == "identity":
-            return -1.0 * reward
+            return self.proxy_factor * reward
         else:
             raise NotImplemented
 
