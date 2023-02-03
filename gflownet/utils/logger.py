@@ -46,8 +46,9 @@ class Logger:
             import wandb
 
             self.wandb = wandb
-            self.plt = plt
-            wandb_config = OmegaConf.to_container(config, resolve=True, throw_on_missing=True)
+            wandb_config = OmegaConf.to_container(
+                config, resolve=True, throw_on_missing=True
+            )
             self.run = self.wandb.init(
                 config=wandb_config, project=project_name, name=run_name
             )
