@@ -236,20 +236,19 @@ class GFlowNetAgent:
             .to(bool)
         )
         # check for at least one non-random action
-        if idx_norandom.sum() > 0:
-            if sampling_method == "policy":
-                policy_outputs[idx_norandom, :] = model(
-                    self._tfloat(
-                        self.env.statebatch2policy(
-                            [s for s, do in zip(states, idx_norandom) if do]
-                        )
+        if sampling_method == "policy" and idx_norandom.sum() > 0:
+            policy_outputs[idx_norandom, :] = model(
+                self._tfloat(
+                    self.env.statebatch2policy(
+                        [s for s, do in zip(states, idx_norandom) if do]
                     )
                 )
-            elif sampling_method == "uniform":
-                # TODO
-                policy_outputs = None
-            else:
-                raise NotImplementedError
+            )
+        elif sampling_method == "uniform":
+            # TODO
+            policy_outputs = None
+        else:
+            raise NotImplementedError
         # Sample actions from policy outputs
         actions, logprobs = self.env.sample_actions(
             policy_outputs,
