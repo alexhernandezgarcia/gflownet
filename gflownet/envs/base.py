@@ -203,7 +203,7 @@ class GFlowNetEnv:
             proxy_vals = proxy_vals * self.energies_stats[3] + self.energies_stats[2]
         if self.reward_func == "power":
             return torch.clamp(
-                (-1.0*proxy_vals / self.reward_norm) ** self.reward_beta,
+                (-1.0 * proxy_vals / self.reward_norm) ** self.reward_beta,
                 min=self.min_reward,
                 max=None,
             )
