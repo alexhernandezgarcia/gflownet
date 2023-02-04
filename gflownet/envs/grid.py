@@ -349,8 +349,6 @@ class Grid(GFlowNetEnv):
         return all_x.tolist()
 
     def get_uniform_terminating_states(self, n_states: int, seed: int) -> List[List]:
-        # To Discuss: don't we want this seed to be the same as the one set in main()
-        rng = np.random.default_rng(seed)
-        states = rng.integers(low=0, high=self.length, size=(n_states, self.n_dim))
+        states = np.random.randint(low=0, high=self.length, size=(n_states, self.n_dim))
         # To Discuss: can we return a tensor?
         return states.tolist()

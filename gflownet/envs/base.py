@@ -187,6 +187,7 @@ class GFlowNetEnv:
         """
         if done is None:
             done = torch.ones(states.shape[0], dtype=torch.bool, device=self.device)
+        done_states = states[done, :]
         states_proxy = self.statetorch2proxy(states[done, :])
         reward = torch.zeros(done.shape[0], dtype=self.float, device=self.device)
         if states[done, :].shape[0] > 0:
