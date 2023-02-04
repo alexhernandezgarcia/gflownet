@@ -96,6 +96,7 @@ class NN_Model(Model):
             outputs = outputs.squeeze(-1)
             outputs = outputs.view(X.shape[0], -1, self.nb_samples)
             covar = [torch.cov(outputs[i]) for i in range(X.shape[0])]
+            # covar = [torch.diag(var[i].squeeze(-1)) for i in range(X.shape[0])]
             covar = torch.stack(covar, axis = 0)
             covar = covar.unsqueeze(1)
         elif len(X.shape)==3:
@@ -139,6 +140,6 @@ for num in range(10000):
     with torch.no_grad():
         mes = qMES(test_x)
         mes_arr = mes.detach().numpy()
-        verdict = np.all(mes_arr>0)
+        verdict = np.all(mes_arr>=0)
     if not verdict:
         print("Negative MES", mes)
