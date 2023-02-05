@@ -62,6 +62,7 @@ class Grid(GFlowNetEnv):
         self.oracle.n_dim = self.n_dim
         self.oracle.setup()
         self.invalid_action = self.n_dim + 5
+        self.proxy_factor = 1.0
 
     def get_actions_space(self):
         """
@@ -348,7 +349,7 @@ class Grid(GFlowNetEnv):
         )
         return all_x.tolist()
 
-    def get_uniform_terminating_states(self, n_states: int, seed: int) -> List[List]:
+    def get_uniform_terminating_states(self, n_states: int) -> List[List]:
         states = np.random.randint(low=0, high=self.length, size=(n_states, self.n_dim))
         # To Discuss: can we return a tensor?
         return states.tolist()
