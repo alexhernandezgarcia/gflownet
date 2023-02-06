@@ -4,6 +4,7 @@ import torch
 from pathlib import Path
 from numpy import array
 from omegaconf import OmegaConf
+import matplotlib.pyplot as plt
 
 
 class Logger:
@@ -25,6 +26,7 @@ class Logger:
         checkpoints: dict,
         progress: bool,
         lightweight: bool,
+        debug: bool,
         run_name=None,
         tags: list = None,
     ):
@@ -42,22 +44,22 @@ class Logger:
             )
         if self.do.online:
             import wandb
-            import matplotlib.pyplot as plt
 
             self.wandb = wandb
-            self.plt = plt
-            wandb_config = OmegaConf.to_container(config, resolve=True, throw_on_missing=True)
+            wandb_config = OmegaConf.to_container(
+                config, resolve=True, throw_on_missing=True
+            )
             self.run = self.wandb.init(
                 config=wandb_config, project=project_name, name=run_name
             )
         else:
             self.wandb = None
-            self.plt = None
             self.run = None
         self.add_tags(tags)
         self.context = "0"
         self.progress = progress
         self.lightweight = lightweight
+        self.debug = debug
         # Log directory
         self.logdir = Path(logdir.root)
         if self.logdir.exists() or logdir.overwrite:
@@ -103,7 +105,6 @@ class Logger:
                 with open(self.logdir / "wandb.url", "w") as f:
                     f.write(self.url + "\n")
 
-
     def add_tags(self, tags: list):
         if not self.do.online:
             return
@@ -124,28 +125,39 @@ class Logger:
         else:
             self.pb_ckpt_path = self.ckpts_dir / f"{ckpt_id}_"
 
+    def progressbar_update(
+        self, pbar, losses, rewards, jsd, step, use_context=True, n_mean=100
+    ):
+        if self.progress:
+            mean_main_loss = np.mean(np.array(losses)[-n_mean:, 0], axis=0)
+            description = "Loss: {:.4f} | Mean rewards: {:.2f} | JSD: {:.4f}".format(
+                mean_main_loss, np.mean(rewards), jsd
+            )
+            pbar.set_description(description)
+
     def log_metric(self, key: str, value, step, use_context=True):
         if not self.do.online:
             return
         if use_context:
             key = self.context + "/" + key
-        self.wandb.log({key: value}, step)
+        self.wandb.log({key: value})
 
     def log_histogram(self, key, value, step, use_context=True):
         if not self.do.online:
             return
         if use_context:
             key = self.context + "/" + key
-        fig = self.plt.figure()
-        self.plt.hist(value)
-        self.plt.title(key)
-        self.plt.ylabel("Frequency")
-        self.plt.xlabel(key)
+        fig = plt.figure()
+        plt.hist(value)
+        plt.title(key)
+        plt.ylabel("Frequency")
+        plt.xlabel(key)
         fig = self.wandb.Image(fig)
         self.wandb.log({key: fig}, step)
 
     def log_plots(self, figs: list, step, use_context=True):
         if not self.do.online:
+            self.close_figs(figs)
             return
         keys = ["True reward and GFlowNet samples", "GFlowNet KDE Policy", "Reward KDE"]
         for key, fig in zip(keys, figs):
@@ -154,55 +166,72 @@ class Logger:
             if fig is not None:
                 figimg = self.wandb.Image(fig)
                 self.wandb.log({key: figimg}, step)
-                self.plt.close(fig)
+                plt.close(fig)
+
+    def close_figs(self, figs: list):
+        for fig in figs:
+            if fig is not None:
+                plt.close(fig)
 
     def log_metrics(self, metrics: dict, step: int, use_context: bool = True):
         if not self.do.online:
             return
-        if use_context:
-            for key, _ in metrics.items():
-                key = self.context + "/" + key
-        self.wandb.log(metrics, step)
+        for key, _ in metrics.items():
+            self.log_metric(key, metrics[key], use_context)
 
-    def log_sampler_train(
+    def log_train(
         self,
+        losses,
         rewards: list,
         proxy_vals: array,
         states_term: list,
-        data: list,
+        batch_size: int,
+        logz,
         step: int,
         use_context: bool,
     ):
-        if not self.do.online:
+        if not self.do.online or not self.do_train(step):
             return
-        if self.do_train(step):
-            train_metrics = dict(
-                zip(
-                    [
-                        "mean_reward",
-                        "max_reward",
-                        "mean_proxy",
-                        "min_proxy",
-                        "max_proxy",
-                        "mean_seq_length",
-                        "batch_size",
-                    ],
-                    [
-                        np.mean(rewards),
-                        np.max(rewards),
-                        np.mean(proxy_vals),
-                        np.min(proxy_vals),
-                        np.max(proxy_vals),
-                        np.mean([len(state) for state in states_term]),
-                        len(data),
-                    ],
-                )
+        train_metrics = dict(
+            zip(
+                [
+                    "mean_reward",
+                    "max_reward",
+                    "mean_proxy",
+                    "min_proxy",
+                    "max_proxy",
+                    "mean_seq_length",
+                    "batch_size",
+                    "logZ",
+                ],
+                [
+                    np.mean(rewards),
+                    np.max(rewards),
+                    np.mean(proxy_vals),
+                    np.min(proxy_vals),
+                    np.max(proxy_vals),
+                    np.mean([len(state) for state in states_term]),
+                    batch_size,
+                    logz,
+                ],
             )
-            self.log_metrics(
-                train_metrics,
-                use_context=use_context,
-                step=step,
+        )
+        self.log_metrics(
+            train_metrics,
+            use_context=use_context,
+            step=step,
+        )
+        loss_metrics = dict(
+            zip(
+                ["Loss", "Loss (terminating)", "Loss (non-term.)"],
+                [loss.item() for loss in losses],
             )
+        )
+        self.log_metrics(
+            loss_metrics,
+            use_context=use_context,
+            step=step,
+        )
 
     def log_sampler_test(
         self, corr: array, data_logq: list, step: int, use_context: bool
@@ -225,7 +254,6 @@ class Logger:
             self.log_metrics(
                 test_metrics,
                 use_context=use_context,
-                step=step,
             )
 
     def log_sampler_oracle(self, energies: array, step: int, use_context: bool):
@@ -237,7 +265,7 @@ class Logger:
             for k in self.oracle.k:
                 mean_topk = np.mean(energies_sorted[:k])
                 dict_topk.update({"oracle_mean_top{}".format(k): mean_topk})
-            self.log_metrics(dict_topk, use_context=use_context, step=step)
+            self.log_metrics(dict_topk, use_context=use_context)
 
     def log_losses(
         self,
@@ -256,7 +284,6 @@ class Logger:
         self.log_metrics(
             loss_metrics,
             use_context=use_context,
-            step=step,
         )
 
     def log_test_metrics(
@@ -293,15 +320,19 @@ class Logger:
                 stem = self.pf_ckpt_path.stem + self.context + ckpt_id + ".ckpt"
                 path = self.pf_ckpt_path.parent / stem
                 torch.save(forward_policy.model.state_dict(), path)
-            if backward_policy.is_model and self.pb_ckpt_path is not None:
+            if (
+                backward_policy
+                and backward_policy.is_model
+                and self.pb_ckpt_path is not None
+            ):
                 stem = self.pb_ckpt_path.stem + self.context + ckpt_id + ".ckpt"
                 path = self.pb_ckpt_path.parent / stem
                 torch.save(backward_policy.model.state_dict(), path)
 
-    def log_time(self, times: dict, step: int, use_context: bool):
+    def log_time(self, times: dict, use_context: bool):
         if self.do.times:
             times = {"time_{}".format(k): v for k, v in times.items()}
-            self.log_metrics(times, step=step, use_contxt=use_context)
+            self.log_metrics(times, use_context=use_context)
 
     def end(self):
         if not self.do.online:

@@ -30,9 +30,18 @@ def main(config):
     # Logger
     logger = hydra.utils.instantiate(config.logger, config, _recursive_=False)
     # The proxy is required in the env for scoring: might be an oracle or a model
-    proxy = hydra.utils.instantiate(config.proxy)
+    proxy = hydra.utils.instantiate(
+        config.proxy,
+        device=config.device,
+        float_precision=config.float_precision,
+    )
     # The proxy is passed to env and used for computing rewards
-    env = hydra.utils.instantiate(config.env, proxy=proxy)
+    env = hydra.utils.instantiate(
+        config.env,
+        proxy=proxy,
+        device=config.device,
+        float_precision=config.float_precision,
+    )
     gflownet = hydra.utils.instantiate(
         config.gflownet,
         device=config.device,
@@ -55,6 +64,7 @@ def main(config):
         )
         df.to_csv("gfn_samples.csv")
     print(gflownet.buffer.replay)
+    gflownet.logger.end()
 
 
 def set_seeds(seed):

@@ -53,6 +53,4 @@ num_empirical_loss: 200000
 oracle:
     # Number of samples for oracle metrics
     n: 500
-# remove eventually
 sample_only: False
-debug: False

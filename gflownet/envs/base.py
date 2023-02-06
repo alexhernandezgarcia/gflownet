@@ -10,6 +10,7 @@ import torch
 from torch.distributions import Categorical
 from torchtyping import TensorType
 import pickle
+from gflownet.utils.common import set_device, set_float_precision
 
 
 class GFlowNetEnv:
@@ -19,6 +20,8 @@ class GFlowNetEnv:
 
     def __init__(
         self,
+        device="cpu",
+        float_precision=32,
         env_id=None,
         reward_beta=1,
         reward_norm=1.0,
@@ -31,6 +34,14 @@ class GFlowNetEnv:
         proxy_state_format=None,
         **kwargs,
     ):
+        # Device
+        if isinstance(device, str):
+            self.device = set_device(device)
+        else:
+            self.device = device
+        # Float precision
+        self.float = set_float_precision(float_precision)
+        # Environment
         self.state = []
         self.done = False
         self.n_actions = 0
@@ -47,6 +58,10 @@ class GFlowNetEnv:
             self.oracle = self.proxy
         else:
             self.oracle = oracle
+        if self.oracle.higher_is_better:
+            self.proxy_factor = 1.0
+        else:
+            self.proxy_factor = -1.0
         self.proxy_state_format = proxy_state_format
         self._true_density = None
         self._z = None
@@ -58,11 +73,9 @@ class GFlowNetEnv:
         assert self.reward_beta > 0
         assert self.min_reward > 0
 
-    def set_device(self, device):
-        self.device = device
-
-    def set_float_precision(self, dtype):
-        self.float = dtype
+    def copy(self):
+        # return an instance of the environment
+        return self.__class__(**self.__dict__)
 
     def set_energies_stats(self, energies_stats):
         self.energies_stats = energies_stats
@@ -194,19 +207,19 @@ class GFlowNetEnv:
             proxy_vals = proxy_vals * self.energies_stats[3] + self.energies_stats[2]
         if self.reward_func == "power":
             return torch.clamp(
-                (-1.0 * proxy_vals / self.reward_norm) ** self.reward_beta,
+                (self.proxy_factor * proxy_vals / self.reward_norm) ** self.reward_beta,
                 min=self.min_reward,
                 max=None,
             )
         elif self.reward_func == "boltzmann":
             return torch.clamp(
-                torch.exp(-1.0 * self.reward_beta * proxy_vals),
+                torch.exp(self.proxy_factor * self.reward_beta * proxy_vals),
                 min=self.min_reward,
                 max=None,
             )
         elif self.reward_func == "identity":
             return torch.clamp(
-                -1.0 * proxy_vals,
+                self.proxy_factor * proxy_vals,
                 min=self.min_reward,
                 max=None,
             )
@@ -219,14 +232,14 @@ class GFlowNetEnv:
         an oracle.
         """
         if self.reward_func == "power":
-            return -1.0 * torch.exp(
+            return self.proxy_factor * torch.exp(
                 (torch.log(reward) + self.reward_beta * torch.log(self.reward_norm))
                 / self.reward_beta
             )
         elif self.reward_func == "boltzmann":
-            return -1.0 * torch.log(reward) / self.reward_beta
+            return self.proxy_factor * torch.log(reward) / self.reward_beta
         elif self.reward_func == "identity":
-            return -1.0 * reward
+            return self.proxy_factor * reward
         else:
             raise NotImplemented
 
@@ -526,8 +539,10 @@ class Buffer:
         data_path=None,
         train=None,
         test=None,
+        logger=None,
         **kwargs,
     ):
+        self.logger = logger
         self.env = env
         self.replay_capacity = replay_capacity
         self.main = pd.DataFrame(columns=["state", "traj", "reward", "energy", "iter"])
@@ -576,6 +591,14 @@ class Buffer:
                 pickle.dump(dict_tt, f)
                 self.test_pkl = test.output_pkl
         else:
+            print(
+                """
+            Important: test metrics will NOT be computed. In order to compute
+            test metrics the test configuration of the buffer should be complete and
+            feasible and an output pkl file should be defined in
+            env.buffer.test.output_pkl.
+            """
+            )
             self.test_pkl = None
         # Compute buffer statistics
         if self.train is not None:
@@ -634,23 +657,30 @@ class Buffer:
         rewards_new = rewards.copy()
         while np.max(rewards_new) > np.min(rewards_old):
             idx_new_max = np.argmax(rewards_new)
-            self.replay.iloc[self.replay.reward.argmin()] = {
-                "state": self.env.state2readable(states[idx_new_max]),
-                "traj": self.env.traj2readable(trajs[idx_new_max]),
-                "reward": rewards[idx_new_max],
-                "energy": energies[idx_new_max],
-                "iter": it,
-            }
-            rewards_new[idx_new_max] = -1
-            rewards_old = self.replay["reward"].values
+            readable_state = self.env.state2readable(states[idx_new_max])
+            if self.replay["state"].isin([readable_state]).sum() == 0:
+                self.replay.iloc[self.replay.reward.argmin()] = {
+                    "state": self.env.state2readable(states[idx_new_max]),
+                    "traj": self.env.traj2readable(trajs[idx_new_max]),
+                    "reward": rewards[idx_new_max],
+                    "energy": energies[idx_new_max],
+                    "iter": it,
+                }
+                rewards_new[idx_new_max] = -1
+                rewards_old = self.replay["reward"].values
         return self.replay
 
     def make_data_set(self, config):
         """
-        Constructs a data set asa DataFrame according to the configuration.
+        Constructs a data set as a DataFrame according to the configuration.
         """
         if config is None:
-            return None, None
+            return None
+        elif "path" in config and config.path is not None:
+            path = self.logger.logdir / Path("data") / config.path
+            df = pd.read_csv(path, index_col=0)
+            # TODO: check if state2readable transformation is required.
+            return df
         elif "type" not in config:
             return None, None
         elif config.type == "all" and hasattr(self.env, "get_all_terminating_states"):
