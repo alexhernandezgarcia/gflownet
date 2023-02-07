@@ -62,7 +62,7 @@ def main(config):
         df = pd.DataFrame(
             {
                 "readable": [env.state2readable(s) for s in states],
-                "energies": energies.detach().cpu().tolist(),
+                "energies": energies.tolist(),
             }
         )
         df = df.sort_values(by=["energies"])
