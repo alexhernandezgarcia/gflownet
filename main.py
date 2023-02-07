@@ -12,7 +12,7 @@ from gflownet.utils.common import flatten_config
 from pathlib import Path
 
 
-@hydra.main(config_path="./config", config_name="main", version_base="1.1")
+@hydra.main(config_path="./config", config_name="torus_test", version_base="1.1")
 def main(config):
     # Get current directory and set it as root log dir for Logger
     cwd = os.getcwd()
@@ -58,7 +58,8 @@ def main(config):
         states, times = gflownet.sample_batch(env, config.n_samples, train=False)
         samples = env.statebatch2oracle(states)
         energies = env.oracle(samples)
-        gflownet.evaluate(samples, energies)
+        if hasattr(env, "get_pairwise_distance"):
+            gflownet.evaluate(samples, energies)
         df = pd.DataFrame(
             {
                 "readable": [env.state2readable(s) for s in states],
@@ -72,6 +73,7 @@ def main(config):
     gflownet.logger.end()
 
     gflownet.logger.end()
+
 
 def set_seeds(seed):
     import torch

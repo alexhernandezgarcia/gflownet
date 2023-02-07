@@ -632,11 +632,11 @@ class GFlowNetAgent:
         # preprocessing for variable length tensors
         parents = [p.squeeze(0) for p in parents]
         parents = torch.nn.utils.rnn.pad_sequence(
-            parents, batch_first=True, padding_value=self.env.invalid_action
+            parents, batch_first=True, padding_value=self.env.invalid_state_element
         )
         states = [s.squeeze(0) for s in states]
         states = torch.nn.utils.rnn.pad_sequence(
-            states, batch_first=True, padding_value=self.env.invalid_action
+            states, batch_first=True, padding_value=self.env.invalid_state_element
         )
         # Concatenate lists of tensors
         actions, done, state_id, masks_sf, masks_b = map(

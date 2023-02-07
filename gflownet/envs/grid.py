@@ -60,6 +60,7 @@ class Grid(GFlowNetEnv):
             self.statetorch2proxy = self.statetorch2oracle
         # Set up proxy
         self.proxy.n_dim = self.n_dim
+        self.invalid_state_element = self.n_dim + 5
         self.proxy.setup()
 
     def get_actions_space(self):

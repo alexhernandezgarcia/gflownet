@@ -112,7 +112,7 @@ class AMP(GFlowNetEnv):
             )
         self.alphabet = dict((i, a) for i, a in enumerate(self.vocab))
         self.reset()
-        self.invalid_action = -1
+        self.invalid_state_element = -1
 
     def get_actions_space(self):
         """
@@ -252,7 +252,7 @@ class AMP(GFlowNetEnv):
 
         See state2policy().
         """
-        # TODO: ensure that un-padded state is fed here 
+        # TODO: ensure that un-padded state is fed here
         # if not modify to implementation similar to that of statetorch2policy
         state_policy = np.zeros(
             (len(states), self.n_alphabet * self.max_seq_length), dtype=np.float32

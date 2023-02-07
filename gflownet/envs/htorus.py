@@ -246,9 +246,7 @@ class HybridTorus(GFlowNetEnv):
         ):
             step = states[:, -1]
             code_half_size = self.policy_encoding_dim_per_angle // 2
-            int_coeff = np.tile(
-                np.arange(1, code_half_size + 1), states.shape[-1] - 1
-            )
+            int_coeff = np.tile(np.arange(1, code_half_size + 1), states.shape[-1] - 1)
             encoding = (
                 np.repeat(states[:, :-1], repeats=code_half_size, axis=1) * int_coeff
             )
