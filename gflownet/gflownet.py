@@ -166,7 +166,7 @@ class GFlowNetAgent:
         self.l1 = -1.0
         self.kl = -1.0
         self.jsd = -1.0
-        
+
     def _tfloat(self, x):
         return torch.tensor(x, dtype=self.float, device=self.device)
 
@@ -729,11 +729,12 @@ class GFlowNetAgent:
         for it in pbar:
             # Test
             if self.logger.do_test(it):
-                self.l1, self.kl, self.jsd, figs = self.test()
+                self.l1, self.kl, self.jsd, self.corr, figs = self.test()
                 self.logger.log_test_metrics(
-                    self.l1, self.kl, self.jsd, it, self.use_context
+                    self.l1, self.kl, self.jsd, self.corr, it, self.use_context
                 )
-                self.logger.log_plots(figs, it, self.use_context)
+                if self.logger.do_plot(it):
+                    self.logger.log_plots(figs, it, self.use_context)
             t0_iter = time.time()
             data = []
             for j in range(self.sttr):
@@ -770,6 +771,10 @@ class GFlowNetAgent:
             states_term, trajs_term = self.unpack_terminal_states(batch)
             proxy_vals = self.env.reward2proxy(rewards).tolist()
             rewards = rewards.tolist()
+            if hasattr(self.env, "get_cost"):
+                costs = self.env.get_cost(states_term)
+            else:
+                costs = 0
             # TODO: fix infinite loop in buffer
             # self.buffer.add(states_term, trajs_term, rewards, proxy_vals, it)
             # self.buffer.add(
@@ -794,6 +799,7 @@ class GFlowNetAgent:
                 rewards,
                 proxy_vals,
                 states_term,
+                costs,
                 len(data),
                 self.logZ.sum(),
                 it,
@@ -856,6 +862,7 @@ class GFlowNetAgent:
                 hist[tuple(x)] += 1
             z_pred = sum([hist[tuple(x)] for x in x_tt]) + 1e-9
             density_pred = np.array([hist[tuple(x)] / z_pred for x in x_tt])
+            corr = np.corrcoef(density_pred, density_true)
             log_density_true = np.log(density_true + 1e-8)
             log_density_pred = np.log(density_pred + 1e-8)
         elif self.continuous:
@@ -912,13 +919,23 @@ class GFlowNetAgent:
             fig_reward_samples = self.env.plot_reward_samples(x_sampled)
         else:
             fig_reward_samples = None
+        if hasattr(self.env, "plot_samples_frequency"):
+            fig_samples_frequency = self.env.plot_samples_frequency(x_sampled)
+        else:
+            fig_samples_frequency = None
         if hasattr(self.env, "plot_kde"):
             fig_kde_pred = self.env.plot_kde(kde_pred)
             fig_kde_true = self.env.plot_kde(kde_true)
         else:
             fig_kde_pred = None
             fig_kde_true = None
-        return l1, kl, jsd, [fig_reward_samples, fig_kde_pred, fig_kde_true]
+        return (
+            l1,
+            kl,
+            jsd,
+            corr,
+            [fig_reward_samples, fig_kde_pred, fig_kde_true, fig_samples_frequency],
+        )
 
     def get_log_corr(self, times):
         data_logq = []

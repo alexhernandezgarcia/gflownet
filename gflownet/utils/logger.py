@@ -24,6 +24,7 @@ class Logger:
         test: dict,
         oracle: dict,
         checkpoints: dict,
+        plot: dict,
         progress: bool,
         lightweight: bool,
         debug: bool = False,
@@ -37,6 +38,7 @@ class Logger:
         self.test = test
         self.oracle = oracle
         self.checkpoints = checkpoints
+        self.plot = plot
         if run_name is None:
             date_time = datetime.today().strftime("%d/%m-%H:%M:%S")
             run_name = "{}".format(
@@ -47,7 +49,9 @@ class Logger:
 
             self.wandb = wandb
             self.plt = plt
-            wandb_config = OmegaConf.to_container(config, resolve=True, throw_on_missing=True)
+            wandb_config = OmegaConf.to_container(
+                config, resolve=True, throw_on_missing=True
+            )
             self.run = self.wandb.init(
                 config=wandb_config, project=project_name, name=run_name
             )
@@ -84,6 +88,14 @@ class Logger:
             return True
         else:
             return not step % self.test.period
+
+    def do_plot(self, step):
+        if self.plot.period is None or self.plot.period < 0:
+            return False
+        elif step == 1 and self.plot.first_it:
+            return True
+        else:
+            return not step % self.plot.period
 
     def do_oracle(self, step):
         if self.oracle.period is None or self.oracle.period < 0:
@@ -158,7 +170,12 @@ class Logger:
         if not self.do.online:
             self.close_figs(figs)
             return
-        keys = ["True reward and GFlowNet samples", "GFlowNet KDE Policy", "Reward KDE"]
+        keys = [
+            "True reward and GFlowNet samples",
+            "GFlowNet KDE Policy",
+            "Reward KDE",
+            "Frequency of Samples",
+        ]
         for key, fig in zip(keys, figs):
             if use_context:
                 context = self.context + "/" + key
@@ -184,6 +201,7 @@ class Logger:
         rewards: list,
         proxy_vals: array,
         states_term: list,
+        costs: list,
         batch_size: int,
         logz,
         step: int,
@@ -199,6 +217,7 @@ class Logger:
                     "mean_proxy",
                     "min_proxy",
                     "max_proxy",
+                    "mean_cost",
                     "mean_seq_length",
                     "batch_size",
                     "logZ",
@@ -209,6 +228,7 @@ class Logger:
                     np.mean(proxy_vals),
                     np.min(proxy_vals),
                     np.max(proxy_vals),
+                    np.mean(costs),
                     np.mean([len(state) for state in states_term]),
                     batch_size,
                     logz,
@@ -290,6 +310,7 @@ class Logger:
         l1: float,
         kl: float,
         jsd: float,
+        corr: array,
         step: int,
         use_context: bool,
     ):
@@ -297,8 +318,8 @@ class Logger:
             return
         metrics = dict(
             zip(
-                ["L1 error", "KL Div.", "Jensen Shannon Div."],
-                [l1, kl, jsd],
+                ["L1 error", "KL Div.", "Jensen Shannon Div.", "Corr."],
+                [l1, kl, jsd, corr[0, 1]],
             )
         )
         self.log_metrics(

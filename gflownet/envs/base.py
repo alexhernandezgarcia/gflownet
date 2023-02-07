@@ -13,6 +13,7 @@ import pickle
 from gflownet.utils.common import set_device, set_float_precision
 from pathlib import Path
 
+
 class GFlowNetEnv:
     """
     Base class of GFlowNet environments
@@ -190,8 +191,10 @@ class GFlowNetEnv:
         done_states = states[done, :]
         states_proxy = self.statetorch2proxy(states[done, :])
         reward = torch.zeros(done.shape[0], dtype=self.float, device=self.device)
+        reward_proxy = self.proxy(states_proxy)
+        done_reward = self.proxy2reward(reward_proxy)
         if states[done, :].shape[0] > 0:
-            reward[done] = self.proxy2reward(self.proxy(states_proxy))
+            reward[done] = self.proxy2reward(reward_proxy)
         return reward
 
     def proxy2reward(self, proxy_vals):
@@ -701,7 +704,8 @@ class Buffer:
             samples = self.env.get_uniform_terminating_states(config.n, config.seed)
         else:
             return None, None
-        energies = self.env.oracle(self.env.statebatch2oracle(samples)).tolist()
+        energies = self.env.proxy(self.env.statebatch2proxy(samples)).tolist()
+        # energies = self.env.oracle(self.env.statebatch2oracle(samples)).tolist()
         df = pd.DataFrame(
             {
                 "samples": [self.env.state2readable(s) for s in samples],

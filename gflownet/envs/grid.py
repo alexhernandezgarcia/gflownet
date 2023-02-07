@@ -8,6 +8,7 @@ import numpy.typing as npt
 import torch
 from torchtyping import TensorType
 from gflownet.envs.base import GFlowNetEnv
+import matplotlib.pyplot as plt
 
 
 class Grid(GFlowNetEnv):
@@ -353,3 +354,20 @@ class Grid(GFlowNetEnv):
         states = np.random.randint(low=0, high=self.length, size=(n_states, self.n_dim))
         # To Discuss: can we return a tensor?
         return states.tolist()
+
+    def plot_samples_frequency(self, samples):
+        """
+        Plot 2D histogram of samples.
+        """
+        # TDO: extend to n_dim > 2
+        fig = plt.figure()
+        # make a list of integers from 0 to n_dim
+        plt.xticks(np.arange(self.length))
+        plt.yticks(np.arange(self.length))
+        states = np.array([state[:-1] for state in samples])
+        plt.hist2d(states[:, 0], states[:, 1], cmap=plt.cm.jet)
+        plt.title("Frequency of Coordinates Sampled")
+        plt.colorbar()
+        plt.tight_layout()
+        plt.close()
+        return fig
