@@ -320,7 +320,7 @@ class Crystal(GFlowNetEnv):
         if action_idx != self.eos:
             atomic_number, num = self.action_space[action_idx]
             state_next = self.state[:]
-            state_next[atomic_number] +=  num
+            state_next[atomic_number] = num
             if sum(state_next) > self.max_atoms:
                 valid = False
             else:
