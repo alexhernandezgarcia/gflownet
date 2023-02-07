@@ -33,4 +33,4 @@ logdir:
   overwrite: True
 debug: False 
 lightweight: False 
-progress: True
+progress: True 

@@ -26,7 +26,7 @@ class Logger:
         checkpoints: dict,
         progress: bool,
         lightweight: bool,
-        debug: bool,
+        debug: bool = False,
         run_name=None,
         tags: list = None,
     ):
@@ -126,7 +126,7 @@ class Logger:
             self.pb_ckpt_path = self.ckpts_dir / f"{ckpt_id}_"
 
     def progressbar_update(
-        self, pbar, losses, rewards, jsd, step, use_context=True, n_mean=100
+        self, pbar, losses, rewards, jsd, step=None, use_context=True, n_mean=100
     ):
         if self.progress:
             mean_main_loss = np.mean(np.array(losses)[-n_mean:, 0], axis=0)
@@ -135,7 +135,7 @@ class Logger:
             )
             pbar.set_description(description)
 
-    def log_metric(self, key: str, value, step, use_context=True):
+    def log_metric(self, key: str, value, step=None, use_context=True):
         if not self.do.online:
             return
         if use_context:
@@ -173,7 +173,7 @@ class Logger:
             if fig is not None:
                 plt.close(fig)
 
-    def log_metrics(self, metrics: dict, step: int, use_context: bool = True):
+    def log_metrics(self, metrics: dict, step: int = None, use_context: bool = True):
         if not self.do.online:
             return
         for key, _ in metrics.items():
