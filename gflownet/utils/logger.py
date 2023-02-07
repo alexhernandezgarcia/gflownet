@@ -126,6 +126,9 @@ class Logger:
 
     def set_forward_policy_ckpt_path(self, ckpt_id: str = None):
         if ckpt_id is None:
+            print(
+                "Note: Forward Policy Checkpoints will not be saved as gflownet.policy.forward.checkpoint is None"
+            )
             self.pf_ckpt_path = None
         else:
             self.pf_ckpt_path = self.ckpts_dir / f"{ckpt_id}_"

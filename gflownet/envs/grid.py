@@ -62,6 +62,7 @@ class Grid(GFlowNetEnv):
         # Set up oracle
         self.oracle.n_dim = self.n_dim
         self.oracle.setup()
+        # TODO: change to something more general. this would be invalid if num_fid>5
         self.invalid_action = self.n_dim + 5
         self.proxy_factor = 1.0
 
@@ -365,7 +366,11 @@ class Grid(GFlowNetEnv):
         plt.xticks(np.arange(self.length))
         plt.yticks(np.arange(self.length))
         states = np.array([state[:-1] for state in samples])
-        plt.hist2d(states[:, 0], states[:, 1], cmap=plt.cm.jet)
+        grid = np.zeros((self.length, self.length))
+        # TODO: optimize
+        for state in states:
+            grid[state[0], state[1]] += 1
+        plt.imshow(grid)
         plt.title("Frequency of Coordinates Sampled")
         plt.colorbar()
         plt.tight_layout()
