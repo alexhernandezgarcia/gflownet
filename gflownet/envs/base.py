@@ -675,7 +675,7 @@ class Buffer:
         Constructs a data set as a DataFrame according to the configuration.
         """
         if config is None:
-            return None
+            return None, None
         elif "path" in config and config.path is not None:
             path = self.logger.logdir / Path("data") / config.path
             df = pd.read_csv(path, index_col=0)

@@ -1,6 +1,7 @@
 """
 Classes to represent hyper-torus environments
 """
+from copy import deepcopy
 from typing import List, Tuple
 import itertools
 import numpy as np
@@ -70,6 +71,9 @@ class HybridTorus(GFlowNetEnv):
         self.statebatch2oracle = self.statebatch2proxy
         # Setup proxy
         self.proxy.set_n_dim(self.n_dim)
+
+    def copy(self):
+        return deepcopy(self)
 
     def get_actions_space(self):
         """
