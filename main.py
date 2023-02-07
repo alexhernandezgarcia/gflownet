@@ -9,7 +9,6 @@ import pandas as pd
 import yaml
 from omegaconf import OmegaConf, DictConfig
 from gflownet.utils.common import flatten_config
-from pathlib import Path
 
 
 @hydra.main(config_path="./config", config_name="main", version_base="1.1")
@@ -55,23 +54,18 @@ def main(config):
 
     # Sample from trained GFlowNet
     if config.n_samples > 0 and config.n_samples <= 1e5:
-        states, times = gflownet.sample_batch(env, config.n_samples, train=False)
-        samples = env.statebatch2oracle(states)
-        energies = env.oracle(samples)
-        gflownet.evaluate(samples, energies)
+        samples, times = gflownet.sample_batch(env, config.n_samples, train=False)
+        energies = env.oracle(env.statebatch2oracle(samples))
         df = pd.DataFrame(
             {
-                "readable": [env.state2readable(s) for s in states],
+                "readable": [env.state2readable(s) for s in samples],
                 "energies": energies.tolist(),
             }
         )
-        df = df.sort_values(by=["energies"])
-        path = logger.logdir / Path("gfn_samples.csv")
-        df.to_csv(path)
+        df.to_csv("gfn_samples.csv")
     print(gflownet.buffer.replay)
     gflownet.logger.end()
 
-    gflownet.logger.end()
 
 def set_seeds(seed):
     import torch
