@@ -12,8 +12,8 @@ from sklearn.ensemble import RandomForestRegressor
 
 
 class MoleculeEnergyProxy(Proxy):
-    def __init__(self, path_to_model=None):
-        super().__init__()
+    def __init__(self, path_to_model=None, **kwargs):
+        super().__init__(**kwargs)
         self.min = -np.log(105)
         if path_to_model is not None:
             with open(path_to_model, 'rb') as inp:
@@ -24,6 +24,11 @@ class MoleculeEnergyProxy(Proxy):
 
     def set_float_precision(self, dtype):
         self.float = dtype
+
+    def set_n_dim(self, n_dim):
+        # self.n_dim is never used in this env, 
+        # this is just to make molecule env work with htorus
+        self.n_dim = n_dim
 
     def __call__(self, states_proxy):
         # output of the model is exp(-energy) / 100

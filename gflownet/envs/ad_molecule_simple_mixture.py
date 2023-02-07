@@ -2,6 +2,7 @@ import numpy as np
 import numpy.typing as npt
 import torch
 
+from copy import deepcopy
 from typing import List, Tuple
 from torchtyping import TensorType
 
@@ -83,6 +84,10 @@ class ADMoleculeSimpleMixture(ContinuousTorusMixture):
         """
         self.conformer.set_atom_positions(atom_positions)
         self.sync_conformer_with_state()
+
+    def copy(self):
+        # return an instance of the environment
+        return deepcopy(self)
 
     def statetorch2proxy(
         self, states: TensorType["batch", "state_dim"]
