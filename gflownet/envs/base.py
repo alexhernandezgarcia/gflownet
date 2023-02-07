@@ -11,7 +11,6 @@ from torch.distributions import Categorical
 from torchtyping import TensorType
 import pickle
 from gflownet.utils.common import set_device, set_float_precision
-from pathlib import Path
 
 
 class GFlowNetEnv:
@@ -234,7 +233,7 @@ class GFlowNetEnv:
         """
         if self.reward_func == "power":
             return self.proxy_factor * torch.exp(
-                (torch.log(reward) + self.reward_beta * np.log(self.reward_norm))
+                (torch.log(reward) + self.reward_beta * torch.log(self.reward_norm))
                 / self.reward_beta
             )
         elif self.reward_func == "boltzmann":
@@ -681,7 +680,7 @@ class Buffer:
             path = self.logger.logdir / Path("data") / config.path
             df = pd.read_csv(path, index_col=0)
             # TODO: check if state2readable transformation is required.
-            return df, None
+            return df
         elif "type" not in config:
             return None, None
         elif config.type == "all" and hasattr(self.env, "get_all_terminating_states"):
