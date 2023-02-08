@@ -6,7 +6,11 @@ from gflownet.envs.crystals import Crystal
 
 @pytest.fixture
 def env():
-    return Crystal(elements=4, alphabet={0: "H", 1: "He", 2: "Li", 3: "Be"})
+    return Crystal(
+        elements=4,
+        alphabet={1: "H", 2: "He", 3: "Li", 4: "Be"},
+        oxidation_states={1: [-1, 0, 1], 2: [0], 3: [0, 1], 4: [0, 1, 2]},
+    )
 
 
 @pytest.mark.parametrize("elements", [2, 5, 10, 84])

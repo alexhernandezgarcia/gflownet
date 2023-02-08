@@ -209,7 +209,11 @@ class Crystal(GFlowNetEnv):
         """
         if state is None:
             state = self.state
-        readable = {self.alphabet[i]: s_i for i, s_i in enumerate(state) if s_i > 0}
+        readable = {
+            self.alphabet[self.idx2elem[i]]: s_i
+            for i, s_i in enumerate(state)
+            if s_i > 0
+        }
         return readable
 
     def readable2state(self, readable):
@@ -224,7 +228,7 @@ class Crystal(GFlowNetEnv):
         state = [0 for _ in self.elements]
         rev_alphabet = {v: k for k, v in self.alphabet.items()}
         for k, v in readable.items():
-            state[rev_alphabet[k]] = v
+            state[self.elem2idx[rev_alphabet[k]]] = v
         return state
 
     def reset(self, env_id=None):
@@ -271,7 +275,7 @@ class Crystal(GFlowNetEnv):
         else:
             parents = []
             actions = []
-            for idx, action in enumerate(self.action_space):
+            for idx, action in enumerate(self.action_space[:-1]):
                 element, n = action
                 if state[self.elem2idx[element]] == n > 0:
                     parent = state.copy()
@@ -338,7 +342,7 @@ class Crystal(GFlowNetEnv):
                 if any(poss_charge_sum):
                     self.done = True
                     valid = True
-                    self.action += 1
+                    self.n_actions += 1
                 else:
                     valid = False
             return self.state, self.eos, valid
