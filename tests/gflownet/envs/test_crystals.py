@@ -61,9 +61,8 @@ def test__readable2state(env):
 
 
 def test__reset(env):
-    env.step(0)
-    env.step(1)
-    env.step(0)
+    env.step((1, 1))
+    env.step((2, 1))
 
     assert env.state != [0] * len(env.elements)
 
@@ -102,7 +101,7 @@ def test__get_parents__returns_no_parents_in_initial_state(env):
 
 
 def test__get_parents__returns_parents_after_step(env):
-    env.step(0)
+    env.step((1, 4))
 
     parents, actions = env.get_parents()
 
@@ -110,10 +109,13 @@ def test__get_parents__returns_parents_after_step(env):
     assert len(actions) != 0
 
 
-@pytest.mark.parametrize("action_indices", [[], [0, 1, 0], [0], [6, 4, 2, 0]])
-def test__get_parents__returns_same_number_of_parents_and_actions(env, action_indices):
-    for action_idx in action_indices:
-        env.step(action_idx=action_idx)
+@pytest.mark.parametrize(
+    "actions",
+    [[], [(1, 2), (2, 3), (3, 4)], [(4, 2)], [(1, 3), (4, 2), (2, 3), (3, 2)]],
+)
+def test__get_parents__returns_same_number_of_parents_and_actions(env, actions):
+    for action in actions:
+        env.step(action=action)
 
     parents, actions = env.get_parents()
 

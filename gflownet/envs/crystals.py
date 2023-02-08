@@ -204,7 +204,7 @@ class Crystal(GFlowNetEnv):
 
         Example:
             state: [2, 0, 1, 0]
-            self.alphabet: {0: "H", 1: "He", 2: "Li", 3: "Be"}
+            self.alphabet: {1: "H", 2: "He", 3: "Li", 4: "Be"}
             output: {"H": 2, "Li": 1}
         """
         if state is None:
@@ -222,7 +222,7 @@ class Crystal(GFlowNetEnv):
 
         Example:
             readable: {"H": 2, "Li": 1} OR {"H": 2, "Li": 1, "He": 0, "Be": 0}
-            self.alphabet: {0: "H", 1: "He", 2: "Li", 3: "Be"}
+            self.alphabet: {1: "H", 2: "He", 3: "Li", 4: "Be"}
             output: [2, 0, 1, 0]
         """
         state = [0 for _ in self.elements]
@@ -284,49 +284,51 @@ class Crystal(GFlowNetEnv):
                     actions.append(idx)
         return parents, actions
 
-    def step(self, action_idx):
+    def step(self, action: Tuple[int, int]) -> Tuple[List[int], Tuple[int, int], bool]:
         """
-        Executes step given an action index
-        If action_idx is smaller than eos (no stop), add action to next
-        position.
-        See: step_daug()
-        See: step_chain()
+        Executes step given an action.
+
         Args
         ----
-        action_idx : int
-            Index of action in the action space. a == eos indicates "stop action"
+        action : tuple
+            Action to be executed. See: get_actions_space()
+
         Returns
         -------
         self.state : list
             The sequence after executing the action
+
+        action : tuple
+            Action executed
+
         valid : bool
-            False, if the action is not allowed for the current state, e.g. stop at the
-            root state
+            False, if the action is not allowed for the current state.
         """
         # If only possible action is eos, then force eos
         if sum(self.state) == self.max_atoms:
             self.done = True
             self.n_actions += 1
-            return self.state, [self.eos], True
+            return self.state, (self.eos, 0), True
         # If action is not eos, then perform action
-        if action_idx != self.eos:
-            atomic_number, num = self.action_space[action_idx]
+        if action[0] != self.eos:
+            atomic_number, num = action
+            idx = self.elem2idx[atomic_number]
             state_next = self.state[:]
-            state_next[atomic_number] = num
+            state_next[idx] = num
             if sum(state_next) > self.max_atoms:
                 valid = False
             else:
                 self.state = state_next
                 valid = True
                 self.n_actions += 1
-            return self.state, action_idx, valid
+            return self.state, action, valid
         # If action is eos, then perform eos
         else:
             if sum(self.state) < self.min_atoms:
                 valid = False
             else:
                 nums_charges = [
-                    (num, self.oxidation_states[i])
+                    (num, self.oxidation_states[self.idx2elem[i]])
                     for i, num in enumerate(self.state)
                     if num > 0
                 ]
@@ -345,4 +347,4 @@ class Crystal(GFlowNetEnv):
                     self.n_actions += 1
                 else:
                     valid = False
-            return self.state, self.eos, valid
+            return self.state, (self.eos, 0), valid
