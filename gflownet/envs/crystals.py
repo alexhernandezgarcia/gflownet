@@ -15,6 +15,9 @@ class Crystal(GFlowNetEnv):
 
     Attributes
     ----------
+    oxidation_states : dict
+        Mapping from ints (representing elements) to lists of different oxidation states
+
     max_diff_elem : int
         Maximum number of unique elements in the crystal
 
@@ -23,12 +26,6 @@ class Crystal(GFlowNetEnv):
 
     periodic_table : int
         Total number of unique elements that can be used for building the crystal
-
-    oxidation_states : (optional) dict
-        Mapping from ints (representing elements) to lists of different oxidation states
-
-    alphabet : dict
-        Mapping from ints (representing elements) to strings containing human-readable elements' names
 
     min_atoms : int
         Minimum number of atoms that needs to be used to construct a crystal
@@ -41,19 +38,22 @@ class Crystal(GFlowNetEnv):
 
     max_atom_i : int
         Maximum number of elements of each kind that can be used to construct a crystal
+
+    alphabet : (optional) dict
+        Mapping from ints (representing elements) to strings containing human-readable elements' names
     """
 
     def __init__(
         self,
+        oxidation_states: dict,
         max_diff_elem: int = 4,
         min_diff_elem: int = 2,
         periodic_table: int = 84,
-        oxidation_states: Optional[dict] = None,
-        alphabet: Optional[dict] = None,
         min_atoms: int = 2,
         max_atoms: int = 20,
         min_atom_i: int = 1,
         max_atom_i: int = 10,
+        alphabet: Optional[dict] = None,
         env_id=None,
         reward_beta=1,
         reward_norm=1.0,
@@ -332,14 +332,20 @@ class Crystal(GFlowNetEnv):
             if sum(self.state) < self.min_atoms:
                 valid = False
             else:
-                nums_charges = [(num, self.oxidation_states[i]) for i, num in enumerate(self.state) if num > 0]
+                nums_charges = [
+                    (num, self.oxidation_states[i])
+                    for i, num in enumerate(self.state)
+                    if num > 0
+                ]
                 sum_diff_elem = []
                 for n, c in nums_charges:
                     charge_sums = []
                     for c_i in itertools.product(c, repeat=n):
                         charge_sums.append(sum(c_i))
                     sum_diff_elem.append(np.unique(charge_sums))
-                poss_charge_sum = [sum(combo) == 0 for combo in itertools.product(*sum_diff_elem)]
+                poss_charge_sum = [
+                    sum(combo) == 0 for combo in itertools.product(*sum_diff_elem)
+                ]
                 if any(poss_charge_sum):
                     self.done = True
                     valid = True
