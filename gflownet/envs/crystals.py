@@ -92,6 +92,7 @@ class Crystal(GFlowNetEnv):
         self.action_space = self.get_actions_space()
         self.eos = len(self.action_space)
 
+    # TODO: include eos action
     def get_actions_space(self):
         """
         Constructs list with all possible actions. An action is described by a
@@ -317,6 +318,7 @@ class Crystal(GFlowNetEnv):
             return self.state, [self.eos], True
         # If action is not eos, then perform action
         if action_idx != self.eos:
+            # TODO: update naming (action[0] is index, not atomic number)
             atomic_number, num = self.action_space[action_idx]
             state_next = self.state[:]
             state_next[atomic_number] = num
