@@ -11,6 +11,7 @@ from gflownet.envs.base import GFlowNetEnv
 import matplotlib.pyplot as plt
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
+
 class Grid(GFlowNetEnv):
     """
     Hyper-grid environment
@@ -356,7 +357,7 @@ class Grid(GFlowNetEnv):
         # To Discuss: can we return a tensor?
         return states.tolist()
 
-    def plot_samples_frequency(self, samples, ax=None, title = None):
+    def plot_samples_frequency(self, samples, ax=None, title=None):
         """
         Plot 2D histogram of samples.
         """
