@@ -2,7 +2,7 @@
 Classes to represent crystal environments
 """
 import itertools
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import torch
@@ -27,7 +27,7 @@ class Crystal(GFlowNetEnv):
         max_atom_i: int = 10,
         oxidation_states: Optional[Dict] = None,
         alphabet: Optional[Dict] = None,
-        required_elements: Optional[List] = None,
+        required_elements: Optional[Union[Tuple, List]] = (3,),
         env_id=None,
         reward_beta=1,
         reward_norm=1.0,
