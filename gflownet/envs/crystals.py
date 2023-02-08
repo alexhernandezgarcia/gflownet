@@ -132,7 +132,7 @@ class Crystal(GFlowNetEnv):
         return actions
 
     def get_max_traj_len(self):
-        return self.max_atoms / self.min_atom_i  # TODO: fix
+        return min(len(self.state), self.max_atoms // self.min_atom_i)
 
     def get_mask_invalid_actions(self, state=None, done=None):
         """
