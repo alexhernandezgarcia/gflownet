@@ -54,3 +54,4 @@ oracle:
     # Number of samples for oracle metrics
     n: 500
 sample_only: False
+active_learning: False
