@@ -102,7 +102,7 @@ class Crystal(GFlowNetEnv):
         assert self.max_atom_i > self.min_atom_i
         valid_word_len = np.arange(self.min_atom_i, self.max_atom_i + 1)
         elements = np.arange(self.periodic_table)
-        actions = sum([[(elem, r) for r in valid_word_len] for elem in elements], [])
+        actions = [(elem, r) for r in valid_word_len for elem in elements]
         return actions
 
     def get_max_traj_len(self):
@@ -113,23 +113,28 @@ class Crystal(GFlowNetEnv):
         Returns a vector of length the action space + 1: True if forward action is
         invalid given the current state, False otherwise.
         """
-        state_elem = [e for i, e in enumerate(state) if i > 0]
-        state_atoms = sum(state)
         if state is None:
             state = self.state.copy()
         if done is None:
             done = self.done
+        state_elem = [i for i, e in enumerate(state) if e > 0]
+        state_atoms = sum(state)
         if done:
             return [True for _ in range(len(self.action_space) + 1)]
         mask = [False for _ in range(len(self.action_space) + 1)]
         if state_atoms < self.min_atoms:
             mask[self.eos] = True
+        if len(state_elem) < self.min_diff_elem:
+            mask[self.eos] = True
+
         for idx, a in enumerate(self.action_space):
-            if state_atoms + action[1] > self.max_atoms:
+            if state_atoms + a[1] > self.max_atoms:
                 mask[idx] = True
             else:
-                new_elem = action[0] in state_elem
-                if new_elem and len(state_elem) >= self.max_diff_elems:
+                new_elem = a[0] not in state_elem
+                if not new_elem:
+                    mask[idx] = True
+                if new_elem and len(state_elem) >= self.max_diff_elem:
                     mask[idx] = True
         return mask
 
@@ -306,7 +311,7 @@ class Crystal(GFlowNetEnv):
             root state
         """
         # If only possible action is eos, then force eos
-        if len(self.state) == self.max_atoms:
+        if sum(self.state) == self.max_atoms:
             self.done = True
             self.n_actions += 1
             return self.state, [self.eos], True
@@ -314,8 +319,8 @@ class Crystal(GFlowNetEnv):
         if action_idx != self.eos:
             atomic_number, num = self.action_space[action_idx]
             state_next = self.state[:]
-            state_next = state_next[atomic_number] + [num]
-            if len(state_next) > self.max_atoms:
+            state_next[atomic_number] = num
+            if sum(state_next) > self.max_atoms:
                 valid = False
             else:
                 self.state = state_next
@@ -324,10 +329,21 @@ class Crystal(GFlowNetEnv):
             return self.state, action_idx, valid
         # If action is eos, then perform eos
         else:
-            if len(self.state) < self.min_atoms:
+            if sum(self.state) < self.min_atoms:
                 valid = False
             else:
-                self.done = True
-                valid = True
-                self.n_actions += 1
+                nums_charges = [(num, self.oxidation_states[i]) for i, num in enumerate(self.state) if num > 0]
+                sum_diff_elem = []
+                for n, c in nums_charges:
+                    charge_sums = []
+                    for c_i in itertools.product(c, repeat=n):
+                        charge_sums.append(sum(c_i))
+                    sum_diff_elem.append(np.unique(charge_sums))
+                poss_charge_sum = [sum(combo) == 0 for combo in itertools.product(*sum_diff_elem)]
+                if any(poss_charge_sum):
+                    self.done = True
+                    valid = True
+                    self.action += 1
+                else:
+                    valid = False
             return self.state, self.eos, valid
