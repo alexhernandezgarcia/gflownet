@@ -59,10 +59,13 @@ class GFlowNetEnv:
             self.oracle = self.proxy
         else:
             self.oracle = oracle
-        if self.oracle.higher_is_better:
-            self.proxy_factor = 1.0
-        else:
-            self.proxy_factor = -1.0
+            # higher_is_better is dependant on proxy
+            # but proxy is set after env is iniatiliased
+            # TODO: need to think about how to do iniatilise higherIsBetter
+            if self.oracle.higher_is_better:
+                self.proxy_factor = 1.0
+            else:
+                self.proxy_factor = -1.0
         self.proxy_state_format = proxy_state_format
         self._true_density = None
         self._z = None

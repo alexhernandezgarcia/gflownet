@@ -9,7 +9,7 @@ import torch
 from torchtyping import TensorType
 from gflownet.envs.base import GFlowNetEnv
 import matplotlib.pyplot as plt
-
+from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 class Grid(GFlowNetEnv):
     """
@@ -356,23 +356,34 @@ class Grid(GFlowNetEnv):
         # To Discuss: can we return a tensor?
         return states.tolist()
 
-    def plot_samples_frequency(self, samples):
+    def plot_samples_frequency(self, samples, ax=None, title = None):
         """
         Plot 2D histogram of samples.
         """
         # TDO: extend to n_dim > 2
-        fig = plt.figure()
+        if ax is None:
+            fig, ax = plt.subplot(111)
+            standalone = True
+        else:
+            standalone = False
         # make a list of integers from 0 to n_dim
-        plt.xticks(np.arange(self.length))
-        plt.yticks(np.arange(self.length))
-        states = np.array([state[:-1] for state in samples])
+        ax.set_xticks(np.arange(self.length))
+        ax.set_yticks(np.arange(self.length))
+        states = np.array(samples).astype(int)
         grid = np.zeros((self.length, self.length))
+        if title == None:
+            ax.set_title("Frequency of Coordinates Sampled")
+        else:
+            ax.set_title(title)
         # TODO: optimize
         for state in states:
             grid[state[0], state[1]] += 1
-        plt.imshow(grid)
-        plt.title("Frequency of Coordinates Sampled")
-        plt.colorbar()
-        plt.tight_layout()
-        plt.close()
-        return fig
+        im = ax.imshow(grid)
+        divider = make_axes_locatable(ax)
+        cax = divider.append_axes("right", size="5%", pad=0.05)
+        plt.colorbar(im, cax=cax)
+        plt.show()
+        if standalone == True:
+            plt.tight_layout()
+            plt.close()
+        return ax
