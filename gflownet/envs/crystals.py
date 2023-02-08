@@ -44,7 +44,7 @@ class Crystal(GFlowNetEnv):
         ----------
         elements : list or int
             Elements that will be used for construction of crystal. Either list, in which case every value should
-            indicate the periodic number of an element, or int, in which case n consecutive periodic numbers will
+            indicate the atomic number of an element, or int, in which case n consecutive atomic numbers will
             be used.
 
         max_diff_elem : int
@@ -244,7 +244,7 @@ class Crystal(GFlowNetEnv):
         Args
         ----
         state : list
-            Representation of a state as a list of length self.periodic_table,
+            Representation of a state as a list of length equal to that of self.elements,
             where i-th value contains the count of atoms for i-th element, from 0 to
             self.max_atoms_i.
 
