@@ -336,12 +336,10 @@ class Crystal(GFlowNetEnv):
                 nums_charges = [(num, self.oxidation_states[i]) for i, num in enumerate(self.state) if num > 0]
                 sum_diff_elem = []
                 for n, c in nums_charges:
-                    charges = []
-                    for c in itertools.product(c, repeat=n):
-                        sc = sorted(c)
-                        if sc not in charges:
-                            charges.append(sc)
-                    sum_diff_elem.append([sum(ci) for ci in charges])
+                    charge_sums = []
+                    for c_i in itertools.product(c, repeat=n):
+                        charge_sums.append(sum(c_i))
+                    sum_diff_elem.append(np.unique(charge_sums))
                 poss_charge_sum = [sum(combo) == 0 for combo in itertools.product(*sum_diff_elem)]
                 if any(poss_charge_sum):
                     self.done = True
