@@ -6,14 +6,14 @@ from gflownet.envs.crystals import Crystal
 
 @pytest.fixture
 def env():
-    return Crystal(periodic_table=4, alphabet={0: "H", 1: "He", 2: "Li", 3: "Be"})
+    return Crystal(elements=4, alphabet={0: "H", 1: "He", 2: "Li", 3: "Be"})
 
 
-@pytest.mark.parametrize("periodic_table", [2, 5, 10, 84])
-def test__environment__initializes_properly(periodic_table):
-    env = Crystal(periodic_table=periodic_table)
+@pytest.mark.parametrize("elements", [2, 5, 10, 84])
+def test__environment__initializes_properly(elements):
+    env = Crystal(elements=elements)
 
-    assert env.state == [0] * periodic_table
+    assert env.state == [0] * elements
 
 
 @pytest.mark.parametrize(
@@ -61,15 +61,15 @@ def test__reset(env):
     env.step(1)
     env.step(0)
 
-    assert env.state != [0] * env.periodic_table
+    assert env.state != [0] * len(env.elements)
 
     env.reset()
 
-    assert env.state == [0] * env.periodic_table
+    assert env.state == [0] * len(env.elements)
 
 
 @pytest.mark.parametrize(
-    "periodic_table, min_atom_i, max_atom_i",
+    "elements, min_atom_i, max_atom_i",
     [
         (4, 1, 5),
         (10, 1, 20),
@@ -80,13 +80,13 @@ def test__reset(env):
     ],
 )
 def test__get_actions_space__returns_correct_number_of_actions(
-    periodic_table, min_atom_i, max_atom_i
+    elements, min_atom_i, max_atom_i
 ):
     environment = Crystal(
-        periodic_table=periodic_table, min_atom_i=min_atom_i, max_atom_i=max_atom_i
+        elements=elements, min_atom_i=min_atom_i, max_atom_i=max_atom_i
     )
 
-    assert len(environment.get_actions_space()) == periodic_table * (
+    assert len(environment.get_actions_space()) == elements * (
         max_atom_i - min_atom_i + 1
     )
 
@@ -123,22 +123,22 @@ def test__get_parents__returns_same_number_of_parents_and_actions(env, action_in
         (
             [0, 0, 2, 0],
             [[0, 0, 0, 0]],
-            [(2, 2)],
+            [(3, 2)],
         ),
         (
             [3, 0, 0, 0],
             [[0, 0, 0, 0]],
-            [(0, 3)],
+            [(1, 3)],
         ),
         (
             [0, 1, 0, 1],
             [[0, 1, 0, 0], [0, 0, 0, 1]],
-            [(1, 1), (3, 1)],
+            [(2, 1), (4, 1)],
         ),
         (
             [1, 2, 3, 4],
             [[0, 2, 3, 4], [1, 0, 3, 4], [1, 2, 0, 4], [1, 2, 3, 0]],
-            [(0, 1), (1, 2), (2, 3), (3, 4)],
+            [(1, 1), (2, 2), (3, 3), (4, 4)],
         ),
     ],
 )

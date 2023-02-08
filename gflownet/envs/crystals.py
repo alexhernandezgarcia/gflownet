@@ -2,7 +2,7 @@
 Classes to represent crystal environments
 """
 import itertools
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Union
 
 import numpy as np
 import torch
@@ -14,45 +14,13 @@ from gflownet.envs.base import GFlowNetEnv
 class Crystal(GFlowNetEnv):
     """
     Crystal environment for ionic conductivity
-
-    Attributes
-    ----------
-    max_diff_elem : int
-        Maximum number of unique elements in the crystal
-
-    min_diff_elem : int
-        Minimum number of unique elements in the crystal
-
-    periodic_table : int
-        Total number of unique elements that can be used for building the crystal
-
-    min_atoms : int
-        Minimum number of atoms that needs to be used to construct a crystal
-
-    max_atoms : int
-        Maximum number of atoms that can be used to construct a crystal
-
-    min_atom_i : int
-        Minimum number of elements of each used kind that needs to be used to construct a crystal
-
-    max_atom_i : int
-        Maximum number of elements of each kind that can be used to construct a crystal
-
-    oxidation_states : (optional) dict
-        Mapping from ints (representing elements) to lists of different oxidation states
-
-    alphabet : (optional) dict
-        Mapping from ints (representing elements) to strings containing human-readable elements' names
-
-    required_elements : (optional) list
-        List of elements that must be present in a crystal for it to represent a valid end state
     """
 
     def __init__(
         self,
+        elements: Union[List, int] = 84,
         max_diff_elem: int = 4,
         min_diff_elem: int = 2,
-        periodic_table: int = 84,
         min_atoms: int = 2,
         max_atoms: int = 20,
         min_atom_i: int = 1,
@@ -71,6 +39,41 @@ class Crystal(GFlowNetEnv):
         oracle=None,
         **kwargs,
     ):
+        """
+        Attributes
+        ----------
+        elements : list or int
+            Elements that will be used for construction of crystal. Either list, in which case every value should
+            indicate the periodic number of an element, or int, in which case n consecutive periodic numbers will
+            be used.
+
+        max_diff_elem : int
+            Maximum number of unique elements in the crystal
+
+        min_diff_elem : int
+            Minimum number of unique elements in the crystal
+
+        min_atoms : int
+            Minimum number of atoms that needs to be used to construct a crystal
+
+        max_atoms : int
+            Maximum number of atoms that can be used to construct a crystal
+
+        min_atom_i : int
+            Minimum number of elements of each used kind that needs to be used to construct a crystal
+
+        max_atom_i : int
+            Maximum number of elements of each kind that can be used to construct a crystal
+
+        oxidation_states : (optional) dict
+            Mapping from ints (representing elements) to lists of different oxidation states
+
+        alphabet : (optional) dict
+            Mapping from ints (representing elements) to strings containing human-readable elements' names
+
+        required_elements : (optional) list
+            List of elements that must be present in a crystal for it to represent a valid end state
+        """
         super(Crystal, self).__init__(
             env_id,
             reward_beta,
@@ -83,11 +86,22 @@ class Crystal(GFlowNetEnv):
             oracle,
             **kwargs,
         )
+        if isinstance(elements, int):
+            elements = [i + 1 for i in range(elements)]
 
-        self.state = [0 for _ in range(periodic_table)]  # atom counts for each element
+        if len(elements) != len(set(elements)):
+            raise ValueError(
+                f"Provided elements must be unique, detected {len(elements) - len(set(elements))} duplicates."
+            )
+
+        if any(e <= 0 for e in elements):
+            raise ValueError(
+                "Provided elements should be non-negative (assumed indexing from 1 for H)."
+            )
+
+        self.elements = sorted(elements)
         self.max_diff_elem = max_diff_elem
         self.min_diff_elem = min_diff_elem
-        self.periodic_table = periodic_table
         self.min_atoms = min_atoms
         self.max_atoms = max_atoms
         self.min_atom_i = min_atom_i
@@ -97,21 +111,24 @@ class Crystal(GFlowNetEnv):
         self.required_elements = (
             required_elements if required_elements is not None else []
         )
-        self.obs_dim = self.periodic_table
+
+        self.state = [0 for _ in self.elements]  # atom counts for each element
+        self.elem2idx = {e: i for i, e in enumerate(self.elements)}
+        self.idx2elem = {i: e for i, e in enumerate(self.elements)}
+        self.obs_dim = len(self.elements)
         self.action_space = self.get_actions_space()
         self.eos = len(self.action_space)
 
     def get_actions_space(self):
         """
         Constructs list with all possible actions. An action is described by a
-        tuple (`elem`, `r`), indicating that the count of element `elem` will be
-        set to `r`.
+        tuple (element, n), indicating that the count of element will be
+        set to n.
         """
         assert self.max_diff_elem > self.min_diff_elem
         assert self.max_atom_i > self.min_atom_i
         valid_word_len = np.arange(self.min_atom_i, self.max_atom_i + 1)
-        elements = np.arange(self.periodic_table)
-        actions = [(elem, r) for r in valid_word_len for elem in elements]
+        actions = [(element, n) for n in valid_word_len for element in self.elements]
         return actions
 
     def get_max_traj_len(self):
@@ -169,14 +186,16 @@ class Crystal(GFlowNetEnv):
         if state is None:
             state = self.state
 
-        # TODO: don't assume that all consecutive elements will be present
-        if len(state) < 3:
+        li_idx = self.elem2idx.get(3)
+
+        if li_idx is None:
             raise ValueError(
-                "state2oracle needs to return the number of Li atoms, but Li count not present in the state."
+                "state2oracle needs to return the number of Li atoms, but Li not present in allowed elements."
             )
 
-        # state[2] == Li atom count, assuming consecutive elements
-        return torch.Tensor([state[2], sum(state)] + [x / sum(state) for x in state])
+        return torch.Tensor(
+            [state[li_idx], sum(state)] + [x / sum(state) for x in state]
+        )
 
     def state2readable(self, state=None):
         """
@@ -185,8 +204,8 @@ class Crystal(GFlowNetEnv):
 
         Example:
             state: [2, 0, 1, 0]
-            self.alphabet: {0: "Li", 1: "O", 2: "C", 3: "S"}
-            output: {"Li": 2, "C": 1}
+            self.alphabet: {0: "H", 1: "He", 2: "Li", 3: "Be"}
+            output: {"H": 2, "Li": 1}
         """
         if state is None:
             state = self.state
@@ -198,11 +217,11 @@ class Crystal(GFlowNetEnv):
         Converts a human-readable representation of a state into the standard format.
 
         Example:
-            readable: {"Li": 2, "C": 1} OR {"Li": 2, "C": 1, "O": 0, "S": 0}
-            self.alphabet: {0: "Li", 1: "O", 2: "C", 3: "S"}
+            readable: {"H": 2, "Li": 1} OR {"H": 2, "Li": 1, "He": 0, "Be": 0}
+            self.alphabet: {0: "H", 1: "He", 2: "Li", 3: "Be"}
             output: [2, 0, 1, 0]
         """
-        state = [0 for _ in range(self.periodic_table)]
+        state = [0 for _ in self.elements]
         rev_alphabet = {v: k for k, v in self.alphabet.items()}
         for k, v in readable.items():
             state[rev_alphabet[k]] = v
@@ -212,7 +231,7 @@ class Crystal(GFlowNetEnv):
         """
         Resets the environment.
         """
-        self.state = [0 for _ in range(self.periodic_table)]
+        self.state = [0 for _ in self.elements]
         self.n_actions = 0
         self.done = False
         self.id = env_id
@@ -252,10 +271,11 @@ class Crystal(GFlowNetEnv):
         else:
             parents = []
             actions = []
-            for idx, a in enumerate(self.action_space):
-                if state[a[0]] == a[1] > 0:
+            for idx, action in enumerate(self.action_space):
+                element, n = action
+                if state[self.elem2idx[element]] == n > 0:
                     parent = state.copy()
-                    parent[a[0]] -= a[1]
+                    parent[self.elem2idx[element]] -= n
                     parents.append(parent)
                     actions.append(idx)
         return parents, actions
