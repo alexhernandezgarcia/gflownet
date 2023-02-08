@@ -1,11 +1,12 @@
 import pytest
+import torch
 
 from gflownet.envs.crystals import Crystal
 
 
 @pytest.fixture
 def env():
-    return Crystal(periodic_table=4, alphabet={0: "Li", 1: "O", 2: "C", 3: "S"})
+    return Crystal(periodic_table=4, alphabet={0: "H", 1: "He", 2: "Li", 3: "Be"})
 
 
 @pytest.mark.parametrize("periodic_table", [2, 5, 10, 84])
@@ -15,9 +16,30 @@ def test__environment__initializes_properly(periodic_table):
     assert env.state == [0] * periodic_table
 
 
+@pytest.mark.parametrize(
+    "state, exp_tensor",
+    [
+        (
+            [0, 0, 2, 0],
+            [2, 2, 0, 0, 1, 0],
+        ),
+        (
+            [3, 0, 0, 0],
+            [0, 3, 1, 0, 0, 0],
+        ),
+        (
+            [0, 1, 0, 1],
+            [0, 2, 0, 0.5, 0, 0.5],
+        ),
+    ],
+)
+def test__state2oracle__returns_expected_tensor(env, state, exp_tensor):
+    assert torch.equal(env.state2oracle(state), torch.Tensor(exp_tensor))
+
+
 def test__state2readable(env):
     state = [2, 0, 1, 0]
-    readable = {"Li": 2, "C": 1}
+    readable = {"H": 2, "Li": 1}
 
     env.state = state
 
@@ -27,8 +49,8 @@ def test__state2readable(env):
 
 def test__readable2state(env):
     state = [2, 0, 1, 0]
-    short_readable = {"Li": 2, "C": 1}
-    long_readable = {"Li": 2, "C": 1, "O": 0, "S": 0}
+    short_readable = {"H": 2, "Li": 1}
+    long_readable = {"H": 2, "He": 0, "Li": 1, "Be": 0}
 
     assert env.readable2state(readable=short_readable) == state
     assert env.readable2state(readable=long_readable) == state

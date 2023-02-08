@@ -5,6 +5,8 @@ import itertools
 from typing import Dict, List, Optional
 
 import numpy as np
+import torch
+from torch import Tensor
 
 from gflownet.envs.base import GFlowNetEnv
 
@@ -150,23 +152,31 @@ class Crystal(GFlowNetEnv):
                     mask[idx] = True
         return mask
 
-    def state2oracle(self, state_list):
+    def state2oracle(self, state: List = None) -> Tensor:
         """
-        Prepares a list of states in "GFlowNet format" for the oracles: a list of length
-        n_dim with values in the range [cell_min, cell_max] for each state.
+        Prepares a list of states in "GFlowNet format" for the oracle
 
         Args
         ----
-        state_list : list of lists
-            List of states.
+        state : list
+            A state
+
+        Returns
+        ----
+        oracle_state : Tensor
+            Tensor containing # of Li atoms, total # of atoms, and fractions of individual elements
         """
-        return [
-            (
-                self.state2obs(state).reshape((self.n_dim, self.length))
-                * self.cells[None, :]
-            ).sum(axis=1)
-            for state in state_list
-        ]
+        if state is None:
+            state = self.state
+
+        # TODO: don't assume that all consecutive elements will be present
+        if len(state) < 3:
+            raise ValueError(
+                "state2oracle needs to return the number of Li atoms, but Li count not present in the state."
+            )
+
+        # state[2] == Li atom count, assuming consecutive elements
+        return torch.Tensor([state[2], sum(state)] + [x / sum(state) for x in state])
 
     def state2obs(self, state=None):
         """
