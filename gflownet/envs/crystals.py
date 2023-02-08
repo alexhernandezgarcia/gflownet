@@ -15,9 +15,6 @@ class Crystal(GFlowNetEnv):
 
     Attributes
     ----------
-    oxidation_states : dict
-        Mapping from ints (representing elements) to lists of different oxidation states
-
     max_diff_elem : int
         Maximum number of unique elements in the crystal
 
@@ -39,13 +36,15 @@ class Crystal(GFlowNetEnv):
     max_atom_i : int
         Maximum number of elements of each kind that can be used to construct a crystal
 
+    oxidation_states : (optional) dict
+        Mapping from ints (representing elements) to lists of different oxidation states
+
     alphabet : (optional) dict
         Mapping from ints (representing elements) to strings containing human-readable elements' names
     """
 
     def __init__(
         self,
-        oxidation_states: dict,
         max_diff_elem: int = 4,
         min_diff_elem: int = 2,
         periodic_table: int = 84,
@@ -53,6 +52,7 @@ class Crystal(GFlowNetEnv):
         max_atoms: int = 20,
         min_atom_i: int = 1,
         max_atom_i: int = 10,
+        oxidation_states: Optional[dict] = None,
         alphabet: Optional[dict] = None,
         env_id=None,
         reward_beta=1,
