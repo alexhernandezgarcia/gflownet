@@ -9,6 +9,7 @@ train:
   period: 1
 # Test metrics
 test:
+  first_it: True
   period: 100
   n: 100
   kde:
@@ -30,5 +31,6 @@ logdir:
   root: ./logs
   ckpts: ckpts
   overwrite: True
+debug: False 
 lightweight: False 
-progress: True
+progress: True 
