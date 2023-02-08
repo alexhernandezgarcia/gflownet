@@ -1,5 +1,5 @@
 """
-Classes to represent a hyper-grid environments
+Classes to represent crystal environments
 """
 import itertools
 from typing import List, Optional
@@ -77,8 +77,8 @@ class Crystal(GFlowNetEnv):
             oracle,
             **kwargs,
         )
-        # self.state = []
-        self.state = [0 for _ in range(periodic_table)]
+
+        self.state = [0 for _ in range(periodic_table)]  # atom counts for each element
         self.max_diff_elem = max_diff_elem
         self.min_diff_elem = min_diff_elem
         self.periodic_table = periodic_table
@@ -94,7 +94,9 @@ class Crystal(GFlowNetEnv):
 
     def get_actions_space(self):
         """
-        Constructs list with all possible actions
+        Constructs list with all possible actions. An action is described by a
+        tuple (`elem`, `r`), indicating that the count of element `elem` will be
+        set to `r`.
         """
         assert self.max_diff_elem > self.min_diff_elem
         assert self.max_atom_i > self.min_atom_i
@@ -135,26 +137,6 @@ class Crystal(GFlowNetEnv):
                 if new_elem and len(state_elem) >= self.max_diff_elem:
                     mask[idx] = True
         return mask
-
-    def true_density(self):
-        # Return pre-computed true density if already stored
-        if self._true_density is not None:
-            return self._true_density
-        # Calculate true density
-        all_states = np.int32(
-            list(itertools.product(*[list(range(self.length))] * self.n_dim))
-        )
-        state_mask = np.array(
-            [len(self.get_parents(s, False)[0]) > 0 or sum(s) == 0 for s in all_states]
-        )
-        all_oracle = self.state2oracle(all_states)
-        rewards = self.oracle(all_oracle)[state_mask]
-        self._true_density = (
-            rewards / rewards.sum(),
-            rewards,
-            list(map(tuple, all_states[state_mask])),
-        )
-        return self._true_density
 
     def state2oracle(self, state_list):
         """
@@ -219,24 +201,35 @@ class Crystal(GFlowNetEnv):
             state += [e for _ in range(i)]
         return state
 
-    def state2readable(self, state):
+    def state2readable(self, state=None):
         """
-        Transforms a sequence given as a list of indices into a sequence of letters
-        according to an alphabet.
-        """
-        values, counts = zip(*[(z, n) for z, n in enumerate(state) if n > 0])
-        values = [self.alphabet[v] for v in values]
-        formula = {v: c for v, c in zip(values, counts)}
-        # return ''.join(formula)
-        return formula
+        Transforms the state, represented as a list of elements' counts, into a
+        human-readable dict mapping elements' names to their corresponding counts.
 
-    def readable2state(self, letters):
+        Example:
+            state: [2, 0, 1, 0]
+            self.alphabet: {0: "Li", 1: "O", 2: "C", 3: "S"}
+            output: {"Li": 2, "C": 1}
         """
-        Transforms a sequence given as a list of indices into a sequence of letters
-        according to an alphabet.
+        if state is None:
+            state = self.state
+        readable = {self.alphabet[i]: s_i for i, s_i in enumerate(state) if s_i > 0}
+        return readable
+
+    def readable2state(self, readable):
         """
-        alphabet = {v: k for k, v in self.alphabet.items()}
-        return [alphabet[el] for el in letters]
+        Converts a human-readable representation of a state into the standard format.
+
+        Example:
+            readable: {"Li": 2, "C": 1} OR {"Li": 2, "C": 1, "O": 0, "S": 0}
+            self.alphabet: {0: "Li", 1: "O", 2: "C", 3: "S"}
+            output: [2, 0, 1, 0]
+        """
+        state = [0 for _ in range(self.periodic_table)]
+        rev_alphabet = {v: k for k, v in self.alphabet.items()}
+        for k, v in readable.items():
+            state[rev_alphabet[k]] = v
+        return state
 
     def reset(self, env_id=None):
         """
@@ -250,19 +243,26 @@ class Crystal(GFlowNetEnv):
 
     def get_parents(self, state=None, done=None, actions=None):
         """
-        Determines all parents and actions that lead to sequence state
+        Determines all parents and actions that lead to a state.
+
         Args
         ----
         state : list
-            Representation of a sequence (state), as a list of length max_seq_length
-            where each element is the index of a letter in the alphabet, from 0 to
-            (nalphabet - 1).
-        action : int
-            Last action performed, only to determine if it was eos.
+            Representation of a state as a list of length self.periodic_table,
+            where i-th value contains the count of atoms for i-th element, from 0 to
+            self.max_atoms_i.
+
+        done : bool
+            Whether the trajectory is done. If None, done is taken from instance.
+
+        actions : None
+            Ignored
+
         Returns
         -------
         parents : list
-            List of parents as state2obs(state)
+            List of parents in state format
+
         actions : list
             List of actions that lead to state for each parent in parents
         """
@@ -271,16 +271,15 @@ class Crystal(GFlowNetEnv):
         if done is None:
             done = self.done
         if done:
-            return [self.state2obs(state)], [self.eos]
+            return [state], [self.eos]
         else:
             parents = []
             actions = []
             for idx, a in enumerate(self.action_space):
-                is_parent = state[-len(a) :] == list(a)
-                if not isinstance(is_parent, bool):
-                    is_parent = all(is_parent)
-                if is_parent:
-                    parents.append(self.state2obs(state[: -len(a)]))
+                if state[a[0]] == a[1] > 0:
+                    parent = state.copy()
+                    parent[a[0]] -= a[1]
+                    parents.append(parent)
                     actions.append(idx)
         return parents, actions
 
