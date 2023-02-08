@@ -178,51 +178,6 @@ class Crystal(GFlowNetEnv):
         # state[2] == Li atom count, assuming consecutive elements
         return torch.Tensor([state[2], sum(state)] + [x / sum(state) for x in state])
 
-    def state2obs(self, state=None):
-        """
-        Transforms the state given as argument (or self.state if None) into a
-        one-hot encoding. The output is a list of len length * n_dim,
-        where each n-th successive block of length elements is a one-hot encoding of
-        the position in the n-th dimension.
-
-        Example:
-          - State, state: [0, 3, 1] (n_dim = 3)
-          - state2obs(state): [1, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0] (length = 4)
-                              |     0    |      3    |      1    |
-        """
-        if state is None:
-            state = self.state.copy()
-
-        # z = np.zeros(self.obs_dim, dtype=np.float32)
-
-        if len(state) > 0:
-            if hasattr(
-                state[0], "device"
-            ):  # if it has a device at all, it will be cuda (CPU numpy array has no dev
-                state = [subseq.cpu().detach().numpy() for subseq in state]
-
-            z = np.bincount(state)
-        return z
-
-    def obs2state(self, obs: List) -> List:
-        """
-        Transforms the one-hot encoding version of a sequence (state) given as argument
-        into a sequence of letter indices.
-        Example:
-          - Sequence: AATGC
-          - obs: [1, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0]
-                 |     A    |      A    |      T    |      G    |      C    |
-          - state: [0, 0, 1, 3, 2]
-                    A, A, T, G, C
-        """
-        # obs_mat = np.reshape(obs, (self.max_atoms, self.periodic_table))
-        # state = np.where(obs_mat)[1].tolist()
-        state = []
-
-        for e, i in enumerate(obs):
-            state += [e for _ in range(i)]
-        return state
-
     def state2readable(self, state=None):
         """
         Transforms the state, represented as a list of elements' counts, into a
@@ -303,14 +258,6 @@ class Crystal(GFlowNetEnv):
                     parent[a[0]] -= a[1]
                     parents.append(parent)
                     actions.append(idx)
-        return parents, actions
-
-    def get_parents_debug(self, state=None, done=None, actions=None):
-        """
-        Like get_parents(), but returns state format
-        """
-        obs, actions = self.get_parents(state, done, actions)
-        parents = [self.obs2state(el) for el in obs]
         return parents, actions
 
     def step(self, action_idx):
