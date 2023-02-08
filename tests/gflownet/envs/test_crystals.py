@@ -85,10 +85,9 @@ def test__get_actions_space__returns_correct_number_of_actions(
     environment = Crystal(
         elements=elements, min_atom_i=min_atom_i, max_atom_i=max_atom_i
     )
+    exp_n_actions = elements * (max_atom_i - min_atom_i + 1) + 1
 
-    assert len(environment.get_actions_space()) == elements * (
-        max_atom_i - min_atom_i + 1
-    )
+    assert len(environment.get_actions_space()) == exp_n_actions
 
 
 def test__get_parents__returns_no_parents_in_initial_state(env):
