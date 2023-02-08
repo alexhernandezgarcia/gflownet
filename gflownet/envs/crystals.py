@@ -2,7 +2,7 @@
 Classes to represent crystal environments
 """
 import itertools
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 import numpy as np
 
@@ -41,6 +41,9 @@ class Crystal(GFlowNetEnv):
 
     alphabet : (optional) dict
         Mapping from ints (representing elements) to strings containing human-readable elements' names
+
+    required_elements : (optional) list
+        List of elements that must be present in a crystal for it to represent a valid end state
     """
 
     def __init__(
@@ -52,8 +55,9 @@ class Crystal(GFlowNetEnv):
         max_atoms: int = 20,
         min_atom_i: int = 1,
         max_atom_i: int = 10,
-        oxidation_states: Optional[dict] = None,
-        alphabet: Optional[dict] = None,
+        oxidation_states: Optional[Dict] = None,
+        alphabet: Optional[Dict] = None,
+        required_elements: Optional[List] = None,
         env_id=None,
         reward_beta=1,
         reward_norm=1.0,
@@ -82,12 +86,15 @@ class Crystal(GFlowNetEnv):
         self.max_diff_elem = max_diff_elem
         self.min_diff_elem = min_diff_elem
         self.periodic_table = periodic_table
-        self.alphabet = alphabet if alphabet is not None else {}
-        self.oxidation_states = oxidation_states
         self.min_atoms = min_atoms
         self.max_atoms = max_atoms
         self.min_atom_i = min_atom_i
         self.max_atom_i = max_atom_i
+        self.oxidation_states = oxidation_states
+        self.alphabet = alphabet if alphabet is not None else {}
+        self.required_elements = (
+            required_elements if required_elements is not None else []
+        )
         self.obs_dim = self.periodic_table
         self.action_space = self.get_actions_space()
         self.eos = len(self.action_space)
@@ -117,14 +124,19 @@ class Crystal(GFlowNetEnv):
             state = self.state.copy()
         if done is None:
             done = self.done
-        state_elem = [i for i, e in enumerate(state) if e > 0]
-        state_atoms = sum(state)
+
         if done:
             return [True for _ in range(len(self.action_space) + 1)]
+
         mask = [False for _ in range(len(self.action_space) + 1)]
+        state_elem = [i for i, e in enumerate(state) if e > 0]
+        state_atoms = sum(state)
+
         if state_atoms < self.min_atoms:
             mask[self.eos] = True
         if len(state_elem) < self.min_diff_elem:
+            mask[self.eos] = True
+        if any(r not in state_elem for r in self.required_elements):
             mask[self.eos] = True
 
         for idx, a in enumerate(self.action_space):
