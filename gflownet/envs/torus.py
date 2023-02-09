@@ -41,29 +41,9 @@ class Torus(GFlowNetEnv):
         length_traj=1,
         min_step_len=1,
         max_step_len=1,
-        env_id=None,
-        reward_beta=1,
-        reward_norm=1.0,
-        reward_norm_std_mult=0,
-        reward_func="boltzmann",
-        denorm_proxy=False,
-        energies_stats=None,
-        proxy=None,
-        oracle=None,
         **kwargs,
     ):
-        super(Torus, self).__init__(
-            env_id,
-            reward_beta,
-            reward_norm,
-            reward_norm_std_mult,
-            reward_func,
-            energies_stats,
-            denorm_proxy,
-            proxy,
-            oracle,
-            **kwargs,
-        )
+        super().__init__(**kwargs)
         self.continuous = True
         self.n_dim = n_dim
         self.eos = self.n_dim
@@ -83,6 +63,8 @@ class Torus(GFlowNetEnv):
         # Oracle
         self.state2oracle = self.state2proxy
         self.statebatch2oracle = self.statebatch2proxy
+        # Setup proxy
+        self.proxy.set_n_dim(self.n_dim)
 
     def get_actions_space(self):
         """

@@ -7,12 +7,12 @@ import numpy as np
 import numpy.typing as npt
 import pandas as pd
 import torch
-from gflownet.envs.htorus import HybridTorus
-from torch.distributions import Categorical, Uniform, VonMises
+from gflownet.envs.ctorus import ContinuousTorus
+from torch.distributions import Categorical, Uniform, VonMises, MixtureSameFamily
 from torchtyping import TensorType
 
 
-class ContinuousTorus(HybridTorus):
+class ContinuousTorusMixture(ContinuousTorus):
     """
     Purely continuous (no discrete actions) hyper-torus environment in which the
     action space consists of the increment Delta theta of the angle at each dimension.
@@ -30,19 +30,9 @@ class ContinuousTorus(HybridTorus):
        Fixed length of the trajectory.
     """
 
-    def __init__(self, **kwargs):
+    def __init__(self, n_comp=3, **kwargs):
+        self.n_comp = n_comp
         super().__init__(**kwargs)
-
-    def get_actions_space(self):
-        """
-        The actions are tuples of length 2 * n_dim, where positions d and d+1 in the
-        tuple correspond to dimension d and the increment of dimension d,
-        respectively. EOS is indicated by a tuple whose first element ins self.eos.
-        """
-        pairs = [(dim, 0.0) for dim in range(self.n_dim)]
-        actions = [tuple([el for pair in pairs for el in pair])]
-        actions += [tuple([self.eos] + [0.0 for _ in range(self.n_dim * 2 - 1)])]
-        return actions
 
     def get_policy_output(self, params: dict):
         """
@@ -50,89 +40,13 @@ class ContinuousTorus(HybridTorus):
         action is to be determined or sampled, by returning a vector with a fixed
         random policy.
 
-        For each dimension of the hyper-torus, the output of the policy should return
-        1) the location and 2) the concentration of the projected normal distribution to
-        sample the increment of the angle. Therefore, the output of the policy model
-        has dimensionality D x 2, where D is the number of dimensions, and the elements
-        of the output vector are:
-        - d * 2 + 0: location of Von Mises distribution for dimension d
-        - d * 2 + 1: log concentration of Von Mises distribution for dimension d
-        with d in [0, ..., D]
+        For each dimension d, c components:
+        [mu_d0, kappa_d0, ... mu_dc, sigma_dc, 1, 1, ... 1]
         """
-        policy_output = np.ones(self.n_dim * 2)
-        policy_output[0::2] = params.vonmises_mean
-        policy_output[1::2] = params.vonmises_concentration
+        policy_output = np.ones(self.n_dim * self.n_comp * 3)
+        policy_output[1::3] = params.vonmises_mean
+        policy_output[2::3] = params.vonmises_concentration
         return policy_output
-
-    def get_mask_invalid_actions_forward(self, state=None, done=None):
-        """
-        Returns [True] if the only possible action is eos, [False] otherwise.
-        """
-        if state is None:
-            state = self.state.copy()
-        if done is None:
-            done = self.done
-        if done:
-            return [True]
-        elif state[-1] >= self.length_traj:
-            return [True]
-        else:
-            return [False]
-
-    def get_mask_invalid_actions_backward(self, state=None, done=None, parents_a=None):
-        """
-        Returns [True] if the only possible action is returning to source, [False]
-        otherwise.
-        """
-        if state is None:
-            state = self.state.copy()
-        if done is None:
-            done = self.done
-        if done:
-            return [True]
-        elif state[-1] == 1:
-            return [True]
-        else:
-            return [False]
-
-    def get_parents(
-        self, state: List = None, done: bool = None, action: Tuple[int, float] = None
-    ) -> Tuple[List[List], List[Tuple[int, float]]]:
-        """
-        Determines all parents and actions that lead to state.
-
-        Args
-        ----
-        state : list
-            Representation of a state, as a list of length n_angles where each element
-            is the position at each dimension.
-
-        done : bool
-            Whether the trajectory is done. If None, done is taken from instance.
-
-        action : int
-            Last action performed
-
-        Returns
-        -------
-        parents : list
-            List of parents in state format
-
-        actions : list
-            List of actions that lead to state for each parent in parents
-        """
-        if state is None:
-            state = self.state.copy()
-        if done is None:
-            done = self.done
-        if done:
-            return [state], [self.action_space[-1]]
-        else:
-            for dim, angle in zip(action[0::2], action[1::2]):
-                state[int(dim)] = (state[int(dim)] - angle) % (2 * np.pi)
-            state[-1] -= 1
-            parents = [state]
-            return parents, [action]
 
     def sample_actions(
         self,
@@ -158,12 +72,21 @@ class ContinuousTorus(HybridTorus):
                     2 * torch.pi * torch.ones(len(ns_range_noeos)),
                 )
             elif sampling_method == "policy":
-                locations = policy_outputs[mask_states_sample, 0::2]
-                concentrations = policy_outputs[mask_states_sample, 1::2]
-                distr_angles = VonMises(
+                mix_logits = policy_outputs[mask_states_sample, 0::3].reshape(
+                    -1, self.n_dim, self.n_comp
+                )
+                mix = Categorical(logits=mix_logits)
+                locations = policy_outputs[mask_states_sample, 1::3].reshape(
+                    -1, self.n_dim, self.n_comp
+                )
+                concentrations = policy_outputs[mask_states_sample, 2::3].reshape(
+                    -1, self.n_dim, self.n_comp
+                )
+                vonmises = VonMises(
                     locations,
                     torch.exp(concentrations) + self.vonmises_min_concentration,
                 )
+                distr_angles = MixtureSameFamily(mix, vonmises)
             angles[mask_states_sample] = distr_angles.sample()
             logprobs[mask_states_sample] = distr_angles.log_prob(
                 angles[mask_states_sample]
@@ -201,12 +124,21 @@ class ContinuousTorus(HybridTorus):
         angles = actions[:, 1::2]
         logprobs = torch.zeros(n_states, self.n_dim).to(device)
         if torch.any(mask_states_sample):
-            locations = policy_outputs[mask_states_sample, 0::2]
-            concentrations = policy_outputs[mask_states_sample, 1::2]
-            distr_angles = VonMises(
+            mix_logits = policy_outputs[mask_states_sample, 0::3].reshape(
+                -1, self.n_dim, self.n_comp
+            )
+            mix = Categorical(logits=mix_logits)
+            locations = policy_outputs[mask_states_sample, 1::3].reshape(
+                -1, self.n_dim, self.n_comp
+            )
+            concentrations = policy_outputs[mask_states_sample, 2::3].reshape(
+                -1, self.n_dim, self.n_comp
+            )
+            vonmises = VonMises(
                 locations,
                 torch.exp(concentrations) + self.vonmises_min_concentration,
             )
+            distr_angles = MixtureSameFamily(mix, vonmises)
             logprobs[mask_states_sample] = distr_angles.log_prob(
                 angles[mask_states_sample]
             )
