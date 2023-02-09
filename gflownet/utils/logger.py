@@ -181,7 +181,7 @@ class Logger:
         ]
         for key, fig in zip(keys, figs):
             if use_context:
-                context = self.context + "/" + key
+                key = self.context + "/" + key
             if fig is not None:
                 figimg = self.wandb.Image(fig)
                 self.wandb.log({key: figimg}, step)

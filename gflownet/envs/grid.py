@@ -363,13 +363,16 @@ class Grid(GFlowNetEnv):
         """
         # TDO: extend to n_dim > 2
         if ax is None:
-            fig, ax = plt.subplot(111)
+            fig, ax = plt.subplots()
             standalone = True
         else:
             standalone = False
         # make a list of integers from 0 to n_dim
         ax.set_xticks(np.arange(self.length))
         ax.set_yticks(np.arange(self.length))
+        # check if samples is on GPU
+        if torch.is_tensor(samples) and samples.is_cuda:
+            samples = samples.detach().cpu()
         states = np.array(samples).astype(int)
         grid = np.zeros((self.length, self.length))
         if title == None:

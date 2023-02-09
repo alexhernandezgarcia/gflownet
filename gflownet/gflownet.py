@@ -99,7 +99,7 @@ class GFlowNetAgent:
             self.env.set_reward_norm(self.env.reward_norm)
         # Test set statistics
         if self.buffer.test is not None:
-            print("\nTest data")
+            print("\nGFN Test Data")
             print(f"\tMean score: {self.buffer.test['energies'].mean()}")
             print(f"\tStd score: {self.buffer.test['energies'].std()}")
             print(f"\tMin score: {self.buffer.test['energies'].min()}")
@@ -1118,7 +1118,7 @@ class Policy:
                     self.base.model[-1].in_features, self.base.model[-1].out_features
                 ),
             )
-            return mlp
+            return mlp.to(dtype=self.float)
         elif self.shared_weights == False:
             layers_dim = (
                 [self.state_dim] + [self.n_hid] * self.n_layers + [(self.output_dim)]
@@ -1138,7 +1138,7 @@ class Policy:
                     + self.tail
                 )
             )
-            return mlp
+            return mlp.to(dtype=self.float)
         else:
             raise ValueError(
                 "Base Model must be provided when shared_weights is set to True"
