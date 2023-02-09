@@ -139,13 +139,13 @@ class Crystal(GFlowNetEnv):
         if any(r not in state_elem for r in self.required_elements):
             mask[self.eos] = True
 
-        for idx, a in enumerate(self.action_space[:-1]):
-            if state[self.elem2idx[a[0]]] > 0:
+        for idx, (element, n) in enumerate(self.action_space[:-1]):
+            if state[self.elem2idx[element]] > 0:
                 mask[idx] = True
-            if n_state_atoms + a[1] > self.max_atoms:
+            if n_state_atoms + n > self.max_atoms:
                 mask[idx] = True
             else:
-                new_elem = a[0] not in state_elem
+                new_elem = element not in state_elem
                 if not new_elem:
                     mask[idx] = True
                 if new_elem and len(state_elem) >= self.max_diff_elem:
