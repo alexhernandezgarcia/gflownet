@@ -59,7 +59,7 @@ class GFlowNetEnv:
             self.oracle = self.proxy
         else:
             self.oracle = oracle
-        if self.oracle.higher_is_better:
+        if self.oracle is None or self.oracle.higher_is_better:
             self.proxy_factor = 1.0
         else:
             self.proxy_factor = -1.0
