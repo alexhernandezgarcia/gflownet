@@ -65,7 +65,7 @@ class Crystal(GFlowNetEnv):
         required_elements : (optional) list
             List of elements that must be present in a crystal for it to represent a valid end state
         """
-        super(Crystal, self).__init__(**kwargs)
+        super().__init__(**kwargs)
 
         if isinstance(elements, int):
             elements = [i + 1 for i in range(elements)]
