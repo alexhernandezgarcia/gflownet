@@ -323,24 +323,37 @@ class Crystal(GFlowNetEnv):
             if sum(self.state) < self.min_atoms:
                 valid = False
             else:
-                nums_charges = [
-                    (num, self.oxidation_states[self.idx2elem[i]])
-                    for i, num in enumerate(self.state)
-                    if num > 0
-                ]
-                sum_diff_elem = []
-                for n, c in nums_charges:
-                    charge_sums = []
-                    for c_i in itertools.product(c, repeat=n):
-                        charge_sums.append(sum(c_i))
-                    sum_diff_elem.append(np.unique(charge_sums))
-                poss_charge_sum = [
-                    sum(combo) == 0 for combo in itertools.product(*sum_diff_elem)
-                ]
-                if any(poss_charge_sum):
+                if self._can_produce_neutral_charge():
                     self.done = True
                     valid = True
                     self.n_actions += 1
                 else:
                     valid = False
             return self.state, (self.eos, 0), valid
+
+    def _can_produce_neutral_charge(self, state: Optional[List[int]] = None) -> bool:
+        """
+        Helper that checks whether there is a configuration of oxidation states that
+        can produce a neutral charge for the given state.
+        """
+        if state is None:
+            state = self.state
+
+        nums_charges = [
+            (num, self.oxidation_states[self.idx2elem[i]])
+            for i, num in enumerate(state)
+            if num > 0
+        ]
+        sum_diff_elem = []
+
+        for n, c in nums_charges:
+            charge_sums = []
+            for c_i in itertools.product(c, repeat=n):
+                charge_sums.append(sum(c_i))
+            sum_diff_elem.append(np.unique(charge_sums))
+
+        poss_charge_sum = [
+            sum(combo) == 0 for combo in itertools.product(*sum_diff_elem)
+        ]
+
+        return any(poss_charge_sum)
