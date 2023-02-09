@@ -28,15 +28,6 @@ class Crystal(GFlowNetEnv):
         oxidation_states: Optional[Dict] = None,
         alphabet: Optional[Dict] = None,
         required_elements: Optional[Union[Tuple, List]] = (3,),
-        env_id=None,
-        reward_beta=1,
-        reward_norm=1.0,
-        reward_norm_std_mult=0,
-        reward_func="power",
-        denorm_proxy=False,
-        energies_stats=None,
-        proxy=None,
-        oracle=None,
         **kwargs,
     ):
         """
@@ -74,18 +65,8 @@ class Crystal(GFlowNetEnv):
         required_elements : (optional) list
             List of elements that must be present in a crystal for it to represent a valid end state
         """
-        super(Crystal, self).__init__(
-            env_id,
-            reward_beta,
-            reward_norm,
-            reward_norm_std_mult,
-            reward_func,
-            energies_stats,
-            denorm_proxy,
-            proxy,
-            oracle,
-            **kwargs,
-        )
+        super(Crystal, self).__init__(**kwargs)
+
         if isinstance(elements, int):
             elements = [i + 1 for i in range(elements)]
 
@@ -118,7 +99,6 @@ class Crystal(GFlowNetEnv):
         self.eos = -1
         self.action_space = self.get_actions_space()
 
-    # TODO: include eos action
     def get_actions_space(self):
         """
         Constructs list with all possible actions. An action is described by a
