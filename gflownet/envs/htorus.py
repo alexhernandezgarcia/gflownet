@@ -1,6 +1,7 @@
 """
 Classes to represent hyper-torus environments
 """
+from copy import deepcopy
 from typing import List, Tuple
 import itertools
 import numpy as np
@@ -37,32 +38,15 @@ class HybridTorus(GFlowNetEnv):
         self,
         n_dim=2,
         length_traj=1,
+        policy_encoding_dim_per_angle=None,
         do_nonzero_source_prob=True,
         fixed_distribution=dict,
         random_distribution=dict,
-        env_id=None,
-        reward_beta=1,
-        reward_norm=1.0,
-        reward_norm_std_mult=0,
-        reward_func="boltzmann",
-        denorm_proxy=False,
-        energies_stats=None,
-        proxy=None,
-        oracle=None,
+        vonmises_min_concentration=1e-3,
         **kwargs,
     ):
-        super(HybridTorus, self).__init__(
-            env_id,
-            reward_beta,
-            reward_norm,
-            reward_norm_std_mult,
-            reward_func,
-            energies_stats,
-            denorm_proxy,
-            proxy,
-            oracle,
-            **kwargs,
-        )
+        super().__init__(**kwargs)
+        self.policy_encoding_dim_per_angle = policy_encoding_dim_per_angle
         self.continuous = True
         self.n_dim = n_dim
         self.eos = self.n_dim
@@ -72,7 +56,7 @@ class HybridTorus(GFlowNetEnv):
             self.n_params_per_dim = 4
         else:
             self.n_params_per_dim = 3
-        self.vonmises_concentration_epsilon = 1e-3
+        self.vonmises_min_concentration = vonmises_min_concentration
         # Initialize angles and state attributes
         self.reset()
         self.source = self.angles.copy()
@@ -86,7 +70,10 @@ class HybridTorus(GFlowNetEnv):
         self.state2oracle = self.state2proxy
         self.statebatch2oracle = self.statebatch2proxy
         # Setup proxy
-        self.proxy.n_dim = self.n_dim
+        self.proxy.set_n_dim(self.n_dim)
+
+    def copy(self):
+        return deepcopy(self)
 
     def get_actions_space(self):
         """
@@ -213,16 +200,75 @@ class HybridTorus(GFlowNetEnv):
 
     def state2policy(self, state: List = None) -> List:
         """
-        Returns the state as is.
+        Returns the policy encoding of the state.
+
+        See: statebatch2policy()
         """
         if state is None:
             state = self.state.copy()
-        return state
+        return self.statebatch2policy([state]).tolist()[0]
+
+    def statetorch2policy(
+        self, states: TensorType["batch", "state_dim"]
+    ) -> TensorType["batch", "policy_input_dim"]:
+        """
+        Prepares a batch of states in torch "GFlowNet format" for the policy.
+
+        See: statebatch2policy()
+        """
+        if (
+            self.policy_encoding_dim_per_angle is not None
+            and self.policy_encoding_dim_per_angle >= 2
+        ):
+            step = states[:, -1]
+            code_half_size = self.policy_encoding_dim_per_angle // 2
+            int_coeff = (
+                torch.arange(1, code_half_size + 1)
+                .repeat(states.shape[-1] - 1)
+                .to(states)
+            )
+            encoding = (
+                torch.repeat_interleave(states[:, :-1], repeats=code_half_size, dim=1)
+                * int_coeff
+            )
+            states = torch.cat(
+                [torch.cos(encoding), torch.sin(encoding), torch.unsqueeze(step, 1)],
+                dim=1,
+            )
+        return states
+
+    def statebatch2policy(self, states: List[List]) -> npt.NDArray[np.float32]:
+        """
+        Converts a batch of states into a format suitable for a machine learning model.
+        If policy_encoding_dim_per_angle >= 2, then the state (angles) is encoded using
+        trigonometric components.
+        """
+        states = np.array(states)
+        if (
+            self.policy_encoding_dim_per_angle is not None
+            and self.policy_encoding_dim_per_angle >= 2
+        ):
+            step = states[:, -1]
+            code_half_size = self.policy_encoding_dim_per_angle // 2
+            int_coeff = np.tile(
+                np.arange(1, code_half_size + 1), states.shape[-1] - 1
+            )
+            encoding = (
+                np.repeat(states[:, :-1], repeats=code_half_size, axis=1) * int_coeff
+            )
+            states = np.concatenate(
+                [np.cos(encoding), np.sin(encoding), step[:, np.newaxis]], axis=1
+            )
+        return states
 
     def policy2state(self, state_policy: List) -> List:
         """
         Returns the input as is.
         """
+        if self.policy_encoding_dim_per_angle is not None:
+            raise NotImplementedError(
+                "Convertion from encoded policy_state to state is not impemented"
+            )
         return state_policy
 
     def state2readable(self, state: List) -> str:
@@ -343,7 +389,7 @@ class HybridTorus(GFlowNetEnv):
                 ]
                 distr_angles = VonMises(
                     locations,
-                    torch.exp(concentrations) + self.vonmises_concentration_epsilon,
+                    torch.exp(concentrations) + self.vonmises_min_concentration,
                 )
             angles[ns_range_noeos] = distr_angles.sample()
             logprobs_angles[ns_range_noeos] = distr_angles.log_prob(
@@ -419,7 +465,7 @@ class HybridTorus(GFlowNetEnv):
             ]
             distr_angles = VonMises(
                 locations,
-                torch.exp(concentrations) + self.vonmises_concentration_epsilon,
+                torch.exp(concentrations) + self.vonmises_min_concentration,
             )
             logprobs_angles[ns_range_nofix] = distr_angles.log_prob(
                 angles[ns_range_nofix]

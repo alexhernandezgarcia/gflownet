@@ -118,6 +118,7 @@ class Crystal(GFlowNetEnv):
         self.eos = -1
         self.action_space = self.get_actions_space()
 
+    # TODO: include eos action
     def get_actions_space(self):
         """
         Constructs list with all possible actions. An action is described by a
