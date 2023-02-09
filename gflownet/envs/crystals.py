@@ -158,7 +158,9 @@ class Crystal(GFlowNetEnv):
         if any(r not in state_elem for r in self.required_elements):
             mask[self.eos] = True
 
-        for idx, a in enumerate(self.action_space):
+        for idx, a in enumerate(self.action_space[:-1]):
+            if state[self.elem2idx[a[0]]] > 0:
+                mask[idx] = True
             if state_atoms + a[1] > self.max_atoms:
                 mask[idx] = True
             else:
@@ -309,6 +311,19 @@ class Crystal(GFlowNetEnv):
             self.done = True
             self.n_actions += 1
             return self.state, (self.eos, 0), True
+        # If action not found in action space raise an error
+        action_idx = None
+        for i, a in enumerate(self.action_space):
+            if a == action:
+                action_idx = i
+                break
+        if action_idx is None:
+            raise ValueError(
+                f"Tried to execute action {action} not present in action space."
+            )
+        # If action is in invalid mask, exit immediately
+        if self.get_mask_invalid_actions()[action_idx]:
+            return self.state, action, False
         # If action is not eos, then perform action
         if action[0] != self.eos:
             atomic_number, num = action

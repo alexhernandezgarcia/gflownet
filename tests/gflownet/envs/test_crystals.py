@@ -93,6 +93,45 @@ def test__get_actions_space__returns_correct_number_of_actions(
     assert len(environment.get_actions_space()) == exp_n_actions
 
 
+@pytest.mark.parametrize(
+    "elements",
+    [[1, 2, 3, 4], [1, 12, 84], [42]],
+)
+def test__get_actions_space__returns_actions_for_each_element(elements):
+    environment = Crystal(elements=elements)
+
+    elements_in_action_space = set(e for e, n in environment.get_actions_space())
+    exp_elements_with_eos = set(elements + [-1])
+
+    assert elements_in_action_space == exp_elements_with_eos
+
+
+@pytest.mark.parametrize(
+    "elements, min_atom_i, max_atom_i",
+    [
+        (4, 1, 5),
+        (10, 1, 20),
+        (84, 1, 8),
+        (4, 3, 5),
+        (10, 3, 20),
+        (84, 3, 8),
+    ],
+)
+def test__get_actions_space__returns_actions_for_each_step_size(
+    elements, min_atom_i, max_atom_i
+):
+    environment = Crystal(
+        elements=elements, min_atom_i=min_atom_i, max_atom_i=max_atom_i
+    )
+
+    step_sizes_in_action_space = set(
+        n for e, n in environment.get_actions_space()[:-1]
+    )  # skip eos
+    exp_step_sizes = set(range(min_atom_i, max_atom_i + 1))
+
+    assert step_sizes_in_action_space == exp_step_sizes
+
+
 def test__get_parents__returns_no_parents_in_initial_state(env):
     parents, actions = env.get_parents()
 
@@ -156,3 +195,45 @@ def test__get_parents__returns_expected_parents_and_actions(
 
     assert set(tuple(x) for x in parents) == set(tuple(x) for x in exp_parents)
     assert set(env.action_space[x] for x in actions) == set(exp_actions)
+
+
+@pytest.mark.parametrize(
+    "actions, exp_state",
+    [
+        ([(1, 2), (2, 3), (3, 4)], [2, 3, 4, 0]),
+        ([(4, 2)], [0, 0, 0, 2]),
+        ([(1, 3), (4, 2), (2, 3), (3, 2)], [3, 3, 2, 2]),
+    ],
+)
+def test__step__changes_state_as_expected(env, actions, exp_state):
+    for action in actions:
+        env.step(action=action)
+
+    assert env.state == exp_state
+    assert env.n_actions == len(actions)
+
+
+@pytest.mark.parametrize(
+    "valid_action, invalid_action",
+    [
+        ((1, 2), (1, 4)),
+        ((3, 1), (3, 2)),
+        ((4, 4), (4, 1)),
+    ],
+)
+def test__step__does_not_change_state_if_element_already_set(
+    env, valid_action, invalid_action
+):
+    initial_state = env.state
+
+    state_after_valid, action, valid = env.step(valid_action)
+
+    assert action == valid_action
+    assert valid
+    assert initial_state != state_after_valid
+
+    state_after_invalid, action, valid = env.step(invalid_action)
+
+    assert action == invalid_action
+    assert not valid
+    assert state_after_valid == state_after_invalid
