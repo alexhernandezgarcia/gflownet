@@ -237,3 +237,37 @@ def test__step__does_not_change_state_if_element_already_set(
     assert action == invalid_action
     assert not valid
     assert state_after_valid == state_after_invalid
+
+
+@pytest.mark.parametrize(
+    "state, exp_result",
+    [
+        (
+            [0, 0, 0, 0],
+            True,
+        ),
+        (
+            [3, 0, 0, 0],
+            True,
+        ),
+        (
+            [0, 1, 0, 1],
+            False,
+        ),
+        (
+            [1, 2, 3, 4],
+            False,
+        ),
+        (
+            [5, 0, 0, 2],
+            True,
+        ),
+    ],
+)
+def test__can_produce_neutral_charge__returns_expected_result(state, exp_result):
+    environment = Crystal(
+        elements=4,
+        oxidation_states={1: [-1, 0, 1], 2: [0], 3: [1], 4: [2, 3]},
+    )
+
+    assert environment._can_produce_neutral_charge(state) == exp_result
