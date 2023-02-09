@@ -45,7 +45,7 @@ class Crystal(GFlowNetEnv):
         elements : list or int
             Elements that will be used for construction of crystal. Either list, in which case every value should
             indicate the atomic number of an element, or int, in which case n consecutive atomic numbers will
-            be used.
+            be used. Note that we assume this will correspond to real atomic numbers, i.e. start from 1, not 0.
 
         max_diff_elem : int
             Maximum number of unique elements in the crystal
