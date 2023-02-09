@@ -73,82 +73,83 @@ for epoch in range(NUM_EPOCHS):
          )
     optimizer.step()
 
-from gpytorch.distributions import MultivariateNormal, MultitaskMultivariateNormal
-from botorch.posteriors.gpytorch import GPyTorchPosterior
-from botorch.models.utils import add_output_dim
-from gpytorch.likelihoods.gaussian_likelihood import FixedNoiseGaussianLikelihood
-from gpytorch.models.exact_prediction_strategies import prediction_strategy
-from gpytorch.utils.broadcasting import _mul_broadcast_shape
+# from gpytorch.distributions import MultivariateNormal, MultitaskMultivariateNormal
+# from botorch.posteriors.gpytorch import GPyTorchPosterior
+# from botorch.models.utils import add_output_dim
+# from gpytorch.likelihoods.gaussian_likelihood import FixedNoiseGaussianLikelihood
+# from gpytorch.models.exact_prediction_strategies import prediction_strategy
+# from gpytorch.utils.broadcasting import _mul_broadcast_shape
 
 
 
-class myGPModel(SingleTaskGP):
-    def __init__(self, gp, trainX=None, trainY=None):
-        super().__init__(trainX, trainY)
-        self.model = gp
+# class myGPModel(SingleTaskGP):
+#     def __init__(self, gp, trainX=None, trainY=None):
+#         super().__init__(trainX, trainY)
+#         self.model = gp
     
-    @property
-    def num_outputs(self) -> int:
-        return super().num_outputs
+#     @property
+#     def num_outputs(self) -> int:
+#         return super().num_outputs
 
-    @property
-    def batch_shape(self):
-        """
-        This is a batch shape from an I/O perspective. For a model with `m` outputs, a `test_batch_shape x q x d`-shaped input `X`
-        to the `posterior` method returns a Posterior object over an output of
-        shape `broadcast(test_batch_shape, model.batch_shape) x q x m`.
+#     @property
+#     def batch_shape(self):
+#         """
+#         This is a batch shape from an I/O perspective. For a model with `m` outputs, a `test_batch_shape x q x d`-shaped input `X`
+#         to the `posterior` method returns a Posterior object over an output of
+#         shape `broadcast(test_batch_shape, model.batch_shape) x q x m`.
 
-        """
-        return super().batch_shape
+#         """
+#         return super().batch_shape
 
-    def posterior(self, X, output_indices = None, observation_noise= False, posterior_transform= None):
-        """
-        Args:
-            X: A `(batch_shape) x q x d`-dim Tensor, where `d` is the dimension
-                of the feature space and `q` is the number of points considered
-                jointly.
-            output_indices: A list of indices, corresponding to the outputs over
-                which to compute the posterior (if the model is multi-output).
-                Can be used to speed up computation if only a subset of the
-                model's outputs are required for optimization. If omitted,
-                computes the posterior over all model outputs.
-            observation_noise: If True, add the observation noise from the
-                likelihood to the posterior. If a Tensor, use it directly as the
-                observation noise (must be of shape `(batch_shape) x q x m`).
-            posterior_transform: An optional PosteriorTransform.
-        Returns:
-            A `GPyTorchPosterior` object, representing `batch_shape` joint
-            distributions over `q` points and the outputs selected by
-            `output_indices` each. Includes observation noise if specified.
-        """
-        self.eval()  # make sure model is in eval mode
-        # X = self.transform_inputs(X)
-        if self._num_outputs > 1:
-            X, output_dim_idx = add_output_dim(
-                X=X, original_batch_shape=self._input_batch_shape
-            )
+#     def posterior(self, X, output_indices = None, observation_noise= False, posterior_transform= None):
+#         """
+#         Args:
+#             X: A `(batch_shape) x q x d`-dim Tensor, where `d` is the dimension
+#                 of the feature space and `q` is the number of points considered
+#                 jointly.
+#             output_indices: A list of indices, corresponding to the outputs over
+#                 which to compute the posterior (if the model is multi-output).
+#                 Can be used to speed up computation if only a subset of the
+#                 model's outputs are required for optimization. If omitted,
+#                 computes the posterior over all model outputs.
+#             observation_noise: If True, add the observation noise from the
+#                 likelihood to the posterior. If a Tensor, use it directly as the
+#                 observation noise (must be of shape `(batch_shape) x q x m`).
+#             posterior_transform: An optional PosteriorTransform.
+#         Returns:
+#             A `GPyTorchPosterior` object, representing `batch_shape` joint
+#             distributions over `q` points and the outputs selected by
+#             `output_indices` each. Includes observation noise if specified.
+#         """
+#         self.eval()  # make sure model is in eval mode
+#         # X = self.transform_inputs(X)
+#         if self._num_outputs > 1:
+#             X, output_dim_idx = add_output_dim(
+#                 X=X, original_batch_shape=self._input_batch_shape
+#             )
         
-        mvn = self(X) #self.forward() does not work here.
-        # I mean it does not give any error, but it gives the same mean and
-        # covariance matrix for all the test points. I don't know why.
-        posterior = GPyTorchPosterior(mvn=mvn)
-        if np.all(posterior.mean.detach().numpy()<0):
-            print(posterior.mean.numpy())
-        if np.all(posterior.mvn.covariance_matrix.detach().numpy()<0):
-            print(posterior.mvn.covariance_matrix.numpy())
-        return posterior
+#         mvn = self(X) #self.forward() does not work here.
+#         # I mean it does not give any error, but it gives the same mean and
+#         # covariance matrix for all the test points. I don't know why.
+#         posterior = GPyTorchPosterior(mvn=mvn)
+#         if np.all(posterior.mean.detach().numpy()<0):
+#             print(posterior.mean.numpy())
+#         if np.all(posterior.mvn.covariance_matrix.detach().numpy()<0):
+#             print(posterior.mvn.covariance_matrix.numpy())
+#         return posterior
 
 from botorch.acquisition.max_value_entropy_search import qLowerBoundMaxValueEntropy, qMultiFidelityLowerBoundMaxValueEntropy
-proxy = myGPModel(gp, train_x, train_y)
+# proxy = myGPModel(gp, train_x, train_y)
 
 from botorch.acquisition.utils import project_to_target_fidelity
 target_fidelities = {6: 1.0}
 def project(X):
     return project_to_target_fidelity(X=X, target_fidelities=target_fidelities)
 
+proxy = gp
 qMES = qMultiFidelityLowerBoundMaxValueEntropy(proxy, candidate_set = train_x, project = project)
 
-for num in range(10000):
+for num in range(10):
     test_seq = torch.rand(10, 6)
     test_f = fidelities[torch.randint(3, (10,1))]
     test_x = torch.cat((test_seq, test_f), dim=1)
