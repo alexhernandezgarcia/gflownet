@@ -115,7 +115,7 @@ class Crystal(GFlowNetEnv):
         self.state = [0 for _ in self.elements]  # atom counts for each element
         self.elem2idx = {e: i for i, e in enumerate(self.elements)}
         self.idx2elem = {i: e for i, e in enumerate(self.elements)}
-        self.eos = len(self.elements)
+        self.eos = -1
         self.action_space = self.get_actions_space()
 
     def get_actions_space(self):
