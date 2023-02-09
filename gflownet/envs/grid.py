@@ -388,3 +388,18 @@ class Grid(GFlowNetEnv):
             plt.tight_layout()
             plt.close()
         return ax
+
+    def plot_reward_samples(self, states, scores, figure_title):
+        # make compatible with n_dim > 2
+        fig, ax = plt.subplots()
+        grid_scores = np.ones((self.length, self.length)) * (-0.0001)
+        index = states.long().detach().cpu().numpy()
+        grid_scores[index[:, 0], index[:, 1]] = scores
+        im = ax.imshow(grid_scores)
+        divider = make_axes_locatable(ax)
+        ax.set_title(figure_title)
+        cax = divider.append_axes("right", size="5%", pad=0.05)
+        plt.colorbar(im, cax=cax)
+        plt.show()
+        plt.close()
+        return fig
