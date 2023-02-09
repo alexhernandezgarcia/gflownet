@@ -126,7 +126,7 @@ class Crystal(GFlowNetEnv):
             done = self.done
 
         if done:
-            return [True for _ in self.action_space]
+            return [True for _ in self.action_space[:-1]] + [False]
 
         mask = [False for _ in self.action_space]
         state_elem = [self.idx2elem[i] for i, e in enumerate(state) if e > 0]

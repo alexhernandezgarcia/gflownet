@@ -132,6 +132,27 @@ def test__get_actions_space__returns_actions_for_each_step_size(
     assert step_sizes_in_action_space == exp_step_sizes
 
 
+def test__get_mask_invalid_actions__all_false_but_eos_for_empty_state(env):
+    assert not any(env.get_mask_invalid_actions()[:-1])
+    assert env.get_mask_invalid_actions()[:-1]
+
+
+@pytest.mark.parametrize(
+    "state",
+    [[0, 0, 0, 0], [0, 2, 0, 0], [0, 0, 0, 1], [1, 0, 1, 0]],
+)
+def test__get_mask_invalid_actions__already_set_elements_are_masked(env, state):
+    mask = env.get_mask_invalid_actions(state)[:-1]
+    action_space = env.action_space[:-1]
+
+    nonzero_indices = [i for i, s_i in enumerate(state) if s_i > 0]
+
+    for i in nonzero_indices:
+        for a_j, m_j in zip(action_space, mask):
+            if env.elem2idx[a_j[0]] == i:
+                assert m_j
+
+
 def test__get_parents__returns_no_parents_in_initial_state(env):
     parents, actions = env.get_parents()
 
