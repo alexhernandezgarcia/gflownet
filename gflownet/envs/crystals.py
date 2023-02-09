@@ -320,7 +320,7 @@ class Crystal(GFlowNetEnv):
             return self.state, action, valid
         # If action is eos, then perform eos
         else:
-           self.get_mask_invalid_actions()[self.eos]:
+            if self.get_mask_invalid_actions()[self.eos]:
                 valid = False
             else:
                 if self._can_produce_neutral_charge():
