@@ -145,7 +145,7 @@ class Crystal(GFlowNetEnv):
             if state_atoms + a[1] > self.max_atoms:
                 mask[idx] = True
             else:
-                new_elem = a[0] not in state_elem
+                new_elem = self.elem2idx[a[0]] not in state_elem
                 if not new_elem:
                     mask[idx] = True
                 if new_elem and len(state_elem) >= self.max_diff_elem:
