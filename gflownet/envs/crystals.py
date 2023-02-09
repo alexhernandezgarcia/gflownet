@@ -126,10 +126,10 @@ class Crystal(GFlowNetEnv):
             done = self.done
 
         if done:
-            return [True for _ in range(len(self.action_space) + 1)]
+            return [True for _ in self.action_space]
 
-        mask = [False for _ in range(len(self.action_space) + 1)]
-        state_elem = [i for i, e in enumerate(state) if e > 0]
+        mask = [False for _ in self.action_space]
+        state_elem = [self.idx2elem[i] for i, e in enumerate(state) if e > 0]
         state_atoms = sum(state)
 
         if state_atoms < self.min_atoms:
@@ -145,7 +145,7 @@ class Crystal(GFlowNetEnv):
             if state_atoms + a[1] > self.max_atoms:
                 mask[idx] = True
             else:
-                new_elem = self.elem2idx[a[0]] not in state_elem
+                new_elem = a[0] not in state_elem
                 if not new_elem:
                     mask[idx] = True
                 if new_elem and len(state_elem) >= self.max_diff_elem:
