@@ -686,8 +686,12 @@ class Buffer:
         elif "path" in config and config.path is not None:
             path = self.logger.logdir / Path("data") / config.path
             df = pd.read_csv(path, index_col=0)
+            dict = {
+                "x": df["samples"].values,
+                "energies": df["energies"].values,
+            }
             # TODO: check if state2readable transformation is required.
-            return df, None
+            return df, dict
         elif "type" not in config:
             return None, None
         elif config.type == "all" and hasattr(self.env, "get_all_terminating_states"):

@@ -112,7 +112,7 @@ class AMP(GFlowNetEnv):
             )
         self.alphabet = dict((i, a) for i, a in enumerate(self.vocab))
         self.reset()
-        self.invalid_action = -1
+        self.invalid_state_element = -1
 
     def get_actions_space(self):
         """
@@ -214,8 +214,8 @@ class AMP(GFlowNetEnv):
     ) -> TensorType["batch", "state_proxy_dim"]:
         state_oracle = []
         for state in states:
-            if state[-1] == self.invalid_action:
-                state = state[: torch.where(state == self.invalid_action)[0][0]]
+            if state[-1] == self.invalid_state_element:
+                state = state[: torch.where(state == self.invalid_state_element)[0][0]]
             state_numpy = state.detach().cpu().numpy()
             state_oracle.append(self.state2oracle(state_numpy))
         return state_oracle
@@ -241,7 +241,7 @@ class AMP(GFlowNetEnv):
             state = self.state.copy()
         state_policy = np.zeros(self.max_seq_length * self.n_alphabet, dtype=np.float32)
         if len(state) > 0:
-            state = [subseq.cpu().detach().numpy() for subseq in state]
+            # state = [subseq.cpu().detach().numpy() for subseq in state]
             state_policy[(np.arange(len(state)) * self.n_alphabet + state)] = 1
         return state_policy
 
@@ -252,20 +252,23 @@ class AMP(GFlowNetEnv):
 
         See state2policy().
         """
-        # TODO: ensure that un-padded state is fed here 
+        # TODO: ensure that un-padded state is fed here
         # if not modify to implementation similar to that of statetorch2policy
         state_policy = np.zeros(
             (len(states), self.n_alphabet * self.max_seq_length), dtype=np.float32
         )
-        if list(map(len, states)) != [0 for s in states]:
-            cols, lengths = zip(
-                *[
-                    (state + np.arange(len(state)) * self.n_alphabet, len(state))
-                    for state in states
-                ]
-            )
-            rows = np.repeat(np.arange(len(states)), lengths)
-            state_policy[rows, np.concatenate(cols)] = 1.0
+        for idx, state in enumerate(states):
+            state_policy[idx] = self.state2policy(state)
+        # TODO fix for when some states are []
+        # if list(map(len, states)) != [0 for s in states]:
+        #     cols, lengths = zip(
+        #         *[
+        #             (state + np.arange(len(state)) * self.n_alphabet, len(state))
+        #             for state in states
+        #         ]
+        #     )
+        #     rows = np.repeat(np.arange(len(states)), lengths)
+        #     state_policy[rows, np.concatenate(cols)] = 1.0
         return state_policy
 
     def statetorch2policy(
@@ -277,23 +280,25 @@ class AMP(GFlowNetEnv):
                 (
                     (
                         state[
-                            : torch.where(state == self.invalid_action)[0][0]
-                            if state[-1] == self.invalid_action
+                            : torch.where(state == self.invalid_state_element)[0][0]
+                            if state[-1] == self.invalid_state_element
                             else len(state)
                         ].to(self.device)
                         + torch.arange(
                             len(
                                 state[
-                                    : torch.where(state == self.invalid_action)[0][0]
-                                    if state[-1] == self.invalid_action
+                                    : torch.where(state == self.invalid_state_element)[
+                                        0
+                                    ][0]
+                                    if state[-1] == self.invalid_state_element
                                     else len(state)
                                 ]
                             )
                         ).to(self.device)
                         * self.n_alphabet
                     ),
-                    torch.where(state == self.invalid_action)[0][0]
-                    if state[-1] == self.invalid_action
+                    torch.where(state == self.invalid_state_element)[0][0]
+                    if state[-1] == self.invalid_state_element
                     else len(state),
                 )
                 for state in states
@@ -336,6 +341,13 @@ class AMP(GFlowNetEnv):
         according to an alphabet.
         """
         return [self.alphabet[el] for el in state]
+
+    def statetorch2readable(self, state: TensorType["batch", "state_dim"]) -> List[str]:
+        if state[-1] == self.invalid_state_element:
+            state = state[: torch.where(state == self.invalid_state_element)[0][0]]
+        state = state.tolist()
+        readable = [self.alphabet[el] for el in state]
+        return "".join(readable)
 
     def readable2state(self, readable: str) -> List:
         """

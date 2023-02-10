@@ -12,6 +12,7 @@ class AMPOracleWrapper(Proxy):
         oracle_features,
         dist_fn,
         medoid_oracle_norm,
+        cost,
         **kwargs
     ):
         super().__init__(**kwargs)
@@ -25,6 +26,7 @@ class AMPOracleWrapper(Proxy):
             norm_constant=medoid_oracle_norm,
         )
         self.oracle.to(self.device)
+        self.cost = cost
 
     def __call__(self, sequences, batch_size=256):
         """

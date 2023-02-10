@@ -633,11 +633,11 @@ class GFlowNetAgent:
         # preprocessing for variable length tensors
         parents = [p.squeeze(0) for p in parents]
         parents = torch.nn.utils.rnn.pad_sequence(
-            parents, batch_first=True, padding_value=self.env.invalid_action
+            parents, batch_first=True, padding_value=self.env.invalid_state_element
         )
         states = [s.squeeze(0) for s in states]
         states = torch.nn.utils.rnn.pad_sequence(
-            states, batch_first=True, padding_value=self.env.invalid_action
+            states, batch_first=True, padding_value=self.env.invalid_state_element
         )
         # Concatenate lists of tensors
         actions, done, state_id, masks_sf, masks_b = map(
@@ -842,7 +842,7 @@ class GFlowNetAgent:
         Computes metrics by sampling trajectories from the forward policy.
         """
         if self.buffer.test_pkl is None:
-            return self.l1, self.kl, self.jsd, (None,)
+            return self.l1, self.kl, self.jsd, None, (None,)
         with open(self.buffer.test_pkl, "rb") as f:
             dict_tt = pickle.load(f)
             x_tt = dict_tt["x"]

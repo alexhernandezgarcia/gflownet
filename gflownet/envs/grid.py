@@ -60,9 +60,11 @@ class Grid(GFlowNetEnv):
         elif self.proxy_state_format == "oracle":
             self.statebatch2proxy = self.statebatch2oracle
             self.statetorch2proxy = self.statetorch2oracle
-        # Set up oracle
-        self.oracle.n_dim = self.n_dim
-        self.oracle.setup()
+        # Set up oracle only if it not a toy oracle
+        # TODO: is the og oracle required?
+        if self.oracle is not None and hasattr(self.oracle, "n_dim"):
+            self.oracle.n_dim = self.n_dim
+            self.oracle.setup()
         # TODO: change to something more general. this would be invalid if num_fid>5
         self.invalid_action = self.n_dim + 5
         self.proxy_factor = 1.0
