@@ -140,7 +140,7 @@ class Logger:
             return
         if use_context:
             key = self.context + "/" + key
-        self.wandb.log({key: value})
+        self.wandb.log({key: value}, step=step)
 
     def log_histogram(self, key, value, step, use_context=True):
         if not self.do.online:
@@ -177,7 +177,7 @@ class Logger:
         if not self.do.online:
             return
         for key, _ in metrics.items():
-            self.log_metric(key, metrics[key], use_context)
+            self.log_metric(key, metrics[key], step=step, use_context=use_context)
 
     def log_train(
         self,
