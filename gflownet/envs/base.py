@@ -666,8 +666,8 @@ class Buffer:
                     "energy": energies[idx_new_max],
                     "iter": it,
                 }
-                rewards_new[idx_new_max] = -1
                 rewards_old = self.replay["reward"].values
+            rewards_new[idx_new_max] = -1
         return self.replay
 
     def make_data_set(self, config):
