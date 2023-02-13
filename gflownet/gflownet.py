@@ -524,67 +524,59 @@ class GFlowNetAgent:
             Loss of the intermediate nodes only
         """
         loginf = self._tfloat([loginf])
-        batch_idxs = self._tlong(
-            sum(
-                [
-                    [i] * len(parents)
-                    for i, (_, _, _, parents, _, _, _, _, _) in enumerate(batch)
-                ],
-                [],
-            )
+        # Unpack batch
+        (
+            states,
+            actions,
+            parents,
+            parents_a,
+            done,
+            traj_id_parents,
+            state_id,
+            masks_sf,
+            masks_b,
+        ) = zip(*batch)
+        # Get state/batch id
+        parents_batch_id = self._tlong(
+            sum([[idx] * len(p) for idx, p in enumerate(parents)], [])
         )
-        sp, _, r, parents, actions, done, _, _, masks = map(torch.cat, zip(*batch))
-        # Sanity check if negative rewards
-        if self.logger.debug and torch.any(r < 0):
-            neg_r_idx = torch.where(r < 0)[0].tolist()
-            for idx in neg_r_idx:
-                state_oracle = self.env.state2oracle(sp)
-                output_proxy = self.env.proxy(state_oracle)
-                reward = self.env.proxy2reward(output_proxy)
-                import ipdb
-
-                ipdb.set_trace()
-
-        # Q(s,a)
-        parents_Qsa = self.forward_policy(parents)[
-            torch.arange(parents.shape[0]), actions
-        ]
-
-        # log(eps + exp(log(Q(s,a)))) : qsa
-        in_flow = torch.log(
-            self.loss_eps
-            + self._tfloat(torch.zeros((sp.shape[0],))).index_add_(
-                0, batch_idxs, torch.exp(parents_Qsa)
-            )
+        # Concatenate lists of tensors
+        states, parents, parents_a, done, masks_sf = map(
+            torch.cat,
+            [
+                states,
+                parents,
+                parents_a,
+                done,
+                masks_sf,
+            ],
         )
-        # the following with work if autoregressive
-        #         in_flow = torch.logaddexp(parents_Qsa[batch_idxs], torch.log(self.loss_eps))
-        if self.tau > 0 and self.target is not None:
-            with torch.no_grad():
-                next_q = self.target(sp)
-        else:
-            next_q = self.forward_policy(sp)
-        next_q[masks] = -loginf
-        qsp = torch.logsumexp(next_q, 1)
-        # qsp: qsp if not done; -loginf if done
-        qsp = qsp * (1 - done) - loginf * done
-        out_flow = torch.logaddexp(torch.log(r + self.loss_eps), qsp)
-        loss = (in_flow - out_flow).pow(2).mean()
-
+        parents_a = parents_a.to(int).squeeze()
+        # Compute rewards
+        rewards = self.env.reward_torchbatch(states, done)
+        assert torch.all(rewards[done] > 0)
+        # In-flows
+        inflow_logits = -loginf * torch.ones(
+            (states.shape[0], self.env.policy_output_dim)
+        )
+        inflow_logits[parents_batch_id, parents_a] = self.forward_policy(
+            self.env.statetorch2policy(parents)
+        )[torch.arange(parents.shape[0]), parents_a]
+        inflow = torch.logsumexp(inflow_logits, dim=1)
+        # Out-flows
+        outflow_logits = self.forward_policy(self.env.statetorch2policy(states))
+        outflow_logits[masks_sf] = -loginf
+        outflow = torch.logsumexp(outflow_logits, dim=1)
+        outflow[done] = -loginf
+        outflow = torch.logaddexp(torch.log(rewards), outflow)
+        # Flow matching loss
+        loss = (inflow - outflow).pow(2).mean()
+        # Isolate loss at terminating nodes and all other nodes
         with torch.no_grad():
-            term_loss = ((in_flow - out_flow) * done).pow(2).sum() / (
-                done.sum() + 1e-20
+            term_loss = ((inflow - outflow) * done).pow(2).sum() / (done.sum() + 1e-20)
+            flow_loss = ((inflow - outflow) * torch.logical_not(done)).pow(2).sum() / (
+                torch.logical_not(done).sum() + 1e-20
             )
-            flow_loss = ((in_flow - out_flow) * (1 - done)).pow(2).sum() / (
-                (1 - done).sum() + 1e-20
-            )
-
-        if self.tau > 0 and self.target is not None:
-            for a, b in zip(
-                self.forward_policy.model.parameters(), self.target.parameters()
-            ):
-                b.data.mul_(1 - self.tau).add_(self.tau * a)
-
         return loss, term_loss, flow_loss
 
     def trajectorybalance_loss(self, it, batch, loginf=1000):
