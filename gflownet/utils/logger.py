@@ -29,6 +29,7 @@ class Logger:
         debug: bool,
         run_name=None,
         tags: list = None,
+        context: str = "0",
     ):
         self.config = config
         self.do = do
@@ -56,7 +57,7 @@ class Logger:
             self.wandb = None
             self.run = None
         self.add_tags(tags)
-        self.context = "0"
+        self.context = context
         self.progress = progress
         self.lightweight = lightweight
         self.debug = debug

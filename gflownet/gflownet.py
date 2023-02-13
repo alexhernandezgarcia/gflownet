@@ -41,7 +41,7 @@ class GFlowNetAgent:
         num_empirical_loss,
         oracle,
         proxy=None,
-        al=False,
+        active_learning=False,
         data_path=None,
         sample_only=False,
         **kwargs,
@@ -155,7 +155,7 @@ class GFlowNetAgent:
         self.tau = optimizer.bootstrap_tau
         self.ema_alpha = optimizer.ema_alpha
         self.early_stopping = optimizer.early_stopping
-        self.use_context = al
+        self.use_context = active_learning
         self.logsoftmax = torch.nn.LogSoftmax(dim=1)
         # Training
         self.mask_invalid_actions = mask_invalid_actions
