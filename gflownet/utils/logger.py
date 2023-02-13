@@ -194,6 +194,10 @@ class Logger:
     ):
         if not self.do.online or not self.do_train(step):
             return
+        if logz is None:
+            logz = 0.0
+        else:
+            logz = logz.sum()
         train_metrics = dict(
             zip(
                 [

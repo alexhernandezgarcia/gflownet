@@ -557,7 +557,7 @@ class GFlowNetAgent:
         assert torch.all(rewards[done] > 0)
         # In-flows
         inflow_logits = -loginf * torch.ones(
-            (states.shape[0], self.env.policy_output_dim)
+            (states.shape[0], self.env.policy_output_dim), device=self.device,
         )
         inflow_logits[parents_batch_id, parents_a] = self.forward_policy(
             self.env.statetorch2policy(parents)
@@ -567,7 +567,7 @@ class GFlowNetAgent:
         outflow_logits = self.forward_policy(self.env.statetorch2policy(states))
         outflow_logits[masks_sf] = -loginf
         outflow = torch.logsumexp(outflow_logits, dim=1)
-        outflow[done] = -loginf
+        outflow = outflow * torch.logical_not(done) - loginf * done
         outflow = torch.logaddexp(torch.log(rewards), outflow)
         # Flow matching loss
         loss = (inflow - outflow).pow(2).mean()
@@ -577,7 +577,7 @@ class GFlowNetAgent:
             flow_loss = ((inflow - outflow) * torch.logical_not(done)).pow(2).sum() / (
                 torch.logical_not(done).sum() + 1e-20
             )
-        return loss, term_loss, flow_loss
+        return (loss, term_loss, flow_loss), rewards[done.eq(1)]
 
     def trajectorybalance_loss(self, it, batch, loginf=1000):
         """
@@ -725,7 +725,7 @@ class GFlowNetAgent:
                 data += batch
             for j in range(self.ttsr):
                 if self.loss == "flowmatch":
-                    losses = self.flowmatch_loss(
+                    losses, rewards = self.flowmatch_loss(
                         it * self.ttsr + j, data
                     )  # returns (opt loss, *metrics)
                 elif self.loss == "trajectorybalance":
@@ -778,7 +778,7 @@ class GFlowNetAgent:
                 proxy_vals=proxy_vals,
                 states_term=states_term,
                 batch_size=len(data),
-                logz=self.logZ.sum(),
+                logz=self.logZ,
                 learning_rates=self.lr_scheduler.get_last_lr(),
                 step=it,
                 use_context=self.use_context,
