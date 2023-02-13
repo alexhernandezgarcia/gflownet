@@ -30,6 +30,6 @@ Using Hydra, you can easily specify any variable of the configuration in the com
 python main.py gflownet=trajectorybalance env=ctorus proxy=torus
 ```
 
-The above command will overwrite the `env` and `proxy` default configuration with the configuration files in `config/env/ctorus.yaml` and config/proxy/torus.yaml` respectively.
+The above command will overwrite the `env` and `proxy` default configuration with the configuration files in `config/env/ctorus.yaml` and `config/proxy/torus.yaml` respectively.
 
 Hydra configuration is hierarchical. For instance, a handy variable to change while debugging our code is to avoid logging to wandb. You can do this by setting `logger.do.online=False`.
