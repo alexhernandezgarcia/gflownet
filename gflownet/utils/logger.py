@@ -198,6 +198,8 @@ class Logger:
             logz = 0.0
         else:
             logz = logz.sum()
+        if len(learning_rates) == 1:
+            learning_rates += [-1.0]
         train_metrics = dict(
             zip(
                 [
