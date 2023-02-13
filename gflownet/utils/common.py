@@ -9,6 +9,7 @@ def set_device(device: str):
     else:
         return torch.device("cpu")
 
+
 def set_float_precision(precision: int):
     if precision == 16:
         return torch.float16
@@ -19,21 +20,11 @@ def set_float_precision(precision: int):
     else:
         raise ValueError("Precision must be one of [16, 32, 64]")
 
+
 def torch2np(x):
     if hasattr(x, "is_cuda") and x.is_cuda:
         x = x.detach().cpu()
     return np.array(x)
-
-
-def flatten_config(d, parent_key="", sep="_"):
-    items = []
-    for k, v in d.items():
-        new_key = parent_key + sep + k if parent_key else k
-        if isinstance(v, MutableMapping):
-            items.extend(flatten_config(v, new_key, sep=sep).items())
-        else:
-            items.append((new_key, v))
-    return dict(items)
 
 
 def handle_logdir():

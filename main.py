@@ -8,7 +8,6 @@ import hydra
 import pandas as pd
 import yaml
 from omegaconf import OmegaConf, DictConfig
-from gflownet.utils.common import flatten_config
 
 
 @hydra.main(config_path="./config", config_name="main", version_base="1.1")
