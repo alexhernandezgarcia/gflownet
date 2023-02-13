@@ -781,14 +781,15 @@ class GFlowNetAgent:
             # Train logs
             t0_log = time.time()
             self.logger.log_train(
-                losses,
-                rewards,
-                proxy_vals,
-                states_term,
-                len(data),
-                self.logZ.sum(),
-                it,
-                self.use_context,
+                losses=losses,
+                rewards=rewards,
+                proxy_vals=proxy_vals,
+                states_term=states_term,
+                batch_size=len(data),
+                logz=self.logZ.sum(),
+                learning_rates=self.lr_scheduler.get_last_lr(),
+                step=it,
+                use_context=self.use_context,
             )
             t1_log = time.time()
             times.update({"log": t1_log - t0_log})
