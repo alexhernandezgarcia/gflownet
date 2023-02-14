@@ -322,7 +322,7 @@ class Logger:
         metrics = dict(
             zip(
                 ["L1 error", "KL Div.", "Jensen Shannon Div.", "Corr."],
-                [l1, kl, jsd, corr[0, 1]],
+                [l1, kl, jsd, corr],
             )
         )
         self.log_metrics(

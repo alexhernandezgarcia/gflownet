@@ -14,7 +14,7 @@ from polyleven import levenshtein
 import numpy.typing as npt
 from torchtyping import TensorType
 import torch
-
+import matplotlib.pyplot as plt
 
 class AMP(GFlowNetEnv):
     """
@@ -112,7 +112,9 @@ class AMP(GFlowNetEnv):
             )
         self.alphabet = dict((i, a) for i, a in enumerate(self.vocab))
         self.reset()
-        self.invalid_state_element = -1
+        # because -1 is for fidelity not being chosen
+        self.invalid_state_element = -2
+        self.proxy_factor = 1.0
 
     def get_actions_space(self):
         """
@@ -313,9 +315,27 @@ class AMP(GFlowNetEnv):
             (len(states), self.n_alphabet * self.max_seq_length),
             dtype=torch.float32,
             device=self.device,
-        ).to(states[0])
+        )
         state_policy[rows, cols] = 1.0
         return state_policy
+    
+    def policytorch2state(self, state_policy: List) -> List:
+        """
+        Transforms the one-hot encoding version of a sequence (state) given as argument
+        into a a sequence of letter indices.
+
+        Example:
+          - Sequence: AATGC
+          - state_policy: [1, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0]
+                 |     A    |      A    |      T    |      G    |      C    |
+          - policy2state(state_policy): [0, 0, 1, 3, 2]
+                    A, A, T, G, C
+        """
+        mat_state_policy = torch.reshape(
+            state_policy, (self.max_seq_length, self.n_alphabet)
+        )
+        state = torch.where(mat_state_policy)[1].tolist()
+        return state
 
     def policy2state(self, state_policy: List) -> List:
         """
@@ -340,7 +360,7 @@ class AMP(GFlowNetEnv):
         Transforms a sequence given as a list of indices into a sequence of letters
         according to an alphabet.
         """
-        return [self.alphabet[el] for el in state]
+        return "".join([self.alphabet[el] for el in state])
 
     def statetorch2readable(self, state: TensorType["batch", "state_dim"]) -> List[str]:
         if state[-1] == self.invalid_state_element:
@@ -502,7 +522,7 @@ class AMP(GFlowNetEnv):
     def get_distance_from_D0(self, samples, dataset_obs):
         # TODO: optimize
         # TODO: should this be proxy2state?
-        dataset_states = [self.policy2state(el) for el in dataset_obs]
+        dataset_states = [self.policytorch2state(el) for el in dataset_obs]
         dataset_samples = self.statebatch2oracle(dataset_states)
         min_dists = []
         for sample in samples:
@@ -515,6 +535,18 @@ class AMP(GFlowNetEnv):
 
     def get_distance(self, seq1, seq2):
         return levenshtein(seq1, seq2) / 1
+    
+    def plot_reward_distribution(self, scores, title):
+        fig, ax = plt.subplots()
+        if isinstance(scores, TensorType):
+            scores = scores.cpu().detach().numpy()
+        plt.hist(scores)
+        ax.set_title(title)
+        ax.set_ylabel("Number of Samples")
+        ax.set_xlabel("Energy")
+        plt.show()
+        plt.close()
+        return fig
 
     # TODO: do we need this?
     def make_test_set(

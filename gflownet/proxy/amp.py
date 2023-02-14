@@ -45,4 +45,4 @@ class AMPOracleWrapper(Proxy):
                 scores += s["confidence"][:, 1].tolist()
             else:
                 scores += s.tolist()
-        return torch.FloatTensor(scores).to(self.device)
+        return torch.tensor(scores, device=self.device, dtype=self.float)

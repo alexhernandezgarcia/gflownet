@@ -469,6 +469,7 @@ class GFlowNetAgent:
             # Add to batch
             for env, action, valid in zip(envs, actions, valids):
                 if valid:
+                    # TODO: shouldn't be state be the input if at all anything?
                     parents, parents_a = env.get_parents(action=action)
                     mask_f = env.get_mask_invalid_actions_forward()
                     mask_b = env.get_mask_invalid_actions_backward(
@@ -630,15 +631,24 @@ class GFlowNetAgent:
             for a, p, p_a in zip(actions, parents, parents_a)
         ]
         traj_id = torch.cat([el[:1] for el in traj_id_parents])
-        # preprocessing for variable length tensors
-        parents = [p.squeeze(0) for p in parents]
-        parents = torch.nn.utils.rnn.pad_sequence(
-            parents, batch_first=True, padding_value=self.env.invalid_state_element
+        # TODO: can we do something without the fid break?
+        parents_no_fid, fid = zip(
+            *[torch.split(p, [p.shape[1] - 1, 1], dim=1) for p in parents]
         )
-        states = [s.squeeze(0) for s in states]
-        states = torch.nn.utils.rnn.pad_sequence(
-            states, batch_first=True, padding_value=self.env.invalid_state_element
+        parents_no_fid = [p.squeeze(0) for p in parents_no_fid]
+        parents_no_fid = torch.nn.utils.rnn.pad_sequence(
+            parents_no_fid, batch_first=True, padding_value=self.env.invalid_state_element
         )
+        parents = torch.cat([parents_no_fid, torch.cat(fid)], dim=1)
+        states_no_fid, fid = zip(
+            *[torch.split(s, [s.shape[1] - 1, 1], dim=1) for s in states]
+        )
+        states_no_fid = [s.squeeze(0) for s in states_no_fid]
+        states_no_fid = torch.nn.utils.rnn.pad_sequence(
+            states_no_fid, batch_first=True, padding_value=self.env.invalid_state_element
+        )
+        states = torch.cat([states_no_fid, torch.cat(fid)], dim=1)
+        
         # Concatenate lists of tensors
         actions, done, state_id, masks_sf, masks_b = map(
             torch.cat,
@@ -862,7 +872,9 @@ class GFlowNetAgent:
                 hist[tuple(x)] += 1
             z_pred = sum([hist[tuple(x)] for x in x_tt]) + 1e-9
             density_pred = np.array([hist[tuple(x)] / z_pred for x in x_tt])
-            corr = np.corrcoef(density_pred, density_true)
+            # corr = np.corrcoef(density_pred, density_true)[0, 1]
+            corr= 0
+            # corr, _ = self.get_log_corr(x_tt)
             log_density_true = np.log(density_true + 1e-8)
             log_density_pred = np.log(density_pred + 1e-8)
         elif self.continuous:
@@ -937,33 +949,34 @@ class GFlowNetAgent:
             [fig_reward_samples, fig_kde_pred, fig_kde_true, fig_samples_frequency],
         )
 
-    def get_log_corr(self, times):
+    def get_log_corr(self, x_tt):
         data_logq = []
-        times.update(
-            {
-                "test_trajs": 0.0,
-                "test_logq": 0.0,
-            }
-        )
+        # times.update(
+        #     {
+        #         "test_trajs": 0.0,
+        #         "test_logq": 0.0,
+        #     }
+        # )
         # TODO: this could be done just once and store it
-        for statestr, score in tqdm(
-            zip(self.buffer.test.samples, self.buffer.test["energies"]), disable=True
-        ):
-            t0_test_traj = time.time()
+        for state in x_tt:
+        # for statestr, score in tqdm(
+        #     zip(self.buffer.test.samples, self.buffer.test["energies"]), disable=True
+        # ):
+            # t0_test_traj = time.time()
             traj_list, actions = self.env.get_trajectories(
                 [],
                 [],
-                [self.env.readable2state(statestr)],
+                [state],
                 [self.env.eos],
             )
-            t1_test_traj = time.time()
-            times["test_trajs"] += t1_test_traj - t0_test_traj
-            t0_test_logq = time.time()
-            data_logq.append(logq(traj_list, actions, self.forward_policy, self.env))
-            t1_test_logq = time.time()
-            times["test_logq"] += t1_test_logq - t0_test_logq
+            # t1_test_traj = time.time()
+            # times["test_trajs"] += t1_test_traj - t0_test_traj
+            # t0_test_logq = time.time()
+            data_logq.append(self.logq(traj_list, actions, self.forward_policy, self.env))
+            # t1_test_logq = time.time()
+            # times["test_logq"] += t1_test_logq - t0_test_logq
         corr = np.corrcoef(data_logq, self.buffer.test["energies"])
-        return corr, data_logq, times
+        return corr, data_logq
 
     # TODO: reorganize and remove
     def log_iter(
@@ -1018,30 +1031,56 @@ class GFlowNetAgent:
         pairwise_dists = self.env.get_pairwise_distance(samples)
         pairwise_dists = torch.sort(pairwise_dists, descending=True)[0]
         dict_topk = {}
-        if self.use_context or self.buffer.train is not None:
-            dists_from_D0 = self.env.get_distance_from_D0(samples, dataset_states)
-            dists_from_D0 = torch.sort(dists_from_D0, descending=True)[0]
+        # if self.use_context or self.buffer.train is not None:
+        #     dists_from_D0 = self.env.get_distance_from_D0(samples, dataset_states)
+        #     dists_from_D0 = torch.sort(dists_from_D0, descending=True)[0]
         for k in self.logger.oracle.k:
             print(f"\n Top-{k} Performance")
             mean_energy_topk = torch.mean(energies[:k])
             mean_pairwise_dist_topk = torch.mean(pairwise_dists[:k])
-            if self.use_context:
-                mean_dist_from_D0_topk = torch.mean(dists_from_D0[:k])
+            # if self.use_context:
+                # mean_dist_from_D0_topk = torch.mean(dists_from_D0[:k])
             dict_topk.update({"mean_energy_top{}".format(k): mean_energy_topk})
             dict_topk.update(
                 {"mean_pairwise_distance_top{}".format(k): mean_pairwise_dist_topk}
             )
-            if self.use_context:
-                dict_topk.update(
-                    {"min_distance_from_D0_top{}".format(k): mean_dist_from_D0_topk}
-                )
+            # if self.use_context:
+                # dict_topk.update(
+                    # {"min_distance_from_D0_top{}".format(k): mean_dist_from_D0_topk}
+                # )
             if self.logger.progress:
                 print(f"\t Mean Energy: {mean_energy_topk}")
                 print(f"\t Mean Pairwise Distance: {mean_pairwise_dist_topk}")
-                if self.use_context:
-                    print(f"\t Mean Min Distance from D0: {mean_dist_from_D0_topk}")
+                # if self.use_context:
+                    # print(f"\t Mean Min Distance from D0: {mean_dist_from_D0_topk}")
             # TODO: logging a tensor is an issue?
             self.logger.log_metrics(dict_topk, use_context=False)
+
+    def logq(self, traj_list, actions_list, model, env, loginf=1000):
+        # TODO: this method is probably suboptimal, since it may repeat forward calls for
+        # the same nodes.
+        log_q = torch.tensor(1.0)
+        loginf = self._tfloat([loginf])
+        for traj, actions in zip(traj_list[0], actions_list[0]):
+            traj = traj[::-1]
+            actions = actions[::-1]
+            masks = self._tbool(
+                [env.get_mask_invalid_actions_forward(state, 0) for state in traj]
+            )
+            with torch.no_grad():
+                logits_traj = model(self._tfloat(env.statebatch2policy(traj)))
+            logits_traj[masks] = -loginf
+            logsoftmax = torch.nn.LogSoftmax(dim=1)
+            logprobs_traj = logsoftmax(logits_traj)
+            log_q_traj = torch.tensor(0.0)
+            for s, a, logprobs in zip(*[traj, actions, logprobs_traj]):
+                log_q_traj = log_q_traj + logprobs[a]
+            # Accumulate log prob of trajectory
+            if torch.le(log_q, 0.0):
+                log_q = torch.logaddexp(log_q, log_q_traj)
+            else:
+                log_q = log_q_traj
+        return log_q.item()
 
 
 class Policy:
@@ -1201,30 +1240,3 @@ def make_opt(params, logZ, config):
         gamma=config.lr_decay_gamma,
     )
     return opt, lr_scheduler
-
-
-def logq(traj_list, actions_list, model, env, loginf=1000):
-    # TODO: this method is probably suboptimal, since it may repeat forward calls for
-    # the same nodes.
-    log_q = torch.tensor(1.0)
-    loginf = self._tfloat([loginf])
-    for traj, actions in zip(traj_list, actions_list):
-        traj = traj[::-1]
-        actions = actions[::-1]
-        masks = self._tbool(
-            [env.get_mask_invalid_actions_forward(state, 0) for state in traj]
-        )
-        with torch.no_grad():
-            logits_traj = model(self._tfloat(env.statebatch2policy(traj)))
-        logits_traj[masks] = -loginf
-        logsoftmax = torch.nn.LogSoftmax(dim=1)
-        logprobs_traj = logsoftmax(logits_traj)
-        log_q_traj = torch.tensor(0.0)
-        for s, a, logprobs in zip(*[traj, actions, logprobs_traj]):
-            log_q_traj = log_q_traj + logprobs[a]
-        # Accumulate log prob of trajectory
-        if torch.le(log_q, 0.0):
-            log_q = torch.logaddexp(log_q, log_q_traj)
-        else:
-            log_q = log_q_traj
-    return log_q.item()

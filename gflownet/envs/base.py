@@ -686,8 +686,9 @@ class Buffer:
         elif "path" in config and config.path is not None:
             path = self.logger.logdir / Path("data") / config.path
             df = pd.read_csv(path, index_col=0)
+            states = [self.env.readable2state(s) for s in df["samples"].values]
             dict = {
-                "x": df["samples"].values,
+                "x": states,
                 "energies": df["energies"].values,
             }
             # TODO: check if state2readable transformation is required.
