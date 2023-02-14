@@ -879,6 +879,7 @@ class GFlowNetAgent:
             # corr = np.corrcoef(density_pred, density_true)[0, 1]
             # corr= 0
             corr, _ = self.get_log_corr(x_tt)
+            corr =corr[0, 1]
             log_density_true = np.log(density_true + 1e-8)
             log_density_pred = np.log(density_pred + 1e-8)
         elif self.continuous:
