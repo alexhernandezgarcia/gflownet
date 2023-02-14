@@ -637,7 +637,9 @@ class GFlowNetAgent:
         )
         parents_no_fid = [p.squeeze(0) for p in parents_no_fid]
         parents_no_fid = torch.nn.utils.rnn.pad_sequence(
-            parents_no_fid, batch_first=True, padding_value=self.env.invalid_state_element
+            parents_no_fid,
+            batch_first=True,
+            padding_value=self.env.invalid_state_element,
         )
         parents = torch.cat([parents_no_fid, torch.cat(fid)], dim=1)
         states_no_fid, fid = zip(
@@ -645,10 +647,12 @@ class GFlowNetAgent:
         )
         states_no_fid = [s.squeeze(0) for s in states_no_fid]
         states_no_fid = torch.nn.utils.rnn.pad_sequence(
-            states_no_fid, batch_first=True, padding_value=self.env.invalid_state_element
+            states_no_fid,
+            batch_first=True,
+            padding_value=self.env.invalid_state_element,
         )
         states = torch.cat([states_no_fid, torch.cat(fid)], dim=1)
-        
+
         # Concatenate lists of tensors
         actions, done, state_id, masks_sf, masks_b = map(
             torch.cat,
@@ -873,8 +877,8 @@ class GFlowNetAgent:
             z_pred = sum([hist[tuple(x)] for x in x_tt]) + 1e-9
             density_pred = np.array([hist[tuple(x)] / z_pred for x in x_tt])
             # corr = np.corrcoef(density_pred, density_true)[0, 1]
-            corr= 0
-            # corr, _ = self.get_log_corr(x_tt)
+            # corr= 0
+            corr, _ = self.get_log_corr(x_tt)
             log_density_true = np.log(density_true + 1e-8)
             log_density_pred = np.log(density_pred + 1e-8)
         elif self.continuous:
@@ -951,30 +955,42 @@ class GFlowNetAgent:
 
     def get_log_corr(self, x_tt):
         data_logq = []
+        if hasattr(self.env, "_test_traj_list") and len(self.env._test_traj_list) > 0:
+            for traj_list, traj_list_actions in zip(
+                self.env._test_traj_list, self.env._test_traj_actions_list
+            ):
+                data_logq.append(
+                    self.logq(
+                        traj_list, traj_list_actions, self.forward_policy, self.env
+                    )
+                )
         # times.update(
         #     {
         #         "test_trajs": 0.0,
         #         "test_logq": 0.0,
         #     }
         # )
-        # TODO: this could be done just once and store it
-        for state in x_tt:
-        # for statestr, score in tqdm(
-        #     zip(self.buffer.test.samples, self.buffer.test["energies"]), disable=True
-        # ):
-            # t0_test_traj = time.time()
-            traj_list, actions = self.env.get_trajectories(
-                [],
-                [],
-                [state],
-                [self.env.eos],
-            )
-            # t1_test_traj = time.time()
-            # times["test_trajs"] += t1_test_traj - t0_test_traj
-            # t0_test_logq = time.time()
-            data_logq.append(self.logq(traj_list, actions, self.forward_policy, self.env))
-            # t1_test_logq = time.time()
-            # times["test_logq"] += t1_test_logq - t0_test_logq
+        else:
+
+            for state in x_tt:
+                # for statestr, score in tqdm(
+                #     zip(self.buffer.test.samples, self.buffer.test["energies"]), disable=True
+                # ):
+                # t0_test_traj = time.time()
+                traj_list, actions = self.env.get_trajectories(
+                    [],
+                    [],
+                    [state],
+                    [self.env.eos],
+                )
+                # t1_test_traj = time.time()
+                # times["test_trajs"] += t1_test_traj - t0_test_traj
+                # t0_test_logq = time.time()
+                data_logq.append(
+                    self.logq(traj_list, actions, self.forward_policy, self.env)
+                )
+                # t1_test_logq = time.time()
+                # times["test_logq"] += t1_test_logq - t0_test_logq
         corr = np.corrcoef(data_logq, self.buffer.test["energies"])
         return corr, data_logq
 
@@ -1039,20 +1055,20 @@ class GFlowNetAgent:
             mean_energy_topk = torch.mean(energies[:k])
             mean_pairwise_dist_topk = torch.mean(pairwise_dists[:k])
             # if self.use_context:
-                # mean_dist_from_D0_topk = torch.mean(dists_from_D0[:k])
+            # mean_dist_from_D0_topk = torch.mean(dists_from_D0[:k])
             dict_topk.update({"mean_energy_top{}".format(k): mean_energy_topk})
             dict_topk.update(
                 {"mean_pairwise_distance_top{}".format(k): mean_pairwise_dist_topk}
             )
             # if self.use_context:
-                # dict_topk.update(
-                    # {"min_distance_from_D0_top{}".format(k): mean_dist_from_D0_topk}
-                # )
+            # dict_topk.update(
+            # {"min_distance_from_D0_top{}".format(k): mean_dist_from_D0_topk}
+            # )
             if self.logger.progress:
                 print(f"\t Mean Energy: {mean_energy_topk}")
                 print(f"\t Mean Pairwise Distance: {mean_pairwise_dist_topk}")
                 # if self.use_context:
-                    # print(f"\t Mean Min Distance from D0: {mean_dist_from_D0_topk}")
+                # print(f"\t Mean Min Distance from D0: {mean_dist_from_D0_topk}")
             # TODO: logging a tensor is an issue?
             self.logger.log_metrics(dict_topk, use_context=False)
 
@@ -1061,7 +1077,7 @@ class GFlowNetAgent:
         # the same nodes.
         log_q = torch.tensor(1.0)
         loginf = self._tfloat([loginf])
-        for traj, actions in zip(traj_list[0], actions_list[0]):
+        for traj, actions in zip(traj_list, actions_list):
             traj = traj[::-1]
             actions = actions[::-1]
             masks = self._tbool(
