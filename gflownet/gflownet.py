@@ -57,8 +57,16 @@ class GFlowNetAgent:
         self.mask_source = self._tbool([self.env.get_mask_invalid_actions_forward()])
         # Continuous environments
         self.continuous = hasattr(self.env, "continuous") and self.env.continuous
+        if self.continuous and optimizer.loss in ["flowmatch", "flowmatching"]:
+            print(
+                """
+            Flow matching loss is not available for continuous environments.
+            Trajectory balance will be used instead
+            """
+            )
+            optimizer.loss = "tb"
         # Loss
-        if optimizer.loss in ["flowmatch"]:
+        if optimizer.loss in ["flowmatch", "flowmatching"]:
             self.loss = "flowmatch"
             self.logZ = None
         elif optimizer.loss in ["trajectorybalance", "tb"]:
@@ -557,7 +565,8 @@ class GFlowNetAgent:
         assert torch.all(rewards[done] > 0)
         # In-flows
         inflow_logits = -loginf * torch.ones(
-            (states.shape[0], self.env.policy_output_dim), device=self.device,
+            (states.shape[0], self.env.policy_output_dim),
+            device=self.device,
         )
         inflow_logits[parents_batch_id, parents_a] = self.forward_policy(
             self.env.statetorch2policy(parents)

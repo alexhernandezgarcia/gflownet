@@ -44,7 +44,6 @@ class Torus(GFlowNetEnv):
         **kwargs,
     ):
         super().__init__(**kwargs)
-        self.continuous = True
         self.n_dim = n_dim
         self.eos = self.n_dim
         self.n_angles = n_angles

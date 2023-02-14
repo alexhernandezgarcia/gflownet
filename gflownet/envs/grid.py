@@ -40,7 +40,6 @@ class Grid(GFlowNetEnv):
         **kwargs,
     ):
         super().__init__(**kwargs)
-        self.continuous = True
         self.n_dim = n_dim
         self.eos = self.n_dim
         self.state = [0 for _ in range(self.n_dim)]
