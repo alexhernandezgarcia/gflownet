@@ -9,6 +9,7 @@ import torch
 from torch import Tensor
 
 from gflownet.envs.base import GFlowNetEnv
+from gflownet.utils.crystals.constants import ELEMENT_NAMES, OXIDATION_STATES
 
 
 class Crystal(GFlowNetEnv):
@@ -31,7 +32,7 @@ class Crystal(GFlowNetEnv):
         **kwargs,
     ):
         """
-        Attributes
+        Args
         ----------
         elements : list or int
             Elements that will be used for construction of crystal. Either list, in which case every value should
@@ -87,8 +88,12 @@ class Crystal(GFlowNetEnv):
         self.max_atoms = max_atoms
         self.min_atom_i = min_atom_i
         self.max_atom_i = max_atom_i
-        self.oxidation_states = oxidation_states
-        self.alphabet = alphabet if alphabet is not None else {}
+        self.oxidation_states = (
+            oxidation_states
+            if oxidation_states is not None
+            else OXIDATION_STATES.copy()
+        )
+        self.alphabet = alphabet if alphabet is not None else ELEMENT_NAMES.copy()
         self.required_elements = (
             required_elements if required_elements is not None else []
         )
