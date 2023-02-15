@@ -372,7 +372,7 @@ class GFlowNetAgent:
         else:
             envs_offline = []
         while envs_offline:
-            # Backward sampling
+            # Sample backward actions
             with torch.no_grad():
                 actions = self.sample_actions(
                     envs_offline,
@@ -411,9 +411,10 @@ class GFlowNetAgent:
             # Temporary approach to check finished backward sampling
             envs_offline = [env for env in envs_offline if env.state != envs[-1].state]
 #             envs_offline = [env for env in envs_offline if env.state != env.source]
+        envs = envs[n_empirical:]
         # Policy trajectories
         while envs:
-            # Forward sampling
+            # Sample forward actions
             with torch.no_grad():
                 if train is False:
                     actions = self.sample_actions(
