@@ -316,7 +316,7 @@ class Grid(GFlowNetEnv):
             False, if the action is not allowed for the current state.
         """
         if self.done:
-            return self.state, action_idx, False
+            return self.state, action, False
         # If only possible action is eos, then force eos
         # All dimensions are at the maximum length
         if all([s == self.length - 1 for s in self.state]):
