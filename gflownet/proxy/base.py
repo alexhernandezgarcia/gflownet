@@ -4,7 +4,8 @@ Base class of GFlowNet proxies
 from abc import abstractmethod
 import numpy as np
 import numpy.typing as npt
-from gflownet.utils.common import set_device, set_float_precision
+
+from ..utils.common import set_device, set_float_precision
 
 
 class Proxy:
