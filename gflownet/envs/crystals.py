@@ -231,7 +231,7 @@ class Crystal(GFlowNetEnv):
         """
         Resets the environment.
         """
-        self.state = []
+        self.state = self.source.copy()
         self.n_actions = 0
         self.done = False
         self.id = env_id
