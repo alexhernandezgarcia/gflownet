@@ -304,7 +304,7 @@ class GFlowNetAgent:
                 if action in parents_a:
                     state_next = parents[parents_a.index(action)]
                     env.set_state(state_next, done=False)
-                    env.n_actions += 1
+                    env.n_actions -= 1
                     valids.append(True)
                 else:
                     valids.append(False)
@@ -366,6 +366,7 @@ class GFlowNetAgent:
             for idx in range(n_empirical):
                 env = envs[idx]
                 env = env.set_state(x_tr[idx].tolist(), done=True)
+                env.n_actions = env.get_max_traj_len()
                 envs_offline.append(env)
                 actions.append((env.eos,))
                 valids.append(True)
@@ -399,7 +400,7 @@ class GFlowNetAgent:
                         self._tfloat(parents_a),
                         self._tbool([env.done]),
                         self._tlong([env.id] * len(parents)),
-                        self._tlong([env.n_actions]),
+                        self._tlong([env.n_actions - 1]),
                         self._tbool([mask_f]),
                         self._tbool([mask_b]),
                     ]
@@ -508,6 +509,9 @@ class GFlowNetAgent:
             )
         )
         sp, _, r, parents, actions, done, _, _, masks = map(torch.cat, zip(*batch))
+        # Shift state_id to [0, 1, ...]
+        for tid in traj_id.unique():
+            state_id[traj_id == tid] -= state_id[traj_id == tid].min()
         # Sanity check if negative rewards
         if self.logger.debug and torch.any(r < 0):
             neg_r_idx = torch.where(r < 0)[0].tolist()
@@ -616,6 +620,9 @@ class GFlowNetAgent:
                 masks_b,
             ],
         )
+        # Shift state_id to [0, 1, ...]
+        for tid in traj_id.unique():
+            state_id[traj_id == tid] -= state_id[traj_id == tid].min()
         # Compute rewards
         rewards = self.env.reward_torchbatch(states, done)
         # Build parents forward masks from state masks
@@ -655,13 +662,6 @@ class GFlowNetAgent:
             .pow(2)
             .mean()
         )
-        if self.logger.debug:
-            self.logger.log_metric(
-                "mean_logprobs_b",
-                torch.mean(logprobs_b[state_id == 0]),
-                it,
-                use_context=False,
-            )
         return (loss, loss, loss), rewards
 
     def unpack_terminal_states(self, batch):

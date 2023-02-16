@@ -102,7 +102,7 @@ class GFlowNetEnv:
     def get_max_traj_len(
         self,
     ):
-        return 1
+        return 1e3
 
     def state2proxy(self, state: List = None):
         """
