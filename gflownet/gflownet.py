@@ -409,9 +409,7 @@ class GFlowNetAgent:
             envs_offline, actions, valids = self.step(envs_offline, actions, is_forward=False)
             assert all(valids)
             # Filter out finished trajectories
-            # Temporary approach to check finished backward sampling
-            envs_offline = [env for env in envs_offline if env.state != envs[-1].state]
-#             envs_offline = [env for env in envs_offline if env.state != env.source]
+            envs_offline = [env for env in envs_offline if env.state != env.source]
         envs = envs[n_empirical:]
         # Policy trajectories
         while envs:

@@ -61,8 +61,7 @@ class Crystal(GFlowNetEnv):
             oracle,
             **kwargs,
         )
-        # self.state = []
-        self.state = [0 for _ in range(periodic_table)]
+        self.source = [0 for _ in range(periodic_table)]
         self.max_diff_elem = max_diff_elem
         self.min_diff_elem = min_diff_elem
         self.periodic_table = periodic_table
@@ -75,6 +74,7 @@ class Crystal(GFlowNetEnv):
         self.obs_dim = self.periodic_table
         self.action_space = self.get_actions_space()
         self.eos = len(self.action_space)
+        self.reset()
 
     def get_actions_space(self):
         """

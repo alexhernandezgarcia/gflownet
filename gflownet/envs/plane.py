@@ -69,6 +69,7 @@ class Plane(GFlowNetEnv):
         self.distr_alpha = distr_alpha
         self.distr_beta = distr_beta
         # Initialize angles and state attributes
+        self.source = [0.0 for _ in range(self.n_dim)]
         self.reset()
         self.action_space = self.get_actions_space()
         self.fixed_policy_output = self.get_fixed_policy_output()
@@ -248,7 +249,7 @@ class Plane(GFlowNetEnv):
         """
         Resets the environment.
         """
-        self.state = [0.0 for _ in range(self.n_dim)]
+        self.state = self.source.copy()
         self.n_actions = 0
         self.done = False
         self.id = env_id
