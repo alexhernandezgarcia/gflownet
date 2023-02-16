@@ -65,8 +65,8 @@ class Grid(GFlowNetEnv):
         if self.oracle is not None and hasattr(self.oracle, "n_dim"):
             self.oracle.n_dim = self.n_dim
             self.oracle.setup()
-        # TODO: change to something more general. this would be invalid if num_fid>5
-        self.invalid_action = self.n_dim + 5
+        # TODO: change to self.do_padding = False
+        self.invalid_state_element = self.n_dim + 50
         self.proxy_factor = 1.0
 
     def get_actions_space(self):
@@ -244,6 +244,14 @@ class Grid(GFlowNetEnv):
         Converts a state (a list of positions) into a human-readable string
         representing a state.
         """
+        return str(state).replace("(", "[").replace(")", "]").replace(",", "")
+    
+    def statetorch2readable(self, state, alphabet={}):
+        """
+        Converts a state (a list of positions) into a human-readable string
+        representing a state.
+        """
+        state = state.detach().cpu().numpy()
         return str(state).replace("(", "[").replace(")", "]").replace(",", "")
 
     def reset(self, env_id=None):
