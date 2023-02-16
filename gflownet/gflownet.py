@@ -335,6 +335,32 @@ class GFlowNetAgent:
         Args
         ----
         """
+        def _add_to_batch(batch, envs, actions, valids, train=True):
+            for env, action, _ in zip(envs, actions, valids):
+                parents, parents_a = env.get_parents(action=action)
+                mask_f = env.get_mask_invalid_actions_forward()
+                mask_b = env.get_mask_invalid_actions_backward(
+                    env.state, env.done, parents_a
+                )
+                assert action in parents_a
+                if train:
+                    batch.append(
+                        [
+                            self._tfloat([env.state]),
+                            self._tfloat([action]),
+                            self._tfloat(parents),
+                            self._tfloat(parents_a),
+                            self._tbool([env.done]),
+                            self._tlong([env.id] * len(parents)),
+                            self._tlong([env.n_actions]),
+                            self._tbool([mask_f]),
+                            self._tbool([mask_b]),
+                        ]
+                    )
+                else:
+                    if env.done:
+                        batch.append(env.state)
+            return batch
         times = {
             "all": 0.0,
             "forward_actions": 0.0,
@@ -385,26 +411,7 @@ class GFlowNetAgent:
                     random_action_prob=self.random_action_prob,
                 )
             # Add to batch
-            for env, action, _ in zip(envs_offline, actions, valids):
-                parents, parents_a = env.get_parents(action=action)
-                mask_f = env.get_mask_invalid_actions_forward()
-                mask_b = env.get_mask_invalid_actions_backward(
-                    env.state, env.done, parents_a
-                )
-                assert action in parents_a
-                batch.append(
-                    [
-                        self._tfloat([env.state]),
-                        self._tfloat([action]),
-                        self._tfloat(parents),
-                        self._tfloat(parents_a),
-                        self._tbool([env.done]),
-                        self._tlong([env.id] * len(parents)),
-                        self._tlong([env.n_actions]),
-                        self._tbool([mask_f]),
-                        self._tbool([mask_b]),
-                    ]
-                )
+            batch = _add_to_batch(batch, envs_offline, actions, valids)
             # Update environments with sampled actions
             envs_offline, actions, valids = self.step(envs_offline, actions, is_forward=False)
             assert all(valids)
@@ -439,31 +446,7 @@ class GFlowNetAgent:
             envs, actions, valids = self.step(envs, actions, is_forward=True)
             # Add to batch
             t0_a_envs = time.time()
-            for env, action, valid in zip(envs, actions, valids):
-                if valid:
-                    parents, parents_a = env.get_parents(action=action)
-                    mask_f = env.get_mask_invalid_actions_forward()
-                    mask_b = env.get_mask_invalid_actions_backward(
-                        env.state, env.done, parents_a
-                    )
-                    assert action in parents_a
-                    if train:
-                        batch.append(
-                            [
-                                self._tfloat([env.state]),
-                                self._tfloat([action]),
-                                self._tfloat(parents),
-                                self._tfloat(parents_a),
-                                self._tbool([env.done]),
-                                self._tlong([env.id] * len(parents)),
-                                self._tlong([env.n_actions]),
-                                self._tbool([mask_f]),
-                                self._tbool([mask_b]),
-                            ]
-                        )
-                    else:
-                        if env.done:
-                            batch.append(env.state)
+            batch = _add_to_batch(batch, envs, actions, valids, train)
             # Filter out finished trajectories
             envs = [env for env in envs if not env.done]
             t1_a_envs = time.time()
