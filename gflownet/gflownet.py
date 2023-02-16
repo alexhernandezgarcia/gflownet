@@ -125,7 +125,11 @@ class GFlowNetAgent:
             self.float,
             base=self.forward_policy,
         )
-        if policy.backward and "checkpoint" in policy.backward and policy.backward.checkpoint:
+        if (
+            policy.backward
+            and "checkpoint" in policy.backward
+            and policy.backward.checkpoint
+        ):
             self.logger.set_backward_policy_ckpt_path(policy.backward.checkpoint)
             # TODO: re-write the logic and conditions to reload a model
             if False:
@@ -194,7 +198,7 @@ class GFlowNetAgent:
         times,
         sampling_method="policy",
         model=None,
-        is_forward: bool=True,
+        is_forward: bool = True,
         temperature=1.0,
         random_action_prob=0.0,
     ):
@@ -271,7 +275,7 @@ class GFlowNetAgent:
         self,
         envs: List,
         actions: List[Tuple],
-        is_forward: bool=True,
+        is_forward: bool = True,
     ):
         """
         Executes the actions of a list on the environments of a list.
@@ -335,6 +339,7 @@ class GFlowNetAgent:
         Args
         ----
         """
+
         def _add_to_batch(batch, envs, actions, valids, train=True):
             for env, action, _ in zip(envs, actions, valids):
                 parents, parents_a = env.get_parents(action=action)
@@ -361,6 +366,7 @@ class GFlowNetAgent:
                     if env.done:
                         batch.append(env.state)
             return batch
+
         times = {
             "all": 0.0,
             "forward_actions": 0.0,
@@ -413,7 +419,9 @@ class GFlowNetAgent:
             # Add to batch
             batch = _add_to_batch(batch, envs_offline, actions, valids)
             # Update environments with sampled actions
-            envs_offline, actions, valids = self.step(envs_offline, actions, is_forward=False)
+            envs_offline, actions, valids = self.step(
+                envs_offline, actions, is_forward=False
+            )
             assert all(valids)
             # Filter out finished trajectories
             envs_offline = [env for env in envs_offline if env.state != env.source]
