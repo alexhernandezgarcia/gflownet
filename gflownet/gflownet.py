@@ -400,7 +400,7 @@ class GFlowNetAgent:
                         self._tfloat(parents_a),
                         self._tbool([env.done]),
                         self._tlong([env.id] * len(parents)),
-                        self._tlong([env.n_actions - 1]),
+                        self._tlong([env.n_actions]),
                         self._tbool([mask_f]),
                         self._tbool([mask_b]),
                     ]
@@ -458,7 +458,7 @@ class GFlowNetAgent:
                                 self._tfloat(parents_a),
                                 self._tbool([env.done]),
                                 self._tlong([env.id] * len(parents)),
-                                self._tlong([env.n_actions - 1]),
+                                self._tlong([env.n_actions]),
                                 self._tbool([mask_f]),
                                 self._tbool([mask_b]),
                             ]
@@ -509,9 +509,9 @@ class GFlowNetAgent:
             )
         )
         sp, _, r, parents, actions, done, _, _, masks = map(torch.cat, zip(*batch))
-        # Shift state_id to [0, 1, ...]
+        # Shift state_id to [1, 2, ...]
         for tid in traj_id.unique():
-            state_id[traj_id == tid] -= state_id[traj_id == tid].min()
+            state_id[traj_id == tid] -= state_id[traj_id == tid].min() + 1
         # Sanity check if negative rewards
         if self.logger.debug and torch.any(r < 0):
             neg_r_idx = torch.where(r < 0)[0].tolist()
@@ -620,16 +620,16 @@ class GFlowNetAgent:
                 masks_b,
             ],
         )
-        # Shift state_id to [0, 1, ...]
+        # Shift state_id to [1, 2, ...]
         for tid in traj_id.unique():
-            state_id[traj_id == tid] -= state_id[traj_id == tid].min()
+            state_id[traj_id == tid] -= state_id[traj_id == tid].min() + 1
         # Compute rewards
         rewards = self.env.reward_torchbatch(states, done)
         # Build parents forward masks from state masks
         masks_f = torch.cat(
             [
                 masks_sf[torch.where((state_id == sid - 1) & (traj_id == pid))]
-                if sid > 0
+                if sid > 1
                 else self.mask_source
                 for sid, pid in zip(state_id, traj_id)
             ]
