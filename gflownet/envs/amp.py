@@ -271,7 +271,7 @@ class AMP(GFlowNetEnv):
         #     rows = np.repeat(np.arange(len(states)), lengths)
         #     state_policy[rows, np.concatenate(cols)] = 1.0
         return state_policy
-    
+
     def statetorch2policy(
         self, states: TensorType["batch", "state_dim"]
     ) -> TensorType["batch", "policy_output_dim"]:
@@ -288,7 +288,9 @@ class AMP(GFlowNetEnv):
                         + torch.arange(
                             len(
                                 state[
-                                    : torch.where(state == self.invalid_state_element)[0][0]
+                                    : torch.where(state == self.invalid_state_element)[
+                                        0
+                                    ][0]
                                     if state[-1] == self.invalid_state_element
                                     else len(state)
                                 ]

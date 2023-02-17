@@ -943,7 +943,9 @@ class GFlowNetAgent:
             # t1_test_traj = time.time()
             # times["test_trajs"] += t1_test_traj - t0_test_traj
             # t0_test_logq = time.time()
-            data_logq.append(self.logq(traj_list, actions, self.forward_policy, self.env))
+            data_logq.append(
+                self.logq(traj_list, actions, self.forward_policy, self.env)
+            )
             # t1_test_logq = time.time()
             # times["test_logq"] += t1_test_logq - t0_test_logq
         corr = np.corrcoef(data_logq, self.buffer.test["energies"])
@@ -1211,5 +1213,3 @@ def make_opt(params, logZ, config):
         gamma=config.lr_decay_gamma,
     )
     return opt, lr_scheduler
-
-
