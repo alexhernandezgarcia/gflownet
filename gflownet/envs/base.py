@@ -172,6 +172,7 @@ class GFlowNetEnv:
         return self.proxy2reward(self.proxy(self.state2proxy(state)))
 
     def reward_batch(self, states: List[List], done=None):
+        # Deprecated
         """
         Computes the rewards of a batch of states, given a list of states and 'dones'
         """
