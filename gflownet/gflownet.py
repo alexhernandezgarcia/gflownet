@@ -166,6 +166,7 @@ class GFlowNetAgent:
         self.l1 = -1.0
         self.kl = -1.0
         self.jsd = -1.0
+        self.corr = 0.0
 
     def _tfloat(self, x):
         return torch.tensor(x, dtype=self.float, device=self.device)
@@ -728,9 +729,9 @@ class GFlowNetAgent:
         for it in pbar:
             # Test
             if self.logger.do_test(it):
-                self.l1, self.kl, self.jsd, figs = self.test()
+                self.l1, self.kl, self.jsd, self.corr, figs = self.test()
                 self.logger.log_test_metrics(
-                    self.l1, self.kl, self.jsd, it, self.use_context
+                    self.l1, self.kl, self.jsd, self.corr, it, self.use_context
                 )
                 self.logger.log_plots(figs, it, self.use_context)
             t0_iter = time.time()
@@ -834,7 +835,7 @@ class GFlowNetAgent:
         Computes metrics by sampling trajectories from the forward policy.
         """
         if self.buffer.test_pkl is None:
-            return self.l1, self.kl, self.jsd, (None,)
+            return self.l1, self.kl, self.jsd, self.corr, (None,)
         with open(self.buffer.test_pkl, "rb") as f:
             dict_tt = pickle.load(f)
             x_tt = dict_tt["x"]
@@ -856,6 +857,8 @@ class GFlowNetAgent:
             density_pred = np.array([hist[tuple(x)] / z_pred for x in x_tt])
             log_density_true = np.log(density_true + 1e-8)
             log_density_pred = np.log(density_pred + 1e-8)
+            corr_matrix, _, _ = self.get_log_corr()
+            corr = corr_matrix[0, 1]
         elif self.continuous:
             x_sampled = torch2np(self.env.statebatch2proxy(x_sampled))
             x_tt = torch2np(self.env.statebatch2proxy(x_tt))
@@ -916,33 +919,33 @@ class GFlowNetAgent:
         else:
             fig_kde_pred = None
             fig_kde_true = None
-        return l1, kl, jsd, [fig_reward_samples, fig_kde_pred, fig_kde_true]
+        return l1, kl, jsd, corr, [fig_reward_samples, fig_kde_pred, fig_kde_true]
 
-    def get_log_corr(self, times):
+    def get_log_corr(self, times=None):
         data_logq = []
-        times.update(
-            {
-                "test_trajs": 0.0,
-                "test_logq": 0.0,
-            }
-        )
+        # times.update(
+        #     {
+        #         "test_trajs": 0.0,
+        #         "test_logq": 0.0,
+        #     }
+        # )
         # TODO: this could be done just once and store it
         for statestr, score in tqdm(
             zip(self.buffer.test.samples, self.buffer.test["energies"]), disable=True
         ):
-            t0_test_traj = time.time()
+            # t0_test_traj = time.time()
             traj_list, actions = self.env.get_trajectories(
                 [],
                 [],
                 [self.env.readable2state(statestr)],
                 [self.env.eos],
             )
-            t1_test_traj = time.time()
-            times["test_trajs"] += t1_test_traj - t0_test_traj
-            t0_test_logq = time.time()
-            data_logq.append(logq(traj_list, actions, self.forward_policy, self.env))
-            t1_test_logq = time.time()
-            times["test_logq"] += t1_test_logq - t0_test_logq
+            # t1_test_traj = time.time()
+            # times["test_trajs"] += t1_test_traj - t0_test_traj
+            # t0_test_logq = time.time()
+            data_logq.append(self.logq(traj_list, actions, self.forward_policy, self.env))
+            # t1_test_logq = time.time()
+            # times["test_logq"] += t1_test_logq - t0_test_logq
         corr = np.corrcoef(data_logq, self.buffer.test["energies"])
         return corr, data_logq, times
 
@@ -1023,6 +1026,32 @@ class GFlowNetAgent:
                     print(f"\t Mean Min Distance from D0: {mean_dist_from_D0_topk}")
             # TODO: logging a tensor is an issue?
             self.logger.log_metrics(dict_topk, use_context=False)
+
+    def logq(self, traj_list, actions_list, model, env, loginf=1000):
+        # TODO: this method is probably suboptimal, since it may repeat forward calls for
+        # the same nodes.
+        log_q = torch.tensor(1.0)
+        loginf = self._tfloat([loginf])
+        for traj, actions in zip(traj_list, actions_list):
+            traj = traj[::-1]
+            actions = actions[::-1]
+            masks = self._tbool(
+                [env.get_mask_invalid_actions_forward(state, 0) for state in traj]
+            )
+            with torch.no_grad():
+                logits_traj = model(self._tfloat(env.statebatch2policy(traj)))
+            logits_traj[masks] = -loginf
+            logsoftmax = torch.nn.LogSoftmax(dim=1)
+            logprobs_traj = logsoftmax(logits_traj)
+            log_q_traj = torch.tensor(0.0)
+            for s, a, logprobs in zip(*[traj, actions, logprobs_traj]):
+                log_q_traj = log_q_traj + logprobs[a]
+            # Accumulate log prob of trajectory
+            if torch.le(log_q, 0.0):
+                log_q = torch.logaddexp(log_q, log_q_traj)
+            else:
+                log_q = log_q_traj
+        return log_q.item()
 
 
 class Policy:
@@ -1184,28 +1213,3 @@ def make_opt(params, logZ, config):
     return opt, lr_scheduler
 
 
-def logq(traj_list, actions_list, model, env, loginf=1000):
-    # TODO: this method is probably suboptimal, since it may repeat forward calls for
-    # the same nodes.
-    log_q = torch.tensor(1.0)
-    loginf = self._tfloat([loginf])
-    for traj, actions in zip(traj_list, actions_list):
-        traj = traj[::-1]
-        actions = actions[::-1]
-        masks = self._tbool(
-            [env.get_mask_invalid_actions_forward(state, 0) for state in traj]
-        )
-        with torch.no_grad():
-            logits_traj = model(self._tfloat(env.statebatch2policy(traj)))
-        logits_traj[masks] = -loginf
-        logsoftmax = torch.nn.LogSoftmax(dim=1)
-        logprobs_traj = logsoftmax(logits_traj)
-        log_q_traj = torch.tensor(0.0)
-        for s, a, logprobs in zip(*[traj, actions, logprobs_traj]):
-            log_q_traj = log_q_traj + logprobs[a]
-        # Accumulate log prob of trajectory
-        if torch.le(log_q, 0.0):
-            log_q = torch.logaddexp(log_q, log_q_traj)
-        else:
-            log_q = log_q_traj
-    return log_q.item()

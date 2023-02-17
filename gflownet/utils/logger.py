@@ -177,7 +177,7 @@ class Logger:
         if not self.do.online:
             return
         for key, _ in metrics.items():
-            self.log_metric(key, metrics[key], use_context)
+            self.log_metric(key, metrics[key], use_context = use_context)
 
     def log_train(
         self,
@@ -291,6 +291,7 @@ class Logger:
         l1: float,
         kl: float,
         jsd: float,
+        corr: float,
         step: int,
         use_context: bool,
     ):
@@ -298,8 +299,8 @@ class Logger:
             return
         metrics = dict(
             zip(
-                ["L1 error", "KL Div.", "Jensen Shannon Div."],
-                [l1, kl, jsd],
+                ["L1 error", "KL Div.", "Jensen Shannon Div.", "Test Corr"],
+                [l1, kl, jsd, corr],
             )
         )
         self.log_metrics(
