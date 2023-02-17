@@ -5,7 +5,7 @@ import torch.nn as nn
 import os.path as osp
 
 
-class SendekMLPWrapper:
+class SendekMLPWrapper(Proxy):
     """
     Wrapper for MLP proxy trained on Li-ion SSB ionic conductivities calculated
     from Sendek et. al's logistic regression model
@@ -28,8 +28,8 @@ class SendekMLPWrapper:
         mean and standard deviation of the dataset
     """
 
-    def __init__(self, feature_set, path_to_proxy, scale=False):
-        # super().__init__(**kwargs)
+    def __init__(self, feature_set, path_to_proxy, scale=False, **kwargs):
+        super().__init__(**kwargs)
         # TODO: assert oracle_split in ["D2_target", "D2_target_fid1", "D2_target_fid2"]
         # TODO: assert oracle_type in ["MLP"]
         if feature_set == "comp":
@@ -39,7 +39,7 @@ class SendekMLPWrapper:
         self.oracle.load_state_dict(
             torch.load(osp.join(path_to_proxy, feature_set + ".ckpt"))
         )
-        # self.oracle.to(self.device)
+        self.oracle.to(self.device)
         if scale:
             self.scale = {
                 "mean": torch.load(osp.join(path_to_proxy, feature_set + "_mean.pt")),
@@ -100,3 +100,12 @@ class CrystalMLP(nn.Module):
                 x = self.hidden_act(x)
 
         return x
+
+
+if __name__ == "__main__":
+    tmp = SendekMLPWrapper(
+        "all",
+        "/Users/divya-sh/Documents/gflownet/data/crystals",
+        device="cpu",
+        float_precision=32,
+    )
