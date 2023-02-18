@@ -382,12 +382,12 @@ class Grid(GFlowNetEnv):
         if self.rescale == None:
             self.rescale = rescale
         # make a list of integers from 0 to n_dim
-        ax.set_xticks(
-            np.arange(start=0, stop=self.length, step=int(self.length / self.rescale))
-        )
-        ax.set_yticks(
-            np.arange(start=0, stop=self.length, step=int(self.length / self.rescale))
-        )
+        if self.rescale != 1:
+            step = int(self.length / self.rescale)
+        else:
+            step = 1
+        ax.set_xticks(np.arange(start=0, stop=self.length, step=step))
+        ax.set_yticks(np.arange(start=0, stop=self.length, step=step))
         # check if samples is on GPU
         if torch.is_tensor(samples) and samples.is_cuda:
             samples = samples.detach().cpu()
