@@ -68,6 +68,7 @@ class Grid(GFlowNetEnv):
         # TODO: change to self.do_padding = False
         self.invalid_state_element = self.n_dim + 50
         self.proxy_factor = 1.0
+        self.rescale = None
 
     def get_actions_space(self):
         """
@@ -377,12 +378,15 @@ class Grid(GFlowNetEnv):
             standalone = True
         else:
             standalone = False
+        # assuming the first time this function would be called when the dataset is created
+        if self.rescale == None:
+            self.rescale = rescale
         # make a list of integers from 0 to n_dim
         ax.set_xticks(
-            np.arange(start=0, stop=self.length, step=int(self.length / rescale))
+            np.arange(start=0, stop=self.length, step=int(self.length / self.rescale))
         )
         ax.set_yticks(
-            np.arange(start=0, stop=self.length, step=int(self.length / rescale))
+            np.arange(start=0, stop=self.length, step=int(self.length / self.rescale))
         )
         # check if samples is on GPU
         if torch.is_tensor(samples) and samples.is_cuda:
