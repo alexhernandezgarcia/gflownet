@@ -776,9 +776,11 @@ class GFlowNetAgent:
                         torch.nn.utils.clip_grad_norm_(
                             self.parameters(), self.clip_grad_norm
                         )
-                    self.opt.step()
-                    self.lr_scheduler.step()
-                    self.opt.zero_grad()
+                    if self.opt is not None:
+                        # required for when fp is uniform
+                        self.opt.step()
+                        self.lr_scheduler.step()
+                        self.opt.zero_grad()
                     all_losses.append([i.item() for i in losses])
             # Buffer
             t0_buffer = time.time()

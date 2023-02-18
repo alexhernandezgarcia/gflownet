@@ -164,7 +164,7 @@ class Grid(GFlowNetEnv):
             self.statetorch2policy(states).reshape(
                 (len(states), self.n_dim, self.length)
             )
-            * torch.tensor(self.cells[None, :]).to(states.device)
+            * torch.tensor(self.cells[None, :]).to(states.device).to(self.float)
         ).sum(axis=2)
 
     def state2policy(self, state: List = None) -> List:
@@ -237,7 +237,7 @@ class Grid(GFlowNetEnv):
         Converts a human-readable string representing a state into a state as a list of
         positions.
         """
-        return [int(el) for el in readable.strip("[]").split(" ")]
+        return [int(el) for el in readable.strip("[]").split(" ") if el != ""]
 
     def state2readable(self, state, alphabet={}):
         """
@@ -245,7 +245,7 @@ class Grid(GFlowNetEnv):
         representing a state.
         """
         return str(state).replace("(", "[").replace(")", "]").replace(",", "")
-    
+
     def statetorch2readable(self, state, alphabet={}):
         """
         Converts a state (a list of positions) into a human-readable string
@@ -367,7 +367,7 @@ class Grid(GFlowNetEnv):
         # To Discuss: can we return a tensor?
         return states.tolist()
 
-    def plot_samples_frequency(self, samples, ax=None, title=None):
+    def plot_samples_frequency(self, samples, ax=None, title=None, rescale=1):
         """
         Plot 2D histogram of samples.
         """
@@ -378,8 +378,12 @@ class Grid(GFlowNetEnv):
         else:
             standalone = False
         # make a list of integers from 0 to n_dim
-        ax.set_xticks(np.arange(self.length))
-        ax.set_yticks(np.arange(self.length))
+        ax.set_xticks(
+            np.arange(start=0, stop=self.length, step=int(self.length / rescale))
+        )
+        ax.set_yticks(
+            np.arange(start=0, stop=self.length, step=int(self.length / rescale))
+        )
         # check if samples is on GPU
         if torch.is_tensor(samples) and samples.is_cuda:
             samples = samples.detach().cpu()
