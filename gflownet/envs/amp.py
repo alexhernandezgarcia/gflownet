@@ -16,6 +16,7 @@ from torchtyping import TensorType
 import torch
 import matplotlib.pyplot as plt
 
+
 class AMP(GFlowNetEnv):
     """
     Anti-microbial peptide  sequence environment
@@ -263,13 +264,17 @@ class AMP(GFlowNetEnv):
             state_policy[idx] = self.state2policy(state)
         # TODO fix for when some states are []
         # if list(map(len, states)) != [0 for s in states]:
-        #     cols, lengths = zip(
-        #         *[
-        #             (state + np.arange(len(state)) * self.n_alphabet, len(state))
-        #             for state in states
-        #         ]
-        #     )
-        #     rows = np.repeat(np.arange(len(states)), lengths)
+        # cols, lengths = zip(
+        #     *[
+        #         (state + np.arange(len(state)) * self.n_alphabet, len(state))
+        #         if len(state) > 0
+        #         else
+        #         (np.array([self.max_seq_length * self.n_alphabet]), 0)
+        #         for state in states
+        #     ]
+        # )
+        # rows = np.repeat(np.arange(len(states)), lengths)
+        # if rows.shape[0] > 0:
         #     state_policy[rows, np.concatenate(cols)] = 1.0
         return state_policy
 
@@ -318,7 +323,7 @@ class AMP(GFlowNetEnv):
         )
         state_policy[rows, cols] = 1.0
         return state_policy
-    
+
     def policytorch2state(self, state_policy: List) -> List:
         """
         Transforms the one-hot encoding version of a sequence (state) given as argument
@@ -535,7 +540,7 @@ class AMP(GFlowNetEnv):
 
     def get_distance(self, seq1, seq2):
         return levenshtein(seq1, seq2) / 1
-    
+
     def plot_reward_distribution(self, scores, title):
         fig, ax = plt.subplots()
         if isinstance(scores, TensorType):

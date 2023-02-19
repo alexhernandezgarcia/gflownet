@@ -878,10 +878,10 @@ class GFlowNetAgent:
                 hist[tuple(x)] += 1
             z_pred = sum([hist[tuple(x)] for x in x_tt]) + 1e-9
             density_pred = np.array([hist[tuple(x)] / z_pred for x in x_tt])
-            corr = np.corrcoef(density_pred, density_true)[0, 1]
-            # corr= 0
-            # corr_matrix, _ = self.get_log_corr(x_tt)
-            # corr = corr_matrix[0][1]
+            # corr = np.corrcoef(density_pred, density_true)[0, 1]
+            # TODO: add condition as to when this shoulod be caclulated
+            corr_matrix, _ = self.get_log_corr(x_tt)
+            corr = corr_matrix[0][1]
             log_density_true = np.log(density_true + 1e-8)
             log_density_pred = np.log(density_pred + 1e-8)
         elif self.continuous:
@@ -973,8 +973,7 @@ class GFlowNetAgent:
         #         "test_logq": 0.0,
         #     }
         # )
-        else:
-
+        elif hasattr(self.env, "get_trajectories"):
             for state in x_tt:
                 # for statestr, score in tqdm(
                 #     zip(self.buffer.test.samples, self.buffer.test["energies"]), disable=True
@@ -984,7 +983,7 @@ class GFlowNetAgent:
                     [],
                     [],
                     [state],
-                    [self.env.eos],
+                    [(self.env.eos,)],
                 )
                 # t1_test_traj = time.time()
                 # times["test_trajs"] += t1_test_traj - t0_test_traj
@@ -1093,7 +1092,8 @@ class GFlowNetAgent:
             logprobs_traj = logsoftmax(logits_traj)
             log_q_traj = torch.tensor(0.0)
             for s, a, logprobs in zip(*[traj, actions, logprobs_traj]):
-                log_q_traj = log_q_traj + logprobs[a]
+                action_idx = env.action_space.index(a)
+                log_q_traj = log_q_traj + logprobs[action_idx]
             # Accumulate log prob of trajectory
             if torch.le(log_q, 0.0):
                 log_q = torch.logaddexp(log_q, log_q_traj)

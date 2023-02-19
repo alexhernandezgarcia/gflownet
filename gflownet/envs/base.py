@@ -54,18 +54,12 @@ class GFlowNetEnv:
         self.reward_func = reward_func
         self.energies_stats = energies_stats
         self.denorm_proxy = denorm_proxy
-        self.proxy = proxy
-        if oracle is None:
+        if proxy is not None:
+            self.set_proxy(proxy)
+        if oracle is None and proxy is not None:
             self.oracle = self.proxy
         else:
             self.oracle = oracle
-            # higher_is_better is dependant on proxy
-            # but proxy is set after env is iniatiliased
-            # TODO: need to think about how to do iniatilise higherIsBetter
-            if self.oracle.higher_is_better:
-                self.proxy_factor = 1.0
-            else:
-                self.proxy_factor = -1.0
         self.proxy_state_format = proxy_state_format
         self._true_density = None
         self._z = None
@@ -80,6 +74,13 @@ class GFlowNetEnv:
     def copy(self):
         # return an instance of the environment
         return self.__class__(**self.__dict__)
+
+    def set_proxy(self, proxy):
+        self.proxy = proxy
+        if self.proxy.maximize:
+            self.proxy_factor = 1.0
+        else:
+            self.proxy_factor = -1.0
 
     def set_energies_stats(self, energies_stats):
         self.energies_stats = energies_stats
@@ -433,6 +434,11 @@ class GFlowNetEnv:
         parents, parents_actions = self.get_parents(current_traj[-1], False)
         if parents == []:
             traj_list.append(current_traj)
+            if hasattr(self, "action_pad_length"):
+                current_actions = [
+                    tuple(list(action) + [0] * (self.action_max_length - len(action)))
+                    for action in current_actions
+                ]
             traj_actions_list.append(current_actions)
             return traj_list, traj_actions_list
         for idx, (p, a) in enumerate(zip(parents, parents_actions)):

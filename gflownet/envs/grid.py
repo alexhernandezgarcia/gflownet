@@ -249,8 +249,7 @@ class Grid(GFlowNetEnv):
 
     def statetorch2readable(self, state, alphabet={}):
         """
-        Converts a state (a list of positions) into a human-readable string
-        representing a state.
+        Dataset Handler in activelearning deals only in tensors. This function converts the tesnor to readble format to save the train dataset
         """
         state = state.detach().cpu().numpy()
         return str(state).replace("(", "[").replace(")", "]").replace(",", "")
