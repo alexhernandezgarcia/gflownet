@@ -633,26 +633,28 @@ class GFlowNetAgent:
         traj_id = torch.cat([el[:1] for el in traj_id_parents])
         # TODO: can we do something without the fid break?
         if self.env.do_state_padding:
-            parents_no_fid, fid = zip(
-                *[torch.split(p, [p.shape[1] - 1, 1], dim=1) for p in parents]
-            )
-            parents_no_fid = [p.squeeze(0) for p in parents_no_fid]
-            parents_no_fid = torch.nn.utils.rnn.pad_sequence(
-                parents_no_fid,
+            if hasattr(self.env, "n_fid"):
+                parents, fid = zip(
+                    *[torch.split(p, [p.shape[1] - 1, 1], dim=1) for p in parents]
+                )
+                states, fid = zip(
+                    *[torch.split(s, [s.shape[1] - 1, 1], dim=1) for s in states]
+                )
+            parents = [p.squeeze(0) for p in parents]
+            parents = torch.nn.utils.rnn.pad_sequence(
+                parents,
                 batch_first=True,
                 padding_value=self.env.invalid_state_element,
             )
-            parents = torch.cat([parents_no_fid, torch.cat(fid)], dim=1)
-            states_no_fid, fid = zip(
-                *[torch.split(s, [s.shape[1] - 1, 1], dim=1) for s in states]
-            )
-            states_no_fid = [s.squeeze(0) for s in states_no_fid]
-            states_no_fid = torch.nn.utils.rnn.pad_sequence(
-                states_no_fid,
+            states = [s.squeeze(0) for s in states]
+            states = torch.nn.utils.rnn.pad_sequence(
+                states,
                 batch_first=True,
                 padding_value=self.env.invalid_state_element,
             )
-            states = torch.cat([states_no_fid, torch.cat(fid)], dim=1)
+            if hasattr(self.env, "n_fid"):
+                parents = torch.cat([parents, torch.cat(fid)], dim=1)
+                states = torch.cat([states, torch.cat(fid)], dim=1)
         else:
             parents, states = map(
                 torch.cat,
@@ -888,6 +890,7 @@ class GFlowNetAgent:
             z_pred = sum([hist[tuple(x)] for x in x_tt]) + 1e-9
             density_pred = np.array([hist[tuple(x)] / z_pred for x in x_tt])
             corr = np.corrcoef(density_pred, density_true)[0, 1]
+            # corr = 0.0
             # TODO: add condition as to when this shoulod be caclulated
             # corr_matrix, _ = self.get_log_corr(x_tt)
             # corr = corr_matrix[0][1]

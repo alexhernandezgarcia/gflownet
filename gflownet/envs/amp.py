@@ -58,7 +58,6 @@ class AMP(GFlowNetEnv):
         n_alphabet=20,
         min_word_len=1,
         max_word_len=1,
-        do_state_padding=True,
         # env_id=None,
         **kwargs,
     ):
@@ -116,7 +115,11 @@ class AMP(GFlowNetEnv):
         self.reset()
         # because -1 is for fidelity not being chosen
         self.invalid_state_element = -2
-        self.proxy_factor = 1.0
+        # self.proxy_factor = 1.0
+        if self.do_state_padding:
+            assert (
+                self.invalid_state_element is not None
+            ), "Padding value of state not defined"
 
     def get_actions_space(self):
         """

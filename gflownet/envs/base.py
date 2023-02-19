@@ -55,12 +55,12 @@ class GFlowNetEnv:
         self.reward_func = reward_func
         self.energies_stats = energies_stats
         self.denorm_proxy = denorm_proxy
-        if proxy is not None:
-            self.set_proxy(proxy)
         if oracle is None and proxy is not None:
-            self.oracle = self.proxy
+            self.oracle = proxy
         else:
             self.oracle = oracle
+        if proxy is not None:
+            self.set_proxy(proxy)
         self.proxy_state_format = proxy_state_format
         self._true_density = None
         self._z = None
@@ -72,10 +72,6 @@ class GFlowNetEnv:
         assert self.reward_norm > 0
         assert self.reward_beta > 0
         assert self.min_reward > 0
-        if self.do_state_padding:
-            assert (
-                self.invalid_state_element is not None
-            ), "Padding value of state not defined"
 
     def copy(self):
         # return an instance of the environment
@@ -83,10 +79,16 @@ class GFlowNetEnv:
 
     def set_proxy(self, proxy):
         self.proxy = proxy
-        if self.proxy.maximize:
-            self.proxy_factor = 1.0
+        if hasattr(self.proxy, "proxy_factor"):
+            return
+        if self.proxy.maximize is not None:
+            maximize = self.proxy.maximize
         else:
-            self.proxy_factor = -1.0
+            maximize = self.oracle.maximize
+            if maximize:
+                self.proxy_factor = 1.0
+            else:
+                self.proxy_factor = -1.0
 
     def set_energies_stats(self, energies_stats):
         self.energies_stats = energies_stats
