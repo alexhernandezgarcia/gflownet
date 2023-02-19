@@ -65,8 +65,6 @@ class Grid(GFlowNetEnv):
         if self.oracle is not None and hasattr(self.oracle, "n_dim"):
             self.oracle.n_dim = self.n_dim
             self.oracle.setup()
-        # TODO: change to self.do_padding = False
-        self.invalid_state_element = self.n_dim + 50
         self.proxy_factor = 1.0
         self.rescale = None
 

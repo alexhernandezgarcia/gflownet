@@ -33,6 +33,7 @@ class GFlowNetEnv:
         proxy=None,
         oracle=None,
         proxy_state_format=None,
+        do_state_padding=False,
         **kwargs,
     ):
         # Device
@@ -66,10 +67,15 @@ class GFlowNetEnv:
         self.action_space = []
         self.eos = len(self.action_space)
         self.logsoftmax = torch.nn.LogSoftmax(dim=1)
+        self.do_state_padding = do_state_padding
         # Assertions
         assert self.reward_norm > 0
         assert self.reward_beta > 0
         assert self.min_reward > 0
+        if self.do_state_padding:
+            assert (
+                self.invalid_state_element is not None
+            ), "Padding value of state not defined"
 
     def copy(self):
         # return an instance of the environment

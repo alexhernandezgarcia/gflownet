@@ -58,6 +58,7 @@ class AMP(GFlowNetEnv):
         n_alphabet=20,
         min_word_len=1,
         max_word_len=1,
+        do_state_padding=True,
         # env_id=None,
         **kwargs,
     ):

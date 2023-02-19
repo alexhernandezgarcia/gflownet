@@ -632,26 +632,35 @@ class GFlowNetAgent:
         ]
         traj_id = torch.cat([el[:1] for el in traj_id_parents])
         # TODO: can we do something without the fid break?
-        parents_no_fid, fid = zip(
-            *[torch.split(p, [p.shape[1] - 1, 1], dim=1) for p in parents]
-        )
-        parents_no_fid = [p.squeeze(0) for p in parents_no_fid]
-        parents_no_fid = torch.nn.utils.rnn.pad_sequence(
-            parents_no_fid,
-            batch_first=True,
-            padding_value=self.env.invalid_state_element,
-        )
-        parents = torch.cat([parents_no_fid, torch.cat(fid)], dim=1)
-        states_no_fid, fid = zip(
-            *[torch.split(s, [s.shape[1] - 1, 1], dim=1) for s in states]
-        )
-        states_no_fid = [s.squeeze(0) for s in states_no_fid]
-        states_no_fid = torch.nn.utils.rnn.pad_sequence(
-            states_no_fid,
-            batch_first=True,
-            padding_value=self.env.invalid_state_element,
-        )
-        states = torch.cat([states_no_fid, torch.cat(fid)], dim=1)
+        if self.env.do_state_padding:
+            parents_no_fid, fid = zip(
+                *[torch.split(p, [p.shape[1] - 1, 1], dim=1) for p in parents]
+            )
+            parents_no_fid = [p.squeeze(0) for p in parents_no_fid]
+            parents_no_fid = torch.nn.utils.rnn.pad_sequence(
+                parents_no_fid,
+                batch_first=True,
+                padding_value=self.env.invalid_state_element,
+            )
+            parents = torch.cat([parents_no_fid, torch.cat(fid)], dim=1)
+            states_no_fid, fid = zip(
+                *[torch.split(s, [s.shape[1] - 1, 1], dim=1) for s in states]
+            )
+            states_no_fid = [s.squeeze(0) for s in states_no_fid]
+            states_no_fid = torch.nn.utils.rnn.pad_sequence(
+                states_no_fid,
+                batch_first=True,
+                padding_value=self.env.invalid_state_element,
+            )
+            states = torch.cat([states_no_fid, torch.cat(fid)], dim=1)
+        else:
+            parents, states = map(
+                torch.cat,
+                [
+                    parents,
+                    states,
+                ],
+            )
 
         # Concatenate lists of tensors
         actions, done, state_id, masks_sf, masks_b = map(
@@ -967,32 +976,24 @@ class GFlowNetAgent:
                         traj_list, traj_list_actions, self.forward_policy, self.env
                     )
                 )
-        # times.update(
-        #     {
-        #         "test_trajs": 0.0,
-        #         "test_logq": 0.0,
-        #     }
-        # )
         elif hasattr(self.env, "get_trajectories"):
+            test_traj_list = []
+            test_traj_actions_list = []
             for state in x_tt:
-                # for statestr, score in tqdm(
-                #     zip(self.buffer.test.samples, self.buffer.test["energies"]), disable=True
-                # ):
-                # t0_test_traj = time.time()
                 traj_list, actions = self.env.get_trajectories(
                     [],
                     [],
                     [state],
                     [(self.env.eos,)],
                 )
-                # t1_test_traj = time.time()
-                # times["test_trajs"] += t1_test_traj - t0_test_traj
-                # t0_test_logq = time.time()
                 data_logq.append(
                     self.logq(traj_list, actions, self.forward_policy, self.env)
                 )
-                # t1_test_logq = time.time()
-                # times["test_logq"] += t1_test_logq - t0_test_logq
+                test_traj_list.append(traj_list)
+                test_traj_actions_list.append(actions)
+
+            setattr(self.env, "_test_traj_list", test_traj_list)
+            setattr(self.env, "_test_traj_actions_list", test_traj_actions_list)
         corr = np.corrcoef(data_logq, self.buffer.test["energies"])
         return corr, data_logq
 
@@ -1019,7 +1020,6 @@ class GFlowNetAgent:
         self.logger.log_metric("logZ", self.logZ.sum(), it, use_context=False)
 
         # test metrics
-        # TODO: integrate corr into test()
         if not self.logger.lightweight and self.buffer.test is not None:
             corr, data_logq, times = self.get_log_corr(times)
             self.logger.log_sampler_test(corr, data_logq, it, self.use_context)
