@@ -60,27 +60,12 @@ class AlanineDipeptide(ContinuousTorus):
         )
         self.sync_conformer_with_state()
 
-    def set_device(self, device):
-        super().set_device(device)
-        self.proxy.set_device(device)
-
-    def set_float_precision(self, dtype):
-        super().set_float_precision(dtype)
-        self.proxy.set_float_precision(dtype)
-
     def sync_conformer_with_state(self, state: List = None):
         if state is None:
             state = self.state
         for idx, ta in enumerate(self.conformer.freely_rotatable_tas):
             self.conformer.set_torsion_angle(ta, state[idx])
         return self.conformer
-
-    def set_condition(self, atom_positions):
-        """
-        :param atom_positions: 2d numpy array of shape [num atoms, 3] with new atom positions
-        """
-        self.conformer.set_atom_positions(atom_positions)
-        self.sync_conformer_with_state()
 
     def statetorch2proxy(
         self, states: TensorType["batch", "state_dim"]
@@ -123,20 +108,16 @@ class AlanineDipeptide(ContinuousTorus):
         self, states: List[List]
     ) -> List[Tuple[npt.NDArray, npt.NDArray]]:
         """
-        Prepares a batch of states in "GFlowNet format" for the oracle: a list of tuples, 
-        where first element in the tuple is numpy array of atom positions of shape [num_atoms, 3]
-        and the second element is numpy array of atomic numbers of shape [num_atoms, ]
+        Prepares a batch of states in "GFlowNet format" for the oracle: a list of
+        tuples, where first element in the tuple is numpy array of atom positions of
+        shape [num_atoms, 3] and the second element is numpy array of atomic numbers of
+        shape [num_atoms, ]
         """
         states_oracle = []
         for st in states:
             conf = self.sync_conformer_with_state(st)
             states_oracle.append((conf.get_atom_positions(), conf.get_atomic_numbers()))
         return states_oracle
-
-    # def reset(self):
-    #     super().reset()
-    #     # no resets of the condition, keep it simple
-    #     return self
 
 
 if __name__ == "__main__":
