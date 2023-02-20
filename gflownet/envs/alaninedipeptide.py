@@ -2,17 +2,16 @@ import numpy as np
 import numpy.typing as npt
 import torch
 
-from copy import deepcopy
 from typing import List, Tuple
 from torchtyping import TensorType
 
-from gflownet.envs.ctorusmixture import ContinuousTorusMixture 
+from gflownet.envs.ctorus import ContinuousTorus
 from gflownet.utils.molecule import constants
 from gflownet.utils.molecule.atom_positions_dataset import AtomPositionsDataset
 from gflownet.utils.molecule.conformer_base import ConformerBase
 
 
-class ADMoleculeSimpleMixture(ContinuousTorusMixture):
+class AlanineDipeptide(ContinuousTorus):
     """Simple extension of 2d continuous torus where reward function is defined by the
     energy of the alanine dipeptide molecule"""
 
@@ -33,7 +32,6 @@ class ADMoleculeSimpleMixture(ContinuousTorusMixture):
         proxy=None,
         oracle=None,
         policy_encoding_dim_per_angle=None,
-        n_comp=3,
         **kwargs,
     ):
         self.atom_positions_dataset = AtomPositionsDataset(path_to_dataset)
@@ -42,7 +40,7 @@ class ADMoleculeSimpleMixture(ContinuousTorusMixture):
             atom_positions, constants.ad_smiles, constants.ad_free_tas
         )
         n_dim = len(self.conformer.freely_rotatable_tas)
-        super(ADMoleculeSimpleMixture, self).__init__(
+        super(AlanineDipeptide, self).__init__(
             n_dim=n_dim,
             length_traj=length_traj,
             fixed_distribution=fixed_distribution,
@@ -58,18 +56,17 @@ class ADMoleculeSimpleMixture(ContinuousTorusMixture):
             proxy=proxy,
             oracle=oracle,
             policy_encoding_dim_per_angle=policy_encoding_dim_per_angle,
-            n_comp=n_comp,
             **kwargs,
         )
         self.sync_conformer_with_state()
 
-    # def set_device(self, device):
-    #     super().set_device(device)
-    #     self.proxy.set_device(device)
+    def set_device(self, device):
+        super().set_device(device)
+        self.proxy.set_device(device)
 
-    # def set_float_precision(self, dtype):
-    #     super().set_float_precision(dtype)
-    #     self.proxy.set_float_precision(dtype)
+    def set_float_precision(self, dtype):
+        super().set_float_precision(dtype)
+        self.proxy.set_float_precision(dtype)
 
     def sync_conformer_with_state(self, state: List = None):
         if state is None:
@@ -84,10 +81,6 @@ class ADMoleculeSimpleMixture(ContinuousTorusMixture):
         """
         self.conformer.set_atom_positions(atom_positions)
         self.sync_conformer_with_state()
-
-    def copy(self):
-        # return an instance of the environment
-        return deepcopy(self)
 
     def statetorch2proxy(
         self, states: TensorType["batch", "state_dim"]
@@ -151,7 +144,7 @@ if __name__ == "__main__":
 
     path_to_data = sys.argv[1]
     print(path_to_data)
-    env = ADMoleculeSimple(path_to_data)
+    env = AlanineDipeptide(path_to_data)
     print("initial state:", env.state)
     conf = env.sync_conformer_with_state()
     tas = conf.get_freely_rotatable_tas_values()

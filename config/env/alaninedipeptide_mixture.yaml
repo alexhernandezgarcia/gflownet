@@ -1,10 +1,10 @@
 defaults:
   - base
 
-_target_: gflownet.envs.ad_molecule_simple_mixture.ADMoleculeSimpleMixture
+_target_: gflownet.envs.alaninedipeptide_mixture.AlanineDipeptideMixture
 
 path_to_dataset: ${user.data.alanine_dipeptide}
-id: ad_molecule_simple
+id: alaninedipeptide
 policy_encoding_dim_per_angle: null
 # Fixed length of trajectories
 length_traj: 10
@@ -25,5 +25,5 @@ buffer:
   test:
     type: grid
     n: 1000
-    output_csv: ad_molecule_simple_mixture_test.csv
-    output_pkl: ad_molecule_simple_mixture_test.pkl
+    output_csv: alaninedipeptide_mixture_test.csv
+    output_pkl: alaninedipeptide_mixture_test.pkl
