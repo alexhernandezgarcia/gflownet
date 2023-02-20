@@ -72,6 +72,7 @@ def main(config):
 
     gflownet.logger.end()
 
+
 def set_seeds(seed):
     import torch
     import numpy as np

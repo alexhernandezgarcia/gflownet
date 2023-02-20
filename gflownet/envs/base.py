@@ -33,6 +33,7 @@ class GFlowNetEnv:
         proxy=None,
         oracle=None,
         proxy_state_format=None,
+        do_state_padding=False,
         **kwargs,
     ):
         # Device
@@ -54,24 +55,19 @@ class GFlowNetEnv:
         self.reward_func = reward_func
         self.energies_stats = energies_stats
         self.denorm_proxy = denorm_proxy
-        self.proxy = proxy
-        if oracle is None:
-            self.oracle = self.proxy
+        if oracle is None and proxy is not None:
+            self.oracle = proxy
         else:
             self.oracle = oracle
-            # higher_is_better is dependant on proxy
-            # but proxy is set after env is iniatiliased
-            # TODO: need to think about how to do iniatilise higherIsBetter
-            if self.oracle.higher_is_better:
-                self.proxy_factor = 1.0
-            else:
-                self.proxy_factor = -1.0
+        if proxy is not None:
+            self.set_proxy(proxy)
         self.proxy_state_format = proxy_state_format
         self._true_density = None
         self._z = None
         self.action_space = []
         self.eos = len(self.action_space)
         self.logsoftmax = torch.nn.LogSoftmax(dim=1)
+        self.do_state_padding = do_state_padding
         # Assertions
         assert self.reward_norm > 0
         assert self.reward_beta > 0
@@ -80,6 +76,19 @@ class GFlowNetEnv:
     def copy(self):
         # return an instance of the environment
         return self.__class__(**self.__dict__)
+
+    def set_proxy(self, proxy):
+        self.proxy = proxy
+        if hasattr(self, "proxy_factor"):
+            return
+        if self.proxy.maximize is not None:
+            maximize = self.proxy.maximize
+        else:
+            maximize = self.oracle.maximize
+        if maximize:
+            self.proxy_factor = 1.0
+        else:
+            self.proxy_factor = -1.0
 
     def set_energies_stats(self, energies_stats):
         self.energies_stats = energies_stats
@@ -172,6 +181,7 @@ class GFlowNetEnv:
         return self.proxy2reward(self.proxy(self.state2proxy(state)))
 
     def reward_batch(self, states: List[List], done=None):
+        # Deprecated
         """
         Computes the rewards of a batch of states, given a list of states and 'dones'
         """
@@ -432,6 +442,11 @@ class GFlowNetEnv:
         parents, parents_actions = self.get_parents(current_traj[-1], False)
         if parents == []:
             traj_list.append(current_traj)
+            if hasattr(self, "action_pad_length"):
+                current_actions = [
+                    tuple(list(action) + [0] * (self.action_max_length - len(action)))
+                    for action in current_actions
+                ]
             traj_actions_list.append(current_actions)
             return traj_list, traj_actions_list
         for idx, (p, a) in enumerate(zip(parents, parents_actions)):
@@ -686,8 +701,13 @@ class Buffer:
         elif "path" in config and config.path is not None:
             path = self.logger.logdir / Path("data") / config.path
             df = pd.read_csv(path, index_col=0)
+            states = [self.env.readable2state(s) for s in df["samples"].values]
+            dict = {
+                "x": states,
+                "energies": df["energies"].values,
+            }
             # TODO: check if state2readable transformation is required.
-            return df, None
+            return df, dict
         elif "type" not in config:
             return None, None
         elif config.type == "all" and hasattr(self.env, "get_all_terminating_states"):

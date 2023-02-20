@@ -5,4 +5,4 @@ oracle_type: "MLP"
 oracle_features: "AlBert"
 dist_fn: "edit"
 medoid_oracle_norm: 1  
-higher_is_better: True
+maximize: True

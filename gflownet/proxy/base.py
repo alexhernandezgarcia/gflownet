@@ -11,13 +11,14 @@ class Proxy:
     """
     Generic proxy class
     """
-    def __init__(self, device, float_precision, higher_is_better=False, **kwargs):
+
+    def __init__(self, device, float_precision, maximize=None, **kwargs):
         # Device
         self.device = set_device(device)
         # Float precision
         self.float = set_float_precision(float_precision)
         # Reward2Proxy multiplicative factor (1 or -1)
-        self.higher_is_better=higher_is_better
+        self.maximize = maximize
 
     @abstractmethod
     def __call__(self, states: npt.NDArray[np.float32]) -> npt.NDArray[np.float32]:

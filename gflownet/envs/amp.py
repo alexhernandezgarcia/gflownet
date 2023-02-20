@@ -14,6 +14,7 @@ from polyleven import levenshtein
 import numpy.typing as npt
 from torchtyping import TensorType
 import torch
+import matplotlib.pyplot as plt
 
 
 class AMP(GFlowNetEnv):
@@ -112,7 +113,13 @@ class AMP(GFlowNetEnv):
             )
         self.alphabet = dict((i, a) for i, a in enumerate(self.vocab))
         self.reset()
-        self.invalid_action = -1
+        # because -1 is for fidelity not being chosen
+        self.invalid_state_element = -2
+        # self.proxy_factor = 1.0
+        if self.do_state_padding:
+            assert (
+                self.invalid_state_element is not None
+            ), "Padding value of state not defined"
 
     def get_actions_space(self):
         """
@@ -199,7 +206,7 @@ class AMP(GFlowNetEnv):
         Args
         ----
         state_list : list of lists
-            List of sequences (not numpy array).
+            List of sequences.
         """
         state_oracle = [self.state2oracle(state) for state in state_batch]
         return state_oracle
@@ -214,8 +221,8 @@ class AMP(GFlowNetEnv):
     ) -> TensorType["batch", "state_proxy_dim"]:
         state_oracle = []
         for state in states:
-            if state[-1] == self.invalid_action:
-                state = state[: torch.where(state == self.invalid_action)[0][0]]
+            if state[-1] == self.invalid_state_element:
+                state = state[: torch.where(state == self.invalid_state_element)[0][0]]
             state_numpy = state.detach().cpu().numpy()
             state_oracle.append(self.state2oracle(state_numpy))
         return state_oracle
@@ -241,7 +248,7 @@ class AMP(GFlowNetEnv):
             state = self.state.copy()
         state_policy = np.zeros(self.max_seq_length * self.n_alphabet, dtype=np.float32)
         if len(state) > 0:
-            state = [subseq.cpu().detach().numpy() for subseq in state]
+            # state = [subseq.cpu().detach().numpy() for subseq in state]
             state_policy[(np.arange(len(state)) * self.n_alphabet + state)] = 1
         return state_policy
 
@@ -252,20 +259,27 @@ class AMP(GFlowNetEnv):
 
         See state2policy().
         """
-        # TODO: ensure that un-padded state is fed here 
+        # TODO: ensure that un-padded state is fed here
         # if not modify to implementation similar to that of statetorch2policy
         state_policy = np.zeros(
             (len(states), self.n_alphabet * self.max_seq_length), dtype=np.float32
         )
-        if list(map(len, states)) != [0 for s in states]:
-            cols, lengths = zip(
-                *[
-                    (state + np.arange(len(state)) * self.n_alphabet, len(state))
-                    for state in states
-                ]
-            )
-            rows = np.repeat(np.arange(len(states)), lengths)
-            state_policy[rows, np.concatenate(cols)] = 1.0
+        for idx, state in enumerate(states):
+            state_policy[idx] = self.state2policy(state)
+        # TODO fix for when some states are []
+        # if list(map(len, states)) != [0 for s in states]:
+        # cols, lengths = zip(
+        #     *[
+        #         (state + np.arange(len(state)) * self.n_alphabet, len(state))
+        #         if len(state) > 0
+        #         else
+        #         (np.array([self.max_seq_length * self.n_alphabet]), 0)
+        #         for state in states
+        #     ]
+        # )
+        # rows = np.repeat(np.arange(len(states)), lengths)
+        # if rows.shape[0] > 0:
+        #     state_policy[rows, np.concatenate(cols)] = 1.0
         return state_policy
 
     def statetorch2policy(
@@ -277,23 +291,25 @@ class AMP(GFlowNetEnv):
                 (
                     (
                         state[
-                            : torch.where(state == self.invalid_action)[0][0]
-                            if state[-1] == self.invalid_action
+                            : torch.where(state == self.invalid_state_element)[0][0]
+                            if state[-1] == self.invalid_state_element
                             else len(state)
                         ].to(self.device)
                         + torch.arange(
                             len(
                                 state[
-                                    : torch.where(state == self.invalid_action)[0][0]
-                                    if state[-1] == self.invalid_action
+                                    : torch.where(state == self.invalid_state_element)[
+                                        0
+                                    ][0]
+                                    if state[-1] == self.invalid_state_element
                                     else len(state)
                                 ]
                             )
                         ).to(self.device)
                         * self.n_alphabet
                     ),
-                    torch.where(state == self.invalid_action)[0][0]
-                    if state[-1] == self.invalid_action
+                    torch.where(state == self.invalid_state_element)[0][0]
+                    if state[-1] == self.invalid_state_element
                     else len(state),
                 )
                 for state in states
@@ -308,9 +324,27 @@ class AMP(GFlowNetEnv):
             (len(states), self.n_alphabet * self.max_seq_length),
             dtype=torch.float32,
             device=self.device,
-        ).to(states[0])
+        )
         state_policy[rows, cols] = 1.0
         return state_policy
+
+    def policytorch2state(self, state_policy: List) -> List:
+        """
+        Transforms the one-hot encoding version of a sequence (state) given as argument
+        into a a sequence of letter indices.
+
+        Example:
+          - Sequence: AATGC
+          - state_policy: [1, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0]
+                 |     A    |      A    |      T    |      G    |      C    |
+          - policy2state(state_policy): [0, 0, 1, 3, 2]
+                    A, A, T, G, C
+        """
+        mat_state_policy = torch.reshape(
+            state_policy, (self.max_seq_length, self.n_alphabet)
+        )
+        state = torch.where(mat_state_policy)[1].tolist()
+        return state
 
     def policy2state(self, state_policy: List) -> List:
         """
@@ -335,7 +369,14 @@ class AMP(GFlowNetEnv):
         Transforms a sequence given as a list of indices into a sequence of letters
         according to an alphabet.
         """
-        return [self.alphabet[el] for el in state]
+        return "".join([self.alphabet[el] for el in state])
+
+    def statetorch2readable(self, state: TensorType["batch", "state_dim"]) -> List[str]:
+        if state[-1] == self.invalid_state_element:
+            state = state[: torch.where(state == self.invalid_state_element)[0][0]]
+        state = state.tolist()
+        readable = [self.alphabet[el] for el in state]
+        return "".join(readable)
 
     def readable2state(self, readable: str) -> List:
         """
@@ -490,7 +531,7 @@ class AMP(GFlowNetEnv):
     def get_distance_from_D0(self, samples, dataset_obs):
         # TODO: optimize
         # TODO: should this be proxy2state?
-        dataset_states = [self.policy2state(el) for el in dataset_obs]
+        dataset_states = [self.policytorch2state(el) for el in dataset_obs]
         dataset_samples = self.statebatch2oracle(dataset_states)
         min_dists = []
         for sample in samples:
@@ -503,6 +544,18 @@ class AMP(GFlowNetEnv):
 
     def get_distance(self, seq1, seq2):
         return levenshtein(seq1, seq2) / 1
+
+    def plot_reward_distribution(self, scores, title):
+        fig, ax = plt.subplots()
+        if isinstance(scores, TensorType):
+            scores = scores.cpu().detach().numpy()
+        plt.hist(scores)
+        ax.set_title(title)
+        ax.set_ylabel("Number of Samples")
+        ax.set_xlabel("Energy")
+        plt.show()
+        plt.close()
+        return fig
 
     # TODO: do we need this?
     def make_test_set(

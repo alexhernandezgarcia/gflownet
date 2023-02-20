@@ -60,12 +60,12 @@ class Grid(GFlowNetEnv):
         elif self.proxy_state_format == "oracle":
             self.statebatch2proxy = self.statebatch2oracle
             self.statetorch2proxy = self.statetorch2oracle
-        # Set up oracle
-        self.oracle.n_dim = self.n_dim
-        self.oracle.setup()
-        # TODO: change to something more general. this would be invalid if num_fid>5
-        self.invalid_action = self.n_dim + 5
-        self.proxy_factor = 1.0
+        # TODO: is the og oracle required?
+        if self.oracle is not None and hasattr(self.oracle, "n_dim"):
+            self.oracle.n_dim = self.n_dim
+            self.oracle.setup()
+        # self.proxy_factor = 1.0
+        self.rescale = None
 
     def get_actions_space(self):
         """
@@ -162,7 +162,7 @@ class Grid(GFlowNetEnv):
             self.statetorch2policy(states).reshape(
                 (len(states), self.n_dim, self.length)
             )
-            * torch.tensor(self.cells[None, :]).to(states.device)
+            * torch.tensor(self.cells[None, :]).to(states.device).to(self.float)
         ).sum(axis=2)
 
     def state2policy(self, state: List = None) -> List:
@@ -235,13 +235,20 @@ class Grid(GFlowNetEnv):
         Converts a human-readable string representing a state into a state as a list of
         positions.
         """
-        return [int(el) for el in readable.strip("[]").split(" ")]
+        return [int(el) for el in readable.strip("[]").split(" ") if el != ""]
 
     def state2readable(self, state, alphabet={}):
         """
         Converts a state (a list of positions) into a human-readable string
         representing a state.
         """
+        return str(state).replace("(", "[").replace(")", "]").replace(",", "")
+
+    def statetorch2readable(self, state, alphabet={}):
+        """
+        Dataset Handler in activelearning deals only in tensors. This function converts the tesnor to readble format to save the train dataset
+        """
+        state = state.detach().cpu().numpy()
         return str(state).replace("(", "[").replace(")", "]").replace(",", "")
 
     def reset(self, env_id=None):
@@ -357,7 +364,7 @@ class Grid(GFlowNetEnv):
         # To Discuss: can we return a tensor?
         return states.tolist()
 
-    def plot_samples_frequency(self, samples, ax=None, title=None):
+    def plot_samples_frequency(self, samples, ax=None, title=None, rescale=1):
         """
         Plot 2D histogram of samples.
         """
@@ -367,9 +374,16 @@ class Grid(GFlowNetEnv):
             standalone = True
         else:
             standalone = False
+        # assuming the first time this function would be called when the dataset is created
+        if self.rescale == None:
+            self.rescale = rescale
         # make a list of integers from 0 to n_dim
-        ax.set_xticks(np.arange(self.length))
-        ax.set_yticks(np.arange(self.length))
+        if self.rescale != 1:
+            step = int(self.length / self.rescale)
+        else:
+            step = 1
+        ax.set_xticks(np.arange(start=0, stop=self.length, step=step))
+        ax.set_yticks(np.arange(start=0, stop=self.length, step=step))
         # check if samples is on GPU
         if torch.is_tensor(samples) and samples.is_cuda:
             samples = samples.detach().cpu()
@@ -392,17 +406,17 @@ class Grid(GFlowNetEnv):
             plt.close()
         return ax
 
-    def plot_reward_samples(self, states, scores, figure_title):
-        # make compatible with n_dim > 2
-        fig, ax = plt.subplots()
-        grid_scores = np.ones((self.length, self.length)) * (-0.0001)
-        index = states.long().detach().cpu().numpy()
-        grid_scores[index[:, 0], index[:, 1]] = scores
-        im = ax.imshow(grid_scores)
-        divider = make_axes_locatable(ax)
-        ax.set_title(figure_title)
-        cax = divider.append_axes("right", size="5%", pad=0.05)
-        plt.colorbar(im, cax=cax)
-        plt.show()
-        plt.close()
-        return fig
+    # def plot_reward_samples(self, states, scores, figure_title):
+    #     # make compatible with n_dim > 2
+    #     fig, ax = plt.subplots()
+    #     grid_scores = np.ones((self.length, self.length)) * (-0.0001)
+    #     index = states.long().detach().cpu().numpy()
+    #     grid_scores[index[:, 0], index[:, 1]] = scores
+    #     im = ax.imshow(grid_scores)
+    #     divider = make_axes_locatable(ax)
+    #     ax.set_title(figure_title)
+    #     cax = divider.append_axes("right", size="5%", pad=0.05)
+    #     plt.colorbar(im, cax=cax)
+    #     plt.show()
+    #     plt.close()
+    #     return fig
