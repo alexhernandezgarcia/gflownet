@@ -322,7 +322,7 @@ class AMP(GFlowNetEnv):
         )
         state_policy = torch.zeros(
             (len(states), self.n_alphabet * self.max_seq_length),
-            dtype=torch.float32,
+            dtype=self.float,
             device=self.device,
         )
         state_policy[rows, cols] = 1.0
