@@ -954,6 +954,13 @@ class GFlowNetAgent:
             fig_samples_frequency = self.env.plot_samples_frequency(x_sampled)
         else:
             fig_samples_frequency = None
+        if hasattr(self.env, "plot_reward_distribution"):
+            fig_reward_distribution = self.env.plot_reward_distribution(
+                states=x_sampled
+            )
+        else:
+            fig_reward_distribution = None
+
         if hasattr(self.env, "plot_kde"):
             fig_kde_pred = self.env.plot_kde(kde_pred)
             fig_kde_true = self.env.plot_kde(kde_true)
@@ -965,7 +972,13 @@ class GFlowNetAgent:
             kl,
             jsd,
             corr,
-            [fig_reward_samples, fig_kde_pred, fig_kde_true, fig_samples_frequency],
+            [
+                fig_reward_samples,
+                fig_kde_pred,
+                fig_kde_true,
+                fig_samples_frequency,
+                fig_reward_distribution,
+            ],
         )
 
     def get_log_corr(self, x_tt):

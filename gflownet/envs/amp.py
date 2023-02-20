@@ -545,8 +545,13 @@ class AMP(GFlowNetEnv):
     def get_distance(self, seq1, seq2):
         return levenshtein(seq1, seq2) / 1
 
-    def plot_reward_distribution(self, scores, title):
+    def plot_reward_distribution(self, states=None, scores=None, title=None):
+        if title == None:
+            title = "Rewards of Sampled States"
         fig, ax = plt.subplots()
+        if scores is None:
+            oracle_states = self.statebatch2oracle(states)
+            scores = self.oracle(oracle_states)
         if isinstance(scores, TensorType):
             scores = scores.cpu().detach().numpy()
         plt.hist(scores)

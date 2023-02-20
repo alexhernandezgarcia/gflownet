@@ -178,6 +178,7 @@ class Logger:
             "GFlowNet KDE Policy",
             "Reward KDE",
             "Frequency of Samples",
+            "Reward Distribution",
         ]
         for key, fig in zip(keys, figs):
             if use_context:
