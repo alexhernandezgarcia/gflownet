@@ -79,7 +79,7 @@ class GFlowNetEnv:
 
     def set_proxy(self, proxy):
         self.proxy = proxy
-        if hasattr(self.proxy, "proxy_factor"):
+        if hasattr(self, "proxy_factor"):
             return
         if self.proxy.maximize is not None:
             maximize = self.proxy.maximize
