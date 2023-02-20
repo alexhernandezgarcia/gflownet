@@ -85,10 +85,10 @@ class GFlowNetEnv:
             maximize = self.proxy.maximize
         else:
             maximize = self.oracle.maximize
-            if maximize:
-                self.proxy_factor = 1.0
-            else:
-                self.proxy_factor = -1.0
+        if maximize:
+            self.proxy_factor = 1.0
+        else:
+            self.proxy_factor = -1.0
 
     def set_energies_stats(self, energies_stats):
         self.energies_stats = energies_stats

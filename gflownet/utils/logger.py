@@ -185,18 +185,18 @@ class Logger:
             if fig is not None:
                 figimg = self.wandb.Image(fig)
                 self.wandb.log({key: figimg}, step)
-                plt.close(fig)
+                plt.close()
 
     def close_figs(self, figs: list):
         for fig in figs:
             if fig is not None:
-                plt.close(fig)
+                plt.close()
 
     def log_metrics(self, metrics: dict, step: int = None, use_context: bool = True):
         if not self.do.online:
             return
         for key, _ in metrics.items():
-            self.log_metric(key, metrics[key], use_context = use_context)
+            self.log_metric(key, metrics[key], use_context=use_context)
 
     def log_train(
         self,

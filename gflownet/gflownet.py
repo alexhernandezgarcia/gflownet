@@ -1049,8 +1049,11 @@ class GFlowNetAgent:
         """
         # TODO: descending for AMP but ascending for molecules?
         energies = torch.sort(energies, descending=True)[0]
-        pairwise_dists = self.env.get_pairwise_distance(samples)
-        pairwise_dists = torch.sort(pairwise_dists, descending=True)[0]
+        if hasattr(self.env, "get_pairwise_distance"):
+            pairwise_dists = self.env.get_pairwise_distance(samples)
+            pairwise_dists = torch.sort(pairwise_dists, descending=True)[0]
+        else:
+            pairwise_dists = torch.zeros_like(energies)
         dict_topk = {}
         # if self.use_context or self.buffer.train is not None:
         #     dists_from_D0 = self.env.get_distance_from_D0(samples, dataset_states)

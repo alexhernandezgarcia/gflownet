@@ -60,12 +60,11 @@ class Grid(GFlowNetEnv):
         elif self.proxy_state_format == "oracle":
             self.statebatch2proxy = self.statebatch2oracle
             self.statetorch2proxy = self.statetorch2oracle
-        # Set up oracle only if it not a toy oracle
         # TODO: is the og oracle required?
         if self.oracle is not None and hasattr(self.oracle, "n_dim"):
             self.oracle.n_dim = self.n_dim
             self.oracle.setup()
-        self.proxy_factor = 1.0
+        # self.proxy_factor = 1.0
         self.rescale = None
 
     def get_actions_space(self):
@@ -407,17 +406,17 @@ class Grid(GFlowNetEnv):
             plt.close()
         return ax
 
-    def plot_reward_samples(self, states, scores, figure_title):
-        # make compatible with n_dim > 2
-        fig, ax = plt.subplots()
-        grid_scores = np.ones((self.length, self.length)) * (-0.0001)
-        index = states.long().detach().cpu().numpy()
-        grid_scores[index[:, 0], index[:, 1]] = scores
-        im = ax.imshow(grid_scores)
-        divider = make_axes_locatable(ax)
-        ax.set_title(figure_title)
-        cax = divider.append_axes("right", size="5%", pad=0.05)
-        plt.colorbar(im, cax=cax)
-        plt.show()
-        plt.close()
-        return fig
+    # def plot_reward_samples(self, states, scores, figure_title):
+    #     # make compatible with n_dim > 2
+    #     fig, ax = plt.subplots()
+    #     grid_scores = np.ones((self.length, self.length)) * (-0.0001)
+    #     index = states.long().detach().cpu().numpy()
+    #     grid_scores[index[:, 0], index[:, 1]] = scores
+    #     im = ax.imshow(grid_scores)
+    #     divider = make_axes_locatable(ax)
+    #     ax.set_title(figure_title)
+    #     cax = divider.append_axes("right", size="5%", pad=0.05)
+    #     plt.colorbar(im, cax=cax)
+    #     plt.show()
+    #     plt.close()
+    #     return fig
