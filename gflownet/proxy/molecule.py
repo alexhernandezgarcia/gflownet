@@ -1,11 +1,6 @@
 import numpy as np
-import numpy.typing as npt
 import pickle
 import torch
-
-from xtb.interface import Calculator, Param, XTBException
-from xtb.libxtb import VERBOSITY_MUTED
-
 
 from gflownet.proxy.base import Proxy
 from sklearn.ensemble import RandomForestRegressor
@@ -16,9 +11,9 @@ class MoleculeEnergyProxy(Proxy):
         super().__init__(**kwargs)
         self.min = -np.log(105)
         if path_to_model is not None:
-            with open(path_to_model, 'rb') as inp:
+            with open(path_to_model, "rb") as inp:
                 self.model = pickle.load(inp)
-    
+
     def set_device(self, device):
         self.device = device
 
@@ -26,19 +21,20 @@ class MoleculeEnergyProxy(Proxy):
         self.float = dtype
 
     def set_n_dim(self, n_dim):
-        # self.n_dim is never used in this env, 
+        # self.n_dim is never used in this env,
         # this is just to make molecule env work with htorus
         self.n_dim = n_dim
 
     def __call__(self, states_proxy):
         # output of the model is exp(-energy) / 100
-        x = states_proxy % (2*np.pi)
+        x = states_proxy % (2 * np.pi)
         rewards = -np.log(self.model.predict(x) * 100)
         return torch.tensor(
             rewards,
             dtype=self.float,
             device=self.device,
         )
+
     def __deepcopy__(self, memo):
         cls = self.__class__
         new_obj = cls.__new__(cls)
