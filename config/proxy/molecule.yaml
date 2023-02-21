@@ -1,1 +1,3 @@
-_target_: gflownet.proxy.molecule.MoleculeEnergy
+_target_: gflownet.proxy.molecule.MoleculeEnergyProxy
+
+path_to_model: '/home/mila/a/alexandra.volokhova/projects/gflownet/data/random_forest_reward_100.pkl'

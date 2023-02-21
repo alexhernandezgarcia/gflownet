@@ -70,6 +70,7 @@ class GFlowNetAgent:
             print("Unkown loss. Using flowmatch as default")
             self.loss = "flowmatch"
             self.logZ = None
+        # loss_eps is used only for the flowmatch loss
         self.loss_eps = torch.tensor(float(1e-5)).to(self.device)
         # Logging
         self.num_empirical_loss = num_empirical_loss
@@ -785,8 +786,11 @@ class GFlowNetAgent:
 
         # Save final model
         self.logger.save_models(self.forward_policy, self.backward_policy, final=True)
+        # Close logger
+        if self.use_context == False:
+            self.logger.end()
 
-    def test(self):
+    def test(self,**plot_kwargs):
         """
         Computes metrics by sampling trajectories from the forward policy.
         """
@@ -863,13 +867,14 @@ class GFlowNetAgent:
         jsd += 0.5 * np.sum(density_pred * (log_density_pred - log_mean_dens))
 
         # Plots
+
         if hasattr(self.env, "plot_reward_samples"):
-            fig_reward_samples = self.env.plot_reward_samples(x_sampled)
+            fig_reward_samples = self.env.plot_reward_samples(x_sampled, **plot_kwargs)
         else:
             fig_reward_samples = None
         if hasattr(self.env, "plot_kde"):
-            fig_kde_pred = self.env.plot_kde(kde_pred)
-            fig_kde_true = self.env.plot_kde(kde_true)
+            fig_kde_pred = self.env.plot_kde(kde_pred, **plot_kwargs)
+            fig_kde_true = self.env.plot_kde(kde_true, **plot_kwargs)
         else:
             fig_kde_pred = None
             fig_kde_true = None
