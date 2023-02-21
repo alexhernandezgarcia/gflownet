@@ -892,7 +892,7 @@ class GFlowNetAgent:
             # corr = np.corrcoef(density_pred, density_true)[0, 1]
             # corr = 0.0
             # TODO: add condition as to when this shoulod be caclulated
-            corr_matrix, _ = self.get_log_corr(x_tt)
+            corr_matrix, _ = self.get_log_corr(x_tt, dict_tt["energy"])
             corr = corr_matrix[0][1]
             log_density_true = np.log(density_true + 1e-8)
             log_density_pred = np.log(density_pred + 1e-8)
@@ -981,7 +981,7 @@ class GFlowNetAgent:
             ],
         )
 
-    def get_log_corr(self, x_tt):
+    def get_log_corr(self, x_tt, energy):
         data_logq = []
         if hasattr(self.env, "_test_traj_list") and len(self.env._test_traj_list) > 0:
             for traj_list, traj_list_actions in zip(
@@ -1010,7 +1010,7 @@ class GFlowNetAgent:
 
             setattr(self.env, "_test_traj_list", test_traj_list)
             setattr(self.env, "_test_traj_actions_list", test_traj_actions_list)
-        corr = np.corrcoef(data_logq, self.buffer.test["energies"])
+        corr = np.corrcoef(data_logq, energy)
         return corr, data_logq
 
     # TODO: reorganize and remove

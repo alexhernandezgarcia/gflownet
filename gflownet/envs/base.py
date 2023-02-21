@@ -702,13 +702,13 @@ class Buffer:
         elif "path" in config and config.path is not None:
             path = self.logger.logdir / Path("data") / config.path
             df = pd.read_csv(path, index_col=0)
-            states = [self.env.readable2state(s) for s in df["samples"].values]
-            dict = {
-                "x": states,
-                "energies": df["energies"].values,
-            }
-            # TODO: check if state2readable transformation is required.
-            return df, dict
+            samples = [self.env.readable2state(s) for s in df["samples"].values]
+            # dict = {
+            #     "x": samples,
+            #     "energies": df["energies"].values,
+            # }
+            # # TODO: check if state2readable transformation is required.
+            # return df, dict
         elif "type" not in config:
             return None, None
         elif config.type == "all" and hasattr(self.env, "get_all_terminating_states"):
@@ -729,7 +729,6 @@ class Buffer:
         else:
             return None, None
         energies = self.env.proxy(self.env.statebatch2proxy(samples)).tolist()
-        # energies = self.env.oracle(self.env.statebatch2oracle(samples)).tolist()
         df = pd.DataFrame(
             {
                 "samples": [self.env.state2readable(s) for s in samples],
