@@ -10,8 +10,8 @@ from gflownet.proxy.base import Proxy
 
 
 class MoleculeEnergy(Proxy):
-    def __init__(self):
-        super().__init__()
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
 
     def __call__(self, states_proxy):
         # todo: probably make it parallel with mpi
@@ -55,6 +55,6 @@ if __name__ == "__main__":
     from gflownet.utils.molecule.conformer_base import get_dummy_ad_conf_base
 
     conf = get_dummy_ad_conf_base()
-    proxy = MoleculeEnergy()
+    proxy = MoleculeEnergy(device="cpu", float_precision=16)
     energy = proxy.get_energy(conf.get_atom_positions(), conf.get_atomic_numbers())
     print("energy", energy)
