@@ -136,6 +136,7 @@ class AMP(GFlowNetEnv):
         # Add "eos" action
         # eos != n_alphabet in the init because it would break if max_word_len >1
         actions = actions + [(len(actions),)]
+        self.eos = len(actions) - 1
         return actions
 
     def get_mask_invalid_actions_forward(self, state=None, done=None):
@@ -153,8 +154,7 @@ class AMP(GFlowNetEnv):
         seq_length = len(state)
         if seq_length < self.min_seq_length:
             mask[self.eos] = True
-        # Iterate till before the eos action
-        # TODO: ensure it does not break in multi-fidelity
+        # Does not break in mfenv because amp.action_space is diff from mfenv.action_space
         for idx, a in enumerate(self.action_space[:-1]):
             if seq_length + len(list(a)) > self.max_seq_length:
                 mask[idx] = True
@@ -466,7 +466,8 @@ class AMP(GFlowNetEnv):
             return self.state, (self.eos,), True
         # If action is not eos, then perform action
         if action[0] != self.eos:
-            state_next = self.state + list(action)
+            state_next = self.state.copy()
+            state_next = state_next + list(action)
             if len(state_next) > self.max_seq_length:
                 valid = False
             else:
