@@ -30,20 +30,21 @@ class ExactGPModel(gpytorch.models.ExactGP):
         super(ExactGPModel, self).__init__(train_x, train_y, likelihood)
         self.mean_module = gpytorch.means.ConstantMean(batch_shape=torch.Size([]))
         self.covar_module = gpytorch.kernels.ScaleKernel(
-                gpytorch.kernels.MaternKernel(
-                    nu=2.5,
-                    ard_num_dims=train_x.shape[-1],
-                    batch_shape=torch.Size([]),
-                    lengthscale_prior=GammaPrior(3.0, 6.0),
-                ),
+            gpytorch.kernels.MaternKernel(
+                nu=2.5,
+                ard_num_dims=train_x.shape[-1],
                 batch_shape=torch.Size([]),
-                outputscale_prior=GammaPrior(2.0, 0.15),
-            )
+                lengthscale_prior=GammaPrior(3.0, 6.0),
+            ),
+            batch_shape=torch.Size([]),
+            outputscale_prior=GammaPrior(2.0, 0.15),
+        )
 
     def forward(self, x):
-        mean_x = self.mean_module(x) #101
-        covar_x = self.covar_module(x) #(train+test, train+test)
+        mean_x = self.mean_module(x)  # 101
+        covar_x = self.covar_module(x)  # (train+test, train+test)
         return gpytorch.distributions.MultivariateNormal(mean_x, covar_x)
+
 
 # initialize likelihood and model
 likelihood = gpytorch.likelihoods.GaussianLikelihood()
@@ -53,7 +54,7 @@ gp.train()
 likelihood.train()
 mll = gpytorch.mlls.ExactMarginalLogLikelihood(likelihood, gp)
 
-optimizer = Adam([{'params': gp.parameters()}], lr=0.1)
+optimizer = Adam([{"params": gp.parameters()}], lr=0.1)
 
 
 NUM_EPOCHS = 10
@@ -61,12 +62,10 @@ NUM_EPOCHS = 10
 for epoch in range(NUM_EPOCHS):
     optimizer.zero_grad()
     output = gp(train_x)
-    loss = - mll(output, gp.train_targets).mean()
+    loss = -mll(output, gp.train_targets).mean()
     loss.backward()
     if (epoch + 1) % 10 == 0:
-        print(
-            f"Epoch {epoch+1:>3}/{NUM_EPOCHS} - Loss: {loss.item():>4.3f} " 
-         )
+        print(f"Epoch {epoch+1:>3}/{NUM_EPOCHS} - Loss: {loss.item():>4.3f} ")
     optimizer.step()
 
 """
@@ -89,12 +88,11 @@ from gpytorch.models.exact_prediction_strategies import prediction_strategy
 from gpytorch.utils.broadcasting import _mul_broadcast_shape
 
 
-
 class myGPModel(SingleTaskGP):
     def __init__(self, gp, trainX=None, trainY=None):
         super().__init__(trainX, trainY)
         self.model = gp
-    
+
     @property
     def num_outputs(self) -> int:
         return super().num_outputs
@@ -109,7 +107,9 @@ class myGPModel(SingleTaskGP):
         """
         return super().batch_shape
 
-    def posterior(self, X, output_indices = None, observation_noise= False, posterior_transform= None):
+    def posterior(
+        self, X, output_indices=None, observation_noise=False, posterior_transform=None
+    ):
         """
         Args:
             X: A `(batch_shape) x q x d`-dim Tensor, where `d` is the dimension
@@ -135,21 +135,23 @@ class myGPModel(SingleTaskGP):
             X, output_dim_idx = add_output_dim(
                 X=X, original_batch_shape=self._input_batch_shape
             )
-        
-        mvn = self(X) #self.forward() does not work here.
+
+        mvn = self(X)  # self.forward() does not work here.
         # I mean it does not give any error, but it gives the same mean and
         # covariance matrix for all the test points. I don't know why.
         posterior = GPyTorchPosterior(mvn=mvn)
-        if np.all(posterior.mean.detach().numpy()<0):
+        if np.all(posterior.mean.detach().numpy() < 0):
             print(posterior.mean.numpy())
-        if np.all(posterior.mvn.covariance_matrix.detach().numpy()<0):
+        if np.all(posterior.mvn.covariance_matrix.detach().numpy() < 0):
             print(posterior.mvn.covariance_matrix.numpy())
         return posterior
 
+
 from botorch.acquisition.max_value_entropy_search import qLowerBoundMaxValueEntropy
+
 proxy = myGPModel(gp, train_x, train_y)
 
-qMES = qLowerBoundMaxValueEntropy(proxy, candidate_set = train_x, use_gumbel=True)
+qMES = qLowerBoundMaxValueEntropy(proxy, candidate_set=train_x, use_gumbel=True)
 
 for num in range(10000):
     test_x = torch.rand(10, 6)
@@ -161,7 +163,7 @@ for num in range(10000):
     with torch.no_grad():
         mes = qMES(test_x)
         mes_arr = mes.detach().numpy()
-        verdict = np.all(mes_arr>0)
+        verdict = np.all(mes_arr > 0)
     if not verdict:
         print("Negative MES", mes)
         # print(mes)

@@ -31,7 +31,15 @@ train_y = neg_hartmann6(train_x).unsqueeze(-1)
 """
 Initialise and train the NN
 """
-mlp = Sequential(Linear(6, 1024), ReLU(), Dropout(0.5), Linear(1024, 1024), Dropout(0.5), ReLU(), Linear(1024, 1))
+mlp = Sequential(
+    Linear(6, 1024),
+    ReLU(),
+    Dropout(0.5),
+    Linear(1024, 1024),
+    Dropout(0.5),
+    ReLU(),
+    Linear(1024, 1),
+)
 NUM_EPOCHS = 0
 
 mlp.train()
@@ -47,14 +55,13 @@ for epoch in range(NUM_EPOCHS):
     loss = criterion(output, train_y)
     loss.backward()
     if (epoch + 1) % 10 == 0:
-        print(
-            f"Epoch {epoch+1:>3}/{NUM_EPOCHS} - Loss: {loss.item():>4.3f} "
-         )
+        print(f"Epoch {epoch+1:>3}/{NUM_EPOCHS} - Loss: {loss.item():>4.3f} ")
     optimizer.step()
 
 """
 Derived class of botorch.Models that implements posterior
 """
+
 
 class NN_Model(Model):
     def __init__(self, nn):
@@ -63,23 +70,23 @@ class NN_Model(Model):
         self._num_outputs = 1
         self.nb_samples = 20
 
-    def posterior(self, X, observation_noise = False, posterior_transform = None):
+    def posterior(self, X, observation_noise=False, posterior_transform=None):
         super().posterior(X, observation_noise, posterior_transform)
         self.model.train()
 
         with torch.no_grad():
-             outputs = torch.hstack([self.model(X) for _ in range(self.nb_samples)])
+            outputs = torch.hstack([self.model(X) for _ in range(self.nb_samples)])
         mean = torch.mean(outputs, axis=1)
         var = torch.var(outputs, axis=1)
 
-        if len(X.shape)==2:
+        if len(X.shape) == 2:
             # covar = torch.cov(outputs)
             covar = torch.diag(var)
-        elif len(X.shape)==4:
+        elif len(X.shape) == 4:
             covar = [torch.diag(var[i][0]) for i in range(X.shape[0])]
-            covar = torch.stack(covar, axis = 0)
+            covar = torch.stack(covar, axis=0)
             covar = covar.unsqueeze(-1)
-        
+
         mvn = MultivariateNormal(mean, covar)
         posterior = GPyTorchPosterior(mvn)
         return posterior
@@ -98,24 +105,38 @@ class NN_Model(Model):
         """
         return torch.Size([])
 
+
 proxy = NN_Model(mlp)
 
- 
+
 class myQMES(qMaxValueEntropy):
-    def __init__(self,
+    def __init__(
+        self,
         model: Model,
         candidate_set,
         force_equality,
         num_fantasies: int = 16,
         num_mv_samples: int = 10,
         num_y_samples: int = 128,
-        posterior_transform = None,
+        posterior_transform=None,
         use_gumbel: bool = True,
-        maximize = True,
-        X_pending = None,
-        train_inputs = None):
+        maximize=True,
+        X_pending=None,
+        train_inputs=None,
+    ):
         self.force_equality = force_equality
-        super().__init__(model, candidate_set, num_fantasies, num_mv_samples, num_y_samples, posterior_transform, use_gumbel, maximize, X_pending, train_inputs)
+        super().__init__(
+            model,
+            candidate_set,
+            num_fantasies,
+            num_mv_samples,
+            num_y_samples,
+            posterior_transform,
+            use_gumbel,
+            maximize,
+            X_pending,
+            train_inputs,
+        )
 
     def forward(self, X):
         r"""Compute max-value entropy at the design points `X`.
@@ -137,11 +158,15 @@ class myQMES(qMaxValueEntropy):
         mean = self.weight * posterior.mean.squeeze(-1).squeeze(-1)
         variance = posterior.variance.clamp_min(CLAMP_LB).view_as(mean)
         ig = self._compute_information_gain(
-            X=X, mean_M=mean, variance_M=variance, covar_mM=variance.unsqueeze(-1), posterior_M= posterior
+            X=X,
+            mean_M=mean,
+            variance_M=variance,
+            covar_mM=variance.unsqueeze(-1),
+            posterior_M=posterior,
         )
-        return ig.mean(dim=0) 
+        return ig.mean(dim=0)
 
-    def _compute_information_gain(self, X,  mean_M, variance_M, covar_mM, posterior_M):
+    def _compute_information_gain(self, X, mean_M, variance_M, covar_mM, posterior_M):
         r"""Computes the information gain at the design points `X`.
 
         Approximately computes the information gain at the design points `X`,
@@ -258,14 +283,15 @@ class myQMES(qMaxValueEntropy):
         else:
             permute_idcs = [-2, *range(ig.ndim - 2), -1]
         ig = ig.permute(*permute_idcs)  # num_fantasies x batch_shape x (m)
-        verdict = np.all(ig.detach().numpy()>0)
+        verdict = np.all(ig.detach().numpy() > 0)
         if not verdict:
             print("Ooops")
-        if variance_new<0:
+        if variance_new < 0:
             print("Ooopsie")
         return ig
 
-qMES = myQMES(proxy, candidate_set = train_x, force_equality=True, num_fantasies=1)
+
+qMES = myQMES(proxy, candidate_set=train_x, force_equality=True, num_fantasies=1)
 
 """
 Create 10k batches of test data points to check whether the MES gives negative values for any of those configurations.
@@ -276,6 +302,6 @@ for num in range(100000):
     with torch.no_grad():
         mes = qMES(test_x)
         mes_arr = mes.detach().numpy()
-        verdict = np.all(mes_arr>0)
+        verdict = np.all(mes_arr > 0)
     if not verdict:
         print(mes)

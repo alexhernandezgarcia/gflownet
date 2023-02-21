@@ -12,7 +12,10 @@ from torch import tensor
 import numpy as np
 from abc import ABC
 
-from botorch.acquisition.max_value_entropy_search import qMaxValueEntropy, qLowerBoundMaxValueEntropy
+from botorch.acquisition.max_value_entropy_search import (
+    qMaxValueEntropy,
+    qLowerBoundMaxValueEntropy,
+)
 from botorch.models.model import Model
 from gpytorch.distributions import MultivariateNormal, MultitaskMultivariateNormal
 from botorch.posteriors.gpytorch import GPyTorchPosterior
@@ -29,7 +32,15 @@ train_y = neg_hartmann6(train_x).unsqueeze(-1)
 """
 Initialise and Train a MLP
 """
-mlp = Sequential(Linear(6, 1024), ReLU(), Dropout(0.5), Linear(1024, 1024), Dropout(0.5), ReLU(), Linear(1024, 1))
+mlp = Sequential(
+    Linear(6, 1024),
+    ReLU(),
+    Dropout(0.5),
+    Linear(1024, 1024),
+    Dropout(0.5),
+    ReLU(),
+    Linear(1024, 1),
+)
 
 NUM_EPOCHS = 10
 
@@ -46,9 +57,7 @@ for epoch in range(NUM_EPOCHS):
     loss = criterion(output, train_y)
     loss.backward()
     if (epoch + 1) % 10 == 0:
-        print(
-            f"Epoch {epoch+1:>3}/{NUM_EPOCHS} - Loss: {loss.item():>4.3f} "
-         )
+        print(f"Epoch {epoch+1:>3}/{NUM_EPOCHS} - Loss: {loss.item():>4.3f} ")
     optimizer.step()
 
 
@@ -64,21 +73,21 @@ class NN_Model(Model):
         self._num_outputs = 1
         self.nb_samples = 20
 
-    def posterior(self, X, observation_noise = False, posterior_transform = None):
+    def posterior(self, X, observation_noise=False, posterior_transform=None):
         super().posterior(X, observation_noise, posterior_transform)
         self.model.train()
 
         with torch.no_grad():
-             outputs = torch.hstack([self.model(X) for _ in range(self.nb_samples)])
+            outputs = torch.hstack([self.model(X) for _ in range(self.nb_samples)])
         mean = torch.mean(outputs, axis=1)
         var = torch.var(outputs, axis=1)
 
-        if len(X.shape)==2:
-            covar = np.cov(outputs, ddof =1, rowvar=True)
+        if len(X.shape) == 2:
+            covar = np.cov(outputs, ddof=1, rowvar=True)
             covar = torch.FloatTensor(covar)
-        elif len(X.shape)==4:
+        elif len(X.shape) == 4:
             covar = [torch.diag(var[i][0]) for i in range(X.shape[0])]
-            covar = torch.stack(covar, axis = 0)
+            covar = torch.stack(covar, axis=0)
             covar = covar.unsqueeze(-1)
 
         mvn = MultivariateNormal(mean, covar)
@@ -100,10 +109,11 @@ class NN_Model(Model):
         """
         return torch.Size([])
 
+
 proxy = NN_Model(mlp)
 
 # qMES = qMaxValueEntropy(proxy, candidate_set = train_x, num_fantasies=1, use_gumbel=False)
-qMES = qLowerBoundMaxValueEntropy(proxy, candidate_set = train_x, use_gumbel=False)
+qMES = qLowerBoundMaxValueEntropy(proxy, candidate_set=train_x, use_gumbel=False)
 
 for num in range(10000):
     test_x = torch.rand(10, 6)
@@ -111,7 +121,7 @@ for num in range(10000):
     with torch.no_grad():
         mes = qMES(test_x)
         mes_arr = mes.detach().numpy()
-        verdict = np.all(mes_arr>0)
+        verdict = np.all(mes_arr > 0)
     if not verdict:
         print(mes)
 

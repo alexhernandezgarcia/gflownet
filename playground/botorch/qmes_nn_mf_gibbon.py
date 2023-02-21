@@ -1,6 +1,6 @@
 import torch
 from botorch.models import SingleTaskGP
-from botorch.test_functions import Hartmann
+from botorch.test_functions import AugmentedHartmann
 from gpytorch.mlls import ExactMarginalLogLikelihood
 from torch.optim import Adam
 from torch.nn import Linear
@@ -22,9 +22,13 @@ CLAMP_LB = 1.0e-8
 """
 Initialise the Dataset 
 """
-neg_hartmann6 = Hartmann(dim=6, negate=True)
+neg_hartmann6 = AugmentedHartmann(negate=True)
+fidelities = torch.tensor([0.5, 0.75, 1.0])
 
-train_x = torch.rand(50, 6)
+
+train_seq = torch.rand(50, 6)
+train_f = fidelities[torch.randint(3, (50, 1))]
+train_x = torch.cat((train_seq, train_f), dim=1)
 train_y = neg_hartmann6(train_x).unsqueeze(-1)
 
 
@@ -32,7 +36,7 @@ train_y = neg_hartmann6(train_x).unsqueeze(-1)
 Initialise and train the NN
 """
 mlp = Sequential(
-    Linear(6, 1024),
+    Linear(7, 1024),
     ReLU(),
     Dropout(0.1),
     Linear(1024, 1024),
@@ -73,22 +77,43 @@ class NN_Model(Model):
     def posterior(self, X, observation_noise=False, posterior_transform=None):
         super().posterior(X, observation_noise, posterior_transform)
         self.model.train()
+        input_dim = X.ndim
 
-        with torch.no_grad():
-            outputs = torch.hstack([self.model(X) for _ in range(self.nb_samples)])
-        mean = torch.mean(outputs, axis=1)
-        var = torch.var(outputs, axis=1)
+        if input_dim == 4:
+            X = X.squeeze(1)
+            curr_states = X[:, 0, :]
+            projected_states = X[:, 1, :]
+            with torch.no_grad():
+                curr_outputs = torch.hstack(
+                    [self.model(curr_states) for _ in range(self.nb_samples)]
+                )
+                projected_outputs = torch.hstack(
+                    [self.model(projected_states) for _ in range(self.nb_samples)]
+                )
 
-        if len(X.shape) == 2:
-            # candidate set
+            outputs = torch.stack((curr_outputs, projected_outputs), dim=1)
+            mean = torch.mean(outputs, dim=2)
+            var = torch.var(outputs, dim=2)
+        else:
+            if input_dim == 3:
+                X = X.squeeze(1)
+            with torch.no_grad():
+                outputs = torch.hstack([self.model(X) for _ in range(self.nb_samples)])
+            mean = torch.mean(outputs, dim=1)
+            var = torch.var(outputs, dim=1)
+
+        if input_dim == 2:
             covar = torch.diag(var)
-        elif len(X.shape) == 4:
-            # fidelity
-            covar = [torch.diag(var[i][0]) for i in range(X.shape[0])]
+        elif input_dim == 4:
+            mean = mean.unsqueeze(-2)
+            # outputs = outputs.squeeze(-1)
+            # outputs = outputs.view(X.shape[0], -1, self.nb_samples)
+            covar = [torch.cov(outputs[i]) for i in range(X.shape[0])]
             covar = torch.stack(covar, axis=0)
-            covar = covar.unsqueeze(-1)
-        elif len(X.shape) == 3:
-            # max samples
+            covar = covar.unsqueeze(1)
+        elif input_dim == 3:
+            mean = mean.unsqueeze(-1)
+            var = var.unsqueeze(-1)
             covar = [torch.diag(var[i]) for i in range(X.shape[0])]
             covar = torch.stack(covar, axis=0)
 
@@ -113,7 +138,10 @@ class NN_Model(Model):
 
 proxy = NN_Model(mlp)
 
-from botorch.acquisition.max_value_entropy_search import qLowerBoundMaxValueEntropy
+from botorch.acquisition.max_value_entropy_search import (
+    qLowerBoundMaxValueEntropy,
+    qMultiFidelityLowerBoundMaxValueEntropy,
+)
 
 
 class myGIBBON(qLowerBoundMaxValueEntropy):
@@ -196,17 +224,29 @@ class myGIBBON(qLowerBoundMaxValueEntropy):
         # return acq + r
 
 
-qMES = myGIBBON(proxy, candidate_set=train_x, use_gumbel=True, num_mv_samples=32)
+# qMES = myGIBBON(proxy, candidate_set = train_x, use_gumbel=True, num_mv_samples=32)
+from botorch.acquisition.utils import project_to_target_fidelity
 
-# qMES = qLowerBoundMaxValueEntropy(proxy, candidate_set = train_x, use_gumbel=True)
+target_fidelities = {6: 1.0}
+
+
+def project(X):
+    return project_to_target_fidelity(X=X, target_fidelities=target_fidelities)
+
+
+qMES = qMultiFidelityLowerBoundMaxValueEntropy(
+    proxy, candidate_set=train_x, project=project
+)
 
 for num in range(10000):
-    test_x = torch.rand(10, 6)
+    test_seq = torch.rand(10, 6)
+    test_f = fidelities[torch.randint(3, (10, 1))]
+    test_x = torch.cat((test_seq, test_f), dim=1)
     test_x = test_x.unsqueeze(-2)
     with torch.no_grad():
         mes = qMES(test_x)
         mes_arr = mes.detach().numpy()
-        print(mes_arr)
-        verdict = np.all(mes_arr > 0)
+        # print(mes_arr)
+        verdict = np.all(mes_arr >= 0)
     if not verdict:
         print("Negative MES", mes)
