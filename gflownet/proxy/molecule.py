@@ -14,12 +14,6 @@ class MoleculeEnergyProxy(Proxy):
             with open(path_to_model, "rb") as inp:
                 self.model = pickle.load(inp)
 
-    def set_device(self, device):
-        self.device = device
-
-    def set_float_precision(self, dtype):
-        self.float = dtype
-
     def set_n_dim(self, n_dim):
         # self.n_dim is never used in this env,
         # this is just to make molecule env work with htorus

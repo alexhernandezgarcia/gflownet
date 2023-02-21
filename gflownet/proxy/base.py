@@ -11,13 +11,20 @@ class Proxy:
     """
     Generic proxy class
     """
+
     def __init__(self, device, float_precision, higher_is_better=False, **kwargs):
         # Device
-        self.device = set_device(device)
+        self.set_device(device)
         # Float precision
-        self.float = set_float_precision(float_precision)
+        self.set_float_precision(float_precision)
         # Reward2Proxy multiplicative factor (1 or -1)
-        self.higher_is_better=higher_is_better
+        self.higher_is_better = higher_is_better
+
+    def set_device(self, device):
+        self.device = set_device(device)
+
+    def set_float_precision(self, dtype):
+        self.float = set_float_precision(dtype)
 
     @abstractmethod
     def __call__(self, states: npt.NDArray[np.float32]) -> npt.NDArray[np.float32]:
