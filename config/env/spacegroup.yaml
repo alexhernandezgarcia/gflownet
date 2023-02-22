@@ -3,6 +3,8 @@ defaults:
 
 _target_: gflownet.envs.spacegroup.SpaceGroup
 
+id: spacegroup
+
 # Buffer
 buffer:
   data_path: null

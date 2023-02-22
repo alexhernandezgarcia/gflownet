@@ -38,6 +38,7 @@ class SpaceGroup(GFlowNetEnv):
         self.source = [0 for _ in range(3)]
         self.eos = -1
         self.action_space = self.get_actions_space()
+        self.reset()
         import ipdb; ipdb.set_trace()
 
     def get_actions_space(self):
@@ -161,7 +162,7 @@ class SpaceGroup(GFlowNetEnv):
         """
         Resets the environment.
         """
-        self.state = [0 for _ in self.elements]
+        self.state = self.source.copy()
         self.n_actions = 0
         self.done = False
         self.id = env_id
