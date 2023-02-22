@@ -31,17 +31,9 @@ class XTBMoleculeEnergy(Proxy):
         calc = Calculator(Param.GFN2xTB, atomic_numbers, atom_positions)
         calc.set_verbosity(VERBOSITY_MUTED)
         try:
-            res = calc.singlepoint()
-        except XTBException as exc:
-            print(exc)
-            print("try again")
-            try:
-                res = calc.singlepoint()
-            except XTBException as exc:
-                print(exc)
-                print("try again")
-                res = calc.singlepoint()
-        return res.get_energy()
+            return calc.singlepoint().get_energy()
+        except XTBException:
+            return np.nan
 
 
 if __name__ == "__main__":
