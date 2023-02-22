@@ -18,8 +18,8 @@ python -m pip install pyg-lib torch-scatter torch-sparse torch-cluster torch-spl
 python -m pip install dgl-cu102 dglgo -f https://data.dgl.ai/wheels/repo.html
 # Requirements to run
 python -m pip install numpy pandas hydra-core tqdm torchtyping six xtb scikit-learn
-# Conditional requirements to run
-python -m pip install wandb matplotlib plotly
+# Conditional requirements
+python -m pip install wandb matplotlib plotly gdown
 # Dev packages
 # python -m pip install black flake8 isort pylint ipdb jupyter
 
