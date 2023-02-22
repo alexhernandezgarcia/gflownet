@@ -3,21 +3,18 @@ import numpy.typing as npt
 import pickle
 import torch
 
-from xtb.interface import Calculator, Param, XTBException
-from xtb.libxtb import VERBOSITY_MUTED
-
-
-from gflownet.proxy.base import Proxy
 from sklearn.ensemble import RandomForestRegressor
 
+from gflownet.proxy.base import Proxy
+from gflownet.utils.common import download_file_if_not_exists
 
 class MoleculeEnergyProxy(Proxy):
-    def __init__(self, path_to_model=None, **kwargs):
+    def __init__(self, path_to_model, url_to_model, **kwargs):
         super().__init__(**kwargs)
         self.min = -np.log(105)
-        if path_to_model is not None:
-            with open(path_to_model, 'rb') as inp:
-                self.model = pickle.load(inp)
+        path_to_model = download_file_if_not_exists(path_to_model, url_to_model)
+        with open(path_to_model, 'rb') as inp:
+            self.model = pickle.load(inp)
     
     def set_device(self, device):
         self.device = device

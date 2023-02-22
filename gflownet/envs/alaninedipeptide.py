@@ -18,6 +18,7 @@ class AlanineDipeptide(ContinuousTorus):
     def __init__(
         self,
         path_to_dataset,
+        url_to_dataset,
         length_traj=1,
         fixed_distribution=dict,
         random_distribution=dict,
@@ -34,7 +35,7 @@ class AlanineDipeptide(ContinuousTorus):
         policy_encoding_dim_per_angle=None,
         **kwargs,
     ):
-        self.atom_positions_dataset = AtomPositionsDataset(path_to_dataset)
+        self.atom_positions_dataset = AtomPositionsDataset(path_to_dataset, url_to_dataset)
         atom_positions = self.atom_positions_dataset.sample()
         self.conformer = ConformerBase(
             atom_positions, constants.ad_smiles, constants.ad_free_tas

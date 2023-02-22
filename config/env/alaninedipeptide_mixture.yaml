@@ -3,7 +3,8 @@ defaults:
 
 _target_: gflownet.envs.alaninedipeptide_mixture.AlanineDipeptideMixture
 
-path_to_dataset: ${user.data.alanine_dipeptide}
+path_to_dataset: './data/alanine_dipeptide_conformers_1.npy'
+url_to_dataset: 'https://drive.google.com/uc?id=1r1KRGcpBhR3xaS8yt2i64dfMnJGgNj4C'
 id: alaninedipeptide
 policy_encoding_dim_per_angle: null
 # Fixed length of trajectories
