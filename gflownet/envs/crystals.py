@@ -109,7 +109,7 @@ class Crystal(GFlowNetEnv):
     def get_max_traj_len(self):
         return self.max_atoms / self.min_atom_i
 
-    def get_mask_invalid_actions(self, state=None, done=None):
+    def get_mask_invalid_actions_forward(self, state=None, done=None):
         """
         Returns a vector of length the action space + 1: True if forward action is
         invalid given the current state, False otherwise.
