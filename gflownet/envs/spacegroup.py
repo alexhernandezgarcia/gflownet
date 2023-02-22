@@ -13,6 +13,7 @@ from gflownet.utils.crystals.constants import (
     CRYSTAL_SYSTEMS,
     CRYSTAL_CLASSES,
     POINT_SYMMETRIES,
+    SPACE_GROUPS,
 )
 
 
@@ -30,16 +31,17 @@ class SpaceGroup(GFlowNetEnv):
         self.crystal_systems = CRYSTAL_SYSTEMS
         self.crystal_classes = CRYSTAL_CLASSES
         self.point_symmetries = POINT_SYMMETRIES
+        self.space_groups = SPACE_GROUPS
         self.n_crystal_systems = len(self.crystal_systems)
         self.n_crystal_classes = len(self.crystal_classes)
         self.n_point_symmetries = len(self.point_symmetries)
         self.n_space_groups = 230
         # A state is a list of [crystal system index, point symmetry index, space group]
+        self.cs_idx, self.ps_idx, self.sg_idx = 0, 1, 2
         self.source = [0 for _ in range(3)]
         self.eos = -1
         self.action_space = self.get_actions_space()
         self.reset()
-        import ipdb; ipdb.set_trace()
 
     def get_actions_space(self):
         """
@@ -48,8 +50,9 @@ class SpaceGroup(GFlowNetEnv):
         1: point symmetry, 2: space group).
         """
         actions = []
-        for prop, n_idx in enumerate(
-            [self.n_crystal_systems, self.n_point_symmetries, self.n_space_groups]
+        for prop, n_idx in zip(
+            [self.cs_idx, self.ps_idx, self.sg_idx],
+            [self.n_crystal_systems, self.n_point_symmetries, self.n_space_groups],
         ):
             actions_prop = [(prop, idx + 1) for idx in range(n_idx)]
             actions += actions_prop
@@ -59,7 +62,7 @@ class SpaceGroup(GFlowNetEnv):
     def get_max_traj_len(self):
         return 3
 
-    def get_mask_invalid_actions(self, state=None, done=None):
+    def get_mask_invalid_actions_forward(self, state=None, done=None):
         """
         Returns a vector of length the action space + 1: True if forward action is
         invalid given the current state, False otherwise.
@@ -68,32 +71,61 @@ class SpaceGroup(GFlowNetEnv):
             state = self.state.copy()
         if done is None:
             done = self.done
-
         if done:
-            return [True for _ in range(len(self.action_space))]
-
-        mask = [False for _ in self.action_space]
-        state_elem = [self.idx2elem[i] for i, e in enumerate(state) if e > 0]
-        n_state_atoms = sum(state)
-
-        if n_state_atoms < self.min_atoms:
-            mask[self.eos] = True
-        if len(state_elem) < self.min_diff_elem:
-            mask[self.eos] = True
-        if any(r not in state_elem for r in self.required_elements):
-            mask[self.eos] = True
-
-        for idx, (element, n) in enumerate(self.action_space[:-1]):
-            if state[self.elem2idx[element]] > 0:
-                mask[idx] = True
-            if n_state_atoms + n > self.max_atoms:
-                mask[idx] = True
-            else:
-                new_elem = element not in state_elem
-                if not new_elem:
-                    mask[idx] = True
-                if new_elem and len(state_elem) >= self.max_diff_elem:
-                    mask[idx] = True
+            return [True for _ in self.action_space]
+        # If space group has been selected, only valid action is EOS
+        if state[self.sg_idx] != 0:
+            mask = [True for _ in self.action_space]
+            mask[self.eos] = False
+            return mask
+        # No constraints if neither crystal system nor point symmetry selected
+        if state[self.cs_idx] == 0 and state[self.ps_idx] == 0:
+            crystal_systems = [
+                (self.cs_idx, idx + 1) for idx in range(self.n_crystal_systems)
+            ]
+            point_symmetries = [
+                (self.ps_idx, idx + 1) for idx in range(self.n_point_symmetries)
+            ]
+        # Constraints after having selected crystal system
+        if state[self.cs_idx] != 0:
+            crystal_systems = []
+            crystal_classes_cs = self.crystal_systems[state[self.cs_idx]][1]
+            # If no point symmetry selected yet
+            if state[self.ps_idx] == 0:
+                point_symmetries = [
+                    (self.ps_idx, idx)
+                    for idx in self.crystal_systems[state[self.cs_idx]][2]
+                ]
+        else:
+            crystal_classes_cs = [idx + 1 for idx in range(self.n_crystal_classes)]
+        # Constraints after having selected point symmetry
+        if state[self.ps_idx] != 0:
+            point_symmetries = []
+            crystal_classes_ps = self.point_symmetries[state[self.ps_idx]][2]
+            # If no class system selected yet
+            if state[self.ps_idx] == 0:
+                crystal_systems = [
+                    (self.cs_idx, idx + 1)
+                    for idx in self.point_symmetries[state[self.ps_idx]][1]
+                ]
+        else:
+            crystal_classes_ps = [idx + 1 for idx in range(self.n_crystal_classes)]
+        # Merge crystal classes constraints and determine valid space group actions
+        crystal_classes = list(
+            set(crystal_classes_cs).intersection(set(crystal_classes_ps))
+        )
+        space_groups_list = [self.crystal_classes[cc][-1] for cc in crystal_classes]
+        space_groups = [
+            (self.sg_idx, sg) for sglist in space_groups_list for sg in sglist
+        ]
+        # Construct mask
+        actions_valid = list(
+            set.union(set(crystal_systems), set(point_symmetries), set(space_groups))
+        )
+        assert len(actions_valid) > 0
+        mask = [
+            False if action in actions_valid else True for action in self.action_space
+        ]
         return mask
 
     def state2oracle(self, state: List = None) -> Tensor:
