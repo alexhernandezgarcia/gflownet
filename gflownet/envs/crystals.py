@@ -98,11 +98,12 @@ class Crystal(GFlowNetEnv):
             required_elements if required_elements is not None else []
         )
 
-        self.state = [0 for _ in self.elements]  # atom counts for each element
+        self.source = [0 for _ in range(periodic_table)]
         self.elem2idx = {e: i for i, e in enumerate(self.elements)}
         self.idx2elem = {i: e for i, e in enumerate(self.elements)}
         self.eos = -1
         self.action_space = self.get_actions_space()
+        self.reset()
 
     def get_actions_space(self):
         """
@@ -223,7 +224,7 @@ class Crystal(GFlowNetEnv):
         """
         Resets the environment.
         """
-        self.state = [0 for _ in self.elements]
+        self.state = self.source.copy()
         self.n_actions = 0
         self.done = False
         self.id = env_id

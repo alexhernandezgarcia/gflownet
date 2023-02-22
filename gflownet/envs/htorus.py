@@ -58,8 +58,10 @@ class HybridTorus(GFlowNetEnv):
             self.n_params_per_dim = 3
         self.vonmises_min_concentration = vonmises_min_concentration
         # Initialize angles and state attributes
+        self.source_angles = [0.0 for _ in range(self.n_dim)]
+        # States are the concatenation of the angle state and number of actions
+        self.source = self.source_angles + [0]
         self.reset()
-        self.source = self.angles.copy()
         self.action_space = self.get_actions_space()
         self.fixed_policy_output = self.get_policy_output(fixed_distribution)
         self.random_policy_output = self.get_policy_output(random_distribution)
@@ -154,13 +156,13 @@ class HybridTorus(GFlowNetEnv):
             mask = [False for _ in range(len(self.action_space))]
             mask[-1] = True
         # Catch cases where it would not be possible to reach the initial state
-        noninit_states = [s for s, ss in zip(state[:-1], self.source) if s != ss]
+        noninit_states = [s for s, ss in zip(state[:-1], self.source_angles) if s != ss]
         if len(noninit_states) > state[-1]:
             print("This point in the code should never be reached!")
         elif len(noninit_states) == state[-1] and len(noninit_states) >= state[-1] - 1:
             mask = [
                 True if s == ss else m
-                for m, s, ss in zip(mask, state[:-1], self.source)
+                for m, s, ss in zip(mask, state[:-1], self.source_angles)
             ] + [mask[-1]]
         return mask
 
@@ -296,11 +298,8 @@ class HybridTorus(GFlowNetEnv):
         """
         Resets the environment.
         """
-        self.angles = [0.0 for _ in range(self.n_dim)]
-        # TODO: do step encoding as in Sasha's code?
+        self.state = self.source.copy()
         self.n_actions = 0
-        # States are the concatenation of the angle state and number of actions
-        self.state = self.angles + [self.n_actions]
         self.done = False
         self.id = env_id
         return self
@@ -439,8 +438,8 @@ class HybridTorus(GFlowNetEnv):
         # - p(angle) * p(no_source), if angle of target != source
         # - p(source), if angle of target == source
         # Mixing should be applied if p(angle) is computed AND is backward:
-        source = torch.tensor(self.source, device=device)
-        source_aux = torch.tensor(self.source + [-1], device=device)
+        source = torch.tensor(self.source_angles, device=device)
+        source_aux = torch.tensor(self.source_angles + [-1], device=device)
         nsource_ne_nsteps = torch.ne(
             torch.sum(torch.ne(states_target[:, :-1], source), axis=1),
             states_target[:, -1],
