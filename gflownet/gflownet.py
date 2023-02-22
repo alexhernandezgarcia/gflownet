@@ -8,6 +8,8 @@ import copy
 import time
 from collections import defaultdict
 from pathlib import Path
+from omegaconf import OmegaConf
+from typing import List, Tuple
 
 import numpy as np
 import pandas as pd
@@ -36,7 +38,7 @@ class GFlowNetAgent:
         mask_invalid_actions,
         temperature_logits,
         random_action_prob,
-        pct_batch_empirical,
+        pct_offline,
         logger,
         num_empirical_loss,
         oracle,
@@ -57,8 +59,16 @@ class GFlowNetAgent:
         self.mask_source = self._tbool([self.env.get_mask_invalid_actions_forward()])
         # Continuous environments
         self.continuous = hasattr(self.env, "continuous") and self.env.continuous
+        if self.continuous and optimizer.loss in ["flowmatch", "flowmatching"]:
+            print(
+                """
+            Flow matching loss is not available for continuous environments.
+            Trajectory balance will be used instead
+            """
+            )
+            optimizer.loss = "tb"
         # Loss
-        if optimizer.loss in ["flowmatch"]:
+        if optimizer.loss in ["flowmatch", "flowmatching"]:
             self.loss = "flowmatch"
             self.logZ = None
         elif optimizer.loss in ["trajectorybalance", "tb"]:
@@ -107,7 +117,7 @@ class GFlowNetAgent:
             print(f"\tMax score: {self.buffer.test['energies'].max()}")
         # Policy models
         self.forward_policy = Policy(policy.forward, self.env, self.device, self.float)
-        if policy.forward.checkpoint:
+        if "checkpoint" in policy.forward and policy.forward.checkpoint:
             self.logger.set_forward_policy_ckpt_path(policy.forward.checkpoint)
             # TODO: re-write the logic and conditions to reload a model
             if False:
@@ -117,17 +127,18 @@ class GFlowNetAgent:
                 print("Reloaded GFN forward policy model Checkpoint")
         else:
             self.logger.set_forward_policy_ckpt_path(None)
-        if policy.backward:
-            self.backward_policy = Policy(
-                policy.backward,
-                self.env,
-                self.device,
-                self.float,
-                base=self.forward_policy,
-            )
-        else:
-            self.backward_policy = None
-        if self.backward_policy and policy.forward.checkpoint:
+        self.backward_policy = Policy(
+            policy.backward,
+            self.env,
+            self.device,
+            self.float,
+            base=self.forward_policy,
+        )
+        if (
+            policy.backward
+            and "checkpoint" in policy.backward
+            and policy.backward.checkpoint
+        ):
             self.logger.set_backward_policy_ckpt_path(policy.backward.checkpoint)
             # TODO: re-write the logic and conditions to reload a model
             if False:
@@ -162,7 +173,7 @@ class GFlowNetAgent:
         self.mask_invalid_actions = mask_invalid_actions
         self.temperature_logits = temperature_logits
         self.random_action_prob = random_action_prob
-        self.pct_batch_empirical = pct_batch_empirical
+        self.pct_offline = pct_offline
         # Metrics
         self.l1 = -1.0
         self.kl = -1.0
@@ -181,7 +192,7 @@ class GFlowNetAgent:
         return torch.tensor(x, dtype=torch.bool, device=self.device)
 
     def parameters(self):
-        if self.backward_policy is None or self.backward_policy.is_model == False:
+        if self.backward_policy.is_model == False:
             return list(self.forward_policy.model.parameters())
         elif self.loss == "trajectorybalance":
             return list(self.forward_policy.model.parameters()) + list(
@@ -190,21 +201,22 @@ class GFlowNetAgent:
         else:
             raise ValueError("Backward Policy cannot be a nn in flowmatch.")
 
-    def forward_sample(
+    def sample_actions(
         self,
         envs,
         times,
         sampling_method="policy",
         model=None,
+        is_forward: bool = True,
         temperature=1.0,
         random_action_prob=0.0,
     ):
         """
-        Performs a forward action on each environment of a list.
+        Samples one action on each environment of a list.
 
         Args
         ----
-        env : list of GFlowNetEnv or derived
+        envs : list of GFlowNetEnv or derived
             A list of instances of the environment
 
         times : dict
@@ -217,16 +229,28 @@ class GFlowNetAgent:
         model : torch model
             Model to use as policy if sampling_method="policy"
 
+        is_forward : bool
+            True if sampling is forward. False if backward.
+
         temperature : float
             Temperature to adjust the logits by logits /= temperature
         """
+        # TODO: implement backward sampling from forward policy as in old
+        # backward_sample.
+        if sampling_method == "random":
+            random_action_prob = 1.0
         if not isinstance(envs, list):
             envs = [envs]
         # Build states and masks
         states = [env.state for env in envs]
-        mask_invalid_actions = self._tbool(
-            [env.get_mask_invalid_actions_forward() for env in envs]
-        )
+        if is_forward:
+            mask_invalid_actions = self._tbool(
+                [env.get_mask_invalid_actions_forward() for env in envs]
+            )
+        else:
+            mask_invalid_actions = self._tbool(
+                [env.get_mask_invalid_actions_backward() for env in envs]
+            )
         # Build policy outputs
         policy_outputs = model.random_distribution(states)
         idx_norandom = (
@@ -236,7 +260,7 @@ class GFlowNetAgent:
             .sample()
             .to(bool)
         )
-        # check for at least one non-random action
+        # Check for at least one non-random action
         if sampling_method == "policy" and idx_norandom.sum() > 0:
             policy_outputs[idx_norandom, :] = model(
                 self._tfloat(
@@ -245,9 +269,6 @@ class GFlowNetAgent:
                     )
                 )
             )
-        elif sampling_method == "uniform":
-            # TODO
-            policy_outputs = None
         else:
             raise NotImplementedError
         # Sample actions from policy outputs
@@ -257,112 +278,50 @@ class GFlowNetAgent:
             mask_invalid_actions,
             temperature,
         )
-        assert len(envs) == len(actions)
-        # Execute actions
-        _, actions, valids = zip(
-            *[env.step(action) for env, action in zip(envs, actions)]
-        )
-        return envs, actions, valids
+        return actions
 
-    def backward_sample(
+    def step(
         self,
-        env,
-        times,
-        sampling_method="policy",
-        model=None,
-        temperature=1.0,
-        done=False,
+        envs: List,
+        actions: List[Tuple],
+        is_forward: bool = True,
     ):
         """
-        Performs a backward action on one environment.
+        Executes the actions of a list on the environments of a list.
 
         Args
         ----
-        env : GFlowNetEnv or derived
-            An instance of the environment
+        envs : list of GFlowNetEnv or derived
+            A list of instances of the environment
 
-        sampling_method : string
-            - model: uses the current backward policy to obtain the sampling probabilities.
-            - uniform: samples uniformly from the parents of the current state.
+        actions : list
+            A list of actions to be executed on each env of envs.
 
-        model : torch model
-            Model to use as policy if sampling_method="policy"
-
-        temperature : float
-            Temperature to adjust the logits by logits /= temperature
-
-        done : bool
-            If True, it will sample eos action
-        """
-        # TODO: If sampling method is policy
-        # Change backward sampling with a mask for parents
-        # As we can use the backward policy to get model(states) but not all of those actions are likely
-        # Need to compute backward_masks, amsk those actions and then get the categorical distribution.
-        parents, parents_a = env.get_parents(env.state, done)
-        if sampling_method == "policy":
-            action_logits = model(self._tfloat(parents))[
-                torch.arange(len(parents)), parents_a
-            ]
-            action_logits /= temperature
-            if all(torch.isfinite(action_logits).flatten()):
-                action_idx = Categorical(logits=action_logits).sample().item()
-            else:
-                if self.debug:
-                    raise ValueError("Action could not be sampled from model!")
-        elif sampling_method == "uniform":
-            action_idx = self.rng.integers(low=0, high=len(parents_a))
-        else:
-            raise NotImplemented
-        action = parents_a[action_idx]
-        env.set_state((parents)[action_idx], done=False)
-        return env, env.state, action, parents, parents_a
-
-    def backward_sample_continuous(
-        self, env, sampling_method="policy", model=None, temperature=1.0, done=False
-    ):
-        """
-        Performs a backward action on one environment.
-
-        Args
-        ----
-        env : GFlowNetEnv or derived
-            An instance of the environment
-
-        sampling_method : string
-            - model: uses the current backward policy to obtain the sampling probabilities.
-            - uniform: samples uniformly from the parents of the current state.
-
-        model : torch model
-            Model to use as policy if sampling_method="policy"
+        is_forward : bool
+            True if sampling is forward. False if backward.
 
         temperature : float
             Temperature to adjust the logits by logits /= temperature
-
-        done : bool
-            If True, it will sample eos action
         """
-        # TODO: If sampling method is policy
-        # Change backward sampling with a mask for parents
-        # As we can use the backward policy to get model(states) but not all of those actions are likely
-        # Need to compute backward_masks, amsk those actions and then get the categorical distribution.
-        parents, parents_a = env.get_parents(env.state, done)
-        if sampling_method == "policy":
-            action_logits = model(self._tfloat(parents))[
-                torch.arange(len(parents)), parents_a
-            ]
-            action_logits /= temperature
-            if all(torch.isfinite(action_logits).flatten()):
-                action_idx = Categorical(logits=action_logits).sample().item()
-            else:
-                if self.logger.debug:
-                    raise ValueError("Action could not be sampled from model!")
-        elif sampling_method == "uniform":
-            action_idx = self.rng.integers(low=0, high=len(parents_a))
+        assert len(envs) == len(actions)
+        if not isinstance(envs, list):
+            envs = [envs]
+        if is_forward:
+            _, actions, valids = zip(
+                *[env.step(action) for env, action in zip(envs, actions)]
+            )
         else:
-            raise NotImplemented
-        action = parents_a[action_idx]
-        env.set_state((parents)[action_idx], done=False)
-        return env, env.state, action, parents, parents_a
+            valids = []
+            for env, action in zip(envs, actions):
+                parents, parents_a = env.get_parents(action=action)
+                if action in parents_a:
+                    state_next = parents[parents_a.index(action)]
+                    env.set_state(state_next, done=False)
+                    env.n_actions -= 1
+                    valids.append(True)
+                else:
+                    valids.append(False)
+        return envs, actions, valids
 
     # @profile
     def sample_batch(
@@ -389,6 +348,34 @@ class GFlowNetAgent:
         Args
         ----
         """
+
+        def _add_to_batch(batch, envs, actions, valids, train=True):
+            for env, action, _ in zip(envs, actions, valids):
+                parents, parents_a = env.get_parents(action=action)
+                mask_f = env.get_mask_invalid_actions_forward()
+                mask_b = env.get_mask_invalid_actions_backward(
+                    env.state, env.done, parents_a
+                )
+                assert action in parents_a
+                if train:
+                    batch.append(
+                        [
+                            self._tfloat([env.state]),
+                            self._tfloat([action]),
+                            self._tfloat(parents),
+                            self._tfloat(parents_a),
+                            self._tbool([env.done]),
+                            self._tlong([env.id] * len(parents)),
+                            self._tlong([env.n_actions]),
+                            self._tbool([mask_f]),
+                            self._tbool([mask_b]),
+                        ]
+                    )
+                else:
+                    if env.done:
+                        batch.append(env.state)
+            return batch
+
         times = {
             "all": 0.0,
             "forward_actions": 0.0,
@@ -405,93 +392,78 @@ class GFlowNetAgent:
         else:
             return None, None
         # Offline trajectories
-        # TODO: Replay Buffer
         if train:
-            n_empirical = int(self.pct_batch_empirical * len(envs))
-            for env in envs[:n_empirical]:
-                readable = self.rng.permutation(self.buffer.train.samples.values)[0]
-                env = env.set_state(env.readable2state(readable), done=True)
-                action = env.eos
-                parents = [env.state]
-                parents_a = [action]
-                mask_f = env.get_mask_invalid_actions_forward()
-                mask_b = env.get_mask_invalid_actions_backward(
-                    env.state, env.done, parents_a
+            n_empirical = int(self.pct_offline * len(envs))
+        else:
+            n_empirical = 0
+        if n_empirical > 0 and self.buffer.train_pkl is not None:
+            with open(self.buffer.train_pkl, "rb") as f:
+                dict_tr = pickle.load(f)
+                # TODO: implement other sampling options besides permutation
+                x_tr = self.rng.permutation(dict_tr["x"])
+            envs_offline = []
+            actions = []
+            valids = []
+            for idx in range(n_empirical):
+                env = envs[idx]
+                env = env.set_state(x_tr[idx].tolist(), done=True)
+                env.n_actions = env.get_max_traj_len()
+                envs_offline.append(env)
+                actions.append((env.eos,))
+                valids.append(True)
+        else:
+            envs_offline = []
+        while envs_offline:
+            # Sample backward actions
+            with torch.no_grad():
+                actions = self.sample_actions(
+                    envs_offline,
+                    times,
+                    sampling_method="policy",
+                    model=self.backward_policy,
+                    is_forward=False,
+                    temperature=self.temperature_logits,
+                    random_action_prob=self.random_action_prob,
                 )
-                n_actions = 0
-                while len(env.state) > 0:
-                    batch.append(
-                        [
-                            self._tfloat([env.state]),
-                            self._tfloat([action]),
-                            self._tfloat(parents),
-                            self._tfloat(parents_a),
-                            self._tbool([env.done]),
-                            self._tlong([env.id] * len(parents)),
-                            self._tlong([n_actions]),
-                            self._tbool([mask_f]),
-                            self._tbool([mask_b]),
-                        ]
-                    )
-                    # Backward sampling
-                    env, state, action, parents, parents_a = self.backward_sample(
-                        env,
-                        times,
-                        sampling_method="policy",
-                        model=self.backward_policy,
-                        temperature=self.temperature_logits,
-                    )
-                    n_actions += 1
-            envs = envs[n_empirical:]
+            # Add to batch
+            batch = _add_to_batch(batch, envs_offline, actions, valids)
+            # Update environments with sampled actions
+            envs_offline, actions, valids = self.step(
+                envs_offline, actions, is_forward=False
+            )
+            assert all(valids)
+            # Filter out finished trajectories
+            envs_offline = [env for env in envs_offline if env.state != env.source]
+        envs = envs[n_empirical:]
         # Policy trajectories
         while envs:
-            # Forward sampling
+            # Sample forward actions
             with torch.no_grad():
                 if train is False:
-                    envs, actions, valids = self.forward_sample(
+                    actions = self.sample_actions(
                         envs,
                         times,
                         sampling_method="policy",
                         model=self.forward_policy,
+                        is_forward=True,
                         temperature=1.0,
                         random_action_prob=self.random_action_prob,
                     )
                 else:
-                    envs, actions, valids = self.forward_sample(
+                    actions = self.sample_actions(
                         envs,
                         times,
                         sampling_method="policy",
                         model=self.forward_policy,
+                        is_forward=True,
                         temperature=self.temperature_logits,
                         random_action_prob=self.random_action_prob,
                     )
-            t0_a_envs = time.time()
+            # Update environments with sampled actions
+            envs, actions, valids = self.step(envs, actions, is_forward=True)
             # Add to batch
-            for env, action, valid in zip(envs, actions, valids):
-                if valid:
-                    parents, parents_a = env.get_parents(action=action)
-                    mask_f = env.get_mask_invalid_actions_forward()
-                    mask_b = env.get_mask_invalid_actions_backward(
-                        env.state, env.done, parents_a
-                    )
-                    assert action in parents_a
-                    if train:
-                        batch.append(
-                            [
-                                self._tfloat([env.state]),
-                                self._tfloat([action]),
-                                self._tfloat(parents),
-                                self._tfloat(parents_a),
-                                self._tbool([env.done]),
-                                self._tlong([env.id] * len(parents)),
-                                self._tlong([env.n_actions - 1]),
-                                self._tbool([mask_f]),
-                                self._tbool([mask_b]),
-                            ]
-                        )
-                    else:
-                        if env.done:
-                            batch.append(env.state)
+            t0_a_envs = time.time()
+            batch = _add_to_batch(batch, envs, actions, valids, train)
             # Filter out finished trajectories
             envs = [env for env in envs if not env.done]
             t1_a_envs = time.time()
@@ -525,68 +497,61 @@ class GFlowNetAgent:
             Loss of the intermediate nodes only
         """
         loginf = self._tfloat([loginf])
-        batch_idxs = self._tlong(
-            sum(
-                [
-                    [i] * len(parents)
-                    for i, (_, _, _, parents, _, _, _, _, _) in enumerate(batch)
-                ],
-                [],
-            )
+        # Unpack batch
+        (
+            states,
+            actions,
+            parents,
+            parents_a,
+            done,
+            traj_id_parents,
+            state_id,
+            masks_sf,
+            masks_b,
+        ) = zip(*batch)
+        # Get state/batch id
+        parents_batch_id = self._tlong(
+            sum([[idx] * len(p) for idx, p in enumerate(parents)], [])
         )
-        sp, _, r, parents, actions, done, _, _, masks = map(torch.cat, zip(*batch))
-        # Sanity check if negative rewards
-        if self.logger.debug and torch.any(r < 0):
-            neg_r_idx = torch.where(r < 0)[0].tolist()
-            for idx in neg_r_idx:
-                state_oracle = self.env.state2oracle(sp)
-                output_proxy = self.env.proxy(state_oracle)
-                reward = self.env.proxy2reward(output_proxy)
-                import ipdb
-
-                ipdb.set_trace()
-
-        # Q(s,a)
-        parents_Qsa = self.forward_policy(parents)[
-            torch.arange(parents.shape[0]), actions
-        ]
-
-        # log(eps + exp(log(Q(s,a)))) : qsa
-        in_flow = torch.log(
-            self.loss_eps
-            + self._tfloat(torch.zeros((sp.shape[0],))).index_add_(
-                0, batch_idxs, torch.exp(parents_Qsa)
-            )
+        # Concatenate lists of tensors
+        states, parents, parents_a, done, masks_sf = map(
+            torch.cat,
+            [
+                states,
+                parents,
+                parents_a,
+                done,
+                masks_sf,
+            ],
         )
-        # the following with work if autoregressive
-        #         in_flow = torch.logaddexp(parents_Qsa[batch_idxs], torch.log(self.loss_eps))
-        if self.tau > 0 and self.target is not None:
-            with torch.no_grad():
-                next_q = self.target(sp)
-        else:
-            next_q = self.forward_policy(sp)
-        next_q[masks] = -loginf
-        qsp = torch.logsumexp(next_q, 1)
-        # qsp: qsp if not done; -loginf if done
-        qsp = qsp * (1 - done) - loginf * done
-        out_flow = torch.logaddexp(torch.log(r + self.loss_eps), qsp)
-        loss = (in_flow - out_flow).pow(2).mean()
-
+        parents_a = parents_a.to(int).squeeze()
+        # Compute rewards
+        rewards = self.env.reward_torchbatch(states, done)
+        assert torch.all(rewards[done] > 0)
+        # In-flows
+        inflow_logits = -loginf * torch.ones(
+            (states.shape[0], self.env.policy_output_dim),
+            device=self.device,
+        )
+        inflow_logits[parents_batch_id, parents_a] = self.forward_policy(
+            self.env.statetorch2policy(parents)
+        )[torch.arange(parents.shape[0]), parents_a]
+        inflow = torch.logsumexp(inflow_logits, dim=1)
+        # Out-flows
+        outflow_logits = self.forward_policy(self.env.statetorch2policy(states))
+        outflow_logits[masks_sf] = -loginf
+        outflow = torch.logsumexp(outflow_logits, dim=1)
+        outflow = outflow * torch.logical_not(done) - loginf * done
+        outflow = torch.logaddexp(torch.log(rewards), outflow)
+        # Flow matching loss
+        loss = (inflow - outflow).pow(2).mean()
+        # Isolate loss at terminating nodes and all other nodes
         with torch.no_grad():
-            term_loss = ((in_flow - out_flow) * done).pow(2).sum() / (
-                done.sum() + 1e-20
+            term_loss = ((inflow - outflow) * done).pow(2).sum() / (done.sum() + 1e-20)
+            flow_loss = ((inflow - outflow) * torch.logical_not(done)).pow(2).sum() / (
+                torch.logical_not(done).sum() + 1e-20
             )
-            flow_loss = ((in_flow - out_flow) * (1 - done)).pow(2).sum() / (
-                (1 - done).sum() + 1e-20
-            )
-
-        if self.tau > 0 and self.target is not None:
-            for a, b in zip(
-                self.forward_policy.model.parameters(), self.target.parameters()
-            ):
-                b.data.mul_(1 - self.tau).add_(self.tau * a)
-
-        return loss, term_loss, flow_loss
+        return (loss, term_loss, flow_loss), rewards[done.eq(1)]
 
     def trajectorybalance_loss(self, it, batch, loginf=1000):
         """
@@ -643,13 +608,16 @@ class GFlowNetAgent:
                 masks_b,
             ],
         )
+        # Shift state_id to [1, 2, ...]
+        for tid in traj_id.unique():
+            state_id[traj_id == tid] -= state_id[traj_id == tid].min() + 1
         # Compute rewards
         rewards = self.env.reward_torchbatch(states, done)
         # Build parents forward masks from state masks
         masks_f = torch.cat(
             [
                 masks_sf[torch.where((state_id == sid - 1) & (traj_id == pid))]
-                if sid > 0
+                if sid > 1
                 else self.mask_source
                 for sid, pid in zip(state_id, traj_id)
             ]
@@ -682,13 +650,6 @@ class GFlowNetAgent:
             .pow(2)
             .mean()
         )
-        if self.logger.debug:
-            self.logger.log_metric(
-                "mean_logprobs_b",
-                torch.mean(logprobs_b[state_id == 0]),
-                it,
-                use_context=False,
-            )
         return (loss, loss, loss), rewards
 
     def unpack_terminal_states(self, batch):
@@ -734,7 +695,7 @@ class GFlowNetAgent:
                 data += batch
             for j in range(self.ttsr):
                 if self.loss == "flowmatch":
-                    losses = self.flowmatch_loss(
+                    losses, rewards = self.flowmatch_loss(
                         it * self.ttsr + j, data
                     )  # returns (opt loss, *metrics)
                 elif self.loss == "trajectorybalance":
@@ -787,7 +748,7 @@ class GFlowNetAgent:
                 proxy_vals=proxy_vals,
                 states_term=states_term,
                 batch_size=len(data),
-                logz=self.logZ.sum(),
+                logz=self.logZ,
                 learning_rates=self.lr_scheduler.get_last_lr(),
                 step=it,
                 use_context=self.use_context,
@@ -989,6 +950,10 @@ class GFlowNetAgent:
 
 class Policy:
     def __init__(self, config, env, device, float_precision, base=None):
+        # If config is null, default to uniform
+        if config is None:
+            config = OmegaConf.create()
+            config.type = "uniform"
         # Device and float precision
         self.device = device
         self.float = float_precision

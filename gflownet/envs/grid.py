@@ -40,14 +40,14 @@ class Grid(GFlowNetEnv):
         **kwargs,
     ):
         super().__init__(**kwargs)
-        self.continuous = True
         self.n_dim = n_dim
         self.eos = self.n_dim
-        self.state = [0 for _ in range(self.n_dim)]
+        self.source = [0 for _ in range(self.n_dim)]
         self.length = length
         self.min_step_len = min_step_len
         self.max_step_len = max_step_len
         self.cells = np.linspace(cell_min, cell_max, length)
+        self.reset()
         self.action_space = self.get_actions_space()
         self.fixed_policy_output = self.get_fixed_policy_output()
         self.random_policy_output = self.get_fixed_policy_output()
@@ -243,7 +243,7 @@ class Grid(GFlowNetEnv):
         """
         Resets the environment.
         """
-        self.state = [0 for _ in range(self.n_dim)]
+        self.state = self.source.copy()
         self.n_actions = 0
         self.done = False
         self.id = env_id
@@ -316,7 +316,7 @@ class Grid(GFlowNetEnv):
             False, if the action is not allowed for the current state.
         """
         if self.done:
-            return self.state, action_idx, False
+            return self.state, action, False
         # If only possible action is eos, then force eos
         # All dimensions are at the maximum length
         if all([s == self.length - 1 for s in self.state]):

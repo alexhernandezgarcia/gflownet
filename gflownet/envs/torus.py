@@ -44,12 +44,14 @@ class Torus(GFlowNetEnv):
         **kwargs,
     ):
         super().__init__(**kwargs)
-        self.continuous = True
         self.n_dim = n_dim
         self.eos = self.n_dim
         self.n_angles = n_angles
         self.length_traj = length_traj
         # Initialize angles and state attributes
+        self.source_angles = [0.0 for _ in range(self.n_dim)]
+        # States are the concatenation of the angle state and number of actions
+        self.source = self.source_angles + [0]
         self.reset()
         self.source = self.angles.copy()
         self.min_step_len = min_step_len
@@ -255,11 +257,8 @@ class Torus(GFlowNetEnv):
         """
         Resets the environment.
         """
-        # TODO: random start
-        self.angles = [0 for _ in range(self.n_dim)]
+        self.state = self.source.copy()
         self.n_actions = 0
-        # States are the concatenation of the angle state and number of actions
-        self.state = self.angles + [self.n_actions]
         self.done = False
         self.id = env_id
         return self
@@ -321,7 +320,7 @@ class Torus(GFlowNetEnv):
                     # If angle index larger than n_angles, restart from 0
                     if angles_p[a_dim] >= self.n_angles:
                         angles_p[a_dim] = angles_p[a_dim] - self.n_angles
-                if _get_min_actions_to_source(self.source, angles_p) < state[-1]:
+                if _get_min_actions_to_source(self.source_angles, angles_p) < state[-1]:
                     state_p = angles_p + [n_actions_p]
                     parents.append(state_p)
                     actions.append((a_dim, a_dir))

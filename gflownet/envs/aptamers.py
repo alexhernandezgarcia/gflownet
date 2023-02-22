@@ -74,7 +74,7 @@ class AptamerSeq(GFlowNetEnv):
             oracle,
             **kwargs,
         )
-        self.state = []
+        self.source = []
         self.min_seq_length = min_seq_length
         self.max_seq_length = max_seq_length
         self.n_alphabet = n_alphabet
@@ -82,6 +82,7 @@ class AptamerSeq(GFlowNetEnv):
         self.max_word_len = max_word_len
         self.action_space = self.get_actions_space()
         self.eos = len(self.action_space)
+        self.reset()
         self.fixed_policy_output = self.get_fixed_policy_output()
         self.random_policy_output = self.get_fixed_policy_output()
         self.policy_output_dim = len(self.fixed_policy_output)

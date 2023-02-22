@@ -102,7 +102,7 @@ class GFlowNetEnv:
     def get_max_traj_len(
         self,
     ):
-        return 1
+        return 1e3
 
     def state2proxy(self, state: List = None):
         """
@@ -476,10 +476,6 @@ class GFlowNetEnv:
         Returns a vector of length the action space + 1: True if forward action is
         invalid given the current state, False otherwise.
         """
-        if state is None:
-            state = self.state
-        if done is None:
-            done = self.done
         mask = [False for _ in range(len(self.action_space))]
         return mask
 
@@ -489,6 +485,8 @@ class GFlowNetEnv:
         True if action is invalid going backward given the current state, False
         otherwise.
         """
+        if parents_a is None:
+            _, parents_a = self.get_parents()
         mask = [True for _ in range(len(self.action_space))]
         for pa in parents_a:
             mask[self.action_space.index(pa)] = False
@@ -574,7 +572,15 @@ class Buffer:
                 pickle.dump(dict_tr, f)
                 self.train_pkl = train.output_pkl
         else:
-            self.train_npy = None
+            print(
+                """
+            Important: offline trajectories will NOT be sampled. In order to sample
+            offline trajectories, the train configuration of the buffer should be
+            complete and feasible and an output pkl file should be defined in
+            env.buffer.train.output_pkl.
+            """
+            )
+            self.train_pkl = None
         if test is not None and "type" in test:
             self.test_type = test.type
         else:
@@ -658,7 +664,7 @@ class Buffer:
         while np.max(rewards_new) > np.min(rewards_old):
             idx_new_max = np.argmax(rewards_new)
             readable_state = self.env.state2readable(states[idx_new_max])
-            if self.replay["state"].isin([readable_state]).sum() == 0:
+            if not self.replay["state"].isin([readable_state]).any():
                 self.replay.iloc[self.replay.reward.argmin()] = {
                     "state": self.env.state2readable(states[idx_new_max]),
                     "traj": self.env.traj2readable(trajs[idx_new_max]),
@@ -666,8 +672,8 @@ class Buffer:
                     "energy": energies[idx_new_max],
                     "iter": it,
                 }
-                rewards_new[idx_new_max] = -1
                 rewards_old = self.replay["reward"].values
+            rewards_new[idx_new_max] = -1
         return self.replay
 
     def make_data_set(self, config):
