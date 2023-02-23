@@ -130,7 +130,8 @@ class SpaceGroup(GFlowNetEnv):
 
     def state2oracle(self, state: List = None) -> Tensor:
         """
-        Prepares a list of states in "GFlowNet format" for the oracle
+        Prepares a list of states in "GFlowNet format" for the oracle. The input to the
+        oracle is simply the space group.
 
         Args
         ----
@@ -140,22 +141,18 @@ class SpaceGroup(GFlowNetEnv):
         Returns
         ----
         oracle_state : Tensor
-            Tensor containing # of Li atoms, total # of atoms, and fractions of individual elements
         """
         if state is None:
             state = self.state
 
-        li_idx = self.elem2idx.get(3)
-
-        if li_idx is None:
+        if state[self.sg_idx] == 0:
             raise ValueError(
-                "state2oracle needs to return the number of Li atoms, but Li not present in allowed elements."
+                "The space group must have been set in order to call the oracle"
             )
 
-        return torch.Tensor(
-            [state[li_idx], sum(state)] + [x / sum(state) for x in state]
-        )
+        return torch.Tensor(state[self.sg_idx], device=self.device, dtype=self.float)
 
+    # TODO
     def state2readable(self, state=None):
         """
         Transforms the state, represented as a list of elements' counts, into a
@@ -175,6 +172,7 @@ class SpaceGroup(GFlowNetEnv):
         }
         return readable
 
+    # TODO
     def readable2state(self, readable):
         """
         Converts a human-readable representation of a state into the standard format.
@@ -207,9 +205,6 @@ class SpaceGroup(GFlowNetEnv):
         Args
         ----
         state : list
-            Representation of a state as a list of length equal to that of self.elements,
-            where i-th value contains the count of atoms for i-th element, from 0 to
-            self.max_atoms_i.
 
         done : bool
             Whether the trajectory is done. If None, done is taken from instance.
