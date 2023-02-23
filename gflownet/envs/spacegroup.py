@@ -331,4 +331,5 @@ class SpaceGroup(GFlowNetEnv):
             return self.state, action, valid
         # Action is eos
         else:
+            self.done = True
             return self.state, action, valid
