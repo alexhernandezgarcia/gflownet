@@ -58,7 +58,7 @@ class SendekMLPWrapper(Proxy):
             crystals = (crystals - self.scale["mean"]) / self.scale["std"]
         crystals = torch.nan_to_num(crystals, nan=0.0)
         with torch.no_grad():
-            scaled_ionic_conductivity = self.oracle(crystals.to(torch.float32))
+            scaled_ionic_conductivity = self.oracle(crystals.to(device=self.device, dtype=self.float))
 
         return scaled_ionic_conductivity
 
