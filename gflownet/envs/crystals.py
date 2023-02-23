@@ -229,7 +229,7 @@ class Crystal(GFlowNetEnv):
         self.id = env_id
         return self
 
-    def get_parents(self, state=None, done=None, actions=None):
+    def get_parents(self, state=None, done=None, action=None):
         """
         Determines all parents and actions that lead to a state.
 
@@ -263,8 +263,7 @@ class Crystal(GFlowNetEnv):
         else:
             parents = []
             actions = []
-            for idx, action in enumerate(self.action_space[:-1]):
-                element, n = action
+            for idx, (element, n) in enumerate(zip(self.action_space[:-1])):
                 if state[self.elem2idx[element]] == n > 0:
                     parent = state.copy()
                     parent[self.elem2idx[element]] -= n
