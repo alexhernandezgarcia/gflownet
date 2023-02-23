@@ -198,7 +198,7 @@ class SpaceGroup(GFlowNetEnv):
         self.id = env_id
         return self
 
-    def get_parents(self, state=None, done=None, actions=None):
+    def get_parents(self, state=None, done=None, action=None):
         """
         Determines all parents and actions that lead to a state.
 
@@ -209,7 +209,7 @@ class SpaceGroup(GFlowNetEnv):
         done : bool
             Whether the trajectory is done. If None, done is taken from instance.
 
-        actions : None
+        action : None
             Ignored
 
         Returns
@@ -229,9 +229,9 @@ class SpaceGroup(GFlowNetEnv):
         else:
             parents = []
             actions = []
-            for idx, action in enumerate(self.action_space[:-1]):
-                element, n = action
-                if state[self.elem2idx[element]] == n > 0:
+            for prop, idx in enumerate(state):
+                if idx != 0:
+                    # TODO
                     parent = state.copy()
                     parent[self.elem2idx[element]] -= n
                     parents.append(parent)
@@ -301,30 +301,3 @@ class SpaceGroup(GFlowNetEnv):
                 else:
                     valid = False
             return self.state, (self.eos, 0), valid
-
-    def _can_produce_neutral_charge(self, state: Optional[List[int]] = None) -> bool:
-        """
-        Helper that checks whether there is a configuration of oxidation states that
-        can produce a neutral charge for the given state.
-        """
-        if state is None:
-            state = self.state
-
-        nums_charges = [
-            (num, self.oxidation_states[self.idx2elem[i]])
-            for i, num in enumerate(state)
-            if num > 0
-        ]
-        sum_diff_elem = []
-
-        for n, c in nums_charges:
-            charge_sums = []
-            for c_i in itertools.product(c, repeat=n):
-                charge_sums.append(sum(c_i))
-            sum_diff_elem.append(np.unique(charge_sums))
-
-        poss_charge_sum = [
-            sum(combo) == 0 for combo in itertools.product(*sum_diff_elem)
-        ]
-
-        return any(poss_charge_sum)
