@@ -152,40 +152,65 @@ class SpaceGroup(GFlowNetEnv):
 
         return torch.Tensor(state[self.sg_idx], device=self.device, dtype=self.float)
 
-    # TODO
     def state2readable(self, state=None):
         """
-        Transforms the state, represented as a list of elements' counts, into a
-        human-readable dict mapping elements' names to their corresponding counts.
+        Transforms the state, represented as a list of property indices, into a
+        human-readable string with the format:
+
+        <space group> | <crystal system> (<crystal system idx>) |
+        <crystal class> (<crystal class idx>) | <point group> |
+        <point symmetry> (<point symmetry idx>)
 
         Example:
-            state: [2, 0, 1, 0]
-            self.alphabet: {1: "H", 2: "He", 3: "Li", 4: "Be"}
-            output: {"H": 2, "Li": 1}
+            space group: 69
+            crystal system: orthorhombic (3)
+            crystal class: rhombic-dipyramidal (8)
+            point group: mmm
+            point symmetry: centrosymmetric (2)
+            output:
+                69 | orthorhombic (3) | rhombic-dipyramidal (8) | mmm |
+                centrosymmetric (2)
         """
         if state is None:
             state = self.state
-        readable = {
-            self.alphabet[self.idx2elem[i]]: s_i
-            for i, s_i in enumerate(state)
-            if s_i > 0
-        }
+        crystal_system_idx = state[self.cs_idx]
+        if crystal_system_idx != 0:
+            crystal_system = self.crystal_systems[crystal_system_idx][0]
+        else:
+            crystal_system = "None"
+        point_symmetry_idx = state[self.ps_idx]
+        if point_symmetry_idx != 0:
+            point_symmetry = self.point_symmetries[point_symmetry_idx][0]
+        else:
+            point_symmetry = "None"
+        space_group = state[self.sg_idx]
+        if space_group != 0:
+            point_group = self.space_groups[space_group][0]
+            crystal_class_idx = self.space_groups[space_group][1]
+            crystal_class = self.crystal_classes[crystal_class_idx][0]
+        else:
+            # TODO: Technically the point group and crystal class could be determined
+            # from crystal system + point symmetry
+            point_group = "TBD"
+            crystal_class_idx = 0
+            crystal_class = "TBD"
+        readable = (
+            f"{space_group} | {crystal_system} ({crystal_system_idx}) | "
+            + f"{crystal_class} ({crystal_class_idx}) | {point_group} | "
+            + f"{point_symmetry} ({point_symmetry_idx})"
+        )
         return readable
 
-    # TODO
     def readable2state(self, readable):
         """
         Converts a human-readable representation of a state into the standard format.
-
-        Example:
-            readable: {"H": 2, "Li": 1} OR {"H": 2, "Li": 1, "He": 0, "Be": 0}
-            self.alphabet: {1: "H", 2: "He", 3: "Li", 4: "Be"}
-            output: [2, 0, 1, 0]
+        See: state2readable
         """
-        state = [0 for _ in self.elements]
-        rev_alphabet = {v: k for k, v in self.alphabet.items()}
-        for k, v in readable.items():
-            state[self.elem2idx[rev_alphabet[k]]] = v
+        properties = readable.split(" | ")
+        crystal_system = int(properties[1].split(" ")[-1].strip("(").strip(")"))
+        point_symmetry = int(properties[4].split(" ")[-1].strip("(").strip(")"))
+        space_group = int(properties[0])
+        state = [crystal_system, point_symmetry, space_group]
         return state
 
     def reset(self, env_id=None):
