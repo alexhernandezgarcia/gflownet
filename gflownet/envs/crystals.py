@@ -243,7 +243,7 @@ class Crystal(GFlowNetEnv):
         done : bool
             Whether the trajectory is done. If None, done is taken from instance.
 
-        actions : None
+        action : None
             Ignored
 
         Returns
