@@ -308,7 +308,7 @@ class Crystal(GFlowNetEnv):
                 f"Tried to execute action {action} not present in action space."
             )
         # If action is in invalid mask, exit immediately
-        if self.get_mask_invalid_actions()[action_idx]:
+        if self.get_mask_invalid_actions_forward()[action_idx]:
             return self.state, action, False
         # If action is not eos, then perform action
         if action[0] != self.eos:
@@ -325,7 +325,7 @@ class Crystal(GFlowNetEnv):
             return self.state, action, valid
         # If action is eos, then perform eos
         else:
-            if self.get_mask_invalid_actions()[self.eos]:
+            if self.get_mask_invalid_actions_forward()[self.eos]:
                 valid = False
             else:
                 if self._can_produce_neutral_charge():
