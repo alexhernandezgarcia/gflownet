@@ -103,9 +103,9 @@ class SpaceGroup(GFlowNetEnv):
             point_symmetries = []
             crystal_classes_ps = self.point_symmetries[state[self.ps_idx]][2]
             # If no class system selected yet
-            if state[self.ps_idx] == 0:
+            if state[self.cs_idx] == 0:
                 crystal_systems = [
-                    (self.cs_idx, idx + 1)
+                    (self.cs_idx, idx)
                     for idx in self.point_symmetries[state[self.ps_idx]][1]
                 ]
         else:
