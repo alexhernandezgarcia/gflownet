@@ -292,13 +292,15 @@ class SpaceGroup(GFlowNetEnv):
             state_next = self.state[:]
             state_next[prop] = idx
             # Set crystal system and point symmetry if space group is set
-            if state_next[self.sg_idx] !=0:
+            if state_next[self.sg_idx] != 0:
                 if state_next[self.cs_idx] == 0:
-                    # TODO
-                    pass
+                    state_next[self.cs_idx] = self.space_groups[
+                        state_next[self.sg_idx]
+                    ][2]
                 if state_next[self.ps_idx] == 0:
-                    # TODO
-                    pass
+                    state_next[self.ps_idx] = self.space_groups[
+                        state_next[self.sg_idx]
+                    ][3]
             self.state = state_next
             self.n_actions += 1
             return self.state, action, valid
