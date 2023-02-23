@@ -56,7 +56,7 @@ class SpaceGroup(GFlowNetEnv):
         ):
             actions_prop = [(prop, idx + 1) for idx in range(n_idx)]
             actions += actions_prop
-        actions += [(self.eos,)]
+        actions += [(self.eos, 0)]
         return actions
 
     def get_max_traj_len(self):
@@ -229,13 +229,29 @@ class SpaceGroup(GFlowNetEnv):
         else:
             parents = []
             actions = []
-            for prop, idx in enumerate(state):
+            # Catch cases where space group has been selected
+            if state[self.sg_idx] != 0:
+                # Add parent: state before setting space group
+                parent = state.copy()
+                parent[self.sg_idx] = 0
+                parents.append(parent)
+                action = (self.sg_idx, state[self.sg_idx])
+                actions.append(action)
+                # Add parent: source
+                parents.append(self.source)
+                action = (self.sg_idx, state[self.sg_idx])
+                actions.append(action)
+                # Make space group zero in state to avoid wrong parents (crystal system
+                # and point symmetry cannot be set after space group has been selected)
+                state[self.sg_idx] = 0
+            # Catch other parents
+            for prop, idx in enumerate(state[: self.sg_idx]):
                 if idx != 0:
-                    # TODO
                     parent = state.copy()
-                    parent[self.elem2idx[element]] -= n
+                    parent[prop] = 0
                     parents.append(parent)
-                    actions.append(idx)
+                    action = (prop, idx)
+                    actions.append(action)
         return parents, actions
 
     def step(self, action: Tuple[int, int]) -> Tuple[List[int], Tuple[int, int], bool]:
@@ -250,7 +266,7 @@ class SpaceGroup(GFlowNetEnv):
         Returns
         -------
         self.state : list
-            The sequence after executing the action
+            The new state after executing the action
 
         action : tuple
             Action executed
@@ -258,46 +274,34 @@ class SpaceGroup(GFlowNetEnv):
         valid : bool
             False, if the action is not allowed for the current state.
         """
-        # If only possible action is eos, then force eos
-        if sum(self.state) == self.max_atoms:
-            self.done = True
-            self.n_actions += 1
-            return self.state, (self.eos, 0), True
         # If action not found in action space raise an error
-        action_idx = None
-        for i, a in enumerate(self.action_space):
-            if a == action:
-                action_idx = i
-                break
-        if action_idx is None:
+        if action not in self.action_space:
             raise ValueError(
                 f"Tried to execute action {action} not present in action space."
             )
-        # If action is in invalid mask, exit immediately
-        if self.get_mask_invalid_actions()[action_idx]:
-            return self.state, action, False
-        # If action is not eos, then perform action
-        if action[0] != self.eos:
-            atomic_number, num = action
-            idx = self.elem2idx[atomic_number]
-            state_next = self.state[:]
-            state_next[idx] = num
-            if sum(state_next) > self.max_atoms:
-                valid = False
-            else:
-                self.state = state_next
-                valid = True
-                self.n_actions += 1
-            return self.state, action, valid
-        # If action is eos, then perform eos
         else:
-            if self.get_mask_invalid_actions()[self.eos]:
-                valid = False
-            else:
-                if self._can_produce_neutral_charge():
-                    self.done = True
-                    valid = True
-                    self.n_actions += 1
-                else:
-                    valid = False
-            return self.state, (self.eos, 0), valid
+            action_idx = self.action_space.index(action)
+        # If action is in invalid mask, exit immediately
+        if self.get_mask_invalid_actions_forward()[action_idx]:
+            return self.state, action, False
+        else:
+            valid = True
+            prop, idx = action
+        # Action is not eos
+        if prop != self.eos:
+            state_next = self.state[:]
+            state_next[prop] = idx
+            # Set crystal system and point symmetry if space group is set
+            if state_next[self.sg_idx] !=0:
+                if state_next[self.cs_idx] == 0:
+                    # TODO
+                    pass
+                if state_next[self.ps_idx] == 0:
+                    # TODO
+                    pass
+            self.state = state_next
+            self.n_actions += 1
+            return self.state, action, valid
+        # Action is eos
+        else:
+            return self.state, action, valid
