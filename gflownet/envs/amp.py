@@ -122,6 +122,10 @@ class AMP(GFlowNetEnv):
             raise ValueError(
                 "Invalid proxy_state_format: {}".format(self.proxy_state_format)
             )
+        self.tokenizer = None
+
+    def set_tokenizer(self, tokenizer):
+        self.tokenizer = tokenizer
 
     def get_actions_space(self):
         """
@@ -210,12 +214,14 @@ class AMP(GFlowNetEnv):
         return self.max_seq_length / self.min_word_len + 1
 
     def statebatch2oracle(
-        self, states: List[TensorType["max_seq_length"]]
+        self, states: List[TensorType["max_seq_length"]], bos_idx=None
     ) -> List[str]:
         state_oracle = []
         for state in states:
             if state[-1] == self.padding_idx:
                 state = state[: torch.where(state == self.padding_idx)[0][0]]
+            if bos_idx is not None and state[0] == bos_idx:
+                state = state[1:-1]
             state_numpy = state.detach().cpu().numpy()
             state_oracle.append(self.state2oracle(state_numpy))
         return state_oracle
@@ -287,22 +293,20 @@ class AMP(GFlowNetEnv):
         state_policy[:, : state_onehot.shape[1], :] = state_onehot
         return state_policy.reshape(states.shape[0], -1).to(self.device).to(self.float)
 
+    def statebatch2state(
+        self, states: List[TensorType["1", "state_dim"]]
+    ) -> TensorType["batch", "state_dim"]:
+        if self.tokenizer is not None:
+            states = torch.vstack(states)
+            states = self.tokenizer.transform(states)
+        return states.to(self.device)
+
     def statetorch2state(
         self, states: TensorType["batch", "state_dim"]
     ) -> TensorType["batch", "state_dim"]:
-        return states
-
-    # TODO: Deprecate as never used.
-    def statebatch2state(
-        self, states: List[List]
-    ) -> TensorType["batch", "max_seq_length"]:
-        # TODO: states should ideally be padded
-        states = torch.nn.utils.rnn.pad_sequence(
-            states,
-            batch_first=True,
-            padding_value=self.padding_idx,
-        )
-        return states
+        if self.tokenizer is not None:
+            states = self.tokenizer.transform(states)
+        return states.to(self.device)
 
     def policytorch2state(self, state_policy: List) -> List:
         """
