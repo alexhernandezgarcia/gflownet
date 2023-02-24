@@ -50,18 +50,22 @@ class ContinuousTorus(HybridTorus):
         action is to be determined or sampled, by returning a vector with a fixed
         random policy.
 
-        For each dimension of the hyper-torus, the output of the policy should return
-        1) the location and 2) the concentration of the projected normal distribution to
-        sample the increment of the angle. Therefore, the output of the policy model
-        has dimensionality D x 2, where D is the number of dimensions, and the elements
-        of the output vector are:
-        - d * 2 + 0: location of Von Mises distribution for dimension d
-        - d * 2 + 1: log concentration of Von Mises distribution for dimension d
-        with d in [0, ..., D]
+        For each dimension d of the hyper-torus and component c of the mixture, the
+        output of the policy should return 1) the weight of the component in the
+        mixture, 2) the location of the von Mises distribution and 3) the concentration
+        of the von Mises distribution to sample the increment of the angle.
+
+        Therefore, the output of the policy model has dimensionality D x C x 1, where D
+        is the number of dimensions (self.n_dim) and C is the number of components
+        (self.n_comp). In sum, the entries of the entries of the policy output are:
+
+        - d * c * 3 + 0: weight of component c in the mixture for dim. d
+        - d * c * 3 + 1: location of Von Mises distribution for dim. d, comp. c
+        - d * c * 3 + 2: log concentration of Von Mises distribution for dim. d, comp. c
         """
-        policy_output = np.ones(self.n_dim * 2)
-        policy_output[0::2] = params.vonmises_mean
-        policy_output[1::2] = params.vonmises_concentration
+        policy_output = np.ones(self.n_dim * self.n_comp * 3)
+        policy_output[1::3] = params.vonmises_mean
+        policy_output[2::3] = params.vonmises_concentration
         return policy_output
 
     def get_mask_invalid_actions_forward(self, state=None, done=None):
@@ -158,12 +162,21 @@ class ContinuousTorus(HybridTorus):
                     2 * torch.pi * torch.ones(len(ns_range_noeos)),
                 )
             elif sampling_method == "policy":
-                locations = policy_outputs[mask_states_sample, 0::2]
-                concentrations = policy_outputs[mask_states_sample, 1::2]
-                distr_angles = VonMises(
+                mix_logits = policy_outputs[mask_states_sample, 0::3].reshape(
+                    -1, self.n_dim, self.n_comp
+                )
+                mix = Categorical(logits=mix_logits)
+                locations = policy_outputs[mask_states_sample, 1::3].reshape(
+                    -1, self.n_dim, self.n_comp
+                )
+                concentrations = policy_outputs[mask_states_sample, 2::3].reshape(
+                    -1, self.n_dim, self.n_comp
+                )
+                vonmises = VonMises(
                     locations,
                     torch.exp(concentrations) + self.vonmises_min_concentration,
                 )
+                distr_angles = MixtureSameFamily(mix, vonmises)
             angles[mask_states_sample] = distr_angles.sample()
             logprobs[mask_states_sample] = distr_angles.log_prob(
                 angles[mask_states_sample]
@@ -201,12 +214,21 @@ class ContinuousTorus(HybridTorus):
         angles = actions[:, 1::2]
         logprobs = torch.zeros(n_states, self.n_dim).to(device)
         if torch.any(mask_states_sample):
-            locations = policy_outputs[mask_states_sample, 0::2]
-            concentrations = policy_outputs[mask_states_sample, 1::2]
-            distr_angles = VonMises(
+            mix_logits = policy_outputs[mask_states_sample, 0::3].reshape(
+                -1, self.n_dim, self.n_comp
+            )
+            mix = Categorical(logits=mix_logits)
+            locations = policy_outputs[mask_states_sample, 1::3].reshape(
+                -1, self.n_dim, self.n_comp
+            )
+            concentrations = policy_outputs[mask_states_sample, 2::3].reshape(
+                -1, self.n_dim, self.n_comp
+            )
+            vonmises = VonMises(
                 locations,
                 torch.exp(concentrations) + self.vonmises_min_concentration,
             )
+            distr_angles = MixtureSameFamily(mix, vonmises)
             logprobs[mask_states_sample] = distr_angles.log_prob(
                 angles[mask_states_sample]
             )
