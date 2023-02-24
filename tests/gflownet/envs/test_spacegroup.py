@@ -2,6 +2,7 @@ import pytest
 import torch
 import numpy as np
 
+import pymatgen.symmetry.groups as pmgg
 from gflownet.envs.spacegroup import SpaceGroup
 
 
@@ -99,6 +100,7 @@ def test__state2readable2state(env, state):
     )
 
 
+# TODO: make common to all environments
 def test__get_parents_step_get_mask__are_compatible(env, n=100):
     for traj in range(n):
         env = env.reset()
@@ -108,7 +110,30 @@ def test__get_parents_step_get_mask__are_compatible(env, n=100):
             action = tuple(np.random.permutation(valid_actions)[0])
             env.step(action)
             parents, parents_a = env.get_parents()
+            assert len(parents) == len(parents_a)
             for p, p_a in zip(parents, parents_a):
                 mask = env.get_mask_invalid_actions_forward(p, False)
                 assert p_a in env.action_space
                 assert mask[env.action_space.index(p_a)] == False
+
+
+def test__states_are_compatible_with_pymatgen(env):
+    for idx in range(env.n_space_groups):
+        env = env.reset()
+        env.step((2, idx + 1))
+        sg_int = pmgg.sg_symbol_from_int_number(idx + 1)
+        sg = pmgg.SpaceGroup(sg_int)
+        assert sg.int_number == env.state[env.sg_idx]
+        assert sg.crystal_system == env.crystal_systems[env.state[env.cs_idx]][0]
+        crystal_class_idx = env.space_groups[idx + 1][1]
+        point_groups = env.crystal_classes[crystal_class_idx][2]
+        assert sg.point_group in point_groups
+
+
+# TODO: make common to all environments
+def test__get_parents__returns_no_parents_in_initial_state(env):
+    parents, actions = env.get_parents()
+    assert len(parents) == 0
+    assert len(actions) == 0
+
+
