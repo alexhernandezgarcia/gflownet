@@ -170,12 +170,14 @@ class GFlowNetAgent:
     def _tfloat(self, x):
         if isinstance(x, torch.Tensor):  # logq
             return x.to(self.device).type(self.float)
-        elif isinstance(x[0], torch.Tensor) and len(x) == 1:  # state
-            return x[0].to(self.device).type(self.float)
-        elif isinstance(x[0], torch.Tensor) and len(x) > 1:  # parent
+        elif isinstance(x[0], torch.Tensor):  # state
+            x = [x_element.unsqueeze(-1) for x_element in x]
             return torch.cat(x).to(self.device).type(self.float)
-            # return x[0].to(self.device).type(self.float).unsqueeze(0)
-        else:
+            # return x[0].to(self.device).type(self.float).unsqueeze(-1)
+        # elif isinstance(x[0], torch.Tensor) and len(x) > 1:  # parent
+        # return torch.cat(x).to(self.device).type(self.float)
+        # return x[0].to(self.device).type(self.float).unsqueeze(0)
+        else:  # if x is a list
             return torch.tensor(x, dtype=self.float, device=self.device)
 
     def _tlong(self, x):
