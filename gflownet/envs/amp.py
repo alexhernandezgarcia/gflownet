@@ -92,14 +92,14 @@ class AMP(GFlowNetEnv):
         self.max_seq_length = max_seq_length
         self.min_word_len = min_word_len
         self.max_word_len = max_word_len
-        special_tokens = ["EOS", "PAD"]
+        special_tokens = ["[EOS]", "[PAD]"]
         self.vocab = AMINO_ACIDS + special_tokens
         self.lookup = {a: i for (i, a) in enumerate(self.vocab)}
         self.inverse_lookup = {i: a for (i, a) in enumerate(self.vocab)}
         self.n_alphabet = len(self.vocab) - len(special_tokens)
-        self.padding_idx = self.lookup["PAD"]
+        self.padding_idx = self.lookup["[PAD]"]
         # TODO: eos re-initalised in get_actions_space so why was this initialisation required in the first place (maybe mfenv)
-        self.eos = self.lookup["EOS"]
+        self.eos = self.lookup["[EOS]"]
         self.action_space = self.get_actions_space()
         self.reset()
         self.fixed_policy_output = self.get_fixed_policy_output()
@@ -290,6 +290,7 @@ class AMP(GFlowNetEnv):
     ) -> TensorType["batch", "state_dim"]:
         return states
 
+    # TODO: Deprecate as never used.
     def statebatch2state(
         self, states: List[List]
     ) -> TensorType["batch", "max_seq_length"]:
@@ -348,12 +349,19 @@ class AMP(GFlowNetEnv):
         return "".join([self.inverse_lookup[el] for el in state])
 
     def statetorch2readable(
-        self, state: TensorType["1", "max_seq_length"], alphabet=None
+        self, state: TensorType["1", "max_seq_length"], inverse_lookup=None, lookup=None
     ) -> str:
-        if alphabet is None:
+        if inverse_lookup is None:
             inverse_lookup = self.inverse_lookup
         if state[-1] == self.padding_idx:
             state = state[: torch.where(state == self.padding_idx)[0][0]]
+        # TODO: neater way without gaving lookup as input arg
+        if (
+            lookup is not None
+            and "[CLS]" in lookup.keys()
+            and state[0] == lookup["[CLS]"]
+        ):
+            state = state[1:-1]
         state = state.tolist()
         readable = [inverse_lookup[el] for el in state]
         return "".join(readable)
