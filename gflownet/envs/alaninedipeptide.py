@@ -2,6 +2,7 @@ import numpy as np
 import numpy.typing as npt
 import torch
 
+from copy import deepcopy
 from typing import List, Tuple
 from torchtyping import TensorType
 
@@ -32,6 +33,7 @@ class AlanineDipeptide(ContinuousTorus):
         proxy=None,
         oracle=None,
         policy_encoding_dim_per_angle=None,
+        n_comp=3,
         **kwargs,
     ):
         self.atom_positions_dataset = AtomPositionsDataset(path_to_dataset)
@@ -56,6 +58,7 @@ class AlanineDipeptide(ContinuousTorus):
             proxy=proxy,
             oracle=oracle,
             policy_encoding_dim_per_angle=policy_encoding_dim_per_angle,
+            n_comp=n_comp,
             **kwargs,
         )
         self.sync_conformer_with_state()
@@ -66,6 +69,10 @@ class AlanineDipeptide(ContinuousTorus):
         for idx, ta in enumerate(self.conformer.freely_rotatable_tas):
             self.conformer.set_torsion_angle(ta, state[idx])
         return self.conformer
+
+    def copy(self):
+        # return an instance of the environment
+        return deepcopy(self)
 
     def statetorch2proxy(
         self, states: TensorType["batch", "state_dim"]

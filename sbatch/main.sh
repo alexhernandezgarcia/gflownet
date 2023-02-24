@@ -2,7 +2,7 @@
 #SBATCH --job-name=gfn                        # Job name
 #SBATCH --partition=long                      # Ask for long job
 #SBATCH --cpus-per-task=8                     # Ask for 8 CPUs
-#SBATCH --gres=gpu:12gb:1                     # Ask for 1 GPU and 12 GB
+#SBATCH --gres=gpu:1                          # Ask for 1 GPU
 #SBATCH --mem-per-cpu=24gb                    # Ask for 24 GB of RAM
 #SBATCH --output=/network/scratch/a/alex.hernandez-garcia/logs/gflownet/slurm/slurm-%j-%x.out  # log file
 #SBATCH --error=/network/scratch/a/alex.hernandez-garcia/logs/gflownet/slurm/slurm-%j-%x.error  # error file

@@ -1,7 +1,7 @@
 # @package _global_
 
 defaults:
-   - override /env: alaninedipeptide_mixture
+   - override /env: alaninedipeptide
    - override /gflownet: trajectorybalance
    - override /proxy: molecule
    - override /logger: wandb
@@ -44,7 +44,6 @@ logger:
     - gflownet
     - continuous
     - molecule
-    - mixture
   test:
     period: 500
     n: 10000
