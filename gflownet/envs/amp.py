@@ -107,6 +107,9 @@ class AMP(GFlowNetEnv):
         elif self.proxy_state_format == "oracle":
             self.statebatch2proxy = self.statebatch2oracle
             self.statetorch2proxy = self.statetorch2oracle
+        elif self.proxy_state_format == "state":
+            self.statebatch2proxy = self.statebatch2state
+            self.statetorch2proxy = self.statetorch2state
         else:
             raise ValueError(
                 "Invalid proxy_state_format: {}".format(self.proxy_state_format)
@@ -114,7 +117,7 @@ class AMP(GFlowNetEnv):
         self.alphabet = dict((i, a) for i, a in enumerate(self.vocab))
         self.reset()
         # because -1 is for fidelity not being chosen
-        self.invalid_state_element = -2
+        self.invalid_state_element = 22
         # self.proxy_factor = 1.0
         if self.do_state_padding:
             assert (
@@ -328,6 +331,20 @@ class AMP(GFlowNetEnv):
         state_policy[rows, cols] = 1.0
         return state_policy
 
+    def statetorch2state(
+        self, states: TensorType["batch", "state_dim"]
+    ) -> TensorType["batch", "state_dim"]:
+        return states
+
+    def statebatch2state(self, states: List[List]) -> TensorType["batch", "state_dim"]:
+        # states = [s.squeeze(0) for s in states]
+        states = torch.nn.utils.rnn.pad_sequence(
+            states,
+            batch_first=True,
+            padding_value=self.env.invalid_state_element,
+        )
+        return states
+
     def policytorch2state(self, state_policy: List) -> List:
         """
         Transforms the one-hot encoding version of a sequence (state) given as argument
@@ -371,11 +388,15 @@ class AMP(GFlowNetEnv):
         """
         return "".join([self.alphabet[el] for el in state])
 
-    def statetorch2readable(self, state: TensorType["batch", "state_dim"]) -> List[str]:
+    def statetorch2readable(
+        self, state: TensorType["batch", "state_dim"], alphabet
+    ) -> List[str]:
+        if alphabet is None:
+            alphabet = self.alphabet
         if state[-1] == self.invalid_state_element:
             state = state[: torch.where(state == self.invalid_state_element)[0][0]]
         state = state.tolist()
-        readable = [self.alphabet[el] for el in state]
+        readable = [alphabet[el] for el in state]
         return "".join(readable)
 
     def readable2state(self, readable: str) -> List:
