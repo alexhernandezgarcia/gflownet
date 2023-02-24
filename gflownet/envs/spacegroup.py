@@ -250,7 +250,7 @@ class SpaceGroup(GFlowNetEnv):
         if done is None:
             done = self.done
         if done:
-            return [state], [self.eos]
+            return [state], [(self.eos, 0)]
         else:
             parents = []
             actions = []
