@@ -16,7 +16,7 @@ python -m pip install torch==1.12.1+cu113 --extra-index-url https://download.pyt
 # Requirements to run
 python -m pip install numpy pandas hydra-core tqdm torchtyping scikit-learn
 # Conditional requirements to run
-python -m pip install wandb matplotlib plotly
+python -m pip install wandb matplotlib plotly pymatgen
 # Dev packages
 # python -m pip install black flake8 isort pylint ipdb jupyter
 
