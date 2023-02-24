@@ -180,8 +180,6 @@ class GFlowNetAgent:
         return torch.tensor(x, dtype=torch.long, device=self.device)
 
     def _tint(self, x):
-        if isinstance(x[0], torch.Tensor):
-            return x[0].to(self.device).type(torch.int)
         return torch.tensor(x, dtype=torch.int, device=self.device)
 
     def _tbool(self, x):
@@ -477,7 +475,6 @@ class GFlowNetAgent:
             # Add to batch
             for env, action, valid in zip(envs, actions, valids):
                 if valid:
-                    # TODO: shouldn't be state be the input if at all anything?
                     parents, parents_a = env.get_parents(action=action)
                     mask_f = env.get_mask_invalid_actions_forward()
                     mask_b = env.get_mask_invalid_actions_backward(
