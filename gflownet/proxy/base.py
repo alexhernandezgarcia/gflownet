@@ -20,6 +20,10 @@ class Proxy:
         self.higher_is_better=higher_is_better
 
     @abstractmethod
+    def setup(self):
+        pass
+
+    @abstractmethod
     def __call__(self, states: npt.NDArray[np.float32]) -> npt.NDArray[np.float32]:
         """
         Args:
