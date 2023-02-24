@@ -79,7 +79,7 @@ class AMP(GFlowNetEnv):
         self,
         max_seq_length=50,
         min_seq_length=1,
-        # Used in config_env in MLP. Need to find a way out
+        # Not required in env. But used in config_env in MLP. TODO: Find a way out
         n_alphabet=20,
         min_word_len=1,
         max_word_len=1,
@@ -98,7 +98,7 @@ class AMP(GFlowNetEnv):
         self.inverse_lookup = {i: a for (i, a) in enumerate(self.vocab)}
         self.n_alphabet = len(self.vocab) - len(special_tokens)
         self.padding_idx = self.lookup["PAD"]
-        # TODO: eos re-initalised in get_actions_space so why was this initialisation required in the first place
+        # TODO: eos re-initalised in get_actions_space so why was this initialisation required in the first place (maybe mfenv)
         self.eos = self.lookup["EOS"]
         self.action_space = self.get_actions_space()
         self.reset()
@@ -107,22 +107,24 @@ class AMP(GFlowNetEnv):
         self.policy_output_dim = len(self.fixed_policy_output)
         self.policy_input_dim = self.state2policy().shape[-1]
         self.max_traj_len = self.get_max_traj_len()
+        # Required for scoring samples from trained gflownet
+        self.statebatch2oracle = self.statetorch2oracle
         if self.proxy_state_format == "ohe":
             self.statebatch2proxy = self.statebatch2policy
             self.statetorch2proxy = self.statetorch2policy
         elif self.proxy_state_format == "oracle":
             self.statebatch2proxy = self.statebatch2oracle
             self.statetorch2proxy = self.statetorch2oracle
-        # elif self.proxy_state_format == "state": #Needed for DKL
-        #     self.statebatch2proxy = self.statebatch2state
-        #     self.statetorch2proxy = self.statetorch2state
+        elif self.proxy_state_format == "state":
+            self.statebatch2proxy = self.statebatch2state
+            self.statetorch2proxy = self.statetorch2state
         else:
             raise ValueError(
                 "Invalid proxy_state_format: {}".format(self.proxy_state_format)
             )
 
     def get_actions_space(self):
-        """VERIFIED
+        """
         Constructs list with all possible actions
         If min_word_len = n_alphabet = 2, actions: [(0, 0,), (1, 1)] and so on
         """
@@ -199,21 +201,8 @@ class AMP(GFlowNetEnv):
         )
         return self._true_density
 
-    def state2oracle(self, state: List = None):  # VERIFIED
+    def state2oracle(self, state: List = None):
         return "".join(self.state2readable(state))
-
-    # TODO: Deprecate as never used.
-    def statebatch2oracle(self, state_batch: List[List]):
-        """
-        Prepares a sequence in "GFlowNet format" for the oracles.
-
-        Args
-        ----
-        state_list : list of lists
-            List of sequences.
-        """
-        state_oracle = [self.state2oracle(state) for state in state_batch]
-        return state_oracle
 
     def get_max_traj_len(
         self,
@@ -272,7 +261,7 @@ class AMP(GFlowNetEnv):
         Transforms a batch of states into the policy model format. The output is a numpy
         array of shape [n_states, n_alphabet * max_seq_len].
 
-        See state2policy(). VERIFIED
+        See state2policy()
         """
         state_tensor = torch.vstack(states)
         state_policy = self.statetorch2policy(state_tensor)
@@ -330,6 +319,7 @@ class AMP(GFlowNetEnv):
         state = torch.where(mat_state_policy)[1].tolist()
         return state
 
+    # TODO: Deprecate as never used.
     def policy2state(self, state_policy: List) -> List:
         """
         Transforms the one-hot encoding version of a sequence (state) given as argument
@@ -342,7 +332,6 @@ class AMP(GFlowNetEnv):
           - policy2state(state_policy): [0, 0, 1, 3, 2]
                     A, A, T, G, C
         """
-        # TODO: is this called
         mat_state_policy = np.reshape(
             state_policy, (self.max_seq_length, self.n_alphabet)
         )
@@ -369,10 +358,9 @@ class AMP(GFlowNetEnv):
         readable = [inverse_lookup[el] for el in state]
         return "".join(readable)
 
-    def readable2state(self, readable: str) -> List:
+    def readable2state(self, readable) -> TensorType["batch_dim", "max_seq_length"]:
         """
-        Transforms a sequence given as a list of letters into a sequence of indices
-        according to an alphabet.
+        Transforms a list or string of letters into a list of indices according to an alphabet.
         """
         if isinstance(readable, str):
             encoded_readable = [self.lookup[el] for el in readable]
