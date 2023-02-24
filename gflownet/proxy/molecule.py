@@ -60,6 +60,8 @@ class TorchANIMoleculeEnergy(Proxy):
         use_ensemble : bool
             Whether to use whole ensemble of the models for prediction or only the first one.
         """
+        super().__init__(**kwargs)
+
         if TORCHANI_MODELS.get(model) is None:
             raise ValueError(
                 f'Tried to use model "{model}", '
@@ -68,14 +70,7 @@ class TorchANIMoleculeEnergy(Proxy):
 
         self.model = TORCHANI_MODELS[model](
             periodic_table_index=True, model_index=None if use_ensemble else 0
-        )
-
-        super().__init__(**kwargs)
-
-    def set_device(self, device):
-        super().set_device(device)
-
-        self.model.to(self.device)
+        ).to(self.device)
 
     @torch.no_grad()
     def __call__(
