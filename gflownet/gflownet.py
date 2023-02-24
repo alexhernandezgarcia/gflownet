@@ -171,7 +171,7 @@ class GFlowNetAgent:
         if isinstance(x, torch.Tensor):  # logq
             return x.to(self.device).type(self.float)
         elif isinstance(x[0], torch.Tensor):  # state
-            x = [x_element.unsqueeze(-1) for x_element in x]
+            x = [x_element.unsqueeze(0) for x_element in x]
             return torch.cat(x).to(self.device).type(self.float)
             # return x[0].to(self.device).type(self.float).unsqueeze(-1)
         # elif isinstance(x[0], torch.Tensor) and len(x) > 1:  # parent
@@ -647,39 +647,6 @@ class GFlowNetAgent:
             for a, p, p_a in zip(actions, parents, parents_a)
         ]
         traj_id = torch.cat([el[:1] for el in traj_id_parents])
-        # TODO: can we do something without the fid break?
-        # if self.env.do_state_padding:
-        #     if hasattr(self.env, "n_fid"):
-        #         parents, fid = zip(
-        #             *[torch.split(p, [p.shape[1] - 1, 1], dim=1) for p in parents]
-        #         )
-        #         states, fid = zip(
-        #             *[torch.split(s, [s.shape[1] - 1, 1], dim=1) for s in states]
-        #         )
-        #     parents = [p.squeeze(0) for p in parents]
-        #     parents = torch.nn.utils.rnn.pad_sequence(
-        #         parents,
-        #         batch_first=True,
-        #         padding_value=self.env.invalid_state_element,
-        #     )
-        #     states = [s.squeeze(0) for s in states]
-        #     states = torch.nn.utils.rnn.pad_sequence(
-        #         states,
-        #         batch_first=True,
-        #         padding_value=self.env.invalid_state_element,
-        #     )
-        #     if hasattr(self.env, "n_fid"):
-        #         parents = torch.cat([parents, torch.cat(fid)], dim=1)
-        #         states = torch.cat([states, torch.cat(fid)], dim=1)
-        # else:
-        # parents, states = map(
-        #     torch.cat,
-        #     [
-        #         parents,
-        #         states,
-        #     ],
-        # )
-
         # Concatenate lists of tensors
         actions, done, state_id, masks_sf, masks_b, parents, states = map(
             torch.cat,
