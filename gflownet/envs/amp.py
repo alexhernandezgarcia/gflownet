@@ -278,7 +278,9 @@ class AMP(GFlowNetEnv):
             .to(self.device)
         )
         state_padding_mask = (states != self.padding_idx).to(self.float).to(self.device)
-        state_onehot = state_onehot * state_padding_mask.unsqueeze(-1)
+        state_onehot_pad = state_onehot * state_padding_mask.unsqueeze(-1)
+        # Assertion works as long as [PAD] is last key in lookup table.
+        assert torch.eq(state_onehot_pad, state_onehot).all()
         state_policy = torch.zeros(
             states.shape[0], self.max_seq_length, self.n_alphabet
         )
@@ -355,7 +357,7 @@ class AMP(GFlowNetEnv):
             inverse_lookup = self.inverse_lookup
         if state[-1] == self.padding_idx:
             state = state[: torch.where(state == self.padding_idx)[0][0]]
-        # TODO: neater way without gaving lookup as input arg
+        # TODO: neater way without having lookup as input arg
         if (
             lookup is not None
             and "[CLS]" in lookup.keys()
