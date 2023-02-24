@@ -170,19 +170,13 @@ class GFlowNetAgent:
     def _tfloat(self, x):
         if isinstance(x, torch.Tensor):  # logq
             return x.to(self.device).type(self.float)
-        elif isinstance(x[0], torch.Tensor):  # state
+        elif isinstance(x[0], torch.Tensor):  # state is already a tensor
             x = [x_element.unsqueeze(0) for x_element in x]
             return torch.cat(x).to(self.device).type(self.float)
-            # return x[0].to(self.device).type(self.float).unsqueeze(-1)
-        # elif isinstance(x[0], torch.Tensor) and len(x) > 1:  # parent
-        # return torch.cat(x).to(self.device).type(self.float)
-        # return x[0].to(self.device).type(self.float).unsqueeze(0)
         else:  # if x is a list
             return torch.tensor(x, dtype=self.float, device=self.device)
 
     def _tlong(self, x):
-        # if isinstance(x[0], torch.Tensor):
-        # return x[0].to(self.device).type(torch.long)
         return torch.tensor(x, dtype=torch.long, device=self.device)
 
     def _tint(self, x):
@@ -191,8 +185,6 @@ class GFlowNetAgent:
         return torch.tensor(x, dtype=torch.int, device=self.device)
 
     def _tbool(self, x):
-        # if isinstance(x[0], torch.Tensor):
-        # return x[0].to(self.device).type(torch.bool)
         return torch.tensor(x, dtype=torch.bool, device=self.device)
 
     def parameters(self):
