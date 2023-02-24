@@ -40,26 +40,6 @@ AMINO_ACIDS = [
     "Y",
 ]
 
-# class StringToLongTensor:
-#     def __init__(self, tokenizer, max_len=None):
-#         self.tokenizer = tokenizer
-#         self.max_len = max_len
-
-#     def __call__(self, x: str):
-#         tok_idxs = self.tokenizer.encode(x)
-#         tok_idxs = torch.LongTensor(tok_idxs)
-#         num_tokens = tok_idxs.size(0)
-#         if self.max_len is not None and num_tokens < self.max_len:
-#             len_diff = self.max_len - num_tokens
-#             padding = LongTensor(
-#                 [self.tokenizer.padding_idx] * len_diff
-#             )
-#             tok_idxs = torch.cat([tok_idxs, padding])
-#         elif self.max_len is not None and num_tokens > self.max_len:
-#             tok_idxs = tok_idxs[:self.max_len]
-
-#         return tok_idxs
-
 
 class AMP(GFlowNetEnv):
     """
@@ -99,11 +79,10 @@ class AMP(GFlowNetEnv):
         self,
         max_seq_length=50,
         min_seq_length=1,
-        # Used  from config_env in MLP. Need to find a way out
+        # Used in config_env in MLP. Need to find a way out
         n_alphabet=20,
         min_word_len=1,
         max_word_len=1,
-        # env_id=None,
         **kwargs,
     ):
         super().__init__(
@@ -111,7 +90,6 @@ class AMP(GFlowNetEnv):
         )
         self.min_seq_length = min_seq_length
         self.max_seq_length = max_seq_length
-        # TODO: self.proxy_input_dim = self.n_alphabet * self.max_seq_length
         self.min_word_len = min_word_len
         self.max_word_len = max_word_len
         special_tokens = ["EOS", "PAD"]
@@ -122,7 +100,6 @@ class AMP(GFlowNetEnv):
         self.padding_idx = self.lookup["PAD"]
         # TODO: eos re-initalised in get_actions_space so why was this initialisation required in the first place
         self.eos = self.lookup["EOS"]
-        # self.eos = self.n_alphabet
         self.action_space = self.get_actions_space()
         self.reset()
         self.fixed_policy_output = self.get_fixed_policy_output()
@@ -136,20 +113,13 @@ class AMP(GFlowNetEnv):
         elif self.proxy_state_format == "oracle":
             self.statebatch2proxy = self.statebatch2oracle
             self.statetorch2proxy = self.statetorch2oracle
-        # elif self.proxy_state_format == "state":
+        # elif self.proxy_state_format == "state": #Needed for DKL
         #     self.statebatch2proxy = self.statebatch2state
         #     self.statetorch2proxy = self.statetorch2state
-        # else:
-        #     raise ValueError(
-        #         "Invalid proxy_state_format: {}".format(self.proxy_state_format)
-        #     )
-        # self.alphabet = dict((i, a) for i, a in enumerate(self.vocab))
-        # because -1 is for fidelity not being chosen
-        self.invalid_state_element = 22
-        # self.proxy_factor = 1.0
-        # TODO: remove this
-        if self.do_state_padding:
-            assert self.padding_idx is not None, "Padding value of state not defined"
+        else:
+            raise ValueError(
+                "Invalid proxy_state_format: {}".format(self.proxy_state_format)
+            )
 
     def get_actions_space(self):
         """VERIFIED
@@ -170,7 +140,7 @@ class AMP(GFlowNetEnv):
         return actions
 
     def get_mask_invalid_actions_forward(self, state=None, done=None):
-        """VERIFIED
+        """
         Returns a vector of length the action space (where action space includes eos): True if action is invalid
         given the current state, False otherwise.
         """
@@ -188,51 +158,51 @@ class AMP(GFlowNetEnv):
         )
         if seq_length < self.min_seq_length:
             mask[self.eos] = True
-        # Does not break in mfenv because amp.action_space is diff from mfenv.action_space
         for idx, a in enumerate(self.action_space[:-1]):
             if seq_length + len(list(a)) > self.max_seq_length:
                 mask[idx] = True
         return mask
 
-    # def true_density(self, max_states=1e6):
-    #     """
-    #     Computes the reward density (reward / sum(rewards)) of the whole space, if the
-    #     dimensionality is smaller than specified in the arguments.
+    def true_density(self, max_states=1e6):
+        """
+        Computes the reward density (reward / sum(rewards)) of the whole space, if the
+        dimensionality is smaller than specified in the arguments.
 
-    #     Returns
-    #     -------
-    #     Tuple:
-    #       - normalized reward for each state
-    #       - states
-    #       - (un-normalized) reward)
-    #     """
-    #     if self._true_density is not None:
-    #         return self._true_density
-    #     if self.n_alphabet**self.max_seq_length > max_states:
-    #         return (None, None, None)
-    #     state_all = np.int32(
-    #         list(
-    #             itertools.product(*[list(range(self.n_alphabet))] * self.max_seq_length)
-    #         )
-    #     )
-    #     traj_rewards, state_end = zip(
-    #         *[
-    #             (self.proxy(state), state)
-    #             for state in state_all
-    #             if len(self.get_parents(state, False)[0]) > 0 or sum(state) == 0
-    #         ]
-    #     )
-    #     traj_rewards = np.array(traj_rewards)
-    #     self._true_density = (
-    #         traj_rewards / traj_rewards.sum(),
-    #         list(map(tuple, state_end)),
-    #         traj_rewards,
-    #     )
-    #     return self._true_density
+        Returns
+        -------
+        Tuple:
+          - normalized reward for each state
+          - states
+          - (un-normalized) reward)
+        """
+        if self._true_density is not None:
+            return self._true_density
+        if self.n_alphabet**self.max_seq_length > max_states:
+            return (None, None, None)
+        state_all = np.int32(
+            list(
+                itertools.product(*[list(range(self.n_alphabet))] * self.max_seq_length)
+            )
+        )
+        traj_rewards, state_end = zip(
+            *[
+                (self.proxy(state), state)
+                for state in state_all
+                if len(self.get_parents(state, False)[0]) > 0 or sum(state) == 0
+            ]
+        )
+        traj_rewards = np.array(traj_rewards)
+        self._true_density = (
+            traj_rewards / traj_rewards.sum(),
+            list(map(tuple, state_end)),
+            traj_rewards,
+        )
+        return self._true_density
 
     def state2oracle(self, state: List = None):  # VERIFIED
         return "".join(self.state2readable(state))
 
+    # TODO: Deprecate as never used.
     def statebatch2oracle(self, state_batch: List[List]):
         """
         Prepares a sequence in "GFlowNet format" for the oracles.
@@ -242,7 +212,6 @@ class AMP(GFlowNetEnv):
         state_list : list of lists
             List of sequences.
         """
-        # TODO: is this ever called?
         state_oracle = [self.state2oracle(state) for state in state_batch]
         return state_oracle
 
@@ -252,8 +221,8 @@ class AMP(GFlowNetEnv):
         return self.max_seq_length / self.min_word_len + 1
 
     def statetorch2oracle(
-        self, states: TensorType["batch", "state_dim"]
-    ) -> TensorType["batch", "state_proxy_dim"]:  # VERIFIED
+        self, states: List[TensorType["max_seq_length"]]
+    ) -> List[str]:
         state_oracle = []
         for state in states:
             if state[-1] == self.padding_idx:
@@ -262,6 +231,7 @@ class AMP(GFlowNetEnv):
             state_oracle.append(self.state2oracle(state_numpy))
         return state_oracle
 
+    # TODO: Deprecate as never used.
     def state2policy(self, state=None):
         """
         Transforms the sequence (state) given as argument (or self.state if None) into a
@@ -293,37 +263,26 @@ class AMP(GFlowNetEnv):
             self.float
         )
         state_policy[:, : state_onehot.shape[1], :] = state_onehot
-        return state_policy.reshape(states.shape[0], -1)
-        # state_policy = F.one_hot(state, self.n_alphabet)
-        # state_mask = (state != self.tokenizer.padding_idx).float()
-        # state_policy
-        # state_policy = np.zeros(self.max_seq_length * self.n_alphabet, dtype=np.float32)
+        return state_policy.reshape(state.shape[0], -1)
 
-        # if len(state) > 0:
-        #     # state = [subseq.cpu().detach().numpy() for subseq in state]
-        #     state_policy[(np.arange(len(state)) * self.n_alphabet + state)] = 1
-        # return state_policy
-
-    def statebatch2policy(self, states: List[List]) -> npt.NDArray[np.float32]:
+    def statebatch2policy(
+        self, states: List[TensorType["1", "max_seq_length"]]
+    ) -> TensorType["batch", "policy_input_dim"]:
         """
         Transforms a batch of states into the policy model format. The output is a numpy
         array of shape [n_states, n_alphabet * max_seq_len].
 
         See state2policy(). VERIFIED
         """
-        # Ideally state should never be a list of lists, but a tensor
         state_tensor = torch.vstack(states)
         state_policy = self.statetorch2policy(state_tensor)
         return state_policy
-        # state = state[: torch.where(state == self.padding_idx)[0][0]] if state[-1] == self.padding_idx else state
-        # state_onehot = F.one_hot(state, num_classes=self.n_alphabet+1)[:, :, 1:].to(self.float)
-        # state_policy = torch.zeros(1, self.max_len, self.n_alphabet)
-        # state_policy[:, :state_onehot.shape[1], :] = state_onehot
-        # return state_policy
 
     def statetorch2policy(
-        self, states: TensorType["batch", "state_dim"]
-    ) -> TensorType["batch", "policy_output_dim"]:
+        self, states: TensorType["batch", "max_seq_length"]
+    ) -> TensorType["batch", "policy_input_dim"]:
+        if states.dtype != torch.long:
+            states = states.to(torch.long)
         state_onehot = (
             F.one_hot(states, self.n_alphabet + 2)[:, :, :-2]
             .to(self.float)
@@ -342,8 +301,9 @@ class AMP(GFlowNetEnv):
     ) -> TensorType["batch", "state_dim"]:
         return states
 
-    def statebatch2state(self, states: List[List]) -> TensorType["batch", "state_dim"]:
-        # states = [s.squeeze(0) for s in states]
+    def statebatch2state(
+        self, states: List[List]
+    ) -> TensorType["batch", "max_seq_length"]:
         # TODO: states should ideally be padded
         states = torch.nn.utils.rnn.pad_sequence(
             states,
@@ -364,11 +324,10 @@ class AMP(GFlowNetEnv):
           - policy2state(state_policy): [0, 0, 1, 3, 2]
                     A, A, T, G, C
         """
-        state = torch.argmax(state_policy, dim=-1)
-        # mat_state_policy = torch.reshape(
-        # state_policy, (self.max_seq_length, self.n_alphabet)
-        # )
-        # state = torch.where(mat_state_policy)[1].tolist()
+        mat_state_policy = torch.reshape(
+            state_policy, (self.max_seq_length, self.n_alphabet)
+        )
+        state = torch.where(mat_state_policy)[1].tolist()
         return state
 
     def policy2state(self, state_policy: List) -> List:
@@ -400,8 +359,8 @@ class AMP(GFlowNetEnv):
         return "".join([self.inverse_lookup[el] for el in state])
 
     def statetorch2readable(
-        self, state: TensorType["batch", "state_dim"], alphabet=None
-    ) -> List[str]:
+        self, state: TensorType["1", "max_seq_length"], alphabet=None
+    ) -> str:
         if alphabet is None:
             inverse_lookup = self.inverse_lookup
         if state[-1] == self.padding_idx:
@@ -415,7 +374,6 @@ class AMP(GFlowNetEnv):
         Transforms a sequence given as a list of letters into a sequence of indices
         according to an alphabet.
         """
-        # alphabet = {v: k for k, v in self.alphabet.items()}
         if isinstance(readable, str):
             encoded_readable = [self.lookup[el] for el in readable]
             state = (
@@ -633,7 +591,7 @@ class AMP(GFlowNetEnv):
             plt.close()
         return ax
 
-    # TODO: do we need this?
+    # TODO: Deprecate as never used.
     def make_test_set(
         self,
         path_base_dataset,
