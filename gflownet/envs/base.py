@@ -243,6 +243,12 @@ class GFlowNetEnv:
                 min=self.min_reward,
                 max=None,
             )
+        elif self.reward_func == "shift":
+            return torch.clamp(
+                self.proxy_factor * proxy_vals + self.reward_beta,
+                min=self.min_reward,
+                max=None,
+            )
         else:
             raise NotImplemented
 
@@ -260,6 +266,8 @@ class GFlowNetEnv:
             return self.proxy_factor * torch.log(reward) / self.reward_beta
         elif self.reward_func == "identity":
             return self.proxy_factor * reward
+        elif self.reward_func == "shift":
+            return self.proxy_factor * (reward - self.reward_beta)
         else:
             raise NotImplemented
 
