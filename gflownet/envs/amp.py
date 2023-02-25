@@ -123,6 +123,9 @@ class AMP(GFlowNetEnv):
                 "Invalid proxy_state_format: {}".format(self.proxy_state_format)
             )
         self.tokenizer = None
+        self.source = (
+            torch.ones(self.max_seq_length, dtype=torch.int64) * self.padding_idx
+        )
 
     def set_tokenizer(self, tokenizer):
         self.tokenizer = tokenizer

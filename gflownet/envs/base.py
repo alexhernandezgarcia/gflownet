@@ -439,7 +439,11 @@ class GFlowNetEnv:
             List of actions within each trajectory
         """
         parents, parents_actions = self.get_parents(current_traj[-1], False)
-        if parents == []:
+        # TODO: generalise this hack
+        if (isinstance(parents[0], List) and parents == []) or (
+            isinstance(parents[0], TensorType)
+            and torch.eq(parents[0], self.source).all()
+        ):
             traj_list.append(current_traj)
             if hasattr(self, "action_pad_length"):
                 current_actions = [

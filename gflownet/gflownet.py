@@ -970,6 +970,8 @@ class GFlowNetAgent:
             test_traj_list = []
             test_traj_actions_list = []
             for state in x_tt:
+                # if isinstance(state, torch.Tensor):
+                # state = state.list()
                 traj_list, actions = self.env.get_trajectories(
                     [],
                     [],
