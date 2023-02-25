@@ -107,6 +107,9 @@ class AMP(GFlowNetEnv):
         elif self.proxy_state_format == "oracle":
             self.statebatch2proxy = self.statebatch2oracle
             self.statetorch2proxy = self.statetorch2oracle
+        elif self.proxy_state_format == "state":
+            self.statebatch2proxy = self.statebatch2state
+            self.statetorch2proxy = self.statetorch2state
         else:
             raise ValueError(
                 "Invalid proxy_state_format: {}".format(self.proxy_state_format)
@@ -114,7 +117,7 @@ class AMP(GFlowNetEnv):
         self.alphabet = dict((i, a) for i, a in enumerate(self.vocab))
         self.reset()
         # because -1 is for fidelity not being chosen
-        self.invalid_state_element = -2
+        self.invalid_state_element = 22
         # self.proxy_factor = 1.0
         if self.do_state_padding:
             assert (
@@ -136,6 +139,7 @@ class AMP(GFlowNetEnv):
         # Add "eos" action
         # eos != n_alphabet in the init because it would break if max_word_len >1
         actions = actions + [(len(actions),)]
+        self.eos = len(actions) - 1
         return actions
 
     def get_mask_invalid_actions_forward(self, state=None, done=None):
@@ -153,8 +157,7 @@ class AMP(GFlowNetEnv):
         seq_length = len(state)
         if seq_length < self.min_seq_length:
             mask[self.eos] = True
-        # Iterate till before the eos action
-        # TODO: ensure it does not break in multi-fidelity
+        # Does not break in mfenv because amp.action_space is diff from mfenv.action_space
         for idx, a in enumerate(self.action_space[:-1]):
             if seq_length + len(list(a)) > self.max_seq_length:
                 mask[idx] = True
@@ -322,11 +325,25 @@ class AMP(GFlowNetEnv):
         )
         state_policy = torch.zeros(
             (len(states), self.n_alphabet * self.max_seq_length),
-            dtype=torch.float32,
+            dtype=self.float,
             device=self.device,
         )
         state_policy[rows, cols] = 1.0
         return state_policy
+
+    def statetorch2state(
+        self, states: TensorType["batch", "state_dim"]
+    ) -> TensorType["batch", "state_dim"]:
+        return states
+
+    def statebatch2state(self, states: List[List]) -> TensorType["batch", "state_dim"]:
+        # states = [s.squeeze(0) for s in states]
+        states = torch.nn.utils.rnn.pad_sequence(
+            states,
+            batch_first=True,
+            padding_value=self.env.invalid_state_element,
+        )
+        return states
 
     def policytorch2state(self, state_policy: List) -> List:
         """
@@ -371,11 +388,15 @@ class AMP(GFlowNetEnv):
         """
         return "".join([self.alphabet[el] for el in state])
 
-    def statetorch2readable(self, state: TensorType["batch", "state_dim"]) -> List[str]:
+    def statetorch2readable(
+        self, state: TensorType["batch", "state_dim"], alphabet
+    ) -> List[str]:
+        if alphabet is None:
+            alphabet = self.alphabet
         if state[-1] == self.invalid_state_element:
             state = state[: torch.where(state == self.invalid_state_element)[0][0]]
         state = state.tolist()
-        readable = [self.alphabet[el] for el in state]
+        readable = [alphabet[el] for el in state]
         return "".join(readable)
 
     def readable2state(self, readable: str) -> List:
@@ -466,7 +487,8 @@ class AMP(GFlowNetEnv):
             return self.state, (self.eos,), True
         # If action is not eos, then perform action
         if action[0] != self.eos:
-            state_next = self.state + list(action)
+            state_next = self.state.copy()
+            state_next = state_next + list(action)
             if len(state_next) > self.max_seq_length:
                 valid = False
             else:
@@ -545,17 +567,28 @@ class AMP(GFlowNetEnv):
     def get_distance(self, seq1, seq2):
         return levenshtein(seq1, seq2) / 1
 
-    def plot_reward_distribution(self, scores, title):
-        fig, ax = plt.subplots()
+    def plot_reward_distribution(self, states=None, scores=None, ax=None, title=None):
+        if ax is None:
+            fig, ax = plt.subplots()
+            standalone = True
+        else:
+            standalone = False
+        if title == None:
+            title = "Rewards of Sampled States"
+        if scores is None:
+            oracle_states = self.statebatch2oracle(states)
+            scores = self.oracle(oracle_states)
         if isinstance(scores, TensorType):
             scores = scores.cpu().detach().numpy()
-        plt.hist(scores)
+        ax.hist(scores)
         ax.set_title(title)
         ax.set_ylabel("Number of Samples")
         ax.set_xlabel("Energy")
         plt.show()
-        plt.close()
-        return fig
+        if standalone == True:
+            plt.tight_layout()
+            plt.close()
+        return ax
 
     # TODO: do we need this?
     def make_test_set(

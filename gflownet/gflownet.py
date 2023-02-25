@@ -954,6 +954,13 @@ class GFlowNetAgent:
             fig_samples_frequency = self.env.plot_samples_frequency(x_sampled)
         else:
             fig_samples_frequency = None
+        if hasattr(self.env, "plot_reward_distribution"):
+            fig_reward_distribution = self.env.plot_reward_distribution(
+                states=x_sampled
+            )
+        else:
+            fig_reward_distribution = None
+
         if hasattr(self.env, "plot_kde"):
             fig_kde_pred = self.env.plot_kde(kde_pred)
             fig_kde_true = self.env.plot_kde(kde_true)
@@ -965,10 +972,16 @@ class GFlowNetAgent:
             kl,
             jsd,
             corr,
-            [fig_reward_samples, fig_kde_pred, fig_kde_true, fig_samples_frequency],
+            [
+                fig_reward_samples,
+                fig_kde_pred,
+                fig_kde_true,
+                fig_samples_frequency,
+                fig_reward_distribution,
+            ],
         )
 
-    def get_log_corr(self, x_tt):
+    def get_log_corr(self, x_tt, energy):
         data_logq = []
         if hasattr(self.env, "_test_traj_list") and len(self.env._test_traj_list) > 0:
             for traj_list, traj_list_actions in zip(
@@ -997,7 +1010,7 @@ class GFlowNetAgent:
 
             setattr(self.env, "_test_traj_list", test_traj_list)
             setattr(self.env, "_test_traj_actions_list", test_traj_actions_list)
-        corr = np.corrcoef(data_logq, self.buffer.test["energies"])
+        corr = np.corrcoef(data_logq, energy)
         return corr, data_logq
 
     # TODO: reorganize and remove
