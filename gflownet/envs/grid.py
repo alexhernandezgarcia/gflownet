@@ -84,14 +84,6 @@ class Grid(GFlowNetEnv):
         """
         if isinstance(state_batch, torch.Tensor) == False:
             state_batch = torch.tensor(state_batch)
-        # if fid_frac == None and self.oracle is not None:
-            # fid_frac = self.oracle.fid
-        # fid = torch.ones((state_batch.shape[0], 1)) * fid_frac
-        # fid = fid.to(state_batch.device).to(state_batch.dtype)
-        # if state_batch.shape[1] == 2:
-        #     state_batch = torch.cat([state_batch, fid], dim=1)
-        # else:
-        #     state_batch[:, -1] = fid[:, -1]
         state_batch = state_batch / self.rescale
         return state_batch.to(self.float)
 
