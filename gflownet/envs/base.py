@@ -81,10 +81,13 @@ class GFlowNetEnv:
         self.proxy = proxy
         if hasattr(self, "proxy_factor"):
             return
-        if self.proxy.maximize is not None:
+        if self.proxy is not None and self.proxy.maximize is not None:
+            # can be None for dropout regressor/UCB
             maximize = self.proxy.maximize
-        else:
+        elif self.oracle is not None:
             maximize = self.oracle.maximize
+        else:
+            raise ValueError("Proxy and Oracle cannot be None together.")
         if maximize:
             self.proxy_factor = 1.0
         else:
