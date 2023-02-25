@@ -889,10 +889,10 @@ class GFlowNetAgent:
                 hist[tuple(x)] += 1
             z_pred = sum([hist[tuple(x)] for x in x_tt]) + 1e-9
             density_pred = np.array([hist[tuple(x)] / z_pred for x in x_tt])
-            # corr = np.corrcoef(density_pred, density_true)[0, 1]
-            corr = 0.0
+            corr = np.corrcoef(density_pred, density_true)[0, 1]
+            # corr = 0.0
             # TODO: add condition as to when this shoulod be caclulated
-            # corr_matrix, _ = self.get_log_corr(x_tt, dict_tt["energy"])
+            # corr_matrix, _ = self.get_log_corr(x_tt)
             # corr = corr_matrix[0][1]
             log_density_true = np.log(density_true + 1e-8)
             log_density_pred = np.log(density_pred + 1e-8)
