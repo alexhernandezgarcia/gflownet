@@ -354,6 +354,8 @@ class AMP(GFlowNetEnv):
         according to an alphabet.
         Used only in Buffer
         """
+        if state[-1] == self.padding_idx:
+            state = state[: torch.where(state == self.padding_idx)[0][0]]
         state = state.tolist()
         return "".join([self.inverse_lookup[el] for el in state])
 
