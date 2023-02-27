@@ -157,9 +157,12 @@ def test_environment_step(
 ):
     env = AMP(proxy_state_format="state", max_seq_length=5)
     env.state = state
+    n_actions = env.n_actions
     next_state, action_executed, valid = env.step(action)
     if expected_executed_action == (20,) and expected_valid == True:
         assert env.done == True
+    if expected_valid == True:
+        assert env.n_actions == n_actions + 1
     assert torch.eq(next_state, expected_next_state).all()
     assert action_executed == expected_executed_action
     assert valid == expected_valid
