@@ -437,6 +437,8 @@ class AMP(GFlowNetEnv):
             done = self.done
         if done:
             return [state], [(self.eos,)]
+        elif torch.eq(state, self.source).all():
+            return [], []
         else:
             parents = []
             actions = []

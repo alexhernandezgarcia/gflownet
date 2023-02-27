@@ -96,14 +96,26 @@ def test_environment_policy_transformation(state, expected_state_policy):
             [torch.tensor([3, 21, 21, 21, 21])],
             [(20,)],
         ),
+        (
+            torch.tensor([21, 21, 21, 21, 21]),
+            False,
+            [],
+            [],
+        ),
     ],
 )
 def test_environment_get_parents(state, done, expected_parent, expected_parent_action):
     env = AMP(proxy_state_format="state", max_seq_length=5)
     parent, parent_action = env.get_parents(state, done)
-    parent_tensor = torch.vstack(parent).to(env.device).to(env.float)
-    expected_parent_tensor = torch.vstack(expected_parent).to(env.device).to(env.float)
-    assert torch.eq(parent_tensor, expected_parent_tensor).all()
+    print(parent, parent_action)
+    if parent != []:
+        parent_tensor = torch.vstack(parent).to(env.device).to(env.float)
+        expected_parent_tensor = (
+            torch.vstack(expected_parent).to(env.device).to(env.float)
+        )
+        assert torch.eq(parent_tensor, expected_parent_tensor).all()
+    else:
+        assert parent == expected_parent
     assert parent_action == expected_parent_action
 
 
