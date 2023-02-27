@@ -108,7 +108,7 @@ class AMP(GFlowNetEnv):
         self.policy_input_dim = self.state2policy().shape[-1]
         self.max_traj_len = self.get_max_traj_len()
         # Required for scoring samples from trained gflownet
-        self.statetorch2oracle = self.statebatch2oracle
+        # self.statetorch2oracle = self.statebatch2oracle
         if self.proxy_state_format == "ohe":
             self.statebatch2proxy = self.statebatch2policy
             self.statetorch2proxy = self.statetorch2policy
@@ -217,6 +217,19 @@ class AMP(GFlowNetEnv):
         return self.max_seq_length / self.min_word_len + 1
 
     def statebatch2oracle(
+        self, states: List[TensorType["max_seq_length"]], bos_idx=None
+    ) -> List[str]:
+        state_oracle = []
+        for state in states:
+            if state[-1] == self.padding_idx:
+                state = state[: torch.where(state == self.padding_idx)[0][0]]
+            if bos_idx is not None and state[0] == bos_idx:
+                state = state[1:-1]
+            state_numpy = state.detach().cpu().numpy()
+            state_oracle.append(self.state2oracle(state_numpy))
+        return state_oracle
+    
+    def statetorch2oracle(
         self, states: List[TensorType["max_seq_length"]], bos_idx=None
     ) -> List[str]:
         state_oracle = []
