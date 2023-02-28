@@ -103,6 +103,10 @@ class Crystal(GFlowNetEnv):
         self.idx2elem = {i: e for i, e in enumerate(self.elements)}
         self.eos = -1
         self.action_space = self.get_actions_space()
+        self.fixed_policy_output = self.get_fixed_policy_output()
+        self.random_policy_output = self.get_fixed_policy_output()
+        self.policy_output_dim = len(self.fixed_policy_output)
+        self.policy_input_dim = len(self.state2policy())
 
     def get_actions_space(self):
         """
@@ -259,7 +263,7 @@ class Crystal(GFlowNetEnv):
         if done is None:
             done = self.done
         if done:
-            return [state], [self.eos]
+            return [state], [(self.eos, 0)]
         else:
             parents = []
             actions = []
@@ -268,7 +272,7 @@ class Crystal(GFlowNetEnv):
                     parent = state.copy()
                     parent[self.elem2idx[element]] -= n
                     parents.append(parent)
-                    actions.append(idx)
+                    actions.append(action)
         return parents, actions
 
     def step(self, action: Tuple[int, int]) -> Tuple[List[int], Tuple[int, int], bool]:

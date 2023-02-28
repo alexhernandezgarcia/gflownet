@@ -1,0 +1,4 @@
+logdir:
+  root: /network/scratch/d/divya.sharma/logs/gflownet
+data:
+  crystals: /network/scratch/d/divya.sharma/gflownet/data/crystals

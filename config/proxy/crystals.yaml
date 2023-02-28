@@ -1,0 +1,5 @@
+_target_: gflownet.proxy.crystals.SendekMLPWrapper
+
+feature_set: "comp"
+path_to_proxy: ${user.data.crystals}
+scale: True
