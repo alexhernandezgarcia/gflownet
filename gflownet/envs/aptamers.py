@@ -51,29 +51,9 @@ class AptamerSeq(GFlowNetEnv):
         n_alphabet=4,
         min_word_len=1,
         max_word_len=1,
-        proxy=None,
-        oracle=None,
-        reward_beta=1,
-        env_id=None,
-        energies_stats=None,
-        reward_norm=1.0,
-        reward_norm_std_mult=0.0,
-        reward_func="power",
-        denorm_proxy=False,
         **kwargs,
     ):
-        super(AptamerSeq, self).__init__(
-            env_id,
-            reward_beta,
-            reward_norm,
-            reward_norm_std_mult,
-            reward_func,
-            energies_stats,
-            denorm_proxy,
-            proxy,
-            oracle,
-            **kwargs,
-        )
+        super().__init__()
         self.source = []
         self.min_seq_length = min_seq_length
         self.max_seq_length = max_seq_length
