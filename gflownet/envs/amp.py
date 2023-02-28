@@ -230,7 +230,7 @@ class AMP(GFlowNetEnv):
         return state_oracle
     
     def statetorch2oracle(
-        self, states: List[TensorType["max_seq_length"]], bos_idx=None
+        self, states: TensorType["batch_dim", "max_seq_length"], bos_idx=None
     ) -> List[str]:
         state_oracle = []
         for state in states:
