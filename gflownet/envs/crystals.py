@@ -233,7 +233,7 @@ class Crystal(GFlowNetEnv):
         self.id = env_id
         return self
 
-    def get_parents(self, state=None, done=None, actions=None):
+    def get_parents(self, state=None, done=None, action=None):
         """
         Determines all parents and actions that lead to a state.
 
