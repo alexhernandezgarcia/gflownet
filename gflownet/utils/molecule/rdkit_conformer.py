@@ -31,13 +31,15 @@ def get_dummy_ad_atom_positions():
     return rconf.GetPositions()
 
 
-def get_dummy_ad_conf_base():
+def get_dummy_ad_rdkconf():
     pos = get_dummy_ad_atom_positions()
-    conf = ConformerBase(pos, constants.ad_smiles, constants.ad_free_tas)
+    conf = RDKitConformer(
+        pos, constants.ad_smiles, constants.ad_atom_types, constants.ad_free_tas
+    )
     return conf
 
 
-class ConformerBase:
+class RDKitConformer:
     def __init__(self, atom_positions, smiles, freely_rotatable_tas=None):
         """
         :param atom_positions: numpy.ndarray of shape [num_atoms, 3] of dtype float64
@@ -141,7 +143,7 @@ if __name__ == "__main__":
     test_pos = rconf.GetPositions()
     initial_tas = get_all_torsion_angles(rmol, rconf)
 
-    conf = ConformerBase(
+    conf = RDKitConformer(
         test_pos, constants.ad_smiles, constants.ad_atom_types, constants.ad_free_tas
     )
     # check torsion angles randomisation

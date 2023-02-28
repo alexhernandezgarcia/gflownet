@@ -10,9 +10,10 @@ from rdkit.Geometry.rdGeometry import Point3D
 from gflownet.utils.molecule import constants
 from gflownet.utils.molecule.conformer_base import ConformerBase
 from gflownet.utils.molecule.featurizer import MolDGLFeaturizer
+from gflownet.utils.molecule.rdkit_conformer import RDKitConformer
 
 
-class Conformer(ConformerBase):
+class Conformer(RDKitConformer):
     def __init__(self, atom_positions, smiles, atom_types, freely_rotatable_tas=None):
         """
         :param atom_positions: numpy.ndarray of shape [num_atoms, 3] of dtype float64
