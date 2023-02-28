@@ -723,28 +723,3 @@ class Buffer:
         data_zscores = (data["energies"] - mean_data) / std_data
         max_norm_data = data_zscores.max()
         return mean_data, std_data, min_data, max_data, max_norm_data
-
-    def sample(
-        self,
-    ):
-        pass
-
-    def __len__(self):
-        return self.capacity
-
-    @property
-    def transitions(self):
-        pass
-
-    def save(
-        self,
-    ):
-        pass
-
-    @classmethod
-    def load():
-        pass
-
-    @property
-    def dummy(self):
-        pass
