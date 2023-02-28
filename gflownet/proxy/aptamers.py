@@ -13,8 +13,8 @@ class Aptamers(Proxy):
         self.type = oracle_id
         self.norm = norm
 
-    def setup(self, max_seq_length, norm=True):
-        self.max_seq_length = max_seq_length
+    def setup(self, env=None):
+        self.max_seq_length = env.max_seq_length
 
     def __call__(self, states: npt.NDArray[np.float32]) -> npt.NDArray[np.float32]:
         """

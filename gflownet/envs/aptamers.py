@@ -89,7 +89,7 @@ class AptamerSeq(GFlowNetEnv):
         self.policy_input_dim = len(self.state2policy())
         self.max_traj_len = self.get_max_traj_len()
         # Set up proxy
-        self.proxy.setup(self.max_seq_length)
+        self.setup_proxy()
 
     def get_actions_space(self):
         """

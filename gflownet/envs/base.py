@@ -521,6 +521,9 @@ class GFlowNetEnv:
         """
         return None
 
+    def setup_proxy(self):
+        if self.proxy:
+            proxy.setup(env)
 
 class Buffer:
     """

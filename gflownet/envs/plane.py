@@ -76,8 +76,7 @@ class Plane(GFlowNetEnv):
         self.policy_output_dim = len(self.fixed_policy_output)
         self.policy_input_dim = len(self.state2policy())
         # Set up proxy
-        self.proxy.n_dim = self.n_dim
-        self.proxy.setup()
+        self.setup_proxy()
         # Oracle
         self.state2oracle = self.state2proxy
         self.statebatch2oracle = self.statebatch2proxy

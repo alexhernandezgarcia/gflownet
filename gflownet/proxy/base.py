@@ -21,7 +21,7 @@ class Proxy:
         self.higher_is_better = higher_is_better
 
     @abstractmethod
-    def setup(self):
+    def setup(self, env=None):
         pass
 
     @abstractmethod
