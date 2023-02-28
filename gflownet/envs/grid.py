@@ -39,7 +39,6 @@ class Grid(GFlowNetEnv):
         cell_max=1,
         **kwargs,
     ):
-        super().__init__(**kwargs)
         self.n_dim = n_dim
         self.eos = self.n_dim
         self.source = [0 for _ in range(self.n_dim)]
@@ -47,19 +46,15 @@ class Grid(GFlowNetEnv):
         self.min_step_len = min_step_len
         self.max_step_len = max_step_len
         self.cells = np.linspace(cell_min, cell_max, length)
-        self.reset()
-        self.action_space = self.get_actions_space()
-        self.fixed_policy_output = self.get_fixed_policy_output()
-        self.random_policy_output = self.get_fixed_policy_output()
-        self.policy_output_dim = len(self.fixed_policy_output)
-        self.policy_input_dim = len(self.state2policy())
+        # Base class init
+        super().__init__(**kwargs)
+        # Proxy format
+        # TODO: assess if really needed
         if self.proxy_state_format == "ohe":
             self.statebatch2proxy = self.statebatch2policy
         elif self.proxy_state_format == "oracle":
             self.statebatch2proxy = self.statebatch2oracle
             self.statetorch2proxy = self.statetorch2oracle
-        # Set up proxy
-        self.setup_proxy()
 
     def get_actions_space(self):
         """

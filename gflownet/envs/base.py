@@ -23,10 +23,11 @@ class GFlowNetEnv:
         device="cpu",
         float_precision=32,
         env_id=None,
-        reward_beta=1,
+        reward_min=1e-8,
+        reward_beta=1.0,
         reward_norm=1.0,
-        reward_norm_std_mult=0,
-        reward_func="power",
+        reward_norm_std_mult=0.0,
+        reward_func="identity",
         energies_stats=None,
         denorm_proxy=False,
         proxy=None,
@@ -34,25 +35,25 @@ class GFlowNetEnv:
         proxy_state_format=None,
         **kwargs,
     ):
+        # Call reset() to set initial state, done, n_actions
+        self.reset()
         # Device
-        if isinstance(device, str):
-            self.device = set_device(device)
-        else:
-            self.device = device
+        import ipdb; ipdb.set_trace()
+        self.device = set_device(device)
         # Float precision
         self.float = set_float_precision(float_precision)
-        # Environment
-        self.state = []
-        self.done = False
-        self.n_actions = 0
-        self.id = env_id
-        self.min_reward = 1e-8
+        # Reward settings
+        self.min_reward = reward_min
+        assert self.min_reward > 0
         self.reward_beta = reward_beta
+        assert self.reward_beta > 0
         self.reward_norm = reward_norm
+        assert self.reward_norm > 0
         self.reward_norm_std_mult = reward_norm_std_mult
         self.reward_func = reward_func
         self.energies_stats = energies_stats
         self.denorm_proxy = denorm_proxy
+        # Proxy and oracle
         self.proxy = proxy
         if oracle is None:
             self.oracle = self.proxy
@@ -63,15 +64,18 @@ class GFlowNetEnv:
         else:
             self.proxy_factor = -1.0
         self.proxy_state_format = proxy_state_format
+        # Log SoftMax function
+        self.logsoftmax = torch.nn.LogSoftmax(dim=1)
+        # Action space
+        self.action_space = self.get_actions_space()
+        # Policy outputs
+        self.fixed_policy_output = self.get_fixed_policy_output()
+        self.random_policy_output = self.get_fixed_policy_output()
+        self.policy_output_dim = len(self.fixed_policy_output)
+        self.policy_input_dim = len(self.state2policy())
+        # To be probably removed:
         self._true_density = None
         self._z = None
-        self.action_space = []
-        self.eos = len(self.action_space)
-        self.logsoftmax = torch.nn.LogSoftmax(dim=1)
-        # Assertions
-        assert self.reward_norm > 0
-        assert self.reward_beta > 0
-        assert self.min_reward > 0
 
     def copy(self):
         # return an instance of the environment
@@ -298,7 +302,7 @@ class GFlowNetEnv:
         """
         Resets the environment.
         """
-        self.state = []
+        self.state = self.source.copy()
         self.n_actions = 0
         self.done = False
         self.id = env_id
@@ -524,6 +528,7 @@ class GFlowNetEnv:
     def setup_proxy(self):
         if self.proxy:
             proxy.setup(env)
+
 
 class Buffer:
     """

@@ -3,7 +3,9 @@ _target_: gflownet.envs.base.GFlowNetEnv
 # Reward function: power or boltzmann
 # boltzmann: exp(-1.0 * reward_beta * proxy)
 # power: (-1.0 * proxy / reward_norm) ** self.reward_beta
-reward_func: boltzmann
+reward_func: identity
+# Minimum reward
+reward_min: 1e-8
 # Beta parameter of the reward function
 reward_beta: 1.0
 # Reward normalization for "power" reward function
