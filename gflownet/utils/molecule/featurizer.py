@@ -2,6 +2,7 @@ import dgl
 import torch
 
 from gflownet.utils.molecule import constants
+from gflownet.utils.molecule.torsions import get_rotation_masks
 
 
 class MolDGLFeaturizer:
@@ -107,6 +108,9 @@ class MolDGLFeaturizer:
         graph.ndata[constants.atom_feature_name] = node_features
         graph.ndata[constants.atomic_numbers_name] = self.get_atomic_numbers(mol)
         graph.edata[constants.edge_feature_name] = edge_features
+        edges_mask, nodes_mask = get_rotation_masks(graph)
+        graph.edata[constants.rotatable_edges_mask_name] = edges_mask
+        graph.edata[constants.rotation_affected_nodes_mask_name] = nodes_mask
         return graph
 
 
@@ -123,5 +127,6 @@ if __name__ == "__main__":
     print("node features shape:", graph.ndata[constants.atom_feature_name].shape)
     print("edge features shape:", graph.edata[constants.edge_feature_name].shape)
     print("edges:", *graph.edges(), sep="\n")
+    print(graph.edata[constants.rotatable_edges_mask_name])
     assert graph.ndata[constants.atom_feature_name].shape[0] == mol.GetNumAtoms()
     assert graph.edata[constants.edge_feature_name].shape[0] == 2 * mol.GetNumBonds()
