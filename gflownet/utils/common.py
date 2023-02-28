@@ -1,4 +1,3 @@
-import gdown
 import numpy as np
 import torch
 
@@ -51,6 +50,7 @@ def download_file_if_not_exists(path: str, url: str):
     Download a file from google drive if path doestn't exist.
     url should be in the format: https://drive.google.com/uc?id=FILE_ID
     """
+    import gdown
     path = Path(path)
     if not path.is_absolute():
         # to avoid storing downloaded files with the logs, prefix is set to the original working dir
