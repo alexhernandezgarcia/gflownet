@@ -100,12 +100,3 @@ class CrystalMLP(nn.Module):
                 x = self.hidden_act(x)
 
         return x
-
-
-if __name__ == "__main__":
-    tmp = SendekMLPWrapper(
-        "all",
-        "/Users/divya-sh/Documents/gflownet/data/crystals",
-        device="cpu",
-        float_precision=32,
-    )
