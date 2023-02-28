@@ -11,6 +11,7 @@ defaults:
 env:
   n_dim: 2
   length_traj: 10
+  n_comp: 3
   reward_func: identity
 
 # Proxy
