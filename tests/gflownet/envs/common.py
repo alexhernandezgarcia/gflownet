@@ -1,3 +1,5 @@
+import numpy as np
+
 def test__get_parents_step_get_mask__are_compatible(env, n=100):
     for traj in range(n):
         env = env.reset()
