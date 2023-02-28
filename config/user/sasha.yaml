@@ -1,4 +1,2 @@
 logdir:
   root: /network/scratch/a/alexandra.volokhova/logs/gflownet
-data:
-  alanine_dipeptide: /home/mila/a/alexandra.volokhova/projects/gflownet/data/alanine_dipeptide_conformers_1.npy
