@@ -8,8 +8,8 @@ from torchtyping import TensorType
 
 from gflownet.envs.ctorusmixture import ContinuousTorusMixture 
 from gflownet.utils.molecule import constants
-from gflownet.utils.molecule.atom_positions_dataset import AtomPositionsDataset
-from gflownet.utils.molecule.conformer_base import ConformerBase
+from gflownet.utils.molecule.datasets import AtomPositionsDataset
+from gflownet.utils.molecule.rdkit_conformer import RDKitConformer
 
 
 class AlanineDipeptideMixture(ContinuousTorusMixture):
@@ -40,7 +40,7 @@ class AlanineDipeptideMixture(ContinuousTorusMixture):
         
         self.atom_positions_dataset = AtomPositionsDataset(path_to_dataset, url_to_dataset)
         atom_positions = self.atom_positions_dataset.sample()
-        self.conformer = ConformerBase(
+        self.conformer = RDKitConformer(
             atom_positions, constants.ad_smiles, constants.ad_free_tas
         )
         n_dim = len(self.conformer.freely_rotatable_tas)
