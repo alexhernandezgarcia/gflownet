@@ -232,15 +232,7 @@ class AMP(GFlowNetEnv):
     def statetorch2oracle(
         self, states: TensorType["batch_dim", "max_seq_length"], bos_idx=None
     ) -> List[str]:
-        state_oracle = []
-        for state in states:
-            if state[-1] == self.padding_idx:
-                state = state[: torch.where(state == self.padding_idx)[0][0]]
-            if bos_idx is not None and state[0] == bos_idx:
-                state = state[1:-1]
-            state_numpy = state.detach().cpu().numpy()
-            state_oracle.append(self.state2oracle(state_numpy))
-        return state_oracle
+        return self.statebatch2oracle(states, bos_idx)
 
     # TODO: Deprecate as never used.
     def state2policy(self, state=None):
@@ -296,18 +288,17 @@ class AMP(GFlowNetEnv):
             states = states.to(torch.long)
         state_onehot = (
             F.one_hot(states, self.n_alphabet + 2)[:, :, :-2]
-            .to(self.float)
-            .to(self.device)
+            .to(self.float, self.device)
         )
-        state_padding_mask = (states != self.padding_idx).to(self.float).to(self.device)
+        state_padding_mask = (states != self.padding_idx).to(self.float, self.device)
         state_onehot_pad = state_onehot * state_padding_mask.unsqueeze(-1)
         # Assertion works as long as [PAD] is last key in lookup table.
         assert torch.eq(state_onehot_pad, state_onehot).all()
         state_policy = torch.zeros(
-            states.shape[0], self.max_seq_length, self.n_alphabet
+            states.shape[0], self.max_seq_length, self.n_alphabet, device = self.device, dtype = self.float
         )
         state_policy[:, : state_onehot.shape[1], :] = state_onehot
-        return state_policy.reshape(states.shape[0], -1).to(self.device).to(self.float)
+        return state_policy.reshape(states.shape[0], -1)
 
     def statebatch2state(
         self, states: List[TensorType["1", "state_dim"]]
@@ -506,9 +497,9 @@ class AMP(GFlowNetEnv):
             self.n_actions += 1
             return self.state, (self.eos,), True
         # If action is not eos, then perform action
+        state_last_element = int(torch.where(state_next == self.padding_idx)[0][0])
         if action[0] != self.eos:
             state_next = self.state.clone().detach()
-            state_last_element = int(torch.where(state_next == self.padding_idx)[0][0])
             if state_last_element + len(action) > self.max_seq_length:
                 valid = False
             else:
@@ -520,7 +511,6 @@ class AMP(GFlowNetEnv):
                 self.n_actions += 1
             return self.state, action, valid
         else:
-            state_last_element = int(torch.where(self.state == self.padding_idx)[0][0])
             if state_last_element < self.min_seq_length:
                 valid = False
             else:
@@ -612,76 +602,3 @@ class AMP(GFlowNetEnv):
             plt.tight_layout()
             plt.close()
         return ax
-
-    # TODO: Deprecate as never used.
-    def make_test_set(
-        self,
-        path_base_dataset,
-        ntest,
-        min_length=0,
-        max_length=np.inf,
-        seed=167,
-        output_csv=None,
-    ):
-        """
-        Constructs an approximately uniformly distributed (on the score) set, by
-        selecting samples from a larger base set.
-
-        Args
-        ----
-        path_base_dataset : str
-            Path to a CSV file containing the base data set.
-
-        ntest : int
-            Number of test samples.
-
-        seed : int
-            Random seed.
-
-        dask : bool
-            If True, use dask to efficiently read a large base file.
-
-        output_csv: str
-            Optional path to store the test set as CSV.
-        """
-        if path_base_dataset is None:
-            return None, None
-        times = {
-            "all": 0.0,
-            "indices": 0.0,
-        }
-        t0_all = time.time()
-        if seed:
-            np.random.seed(seed)
-        df_base = pd.read_csv(path_base_dataset, index_col=0)
-        df_base = df_base.loc[
-            (df_base["samples"].map(len) >= min_length)
-            & (df_base["samples"].map(len) <= max_length)
-        ]
-        energies_base = df_base["energies"].values
-        min_base = energies_base.min()
-        max_base = energies_base.max()
-        distr_unif = np.random.uniform(low=min_base, high=max_base, size=ntest)
-        # Get minimum distance samples without duplicates
-        t0_indices = time.time()
-        idx_samples = []
-        for idx in tqdm(range(ntest)):
-            dist = np.abs(energies_base - distr_unif[idx])
-            idx_min = np.argmin(dist)
-            if idx_min in idx_samples:
-                idx_sort = np.argsort(dist)
-                for idx_next in idx_sort:
-                    if idx_next not in idx_samples:
-                        idx_samples.append(idx_next)
-                        break
-            else:
-                idx_samples.append(idx_min)
-        t1_indices = time.time()
-        times["indices"] += t1_indices - t0_indices
-        # Make test set
-        df_test = df_base.iloc[idx_samples]
-        if output_csv:
-            df_test.to_csv(output_csv)
-        t1_all = time.time()
-        times["all"] += t1_all - t0_all
-        return df_test, times
