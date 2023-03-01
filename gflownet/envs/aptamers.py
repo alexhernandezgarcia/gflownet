@@ -435,36 +435,3 @@ class AptamerSeq(GFlowNetEnv):
         t1_all = time.time()
         times["all"] += t1_all - t0_all
         return df_test, times
-
-    @staticmethod
-    def np2df(test_path, al_init_length, al_queries_per_iter, pct_test, data_seed):
-        data_dict = np.load(test_path, allow_pickle=True).item()
-        letters = numbers2letters(data_dict["samples"])
-        df = pd.DataFrame(
-            {
-                "samples": letters,
-                "energies": data_dict["energies"],
-                "train": [False] * len(letters),
-                "test": [False] * len(letters),
-            }
-        )
-        # Split train and test section of init data set
-        rng = np.random.default_rng(data_seed)
-        indices = rng.permutation(al_init_length)
-        n_tt = int(pct_test * len(indices))
-        indices_tt = indices[:n_tt]
-        indices_tr = indices[n_tt:]
-        df.loc[indices_tt, "test"] = True
-        df.loc[indices_tr, "train"] = True
-        # Split train and test the section of each iteration to preserve splits
-        idx = al_init_length
-        iters_remaining = (len(df) - al_init_length) // al_queries_per_iter
-        indices = rng.permutation(al_queries_per_iter)
-        n_tt = int(pct_test * len(indices))
-        for it in range(iters_remaining):
-            indices_tt = indices[:n_tt] + idx
-            indices_tr = indices[n_tt:] + idx
-            df.loc[indices_tt, "test"] = True
-            df.loc[indices_tr, "train"] = True
-            idx += al_queries_per_iter
-        return df

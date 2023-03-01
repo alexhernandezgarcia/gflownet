@@ -501,14 +501,6 @@ class GFlowNetEnv:
         self.done = done
         return self
 
-    @staticmethod
-    def np2df(*args):
-        """
-        Args
-        ----
-        """
-        return None
-
     def setup_proxy(self):
         if self.proxy:
             proxy.setup(env)
