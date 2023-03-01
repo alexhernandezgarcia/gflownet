@@ -2,6 +2,7 @@
 Base class of GFlowNet environments
 """
 from abc import abstractmethod
+from copy import deepcopy
 from typing import List, Tuple
 import numpy as np
 import numpy.typing as npt
@@ -38,7 +39,6 @@ class GFlowNetEnv:
         # Call reset() to set initial state, done, n_actions
         self.reset()
         # Device
-        import ipdb; ipdb.set_trace()
         self.device = set_device(device)
         # Float precision
         self.float = set_float_precision(float_precision)
@@ -78,8 +78,8 @@ class GFlowNetEnv:
         self._z = None
 
     def copy(self):
-        # return an instance of the environment
-        return self.__class__(**self.__dict__)
+        # return self.__class__(**self.__dict__)
+        return deepcopy(self)
 
     def set_energies_stats(self, energies_stats):
         self.energies_stats = energies_stats
