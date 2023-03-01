@@ -22,12 +22,8 @@ class SpaceGroup(GFlowNetEnv):
     Crystal environment for ionic conductivity
     """
 
-    def __init__(
-        self,
-        **kwargs,
-    ):
-        #         super().__init__(**kwargs)
-
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
         self.crystal_systems = CRYSTAL_SYSTEMS
         self.crystal_classes = CRYSTAL_CLASSES
         self.point_symmetries = POINT_SYMMETRIES
