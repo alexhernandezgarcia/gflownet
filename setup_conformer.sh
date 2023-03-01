@@ -21,4 +21,4 @@ python -m pip install numpy pandas hydra-core tqdm torchtyping six xtb scikit-le
 # Conditional requirements
 python -m pip install wandb matplotlib plotly gdown
 # Dev packages
-# python -m pip install black flake8 isort pylint ipdb jupyter pytest
+# python -m pip install black flake8 isort pylint ipdb jupyter pytest pytest-repeat
