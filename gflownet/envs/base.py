@@ -67,7 +67,7 @@ class GFlowNetEnv:
         # Log SoftMax function
         self.logsoftmax = torch.nn.LogSoftmax(dim=1)
         # Action space
-        self.action_space = self.get_actions_space()
+        self.action_space = self.get_action_space()
         # Policy outputs
         self.fixed_policy_output = self.get_fixed_policy_output()
         self.random_policy_output = self.get_fixed_policy_output()
@@ -85,7 +85,7 @@ class GFlowNetEnv:
         self.reward_norm = reward_norm
 
     @abstractmethod
-    def get_actions_space(self):
+    def get_action_space(self):
         """
         Constructs list with all possible actions (excluding end of sequence)
         """

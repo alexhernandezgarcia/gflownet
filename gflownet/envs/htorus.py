@@ -64,7 +64,7 @@ class HybridTorus(GFlowNetEnv):
         # States are the concatenation of the angle state and number of actions
         self.source = self.source_angles + [0]
         self.reset()
-        self.action_space = self.get_actions_space()
+        self.action_space = self.get_action_space()
         self.fixed_policy_output = self.get_policy_output(fixed_distribution)
         self.random_policy_output = self.get_policy_output(random_distribution)
         self.policy_output_dim = len(self.fixed_policy_output)
@@ -79,7 +79,7 @@ class HybridTorus(GFlowNetEnv):
     def copy(self):
         return deepcopy(self)
 
-    def get_actions_space(self):
+    def get_action_space(self):
         """
         Constructs list with all possible actions. The actions are tuples with two
         values: (dimension, magnitude) where dimension indicates the index of the

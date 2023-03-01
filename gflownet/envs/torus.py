@@ -56,7 +56,7 @@ class Torus(GFlowNetEnv):
         self.source = self.angles.copy()
         self.min_step_len = min_step_len
         self.max_step_len = max_step_len
-        self.action_space = self.get_actions_space()
+        self.action_space = self.get_action_space()
         self.fixed_policy_output = self.get_fixed_policy_output()
         self.random_policy_output = self.get_fixed_policy_output()
         self.policy_output_dim = len(self.fixed_policy_output)
@@ -68,7 +68,7 @@ class Torus(GFlowNetEnv):
         # Setup proxy
         self.proxy.set_n_dim(self.n_dim)
 
-    def get_actions_space(self):
+    def get_action_space(self):
         """
         Constructs list with all possible actions. The actions are tuples with two
         values: (dimension, direction) where dimension indicates the index of the
@@ -315,7 +315,7 @@ class Torus(GFlowNetEnv):
         Args
         ----
         action : tuple
-            Action to be executed. See: get_actions_space()
+            Action to be executed. See: get_action_space()
 
         Returns
         -------

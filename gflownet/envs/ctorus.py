@@ -33,7 +33,7 @@ class ContinuousTorus(HybridTorus):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
-    def get_actions_space(self):
+    def get_action_space(self):
         """
         The actions are tuples of length 2 * n_dim, where positions d and d+1 in the
         tuple correspond to dimension d and the increment of dimension d,

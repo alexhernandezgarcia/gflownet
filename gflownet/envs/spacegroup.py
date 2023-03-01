@@ -51,10 +51,10 @@ class SpaceGroup(GFlowNetEnv):
         self.cs_idx, self.ps_idx, self.sg_idx = 0, 1, 2
         self.source = [0 for _ in range(3)]
         self.eos = -1
-        self.action_space = self.get_actions_space()
+        self.action_space = self.get_action_space()
         self.reset()
 
-    def get_actions_space(self):
+    def get_action_space(self):
         """
         Constructs list with all possible actions. An action is described by a
         tuple (property, index), where property is (0: crystal system,
@@ -297,7 +297,7 @@ class SpaceGroup(GFlowNetEnv):
         Args
         ----
         action : tuple
-            Action to be executed. See: get_actions_space()
+            Action to be executed. See: get_action_space()
 
         Returns
         -------

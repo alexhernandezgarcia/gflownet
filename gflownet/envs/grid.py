@@ -56,7 +56,7 @@ class Grid(GFlowNetEnv):
             self.statebatch2proxy = self.statebatch2oracle
             self.statetorch2proxy = self.statetorch2oracle
 
-    def get_actions_space(self):
+    def get_action_space(self):
         """
         Constructs list with all possible actions, including eos.
         """

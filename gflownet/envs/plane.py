@@ -71,7 +71,7 @@ class Plane(GFlowNetEnv):
         # Initialize angles and state attributes
         self.source = [0.0 for _ in range(self.n_dim)]
         self.reset()
-        self.action_space = self.get_actions_space()
+        self.action_space = self.get_action_space()
         self.fixed_policy_output = self.get_fixed_policy_output()
         self.policy_output_dim = len(self.fixed_policy_output)
         self.policy_input_dim = len(self.state2policy())
@@ -114,7 +114,7 @@ class Plane(GFlowNetEnv):
         reward[within_plane] = super().reward_batch(states_super, done_super)
         return reward
 
-    def get_actions_space(self):
+    def get_action_space(self):
         """
         Constructs list with all possible actions. The actions are tuples with two
         values: (dimension, increment) where dimension indicates the index of the

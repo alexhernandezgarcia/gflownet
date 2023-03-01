@@ -102,10 +102,10 @@ class Crystal(GFlowNetEnv):
         self.elem2idx = {e: i for i, e in enumerate(self.elements)}
         self.idx2elem = {i: e for i, e in enumerate(self.elements)}
         self.eos = -1
-        self.action_space = self.get_actions_space()
+        self.action_space = self.get_action_space()
         self.reset()
 
-    def get_actions_space(self):
+    def get_action_space(self):
         """
         Constructs list with all possible actions. An action is described by a
         tuple (element, n), indicating that the count of element will be
@@ -280,7 +280,7 @@ class Crystal(GFlowNetEnv):
         Args
         ----
         action : tuple
-            Action to be executed. See: get_actions_space()
+            Action to be executed. See: get_action_space()
 
         Returns
         -------

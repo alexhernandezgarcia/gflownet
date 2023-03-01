@@ -60,7 +60,7 @@ class AptamerSeq(GFlowNetEnv):
         self.n_alphabet = n_alphabet
         self.min_word_len = min_word_len
         self.max_word_len = max_word_len
-        self.action_space = self.get_actions_space()
+        self.action_space = self.get_action_space()
         self.eos = len(self.action_space)
         self.reset()
         self.fixed_policy_output = self.get_fixed_policy_output()
@@ -71,7 +71,7 @@ class AptamerSeq(GFlowNetEnv):
         # Set up proxy
         self.setup_proxy()
 
-    def get_actions_space(self):
+    def get_action_space(self):
         """
         Constructs list with all possible actions
         """
