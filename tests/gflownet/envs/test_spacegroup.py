@@ -72,7 +72,7 @@ def test__environment__action_space_has_eos():
         ),
     ],
 )
-def test__get_mask_invalid_actions_forward__right_masks(env, state, action, expected):
+def test__get_mask_invalid_actions_forward__masks_expected_action(env, state, action, expected):
     assert action in env.action_space
     mask = env.get_mask_invalid_actions_forward(state, False)
     assert mask[env.action_space.index(action)] == expected
