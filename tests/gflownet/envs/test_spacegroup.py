@@ -135,5 +135,3 @@ def test__get_parents__returns_no_parents_in_initial_state(env):
     parents, actions = env.get_parents()
     assert len(parents) == 0
     assert len(actions) == 0
-
-
