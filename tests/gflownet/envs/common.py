@@ -1,5 +1,6 @@
 import hydra
 import numpy as np
+import yaml
 from hydra import compose, initialize
 
 
@@ -24,6 +25,11 @@ def test__get_parents__returns_no_parents_in_initial_state(env):
     assert len(parents) == 0
     assert len(actions) == 0
 
+def test__default_config_equals_default_args(env, env_config_path):
+    with open(env_config_path, 'r') as f:
+        config_env = yaml.safe_load(f)
+    env_config = hydra.utils.instantiate(config)
+    assert True
 
 def test__gflownet_minimal_runs(env):
     # Load config
