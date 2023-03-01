@@ -33,7 +33,7 @@ class GFlowNetEnv:
         denorm_proxy=False,
         proxy=None,
         oracle=None,
-        proxy_state_format=None,
+        proxy_state_format="oracle",
         **kwargs,
     ):
         # Call reset() to set initial state, done, n_actions
