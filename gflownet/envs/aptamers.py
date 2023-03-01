@@ -314,14 +314,6 @@ class AptamerSeq(GFlowNetEnv):
                 mask[idx] = True
         return mask
 
-    def no_eos_mask(self, state=None):
-        """
-        Returns True if no eos action is allowed given state
-        """
-        if state is None:
-            state = self.state.copy()
-        return len(state) < self.min_seq_length
-
     def make_train_set(
         self,
         ntrain,
