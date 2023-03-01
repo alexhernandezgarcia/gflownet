@@ -3,7 +3,7 @@ Base class of GFlowNet environments
 """
 from abc import abstractmethod
 from copy import deepcopy
-from typing import List, Tuple
+from typing import List, Optional, Tuple
 
 import numpy as np
 import numpy.typing as npt
@@ -69,20 +69,10 @@ class GFlowNetEnv:
         # Action space
         self.action_space = self.get_action_space()
         # Policy outputs
-        self.fixed_policy_output = self.get_fixed_policy_output()
-        self.random_policy_output = self.get_fixed_policy_output()
+        self.fixed_policy_output = self.get_policy_output()
+        self.random_policy_output = self.get_policy_output()
         self.policy_output_dim = len(self.fixed_policy_output)
         self.policy_input_dim = len(self.state2policy())
-
-    def copy(self):
-        # return self.__class__(**self.__dict__)
-        return deepcopy(self)
-
-    def set_energies_stats(self, energies_stats):
-        self.energies_stats = energies_stats
-
-    def set_reward_norm(self, reward_norm):
-        self.reward_norm = reward_norm
 
     @abstractmethod
     def get_action_space(self):
@@ -91,19 +81,189 @@ class GFlowNetEnv:
         """
         pass
 
-    def get_fixed_policy_output(self):
+    def get_mask_invalid_actions_forward(
+        self,
+        state: Optional[List] = None,
+        done: Optional[bool] = None,
+    ) -> List:
+        """
+        Returns a list of length the action space with values:
+            - True if the forward action is invalid given the current state.
+            - False otherwise.
+        For continuous or hybrid environments, this mask corresponds to the discrete
+        part of the action space.
+        """
+        return [False for _ in range(len(self.action_space))]
+
+    def get_mask_invalid_actions_backward(
+        self,
+        state: Optional[List] = None,
+        done: Optional[bool] = None,
+        parents_a: Optional[List] = None,
+    ) -> List:
+        """
+        Returns a list of length the action space with values:
+            - True if the backward action is invalid given the current state.
+            - False otherwise.
+        For continuous or hybrid environments, this mask corresponds to the discrete
+        part of the action space.
+
+        The base implementation below should be common to all discrete spaces as it
+        relies on get_parents, which is environment-specific and must be implemented.
+        Continuous environments will probably need to implement its specific version of
+        this method.
+        """
+        if parents_a is None:
+            _, parents_a = self.get_parents()
+        mask = [True for _ in range(len(self.action_space))]
+        for pa in parents_a:
+            mask[self.action_space.index(pa)] = False
+        return mask
+
+    def get_parents(
+        self,
+        state: Optional[List] = None,
+        done: Optional[bool] = None,
+        action: Optional[Tuple] = None,
+    ) -> Tuple[List, List]:
+        """
+        Determines all parents and actions that lead to state.
+
+        In continuous environments, get_parents() should return only the parent from
+        which action leads to state.
+
+        Args
+        ----
+        state : list
+            Representation of a state
+
+        done : bool
+            Whether the trajectory is done. If None, done is taken from instance.
+
+        action : tuple
+            Last action performed
+
+        Returns
+        -------
+        parents : list
+            List of parents in state format
+
+        actions : list
+            List of actions that lead to state for each parent in parents
+        """
+        if state is None:
+            state = self.state.copy()
+        if done is None:
+            done = self.done
+        if done:
+            return [state], [(self.eos,)]
+        parents = []
+        actions = []
+        return parents, actions
+
+    def step(self, action: Tuple[int]) -> Tuple[List[int], Tuple[int], bool]:
+        """
+        Executes step given an action.
+
+        Args
+        ----
+        action : tuple
+            Action from the action space.
+
+        Returns
+        -------
+        self.state : list
+            The sequence after executing the action
+
+        action : int
+            Action index
+
+        valid : bool
+            False, if the action is not allowed for the current state, e.g. stop at the
+            root state
+        """
+        # If env is done, return invalid
+        if self.done:
+            return self.state, action, False
+        # If action not found in action space raise an error
+        if action not in self.action_space:
+            raise ValueError(
+                f"Tried to execute action {action} not present in action space."
+            )
+        action_idx = self.action_space.index(action)
+        # If action is in invalid mask, exit immediately
+        if self.get_mask_invalid_actions_forward()[action_idx]:
+            return self.state, action, False
+        return None, None, None
+
+    def sample_actions(
+        self,
+        policy_outputs: TensorType["n_states", "policy_output_dim"],
+        sampling_method: str = "policy",
+        mask_invalid_actions: TensorType["n_states", "policy_output_dim"] = None,
+        temperature_logits: float = 1.0,
+        loginf: float = 1000,
+    ) -> Tuple[List[Tuple], TensorType["n_states"]]:
+        """
+        Samples a batch of actions from a batch of policy outputs. This implementation
+        is generally valid for all discrete environments but continuous environments
+        will likely have to implement its own.
+        """
+        device = policy_outputs.device
+        ns_range = torch.arange(policy_outputs.shape[0]).to(device)
+        if sampling_method == "uniform":
+            logits = torch.ones(policy_outputs.shape).to(device)
+        elif sampling_method == "policy":
+            logits = policy_outputs
+            logits /= temperature_logits
+        if mask_invalid_actions is not None:
+            logits[mask_invalid_actions] = -loginf
+        action_indices = Categorical(logits=logits).sample()
+        logprobs = self.logsoftmax(logits)[ns_range, action_indices]
+        # Build actions
+        actions = [self.action_space[idx] for idx in action_indices]
+        return actions, logprobs
+
+    def get_logprobs(
+        self,
+        policy_outputs: TensorType["n_states", "policy_output_dim"],
+        is_forward: bool,
+        actions: TensorType["n_states", 2],
+        states_target: TensorType["n_states", "policy_input_dim"],
+        mask_invalid_actions: TensorType["batch_size", "policy_output_dim"] = None,
+        loginf: float = 1000,
+    ) -> TensorType["batch_size"]:
+        """
+        Computes log probabilities of actions given policy outputs and actions. This
+        implementation is generally valid for all discrete environments but continuous
+        environments will likely have to implement its own.
+        """
+        device = policy_outputs.device
+        ns_range = torch.arange(policy_outputs.shape[0]).to(device)
+        logits = policy_outputs
+        if mask_invalid_actions is not None:
+            logits[mask_invalid_actions] = -loginf
+        # TODO: fix need to convert to tuple: implement as in continuous
+        action_indices = (
+            torch.tensor(
+                [self.action_space.index(tuple(action.tolist())) for action in actions]
+            )
+            .to(int)
+            .to(device)
+        )
+        logprobs = self.logsoftmax(logits)[ns_range, action_indices]
+        return logprobs
+
+    def get_policy_output(self, params: Optional[dict] = None):
         """
         Defines the structure of the output of the policy model, from which an
         action is to be determined or sampled, by returning a vector with a fixed
-        random policy. As a baseline, the fixed policy is uniform over the
-        dimensionality of the action space.
+        random policy. As a baseline, the policy is uniform over the dimensionality of
+        the action space.
+
+        Continuous environments will generally have to overwrite this method.
         """
         return np.ones(len(self.action_space))
-
-    def get_max_traj_len(
-        self,
-    ):
-        return 1e3
 
     def state2proxy(self, state: List = None):
         """
@@ -130,8 +290,8 @@ class GFlowNetEnv:
         return np.array(states)
 
     def statetorch2proxy(
-        self, states: TensorType["batch", "state_dim"]
-    ) -> TensorType["batch", "state_proxy_dim"]:
+        self, states: TensorType["batch_size", "state_dim"]
+    ) -> TensorType["batch_size", "state_proxy_dim"]:
         """
         Prepares a batch of states in torch "GFlowNet format" for the proxy.
         """
@@ -156,97 +316,9 @@ class GFlowNetEnv:
         """
         return states
 
-    def reward(self, state=None, done=None):
-        """
-        Computes the reward of a state
-        """
-        if done is None:
-            done = self.done
-        if done:
-            return np.array(0.0)
-        if state is None:
-            state = self.state.copy()
-        return self.proxy2reward(self.proxy(self.state2proxy(state)))
-
-    def reward_batch(self, states: List[List], done=None):
-        """
-        Computes the rewards of a batch of states, given a list of states and 'dones'
-        """
-        if done is None:
-            done = np.ones(len(states), dtype=bool)
-        states_proxy = self.statebatch2proxy(states)[list(done), :]
-        rewards = np.zeros(len(done))
-        if states_proxy.shape[0] > 0:
-            rewards[list(done)] = self.proxy2reward(self.proxy(states_proxy)).tolist()
-        return rewards
-
-    def reward_torchbatch(
-        self, states: TensorType["batch", "state_dim"], done: TensorType["batch"] = None
-    ):
-        """
-        Computes the rewards of a batch of states in "GFlownet format"
-        """
-        if done is None:
-            done = torch.ones(states.shape[0], dtype=torch.bool, device=self.device)
-        states_proxy = self.statetorch2proxy(states[done, :])
-        reward = torch.zeros(done.shape[0], dtype=self.float, device=self.device)
-        if states[done, :].shape[0] > 0:
-            reward[done] = self.proxy2reward(self.proxy(states_proxy))
-        return reward
-
-    def proxy2reward(self, proxy_vals):
-        """
-        Prepares the output of an oracle for GFlowNet: the inputs proxy_vals is
-        expected to be a negative value (energy), unless self.denorm_proxy is True. If
-        the latter, the proxy values are first de-normalized according to the mean and
-        standard deviation in self.energies_stats. The output of the function is a
-        strictly positive reward - provided self.reward_norm and self.reward_beta are
-        positive - and larger than self.min_reward.
-        """
-        if self.denorm_proxy:
-            # TODO: do with torch
-            proxy_vals = proxy_vals * self.energies_stats[3] + self.energies_stats[2]
-        if self.reward_func == "power":
-            return torch.clamp(
-                (self.proxy_factor * proxy_vals / self.reward_norm) ** self.reward_beta,
-                min=self.min_reward,
-                max=None,
-            )
-        elif self.reward_func == "boltzmann":
-            return torch.clamp(
-                torch.exp(self.proxy_factor * self.reward_beta * proxy_vals),
-                min=self.min_reward,
-                max=None,
-            )
-        elif self.reward_func == "identity":
-            return torch.clamp(
-                self.proxy_factor * proxy_vals,
-                min=self.min_reward,
-                max=None,
-            )
-        else:
-            raise NotImplemented
-
-    def reward2proxy(self, reward):
-        """
-        Converts a "GFlowNet reward" into a (negative) energy or values as returned by
-        an oracle.
-        """
-        if self.reward_func == "power":
-            return self.proxy_factor * torch.exp(
-                (torch.log(reward) + self.reward_beta * torch.log(self.reward_norm))
-                / self.reward_beta
-            )
-        elif self.reward_func == "boltzmann":
-            return self.proxy_factor * torch.log(reward) / self.reward_beta
-        elif self.reward_func == "identity":
-            return self.proxy_factor * reward
-        else:
-            raise NotImplemented
-
     def statetorch2policy(
-        self, states: TensorType["batch", "state_dim"]
-    ) -> TensorType["batch", "policy_input_dim"]:
+        self, states: TensorType["batch_size", "state_dim"]
+    ) -> TensorType["batch_size", "policy_input_dim"]:
         """
         Prepares a batch of states in torch "GFlowNet format" for the policy
         """
@@ -295,6 +367,96 @@ class GFlowNetEnv:
         """
         return str(traj).replace("(", "[").replace(")", "]").replace(",", "")
 
+    def reward(self, state=None, done=None):
+        """
+        Computes the reward of a state
+        """
+        if done is None:
+            done = self.done
+        if done:
+            return np.array(0.0)
+        if state is None:
+            state = self.state.copy()
+        return self.proxy2reward(self.proxy(self.state2proxy(state)))
+
+    def reward_batch(self, states: List[List], done=None):
+        """
+        Computes the rewards of a batch of states, given a list of states and 'dones'
+        """
+        if done is None:
+            done = np.ones(len(states), dtype=bool)
+        states_proxy = self.statebatch2proxy(states)[list(done), :]
+        rewards = np.zeros(len(done))
+        if states_proxy.shape[0] > 0:
+            rewards[list(done)] = self.proxy2reward(self.proxy(states_proxy)).tolist()
+        return rewards
+
+    def reward_torchbatch(
+        self,
+        states: TensorType["batch_size", "state_dim"],
+        done: TensorType["batch_size"] = None,
+    ):
+        """
+        Computes the rewards of a batch of states in "GFlownet format"
+        """
+        if done is None:
+            done = torch.ones(states.shape[0], dtype=torch.bool, device=self.device)
+        states_proxy = self.statetorch2proxy(states[done, :])
+        reward = torch.zeros(done.shape[0], dtype=self.float, device=self.device)
+        if states[done, :].shape[0] > 0:
+            reward[done] = self.proxy2reward(self.proxy(states_proxy))
+        return reward
+
+    def proxy2reward(self, proxy_vals):
+        """
+        Prepares the output of an oracle for GFlowNet: the inputs proxy_vals is
+        expected to be a negative value (energy), unless self.denorm_proxy is True. If
+        the latter, the proxy values are first de-normalized according to the mean and
+        standard deviation in self.energies_stats. The output of the function is a
+        strictly positive reward - provided self.reward_norm and self.reward_beta are
+        positive - and larger than self.min_reward.
+        """
+        if self.denorm_proxy:
+            # TODO: do with torch
+            proxy_vals = proxy_vals * self.energies_stats[3] + self.energies_stats[2]
+        if self.reward_func == "power":
+            return torch.clamp(
+                (self.proxy_factor * proxy_vals / self.reward_norm) ** self.reward_beta,
+                min=self.min_reward,
+                max=None,
+            )
+        elif self.reward_func == "boltzmann":
+            return torch.clamp(
+                torch.exp(self.proxy_factor * self.reward_beta * proxy_vals),
+                min=self.min_reward,
+                max=None,
+            )
+        elif self.reward_func == "identity":
+            return torch.clamp(
+                self.proxy_factor * proxy_vals,
+                min=self.min_reward,
+                max=None,
+            )
+        else:
+            raise NotImplementedError
+
+    def reward2proxy(self, reward):
+        """
+        Converts a "GFlowNet reward" into a (negative) energy or values as returned by
+        an oracle.
+        """
+        if self.reward_func == "power":
+            return self.proxy_factor * torch.exp(
+                (torch.log(reward) + self.reward_beta * torch.log(self.reward_norm))
+                / self.reward_beta
+            )
+        elif self.reward_func == "boltzmann":
+            return self.proxy_factor * torch.log(reward) / self.reward_beta
+        elif self.reward_func == "identity":
+            return self.proxy_factor * reward
+        else:
+            raise NotImplementedError
+
     def reset(self, env_id=None):
         """
         Resets the environment.
@@ -305,95 +467,28 @@ class GFlowNetEnv:
         self.id = env_id
         return self
 
-    def get_parents(self, state=None, done=None, action=None):
+    def set_state(self, state, done):
         """
-        Determines all parents and actions that lead to state.
-
-        Args
-        ----
-        state : list
-            Representation of a state
-
-        done : bool
-            Whether the trajectory is done. If None, done is taken from instance.
-
-        action : tuple
-            Last action performed
-
-        Returns
-        -------
-        parents : list
-            List of parents in state format
-
-        actions : list
-            List of actions that lead to state for each parent in parents
+        Sets the state and done of an environment.
         """
-        if state is None:
-            state = self.state.copy()
-        if done is None:
-            done = self.done
-        if done:
-            return [state], [self.eos]
-        else:
-            parents = []
-            actions = []
-        return parents, actions
+        self.state = state
+        self.done = done
+        return self
 
-    def sample_actions(
+    def copy(self):
+        # return self.__class__(**self.__dict__)
+        return deepcopy(self)
+
+    def set_energies_stats(self, energies_stats):
+        self.energies_stats = energies_stats
+
+    def set_reward_norm(self, reward_norm):
+        self.reward_norm = reward_norm
+
+    def get_max_traj_len(
         self,
-        policy_outputs: TensorType["n_states", "policy_output_dim"],
-        sampling_method: str = "policy",
-        mask_invalid_actions: TensorType["n_states", "policy_output_dim"] = None,
-        temperature_logits: float = 1.0,
-        loginf: float = 1000,
-    ) -> Tuple[List[Tuple], TensorType["n_states"]]:
-        """
-        Samples a batch of actions from a batch of policy outputs. This implementation
-        is generally valid for all discrete environments.
-        """
-        device = policy_outputs.device
-        ns_range = torch.arange(policy_outputs.shape[0]).to(device)
-        if sampling_method == "uniform":
-            logits = torch.ones(policy_outputs.shape).to(device)
-        elif sampling_method == "policy":
-            logits = policy_outputs
-            logits /= temperature_logits
-        if mask_invalid_actions is not None:
-            logits[mask_invalid_actions] = -loginf
-        action_indices = Categorical(logits=logits).sample()
-        logprobs = self.logsoftmax(logits)[ns_range, action_indices]
-        # Build actions
-        actions = [self.action_space[idx] for idx in action_indices]
-        return actions, logprobs
-
-    def get_logprobs(
-        self,
-        policy_outputs: TensorType["n_states", "policy_output_dim"],
-        is_forward: bool,
-        actions: TensorType["n_states", 2],
-        states_target: TensorType["n_states", "policy_input_dim"],
-        mask_invalid_actions: TensorType["batch_size", "policy_output_dim"] = None,
-        loginf: float = 1000,
-    ) -> TensorType["batch_size"]:
-        """
-        Computes log probabilities of actions given policy outputs and actions. This
-        implementation is generally valid for all discrete environments.
-        """
-        device = policy_outputs.device
-        ns_range = torch.arange(policy_outputs.shape[0]).to(device)
-        logits = policy_outputs
-        if mask_invalid_actions is not None:
-            logits[mask_invalid_actions] = -loginf
-        # TODO: fix need to convert to tuple: implement as in continuous
-        action_indices = (
-            torch.tensor(
-                [self.action_space.index(tuple(action.tolist())) for action in actions]
-            )
-            .to(int)
-            .to(device)
-        )
-        logprobs = self.logsoftmax(logits)[ns_range, action_indices]
-        return logprobs
+    ):
+        return 1e3
 
     def get_trajectories(
         self, traj_list, traj_actions_list, current_traj, current_actions
@@ -434,73 +529,6 @@ class GFlowNetEnv:
             )
         return traj_list, traj_actions_list
 
-    def step(self, action_idx):
-        """
-        Executes step given an action.
-
-        Args
-        ----
-        action_idx : int
-            Index of action in the action space. a == eos indicates "stop action"
-
-        Returns
-        -------
-        self.state : list
-            The sequence after executing the action
-
-        action_idx : int
-            Action index
-
-        valid : bool
-            False, if the action is not allowed for the current state, e.g. stop at the
-            root state
-        """
-        if action < self.eos:
-            self.done = False
-            valid = True
-        else:
-            self.done = True
-            valid = True
-            self.n_actions += 1
-        return self.state, action, valid
-
-    def no_eos_mask(self, state=None):
-        """
-        Returns True if no eos action is allowed given state
-        """
-        if state is None:
-            state = self.state
-        return False
-
-    def get_mask_invalid_actions_forward(self, state=None, done=None):
-        """
-        Returns a vector of length the action space + 1: True if forward action is
-        invalid given the current state, False otherwise.
-        """
-        mask = [False for _ in range(len(self.action_space))]
-        return mask
-
-    def get_mask_invalid_actions_backward(self, state=None, done=None, parents_a=None):
-        """
-        Returns a vector with the length of the discrete part of the action space + 1:
-        True if action is invalid going backward given the current state, False
-        otherwise.
-        """
-        if parents_a is None:
-            _, parents_a = self.get_parents()
-        mask = [True for _ in range(len(self.action_space))]
-        for pa in parents_a:
-            mask[self.action_space.index(pa)] = False
-        return mask
-
-    def set_state(self, state, done):
-        """
-        Sets the state and done of an environment.
-        """
-        self.state = state
-        self.done = done
-        return self
-
     def setup_proxy(self):
         if self.proxy:
-            proxy.setup(env)
+            self.proxy.setup(self)
