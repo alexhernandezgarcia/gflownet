@@ -322,42 +322,6 @@ class AptamerSeq(GFlowNetEnv):
             state = self.state.copy()
         return len(state) < self.min_seq_length
 
-    def true_density(self, max_states=1e6):
-        """
-        Computes the reward density (reward / sum(rewards)) of the whole space, if the
-        dimensionality is smaller than specified in the arguments.
-
-        Returns
-        -------
-        Tuple:
-          - normalized reward for each state
-          - states
-          - (un-normalized) reward)
-        """
-        if self._true_density is not None:
-            return self._true_density
-        if self.n_alphabet**self.max_seq_length > max_states:
-            return (None, None, None)
-        state_all = np.int32(
-            list(
-                itertools.product(*[list(range(self.n_alphabet))] * self.max_seq_length)
-            )
-        )
-        traj_rewards, state_end = zip(
-            *[
-                (self.proxy(state), state)
-                for state in state_all
-                if len(self.get_parents(state, False)[0]) > 0 or sum(state) == 0
-            ]
-        )
-        traj_rewards = np.array(traj_rewards)
-        self._true_density = (
-            traj_rewards / traj_rewards.sum(),
-            list(map(tuple, state_end)),
-            traj_rewards,
-        )
-        return self._true_density
-
     def make_train_set(
         self,
         ntrain,

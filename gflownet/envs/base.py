@@ -73,9 +73,6 @@ class GFlowNetEnv:
         self.random_policy_output = self.get_fixed_policy_output()
         self.policy_output_dim = len(self.fixed_policy_output)
         self.policy_input_dim = len(self.state2policy())
-        # To be probably removed:
-        self._true_density = None
-        self._z = None
 
     def copy(self):
         # return self.__class__(**self.__dict__)
@@ -503,19 +500,6 @@ class GFlowNetEnv:
         self.state = state
         self.done = done
         return self
-
-    def true_density(self):
-        """
-        Computes the reward density (reward / sum(rewards)) of the whole space
-
-        Returns
-        -------
-        Tuple:
-          - normalized reward for each state
-          - un-normalized reward
-          - states
-        """
-        return (None, None, None)
 
     @staticmethod
     def np2df(*args):

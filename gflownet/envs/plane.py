@@ -189,22 +189,6 @@ class Plane(GFlowNetEnv):
         # TODO: review: anything to do with max_value?
         return mask
 
-    def true_density(self):
-        # TODO
-        # Return pre-computed true density if already stored
-        if self._true_density is not None:
-            return self._true_density
-        # Calculate true density
-        all_x = self.get_all_terminating_states()
-        all_oracle = self.state2oracle(all_x)
-        rewards = self.oracle(all_oracle)
-        self._true_density = (
-            rewards / rewards.sum(),
-            rewards,
-            list(map(tuple, all_x)),
-        )
-        return self._true_density
-
     def statebatch2proxy(self, states: List[List] = None) -> npt.NDArray[np.float32]:
         """
         Scales the states into [0, max_val]
