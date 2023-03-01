@@ -359,41 +359,6 @@ class Torus(GFlowNetEnv):
         else:
             return self.state, (self.eos, 0), False
 
-    def make_train_set(self, ntrain, oracle=None, seed=168, output_csv=None):
-        """
-        Constructs a randomly sampled train set.
-
-        Args
-        ----
-        """
-        rng = np.random.default_rng(seed)
-        angles = rng.integers(low=0, high=self.n_angles, size=(ntrain,) + (self.n_dim,))
-        n_actions = self.length_traj * np.ones([ntrain, 1], dtype=np.int32)
-        samples = np.concatenate([angles, n_actions], axis=1)
-        if oracle:
-            energies = oracle(self.state2oracle(samples))
-        else:
-            energies = self.oracle(self.state2oracle(samples))
-        df_train = pd.DataFrame({"samples": list(samples), "energies": energies})
-        if output_csv:
-            df_train.to_csv(output_csv)
-        return df_train
-
-    def make_test_set(self, config):
-        """
-        Constructs a test set.
-
-        Args
-        ----
-        """
-        if "all" in config and config.all:
-            samples = self.get_all_terminating_states()
-            energies = self.oracle(self.state2oracle(samples))
-        df_test = pd.DataFrame(
-            {"samples": [self.state2readable(s) for s in samples], "energies": energies}
-        )
-        return df_test
-
     def get_all_terminating_states(self):
         all_x = np.int32(
             list(itertools.product(*[list(range(self.n_angles))] * self.n_dim))
