@@ -320,9 +320,8 @@ class SpaceGroup(GFlowNetEnv):
         # If action is in invalid mask, exit immediately
         if self.get_mask_invalid_actions_forward()[action_idx]:
             return self.state, action, False
-        else:
-            valid = True
-            prop, idx = action
+        valid = True
+        prop, idx = action
         # Action is not eos
         if prop != self.eos:
             state_next = self.state[:]
