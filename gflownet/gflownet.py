@@ -169,10 +169,10 @@ class GFlowNetAgent:
 
     def _tfloat(self, x):
         if isinstance(x, torch.Tensor):  # logq
-            return x.to(self.device).type(self.float)
+            return x.to(self.device, self.float)
         elif isinstance(x[0], torch.Tensor):  # state is already a tensor
             x = [x_element.unsqueeze(0) for x_element in x]
-            return torch.cat(x).to(self.device).type(self.float)
+            return torch.cat(x).to(self.device, self.float)
         else:  # if x is a list
             return torch.tensor(x, dtype=self.float, device=self.device)
 
