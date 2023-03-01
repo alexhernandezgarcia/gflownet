@@ -39,6 +39,7 @@ class Grid(GFlowNetEnv):
         max_step_len=1,
         cell_min=-1,
         cell_max=1,
+        rescale=1.0,
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -60,12 +61,31 @@ class Grid(GFlowNetEnv):
         elif self.proxy_state_format == "oracle":
             self.statebatch2proxy = self.statebatch2oracle
             self.statetorch2proxy = self.statetorch2oracle
+        elif self.proxy_state_format == "state":
+            self.statebatch2proxy = self.statebatch2state
+            self.statetorch2proxy = self.statebatch2state
+            # Assumes that the oracle is always Branin
+            self.statebatch2oracle = self.statebatch2state
+            self.statetorch2oracle = self.statebatch2state
+        else:
+            raise NotImplementedError(
+                f"Proxy state format {self.proxy_state_format} not implemented"
+            )
         # TODO: is the og oracle required?
         if self.oracle is not None and hasattr(self.oracle, "n_dim"):
             self.oracle.n_dim = self.n_dim
             self.oracle.setup()
         # self.proxy_factor = 1.0
-        self.rescale = None
+        self.rescale = rescale
+
+    def statebatch2state(self, state_batch):
+        """
+        Converts a batch of states to AugmentedBranin oracle format
+        """
+        if isinstance(state_batch, torch.Tensor) == False:
+            state_batch = torch.tensor(state_batch)
+        state_batch = state_batch / self.rescale
+        return state_batch.to(self.float)
 
     def get_actions_space(self):
         """
@@ -248,6 +268,8 @@ class Grid(GFlowNetEnv):
         """
         Dataset Handler in activelearning deals only in tensors. This function converts the tesnor to readble format to save the train dataset
         """
+        assert torch.eq(state.to(torch.long), state).all()
+        state = state.to(torch.long)
         state = state.detach().cpu().numpy()
         return str(state).replace("(", "[").replace(")", "]").replace(",", "")
 
