@@ -15,6 +15,30 @@ import numpy.typing as npt
 from torchtyping import TensorType
 import torch
 import matplotlib.pyplot as plt
+import torch.nn.functional as F
+
+AMINO_ACIDS = [
+    "A",
+    "C",
+    "D",
+    "E",
+    "F",
+    "G",
+    "H",
+    "I",
+    "K",
+    "L",
+    "M",
+    "N",
+    "P",
+    "Q",
+    "R",
+    "S",
+    "T",
+    "V",
+    "W",
+    "Y",
+]
 
 
 class AMP(GFlowNetEnv):
@@ -55,10 +79,10 @@ class AMP(GFlowNetEnv):
         self,
         max_seq_length=50,
         min_seq_length=1,
+        # Not required in env. But used in config_env in MLP. TODO: Find a way out
         n_alphabet=20,
         min_word_len=1,
         max_word_len=1,
-        # env_id=None,
         **kwargs,
     ):
         super().__init__(
@@ -66,41 +90,25 @@ class AMP(GFlowNetEnv):
         )
         self.min_seq_length = min_seq_length
         self.max_seq_length = max_seq_length
-        self.n_alphabet = n_alphabet
-        # TODO: self.proxy_input_dim = self.n_alphabet * self.max_seq_length
         self.min_word_len = min_word_len
         self.max_word_len = max_word_len
-        # TODO: eos re-initalised in ger_actions_space
-        self.eos = self.n_alphabet
+        special_tokens = ["[EOS]", "[PAD]"]
+        self.vocab = AMINO_ACIDS + special_tokens
+        self.lookup = {a: i for (i, a) in enumerate(self.vocab)}
+        self.inverse_lookup = {i: a for (i, a) in enumerate(self.vocab)}
+        self.n_alphabet = len(self.vocab) - len(special_tokens)
+        self.padding_idx = self.lookup["[PAD]"]
+        # TODO: eos re-initalised in get_actions_space so why was this initialisation required in the first place (maybe mfenv)
+        self.eos = self.lookup["[EOS]"]
         self.action_space = self.get_actions_space()
+        self.reset()
         self.fixed_policy_output = self.get_fixed_policy_output()
         self.random_policy_output = self.get_fixed_policy_output()
         self.policy_output_dim = len(self.fixed_policy_output)
-        self.policy_input_dim = len(self.state2policy())
+        self.policy_input_dim = self.state2policy().shape[-1]
         self.max_traj_len = self.get_max_traj_len()
-        self.vocab = [
-            "A",
-            "C",
-            "D",
-            "E",
-            "F",
-            "G",
-            "H",
-            "I",
-            "K",
-            "L",
-            "M",
-            "N",
-            "P",
-            "Q",
-            "R",
-            "S",
-            "T",
-            "V",
-            "W",
-            "Y",
-        ]
-        # TODO: Change depening on how it is assigned for the torus
+        # Required for scoring samples from trained gflownet
+        # self.statetorch2oracle = self.statebatch2oracle
         if self.proxy_state_format == "ohe":
             self.statebatch2proxy = self.statebatch2policy
             self.statetorch2proxy = self.statetorch2policy
@@ -114,15 +122,13 @@ class AMP(GFlowNetEnv):
             raise ValueError(
                 "Invalid proxy_state_format: {}".format(self.proxy_state_format)
             )
-        self.alphabet = dict((i, a) for i, a in enumerate(self.vocab))
-        self.reset()
-        # because -1 is for fidelity not being chosen
-        self.invalid_state_element = 22
-        # self.proxy_factor = 1.0
-        if self.do_state_padding:
-            assert (
-                self.invalid_state_element is not None
-            ), "Padding value of state not defined"
+        self.tokenizer = None
+        self.source = (
+            torch.ones(self.max_seq_length, dtype=torch.int64) * self.padding_idx
+        )
+
+    def set_tokenizer(self, tokenizer):
+        self.tokenizer = tokenizer
 
     def get_actions_space(self):
         """
@@ -148,16 +154,19 @@ class AMP(GFlowNetEnv):
         given the current state, False otherwise.
         """
         if state is None:
-            state = self.state.copy()
+            state = self.state.clone().detach()
         if done is None:
             done = self.done
         if done:
             return [True for _ in range(len(self.action_space))]
         mask = [False for _ in range(len(self.action_space))]
-        seq_length = len(state)
+        seq_length = (
+            torch.where(state == self.padding_idx)[0][0]
+            if state[-1] == self.padding_idx
+            else len(state)
+        )
         if seq_length < self.min_seq_length:
             mask[self.eos] = True
-        # Does not break in mfenv because amp.action_space is diff from mfenv.action_space
         for idx, a in enumerate(self.action_space[:-1]):
             if seq_length + len(list(a)) > self.max_seq_length:
                 mask[idx] = True
@@ -202,34 +211,30 @@ class AMP(GFlowNetEnv):
     def state2oracle(self, state: List = None):
         return "".join(self.state2readable(state))
 
-    def statebatch2oracle(self, state_batch: List[List]):
-        """
-        Prepares a sequence in "GFlowNet format" for the oracles.
-
-        Args
-        ----
-        state_list : list of lists
-            List of sequences.
-        """
-        state_oracle = [self.state2oracle(state) for state in state_batch]
-        return state_oracle
-
     def get_max_traj_len(
         self,
     ):
         return self.max_seq_length / self.min_word_len + 1
 
-    def statetorch2oracle(
-        self, states: TensorType["batch", "state_dim"]
-    ) -> TensorType["batch", "state_proxy_dim"]:
+    def statebatch2oracle(
+        self, states: List[TensorType["max_seq_length"]], bos_idx=None
+    ) -> List[str]:
         state_oracle = []
         for state in states:
-            if state[-1] == self.invalid_state_element:
-                state = state[: torch.where(state == self.invalid_state_element)[0][0]]
+            if state[-1] == self.padding_idx:
+                state = state[: torch.where(state == self.padding_idx)[0][0]]
+            if bos_idx is not None and state[0] == bos_idx:
+                state = state[1:-1]
             state_numpy = state.detach().cpu().numpy()
             state_oracle.append(self.state2oracle(state_numpy))
         return state_oracle
+    
+    def statetorch2oracle(
+        self, states: TensorType["batch_dim", "max_seq_length"], bos_idx=None
+    ) -> List[str]:
+        return self.statebatch2oracle(states, bos_idx)
 
+    # TODO: Deprecate as never used.
     def state2policy(self, state=None):
         """
         Transforms the sequence (state) given as argument (or self.state if None) into a
@@ -248,102 +253,67 @@ class AMP(GFlowNetEnv):
         0s.
         """
         if state is None:
-            state = self.state.copy()
-        state_policy = np.zeros(self.max_seq_length * self.n_alphabet, dtype=np.float32)
-        if len(state) > 0:
-            # state = [subseq.cpu().detach().numpy() for subseq in state]
-            state_policy[(np.arange(len(state)) * self.n_alphabet + state)] = 1
-        return state_policy
+            state = self.state.clone().detach()
+        state = (
+            state[: torch.where(state == self.padding_idx)[0][0]]
+            if state[-1] == self.padding_idx
+            else state
+        )
+        state_policy = torch.zeros(1, self.max_seq_length, self.n_alphabet)
+        if len(state) == 0:
+            return state_policy.reshape(1, -1)
+        state_onehot = F.one_hot(state, num_classes=self.n_alphabet + 1)[:, :, 1:].to(
+            self.float
+        )
+        state_policy[:, : state_onehot.shape[1], :] = state_onehot
+        return state_policy.reshape(state.shape[0], -1)
 
-    def statebatch2policy(self, states: List[List]) -> npt.NDArray[np.float32]:
+    def statebatch2policy(
+        self, states: List[TensorType["1", "max_seq_length"]]
+    ) -> TensorType["batch", "policy_input_dim"]:
         """
         Transforms a batch of states into the policy model format. The output is a numpy
         array of shape [n_states, n_alphabet * max_seq_len].
 
-        See state2policy().
+        See state2policy()
         """
-        # TODO: ensure that un-padded state is fed here
-        # if not modify to implementation similar to that of statetorch2policy
-        state_policy = np.zeros(
-            (len(states), self.n_alphabet * self.max_seq_length), dtype=np.float32
-        )
-        for idx, state in enumerate(states):
-            state_policy[idx] = self.state2policy(state)
-        # TODO fix for when some states are []
-        # if list(map(len, states)) != [0 for s in states]:
-        # cols, lengths = zip(
-        #     *[
-        #         (state + np.arange(len(state)) * self.n_alphabet, len(state))
-        #         if len(state) > 0
-        #         else
-        #         (np.array([self.max_seq_length * self.n_alphabet]), 0)
-        #         for state in states
-        #     ]
-        # )
-        # rows = np.repeat(np.arange(len(states)), lengths)
-        # if rows.shape[0] > 0:
-        #     state_policy[rows, np.concatenate(cols)] = 1.0
+        state_tensor = torch.vstack(states)
+        state_policy = self.statetorch2policy(state_tensor)
         return state_policy
 
     def statetorch2policy(
-        self, states: TensorType["batch", "state_dim"]
-    ) -> TensorType["batch", "policy_output_dim"]:
-        # TODO: prettify and verify logic
-        cols, lengths = zip(
-            *[
-                (
-                    (
-                        state[
-                            : torch.where(state == self.invalid_state_element)[0][0]
-                            if state[-1] == self.invalid_state_element
-                            else len(state)
-                        ].to(self.device)
-                        + torch.arange(
-                            len(
-                                state[
-                                    : torch.where(state == self.invalid_state_element)[
-                                        0
-                                    ][0]
-                                    if state[-1] == self.invalid_state_element
-                                    else len(state)
-                                ]
-                            )
-                        ).to(self.device)
-                        * self.n_alphabet
-                    ),
-                    torch.where(state == self.invalid_state_element)[0][0]
-                    if state[-1] == self.invalid_state_element
-                    else len(state),
-                )
-                for state in states
-            ]
+        self, states: TensorType["batch", "max_seq_length"]
+    ) -> TensorType["batch", "policy_input_dim"]:
+        if states.dtype != torch.long:
+            states = states.to(torch.long)
+        state_onehot = (
+            F.one_hot(states, self.n_alphabet + 2)[:, :, :-2]
+            .to(self.float, self.device)
         )
-        lengths = torch.Tensor(list(lengths)).to(self.device).to(torch.int64)
-        cols = torch.cat(cols, dim=0).to(torch.int64).to(self.device)
-        rows = torch.repeat_interleave(
-            torch.arange(len(states)).to(self.device), lengths
-        )
+        state_padding_mask = (states != self.padding_idx).to(self.float, self.device)
+        state_onehot_pad = state_onehot * state_padding_mask.unsqueeze(-1)
+        # Assertion works as long as [PAD] is last key in lookup table.
+        assert torch.eq(state_onehot_pad, state_onehot).all()
         state_policy = torch.zeros(
-            (len(states), self.n_alphabet * self.max_seq_length),
-            dtype=self.float,
-            device=self.device,
+            states.shape[0], self.max_seq_length, self.n_alphabet, device = self.device, dtype = self.float
         )
-        state_policy[rows, cols] = 1.0
-        return state_policy
+        state_policy[:, : state_onehot.shape[1], :] = state_onehot
+        return state_policy.reshape(states.shape[0], -1)
+
+    def statebatch2state(
+        self, states: List[TensorType["1", "state_dim"]]
+    ) -> TensorType["batch", "state_dim"]:
+        if self.tokenizer is not None:
+            states = torch.vstack(states)
+            states = self.tokenizer.transform(states)
+        return states.to(self.device)
 
     def statetorch2state(
         self, states: TensorType["batch", "state_dim"]
     ) -> TensorType["batch", "state_dim"]:
-        return states
-
-    def statebatch2state(self, states: List[List]) -> TensorType["batch", "state_dim"]:
-        # states = [s.squeeze(0) for s in states]
-        states = torch.nn.utils.rnn.pad_sequence(
-            states,
-            batch_first=True,
-            padding_value=self.env.invalid_state_element,
-        )
-        return states
+        if self.tokenizer is not None:
+            states = self.tokenizer.transform(states)
+        return states.to(self.device)
 
     def policytorch2state(self, state_policy: List) -> List:
         """
@@ -363,6 +333,7 @@ class AMP(GFlowNetEnv):
         state = torch.where(mat_state_policy)[1].tolist()
         return state
 
+    # TODO: Deprecate as never used.
     def policy2state(self, state_policy: List) -> List:
         """
         Transforms the one-hot encoding version of a sequence (state) given as argument
@@ -385,33 +356,59 @@ class AMP(GFlowNetEnv):
         """
         Transforms a sequence given as a list of indices into a sequence of letters
         according to an alphabet.
+        Used only in Buffer
         """
-        return "".join([self.alphabet[el] for el in state])
+        if state[-1] == self.padding_idx:
+            state = state[: torch.where(state == self.padding_idx)[0][0]]
+        state = state.tolist()
+        return "".join([self.inverse_lookup[el] for el in state])
 
     def statetorch2readable(
-        self, state: TensorType["batch", "state_dim"], alphabet
-    ) -> List[str]:
-        if alphabet is None:
-            alphabet = self.alphabet
-        if state[-1] == self.invalid_state_element:
-            state = state[: torch.where(state == self.invalid_state_element)[0][0]]
+        self, state: TensorType["1", "max_seq_length"], inverse_lookup=None, lookup=None
+    ) -> str:
+        if inverse_lookup is None:
+            inverse_lookup = self.inverse_lookup
+        if state[-1] == self.padding_idx:
+            state = state[: torch.where(state == self.padding_idx)[0][0]]
+        # TODO: neater way without having lookup as input arg
+        if (
+            lookup is not None
+            and "[CLS]" in lookup.keys()
+            and state[0] == lookup["[CLS]"]
+        ):
+            state = state[1:-1]
         state = state.tolist()
-        readable = [alphabet[el] for el in state]
+        readable = [inverse_lookup[el] for el in state]
         return "".join(readable)
 
-    def readable2state(self, readable: str) -> List:
+    def readable2state(self, readable) -> TensorType["batch_dim", "max_seq_length"]:
         """
-        Transforms a sequence given as a list of letters into a sequence of indices
-        according to an alphabet.
+        Transforms a list or string of letters into a list of indices according to an alphabet.
         """
-        alphabet = {v: k for k, v in self.alphabet.items()}
-        return [alphabet[el] for el in readable]
+        if isinstance(readable, str):
+            encoded_readable = [self.lookup[el] for el in readable]
+            state = (
+                torch.ones(self.max_seq_length, dtype=torch.int64) * self.padding_idx
+            )
+            state[: len(encoded_readable)] = torch.tensor(encoded_readable)
+        else:
+            # if readable is a list of strings
+            encoded_readable = [[self.lookup[el] for el in seq] for seq in readable]
+            state = (
+                torch.ones((len(readable), self.max_seq_length), dtype=torch.int64)
+                * self.padding_idx
+            )
+            for i, seq in enumerate(encoded_readable):
+                state[i, : len(seq)] = torch.tensor(seq)
+        return state
 
     def reset(self, env_id=None):
         """
         Resets the environment.
         """
-        self.state = []
+        self.state = (
+            torch.ones(self.max_seq_length, dtype=torch.int64) * self.padding_idx
+        )
         self.done = False
         self.id = env_id
         self.n_actions = 0
@@ -441,20 +438,34 @@ class AMP(GFlowNetEnv):
         """
         # TODO: Adapt to tuple form actions
         if state is None:
-            state = self.state.copy()
+            state = self.state.clone().detach()
         if done is None:
             done = self.done
         if done:
             return [state], [(self.eos,)]
+        elif torch.eq(state, self.source).all():
+            return [], []
         else:
             parents = []
             actions = []
             for idx, a in enumerate(self.action_space):
-                is_parent = state[-len(a) :] == list(a)
+                if state[-1] == self.padding_idx:
+                    state_last_element = int(
+                        torch.where(state == self.padding_idx)[0][0]
+                    )
+                else:
+                    state_last_element = len(state)
+                is_parent = state[
+                    state_last_element - len(a) : state_last_element
+                ] == torch.LongTensor(a)
                 if not isinstance(is_parent, bool):
                     is_parent = all(is_parent)
                 if is_parent:
-                    parents.append(state[: -len(a)])
+                    parent = state.clone().detach()
+                    parent[
+                        state_last_element - len(a) : state_last_element
+                    ] = self.padding_idx
+                    parents.append(parent)
                     actions.append(a)
         return parents, actions
 
@@ -481,24 +492,26 @@ class AMP(GFlowNetEnv):
         """
         assert action in self.action_space
         # If only possible action is eos, then force eos
-        if len(self.state) == self.max_seq_length:
+        if self.state[-1] != self.padding_idx:
             self.done = True
             self.n_actions += 1
             return self.state, (self.eos,), True
         # If action is not eos, then perform action
+        state_last_element = int(torch.where(state_next == self.padding_idx)[0][0])
         if action[0] != self.eos:
-            state_next = self.state.copy()
-            state_next = state_next + list(action)
-            if len(state_next) > self.max_seq_length:
+            state_next = self.state.clone().detach()
+            if state_last_element + len(action) > self.max_seq_length:
                 valid = False
             else:
+                state_next[
+                    state_last_element : state_last_element + len(action)
+                ] = torch.LongTensor(action)
                 self.state = state_next
                 valid = True
                 self.n_actions += 1
             return self.state, action, valid
-        # If action is eos, then perform eos
         else:
-            if len(self.state) < self.min_seq_length:
+            if state_last_element < self.min_seq_length:
                 valid = False
             else:
                 self.done = True
@@ -554,7 +567,7 @@ class AMP(GFlowNetEnv):
         # TODO: optimize
         # TODO: should this be proxy2state?
         dataset_states = [self.policytorch2state(el) for el in dataset_obs]
-        dataset_samples = self.statebatch2oracle(dataset_states)
+        dataset_samples = self.statetorch2oracle(dataset_states)
         min_dists = []
         for sample in samples:
             dists = []
@@ -576,7 +589,7 @@ class AMP(GFlowNetEnv):
         if title == None:
             title = "Rewards of Sampled States"
         if scores is None:
-            oracle_states = self.statebatch2oracle(states)
+            oracle_states = self.statetorch2oracle(states)
             scores = self.oracle(oracle_states)
         if isinstance(scores, TensorType):
             scores = scores.cpu().detach().numpy()
@@ -589,76 +602,3 @@ class AMP(GFlowNetEnv):
             plt.tight_layout()
             plt.close()
         return ax
-
-    # TODO: do we need this?
-    def make_test_set(
-        self,
-        path_base_dataset,
-        ntest,
-        min_length=0,
-        max_length=np.inf,
-        seed=167,
-        output_csv=None,
-    ):
-        """
-        Constructs an approximately uniformly distributed (on the score) set, by
-        selecting samples from a larger base set.
-
-        Args
-        ----
-        path_base_dataset : str
-            Path to a CSV file containing the base data set.
-
-        ntest : int
-            Number of test samples.
-
-        seed : int
-            Random seed.
-
-        dask : bool
-            If True, use dask to efficiently read a large base file.
-
-        output_csv: str
-            Optional path to store the test set as CSV.
-        """
-        if path_base_dataset is None:
-            return None, None
-        times = {
-            "all": 0.0,
-            "indices": 0.0,
-        }
-        t0_all = time.time()
-        if seed:
-            np.random.seed(seed)
-        df_base = pd.read_csv(path_base_dataset, index_col=0)
-        df_base = df_base.loc[
-            (df_base["samples"].map(len) >= min_length)
-            & (df_base["samples"].map(len) <= max_length)
-        ]
-        energies_base = df_base["energies"].values
-        min_base = energies_base.min()
-        max_base = energies_base.max()
-        distr_unif = np.random.uniform(low=min_base, high=max_base, size=ntest)
-        # Get minimum distance samples without duplicates
-        t0_indices = time.time()
-        idx_samples = []
-        for idx in tqdm(range(ntest)):
-            dist = np.abs(energies_base - distr_unif[idx])
-            idx_min = np.argmin(dist)
-            if idx_min in idx_samples:
-                idx_sort = np.argsort(dist)
-                for idx_next in idx_sort:
-                    if idx_next not in idx_samples:
-                        idx_samples.append(idx_next)
-                        break
-            else:
-                idx_samples.append(idx_min)
-        t1_indices = time.time()
-        times["indices"] += t1_indices - t0_indices
-        # Make test set
-        df_test = df_base.iloc[idx_samples]
-        if output_csv:
-            df_test.to_csv(output_csv)
-        t1_all = time.time()
-        times["all"] += t1_all - t0_all
-        return df_test, times
