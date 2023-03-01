@@ -1053,7 +1053,7 @@ class GFlowNetAgent:
                 use_context=self.use_context,
             )
 
-    def evaluate(self, samples, energies, dataset_states=None):
+    def evaluate(self, samples, energies, maximize, dataset_states=None):
         """Evaluate the policy on a set of queries.
         Args:
             queries (list): List of queries to evaluate the policy on.
@@ -1061,7 +1061,11 @@ class GFlowNetAgent:
             dictionary with topk performance, diversity and novelty scores
         """
         # TODO: descending for AMP but ascending for molecules?
-        energies = torch.sort(energies, descending=True)[0]
+        if maximize:
+            energies = torch.sort(energies, descending=True)[0]
+        else:
+            energies = torch.sort(energies)[0]
+        # energies = torch.sort(energies, descending=True)[0]
         if hasattr(self.env, "get_pairwise_distance"):
             pairwise_dists = self.env.get_pairwise_distance(samples)
             pairwise_dists = torch.sort(pairwise_dists, descending=True)[0]

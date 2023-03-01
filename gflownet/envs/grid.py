@@ -383,7 +383,6 @@ class Grid(GFlowNetEnv):
 
     def get_uniform_terminating_states(self, n_states: int) -> List[List]:
         states = np.random.randint(low=0, high=self.length, size=(n_states, self.n_dim))
-        # To Discuss: can we return a tensor?
         return states.tolist()
 
     def plot_samples_frequency(self, samples, ax=None, title=None, rescale=1):
