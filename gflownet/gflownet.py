@@ -21,7 +21,7 @@ from torch.distributions import Categorical, Bernoulli
 from tqdm import tqdm
 from scipy.special import logsumexp
 
-from gflownet.envs.base import Buffer
+from gflownet.utils.buffer import Buffer
 from gflownet.utils.common import set_device, set_float_precision, torch2np
 
 
