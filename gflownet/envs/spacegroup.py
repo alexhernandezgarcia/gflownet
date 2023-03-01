@@ -22,15 +22,19 @@ class SpaceGroup(GFlowNetEnv):
     SpaceGroup environment for ionic conductivity.
 
     The state space is the combination of three properties:
-    1. The crystal system (https://en.wikipedia.org/wiki/Crystal_system#Crystal_system) (7 options + none)
-    2. The point symmetry (https://en.wikipedia.org/wiki/Crystal_system#Crystal_classes) (5 options + none)
-    3. The space group (https://en.wikipedia.org/wiki/Space_group#Table_of_space_groups_in_3_dimensions) (230 options + none)
+    1. The crystal system (https://en.wikipedia.org/wiki/Crystal_system#Crystal_system)
+    (7 options + none) 2. The point symmetry
+    (https://en.wikipedia.org/wiki/Crystal_system#Crystal_classes) (5 options + none)
+    3. The space group
+    (https://en.wikipedia.org/wiki/Space_group#Table_of_space_groups_in_3_dimensions)
+    (230 options + none)
 
-    The action space is the choice of property to update and the index within the property (e.g. crystal system 2, 
-    point symmetry 4, space group 69, etc.). The selection of crystal system restricts the possible point symmetries 
-    and space groups; the selection of point symmetry restricts the possible crystal systems and space groups. 
-    The selection of space groups determines a specific crystal system and space group. There is no restriction 
-    in the order of selection of properties.
+    The action space is the choice of property to update and the index within the
+    property (e.g. crystal system 2, point symmetry 4, space group 69, etc.). The
+    selection of crystal system restricts the possible point symmetries and space
+    groups; the selection of point symmetry restricts the possible crystal systems and
+    space groups.  The selection of space groups determines a specific crystal system
+    and space group. There is no restriction in the order of selection of properties.
     """
 
     def __init__(self, **kwargs):
