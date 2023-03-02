@@ -3,7 +3,7 @@ Base class of GFlowNet environments
 """
 from abc import abstractmethod
 from copy import deepcopy
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, Union
 
 import numpy as np
 import numpy.typing as npt
@@ -21,19 +21,19 @@ class GFlowNetEnv:
 
     def __init__(
         self,
-        device="cpu",
-        float_precision=32,
-        env_id=None,
-        reward_min=1e-8,
-        reward_beta=1.0,
-        reward_norm=1.0,
-        reward_norm_std_mult=0.0,
-        reward_func="identity",
-        energies_stats=None,
-        denorm_proxy=False,
+        device: str = "cpu",
+        float_precision: int = 32,
+        env_id: Union[int, str] = "env",
+        reward_min: float = 1e-8,
+        reward_beta: float = 1.0,
+        reward_norm: float = 1.0,
+        reward_norm_std_mult: float = 0.0,
+        reward_func: str = "identity",
+        energies_stats: List[int] = None,
+        denorm_proxy: bool = False,
         proxy=None,
         oracle=None,
-        proxy_state_format="oracle",
+        proxy_state_format: str = "oracle",
         **kwargs,
     ):
         # Call reset() to set initial state, done, n_actions
