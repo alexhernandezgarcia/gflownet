@@ -8,7 +8,8 @@ Welcome to GFlowNet's documentation!
    :maxdepth: 1
    :caption: Contents:
 
-   self
+   About <self>
+
 
 
 Indices and tables
