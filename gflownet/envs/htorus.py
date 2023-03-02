@@ -38,6 +38,7 @@ class HybridTorus(GFlowNetEnv):
         self,
         n_dim=2,
         length_traj=1,
+        n_comp=1,
         policy_encoding_dim_per_angle=None,
         do_nonzero_source_prob=True,
         fixed_distribution=dict,
@@ -52,6 +53,7 @@ class HybridTorus(GFlowNetEnv):
         self.eos = self.n_dim
         self.length_traj = length_traj
         # Parameters of fixed policy distribution
+        self.n_comp = n_comp
         if do_nonzero_source_prob:
             self.n_params_per_dim = 4
         else:

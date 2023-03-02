@@ -18,6 +18,4 @@ python -m pip install numpy pandas hydra-core tqdm torchtyping scikit-learn
 # Conditional requirements to run
 python -m pip install wandb matplotlib plotly pymatgen
 # Dev packages
-# python -m pip install black flake8 isort pylint ipdb jupyter
-
-
+# python -m pip install black flake8 isort pylint ipdb jupyter pytest
