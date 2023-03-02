@@ -30,7 +30,7 @@ def get_rotation_masks(dgl_graph):
     nodes_mask = torch.from_numpy(nodes_mask.repeat(2, axis=0))
     return edges_mask, nodes_mask
 
-def apply_rotations(dgl_graph, rotations):
+def apply_rotations(graph, rotations):
     """
     Apply rotations (torsion angles updates)
     :param dgl_graph: bidirectional dgl.Graph
@@ -53,8 +53,38 @@ def apply_rotations(dgl_graph, rotations):
             rot_matrix = axis_angle_to_matrix(rot_vector)
             x = pos[node_mask[idx_edge]]
             pos[node_mask[idx_edge]] = torch.matmul((x - begin_pos), rot_matrix.T) + begin_pos
-    dgl_graph.ndata[constants.atom_position_name] = pos
-    return dgl_graph
+    graph.ndata[constants.atom_position_name] = pos
+    return graph
 
 
 
+if __name__ == '__main__':
+    from rdkit import Chem
+    from rdkit.Chem import AllChem
+    from rdkit.Chem import rdMolTransforms
+    from rdkit.Chem import TorsionFingerprints
+    from rdkit.Geometry.rdGeometry import Point3D
+    from gflownet.utils.molecule.featurizer import MolDGLFeaturizer
+    from gflownet.utils.molecule.rdkit_conformer import get_torsion_angles_values
+
+    mol = Chem.MolFromSmiles(constants.ad_smiles)
+    mol = Chem.AddHs(mol)
+    AllChem.EmbedMolecule(mol)
+    rconf = mol.GetConformer()
+    start_pos = rconf.GetPositions()
+
+    featurizer = MolDGLFeaturizer(constants.ad_atom_types)
+    graph = featurizer.mol2dgl(mol)
+    graph.ndata[constants.atom_position_name] = torch.from_numpy(start_pos)
+    bonds = torch.stack(graph.edges())[:,::2]
+    print(bonds)
+    print(graph.edata[constants.rotatable_edges_mask_name][::2])
+    print(bonds[:, graph.edata[constants.rotatable_edges_mask_name][::2]])
+    torsion_angles = [(10, 0, 1, 6)]
+    print(get_torsion_angles_values(rconf, torsion_angles))
+    torsion_angles = [(11, 0, 1, 6)]
+    print(get_torsion_angles_values(rconf, torsion_angles))
+    torsion_angles = [(6, 1, 0, 10)]
+    print(get_torsion_angles_values(rconf, torsion_angles))
+    torsion_angles = [(6, 0, 1, 10)]
+    print(get_torsion_angles_values(rconf, torsion_angles))
