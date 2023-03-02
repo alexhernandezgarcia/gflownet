@@ -90,6 +90,7 @@ class GFlowNetEnv:
         Returns a list of length the action space with values:
             - True if the forward action is invalid given the current state.
             - False otherwise.
+
         For continuous or hybrid environments, this mask corresponds to the discrete
         part of the action space.
         """
@@ -105,6 +106,7 @@ class GFlowNetEnv:
         Returns a list of length the action space with values:
             - True if the backward action is invalid given the current state.
             - False otherwise.
+
         For continuous or hybrid environments, this mask corresponds to the discrete
         part of the action space.
 
