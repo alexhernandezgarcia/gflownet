@@ -188,7 +188,7 @@ class GFlowNetAgent:
         return torch.tensor(x, dtype=torch.bool, device=self.device)
 
     def parameters(self):
-        if self.backward_policy.is_model == False:
+        if self.backward_policy.is_model is False:
             return list(self.forward_policy.model.parameters())
         elif self.loss == "trajectorybalance":
             return list(self.forward_policy.model.parameters()) + list(
@@ -781,7 +781,7 @@ class GFlowNetAgent:
         # Save final model
         self.logger.save_models(self.forward_policy, self.backward_policy, final=True)
         # Close logger
-        if self.use_context == False:
+        if self.use_context is False:
             self.logger.end()
 
     def test(self, **plot_kwargs):
@@ -1015,7 +1015,7 @@ class Policy:
         activation : Activation
             Activation function
         """
-        if self.shared_weights == True and self.base is not None:
+        if self.shared_weights is True and self.base is not None:
             mlp = nn.Sequential(
                 self.base.model[:-1],
                 nn.Linear(
@@ -1023,7 +1023,7 @@ class Policy:
                 ),
             )
             return mlp
-        elif self.shared_weights == False:
+        elif self.shared_weights is False:
             layers_dim = (
                 [self.state_dim] + [self.n_hid] * self.n_layers + [(self.output_dim)]
             )
