@@ -485,9 +485,7 @@ class GFlowNetEnv:
     def set_reward_norm(self, reward_norm):
         self.reward_norm = reward_norm
 
-    def get_max_traj_len(
-        self,
-    ):
+    def get_max_traj_len(self):
         return 1e3
 
     def get_trajectories(
