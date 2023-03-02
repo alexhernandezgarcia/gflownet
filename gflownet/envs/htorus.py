@@ -517,12 +517,24 @@ class HybridTorus(GFlowNetEnv):
 
     # TODO: make generic for all environments
     def sample_from_reward(
-        self, n_samples: int, epsilon=1e-4
+        self,
+        n_samples: int,
+        epsilon=1e-4,
     ) -> TensorType["n_samples", "state_dim"]:
         """
-        Rejection sampling  with proposal the uniform distribution in [0, 2pi]]^n_dim.
+        Rejection sampling  with proposal the uniform distribution in
+        $[0, 2\pi]^{n_{dim}}$.
 
-        Returns a tensor in GFloNet (state) format.
+        - samples in the returned ``tensor`` are stacked along the first axis
+        - the largest ``epsilon`` is, the more samples are accepted
+
+        More info `here <https://en.wikipedia.org/wiki/Rejection_sampling>`_.
+
+        Args:
+            n_samples: Number of samples to be generated.
+            epsilon: Epsilon for the rejection sampling.
+
+        Returns a tensor in GFlowNet (state) format.
         """
         samples_final = []
         max_reward = self.proxy2reward(torch.tensor([self.proxy.min])).to(self.device)
