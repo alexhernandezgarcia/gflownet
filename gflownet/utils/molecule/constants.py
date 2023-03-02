@@ -8,6 +8,7 @@ step_feature_name = "step"
 atomic_numbers_name = "atomic_numbers"
 rotatable_edges_mask_name = "rotatable_edges"
 rotation_affected_nodes_mask_name = "rotation_affected_nodes"
+rotation_signs_name = "rotation_signs"
 
 # Options for atoms featurization
 ad_atom_types = ("H", "C", "N", "O")
