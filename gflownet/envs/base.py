@@ -457,7 +457,7 @@ class GFlowNetEnv:
         else:
             raise NotImplementedError
 
-    def reset(self, env_id=None):
+    def reset(self, env_id: Union[int, str] = None):
         """
         Resets the environment.
         """
@@ -467,7 +467,7 @@ class GFlowNetEnv:
         self.id = env_id
         return self
 
-    def set_state(self, state, done):
+    def set_state(self, state: List, done: Optional[bool] = False):
         """
         Sets the state and done of an environment.
         """
