@@ -15,6 +15,7 @@ author = "Alex Hernandez-Garcia"
 
 extensions = [
     "myst_parser",
+    "sphinx.ext.viewcode",
     "sphinx_math_dollar",
     "sphinx.ext.mathjax",
     "sphinx.ext.autodoc",
