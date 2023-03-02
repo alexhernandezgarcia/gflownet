@@ -20,6 +20,7 @@ neg_hartmann6 = Hartmann(dim=6, negate=True)
 train_x = torch.rand(10, 6)
 train_y = neg_hartmann6(train_x).unsqueeze(-1)
 
+
 # We will use the simplest form of GP model, exact inference
 class ExactGPModel(gpytorch.models.ExactGP):
     def __init__(self, train_x, train_y, likelihood):

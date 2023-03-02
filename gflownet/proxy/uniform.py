@@ -13,4 +13,3 @@ class Uniform(Proxy):
     @property
     def min(self):
         return -1.0
-

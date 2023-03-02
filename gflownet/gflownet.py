@@ -788,7 +788,7 @@ class GFlowNetAgent:
         if self.use_context == False:
             self.logger.end()
 
-    def test(self,**plot_kwargs):
+    def test(self, **plot_kwargs):
         """
         Computes metrics by sampling trajectories from the forward policy.
         """
