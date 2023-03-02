@@ -122,7 +122,7 @@ class LatticeParameters(Grid):
         The action is described by a tuple of dimensions (possibly duplicate) that will all be incremented
         by 1, e.g. (0, 0, 0, 2, 4, 4, 4) would increment the 0th and the 4th dimension by 3, and 2nd by 1.
 
-        State in encoded as a 6-dimensional list of numbers: the first three describe edge lengths,
+        State is encoded as a 6-dimensional list of numbers: the first three describe edge lengths,
         and the last three angles. Note that they are not directly lengths and angles, but rather integer values
         from 0 to self.grid_size, that can be mapped to actual lengths and angles using self.cell2length and
         self.cell2angle, respectively.
