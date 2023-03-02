@@ -3,21 +3,17 @@ GFlowNet
 TODO:
     - Seeds
 """
-import sys
 import copy
 import time
 from collections import defaultdict
-from pathlib import Path
 from omegaconf import OmegaConf
 from typing import List, Tuple
 
 import numpy as np
-import pandas as pd
 import torch
 import torch.nn as nn
-import yaml
 import pickle
-from torch.distributions import Categorical, Bernoulli
+from torch.distributions import Bernoulli
 from tqdm import tqdm
 from scipy.special import logsumexp
 
@@ -75,7 +71,7 @@ class GFlowNetAgent:
             self.loss = "trajectorybalance"
             self.logZ = nn.Parameter(torch.ones(optimizer.z_dim) * 150.0 / 64)
         else:
-            print("Unkown loss. Using flowmatch as default")
+            print("Unknown loss. Using flowmatch as default")
             self.loss = "flowmatch"
             self.logZ = None
         # loss_eps is used only for the flowmatch loss
