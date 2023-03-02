@@ -208,7 +208,7 @@ class LatticeParameters(Grid):
         mask = super().get_mask_invalid_actions_forward(state=state, done=done)
 
         for idx, a in enumerate(self.action_space[:-1]):
-            child = self.state.copy()
+            child = state.copy()
             for d in a:
                 child[d] += 1
             if not (self._are_lengths_valid(child) and self._are_angles_valid(child)):
