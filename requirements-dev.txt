@@ -1,0 +1,16 @@
+black
+flake8
+isort
+pylint
+ipdb
+jupyter
+pytest
+sphinx
+myst-parser
+sphinx_rtd_theme
+sphinx-math-dollar
+sphinx-copybutton
+# sphinx-panels # one day maybe
+# sphinx-togglebutton # one day maybe
+sphinx-autoapi
+sphinx-autodoc-typehints
