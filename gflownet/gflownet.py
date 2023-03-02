@@ -4,18 +4,18 @@ TODO:
     - Seeds
 """
 import copy
+import pickle
 import time
 from collections import defaultdict
-from omegaconf import OmegaConf
 from typing import List, Tuple
 
 import numpy as np
 import torch
 import torch.nn as nn
-import pickle
+from omegaconf import OmegaConf
+from scipy.special import logsumexp
 from torch.distributions import Bernoulli
 from tqdm import tqdm
-from scipy.special import logsumexp
 
 from gflownet.utils.buffer import Buffer
 from gflownet.utils.common import set_device, set_float_precision, torch2np
