@@ -88,10 +88,11 @@ class Grid(GFlowNetEnv):
             return [True for _ in range(self.policy_output_dim)]
         mask = [False for _ in range(self.policy_output_dim)]
         for idx, a in enumerate(self.action_space[:-1]):
+            child = state.copy()
             for d in a:
-                if state[d] + 1 >= self.length:
-                    mask[idx] = True
-                    break
+                child[d] += 1
+            if any(c >= self.length for c in child):
+                mask[idx] = True
         return mask
 
     def true_density(self):
