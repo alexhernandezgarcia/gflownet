@@ -8,12 +8,21 @@ from hydra import compose, initialize
 @pytest.mark.repeat(100)
 def test__get_parents_step_get_mask__are_compatible(env):
     env = env.reset()
+    n_actions = 0
     while not env.done:
+        state = env.state
         mask_invalid = env.get_mask_invalid_actions_forward()
         valid_actions = [a for a, m in zip(env.action_space, mask_invalid) if not m]
+        # Sample random action
         action = tuple(np.random.permutation(valid_actions)[0])
-        env.step(action)
+        next_state, action, valid = env.step(action)
+        if valid is False:
+            continue
+        n_actions += 1
+        assert n_actions <= env.get_max_traj_len()
+        assert env.n_actions == n_actions
         parents, parents_a = env.get_parents()
+        assert state in parents
         assert len(parents) == len(parents_a)
         for p, p_a in zip(parents, parents_a):
             mask = env.get_mask_invalid_actions_forward(p, False)
