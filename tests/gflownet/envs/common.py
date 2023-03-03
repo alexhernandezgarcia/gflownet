@@ -140,3 +140,17 @@ def test__sample_actions__get_logprobs__return_valid_actions_and_logprobs(env):
         assert action in valid_actions
         assert torch.equal(logprobs_sa, logprobs_glp)
         env.step(action)
+
+
+def test__get_parents__returns_no_parents_in_initial_state(env):
+    env.reset()
+    parents, actions = env.get_parents()
+    assert len(parents) == 0
+    assert len(actions) == 0
+
+
+def test__get_parents__returns_same_and_eos_if_done(env):
+    env.set_state(env.state, done=True)
+    parents, actions = env.get_parents()
+    assert parents == [env.state]
+    assert actions == [env.action_space[-1]]

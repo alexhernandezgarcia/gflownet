@@ -66,6 +66,14 @@ def test__get_parents_step_get_mask__are_compatible(env):
     return common.test__get_parents_step_get_mask__are_compatible(env)
 
 
+def test__get_parents__returns_no_parents_in_initial_state(env):
+    return common.test__get_parents__returns_no_parents_in_initial_state(env)
+
+
+def test__get_parents__returns_same_and_eos_if_done(env):
+    return common.test__get_parents__returns_same_and_eos_if_done(env)
+
+
 def test__sample_actions__get_logprobs__return_valid_actions_and_logprobs(env):
     return common.test__sample_actions__get_logprobs__return_valid_actions_and_logprobs(
         env
