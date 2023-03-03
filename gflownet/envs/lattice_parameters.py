@@ -335,7 +335,8 @@ class LatticeParameters(Grid):
         """
         if state is None:
             state = self.state
-        return str(self._unpack_lengths_angles(state))
+        lengths, angles = self._unpack_lengths_angles(state)
+        return f"{lengths}, {angles}"
 
     def readable2state(self, readable: str) -> List[int]:
         """
