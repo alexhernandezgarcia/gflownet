@@ -111,7 +111,7 @@ class LatticeParameters(Grid):
         }
         self.length2cell = {v: k for k, v in self.cell2length.items()}
 
-        if 90 not in self.cell2angle.values() or 120 not in self.cell2angle.values():
+        if 90.0 not in self.cell2angle.values() or 120.0 not in self.cell2angle.values():
             raise ValueError(
                 f"Given min_angle = {min_angle}, max_angle = {max_angle} and grid_size = {grid_size}, "
                 f"possible discrete angle values {tuple(self.cell2angle.values())} do not include either "
@@ -232,15 +232,15 @@ class LatticeParameters(Grid):
         _, (alpha, beta, gamma) = self._unpack_lengths_angles(state)
 
         if self.lattice_system in [CUBIC, ORTHORHOMBIC, TETRAGONAL]:
-            return alpha == beta == gamma == 90
+            return alpha == beta == gamma == 90.0
         elif self.lattice_system == HEXAGONAL:
-            return alpha == beta == 90 and gamma == 120
+            return alpha == beta == 90.0 and gamma == 120.0
         elif self.lattice_system == MONOCLINIC:
-            return alpha == gamma == 90 and beta != 90
+            return alpha == gamma == 90.0 and beta != 90.0
         elif self.lattice_system == RHOMBOHEDRAL:
-            return alpha == beta == gamma != 90
+            return alpha == beta == gamma != 90.0
         elif self.lattice_system == TRICLINIC:
-            return len({alpha, beta, gamma, 90}) == 4
+            return len({alpha, beta, gamma, 90.0}) == 4
         else:
             raise NotImplementedError
 
