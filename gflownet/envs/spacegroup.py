@@ -322,16 +322,7 @@ class SpaceGroup(GFlowNetEnv):
             state_next = self.state[:]
             state_next[prop] = idx
             # Set crystal system and point symmetry if space group is set
-            if state_next[self.sg_idx] != 0:
-                if state_next[self.cs_idx] == 0:
-                    state_next[self.cs_idx] = self.space_groups[
-                        state_next[self.sg_idx]
-                    ][2]
-                if state_next[self.ps_idx] == 0:
-                    state_next[self.ps_idx] = self.space_groups[
-                        state_next[self.sg_idx]
-                    ][3]
-            self.state = state_next
+            self.state = self._set_constrained_properties(state_next)
             return self.state, action, valid
         # Action is eos
         else:
@@ -340,3 +331,11 @@ class SpaceGroup(GFlowNetEnv):
 
     def get_max_traj_length(self):
         return 3
+
+    def _set_constrained_properties(self, state: List[int]) -> List[int]:
+        if state[self.sg_idx] != 0:
+            if state[self.cs_idx] == 0:
+                state[self.cs_idx] = self.space_groups[state[self.sg_idx]][2]
+            if state[self.ps_idx] == 0:
+                state[self.ps_idx] = self.space_groups[state[self.sg_idx]][3]
+        return state
