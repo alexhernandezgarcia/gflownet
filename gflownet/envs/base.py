@@ -228,7 +228,7 @@ class GFlowNetEnv:
         self,
         policy_outputs: TensorType["n_states", "policy_output_dim"],
         is_forward: bool,
-        actions: TensorType["n_states", 2],
+        actions: TensorType["n_states", "actions_dim"],
         states_target: TensorType["n_states", "policy_input_dim"],
         mask_invalid_actions: TensorType["batch_size", "policy_output_dim"] = None,
         loginf: float = 1000,
@@ -243,7 +243,6 @@ class GFlowNetEnv:
         logits = policy_outputs
         if mask_invalid_actions is not None:
             logits[mask_invalid_actions] = -loginf
-        # TODO: fix need to convert to tuple: implement as in continuous
         action_indices = (
             torch.tensor(
                 [self.action_space.index(tuple(action.tolist())) for action in actions]
