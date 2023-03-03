@@ -1,7 +1,7 @@
 """
 Classes to represent a hyper-grid environments
 """
-from typing import List, Tuple
+from typing import List, Tuple, Optional
 import itertools
 import numpy as np
 import numpy.typing as npt
@@ -31,12 +31,12 @@ class Grid(GFlowNetEnv):
 
     def __init__(
         self,
-        n_dim=2,
-        length=3,
-        min_step_len=1,
-        max_step_len=1,
-        cell_min=-1,
-        cell_max=1,
+        n_dim: int = 2,
+        length: int = 3,
+        min_step_len: int = 1,
+        max_step_len: int = 1,
+        cell_min: float = -1,
+        cell_max: float = 1,
         **kwargs,
     ):
         self.n_dim = n_dim
@@ -69,7 +69,11 @@ class Grid(GFlowNetEnv):
         actions += [(self.eos,)]
         return actions
 
-    def get_mask_invalid_actions_forward(self, state=None, done=None):
+    def get_mask_invalid_actions_forward(
+        self,
+        state: Optional[List] = None,
+        done: Optional[bool] = None,
+    ) -> List:
         """
         Returns a vector of length the action space + 1: True if forward action is
         invalid given the current state, False otherwise.
@@ -88,10 +92,12 @@ class Grid(GFlowNetEnv):
                     break
         return mask
 
-    def state2oracle(self, state: List = None):
+    def state2oracle(self, state: List = None) -> List:
         """
         Prepares a state in "GFlowNet format" for the oracles: a list of length
         n_dim with values in the range [cell_min, cell_max] for each state.
+
+        See: state2policy()
 
         Args
         ----
@@ -101,16 +107,22 @@ class Grid(GFlowNetEnv):
         if state is None:
             state = self.state.copy()
         return (
-            self.state2policy(state).reshape((self.n_dim, self.length))
-            * self.cells[None, :]
-        ).sum(axis=1)
+            (
+                np.array(self.state2policy(state)).reshape((self.n_dim, self.length))
+                * self.cells[None, :]
+            )
+            .sum(axis=1)
+            .tolist()
+        )
 
     def statebatch2oracle(
         self, states: List[List]
     ) -> TensorType["batch", "state_oracle_dim"]:
         """
-        Prepares a batch of states in "GFlowNet format" for the oracles: a list of
-        length n_dim with values in the range [cell_min, cell_max] for each state.
+        Prepares a batch of states in "GFlowNet format" for the oracles: each state is
+        a vector of length n_dim with values in the range [cell_min, cell_max].
+
+        See: statetorch2oracle()
 
         Args
         ----
@@ -125,7 +137,10 @@ class Grid(GFlowNetEnv):
         self, states: TensorType["batch", "state_dim"]
     ) -> TensorType["batch", "state_oracle_dim"]:
         """
-        Prepares a batch of states in torch "GFlowNet format" for the oracle.
+        Prepares a batch of states in "GFlowNet format" for the oracles: each state is
+        a vector of length n_dim with values in the range [cell_min, cell_max].
+
+        See: statetorch2policy()
         """
         return (
             self.statetorch2policy(states).reshape(
