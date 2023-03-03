@@ -355,22 +355,18 @@ class LatticeParameters(Grid):
 
         for v in values[:3]:
             s = self.length2cell.get(float(v))
-
             if s is None:
                 raise ValueError(
                     f'Unrecognized key "{float(v)}" in self.length2cell = {self.length2cell}.'
                 )
-
             state.append(s)
 
         for v in values[3:]:
             s = self.angle2cell.get(float(v))
-
             if s is None:
                 raise ValueError(
                     f'Unrecognized key "{float(v)}" in self.angle2cell = {self.angle2cell}.'
                 )
-
             state.append(s)
 
         return state
