@@ -292,9 +292,9 @@ class LatticeParameters(Grid):
 
         mask = super().get_mask_invalid_actions_forward(state=state, done=done)
 
-        # eos invalid if not all parameters in the specified range
+        # eos invalid if either 1) not all parameters in the specified range or 2) lattice system constraints not met
         mask[-1] = not (
-            self._all_params_above_min(state) and self._all_params_below_max(state)
+            self._all_params_above_min(state) and self._is_child_valid(state)
         )
 
         # actions invalid if either 1) parameters above max values or 2) lattice system constraints not met
