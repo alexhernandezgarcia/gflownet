@@ -22,11 +22,11 @@ class SpaceGroup(GFlowNetEnv):
     SpaceGroup environment for ionic conductivity.
 
     The state space is the combination of three properties:
-    1. The crystal system 
+    1. The crystal system
         See: https://en.wikipedia.org/wiki/Crystal_system#Crystal_system
-        (7 options + none) 
+        (7 options + none)
     2. The point symmetry
-        See: https://en.wikipedia.org/wiki/Crystal_system#Crystal_classes 
+        See: https://en.wikipedia.org/wiki/Crystal_system#Crystal_classes
         (5 options + none)
     3. The space group
         See: https://en.wikipedia.org/wiki/Space_group#Table_of_space_groups_in_3_dimensions
@@ -41,7 +41,7 @@ class SpaceGroup(GFlowNetEnv):
     """
 
     def __init__(self, **kwargs):
-        super().__init__(**kwargs)
+        # Constants
         self.crystal_systems = CRYSTAL_SYSTEMS
         self.crystal_classes = CRYSTAL_CLASSES
         self.point_symmetries = POINT_SYMMETRIES
@@ -50,12 +50,13 @@ class SpaceGroup(GFlowNetEnv):
         self.n_crystal_classes = len(self.crystal_classes)
         self.n_point_symmetries = len(self.point_symmetries)
         self.n_space_groups = 230
-        # A state is a list of [crystal system index, point symmetry index, space group]
         self.cs_idx, self.ps_idx, self.sg_idx = 0, 1, 2
-        self.source = [0 for _ in range(3)]
         self.eos = -1
-        self.action_space = self.get_action_space()
-        self.reset()
+        # Source state: index 0 (empty) for all three properties (crystal system index,
+        # point symmetry index, space group)
+        self.source = [0 for _ in range(3)]
+        # Base class init
+        super().__init__(**kwargs)
 
     def get_action_space(self):
         """
@@ -73,13 +74,15 @@ class SpaceGroup(GFlowNetEnv):
         actions += [(self.eos, 0)]
         return actions
 
-    def get_max_traj_length(self):
-        return 3
-
-    def get_mask_invalid_actions_forward(self, state=None, done=None):
+    def get_mask_invalid_actions_forward(
+        self,
+        state: Optional[List] = None,
+        done: Optional[bool] = None,
+    ) -> List:
         """
-        Returns a vector of length the action space + 1: True if forward action is
-        invalid given the current state, False otherwise.
+        Returns a list of length the action space with values:
+            - True if the forward action is invalid given the current state.
+            - False otherwise.
         """
         if state is None:
             state = self.state.copy()
@@ -158,12 +161,10 @@ class SpaceGroup(GFlowNetEnv):
         """
         if state is None:
             state = self.state
-
         if state[self.sg_idx] == 0:
             raise ValueError(
                 "The space group must have been set in order to call the oracle"
             )
-
         return torch.Tensor(state[self.sg_idx], device=self.device, dtype=self.float)
 
     def state2readable(self, state=None):
@@ -226,16 +227,6 @@ class SpaceGroup(GFlowNetEnv):
         space_group = int(properties[0])
         state = [crystal_system, point_symmetry, space_group]
         return state
-
-    def reset(self, env_id=None):
-        """
-        Resets the environment.
-        """
-        self.state = self.source.copy()
-        self.n_actions = 0
-        self.done = False
-        self.id = env_id
-        return self
 
     def get_parents(self, state=None, done=None, action=None):
         """
@@ -346,3 +337,6 @@ class SpaceGroup(GFlowNetEnv):
         else:
             self.done = True
             return self.state, action, valid
+
+    def get_max_traj_length(self):
+        return 3
