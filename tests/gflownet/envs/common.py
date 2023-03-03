@@ -60,6 +60,19 @@ def test__sample_backwards_reaches_source(env, n=100):
             assert n_actions <= env.get_max_traj_len()
 
 
+@pytest.mark.repeat(100)
+def test__state_conversions_are_reversible(env):
+    env = env.reset()
+    while not env.done:
+        state = env.state
+        assert state == env.policy2state(env.state2policy(state))
+        assert state == env.readable2state(env.state2readable(state))
+        mask_invalid = env.get_mask_invalid_actions_forward()
+        valid_actions = [a for a, m in zip(env.action_space, mask_invalid) if not m]
+        action = tuple(np.random.permutation(valid_actions)[0])
+        env.step(action)
+
+
 def test__get_parents__returns_no_parents_in_initial_state(env):
     parents, actions = env.get_parents()
     assert len(parents) == 0

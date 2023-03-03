@@ -19,6 +19,7 @@ def env_default():
 def config_path():
     return "../../../config/env/grid.yaml"
 
+
 @pytest.mark.parametrize(
     "state, state2oracle",
     [
@@ -40,10 +41,9 @@ def config_path():
         ),
     ],
 )
-def test__state2oracle__returns_expected(
-    env, state, state2oracle
-):
+def test__state2oracle__returns_expected(env, state, state2oracle):
     assert state2oracle == env.state2oracle(state)
+
 
 @pytest.mark.parametrize(
     "states, statebatch2oracle",
@@ -54,10 +54,12 @@ def test__state2oracle__returns_expected(
         ),
     ],
 )
-def test__statebatch2oracle__returns_expected(
-    env, states, statebatch2oracle
-):
+def test__statebatch2oracle__returns_expected(env, states, statebatch2oracle):
     assert torch.equal(torch.Tensor(statebatch2oracle), env.statebatch2oracle(states))
+
+
+def test__state_conversions_are_reversible(env):
+    return common.test__state_conversions_are_reversible(env)
 
 
 def test__get_parents_step_get_mask__are_compatible(env):
