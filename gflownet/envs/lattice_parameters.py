@@ -162,11 +162,20 @@ class LatticeParameters(Grid):
         actions += [(self.eos,)]
         return actions
 
-    def _are_lengths_valid(self, state=None):
+    def _unpack_lengths_angles(self, state=None):
         if state is None:
             state = self.state.copy()
 
         a, b, c = [self.cell2length[s] for s in state[:3]]
+        alpha, beta, gamma = [self.cell2angle[s] for s in state[3:]]
+
+        return (a, b, c), (alpha, beta, gamma)
+
+    def _are_lengths_valid(self, state=None):
+        """
+        Helper that
+        """
+        (a, b, c), _ = self._unpack_lengths_angles(state)
 
         if self.lattice_system in [CUBIC, RHOMBOHEDRAL]:
             return a == b == c
@@ -178,10 +187,7 @@ class LatticeParameters(Grid):
             raise NotImplementedError
 
     def _are_angles_valid(self, state=None):
-        if state is None:
-            state = self.state.copy()
-
-        alpha, beta, gamma = [self.cell2angle[s] for s in state[3:]]
+        _, (alpha, beta, gamma) = self._unpack_lengths_angles(state)
 
         if self.lattice_system in [CUBIC, ORTHORHOMBIC, TETRAGONAL]:
             return alpha == beta == gamma == 90
@@ -196,6 +202,27 @@ class LatticeParameters(Grid):
         else:
             raise NotImplementedError
 
+    def _all_params_above_min(self, state=None):
+        lengths, angles = self._unpack_lengths_angles(state)
+
+        return all(le >= self.min_length for le in lengths) and all(
+            an >= self.max_angle for an in angles
+        )
+
+    def _all_params_below_max(self, state=None):
+        lengths, angles = self._unpack_lengths_angles(state)
+
+        return all(le <= self.max_length for le in lengths) and all(
+            an <= self.max_angle for an in angles
+        )
+
+    def _is_child_valid(self, child):
+        return (
+            self._are_lengths_valid(child)
+            and self._are_angles_valid(child)
+            and self._all_params_below_max(child)
+        )
+
     def get_mask_invalid_actions_forward(self, state=None, done=None):
         """
         TODO
@@ -207,11 +234,17 @@ class LatticeParameters(Grid):
 
         mask = super().get_mask_invalid_actions_forward(state=state, done=done)
 
+        # eos invalid if not all parameters in the specified range
+        mask[-1] = not (
+            self._all_params_above_min(state) and self._all_params_below_max(state)
+        )
+
+        # actions invalid if either 1) parameters above max values or 2) lattice system constraints not met
         for idx, a in enumerate(self.action_space[:-1]):
             child = state.copy()
             for d in a:
                 child[d] += 1
-            if not (self._are_lengths_valid(child) and self._are_angles_valid(child)):
+            if not self._is_child_valid(child):
                 mask[idx] = True
 
         return mask
