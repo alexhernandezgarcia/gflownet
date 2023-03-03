@@ -134,15 +134,15 @@ class LatticeParameters(Grid):
         elif self.lattice_system == HEXAGONAL:
             angles = [90.0, 90.0, 120.0]
         elif self.lattice_system == MONOCLINIC:
-            angles = [90.0, 0.0, 90.0]
+            angles = [90.0, self.min_angle, 90.0]
         elif self.lattice_system == ORTHORHOMBIC:
             angles = [90.0, 90.0, 90.0]
         elif self.lattice_system == RHOMBOHEDRAL:
-            angles = [0.0, 0.0, 0.0]
+            angles = [self.min_angle, self.min_angle, self.min_angle]
         elif self.lattice_system == TETRAGONAL:
             angles = [90.0, 90.0, 90.0]
         elif self.lattice_system == TRICLINIC:
-            angles = [0.0, 0.0, 0.0]
+            angles = [self.min_angle, self.min_angle, self.min_angle]
         else:
             raise NotImplementedError(
                 f"Unspecified lattice system {self.lattice_system}."
