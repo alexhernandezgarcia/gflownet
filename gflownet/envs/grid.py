@@ -39,13 +39,15 @@ class Grid(GFlowNetEnv):
         cell_max: float = 1,
         **kwargs,
     ):
+        # Constants
         self.n_dim = n_dim
         self.eos = self.n_dim
-        self.source = [0 for _ in range(self.n_dim)]
         self.length = length
         self.min_step_len = min_step_len
         self.max_step_len = max_step_len
         self.cells = np.linspace(cell_min, cell_max, length)
+        # Source state: position 0 at all dimensions
+        self.source = [0 for _ in range(self.n_dim)]
         # Base class init
         super().__init__(**kwargs)
         # Proxy format
