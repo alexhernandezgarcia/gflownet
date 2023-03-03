@@ -294,7 +294,18 @@ class Grid(GFlowNetEnv):
         valid : bool
             False, if the action is not allowed for the current state.
         """
+        # If done, return invalid
         if self.done:
+            return self.state, action, False
+        # If action not found in action space raise an error
+        if action not in self.action_space:
+            raise ValueError(
+                f"Tried to execute action {action} not present in action space."
+            )
+        else:
+            action_idx = self.action_space.index(action)
+        # If action is in invalid mask, return invalid
+        if self.get_mask_invalid_actions_forward()[action_idx]:
             return self.state, action, False
         # If only possible action is eos, then force eos
         # All dimensions are at the maximum length
