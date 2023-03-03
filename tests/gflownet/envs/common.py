@@ -1,6 +1,7 @@
-import pytest
 import hydra
 import numpy as np
+import pytest
+import torch
 import yaml
 from hydra import compose, initialize
 
@@ -114,3 +115,28 @@ def test__gflownet_minimal_runs(env):
     )
     gflownet.train()
     assert True
+
+
+@pytest.mark.repeat(100)
+def test__sample_actions__get_logprobs__return_valid_actions_and_logprobs(env):
+    env = env.reset()
+    while not env.done:
+        policy_outputs = torch.unsqueeze(torch.Tensor(env.random_policy_output), 0)
+        mask_invalid = env.get_mask_invalid_actions_forward()
+        valid_actions = [a for a, m in zip(env.action_space, mask_invalid) if not m]
+        masks_invalid_torch = torch.unsqueeze(torch.BoolTensor(mask_invalid), 0)
+        actions, logprobs_sa = env.sample_actions(
+            policy_outputs=policy_outputs, mask_invalid_actions=masks_invalid_torch
+        )
+        actions_torch = torch.Tensor(actions)
+        logprobs_glp = env.get_logprobs(
+            policy_outputs=policy_outputs,
+            is_forward=True,
+            actions=actions_torch,
+            states_target=None,
+            mask_invalid_actions=masks_invalid_torch,
+        )
+        action = actions[0]
+        assert action in valid_actions
+        assert torch.equal(logprobs_sa, logprobs_glp)
+        env.step(action)
