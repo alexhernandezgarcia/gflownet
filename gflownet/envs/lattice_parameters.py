@@ -111,7 +111,10 @@ class LatticeParameters(Grid):
         }
         self.length2cell = {v: k for k, v in self.cell2length.items()}
 
-        if 90.0 not in self.cell2angle.values() or 120.0 not in self.cell2angle.values():
+        if (
+            90.0 not in self.cell2angle.values()
+            or 120.0 not in self.cell2angle.values()
+        ):
             raise ValueError(
                 f"Given min_angle = {min_angle}, max_angle = {max_angle} and grid_size = {grid_size}, "
                 f"possible discrete angle values {tuple(self.cell2angle.values())} do not include either "
