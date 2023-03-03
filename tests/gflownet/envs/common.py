@@ -30,16 +30,47 @@ def test__get_parents_step_get_mask__are_compatible(env):
             assert mask[env.action_space.index(p_a)] is False
 
 
+def test__sample_backwards_reaches_source(env, n=100):
+    if hasattr(env, "get_all_terminating_states"):
+        x = env.get_all_terminating_states()
+    elif hasattr(env, "get_uniform_terminating_states"):
+        x = env.get_uniform_terminating_states(n)
+    else:
+        print(
+            """
+        Environment does not have neither get_all_terminating_states() nor
+        get_uniform_terminating_states(). Backward sampling will not be tested.
+        """
+        )
+        assert True
+    for state in x:
+        env.set_state(state, done=True)
+        n_actions = 0
+        while True:
+            if env.state == env.source:
+                assert True
+                break
+            parents, parents_a = env.get_parents()
+            assert len(parents) > 0
+            # Sample random parent
+            parent = parents[np.random.permutation(len(parents))[0]]
+            env.set_state(parent)
+            n_actions += 1
+            assert n_actions <= env.get_max_traj_len()
+
+
 def test__get_parents__returns_no_parents_in_initial_state(env):
     parents, actions = env.get_parents()
     assert len(parents) == 0
     assert len(actions) == 0
 
+
 def test__default_config_equals_default_args(env, env_config_path):
-    with open(env_config_path, 'r') as f:
+    with open(env_config_path, "r") as f:
         config_env = yaml.safe_load(f)
     env_config = hydra.utils.instantiate(config)
     assert True
+
 
 def test__gflownet_minimal_runs(env):
     # Load config
