@@ -315,6 +315,7 @@ class SpaceGroup(GFlowNetEnv):
         if self.get_mask_invalid_actions_forward()[action_idx]:
             return self.state, action, False
         valid = True
+        self.n_actions += 1
         prop, idx = action
         # Action is not eos
         if prop != self.eos:
@@ -331,7 +332,6 @@ class SpaceGroup(GFlowNetEnv):
                         state_next[self.sg_idx]
                     ][3]
             self.state = state_next
-            self.n_actions += 1
             return self.state, action, valid
         # Action is eos
         else:
