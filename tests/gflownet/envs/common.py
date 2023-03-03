@@ -154,3 +154,13 @@ def test__get_parents__returns_same_state_and_eos_if_done(env):
     parents, actions = env.get_parents()
     assert parents == [env.state]
     assert actions == [env.action_space[-1]]
+
+
+@pytest.mark.repeat(10)
+def test__step__returns_same_state_action_and_invalid_if_done(env):
+    action = tuple(np.random.permutation(env.action_space)[0])
+    env.set_state(env.state, done=True)
+    next_state, action_step, valid = env.step(action)
+    assert next_state == env.state
+    assert action_step == action
+    assert valid is False

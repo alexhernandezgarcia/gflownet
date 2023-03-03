@@ -62,6 +62,10 @@ def test__state_conversions_are_reversible(env):
     return common.test__state_conversions_are_reversible(env)
 
 
+def test__step__returns_same_state_action_and_invalid_if_done(env):
+    return common.test__step__returns_same_state_action_and_invalid_if_done(env)
+
+
 def test__get_parents_step_get_mask__are_compatible(env):
     return common.test__get_parents_step_get_mask__are_compatible(env)
 
