@@ -228,16 +228,6 @@ class Grid(GFlowNetEnv):
         """
         return str(state).replace("(", "[").replace(")", "]").replace(",", "")
 
-    def reset(self, env_id=None):
-        """
-        Resets the environment.
-        """
-        self.state = self.source.copy()
-        self.n_actions = 0
-        self.done = False
-        self.id = env_id
-        return self
-
     def get_parents(self, state=None, done=None, action=None):
         """
         Determines all parents and actions that lead to state.
