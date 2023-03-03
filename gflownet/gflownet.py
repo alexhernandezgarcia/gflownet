@@ -350,7 +350,9 @@ class GFlowNetAgent:
         """
 
         def _add_to_batch(batch, envs, actions, valids, train=True):
-            for env, action, _ in zip(envs, actions, valids):
+            for env, action, valid in zip(envs, actions, valids):
+                if valid is False:
+                    continue
                 parents, parents_a = env.get_parents(action=action)
                 mask_f = env.get_mask_invalid_actions_forward()
                 mask_b = env.get_mask_invalid_actions_backward(
@@ -788,7 +790,7 @@ class GFlowNetAgent:
         if self.use_context == False:
             self.logger.end()
 
-    def test(self,**plot_kwargs):
+    def test(self, **plot_kwargs):
         """
         Computes metrics by sampling trajectories from the forward policy.
         """
