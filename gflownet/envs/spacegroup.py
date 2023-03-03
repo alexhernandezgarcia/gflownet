@@ -7,11 +7,12 @@ from typing import Dict, List, Optional, Tuple, Union
 import numpy as np
 import torch
 from torch import Tensor
+from torchtyping import TensorType
 
 from gflownet.envs.base import GFlowNetEnv
 from gflownet.utils.crystals.constants import (
-    CRYSTAL_SYSTEMS,
     CRYSTAL_CLASSES,
+    CRYSTAL_SYSTEMS,
     POINT_SYMMETRIES,
     SPACE_GROUPS,
 )
@@ -166,6 +167,44 @@ class SpaceGroup(GFlowNetEnv):
                 "The space group must have been set in order to call the oracle"
             )
         return torch.Tensor(state[self.sg_idx], device=self.device, dtype=self.float)
+
+    def statebatch2oracle(
+        self, states: List[List]
+    ) -> TensorType["batch", "state_oracle_dim"]:
+        """
+        Prepares a batch of states in "GFlowNet format" for the oracle. The input to the
+        oracle is simply the space group.
+
+        Args
+        ----
+        state : list
+            A state
+
+        Returns
+        ----
+        oracle_state : Tensor
+        """
+        return self.statetorch2oracle(
+            torch.Tensor(states, device=self.device, dtype=self.float)
+        )
+
+    def statetorch2oracle(
+        self, states: TensorType["batch", "state_dim"]
+    ) -> TensorType["batch", "state_oracle_dim"]:
+        """
+        Prepares a batch of states in "GFlowNet format" for the oracle. The input to the
+        oracle is simply the space group.
+
+        Args
+        ----
+        state : list
+            A state
+
+        Returns
+        ----
+        oracle_state : Tensor
+        """
+        return torch.unsqueeze(states[:, self.sg_idx])
 
     def state2readable(self, state=None):
         """
