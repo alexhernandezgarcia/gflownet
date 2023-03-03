@@ -20,7 +20,7 @@ def test__get_parents_step_get_mask__are_compatible(env):
         if valid is False:
             continue
         n_actions += 1
-        assert n_actions <= env.get_max_traj_len()
+        assert n_actions <= env.max_traj_length
         assert env.n_actions == n_actions
         parents, parents_a = env.get_parents()
         assert state in parents
@@ -58,7 +58,7 @@ def test__sample_backwards_reaches_source(env, n=100):
             parent = parents[np.random.permutation(len(parents))[0]]
             env.set_state(parent)
             n_actions += 1
-            assert n_actions <= env.get_max_traj_len()
+            assert n_actions <= env.max_traj_length
 
 
 @pytest.mark.repeat(100)

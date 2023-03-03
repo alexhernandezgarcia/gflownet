@@ -67,7 +67,7 @@ class AptamerSeq(GFlowNetEnv):
         self.random_policy_output = self.get_fixed_policy_output()
         self.policy_output_dim = len(self.fixed_policy_output)
         self.policy_input_dim = len(self.state2policy())
-        self.max_traj_len = self.get_max_traj_len()
+        self.max_traj_len = self.get_max_traj_length()
         # Set up proxy
         self.setup_proxy()
 
@@ -84,7 +84,7 @@ class AptamerSeq(GFlowNetEnv):
             actions += actions_r
         return actions
 
-    def get_max_traj_len(
+    def get_max_traj_length(
         self,
     ):
         return self.max_seq_length / self.min_word_len + 1

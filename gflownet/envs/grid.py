@@ -320,7 +320,7 @@ class Grid(GFlowNetEnv):
             self.n_actions += 1
             return self.state, (self.eos,), True
 
-    def get_max_traj_len(self):
+    def get_max_traj_length(self):
         return self.n_dim * self.length * self.min_step_len
 
     def get_all_terminating_states(self) -> List[List]:

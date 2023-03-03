@@ -118,7 +118,7 @@ class Crystal(GFlowNetEnv):
         actions.append((self.eos, 0))
         return actions
 
-    def get_max_traj_len(self):
+    def get_max_traj_length(self):
         return min(len(self.state), self.max_atoms // self.min_atom_i)
 
     def get_mask_invalid_actions(self, state=None, done=None):

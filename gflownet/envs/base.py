@@ -68,6 +68,8 @@ class GFlowNetEnv:
         self.logsoftmax = torch.nn.LogSoftmax(dim=1)
         # Action space
         self.action_space = self.get_action_space()
+        # Max trajectory length
+        self.max_traj_length = self.get_max_traj_length()
         # Policy outputs
         self.fixed_policy_output = self.get_policy_output()
         self.random_policy_output = self.get_policy_output()
@@ -484,7 +486,7 @@ class GFlowNetEnv:
     def set_reward_norm(self, reward_norm):
         self.reward_norm = reward_norm
 
-    def get_max_traj_len(self):
+    def get_max_traj_length(self):
         return 1e3
 
     def get_trajectories(

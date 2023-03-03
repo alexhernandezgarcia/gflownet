@@ -70,7 +70,7 @@ class SpaceGroup(GFlowNetEnv):
         actions += [(self.eos, 0)]
         return actions
 
-    def get_max_traj_len(self):
+    def get_max_traj_length(self):
         return 3
 
     def get_mask_invalid_actions_forward(self, state=None, done=None):
