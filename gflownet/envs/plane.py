@@ -1,15 +1,17 @@
 """
 Classes to represent hyperplane environments
 """
-from typing import List, Tuple
 import itertools
+from typing import List, Tuple
+
 import numpy as np
 import numpy.typing as npt
 import pandas as pd
 import torch
-from gflownet.envs.base import GFlowNetEnv
-from torch.distributions import Categorical, Uniform, Beta
+from torch.distributions import Beta, Categorical, Uniform
 from torchtyping import TensorType
+
+from gflownet.envs.base import GFlowNetEnv
 
 
 class Plane(GFlowNetEnv):

@@ -1,13 +1,15 @@
 """
 Classes to represent aptamers environments
 """
-from typing import List
 import itertools
+import time
+from typing import List
+
 import numpy as np
 import numpy.typing as npt
 import pandas as pd
+
 from gflownet.envs.base import GFlowNetEnv
-import time
 
 
 class AptamerSeq(GFlowNetEnv):

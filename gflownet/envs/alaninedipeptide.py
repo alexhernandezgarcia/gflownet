@@ -1,9 +1,9 @@
+from copy import deepcopy
+from typing import List, Tuple
+
 import numpy as np
 import numpy.typing as npt
 import torch
-
-from copy import deepcopy
-from typing import List, Tuple
 from torchtyping import TensorType
 
 from gflownet.envs.ctorus import ContinuousTorus

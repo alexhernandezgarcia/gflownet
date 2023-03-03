@@ -1,12 +1,14 @@
 """
 Classes to represent a hyper-grid environments
 """
-from typing import List, Tuple, Optional
 import itertools
+from typing import List, Optional, Tuple
+
 import numpy as np
 import numpy.typing as npt
 import torch
 from torchtyping import TensorType
+
 from gflownet.envs.base import GFlowNetEnv
 
 

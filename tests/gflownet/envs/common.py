@@ -56,7 +56,7 @@ def test__sample_backwards_reaches_source(env, n=100):
         get_uniform_terminating_states(). Backward sampling will not be tested.
         """
         )
-        assert True
+        return
     for state in x:
         env.set_state(state, done=True)
         n_actions = 0

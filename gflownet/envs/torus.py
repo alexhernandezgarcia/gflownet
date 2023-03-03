@@ -1,13 +1,15 @@
 """
 Classes to represent hyper-torus environments
 """
-from typing import List, Tuple
 import itertools
+from typing import List, Tuple
+
 import numpy as np
 import numpy.typing as npt
 import pandas as pd
 import torch
 from torchtyping import TensorType
+
 from gflownet.envs.base import GFlowNetEnv
 
 

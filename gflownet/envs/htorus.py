@@ -1,19 +1,21 @@
 """
 Classes to represent hyper-torus environments
 """
+import itertools
 from copy import deepcopy
 from typing import List, Tuple
-import itertools
+
+import matplotlib.pyplot as plt
 import numpy as np
 import numpy.typing as npt
 import pandas as pd
-import matplotlib.pyplot as plt
 import torch
-from gflownet.utils.common import torch2np
-from gflownet.envs.base import GFlowNetEnv
-from torch.distributions import Categorical, Uniform, VonMises, Bernoulli
-from torchtyping import TensorType
 from sklearn.neighbors import KernelDensity
+from torch.distributions import Bernoulli, Categorical, Uniform, VonMises
+from torchtyping import TensorType
+
+from gflownet.envs.base import GFlowNetEnv
+from gflownet.utils.common import torch2np
 
 
 class HybridTorus(GFlowNetEnv):
