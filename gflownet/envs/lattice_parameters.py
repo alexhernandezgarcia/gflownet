@@ -254,7 +254,7 @@ class LatticeParameters(Grid):
         lengths, angles = self._unpack_lengths_angles(state)
 
         return all(le >= self.min_length for le in lengths) and all(
-            an >= self.max_angle for an in angles
+            an >= self.min_angle for an in angles
         )
 
     def _all_params_below_max(self, state: Optional[List[int]] = None) -> bool:
