@@ -77,6 +77,9 @@ class Grid(GFlowNetEnv):
         done: Optional[bool] = None,
     ) -> List:
         """
+        Returns a list of length the action space with values:
+            - True if the forward action is invalid given the current state.
+            - False otherwise.
         Returns a vector of length the action space + 1: True if forward action is
         invalid given the current state, False otherwise.
         """
