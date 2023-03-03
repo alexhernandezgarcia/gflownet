@@ -184,17 +184,17 @@ class LatticeParameters(Grid):
         # lengths
         for r in valid_steplens:
             for dim in [0, 1, 2]:
-                actions += (dim,) * r
-            actions += (0, 1) * r
-            actions += (0, 1, 2) * r
+                actions.append((dim,) * r)
+            actions.append((0, 1) * r)
+            actions.append((0, 1, 2) * r)
 
         # angles
         for r in valid_steplens:
             for dim in [3, 4, 5]:
-                actions += (dim,) * r
-            actions += (3, 4, 5) * r
+                actions.append((dim,) * r)
+            actions.append((3, 4, 5) * r)
 
-        actions += [(self.eos,)]
+        actions.append((self.eos,))
 
         return actions
 
