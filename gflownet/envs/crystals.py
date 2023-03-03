@@ -98,7 +98,7 @@ class Crystal(GFlowNetEnv):
             required_elements if required_elements is not None else []
         )
 
-        self.source = [0 for _ in range(periodic_table)]
+        self.source = [0 for _ in self.elements]  # atom counts for each element
         self.elem2idx = {e: i for i, e in enumerate(self.elements)}
         self.idx2elem = {i: e for i, e in enumerate(self.elements)}
         self.eos = -1
