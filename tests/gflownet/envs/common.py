@@ -149,7 +149,7 @@ def test__get_parents__returns_no_parents_in_initial_state(env):
     assert len(actions) == 0
 
 
-def test__get_parents__returns_same_and_eos_if_done(env):
+def test__get_parents__returns_same_state_and_eos_if_done(env):
     env.set_state(env.state, done=True)
     parents, actions = env.get_parents()
     assert parents == [env.state]

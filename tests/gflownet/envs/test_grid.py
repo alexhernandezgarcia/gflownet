@@ -70,8 +70,8 @@ def test__get_parents__returns_no_parents_in_initial_state(env):
     return common.test__get_parents__returns_no_parents_in_initial_state(env)
 
 
-def test__get_parents__returns_same_and_eos_if_done(env):
-    return common.test__get_parents__returns_same_and_eos_if_done(env)
+def test__get_parents__returns_same_state_and_eos_if_done(env):
+    return common.test__get_parents__returns_same_state_and_eos_if_done(env)
 
 
 def test__sample_actions__get_logprobs__return_valid_actions_and_logprobs(env):
