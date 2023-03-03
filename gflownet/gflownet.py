@@ -526,7 +526,8 @@ class GFlowNetAgent:
                 masks_sf,
             ],
         )
-        parents_a = parents_a.to(int).squeeze()
+#         parents_a = parents_a.to(int).squeeze()
+        parents_a_idx = self.env.actions2indices(parents_a)
         # Compute rewards
         rewards = self.env.reward_torchbatch(states, done)
         assert torch.all(rewards[done] > 0)
@@ -535,9 +536,9 @@ class GFlowNetAgent:
             (states.shape[0], self.env.policy_output_dim),
             device=self.device,
         )
-        inflow_logits[parents_batch_id, parents_a] = self.forward_policy(
+        inflow_logits[parents_batch_id, parents_a_idx] = self.forward_policy(
             self.env.statetorch2policy(parents)
-        )[torch.arange(parents.shape[0]), parents_a]
+        )[torch.arange(parents.shape[0]), parents_a_idx]
         inflow = torch.logsumexp(inflow_logits, dim=1)
         # Out-flows
         outflow_logits = self.forward_policy(self.env.statetorch2policy(states))

@@ -68,6 +68,10 @@ class GFlowNetEnv:
         self.logsoftmax = torch.nn.LogSoftmax(dim=1)
         # Action space
         self.action_space = self.get_action_space()
+        self.action_space_torch = torch.tensor(
+            self.action_space, device=self.device, dtype=self.float
+        )
+        self.d_action_space = len(self.action_space)
         # Max trajectory length
         self.max_traj_length = self.get_max_traj_length()
         # Policy outputs
@@ -83,6 +87,24 @@ class GFlowNetEnv:
         """
         pass
 
+    def actions2indices(
+        self, actions: TensorType["batch_size", "action_dim"]
+    ) -> TensorType["batch_size"]:
+        """
+        Returns the corresponding indices in the action space of the actions in a batch.
+        """
+        # Expand the action_space tensor: [d_actions_space, batch_size, action_dim]
+        action_space = torch.unsqueeze(self.action_space_torch, 1).expand(
+            -1, actions.shape[0], -1
+        )
+        # Expand the actions tensor: [d_actions_space, batch_size, action_dim]
+        actionss = torch.unsqueeze(actions, 0).expand(self.d_action_space, -1, -1)
+        # Take the indices at the d_actions_space dimension where all the elements in
+        # the action_dim dimension are True
+        indices = torch.where(torch.all(actionss == action_space, dim=2))[0]
+        import ipdb; ipdb.set_trace()
+        return indices
+
     def get_mask_invalid_actions_forward(
         self,
         state: Optional[List] = None,
@@ -95,7 +117,7 @@ class GFlowNetEnv:
         For continuous or hybrid environments, this mask corresponds to the discrete
         part of the action space.
         """
-        return [False for _ in range(len(self.action_space))]
+        return [False for _ in range(self.d_action_space)]
 
     def get_mask_invalid_actions_backward(
         self,
@@ -117,7 +139,7 @@ class GFlowNetEnv:
         """
         if parents_a is None:
             _, parents_a = self.get_parents()
-        mask = [True for _ in range(len(self.action_space))]
+        mask = [True for _ in range(self.d_action_space)]
         for pa in parents_a:
             mask[self.action_space.index(pa)] = False
         return mask
@@ -264,7 +286,7 @@ class GFlowNetEnv:
 
         Continuous environments will generally have to overwrite this method.
         """
-        return np.ones(len(self.action_space))
+        return np.ones(self.d_action_space)
 
     def state2proxy(self, state: List = None):
         """
