@@ -6,6 +6,18 @@ import yaml
 from hydra import compose, initialize
 
 
+def test__all_env_common(env):
+    test__get_parents_step_get_mask__are_compatible(env)
+    test__sample_backwards_reaches_source(env)
+    test__state_conversions_are_reversible(env)
+    test__get_parents__returns_no_parents_in_initial_state(env)
+    test__gflownet_minimal_runs(env)
+    test__sample_actions__get_logprobs__return_valid_actions_and_logprobs(env)
+    test__get_parents__returns_no_parents_in_initial_state(env)
+    test__get_parents__returns_same_state_and_eos_if_done(env)
+    test__step__returns_same_state_action_and_invalid_if_done(env)
+
+
 @pytest.mark.repeat(100)
 def test__get_parents_step_get_mask__are_compatible(env):
     env = env.reset()

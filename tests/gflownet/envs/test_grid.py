@@ -58,39 +58,5 @@ def test__statebatch2oracle__returns_expected(env, states, statebatch2oracle):
     assert torch.equal(torch.Tensor(statebatch2oracle), env.statebatch2oracle(states))
 
 
-def test__state_conversions_are_reversible(env):
-    return common.test__state_conversions_are_reversible(env)
-
-
-def test__step__returns_same_state_action_and_invalid_if_done(env):
-    return common.test__step__returns_same_state_action_and_invalid_if_done(env)
-
-
-def test__get_parents_step_get_mask__are_compatible(env):
-    return common.test__get_parents_step_get_mask__are_compatible(env)
-
-
-def test__get_parents__returns_no_parents_in_initial_state(env):
-    return common.test__get_parents__returns_no_parents_in_initial_state(env)
-
-
-def test__get_parents__returns_same_state_and_eos_if_done(env):
-    return common.test__get_parents__returns_same_state_and_eos_if_done(env)
-
-
-def test__sample_actions__get_logprobs__return_valid_actions_and_logprobs(env):
-    return common.test__sample_actions__get_logprobs__return_valid_actions_and_logprobs(
-        env
-    )
-
-
-def test__sample_backwards_reaches_source(env):
-    return common.test__sample_backwards_reaches_source(env)
-
-
-# def test__default_config_equals_default_args(env_default, config_path):
-#     return common.test__default_config_equals_default_args(env_default, config_path)
-
-
-def test__gflownet_minimal_runs(env):
-    return common.test__gflownet_minimal_runs(env)
+def test__all_env_common(env):
+    return common.test__all_env_common(env)
