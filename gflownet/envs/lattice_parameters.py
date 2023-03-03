@@ -328,3 +328,48 @@ class LatticeParameters(Grid):
             [self.cell2length[s] for s in state[:3]]
             + [self.cell2angle[s] for s in state[3:]]
         )
+
+    def state2readable(self, state: Optional[List[int]] = None) -> str:
+        """
+        Converts the state into a human-readable string in the format "(a, b, c), (alpha, beta, gamma)".
+        """
+        if state is None:
+            state = self.state
+        return str(self._unpack_lengths_angles(state))
+
+    def readable2state(self, readable: str) -> List[int]:
+        """
+        Converts a human-readable representation of a state into the standard format.
+        """
+        state = []
+
+        for c in ["(", ")", " "]:
+            readable = readable.replace(c, "")
+        values = readable.split(",")
+
+        if len(values) != 6:
+            raise ValueError(
+                f"Expected readable to split into 6 distinct values, got {len(values)} values = {values}."
+            )
+
+        for v in values[:3]:
+            s = self.length2cell.get(float(v))
+
+            if s is None:
+                raise ValueError(
+                    f'Unrecognized key "{float(v)}" in self.length2cell = {self.length2cell}.'
+                )
+
+            state.append(s)
+
+        for v in values[3:]:
+            s = self.angle2cell.get(float(v))
+
+            if s is None:
+                raise ValueError(
+                    f'Unrecognized key "{float(v)}" in self.angle2cell = {self.angle2cell}.'
+                )
+
+            state.append(s)
+
+        return state
