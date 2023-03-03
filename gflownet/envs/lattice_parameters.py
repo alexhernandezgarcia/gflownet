@@ -1,7 +1,7 @@
 """
 Classes to represent crystal environments
 """
-from typing import List
+from typing import List, Optional, Tuple
 
 import numpy as np
 from torch import Tensor
@@ -32,18 +32,22 @@ class LatticeParameters(Grid):
     """
     LatticeParameters environment for crystal structure generation.
 
-    Models lattice parameters (three angles and three edge lengths describing unit cell) with the constraints
+    Models lattice parameters (three edge lengths and three angles describing unit cell) with the constraints
     given by the provided lattice system (see https://en.wikipedia.org/wiki/Bravais_lattice). This is implemented
-    by inheriting from the discrete Grid environment TODO
+    by inheriting from the discrete Grid environment, creating a mapping between cell position and edge length
+    or angle, and imposing lattice system constraints on their values.
+
+    Note that similar to the Grid environment, the values are initialized with zeros (or target angles, if they
+    are predetermined by the lattice system), and can be only increased with a discrete steps.
     """
 
     def __init__(
         self,
         lattice_system: str,
-        min_angle: float = 30.0,
-        max_angle: float = 150.0,
         min_length: float = 1.0,
         max_length: float = 5.0,
+        min_angle: float = 30.0,
+        max_angle: float = 150.0,
         grid_size: int = 61,
         min_step_len: int = 1,
         max_step_len: int = 1,
@@ -52,7 +56,31 @@ class LatticeParameters(Grid):
         """
         Args
         ----------
-        TODO
+        lattice_system : str
+            One of the seven lattice systems.
+
+        min_length : float
+            Minimum value of the edge length.
+
+        max_length : float
+            Maximum value of the edge length.
+
+        min_angle : float
+            Minimum value of the angles.
+
+        max_angle : float
+            Maximum value of the angles.
+
+        grid_size : int
+            Length of the underlying grid that is used to map discrete values to actual edge lengths and angles.
+            Note that it has to be defined in such a way that 90 and 120 degree angles will be present in the
+            mapping from grid cells to angles (np.linspace(min_angle, max_angle, grid_size)).
+
+        min_step_len : int
+            Minimum value of the step (how many cells can be incremented in a single step).
+
+        max_step_len : int
+            Maximum value of the step (how many cells can be incremented in a single step).
         """
         super().__init__(
             n_dim=6,
@@ -68,10 +96,10 @@ class LatticeParameters(Grid):
             )
 
         self.lattice_system = lattice_system
-        self.min_angle = min_angle
-        self.max_angle = max_angle
         self.min_length = min_length
         self.max_length = max_length
+        self.min_angle = min_angle
+        self.max_angle = max_angle
         self.grid_size = grid_size
 
         self.cell2angle = {
@@ -94,6 +122,10 @@ class LatticeParameters(Grid):
         self.reset()
 
     def _set_source(self):
+        """
+        Helper that sets self.source depending on the given self.lattice_system. For systems that have
+        specific angle requirements, they will be preset to these values.
+        """
         if self.lattice_system == CUBIC:
             angles = [90.0, 90.0, 90.0]
         elif self.lattice_system == HEXAGONAL:
@@ -113,9 +145,9 @@ class LatticeParameters(Grid):
                 f"Unspecified lattice system {self.lattice_system}."
             )
 
-        return [0, 0, 0] + [self.angle2cell[angle] for angle in angles]
+        self.source = [0, 0, 0] + [self.angle2cell[angle] for angle in angles]
 
-    def get_actions_space(self):
+    def get_actions_space(self) -> List[Tuple[int]]:
         """
         Constructs list with all possible actions, including eos.
 
@@ -160,9 +192,16 @@ class LatticeParameters(Grid):
             actions += (3, 4, 5) * r
 
         actions += [(self.eos,)]
+
         return actions
 
-    def _unpack_lengths_angles(self, state=None):
+    def _unpack_lengths_angles(
+        self, state: Optional[List[int]] = None
+    ) -> Tuple[Tuple, Tuple]:
+        """
+        Helper that 1) unpacks values coding edge lengths and angles (in the grid cell format)
+        from the state, and 2) converts them to actual edge lengths and angles.
+        """
         if state is None:
             state = self.state.copy()
 
@@ -171,9 +210,9 @@ class LatticeParameters(Grid):
 
         return (a, b, c), (alpha, beta, gamma)
 
-    def _are_lengths_valid(self, state=None):
+    def _are_lengths_valid(self, state: Optional[List[int]] = None) -> bool:
         """
-        Helper that
+        Helper that check whether the constraints defined by self.lattice_system for lengths are met.
         """
         (a, b, c), _ = self._unpack_lengths_angles(state)
 
@@ -186,7 +225,10 @@ class LatticeParameters(Grid):
         else:
             raise NotImplementedError
 
-    def _are_angles_valid(self, state=None):
+    def _are_angles_valid(self, state: Optional[List[int]] = None) -> bool:
+        """
+        Helper that check whether the constraints defined by self.lattice_system for angles are met.
+        """
         _, (alpha, beta, gamma) = self._unpack_lengths_angles(state)
 
         if self.lattice_system in [CUBIC, ORTHORHOMBIC, TETRAGONAL]:
@@ -202,30 +244,43 @@ class LatticeParameters(Grid):
         else:
             raise NotImplementedError
 
-    def _all_params_above_min(self, state=None):
+    def _all_params_above_min(self, state: Optional[List[int]] = None) -> bool:
+        """
+        Helper that checks whether all parameters encoded by the given state are above or equal to minimum values.
+        """
         lengths, angles = self._unpack_lengths_angles(state)
 
         return all(le >= self.min_length for le in lengths) and all(
             an >= self.max_angle for an in angles
         )
 
-    def _all_params_below_max(self, state=None):
+    def _all_params_below_max(self, state: Optional[List[int]] = None) -> bool:
+        """
+        Helper that checks whether all parameters encoded by the given state are below or equal to maximum values.
+        """
         lengths, angles = self._unpack_lengths_angles(state)
 
         return all(le <= self.max_length for le in lengths) and all(
             an <= self.max_angle for an in angles
         )
 
-    def _is_child_valid(self, child):
+    def _is_child_valid(self, child: List[int]) -> bool:
+        """
+        Helper that checks whether the given child 1) meets self.lattice_system
+        constraints, and 2) has parameter values below or equal to the maximum.
+        """
         return (
             self._are_lengths_valid(child)
             and self._are_angles_valid(child)
             and self._all_params_below_max(child)
         )
 
-    def get_mask_invalid_actions_forward(self, state=None, done=None):
+    def get_mask_invalid_actions_forward(
+        self, state: Optional[List[int]] = None, done: Optional[bool] = None
+    ) -> List[bool]:
         """
-        TODO
+        Returns a vector of length equal to that of the action space: True if forward action is
+        invalid given the current state, False otherwise.
         """
         if state is None:
             state = self.state.copy()
@@ -249,7 +304,7 @@ class LatticeParameters(Grid):
 
         return mask
 
-    def state2oracle(self, state: List = None) -> Tensor:
+    def state2oracle(self, state: Optional[List[int]] = None) -> Tensor:
         """
         Prepares a list of states in "GFlowNet format" for the oracle.
 
@@ -263,7 +318,10 @@ class LatticeParameters(Grid):
         oracle_state : Tensor
             Tensor containing lengths and angles converted from the Grid format.
         """
-        raise Tensor(
+        if state is None:
+            state = self.state.copy()
+
+        return Tensor(
             [self.cell2length[s] for s in state[:3]]
             + [self.cell2angle[s] for s in state[3:]]
         )
