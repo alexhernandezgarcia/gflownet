@@ -30,6 +30,7 @@ def test__get_parents_step_get_mask__are_compatible(env):
             assert mask[env.action_space.index(p_a)] is False
 
 
+@pytest.mark.repeat(100)
 def test__sample_backwards_reaches_source(env, n=100):
     if hasattr(env, "get_all_terminating_states"):
         x = env.get_all_terminating_states()
