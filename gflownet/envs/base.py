@@ -93,17 +93,15 @@ class GFlowNetEnv:
         """
         Returns the corresponding indices in the action space of the actions in a batch.
         """
-        # Expand the action_space tensor: [d_actions_space, batch_size, action_dim]
-        action_space = torch.unsqueeze(self.action_space_torch, 1).expand(
-            -1, actions.shape[0], -1
+        # Expand the action_space tensor: [batch_size, d_actions_space, action_dim]
+        action_space = torch.unsqueeze(self.action_space_torch, 0).expand(
+            actions.shape[0], -1, -1
         )
-        # Expand the actions tensor: [d_actions_space, batch_size, action_dim]
-        actionss = torch.unsqueeze(actions, 0).expand(self.d_action_space, -1, -1)
+        # Expand the actions tensor: [batch_size, d_actions_space, action_dim]
+        actions = torch.unsqueeze(actions, 1).expand(-1, self.d_action_space, -1)
         # Take the indices at the d_actions_space dimension where all the elements in
         # the action_dim dimension are True
-        indices = torch.where(torch.all(actionss == action_space, dim=2))[0]
-        import ipdb; ipdb.set_trace()
-        return indices
+        return torch.where(torch.all(actions == action_space, dim=2))[1]
 
     def get_mask_invalid_actions_forward(
         self,
