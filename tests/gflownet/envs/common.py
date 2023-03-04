@@ -16,6 +16,7 @@ def test__all_env_common(env):
     test__get_parents__returns_no_parents_in_initial_state(env)
     test__get_parents__returns_same_state_and_eos_if_done(env)
     test__step__returns_same_state_action_and_invalid_if_done(env)
+    test__actions2indices__returns_expected_tensor(env)
 
 
 @pytest.mark.repeat(100)
@@ -176,3 +177,13 @@ def test__step__returns_same_state_action_and_invalid_if_done(env):
     assert next_state == env.state
     assert action_step == action
     assert valid is False
+
+
+@pytest.mark.repeat(10)
+def test__actions2indices__returns_expected_tensor(env, batch_size=100):
+    action_space = env.action_space_torch
+    indices_rand = torch.randint(low=0, high=action_space.shape[0], size=(batch_size,))
+    actions = action_space[indices_rand, :]
+    action_indices = env.actions2indices(actions)
+    assert torch.equal(action_indices, indices_rand)
+    assert torch.equal(action_space[action_indices], actions)
