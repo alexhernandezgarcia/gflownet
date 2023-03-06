@@ -614,8 +614,6 @@ class GFlowNetAgent:
                 state_id,
                 masks_sf,
                 masks_b,
-                parents,
-                states,
             ],
         )
         # Shift state_id to [1, 2, ...]
@@ -740,12 +738,11 @@ class GFlowNetAgent:
             if hasattr(self.env, "get_cost"):
                 costs = self.env.get_cost(states_term)
             else:
-                costs = 0
-            # TODO: fix infinite loop in buffer
-            # self.buffer.add(states_term, trajs_term, rewards, proxy_vals, it)
-            # self.buffer.add(
-            #     states_term, trajs_term, rewards, proxy_vals, it, buffer="replay"
-            # )
+                costs = 0.0
+            self.buffer.add(states_term, trajs_term, rewards, proxy_vals, it)
+            self.buffer.add(
+                states_term, trajs_term, rewards, proxy_vals, it, buffer="replay"
+            )
             t1_buffer = time.time()
             times.update({"buffer": t1_buffer - t0_buffer})
             # Log
@@ -765,7 +762,7 @@ class GFlowNetAgent:
                 rewards=rewards,
                 proxy_vals=proxy_vals,
                 states_term=states_term,
-                costs = costs,
+                costs=costs,
                 batch_size=len(data),
                 logz=self.logZ,
                 learning_rates=self.lr_scheduler.get_last_lr(),
@@ -832,11 +829,6 @@ class GFlowNetAgent:
                 hist[tuple(x)] += 1
             z_pred = sum([hist[tuple(x)] for x in x_tt]) + 1e-9
             density_pred = np.array([hist[tuple(x)] / z_pred for x in x_tt])
-            # corr = np.corrcoef(density_pred, density_true)[0, 1]
-            corr = 0.0
-            # TODO: add condition as to when this shoulod be caclulated
-            # corr_matrix, _ = self.get_log_corr(x_tt, dict_tt["energy"])
-            # corr = corr_matrix[0][1]
             log_density_true = np.log(density_true + 1e-8)
             log_density_pred = np.log(density_pred + 1e-8)
         elif self.continuous:
@@ -887,6 +879,12 @@ class GFlowNetAgent:
         log_mean_dens = np.logaddexp(log_density_true, log_density_pred) + np.log(0.5)
         jsd = 0.5 * np.sum(density_true * (log_density_true - log_mean_dens))
         jsd += 0.5 * np.sum(density_pred * (log_density_pred - log_mean_dens))
+        # Correlation
+        if hasattr(self.env, "corr_type"):
+            corr_type = self.env.corr_type
+        else:
+            corr_type = None
+        corr = self.get_corr(density_pred, density_true, x_tt, dict_tt, corr_type)
 
         # Plots
 
@@ -925,7 +923,19 @@ class GFlowNetAgent:
             ],
         )
 
+    def get_corr(self, density_pred, density_true, x_tt, dict_tt, corr_type=None):
+        if corr_type == None:
+            return 0.0
+        if corr_type == "density_ratio":
+            return np.corrcoef(density_pred, density_true)[0, 1]
+        if corr_type == "from_trajectory":
+            corr_matrix, _ = self.get_log_corr(x_tt, dict_tt["energy"])
+            return corr_matrix[0][1]
+
     def get_log_corr(self, x_tt, energy):
+        """
+        Kept as a function variable of GflowNetAgent because logq calculation requires tfloat and tbool memeber functions of GflowNet
+        """
         data_logq = []
         if hasattr(self.env, "_test_traj_list") and len(self.env._test_traj_list) > 0:
             for traj_list, traj_list_actions in zip(
@@ -1004,12 +1014,10 @@ class GFlowNetAgent:
         Returns:
             dictionary with topk performance, diversity and novelty scores
         """
-        # TODO: descending for AMP but ascending for molecules?
         if maximize:
             energies = torch.sort(energies, descending=True)[0]
         else:
             energies = torch.sort(energies)[0]
-        # energies = torch.sort(energies, descending=True)[0]
         if hasattr(self.env, "get_pairwise_distance"):
             pairwise_dists = self.env.get_pairwise_distance(samples)
             pairwise_dists = torch.sort(pairwise_dists, descending=True)[0]
@@ -1038,7 +1046,6 @@ class GFlowNetAgent:
                 print(f"\t Mean Pairwise Distance: {mean_pairwise_dist_topk}")
                 # if self.use_context:
                 # print(f"\t Mean Min Distance from D0: {mean_dist_from_D0_topk}")
-            # TODO: logging a tensor is an issue?
             self.logger.log_metrics(dict_topk, use_context=False)
 
     def logq(self, traj_list, actions_list, model, env, loginf=1000):

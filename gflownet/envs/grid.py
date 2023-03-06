@@ -71,11 +71,9 @@ class Grid(GFlowNetEnv):
             raise NotImplementedError(
                 f"Proxy state format {self.proxy_state_format} not implemented"
             )
-        # TODO: is the og oracle required?
         if self.oracle is not None and hasattr(self.oracle, "n_dim"):
             self.oracle.n_dim = self.n_dim
             self.oracle.setup()
-        # self.proxy_factor = 1.0
         self.rescale = rescale
 
     def statebatch2state(self, state_batch):

@@ -201,11 +201,9 @@ class GFlowNetEnv:
         """
         if done is None:
             done = torch.ones(states.shape[0], dtype=torch.bool, device=self.device)
-        done_states = states[done, :]
         states_proxy = self.statetorch2proxy(states[done, :])
         reward = torch.zeros(done.shape[0], dtype=self.float, device=self.device)
         reward_proxy = self.proxy(states_proxy)
-        done_reward = self.proxy2reward(reward_proxy)
         if states[done, :].shape[0] > 0:
             reward[done] = self.proxy2reward(reward_proxy)
         return reward
@@ -240,7 +238,7 @@ class GFlowNetEnv:
                 min=self.min_reward,
                 max=None,
             )
-        elif self.reward_func == "shift":
+        elif self.reward_func == "linear_shift":
             return torch.clamp(
                 self.proxy_factor * proxy_vals + self.reward_beta,
                 min=self.min_reward,
@@ -263,7 +261,7 @@ class GFlowNetEnv:
             return self.proxy_factor * torch.log(reward) / self.reward_beta
         elif self.reward_func == "identity":
             return self.proxy_factor * reward
-        elif self.reward_func == "shift":
+        elif self.reward_func == "linear_shift":
             return self.proxy_factor * (reward - self.reward_beta)
         else:
             raise NotImplemented
@@ -451,6 +449,8 @@ class GFlowNetEnv:
         if parents == []:
             traj_list.append(current_traj)
             if hasattr(self, "action_pad_length"):
+                # Required for compatibility with mfenv when length(sfenv_action) != length(fidelity.action)
+                # For example, in AMP, length(sfenv_action) = 1 like (2,), length(fidelity.action) = 2 like (22, 1)
                 current_actions = [
                     tuple(list(action) + [0] * (self.action_max_length - len(action)))
                     for action in current_actions
@@ -716,10 +716,6 @@ class Buffer:
             path = self.logger.logdir / Path("data") / config.path
             df = pd.read_csv(path, index_col=0)
             samples = [self.env.readable2state(s) for s in df["samples"].values]
-            # dict = {
-            #     "x": samples,
-            #     "energies": df["energies"].values,
-            # }
         elif "type" not in config:
             return None, None
         elif config.type == "all" and hasattr(self.env, "get_all_terminating_states"):

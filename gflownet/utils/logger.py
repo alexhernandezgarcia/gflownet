@@ -149,7 +149,7 @@ class Logger:
             )
             pbar.set_description(description)
 
-    def log_metric(self, key: str, value, step, use_context=True):
+    def log_metric(self, key: str, value, step=None, use_context=True):
         if not self.do.online:
             return
         if use_context:
@@ -208,7 +208,7 @@ class Logger:
         costs: list,
         batch_size: int,
         logz,
-        learning_rates: list, # [lr, lr_logZ]
+        learning_rates: list,  # [lr, lr_logZ]
         step: int,
         use_context: bool,
     ):
@@ -233,7 +233,7 @@ class Logger:
                     "batch_size",
                     "logZ",
                     "lr",
-                    "lr_logZ"
+                    "lr_logZ",
                 ],
                 [
                     np.mean(rewards),
@@ -246,7 +246,7 @@ class Logger:
                     batch_size,
                     logz,
                     learning_rates[0],
-                    learning_rates[1]
+                    learning_rates[1],
                 ],
             )
         )
