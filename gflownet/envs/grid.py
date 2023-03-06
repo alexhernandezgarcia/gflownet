@@ -325,6 +325,19 @@ class Grid(GFlowNetEnv):
             self.done = True
             self.n_actions += 1
             return self.state, (self.eos,), True
+        # If action not found in action space raise an error
+        action_idx = None
+        for i, a in enumerate(self.action_space):
+            if a == action:
+                action_idx = i
+                break
+        if action_idx is None:
+            raise ValueError(
+                f"Tried to execute action {action} not present in action space."
+            )
+        # If action is in invalid mask, exit immediately
+        if self.get_mask_invalid_actions_forward()[action_idx]:
+            return self.state, action, False
         # If action is not eos, then perform action
         elif action[0] != self.eos:
             state_next = self.state.copy()
