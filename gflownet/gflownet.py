@@ -275,8 +275,8 @@ class GFlowNetAgent:
                     )
                 )
             )
-        else:
-            raise NotImplementedError
+        # else:
+            # raise NotImplementedError
         # Sample actions from policy outputs
         actions, logprobs = self.env.sample_actions(
             policy_outputs,
