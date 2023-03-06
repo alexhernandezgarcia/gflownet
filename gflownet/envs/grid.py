@@ -82,7 +82,7 @@ class Grid(GFlowNetEnv):
         """
         if isinstance(state_batch, torch.Tensor) == False:
             state_batch = torch.tensor(state_batch)
-        return self.statetorch2state(state_batch).tolist()
+        return self.statetorch2state(state_batch)
 
     def statetorch2state(self, state_torch):
         """
