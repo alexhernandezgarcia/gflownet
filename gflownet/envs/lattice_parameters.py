@@ -247,36 +247,11 @@ class LatticeParameters(Grid):
         else:
             raise NotImplementedError
 
-    def _all_params_above_min(self, state: Optional[List[int]] = None) -> bool:
-        """
-        Helper that checks whether all parameters encoded by the given state are above or equal to minimum values.
-        """
-        lengths, angles = self._unpack_lengths_angles(state)
-
-        return all(le >= self.min_length for le in lengths) and all(
-            an >= self.min_angle for an in angles
-        )
-
-    def _all_params_below_max(self, state: Optional[List[int]] = None) -> bool:
-        """
-        Helper that checks whether all parameters encoded by the given state are below or equal to maximum values.
-        """
-        lengths, angles = self._unpack_lengths_angles(state)
-
-        return all(le <= self.max_length for le in lengths) and all(
-            an <= self.max_angle for an in angles
-        )
-
     def _is_child_valid(self, child: List[int]) -> bool:
         """
-        Helper that checks whether the given child 1) meets self.lattice_system
-        constraints, and 2) has parameter values below or equal to the maximum.
+        Helper that checks whether the given child meets self.lattice_system constraints.
         """
-        return (
-            self._are_lengths_valid(child)
-            and self._are_angles_valid(child)
-            and self._all_params_below_max(child)
-        )
+        return self._are_lengths_valid(child) and self._are_angles_valid(child)
 
     def get_mask_invalid_actions_forward(
         self, state: Optional[List[int]] = None, done: Optional[bool] = None
@@ -292,12 +267,10 @@ class LatticeParameters(Grid):
 
         mask = super().get_mask_invalid_actions_forward(state=state, done=done)
 
-        # eos invalid if either 1) not all parameters in the specified range or 2) lattice system constraints not met
-        mask[-1] = not (
-            self._all_params_above_min(state) and self._is_child_valid(state)
-        )
+        # eos invalid if final lattice system constraints not met
+        mask[-1] = not self._is_child_valid(state)
 
-        # actions invalid if either 1) parameters above max values or 2) lattice system constraints not met
+        # actions invalid if intermediate lattice system constraints not met
         for idx, a in enumerate(self.action_space[:-1]):
             child = state.copy()
             for d in a:
