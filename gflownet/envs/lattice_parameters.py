@@ -213,9 +213,30 @@ class LatticeParameters(Grid):
 
         return (a, b, c), (alpha, beta, gamma)
 
-    def _are_lengths_valid(self, state: Optional[List[int]] = None) -> bool:
+    def _are_intermediate_lengths_valid(
+        self, state: Optional[List[int]] = None
+    ) -> bool:
         """
-        Helper that check whether the constraints defined by self.lattice_system for lengths are met.
+        Helper that check whether the intermediate constraints defined by self.lattice_system for lengths are met.
+
+        For intermediate state, we want to ensure that (CUBIC, RHOMBOHEDRAL) lattice systems allow only simultaneous
+        change of all three edge lengths, and (HEXAGONAL, MONOCLINIC, TETRAGONAL) lattice systems disallow changing
+        a and b independently.
+        """
+        (a, b, c), _ = self._unpack_lengths_angles(state)
+
+        if self.lattice_system in [CUBIC, RHOMBOHEDRAL]:
+            return a == b == c
+        elif self.lattice_system in [HEXAGONAL, MONOCLINIC, TETRAGONAL]:
+            return a == b
+        elif self.lattice_system in [ORTHORHOMBIC, TRICLINIC]:
+            return True
+        else:
+            raise NotImplementedError
+
+    def _are_final_lengths_valid(self, state: Optional[List[int]] = None) -> bool:
+        """
+        Helper that check whether the final constraints defined by self.lattice_system for lengths are met.
         """
         (a, b, c), _ = self._unpack_lengths_angles(state)
 
@@ -228,9 +249,32 @@ class LatticeParameters(Grid):
         else:
             raise NotImplementedError
 
-    def _are_angles_valid(self, state: Optional[List[int]] = None) -> bool:
+    def _are_intermediate_angles_valid(self, state: Optional[List[int]] = None) -> bool:
         """
-        Helper that check whether the constraints defined by self.lattice_system for angles are met.
+        Helper that check whether the intermediate constraints defined by self.lattice_system for angles are met.
+
+        For intermediate state, we want to ensure that (CUBIC, HEXAGONAL, MONOCLINIC, ORTHORHOMBIC, TETRAGONAL)
+        lattice systems disallow change of the angles that have only one valid value, and for RHOMBOHEDRAL that
+        only simultaneous change of all three angles is allowed.
+        """
+        _, (alpha, beta, gamma) = self._unpack_lengths_angles(state)
+
+        if self.lattice_system in [CUBIC, ORTHORHOMBIC, TETRAGONAL]:
+            return alpha == beta == gamma == 90.0
+        elif self.lattice_system == HEXAGONAL:
+            return alpha == beta == 90.0 and gamma == 120.0
+        elif self.lattice_system == MONOCLINIC:
+            return alpha == gamma == 90.0
+        elif self.lattice_system == RHOMBOHEDRAL:
+            return alpha == beta == gamma
+        elif self.lattice_system == TRICLINIC:
+            return True
+        else:
+            raise NotImplementedError
+
+    def _are_final_angles_valid(self, state: Optional[List[int]] = None) -> bool:
+        """
+        Helper that check whether the final constraints defined by self.lattice_system for angles are met.
         """
         _, (alpha, beta, gamma) = self._unpack_lengths_angles(state)
 
@@ -247,11 +291,21 @@ class LatticeParameters(Grid):
         else:
             raise NotImplementedError
 
-    def _is_child_valid(self, child: List[int]) -> bool:
+    def _is_intermediate_state_valid(self, state: List[int]) -> bool:
         """
-        Helper that checks whether the given child meets self.lattice_system constraints.
+        Helper that checks whether the given state meets intermediate self.lattice_system constraints.
         """
-        return self._are_lengths_valid(child) and self._are_angles_valid(child)
+        return self._are_intermediate_lengths_valid(
+            state
+        ) and self._are_intermediate_angles_valid(state)
+
+    def _is_final_state_valid(self, state: List[int]) -> bool:
+        """
+        Helper that checks whether the given state meets final self.lattice_system constraints.
+        """
+        return self._are_final_lengths_valid(state) and self._are_final_angles_valid(
+            state
+        )
 
     def get_mask_invalid_actions_forward(
         self, state: Optional[List[int]] = None, done: Optional[bool] = None
@@ -268,14 +322,14 @@ class LatticeParameters(Grid):
         mask = super().get_mask_invalid_actions_forward(state=state, done=done)
 
         # eos invalid if final lattice system constraints not met
-        mask[-1] = not self._is_child_valid(state)
+        mask[-1] = not self._is_final_state_valid(state)
 
         # actions invalid if intermediate lattice system constraints not met
         for idx, a in enumerate(self.action_space[:-1]):
             child = state.copy()
             for d in a:
                 child[d] += 1
-            if not self._is_child_valid(child):
+            if not self._is_intermediate_state_valid(child):
                 mask[idx] = True
 
         return mask
