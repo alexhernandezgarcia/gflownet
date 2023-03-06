@@ -217,22 +217,22 @@ class AMP(GFlowNetEnv):
         return self.max_seq_length / self.min_word_len + 1
 
     def statebatch2oracle(
-        self, states: List[TensorType["max_seq_length"]], bos_idx=None
+        self, states: List[TensorType["max_seq_length"]]
     ) -> List[str]:
         state_oracle = []
         for state in states:
             if state[-1] == self.padding_idx:
                 state = state[: torch.where(state == self.padding_idx)[0][0]]
-            if bos_idx is not None and state[0] == bos_idx:
+            if state[0] == self.tokenizer.bos_idx:
                 state = state[1:-1]
             state_numpy = state.detach().cpu().numpy()
             state_oracle.append(self.state2oracle(state_numpy))
         return state_oracle
-    
+
     def statetorch2oracle(
-        self, states: TensorType["batch_dim", "max_seq_length"], bos_idx=None
+        self, states: TensorType["batch_dim", "max_seq_length"]
     ) -> List[str]:
-        return self.statebatch2oracle(states, bos_idx)
+        return self.statebatch2oracle(states)
 
     # TODO: Deprecate as never used.
     def state2policy(self, state=None):
@@ -288,14 +288,19 @@ class AMP(GFlowNetEnv):
             states = states.to(torch.long)
         state_onehot = (
             F.one_hot(states, self.n_alphabet + 2)[:, :, :-2]
-            .to(self.float, self.device)
+            .to(self.float)
+            .to(self.device)
         )
-        state_padding_mask = (states != self.padding_idx).to(self.float, self.device)
+        state_padding_mask = (states != self.padding_idx).to(self.float).to(self.device)
         state_onehot_pad = state_onehot * state_padding_mask.unsqueeze(-1)
         # Assertion works as long as [PAD] is last key in lookup table.
         assert torch.eq(state_onehot_pad, state_onehot).all()
         state_policy = torch.zeros(
-            states.shape[0], self.max_seq_length, self.n_alphabet, device = self.device, dtype = self.float
+            states.shape[0],
+            self.max_seq_length,
+            self.n_alphabet,
+            device=self.device,
+            dtype=self.float,
         )
         state_policy[:, : state_onehot.shape[1], :] = state_onehot
         return state_policy.reshape(states.shape[0], -1)
@@ -497,7 +502,7 @@ class AMP(GFlowNetEnv):
             self.n_actions += 1
             return self.state, (self.eos,), True
         # If action is not eos, then perform action
-        state_last_element = int(torch.where(state_next == self.padding_idx)[0][0])
+        state_last_element = int(torch.where(self.state == self.padding_idx)[0][0])
         if action[0] != self.eos:
             state_next = self.state.clone().detach()
             if state_last_element + len(action) > self.max_seq_length:
