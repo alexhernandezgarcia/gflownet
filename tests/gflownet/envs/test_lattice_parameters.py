@@ -26,6 +26,53 @@ def test__environment__initializes_properly(env, lattice_system):
 
 
 @pytest.mark.parametrize("lattice_system", LATTICE_SYSTEMS)
+@pytest.mark.parametrize("grid_size", [61, 121, 241])
+def test__environment__initializes_properly_with_non_default_grid_size(
+    env, lattice_system, grid_size
+):
+    LatticeParameters(lattice_system=lattice_system, grid_size=grid_size)
+
+
+@pytest.mark.parametrize(
+    "lattice_system, exp_state",
+    [
+        (CUBIC, [0, 0, 0, 30, 30, 30]),
+        (HEXAGONAL, [0, 0, 0, 30, 30, 45]),
+        (MONOCLINIC, [0, 0, 0, 30, 0, 30]),
+        (ORTHORHOMBIC, [0, 0, 0, 30, 30, 30]),
+        (RHOMBOHEDRAL, [0, 0, 0, 0, 0, 0]),
+        (TETRAGONAL, [0, 0, 0, 30, 30, 30]),
+        (TRICLINIC, [0, 0, 0, 0, 0, 0]),
+    ],
+)
+def test__environment__has_expected_initial_state(env, lattice_system, exp_state):
+    assert env.state == exp_state
+
+
+@pytest.mark.parametrize(
+    "lattice_system, exp_angles",
+    [
+        (CUBIC, [90, 90, 90]),
+        (HEXAGONAL, [90, 90, 120]),
+        (MONOCLINIC, [90, None, 90]),
+        (ORTHORHOMBIC, [90, 90, 90]),
+        (RHOMBOHEDRAL, [None, None, None]),
+        (TETRAGONAL, [90, 90, 90]),
+        (TRICLINIC, [None, None, None]),
+    ],
+)
+def test__environment__has_expected_initial_values(env, lattice_system, exp_angles):
+    exp_lengths = [env.min_length for _ in range(3)]
+    exp_angles = [angle if angle is not None else env.min_angle for angle in exp_angles]
+
+    obs_lengths = [env.cell2length[x] for x in env.state[:3]]
+    obs_angles = [env.cell2angle[x] for x in env.state[3:]]
+
+    assert obs_lengths == exp_lengths
+    assert obs_angles == exp_angles
+
+
+@pytest.mark.parametrize("lattice_system", LATTICE_SYSTEMS)
 @pytest.mark.parametrize("max_step_len", [1, 3, 5])
 def test__get_actions_space__returns_correct_number_of_actions(
     lattice_system, max_step_len
@@ -58,6 +105,50 @@ def test__get_mask_invalid_actions_forward__allows_arbitrary_angle_change_for_tr
     assert not any(angle_mask)
 
 
+@pytest.mark.parametrize(
+    "lattice_system, state, exp_mask",
+    [
+        (TRICLINIC, [0, 0, 0, 0, 0, 0], [False] * 9 + [True]),
+        (TRICLINIC, [0, 1, 2, 0, 1, 2], [False] * 10),
+        (
+            CUBIC,
+            [0, 0, 0, 30, 30, 30],
+            [True, True, True, True, False, True, True, True, True, False],
+        ),
+        (
+            CUBIC,
+            [10, 10, 10, 30, 30, 30],
+            [True, True, True, True, False, True, True, True, True, False],
+        ),
+        (
+            CUBIC,
+            [59, 59, 59, 30, 30, 30],
+            [True, True, True, True, False, True, True, True, True, False],
+        ),
+        (
+            MONOCLINIC,
+            [0, 0, 0, 30, 0, 30],
+            [True, True, False, False, False, True, False, True, True, True],
+        ),
+        (
+            MONOCLINIC,
+            [10, 10, 10, 30, 20, 30],
+            [True, True, False, False, False, True, False, True, True, True],
+        ),
+        (
+            MONOCLINIC,
+            [10, 10, 11, 30, 20, 30],
+            [True, True, False, False, False, True, False, True, True, False],
+        ),
+    ],
+)
+def test__get_mask_invalid_actions_forward__returns_expected_mask(
+    env, lattice_system, state, exp_mask
+):
+    print(env.get_mask_invalid_actions_forward(state), exp_mask)
+    assert env.get_mask_invalid_actions_forward(state) == exp_mask
+
+
 @pytest.mark.parametrize("lattice_system", LATTICE_SYSTEMS)
 def test__get_parents__returns_no_parents_in_initial_state(env, lattice_system):
     parents, actions = env.get_parents()
@@ -79,7 +170,7 @@ def test__get_parents__returns_parents_after_step(env, lattice_system):
 @pytest.mark.parametrize("lattice_system", LATTICE_SYSTEMS)
 @pytest.mark.parametrize(
     "actions",
-    [[], [(1, 2), (2, 3), (3, 4)], [(4, 2)], [(1, 3), (4, 2), (2, 3), (3, 2)]],
+    [[], [(0, 1, 2), (3, 4, 5)], [(0, 1, 2)], [(0, 1, 2), (3, 4, 5), (0, 1, 2)]],
 )
 def test__get_parents__returns_same_number_of_parents_and_actions(
     env, lattice_system, actions
@@ -90,6 +181,47 @@ def test__get_parents__returns_same_number_of_parents_and_actions(
     parents, actions = env.get_parents()
 
     assert len(parents) == len(actions)
+
+
+@pytest.mark.parametrize(
+    "lattice_system, actions, exp_state",
+    [
+        (TRICLINIC, [(0,), (1,), (2,), (3,), (4,)], [1, 1, 1, 1, 1, 0]),
+        (
+            TRICLINIC,
+            [
+                (
+                    0,
+                    1,
+                    2,
+                )
+            ],
+            [1, 1, 1, 0, 0, 0],
+        ),
+        (TRICLINIC, [(1,), (1,), (0,), (1,), (3, 4, 5), (0, 1, 2)], [2, 4, 1, 1, 1, 1]),
+        (CUBIC, [(0,), (1,), (2,), (3,), (4,)], [0, 0, 0, 30, 30, 30]),
+        (CUBIC, [(0,), (1,), (2,), (3,), (0, 1, 2)], [1, 1, 1, 30, 30, 30]),
+        (
+            CUBIC,
+            [
+                (
+                    0,
+                    1,
+                    2,
+                ),
+                (0, 1, 2),
+                (0, 1, 2),
+                (3, 4, 5),
+            ],
+            [3, 3, 3, 30, 30, 30],
+        ),
+    ],
+)
+def test__step__changes_state_as_expected(env, lattice_system, actions, exp_state):
+    for action in actions:
+        env.step(action=action)
+
+    assert env.state == exp_state
 
 
 @pytest.mark.parametrize(
