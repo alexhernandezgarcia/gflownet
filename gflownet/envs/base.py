@@ -729,10 +729,9 @@ class Buffer:
         elif (
             config.type == "uniform"
             and "n" in config
-            and "seed" in config
             and hasattr(self.env, "get_uniform_terminating_states")
         ):
-            samples = self.env.get_uniform_terminating_states(config.n, config.seed)
+            samples = self.env.get_uniform_terminating_states(config.n)
         else:
             return None, None
         energies = self.env.proxy(self.env.statebatch2proxy(samples)).tolist()
