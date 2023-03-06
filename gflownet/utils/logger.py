@@ -193,7 +193,7 @@ class Logger:
             if fig is not None:
                 plt.close()
 
-    def log_metrics(self, metrics: dict, step: int, use_context: bool = True):
+    def log_metrics(self, metrics: dict, step: int=None, use_context: bool = True):
         if not self.do.online:
             return
         for key, _ in metrics.items():
