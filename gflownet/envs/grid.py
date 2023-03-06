@@ -43,7 +43,6 @@ class Grid(GFlowNetEnv):
         **kwargs,
     ):
         super().__init__(**kwargs)
-        self.continuous = True
         self.n_dim = n_dim
         self.eos = self.n_dim
         self.source = [0 for _ in range(self.n_dim)]
@@ -284,7 +283,7 @@ class Grid(GFlowNetEnv):
         """
         Resets the environment.
         """
-        self.state = [0 for _ in range(self.n_dim)]
+        self.state = self.source.copy()
         self.n_actions = 0
         self.done = False
         self.id = env_id
@@ -357,7 +356,7 @@ class Grid(GFlowNetEnv):
             False, if the action is not allowed for the current state.
         """
         if self.done:
-            return self.state, action_idx, False
+            return self.state, action, False
         # If only possible action is eos, then force eos
         # All dimensions are at the maximum length
         if all([s == self.length - 1 for s in self.state]):

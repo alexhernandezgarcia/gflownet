@@ -1,25 +1,23 @@
 defaults:
   - base
 
-_target_: gflownet.envs.ctorusmixture.ContinuousTorusMixture
+_target_: gflownet.envs.alaninedipeptide.AlanineDipeptide
 
-id: ctorus
-func: sincos
-# Dimensions of hypertorus
-n_dim: 2
+path_to_dataset: ${user.data.alanine_dipeptide}
+id: alaninedipeptide
 policy_encoding_dim_per_angle: null
 # Fixed length of trajectories
-length_traj: 3
+length_traj: 10
 vonmises_min_concentration: 1e-3
 # Parameters of the fixed policy output distribution
 n_comp: 3
 fixed_distribution:
   vonmises_mean: 0.0
-  vonmises_concentration: 1.0
+  vonmises_concentration: 0.5
 # Parameters of the random policy output distribution
 random_distribution:
   vonmises_mean: 0.0
-  vonmises_concentration: 0.01
+  vonmises_concentration: 0.001
 # Buffer
 buffer:
   data_path: null
@@ -27,5 +25,5 @@ buffer:
   test:
     type: grid
     n: 1000
-    output_csv: ctorus_test.csv
-    output_pkl: ctorus_test.pkl
+    output_csv: alaninedipeptide_test.csv
+    output_pkl: alaninedipeptide_test.pkl

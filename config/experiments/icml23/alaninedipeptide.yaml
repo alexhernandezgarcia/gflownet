@@ -1,62 +1,57 @@
 # @package _global_
 
 defaults:
-   - override /env: ctorus
+   - override /env: alaninedipeptide
    - override /gflownet: trajectorybalance
-   - override /proxy: torus
+   - override /proxy: molecule
    - override /logger: wandb
-   - override /user: alex
+   - override /user: sasha
 
 # Environment
 env:
-  n_dim: 2
   length_traj: 10
-  n_comp: 3
-  reward_func: identity
-
-# Proxy
-proxy:
-  normalize: False
-  alpha: 3.0
-  beta: 2.0
+  policy_encoding_dim_per_angle: 10
+  n_comp: 5
+  vonmises_min_concentration: 4
 
 # GFlowNet hyperparameters
 gflownet:
   random_action_prob: 0.1
   optimizer:
     batch_size: 100
-    lr: 0.001
+    lr: 0.00001
     z_dim: 16
-    lr_z_mult: 50
-    n_train_steps: 15000
+    lr_z_mult: 1000
+    n_train_steps: 40000
+    lr_decay_period: 1000000
   policy:
     forward:
       type: mlp
-      n_hid: 128
-      n_layers: 2
+      n_hid: 512
+      n_layers: 5
       checkpoint: forward
     backward:
       type: mlp
-      n_hid: 128
-      n_layers: 2
-      shared_weights: True
+      n_hid: 512
+      n_layers: 5
+      shared_weights: False
       checkpoint: backward
 
 # WandB
 logger:
   lightweight: True
-  project_name: "Continuous GFlowNet"
+  project_name: "gflownet"
   tags: 
     - gflownet
     - continuous
-    - ctorus
+    - molecule
   test:
-    period: 25
-    n: 1000
+    period: 500
+    n: 10000
   checkpoints:
     period: 500
 
 # Hydra
 hydra:
   run:
-    dir: ${user.logdir.root}/icml23/ctorus/${now:%Y-%m-%d_%H-%M-%S}
+    dir: ${user.logdir.root}/icml23/molecule/${now:%Y-%m-%d_%H-%M-%S}

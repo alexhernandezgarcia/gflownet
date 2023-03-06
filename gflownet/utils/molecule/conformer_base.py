@@ -1,8 +1,5 @@
 import numpy as np
-import torch
 
-from collections import defaultdict
-from copy import deepcopy
 from rdkit import Chem
 from rdkit.Chem import AllChem
 from rdkit.Chem import rdMolTransforms
@@ -39,9 +36,7 @@ def get_dummy_ad_atom_positions():
 
 def get_dummy_ad_conf_base():
     pos = get_dummy_ad_atom_positions()
-    conf = ConformerBase(
-        pos, constants.ad_smiles, constants.ad_atom_types, constants.ad_free_tas
-    )
+    conf = ConformerBase(pos, constants.ad_smiles, constants.ad_free_tas)
     return conf
 
 

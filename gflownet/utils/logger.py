@@ -27,9 +27,10 @@ class Logger:
         plot: dict,
         progress: bool,
         lightweight: bool,
-        debug: bool = False,
+        debug: bool,
         run_name=None,
         tags: list = None,
+        context: str = "0",
     ):
         self.config = config
         self.do = do
@@ -48,7 +49,6 @@ class Logger:
             import wandb
 
             self.wandb = wandb
-            self.plt = plt
             wandb_config = OmegaConf.to_container(
                 config, resolve=True, throw_on_missing=True
             )
@@ -59,7 +59,7 @@ class Logger:
             self.wandb = None
             self.run = None
         self.add_tags(tags)
-        self.context = "0"
+        self.context = context
         self.progress = progress
         self.lightweight = lightweight
         self.debug = debug
@@ -140,7 +140,7 @@ class Logger:
             self.pb_ckpt_path = self.ckpts_dir / f"{ckpt_id}_"
 
     def progressbar_update(
-        self, pbar, losses, rewards, jsd, step=None, use_context=True, n_mean=100
+        self, pbar, losses, rewards, jsd, step, use_context=True, n_mean=100
     ):
         if self.progress:
             mean_main_loss = np.mean(np.array(losses)[-n_mean:, 0], axis=0)
@@ -149,12 +149,12 @@ class Logger:
             )
             pbar.set_description(description)
 
-    def log_metric(self, key: str, value, step=None, use_context=True):
+    def log_metric(self, key: str, value, step, use_context=True):
         if not self.do.online:
             return
         if use_context:
             key = self.context + "/" + key
-        self.wandb.log({key: value})
+        self.wandb.log({key: value}, step=step)
 
     def log_histogram(self, key, value, step, use_context=True):
         if not self.do.online:
@@ -193,7 +193,7 @@ class Logger:
             if fig is not None:
                 plt.close()
 
-    def log_metrics(self, metrics: dict, step: int = None, use_context: bool = True):
+    def log_metrics(self, metrics: dict, step: int, use_context: bool = True):
         if not self.do.online:
             return
         for key, _ in metrics.items():
@@ -208,11 +208,18 @@ class Logger:
         costs: list,
         batch_size: int,
         logz,
+        learning_rates: list, # [lr, lr_logZ]
         step: int,
         use_context: bool,
     ):
         if not self.do.online or not self.do_train(step):
             return
+        if logz is None:
+            logz = 0.0
+        else:
+            logz = logz.sum()
+        if len(learning_rates) == 1:
+            learning_rates += [-1.0]
         train_metrics = dict(
             zip(
                 [
@@ -225,6 +232,8 @@ class Logger:
                     "mean_seq_length",
                     "batch_size",
                     "logZ",
+                    "lr",
+                    "lr_logZ"
                 ],
                 [
                     np.mean(rewards),
@@ -236,6 +245,8 @@ class Logger:
                     np.mean([len(state) for state in states_term]),
                     batch_size,
                     logz,
+                    learning_rates[0],
+                    learning_rates[1]
                 ],
             )
         )

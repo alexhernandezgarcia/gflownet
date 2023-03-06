@@ -1,6 +1,7 @@
 """
 Classes to represent hyper-torus environments
 """
+from copy import deepcopy
 from typing import List, Tuple
 import itertools
 import numpy as np
@@ -37,6 +38,7 @@ class HybridTorus(GFlowNetEnv):
         self,
         n_dim=2,
         length_traj=1,
+        n_comp=1,
         policy_encoding_dim_per_angle=None,
         do_nonzero_source_prob=True,
         fixed_distribution=dict,
@@ -51,14 +53,17 @@ class HybridTorus(GFlowNetEnv):
         self.eos = self.n_dim
         self.length_traj = length_traj
         # Parameters of fixed policy distribution
+        self.n_comp = n_comp
         if do_nonzero_source_prob:
             self.n_params_per_dim = 4
         else:
             self.n_params_per_dim = 3
         self.vonmises_min_concentration = vonmises_min_concentration
         # Initialize angles and state attributes
+        self.source_angles = [0.0 for _ in range(self.n_dim)]
+        # States are the concatenation of the angle state and number of actions
+        self.source = self.source_angles + [0]
         self.reset()
-        self.source = self.angles.copy()
         self.action_space = self.get_actions_space()
         self.fixed_policy_output = self.get_policy_output(fixed_distribution)
         self.random_policy_output = self.get_policy_output(random_distribution)
@@ -70,6 +75,9 @@ class HybridTorus(GFlowNetEnv):
         self.statebatch2oracle = self.statebatch2proxy
         # Setup proxy
         self.proxy.set_n_dim(self.n_dim)
+
+    def copy(self):
+        return deepcopy(self)
 
     def get_actions_space(self):
         """
@@ -150,13 +158,13 @@ class HybridTorus(GFlowNetEnv):
             mask = [False for _ in range(len(self.action_space))]
             mask[-1] = True
         # Catch cases where it would not be possible to reach the initial state
-        noninit_states = [s for s, ss in zip(state[:-1], self.source) if s != ss]
+        noninit_states = [s for s, ss in zip(state[:-1], self.source_angles) if s != ss]
         if len(noninit_states) > state[-1]:
             print("This point in the code should never be reached!")
         elif len(noninit_states) == state[-1] and len(noninit_states) >= state[-1] - 1:
             mask = [
                 True if s == ss else m
-                for m, s, ss in zip(mask, state[:-1], self.source)
+                for m, s, ss in zip(mask, state[:-1], self.source_angles)
             ] + [mask[-1]]
         return mask
 
@@ -290,11 +298,8 @@ class HybridTorus(GFlowNetEnv):
         """
         Resets the environment.
         """
-        self.angles = [0.0 for _ in range(self.n_dim)]
-        # TODO: do step encoding as in Sasha's code?
+        self.state = self.source.copy()
         self.n_actions = 0
-        # States are the concatenation of the angle state and number of actions
-        self.state = self.angles + [self.n_actions]
         self.done = False
         self.id = env_id
         return self
@@ -433,8 +438,8 @@ class HybridTorus(GFlowNetEnv):
         # - p(angle) * p(no_source), if angle of target != source
         # - p(source), if angle of target == source
         # Mixing should be applied if p(angle) is computed AND is backward:
-        source = torch.tensor(self.source, device=device)
-        source_aux = torch.tensor(self.source + [-1], device=device)
+        source = torch.tensor(self.source_angles, device=device)
+        source_aux = torch.tensor(self.source_angles + [-1], device=device)
         nsource_ne_nsteps = torch.ne(
             torch.sum(torch.ne(states_target[:, :-1], source), axis=1),
             states_target[:, -1],
@@ -574,16 +579,16 @@ class HybridTorus(GFlowNetEnv):
         return kde
 
     def plot_reward_samples(
-        self, samples, alpha=0.5, low=-np.pi * 0.5, high=2.5 * np.pi, dpi=150
+        self, samples, alpha=0.5, low=-np.pi * 0.5, high=2.5 * np.pi, dpi=150, limit_n_samples=500, **kwargs
     ):
         x = np.linspace(low, high, 201)
         y = np.linspace(low, high, 201)
         xx, yy = np.meshgrid(x, y)
         X = np.stack([xx, yy], axis=-1)
         samples_mesh = torch.tensor(
-            X.reshape(-1, 2), dtype=self.float, device=self.device
-        )
-        rewards = torch2np(self.proxy2reward(self.proxy(samples_mesh)))
+            X.reshape(-1, 2), dtype=self.float)
+        states_mesh = torch.cat([samples_mesh, torch.ones(samples_mesh.shape[0], 1)], 1).to(self.device)
+        rewards = torch2np(self.proxy2reward(self.proxy(self.statetorch2proxy(states_mesh))))
         # Init figure
         fig, ax = plt.subplots()
         fig.set_dpi(dpi)
@@ -601,17 +606,17 @@ class HybridTorus(GFlowNetEnv):
             for add_1 in [0, -2 * np.pi, 2 * np.pi]:
                 if not (add_0 == add_1 == 0):
                     extra_samples.append(
-                        np.stack([samples[:, 0] + add_0, samples[:, 1] + add_1], axis=1)
+                        np.stack([samples[:limit_n_samples, 0] + add_0, samples[:limit_n_samples, 1] + add_1], axis=1)
                     )
         extra_samples = np.concatenate(extra_samples)
-        ax.scatter(samples[:, 0], samples[:, 1], alpha=alpha)
+        ax.scatter(samples[:limit_n_samples, 0], samples[:limit_n_samples, 1], alpha=alpha)
         ax.scatter(extra_samples[:, 0], extra_samples[:, 1], alpha=alpha, color="white")
         ax.grid()
         # Set tight layout
         plt.tight_layout()
         return fig
 
-    def plot_kde(self, kde, alpha=0.5, low=-np.pi * 0.5, high=2.5 * np.pi, dpi=150):
+    def plot_kde(self, kde, alpha=0.5, low=-np.pi * 0.5, high=2.5 * np.pi, dpi=150, colorbar=True, **kwargs):
         x = np.linspace(0, 2 * np.pi, 101)
         y = np.linspace(0, 2 * np.pi, 101)
         xx, yy = np.meshgrid(x, y)
@@ -623,7 +628,16 @@ class HybridTorus(GFlowNetEnv):
         # Plot KDE
         h = ax.contourf(xx, yy, Z, alpha=alpha)
         ax.axis("scaled")
-        fig.colorbar(h, ax=ax)
+        if colorbar:
+            fig.colorbar(h, ax=ax)
+        ax.set_xticks([])
+        ax.set_yticks([])
+        ax.text(0, -0.3, r'$0$', fontsize=15)
+        ax.text(-0.28, 0, r'$0$', fontsize=15)
+        ax.text(2*np.pi-0.4, -0.3, r'$2\pi$', fontsize=15)
+        ax.text(-0.45, 2*np.pi-0.3, r'$2\pi$', fontsize=15)
+        for spine in ax.spines.values():
+            spine.set_visible(False)
         # Set tight layout
         plt.tight_layout()
         return fig
