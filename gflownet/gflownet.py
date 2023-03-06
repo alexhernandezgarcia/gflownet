@@ -1007,7 +1007,7 @@ class GFlowNetAgent:
                 use_context=self.use_context,
             )
 
-    def evaluate(self, samples, energies, maximize, dataset_states=None):
+    def evaluate(self, samples, energies, maximize, modes = None, dataset_states=None):
         """Evaluate the policy on a set of queries.
         Args:
             queries (list): List of queries to evaluate the policy on.
@@ -1017,12 +1017,18 @@ class GFlowNetAgent:
         if maximize:
             energies = torch.sort(energies, descending=True)[0]
         else:
-            energies = torch.sort(energies)[0]
+            energies = torch.sort(energies, descending = False)[0]
         if hasattr(self.env, "get_pairwise_distance"):
             pairwise_dists = self.env.get_pairwise_distance(samples)
             pairwise_dists = torch.sort(pairwise_dists, descending=True)[0]
+            if modes is not None:
+                min_dist_from_mode = self.env.get_pairwise_distance(samples, modes)
+                # Sort in ascending order because we want minimum distance from mode
+                min_dist_from_mode = torch.sort(min_dist_from_mode, descending=False)[0]
         else:
             pairwise_dists = torch.zeros_like(energies)
+            min_dist_from_mode = torch.zeros_like(energies)
+
         dict_topk = {}
         # if self.use_context or self.buffer.train is not None:
         #     dists_from_D0 = self.env.get_distance_from_D0(samples, dataset_states)
@@ -1031,11 +1037,15 @@ class GFlowNetAgent:
             print(f"\n Top-{k} Performance")
             mean_energy_topk = torch.mean(energies[:k])
             mean_pairwise_dist_topk = torch.mean(pairwise_dists[:k])
+            mean_min_dist_from_mode_topk = torch.mean(min_dist_from_mode[:k])
             # if self.use_context:
             # mean_dist_from_D0_topk = torch.mean(dists_from_D0[:k])
             dict_topk.update({"mean_energy_top{}".format(k): mean_energy_topk})
             dict_topk.update(
                 {"mean_pairwise_distance_top{}".format(k): mean_pairwise_dist_topk}
+            )
+            dict_topk.update(
+                {"mean_min_distance_from_mode_top{}".format(k): mean_min_dist_from_mode_topk}
             )
             # if self.use_context:
             # dict_topk.update(
@@ -1044,6 +1054,7 @@ class GFlowNetAgent:
             if self.logger.progress:
                 print(f"\t Mean Energy: {mean_energy_topk}")
                 print(f"\t Mean Pairwise Distance: {mean_pairwise_dist_topk}")
+                print(f"\t Mean Min Distance from Mode: {mean_min_dist_from_mode_topk}")
                 # if self.use_context:
                 # print(f"\t Mean Min Distance from D0: {mean_dist_from_D0_topk}")
             self.logger.log_metrics(dict_topk, use_context=False)
