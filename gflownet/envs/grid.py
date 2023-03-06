@@ -63,7 +63,7 @@ class Grid(GFlowNetEnv):
             self.statetorch2proxy = self.statetorch2oracle
         elif self.proxy_state_format == "state":
             self.statebatch2proxy = self.statebatch2state
-            self.statetorch2proxy = self.statebatch2state
+            self.statetorch2proxy = self.statetorch2state
             # Assumes that the oracle is always Branin
             self.statebatch2oracle = self.statebatch2state
             self.statetorch2oracle = self.statetorch2state
@@ -82,7 +82,7 @@ class Grid(GFlowNetEnv):
         """
         if isinstance(state_batch, torch.Tensor) == False:
             state_batch = torch.tensor(state_batch)
-        return self.statetorch2state(state_batch)
+        return self.statetorch2state(state_batch).tolist()
 
     def statetorch2state(self, state_torch):
         """
@@ -431,6 +431,26 @@ class Grid(GFlowNetEnv):
             plt.tight_layout()
             plt.close()
         return ax
+
+    def get_pairwise_distance(self, sample_set1, sample_set2=None):
+        """
+        Calculates the pairwise distance between two set of states.
+        """
+        if sample_set2 == None:
+            diversity_in_set_cal = True
+            sample_set2 = sample_set1
+        else:
+            diversity_in_set_cal = False
+        sample_states1 = torch.tensor(sample_set1, device=self.device, dtype=self.float)
+        sample_states2 = torch.tensor(sample_set2, device=self.device, dtype=self.float)
+        dist_matrix = torch.cdist(sample_states1, sample_states2, p=2)
+        if diversity_in_set_cal == True:
+            dist_upper_triangle = torch.triu(dist_matrix, diagonal=1)
+            dist_vector = dist_upper_triangle[dist_upper_triangle != 0]
+            return dist_vector
+        else:
+            dist_vector = torch.min(dist_matrix, dim=1)[0]
+            return dist_vector
 
     # def plot_reward_samples(self, states, scores, figure_title):
     #     # make compatible with n_dim > 2
