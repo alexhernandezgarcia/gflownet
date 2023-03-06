@@ -46,11 +46,12 @@ class Grid(GFlowNetEnv):
         self.continuous = True
         self.n_dim = n_dim
         self.eos = self.n_dim
-        self.state = [0 for _ in range(self.n_dim)]
+        self.source = [0 for _ in range(self.n_dim)]
         self.length = length
         self.min_step_len = min_step_len
         self.max_step_len = max_step_len
         self.cells = np.linspace(cell_min, cell_max, length)
+        self.reset()
         self.action_space = self.get_actions_space()
         self.fixed_policy_output = self.get_fixed_policy_output()
         self.random_policy_output = self.get_fixed_policy_output()
@@ -66,7 +67,7 @@ class Grid(GFlowNetEnv):
             self.statetorch2proxy = self.statebatch2state
             # Assumes that the oracle is always Branin
             self.statebatch2oracle = self.statebatch2state
-            self.statetorch2oracle = self.statebatch2state
+            self.statetorch2oracle = self.statetorch2state
         else:
             raise NotImplementedError(
                 f"Proxy state format {self.proxy_state_format} not implemented"
@@ -84,8 +85,14 @@ class Grid(GFlowNetEnv):
         """
         if isinstance(state_batch, torch.Tensor) == False:
             state_batch = torch.tensor(state_batch)
-        state_batch = state_batch / self.rescale
-        return state_batch.to(self.float)
+        return self.statetorch2state(state_batch)
+
+    def statetorch2state(self, state_torch):
+        """
+        Converts a batch of states to AugmentedBranin oracle format
+        """
+        state_torch = state_torch / self.rescale
+        return state_torch.to(self.float).to(self.device)
 
     def get_actions_space(self):
         """
@@ -389,7 +396,8 @@ class Grid(GFlowNetEnv):
         """
         Plot 2D histogram of samples.
         """
-        # TDO: extend to n_dim > 2
+        if self.n_dim > 2:
+            return None
         if ax is None:
             fig, ax = plt.subplots()
             standalone = True
