@@ -934,7 +934,7 @@ class GFlowNetAgent:
 
     def get_log_corr(self, x_tt, energy):
         """
-        Kept as a function variable of GflowNetAgent because logq calculation requires tfloat and tbool memeber functions of GflowNet
+        Kept as a function variable of GflowNetAgent because logq calculation requires tfloat and tbool member functions of GflowNet
         """
         data_logq = []
         if hasattr(self.env, "_test_traj_list") and len(self.env._test_traj_list) > 0:
