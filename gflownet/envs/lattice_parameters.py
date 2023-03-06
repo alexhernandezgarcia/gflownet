@@ -341,7 +341,7 @@ class LatticeParameters(Grid):
         Args
         ----
         state : list
-            A state
+            A state.
 
         Returns
         ----
@@ -397,3 +397,50 @@ class LatticeParameters(Grid):
             state.append(s)
 
         return state
+
+    def get_parents(
+        self,
+        state: Optional[List[int]] = None,
+        done: Optional[bool] = None,
+        action: Optional[Tuple] = None,
+    ) -> Tuple[List, List]:
+        """
+        Determines all parents and actions that lead to state.
+
+        Args
+        ----
+        state : list
+            Representation of a state.
+
+        done : bool
+            Whether the trajectory is done. If None, done is taken from instance.
+
+        action : tuple
+            Last action performed.
+
+        Returns
+        -------
+        parents : list
+            List of parents in state format.
+
+        actions : list
+            List of actions that lead to state for each parent in parents.
+        """
+        if state is None:
+            state = self.state.copy()
+        if done is None:
+            done = self.done
+        if done:
+            return [state], [(self.eos,)]
+
+        parents = []
+        actions = []
+
+        for i, (parent, action) in enumerate(
+            zip(*super().get_parents(state, done, action))
+        ):
+            if self._is_intermediate_state_valid(parent):
+                parents.append(parent)
+                actions.append(action)
+
+        return parents, actions
