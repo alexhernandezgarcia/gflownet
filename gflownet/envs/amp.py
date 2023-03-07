@@ -363,6 +363,8 @@ class AMP(GFlowNetEnv):
         according to an alphabet.
         Used only in Buffer
         """
+        if isinstance(state, torch.Tensor) == False:
+            state = torch.tensor(state).long()
         if state[-1] == self.padding_idx:
             state = state[: torch.where(state == self.padding_idx)[0][0]]
         state = state.tolist()
@@ -561,7 +563,7 @@ class AMP(GFlowNetEnv):
 
         return train, test
 
-    def get_pairwise_distance(self, samples):
+    def get_pairwise_distance(self, samples, *kwargs):
         dists = []
         for pair in itertools.combinations(samples, 2):
             dists.append(self.get_distance(*pair))
