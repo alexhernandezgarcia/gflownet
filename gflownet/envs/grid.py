@@ -61,7 +61,10 @@ class Grid(GFlowNetEnv):
         elif self.proxy_state_format == "oracle":
             self.statebatch2proxy = self.statebatch2oracle
             self.statetorch2proxy = self.statetorch2oracle
-        elif self.proxy_state_format == "state":
+        elif "state" in self.proxy_state_format:
+            # As We want it to be compatible with both state_fidId and state formats
+            # state is for when proxy is GP so fidelities are fractional
+            # state_fidIdx is for the multifidelity GP where an index kernel is used
             self.statebatch2proxy = self.statebatch2state
             self.statetorch2proxy = self.statetorch2state
             # Assumes that the oracle is always Branin
@@ -437,14 +440,14 @@ class Grid(GFlowNetEnv):
         Calculates the pairwise distance between two set of states.
         """
         if sample_set2 == None:
-            diversity_in_set_cal = True
+            get_diversity_within_set = True
             sample_set2 = sample_set1
         else:
-            diversity_in_set_cal = False
+            get_diversity_within_set = False
         sample_states1 = torch.tensor(sample_set1, device=self.device, dtype=self.float)
         sample_states2 = torch.tensor(sample_set2, device=self.device, dtype=self.float)
         dist_matrix = torch.cdist(sample_states1, sample_states2, p=2)
-        if diversity_in_set_cal == True:
+        if get_diversity_within_set == True:
             dist_upper_triangle = torch.triu(dist_matrix, diagonal=1)
             dist_vector = dist_upper_triangle[dist_upper_triangle != 0]
             return dist_vector
