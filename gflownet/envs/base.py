@@ -11,7 +11,7 @@ from torch.distributions import Categorical
 from torchtyping import TensorType
 import pickle
 from gflownet.utils.common import set_device, set_float_precision
-
+from pathlib import Path
 
 class GFlowNetEnv:
     """
