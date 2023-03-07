@@ -1025,6 +1025,8 @@ class GFlowNetAgent:
                 min_dist_from_mode = self.env.get_pairwise_distance(samples, modes)
                 # Sort in ascending order because we want minimum distance from mode
                 min_dist_from_mode = torch.sort(min_dist_from_mode, descending=False)[0]
+            else:
+                min_dist_from_mode = torch.zeros_like(energies)
         else:
             pairwise_dists = torch.zeros_like(energies)
             min_dist_from_mode = torch.zeros_like(energies)
