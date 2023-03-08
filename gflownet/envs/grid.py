@@ -14,15 +14,34 @@ from gflownet.envs.base import GFlowNetEnv
 
 class Grid(GFlowNetEnv):
     """
-    Hyper-grid environment
+    Hyper-grid environment: A grid with n_dim dimensions and length cells per
+    dimensions.
+
+    The state space is the entire grid and each state is represented by the vector of
+    coordinates of each dimensions. For example, in 3D, the origin will be at [0, 0, 0]
+    and after incrementing dimension 0 by 2, dimension 1 by 3 and dimension 3 by 1, the
+    state would be [2, 3, 1].
+
+    The action space is the increment to be applied to each dimension. For instance,
+    (0, 0, 1) will increment dimension 2 by 1 and the action that goes from [1, 1, 1]
+    to [2, 3, 1] is (1, 2, 0).
 
     Attributes
     ----------
-    ndim : int
+    n_dim : int
         Dimensionality of the grid
 
     length : int
         Size of the grid (cells per dimension)
+
+    min_increment : int
+        Minimum increment of each dimension by the actions.
+
+    max_increment : int
+        Maximum increment of each dimension by the actions.
+
+    max_dim_per_action : int
+        Maximum number of dimensions to increment per action.
 
     cell_min : float
         Lower bound of the cells range
@@ -35,18 +54,24 @@ class Grid(GFlowNetEnv):
         self,
         n_dim: int = 2,
         length: int = 3,
-        min_step_len: int = 1,
-        max_step_len: int = 1,
+        min_increment: int = 1,
+        max_increment: int = 1,
+        max_dim_per_action: int = 1,
         cell_min: float = -1,
         cell_max: float = 1,
         **kwargs,
     ):
         # Constants
+        assert n_dim > 0
         self.n_dim = n_dim
         self.eos = self.n_dim
+        assert length > 1
         self.length = length
-        self.min_step_len = min_step_len
-        self.max_step_len = max_step_len
+        assert min_increment > 0
+        assert max_increment > 0
+        assert min_increment <= max_increment
+        self.min_increment = min_increment
+        self.max_increment = max_increment
         self.cells = np.linspace(cell_min, cell_max, length)
         # Source state: position 0 at all dimensions
         self.source = [0 for _ in range(self.n_dim)]
@@ -62,9 +87,11 @@ class Grid(GFlowNetEnv):
 
     def get_action_space(self):
         """
-        Constructs list with all possible actions, including eos.
+        Constructs list with all possible actions, including eos. An action is
+        represented by a vector of length n_dim where each index d indicates to
+        increment to apply to dimension d of the hyper-grid.
         """
-        valid_steplens = np.arange(self.min_step_len, self.max_step_len + 1)
+        valid_steplens = np.arange(self.min_increment, self.max_increment + 1)
         dims = [a for a in range(self.n_dim)]
         actions = []
         for r in valid_steplens:
@@ -338,7 +365,7 @@ class Grid(GFlowNetEnv):
             return self.state, (self.eos,), True
 
     def get_max_traj_length(self):
-        return self.n_dim * self.length * self.min_step_len
+        return self.n_dim * self.length * self.min_increment
 
     def get_all_terminating_states(self) -> List[List]:
         all_x = np.int32(
