@@ -239,3 +239,21 @@ OXIDATION_STATES = {
     117: [0],
     118: [0],
 }
+
+CUBIC = "cubic"
+HEXAGONAL = "hexagonal"
+MONOCLINIC = "monoclinic"
+ORTHORHOMBIC = "orthorhombic"
+RHOMBOHEDRAL = "rhombohedral"
+TETRAGONAL = "tetragonal"
+TRICLINIC = "triclinic"
+
+LATTICE_SYSTEMS = [
+    CUBIC,
+    HEXAGONAL,
+    MONOCLINIC,
+    ORTHORHOMBIC,
+    RHOMBOHEDRAL,
+    TETRAGONAL,
+    TRICLINIC,
+]

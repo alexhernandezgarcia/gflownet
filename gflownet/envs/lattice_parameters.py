@@ -7,25 +7,16 @@ import numpy as np
 from torch import Tensor
 
 from gflownet.envs.grid import Grid
-
-
-CUBIC = "cubic"
-HEXAGONAL = "hexagonal"
-MONOCLINIC = "monoclinic"
-ORTHORHOMBIC = "orthorhombic"
-RHOMBOHEDRAL = "rhombohedral"
-TETRAGONAL = "tetragonal"
-TRICLINIC = "triclinic"
-
-LATTICE_SYSTEMS = [
+from gflownet.utils.crystals.constants import (
     CUBIC,
     HEXAGONAL,
+    LATTICE_SYSTEMS,
     MONOCLINIC,
     ORTHORHOMBIC,
     RHOMBOHEDRAL,
     TETRAGONAL,
     TRICLINIC,
-]
+)
 
 
 class LatticeParameters(Grid):
