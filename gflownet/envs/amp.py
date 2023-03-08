@@ -223,7 +223,7 @@ class AMP(GFlowNetEnv):
         for state in states:
             if state[-1] == self.padding_idx:
                 state = state[: torch.where(state == self.padding_idx)[0][0]]
-            if state[0] == self.tokenizer.bos_idx:
+            if self.tokenizer is not None and state[0] == self.tokenizer.bos_idx:
                 state = state[1:-1]
             state_numpy = state.detach().cpu().numpy()
             state_oracle.append(self.state2oracle(state_numpy))

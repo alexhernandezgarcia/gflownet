@@ -4,5 +4,6 @@ oracle_split: "D2_target"
 oracle_type: "MLP"
 oracle_features: "AlBert"
 dist_fn: "edit"
-medoid_oracle_norm: 1  
+medoid_oracle_norm: 1
 maximize: True
+cost: 1

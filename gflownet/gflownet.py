@@ -20,9 +20,10 @@ import pickle
 from torch.distributions import Categorical, Bernoulli
 from tqdm import tqdm
 from scipy.special import logsumexp
-
+import random
 from gflownet.envs.base import Buffer
 from gflownet.utils.common import set_device, set_float_precision, torch2np
+from torchtyping import TensorType
 
 
 class GFlowNetAgent:
@@ -276,7 +277,7 @@ class GFlowNetAgent:
                 )
             )
         # else:
-            # raise NotImplementedError
+        # raise NotImplementedError
         # Sample actions from policy outputs
         actions, logprobs = self.env.sample_actions(
             policy_outputs,
@@ -407,14 +408,14 @@ class GFlowNetAgent:
         if n_empirical > 0 and self.buffer.train_pkl is not None:
             with open(self.buffer.train_pkl, "rb") as f:
                 dict_tr = pickle.load(f)
-                # TODO: implement other sampling options besides permutation
-                x_tr = self.rng.permutation(dict_tr["x"])
+                x_tr = dict_tr["x"]
+                random.shuffle(x_tr)
             envs_offline = []
             actions = []
             valids = []
             for idx in range(n_empirical):
                 env = envs[idx]
-                env = env.set_state(x_tr[idx].tolist(), done=True)
+                env = env.set_state(x_tr[idx], done=True)
                 env.n_actions = env.get_max_traj_len()
                 envs_offline.append(env)
                 actions.append((env.eos,))
@@ -441,7 +442,11 @@ class GFlowNetAgent:
             )
             assert all(valids)
             # Filter out finished trajectories
-            envs_offline = [env for env in envs_offline if env.state != env.source]
+            if isinstance(env.state, list):
+                state_source_eq = env.state[0] != env.source[0]
+            elif isinstance(env.state, TensorType):
+                state_source_eq = torch.eq(env.state, env.source).all()
+            envs_offline = [env for env in envs_offline if state_source_eq]
         envs = envs[n_empirical:]
         # Policy trajectories
         while envs:
@@ -1007,7 +1012,7 @@ class GFlowNetAgent:
                 use_context=self.use_context,
             )
 
-    def evaluate(self, samples, energies, maximize, modes = None, dataset_states=None):
+    def evaluate(self, samples, energies, maximize, modes=None, dataset_states=None):
         """Evaluate the policy on a set of queries.
         Args:
             queries (list): List of queries to evaluate the policy on.
@@ -1017,7 +1022,7 @@ class GFlowNetAgent:
         if maximize:
             energies = torch.sort(energies, descending=True)[0]
         else:
-            energies = torch.sort(energies, descending = False)[0]
+            energies = torch.sort(energies, descending=False)[0]
         if hasattr(self.env, "get_pairwise_distance"):
             pairwise_dists = self.env.get_pairwise_distance(samples)
             pairwise_dists = torch.sort(pairwise_dists, descending=True)[0]
@@ -1047,7 +1052,11 @@ class GFlowNetAgent:
                 {"mean_pairwise_distance_top{}".format(k): mean_pairwise_dist_topk}
             )
             dict_topk.update(
-                {"mean_min_distance_from_mode_top{}".format(k): mean_min_dist_from_mode_topk}
+                {
+                    "mean_min_distance_from_mode_top{}".format(
+                        k
+                    ): mean_min_dist_from_mode_topk
+                }
             )
             # if self.use_context:
             # dict_topk.update(
