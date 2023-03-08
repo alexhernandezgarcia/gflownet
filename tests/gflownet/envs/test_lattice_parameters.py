@@ -145,7 +145,6 @@ def test__get_mask_invalid_actions_forward__allows_arbitrary_angle_change_for_tr
 def test__get_mask_invalid_actions_forward__returns_expected_mask(
     env, lattice_system, state, exp_mask
 ):
-    print(env.get_mask_invalid_actions_forward(state), exp_mask)
     assert env.get_mask_invalid_actions_forward(state) == exp_mask
 
 
