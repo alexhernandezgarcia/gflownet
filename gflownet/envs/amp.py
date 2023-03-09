@@ -92,7 +92,7 @@ class AMP(GFlowNetEnv):
         self.max_seq_length = max_seq_length
         self.min_word_len = min_word_len
         self.max_word_len = max_word_len
-        special_tokens = ["[EOS]", "[PAD]"]
+        special_tokens = ["[PAD]", "[EOS]"]
         self.vocab = AMINO_ACIDS + special_tokens
         self.lookup = {a: i for (i, a) in enumerate(self.vocab)}
         self.inverse_lookup = {i: a for (i, a) in enumerate(self.vocab)}

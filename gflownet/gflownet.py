@@ -443,10 +443,10 @@ class GFlowNetAgent:
             assert all(valids)
             # Filter out finished trajectories
             if isinstance(env.state, list):
-                state_source_eq = env.state[0] != env.source[0]
+                state_source_neq = env.state[0] != env.source[0]
             elif isinstance(env.state, TensorType):
-                state_source_eq = torch.eq(env.state, env.source).all()
-            envs_offline = [env for env in envs_offline if state_source_eq]
+                state_source_neq = torch.ne(env.state, env.source).all()
+            envs_offline = [env for env in envs_offline if state_source_neq]
         envs = envs[n_empirical:]
         # Policy trajectories
         while envs:
