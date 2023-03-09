@@ -9,9 +9,10 @@ func: corners
 n_dim: 2
 # Number of cells per dimension
 length: 3
-# Minimum and maximum number of steps in the action space
-min_step_len: 1
-max_step_len: 1
+# Maximum number of steps in the action space
+max_increment: 1
+# Maximum number of dimensions that can be incremented by one action
+max_dim_per_action: 1
 # Mapping coordinates
 cell_min: -1
 cell_max: 1

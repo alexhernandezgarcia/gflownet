@@ -34,9 +34,6 @@ class Grid(GFlowNetEnv):
     length : int
         Size of the grid (cells per dimension)
 
-    min_increment : int
-        Minimum increment of each dimension by the actions.
-
     max_increment : int
         Maximum increment of each dimension by the actions.
 
@@ -54,7 +51,6 @@ class Grid(GFlowNetEnv):
         self,
         n_dim: int = 2,
         length: int = 3,
-        min_increment: int = 1,
         max_increment: int = 1,
         max_dim_per_action: int = 1,
         cell_min: float = -1,
@@ -64,17 +60,17 @@ class Grid(GFlowNetEnv):
         # Constants
         assert n_dim > 0
         self.n_dim = n_dim
-        self.eos = self.n_dim
         assert length > 1
         self.length = length
-        assert min_increment > 0
         assert max_increment > 0
-        assert min_increment <= max_increment
-        self.min_increment = min_increment
         self.max_increment = max_increment
+        assert max_dim_per_action > 0
+        self.max_dim_per_action = max_dim_per_action
         self.cells = np.linspace(cell_min, cell_max, length)
         # Source state: position 0 at all dimensions
         self.source = [0 for _ in range(self.n_dim)]
+        # End-of-sequence action
+        self.eos = tuple([0 for _ in range(self.n_dim)])
         # Base class init
         super().__init__(**kwargs)
         # Proxy format
@@ -91,13 +87,17 @@ class Grid(GFlowNetEnv):
         represented by a vector of length n_dim where each index d indicates to
         increment to apply to dimension d of the hyper-grid.
         """
-        valid_steplens = np.arange(self.min_increment, self.max_increment + 1)
-        dims = [a for a in range(self.n_dim)]
         actions = []
-        for r in valid_steplens:
-            actions_r = [el for el in itertools.product(dims, repeat=r)]
-            actions += actions_r
-        actions += [(self.eos,)]
+        for incr in range(self.max_increment + 1):
+            for d in range(self.n_dim):
+                action = [0 for _ in range(self.n_dim)]
+                action[d] = incr
+                if (
+                    sum(action) != 0
+                    and len([el for el in action if el > 0]) <= self.max_dim_per_action
+                ):
+                    actions.append(tuple(action))
+        actions.append(self.eos)
         return actions
 
     def get_mask_invalid_actions_forward(
@@ -117,11 +117,12 @@ class Grid(GFlowNetEnv):
         if done:
             return [True for _ in range(self.policy_output_dim)]
         mask = [False for _ in range(self.policy_output_dim)]
-        for idx, a in enumerate(self.action_space[:-1]):
-            for d in a:
-                if state[d] + 1 >= self.length:
-                    mask[idx] = True
-                    break
+        for idx, action in enumerate(self.action_space[:-1]):
+            child = state.copy()
+            for d, incr in enumerate(action):
+                child[d] += incr
+            if any(el >= self.length for el in child):
+                mask[idx] = True
         return mask
 
     def state2oracle(self, state: List = None) -> List:
@@ -289,20 +290,20 @@ class Grid(GFlowNetEnv):
         if done is None:
             done = self.done
         if done:
-            return [state], [(self.eos,)]
+            return [state], [self.eos]
         else:
             parents = []
             actions = []
-            for idx, a in enumerate(self.action_space[:-1]):
-                state_aux = state.copy()
-                for a_sub in a:
-                    if state_aux[a_sub] > 0:
-                        state_aux[a_sub] -= 1
+            for idx, action in enumerate(self.action_space[:-1]):
+                parent = state.copy()
+                for d, incr in enumerate(action):
+                    if parent[d] - incr >= 0:
+                        parent[d] -= incr
                     else:
                         break
                 else:
-                    parents.append(state_aux)
-                    actions.append(a)
+                    parents.append(parent)
+                    actions.append(action)
         return parents, actions
 
     def step(self, action: Tuple[int]) -> Tuple[List[int], Tuple[int], bool]:
@@ -345,12 +346,12 @@ class Grid(GFlowNetEnv):
         if all([s == self.length - 1 for s in self.state]):
             self.done = True
             self.n_actions += 1
-            return self.state, (self.eos,), True
+            return self.state, self.eos, True
         # If action is not eos, then perform action
-        elif action[0] != self.eos:
+        elif action != self.eos:
             state_next = self.state.copy()
-            for a in action:
-                state_next[a] += 1
+            for d, incr in enumerate(action):
+                state_next[d] += incr
             if any([s >= self.length for s in state_next]):
                 valid = False
             else:
@@ -362,10 +363,10 @@ class Grid(GFlowNetEnv):
         else:
             self.done = True
             self.n_actions += 1
-            return self.state, (self.eos,), True
+            return self.state, self.eos, True
 
     def get_max_traj_length(self):
-        return self.n_dim * self.length * self.min_increment
+        return self.n_dim * self.length
 
     def get_all_terminating_states(self) -> List[List]:
         all_x = np.int32(
