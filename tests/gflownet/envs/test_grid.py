@@ -11,6 +11,18 @@ def env():
 
 
 @pytest.fixture
+def env_extended_action_space():
+    return Grid(
+        n_dim=3,
+        length=5,
+        max_increment=2,
+        max_dim_per_action=3,
+        cell_min=-1.0,
+        cell_max=1.0,
+    )
+
+
+@pytest.fixture
 def env_default():
     return Grid()
 
@@ -60,3 +72,7 @@ def test__statebatch2oracle__returns_expected(env, states, statebatch2oracle):
 
 def test__all_env_common(env):
     return common.test__all_env_common(env)
+
+
+def test__all_env_common(env_extended_action_space):
+    return common.test__all_env_common(env_extended_action_space)
