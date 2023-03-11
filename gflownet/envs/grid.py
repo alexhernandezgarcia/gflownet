@@ -87,7 +87,7 @@ class Grid(GFlowNetEnv):
     def get_action_space(self):
         """
         Constructs list with all possible actions, including eos. An action is
-        represented by a vector of length n_dim where each index d indicates to
+        represented by a vector of length n_dim where each index d indicates the
         increment to apply to dimension d of the hyper-grid.
         """
         increments = [el for el in range(self.max_increment + 1)]
