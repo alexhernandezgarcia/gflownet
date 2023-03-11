@@ -16,7 +16,7 @@ def env_extended_action_space_2d():
         n_dim=2,
         length=5,
         max_increment=2,
-        max_dim_per_action=2,
+        max_dim_per_action=-1,
         cell_min=-1.0,
         cell_max=1.0,
     )

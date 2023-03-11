@@ -38,7 +38,8 @@ class Grid(GFlowNetEnv):
         Maximum increment of each dimension by the actions.
 
     max_dim_per_action : int
-        Maximum number of dimensions to increment per action.
+        Maximum number of dimensions to increment per action. If -1, then
+        max_dim_per_action is set to n_dim.
 
     cell_min : float
         Lower bound of the cells range
@@ -61,10 +62,12 @@ class Grid(GFlowNetEnv):
         assert n_dim > 0
         assert length > 1
         assert max_increment > 0
-        assert max_dim_per_action > 0
+        assert max_dim_per_action == -1 or max_dim_per_action > 0
         self.n_dim = n_dim
         self.length = length
         self.max_increment = max_increment
+        if max_dim_per_action == -1:
+            max_dim_per_action = self.n_dim
         self.max_dim_per_action = max_dim_per_action
         self.cells = np.linspace(cell_min, cell_max, length)
         # Source state: position 0 at all dimensions
