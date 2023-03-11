@@ -59,12 +59,12 @@ class Grid(GFlowNetEnv):
     ):
         # Constants
         assert n_dim > 0
-        self.n_dim = n_dim
         assert length > 1
-        self.length = length
         assert max_increment > 0
-        self.max_increment = max_increment
         assert max_dim_per_action > 0
+        self.n_dim = n_dim
+        self.length = length
+        self.max_increment = max_increment
         self.max_dim_per_action = max_dim_per_action
         self.cells = np.linspace(cell_min, cell_max, length)
         # Source state: position 0 at all dimensions
