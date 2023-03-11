@@ -268,16 +268,17 @@ class GFlowNetAgent:
             .to(bool)
         )
         # Check for at least one non-random action
-        if sampling_method == "policy" and idx_norandom.sum() > 0:
-            policy_outputs[idx_norandom, :] = model(
-                self._tfloat(
-                    self.env.statebatch2policy(
-                        [s for s, do in zip(states, idx_norandom) if do]
+        if sampling_method == "policy":
+            if idx_norandom.sum() > 0:
+                policy_outputs[idx_norandom, :] = model(
+                    self._tfloat(
+                        self.env.statebatch2policy(
+                            [s for s, do in zip(states, idx_norandom) if do]
+                        )
                     )
                 )
-            )
-        # else:
-        # raise NotImplementedError
+        else:
+            raise NotImplementedError
         # Sample actions from policy outputs
         actions, logprobs = self.env.sample_actions(
             policy_outputs,
@@ -323,8 +324,8 @@ class GFlowNetAgent:
                 parents, parents_a = env.get_parents(action=action)
                 if action in parents_a:
                     state_next = parents[parents_a.index(action)]
-                    env.set_state(state_next, done=False)
                     env.n_actions -= 1
+                    env.set_state(state_next, done=False)
                     valids.append(True)
                 else:
                     valids.append(False)
@@ -409,14 +410,15 @@ class GFlowNetAgent:
             with open(self.buffer.train_pkl, "rb") as f:
                 dict_tr = pickle.load(f)
                 x_tr = dict_tr["x"]
-                random.shuffle(x_tr)
+            random.shuffle(x_tr)
             envs_offline = []
             actions = []
             valids = []
             for idx in range(n_empirical):
                 env = envs[idx]
-                env = env.set_state(x_tr[idx], done=True)
                 env.n_actions = env.get_max_traj_len()
+                # Required for env.done check in the mfenv env
+                env = env.set_state(x_tr[idx], done=True)
                 envs_offline.append(env)
                 actions.append((env.eos,))
                 valids.append(True)

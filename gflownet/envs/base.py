@@ -367,7 +367,7 @@ class GFlowNetEnv:
         sampling_method: str = "policy",
         mask_invalid_actions: TensorType["n_states", "policy_output_dim"] = None,
         temperature_logits: float = 1.0,
-        loginf: float = 1000,
+        loginf: float = 1e6,
     ) -> Tuple[List[Tuple], TensorType["n_states"]]:
         """
         Samples a batch of actions from a batch of policy outputs. This implementation
