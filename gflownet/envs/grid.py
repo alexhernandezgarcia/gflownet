@@ -87,16 +87,14 @@ class Grid(GFlowNetEnv):
         represented by a vector of length n_dim where each index d indicates to
         increment to apply to dimension d of the hyper-grid.
         """
+        increments = [el for el in range(self.max_increment + 1)]
         actions = []
-        for incr in range(self.max_increment + 1):
-            for d in range(self.n_dim):
-                action = [0 for _ in range(self.n_dim)]
-                action[d] = incr
-                if (
-                    sum(action) != 0
-                    and len([el for el in action if el > 0]) <= self.max_dim_per_action
-                ):
-                    actions.append(tuple(action))
+        for action in itertools.product(increments, repeat=self.n_dim):
+            if (
+                sum(action) != 0
+                and len([el for el in action if el > 0]) <= self.max_dim_per_action
+            ):
+                actions.append(tuple(action))
         actions.append(self.eos)
         return actions
 
