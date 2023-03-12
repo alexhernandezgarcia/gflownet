@@ -77,6 +77,7 @@ class AMP(GFlowNetEnv):
 
     def __init__(
         self,
+        corr_type,
         max_seq_length=50,
         min_seq_length=1,
         # Not required in env. But used in config_env in MLP. TODO: Find a way out
@@ -92,6 +93,7 @@ class AMP(GFlowNetEnv):
         self.max_seq_length = max_seq_length
         self.min_word_len = min_word_len
         self.max_word_len = max_word_len
+        self.corr_type = corr_type
         special_tokens = ["[PAD]", "[EOS]"]
         self.vocab = AMINO_ACIDS + special_tokens
         self.lookup = {a: i for (i, a) in enumerate(self.vocab)}
