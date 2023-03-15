@@ -128,6 +128,8 @@ class AMP(GFlowNetEnv):
         self.source = (
             torch.ones(self.max_seq_length, dtype=torch.int64) * self.padding_idx
         )
+        # reset this to a lower value
+        self.min_reward = 1e-20
 
     def set_tokenizer(self, tokenizer):
         self.tokenizer = tokenizer
@@ -568,7 +570,10 @@ class AMP(GFlowNetEnv):
     def get_pairwise_distance(self, samples, *kwargs):
         dists = []
         for pair in itertools.combinations(samples, 2):
-            dists.append(self.get_distance(*pair))
+            distance = self.get_distance(*pair)
+            # if distance == 50:
+            # print(pair)
+            dists.append(distance)
         dists = torch.FloatTensor(dists)
         return dists
 
