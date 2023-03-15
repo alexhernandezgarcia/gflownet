@@ -691,6 +691,7 @@ class GFlowNetAgent:
             t0_iter = time.time()
             data = []
             for j in range(self.sttr):
+                # sample data_batch here
                 batch, times = self.sample_batch(envs)
                 data += batch
             for j in range(self.ttsr):
