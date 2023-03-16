@@ -448,7 +448,7 @@ class GFlowNetAgent:
                 envs_offline = [env for env in envs_offline if env.state != env.source]
             elif isinstance(env.state, TensorType):
                 envs_offline = [
-                    env for env in envs_offline if torch.ne(env.state, env.source).all()
+                    env for env in envs_offline if not torch.eq(env.state, env.source).all()
                 ]
         envs = envs[n_empirical:]
         # Policy trajectories
@@ -1022,6 +1022,9 @@ class GFlowNetAgent:
         Returns:
             dictionary with topk performance, diversity and novelty scores
         """
+        # self.logger.define_metric("mean_energy_top100", step_metric = "post_al_cum_cost")
+        # self.logger.define_metric("mean_pairwise_distance_top100", step_metric = "post_al_cum_cost")
+        # self.logger.define_metric("mean_min_distance_from_node_top100", step_metric = "post_al_cum_cost")
         if maximize:
             energies = torch.sort(energies, descending=True)[0]
         else:
