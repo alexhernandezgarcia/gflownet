@@ -1,7 +1,7 @@
 """
 Base class of GFlowNet environments
 """
-from abc import abstractmethod
+from abc import abstractmethod, ABC
 from typing import List, Tuple
 import numpy as np
 import numpy.typing as npt
@@ -13,7 +13,7 @@ import pickle
 from gflownet.utils.common import set_device, set_float_precision
 
 
-class GFlowNetEnv:
+class GFlowNetEnv(ABC):
     """
     Base class of GFlowNet environments
     """
@@ -298,11 +298,19 @@ class GFlowNetEnv:
         """
         Resets the environment.
         """
-        self.state = []
+        self.state = self.reset_state()
         self.n_actions = 0
         self.done = False
         self.id = env_id
         return self
+
+    @abstractmethod
+    def reset_state(self):
+        """
+        Resets the state of the environment.
+        """
+        pass
+        # TODO implement it in all envs
 
     def get_parents(self, state=None, done=None, action=None):
         """

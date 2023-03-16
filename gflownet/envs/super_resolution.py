@@ -1,8 +1,8 @@
 from torch.nn import functional as F
 
-from gflownet.envs.base import GFlowNetEnv
+from gflownet.envs.base_conditional import GFlowNetCondEnv
 
-class SuperResolutionEnv(GFlowNetEnv):
+class SuperResolutionEnv(GFlowNetCondEnv):
     def __init__(self, image_shape, length_traj, n_comp, path_to_data, **kwardgs):
         super().__init__(**kwargs)
         self.path_to_data = path_to_data
@@ -13,12 +13,14 @@ class SuperResolutionEnv(GFlowNetEnv):
         self.n_comp = n_comp
         # define proxy, make proxy raise an error if true_image is not set
 
-    def reset(self, condition=None):
-        if condition:
-            self.condition = condition
+    def reset_state(self):
         step_channel = torch.zeros(self.image_shape[1:]).to(self.condition)
         self.state = torch.cat([self.downscale(self.condition), step_channel])
-        # set true image to proxy
+
+    def reset_condition(self, condition=None):
+        if condition in not None:
+            self.condition = condition
+        # set true image to proxy?
 
     def downscale(self, true_image):
         weight = torch.zeros([3,3,2,2])

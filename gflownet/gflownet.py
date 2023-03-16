@@ -67,6 +67,8 @@ class GFlowNetAgent:
             """
             )
             optimizer.loss = "tb"
+        # Conditional enviroments
+        self.conditional = hasattr(self.env, "conditional") and self.env.conditional
         # Loss
         if optimizer.loss in ["flowmatch", "flowmatching"]:
             self.loss = "flowmatch"
@@ -325,7 +327,7 @@ class GFlowNetAgent:
 
     # @profile
     def sample_batch(
-        self, envs, n_samples=None, train=True, model=None, progress=False
+        self, envs, n_samples=None, train=True, model=None, progress=False, conditions=None
     ):
         """
         Builds a batch of data
@@ -678,6 +680,8 @@ class GFlowNetAgent:
         loss_flow_ema = None
         # Generate list of environments
         envs = [self.env.copy().reset() for _ in range(self.batch_size)]
+        if self.conditional:
+            condition_daloader = self.env.get_condition_dataloader(batch_size=self.batch_size)
         # Train loop
         pbar = tqdm(range(1, self.n_train_steps + 1), disable=not self.logger.progress)
         for it in pbar:
@@ -691,8 +695,8 @@ class GFlowNetAgent:
             t0_iter = time.time()
             data = []
             for j in range(self.sttr):
-                # sample data_batch here
-                batch, times = self.sample_batch(envs)
+                conditions = next(condition_daloader) if self.conditional else None
+                batch, times = self.sample_batch(envs, conditions=conditions)
                 data += batch
             for j in range(self.ttsr):
                 if self.loss == "flowmatch":
