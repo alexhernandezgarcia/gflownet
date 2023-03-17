@@ -134,6 +134,18 @@ class AMP(GFlowNetEnv):
     def set_tokenizer(self, tokenizer):
         self.tokenizer = tokenizer
 
+    def unpad_function(self, states_term):
+        states_tensor = torch.tensor(states_term)
+        state_XX = []
+        for state in states_tensor:
+            state = (
+                state[: torch.where(state == self.padding_idx)[0][0]]
+                if state[-1] == self.padding_idx
+                else state
+            )
+            state_XX.append(state)
+        return state_XX
+
     def get_actions_space(self):
         """
         Constructs list with all possible actions
@@ -396,12 +408,17 @@ class AMP(GFlowNetEnv):
         """
         Transforms a list or string of letters into a list of indices according to an alphabet.
         """
+        # if len(readable)>48:
+        # print(len(readable))
         if isinstance(readable, str):
             encoded_readable = [self.lookup[el] for el in readable]
             state = (
                 torch.ones(self.max_seq_length, dtype=torch.int64) * self.padding_idx
             )
             state[: len(encoded_readable)] = torch.tensor(encoded_readable)
+            # if len(encoded_readable)>48:
+            # print("encoded", len(encoded_readable))
+            # print(state)
         else:
             # if readable is a list of strings
             encoded_readable = [[self.lookup[el] for el in seq] for seq in readable]

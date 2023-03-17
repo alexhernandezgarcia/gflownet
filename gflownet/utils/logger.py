@@ -193,7 +193,7 @@ class Logger:
             if fig is not None:
                 plt.close()
 
-    def log_metrics(self, metrics: dict, step: int=None, use_context: bool = True):
+    def log_metrics(self, metrics: dict, step: int = None, use_context: bool = True):
         if not self.do.online:
             return
         for key, _ in metrics.items():
@@ -211,7 +211,10 @@ class Logger:
         learning_rates: list,  # [lr, lr_logZ]
         step: int,
         use_context: bool,
+        unpad_function: int = None,
     ):
+        if unpad_function != None:
+            states_term = unpad_function(states_term)
         if not self.do.online or not self.do_train(step):
             return
         if logz is None:

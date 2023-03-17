@@ -448,7 +448,9 @@ class GFlowNetAgent:
                 envs_offline = [env for env in envs_offline if env.state != env.source]
             elif isinstance(env.state, TensorType):
                 envs_offline = [
-                    env for env in envs_offline if not torch.eq(env.state, env.source).all()
+                    env
+                    for env in envs_offline
+                    if not torch.eq(env.state, env.source).all()
                 ]
         envs = envs[n_empirical:]
         # Policy trajectories
@@ -765,6 +767,10 @@ class GFlowNetAgent:
             )
             # Train logs
             t0_log = time.time()
+            if hasattr(self.env, "unpad_function"):
+                unpad_function = self.env.unpad_function
+            else:
+                unpad_function = None
             self.logger.log_train(
                 losses=losses,
                 rewards=rewards,
@@ -776,6 +782,7 @@ class GFlowNetAgent:
                 learning_rates=self.lr_scheduler.get_last_lr(),
                 step=it,
                 use_context=self.use_context,
+                unpad_function=unpad_function,
             )
             t1_log = time.time()
             times.update({"log": t1_log - t0_log})
