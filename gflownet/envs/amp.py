@@ -4,12 +4,8 @@ Classes to represent aptamers environments
 from typing import List, Tuple
 import itertools
 import numpy as np
-import pandas as pd
 from gflownet.envs.base import GFlowNetEnv
-import time
-from sklearn.model_selection import GroupKFold, train_test_split
 import itertools
-from clamp_common_eval.defaults import get_default_data_splits
 from polyleven import levenshtein
 import numpy.typing as npt
 from torchtyping import TensorType
@@ -109,22 +105,6 @@ class AMP(GFlowNetEnv):
         self.policy_output_dim = len(self.fixed_policy_output)
         self.policy_input_dim = self.state2policy().shape[-1]
         self.max_traj_len = self.get_max_traj_len()
-        # Required for scoring samples from trained gflownet
-        # self.statetorch2oracle = self.statebatch2oracle
-        if self.proxy_state_format == "ohe":
-            self.statebatch2proxy = self.statebatch2policy
-            self.statetorch2proxy = self.statetorch2policy
-        elif self.proxy_state_format == "oracle":
-            self.statebatch2proxy = self.statebatch2oracle
-            self.statetorch2proxy = self.statetorch2oracle
-        elif self.proxy_state_format == "state":
-            self.statebatch2proxy = self.statebatch2state
-            self.statetorch2proxy = self.statetorch2state
-        else:
-            raise ValueError(
-                "Invalid proxy_state_format: {}".format(self.proxy_state_format)
-            )
-        self.tokenizer = None
         self.source = (
             torch.ones(self.max_seq_length, dtype=torch.int64) * self.padding_idx
         )
@@ -386,41 +366,31 @@ class AMP(GFlowNetEnv):
         state = state.tolist()
         return "".join([self.inverse_lookup[el] for el in state])
 
-    def statetorch2readable(
-        self, state: TensorType["1", "max_seq_length"], inverse_lookup=None, lookup=None
-    ) -> str:
-        if inverse_lookup is None:
-            inverse_lookup = self.inverse_lookup
+    def statetorch2readable(self, state: TensorType["1", "max_seq_length"]) -> str:
         if state[-1] == self.padding_idx:
             state = state[: torch.where(state == self.padding_idx)[0][0]]
         # TODO: neater way without having lookup as input arg
         if (
-            lookup is not None
-            and "[CLS]" in lookup.keys()
-            and state[0] == lookup["[CLS]"]
+            self.lookup is not None
+            and "[CLS]" in self.lookup.keys()
+            and state[0] == self.lookup["[CLS]"]
         ):
             state = state[1:-1]
         state = state.tolist()
-        readable = [inverse_lookup[el] for el in state]
+        readable = [self.inverse_lookup[el] for el in state]
         return "".join(readable)
 
     def readable2state(self, readable) -> TensorType["batch_dim", "max_seq_length"]:
         """
         Transforms a list or string of letters into a list of indices according to an alphabet.
         """
-        # if len(readable)>48:
-        # print(len(readable))
         if isinstance(readable, str):
             encoded_readable = [self.lookup[el] for el in readable]
             state = (
                 torch.ones(self.max_seq_length, dtype=torch.int64) * self.padding_idx
             )
             state[: len(encoded_readable)] = torch.tensor(encoded_readable)
-            # if len(encoded_readable)>48:
-            # print("encoded", len(encoded_readable))
-            # print(state)
         else:
-            # if readable is a list of strings
             encoded_readable = [[self.lookup[el] for el in seq] for seq in readable]
             state = (
                 torch.ones((len(readable), self.max_seq_length), dtype=torch.int64)
@@ -547,57 +517,16 @@ class AMP(GFlowNetEnv):
                 self.n_actions += 1
             return self.state, (self.eos,), valid
 
-    def load_dataset(self, split="D1", nfold=5):
-        # TODO: rename to make_dataset()?
-        source = get_default_data_splits(setting="Target")
-        rng = np.random.RandomState()
-        # returns a dictionary with two keys 'AMP' and 'nonAMP' and values as lists
-        data = source.sample(split, -1)
-        if split == "D1":
-            groups = np.array(source.d1_pos.group)
-        if split == "D2":
-            groups = np.array(source.d2_pos.group)
-        if split == "D":
-            groups = np.concatenate(
-                (np.array(source.d1_pos.group), np.array(source.d2_pos.group))
-            )
-
-        n_pos, n_neg = len(data["AMP"]), len(data["nonAMP"])
-        pos_train, pos_test = next(
-            GroupKFold(nfold).split(np.arange(n_pos), groups=groups)
-        )
-        neg_train, neg_test = next(
-            GroupKFold(nfold).split(
-                np.arange(n_neg), groups=rng.randint(0, nfold, n_neg)
-            )
-        )
-
-        pos_train = [data["AMP"][i] for i in pos_train]
-        neg_train = [data["nonAMP"][i] for i in neg_train]
-        pos_test = [data["AMP"][i] for i in pos_test]
-        neg_test = [data["nonAMP"][i] for i in neg_test]
-        train = pos_train + neg_train
-        test = pos_test + neg_test
-
-        train = [sample for sample in train if len(sample) < self.max_seq_length]
-        test = [sample for sample in test if len(sample) < self.max_seq_length]
-
-        return train, test
-
     def get_pairwise_distance(self, samples, *kwargs):
         dists = []
         for pair in itertools.combinations(samples, 2):
             distance = self.get_distance(*pair)
-            # if distance == 50:
-            # print(pair)
             dists.append(distance)
         dists = torch.FloatTensor(dists)
         return dists
 
-    def get_distance_from_D0(self, samples, dataset_obs):
+    def get_distance_from_D0(self, samples, dataset_states):
         # TODO: optimize
-        # TODO: should this be proxy2state?
-        dataset_states = [self.policytorch2state(el) for el in dataset_obs]
         dataset_samples = self.statetorch2oracle(dataset_states)
         min_dists = []
         for sample in samples:

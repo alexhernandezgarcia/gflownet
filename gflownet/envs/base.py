@@ -13,6 +13,7 @@ import pickle
 from gflownet.utils.common import set_device, set_float_precision
 from pathlib import Path
 
+
 class GFlowNetEnv:
     """
     Base class of GFlowNet environments
@@ -31,7 +32,7 @@ class GFlowNetEnv:
         denorm_proxy=False,
         proxy=None,
         oracle=None,
-        proxy_state_format=None,
+        # proxy_state_format=None,
         **kwargs,
     ):
         # Device
@@ -53,13 +54,11 @@ class GFlowNetEnv:
         self.reward_func = reward_func
         self.energies_stats = energies_stats
         self.denorm_proxy = denorm_proxy
-        if oracle is None and proxy is not None:
+        if oracle is None:  # and proxy is not None:
             self.oracle = proxy
         else:
             self.oracle = oracle
-        if proxy is not None:
-            self.set_proxy(proxy)
-        self.proxy_state_format = proxy_state_format
+        # self.proxy_state_format = proxy_state_format
         self._true_density = None
         self._z = None
         self.action_space = []
@@ -74,21 +73,21 @@ class GFlowNetEnv:
         # return an instance of the environment
         return self.__class__(**self.__dict__)
 
-    def set_proxy(self, proxy):
-        self.proxy = proxy
-        if hasattr(self, "proxy_factor"):
-            return
-        if self.proxy is not None and self.proxy.maximize is not None:
-            # can be None for dropout regressor/UCB
-            maximize = self.proxy.maximize
-        elif self.oracle is not None:
-            maximize = self.oracle.maximize
-        else:
-            raise ValueError("Proxy and Oracle cannot be None together.")
-        if maximize:
-            self.proxy_factor = 1.0
-        else:
-            self.proxy_factor = -1.0
+    # def set_proxy(self, proxy):
+    #     self.proxy = proxy
+    #     if hasattr(self, "proxy_factor"):
+    #         return
+    #     if self.proxy is not None and self.proxy.maximize is not None:
+    #         # can be None for dropout regressor/UCB
+    #         maximize = self.proxy.maximize
+    #     elif self.oracle is not None:
+    #         maximize = self.oracle.maximize
+    #     else:
+    #         raise ValueError("Proxy and Oracle cannot be None together.")
+    #     if maximize:
+    #         self.proxy_factor = 1.0
+    #     else:
+    #         self.proxy_factor = -1.0
 
     def set_energies_stats(self, energies_stats):
         self.energies_stats = energies_stats

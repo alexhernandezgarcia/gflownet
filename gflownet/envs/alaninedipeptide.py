@@ -37,7 +37,9 @@ class AlanineDipeptide(ContinuousTorus):
         n_comp=3,
         **kwargs,
     ):
-        self.atom_positions_dataset = AtomPositionsDataset(path_to_dataset, url_to_dataset)
+        self.atom_positions_dataset = AtomPositionsDataset(
+            path_to_dataset, url_to_dataset
+        )
         atom_positions = self.atom_positions_dataset.sample()
         self.conformer = ConformerBase(
             atom_positions, constants.ad_smiles, constants.ad_free_tas
@@ -75,9 +77,7 @@ class AlanineDipeptide(ContinuousTorus):
         # return an instance of the environment
         return deepcopy(self)
 
-    def statetorch2proxy(
-        self, states: TensorType["batch", "state_dim"]
-    ) -> npt.NDArray:
+    def statetorch2proxy(self, states: TensorType["batch", "state_dim"]) -> npt.NDArray:
         """
         Prepares a batch of states in torch "GFlowNet format" for the oracle.
         """
@@ -88,16 +88,14 @@ class AlanineDipeptide(ContinuousTorus):
             np_states = states.cpu().numpy()
         return np_states[:, :-1]
 
-    def statebatch2proxy(
-        self, states: List[List]
-    ) -> npt.NDArray:
+    def statebatch2proxy(self, states: List[List]) -> npt.NDArray:
         """
         Prepares a batch of states in "GFlowNet format" for the proxy: a tensor where
         each state is a row of length n_dim with an angle in radians. The n_actions
         item is removed.
         """
         return np.array(states)[:, :-1]
-    
+
     def statetorch2oracle(
         self, states: TensorType["batch", "state_dim"]
     ) -> List[Tuple[npt.NDArray, npt.NDArray]]:

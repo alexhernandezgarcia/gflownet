@@ -56,43 +56,10 @@ class Grid(GFlowNetEnv):
         self.random_policy_output = self.get_fixed_policy_output()
         self.policy_output_dim = len(self.fixed_policy_output)
         self.policy_input_dim = len(self.state2policy())
-        if self.proxy_state_format == "ohe":
-            self.statebatch2proxy = self.statebatch2policy
-        elif self.proxy_state_format == "oracle":
-            self.statebatch2proxy = self.statebatch2oracle
-            self.statetorch2proxy = self.statetorch2oracle
-        elif "state" in self.proxy_state_format:
-            # As We want it to be compatible with both state_fidId and state formats
-            # state is for when proxy is GP so fidelities are fractional
-            # state_fidIdx is for the multifidelity GP where an index kernel is used
-            self.statebatch2proxy = self.statebatch2state
-            self.statetorch2proxy = self.statetorch2state
-            # Assumes that the oracle is always Branin
-            self.statebatch2oracle = self.statebatch2state
-            self.statetorch2oracle = self.statetorch2state
-        else:
-            raise NotImplementedError(
-                f"Proxy state format {self.proxy_state_format} not implemented"
-            )
         if self.oracle is not None and hasattr(self.oracle, "n_dim"):
             self.oracle.n_dim = self.n_dim
             self.oracle.setup()
         self.rescale = rescale
-
-    def statebatch2state(self, state_batch):
-        """
-        Converts a batch of states to AugmentedBranin oracle format
-        """
-        if isinstance(state_batch, torch.Tensor) == False:
-            state_batch = torch.tensor(state_batch)
-        return self.statetorch2state(state_batch)
-
-    def statetorch2state(self, state_torch):
-        """
-        Converts a batch of states to AugmentedBranin oracle format
-        """
-        state_torch = state_torch / self.rescale
-        return state_torch.to(self.float).to(self.device)
 
     def get_actions_space(self):
         """

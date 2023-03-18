@@ -1029,9 +1029,28 @@ class GFlowNetAgent:
         Returns:
             dictionary with topk performance, diversity and novelty scores
         """
-        # self.logger.define_metric("mean_energy_top100", step_metric = "post_al_cum_cost")
-        # self.logger.define_metric("mean_pairwise_distance_top100", step_metric = "post_al_cum_cost")
-        # self.logger.define_metric("mean_min_distance_from_node_top100", step_metric = "post_al_cum_cost")
+        do_novelty = False
+        self.logger.define_metric("mean_energy_top100", step_metric="post_al_cum_cost")
+        self.logger.define_metric(
+            "mean_pairwise_distance_top100", step_metric="post_al_cum_cost"
+        )
+        self.logger.define_metric(
+            "mean_min_distance_from_node_top100", step_metric="post_al_cum_cost"
+        )
+        self.logger.define_metric("mean_energy_top10", step_metric="post_al_cum_cost")
+        self.logger.define_metric(
+            "mean_pairwise_distance_top10", step_metric="post_al_cum_cost"
+        )
+        self.logger.define_metric(
+            "mean_min_distance_from_node_top10", step_metric="post_al_cum_cost"
+        )
+        self.logger.define_metric("mean_energy_top1", step_metric="post_al_cum_cost")
+        self.logger.define_metric(
+            "mean_pairwise_distance_top1", step_metric="post_al_cum_cost"
+        )
+        self.logger.define_metric(
+            "mean_min_distance_from_node_top1", step_metric="post_al_cum_cost"
+        )
         if maximize:
             energies = torch.sort(energies, descending=True)[0]
         else:
@@ -1050,16 +1069,30 @@ class GFlowNetAgent:
             min_dist_from_mode = torch.zeros_like(energies)
 
         dict_topk = {}
-        # if self.use_context or self.buffer.train is not None:
-        #     dists_from_D0 = self.env.get_distance_from_D0(samples, dataset_states)
-        #     dists_from_D0 = torch.sort(dists_from_D0, descending=True)[0]
+        if self.use_context and self.buffer.train is not None:
+            do_novelty = True
+            with open(self.buffer.train_pkl, "rb") as f:
+                dict_tr = pickle.load(f)
+                dataset_states = dict_tr["x"]
+            dists_from_D0 = self.env.get_distance_from_D0(samples, dataset_states)
+            dists_from_D0 = torch.sort(dists_from_D0, descending=True)[0]
+            self.logger.define_metric(
+                "mean_min_distance_from_D0_top100", step_metric="post_al_cum_cost"
+            )
+            self.logger.define_metric(
+                "mean_min_distance_from_D0_top10", step_metric="post_al_cum_cost"
+            )
+            self.logger.define_metric(
+                "mean_min_distance_from_D0_top1", step_metric="post_al_cum_cost"
+            )
+
         for k in self.logger.oracle.k:
             print(f"\n Top-{k} Performance")
             mean_energy_topk = torch.mean(energies[:k])
             mean_pairwise_dist_topk = torch.mean(pairwise_dists[:k])
             mean_min_dist_from_mode_topk = torch.mean(min_dist_from_mode[:k])
-            # if self.use_context:
-            # mean_dist_from_D0_topk = torch.mean(dists_from_D0[:k])
+            if do_novelty:
+                mean_dist_from_D0_topk = torch.mean(dists_from_D0[:k])
             dict_topk.update({"mean_energy_top{}".format(k): mean_energy_topk})
             dict_topk.update(
                 {"mean_pairwise_distance_top{}".format(k): mean_pairwise_dist_topk}
@@ -1071,16 +1104,16 @@ class GFlowNetAgent:
                     ): mean_min_dist_from_mode_topk
                 }
             )
-            # if self.use_context:
-            # dict_topk.update(
-            # {"min_distance_from_D0_top{}".format(k): mean_dist_from_D0_topk}
-            # )
+            if do_novelty:
+                dict_topk.update(
+                    {"min_distance_from_D0_top{}".format(k): mean_dist_from_D0_topk}
+                )
             if self.logger.progress:
                 print(f"\t Mean Energy: {mean_energy_topk}")
                 print(f"\t Mean Pairwise Distance: {mean_pairwise_dist_topk}")
                 print(f"\t Mean Min Distance from Mode: {mean_min_dist_from_mode_topk}")
-                # if self.use_context:
-                # print(f"\t Mean Min Distance from D0: {mean_dist_from_D0_topk}")
+                if do_novelty:
+                    print(f"\t Mean Min Distance from D0: {mean_dist_from_D0_topk}")
             self.logger.log_metrics(dict_topk, use_context=False)
 
     def logq(self, traj_list, actions_list, model, env, loginf=1000):
