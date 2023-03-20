@@ -73,22 +73,6 @@ class GFlowNetEnv:
         # return an instance of the environment
         return self.__class__(**self.__dict__)
 
-    # def set_proxy(self, proxy):
-    #     self.proxy = proxy
-    #     if hasattr(self, "proxy_factor"):
-    #         return
-    #     if self.proxy is not None and self.proxy.maximize is not None:
-    #         # can be None for dropout regressor/UCB
-    #         maximize = self.proxy.maximize
-    #     elif self.oracle is not None:
-    #         maximize = self.oracle.maximize
-    #     else:
-    #         raise ValueError("Proxy and Oracle cannot be None together.")
-    #     if maximize:
-    #         self.proxy_factor = 1.0
-    #     else:
-    #         self.proxy_factor = -1.0
-
     def set_energies_stats(self, energies_stats):
         self.energies_stats = energies_stats
 

@@ -359,49 +359,6 @@ class Grid(GFlowNetEnv):
         states = np.random.randint(low=0, high=self.length, size=(n_states, self.n_dim))
         return states.tolist()
 
-    def plot_samples_frequency(self, samples, ax=None, title=None, rescale=1):
-        """
-        Plot 2D histogram of samples.
-        """
-        if self.n_dim > 2:
-            return None
-        if ax is None:
-            fig, ax = plt.subplots()
-            standalone = True
-        else:
-            standalone = False
-        # assuming the first time this function would be called when the dataset is created
-        if self.rescale == None:
-            self.rescale = rescale
-        # make a list of integers from 0 to n_dim
-        if self.rescale != 1:
-            step = int(self.length / self.rescale)
-        else:
-            step = 1
-        ax.set_xticks(np.arange(start=0, stop=self.length, step=step))
-        ax.set_yticks(np.arange(start=0, stop=self.length, step=step))
-        # check if samples is on GPU
-        if torch.is_tensor(samples) and samples.is_cuda:
-            samples = samples.detach().cpu()
-        states = np.array(samples).astype(int)
-        grid = np.zeros((self.length, self.length))
-        if title == None:
-            ax.set_title("Frequency of Coordinates Sampled")
-        else:
-            ax.set_title(title)
-        # TODO: optimize
-        for state in states:
-            grid[state[0], state[1]] += 1
-        im = ax.imshow(grid)
-        divider = make_axes_locatable(ax)
-        cax = divider.append_axes("right", size="5%", pad=0.05)
-        plt.colorbar(im, cax=cax)
-        plt.show()
-        if standalone == True:
-            plt.tight_layout()
-            plt.close()
-        return ax
-
     def get_pairwise_distance(self, sample_set1, sample_set2=None):
         """
         Calculates the pairwise distance between two set of states.
@@ -421,18 +378,3 @@ class Grid(GFlowNetEnv):
         else:
             dist_vector = torch.min(dist_matrix, dim=1)[0]
             return dist_vector
-
-    # def plot_reward_samples(self, states, scores, figure_title):
-    #     # make compatible with n_dim > 2
-    #     fig, ax = plt.subplots()
-    #     grid_scores = np.ones((self.length, self.length)) * (-0.0001)
-    #     index = states.long().detach().cpu().numpy()
-    #     grid_scores[index[:, 0], index[:, 1]] = scores
-    #     im = ax.imshow(grid_scores)
-    #     divider = make_axes_locatable(ax)
-    #     ax.set_title(figure_title)
-    #     cax = divider.append_axes("right", size="5%", pad=0.05)
-    #     plt.colorbar(im, cax=cax)
-    #     plt.show()
-    #     plt.close()
-    #     return fig

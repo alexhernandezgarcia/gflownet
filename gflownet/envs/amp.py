@@ -111,20 +111,20 @@ class AMP(GFlowNetEnv):
         # reset this to a lower value
         self.min_reward = 1e-20
 
-    def set_tokenizer(self, tokenizer):
-        self.tokenizer = tokenizer
+    # def set_tokenizer(self, tokenizer):
+    #     self.tokenizer = tokenizer
 
-    def unpad_function(self, states_term):
-        states_tensor = torch.tensor(states_term)
-        state_XX = []
-        for state in states_tensor:
-            state = (
-                state[: torch.where(state == self.padding_idx)[0][0]]
-                if state[-1] == self.padding_idx
-                else state
-            )
-            state_XX.append(state)
-        return state_XX
+    # def unpad_function(self, states_term):
+    #     states_tensor = torch.tensor(states_term)
+    #     state_XX = []
+    #     for state in states_tensor:
+    #         state = (
+    #             state[: torch.where(state == self.padding_idx)[0][0]]
+    #             if state[-1] == self.padding_idx
+    #             else state
+    #         )
+    #         state_XX.append(state)
+    #     return state_XX
 
     def get_actions_space(self):
         """
@@ -301,20 +301,20 @@ class AMP(GFlowNetEnv):
         state_policy[:, : state_onehot.shape[1], :] = state_onehot
         return state_policy.reshape(states.shape[0], -1)
 
-    def statebatch2state(
-        self, states: List[TensorType["1", "state_dim"]]
-    ) -> TensorType["batch", "state_dim"]:
-        if self.tokenizer is not None:
-            states = torch.vstack(states)
-            states = self.tokenizer.transform(states)
-        return states.to(self.device)
+    # def statebatch2state(
+    #     self, states: List[TensorType["1", "state_dim"]]
+    # ) -> TensorType["batch", "state_dim"]:
+    #     if self.tokenizer is not None:
+    #         states = torch.vstack(states)
+    #         states = self.tokenizer.transform(states)
+    #     return states.to(self.device)
 
-    def statetorch2state(
-        self, states: TensorType["batch", "state_dim"]
-    ) -> TensorType["batch", "state_dim"]:
-        if self.tokenizer is not None:
-            states = self.tokenizer.transform(states)
-        return states.to(self.device)
+    # def statetorch2state(
+    #     self, states: TensorType["batch", "state_dim"]
+    # ) -> TensorType["batch", "state_dim"]:
+    #     if self.tokenizer is not None:
+    #         states = self.tokenizer.transform(states)
+    #     return states.to(self.device)
 
     def policytorch2state(self, state_policy: List) -> List:
         """
@@ -539,26 +539,3 @@ class AMP(GFlowNetEnv):
 
     def get_distance(self, seq1, seq2):
         return levenshtein(seq1, seq2) / 1
-
-    def plot_reward_distribution(self, states=None, scores=None, ax=None, title=None):
-        if ax is None:
-            fig, ax = plt.subplots()
-            standalone = True
-        else:
-            standalone = False
-        if title == None:
-            title = "Rewards of Sampled States"
-        if scores is None:
-            oracle_states = self.statetorch2oracle(states)
-            scores = self.oracle(oracle_states)
-        if isinstance(scores, TensorType):
-            scores = scores.cpu().detach().numpy()
-        ax.hist(scores)
-        ax.set_title(title)
-        ax.set_ylabel("Number of Samples")
-        ax.set_xlabel("Energy")
-        plt.show()
-        if standalone == True:
-            plt.tight_layout()
-            plt.close()
-        return ax
