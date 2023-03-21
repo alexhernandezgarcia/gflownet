@@ -197,7 +197,7 @@ class Logger:
         if logz is None:
             logz = 0.0
         else:
-            logz = logz.sum()
+            logz = logz.mean()
         if len(learning_rates) == 1:
             learning_rates += [-1.0]
         train_metrics = dict(
