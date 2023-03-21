@@ -701,12 +701,13 @@ class GFlowNetAgent:
         for it in pbar:
             # Test
             if self.logger.do_test(it):
-                self.l1, self.kl, self.jsd, self.corr, figs = self.test()
+                self.l1, self.kl, self.jsd, self.corr, x_sampled, kde_pred, kde_true = self.test()
                 self.logger.log_test_metrics(
                     self.l1, self.kl, self.jsd, self.corr, it, self.use_context
                 )
-                if self.logger.do_plot(it):
-                    self.logger.log_plots(figs, it, self.use_context)
+            if self.logger.do_plot(it):
+                figs = self.plot(x_sampled, kde_pred, kde_true)
+                self.logger.log_plots(figs, it, self.use_context)
             t0_iter = time.time()
             data = []
             for j in range(self.sttr):
@@ -819,12 +820,12 @@ class GFlowNetAgent:
         if self.use_context == False:
             self.logger.end()
 
-    def test(self, **plot_kwargs):
+    def test(self):
         """
         Computes metrics by sampling trajectories from the forward policy.
         """
         if self.buffer.test_pkl is None:
-            return self.l1, self.kl, self.jsd, None, (None,)
+            return self.l1, self.kl, self.jsd, None, None, None, None
         with open(self.buffer.test_pkl, "rb") as f:
             dict_tt = pickle.load(f)
             x_tt = dict_tt["x"]
@@ -846,6 +847,8 @@ class GFlowNetAgent:
             density_pred = np.array([hist[tuple(x)] / z_pred for x in x_tt])
             log_density_true = np.log(density_true + 1e-8)
             log_density_pred = np.log(density_pred + 1e-8)
+            kde_pred = None
+            kde_true = None
         elif self.continuous:
             x_sampled = torch2np(self.env.statebatch2proxy(x_sampled))
             x_tt = torch2np(self.env.statebatch2proxy(x_tt))
@@ -901,7 +904,17 @@ class GFlowNetAgent:
             corr_type = None
         corr = self.get_corr(density_pred, density_true, x_tt, dict_tt, corr_type)
 
-        # Plots
+        return (
+            l1,
+            kl,
+            jsd,
+            corr,
+            x_sampled,
+            kde_pred,
+            kde_true,
+        )
+    
+    def plot(self, x_sampled, kde_pred, kde_true, **plot_kwargs):
 
         if hasattr(self.env, "plot_reward_samples"):
             fig_reward_samples = self.env.plot_reward_samples(x_sampled, **plot_kwargs)
@@ -924,19 +937,14 @@ class GFlowNetAgent:
         else:
             fig_kde_pred = None
             fig_kde_true = None
-        return (
-            l1,
-            kl,
-            jsd,
-            corr,
-            [
+
+        return [
                 fig_reward_samples,
                 fig_kde_pred,
                 fig_kde_true,
                 fig_samples_frequency,
                 fig_reward_distribution,
-            ],
-        )
+            ]
 
     def get_corr(self, density_pred, density_true, x_tt, dict_tt, corr_type=None):
         if corr_type == None:
