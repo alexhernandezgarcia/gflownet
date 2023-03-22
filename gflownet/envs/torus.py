@@ -2,7 +2,7 @@
 Classes to represent hyper-torus environments
 """
 import itertools
-from typing import List, Tuple
+from typing import List, Optional, Tuple
 
 import numpy as np
 import numpy.typing as npt
@@ -278,31 +278,31 @@ class Torus(GFlowNetEnv):
         if done is None:
             done = self.done
         if done:
-            return [state], [(self.eos, 0)]
+            return [state], [self.eos]
         # If source state
         elif state[-1] == 0:
             return [], []
         else:
             parents = []
             actions = []
-            for idx, (a_dim, a_dir) in enumerate(self.action_space[:-1]):
+            for idx, action in enumerate(self.action_space[:-1]):
                 state_p = state.copy()
                 angles_p = state_p[: self.n_dim]
                 n_actions_p = state_p[-1]
                 # Get parent
                 n_actions_p -= 1
-                if a_dim != -1:
-                    angles_p[a_dim] -= a_dir
+                for d, incr in enumerate(action):
+                    angles_p[d] -= incr
                     # If negative angle index, restart from the back
-                    if angles_p[a_dim] < 0:
-                        angles_p[a_dim] = self.n_angles + angles_p[a_dim]
+                    if angles_p[d] < 0:
+                        angles_p[d] = self.n_angles + angles_p[d]
                     # If angle index larger than n_angles, restart from 0
-                    if angles_p[a_dim] >= self.n_angles:
-                        angles_p[a_dim] = angles_p[a_dim] - self.n_angles
+                    if angles_p[d] >= self.n_angles:
+                        angles_p[d] = angles_p[d] - self.n_angles
                 if _get_min_actions_to_source(self.source_angles, angles_p) < state[-1]:
                     state_p = angles_p + [n_actions_p]
                     parents.append(state_p)
-                    actions.append((a_dim, a_dir))
+                    actions.append(action)
         return parents, actions
 
     def step(self, action: Tuple[int]) -> Tuple[List[int], Tuple[int, int], bool]:
