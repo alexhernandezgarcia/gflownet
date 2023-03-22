@@ -58,7 +58,6 @@ class Grid(GFlowNetEnv):
         cell_max: float = 1,
         **kwargs,
     ):
-        # Constants
         assert n_dim > 0
         assert length > 1
         assert max_increment > 0
