@@ -87,10 +87,17 @@ class Torus(GFlowNetEnv):
         actions.append(self.eos)
         return actions
 
-    def get_mask_invalid_actions_forward(self, state=None, done=None):
+    def get_mask_invalid_actions_forward(
+        self,
+        state: Optional[List] = None,
+        done: Optional[bool] = None,
+    ) -> List:
         """
-        Returns a vector of length the action space + 1: True if action is invalid
-        given the current state, False otherwise.
+        Returns a list of length the action space with values:
+            - True if the forward action is invalid from the current state.
+            - False otherwise.
+        All actions except EOS are valid if the maximum number of actions has not been
+        reached, and vice versa.
         """
         if state is None:
             state = self.state.copy()
@@ -105,9 +112,6 @@ class Torus(GFlowNetEnv):
             mask = [False for _ in range(self.d_action_space)]
             mask[-1] = True
         return mask
-
-    def fit_kde(x, kernel="exponential", bandwidth=0.1):
-        kde = KernelDensity(kernel=kernel, bandwidth=bandwidth).fit(last_states.numpy())
 
     def statebatch2proxy(self, states: List[List]) -> npt.NDArray[np.float32]:
         """
@@ -125,7 +129,7 @@ class Torus(GFlowNetEnv):
         """
         return states[:, :-1] * self.angle_rad
 
-    # TODO: A circular encoding of the policy state would be better?
+    # TODO: circular encoding as in htorus
     def state2policy(self, state=None) -> List:
         """
         Transforms the angles part of the state given as argument (or self.state if
@@ -364,3 +368,6 @@ class Torus(GFlowNetEnv):
         n_actions = self.length_traj * np.ones([all_x.shape[0], 1], dtype=np.int32)
         all_x = np.concatenate([all_x, n_actions], axis=1)
         return all_x.tolist()
+
+    def fit_kde(x, kernel="exponential", bandwidth=0.1):
+        kde = KernelDensity(kernel=kernel, bandwidth=bandwidth).fit(last_states.numpy())
