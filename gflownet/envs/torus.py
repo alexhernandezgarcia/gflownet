@@ -267,12 +267,6 @@ class Torus(GFlowNetEnv):
             List of actions that lead to state for each parent in parents
         """
 
-        def _get_min_actions_to_source(source, ref):
-            def _get_min_actions_dim(u, v):
-                return np.min([np.abs(u - v), np.abs(u - (v - self.n_angles))])
-
-            return np.sum([_get_min_actions_dim(u, v) for u, v in zip(source, ref)])
-
         if state is None:
             state = self.state.copy()
         if done is None:
@@ -299,13 +293,13 @@ class Torus(GFlowNetEnv):
                     # If angle index larger than n_angles, restart from 0
                     if angles_p[d] >= self.n_angles:
                         angles_p[d] = angles_p[d] - self.n_angles
-                if _get_min_actions_to_source(self.source_angles, angles_p) < state[-1]:
+                if self._get_min_actions_to_source(angles_p) < state[-1]:
                     state_p = angles_p + [n_actions_p]
                     parents.append(state_p)
                     actions.append(action)
         return parents, actions
 
-    def step(self, action: Tuple[int]) -> Tuple[List[int], Tuple[int, int], bool]:
+    def step(self, action: Tuple[int]) -> Tuple[List[int], Tuple[int], bool]:
         """
         Executes step given an action.
 
@@ -325,44 +319,59 @@ class Torus(GFlowNetEnv):
         valid : bool
             False, if the action is not allowed for the current state.
         """
-        assert action in self.action_space
-        a_dim, a_dir = action
+        # If done, return invalid
         if self.done:
+            return self.state, action, False
+        # If action not found in action space raise an error
+        if action not in self.action_space:
+            raise ValueError(
+                f"Tried to execute action {action} not present in action space."
+            )
+        else:
+            action_idx = self.action_space.index(action)
+        # If action is in invalid mask, return invalid
+        if self.get_mask_invalid_actions_forward()[action_idx]:
             return self.state, action, False
         # If only possible action is eos, then force eos
         # If the number of actions is equal to trajectory length
         elif self.n_actions == self.length_traj:
             self.done = True
             self.n_actions += 1
-            return self.state, (self.eos, 0), True
-        # If action is not eos, then perform action
-        elif a_dim != self.eos:
-            angles_next = self.angles.copy()
-            # If action is not "keep"
-            if a_dim != -1:
-                angles_next[a_dim] += a_dir
+            return self.state, self.eos, True
+        # Perform non-EOS action
+        else:
+            angles_next = self.state.copy()[: self.n_dim]
+            for d, incr in enumerate(action):
+                angles_next[d] += incr
                 # If negative angle index, restart from the back
-                if angles_next[a_dim] < 0:
-                    angles_next[a_dim] = self.n_angles + angles_next[a_dim]
+                if angles_next[d] < 0:
+                    angles_next[d] = self.n_angles + angles_next[d]
                 # If angle index larger than n_angles, restart from 0
-                if angles_next[a_dim] >= self.n_angles:
-                    angles_next[a_dim] = angles_next[a_dim] - self.n_angles
-            self.angles = angles_next
+                if angles_next[d] >= self.n_angles:
+                    angles_next[d] = angles_next[d] - self.n_angles
             self.n_actions += 1
-            self.state = self.angles + [self.n_actions]
+            self.state = angles_next + [self.n_actions]
             valid = True
             return self.state, action, valid
-        # If action is eos, then it is invalid
-        else:
-            return self.state, (self.eos, 0), False
 
     def get_all_terminating_states(self):
-        all_x = np.int32(
-            list(itertools.product(*[list(range(self.n_angles))] * self.n_dim))
-        )
+        all_x = itertools.product(*[list(range(self.n_angles))] * self.n_dim)
+        all_x_valid = []
+        for x in all_x:
+            if self._get_min_actions_to_source(x) <= self.length_traj:
+                all_x_valid.append(x)
+        all_x = np.int32(all_x_valid)
         n_actions = self.length_traj * np.ones([all_x.shape[0], 1], dtype=np.int32)
         all_x = np.concatenate([all_x, n_actions], axis=1)
         return all_x.tolist()
 
     def fit_kde(x, kernel="exponential", bandwidth=0.1):
         kde = KernelDensity(kernel=kernel, bandwidth=bandwidth).fit(last_states.numpy())
+
+    def _get_min_actions_to_source(self, angles):
+        def _get_min_actions_dim(u, v):
+            return np.min([np.abs(u - v), np.abs(u - (v - self.n_angles))])
+
+        return np.sum(
+            [_get_min_actions_dim(u, v) for u, v in zip(self.source_angles, angles)]
+        )
