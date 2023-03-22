@@ -237,16 +237,6 @@ class Torus(GFlowNetEnv):
         n_actions = [int(pair[1])]
         return angles + n_actions
 
-    def reset(self, env_id=None):
-        """
-        Resets the environment.
-        """
-        self.state = self.source.copy()
-        self.n_actions = 0
-        self.done = False
-        self.id = env_id
-        return self
-
     def get_parents(self, state=None, done=None, action=None):
         """
         Determines all parents and actions that lead to state.
