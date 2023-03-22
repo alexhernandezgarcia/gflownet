@@ -11,6 +11,30 @@ def env():
 
 
 @pytest.fixture
+def env_extended_action_space_2d():
+    return Grid(
+        n_dim=2,
+        length=5,
+        max_increment=2,
+        max_dim_per_action=-1,
+        cell_min=-1.0,
+        cell_max=1.0,
+    )
+
+
+@pytest.fixture
+def env_extended_action_space_3d():
+    return Grid(
+        n_dim=3,
+        length=5,
+        max_increment=2,
+        max_dim_per_action=3,
+        cell_min=-1.0,
+        cell_max=1.0,
+    )
+
+
+@pytest.fixture
 def env_default():
     return Grid()
 
@@ -58,5 +82,23 @@ def test__statebatch2oracle__returns_expected(env, states, statebatch2oracle):
     assert torch.equal(torch.Tensor(statebatch2oracle), env.statebatch2oracle(states))
 
 
+@pytest.mark.parametrize(
+    "action_space",
+    [
+        [(0, 0), (1, 0), (2, 0), (0, 1), (1, 1), (2, 1), (0, 2), (1, 2), (2, 2)],
+    ],
+)
+def test__get_action_space__returns_expected(
+    env_extended_action_space_2d, action_space
+):
+    print(action_space)
+    print(set(env_extended_action_space_2d.action_space))
+    assert set(action_space) == set(env_extended_action_space_2d.action_space)
+
+
 def test__all_env_common(env):
     return common.test__all_env_common(env)
+
+
+def test__all_env_common(env_extended_action_space_3d):
+    return common.test__all_env_common(env_extended_action_space_3d)
