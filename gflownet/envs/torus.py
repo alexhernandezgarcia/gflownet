@@ -38,11 +38,11 @@ class Torus(GFlowNetEnv):
 
     def __init__(
         self,
-        n_dim=2,
-        n_angles=3,
-        length_traj=1,
-        min_step_len=1,
-        max_step_len=1,
+        n_dim: int = 2,
+        n_angles: int = 3,
+        length_traj: int = 1,
+        min_step_len: int = 1,
+        max_step_len: int = 1,
         **kwargs,
     ):
         super().__init__(**kwargs)
