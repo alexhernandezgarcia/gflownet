@@ -8,9 +8,6 @@ import numpy.typing as npt
 import torch
 from torchtyping import TensorType
 from gflownet.envs.base import GFlowNetEnv
-import matplotlib.pyplot as plt
-from mpl_toolkits.axes_grid1 import make_axes_locatable
-
 
 class Grid(GFlowNetEnv):
     """
@@ -33,6 +30,7 @@ class Grid(GFlowNetEnv):
 
     def __init__(
         self,
+        corr_type,
         n_dim=2,
         length=3,
         min_step_len=1,
@@ -60,6 +58,7 @@ class Grid(GFlowNetEnv):
             self.oracle.n_dim = self.n_dim
             self.oracle.setup()
         self.rescale = rescale
+        self.corr_type = corr_type
 
     def get_actions_space(self):
         """

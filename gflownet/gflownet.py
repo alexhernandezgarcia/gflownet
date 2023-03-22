@@ -705,7 +705,7 @@ class GFlowNetAgent:
                 self.logger.log_test_metrics(
                     self.l1, self.kl, self.jsd, self.corr, it, self.use_context
                 )
-            if self.logger.do_plot(it):
+            if self.logger.do_plot(it) and x_sampled is not None:
                 figs = self.plot(x_sampled, kde_pred, kde_true)
                 self.logger.log_plots(figs, it, self.use_context)
             t0_iter = time.time()
@@ -1043,21 +1043,21 @@ class GFlowNetAgent:
             "mean_pairwise_distance_top100", step_metric="post_al_cum_cost"
         )
         self.logger.define_metric(
-            "mean_min_distance_from_node_top100", step_metric="post_al_cum_cost"
+            "mean_min_distance_from_mode_top100", step_metric="post_al_cum_cost"
         )
         self.logger.define_metric("mean_energy_top10", step_metric="post_al_cum_cost")
         self.logger.define_metric(
             "mean_pairwise_distance_top10", step_metric="post_al_cum_cost"
         )
         self.logger.define_metric(
-            "mean_min_distance_from_node_top10", step_metric="post_al_cum_cost"
+            "mean_min_distance_from_mode_top10", step_metric="post_al_cum_cost"
         )
         self.logger.define_metric("mean_energy_top1", step_metric="post_al_cum_cost")
         self.logger.define_metric(
             "mean_pairwise_distance_top1", step_metric="post_al_cum_cost"
         )
         self.logger.define_metric(
-            "mean_min_distance_from_node_top1", step_metric="post_al_cum_cost"
+            "mean_min_distance_from_mode_top1", step_metric="post_al_cum_cost"
         )
         if maximize:
             energies = torch.sort(energies, descending=True)[0]

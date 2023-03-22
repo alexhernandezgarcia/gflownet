@@ -70,8 +70,6 @@ class Sequence(GFlowNetEnv):
         self.min_word_len = min_word_len
         self.max_word_len = max_word_len
         self.corr_type = corr_type
-        # special_tokens = ["[PAD]", "[EOS]"]
-        # self.vocab = AMINO_ACIDS + special_tokens
         self.lookup = {a: i for (i, a) in enumerate(self.vocab)}
         self.inverse_lookup = {i: a for (i, a) in enumerate(self.vocab)}
         self.n_alphabet = len(self.vocab) - len(special_tokens)

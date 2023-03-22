@@ -72,7 +72,7 @@ class Aptamers(Proxy):
     def _func_energy(self, sequences, results, comps):
         energies = np.zeros(len(sequences))
         for i in range(len(energies)):
-            energies[i] = -results[comps[i]].mfe[0].energy
+            energies[i] = results[comps[i]].mfe[0].energy
         return energies
 
     def _func_pairs(self, sequences, results, comps):
