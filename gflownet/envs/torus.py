@@ -41,54 +41,50 @@ class Torus(GFlowNetEnv):
         n_dim: int = 2,
         n_angles: int = 3,
         length_traj: int = 1,
-        min_step_len: int = 1,
-        max_step_len: int = 1,
+        max_increment: int = 1,
+        max_dim_per_action: int = 1,
         **kwargs,
     ):
-        super().__init__(**kwargs)
+        assert n_dim > 0
+        assert n_angles > 1
+        assert length_traj > 0
+        assert max_increment > 0
+        assert max_dim_per_action == -1 or max_dim_per_action > 0
         self.n_dim = n_dim
-        self.eos = self.n_dim
         self.n_angles = n_angles
         self.length_traj = length_traj
-        # Initialize angles and state attributes
-        self.source_angles = [0.0 for _ in range(self.n_dim)]
-        # States are the concatenation of the angle state and number of actions
+        self.max_increment = max_increment
+        if max_dim_per_action == -1:
+            max_dim_per_action = self.n_dim
+        self.max_dim_per_action = max_dim_per_action
+        self.eos = self.n_dim
+        # Source state: position 0 at all dimensions and number of actions 0
+        self.source_angles = [0 for _ in range(self.n_dim)]
         self.source = self.source_angles + [0]
-        self.reset()
-        self.source = self.angles.copy()
-        self.min_step_len = min_step_len
-        self.max_step_len = max_step_len
-        self.action_space = self.get_action_space()
-        self.fixed_policy_output = self.get_fixed_policy_output()
-        self.random_policy_output = self.get_fixed_policy_output()
-        self.policy_output_dim = len(self.fixed_policy_output)
-        self.policy_input_dim = len(self.state2policy())
+        # End-of-sequence action: (self.max_incremement + 1) in all dimensions
+        self.eos = tuple([self.max_increment + 1 for _ in range(self.n_dim)])
+        # Angle increments in radians
         self.angle_rad = 2 * np.pi / self.n_angles
-        # Oracle
+        # TODO: assess if really needed
         self.state2oracle = self.state2proxy
         self.statebatch2oracle = self.statebatch2proxy
-        # Setup proxy
-        self.proxy.set_n_dim(self.n_dim)
+        # Base class init
+        super().__init__(**kwargs)
 
     def get_action_space(self):
         """
-        Constructs list with all possible actions. The actions are tuples with two
-        values: (dimension, direction) where dimension indicates the index of the
-        dimension on which the action is to be performed and direction indicates to
-        increment or decrement with 1 or -1, respectively. The action "keep" is
-        indicated by (-1, 0).
+        Constructs list with all possible actions, including eos. An action is
+        represented by a vector of length n_dim where each index d indicates the
+        increment/decrement to apply to dimension d of the hyper-torus. A negative
+        value indicates a decrement. The action "keep" (no increment/decrement of any
+        dimensions) is valid and is indicated by all zeros.
         """
-        valid_steplens = np.arange(self.min_step_len, self.max_step_len + 1)
-        dims = [a for a in range(self.n_dim)]
-        directions = [1, -1]
+        increments = [el for el in range(-self.max_increment, self.max_increment + 1)]
         actions = []
-        for r in valid_steplens:
-            actions_r = [el for el in itertools.product(dims, directions, repeat=r)]
-            actions += actions_r
-        # Add "keep" action
-        actions = actions + [(-1, 0)]
-        # Add "eos" action
-        actions = actions + [(self.eos, 0)]
+        for action in itertools.product(increments, repeat=self.n_dim):
+            if len([el for el in action if el != 0]) <= self.max_dim_per_action:
+                actions.append(tuple(action))
+        actions.append(self.eos)
         return actions
 
     def get_mask_invalid_actions_forward(self, state=None, done=None):

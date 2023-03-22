@@ -91,8 +91,6 @@ def test__statebatch2oracle__returns_expected(env, states, statebatch2oracle):
 def test__get_action_space__returns_expected(
     env_extended_action_space_2d, action_space
 ):
-    print(action_space)
-    print(set(env_extended_action_space_2d.action_space))
     assert set(action_space) == set(env_extended_action_space_2d.action_space)
 
 
