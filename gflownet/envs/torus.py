@@ -237,7 +237,12 @@ class Torus(GFlowNetEnv):
         n_actions = [int(pair[1])]
         return angles + n_actions
 
-    def get_parents(self, state=None, done=None, action=None):
+    def get_parents(
+        self,
+        state: Optional[List] = None,
+        done: Optional[bool] = None,
+        action: Optional[Tuple] = None,
+    ) -> Tuple[List, List]:
         """
         Determines all parents and actions that lead to state.
 

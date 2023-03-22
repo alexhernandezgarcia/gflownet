@@ -261,7 +261,12 @@ class Grid(GFlowNetEnv):
         """
         return str(state).replace("(", "[").replace(")", "]").replace(",", "")
 
-    def get_parents(self, state=None, done=None, action=None):
+    def get_parents(
+        self,
+        state: Optional[List] = None,
+        done: Optional[bool] = None,
+        action: Optional[Tuple] = None,
+    ) -> Tuple[List, List]:
         """
         Determines all parents and actions that lead to state.
 
