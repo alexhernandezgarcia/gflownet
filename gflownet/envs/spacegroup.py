@@ -51,7 +51,7 @@ class SpaceGroup(GFlowNetEnv):
         self.n_point_symmetries = len(self.point_symmetries)
         self.n_space_groups = 230
         self.cs_idx, self.ps_idx, self.sg_idx = 0, 1, 2
-        self.eos = -1
+        self.eos = (-1, -1)
         # Source state: index 0 (empty) for all three properties (crystal system index,
         # point symmetry index, space group)
         self.source = [0 for _ in range(3)]
@@ -71,7 +71,7 @@ class SpaceGroup(GFlowNetEnv):
         ):
             actions_prop = [(prop, idx + 1) for idx in range(n_idx)]
             actions += actions_prop
-        actions += [(self.eos, 0)]
+        actions += [self.eos]
         return actions
 
     def get_mask_invalid_actions_forward(
@@ -93,7 +93,7 @@ class SpaceGroup(GFlowNetEnv):
         # If space group has been selected, only valid action is EOS
         if state[self.sg_idx] != 0:
             mask = [True for _ in self.action_space]
-            mask[self.eos] = False
+            mask[-1] = False
             return mask
         # No constraints if neither crystal system nor point symmetry selected
         if state[self.cs_idx] == 0 and state[self.ps_idx] == 0:
@@ -293,7 +293,7 @@ class SpaceGroup(GFlowNetEnv):
         if done is None:
             done = self.done
         if done:
-            return [state], [(self.eos, 0)]
+            return [state], [self.eos]
         else:
             parents = []
             actions = []
@@ -356,7 +356,7 @@ class SpaceGroup(GFlowNetEnv):
         self.n_actions += 1
         prop, idx = action
         # Action is not eos
-        if prop != self.eos:
+        if action != self.eos:
             state_next = self.state[:]
             state_next[prop] = idx
             # Set crystal system and point symmetry if space group is set

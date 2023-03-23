@@ -57,7 +57,6 @@ class Torus(GFlowNetEnv):
         if max_dim_per_action == -1:
             max_dim_per_action = self.n_dim
         self.max_dim_per_action = max_dim_per_action
-        self.eos = self.n_dim
         # Source state: position 0 at all dimensions and number of actions 0
         self.source_angles = [0 for _ in range(self.n_dim)]
         self.source = self.source_angles + [0]
