@@ -34,6 +34,8 @@ class GFlowNetEnv:
         proxy=None,
         oracle=None,
         proxy_state_format: str = "oracle",
+        fixed_distribution: dict = None,
+        random_distribution: dict = None,
         **kwargs,
     ):
         # Call reset() to set initial state, done, n_actions
@@ -75,8 +77,8 @@ class GFlowNetEnv:
         # Max trajectory length
         self.max_traj_length = self.get_max_traj_length()
         # Policy outputs
-        self.fixed_policy_output = self.get_policy_output()
-        self.random_policy_output = self.get_policy_output()
+        self.fixed_policy_output = self.get_policy_output(fixed_distribution)
+        self.random_policy_output = self.get_policy_output(random_distribution)
         self.policy_output_dim = len(self.fixed_policy_output)
         self.policy_input_dim = len(self.state2policy())
 
