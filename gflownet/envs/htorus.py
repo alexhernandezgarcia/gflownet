@@ -43,7 +43,7 @@ class HybridTorus(GFlowNetEnv):
         n_comp: int = 1,
         policy_encoding_dim_per_angle: int = None,
         do_nonzero_source_prob: bool = True,
-        vonmises_min_concentration=1e-3,
+        vonmises_min_concentration: float = 1e-3,
         fixed_distribution: dict = {
             "vonmises_mean": 0.0,
             "vonmises_concentration": 0.5,
