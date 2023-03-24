@@ -71,9 +71,6 @@ class HybridTorus(GFlowNetEnv):
         # Base class init
         super().__init__(**kwargs)
 
-    def copy(self):
-        return deepcopy(self)
-
     def get_action_space(self):
         """
         Since this is a hybrid (continuous/discrete) environment, this method
@@ -277,16 +274,6 @@ class HybridTorus(GFlowNetEnv):
         angles = [np.float32(el) * np.pi / 180 for el in pair[0].strip("[]").split(" ")]
         n_actions = [int(pair[1])]
         return angles + n_actions
-
-    def reset(self, env_id=None):
-        """
-        Resets the environment.
-        """
-        self.state = self.source.copy()
-        self.n_actions = 0
-        self.done = False
-        self.id = env_id
-        return self
 
     def get_parents(
         self, state: List = None, done: bool = None, action: Tuple[int, float] = None
@@ -509,6 +496,9 @@ class HybridTorus(GFlowNetEnv):
             self.state[dim] = self.state[dim] % (2 * np.pi)
             self.state[-1] = self.n_actions
             return self.state, action, True
+
+    def copy(self):
+        return deepcopy(self)
 
     def get_grid_terminating_states(self, n_states: int) -> List[List]:
         n_per_dim = int(np.ceil(n_states ** (1 / self.n_dim)))
