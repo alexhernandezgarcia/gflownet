@@ -38,22 +38,21 @@ class HybridTorus(GFlowNetEnv):
 
     def __init__(
         self,
-        n_dim=2,
-        length_traj=1,
-        n_comp=1,
-        policy_encoding_dim_per_angle=None,
-        do_nonzero_source_prob=True,
-        fixed_distribution=dict,
-        random_distribution=dict,
+        n_dim: int=2,
+        length_traj: int=1,
+        n_comp: int=1,
+        policy_encoding_dim_per_angle: int=None,
+        do_nonzero_source_prob: bool=True,
         vonmises_min_concentration=1e-3,
         **kwargs,
     ):
-        super().__init__(**kwargs)
-        self.policy_encoding_dim_per_angle = policy_encoding_dim_per_angle
+        assert n_dim > 0
+        assert length_traj > 0
+        assert n_comp > 0
         self.continuous = True
         self.n_dim = n_dim
-        self.eos = self.n_dim
         self.length_traj = length_traj
+        self.policy_encoding_dim_per_angle = policy_encoding_dim_per_angle
         # Parameters of fixed policy distribution
         self.n_comp = n_comp
         if do_nonzero_source_prob:
@@ -61,35 +60,34 @@ class HybridTorus(GFlowNetEnv):
         else:
             self.n_params_per_dim = 3
         self.vonmises_min_concentration = vonmises_min_concentration
-        # Initialize angles and state attributes
+        # Source state: position 0 at all dimensions and number of actions 0
         self.source_angles = [0.0 for _ in range(self.n_dim)]
-        # States are the concatenation of the angle state and number of actions
         self.source = self.source_angles + [0]
-        self.reset()
-        self.action_space = self.get_action_space()
-        self.fixed_policy_output = self.get_policy_output(fixed_distribution)
-        self.random_policy_output = self.get_policy_output(random_distribution)
-        self.policy_output_dim = len(self.fixed_policy_output)
-        self.policy_input_dim = len(self.state2policy())
-        self.logsoftmax = torch.nn.LogSoftmax(dim=1)
-        # Oracle
+        # End-of-sequence action: (n_dim, None)
+        self.eos = (self.n_dim, None)
+        # TODO: assess if really needed
         self.state2oracle = self.state2proxy
         self.statebatch2oracle = self.statebatch2proxy
-        # Setup proxy
-        self.proxy.set_n_dim(self.n_dim)
+        # Base class init
+        super().__init__(**kwargs)
 
     def copy(self):
         return deepcopy(self)
 
     def get_action_space(self):
         """
-        Constructs list with all possible actions. The actions are tuples with two
-        values: (dimension, magnitude) where dimension indicates the index of the
-        dimension on which the action is to be performed and magnitude indicates the
-        increment of the angle in radians.
+        Since this is a hybrid (continuous/discrete) environment, this method
+        constructs a list with the discrete actions. 
+
+        The actions are tuples with two values: (dimension, magnitude) where dimension
+        indicates the index of the dimension on which the action is to be performed and
+        magnitude indicates the increment of the angle in radians.
+
+        The (discrete) action space is then one tuple per dimension (with None as the
+        increment), plus the EOS action.
         """
         actions = [(d, None) for d in range(self.n_dim)]
-        actions += [(self.eos, 0.0)]
+        actions.append(self.eos)
         return actions
 
     def get_policy_output(self, params: dict):
@@ -125,7 +123,7 @@ class HybridTorus(GFlowNetEnv):
 
     def get_mask_invalid_actions_forward(self, state=None, done=None):
         """
-        Returns a vector with the length of the discrete part of the action space + 1:
+        Returns a vector with the length of the discrete part of the action space:
         True if action is invalid going forward given the current state, False
         otherwise.
         """
@@ -145,7 +143,7 @@ class HybridTorus(GFlowNetEnv):
 
     def get_mask_invalid_actions_backward(self, state=None, done=None, parents_a=None):
         """
-        Returns a vector with the length of the discrete part of the action space + 1:
+        Returns a vector with the length of the discrete part of the action space:
         True if action is invalid going backward given the current state, False
         otherwise.
         """
@@ -162,7 +160,7 @@ class HybridTorus(GFlowNetEnv):
         # Catch cases where it would not be possible to reach the initial state
         noninit_states = [s for s, ss in zip(state[:-1], self.source_angles) if s != ss]
         if len(noninit_states) > state[-1]:
-            print("This point in the code should never be reached!")
+            raise ValueError("This point in the code should never be reached!")
         elif len(noninit_states) == state[-1] and len(noninit_states) >= state[-1] - 1:
             mask = [
                 True if s == ss else m
@@ -323,7 +321,7 @@ class HybridTorus(GFlowNetEnv):
         if done is None:
             done = self.done
         if done:
-            return [state], [(self.eos, 0.0)]
+            return [state], [self.eos]
         else:
             state[action[0]] = (state[action[0]] - action[1]) % (2 * np.pi)
             state[-1] -= 1
@@ -355,8 +353,8 @@ class HybridTorus(GFlowNetEnv):
         dimensions = Categorical(logits=logits_dims).sample()
         logprobs_dim = self.logsoftmax(logits_dims)[ns_range, dimensions]
         # Sample angle increments
-        ns_range_noeos = ns_range[dimensions != self.eos]
-        dimensions_noeos = dimensions[dimensions != self.eos]
+        ns_range_noeos = ns_range[dimensions != self.eos[0]]
+        dimensions_noeos = dimensions[dimensions != self.eos[0]]
         angles = torch.zeros(n_states).to(device)
         logprobs_angles = torch.zeros(n_states).to(device)
         if len(dimensions_noeos) > 0:
@@ -433,7 +431,7 @@ class HybridTorus(GFlowNetEnv):
         angledim_ne_source = torch.ne(
             states_target[ns_range, dimensions], source_aux[dimensions]
         )
-        noeos = torch.ne(dimensions, self.eos)
+        noeos = torch.ne(dimensions, self.eos[0])
         nofix_indices = torch.logical_and(
             torch.logical_or(nsource_ne_nsteps, angledim_ne_source) | is_forward, noeos
         )
@@ -491,6 +489,7 @@ class HybridTorus(GFlowNetEnv):
             False, if the action is not allowed for the current state, e.g. stop at the
             root state
         """
+        # If done, return invalid
         if self.done:
             return self.state, action, False
         # If only possible action is eos, then force eos
@@ -498,17 +497,18 @@ class HybridTorus(GFlowNetEnv):
         elif self.n_actions == self.length_traj:
             self.done = True
             self.n_actions += 1
-            return self.state, (self.eos, 0.0), True
-        # If action is not eos, then perform action
-        elif action[0] != self.eos:
+            return self.state, self.eos, True
+        # If action is eos, then it is invalid
+        elif action == self.eos:
+            return self.state, action, False
+        # Otherwise perform action
+        else:
+            dim, incr = action
             self.n_actions += 1
-            self.state[action[0]] += action[1]
-            self.state[action[0]] = self.state[action[0]] % (2 * np.pi)
+            self.state[dim] += incr
+            self.state[dim] = self.state[dim] % (2 * np.pi)
             self.state[-1] = self.n_actions
             return self.state, action, True
-        # If action is eos, then it is invalid
-        else:
-            return self.state, action, False
 
     def get_grid_terminating_states(self, n_states: int) -> List[List]:
         n_per_dim = int(np.ceil(n_states ** (1 / self.n_dim)))
