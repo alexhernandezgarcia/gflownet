@@ -321,8 +321,12 @@ class HybridTorus(GFlowNetEnv):
             done = self.done
         if done:
             return [state], [self.eos]
+        # If source state
+        elif state[-1] == 0:
+            return [], []
         else:
-            state[action[0]] = (state[action[0]] - action[1]) % (2 * np.pi)
+            dim, incr = action
+            state[dim] = (state[dim] - incr) % (2 * np.pi)
             state[-1] -= 1
             parents = [state]
             return parents, [action]
