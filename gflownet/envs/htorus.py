@@ -38,12 +38,20 @@ class HybridTorus(GFlowNetEnv):
 
     def __init__(
         self,
-        n_dim: int=2,
-        length_traj: int=1,
-        n_comp: int=1,
-        policy_encoding_dim_per_angle: int=None,
-        do_nonzero_source_prob: bool=True,
+        n_dim: int = 2,
+        length_traj: int = 1,
+        n_comp: int = 1,
+        policy_encoding_dim_per_angle: int = None,
+        do_nonzero_source_prob: bool = True,
         vonmises_min_concentration=1e-3,
+        fixed_distribution: dict = {
+            "vonmises_mean": 0.0,
+            "vonmises_concentration": 0.5,
+        },
+        random_distribution: dict = {
+            "vonmises_mean": 0.0,
+            "vonmises_concentration": 0.001,
+        },
         **kwargs,
     ):
         assert n_dim > 0
@@ -64,26 +72,30 @@ class HybridTorus(GFlowNetEnv):
         self.source_angles = [0.0 for _ in range(self.n_dim)]
         self.source = self.source_angles + [0]
         # End-of-sequence action: (n_dim, None)
-        self.eos = (self.n_dim, None)
+        self.eos = (self.n_dim, 0)
         # TODO: assess if really needed
         self.state2oracle = self.state2proxy
         self.statebatch2oracle = self.statebatch2proxy
         # Base class init
-        super().__init__(**kwargs)
+        super().__init__(
+            fixed_distribution=fixed_distribution,
+            random_distribution=random_distribution,
+            **kwargs,
+        )
 
     def get_action_space(self):
         """
         Since this is a hybrid (continuous/discrete) environment, this method
-        constructs a list with the discrete actions. 
+        constructs a list with the discrete actions.
 
         The actions are tuples with two values: (dimension, magnitude) where dimension
         indicates the index of the dimension on which the action is to be performed and
         magnitude indicates the increment of the angle in radians.
 
-        The (discrete) action space is then one tuple per dimension (with None as the
-        increment), plus the EOS action.
+        The (discrete) action space is then one tuple per dimension (with 0 increment),
+        plus the EOS action.
         """
-        actions = [(d, None) for d in range(self.n_dim)]
+        actions = [(d, 0) for d in range(self.n_dim)]
         actions.append(self.eos)
         return actions
 
@@ -114,8 +126,8 @@ class HybridTorus(GFlowNetEnv):
         with d in [0, ..., D]
         """
         policy_output = np.ones(self.n_dim * self.n_params_per_dim + 1)
-        policy_output[1 :: self.n_params_per_dim] = params.vonmises_mean
-        policy_output[2 :: self.n_params_per_dim] = params.vonmises_concentration
+        policy_output[1 :: self.n_params_per_dim] = params["vonmises_mean"]
+        policy_output[2 :: self.n_params_per_dim] = params["vonmises_concentration"]
         return policy_output
 
     def get_mask_invalid_actions_forward(self, state=None, done=None):
