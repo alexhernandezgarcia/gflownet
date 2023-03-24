@@ -284,14 +284,14 @@ class Torus(GFlowNetEnv):
                 n_actions_p = state_p[-1]
                 # Get parent
                 n_actions_p -= 1
-                for d, incr in enumerate(action):
-                    angles_p[d] -= incr
+                for dim, incr in enumerate(action):
+                    angles_p[dim] -= incr
                     # If negative angle index, restart from the back
-                    if angles_p[d] < 0:
-                        angles_p[d] = self.n_angles + angles_p[d]
+                    if angles_p[dim] < 0:
+                        angles_p[dim] = self.n_angles + angles_p[dim]
                     # If angle index larger than n_angles, restart from 0
-                    if angles_p[d] >= self.n_angles:
-                        angles_p[d] = angles_p[d] - self.n_angles
+                    if angles_p[dim] >= self.n_angles:
+                        angles_p[dim] = angles_p[dim] - self.n_angles
                 if self._get_min_actions_to_source(angles_p) < state[-1]:
                     state_p = angles_p + [n_actions_p]
                     parents.append(state_p)
@@ -340,14 +340,14 @@ class Torus(GFlowNetEnv):
         # Perform non-EOS action
         else:
             angles_next = self.state.copy()[: self.n_dim]
-            for d, incr in enumerate(action):
-                angles_next[d] += incr
+            for dim, incr in enumerate(action):
+                angles_next[dim] += incr
                 # If negative angle index, restart from the back
-                if angles_next[d] < 0:
-                    angles_next[d] = self.n_angles + angles_next[d]
+                if angles_next[dim] < 0:
+                    angles_next[dim] = self.n_angles + angles_next[dim]
                 # If angle index larger than n_angles, restart from 0
-                if angles_next[d] >= self.n_angles:
-                    angles_next[d] = angles_next[d] - self.n_angles
+                if angles_next[dim] >= self.n_angles:
+                    angles_next[dim] = angles_next[dim] - self.n_angles
             self.n_actions += 1
             self.state = angles_next + [self.n_actions]
             valid = True
