@@ -1059,10 +1059,7 @@ class GFlowNetAgent:
         self.logger.define_metric(
             "mean_min_distance_from_mode_top1", step_metric="post_al_cum_cost"
         )
-        # if maximize:
         energies = torch.sort(energies, descending=maximize)[0]
-        # else:
-            # energies = torch.sort(energies, descending=False)[0]
         if hasattr(self.env, "get_pairwise_distance"):
             pairwise_dists = self.env.get_pairwise_distance(samples)
             pairwise_dists = torch.sort(pairwise_dists, descending=True)[0]
