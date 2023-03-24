@@ -20,7 +20,7 @@ def test__environment__initializes_properly():
 
 def test__environment__action_space_has_eos():
     env = SpaceGroup()
-    assert (env.eos, 0) in env.action_space
+    assert env.eos in env.action_space
 
 
 @pytest.mark.parametrize(
