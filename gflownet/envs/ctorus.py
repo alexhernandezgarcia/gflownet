@@ -147,7 +147,7 @@ class ContinuousTorus(HybridTorus):
         self,
         policy_outputs: TensorType["n_states", "policy_output_dim"],
         sampling_method: str = "policy",
-        mask_stop_actions: TensorType["n_states", "1"] = None,
+        mask_invalid_actions: TensorType["n_states", "1"] = None,
         temperature_logits: float = 1.0,
         loginf: float = 1000,
     ) -> Tuple[List[Tuple], TensorType["n_states"]]:
@@ -155,7 +155,7 @@ class ContinuousTorus(HybridTorus):
         Samples a batch of actions from a batch of policy outputs.
         """
         device = policy_outputs.device
-        mask_states_sample = ~mask_stop_actions.flatten()
+        mask_states_sample = ~mask_invalid_actions.flatten()
         n_states = policy_outputs.shape[0]
         # Sample angle increments
         angles = torch.zeros(n_states, self.n_dim).to(device)
@@ -201,14 +201,14 @@ class ContinuousTorus(HybridTorus):
         is_forward: bool,
         actions: TensorType["n_states", "n_dim"],
         states_target: TensorType["n_states", "policy_input_dim"],
-        mask_stop_actions: TensorType["n_states", "1"] = None,
+        mask_invalid_actions: TensorType["n_states", "1"] = None,
         loginf: float = 1000,
     ) -> TensorType["batch_size"]:
         """
         Computes log probabilities of actions given policy outputs and actions.
         """
         device = policy_outputs.device
-        mask_states_sample = ~mask_stop_actions.flatten()
+        mask_states_sample = ~mask_invalid_actions.flatten()
         n_states = policy_outputs.shape[0]
         logprobs = torch.zeros(n_states, self.n_dim).to(device)
         if torch.any(mask_states_sample):
