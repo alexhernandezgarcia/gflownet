@@ -526,7 +526,6 @@ class GFlowNetAgent:
                 masks_sf,
             ],
         )
-#         parents_a = parents_a.to(int).squeeze()
         parents_a_idx = self.env.actions2indices(parents_a)
         # Compute rewards
         rewards = self.env.reward_torchbatch(states, done)
