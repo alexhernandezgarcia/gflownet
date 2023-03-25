@@ -73,21 +73,16 @@ class Crystal(GFlowNetEnv):
             List of elements that must be present in a crystal for it to represent a
             valid end state
         """
-        super().__init__(**kwargs)
-
         if isinstance(elements, int):
             elements = [i + 1 for i in range(elements)]
-
         if len(elements) != len(set(elements)):
             raise ValueError(
                 f"Provided elements must be unique, detected {len(elements) - len(set(elements))} duplicates."
             )
-
         if any(e <= 0 for e in elements):
             raise ValueError(
                 "Provided elements should be non-negative (assumed indexing from 1 for H)."
             )
-
         self.elements = sorted(elements)
         self.max_diff_elem = max_diff_elem
         self.min_diff_elem = min_diff_elem
@@ -104,13 +99,13 @@ class Crystal(GFlowNetEnv):
         self.required_elements = (
             required_elements if required_elements is not None else []
         )
-
-        self.source = [0 for _ in range(periodic_table)]
         self.elem2idx = {e: i for i, e in enumerate(self.elements)}
         self.idx2elem = {i: e for i, e in enumerate(self.elements)}
-        self.eos = -1
-        self.action_space = self.get_action_space()
-        self.reset()
+        # Source state: 0 atoms for all elements
+        self.source = [0 for _ in self.elements]
+        # End-of-sequence action
+        self.eos = (-1, -1)
+        super().__init__(**kwargs)
 
     def get_action_space(self):
         """
@@ -122,7 +117,7 @@ class Crystal(GFlowNetEnv):
         assert self.max_atom_i > self.min_atom_i
         valid_word_len = np.arange(self.min_atom_i, self.max_atom_i + 1)
         actions = [(element, n) for n in valid_word_len for element in self.elements]
-        actions.append((self.eos, 0))
+        actions.append(self.eos)
         return actions
 
     def get_max_traj_length(self):
@@ -146,11 +141,11 @@ class Crystal(GFlowNetEnv):
         n_state_atoms = sum(state)
 
         if n_state_atoms < self.min_atoms:
-            mask[self.eos] = True
+            mask[-1] = True
         if len(state_elem) < self.min_diff_elem:
-            mask[self.eos] = True
+            mask[-1] = True
         if any(r not in state_elem for r in self.required_elements):
-            mask[self.eos] = True
+            mask[-1] = True
 
         for idx, (element, n) in enumerate(self.action_space[:-1]):
             if state[self.elem2idx[element]] > 0:
@@ -301,11 +296,14 @@ class Crystal(GFlowNetEnv):
         valid : bool
             False, if the action is not allowed for the current state.
         """
+        # If done, return invalid
+        if self.done:
+            return self.state, action, False
         # If only possible action is eos, then force eos
         if sum(self.state) == self.max_atoms:
             self.done = True
             self.n_actions += 1
-            return self.state, (self.eos, 0), True
+            return self.state, self.eos, True
         # If action not found in action space raise an error
         action_idx = None
         for i, a in enumerate(self.action_space):
@@ -320,7 +318,7 @@ class Crystal(GFlowNetEnv):
         if self.get_mask_invalid_actions()[action_idx]:
             return self.state, action, False
         # If action is not eos, then perform action
-        if action[0] != self.eos:
+        if action != self.eos:
             atomic_number, num = action
             idx = self.elem2idx[atomic_number]
             state_next = self.state[:]
@@ -334,7 +332,7 @@ class Crystal(GFlowNetEnv):
             return self.state, action, valid
         # If action is eos, then perform eos
         else:
-            if self.get_mask_invalid_actions()[self.eos]:
+            if self.get_mask_invalid_actions()[-1]:
                 valid = False
             else:
                 if self._can_produce_neutral_charge():
@@ -343,7 +341,7 @@ class Crystal(GFlowNetEnv):
                     self.n_actions += 1
                 else:
                     valid = False
-            return self.state, (self.eos, 0), valid
+            return self.state, self.eos, valid
 
     def _can_produce_neutral_charge(self, state: Optional[List[int]] = None) -> bool:
         """
