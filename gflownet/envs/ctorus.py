@@ -34,7 +34,6 @@ class ContinuousTorus(HybridTorus):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.eos = tuple([np.inf for _ in range(self.n_dim)])
 
     def get_action_space(self):
         """
@@ -42,6 +41,7 @@ class ContinuousTorus(HybridTorus):
         the increment of dimension d. EOS is indicated by increments of np.inf for all
         dimensions.
         """
+        self.eos = tuple([np.inf for _ in range(self.n_dim)])
         generic_action = tuple([0.0 for _ in range(self.n_dim)])
         actions = [generic_action, self.eos]
         return actions
@@ -66,8 +66,8 @@ class ContinuousTorus(HybridTorus):
         - d * c * 3 + 2: log concentration of Von Mises distribution for dim. d, comp. c
         """
         policy_output = np.ones(self.n_dim * self.n_comp * 3)
-        policy_output[1::3] = params.vonmises_mean
-        policy_output[2::3] = params.vonmises_concentration
+        policy_output[1::3] = params["vonmises_mean"]
+        policy_output[2::3] = params["vonmises_concentration"]
         return policy_output
 
     def get_mask_invalid_actions_forward(self, state=None, done=None):
