@@ -401,7 +401,6 @@ class Oracle:
         return energies
 
     def PottsEnergyNew(self, sequences):
-
         # Load the potts model
         J, h = load_potts_model(435)
 

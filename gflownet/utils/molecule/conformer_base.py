@@ -73,7 +73,8 @@ class ConformerBase:
         """Embed RDkit mol with a conformer and return the RDKit conformer object
         (which is synchronized with the RDKit molecule object)
         :param mol: rdkit.Chem.rdchem.Mol object defining the molecule
-        :param extre_opt: bool, if True, an additional optimisation of the conformer will be performed"""
+        :param extre_opt: bool, if True, an additional optimisation of the conformer will be performed
+        """
         AllChem.EmbedMolecule(mol)
         if extra_opt:
             AllChem.MMFFOptimizeMolecule(mol, confId=0, maxIters=1000)
@@ -81,7 +82,8 @@ class ConformerBase:
 
     def set_atom_positions(self, atom_positions):
         """Set atom positions of the self.rdk_conf to the input atom_positions values
-        :param atom_positions: 2d numpy array of shape [num atoms, 3] with new atom positions"""
+        :param atom_positions: 2d numpy array of shape [num atoms, 3] with new atom positions
+        """
         for idx, pos in enumerate(atom_positions):
             self.rdk_conf.SetAtomPosition(idx, Point3D(*pos))
 

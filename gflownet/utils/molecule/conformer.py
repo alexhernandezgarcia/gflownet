@@ -35,7 +35,8 @@ class Conformer(ConformerBase):
 
     def set_atom_positions_dgl(self, atom_positions):
         """Set atom positions of the self.dgl_graph to the input atom_positions values
-        :param atom_positions: 2d numpy array of shape [num atoms, 3] with new atom positions"""
+        :param atom_positions: 2d numpy array of shape [num atoms, 3] with new atom positions
+        """
         self._dgl_graph.ndata[constants.atom_position_name] = torch.Tensor(
             atom_positions
         )
