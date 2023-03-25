@@ -13,7 +13,16 @@ def test__all_env_common(env):
     test__get_parents__returns_no_parents_in_initial_state(env)
     test__gflownet_minimal_runs(env)
     test__sample_actions__get_logprobs__return_valid_actions_and_logprobs(env)
+    test__get_parents__returns_same_state_and_eos_if_done(env)
+    test__step__returns_same_state_action_and_invalid_if_done(env)
+    test__actions2indices__returns_expected_tensor(env)
+
+
+def test__continuous_env_common(env):
+    #     test__state_conversions_are_reversible(env)
     test__get_parents__returns_no_parents_in_initial_state(env)
+    #     test__gflownet_minimal_runs(env)
+    #     test__sample_actions__get_logprobs__return_valid_actions_and_logprobs(env)
     test__get_parents__returns_same_state_and_eos_if_done(env)
     test__step__returns_same_state_action_and_invalid_if_done(env)
     test__actions2indices__returns_expected_tensor(env)
@@ -25,11 +34,17 @@ def test__get_parents_step_get_mask__are_compatible(env):
     n_actions = 0
     while not env.done:
         state = env.state
-        mask_invalid = env.get_mask_invalid_actions_forward()
-        valid_actions = [a for a, m in zip(env.action_space, mask_invalid) if not m]
         # Sample random action
-        action = tuple(np.random.permutation(valid_actions)[0])
-        next_state, action, valid = env.step(action)
+        mask_invalid = torch.unsqueeze(
+            torch.BoolTensor(env.get_mask_invalid_actions_forward()), 0
+        )
+        random_policy = torch.unsqueeze(
+            torch.tensor(env.random_policy_output, dtype=env.float), 0
+        )
+        actions, _ = env.sample_actions(
+            policy_outputs=random_policy, mask_invalid_actions=mask_invalid
+        )
+        next_state, action, valid = env.step(actions[0])
         if valid is False:
             continue
         n_actions += 1
@@ -80,11 +95,19 @@ def test__state_conversions_are_reversible(env):
     while not env.done:
         state = env.state
         assert state == env.policy2state(env.state2policy(state))
-        assert state == env.readable2state(env.state2readable(state))
-        mask_invalid = env.get_mask_invalid_actions_forward()
-        valid_actions = [a for a, m in zip(env.action_space, mask_invalid) if not m]
-        action = tuple(np.random.permutation(valid_actions)[0])
-        env.step(action)
+        for el1, el2 in zip(state, env.readable2state(env.state2readable(state))):
+            assert np.isclose(el1, el2)
+        # Sample random action
+        mask_invalid = torch.unsqueeze(
+            torch.BoolTensor(env.get_mask_invalid_actions_forward()), 0
+        )
+        random_policy = torch.unsqueeze(
+            torch.tensor(env.random_policy_output, dtype=env.float), 0
+        )
+        actions, _ = env.sample_actions(
+            policy_outputs=random_policy, mask_invalid_actions=mask_invalid
+        )
+        env.step(actions[0])
 
 
 def test__get_parents__returns_no_parents_in_initial_state(env):
@@ -134,14 +157,14 @@ def test__gflownet_minimal_runs(env):
 def test__sample_actions__get_logprobs__return_valid_actions_and_logprobs(env):
     env = env.reset()
     while not env.done:
-        policy_outputs = torch.unsqueeze(torch.Tensor(env.random_policy_output), 0)
+        policy_outputs = torch.unsqueeze(torch.tensor(env.random_policy_output), 0)
         mask_invalid = env.get_mask_invalid_actions_forward()
         valid_actions = [a for a, m in zip(env.action_space, mask_invalid) if not m]
         masks_invalid_torch = torch.unsqueeze(torch.BoolTensor(mask_invalid), 0)
         actions, logprobs_sa = env.sample_actions(
             policy_outputs=policy_outputs, mask_invalid_actions=masks_invalid_torch
         )
-        actions_torch = torch.Tensor(actions)
+        actions_torch = torch.tensor(actions)
         logprobs_glp = env.get_logprobs(
             policy_outputs=policy_outputs,
             is_forward=True,
@@ -171,7 +194,17 @@ def test__get_parents__returns_same_state_and_eos_if_done(env):
 
 @pytest.mark.repeat(10)
 def test__step__returns_same_state_action_and_invalid_if_done(env):
-    action = tuple(np.random.permutation(env.action_space)[0])
+    # Sample random action
+    mask_invalid = torch.unsqueeze(
+        torch.BoolTensor(env.get_mask_invalid_actions_forward()), 0
+    )
+    random_policy = torch.unsqueeze(
+        torch.tensor(env.random_policy_output, dtype=env.float), 0
+    )
+    actions, _ = env.sample_actions(
+        policy_outputs=random_policy, mask_invalid_actions=mask_invalid
+    )
+    action = actions[0]
     env.set_state(env.state, done=True)
     next_state, action_step, valid = env.step(action)
     assert next_state == env.state
