@@ -57,6 +57,7 @@ class GFlowNetEnv:
         self.denorm_proxy = denorm_proxy
         # Proxy and oracle
         self.proxy = proxy
+        self.setup_proxy()
         if oracle is None:
             self.oracle = self.proxy
         else:
