@@ -1,7 +1,6 @@
 import numpy as np
 import numpy.typing as npt
 import torch
-
 from xtb.interface import Calculator, Param, XTBException
 from xtb.libxtb import VERBOSITY_MUTED
 

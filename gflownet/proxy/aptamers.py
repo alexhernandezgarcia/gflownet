@@ -1,6 +1,7 @@
-from gflownet.proxy.base import Proxy
 import numpy as np
 import numpy.typing as npt
+
+from gflownet.proxy.base import Proxy
 
 
 class Aptamers(Proxy):

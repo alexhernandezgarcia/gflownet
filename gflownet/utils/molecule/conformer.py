@@ -1,17 +1,15 @@
-import numpy as np
-import torch
-
 from collections import defaultdict
 from copy import deepcopy
+
+import numpy as np
+import torch
 from rdkit import Chem
-from rdkit.Chem import AllChem
-from rdkit.Chem import rdMolTransforms
-from rdkit.Chem import TorsionFingerprints
+from rdkit.Chem import AllChem, TorsionFingerprints, rdMolTransforms
 from rdkit.Geometry.rdGeometry import Point3D
 
 from gflownet.utils.molecule import constants
-from gflownet.utils.molecule.featurizer import MolDGLFeaturizer
 from gflownet.utils.molecule.conformer_base import ConformerBase
+from gflownet.utils.molecule.featurizer import MolDGLFeaturizer
 
 
 class Conformer(ConformerBase):
@@ -74,6 +72,7 @@ class Conformer(ConformerBase):
 
 if __name__ == "__main__":
     from tabulate import tabulate
+
     from gflownet.utils.molecule.conformer_base import get_all_torsion_angles
 
     rmol = Chem.MolFromSmiles(constants.ad_smiles)

@@ -1,6 +1,7 @@
-from gflownet.proxy.base import Proxy
 import torch
 from torchtyping import TensorType
+
+from gflownet.proxy.base import Proxy
 
 
 class Torus(Proxy):

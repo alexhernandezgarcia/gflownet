@@ -1,9 +1,9 @@
+from collections.abc import MutableMapping
+from pathlib import Path
+
 import numpy as np
 import torch
-
-from collections.abc import MutableMapping
 from hydra.utils import get_original_cwd
-from pathlib import Path
 
 
 def set_device(device: str):

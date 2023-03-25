@@ -1,9 +1,6 @@
 import numpy as np
-
 from rdkit import Chem
-from rdkit.Chem import AllChem
-from rdkit.Chem import rdMolTransforms
-from rdkit.Chem import TorsionFingerprints
+from rdkit.Chem import AllChem, TorsionFingerprints, rdMolTransforms
 from rdkit.Geometry.rdGeometry import Point3D
 
 from gflownet.utils.molecule import constants

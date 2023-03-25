@@ -3,12 +3,12 @@ GFlowNet
 TODO:
     - Seeds
 """
-import sys
 import copy
+import pickle
+import sys
 import time
 from collections import defaultdict
 from pathlib import Path
-from omegaconf import OmegaConf
 from typing import List, Tuple
 
 import numpy as np
@@ -16,10 +16,10 @@ import pandas as pd
 import torch
 import torch.nn as nn
 import yaml
-import pickle
-from torch.distributions import Categorical, Bernoulli
-from tqdm import tqdm
+from omegaconf import OmegaConf
 from scipy.special import logsumexp
+from torch.distributions import Bernoulli, Categorical
+from tqdm import tqdm
 
 from gflownet.utils.buffer import Buffer
 from gflownet.utils.common import set_device, set_float_precision, torch2np

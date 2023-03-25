@@ -2,9 +2,9 @@
 Classes to represent hyper-torus environments
 """
 import itertools
+import re
 from copy import deepcopy
 from typing import List, Tuple
-import re
 
 import matplotlib.pyplot as plt
 import numpy as np

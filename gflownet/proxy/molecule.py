@@ -10,7 +10,6 @@ from sklearn.ensemble import RandomForestRegressor
 from gflownet.proxy.base import Proxy
 from gflownet.utils.common import download_file_if_not_exists
 
-
 TORCHANI_MODELS = {
     "ANI1x": torchani.models.ANI1x,
     "ANI1ccx": torchani.models.ANI1ccx,
