@@ -34,16 +34,16 @@ class ContinuousTorus(HybridTorus):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
+        self.eos = tuple([np.inf for _ in range(self.n_dim)])
 
     def get_action_space(self):
         """
-        The actions are tuples of length 2 * n_dim, where positions d and d+1 in the
-        tuple correspond to dimension d and the increment of dimension d,
-        respectively. EOS is indicated by a tuple whose first element ins self.eos.
+        The actions are tuples of length n_dim, where the value at position d indicates
+        the increment of dimension d. EOS is indicated by increments of np.inf for all
+        dimensions.
         """
-        pairs = [(dim, 0.0) for dim in range(self.n_dim)]
-        actions = [tuple([el for pair in pairs for el in pair])]
-        actions += [tuple([self.eos] + [0.0 for _ in range(self.n_dim * 2 - 1)])]
+        generic_action = tuple([0.0 for _ in range(self.n_dim)])
+        actions = [generic_action, self.eos]
         return actions
 
     def get_policy_output(self, params: dict):
@@ -132,9 +132,12 @@ class ContinuousTorus(HybridTorus):
         if done is None:
             done = self.done
         if done:
-            return [state], [self.action_space[-1]]
+            return [state], [self.eos]
+        # If source state
+        elif state[-1] == 0:
+            return [], []
         else:
-            for dim, angle in zip(action[0::2], action[1::2]):
+            for dim, angle in enumerate(action):
                 state[int(dim)] = (state[int(dim)] - angle) % (2 * np.pi)
             state[-1] -= 1
             parents = [state]
@@ -185,16 +188,10 @@ class ContinuousTorus(HybridTorus):
             )
         logprobs = torch.sum(logprobs, axis=1)
         # Build actions
-        actions_tensor = (
-            torch.repeat_interleave(torch.arange(0, self.n_dim), 2)
-            .repeat(n_states, 1)
-            .to(dtype=self.float, device=device)
+        actions_tensor = torch.inf * torch.ones(
+            angles.shape, dtype=self.float, device=device
         )
-        actions_tensor[mask_states_sample, 1::2] = angles[mask_states_sample]
-        actions_tensor[mask_stop_actions.flatten()] = torch.zeros(
-            actions_tensor.shape[1]
-        ).to(actions_tensor)
-        actions_tensor[mask_stop_actions.flatten(), 0] = 2.0
+        actions_tensor[mask_states_sample, :] = angles[mask_states_sample]
         actions = [tuple(a.tolist()) for a in actions_tensor]
         return actions, logprobs
 
@@ -202,7 +199,7 @@ class ContinuousTorus(HybridTorus):
         self,
         policy_outputs: TensorType["n_states", "policy_output_dim"],
         is_forward: bool,
-        actions: TensorType["n_states", 2],
+        actions: TensorType["n_states", "n_dim"],
         states_target: TensorType["n_states", "policy_input_dim"],
         mask_stop_actions: TensorType["n_states", "1"] = None,
         loginf: float = 1000,
@@ -213,7 +210,6 @@ class ContinuousTorus(HybridTorus):
         device = policy_outputs.device
         mask_states_sample = ~mask_stop_actions.flatten()
         n_states = policy_outputs.shape[0]
-        angles = actions[:, 1::2]
         logprobs = torch.zeros(n_states, self.n_dim).to(device)
         if torch.any(mask_states_sample):
             mix_logits = policy_outputs[mask_states_sample, 0::3].reshape(
@@ -232,23 +228,20 @@ class ContinuousTorus(HybridTorus):
             )
             distr_angles = MixtureSameFamily(mix, vonmises)
             logprobs[mask_states_sample] = distr_angles.log_prob(
-                angles[mask_states_sample]
+                actions[mask_states_sample]
             )
         logprobs = torch.sum(logprobs, axis=1)
         return logprobs
 
-    def step(
-        self, action: Tuple[int, float]
-    ) -> Tuple[List[float], Tuple[int, float], bool]:
+    def step(self, action: Tuple[float]) -> Tuple[List[float], Tuple[int, float], bool]:
         """
         Executes step given an action.
 
         Args
         ----
         action : tuple
-            Action to be executed. An action is a tuple with either:
-            - (self.eos, 0.0) with two values:
-            (dimension, magnitude).
+            Action to be executed. An action is a vector where the value at position d
+            indicates the increment in the angle at dimension d.
 
         Returns
         -------
@@ -269,15 +262,15 @@ class ContinuousTorus(HybridTorus):
         elif self.n_actions == self.length_traj:
             self.done = True
             self.n_actions += 1
-            return self.state, self.action_space[-1], True
-        # If action is not eos, then perform action
-        elif action[0] != self.eos:
+            return self.state, self.eos, True
+        # If action is eos, then it is invalid
+        elif action == self.eos:
+            return self.state, action, False
+        # Otherwise perform action
+        else:
             self.n_actions += 1
-            for dim, angle in zip(action[0::2], action[1::2]):
+            for dim, angle in enumerate(action):
                 self.state[int(dim)] += angle
                 self.state[int(dim)] = self.state[int(dim)] % (2 * np.pi)
                 self.state[-1] = self.n_actions
             return self.state, action, True
-        # If action is eos, then it is invalid
-        else:
-            return self.state, action, False
