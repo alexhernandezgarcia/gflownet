@@ -35,9 +35,11 @@ class Crystal(GFlowNetEnv):
         Args
         ----------
         elements : list or int
-            Elements that will be used for construction of crystal. Either list, in which case every value should
-            indicate the atomic number of an element, or int, in which case n consecutive atomic numbers will
-            be used. Note that we assume this will correspond to real atomic numbers, i.e. start from 1, not 0.
+            Elements that will be used for construction of crystal. Either list, in
+            which case every value should indicate the atomic number of an element, or
+            int, in which case n consecutive atomic numbers will be used. Note that we
+            assume this will correspond to real atomic numbers, i.e. start from 1, not
+            0.
 
         max_diff_elem : int
             Maximum number of unique elements in the crystal
@@ -52,19 +54,24 @@ class Crystal(GFlowNetEnv):
             Maximum number of atoms that can be used to construct a crystal
 
         min_atom_i : int
-            Minimum number of elements of each used kind that needs to be used to construct a crystal
+            Minimum number of elements of each used kind that needs to be used to
+            construct a crystal
 
         max_atom_i : int
-            Maximum number of elements of each kind that can be used to construct a crystal
+            Maximum number of elements of each kind that can be used to construct a
+            crystal
 
         oxidation_states : (optional) dict
-            Mapping from ints (representing elements) to lists of different oxidation states
+            Mapping from ints (representing elements) to lists of different oxidation
+            states
 
         alphabet : (optional) dict
-            Mapping from ints (representing elements) to strings containing human-readable elements' names
+            Mapping from ints (representing elements) to strings containing
+            human-readable elements' names
 
         required_elements : (optional) list
-            List of elements that must be present in a crystal for it to represent a valid end state
+            List of elements that must be present in a crystal for it to represent a
+            valid end state
         """
         super().__init__(**kwargs)
 
@@ -170,7 +177,8 @@ class Crystal(GFlowNetEnv):
         Returns
         ----
         oracle_state : Tensor
-            Tensor containing # of Li atoms, total # of atoms, and fractions of individual elements
+            Tensor containing # of Li atoms, total # of atoms, and fractions of
+            individual elements
         """
         if state is None:
             state = self.state
@@ -237,9 +245,9 @@ class Crystal(GFlowNetEnv):
         Args
         ----
         state : list
-            Representation of a state as a list of length equal to that of self.elements,
-            where i-th value contains the count of atoms for i-th element, from 0 to
-            self.max_atoms_i.
+            Representation of a state as a list of length equal to that of
+            self.elements, where i-th value contains the count of atoms for i-th
+            element, from 0 to self.max_atoms_i.
 
         done : bool
             Whether the trajectory is done. If None, done is taken from instance.
