@@ -4,6 +4,7 @@ Classes to represent hyper-torus environments
 import itertools
 from copy import deepcopy
 from typing import List, Tuple
+import re
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -282,6 +283,12 @@ class HybridTorus(GFlowNetEnv):
         Converts a human-readable string representing a state into a state as a list of
         positions. Angles are converted back to radians.
         """
+        # Preprocess
+        pattern = re.compile(r"\s+")
+        readable = re.sub(pattern, " ", readable)
+        readable = readable.replace(" ]", "]")
+        readable = readable.replace(" [", "[")
+        # Process
         pair = readable.split(" | ")
         angles = [np.float32(el) * np.pi / 180 for el in pair[0].strip("[]").split(" ")]
         n_actions = [int(pair[1])]
