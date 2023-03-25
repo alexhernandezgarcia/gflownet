@@ -40,10 +40,6 @@ class AlanineDipeptide(ContinuousTorus):
             self.conformer.set_torsion_angle(ta, state[idx])
         return self.conformer
 
-    def copy(self):
-        # return an instance of the environment
-        return deepcopy(self)
-
     def statetorch2proxy(self, states: TensorType["batch", "state_dim"]) -> npt.NDArray:
         """
         Prepares a batch of states in torch "GFlowNet format" for the oracle.
