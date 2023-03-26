@@ -57,7 +57,8 @@ class Tetris(GFlowNetEnv):
         self.pieces = pieces
         self.rotations = rotations
         self.allow_redundant_rotations: allow_redundant_rotations
-        self.rotation2idx = {0: 0, 90: 1, 180: 2, 270: 3} 
+        # Helper dicts
+        self.rot2idx = {0: 0, 90: 1, 180: 2, 270: 3} 
         # Source state: empty board
         self.source = np.zeros((self.height, self.width), dtype=int)
         # End-of-sequence action: all -1
@@ -77,12 +78,14 @@ class Tetris(GFlowNetEnv):
         pieces = []
         for piece in self.pieces:
             for rotation in self.pieces:
-                piece = np.rot90(PIECES[piece][1], k=self.rotation2idx[rotation])
-                if piece not in pieces:
+                piece = np.rot90(PIECES[piece][1], k=self.rot2idx[rotation])
+                if self.allow_redundant_rotations or piece not in pieces:
                     pieces.append(piece)
                 else:
                     continue
                 for location in range(self.width):
+                    if location + piece.shape[1] <= self.width:
+                        actions.append((PIECES[piece][0], rotation, location))
                     
 
         actions.append(self.eos)
