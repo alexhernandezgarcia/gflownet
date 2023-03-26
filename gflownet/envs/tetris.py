@@ -128,9 +128,8 @@ class Tetris(GFlowNetEnv):
         mask = [False for _ in range(self.policy_output_dim)]
         for idx, action in enumerate(self.action_space[:-1]):
             child = state.copy()
-            for dim, incr in enumerate(action):
-                child[dim] += incr
-            if any(el >= self.length for el in child):
+            _, valid = self._drop_piece_on_board(action, child)
+            if not valid:
                 mask[idx] = True
         return mask
 
