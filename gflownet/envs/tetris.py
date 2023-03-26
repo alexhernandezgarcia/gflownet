@@ -103,8 +103,8 @@ class Tetris(GFlowNetEnv):
         be dropped onto the current and False otherwise.
         """
         if state is None:
-            state = self.state.copy()
-        board = state.copy()
+            state = torch.tensor(self.state)
+        board = torch.tensor(state)
         piece_idx, rotation, location = action
         piece_mat = torch.rot90(
             self.piece2mat(self.pieces(piece_idx)), k=self.rot2idx[rotation]
@@ -129,7 +129,7 @@ class Tetris(GFlowNetEnv):
             - False otherwise.
         """
         if state is None:
-            state = self.state.copy()
+            state = torch.tensor(self.state)
         if done is None:
             done = self.done
         if done:
@@ -141,28 +141,21 @@ class Tetris(GFlowNetEnv):
                 mask[idx] = True
         return mask
 
-    def state2oracle(self, state: List = None) -> List:
+    def state2oracle(self, state: Optional[TensorType["height", "width"]] = None) -> TensorType["height", "width"]:
         """
-        Prepares a state in "GFlowNet format" for the oracles: a list of length
-        n_dim with values in the range [cell_min, cell_max] for each state.
-
-        See: state2policy()
+        Prepares a state in "GFlowNet format" for the oracles: simply converts non-zero
+        (non-empty) cells into 1s.
 
         Args
         ----
-        state : list
+        state : tensor
             State
         """
         if state is None:
-            state = self.state.copy()
-        return (
-            (
-                np.array(self.state2policy(state)).reshape((self.n_dim, self.length))
-                * self.cells[None, :]
-            )
-            .sum(axis=1)
-            .tolist()
-        )
+            state = torch.tensor(self.state)
+        state_oracle = torch.tensor(state)
+        state_oracle[state_oracle != 0] = 1
+        return state_oracle
 
     def statebatch2oracle(
         self, states: List[List]
