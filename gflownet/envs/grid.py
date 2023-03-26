@@ -119,8 +119,8 @@ class Grid(GFlowNetEnv):
         mask = [False for _ in range(self.policy_output_dim)]
         for idx, action in enumerate(self.action_space[:-1]):
             child = state.copy()
-            for d, incr in enumerate(action):
-                child[d] += incr
+            for dim, incr in enumerate(action):
+                child[dim] += incr
             if any(el >= self.length for el in child):
                 mask[idx] = True
         return mask
@@ -301,9 +301,9 @@ class Grid(GFlowNetEnv):
             actions = []
             for idx, action in enumerate(self.action_space[:-1]):
                 parent = state.copy()
-                for d, incr in enumerate(action):
-                    if parent[d] - incr >= 0:
-                        parent[d] -= incr
+                for dim, incr in enumerate(action):
+                    if parent[dim] - incr >= 0:
+                        parent[dim] -= incr
                     else:
                         break
                 else:
@@ -355,8 +355,8 @@ class Grid(GFlowNetEnv):
         # If action is not eos, then perform action
         elif action != self.eos:
             state_next = self.state.copy()
-            for d, incr in enumerate(action):
-                state_next[d] += incr
+            for dim, incr in enumerate(action):
+                state_next[dim] += incr
             if any([s >= self.length for s in state_next]):
                 valid = False
             else:
