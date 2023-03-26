@@ -47,11 +47,6 @@ def env():
             (5, 90, 0),
             (5, 90, 1),
             (5, 90, 2),
-            (5, 180, 0),
-            (5, 180, 1),
-            (5, 270, 0),
-            (5, 270, 1),
-            (5, 270, 2),
             (6, 0, 0),
             (6, 0, 1),
             (6, 90, 0),
@@ -67,17 +62,30 @@ def env():
             (7, 90, 0),
             (7, 90, 1),
             (7, 90, 2),
-            (7, 180, 0),
-            (7, 180, 1),
-            (7, 270, 0),
-            (7, 270, 1),
-            (7, 270, 2),
             (-1, -1, -1),
         ],
     ],
 )
-def test__get_action_space__returns_expected(
-    env, action_space
-):
-    print(env.action_space)
+def test__get_action_space__returns_expected(env, action_space):
     assert set(action_space) == set(env.action_space)
+
+
+@pytest.mark.parametrize(
+    "state, action, next_state",
+    [
+        (
+            [[0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]],
+            (4, 0, 0),
+            [[0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [4, 4, 0, 0], [4, 4, 0, 0]],
+        ),
+        (
+            [[0, 0, 0, 0], [0, 0, 0, 0], [5, 0, 0, 0], [5, 5, 0, 0], [0, 5, 0, 0]],
+            (5, 90, 1),
+            [[0, 0, 0, 0], [0, 5, 0, 0], [5, 5, 5, 0], [5, 5, 5, 0], [0, 5, 0, 0]],
+        ),
+    ],
+)
+def test__step__returns_expected(env, state, action, next_state):
+    env.set_state(torch.tensor(state, dtype=torch.uint8))
+    env.step(action)
+    assert torch.equal(env.state, torch.tensor(next_state, dtype=torch.uint8))
