@@ -58,6 +58,7 @@ class Tetris(GFlowNetEnv):
         self.pieces = pieces
         self.rotations = rotations
         self.allow_redundant_rotations = allow_redundant_rotations
+        self.allow_eos_before_full = allow_eos_before_full
         # Helper functions and dicts
         self.piece2idx = lambda letter: PIECES[letter][0]
         self.piece2mat = lambda letter: torch.tensor(
@@ -84,10 +85,9 @@ class Tetris(GFlowNetEnv):
         for piece in self.pieces:
             for rotation in self.rotations:
                 piece_mat = torch.rot90(self.piece2mat(piece), k=self.rot2idx[rotation])
-                import ipdb
-
-                ipdb.set_trace()
-                if self.allow_redundant_rotations or piece not in pieces_mat:
+                if self.allow_redundant_rotations or not any(
+                    [torch.equal(p, piece_mat) for p in pieces_mat]
+                ):
                     pieces_mat.append(piece_mat)
                 else:
                     continue
@@ -110,15 +110,17 @@ class Tetris(GFlowNetEnv):
         board = state.clone().detach()
         piece_idx, rotation, location = action
         piece_mat = torch.rot90(
-            self.piece2mat(self.pieces(piece_idx)), k=self.rot2idx[rotation]
+            self.piece2mat(self.pieces[piece_idx - 1]), k=self.rot2idx[rotation]
         )
         hp, wp = piece_mat.shape
         for row in reversed(range(self.height)):
             if row - hp + 1 < 0:
                 return board, False
-            board_section = board[row - hp + 1 : row + 1, location : location + hp]
-            if sum(board_section[torch.nonzero(piece_mat)]) == 0:
-                board[row - hp + 1 : row + 1, location : location + hp] += piece_mat
+            if location + wp > self.width:
+                return board, False
+            board_section = board[row - hp + 1 : row + 1, location : location + wp]
+            if sum(board_section[piece_mat != 0]) == 0:
+                board[row - hp + 1 : row + 1, location : location + wp] += piece_mat
                 return board, True
 
     def get_mask_invalid_actions_forward(
@@ -333,7 +335,7 @@ class Tetris(GFlowNetEnv):
             return self.state, self.eos, True
         # If action is not eos, then perform action
         else:
-            next_state, valid = self._drop_piece_on_board(action)
+            state_next, valid = self._drop_piece_on_board(action)
             if valid:
                 self.state = state_next
                 self.n_actions += 1
