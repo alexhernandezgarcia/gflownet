@@ -60,10 +60,12 @@ class Tetris(GFlowNetEnv):
         self.allow_redundant_rotations = allow_redundant_rotations
         # Helper functions and dicts
         self.piece2idx = lambda letter: PIECES[letter][0]
-        self.piece2mat = lambda letter: PIECES[letter][1]
+        self.piece2mat = lambda letter: torch.tensor(
+            PIECES[letter][1], dtype=torch.uint8
+        )
         self.rot2idx = {0: 0, 90: 1, 180: 2, 270: 3}
         # Source state: empty board
-        self.source = np.zeros((self.height, self.width), dtype=int)
+        self.source = torch.zeros((self.height, self.width), dtype=torch.uint8)
         # End-of-sequence action: all -1
         self.eos = (-1, -1, -1)
         # Base class init
@@ -81,7 +83,7 @@ class Tetris(GFlowNetEnv):
         pieces_mat = []
         for piece in self.pieces:
             for rotation in self.rotations:
-                piece_mat = np.rot90(self.piece2mat(piece), k=self.rot2idx[rotation])
+                piece_mat = torch.rot90(self.piece2mat(piece), k=self.rot2idx[rotation])
                 if self.allow_redundant_rotations or piece not in pieces_mat:
                     pieces_mat.append(piece_mat)
                 else:
@@ -92,7 +94,9 @@ class Tetris(GFlowNetEnv):
         actions.append(self.eos)
         return actions
 
-    def _drop_piece_on_board(self, action, state: Optional[npt.NDArray[np.int]] = None):
+    def _drop_piece_on_board(
+        self, action, state: Optional[TensorType["height", "width"]] = None
+    ):
         """
         Drops a piece defined by the argument action onto the board. It returns an
         updated board (copied) and a boolean variable, which is True if the piece can
@@ -102,7 +106,7 @@ class Tetris(GFlowNetEnv):
             state = self.state.copy()
         board = state.copy()
         piece_idx, rotation, location = action
-        piece_mat = np.rot90(
+        piece_mat = torch.rot90(
             self.piece2mat(self.pieces(piece_idx)), k=self.rot2idx[rotation]
         )
         hp, wp = piece_mat.shape
@@ -110,7 +114,7 @@ class Tetris(GFlowNetEnv):
             if row - hp + 1 < 0:
                 return board, False
             board_section = board[row - hp + 1 : row + 1, location : location + hp]
-            if sum(board_section[np.nonzero(piece_mat)]) == 0:
+            if sum(board_section[torch.nonzero(piece_mat)]) == 0:
                 board[row - hp + 1 : row + 1, location : location + hp] += piece_mat
                 return board, True
 
