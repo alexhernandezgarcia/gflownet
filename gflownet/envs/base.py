@@ -74,7 +74,7 @@ class GFlowNetEnv:
         self.action_space_torch = torch.tensor(
             self.action_space, device=self.device, dtype=self.float
         )
-        self.d_action_space = len(self.action_space)
+        self.action_space_dim = len(self.action_space)
         # Max trajectory length
         self.max_traj_length = self.get_max_traj_length()
         # Policy outputs
@@ -101,7 +101,7 @@ class GFlowNetEnv:
             actions.shape[0], -1, -1
         )
         # Expand the actions tensor: [batch_size, d_actions_space, action_dim]
-        actions = torch.unsqueeze(actions, 1).expand(-1, self.d_action_space, -1)
+        actions = torch.unsqueeze(actions, 1).expand(-1, self.action_space_dim, -1)
         # Take the indices at the d_actions_space dimension where all the elements in
         # the action_dim dimension are True
         return torch.where(torch.all(actions == action_space, dim=2))[1]
@@ -118,7 +118,7 @@ class GFlowNetEnv:
         For continuous or hybrid environments, this mask corresponds to the discrete
         part of the action space.
         """
-        return [False for _ in range(self.d_action_space)]
+        return [False for _ in range(self.action_space_dim)]
 
     def get_mask_invalid_actions_backward(
         self,
@@ -140,7 +140,7 @@ class GFlowNetEnv:
         """
         if parents_a is None:
             _, parents_a = self.get_parents()
-        mask = [True for _ in range(self.d_action_space)]
+        mask = [True for _ in range(self.action_space_dim)]
         for pa in parents_a:
             mask[self.action_space.index(pa)] = False
         return mask
@@ -287,7 +287,7 @@ class GFlowNetEnv:
 
         Continuous environments will generally have to overwrite this method.
         """
-        return np.ones(self.d_action_space)
+        return np.ones(self.action_space_dim)
 
     def state2proxy(self, state: List = None):
         """

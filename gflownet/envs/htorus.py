@@ -142,12 +142,12 @@ class HybridTorus(GFlowNetEnv):
         if done is None:
             done = self.done
         if done:
-            return [True for _ in range(self.d_action_space)]
+            return [True for _ in range(self.action_space_dim)]
         if state[-1] >= self.length_traj:
-            mask = [True for _ in range(self.d_action_space)]
+            mask = [True for _ in range(self.action_space_dim)]
             mask[-1] = False
         else:
-            mask = [False for _ in range(self.d_action_space)]
+            mask = [False for _ in range(self.action_space_dim)]
             mask[-1] = True
         return mask
 
@@ -162,10 +162,10 @@ class HybridTorus(GFlowNetEnv):
         if done is None:
             done = self.done
         if done:
-            mask = [True for _ in range(self.d_action_space)]
+            mask = [True for _ in range(self.action_space_dim)]
             mask[-1] = False
         else:
-            mask = [False for _ in range(self.d_action_space)]
+            mask = [False for _ in range(self.action_space_dim)]
             mask[-1] = True
         # Catch cases where it would not be possible to reach the initial state
         noninit_states = [s for s, ss in zip(state[:-1], self.source_angles) if s != ss]

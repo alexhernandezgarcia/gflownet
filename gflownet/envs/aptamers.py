@@ -63,7 +63,7 @@ class AptamerSeq(GFlowNetEnv):
         self.min_word_len = min_word_len
         self.max_word_len = max_word_len
         self.action_space = self.get_action_space()
-        self.eos = self.d_action_space
+        self.eos = self.action_space_dim
         self.reset()
         self.fixed_policy_output = self.get_fixed_policy_output()
         self.random_policy_output = self.get_fixed_policy_output()
@@ -306,8 +306,8 @@ class AptamerSeq(GFlowNetEnv):
         if done is None:
             done = self.done
         if done:
-            return [True for _ in range(self.d_action_space + 1)]
-        mask = [False for _ in range(self.d_action_space + 1)]
+            return [True for _ in range(self.action_space_dim + 1)]
+        mask = [False for _ in range(self.action_space_dim + 1)]
         seq_length = len(state)
         if seq_length < self.min_seq_length:
             mask[self.eos] = True

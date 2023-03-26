@@ -162,15 +162,15 @@ class Plane(GFlowNetEnv):
         if done is None:
             done = self.done
         if done:
-            return [True for _ in range(self.d_action_space)]
+            return [True for _ in range(self.action_space_dim)]
         if (
             any([s > self.max_val for s in self.state])
             or self.n_actions >= self.max_traj_length
         ):
-            mask = [True for _ in range(self.d_action_space)]
+            mask = [True for _ in range(self.action_space_dim)]
             mask[-1] = False
         else:
-            mask = [False for _ in range(self.d_action_space)]
+            mask = [False for _ in range(self.action_space_dim)]
         return mask
 
     def get_mask_invalid_actions_backward(self, state=None, done=None, parents_a=None):
@@ -184,10 +184,10 @@ class Plane(GFlowNetEnv):
         if done is None:
             done = self.done
         if done:
-            mask = [True for _ in range(self.d_action_space)]
+            mask = [True for _ in range(self.action_space_dim)]
             mask[-1] = False
         else:
-            mask = [False for _ in range(self.d_action_space)]
+            mask = [False for _ in range(self.action_space_dim)]
         # TODO: review: anything to do with max_value?
         return mask
 
