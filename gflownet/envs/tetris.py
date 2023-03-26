@@ -93,6 +93,11 @@ class Tetris(GFlowNetEnv):
         return actions
 
     def _drop_piece_on_board(self, action, state: Optional[npt.NDArray[np.int]] = None):
+        """
+        Drops a piece defined by the argument action onto the board. It returns an
+        updated board (copied) and a boolean variable, which is True if the piece can
+        be dropped onto the current and False otherwise.
+        """
         if state is None:
             state = self.state.copy()
         board = state.copy()
@@ -127,8 +132,7 @@ class Tetris(GFlowNetEnv):
             return [True for _ in range(self.policy_output_dim)]
         mask = [False for _ in range(self.policy_output_dim)]
         for idx, action in enumerate(self.action_space[:-1]):
-            child = state.copy()
-            _, valid = self._drop_piece_on_board(action, child)
+            _, valid = self._drop_piece_on_board(action)
             if not valid:
                 mask[idx] = True
         return mask
