@@ -5,18 +5,17 @@ The mean then ends up ebing (1) which leads to an error (ofc) while computing th
 Tutorial somewhat inspored by: https://docs.gpytorch.ai/en/stable/examples/04_Variational_and_Approximate_GPs/SVGP_Regression_CUDA.html
 """
 import math
+import os
+import urllib.request
+from math import floor
 
+import gpytorch
 # import tqdm
 import torch
-import gpytorch
-from tqdm.notebook import tqdm
-
-import urllib.request
-import os
-from scipy.io import loadmat
-from math import floor
 from botorch.test_functions import Hartmann
+from scipy.io import loadmat
 from torch.utils.data import DataLoader, Dataset
+from tqdm.notebook import tqdm
 
 
 class Data(Dataset):
@@ -187,8 +186,8 @@ print("Test RMSE: {}".format(torch.sqrt(torch.mean((preds.mean - test_y) ** 2)))
 
 
 from botorch.models import SingleTaskGP
-from gpytorch.distributions import MultivariateNormal
 from botorch.posteriors import GPyTorchPosterior
+from gpytorch.distributions import MultivariateNormal
 
 
 class myGPModel(SingleTaskGP):
@@ -215,9 +214,7 @@ class myGPModel(SingleTaskGP):
 
 
 from botorch.acquisition.max_value_entropy_search import (
-    qMaxValueEntropy,
-    qLowerBoundMaxValueEntropy,
-)
+    qLowerBoundMaxValueEntropy, qMaxValueEntropy)
 
 proxy = myGPModel(model, train_x, train_y.unsqueeze(-1))
 qMES = qLowerBoundMaxValueEntropy(proxy, candidate_set=train_x, use_gumbel=True)

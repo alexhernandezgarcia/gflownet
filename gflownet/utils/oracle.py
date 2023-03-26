@@ -4,7 +4,6 @@ import sys
 from omegaconf import ListConfig
 from potts_utils import load_potts_model, potts_energy
 from seqfold import dg, fold
-
 from utils import *
 
 try:  # we don't always install these on every platform
