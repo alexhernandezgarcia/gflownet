@@ -45,7 +45,8 @@ class Tetris(GFlowNetEnv):
         height: int = 20,
         pieces: List = ["I", "J", "L", "O", "S", "T", "Z"],
         rotations: List = [0, 90, 180, 270],
-        allow_redundant_rotations: True,
+        allow_redundant_rotations: bool = False,
+        allow_eos_before_full: bool = False,
         **kwargs,
     ):
         assert width > 3
@@ -56,9 +57,11 @@ class Tetris(GFlowNetEnv):
         self.height = height
         self.pieces = pieces
         self.rotations = rotations
-        self.allow_redundant_rotations: allow_redundant_rotations
-        # Helper dicts
-        self.rot2idx = {0: 0, 90: 1, 180: 2, 270: 3} 
+        self.allow_redundant_rotations = allow_redundant_rotations
+        # Helper functions and dicts
+        self.piece2idx = lambda letter: PIECES[letter][0]
+        self.piece2mat = lambda letter: PIECES[letter][1]
+        self.rot2idx = {0: 0, 90: 1, 180: 2, 270: 3}
         # Source state: empty board
         self.source = np.zeros((self.height, self.width), dtype=int)
         # End-of-sequence action: all -1
@@ -70,26 +73,41 @@ class Tetris(GFlowNetEnv):
         """
         Constructs list with all possible actions, including eos. An action is
         represented by a tuple of length 3 (piece, rotation, location). The piece is
-        represented by its integer id, the rotation by the integer rotation in degrees
+        represented by its index, the rotation by the integer rotation in degrees
         and the location by horizontal cell in the board of the left-most part of the
         piece.
         """
         actions = []
-        pieces = []
+        pieces_mat = []
         for piece in self.pieces:
-            for rotation in self.pieces:
-                piece = np.rot90(PIECES[piece][1], k=self.rot2idx[rotation])
-                if self.allow_redundant_rotations or piece not in pieces:
-                    pieces.append(piece)
+            for rotation in self.rotations:
+                piece_mat = np.rot90(self.piece2mat(piece), k=self.rot2idx[rotation])
+                if self.allow_redundant_rotations or piece not in pieces_mat:
+                    pieces_mat.append(piece_mat)
                 else:
                     continue
                 for location in range(self.width):
-                    if location + piece.shape[1] <= self.width:
-                        actions.append((PIECES[piece][0], rotation, location))
-                    
-
+                    if location + piece_mat.shape[1] <= self.width:
+                        actions.append((self.piece2idx(piece), rotation, location))
         actions.append(self.eos)
         return actions
+
+    def _drop_piece_on_board(self, action, state: Optional[npt.NDArray[np.int]] = None):
+        if state is None:
+            state = self.state.copy()
+        board = state.copy()
+        piece_idx, rotation, location = action
+        piece_mat = np.rot90(
+            self.piece2mat(self.pieces(piece_idx)), k=self.rot2idx[rotation]
+        )
+        hp, wp = piece_mat.shape
+        for row in reversed(range(self.height)):
+            if row - hp + 1 < 0:
+                return board, False
+            board_section = board[row - hp + 1 : row + 1, location : location + hp]
+            if sum(board_section[np.nonzero(piece_mat)]) == 0:
+                board[row - hp + 1 : row + 1, location : location + hp] += piece_mat
+                return board, True
 
     def get_mask_invalid_actions_forward(
         self,
@@ -361,8 +379,9 @@ class Tetris(GFlowNetEnv):
             self.n_actions += 1
             return self.state, self.eos, True
 
+    # TODO
     def get_max_traj_length(self):
-        return self.n_dim * self.length
+        return 1e9
 
     def get_all_terminating_states(self) -> List[List]:
         all_x = np.int32(
