@@ -112,10 +112,10 @@ class GFlowNetAgent:
         # Test set statistics
         if self.buffer.test is not None:
             print("\nGFN Test Data")
-            print(f"\tMean score: {self.buffer.test['energies'].mean()}")
-            print(f"\tStd score: {self.buffer.test['energies'].std()}")
-            print(f"\tMin score: {self.buffer.test['energies'].min()}")
-            print(f"\tMax score: {self.buffer.test['energies'].max()}")
+            print(f"\tMean score: {self.buffer.mean_tt}")
+            print(f"\tStd score: {self.buffer.std_tt}")
+            print(f"\tMin score: {self.buffer.min_tt}")
+            print(f"\tMax score: {self.buffer.max_tt}")
         # Policy models
         self.forward_policy = Policy(policy.forward, self.env, self.device, self.float)
         if "checkpoint" in policy.forward and policy.forward.checkpoint:

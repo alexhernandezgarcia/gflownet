@@ -200,7 +200,8 @@ class GFlowNetEnv:
         """
         if self.denorm_proxy:
             # TODO: do with torch
-            proxy_vals = proxy_vals * self.energies_stats[3] + self.energies_stats[2]
+            proxy_vals = proxy_vals * (self.energies_stats[1] - self.energies_stats[0]) + self.energies_stats[0]
+            # proxy_vals = proxy_vals * self.energies_stats[3] + self.energies_stats[2]
         if self.reward_func == "power":
             return torch.clamp(
                 (self.proxy_factor * proxy_vals / self.reward_norm) ** self.reward_beta,
@@ -567,7 +568,7 @@ class Buffer:
             self.train_type = train.type
         else:
             self.train_type = None
-        self.train, dict_tr = self.make_data_set(train)
+        self.train, dict_tr, train_stats = self.make_data_set(train)
         if (
             self.train is not None
             and "output_csv" in train
@@ -596,7 +597,7 @@ class Buffer:
             self.test_type = test.type
         else:
             self.train_type = None
-        self.test, dict_tt = self.make_data_set(test)
+        self.test, dict_tt, test_stats = self.make_data_set(test)
         if (
             self.test is not None
             and "output_csv" in test
@@ -625,11 +626,9 @@ class Buffer:
                 self.min_tr,
                 self.max_tr,
                 self.max_norm_tr,
-            ) = self.compute_stats(self.train)
+            ) = train_stats[0], train_stats[1], train_stats[2], train_stats[3], train_stats[4]
         if self.test is not None:
-            self.mean_tt, self.std_tt, self.min_tt, self.max_tt, _ = self.compute_stats(
-                self.test
-            )
+            self.mean_tt, self.std_tt, self.min_tt, self.max_tt, _ = test_stats[0], test_stats[1], test_stats[2], test_stats[3], test_stats[4]
 
     def add(
         self,
@@ -691,14 +690,16 @@ class Buffer:
         """
         Constructs a data set as a DataFrame according to the configuration.
         """
+        stats = None
         if config is None:
-            return None, None
+            return None, None, None
         elif "path" in config and config.path is not None:
             path = self.logger.logdir / Path("data") / config.path
             df = pd.read_csv(path, index_col=0)
             samples = [self.env.readable2state(s) for s in df["samples"].values]
+            stats = self.compute_stats(df)
         elif "type" not in config:
-            return None, None
+            return None, None, None
         elif config.type == "all" and hasattr(self.env, "get_all_terminating_states"):
             samples = self.env.get_all_terminating_states()
         elif (
@@ -714,7 +715,7 @@ class Buffer:
         ):
             samples = self.env.get_uniform_terminating_states(config.n)
         else:
-            return None, None
+            return None, None, None
         energies = self.env.proxy(self.env.statebatch2proxy(samples)).tolist()
         df = pd.DataFrame(
             {
@@ -722,7 +723,9 @@ class Buffer:
                 "energies": energies,
             }
         )
-        return df, {"x": samples, "energy": energies}
+        if stats is None:
+            stats = self.compute_stats(df)
+        return df, {"x": samples, "energy": energies}, stats
 
     def compute_stats(self, data):
         mean_data = data["energies"].mean()
