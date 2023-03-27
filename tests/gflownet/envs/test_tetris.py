@@ -207,39 +207,73 @@ def test__piece_can_be_lifted__returns_expected(
 
 
 @pytest.mark.parametrize(
-    "input, piece_idx, expected",
+    "board, piece_mat, row, col, expected",
+    [
+        (
+            [[0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [4, 4, 0, 0], [4, 4, 0, 0]],
+            [[4, 4], [4, 4]],
+            3,
+            0,
+            True,
+        ),
+        (
+            [[0, 0, 0, 0], [0, 0, 0, 0], [4, 4, 0, 0], [4, 4, 0, 0], [0, 0, 0, 0]],
+            [[4, 4], [4, 4]],
+            2,
+            0,
+            False,
+        ),
+        (
+            [[0, 0, 0, 0], [0, 6, 0, 0], [6, 6, 6, 0], [0, 6, 6, 6], [0, 0, 6, 0]],
+            [[0, 6], [6, 6], [0, 6]],
+            1,
+            0,
+            False,
+        ),
+    ],
+)
+def test__piece_is_not_floating__returns_expected(
+    env, board, piece_mat, row, col, expected
+):
+    board = torch.tensor(board, dtype=torch.uint8)
+    piece_mat = torch.tensor(piece_mat, dtype=torch.uint8)
+    assert Tetris._piece_is_not_floating(board, piece_mat, row, col) == expected
+
+
+@pytest.mark.parametrize(
+    "board, piece_idx, expected",
     [
         (
             [[0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [4, 4, 0, 0], [4, 4, 0, 0]],
             4,
-            [[0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]],
+            True,
         ),
         (
             [[0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [4, 4, 4, 4], [4, 4, 4, 4]],
             4,
-            [[0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]],
+            True,
         ),
         (
             [[0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [4, 4, 4, 0], [4, 4, 4, 0]],
             4,
-            [[0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 4, 0], [0, 0, 4, 0]],
+            False,
         ),
         (
             [[0, 0, 0, 0], [0, 5, 0, 0], [5, 5, 5, 0], [5, 5, 5, 0], [0, 5, 0, 0]],
             5,
-            [[0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]],
+            True,
         ),
         (
             [[0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [4, 0, 0, 4], [4, 0, 0, 4]],
             4,
-            [[0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [4, 0, 0, 4], [4, 0, 0, 4]],
+            False,
         ),
     ],
 )
-def test__remove_all_pieces__returns_expected(env, input, piece_idx, expected):
-    input = torch.tensor(input, dtype=torch.uint8)
+def test__pieces_are_compatible__returns_expected(env, board, piece_idx, expected):
+    board = torch.tensor(board, dtype=torch.uint8)
     expected = torch.tensor(expected, dtype=torch.uint8)
-    assert torch.equal(env._remove_all_pieces(input, piece_idx), expected)
+    assert env._pieces_are_compatible(board, piece_idx) == expected
 
 
 @pytest.mark.parametrize(
@@ -254,6 +288,17 @@ def test__remove_all_pieces__returns_expected(env, input, piece_idx, expected):
             [[0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [4, 4, 0, 0], [4, 4, 0, 0]],
             (1, 0, 0),
             False,
+        ),
+        (
+            [
+                [0, 0, 0, 6],
+                [0, 6, 6, 6],
+                [6, 6, 6, 6],
+                [0, 6, 6, 6],
+                [0, 0, 6, 0],
+            ],
+            (6, 270, 2),
+            True,
         ),
     ],
 )
@@ -367,6 +412,53 @@ def test__get_parents__returns_expected(
         assert torch.equal(p, p_e)
     for p_a, p_a_e in zip(parents_a, parents_a_expected):
         assert p_a == p_a_e
+
+
+@pytest.mark.parametrize(
+    "state, parent_expected, parent_a_expected",
+    [
+        (
+            [
+                [0, 0, 0, 6],
+                [0, 6, 6, 6],
+                [6, 6, 6, 6],
+                [0, 6, 6, 6],
+                [0, 0, 6, 0],
+            ],
+            [
+                [0, 0, 0, 0],
+                [0, 6, 0, 0],
+                [6, 6, 6, 0],
+                [0, 6, 6, 6],
+                [0, 0, 6, 0],
+            ],
+            (6, 270, 2),
+        ),
+        (
+            [
+                [1, 1, 1, 1],
+                [1, 1, 1, 1],
+                [0, 0, 2, 0],
+                [0, 0, 2, 0],
+                [0, 2, 2, 0],
+            ],
+            [
+                [0, 0, 0, 0],
+                [1, 1, 1, 1],
+                [0, 0, 2, 0],
+                [0, 0, 2, 0],
+                [0, 2, 2, 0],
+            ],
+            (1, 90, 0),
+        ),
+    ],
+)
+def test__get_parents__returns_expected(env, state, parent_expected, parent_a_expected):
+    state = torch.tensor(state, dtype=torch.uint8)
+    parent_expected = torch.tensor(parent_expected, dtype=torch.uint8)
+    parents, parents_a = env.get_parents(state)
+    assert any([torch.equal(p, parent_expected) for p in parents])
+    assert any([a == parent_a_expected for a in parents_a])
 
 
 def test__all_env_common(env_1piece):
