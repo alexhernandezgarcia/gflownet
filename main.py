@@ -2,6 +2,7 @@
 Runnable script with hydra capabilities
 """
 import os
+import pickle
 import random
 import sys
 
