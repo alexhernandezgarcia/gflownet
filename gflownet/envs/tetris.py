@@ -49,8 +49,6 @@ class Tetris(GFlowNetEnv):
         allow_eos_before_full: bool = False,
         **kwargs,
     ):
-        assert width > 3
-        assert height > 4
         assert all([p in ["I", "J", "L", "O", "S", "T", "Z"] for p in pieces])
         assert all([r in [0, 90, 180, 270] for r in rotations])
         self.width = width
@@ -66,6 +64,16 @@ class Tetris(GFlowNetEnv):
             PIECES[letter][1], dtype=torch.uint8
         )
         self.rot2idx = {0: 0, 90: 1, 180: 2, 270: 3}
+        # Check width and height compatibility
+        heights, widths = [], []
+        for piece in self.pieces:
+            for rotation in self.rotations:
+                piece_mat = torch.rot90(self.piece2mat(piece), k=self.rot2idx[rotation])
+                hp, wp = piece_mat.shape
+                heights.append(hp)
+                widths.append(wp)
+        assert all([self.height >= h for h in widths])
+        assert all([self.width >= w for w in widths])
         # Source state: empty board
         self.source = torch.zeros((self.height, self.width), dtype=torch.uint8)
         # End-of-sequence action: all -1
@@ -347,8 +355,8 @@ class Tetris(GFlowNetEnv):
         mask_invalid = self.get_mask_invalid_actions_forward()
         if mask_invalid[action_idx]:
             return self.state, action, False
-        # If only possible action is eos, then force eos
-        if all(mask_invalid[:-1]):
+        # If action is eos or only possible action is eos, then force eos
+        if action == self.eos or all(mask_invalid[:-1]):
             self.done = True
             self.n_actions += 1
             return self.state, self.eos, True
@@ -426,7 +434,7 @@ class Tetris(GFlowNetEnv):
                             board = self._remove_all_pieces(board, piece_idx)
         return board
 
-    def _pieces_are_compatible(self, board, piece_idx, n_reps=10):
+    def _pieces_are_compatible(self, board, piece_idx, n_reps=20):
         pieces_are_compatible = False
         for _ in range(n_reps):
             board_aux = board.clone().detach()
@@ -479,3 +487,28 @@ class Tetris(GFlowNetEnv):
                 )
                 return board_parent, is_parent
         return board.clone().detach(), False
+
+    def get_uniform_terminating_states(
+        self, n_states: int, seed: int, n_iter_max: int = 1e6
+    ) -> List[List]:
+        rng = np.random.default_rng(seed)
+        states = []
+        for it in range(int(n_iter_max)):
+            self.reset()
+            while not self.done:
+                # Sample random action
+                mask_invalid = torch.unsqueeze(
+                    torch.BoolTensor(self.get_mask_invalid_actions_forward()), 0
+                )
+                random_policy = torch.unsqueeze(
+                    torch.tensor(self.random_policy_output, dtype=self.float), 0
+                )
+                actions, _ = self.sample_actions(
+                    policy_outputs=random_policy, mask_invalid_actions=mask_invalid
+                )
+                _, _, _ = self.step(actions[0])
+            if not any([torch.equal(self.state, s) for s in states]):
+                states.append(self.state)
+            if len(states) == n_states:
+                break
+        return states
