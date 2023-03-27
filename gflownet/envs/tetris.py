@@ -70,6 +70,10 @@ class Tetris(GFlowNetEnv):
         self.source = torch.zeros((self.height, self.width), dtype=torch.uint8)
         # End-of-sequence action: all -1
         self.eos = (-1, -1, -1)
+        # Conversions
+        self.state2proxy = self.state2oracle
+        self.statebatch2proxy = self.statebatch2oracle
+        self.statetorch2proxy = self.statetorch2oracle
         # Base class init
         super().__init__(**kwargs)
 
