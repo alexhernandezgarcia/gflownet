@@ -16,6 +16,8 @@ def main(config):
     # Get current directory and set it as root log dir for Logger
     cwd = os.getcwd()
     config.logger.logdir.root = cwd
+    print(f"\nLogging directory of this run:  {cwd}\n")
+
     # Reset seed for job-name generation in multirun jobs
     random.seed(None)
     # Set other random seeds
@@ -57,6 +59,8 @@ def main(config):
             }
         )
         df.to_csv("gfn_samples.csv")
+        dct = {"x": samples, "energy": energies}
+        pickle.dump(dct, open("gfn_samples.pkl", "wb"))
     print(gflownet.buffer.replay)
     gflownet.logger.end()
 
