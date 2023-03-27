@@ -142,7 +142,7 @@ class Tetris(GFlowNetEnv):
             return [True for _ in range(self.policy_output_dim)]
         mask = [False for _ in range(self.policy_output_dim)]
         for idx, action in enumerate(self.action_space[:-1]):
-            _, valid = self._drop_piece_on_board(action)
+            _, valid = self._drop_piece_on_board(action, state)
             if not valid:
                 mask[idx] = True
         if not self.allow_eos_before_full and not all(mask[:-1]):
@@ -220,6 +220,16 @@ class Tetris(GFlowNetEnv):
         See statetorch2oracle().
         """
         return self.statetorch2oracle(states)
+
+    def policy2state(
+        self, policy: Optional[TensorType["height", "width"]] = None
+    ) -> TensorType["height", "width"]:
+        """
+        Returns None to signal that the conversion is not reversible.
+
+        See: state2oracle()
+        """
+        return None
 
     def state2readable(self, state):
         """
