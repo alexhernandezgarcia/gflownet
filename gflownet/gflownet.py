@@ -3,12 +3,12 @@ GFlowNet
 TODO:
     - Seeds
 """
-import sys
 import copy
+import pickle
+import sys
 import time
 from collections import defaultdict
 from pathlib import Path
-from omegaconf import OmegaConf
 from typing import List, Tuple
 
 import numpy as np
@@ -16,12 +16,13 @@ import pandas as pd
 import torch
 import torch.nn as nn
 import yaml
-import pickle
-from torch.distributions import Categorical, Bernoulli
-from tqdm import tqdm
+from omegaconf import OmegaConf
 from scipy.special import logsumexp
 import random
-from gflownet.envs.base import Buffer
+from torch.distributions import Bernoulli, Categorical
+from tqdm import tqdm
+
+from gflownet.utils.buffer import Buffer
 from gflownet.utils.common import set_device, set_float_precision, torch2np
 from torchtyping import TensorType
 
@@ -542,7 +543,7 @@ class GFlowNetAgent:
                 masks_sf,
             ],
         )
-        parents_a = parents_a.to(int).squeeze()
+        parents_a_idx = self.env.actions2indices(parents_a)
         # Compute rewards
         rewards = self.env.reward_torchbatch(states, done)
         assert torch.all(rewards[done] > 0)
@@ -551,9 +552,9 @@ class GFlowNetAgent:
             (states.shape[0], self.env.policy_output_dim),
             device=self.device,
         )
-        inflow_logits[parents_batch_id, parents_a] = self.forward_policy(
+        inflow_logits[parents_batch_id, parents_a_idx] = self.forward_policy(
             self.env.statetorch2policy(parents)
-        )[torch.arange(parents.shape[0]), parents_a]
+        )[torch.arange(parents.shape[0]), parents_a_idx]
         inflow = torch.logsumexp(inflow_logits, dim=1)
         # Out-flows
         outflow_logits = self.forward_policy(self.env.statetorch2policy(states))

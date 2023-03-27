@@ -1,26 +1,45 @@
 """
 Classes to represent a hyper-grid environments
 """
-from typing import List, Tuple
 import itertools
+from typing import List, Optional, Tuple
+
 import numpy as np
 import numpy.typing as npt
 import torch
 from torchtyping import TensorType
+
 from gflownet.envs.base import GFlowNetEnv
 
 
 class Grid(GFlowNetEnv):
     """
-    Hyper-grid environment
+    Hyper-grid environment: A grid with n_dim dimensions and length cells per
+    dimensions.
+
+    The state space is the entire grid and each state is represented by the vector of
+    coordinates of each dimensions. For example, in 3D, the origin will be at [0, 0, 0]
+    and after incrementing dimension 0 by 2, dimension 1 by 3 and dimension 3 by 1, the
+    state would be [2, 3, 1].
+
+    The action space is the increment to be applied to each dimension. For instance,
+    (0, 0, 1) will increment dimension 2 by 1 and the action that goes from [1, 1, 1]
+    to [2, 3, 1] is (1, 2, 0).
 
     Attributes
     ----------
-    ndim : int
+    n_dim : int
         Dimensionality of the grid
 
     length : int
         Size of the grid (cells per dimension)
+
+    max_increment : int
+        Maximum increment of each dimension by the actions.
+
+    max_dim_per_action : int
+        Maximum number of dimensions to increment per action. If -1, then
+        max_dim_per_action is set to n_dim.
 
     cell_min : float
         Lower bound of the cells range
@@ -31,58 +50,67 @@ class Grid(GFlowNetEnv):
 
     def __init__(
         self,
-        corr_type,
-        n_dim=2,
-        length=3,
-        min_step_len=1,
-        max_step_len=1,
-        cell_min=-1,
-        cell_max=1,
-        rescale=1.0,
+        n_dim: int = 2,
+        length: int = 3,
+        max_increment: int = 1,
+        max_dim_per_action: int = 1,
+        cell_min: float = -1,
+        cell_max: float = 1,
+        corr_type: str = None,
+        rescale: int = 1.0,
         **kwargs,
     ):
-        super().__init__(**kwargs)
+        assert n_dim > 0
+        assert length > 1
+        assert max_increment > 0
+        assert max_dim_per_action == -1 or max_dim_per_action > 0
         self.n_dim = n_dim
-        self.eos = self.n_dim
-        self.source = [0 for _ in range(self.n_dim)]
         self.length = length
-        self.min_step_len = min_step_len
-        self.max_step_len = max_step_len
+        self.max_increment = max_increment
+        if max_dim_per_action == -1:
+            max_dim_per_action = self.n_dim
+        self.max_dim_per_action = max_dim_per_action
         self.cells = np.linspace(cell_min, cell_max, length)
-        self.reset()
-        self.action_space = self.get_actions_space()
-        self.fixed_policy_output = self.get_fixed_policy_output()
-        self.random_policy_output = self.get_fixed_policy_output()
-        self.policy_output_dim = len(self.fixed_policy_output)
-        self.policy_input_dim = len(self.state2policy())
-        # AL
         if self.oracle is not None and hasattr(self.oracle, "n_dim"):
             self.oracle.n_dim = self.n_dim
             self.oracle.setup()
         # non-AL
-        if hasattr(self, "proxy")  and self.proxy is not None and hasattr(self.proxy, "n_dim"):
+        if (
+            hasattr(self, "proxy")
+            and self.proxy is not None
+            and hasattr(self.proxy, "n_dim")
+        ):
             self.proxy.n_dim = self.n_dim
             self.proxy.setup()
         self.rescale = rescale
         self.corr_type = corr_type
 
-    def get_actions_space(self):
+    def get_action_space(self):
         """
-        Constructs list with all possible actions, including eos.
+        Constructs list with all possible actions, including eos. An action is
+        represented by a vector of length n_dim where each index d indicates the
+        increment to apply to dimension d of the hyper-grid.
         """
-        valid_steplens = np.arange(self.min_step_len, self.max_step_len + 1)
-        dims = [a for a in range(self.n_dim)]
+        increments = [el for el in range(self.max_increment + 1)]
         actions = []
-        for r in valid_steplens:
-            actions_r = [el for el in itertools.product(dims, repeat=r)]
-            actions += actions_r
-        actions += [(self.eos,)]
+        for action in itertools.product(increments, repeat=self.n_dim):
+            if (
+                sum(action) != 0
+                and len([el for el in action if el > 0]) <= self.max_dim_per_action
+            ):
+                actions.append(tuple(action))
+        actions.append(self.eos)
         return actions
 
-    def get_mask_invalid_actions_forward(self, state=None, done=None):
+    def get_mask_invalid_actions_forward(
+        self,
+        state: Optional[List] = None,
+        done: Optional[bool] = None,
+    ) -> List:
         """
-        Returns a vector of length the action space + 1: True if forward action is
-        invalid given the current state, False otherwise.
+        Returns a list of length the action space with values:
+            - True if the forward action is invalid from the current state.
+            - False otherwise.
         """
         if state is None:
             state = self.state.copy()
@@ -91,37 +119,20 @@ class Grid(GFlowNetEnv):
         if done:
             return [True for _ in range(self.policy_output_dim)]
         mask = [False for _ in range(self.policy_output_dim)]
-        for idx, a in enumerate(self.action_space[:-1]):
-            for d in a:
-                if state[d] + 1 >= self.length:
-                    mask[idx] = True
-                    break
+        for idx, action in enumerate(self.action_space[:-1]):
+            child = state.copy()
+            for dim, incr in enumerate(action):
+                child[dim] += incr
+            if any(el >= self.length for el in child):
+                mask[idx] = True
         return mask
 
-    def true_density(self):
-        # Return pre-computed true density if already stored
-        if self._true_density is not None:
-            return self._true_density
-        # Calculate true density
-        all_states = np.int32(
-            list(itertools.product(*[list(range(self.length))] * self.n_dim))
-        )
-        state_mask = np.array(
-            [len(self.get_parents(s, False)[0]) > 0 or sum(s) == 0 for s in all_states]
-        )
-        all_oracle = self.state2oracle(all_states)
-        rewards = self.oracle(all_oracle)[state_mask]
-        self._true_density = (
-            rewards / rewards.sum(),
-            rewards,
-            list(map(tuple, all_states[state_mask])),
-        )
-        return self._true_density
-
-    def state2oracle(self, state: List = None):
+    def state2oracle(self, state: List = None) -> List:
         """
         Prepares a state in "GFlowNet format" for the oracles: a list of length
         n_dim with values in the range [cell_min, cell_max] for each state.
+
+        See: state2policy()
 
         Args
         ----
@@ -131,16 +142,22 @@ class Grid(GFlowNetEnv):
         if state is None:
             state = self.state.copy()
         return (
-            self.state2policy(state).reshape((self.n_dim, self.length))
-            * self.cells[None, :]
-        ).sum(axis=1)
+            (
+                np.array(self.state2policy(state)).reshape((self.n_dim, self.length))
+                * self.cells[None, :]
+            )
+            .sum(axis=1)
+            .tolist()
+        )
 
     def statebatch2oracle(
         self, states: List[List]
     ) -> TensorType["batch", "state_oracle_dim"]:
         """
-        Prepares a batch of states in "GFlowNet format" for the oracles: a list of
-        length n_dim with values in the range [cell_min, cell_max] for each state.
+        Prepares a batch of states in "GFlowNet format" for the oracles: each state is
+        a vector of length n_dim with values in the range [cell_min, cell_max].
+
+        See: statetorch2oracle()
 
         Args
         ----
@@ -155,7 +172,10 @@ class Grid(GFlowNetEnv):
         self, states: TensorType["batch", "state_dim"]
     ) -> TensorType["batch", "state_oracle_dim"]:
         """
-        Prepares a batch of states in torch "GFlowNet format" for the oracle.
+        Prepares a batch of states in "GFlowNet format" for the oracles: each state is
+        a vector of length n_dim with values in the range [cell_min, cell_max].
+
+        See: statetorch2policy()
         """
         return (
             self.statetorch2policy(states).reshape(
@@ -252,17 +272,12 @@ class Grid(GFlowNetEnv):
         state = state.detach().cpu().numpy()
         return str(state).replace("(", "[").replace(")", "]").replace(",", "")
 
-    def reset(self, env_id=None):
-        """
-        Resets the environment.
-        """
-        self.state = self.source.copy()
-        self.n_actions = 0
-        self.done = False
-        self.id = env_id
-        return self
-
-    def get_parents(self, state=None, done=None, action=None):
+    def get_parents(
+        self,
+        state: Optional[List] = None,
+        done: Optional[bool] = None,
+        action: Optional[Tuple] = None,
+    ) -> Tuple[List, List]:
         """
         Determines all parents and actions that lead to state.
 
@@ -291,20 +306,20 @@ class Grid(GFlowNetEnv):
         if done is None:
             done = self.done
         if done:
-            return [state], [(self.eos,)]
+            return [state], [self.eos]
         else:
             parents = []
             actions = []
-            for idx, a in enumerate(self.action_space[:-1]):
-                state_aux = state.copy()
-                for a_sub in a:
-                    if state_aux[a_sub] > 0:
-                        state_aux[a_sub] -= 1
+            for idx, action in enumerate(self.action_space[:-1]):
+                parent = state.copy()
+                for dim, incr in enumerate(action):
+                    if parent[dim] - incr >= 0:
+                        parent[dim] -= incr
                     else:
                         break
                 else:
-                    parents.append(state_aux)
-                    actions.append(a)
+                    parents.append(parent)
+                    actions.append(action)
         return parents, actions
 
     def step(self, action: Tuple[int]) -> Tuple[List[int], Tuple[int], bool]:
@@ -328,19 +343,31 @@ class Grid(GFlowNetEnv):
         valid : bool
             False, if the action is not allowed for the current state.
         """
+        # If done, return invalid
         if self.done:
             return self.state, action, False
+        # If action not found in action space raise an error
+        if action not in self.action_space:
+            raise ValueError(
+                f"Tried to execute action {action} not present in action space."
+            )
+        else:
+            action_idx = self.action_space.index(action)
+        # If action is in invalid mask, return invalid
+        if self.get_mask_invalid_actions_forward()[action_idx]:
+            return self.state, action, False
+        # TODO: simplify by relying on mask
         # If only possible action is eos, then force eos
         # All dimensions are at the maximum length
         if all([s == self.length - 1 for s in self.state]):
             self.done = True
             self.n_actions += 1
-            return self.state, (self.eos,), True
+            return self.state, self.eos, True
         # If action is not eos, then perform action
-        elif action[0] != self.eos:
+        elif action != self.eos:
             state_next = self.state.copy()
-            for a in action:
-                state_next[a] += 1
+            for dim, incr in enumerate(action):
+                state_next[dim] += incr
             if any([s >= self.length for s in state_next]):
                 valid = False
             else:
@@ -352,7 +379,10 @@ class Grid(GFlowNetEnv):
         else:
             self.done = True
             self.n_actions += 1
-            return self.state, (self.eos,), True
+            return self.state, self.eos, True
+
+    def get_max_traj_length(self):
+        return self.n_dim * self.length
 
     def get_all_terminating_states(self) -> List[List]:
         all_x = np.int32(

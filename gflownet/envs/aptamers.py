@@ -1,8 +1,10 @@
 """
 Classes to represent aptamers environments
 """
-from typing import List
 import itertools
+import time
+from typing import List
+
 import numpy as np
 import numpy.typing as npt
 import pandas as pd
@@ -74,76 +76,3 @@ class Aptamers(Sequence):
         if output_csv:
             df_train.to_csv(output_csv)
         return df_train
-
-    # TODO: improve approximation of uniform
-    def make_test_set(
-        self,
-        path_base_dataset,
-        ntest,
-        min_length=0,
-        max_length=np.inf,
-        seed=167,
-        output_csv=None,
-    ):
-        """
-        Constructs an approximately uniformly distributed (on the score) set, by
-        selecting samples from a larger base set.
-
-        Args
-        ----
-        path_base_dataset : str
-            Path to a CSV file containing the base data set.
-
-        ntest : int
-            Number of test samples.
-
-        seed : int
-            Random seed.
-
-        dask : bool
-            If True, use dask to efficiently read a large base file.
-
-        output_csv: str
-            Optional path to store the test set as CSV.
-        """
-        if path_base_dataset is None:
-            return None, None
-        times = {
-            "all": 0.0,
-            "indices": 0.0,
-        }
-        t0_all = time.time()
-        if seed:
-            np.random.seed(seed)
-        df_base = pd.read_csv(path_base_dataset, index_col=0)
-        df_base = df_base.loc[
-            (df_base["samples"].map(len) >= min_length)
-            & (df_base["samples"].map(len) <= max_length)
-        ]
-        energies_base = df_base["energies"].values
-        min_base = energies_base.min()
-        max_base = energies_base.max()
-        distr_unif = np.random.uniform(low=min_base, high=max_base, size=ntest)
-        # Get minimum distance samples without duplicates
-        t0_indices = time.time()
-        idx_samples = []
-        for idx in tqdm(range(ntest)):
-            dist = np.abs(energies_base - distr_unif[idx])
-            idx_min = np.argmin(dist)
-            if idx_min in idx_samples:
-                idx_sort = np.argsort(dist)
-                for idx_next in idx_sort:
-                    if idx_next not in idx_samples:
-                        idx_samples.append(idx_next)
-                        break
-            else:
-                idx_samples.append(idx_min)
-        t1_indices = time.time()
-        times["indices"] += t1_indices - t0_indices
-        # Make test set
-        df_test = df_base.iloc[idx_samples]
-        if output_csv:
-            df_test.to_csv(output_csv)
-        t1_all = time.time()
-        times["all"] += t1_all - t0_all
-        return df_test, times

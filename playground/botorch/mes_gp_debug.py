@@ -1,24 +1,22 @@
-import torch
+from abc import ABC
 
+import gpytorch
+import numpy as np
+import torch
 # from botorch.fit import fit_gpytorch_mll
 from botorch.models import SingleTaskGP
 from botorch.test_functions import Hartmann
 from gpytorch.mlls import ExactMarginalLogLikelihood
-from torch.optim import Adam
-from torch.nn import Linear
-from torch.nn import MSELoss
-from torch.nn import Sequential, ReLU, Dropout
-from torch import tensor
-import numpy as np
-from abc import ABC
-import gpytorch
 from gpytorch.priors.torch_priors import GammaPrior
-
+from torch import tensor
+from torch.nn import Dropout, Linear, MSELoss, ReLU, Sequential
+from torch.optim import Adam
 
 neg_hartmann6 = Hartmann(dim=6, negate=True)
 
 train_x = torch.rand(10, 6)
 train_y = neg_hartmann6(train_x).unsqueeze(-1)
+
 
 # We will use the simplest form of GP model, exact inference
 class ExactGPModel(gpytorch.models.ExactGP):
@@ -49,10 +47,12 @@ gp = ExactGPModel(train_x, train_y, likelihood)
 gp.train()
 likelihood.train()
 
-from gpytorch.distributions import MultivariateNormal, MultitaskMultivariateNormal
-from botorch.posteriors.gpytorch import GPyTorchPosterior
 from botorch.models.utils import add_output_dim
-from gpytorch.likelihoods.gaussian_likelihood import FixedNoiseGaussianLikelihood
+from botorch.posteriors.gpytorch import GPyTorchPosterior
+from gpytorch.distributions import (MultitaskMultivariateNormal,
+                                    MultivariateNormal)
+from gpytorch.likelihoods.gaussian_likelihood import \
+    FixedNoiseGaussianLikelihood
 
 
 class myGPModel(SingleTaskGP):

@@ -2,9 +2,8 @@
 Annotates a data set with an oracle
 """
 import hydra
-from omegaconf import DictConfig, ListConfig, OmegaConf
 import pandas as pd
-
+from omegaconf import DictConfig, ListConfig, OmegaConf
 from oracle import Oracle
 
 

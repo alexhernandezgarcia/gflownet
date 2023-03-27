@@ -1,10 +1,9 @@
-import pytest
-
 import numpy as np
+import pytest
 import torch
 
-from gflownet.utils.molecule.conformer_base import get_dummy_ad_conf_base
 from gflownet.proxy.molecule import TorchANIMoleculeEnergy
+from gflownet.utils.molecule.conformer_base import get_dummy_ad_conf_base
 
 
 @pytest.fixture()

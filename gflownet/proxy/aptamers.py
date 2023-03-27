@@ -1,8 +1,10 @@
-from gflownet.proxy.base import Proxy
 import numpy as np
 import numpy.typing as npt
 from nupack import *
 import torch
+
+from gflownet.proxy.base import Proxy
+
 
 class Aptamers(Proxy):
     """
@@ -47,8 +49,6 @@ class Aptamers(Proxy):
         function:
             creates the complex set and calls the desired nupack function
         """
-        # x = x.tolist()
-        # sequences = [self.numbers2letters(seq) for seq in x]
         temperature = 310.0  # Kelvin
         ionicStrength = 1.0  # molar
         strandList = []
