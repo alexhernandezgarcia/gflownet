@@ -58,7 +58,6 @@ class GFlowNetEnv:
             self.oracle = proxy
         else:
             self.oracle = oracle
-        # self.proxy_state_format = proxy_state_format
         self._true_density = None
         self._z = None
         self.action_space = []
@@ -186,9 +185,8 @@ class GFlowNetEnv:
             done = torch.ones(states.shape[0], dtype=torch.bool, device=self.device)
         states_proxy = self.statetorch2proxy(states[done, :])
         reward = torch.zeros(done.shape[0], dtype=self.float, device=self.device)
-        reward_proxy = self.proxy(states_proxy)
         if states[done, :].shape[0] > 0:
-            reward[done] = self.proxy2reward(reward_proxy)
+            reward[done] = self.proxy2reward(self.proxy(states_proxy))
         return reward
 
     def proxy2reward(self, proxy_vals):

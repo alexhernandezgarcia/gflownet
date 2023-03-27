@@ -9,6 +9,7 @@ import torch
 from torchtyping import TensorType
 from gflownet.envs.base import GFlowNetEnv
 
+
 class Grid(GFlowNetEnv):
     """
     Hyper-grid environment
@@ -54,9 +55,14 @@ class Grid(GFlowNetEnv):
         self.random_policy_output = self.get_fixed_policy_output()
         self.policy_output_dim = len(self.fixed_policy_output)
         self.policy_input_dim = len(self.state2policy())
+        # AL
         if self.oracle is not None and hasattr(self.oracle, "n_dim"):
             self.oracle.n_dim = self.n_dim
             self.oracle.setup()
+        # non-AL
+        if hasattr(self, "proxy")  and self.proxy is not None and hasattr(self.proxy, "n_dim"):
+            self.proxy.n_dim = self.n_dim
+            self.proxy.setup()
         self.rescale = rescale
         self.corr_type = corr_type
 
