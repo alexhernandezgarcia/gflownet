@@ -75,7 +75,7 @@ class Tetris(GFlowNetEnv):
     def get_action_space(self):
         """
         Constructs list with all possible actions, including eos. An action is
-        represented by a tuple of length 3 (piece, rotation, location). The piece is
+        represented by a tuple of length 3 (piece, rotation, col). The piece is
         represented by its index, the rotation by the integer rotation in degrees
         and the location by horizontal cell in the board of the left-most part of the
         piece.
@@ -91,9 +91,9 @@ class Tetris(GFlowNetEnv):
                     pieces_mat.append(piece_mat)
                 else:
                     continue
-                for location in range(self.width):
-                    if location + piece_mat.shape[1] <= self.width:
-                        actions.append((self.piece2idx(piece), rotation, location))
+                for col in range(self.width):
+                    if col + piece_mat.shape[1] <= self.width:
+                        actions.append((self.piece2idx(piece), rotation, col))
         actions.append(self.eos)
         return actions
 
@@ -108,19 +108,19 @@ class Tetris(GFlowNetEnv):
         if state is None:
             state = self.state.clone().detach()
         board = state.clone().detach()
-        piece_idx, rotation, location = action
+        piece_idx, rotation, col = action
         piece_mat = torch.rot90(
             self.piece2mat(self.pieces[piece_idx - 1]), k=self.rot2idx[rotation]
         )
         hp, wp = piece_mat.shape
+        if col + wp > self.width:
+            return board, False
         for row in reversed(range(self.height)):
             if row - hp + 1 < 0:
                 return board, False
-            if location + wp > self.width:
-                return board, False
-            board_section = board[row - hp + 1 : row + 1, location : location + wp]
+            board_section = board[row - hp + 1 : row + 1, col : col + wp]
             if sum(board_section[piece_mat != 0]) == 0:
-                board[row - hp + 1 : row + 1, location : location + wp] += piece_mat
+                board[row - hp + 1 : row + 1, col : col + wp] += piece_mat
                 return board, True
 
     def get_mask_invalid_actions_forward(
@@ -272,6 +272,7 @@ class Tetris(GFlowNetEnv):
         actions : list
             List of actions that lead to state for each parent in parents
         """
+
         if state is None:
             state = self.state.copy()
         if done is None:
@@ -344,3 +345,79 @@ class Tetris(GFlowNetEnv):
     # TODO
     def get_max_traj_length(self):
         return 1e9
+
+    @classmethod
+    def _piece_can_be_lifted(cls, board, piece_mat, row, col):
+        board_aux = board.clone().detach()
+        piece_idx = piece_mat[piece_mat != 0][0].item()
+        hp, wp = piece_mat.shape
+        board_section = board_aux[row : row + hp, col : col + wp]
+        if not torch.all(board_section[piece_mat != 0] == piece_idx):
+            return False
+        board_section[piece_mat != 0] = -1
+        board_aux[row : row + hp, col : col + wp] = board_section
+        for c in range(col, col + wp):
+            column = board_aux[:, c]
+            r = torch.where(column == -1)[0][0]
+            if torch.any(column[:r] != 0):
+                return False
+        return True
+
+    def _remove_all_pieces(self, board, piece_idx):
+        """
+        Recursively removes the pieces indicated by piece_mat from the board.
+        """
+        board[board != piece_idx] = 0
+        if torch.all(board == 0):
+            return board
+        for rotation in self.rotations:
+            piece_mat = torch.rot90(
+                self.piece2mat(self.pieces[piece_idx - 1]), k=self.rot2idx[rotation]
+            )
+            hp, wp = piece_mat.shape
+            for col in range(self.width):
+                if col + wp > self.width:
+                    break
+                for row in range(self.height):
+                    if row + hp > self.height:
+                        break
+                    board_section = board[row : row + hp, col : col + wp]
+                    if torch.all(board_section[piece_mat != 0] == piece_idx):
+                        if Tetris._piece_can_be_lifted(board, piece_mat, row, col):
+                            board_section[piece_mat != 0] = 0
+                            board[row : row + hp, col : col + wp] = board_section
+                            board = self._remove_all_pieces(board, piece_idx)
+        return board
+
+    def _is_parent_action(self, board, action):
+        """
+        Checks if the action given as argument could have been a last action given
+        the board.
+        """
+        piece_idx, rotation, col = action
+        piece_mat = torch.rot90(
+            self.piece2mat(self.pieces[piece_idx - 1]), k=self.rot2idx[rotation]
+        )
+        hp, wp = piece_mat.shape
+        if col + wp > self.width:
+            return False
+        for row in range(self.height):
+            if row + hp > self.height:
+                break
+            board_section = board[row : row + hp, col : col + wp]
+            # If a different piece is found, stop going down
+            iszero = board_section[piece_mat != 0] == 0
+            isidx = board_section[piece_mat != 0] == piece_idx
+            if not all(torch.logical_or(iszero, isidx)):
+                break
+            # If a piece match is found, check compatibility
+            if torch.all(board_section[piece_mat != 0] == piece_idx):
+                board_section_aux = board_section.clone().detach()
+                board_section_aux[piece_mat != 0] = 0
+                board_aux = board.clone().detach()
+                board_aux[row : row + hp, col : col + wp] = board_section_aux
+                board_aux = self._remove_all_pieces(board_aux, piece_idx)
+                return Tetris._piece_can_be_lifted(
+                    board, piece_mat, row, col
+                ) and torch.all(board_aux == 0)
+        return False
