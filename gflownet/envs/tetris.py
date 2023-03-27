@@ -413,8 +413,9 @@ class Tetris(GFlowNetEnv):
                 board_section_aux[piece_mat != 0] = 0
                 board_parent = board.clone().detach()
                 board_parent[row : row + hp, col : col + wp] = board_section_aux
-                board_parent = self._remove_all_pieces(board_parent, piece_idx)
+                board_aux = board_parent.clone().detach()
+                board_aux = self._remove_all_pieces(board_aux, piece_idx)
                 return board_parent, Tetris._piece_can_be_lifted(
                     board, piece_mat, row, col
-                ) and torch.all(board_parent == 0)
+                ) and torch.all(board_aux == 0)
         return board.clone().detach(), False
