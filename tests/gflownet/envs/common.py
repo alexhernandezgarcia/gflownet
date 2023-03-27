@@ -67,7 +67,7 @@ def test__sample_backwards_reaches_source(env, n=100):
     if hasattr(env, "get_all_terminating_states"):
         x = env.get_all_terminating_states()
     elif hasattr(env, "get_uniform_terminating_states"):
-        x = env.get_uniform_terminating_states(n)
+        x = env.get_uniform_terminating_states(n, 0)
     else:
         print(
             """
