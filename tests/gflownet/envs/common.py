@@ -15,9 +15,7 @@ def test__all_env_common(env):
     test__get_parents__returns_same_state_and_eos_if_done(env)
     test__step__returns_same_state_action_and_invalid_if_done(env)
     test__actions2indices__returns_expected_tensor(env)
-
-
-#     test__gflownet_minimal_runs(env)
+    test__gflownet_minimal_runs(env)
 
 
 def test__continuous_env_common(env):
