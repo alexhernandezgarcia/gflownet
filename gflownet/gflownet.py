@@ -378,7 +378,12 @@ class GFlowNetAgent:
                 mask_b = env.get_mask_invalid_actions_backward(
                     env.state, env.done, parents_a
                 )
-                assert action in parents_a
+                assert (
+                    action in parents_a
+                ), f"""
+                Sampled action is not in the list of valid actions from parents.\n
+                State:\n{env.state}\nAction:\n{action}
+                """
                 if train:
                     batch.append(
                         [
