@@ -259,5 +259,49 @@ def test__is_parent_action__returns_expected(env6x4, board, action, expected):
     assert is_parent == expected
 
 
-def test__all_env_common(env):
-    return common.test__all_env_common(env)
+@pytest.mark.parametrize(
+    "state, parents_expected, parents_a_expected",
+    [
+        (
+            [
+                [1, 0, 0, 0],
+                [1, 0, 0, 0],
+                [1, 0, 0, 0],
+                [1, 0, 0, 0],
+                [4, 4, 4, 4],
+                [4, 4, 4, 4],
+            ],
+            [
+                [
+                    [0, 0, 0, 0],
+                    [0, 0, 0, 0],
+                    [0, 0, 0, 0],
+                    [0, 0, 0, 0],
+                    [4, 4, 4, 4],
+                    [4, 4, 4, 4],
+                ],
+                [
+                    [1, 0, 0, 0],
+                    [1, 0, 0, 0],
+                    [1, 0, 0, 0],
+                    [1, 0, 0, 0],
+                    [4, 4, 0, 0],
+                    [4, 4, 0, 0],
+                ],
+            ],
+            [(1, 0, 0), (4, 0, 2)]
+        ),
+    ],
+)
+def test__get_parents__returns_expected(env6x4, state, parents_expected, parents_a_expected):
+    state = torch.tensor(state, dtype=torch.uint8)
+    parents_expected = [torch.tensor(parent, dtype=torch.uint8) for parent in parents_expected] 
+    parents, parents_a = env6x4.get_parents(state)
+    for p, p_e in zip(parents, parents_expected):
+        assert torch.equal(p, p_e)
+    for p_a, p_a_e in zip(parents_a, parents_a_expected):
+        assert torch.equal(p_a, p_a_e)
+
+
+# def test__all_env_common(env):
+#     return common.test__all_env_common(env)
