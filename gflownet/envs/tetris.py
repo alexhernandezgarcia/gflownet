@@ -121,8 +121,11 @@ class Tetris(GFlowNetEnv):
                 return board, False
             board_section = board[row - hp + 1 : row + 1, col : col + wp]
             if sum(board_section[piece_mat != 0]) == 0:
-                board[row - hp + 1 : row + 1, col : col + wp] += piece_mat
-                return board, True
+                board_aux = board.clone().detach()
+                board_aux[row - hp + 1 : row + 1, col : col + wp] += piece_mat
+                if Tetris._piece_can_be_lifted(board_aux, piece_mat, row - hp + 1, col):
+                    return board_aux, True
+        return board, False
 
     def get_mask_invalid_actions_forward(
         self,
