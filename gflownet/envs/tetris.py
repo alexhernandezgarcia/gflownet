@@ -252,6 +252,8 @@ class Tetris(GFlowNetEnv):
         """
         Determines all parents and actions that lead to state.
 
+        See: _is_parent_action()
+
         Args
         ----
         state : list
@@ -274,7 +276,7 @@ class Tetris(GFlowNetEnv):
         """
 
         if state is None:
-            state = self.state.copy()
+            state = self.state.clone().detach()
         if done is None:
             done = self.done
         if done:
@@ -283,13 +285,8 @@ class Tetris(GFlowNetEnv):
             parents = []
             actions = []
             for idx, action in enumerate(self.action_space[:-1]):
-                parent = state.copy()
-                for dim, incr in enumerate(action):
-                    if parent[dim] - incr >= 0:
-                        parent[dim] -= incr
-                    else:
-                        break
-                else:
+                parent, is_parent = self._is_parent_action(state, action)
+                if is_parent:
                     parents.append(parent)
                     actions.append(action)
         return parents, actions
@@ -414,10 +411,10 @@ class Tetris(GFlowNetEnv):
             if torch.all(board_section[piece_mat != 0] == piece_idx):
                 board_section_aux = board_section.clone().detach()
                 board_section_aux[piece_mat != 0] = 0
-                board_aux = board.clone().detach()
-                board_aux[row : row + hp, col : col + wp] = board_section_aux
-                board_aux = self._remove_all_pieces(board_aux, piece_idx)
-                return Tetris._piece_can_be_lifted(
+                board_parent = board.clone().detach()
+                board_parent[row : row + hp, col : col + wp] = board_section_aux
+                board_parent = self._remove_all_pieces(board_parent, piece_idx)
+                return board_parent, Tetris._piece_can_be_lifted(
                     board, piece_mat, row, col
-                ) and torch.all(board_aux == 0)
-        return False
+                ) and torch.all(board_parent == 0)
+        return board.clone().detach(), False

@@ -255,4 +255,9 @@ def test__is_parent_action__returns_expected(env, board, action, expected):
 )
 def test__is_parent_action__returns_expected(env6x4, board, action, expected):
     board = torch.tensor(board, dtype=torch.uint8)
-    assert env6x4._is_parent_action(board, action) == expected
+    _, is_parent = env6x4._is_parent_action(board, action)
+    assert is_parent == expected
+
+
+def test__all_env_common(env):
+    return common.test__all_env_common(env)
