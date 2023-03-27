@@ -15,6 +15,16 @@ def env6x4():
     return Tetris(width=4, height=6)
 
 
+@pytest.fixture
+def env_mini():
+    return Tetris(width=4, height=5, pieces=["I", "O"], rotations=[0])
+
+
+@pytest.fixture
+def env_1piece():
+    return Tetris(width=4, height=5, pieces=["O"], rotations=[0])
+
+
 @pytest.mark.parametrize(
     "action_space",
     [
@@ -73,6 +83,58 @@ def env6x4():
 )
 def test__get_action_space__returns_expected(env, action_space):
     assert set(action_space) == set(env.action_space)
+
+
+@pytest.mark.parametrize(
+    "state, action, state_next_expected, valid_expected",
+    [
+        (
+            [[0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]],
+            (4, 0, 0),
+            [[0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [4, 4, 0, 0], [4, 4, 0, 0]],
+            True,
+        ),
+        (
+            [[0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]],
+            (1, 0, 3),
+            [[0, 0, 0, 0], [0, 0, 0, 1], [0, 0, 0, 1], [0, 0, 0, 1], [0, 0, 0, 1]],
+            True,
+        ),
+    ],
+)
+def test__drop_piece_on_board__returns_expected(
+    env, state, action, state_next_expected, valid_expected
+):
+    state = torch.tensor(state, dtype=torch.uint8)
+    state_next_expected = torch.tensor(state_next_expected, dtype=torch.uint8)
+    env.set_state(state)
+    state_next, valid = env._drop_piece_on_board(action)
+    assert torch.equal(state_next, state_next_expected)
+
+
+@pytest.mark.parametrize(
+    "state, mask_expected",
+    [
+        (
+            [[0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]],
+            [False, False, False, True],
+        ),
+        (
+            [[0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 4, 4, 0], [0, 4, 4, 0]],
+            [False, False, False, True],
+        ),
+        (
+            [[0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [4, 4, 4, 4], [4, 4, 4, 4]],
+            [False, False, False, True],
+        ),
+    ],
+)
+def test__mask_invalid_actions_forward__returns_expected(
+    env_1piece, state, mask_expected
+):
+    state = torch.tensor(state, dtype=torch.uint8)
+    mask = env_1piece.get_mask_invalid_actions_forward(state, False)
+    assert mask == mask_expected
 
 
 @pytest.mark.parametrize(
@@ -289,19 +351,31 @@ def test__is_parent_action__returns_expected(env6x4, board, action, expected):
                     [4, 4, 0, 0],
                 ],
             ],
-            [(1, 0, 0), (4, 0, 2)]
+            [(1, 0, 0), (4, 0, 2)],
         ),
     ],
 )
-def test__get_parents__returns_expected(env6x4, state, parents_expected, parents_a_expected):
+def test__get_parents__returns_expected(
+    env6x4, state, parents_expected, parents_a_expected
+):
     state = torch.tensor(state, dtype=torch.uint8)
-    parents_expected = [torch.tensor(parent, dtype=torch.uint8) for parent in parents_expected] 
+    parents_expected = [
+        torch.tensor(parent, dtype=torch.uint8) for parent in parents_expected
+    ]
     parents, parents_a = env6x4.get_parents(state)
     for p, p_e in zip(parents, parents_expected):
         assert torch.equal(p, p_e)
     for p_a, p_a_e in zip(parents_a, parents_a_expected):
-        assert torch.equal(p_a, p_a_e)
+        assert p_a == p_a_e
 
 
-# def test__all_env_common(env):
-#     return common.test__all_env_common(env)
+def test__all_env_common(env_1piece):
+    return common.test__all_env_common(env_1piece)
+
+
+def test__all_env_common(env_mini):
+    return common.test__all_env_common(env_mini)
+
+
+def test__all_env_common(env):
+    return common.test__all_env_common(env)
