@@ -180,16 +180,36 @@ class GFlowNetAgent:
         self.jsd = -1.0
 
     def _tfloat(self, x):
-        return torch.tensor(x, dtype=self.float, device=self.device)
+        if isinstance(x, list) and torch.is_tensor(x[0]):
+            return torch.stack(x).type(self.float).to(self.device)
+        if torch.is_tensor(x):
+            return x.type(self.float).to(self.device)
+        else:
+            return torch.tensor(x, dtype=self.float, device=self.device)
 
     def _tlong(self, x):
-        return torch.tensor(x, dtype=torch.long, device=self.device)
+        if isinstance(x, list) and torch.is_tensor(x[0]):
+            return torch.stack(x).type(torch.long).to(self.device)
+        if torch.is_tensor(x):
+            return x.type(torch.long).to(self.device)
+        else:
+            return torch.tensor(x, dtype=torch.long, device=self.device)
 
     def _tint(self, x):
-        return torch.tensor(x, dtype=torch.int, device=self.device)
+        if isinstance(x, list) and torch.is_tensor(x[0]):
+            return torch.stack(x).type(torch.int).to(self.device)
+        if torch.is_tensor(x):
+            return x.type(torch.int).to(self.device)
+        else:
+            return torch.tensor(x, dtype=torch.int, device=self.device)
 
     def _tbool(self, x):
-        return torch.tensor(x, dtype=torch.bool, device=self.device)
+        if isinstance(x, list) and torch.is_tensor(x[0]):
+            return torch.stack(x).type(torch.bool).to(self.device)
+        if torch.is_tensor(x):
+            return x.type(torch.bool).to(self.device)
+        else:
+            return torch.tensor(x, dtype=torch.bool, device=self.device)
 
     def parameters(self):
         if self.backward_policy.is_model == False:
