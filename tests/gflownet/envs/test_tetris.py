@@ -25,6 +25,11 @@ def env_1piece():
     return Tetris(width=4, height=5, pieces=["O"], rotations=[0])
 
 
+@pytest.fixture
+def env_full():
+    return Tetris(width=10, height=20)
+
+
 @pytest.mark.parametrize(
     "action_space",
     [
@@ -471,3 +476,7 @@ def test__all_env_common(env_mini):
 
 def test__all_env_common(env):
     return common.test__all_env_common(env)
+
+
+def test__all_env_common(env_full):
+    return common.test__all_env_common(env_full)
