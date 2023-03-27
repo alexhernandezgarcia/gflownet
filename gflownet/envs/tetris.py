@@ -61,6 +61,7 @@ class Tetris(GFlowNetEnv):
         self.allow_eos_before_full = allow_eos_before_full
         # Helper functions and dicts
         self.piece2idx = lambda letter: PIECES[letter][0]
+        self.idx2piece = {v[0]: k for k, v in PIECES.items()}
         self.piece2mat = lambda letter: torch.tensor(
             PIECES[letter][1], dtype=torch.uint8
         )
@@ -110,7 +111,7 @@ class Tetris(GFlowNetEnv):
         board = state.clone().detach()
         piece_idx, rotation, col = action
         piece_mat = torch.rot90(
-            self.piece2mat(self.pieces[piece_idx - 1]), k=self.rot2idx[rotation]
+            self.piece2mat(self.idx2piece[piece_idx]), k=self.rot2idx[rotation]
         )
         hp, wp = piece_mat.shape
         if col + wp > self.width:
@@ -369,7 +370,7 @@ class Tetris(GFlowNetEnv):
             return board
         for rotation in self.rotations:
             piece_mat = torch.rot90(
-                self.piece2mat(self.pieces[piece_idx - 1]), k=self.rot2idx[rotation]
+                self.piece2mat(self.idx2piece[piece_idx]), k=self.rot2idx[rotation]
             )
             hp, wp = piece_mat.shape
             for col in range(self.width):
@@ -393,7 +394,7 @@ class Tetris(GFlowNetEnv):
         """
         piece_idx, rotation, col = action
         piece_mat = torch.rot90(
-            self.piece2mat(self.pieces[piece_idx - 1]), k=self.rot2idx[rotation]
+            self.piece2mat(self.idx2piece[piece_idx]), k=self.rot2idx[rotation]
         )
         hp, wp = piece_mat.shape
         if col + wp > self.width:
