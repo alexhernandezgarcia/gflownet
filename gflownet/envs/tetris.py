@@ -377,24 +377,43 @@ class Tetris(GFlowNetEnv):
                 return False
         return True
 
+    @classmethod
+    def _piece_is_not_floating(cls, board, piece_mat, row, col):
+        board_aux = board.clone().detach()
+        piece_idx = piece_mat[piece_mat != 0][0].item()
+        hp, wp = piece_mat.shape
+        board_section = board_aux[row : row + hp, col : col + wp]
+        if not torch.all(board_section[piece_mat != 0] == piece_idx):
+            return True
+        board_section[piece_mat != 0] = -1
+        board_aux[row : row + hp, col : col + wp] = board_section
+        for c in range(col, col + wp):
+            column = board_aux[:, c]
+            r = torch.where(column == -1)[0][-1]
+            if column[r + 1 :].shape[0] == 0 or torch.any(column[r + 1 :] != 0):
+                return True
+        return False
+
     def _remove_all_pieces(self, board, piece_idx):
         """
-        Recursively removes the pieces indicated by piece_mat from the board.
+        Recursively removes the pieces indicated by piece_mat from the board. For loops
+        are randomized to allow for multiple ways of removing pieces. This method
+        should therefore be called multiple times.
         """
         board[board != piece_idx] = 0
         if torch.all(board == 0):
             return board
-        for rotation in self.rotations:
+        for rotation in np.random.permutation(self.rotations):
             piece_mat = torch.rot90(
                 self.piece2mat(self.idx2piece[piece_idx]), k=self.rot2idx[rotation]
             )
             hp, wp = piece_mat.shape
-            for col in range(self.width):
+            for col in np.random.permutation(range(self.width)):
                 if col + wp > self.width:
-                    break
-                for row in range(self.height):
+                    continue
+                for row in np.random.permutation(range(self.height)):
                     if row + hp > self.height:
-                        break
+                        continue
                     board_section = board[row : row + hp, col : col + wp]
                     if torch.all(board_section[piece_mat != 0] == piece_idx):
                         if Tetris._piece_can_be_lifted(board, piece_mat, row, col):
@@ -402,6 +421,15 @@ class Tetris(GFlowNetEnv):
                             board[row : row + hp, col : col + wp] = board_section
                             board = self._remove_all_pieces(board, piece_idx)
         return board
+
+    def _pieces_are_compatible(self, board, piece_idx, n_reps=10):
+        pieces_are_compatible = False
+        for _ in range(n_reps):
+            board_aux = board.clone().detach()
+            if torch.all(self._remove_all_pieces(board_aux, piece_idx) == 0):
+                pieces_are_compatible = True
+                break
+        return pieces_are_compatible
 
     def _is_parent_action(self, board, action):
         """
@@ -424,15 +452,26 @@ class Tetris(GFlowNetEnv):
             isidx = board_section[piece_mat != 0] == piece_idx
             if not all(torch.logical_or(iszero, isidx)):
                 break
-            # If a piece match is found, check compatibility
+            # If a piece match is found, check it can be lifted, it is not floating and
+            # it is compatible with other pieces
             if torch.all(board_section[piece_mat != 0] == piece_idx):
                 board_section_aux = board_section.clone().detach()
                 board_section_aux[piece_mat != 0] = 0
                 board_parent = board.clone().detach()
                 board_parent[row : row + hp, col : col + wp] = board_section_aux
-                board_aux = board_parent.clone().detach()
-                board_aux = self._remove_all_pieces(board_aux, piece_idx)
-                return board_parent, Tetris._piece_can_be_lifted(
+                piece_is_compatible = self._pieces_are_compatible(
+                    board_parent, piece_idx
+                )
+                piece_can_be_lifted = Tetris._piece_can_be_lifted(
                     board, piece_mat, row, col
-                ) and torch.all(board_aux == 0)
+                )
+                piece_is_not_floating = Tetris._piece_is_not_floating(
+                    board, piece_mat, row, col
+                )
+                is_parent = (
+                    piece_can_be_lifted
+                    and piece_is_not_floating
+                    and piece_is_compatible
+                )
+                return board_parent, is_parent
         return board.clone().detach(), False
