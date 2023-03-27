@@ -202,7 +202,7 @@ class Tetris(GFlowNetEnv):
 
         See: state2oracle()
         """
-        return self.state2oracle(state)
+        return self.state2oracle(state).flatten()
 
     def statebatch2policy(
         self, states: List[TensorType["height", "width"]]
@@ -212,7 +212,7 @@ class Tetris(GFlowNetEnv):
 
         See statebatch2oracle().
         """
-        return self.statebatch2oracle(states)
+        return self.statebatch2oracle(states).flatten(start_dim=0, end_dim=1)
 
     def statetorch2policy(
         self, states: TensorType["height", "width", "batch"]
@@ -222,7 +222,7 @@ class Tetris(GFlowNetEnv):
 
         See statetorch2oracle().
         """
-        return self.statetorch2oracle(states)
+        return self.statetorch2oracle(states).flatten(start_dim=0, end_dim=1)
 
     def policy2state(
         self, policy: Optional[TensorType["height", "width"]] = None
