@@ -99,7 +99,7 @@ class GFlowNetAgent:
                 self.buffer.max_norm_tr,
             ]
             self.env.set_energies_stats(energies_stats_tr)
-            print("\nTrain data")
+            print("\nGFN Train data")
             print(f"\tMean score: {energies_stats_tr[2]}")
             print(f"\tStd score: {energies_stats_tr[3]}")
             print(f"\tMin score: {energies_stats_tr[0]}")
