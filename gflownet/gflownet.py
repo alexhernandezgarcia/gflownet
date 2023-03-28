@@ -701,7 +701,15 @@ class GFlowNetAgent:
         for it in pbar:
             # Test
             if self.logger.do_test(it):
-                self.l1, self.kl, self.jsd, self.corr, x_sampled, kde_pred, kde_true = self.test()
+                (
+                    self.l1,
+                    self.kl,
+                    self.jsd,
+                    self.corr,
+                    x_sampled,
+                    kde_pred,
+                    kde_true,
+                ) = self.test()
                 self.logger.log_test_metrics(
                     self.l1, self.kl, self.jsd, self.corr, it, self.use_context
                 )
@@ -913,7 +921,7 @@ class GFlowNetAgent:
             kde_pred,
             kde_true,
         )
-    
+
     def plot(self, x_sampled, kde_pred, kde_true, **plot_kwargs):
 
         if hasattr(self.env, "plot_reward_samples"):
@@ -939,12 +947,12 @@ class GFlowNetAgent:
             fig_kde_true = None
 
         return [
-                fig_reward_samples,
-                fig_kde_pred,
-                fig_kde_true,
-                fig_samples_frequency,
-                fig_reward_distribution,
-            ]
+            fig_reward_samples,
+            fig_kde_pred,
+            fig_kde_true,
+            fig_samples_frequency,
+            fig_reward_distribution,
+        ]
 
     def get_corr(self, density_pred, density_true, x_tt, dict_tt, corr_type=None):
         if corr_type == None:
@@ -1030,7 +1038,15 @@ class GFlowNetAgent:
                 use_context=self.use_context,
             )
 
-    def evaluate(self, samples, energies, maximize, modes=None, dataset_states=None):
+    def evaluate(
+        self,
+        samples,
+        energies,
+        maximize,
+        cumulative_cost,
+        modes=None,
+        dataset_states=None,
+    ):
         """Evaluate the policy on a set of queries.
         Args:
             queries (list): List of queries to evaluate the policy on.
@@ -1090,7 +1106,7 @@ class GFlowNetAgent:
             self.logger.define_metric(
                 "mean_min_distance_from_D0_top1", step_metric="post_al_cum_cost"
             )
-
+        metrics_dict = {}
         for k in self.logger.oracle.k:
             print(f"\n Top-{k} Performance")
             mean_energy_topk = torch.mean(energies[:k])
@@ -1119,7 +1135,10 @@ class GFlowNetAgent:
                 print(f"\t Mean Min Distance from Mode: {mean_min_dist_from_mode_topk}")
                 if do_novelty:
                     print(f"\t Mean Min Distance from D0: {mean_dist_from_D0_topk}")
-            self.logger.log_metrics(dict_topk, use_context=False)
+            metrics_dict.update(dict_topk)
+
+        metrics_dict.update({"post_al_cum_cost": cumulative_cost})
+        self.logger.log_metrics(metrics_dict, use_context=False)
 
     def logq(self, traj_list, actions_list, model, env, loginf=1000):
         # TODO: this method is probably suboptimal, since it may repeat forward calls for
