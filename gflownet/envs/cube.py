@@ -1,5 +1,5 @@
 """
-Classes to represent hyperplane environments
+Classes to represent hypercube environments
 """
 import itertools
 from typing import List, Tuple
@@ -14,9 +14,9 @@ from torchtyping import TensorType
 from gflownet.envs.base import GFlowNetEnv
 
 
-class Plane(GFlowNetEnv):
+class Cube(GFlowNetEnv):
     """
-    Hyperplane environment (continuous version of a hypergrid) in which the action
+    Hypercube environment (continuous version of a hypergrid) in which the action
     space consists of the increment of dimension d, modelled by a beta distribution.
 
     The states space is the value of each dimension. If the value of a dimension gets
@@ -25,7 +25,7 @@ class Plane(GFlowNetEnv):
     Attributes
     ----------
     n_dim : int
-        Dimensionality of the hyperplane
+        Dimensionality of the hypercube
 
     length_traj : int
        Fixed length of the trajectory.
@@ -49,7 +49,7 @@ class Plane(GFlowNetEnv):
         oracle=None,
         **kwargs,
     ):
-        super(Plane, self).__init__(
+        super(Cube, self).__init__(
             env_id,
             reward_beta,
             reward_norm,

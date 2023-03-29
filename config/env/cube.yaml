@@ -1,11 +1,11 @@
 defaults:
   - base
 
-_target_: gflownet.envs.plane.Plane
+_target_: gflownet.envs.cube.Cube
 
-id: plane
+id: cube
 func: corners
-# Dimensions of hyperplane
+# Dimensions of hypercube
 n_dim: 2
 # Maximum length of trajecotry
 max_traj_length: 10
@@ -16,4 +16,4 @@ buffer:
   test:
     type: grid
     n: 1000
-    output_csv: plane_test.csv
+    output_csv: cube_test.csv
