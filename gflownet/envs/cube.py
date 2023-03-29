@@ -14,7 +14,7 @@ from torchtyping import TensorType
 from gflownet.envs.base import GFlowNetEnv
 
 
-class Cube(GFlowNetEnv):
+class HybridCube(GFlowNetEnv):
     """
     Hypercube environment (continuous version of a hypergrid) in which the action
     space consists of the increment of dimension d, modelled by a beta distribution.

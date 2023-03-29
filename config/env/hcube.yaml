@@ -1,9 +1,9 @@
 defaults:
   - base
 
-_target_: gflownet.envs.cube.Cube
+_target_: gflownet.envs.cube.HybridCube
 
-id: cube
+id: hcube
 func: corners
 # Dimensions of hypercube
 n_dim: 2
