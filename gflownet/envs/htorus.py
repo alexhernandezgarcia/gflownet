@@ -22,15 +22,15 @@ from gflownet.utils.common import torch2np
 class HybridTorus(GFlowNetEnv):
     """
     Continuous (hybrid: discrete and continuous) hyper-torus environment in which the
-    action space consists of the selection of which dimension d to increment increment
-    and of the angle of dimension d. The trajectory is of fixed length length_traj.
+    action space consists of the selection of which dimension d to increment and of the
+    angle of dimension d. The trajectory is of fixed length length_traj.
 
     The states space is the concatenation of the angle (in radians and within [0, 2 *
     pi]) at each dimension and the number of actions.
 
     Attributes
     ----------
-    ndim : int
+    n_dim : int
         Dimensionality of the torus
 
     length_traj : int
@@ -72,7 +72,7 @@ class HybridTorus(GFlowNetEnv):
         # Source state: position 0 at all dimensions and number of actions 0
         self.source_angles = [0.0 for _ in range(self.n_dim)]
         self.source = self.source_angles + [0]
-        # End-of-sequence action: (n_dim, None)
+        # End-of-sequence action: (n_dim, 0)
         self.eos = (self.n_dim, 0)
         # TODO: assess if really needed
         self.state2oracle = self.state2proxy
