@@ -1,5 +1,5 @@
 """
-Classes to represent hypercube environments
+Classes to represent hyper-cube environments
 """
 import itertools
 from typing import List, Tuple
@@ -16,115 +16,74 @@ from gflownet.envs.base import GFlowNetEnv
 
 class HybridCube(GFlowNetEnv):
     """
-    Hypercube environment (continuous version of a hypergrid) in which the action
-    space consists of the increment of dimension d, modelled by a beta distribution.
+    Continuous (hybrid: discrete and continuous) hyper-cube environment (continuous
+    version of a hyper-grid) in which the action space consists of the increment of
+    dimension d, modelled by a beta distribution.
 
     The states space is the value of each dimension. If the value of a dimension gets
-    larger than max_val, then the trajectory is ended and the reward is 0.
+    larger than max_val, then the trajectory is ended.
 
     Attributes
     ----------
     n_dim : int
-        Dimensionality of the hypercube
-
-    length_traj : int
-       Fixed length of the trajectory.
+        Dimensionality of the hyper-cube
     """
 
     def __init__(
         self,
-        n_dim=2,
-        max_val=1.0,
-        max_traj_length=1.0,
-        distr_alpha=2.0,
-        distr_beta=5.0,
-        env_id=None,
-        reward_beta=1,
-        reward_norm=1.0,
-        reward_norm_std_mult=0,
-        reward_func="boltzmann",
-        denorm_proxy=False,
-        energies_stats=None,
-        proxy=None,
-        oracle=None,
+        n_dim: int = 2,
+        max_val: float = 1.0,
+        n_comp: int = 1,
+        do_nonzero_source_prob: bool = True,
+        fixed_distribution: dict = {
+            "beta_alpha": 2.0,
+            "beta_alpha": 5.0,
+        },
+        random_distribution: dict = {
+            "beta_alpha": 1.0,
+            "beta_beta": 1.0,
+        },
         **kwargs,
     ):
-        super(Cube, self).__init__(
-            env_id,
-            reward_beta,
-            reward_norm,
-            reward_norm_std_mult,
-            reward_func,
-            energies_stats,
-            denorm_proxy,
-            proxy,
-            oracle,
-            **kwargs,
-        )
+        assert n_dim > 0
+        assert max_val > 1.0
+        assert n_comp > 0
         # Main properties
         self.continuous = True
         self.n_dim = n_dim
         self.eos = self.n_dim
         self.max_val = max_val
-        self.max_traj_length = max_traj_length
         # Parameters of fixed policy distribution
-        self.distr_alpha = distr_alpha
-        self.distr_beta = distr_beta
-        # Initialize angles and state attributes
-        self.source = [0.0 for _ in range(self.n_dim)]
-        self.reset()
-        self.action_space = self.get_action_space()
-        self.fixed_policy_output = self.get_fixed_policy_output()
-        self.policy_output_dim = len(self.fixed_policy_output)
-        self.policy_input_dim = len(self.state2policy())
-        # Set up proxy
-        self.setup_proxy()
-        # Oracle
-        self.state2oracle = self.state2proxy
-        self.statebatch2oracle = self.statebatch2proxy
-
-    def reward(self, state=None, done=None):
-        """
-        Sets the reward to min_reward if any value of the state is larger than max_val.
-        """
-        if done is None:
-            done = self.done
-        if done:
-            return np.array(0.0)
-        if state is None:
-            state = self.state.copy()
-        if any([s > self.max_val for s in self.state]):
-            return np.array(self.min_reward)
+        self.n_comp = n_comp
+        if do_nonzero_source_prob:
+            self.n_params_per_dim = 4
         else:
-            return super().reward(state)
-
-    def reward_batch(self, states, done):
-        """
-        Sets the reward to min_reward if any value of the state is larger than max_val.
-        """
-        states_super = []
-        done_super = []
-        within_plane = []
-        for state, d in zip(states, done):
-            if d and any([s > self.max_val for s in state]):
-                within_plane.append(False)
-            else:
-                within_plane.append(True)
-                states_super.append(state)
-                done_super.append(d)
-        reward = self.min_reward * np.ones(len(within_plane))
-        reward[within_plane] = super().reward_batch(states_super, done_super)
-        return reward
+            self.n_params_per_dim = 3
+        # Source state: position 0 at all dimensions
+        self.source = [0.0 for _ in range(self.n_dim)]
+        # End-of-sequence action: (n_dim, 0)
+        self.eos = (self.n_dim, 0)
+        # Base class init
+        super().__init__(
+            fixed_distribution=fixed_distribution,
+            random_distribution=random_distribution,
+            **kwargs,
+        )
 
     def get_action_space(self):
         """
-        Constructs list with all possible actions. The actions are tuples with two
-        values: (dimension, increment) where dimension indicates the index of the
-        dimension on which the action is to be performed and increment indicates the
-        increment of the dimension value.
+        Since this is a hybrid (continuous/discrete) environment, this method
+        constructs a list with the discrete actions.
+
+        The actions are tuples with two values: (dimension, increment) where dimension
+        indicates the index of the dimension on which the action is to be performed and
+        increment indicates the increment of the dimension.
+
+        The (discrete) action space is then one tuple per dimension (with 0 increment),
+        plus the EOS action.
         """
-        actions = [(d, None) for d in range(self.n_dim)]
-        actions += [(self.eos, None)]
+        actions = [(d, 0) for d in range(self.n_dim)]
+        actions.append(self.eos)
         return actions
 
     def get_fixed_policy_output(self):
@@ -133,7 +92,7 @@ class HybridCube(GFlowNetEnv):
         action is to be determined or sampled, by returning a vector with a fixed
         random policy.
 
-        For each dimension of the hyper-plane, the output of the policy should return
+        For each dimension of the hyper-cube, the output of the policy should return
         1) a logit, for the categorical distribution over dimensions and 2) the alpha
         and 3) beta parameters of a beta distribution to sample the increment.
         Therefore, the output of the policy model has dimensionality D x 3 + 1, where D
