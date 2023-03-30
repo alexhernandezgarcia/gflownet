@@ -218,9 +218,9 @@ class LatticeParameters(Grid):
 
         if self.lattice_system in [CUBIC, RHOMBOHEDRAL]:
             return a == b == c
-        elif self.lattice_system in [HEXAGONAL, MONOCLINIC, TETRAGONAL]:
+        elif self.lattice_system in [HEXAGONAL, TETRAGONAL]:
             return a == b
-        elif self.lattice_system in [ORTHORHOMBIC, TRICLINIC]:
+        elif self.lattice_system in [MONOCLINIC, ORTHORHOMBIC, TRICLINIC]:
             return True
         else:
             raise NotImplementedError
