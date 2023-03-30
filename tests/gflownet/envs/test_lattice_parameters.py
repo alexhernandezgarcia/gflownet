@@ -128,17 +128,17 @@ def test__get_mask_invalid_actions_forward__allows_arbitrary_angle_change_for_tr
         (
             MONOCLINIC,
             [0, 0, 0, 30, 0, 30],
-            [True, True, False, False, False, True, False, True, True, True],
+            [False, False, False, False, False, True, False, True, True, True],
         ),
         (
             MONOCLINIC,
             [10, 10, 10, 30, 20, 30],
-            [True, True, False, False, False, True, False, True, True, True],
+            [False, False, False, False, False, True, False, True, True, True],
         ),
         (
             MONOCLINIC,
-            [10, 10, 11, 30, 20, 30],
-            [True, True, False, False, False, True, False, True, True, False],
+            [10, 15, 20, 30, 20, 30],
+            [False, False, False, False, False, True, False, True, True, False],
         ),
     ],
 )

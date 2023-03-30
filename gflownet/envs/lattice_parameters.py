@@ -157,7 +157,7 @@ class LatticeParameters(Grid):
             - increment a by n,
             - increment b by n,
             - increment c by n,
-            - increment both a and b by n (required by hexagonal, monoclinic and tetragonal lattice systems,
+            - increment both a and b by n (required by hexagonal and tetragonal lattice systems,
                 for which a == b =/= c),
             - increment all a, b and c by n (required by cubic and rhombohedral lattice systems, for which
                 a == b == c).
@@ -211,7 +211,7 @@ class LatticeParameters(Grid):
         Helper that check whether the intermediate constraints defined by self.lattice_system for lengths are met.
 
         For intermediate state, we want to ensure that (CUBIC, RHOMBOHEDRAL) lattice systems allow only simultaneous
-        change of all three edge lengths, and (HEXAGONAL, MONOCLINIC, TETRAGONAL) lattice systems disallow changing
+        change of all three edge lengths, and (HEXAGONAL, TETRAGONAL) lattice systems disallow changing
         a and b independently.
         """
         (a, b, c), _ = self._unpack_lengths_angles(state)
