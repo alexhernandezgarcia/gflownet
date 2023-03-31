@@ -1,15 +1,15 @@
 """
 Base class of GFlowNet proxies
 """
-from abc import abstractmethod, ABC
+from abc import ABC, abstractmethod
 
 import numpy as np
 import numpy.typing as npt
 
 from gflownet.utils.common import set_device, set_float_precision
 
+
 class Proxy(ABC):
-class Proxy:
     """
     Generic proxy class
     """
