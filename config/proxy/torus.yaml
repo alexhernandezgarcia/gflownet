@@ -1,0 +1,6 @@
+_target_: gflownet.proxy.torus.Torus
+
+normalize: True
+alpha: 1.0
+beta: 1.0
+higher_is_better: False

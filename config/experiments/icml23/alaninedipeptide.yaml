@@ -1,0 +1,57 @@
+# @package _global_
+
+defaults:
+   - override /env: alaninedipeptide
+   - override /gflownet: trajectorybalance
+   - override /proxy: molecule
+   - override /logger: wandb
+   - override /user: sasha
+
+# Environment
+env:
+  length_traj: 10
+  policy_encoding_dim_per_angle: 10
+  n_comp: 5
+  vonmises_min_concentration: 4
+
+# GFlowNet hyperparameters
+gflownet:
+  random_action_prob: 0.1
+  optimizer:
+    batch_size: 100
+    lr: 0.00001
+    z_dim: 16
+    lr_z_mult: 1000
+    n_train_steps: 40000
+    lr_decay_period: 1000000
+  policy:
+    forward:
+      type: mlp
+      n_hid: 512
+      n_layers: 5
+      checkpoint: forward
+    backward:
+      type: mlp
+      n_hid: 512
+      n_layers: 5
+      shared_weights: False
+      checkpoint: backward
+
+# WandB
+logger:
+  lightweight: True
+  project_name: "gflownet"
+  tags: 
+    - gflownet
+    - continuous
+    - molecule
+  test:
+    period: 500
+    n: 10000
+  checkpoints:
+    period: 500
+
+# Hydra
+hydra:
+  run:
+    dir: ${user.logdir.root}/icml23/molecule/${now:%Y-%m-%d_%H-%M-%S}

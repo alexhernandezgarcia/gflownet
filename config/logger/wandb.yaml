@@ -1,26 +1,10 @@
+defaults:
+  - base
+
 _target_: gflownet.utils.logger.Logger
-project_name: "ActiveLearningPipeline"
+
+do:
+  online: True
+
 tags: 
-    - dummy1
-    - dummy2
-logdir: ./logs/
-overwrite_logdir: True
-record_time: False
-sampler:
-  policy:
-    # Period (number of iterations) of saving models
-    period: 10
-  train:
-    # Period (number of iterations) of computing test metrics
-    period: 1
-  test:
-    # Period (number of iterations) of computing test metrics
-    period: 1
-  oracle:
-    # Period (number of iterations) for computing oracle metrics
-    period: 10
-    # List of K, for Top-K oracle metrics
-    k:
-      - 1
-      - 10
-      - 100
+    - gflownet

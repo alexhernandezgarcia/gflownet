@@ -9,9 +9,10 @@ func: corners
 n_dim: 2
 # Number of cells per dimension
 length: 3
-# Minimum and maximum number of steps in the action space
-min_step_len: 1
-max_step_len: 1
+# Maximum increment per each dimension that can be done by one action
+max_increment: 1
+# Maximum number of dimensions that can be incremented by one action
+max_dim_per_action: 1
 # Mapping coordinates
 cell_min: -1
 cell_max: 1
@@ -19,13 +20,10 @@ cell_max: 1
 buffer:
   data_path: null
   train:
-    path: null
-    seed: 167
-    n: null
-    output: null
+    type: all
+    output_csv: grid_train.csv
+    output_pkl: grid_train.pkl
   test:
-    all: True
-    path: null
-    seed: 167
-    n: null
-    output: null
+    type: all
+    output_csv: grid_test.csv
+    output_pkl: grid_test.pkl

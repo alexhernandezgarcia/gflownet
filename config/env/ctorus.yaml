@@ -1,0 +1,31 @@
+defaults:
+  - base
+
+_target_: gflownet.envs.ctorus.ContinuousTorus
+
+id: ctorus
+func: sincos
+# Dimensions of hypertorus
+n_dim: 2
+policy_encoding_dim_per_angle: null
+# Fixed length of trajectories
+length_traj: 3
+vonmises_min_concentration: 1e-3
+# Parameters of the fixed policy output distribution
+n_comp: 3
+fixed_distribution:
+  vonmises_mean: 0.0
+  vonmises_concentration: 1.0
+# Parameters of the random policy output distribution
+random_distribution:
+  vonmises_mean: 0.0
+  vonmises_concentration: 0.01
+# Buffer
+buffer:
+  data_path: null
+  train: null
+  test:
+    type: grid
+    n: 1000
+    output_csv: ctorus_test.csv
+    output_pkl: ctorus_test.pkl

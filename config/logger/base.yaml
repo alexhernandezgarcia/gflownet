@@ -1,4 +1,39 @@
-_target_: logger.Logger
+_target_: gflownet.utils.logger.Logger
 
-skip: False
-log_times: False
+do:
+  online: False
+  times: False
+
+project_name: "GFlowNet"
+
+# Train metrics
+train:
+  period: 1
+# Test metrics
+test:
+  first_it: True
+  period: 100
+  n: 100
+  kde:
+    bandwidth: 0.1
+    kernel: gaussian
+# Oracle metrics
+oracle:
+  period: 100000
+  k:
+    - 1
+    - 10
+    - 100
+# Policy model checkpoints
+checkpoints:
+  period: 1000
+
+# Log dir
+logdir:
+  root: ./logs
+  ckpts: ckpts
+  overwrite: True
+debug: False 
+lightweight: False 
+progress: True
+context: "0"

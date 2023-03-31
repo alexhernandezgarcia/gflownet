@@ -1,18 +1,17 @@
 """
 Script to create data set of with nupack labels.
 """
-from argparse import ArgumentParser
 import os
 import pickle
-from pathlib import Path
-import yaml
 import time
+from argparse import ArgumentParser
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
-from tqdm import tqdm
-
+import yaml
 from oracle import Oracle
+from tqdm import tqdm
 from utils import get_config, namespace2dict, numpy2python
 
 
@@ -97,15 +96,15 @@ def add_args(parser):
 
 def main(args):
     oracle = Oracle(
-        seed = args.seeds.dataset,
-        seq_len = args.dataset.max_length,
-        dict_size = args.dataset.dict_size,
-        min_len = args.dataset.min_length,
-        max_len = args.dataset.max_length,
-        oracle = args.dataset.oracle,
-        variable_len = args.dataset.variable_length,
-        init_len = args.dataset.init_length,
-        seed_toy = args.seeds.toy_oracle,
+        seed=args.seeds.dataset,
+        seq_len=args.dataset.max_length,
+        dict_size=args.dataset.dict_size,
+        min_len=args.dataset.min_length,
+        max_len=args.dataset.max_length,
+        oracle=args.dataset.oracle,
+        variable_len=args.dataset.variable_length,
+        init_len=args.dataset.init_length,
+        seed_toy=args.seeds.toy_oracle,
     )
     samples_dict = oracle.initializeDataset(save=False, returnData=True)
     energies = samples_dict["energies"]
@@ -116,7 +115,9 @@ def main(args):
         energies.update({"samples": seq_letters, "indices": seq_ints})
         df = pd.DataFrame(energies)
     else:
-        df = pd.DataFrame({"samples": seq_letters, "indices": seq_ints, "energies": energies})
+        df = pd.DataFrame(
+            {"samples": seq_letters, "indices": seq_ints, "energies": energies}
+        )
     if args.output:
         output_yml = Path(args.output).with_suffix(".yml")
         with open(output_yml, "w") as f:

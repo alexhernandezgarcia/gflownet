@@ -1,30 +1,48 @@
+import torch
+from torchtyping import TensorType
+
 from gflownet.proxy.base import Proxy
-import numpy as np
 
 
-class Torus2D(Proxy):
-    def __init__(self, normalize):
-        super().__init__()
+class Torus(Proxy):
+    def __init__(self, normalize, alpha=1.0, beta=1.0, **kwargs):
+        super().__init__(**kwargs)
         self.normalize = normalize
+        self.alpha = alpha
+        self.beta = beta
 
-    def __call__(self, x_list):
+    def setup(self, env=None):
+        if env:
+            self.n_dim = env.n_dim
+
+    @property
+    def min(self):
+        if self.normalize:
+            return -1.0
+        else:
+            return -((self.n_dim * 2) ** 3)
+
+    @property
+    def norm(self):
+        if self.normalize:
+            return -((self.n_dim * 2) ** 3)
+        else:
+            return -1.0
+
+    def __call__(self, states: TensorType["batch", "state_dim"]) -> TensorType["batch"]:
         """
         args:
-            x_list: list of arrays in desired format interpretable by oracle
+            states: tensor
         returns:
             list of scores
         technically an oracle, hence used variable name energies
         """
 
         def _func_sin_cos_cube(x):
-            return -1.0 * ((np.sin(x[0]) + np.cos(x[1]) + 2) ** 3)
+            return (1.0 / self.norm) * (
+                torch.sum(torch.sin(self.alpha * x[:, 0::2]), axis=1)
+                + torch.sum(torch.cos(self.beta * x[:, 1::2]), axis=1)
+                + x.shape[1]
+            ) ** 3
 
-        def _func_sin_cos_cube_norm(x):
-            return (-1.0 / 64) * ((np.sin(x[0]) + np.cos(x[1]) + 2) ** 3)
-
-        if self.normalize:
-            _func = _func_sin_cos_cube_norm
-        else:
-            _func = _func_sin_cos_cube
-
-        return np.asarray([_func(x) for x in x_list])
+        return _func_sin_cos_cube(states)

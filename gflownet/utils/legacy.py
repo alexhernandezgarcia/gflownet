@@ -1,12 +1,12 @@
 """import statement"""
-from argparse import Namespace
-import yaml
-from pathlib import Path
-import numpy as np
-import matplotlib.pyplot as plt
 import os
 import time
+from argparse import Namespace
+from pathlib import Path
 
+import matplotlib.pyplot as plt
+import numpy as np
+import yaml
 
 """
 This is a general utilities file for the active learning pipeline
@@ -127,7 +127,7 @@ def numbers2letters(sequences):  # Tranforming letters to numbers:
         sequences = np.asarray(sequences)
 
     if sequences.ndim < 2:
-        sequences = np.expand_dims(sequences,0)
+        sequences = np.expand_dims(sequences, 0)
 
     my_seq = ["" for x in range(len(sequences))]
     row = 0
@@ -355,22 +355,34 @@ def filterDuplicateSamples(samples, oldDatasetPath=None, returnInds=False):
         for i in range(len(samplesTuple))
         if not (samplesTuple[i] in seen or seen_add(samplesTuple[i]))
     ]
-    filteredSamples = [filtered[i][0] for i in range(len(filtered))][origDatasetLen:] # unique samples
-    filteredInds = [filtered[i][1] for i in range(len(filtered))][origDatasetLen:] # unique sample idxs
+    filteredSamples = [filtered[i][0] for i in range(len(filtered))][
+        origDatasetLen:
+    ]  # unique samples
+    filteredInds = [filtered[i][1] for i in range(len(filtered))][
+        origDatasetLen:
+    ]  # unique sample idxs
 
-    assert len(filteredSamples) > 0, "Sampler returned duplicates only, problem may be completely solved, or sampler is too myopic"
+    assert (
+        len(filteredSamples) > 0
+    ), "Sampler returned duplicates only, problem may be completely solved, or sampler is too myopic"
 
     if returnInds:
         return (
             np.asarray(filteredSamples),
-            np.asarray(filteredInds) - origDatasetLen, # in samples basis (omitting any prior dataset)
+            np.asarray(filteredInds)
+            - origDatasetLen,  # in samples basis (omitting any prior dataset)
         )
     else:
         return np.asarray(filteredSamples)
 
 
 def generateRandomSamples(
-    nSamples, sampleLengthRange, dictSize, oldDatasetPath=None, variableLength=True, seed=None
+    nSamples,
+    sampleLengthRange,
+    dictSize,
+    oldDatasetPath=None,
+    variableLength=True,
+    seed=None,
 ):
     """
     randomly generate a non-repeating set of samples of the appropriate size and composition
@@ -424,7 +436,6 @@ def generateRandomSamples(
     ]  # after shuffle, reduce dataset to desired size, with properly weighted samples
 
     return samples
-
 
 
 def get_n_params(model):
@@ -501,7 +512,11 @@ def filterOutputs(outputs, additionalEntries=None):
         "energies": energies[filteredInds],
         "uncertainties": uncertainties[filteredInds],
     }
-    printRecord('Sampler outputs after filtering - best energy = {:.4f}'.format(np.amin(energies)))
+    printRecord(
+        "Sampler outputs after filtering - best energy = {:.4f}".format(
+            np.amin(energies)
+        )
+    )
 
     return filteredOutputs
 
@@ -917,9 +932,9 @@ def normalizeDistCutoff(cutoff):
 
 
 def bracket_dot_to_num(sequences, maxlen):
-    '''
+    """
     convert from (((...))) notation to 111222333
-    '''
+    """
     my_seq = np.zeros((len(sequences), maxlen))
     row = 0
 
@@ -940,7 +955,7 @@ def bracket_dot_to_num(sequences, maxlen):
 
 def add_bool_arg(parser, name, default=False):
     group = parser.add_mutually_exclusive_group(required=False)
-    group.add_argument('--' + name, dest=name, action = 'store_true')
-    group.add_argument('--no-' + name, dest=name, action = 'store_false')
-    parser.set_defaults(**{name:default})
+    group.add_argument("--" + name, dest=name, action="store_true")
+    group.add_argument("--no-" + name, dest=name, action="store_false")
+    parser.set_defaults(**{name: default})
     return parser

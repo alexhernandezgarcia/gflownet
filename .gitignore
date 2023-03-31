@@ -7,6 +7,5 @@ old
 *.pyo
 *.sw*
 sh/
-
 *.txt
 !requirements.txt

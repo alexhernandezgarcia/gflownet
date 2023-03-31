@@ -1,23 +1,21 @@
+from abc import ABC
+
+import numpy as np
 import torch
+from botorch.acquisition.max_value_entropy_search import qMaxValueEntropy
 
 # from botorch.fit import fit_gpytorch_mll
 from botorch.models import SingleTaskGP
-from botorch.test_functions import Hartmann
-from gpytorch.mlls import ExactMarginalLogLikelihood
-from torch.optim import Adam
-from torch.nn import Linear
-from torch.nn import MSELoss
-from torch.nn import Sequential, ReLU, Dropout
-from torch import tensor
-import numpy as np
-from abc import ABC
-from botorch.acquisition.max_value_entropy_search import qMaxValueEntropy
 from botorch.models.model import Model
-from gpytorch.distributions import MultivariateNormal, MultitaskMultivariateNormal
 from botorch.posteriors.gpytorch import GPyTorchPosterior
-# from botorch.posteriors.
-from torch import distributions
+from botorch.test_functions import Hartmann
+from gpytorch.distributions import MultitaskMultivariateNormal, MultivariateNormal
+from gpytorch.mlls import ExactMarginalLogLikelihood
 
+# from botorch.posteriors.
+from torch import distributions, tensor
+from torch.nn import Dropout, Linear, MSELoss, ReLU, Sequential
+from torch.optim import Adam
 
 """
 Initialise the Dataset 
@@ -31,7 +29,15 @@ train_y = neg_hartmann6(train_x).unsqueeze(-1)
 """
 Initialise and train the NN
 """
-mlp = Sequential(Linear(6, 1024), ReLU(), Dropout(0.5), Linear(1024, 1024), Dropout(0.5), ReLU(), Linear(1024, 1))
+mlp = Sequential(
+    Linear(6, 1024),
+    ReLU(),
+    Dropout(0.5),
+    Linear(1024, 1024),
+    Dropout(0.5),
+    ReLU(),
+    Linear(1024, 1),
+)
 NUM_EPOCHS = 10
 
 mlp.train()
@@ -47,14 +53,13 @@ for epoch in range(NUM_EPOCHS):
     loss = criterion(output, train_y)
     loss.backward()
     if (epoch + 1) % 10 == 0:
-        print(
-            f"Epoch {epoch+1:>3}/{NUM_EPOCHS} - Loss: {loss.item():>4.3f} "
-         )
+        print(f"Epoch {epoch+1:>3}/{NUM_EPOCHS} - Loss: {loss.item():>4.3f} ")
     optimizer.step()
 
 """
 Derived class of botorch.Models that implements posterior
 """
+
 
 class NN_Model(Model):
     def __init__(self, nn):
@@ -63,20 +68,20 @@ class NN_Model(Model):
         self._num_outputs = 1
         self.nb_samples = 20
 
-    def posterior(self, X, observation_noise = False, posterior_transform = None):
+    def posterior(self, X, observation_noise=False, posterior_transform=None):
         super().posterior(X, observation_noise, posterior_transform)
         self.model.train()
 
         with torch.no_grad():
-             outputs = torch.hstack([self.model(X) for _ in range(self.nb_samples)])
+            outputs = torch.hstack([self.model(X) for _ in range(self.nb_samples)])
         mean = torch.mean(outputs, axis=1)
         var = torch.var(outputs, axis=1)
 
-        if len(X.shape)==2:
+        if len(X.shape) == 2:
             covar = torch.diag(var)
-        elif len(X.shape)==4:
+        elif len(X.shape) == 4:
             covar = [torch.diag(var[i][0]) for i in range(X.shape[0])]
-            covar = torch.stack(covar, axis = 0)
+            covar = torch.stack(covar, axis=0)
             covar = covar.unsqueeze(-1)
         mvn = MultivariateNormal(mean, covar)
         posterior = GPyTorchPosterior(mvn)
@@ -96,10 +101,11 @@ class NN_Model(Model):
         """
         return torch.Size([])
 
+
 proxy = NN_Model(mlp)
 
-qMES = qMaxValueEntropy(proxy, candidate_set = train_x, num_fantasies=1, use_gumbel=False)
- 
+qMES = qMaxValueEntropy(proxy, candidate_set=train_x, num_fantasies=1, use_gumbel=False)
+
 
 """
 Create 10k batches of test data points to check whether the MES gives negative values for any of those configurations.
@@ -110,7 +116,7 @@ for num in range(10000):
     with torch.no_grad():
         mes = qMES(test_x)
         mes_arr = mes.detach().numpy()
-        verdict = np.all(mes_arr>0)
+        verdict = np.all(mes_arr > 0)
     if not verdict:
         print(mes)
 
