@@ -22,7 +22,6 @@ class Proxy(ABC):
         # Reward2Proxy multiplicative factor (1 or -1)
         self.higher_is_better = higher_is_better
 
-    @abstractmethod
     def setup(self, env=None):
         pass
 
