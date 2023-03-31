@@ -455,12 +455,11 @@ class Tetris(GFlowNetEnv):
             Increment of the returned index with respect to the max.
         """
         indices = board.unique()
+        indices_relevant = indices[indices < (piece_idx + 1) * self.max_pieces_per_type]
+        if indices_relevant.shape[0] == 0:
+            return piece_idx * self.max_pieces_per_type
         return max(
-            [
-                torch.max(indices[indices < (piece_idx + 1) * self.max_pieces_per_type])
-                + incr,
-                piece_idx * self.max_pieces_per_type,
-            ]
+            [torch.max(indices_relevant) + incr, piece_idx * self.max_pieces_per_type]
         )
 
     def get_uniform_terminating_states(
