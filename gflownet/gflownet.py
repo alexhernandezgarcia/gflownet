@@ -437,7 +437,7 @@ class GFlowNetAgent:
                 env = env.set_state(x_tr[idx].tolist(), done=True)
                 env.n_actions = env.get_max_traj_length()
                 envs_offline.append(env)
-                actions.append((env.eos,))
+                actions.append(env.eos)
                 valids.append(True)
         else:
             envs_offline = []
