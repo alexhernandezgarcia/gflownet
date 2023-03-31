@@ -431,7 +431,6 @@ class Tetris(GFlowNetEnv):
         board_section[board_section == piece_idx] = piece_idx_base
         for rotation in self.rotations:
             piece_mat_rot = torch.rot90(piece_mat, k=self.rot2idx[rotation])
-            print(piece_mat_rot)
             if piece_mat_rot.shape == board_section.shape and torch.equal(
                 torch.rot90(piece_mat, k=self.rot2idx[rotation]), board_section
             ):
@@ -465,9 +464,10 @@ class Tetris(GFlowNetEnv):
         )
 
     def get_uniform_terminating_states(
-        self, n_states: int, seed: int, n_iter_max: int = 1e6
+        self, n_states: int, seed: int, n_factor_max: int = 10
     ) -> List[List]:
         rng = np.random.default_rng(seed)
+        n_iter_max = n_states * n_factor_max
         states = []
         for it in range(int(n_iter_max)):
             self.reset()

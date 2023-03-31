@@ -457,5 +457,5 @@ def test__all_env_common(env):
     return common.test__all_env_common(env)
 
 
-# def test__all_env_common(env_full):
-#     return common.test__all_env_common(env_full)
+def test__all_env_common(env_full):
+    return common.test__all_env_common(env_full)
