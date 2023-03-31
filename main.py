@@ -1,13 +1,14 @@
 """
 Runnable script with hydra capabilities
 """
-import sys
 import os
 import random
+import sys
+
 import hydra
 import pandas as pd
 import yaml
-from omegaconf import OmegaConf, DictConfig
+from omegaconf import DictConfig, OmegaConf
 
 
 @hydra.main(config_path="./config", config_name="main", version_base="1.1")
@@ -61,8 +62,8 @@ def main(config):
 
 
 def set_seeds(seed):
-    import torch
     import numpy as np
+    import torch
 
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False

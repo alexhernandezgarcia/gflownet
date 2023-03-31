@@ -7,11 +7,12 @@ from typing import Dict, List, Optional, Tuple, Union
 import numpy as np
 import torch
 from torch import Tensor
+from torchtyping import TensorType
 
 from gflownet.envs.base import GFlowNetEnv
 from gflownet.utils.crystals.constants import (
-    CRYSTAL_SYSTEMS,
     CRYSTAL_CLASSES,
+    CRYSTAL_SYSTEMS,
     POINT_SYMMETRIES,
     SPACE_GROUPS,
 )
@@ -22,12 +23,15 @@ class SpaceGroup(GFlowNetEnv):
     SpaceGroup environment for ionic conductivity.
 
     The state space is the combination of three properties:
-    1. The crystal system (https://en.wikipedia.org/wiki/Crystal_system#Crystal_system)
-    (7 options + none) 2. The point symmetry
-    (https://en.wikipedia.org/wiki/Crystal_system#Crystal_classes) (5 options + none)
+    1. The crystal system
+        See: https://en.wikipedia.org/wiki/Crystal_system#Crystal_system
+        (7 options + none)
+    2. The point symmetry
+        See: https://en.wikipedia.org/wiki/Crystal_system#Crystal_classes
+        (5 options + none)
     3. The space group
-    (https://en.wikipedia.org/wiki/Space_group#Table_of_space_groups_in_3_dimensions)
-    (230 options + none)
+        See: https://en.wikipedia.org/wiki/Space_group#Table_of_space_groups_in_3_dimensions
+        (230 options + none)
 
     The action space is the choice of property to update and the index within the
     property (e.g. crystal system 2, point symmetry 4, space group 69, etc.). The
@@ -38,7 +42,6 @@ class SpaceGroup(GFlowNetEnv):
     """
 
     def __init__(self, **kwargs):
-        super().__init__(**kwargs)
         self.crystal_systems = CRYSTAL_SYSTEMS
         self.crystal_classes = CRYSTAL_CLASSES
         self.point_symmetries = POINT_SYMMETRIES
@@ -47,14 +50,15 @@ class SpaceGroup(GFlowNetEnv):
         self.n_crystal_classes = len(self.crystal_classes)
         self.n_point_symmetries = len(self.point_symmetries)
         self.n_space_groups = 230
-        # A state is a list of [crystal system index, point symmetry index, space group]
         self.cs_idx, self.ps_idx, self.sg_idx = 0, 1, 2
+        self.eos = (-1, -1)
+        # Source state: index 0 (empty) for all three properties (crystal system index,
+        # point symmetry index, space group)
         self.source = [0 for _ in range(3)]
-        self.eos = -1
-        self.action_space = self.get_actions_space()
-        self.reset()
+        # Base class init
+        super().__init__(**kwargs)
 
-    def get_actions_space(self):
+    def get_action_space(self):
         """
         Constructs list with all possible actions. An action is described by a
         tuple (property, index), where property is (0: crystal system,
@@ -67,16 +71,18 @@ class SpaceGroup(GFlowNetEnv):
         ):
             actions_prop = [(prop, idx + 1) for idx in range(n_idx)]
             actions += actions_prop
-        actions += [(self.eos, 0)]
+        actions += [self.eos]
         return actions
 
-    def get_max_traj_len(self):
-        return 3
-
-    def get_mask_invalid_actions_forward(self, state=None, done=None):
+    def get_mask_invalid_actions_forward(
+        self,
+        state: Optional[List] = None,
+        done: Optional[bool] = None,
+    ) -> List:
         """
-        Returns a vector of length the action space + 1: True if forward action is
-        invalid given the current state, False otherwise.
+        Returns a list of length the action space with values:
+            - True if the forward action is invalid given the current state.
+            - False otherwise.
         """
         if state is None:
             state = self.state.copy()
@@ -87,7 +93,7 @@ class SpaceGroup(GFlowNetEnv):
         # If space group has been selected, only valid action is EOS
         if state[self.sg_idx] != 0:
             mask = [True for _ in self.action_space]
-            mask[self.eos] = False
+            mask[-1] = False
             return mask
         # No constraints if neither crystal system nor point symmetry selected
         if state[self.cs_idx] == 0 and state[self.ps_idx] == 0:
@@ -155,13 +161,49 @@ class SpaceGroup(GFlowNetEnv):
         """
         if state is None:
             state = self.state
-
         if state[self.sg_idx] == 0:
             raise ValueError(
                 "The space group must have been set in order to call the oracle"
             )
-
         return torch.Tensor(state[self.sg_idx], device=self.device, dtype=self.float)
+
+    def statebatch2oracle(
+        self, states: List[List]
+    ) -> TensorType["batch", "state_oracle_dim"]:
+        """
+        Prepares a batch of states in "GFlowNet format" for the oracle. The input to the
+        oracle is simply the space group.
+
+        Args
+        ----
+        state : list
+            A state
+
+        Returns
+        ----
+        oracle_state : Tensor
+        """
+        return self.statetorch2oracle(
+            torch.Tensor(states, device=self.device, dtype=self.float)
+        )
+
+    def statetorch2oracle(
+        self, states: TensorType["batch", "state_dim"]
+    ) -> TensorType["batch", "state_oracle_dim"]:
+        """
+        Prepares a batch of states in "GFlowNet format" for the oracle. The input to the
+        oracle is simply the space group.
+
+        Args
+        ----
+        state : list
+            A state
+
+        Returns
+        ----
+        oracle_state : Tensor
+        """
+        return torch.unsqueeze(states[:, self.sg_idx])
 
     def state2readable(self, state=None):
         """
@@ -224,16 +266,6 @@ class SpaceGroup(GFlowNetEnv):
         state = [crystal_system, point_symmetry, space_group]
         return state
 
-    def reset(self, env_id=None):
-        """
-        Resets the environment.
-        """
-        self.state = self.source.copy()
-        self.n_actions = 0
-        self.done = False
-        self.id = env_id
-        return self
-
     def get_parents(self, state=None, done=None, action=None):
         """
         Determines all parents and actions that lead to a state.
@@ -261,7 +293,7 @@ class SpaceGroup(GFlowNetEnv):
         if done is None:
             done = self.done
         if done:
-            return [state], [(self.eos, 0)]
+            return [state], [self.eos]
         else:
             parents = []
             actions = []
@@ -297,7 +329,7 @@ class SpaceGroup(GFlowNetEnv):
         Args
         ----
         action : tuple
-            Action to be executed. See: get_actions_space()
+            Action to be executed. See: get_action_space()
 
         Returns
         -------
@@ -321,25 +353,27 @@ class SpaceGroup(GFlowNetEnv):
         if self.get_mask_invalid_actions_forward()[action_idx]:
             return self.state, action, False
         valid = True
+        self.n_actions += 1
         prop, idx = action
         # Action is not eos
-        if prop != self.eos:
+        if action != self.eos:
             state_next = self.state[:]
             state_next[prop] = idx
             # Set crystal system and point symmetry if space group is set
-            if state_next[self.sg_idx] != 0:
-                if state_next[self.cs_idx] == 0:
-                    state_next[self.cs_idx] = self.space_groups[
-                        state_next[self.sg_idx]
-                    ][2]
-                if state_next[self.ps_idx] == 0:
-                    state_next[self.ps_idx] = self.space_groups[
-                        state_next[self.sg_idx]
-                    ][3]
-            self.state = state_next
-            self.n_actions += 1
+            self.state = self._set_constrained_properties(state_next)
             return self.state, action, valid
         # Action is eos
         else:
             self.done = True
             return self.state, action, valid
+
+    def get_max_traj_length(self):
+        return 3
+
+    def _set_constrained_properties(self, state: List[int]) -> List[int]:
+        if state[self.sg_idx] != 0:
+            if state[self.cs_idx] == 0:
+                state[self.cs_idx] = self.space_groups[state[self.sg_idx]][2]
+            if state[self.ps_idx] == 0:
+                state[self.ps_idx] = self.space_groups[state[self.sg_idx]][3]
+        return state

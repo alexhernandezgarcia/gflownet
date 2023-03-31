@@ -1,5 +1,5 @@
-import scipy.io as sco
 import numpy as np
+import scipy.io as sco
 
 
 def load_potts_model(num_of_elements):

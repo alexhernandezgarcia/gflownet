@@ -1,13 +1,15 @@
 """
 Classes to represent aptamers environments
 """
-from typing import List
 import itertools
+import time
+from typing import List
+
 import numpy as np
 import numpy.typing as npt
 import pandas as pd
+
 from gflownet.envs.base import GFlowNetEnv
-import time
 
 
 class AptamerSeq(GFlowNetEnv):
@@ -51,47 +53,27 @@ class AptamerSeq(GFlowNetEnv):
         n_alphabet=4,
         min_word_len=1,
         max_word_len=1,
-        proxy=None,
-        oracle=None,
-        reward_beta=1,
-        env_id=None,
-        energies_stats=None,
-        reward_norm=1.0,
-        reward_norm_std_mult=0.0,
-        reward_func="power",
-        denorm_proxy=False,
         **kwargs,
     ):
-        super(AptamerSeq, self).__init__(
-            env_id,
-            reward_beta,
-            reward_norm,
-            reward_norm_std_mult,
-            reward_func,
-            energies_stats,
-            denorm_proxy,
-            proxy,
-            oracle,
-            **kwargs,
-        )
+        super().__init__()
         self.source = []
         self.min_seq_length = min_seq_length
         self.max_seq_length = max_seq_length
         self.n_alphabet = n_alphabet
         self.min_word_len = min_word_len
         self.max_word_len = max_word_len
-        self.action_space = self.get_actions_space()
-        self.eos = len(self.action_space)
+        self.action_space = self.get_action_space()
+        self.eos = self.action_space_dim
         self.reset()
         self.fixed_policy_output = self.get_fixed_policy_output()
         self.random_policy_output = self.get_fixed_policy_output()
         self.policy_output_dim = len(self.fixed_policy_output)
         self.policy_input_dim = len(self.state2policy())
-        self.max_traj_len = self.get_max_traj_len()
+        self.max_traj_len = self.get_max_traj_length()
         # Set up proxy
-        self.proxy.setup(self.max_seq_length)
+        self.setup_proxy()
 
-    def get_actions_space(self):
+    def get_action_space(self):
         """
         Constructs list with all possible actions
         """
@@ -104,7 +86,7 @@ class AptamerSeq(GFlowNetEnv):
             actions += actions_r
         return actions
 
-    def get_max_traj_len(
+    def get_max_traj_length(
         self,
     ):
         return self.max_seq_length / self.min_word_len + 1
@@ -324,8 +306,8 @@ class AptamerSeq(GFlowNetEnv):
         if done is None:
             done = self.done
         if done:
-            return [True for _ in range(len(self.action_space) + 1)]
-        mask = [False for _ in range(len(self.action_space) + 1)]
+            return [True for _ in range(self.action_space_dim + 1)]
+        mask = [False for _ in range(self.action_space_dim + 1)]
         seq_length = len(state)
         if seq_length < self.min_seq_length:
             mask[self.eos] = True
@@ -333,50 +315,6 @@ class AptamerSeq(GFlowNetEnv):
             if seq_length + len(a) > self.max_seq_length:
                 mask[idx] = True
         return mask
-
-    def no_eos_mask(self, state=None):
-        """
-        Returns True if no eos action is allowed given state
-        """
-        if state is None:
-            state = self.state.copy()
-        return len(state) < self.min_seq_length
-
-    def true_density(self, max_states=1e6):
-        """
-        Computes the reward density (reward / sum(rewards)) of the whole space, if the
-        dimensionality is smaller than specified in the arguments.
-
-        Returns
-        -------
-        Tuple:
-          - normalized reward for each state
-          - states
-          - (un-normalized) reward)
-        """
-        if self._true_density is not None:
-            return self._true_density
-        if self.n_alphabet**self.max_seq_length > max_states:
-            return (None, None, None)
-        state_all = np.int32(
-            list(
-                itertools.product(*[list(range(self.n_alphabet))] * self.max_seq_length)
-            )
-        )
-        traj_rewards, state_end = zip(
-            *[
-                (self.proxy(state), state)
-                for state in state_all
-                if len(self.get_parents(state, False)[0]) > 0 or sum(state) == 0
-            ]
-        )
-        traj_rewards = np.array(traj_rewards)
-        self._true_density = (
-            traj_rewards / traj_rewards.sum(),
-            list(map(tuple, state_end)),
-            traj_rewards,
-        )
-        return self._true_density
 
     def make_train_set(
         self,
@@ -491,36 +429,3 @@ class AptamerSeq(GFlowNetEnv):
         t1_all = time.time()
         times["all"] += t1_all - t0_all
         return df_test, times
-
-    @staticmethod
-    def np2df(test_path, al_init_length, al_queries_per_iter, pct_test, data_seed):
-        data_dict = np.load(test_path, allow_pickle=True).item()
-        letters = numbers2letters(data_dict["samples"])
-        df = pd.DataFrame(
-            {
-                "samples": letters,
-                "energies": data_dict["energies"],
-                "train": [False] * len(letters),
-                "test": [False] * len(letters),
-            }
-        )
-        # Split train and test section of init data set
-        rng = np.random.default_rng(data_seed)
-        indices = rng.permutation(al_init_length)
-        n_tt = int(pct_test * len(indices))
-        indices_tt = indices[:n_tt]
-        indices_tr = indices[n_tt:]
-        df.loc[indices_tt, "test"] = True
-        df.loc[indices_tr, "train"] = True
-        # Split train and test the section of each iteration to preserve splits
-        idx = al_init_length
-        iters_remaining = (len(df) - al_init_length) // al_queries_per_iter
-        indices = rng.permutation(al_queries_per_iter)
-        n_tt = int(pct_test * len(indices))
-        for it in range(iters_remaining):
-            indices_tt = indices[:n_tt] + idx
-            indices_tr = indices[n_tt:] + idx
-            df.loc[indices_tt, "test"] = True
-            df.loc[indices_tr, "train"] = True
-            idx += al_queries_per_iter
-        return df

@@ -11,9 +11,10 @@ n_dim: 2
 n_angles: 8
 # Maximum number of rounds
 length_traj: 12
-# Minimum and maximum number of steps in the action space
-min_step_len: 1
-max_step_len: 1
+# Maximum increment per each dimension that can be done by one action
+max_increment: 1
+# Maximum number of dimensions that can be incremented by one action
+max_dim_per_action: 1
 # Buffer
 buffer:
   data_path: null
