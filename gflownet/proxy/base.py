@@ -1,7 +1,7 @@
 """
 Base class of GFlowNet proxies
 """
-from abc import abstractmethod
+from abc import abstractmethod, ABC
 
 import numpy as np
 import numpy.typing as npt
