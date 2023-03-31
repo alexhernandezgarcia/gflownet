@@ -34,7 +34,7 @@ class GFlowNetEnv:
         proxy=None,
         oracle=None,
         proxy_state_format: str = "oracle",
-        fixed_distribution: dict = None,
+        fixed_distribution: Optional[dict] = None,
         random_distribution: dict = None,
         **kwargs,
     ):
