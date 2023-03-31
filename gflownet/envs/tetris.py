@@ -10,7 +10,16 @@ import torch
 from torchtyping import TensorType
 
 from gflownet.envs.base import GFlowNetEnv
-from gflownet.utils.tetris.constants import PIECES
+
+PIECES = {
+    "I": [1, [[1], [1], [1], [1]]],
+    "J": [2, [[0, 2], [0, 2], [2, 2]]],
+    "L": [3, [[3, 0], [3, 0], [3, 3]]],
+    "O": [4, [[4, 4], [4, 4]]],
+    "S": [5, [[0, 5, 5], [5, 5, 0]]],
+    "T": [6, [[6, 6, 6], [0, 6, 0]]],
+    "Z": [7, [[7, 7, 0], [0, 7, 7]]],
+}
 
 
 class Tetris(GFlowNetEnv):
@@ -57,11 +66,12 @@ class Tetris(GFlowNetEnv):
         self.rotations = rotations
         self.allow_redundant_rotations = allow_redundant_rotations
         self.allow_eos_before_full = allow_eos_before_full
+        self.max_pieces_per_type = 100
         # Helper functions and dicts
         self.piece2idx = lambda letter: PIECES[letter][0]
         self.idx2piece = {v[0]: k for k, v in PIECES.items()}
         self.piece2mat = lambda letter: torch.tensor(
-            PIECES[letter][1], dtype=torch.uint8
+            PIECES[letter][1], dtype=torch.int16
         )
         self.rot2idx = {0: 0, 90: 1, 180: 2, 270: 3}
         # Check width and height compatibility
@@ -75,7 +85,7 @@ class Tetris(GFlowNetEnv):
         assert all([self.height >= h for h in widths])
         assert all([self.width >= w for w in widths])
         # Source state: empty board
-        self.source = torch.zeros((self.height, self.width), dtype=torch.uint8)
+        self.source = torch.zeros((self.height, self.width), dtype=torch.int16)
         # End-of-sequence action: all -1
         self.eos = (-1, -1, -1)
         # Conversions
@@ -121,20 +131,36 @@ class Tetris(GFlowNetEnv):
         if state is None:
             state = self.state.clone().detach()
         board = state.clone().detach()
+
         piece_idx, rotation, col = action
         piece_mat = torch.rot90(
             self.piece2mat(self.idx2piece[piece_idx]), k=self.rot2idx[rotation]
         )
         hp, wp = piece_mat.shape
+        # Get index of new piece
+        indices = board.unique()
+        piece_idx = torch.max(
+            indices[
+                torch.logical_and(
+                    indices >= piece_idx * self.max_pieces_per_type,
+                    indices < (pieces_idx + 1) * self.max_pieces_per_type,
+                )
+            ]
+        )
+        piece_mat[piece_mat != 0] = piece_idx
+        # Check if piece goes overboard horizontally
         if col + wp > self.width:
             return board, False
+        # Iteratively attempts to place piece on the board starting from the bottom
         for row in reversed(range(self.height)):
             if row - hp + 1 < 0:
                 return board, False
             board_section = board[row - hp + 1 : row + 1, col : col + wp]
+            # If all board cells under piece are empty
             if sum(board_section[piece_mat != 0]) == 0:
                 board_aux = board.clone().detach()
                 board_aux[row - hp + 1 : row + 1, col : col + wp] += piece_mat
+                # If all columns above piece are empty
                 if Tetris._piece_can_be_lifted(board_aux, piece_mat, row - hp + 1, col):
                     return board_aux, True
         return board, False
@@ -267,7 +293,7 @@ class Tetris(GFlowNetEnv):
         for row in rows:
             state.append(
                 torch.tensor(
-                    [int(el) for el in row.strip("[]").split(" ")], dtype=torch.uint8
+                    [int(el) for el in row.strip("[]").split(" ")], dtype=torch.int16
                 )
             )
         return torch.stack(state)
