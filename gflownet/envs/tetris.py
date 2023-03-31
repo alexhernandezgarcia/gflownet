@@ -28,7 +28,9 @@ class Tetris(GFlowNetEnv):
     supposed to be a game, but rather a toy environment with an intuitive state and
     action space.
 
-    The state space is 2D board, with all the combinations of pieces on it.
+    The state space is 2D board, with all the combinations of pieces on it. Pieces are
+    identified by an index that starts from piece_idx * max_pieces_per_type, and is
+    incremented by 1 with each new piece from the same type.
 
     The action space is the choice of piece, its rotation and horizontal location
     where to drop the piece. The action space may be constrained according to needs.
@@ -137,16 +139,9 @@ class Tetris(GFlowNetEnv):
             self.piece2mat(self.idx2piece[piece_idx]), k=self.rot2idx[rotation]
         )
         hp, wp = piece_mat.shape
-        # Get index of new piece
+        # Get and set index of new piece
         indices = board.unique()
-        piece_idx = torch.max(
-            indices[
-                torch.logical_and(
-                    indices >= piece_idx * self.max_pieces_per_type,
-                    indices < (pieces_idx + 1) * self.max_pieces_per_type,
-                )
-            ]
-        )
+        piece_idx = self._get_max_piece_idx(board, piece_idx, incr=1)
         piece_mat[piece_mat != 0] = piece_idx
         # Check if piece goes overboard horizontally
         if col + wp > self.width:
@@ -161,7 +156,7 @@ class Tetris(GFlowNetEnv):
                 board_aux = board.clone().detach()
                 board_aux[row - hp + 1 : row + 1, col : col + wp] += piece_mat
                 # If all columns above piece are empty
-                if Tetris._piece_can_be_lifted(board_aux, piece_mat, row - hp + 1, col):
+                if self._piece_can_be_lifted(board_aux, piece_idx):
                     return board_aux, True
         return board, False
 
@@ -339,9 +334,13 @@ class Tetris(GFlowNetEnv):
         else:
             parents = []
             actions = []
-            for idx, action in enumerate(self.action_space[:-1]):
-                parent, is_parent = self._is_parent_action(state, action)
-                if is_parent:
+            indices = state.unique()
+            for idx in indices[indices > 0]:
+                if self._piece_can_be_lifted(state, idx):
+                    piece_idx, rotation, col = self._get_idx_rotation_col(state, idx)
+                    parent = state.clone().detach()
+                    parent[parent == idx] = 0
+                    action = (piece_idx, rotation, col)
                     parents.append(parent)
                     actions.append(action)
         return parents, actions
@@ -398,121 +397,65 @@ class Tetris(GFlowNetEnv):
     def get_max_traj_length(self):
         return 1e9
 
-    @classmethod
-    def _piece_can_be_lifted(cls, board, piece_mat, row, col):
+    def _piece_can_be_lifted(self, board, piece_idx):
+        """
+        Returns True if the piece with index piece_idx could be lifted, that is all
+        cells of the board above the piece are zeros. False otherwise.
+        """
         board_aux = board.clone().detach()
-        piece_idx = piece_mat[piece_mat != 0][0].item()
-        hp, wp = piece_mat.shape
-        board_section = board_aux[row : row + hp, col : col + wp]
-        if not torch.all(board_section[piece_mat != 0] == piece_idx):
-            return False
-        board_section[piece_mat != 0] = -1
-        board_aux[row : row + hp, col : col + wp] = board_section
-        for c in range(col, col + wp):
-            column = board_aux[:, c]
-            r = torch.where(column == -1)[0][0]
-            if torch.any(column[:r] != 0):
-                return False
-        return True
+        if piece_idx < self.max_pieces_per_type:
+            piece_idx = self._get_max_piece_idx(board_aux, piece_idx, incr=0)
+        rows, cols = torch.where(board_aux == piece_idx)
+        board_top = torch.cat([board[:r, c] for r, c in zip(rows, cols)])
+        board_top[board_top == piece_idx] = 0
+        return not any(board_top)
 
-    @classmethod
-    def _piece_is_not_floating(cls, board, piece_mat, row, col):
+    def _get_idx_rotation_col(self, board, piece_idx):
+        piece_idx_base = int(piece_idx / self.max_pieces_per_type)
         board_aux = board.clone().detach()
-        piece_idx = piece_mat[piece_mat != 0][0].item()
-        hp, wp = piece_mat.shape
+        piece_mat = self.piece2mat(self.idx2piece[piece_idx_base])
+        rows, cols = torch.where(board_aux == piece_idx)
+        row = min(rows).item()
+        col = min(cols).item()
+        hp = max(rows).item() - row + 1
+        wp = max(cols).item() - col + 1
         board_section = board_aux[row : row + hp, col : col + wp]
-        if not torch.all(board_section[piece_mat != 0] == piece_idx):
-            return True
-        board_section[piece_mat != 0] = -1
-        board_aux[row : row + hp, col : col + wp] = board_section
-        for c in range(col, col + wp):
-            column = board_aux[:, c]
-            r = torch.where(column == -1)[0][-1]
-            if column[r + 1 :].shape[0] == 0 or torch.any(column[r + 1 :] != 0):
-                return True
-        return False
-
-    def _remove_all_pieces(self, board, piece_idx):
-        """
-        Recursively removes the pieces indicated by piece_mat from the board. For loops
-        are randomized to allow for multiple ways of removing pieces. This method
-        should therefore be called multiple times.
-        """
-        board[board != piece_idx] = 0
-        if torch.all(board == 0):
-            return board
-        for rotation in np.random.permutation(self.rotations):
-            piece_mat = torch.rot90(
-                self.piece2mat(self.idx2piece[piece_idx]), k=self.rot2idx[rotation]
-            )
-            hp, wp = piece_mat.shape
-            for col in np.random.permutation(range(self.width)):
-                if col + wp > self.width:
-                    continue
-                for row in np.random.permutation(range(self.height)):
-                    if row + hp > self.height:
-                        continue
-                    board_section = board[row : row + hp, col : col + wp]
-                    if torch.all(board_section[piece_mat != 0] == piece_idx):
-                        if Tetris._piece_can_be_lifted(board, piece_mat, row, col):
-                            board_section[piece_mat != 0] = 0
-                            board[row : row + hp, col : col + wp] = board_section
-                            board = self._remove_all_pieces(board, piece_idx)
-        return board
-
-    def _pieces_are_compatible(self, board, piece_idx, n_reps=20):
-        pieces_are_compatible = False
-        for _ in range(n_reps):
-            board_aux = board.clone().detach()
-            if torch.all(self._remove_all_pieces(board_aux, piece_idx) == 0):
-                pieces_are_compatible = True
-                break
-        return pieces_are_compatible
-
-    def _is_parent_action(self, board, action):
-        """
-        Checks if the action given as argument could have been a last action given
-        the board.
-        """
-        piece_idx, rotation, col = action
-        piece_mat = torch.rot90(
-            self.piece2mat(self.idx2piece[piece_idx]), k=self.rot2idx[rotation]
+        board_section[board_section != piece_idx] = 0
+        board_section[board_section == piece_idx] = piece_idx_base
+        for rotation in self.rotations:
+            piece_mat_rot = torch.rot90(piece_mat, k=self.rot2idx[rotation])
+            print(piece_mat_rot)
+            if piece_mat_rot.shape == board_section.shape and torch.equal(
+                torch.rot90(piece_mat, k=self.rot2idx[rotation]), board_section
+            ):
+                return piece_idx_base, rotation, col
+        raise ValueError(
+            f"No valid rotation found for piece {piece_idx} in board {board}"
         )
-        hp, wp = piece_mat.shape
-        if col + wp > self.width:
-            return False
-        for row in range(self.height):
-            if row + hp > self.height:
-                break
-            board_section = board[row : row + hp, col : col + wp]
-            # If a different piece is found, stop going down
-            iszero = board_section[piece_mat != 0] == 0
-            isidx = board_section[piece_mat != 0] == piece_idx
-            if not all(torch.logical_or(iszero, isidx)):
-                break
-            # If a piece match is found, check it can be lifted, it is not floating and
-            # it is compatible with other pieces
-            if torch.all(board_section[piece_mat != 0] == piece_idx):
-                board_section_aux = board_section.clone().detach()
-                board_section_aux[piece_mat != 0] = 0
-                board_parent = board.clone().detach()
-                board_parent[row : row + hp, col : col + wp] = board_section_aux
-                piece_is_compatible = self._pieces_are_compatible(
-                    board_parent, piece_idx
-                )
-                piece_can_be_lifted = Tetris._piece_can_be_lifted(
-                    board, piece_mat, row, col
-                )
-                piece_is_not_floating = Tetris._piece_is_not_floating(
-                    board, piece_mat, row, col
-                )
-                is_parent = (
-                    piece_can_be_lifted
-                    and piece_is_not_floating
-                    and piece_is_compatible
-                )
-                return board_parent, is_parent
-        return board.clone().detach(), False
+
+    def _get_max_piece_idx(
+        self, board: TensorType["height", "width"], piece_idx: int, incr: int = 0
+    ):
+        """
+        Gets the index of a new piece with base index piece_idx, based on the board.
+
+        board : tensor
+            The current board matrix.
+
+        piece_idx : int
+            Piece index, in base format [1, 2, ...]
+
+        incr : int
+            Increment of the returned index with respect to the max.
+        """
+        indices = board.unique()
+        return max(
+            [
+                torch.max(indices[indices < (piece_idx + 1) * self.max_pieces_per_type])
+                + incr,
+                piece_idx * self.max_pieces_per_type,
+            ]
+        )
 
     def get_uniform_terminating_states(
         self, n_states: int, seed: int, n_iter_max: int = 1e6

@@ -96,13 +96,61 @@ def test__get_action_space__returns_expected(env, action_space):
         (
             [[0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]],
             (4, 0, 0),
-            [[0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [4, 4, 0, 0], [4, 4, 0, 0]],
+            [
+                [000, 000, 000, 000],
+                [000, 000, 000, 000],
+                [000, 000, 000, 000],
+                [400, 400, 000, 000],
+                [400, 400, 000, 000],
+            ],
+            True,
+        ),
+        (
+            [
+                [000, 000, 000, 000],
+                [000, 000, 000, 000],
+                [000, 000, 000, 000],
+                [400, 400, 000, 000],
+                [400, 400, 000, 000],
+            ],
+            (4, 0, 0),
+            [
+                [000, 000, 000, 000],
+                [401, 401, 000, 000],
+                [401, 401, 000, 000],
+                [400, 400, 000, 000],
+                [400, 400, 000, 000],
+            ],
+            True,
+        ),
+        (
+            [
+                [000, 000, 000, 000],
+                [000, 000, 000, 000],
+                [000, 000, 600, 000],
+                [400, 400, 600, 600],
+                [400, 400, 600, 000],
+            ],
+            (4, 0, 0),
+            [
+                [000, 000, 000, 000],
+                [401, 401, 000, 000],
+                [401, 401, 600, 000],
+                [400, 400, 600, 600],
+                [400, 400, 600, 000],
+            ],
             True,
         ),
         (
             [[0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]],
             (1, 0, 3),
-            [[0, 0, 0, 0], [0, 0, 0, 1], [0, 0, 0, 1], [0, 0, 0, 1], [0, 0, 0, 1]],
+            [
+                [000, 000, 000, 000],
+                [000, 000, 000, 100],
+                [000, 000, 000, 100],
+                [000, 000, 000, 100],
+                [000, 000, 000, 100],
+            ],
             True,
         ),
     ],
@@ -110,8 +158,8 @@ def test__get_action_space__returns_expected(env, action_space):
 def test__drop_piece_on_board__returns_expected(
     env, state, action, state_next_expected, valid_expected
 ):
-    state = torch.tensor(state, dtype=torch.uint8)
-    state_next_expected = torch.tensor(state_next_expected, dtype=torch.uint8)
+    state = torch.tensor(state, dtype=torch.int16)
+    state_next_expected = torch.tensor(state_next_expected, dtype=torch.int16)
     env.set_state(state)
     state_next, valid = env._drop_piece_on_board(action)
     assert torch.equal(state_next, state_next_expected)
@@ -125,11 +173,23 @@ def test__drop_piece_on_board__returns_expected(
             [False, False, False, True],
         ),
         (
-            [[0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 4, 4, 0], [0, 4, 4, 0]],
+            [
+                [000, 000, 000, 000],
+                [000, 000, 000, 000],
+                [000, 000, 000, 000],
+                [000, 400, 400, 000],
+                [000, 400, 400, 000],
+            ],
             [False, False, False, True],
         ),
         (
-            [[0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [4, 4, 4, 4], [4, 4, 4, 4]],
+            [
+                [000, 000, 000, 000],
+                [000, 000, 000, 000],
+                [000, 000, 000, 000],
+                [400, 400, 400, 400],
+                [400, 400, 400, 400],
+            ],
             [False, False, False, True],
         ),
     ],
@@ -137,7 +197,7 @@ def test__drop_piece_on_board__returns_expected(
 def test__mask_invalid_actions_forward__returns_expected(
     env_1piece, state, mask_expected
 ):
-    state = torch.tensor(state, dtype=torch.uint8)
+    state = torch.tensor(state, dtype=torch.int16)
     mask = env_1piece.get_mask_invalid_actions_forward(state, False)
     assert mask == mask_expected
 
@@ -148,227 +208,113 @@ def test__mask_invalid_actions_forward__returns_expected(
         (
             [[0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]],
             (4, 0, 0),
-            [[0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [4, 4, 0, 0], [4, 4, 0, 0]],
+            [
+                [000, 000, 000, 000],
+                [000, 000, 000, 000],
+                [000, 000, 000, 000],
+                [400, 400, 000, 000],
+                [400, 400, 000, 000],
+            ],
         ),
         (
-            [[0, 0, 0, 0], [0, 0, 0, 0], [5, 0, 0, 0], [5, 5, 0, 0], [0, 5, 0, 0]],
+            [
+                [000, 000, 000, 000],
+                [000, 000, 000, 000],
+                [500, 000, 000, 000],
+                [500, 500, 000, 000],
+                [000, 500, 000, 000],
+            ],
             (5, 90, 1),
-            [[0, 0, 0, 0], [0, 5, 0, 0], [5, 5, 5, 0], [5, 5, 5, 0], [0, 5, 0, 0]],
+            [
+                [000, 000, 000, 000],
+                [000, 501, 000, 000],
+                [500, 501, 501, 000],
+                [500, 500, 501, 0],
+                [000, 500, 000, 0],
+            ],
         ),
     ],
 )
 def test__step__returns_expected(env, state, action, next_state):
-    env.set_state(torch.tensor(state, dtype=torch.uint8))
+    env.set_state(torch.tensor(state, dtype=torch.int16))
     env.step(action)
-    assert torch.equal(env.state, torch.tensor(next_state, dtype=torch.uint8))
-
-
-@pytest.mark.parametrize(
-    "board, piece_mat, row, col, expected",
-    [
-        (
-            [[0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [4, 4, 0, 0], [4, 4, 0, 0]],
-            [[4, 4], [4, 4]],
-            3,
-            0,
-            True,
-        ),
-        (
-            [[0, 0, 0, 0], [0, 5, 0, 0], [5, 5, 5, 0], [5, 5, 5, 0], [0, 5, 0, 0]],
-            [[0, 5, 5], [5, 5, 0]],
-            2,
-            0,
-            False,
-        ),
-        (
-            [[0, 0, 0, 0], [0, 0, 0, 0], [0, 6, 6, 6], [4, 4, 6, 0], [4, 4, 0, 0]],
-            [[4, 4], [4, 4]],
-            3,
-            0,
-            False,
-        ),
-        (
-            [[0, 0, 0, 0], [0, 0, 0, 0], [0, 6, 6, 6], [4, 4, 6, 0], [4, 4, 0, 0]],
-            [[6, 6, 6], [0, 6, 0]],
-            2,
-            1,
-            True,
-        ),
-        (
-            [[0, 0, 0, 0], [0, 0, 0, 0], [0, 6, 6, 6], [4, 4, 6, 0], [4, 4, 0, 0]],
-            [[6, 6, 6], [0, 6, 0]],
-            3,
-            1,
-            False,
-        ),
-    ],
-)
-def test__piece_can_be_lifted__returns_expected(
-    env, board, piece_mat, row, col, expected
-):
-    board = torch.tensor(board, dtype=torch.uint8)
-    piece_mat = torch.tensor(piece_mat, dtype=torch.uint8)
-    assert Tetris._piece_can_be_lifted(board, piece_mat, row, col) == expected
-
-
-@pytest.mark.parametrize(
-    "board, piece_mat, row, col, expected",
-    [
-        (
-            [[0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [4, 4, 0, 0], [4, 4, 0, 0]],
-            [[4, 4], [4, 4]],
-            3,
-            0,
-            True,
-        ),
-        (
-            [[0, 0, 0, 0], [0, 0, 0, 0], [4, 4, 0, 0], [4, 4, 0, 0], [0, 0, 0, 0]],
-            [[4, 4], [4, 4]],
-            2,
-            0,
-            False,
-        ),
-        (
-            [[0, 0, 0, 0], [0, 6, 0, 0], [6, 6, 6, 0], [0, 6, 6, 6], [0, 0, 6, 0]],
-            [[0, 6], [6, 6], [0, 6]],
-            1,
-            0,
-            False,
-        ),
-    ],
-)
-def test__piece_is_not_floating__returns_expected(
-    env, board, piece_mat, row, col, expected
-):
-    board = torch.tensor(board, dtype=torch.uint8)
-    piece_mat = torch.tensor(piece_mat, dtype=torch.uint8)
-    assert Tetris._piece_is_not_floating(board, piece_mat, row, col) == expected
+    assert torch.equal(env.state, torch.tensor(next_state, dtype=torch.int16))
 
 
 @pytest.mark.parametrize(
     "board, piece_idx, expected",
     [
         (
-            [[0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [4, 4, 0, 0], [4, 4, 0, 0]],
+            [
+                [000, 000, 000, 000],
+                [000, 000, 000, 000],
+                [000, 000, 000, 000],
+                [400, 400, 000, 000],
+                [400, 400, 000, 000],
+            ],
             4,
             True,
         ),
         (
-            [[0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [4, 4, 4, 4], [4, 4, 4, 4]],
+            [
+                [000, 000, 000, 000],
+                [000, 501, 000, 000],
+                [500, 501, 501, 000],
+                [500, 500, 501, 000],
+                [000, 500, 000, 000],
+            ],
+            500,
+            False,
+        ),
+        (
+            [
+                [000, 000, 000, 000],
+                [000, 000, 000, 000],
+                [000, 600, 600, 600],
+                [400, 400, 600, 000],
+                [400, 400, 000, 000],
+            ],
+            400,
+            False,
+        ),
+        (
+            [
+                [000, 000, 000, 000],
+                [000, 000, 000, 000],
+                [000, 600, 600, 600],
+                [400, 400, 600, 000],
+                [400, 400, 000, 000],
+            ],
             4,
-            True,
-        ),
-        (
-            [[0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [4, 4, 4, 0], [4, 4, 4, 0]],
-            4,
-            False,
-        ),
-        (
-            [[0, 0, 0, 0], [0, 5, 0, 0], [5, 5, 5, 0], [5, 5, 5, 0], [0, 5, 0, 0]],
-            5,
-            True,
-        ),
-        (
-            [[0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [4, 0, 0, 4], [4, 0, 0, 4]],
-            4,
-            False,
-        ),
-    ],
-)
-def test__pieces_are_compatible__returns_expected(env, board, piece_idx, expected):
-    board = torch.tensor(board, dtype=torch.uint8)
-    expected = torch.tensor(expected, dtype=torch.uint8)
-    assert env._pieces_are_compatible(board, piece_idx) == expected
-
-
-@pytest.mark.parametrize(
-    "board, action, expected",
-    [
-        (
-            [[0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [4, 4, 0, 0], [4, 4, 0, 0]],
-            (4, 0, 0),
-            True,
-        ),
-        (
-            [[0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [4, 4, 0, 0], [4, 4, 0, 0]],
-            (1, 0, 0),
             False,
         ),
         (
             [
-                [0, 0, 0, 6],
-                [0, 6, 6, 6],
-                [6, 6, 6, 6],
-                [0, 6, 6, 6],
-                [0, 0, 6, 0],
+                [000, 000, 000, 000],
+                [000, 000, 000, 000],
+                [000, 600, 600, 600],
+                [400, 400, 600, 000],
+                [400, 400, 000, 000],
             ],
-            (6, 270, 2),
-            True,
-        ),
-    ],
-)
-def test__is_parent_action__returns_expected(env, board, action, expected):
-    board = torch.tensor(board, dtype=torch.uint8)
-    assert env._is_parent_action(board, action) == expected
-
-
-@pytest.mark.parametrize(
-    "board, action, expected",
-    [
-        (
-            [
-                [1, 0, 0, 0],
-                [1, 0, 0, 0],
-                [1, 0, 0, 0],
-                [1, 0, 0, 0],
-                [4, 4, 4, 4],
-                [4, 4, 4, 4],
-            ],
-            (4, 0, 0),
-            False,
-        ),
-        (
-            [
-                [1, 0, 0, 0],
-                [1, 0, 0, 0],
-                [1, 0, 0, 0],
-                [1, 0, 0, 0],
-                [4, 4, 4, 4],
-                [4, 4, 4, 4],
-            ],
-            (4, 0, 1),
-            False,
-        ),
-        (
-            [
-                [1, 0, 0, 0],
-                [1, 0, 0, 0],
-                [1, 0, 0, 0],
-                [1, 0, 0, 0],
-                [4, 4, 4, 4],
-                [4, 4, 4, 4],
-            ],
-            (4, 0, 2),
+            6,
             True,
         ),
         (
             [
-                [1, 0, 0, 0],
-                [1, 0, 0, 0],
-                [1, 0, 0, 0],
-                [1, 0, 0, 0],
-                [4, 4, 4, 4],
-                [4, 4, 4, 4],
+                [000, 000, 000, 000],
+                [000, 000, 000, 000],
+                [000, 600, 600, 600],
+                [400, 400, 600, 000],
+                [400, 400, 000, 000],
             ],
-            (1, 0, 0),
+            600,
             True,
         ),
     ],
 )
-def test__is_parent_action__returns_expected(env6x4, board, action, expected):
-    board = torch.tensor(board, dtype=torch.uint8)
-    _, is_parent = env6x4._is_parent_action(board, action)
-    assert is_parent == expected
+def test__piece_can_be_lifted__returns_expected(env, board, piece_idx, expected):
+    board = torch.tensor(board, dtype=torch.int16)
+    assert env._piece_can_be_lifted(board, piece_idx) == expected
 
 
 @pytest.mark.parametrize(
@@ -376,41 +322,70 @@ def test__is_parent_action__returns_expected(env6x4, board, action, expected):
     [
         (
             [
-                [1, 0, 0, 0],
-                [1, 0, 0, 0],
-                [1, 0, 0, 0],
-                [1, 0, 0, 0],
-                [4, 4, 4, 4],
-                [4, 4, 4, 4],
+                [100, 000, 000, 000],
+                [100, 000, 000, 000],
+                [100, 000, 000, 000],
+                [100, 000, 000, 000],
+                [400, 400, 401, 401],
+                [400, 400, 401, 401],
             ],
             [
                 [
-                    [0, 0, 0, 0],
-                    [0, 0, 0, 0],
-                    [0, 0, 0, 0],
-                    [0, 0, 0, 0],
-                    [4, 4, 4, 4],
-                    [4, 4, 4, 4],
+                    [000, 000, 000, 000],
+                    [000, 000, 000, 000],
+                    [000, 000, 000, 000],
+                    [000, 000, 000, 000],
+                    [400, 400, 401, 401],
+                    [400, 400, 401, 401],
                 ],
                 [
-                    [1, 0, 0, 0],
-                    [1, 0, 0, 0],
-                    [1, 0, 0, 0],
-                    [1, 0, 0, 0],
-                    [4, 4, 0, 0],
-                    [4, 4, 0, 0],
+                    [100, 000, 000, 000],
+                    [100, 000, 000, 000],
+                    [100, 000, 000, 000],
+                    [100, 000, 000, 000],
+                    [400, 400, 000, 000],
+                    [400, 400, 000, 000],
                 ],
             ],
             [(1, 0, 0), (4, 0, 2)],
+        ),
+        (
+            [
+                [100, 000, 000, 101],
+                [100, 000, 000, 101],
+                [100, 000, 000, 101],
+                [100, 000, 000, 101],
+                [400, 400, 401, 401],
+                [400, 400, 401, 401],
+            ],
+            [
+                [
+                    [000, 000, 000, 101],
+                    [000, 000, 000, 101],
+                    [000, 000, 000, 101],
+                    [000, 000, 000, 101],
+                    [400, 400, 401, 401],
+                    [400, 400, 401, 401],
+                ],
+                [
+                    [100, 000, 000, 000],
+                    [100, 000, 000, 000],
+                    [100, 000, 000, 000],
+                    [100, 000, 000, 000],
+                    [400, 400, 401, 401],
+                    [400, 400, 401, 401],
+                ],
+            ],
+            [(1, 0, 0), (1, 0, 3)],
         ),
     ],
 )
 def test__get_parents__returns_expected(
     env6x4, state, parents_expected, parents_a_expected
 ):
-    state = torch.tensor(state, dtype=torch.uint8)
+    state = torch.tensor(state, dtype=torch.int16)
     parents_expected = [
-        torch.tensor(parent, dtype=torch.uint8) for parent in parents_expected
+        torch.tensor(parent, dtype=torch.int16) for parent in parents_expected
     ]
     parents, parents_a = env6x4.get_parents(state)
     for p, p_e in zip(parents, parents_expected):
@@ -419,48 +394,52 @@ def test__get_parents__returns_expected(
         assert p_a == p_a_e
 
 
+#
+#
 @pytest.mark.parametrize(
     "state, parent_expected, parent_a_expected",
     [
         (
             [
-                [0, 0, 0, 6],
-                [0, 6, 6, 6],
-                [6, 6, 6, 6],
-                [0, 6, 6, 6],
-                [0, 0, 6, 0],
+                [000, 000, 000, 602],
+                [000, 601, 602, 602],
+                [601, 601, 601, 602],
+                [000, 600, 600, 600],
+                [000, 000, 600, 000],
             ],
             [
-                [0, 0, 0, 0],
-                [0, 6, 0, 0],
-                [6, 6, 6, 0],
-                [0, 6, 6, 6],
-                [0, 0, 6, 0],
+                [000, 000, 000, 000],
+                [000, 601, 000, 000],
+                [601, 601, 601, 000],
+                [000, 600, 600, 600],
+                [000, 000, 600, 000],
             ],
             (6, 270, 2),
         ),
         (
             [
-                [1, 1, 1, 1],
-                [1, 1, 1, 1],
-                [0, 0, 2, 0],
-                [0, 0, 2, 0],
-                [0, 2, 2, 0],
+                [101, 101, 101, 101],
+                [100, 100, 100, 100],
+                [000, 000, 200, 000],
+                [000, 000, 200, 000],
+                [000, 200, 200, 000],
             ],
             [
-                [0, 0, 0, 0],
-                [1, 1, 1, 1],
-                [0, 0, 2, 0],
-                [0, 0, 2, 0],
-                [0, 2, 2, 0],
+                [000, 000, 000, 000],
+                [100, 100, 100, 100],
+                [000, 000, 200, 000],
+                [000, 000, 200, 000],
+                [000, 200, 200, 000],
             ],
             (1, 90, 0),
         ),
     ],
 )
-def test__get_parents__returns_expected(env, state, parent_expected, parent_a_expected):
-    state = torch.tensor(state, dtype=torch.uint8)
-    parent_expected = torch.tensor(parent_expected, dtype=torch.uint8)
+def test__get_parents__contains_expected(
+    env, state, parent_expected, parent_a_expected
+):
+    state = torch.tensor(state, dtype=torch.int16)
+    parent_expected = torch.tensor(parent_expected, dtype=torch.int16)
     parents, parents_a = env.get_parents(state)
     assert any([torch.equal(p, parent_expected) for p in parents])
     assert any([a == parent_a_expected for a in parents_a])
@@ -468,15 +447,15 @@ def test__get_parents__returns_expected(env, state, parent_expected, parent_a_ex
 
 def test__all_env_common(env_1piece):
     return common.test__all_env_common(env_1piece)
-
-
-def test__all_env_common(env_mini):
-    return common.test__all_env_common(env_mini)
-
-
-def test__all_env_common(env):
-    return common.test__all_env_common(env)
-
-
-def test__all_env_common(env_full):
-    return common.test__all_env_common(env_full)
+#
+#
+# def test__all_env_common(env_mini):
+#     return common.test__all_env_common(env_mini)
+#
+#
+# def test__all_env_common(env):
+#     return common.test__all_env_common(env)
+#
+#
+# def test__all_env_common(env_full):
+#     return common.test__all_env_common(env_full)
