@@ -8,7 +8,7 @@ import numpy.typing as npt
 
 from gflownet.utils.common import set_device, set_float_precision
 
-
+class Proxy(ABC):
 class Proxy:
     """
     Generic proxy class
