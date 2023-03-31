@@ -447,15 +447,15 @@ def test__get_parents__contains_expected(
 
 def test__all_env_common(env_1piece):
     return common.test__all_env_common(env_1piece)
-#
-#
-# def test__all_env_common(env_mini):
-#     return common.test__all_env_common(env_mini)
-#
-#
-# def test__all_env_common(env):
-#     return common.test__all_env_common(env)
-#
-#
+
+
+def test__all_env_common(env_mini):
+    return common.test__all_env_common(env_mini)
+
+
+def test__all_env_common(env):
+    return common.test__all_env_common(env)
+
+
 # def test__all_env_common(env_full):
 #     return common.test__all_env_common(env_full)

@@ -2,6 +2,7 @@
 An environment inspired by the game of Tetris.
 """
 import itertools
+import re
 from typing import List, Optional, Tuple
 
 import numpy as np
@@ -283,9 +284,15 @@ class Tetris(GFlowNetEnv):
         Converts a human-readable string representing a state into a state as a list of
         positions.
         """
+        pattern = re.compile(r"\s+")
         state = []
         rows = readable.split("\n")
         for row in rows:
+            # Preprocess
+            row = re.sub(pattern, " ", row)
+            row = row.replace(" ]", "]")
+            row = row.replace("[ ", "[")
+            # Process
             state.append(
                 torch.tensor(
                     [int(el) for el in row.strip("[]").split(" ")], dtype=torch.int16
