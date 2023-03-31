@@ -3,14 +3,15 @@ from abc import ABC
 import numpy as np
 import torch
 from botorch.acquisition.max_value_entropy_search import qMaxValueEntropy
+
 # from botorch.fit import fit_gpytorch_mll
 from botorch.models import SingleTaskGP
 from botorch.models.model import Model
 from botorch.posteriors.gpytorch import GPyTorchPosterior
 from botorch.test_functions import Hartmann
-from gpytorch.distributions import (MultitaskMultivariateNormal,
-                                    MultivariateNormal)
+from gpytorch.distributions import MultitaskMultivariateNormal, MultivariateNormal
 from gpytorch.mlls import ExactMarginalLogLikelihood
+
 # from botorch.posteriors.
 from torch import distributions, tensor
 from torch.nn import Dropout, Linear, MSELoss, ReLU, Sequential

@@ -6,6 +6,7 @@ from abc import ABC
 
 import numpy as np
 import torch
+
 # from botorch.fit import fit_gpytorch_mll
 from botorch.models import SingleTaskGP
 from botorch.test_functions import Branin, Hartmann
