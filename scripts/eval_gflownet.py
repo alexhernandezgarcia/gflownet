@@ -1,14 +1,16 @@
 """
 Computes evaluation metrics and plots from a pre-trained GFlowNet model.
 """
+import sys
 from argparse import ArgumentParser
+from pathlib import Path
+
 import hydra
+import torch
 from hydra import compose, initialize, initialize_config_dir
 from omegaconf import OmegaConf
-from pathlib import Path
-import torch
 from torch.distributions.categorical import Categorical
-import sys
+
 from gflownet.gflownet import GFlowNetAgent, Policy
 
 

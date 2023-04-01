@@ -1,0 +1,27 @@
+defaults:
+  - _self_
+  - env: grid
+  - gflownet: flowmatch
+  - proxy: uniform
+  - logger: base
+  - user: alex
+
+# Device
+device: cpu
+# Float precision
+float_precision: 32
+# Number of objects to sample at the end of training
+n_samples: 1
+# Random seeds
+seed: 0
+
+# Hydra config
+hydra:
+  # See: https://hydra.cc/docs/configure_hydra/workdir/
+  run:
+    dir: ${user.logdir.root}/${now:%Y-%m-%d_%H-%M-%S}_tests
+  job:
+    # See: https://hydra.cc/docs/upgrades/1.1_to_1.2/changes_to_job_working_dir/
+    # See: https://hydra.cc/docs/tutorials/basic/running_your_app/working_directory/#disable-changing-current-working-dir-to-jobs-output-dir
+    chdir: True
+

@@ -1,15 +1,17 @@
 """
 Classes to represent hyperplane environments
 """
-from typing import List, Tuple
 import itertools
+from typing import List, Tuple
+
 import numpy as np
 import numpy.typing as npt
 import pandas as pd
 import torch
-from gflownet.envs.base import GFlowNetEnv
-from torch.distributions import Categorical, Uniform, Beta
+from torch.distributions import Beta, Categorical, Uniform
 from torchtyping import TensorType
+
+from gflownet.envs.base import GFlowNetEnv
 
 
 class Plane(GFlowNetEnv):
@@ -69,14 +71,14 @@ class Plane(GFlowNetEnv):
         self.distr_alpha = distr_alpha
         self.distr_beta = distr_beta
         # Initialize angles and state attributes
+        self.source = [0.0 for _ in range(self.n_dim)]
         self.reset()
-        self.action_space = self.get_actions_space()
+        self.action_space = self.get_action_space()
         self.fixed_policy_output = self.get_fixed_policy_output()
         self.policy_output_dim = len(self.fixed_policy_output)
         self.policy_input_dim = len(self.state2policy())
         # Set up proxy
-        self.proxy.n_dim = self.n_dim
-        self.proxy.setup()
+        self.setup_proxy()
         # Oracle
         self.state2oracle = self.state2proxy
         self.statebatch2oracle = self.statebatch2proxy
@@ -114,7 +116,7 @@ class Plane(GFlowNetEnv):
         reward[within_plane] = super().reward_batch(states_super, done_super)
         return reward
 
-    def get_actions_space(self):
+    def get_action_space(self):
         """
         Constructs list with all possible actions. The actions are tuples with two
         values: (dimension, increment) where dimension indicates the index of the
@@ -160,15 +162,15 @@ class Plane(GFlowNetEnv):
         if done is None:
             done = self.done
         if done:
-            return [True for _ in range(len(self.action_space))]
+            return [True for _ in range(self.action_space_dim)]
         if (
             any([s > self.max_val for s in self.state])
             or self.n_actions >= self.max_traj_length
         ):
-            mask = [True for _ in range(len(self.action_space))]
+            mask = [True for _ in range(self.action_space_dim)]
             mask[-1] = False
         else:
-            mask = [False for _ in range(len(self.action_space))]
+            mask = [False for _ in range(self.action_space_dim)]
         return mask
 
     def get_mask_invalid_actions_backward(self, state=None, done=None, parents_a=None):
@@ -182,28 +184,12 @@ class Plane(GFlowNetEnv):
         if done is None:
             done = self.done
         if done:
-            mask = [True for _ in range(len(self.action_space))]
+            mask = [True for _ in range(self.action_space_dim)]
             mask[-1] = False
         else:
-            mask = [False for _ in range(len(self.action_space))]
+            mask = [False for _ in range(self.action_space_dim)]
         # TODO: review: anything to do with max_value?
         return mask
-
-    def true_density(self):
-        # TODO
-        # Return pre-computed true density if already stored
-        if self._true_density is not None:
-            return self._true_density
-        # Calculate true density
-        all_x = self.get_all_terminating_states()
-        all_oracle = self.state2oracle(all_x)
-        rewards = self.oracle(all_oracle)
-        self._true_density = (
-            rewards / rewards.sum(),
-            rewards,
-            list(map(tuple, all_x)),
-        )
-        return self._true_density
 
     def statebatch2proxy(self, states: List[List] = None) -> npt.NDArray[np.float32]:
         """
@@ -248,7 +234,7 @@ class Plane(GFlowNetEnv):
         """
         Resets the environment.
         """
-        self.state = [0.0 for _ in range(self.n_dim)]
+        self.state = self.source.copy()
         self.n_actions = 0
         self.done = False
         self.id = env_id
@@ -426,44 +412,6 @@ class Plane(GFlowNetEnv):
         # Otherwise (unreachable?) it is invalid
         else:
             return self.state, action, False
-
-    def make_train_set(self, config):
-        """
-        Constructs a randomly sampled train set.
-
-        Args
-        ----
-        """
-        if config is None:
-            return None
-        elif "uniform" in config and "n" in config and config.uniform:
-            samples = self.get_grid_terminating_states(config.n)
-            energies = self.oracle(self.state2oracle(samples))
-        else:
-            return None
-        df = pd.DataFrame(
-            {"samples": [self.state2readable(s) for s in samples], "energies": energies}
-        )
-        return df
-
-    def make_test_set(self, config):
-        """
-        Constructs a test set.
-
-        Args
-        ----
-        """
-        if config is None:
-            return None
-        elif "uniform" in config and "n" in config and config.uniform:
-            samples = self.get_grid_terminating_states(config.n)
-            energies = self.oracle(self.state2oracle(samples))
-        else:
-            return None
-        df = pd.DataFrame(
-            {"samples": [self.state2readable(s) for s in samples], "energies": energies}
-        )
-        return df
 
     def get_grid_terminating_states(self, n_states: int) -> List[List]:
         n_per_dim = int(np.ceil(n_states ** (1 / self.n_dim)))

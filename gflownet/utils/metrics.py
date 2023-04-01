@@ -1,6 +1,5 @@
-import torch
 import numpy as np
-
+import torch
 from sklearn.neighbors import KernelDensity
 
 
