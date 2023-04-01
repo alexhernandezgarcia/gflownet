@@ -120,7 +120,7 @@ class Crystal(GFlowNetEnv):
     def get_max_traj_len(self):
         return min(len(self.state), self.max_atoms // self.min_atom_i)
 
-    def get_mask_invalid_actions(self, state=None, done=None):
+    def get_mask_invalid_actions_forward(self, state=None, done=None):
         """
         Returns a vector of length the action space + 1: True if forward action is
         invalid given the current state, False otherwise.
@@ -229,7 +229,7 @@ class Crystal(GFlowNetEnv):
         self.id = env_id
         return self
 
-    def get_parents(self, state=None, done=None, actions=None):
+    def get_parents(self, state=None, done=None, action=None):
         """
         Determines all parents and actions that lead to a state.
 
@@ -243,7 +243,7 @@ class Crystal(GFlowNetEnv):
         done : bool
             Whether the trajectory is done. If None, done is taken from instance.
 
-        actions : None
+        action : None
             Ignored
 
         Returns
@@ -263,8 +263,7 @@ class Crystal(GFlowNetEnv):
         else:
             parents = []
             actions = []
-            for idx, action in enumerate(self.action_space[:-1]):
-                element, n = action
+            for idx, (element, n) in enumerate(self.action_space[:-1]):
                 if state[self.elem2idx[element]] == n > 0:
                     parent = state.copy()
                     parent[self.elem2idx[element]] -= n
@@ -308,7 +307,7 @@ class Crystal(GFlowNetEnv):
                 f"Tried to execute action {action} not present in action space."
             )
         # If action is in invalid mask, exit immediately
-        if self.get_mask_invalid_actions()[action_idx]:
+        if self.get_mask_invalid_actions_forward()[action_idx]:
             return self.state, action, False
         # If action is not eos, then perform action
         if action[0] != self.eos:
@@ -325,7 +324,7 @@ class Crystal(GFlowNetEnv):
             return self.state, action, valid
         # If action is eos, then perform eos
         else:
-            if self.get_mask_invalid_actions()[self.eos]:
+            if self.get_mask_invalid_actions_forward()[self.eos]:
                 valid = False
             else:
                 if self._can_produce_neutral_charge():
