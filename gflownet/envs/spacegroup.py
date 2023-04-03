@@ -193,7 +193,7 @@ class SpaceGroup(GFlowNetEnv):
             raise ValueError(
                 "The space group must have been set in order to call the oracle"
             )
-        return torch.tensor(state[self.sg_idx], device=self.device, dtype=self.float)
+        return torch.tensor(state[self.sg_idx], device=self.device, dtype=torch.long)
 
     def statebatch2oracle(
         self, states: List[List]
@@ -212,7 +212,7 @@ class SpaceGroup(GFlowNetEnv):
         oracle_state : Tensor
         """
         return self.statetorch2oracle(
-            torch.tensor(states, device=self.device, dtype=self.float)
+            torch.tensor(states, device=self.device, dtype=torch.long)
         )
 
     def statetorch2oracle(
@@ -231,7 +231,7 @@ class SpaceGroup(GFlowNetEnv):
         ----
         oracle_state : Tensor
         """
-        return torch.unsqueeze(states[:, self.sg_idx], dim=1)
+        return torch.unsqueeze(states[:, self.sg_idx], dim=1).to(torch.long)
 
     def state2readable(self, state=None):
         """
