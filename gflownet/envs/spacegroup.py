@@ -66,6 +66,10 @@ class SpaceGroup(GFlowNetEnv):
         # Source state: index 0 (empty) for all three properties (crystal-lattice
         # system index, point symmetry index, space group)
         self.source = [0 for _ in range(3)]
+        # Conversions
+        self.state2proxy = self.state2oracle
+        self.statebatch2proxy = self.statebatch2oracle
+        self.statetorch2proxy = self.statetorch2oracle
         # Base class init
         super().__init__(**kwargs)
 
