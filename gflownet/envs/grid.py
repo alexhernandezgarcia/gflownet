@@ -71,19 +71,29 @@ class Grid(GFlowNetEnv):
             max_dim_per_action = self.n_dim
         self.max_dim_per_action = max_dim_per_action
         self.cells = np.linspace(cell_min, cell_max, length)
-        if self.oracle is not None and hasattr(self.oracle, "n_dim"):
-            self.oracle.n_dim = self.n_dim
-            self.oracle.setup()
+        # Source state: position 0 at all dimensions
+        self.source = [0 for _ in range(self.n_dim)]
+        # End-of-sequence action
+        self.eos = tuple([0 for _ in range(self.n_dim)])
+        # Base class init
+        super().__init__(**kwargs)
+        # self.set_oracle(oracle)
         # non-AL
-        if (
-            hasattr(self, "proxy")
-            and self.proxy is not None
-            and hasattr(self.proxy, "n_dim")
-        ):
-            self.proxy.n_dim = self.n_dim
-            self.proxy.setup()
+        # if (
+        #     hasattr(self, "proxy")
+        #     and self.proxy is not None
+        #     and hasattr(self.proxy, "n_dim")
+        # ):
+        #     self.proxy.n_dim = self.n_dim
+        #     self.proxy.setup()
         self.rescale = rescale
         self.corr_type = corr_type
+    
+    # def set_oracle(self, oracle=None):
+    #     self.oracle = oracle
+    #     if oracle is not None and hasattr(oracle, "n_dim"):
+    #         # self.oracle.n_dim = self.n_dim
+    #         self.oracle.setup()
 
     def get_action_space(self):
         """
