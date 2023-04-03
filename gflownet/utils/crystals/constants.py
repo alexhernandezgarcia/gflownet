@@ -290,7 +290,6 @@ LATTICE_SYSTEMS_MINIMAL = {
     7: "cubic",
 }
 
-
 # See: https://en.wikipedia.org/wiki/Crystal_system#Crystal_classes
 # See: http://pd.chem.ucl.ac.uk/pdnn/symm2/group32.htm
 # Each item in the dictionary contains a list of:

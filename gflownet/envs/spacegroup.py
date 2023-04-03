@@ -10,9 +10,13 @@ from torch import Tensor
 from torchtyping import TensorType
 
 from gflownet.envs.base import GFlowNetEnv
-from gflownet.utils.crystals.constants import (CRYSTAL_CLASSES,
-                                               CRYSTAL_SYSTEMS,
-                                               POINT_SYMMETRIES, SPACE_GROUPS)
+from gflownet.utils.crystals.constants import (
+    CRYSTAL_CLASSES,
+    CRYSTAL_SYSTEMS,
+    LATTICE_SYSTEMS,
+    POINT_SYMMETRIES,
+    SPACE_GROUPS,
+)
 
 
 class SpaceGroup(GFlowNetEnv):
@@ -23,35 +27,44 @@ class SpaceGroup(GFlowNetEnv):
     1. The crystal system
         See: https://en.wikipedia.org/wiki/Crystal_system#Crystal_system
         (7 options + none)
-    2. The point symmetry
+    2. The lattice system
+        See: https://en.wikipedia.org/wiki/Crystal_system#Lattice_system
+        See: https://en.wikipedia.org/wiki/Hexagonal_crystal_family
+        (7 options + none)
+    3. The point symmetry
         See: https://en.wikipedia.org/wiki/Crystal_system#Crystal_classes
         (5 options + none)
-    3. The space group
+    4. The space group
         See: https://en.wikipedia.org/wiki/Space_group#Table_of_space_groups_in_3_dimensions
         (230 options + none)
 
-    The action space is the choice of property to update and the index within the
-    property (e.g. crystal system 2, point symmetry 4, space group 69, etc.). The
-    selection of crystal system restricts the possible point symmetries and space
-    groups; the selection of point symmetry restricts the possible crystal systems and
-    space groups.  The selection of space groups determines a specific crystal system
-    and space group. There is no restriction in the order of selection of properties.
+    The action space is the choice of property to update, the index within the property
+    and the combination of properties already set in the reference state (e.g.  crystal
+    system 2 from source, lattice system 2 from source, point symmetry 4 from crystal
+    system and lattice system, space group 69 from point symmetry, etc.). The selection
+    of crystal or lattice system restricts the possible point symmetries and space
+    groups; the selection of point symmetry restricts the possible crystal and lattice
+    systems and space groups. The selection of space groups determines a specific
+    crystal system, lattice system and point symmestry. There is no restriction in the
+    order of selection of properties.
     """
 
     def __init__(self, **kwargs):
         self.crystal_systems = CRYSTAL_SYSTEMS
+        self.lattice_systems = LATTICE_SYSTEMS
         self.crystal_classes = CRYSTAL_CLASSES
         self.point_symmetries = POINT_SYMMETRIES
         self.space_groups = SPACE_GROUPS
         self.n_crystal_systems = len(self.crystal_systems)
+        self.n_lattice_systems = len(self.lattice_systems)
         self.n_crystal_classes = len(self.crystal_classes)
         self.n_point_symmetries = len(self.point_symmetries)
         self.n_space_groups = 230
-        self.cs_idx, self.ps_idx, self.sg_idx = 0, 1, 2
-        self.eos = (-1, -1)
+        self.cs_idx, ls_idx, self.ps_idx, self.sg_idx = 0, 1, 2, 3
+        self.eos = (-1, -1, -1)
         # Source state: index 0 (empty) for all three properties (crystal system index,
         # point symmetry index, space group)
-        self.source = [0 for _ in range(3)]
+        self.source = [0 for _ in range(4)]
         # Base class init
         super().__init__(**kwargs)
 
