@@ -14,6 +14,7 @@ from gflownet.utils.crystals.constants import (
     CRYSTAL_CLASSES,
     CRYSTAL_SYSTEMS,
     LATTICE_SYSTEMS,
+    CRYSTAL_LATTICE_SYSTEMS,
     POINT_SYMMETRIES,
     SPACE_GROUPS,
 )
@@ -24,47 +25,45 @@ class SpaceGroup(GFlowNetEnv):
     SpaceGroup environment for ionic conductivity.
 
     The state space is the combination of three properties:
-    1. The crystal system
+    1. The crystal-lattice system: combination of crystal system and lattice system
         See: https://en.wikipedia.org/wiki/Crystal_system#Crystal_system
-        (7 options + none)
-    2. The lattice system
         See: https://en.wikipedia.org/wiki/Crystal_system#Lattice_system
         See: https://en.wikipedia.org/wiki/Hexagonal_crystal_family
-        (7 options + none)
-    3. The point symmetry
+        (8 options + none)
+    2. The point symmetry
         See: https://en.wikipedia.org/wiki/Crystal_system#Crystal_classes
         (5 options + none)
-    4. The space group
+    3. The space group
         See: https://en.wikipedia.org/wiki/Space_group#Table_of_space_groups_in_3_dimensions
         (230 options + none)
 
     The action space is the choice of property to update, the index within the property
-    and the combination of properties already set in the reference state (e.g.  crystal
-    system 2 from source, lattice system 2 from source, point symmetry 4 from crystal
-    system and lattice system, space group 69 from point symmetry, etc.). The selection
-    of crystal or lattice system restricts the possible point symmetries and space
-    groups; the selection of point symmetry restricts the possible crystal and lattice
-    systems and space groups. The selection of space groups determines a specific
-    crystal system, lattice system and point symmestry. There is no restriction in the
-    order of selection of properties.
+    and the combination of properties already set in the reference state (e.g.
+    crystal-lattice system 2 from source, point symmetry 4 from crystal-lattice system,
+    space group 69 from point symmetry, etc.). The reference state is included in the
+    action to differentiate actions that lead to same state from different states, as
+    in GFlowNet the distribution is over states not over actions. The selection of
+    crystal-lattice system restricts the possible point symmetries and space groups;
+    the selection of point symmetry restricts the possible crystal-lattice systems and
+    space groups. The selection of space groups determines a specific crystal-lattice
+    system and point symmestry. There is no restriction in the order of selection of
+    properties.
     """
 
     def __init__(self, **kwargs):
-        self.crystal_systems = CRYSTAL_SYSTEMS
-        self.lattice_systems = LATTICE_SYSTEMS
-        self.crystal_classes = CRYSTAL_CLASSES
+        self.crystal_lattice_systems = CRYSTAL_LATTICE_SYSTEMS
         self.point_symmetries = POINT_SYMMETRIES
         self.space_groups = SPACE_GROUPS
-        self.n_crystal_systems = len(self.crystal_systems)
-        self.n_lattice_systems = len(self.lattice_systems)
-        self.n_crystal_classes = len(self.crystal_classes)
+        self.n_crystal_lattice_systems = len(self.crystal_systems)
         self.n_point_symmetries = len(self.point_symmetries)
-        self.n_space_groups = 230
-        self.cs_idx, ls_idx, self.ps_idx, self.sg_idx = 0, 1, 2, 3
+        self.n_space_groups = len(self.space_groups)
+        self.cls_idx, self.ps_idx, self.sg_idx = 0, 1, 2
+        self.ref_state_factors = [1, 2]
+        self.ref_state_indices = [0, 1, 2, 3]
         self.eos = (-1, -1, -1)
-        # Source state: index 0 (empty) for all three properties (crystal system index,
-        # point symmetry index, space group)
-        self.source = [0 for _ in range(4)]
+        # Source state: index 0 (empty) for all three properties (crystal-lattice
+        # system index, point symmetry index, space group)
+        self.source = [0 for _ in range(3)]
         # Base class init
         super().__init__(**kwargs)
 
@@ -76,11 +75,16 @@ class SpaceGroup(GFlowNetEnv):
         """
         actions = []
         for prop, n_idx in zip(
-            [self.cs_idx, self.ps_idx, self.sg_idx],
-            [self.n_crystal_systems, self.n_point_symmetries, self.n_space_groups],
+            [self.cls_idx, self.ps_idx, self.sg_idx],
+            [self.n_crystal_lattice_systems, self.n_point_symmetries, self.n_space_groups],
         ):
-            actions_prop = [(prop, idx + 1) for idx in range(n_idx)]
-            actions += actions_prop
+            for ref_idx in self.ref_state_factors:
+                if prop == self.cls_idx and ref_idx in [1, 3]:
+                    continue
+                if prop == self.ps_idx and ref_idx in [2, 3]:
+                    continue
+                actions_prop = [(prop, idx + 1, ref_idx) for idx in range(n_idx)]
+                actions += actions_prop
         actions += [self.eos]
         return actions
 

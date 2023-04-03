@@ -240,6 +240,25 @@ OXIDATION_STATES = {
     118: [0],
 }
 
+# Crystal-Lattice Systems: the combination of crystal system and lattice system
+# See: https://en.wikipedia.org/wiki/Crystal_system#Crystal_classes
+# See: https://en.wikipedia.org/wiki/Crystal_system#Lattice_system
+# See: https://en.wikipedia.org/wiki/Hexagonal_crystal_family
+# Each item in the dictionary contains a list of:
+# - crystal-lattice system name
+# - crystal class indices in the crystal-lattice system
+# - point symmetry indices in the crystal system
+CRYSTAL_LATTICE_SYSTEMS = {
+    1: ["triclinic", [1, 2], [1, 2]],
+    2: ["monoclinic", [3, 4, 5], [1, 3, 2]],
+    3: ["orthorhombic", [6, 7, 8], [4, 3, 2]],
+    4: ["tetragonal", [9, 10, 11, 12, 13, 14, 15], [1, 5, 2, 4, 3]],
+    5: ["trigonal-rhomohedral", [16, 17, 18, 19, 20], [1, 2, 4, 3]],
+    6: ["trigonal-hexagonal", [16, 17, 18, 19, 20], [1, 2, 4, 3]],
+    7: ["hexagonal", [21, 22, 23, 24, 25, 26, 27], [1, 5, 2, 4, 3]],
+    8: ["cubic", [28, 29, 30, 31, 32], [4, 2, 5]],
+}
+
 # See: https://en.wikipedia.org/wiki/Crystal_system#Crystal_classes
 # Each item in the dictionary contains a list of:
 # - crystal system name
