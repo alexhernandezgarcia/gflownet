@@ -12,9 +12,9 @@ from torchtyping import TensorType
 from gflownet.envs.base import GFlowNetEnv
 from gflownet.utils.crystals.constants import (
     CRYSTAL_CLASSES,
+    CRYSTAL_LATTICE_SYSTEMS,
     CRYSTAL_SYSTEMS,
     LATTICE_SYSTEMS,
-    CRYSTAL_LATTICE_SYSTEMS,
     POINT_SYMMETRIES,
     SPACE_GROUPS,
 )
@@ -325,30 +325,30 @@ class SpaceGroup(GFlowNetEnv):
             actions = []
             # Catch cases where space group has been selected
             if state[self.sg_idx] != 0:
-                # Add parent: state before setting space group
-                parent = state.copy()
-                parent[self.sg_idx] = 0
-                parents.append(parent)
-                ref = self.get_ref_index(parent)
-                action = (self.sg_idx, state[self.sg_idx], ref)
-                actions.append(action)
+                sg = state[self.sg_idx]
                 # Add parent: source
                 parents.append(self.source)
-                action = (self.sg_idx, state[self.sg_idx], 0)
+                action = (self.sg_idx, sg, 0)
                 actions.append(action)
-                # Make space group zero in state to avoid wrong parents
-                # (crystal-lattice system and point symmetry cannot be set after space
-                # group has been selected)
+                # Add parents: states before setting space group
                 state[self.sg_idx] = 0
-            # Catch other parents
-            for prop, idx in enumerate(state[: self.sg_idx]):
-                if idx != 0:
+                for prop in range(len(state)):
                     parent = state.copy()
                     parent[prop] = 0
                     parents.append(parent)
                     ref = self.get_ref_index(parent)
-                    action = (prop, idx, ref)
+                    action = (self.sg_idx, sg, ref)
                     actions.append(action)
+            else:
+                # Catch other parents
+                for prop, idx in enumerate(state[: self.sg_idx]):
+                    if idx != 0:
+                        parent = state.copy()
+                        parent[prop] = 0
+                        parents.append(parent)
+                        ref = self.get_ref_index(parent)
+                        action = (prop, idx, ref)
+                        actions.append(action)
         return parents, actions
 
     def step(self, action: Tuple[int, int]) -> Tuple[List[int], Tuple[int, int], bool]:
