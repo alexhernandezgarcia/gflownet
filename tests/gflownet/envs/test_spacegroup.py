@@ -134,6 +134,46 @@ def test__get_mask_invalid_actions_forward__masks_expected_action(
 
 
 @pytest.mark.parametrize(
+    "state, parents_expected, parents_a_expected",
+    [
+        (
+            [7, 3, 184],
+            [[0, 0, 0], [7, 3, 0], [7, 0, 0], [0, 3, 0]],
+            [(2, 184, 0), (2, 184, 3), (2, 184, 1), (2, 184, 2)],
+        ),
+        (
+            [1, 0, 0],
+            [[0, 0, 0]],
+            [(0, 1, 0)],
+        ),
+        (
+            [0, 1, 0],
+            [[0, 0, 0]],
+            [(1, 1, 0)],
+        ),
+        (
+            [5, 4, 0],
+            [[5, 0, 0], [0, 4, 0]],
+            [(1, 4, 1), (0, 5, 2)],
+        ),
+        (
+            [8, 2, 0],
+            [[8, 0, 0], [0, 2, 0]],
+            [(1, 2, 1), (0, 8, 2)],
+        ),
+    ],
+)
+def test__get_parents__returns_expected(
+    env, state, parents_expected, parents_a_expected
+):
+    parents, parents_a = env.get_parents(state)
+    parents = [tuple(p) for p in parents]
+    parents_expected = [tuple(p) for p in parents_expected]
+    assert set(parents) == set(parents_expected)
+    assert set(parents_a) == set(parents_a_expected)
+
+
+@pytest.mark.parametrize(
     "state",
     [
         [0, 0, 0],
