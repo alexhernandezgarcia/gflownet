@@ -24,51 +24,103 @@ def test__environment__action_space_has_eos():
 
 
 @pytest.mark.parametrize(
+    "action, expected",
+    [
+        (
+            (0, 1, 0),
+            True,
+        ),
+        (
+            (0, 1, 1),
+            False,
+        ),
+        (
+            (0, 1, 2),
+            True,
+        ),
+        (
+            (0, 1, 3),
+            False,
+        ),
+        (
+            (1, 1, 0),
+            True,
+        ),
+        (
+            (1, 1, 1),
+            True,
+        ),
+        (
+            (1, 1, 2),
+            False,
+        ),
+        (
+            (1, 1, 3),
+            False,
+        ),
+        (
+            (2, 1, 0),
+            True,
+        ),
+        (
+            (2, 1, 1),
+            True,
+        ),
+        (
+            (2, 1, 2),
+            True,
+        ),
+        (
+            (2, 1, 3),
+            True,
+        ),
+    ],
+)
+def test__action_space__contains_expected(env, action, expected):
+    assert (action in env.action_space) == expected
+
+
+@pytest.mark.parametrize(
     "state, action, expected",
     [
         (
             [0, 0, 0],
-            (0, 1),
+            (0, 1, 0),
             False,
         ),
         (
-            [1, 0, 0],
-            (0, 1),
+            [0, 0, 0],
+            (0, 1, 2),
             True,
         ),
         (
             [0, 0, 0],
-            (1, 1),
+            (1, 1, 0),
             False,
-        ),
-        (
-            [0, 1, 0],
-            (1, 1),
-            True,
         ),
         (
             [0, 0, 0],
-            (2, 1),
+            (2, 1, 0),
             False,
         ),
         (
             [0, 0, 1],
-            (2, 1),
+            (2, 1, 0),
             True,
         ),
         (
             [0, 0, 1],
-            (0, 1),
+            (0, 1, 0),
             True,
         ),
         (
             [0, 0, 1],
-            (1, 1),
+            (1, 1, 0),
             True,
         ),
         (
             [1, 1, 0],
-            (2, 1),
+            (2, 1, 3),
             False,
         ),
     ],
@@ -103,15 +155,15 @@ def test__state2readable2state(env, state):
     )
 
 
-@pytest.mark.skip(reason="Takes considerable time")
+# @pytest.mark.skip(reason="Takes considerable time")
 def test__states_are_compatible_with_pymatgen(env):
     for idx in range(env.n_space_groups):
         env = env.reset()
-        env.step((2, idx + 1))
+        env.step((2, idx + 1, 0))
         sg_int = pmgg.sg_symbol_from_int_number(idx + 1)
         sg = pmgg.SpaceGroup(sg_int)
         assert sg.int_number == env.state[env.sg_idx]
-        assert sg.crystal_system == env.crystal_systems[env.state[env.cs_idx]][0]
+        assert sg.crystal_system == env.crystal_system()
         crystal_class_idx = env.space_groups[idx + 1][1]
         point_groups = env.crystal_classes[crystal_class_idx][2]
         assert sg.point_group in point_groups
