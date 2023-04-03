@@ -189,7 +189,7 @@ class SpaceGroup(GFlowNetEnv):
             raise ValueError(
                 "The space group must have been set in order to call the oracle"
             )
-        return torch.Tensor(state[self.sg_idx], device=self.device, dtype=self.float)
+        return torch.tensor(state[self.sg_idx], device=self.device, dtype=self.float)
 
     def statebatch2oracle(
         self, states: List[List]
@@ -208,7 +208,7 @@ class SpaceGroup(GFlowNetEnv):
         oracle_state : Tensor
         """
         return self.statetorch2oracle(
-            torch.Tensor(states, device=self.device, dtype=self.float)
+            torch.tensor(states, device=self.device, dtype=self.float)
         )
 
     def statetorch2oracle(
@@ -227,7 +227,7 @@ class SpaceGroup(GFlowNetEnv):
         ----
         oracle_state : Tensor
         """
-        return torch.unsqueeze(states[:, self.sg_idx])
+        return torch.unsqueeze(states[:, self.sg_idx], dim=1)
 
     def state2readable(self, state=None):
         """
@@ -397,7 +397,7 @@ class SpaceGroup(GFlowNetEnv):
             return self.state, action, valid
 
     def get_max_traj_length(self):
-        return 3
+        return len(self.source) + 1
 
     def _set_constrained_properties(self, state: List[int]) -> List[int]:
         if state[self.sg_idx] != 0:
@@ -437,3 +437,9 @@ class SpaceGroup(GFlowNetEnv):
         if state is None:
             state = self.state
         return sum([int(s > 0) * f for s, f in zip(state, self.ref_state_factors)])
+
+    def get_all_terminating_states(self) -> List[List]:
+        all_x = []
+        for sg in range(1, self.n_space_groups + 1):
+            all_x.append(self._set_constrained_properties([0, 0, sg]))
+        return all_x
