@@ -102,7 +102,7 @@ def test__state_conversions_are_reversible(env):
     env = env.reset()
     while not env.done:
         state = env.state
-        if env.policy2state() is not None:
+        if env.policy2state(env.state2policy(state)) is not None:
             if torch.is_tensor(state):
                 assert torch.equal(state, env.policy2state(env.state2policy(state)))
             else:
