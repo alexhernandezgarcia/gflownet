@@ -80,9 +80,14 @@ def test__sample_backwards_reaches_source(env, n=100):
         env.set_state(state, done=True)
         n_actions = 0
         while True:
-            if env.state == env.source:
-                assert True
-                break
+            if torch.is_tensor(env.state):
+                if torch.equal(env.state, env.source):
+                    assert True
+                    break
+            else:
+                if env.state == env.source:
+                    assert True
+                    break
             parents, parents_a = env.get_parents()
             assert len(parents) > 0
             # Sample random parent
