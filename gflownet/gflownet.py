@@ -612,23 +612,23 @@ class GFlowNetAgent:
         )
         return (loss, loss, loss), rewards
 
-    def unpack_terminal_states(self, batch):
-        """
-        Unpacks the terminating states and trajectories of a batch and converts them
-        to Python lists/tuples.
-        """
-        # TODO: make sure that unpacked states and trajs are sorted by traj_id (like
-        # rewards will be)
-        trajs = [[] for _ in range(self.batch_size)]
-        states = [None] * self.batch_size
-        for el in batch:
-            traj_id = el[5][:1].item()
-            state_id = el[6][:1].item()
-            trajs[traj_id].append(tuple(el[1][0].tolist()))
-            if bool(el[4].item()):
-                states[traj_id] = tuple(el[0][0].tolist())
-        trajs = [tuple(el) for el in trajs]
-        return states, trajs
+    # def unpack_terminal_states(self, batch):
+    #     """
+    #     Unpacks the terminating states and trajectories of a batch and converts them
+    #     to Python lists/tuples.
+    #     """
+    #     # TODO: make sure that unpacked states and trajs are sorted by traj_id (like
+    #     # rewards will be)
+    #     trajs = [[] for _ in range(self.batch_size)]
+    #     states = [None] * self.batch_size
+    #     for el in batch:
+    #         traj_id = el[5][:1].item()
+    #         state_id = el[6][:1].item()
+    #         trajs[traj_id].append(tuple(el[1][0].tolist()))
+    #         if bool(el[4].item()):
+    #             states[traj_id] = tuple(el[0][0].tolist())
+    #     trajs = [tuple(el) for el in trajs]
+    #     return states, trajs
 
     def train(self):
         # Metrics
@@ -681,7 +681,7 @@ class GFlowNetAgent:
                     all_losses.append([i.item() for i in losses])
             # Buffer
             t0_buffer = time.time()
-            states_term, trajs_term = self.unpack_terminal_states(batch)
+            states_term, trajs_term = batch.unpack_terminal_states()
             proxy_vals = self.env.reward2proxy(rewards).tolist()
             rewards = rewards.tolist()
             self.buffer.add(states_term, trajs_term, rewards, proxy_vals, it)
@@ -758,6 +758,7 @@ class GFlowNetAgent:
             dict_tt = pickle.load(f)
             x_tt = dict_tt["x"]
         x_sampled, _ = self.sample_batch(self.env, self.logger.test.n, train=False)
+        x_sampled.process_batch()
         if self.buffer.test_type is not None and self.buffer.test_type == "all":
             if "density_true" in dict_tt:
                 density_true = dict_tt["density_true"]
@@ -769,13 +770,14 @@ class GFlowNetAgent:
                     dict_tt["density_true"] = density_true
                     pickle.dump(dict_tt, f)
             hist = defaultdict(int)
-            for x in x_sampled:
+            for x in x_sampled.state_gfn:
                 hist[tuple(x)] += 1
             z_pred = sum([hist[tuple(x)] for x in x_tt]) + 1e-9
             density_pred = np.array([hist[tuple(x)] / z_pred for x in x_tt])
             log_density_true = np.log(density_true + 1e-8)
             log_density_pred = np.log(density_pred + 1e-8)
         elif self.continuous:
+            # TODO make it work with new batch class
             x_sampled = torch2np(self.env.statebatch2proxy(x_sampled))
             x_tt = torch2np(self.env.statebatch2proxy(x_tt))
             kde_pred = self.env.fit_kde(
