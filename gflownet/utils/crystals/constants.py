@@ -299,6 +299,7 @@ LATTICE_SYSTEMS = {
     6: ["hexagonal", [5, 6], [1, 5, 2, 4, 3]],
     7: ["cubic", [7], [4, 2, 5]],
 }
+# Contains the space groups
 LATTICE_SYSTEMS_MINIMAL = {
     1: "triclinic",
     2: "monoclinic",
@@ -308,6 +309,9 @@ LATTICE_SYSTEMS_MINIMAL = {
     6: "hexagonal",
     7: "cubic",
 }
+# Rhombohedral space groups, in pymatgen format
+# See: https://en.wikipedia.org/wiki/Hexagonal_crystal_family#Trigonal_crystal_system
+RHOMBOHEDRAL_SPACE_GROUPS_WIKIPEDIA = ["R3", "R-3", "R32", "R3m", "R3c", "R-3m", "R-3c"]
 
 # See: https://en.wikipedia.org/wiki/Crystal_system#Crystal_classes
 # See: http://pd.chem.ucl.ac.uk/pdnn/symm2/group32.htm
@@ -574,7 +578,15 @@ CRYSTAL_CLASSES = {
         [221, 222, 223, 224, 225, 226, 227, 228, 229, 230],
     ],
 }
-CRYSTAL_CLASSES_NOSG = {
+# Dictionary summarising Wikipedia's crystal classes table
+# See: https://en.wikipedia.org/wiki/Crystal_system#Crystal_classes
+# See: http://pd.chem.ucl.ac.uk/pdnn/symm2/group32.htm
+# Each item in the dictionary contains a list of:
+# - crystal class name
+# - crystal system
+# - list of point groups in Hermann-Mauguin format as in pymatgen
+# - point symmetry
+CRYSTAL_CLASSES_WIKIPEDIA = {
     1: ["pedial", "triclinic", ["1"], "enantiomorphic-polar"],
     2: ["pinacoidal", "triclinic", ["-1"], "centrosymmetric"],
     3: ["sphenoidal", "monoclinic", ["2"], "enantiomorphic-polar"],
