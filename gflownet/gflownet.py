@@ -611,24 +611,6 @@ class GFlowNetAgent:
         )
         return (loss, loss, loss), rewards
 
-    # def unpack_terminal_states(self, batch):
-    #     """
-    #     Unpacks the terminating states and trajectories of a batch and converts them
-    #     to Python lists/tuples.
-    #     """
-    #     # TODO: make sure that unpacked states and trajs are sorted by traj_id (like
-    #     # rewards will be)
-    #     trajs = [[] for _ in range(self.batch_size)]
-    #     states = [None] * self.batch_size
-    #     for el in batch:
-    #         traj_id = el[5][:1].item()
-    #         state_id = el[6][:1].item()
-    #         trajs[traj_id].append(tuple(el[1][0].tolist()))
-    #         if bool(el[4].item()):
-    #             states[traj_id] = tuple(el[0][0].tolist())
-    #     trajs = [tuple(el) for el in trajs]
-    #     return states, trajs
-
     def train(self):
         # Metrics
         all_losses = []
@@ -769,7 +751,7 @@ class GFlowNetAgent:
                     dict_tt["density_true"] = density_true
                     pickle.dump(dict_tt, f)
             hist = defaultdict(int)
-            for x in x_sampled.state_gfn:
+            for x in x_sampled.state_gfn.tolist():
                 hist[tuple(x)] += 1
             z_pred = sum([hist[tuple(x)] for x in x_tt]) + 1e-9
             density_pred = np.array([hist[tuple(x)] / z_pred for x in x_tt])
