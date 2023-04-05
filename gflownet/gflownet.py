@@ -484,8 +484,7 @@ class GFlowNetAgent:
 
         parents_a_idx = self.env.actions2indices(parents_actions)
         # Compute rewards
-        # TODO move to batch methods
-        rewards = self.env.reward_torchbatch(states, done)
+        rewards = batch.compute_rewards()
         assert torch.all(rewards[done] > 0)
         # In-flows
         inflow_logits = -loginf * torch.ones(
@@ -572,7 +571,7 @@ class GFlowNetAgent:
         for tid in traj_id.unique():
             state_id[traj_id == tid] -= state_id[traj_id == tid].min() + 1
         # Compute rewards
-        rewards = self.env.reward_torchbatch(states, done)
+        rewards = batch.compute_rewards()
         # Build parents forward masks from state masks
         masks_f = torch.cat(
             [
@@ -649,10 +648,10 @@ class GFlowNetAgent:
                 )
                 self.logger.log_plots(figs, it, self.use_context)
             t0_iter = time.time()
-            data = []
+            data = Batch(loss=self.loss, device=self.device, float=self.float)
             for j in range(self.sttr):
                 batch, times = self.sample_batch(envs)
-                data += batch
+                data.merge(batch)
             for j in range(self.ttsr):
                 if self.loss == "flowmatch":
                     losses, rewards = self.flowmatch_loss(
