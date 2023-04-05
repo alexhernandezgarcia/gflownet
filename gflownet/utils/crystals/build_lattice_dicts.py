@@ -138,6 +138,13 @@ if __name__ == "__main__":
             crystal_system, sg_symbol, sg_symbol_rhombohedral
         )
         assert lattice_system == lattice_system_pymatgen
+        if crystal_system != lattice_system:
+            crystal_lattice_system = f"{crystal_system}-{lattice_system}"
+        else:
+            crystal_lattice_system = crystal_system
+        crystal_lattice_system_idx = _crystal_lattice_system_index(
+            crystal_lattice_system
+        )
         # Update dictionary
         space_groups_dict.update(
             {
@@ -146,6 +153,7 @@ if __name__ == "__main__":
                     "symbol": sg_symbol_rhombohedral,
                     "crystal_system": crystal_system,
                     "lattice_system": lattice_system,
+                    "crystal_lattice_system_idx": crystal_lattice_system_idx,
                     "point_symmetry_idx": point_symmetry_idx,
                     "point_symmetry": point_symmetry,
                     "point_group": point_group,
