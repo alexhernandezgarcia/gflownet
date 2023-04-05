@@ -5,6 +5,9 @@ from pathlib import Path
 from numpy import array
 from omegaconf import OmegaConf
 import matplotlib.pyplot as plt
+import os
+import glob
+import pickle
 
 
 class Logger:
@@ -66,6 +69,27 @@ class Logger:
                     config=wandb_config,
                     # name=run_name,
                 )
+                run_folders = glob.glob(os.path.join(logdir.root, "wandb/run-*"))
+                run_folders.sort()
+                run_folder = run_folders[-2]
+                path = os.path.join(run_folder, "files/cumulative_stats.pkl")
+                try:
+                    with open(path, "rb") as f:
+                        self.resume_dict = pickle.load(f)
+                except:
+                    if len(run_folders) > 2:
+                        run_folder = run_folders[-3]
+                        path = os.path.join(
+                            logdir.root, "wandb/{}/files/cumulative_stats.pkl"
+                        )
+                        with open(path, "rb") as f:
+                            self.resume_dict = pickle.load(f)
+                    else:
+                        raise FileNotFoundError(
+                            "No cumulative_stats.pkl file found in {} and no other run folder exists for this experiment".format(
+                                path
+                            )
+                        )
             else:
                 self.run = self.wandb.init(
                     config=wandb_config, project=project_name, name=run_name
