@@ -4,6 +4,10 @@ defaults:
 _target_: gflownet.envs.spacegroup.SpaceGroup
 
 id: spacegroup
+data:
+  crystal_lattice_systems: ${user.data.root}/crystals/crystal_lattice_systems.yaml
+  point_symmetries: ${user.data.root}/crystals/point_symmetries.yaml
+  space_groups: ${user.data.root}/crystals/spacegroups.yaml
 
 # Buffer
 buffer:

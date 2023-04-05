@@ -8,10 +8,10 @@ import numpy as np
 import torch
 from torch import Tensor
 from torchtyping import TensorType
+import yaml
 
 from gflownet.envs.base import GFlowNetEnv
 from gflownet.utils.crystals.constants import (
-    CRYSTAL_CLASSES,
     CRYSTAL_LATTICE_SYSTEMS,
     CRYSTAL_SYSTEMS,
     LATTICE_SYSTEMS,
@@ -50,15 +50,13 @@ class SpaceGroup(GFlowNetEnv):
     properties.
     """
 
-    def __init__(self, **kwargs):
-        self.crystal_lattice_systems = CRYSTAL_LATTICE_SYSTEMS
-        self.point_symmetries = POINT_SYMMETRIES
-        self.space_groups = SPACE_GROUPS
-        self.crystal_classes = CRYSTAL_CLASSES
+    def __init__(self, data, **kwargs):
+        self.crystal_lattice_systems = yaml.safe_load(data.crystal_lattice_systems)
+        self.point_symmetries = yaml.safe_load(data.point_symmetries)
+        self.space_groups = yaml.safe_load(data.space_groups)
         self.n_crystal_lattice_systems = len(self.crystal_lattice_systems)
         self.n_point_symmetries = len(self.point_symmetries)
         self.n_space_groups = len(self.space_groups)
-        self.n_crystal_classes = len(self.crystal_classes)
         self.cls_idx, self.ps_idx, self.sg_idx = 0, 1, 2
         self.ref_state_factors = [1, 2]
         self.ref_state_indices = [0, 1, 2, 3]
@@ -114,14 +112,15 @@ class SpaceGroup(GFlowNetEnv):
             done = self.done
         if done:
             return [True for _ in self.action_space]
+        cls_idx, ps_idx, sg_idx = state
         # If space group has been selected, only valid action is EOS
-        if state[self.sg_idx] != 0:
+        if sg_idx != 0:
             mask = [True for _ in self.action_space]
             mask[-1] = False
             return mask
         ref = self.get_ref_index(state)
         # No constraints if neither crystal-lattice system nor point symmetry selected
-        if state[self.cls_idx] == 0 and state[self.ps_idx] == 0:
+        if cls_idx == 0 and ps_idx == 0:
             crystal_lattice_systems = [
                 (self.cls_idx, idx + 1, ref)
                 for idx in range(self.n_crystal_lattice_systems)
@@ -130,37 +129,31 @@ class SpaceGroup(GFlowNetEnv):
                 (self.ps_idx, idx + 1, ref) for idx in range(self.n_point_symmetries)
             ]
         # Constraints after having selected crystal-lattice system
-        if state[self.cls_idx] != 0:
+        if cls_idx != 0:
             crystal_lattice_systems = []
-            crystal_classes_cls = self.crystal_lattice_systems[state[self.cls_idx]][1]
+            space_groups_cls = self.crystal_lattice_systems[cls_idx]["space_groups"]
             # If no point symmetry selected yet
-            if state[self.ps_idx] == 0:
+            if ps_idx == 0:
                 point_symmetries = [
                     (self.ps_idx, idx, ref)
-                    for idx in self.crystal_lattice_systems[state[self.cls_idx]][2]
+                    for idx in self.crystal_lattice_systems[cls_idx]["point_symmetries"]
                 ]
         else:
-            crystal_classes_cls = [idx + 1 for idx in range(self.n_crystal_classes)]
+            space_groups_cls = [idx + 1 for idx in range(self.n_space_groups)]
         # Constraints after having selected point symmetry
-        if state[self.ps_idx] != 0:
+        if ps_idx != 0:
             point_symmetries = []
-            crystal_classes_ps = self.point_symmetries[state[self.ps_idx]][2]
+            space_groups_ps = self.point_symmetries[ps_idx]["space_groups"]
             # If no crystal-lattice system selected yet
-            if state[self.cls_idx] == 0:
+            if cls_idx == 0:
                 crystal_lattice_systems = [
                     (self.cls_idx, idx, ref)
-                    for idx in self.point_symmetries[state[self.ps_idx]][1]
+                    for idx in self.point_symmetries[ps_idx]["crystal_lattice_systems"]
                 ]
         else:
-            crystal_classes_ps = [idx + 1 for idx in range(self.n_crystal_classes)]
-        # Merge crystal classes constraints and determine valid space group actions
-        crystal_classes = list(
-            set(crystal_classes_cls).intersection(set(crystal_classes_ps))
-        )
-        space_groups_list = [self.crystal_classes[cc][-1] for cc in crystal_classes]
-        space_groups = [
-            (self.sg_idx, sg, ref) for sglist in space_groups_list for sg in sglist
-        ]
+            space_groups_ps = [idx + 1 for idx in range(self.n_space_groups)]
+        # Merge space_groups constraints and determine valid space group actions
+        space_groups = list(set(space_groups_cls).intersection(set(space_groups_ps)))
         # Construct mask
         actions_valid = list(
             set.union(
@@ -238,49 +231,53 @@ class SpaceGroup(GFlowNetEnv):
         Transforms the state, represented as a list of property indices, into a
         human-readable string with the format:
 
-        <space group> | <crystal-lattice system> (<crystal-lattice system idx>) |
-        <crystal class> (<crystal class idx>) | <point group> |
+        <space group idx> | <space group symbol> |
+        <crystal-lattice system> (<crystal-lattice system idx>) |
         <point symmetry> (<point symmetry idx>)
+        <crystal class> | <point group> |
 
         Example:
             space group: 69
+            space group symbol: Fmmm
             crystal-lattice system: orthorhombic (3)
-            crystal class: rhombic-dipyramidal (8)
-            point group: mmm
             point symmetry: centrosymmetric (2)
+            crystal class: rhombic-dipyramidal
+            point group: mmm
             output:
-                69 | orthorhombic (3) | rhombic-dipyramidal (8) | mmm |
-                centrosymmetric (2)
+                69 | Fmmm | orthorhombic (3) | centrosymmetric (2) |
+                rhombic-dipyramidal | mmm |
         """
         if state is None:
             state = self.state
-        crystal_lattice_system_idx = state[self.cls_idx]
-        if crystal_lattice_system_idx != 0:
-            crystal_lattice_system = self.crystal_lattice_systems[
-                crystal_lattice_system_idx
-            ][0]
+        cls_idx, ps_idx, sg_idx = state
+        if cls_idx != 0:
+            crystal_system = self.crystal_lattice_systems[cls_idx]["crystal_system"]
+            lattice_system = self.crystal_lattice_systems[cls_idx]["lattice_system"]
         else:
-            crystal_lattice_system = "None"
-        point_symmetry_idx = state[self.ps_idx]
-        if point_symmetry_idx != 0:
-            point_symmetry = self.point_symmetries[point_symmetry_idx][0]
+            crystal_system = "None"
+            lattice_system = "None"
+        if crystal_system != lattice_system:
+            crystal_lattice_system = f"{crystal_system}-{lattice_system}"
+        else:
+            crystal_lattice_system = crystal_system
+        if ps_idx != 0:
+            point_symmetry = self.point_symmetries[ps_idx]["point_symmetry"]
         else:
             point_symmetry = "None"
-        space_group = state[self.sg_idx]
-        if space_group != 0:
-            point_group = self.space_groups[space_group][0]
-            crystal_class_idx = self.space_groups[space_group][1]
-            crystal_class = self.crystal_classes[crystal_class_idx][0]
+        sg_idx = state[self.sg_idx]
+        if sg_idx != 0:
+            sg_symbol = self.space_groups[sg_idx]["symbol"]
+            crystal_class = self.space_groups[sg_idx]["crystal_class"]
+            point_group = self.space_groups[sg_idx]["point_group"]
         else:
             # TODO: Technically the point group and crystal class could be determined
             # from crystal-lattice system + point symmetry
-            point_group = "TBD"
-            crystal_class_idx = 0
+            sg_symbol = "TBD"
             crystal_class = "TBD"
+            point_group = "TBD"
         readable = (
-            f"{space_group} | {crystal_lattice_system} ({crystal_lattice_system_idx}) | "
-            + f"{crystal_class} ({crystal_class_idx}) | {point_group} | "
-            + f"{point_symmetry} ({point_symmetry_idx})"
+            f"{sg_idx} | {sg_symbol} | {crystal_lattice_system} ({cls_idx}) | "
+            + f"{point_symmetry} ({ps_idx}) | {crystal_class} | {point_group} | "
         )
         return readable
 
@@ -290,9 +287,9 @@ class SpaceGroup(GFlowNetEnv):
         See: state2readable
         """
         properties = readable.split(" | ")
-        crystal_lattice_system = int(properties[1].split(" ")[-1].strip("(").strip(")"))
-        point_symmetry = int(properties[4].split(" ")[-1].strip("(").strip(")"))
         space_group = int(properties[0])
+        crystal_lattice_system = int(properties[2].split(" ")[-1].strip("(").strip(")"))
+        point_symmetry = int(properties[3].split(" ")[-1].strip("(").strip(")"))
         state = [crystal_lattice_system, point_symmetry, space_group]
         return state
 
