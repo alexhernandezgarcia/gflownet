@@ -537,36 +537,45 @@ class GFlowNetAgent:
         batch.process_batch()
 
         # Unpack batch
-        (
-            states,
-            actions,
-            parents,
-            parents_a,
-            done,
-            traj_id_parents,
-            state_id,
-            masks_sf,
-            masks_b,
-        ) = zip(*batch)
+        # (
+        #     states,
+        #     actions,
+        #     parents,
+        #     parents_a,
+        #     done,
+        #     traj_id_parents,
+        #     state_id,
+        #     masks_sf,
+        #     masks_b,
+        # ) = zip(*batch)
         # Keep only parents in trajectory
-        parents = [
-            p[torch.where(torch.all(torch.eq(a, p_a), axis=1))]
-            for a, p, p_a in zip(actions, parents, parents_a)
-        ]
-        traj_id = torch.cat([el[:1] for el in traj_id_parents])
+        # parents = [
+        #     p[torch.where(torch.all(torch.eq(a, p_a), axis=1))]
+        #     for a, p, p_a in zip(actions, parents, parents_a)
+        # ]
+        states = batch.state 
+        actions = batch.action
+        parents = batch.parents 
+        done = batch.done
+        masks_sf = batch.mask_invalid_actions_forward
+        masks_b = batch.mask_invalid_actions_backward
+        traj_id = batch.env_id
+        state_id = batch.step
+
+        # traj_id = torch.cat([el[:1] for el in traj_id_parents])
         # Concatenate lists of tensors
-        states, actions, parents, done, state_id, masks_sf, masks_b = map(
-            torch.cat,
-            [
-                states,
-                actions,
-                parents,
-                done,
-                state_id,
-                masks_sf,
-                masks_b,
-            ],
-        )
+        # states, actions, parents, done, state_id, masks_sf, masks_b = map(
+        #     torch.cat,
+        #     [
+        #         states,
+        #         actions,
+        #         parents,
+        #         done,
+        #         state_id,
+        #         masks_sf,
+        #         masks_b,
+        #     ],
+        # )
         # Shift state_id to [1, 2, ...]
         for tid in traj_id.unique():
             state_id[traj_id == tid] -= state_id[traj_id == tid].min() + 1
@@ -582,7 +591,7 @@ class GFlowNetAgent:
             ]
         )
         # Forward trajectories
-        policy_output_f = self.forward_policy(self.env.statetorch2policy(parents))
+        policy_output_f = self.forward_policy(parents)
         logprobs_f = self.env.get_logprobs(
             policy_output_f, True, actions, states, masks_f, loginf
         )
@@ -592,7 +601,7 @@ class GFlowNetAgent:
             device=self.device,
         ).index_add_(0, traj_id, logprobs_f)
         # Backward trajectories
-        policy_output_b = self.backward_policy(self.env.statetorch2policy(states))
+        policy_output_b = self.backward_policy(states)
         logprobs_b = self.env.get_logprobs(
             policy_output_b, False, actions, parents, masks_b, loginf
         )
@@ -738,8 +747,9 @@ class GFlowNetAgent:
         with open(self.buffer.test_pkl, "rb") as f:
             dict_tt = pickle.load(f)
             x_tt = dict_tt["x"]
-        x_sampled, _ = self.sample_batch(self.env, self.logger.test.n, train=False)
-        x_sampled.process_batch()
+        batch, _ = self.sample_batch(self.env, self.logger.test.n, train=False)
+        batch.process_batch()
+        x_sampled = batch.state_gfn.tolist()
         if self.buffer.test_type is not None and self.buffer.test_type == "all":
             if "density_true" in dict_tt:
                 density_true = dict_tt["density_true"]
@@ -751,14 +761,14 @@ class GFlowNetAgent:
                     dict_tt["density_true"] = density_true
                     pickle.dump(dict_tt, f)
             hist = defaultdict(int)
-            for x in x_sampled.state_gfn.tolist():
+            for x in x_sampled:
                 hist[tuple(x)] += 1
             z_pred = sum([hist[tuple(x)] for x in x_tt]) + 1e-9
             density_pred = np.array([hist[tuple(x)] / z_pred for x in x_tt])
             log_density_true = np.log(density_true + 1e-8)
             log_density_pred = np.log(density_pred + 1e-8)
         elif self.continuous:
-            # TODO make it work with new batch class
+            # TODO make it work with conditional env
             x_sampled = torch2np(self.env.statebatch2proxy(x_sampled))
             x_tt = torch2np(self.env.statebatch2proxy(x_tt))
             kde_pred = self.env.fit_kde(

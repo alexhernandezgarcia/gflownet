@@ -4,6 +4,9 @@ import torch
 from gflownet.utils.common import tfloat, tlong, tint, tbool
 
 class Batch:
+    """
+    Important note: one env should correspond to only one trajectory, all env_id should be unique
+    """
     def __init__(self, loss, device, float):
         self.loss = loss
         self.device = device
@@ -69,7 +72,7 @@ class Batch:
                 self.parents_actions = torch.cat([tfloat(x, device=self.device, float=self.float) for x in self.parents_actions])
             elif self.loss == 'trajectorybalance':
                 self.mask_invalid_actions_backward = tbool(self.mask_invalid_actions_backward, device=self.device)
-            self._process_parents() # should be called after creating self.parents_state_idx
+            self._process_parents()
         
 
     def _process_states(self):
@@ -86,8 +89,11 @@ class Batch:
                 parents.append(tfloat(self.envs[env_id.item()].statebatch2policy(par), device=self.device, float=self.float))
             self.parents = torch.cat(parents)
         elif self.loss == 'trajectorybalance':
-            # TODO find parent for each state in the trajectory
-            pass
+            parents = torch.zeros_like(self.state)
+            for env_id, traj in self.trajectory_indicies.items():
+                parents[traj[0]] = tfloat(self.envs[env_id].source, device=self.device, float=self.float)
+                parents[traj[1:]] = self.state[traj[:-1]]
+            self.parents = parents
 
     def merge(self, another_batch):
         if self.loss != another_batch.loss:
@@ -104,14 +110,12 @@ class Batch:
         self.step += another_batch.step
 
     def _process_trajectory_indicies(self):
-        trajs = [[] for _ in self.envs]
+        trajs = {env_id: [] for env_id in self.envs.keys()}
         for idx, (env_id, step) in enumerate(zip(self.env_id, self.step)):
-            trajs[env_id].append((idx, step))
-        trajs = [sorted(t, key=lambda x: x[1]) for t in trajs]
-        trajs = [np.array([x[0] for x in t]) for t in trajs]
+            trajs[env_id.item()].append((idx, step))
+        trajs = {env_id: list(map(lambda x: x[0], sorted(traj, key=lambda x: x[1]))) for env_id, traj in trajs.items()}
         self.trajectory_indicies = trajs
         
-
     def unpack_terminal_states(self):
         """
         For storing terminal states and trajectory actions in the buffer
@@ -124,7 +128,7 @@ class Batch:
             self.process_batch()
         traj_actions = []
         terminal_states = []
-        for traj_idx in self.trajectory_indicies:
+        for traj_idx in self.trajectory_indicies.values():
             traj_actions.append(self.action[traj_idx].tolist())
             terminal_states.append(tuple(self.state_gfn[traj_idx[-1]].tolist()))
         traj_actions = [tuple([tuple(a) for a in t])for t in traj_actions]

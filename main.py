@@ -53,7 +53,7 @@ def main(config):
         energies = env.oracle(env.statebatch2oracle(batch.state_gfn))
         df = pd.DataFrame(
             {
-                "readable": [env.state2readable(s) for s in batch.state_gfn],
+                "readable": [env.state2readable(s) for s in batch.state_gfn.cpu()],
                 "energies": energies.tolist(),
             }
         )
