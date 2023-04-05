@@ -28,6 +28,8 @@ class Logger:
         progress: bool,
         lightweight: bool,
         debug: bool,
+        resume: bool = False,
+        run_id: str = None,
         run_name=None,
         tags: list = None,
         context: str = "0",
@@ -45,6 +47,7 @@ class Logger:
             run_name = "{}".format(
                 date_time,
             )
+        self.resume = resume
         if self.do.online:
             import wandb
 
@@ -52,9 +55,22 @@ class Logger:
             wandb_config = OmegaConf.to_container(
                 config, resolve=True, throw_on_missing=True
             )
-            self.run = self.wandb.init(
-                config=wandb_config, project=project_name, name=run_name
-            )
+
+            if self.resume is True and run_id is not None:
+                self.run_id = run_id
+                print("Resuming wandb run")
+                self.run = self.wandb.init(
+                    project=project_name,
+                    id=run_id,
+                    resume=resume,
+                    config=wandb_config,
+                    # name=run_name,
+                )
+            else:
+                self.run = self.wandb.init(
+                    config=wandb_config, project=project_name, name=run_name
+                )
+
         else:
             self.wandb = None
             self.run = None
@@ -67,6 +83,7 @@ class Logger:
         self.logdir = Path(logdir.root)
         if self.logdir.exists() or logdir.overwrite:
             self.logdir.mkdir(parents=True, exist_ok=True)
+            print("saving to logdir {}".format(logdir.root))
         else:
             # TODO: this message seems contradictory with the logic
             print(f"logdir {logdir} already exists! - Ending run...")
