@@ -287,7 +287,7 @@ class HybridTorus(GFlowNetEnv):
         pattern = re.compile(r"\s+")
         readable = re.sub(pattern, " ", readable)
         readable = readable.replace(" ]", "]")
-        readable = readable.replace(" [", "[")
+        readable = readable.replace("[ ", "[")
         # Process
         pair = readable.split(" | ")
         angles = [np.float32(el) * np.pi / 180 for el in pair[0].strip("[]").split(" ")]
