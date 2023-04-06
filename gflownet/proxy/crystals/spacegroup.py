@@ -1,14 +1,26 @@
+import os
 import pandas as pd
 import torch
 from torchtyping import TensorType
 
 from gflownet.proxy.base import Proxy
 
+SPACE_GROUP_COUNTS = None
+
+
+def _read_space_group_counts():
+    global SPACE_GROUP_COUNTS
+    if SPACE_GROUP_COUNTS is None:
+        return pd.read_csv(
+            os.path.join(os.path.dirname(__file__), "spacegroups_limat_counts.csv")
+        )
+    return SPACE_GROUP_COUNTS
+
 
 class SpaceGroup(Proxy):
-    def __init__(self, data_path: str, normalize: bool = True, **kwargs):
+    def __init__(self, normalize: bool = True, **kwargs):
         super().__init__(**kwargs)
-        df = pd.read_csv(data_path)
+        df = _read_space_group_counts()
         self.counts = torch.zeros(231, device=self.device, dtype=torch.int16)
         self.counts[df["Space Group"]] = torch.tensor(
             df.Counts, device=self.device, dtype=torch.int16
