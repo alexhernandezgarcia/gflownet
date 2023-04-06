@@ -10,9 +10,12 @@ from torch import Tensor
 from torchtyping import TensorType
 
 from gflownet.envs.base import GFlowNetEnv
-from gflownet.utils.crystals.constants import (CRYSTAL_CLASSES,
-                                               CRYSTAL_SYSTEMS,
-                                               POINT_SYMMETRIES, SPACE_GROUPS)
+from gflownet.utils.crystals.constants import (
+    CRYSTAL_CLASSES,
+    CRYSTAL_SYSTEMS,
+    POINT_SYMMETRIES,
+    SPACE_GROUPS,
+)
 
 
 class SpaceGroup(GFlowNetEnv):
