@@ -93,15 +93,21 @@ class Buffer:
             self.test_pkl = None
         # Compute buffer statistics
         if self.train is not None:
-            (
-                self.mean_tr,
-                self.std_tr,
-                self.min_tr,
-                self.max_tr,
-                self.max_norm_tr,
-            ) = train_stats[0], train_stats[1], train_stats[2], train_stats[3], train_stats[4]
+            (self.mean_tr, self.std_tr, self.min_tr, self.max_tr, self.max_norm_tr,) = (
+                train_stats[0],
+                train_stats[1],
+                train_stats[2],
+                train_stats[3],
+                train_stats[4],
+            )
         if self.test is not None:
-            self.mean_tt, self.std_tt, self.min_tt, self.max_tt, _ = test_stats[0], test_stats[1], test_stats[2], test_stats[3], test_stats[4]
+            self.mean_tt, self.std_tt, self.min_tt, self.max_tt, _ = (
+                test_stats[0],
+                test_stats[1],
+                test_stats[2],
+                test_stats[3],
+                test_stats[4],
+            )
 
     def add(
         self,
@@ -199,7 +205,6 @@ class Buffer:
         if stats is None:
             stats = self.compute_stats(df)
         return df, {"x": samples, "energy": energies}, stats
-
 
     def compute_stats(self, data):
         mean_data = data["energies"].mean()

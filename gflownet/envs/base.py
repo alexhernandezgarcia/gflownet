@@ -442,7 +442,10 @@ class GFlowNetEnv:
         """
         if self.denorm_proxy:
             # TODO: do with torch
-            proxy_vals = proxy_vals * (self.energies_stats[1] - self.energies_stats[0]) + self.energies_stats[0]
+            proxy_vals = (
+                proxy_vals * (self.energies_stats[1] - self.energies_stats[0])
+                + self.energies_stats[0]
+            )
             # proxy_vals = proxy_vals * self.energies_stats[3] + self.energies_stats[2]
         if self.reward_func == "power":
             return torch.clamp(
