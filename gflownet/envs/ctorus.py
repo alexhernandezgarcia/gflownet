@@ -57,7 +57,7 @@ class ContinuousTorus(HybridTorus):
         mixture, 2) the location of the von Mises distribution and 3) the concentration
         of the von Mises distribution to sample the increment of the angle.
 
-        Therefore, the output of the policy model has dimensionality D x C x 1, where D
+        Therefore, the output of the policy model has dimensionality D x C x 3, where D
         is the number of dimensions (self.n_dim) and C is the number of components
         (self.n_comp). In sum, the entries of the entries of the policy output are:
 

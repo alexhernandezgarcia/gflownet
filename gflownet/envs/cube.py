@@ -92,17 +92,27 @@ class HybridCube(GFlowNetEnv):
         action is to be determined or sampled, by returning a vector with a fixed
         random policy.
 
-        For each dimension of the hyper-cube, the output of the policy should return
-        1) a logit, for the categorical distribution over dimensions and 2) the alpha
-        and 3) beta parameters of a beta distribution to sample the increment.
-        Therefore, the output of the policy model has dimensionality D x 3 + 1, where D
-        is the number of dimensions, and the elements of the output vector are:
-        - d * 3: logit of dimension d
-        - d * 3 + 1: log(alpha) of beta distribution for dimension d
-        - d * 3 + 2: log(beta) of a beta distribution for dimension d
-        with d in [0, ..., D]
+        For each dimension d of the hyper-cube and component c of the mixture, the
+        output of the policy should return 
+          1) the weight of the component in the mixture
+          2) a logit, for the categorical distribution over dimensions
+          3) the alpha parameter of the Beta distribution to sample the increment
+          4) the beta parameter of the Beta distribution to sample the increment
+
+        Therefore, the output of the policy model has dimensionality D x C x 4 + 1,
+        where D is the number of dimensions (self.n_dim) and C is the number of
+        components (self.n_comp). The additional dimension (+ 1) is to include the
+        logit of the EOS action. In sum, the entries of the entries of the policy
+        output are:
+
+        - d * c * 4 + 0: logit of dimension d, component c.
+        - d * c * 4 + 1: weight of component c in the mixture for dimension d
+        - d * c * 4 + 2: log(alpha) of the Beta distribution for dim. d, comp. c
+        - d * c * 4 + 3: log(beta) of the Beta distribution for dim. d, comp. c
+        TODO
+        - D * C * 4 + 3 + 1: log(beta) of the Beta distribution for dim. d, comp. c
         """
-        policy_output_fixed = np.ones(self.n_dim * 3 + 1)
+        policy_output_fixed = np.ones(self.n_dim * self.n_comp * 3 + 1)
         policy_output_fixed[1::3] = self.distr_alpha
         policy_output_fixed[2::3] = self.distr_beta
         return policy_output_fixed
