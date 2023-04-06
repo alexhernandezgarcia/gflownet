@@ -77,6 +77,9 @@ class Grid(GFlowNetEnv):
         self.eos = tuple([0 for _ in range(self.n_dim)])
         # Base class init
         super().__init__(**kwargs)
+        if self.proxy == self.oracle:
+            self.statebatch2proxy = self.statebatch2oracle
+            self.statetorch2proxy = self.statetorch2oracle
         self.rescale = rescale
         self.corr_type = corr_type
 

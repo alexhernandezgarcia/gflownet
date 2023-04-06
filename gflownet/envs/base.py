@@ -80,6 +80,24 @@ class GFlowNetEnv:
         self.random_policy_output = self.get_policy_output(random_distribution)
         self.policy_output_dim = len(self.fixed_policy_output)
         self.policy_input_dim = len(self.state2policy())
+        if proxy is not None:
+            self.set_proxy(proxy)
+
+    def set_proxy(self, proxy):
+        self.proxy = proxy
+        if hasattr(self, "proxy_factor"):
+            return
+        if self.proxy is not None and self.proxy.maximize is not None:
+            # can be None for dropout regressor/UCB
+            maximize = self.proxy.maximize
+        elif self.oracle is not None:
+            maximize = self.oracle.maximize
+        else:
+            raise ValueError("Proxy and Oracle cannot be None together.")
+        if maximize:
+            self.proxy_factor = 1.0
+        else:
+            self.proxy_factor = -1.0
 
     @abstractmethod
     def get_action_space(self):
