@@ -37,7 +37,7 @@ class HybridCube(GFlowNetEnv):
         do_nonzero_source_prob: bool = True,
         fixed_distribution: dict = {
             "beta_alpha": 2.0,
-            "beta_alpha": 5.0,
+            "beta_beta": 5.0,
         },
         random_distribution: dict = {
             "beta_alpha": 1.0,
@@ -86,35 +86,31 @@ class HybridCube(GFlowNetEnv):
         actions.append(self.eos)
         return actions
 
-    def get_fixed_policy_output(self):
+    def get_fixed_policy_output(self, params: dict):
         """
         Defines the structure of the output of the policy model, from which an
         action is to be determined or sampled, by returning a vector with a fixed
         random policy.
 
         For each dimension d of the hyper-cube and component c of the mixture, the
-        output of the policy should return 
+        output of the policy should return
           1) the weight of the component in the mixture
-          2) a logit, for the categorical distribution over dimensions
-          3) the alpha parameter of the Beta distribution to sample the increment
-          4) the beta parameter of the Beta distribution to sample the increment
+          2) the log(alpha) parameter of the Beta distribution to sample the increment
+          3) the log(beta) parameter of the Beta distribution to sample the increment
 
-        Therefore, the output of the policy model has dimensionality D x C x 4 + 1,
+        Additionally, the policy output contains one logit per dimension plus one logit
+        for the EOS action, for the categorical distribution over dimensions.
+
+        Therefore, the output of the policy model has dimensionality D x C x 3 + D + 1,
         where D is the number of dimensions (self.n_dim) and C is the number of
-        components (self.n_comp). The additional dimension (+ 1) is to include the
-        logit of the EOS action. In sum, the entries of the entries of the policy
-        output are:
-
-        - d * c * 4 + 0: logit of dimension d, component c.
-        - d * c * 4 + 1: weight of component c in the mixture for dimension d
-        - d * c * 4 + 2: log(alpha) of the Beta distribution for dim. d, comp. c
-        - d * c * 4 + 3: log(beta) of the Beta distribution for dim. d, comp. c
-        TODO
-        - D * C * 4 + 3 + 1: log(beta) of the Beta distribution for dim. d, comp. c
+        components (self.n_comp). The first D + 1 entries in the policy output
+        correspond to the categorical logits. Then, the next 3 x C entries in the
+        policy output correspond to the first dimension, and so on.
         """
-        policy_output_fixed = np.ones(self.n_dim * self.n_comp * 3 + 1)
-        policy_output_fixed[1::3] = self.distr_alpha
-        policy_output_fixed[2::3] = self.distr_beta
+        self.n_logits = self.n_dim + 1
+        policy_output_fixed = np.ones(self.n_dim * self.n_comp * 3 + self.n_logits)
+        policy_output_fixed[self.n_logits + 1 :: 3] = params["beta_alpha"]
+        policy_output_fixed[self.n_logits + 2 :: 3] = params["beta_beta"]
         return policy_output_fixed
 
     def get_mask_invalid_actions_forward(self, state=None, done=None):

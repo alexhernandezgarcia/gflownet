@@ -53,17 +53,16 @@ class ContinuousTorus(HybridTorus):
         random policy.
 
         For each dimension d of the hyper-torus and component c of the mixture, the
-        output of the policy should return 1) the weight of the component in the
-        mixture, 2) the location of the von Mises distribution and 3) the concentration
-        of the von Mises distribution to sample the increment of the angle.
+        output of the policy should return 
+          1) the weight of the component in the mixture
+          2) the location of the von Mises distribution to sample the angle increment
+          3) the log concentration of the von Mises distribution to sample the angle
+          increment
 
         Therefore, the output of the policy model has dimensionality D x C x 3, where D
         is the number of dimensions (self.n_dim) and C is the number of components
-        (self.n_comp). In sum, the entries of the entries of the policy output are:
-
-        - d * c * 3 + 0: weight of component c in the mixture for dim. d
-        - d * c * 3 + 1: location of Von Mises distribution for dim. d, comp. c
-        - d * c * 3 + 2: log concentration of Von Mises distribution for dim. d, comp. c
+        (self.n_comp). The first 3 x C entries in the policy output correspond to the
+        first dimension, and so on.
         """
         policy_output = np.ones(self.n_dim * self.n_comp * 3)
         policy_output[1::3] = params["vonmises_mean"]
