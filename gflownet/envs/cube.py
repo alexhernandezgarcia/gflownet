@@ -86,7 +86,7 @@ class HybridCube(GFlowNetEnv):
         actions.append(self.eos)
         return actions
 
-    def get_fixed_policy_output(self, params: dict):
+    def get_policy_output(self, params: dict):
         """
         Defines the structure of the output of the policy model, from which an
         action is to be determined or sampled, by returning a vector with a fixed
