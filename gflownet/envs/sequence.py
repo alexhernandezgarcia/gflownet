@@ -365,18 +365,6 @@ class Sequence(GFlowNetEnv):
                 state[i, : len(seq)] = torch.tensor(seq)
         return state
 
-    def reset(self, env_id=None):
-        """
-        Resets the environment.
-        """
-        self.state = (
-            torch.ones(self.max_seq_length, dtype=torch.int64) * self.padding_idx
-        )
-        self.done = False
-        self.id = env_id
-        self.n_actions = 0
-        return self
-
     def get_parents(self, state=None, done=None, action=None):
         """
         Determines all parents and actions that lead to sequence state
