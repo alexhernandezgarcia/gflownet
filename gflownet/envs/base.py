@@ -41,7 +41,11 @@ class GFlowNetEnv:
         # Call reset() to set initial state, done, n_actions
         self.reset()
         # Device
-        self.device = set_device(device)
+        # Device
+        if isinstance(device, str):
+            self.device = set_device(device)
+        else:
+            self.device = device
         # Float precision
         self.float = set_float_precision(float_precision)
         # Reward settings
@@ -552,7 +556,7 @@ class GFlowNetEnv:
                 # Required for compatibility with mfenv when length(sfenv_action) != length(fidelity.action)
                 # For example, in AMP, length(sfenv_action) = 1 like (2,), length(fidelity.action) = 2 like (22, 1)
                 current_actions = [
-                    tuple(list(action) + [0] * (self.action_max_length - len(action)))
+                    tuple(list(action) + [0] * (self.action_length - len(action)))
                     for action in current_actions
                 ]
             traj_actions_list.append(current_actions)
