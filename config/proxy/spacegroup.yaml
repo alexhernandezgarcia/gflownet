@@ -1,0 +1,4 @@
+_target_: gflownet.proxy.spacegroup.SpaceGroup
+
+normalize: True
+data_path: ${user.data.root}/crystals/spacegroups_limat_counts.csv

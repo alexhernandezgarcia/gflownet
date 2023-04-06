@@ -4,7 +4,7 @@ import pymatgen.symmetry.groups as pmgg
 import pytest
 import torch
 
-from gflownet.envs.spacegroup import SpaceGroup
+from gflownet.envs.crystals.spacegroup import SpaceGroup
 
 
 @pytest.fixture
@@ -130,7 +130,9 @@ def test__get_mask_invalid_actions_forward__masks_expected_action(
 ):
     assert action in env.action_space
     mask = env.get_mask_invalid_actions_forward(state, False)
-    assert mask[env.action_space.index(action)] == expected
+    assert mask[env.action_space.index(action)] == expected, print(
+        state, action, expected
+    )
 
 
 @pytest.mark.parametrize(
@@ -203,10 +205,9 @@ def test__states_are_compatible_with_pymatgen(env):
         sg_int = pmgg.sg_symbol_from_int_number(idx + 1)
         sg = pmgg.SpaceGroup(sg_int)
         assert sg.int_number == env.state[env.sg_idx]
-        assert sg.crystal_system == env.crystal_system()
-        crystal_class_idx = env.space_groups[idx + 1][1]
-        point_groups = env.crystal_classes[crystal_class_idx][2]
-        assert sg.point_group in point_groups
+        assert sg.crystal_system == env.crystal_system
+        assert sg.symbol == env.space_group_symbol
+        assert sg.point_group == env.point_group
 
 
 def test__all_env_common(env):

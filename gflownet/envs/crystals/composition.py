@@ -1,20 +1,19 @@
 """
-Classes to represent crystal environments
+Classes to represent material compositions (stoichiometry)
 """
 import itertools
 from typing import Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import torch
-from torch import Tensor
-
 from gflownet.envs.base import GFlowNetEnv
 from gflownet.utils.crystals.constants import ELEMENT_NAMES, OXIDATION_STATES
+from torch import Tensor
 
 
-class Crystal(GFlowNetEnv):
+class Composition(GFlowNetEnv):
     """
-    Crystal environment for ionic conductivity
+    Composition environment for crystal materials
     """
 
     def __init__(

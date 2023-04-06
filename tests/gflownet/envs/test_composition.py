@@ -2,7 +2,7 @@ import common
 import pytest
 import torch
 
-from gflownet.envs.crystals import Crystal
+from gflownet.envs.crystals.composition import Composition
 
 
 @pytest.fixture
