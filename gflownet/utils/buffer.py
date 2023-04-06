@@ -2,7 +2,7 @@
 Buffer class to handle train and test data sets, reply buffer, etc.
 """
 import pickle
-
+from pathlib import Path
 import numpy as np
 import pandas as pd
 

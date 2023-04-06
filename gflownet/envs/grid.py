@@ -77,23 +77,8 @@ class Grid(GFlowNetEnv):
         self.eos = tuple([0 for _ in range(self.n_dim)])
         # Base class init
         super().__init__(**kwargs)
-        # self.set_oracle(oracle)
-        # non-AL
-        # if (
-        #     hasattr(self, "proxy")
-        #     and self.proxy is not None
-        #     and hasattr(self.proxy, "n_dim")
-        # ):
-        #     self.proxy.n_dim = self.n_dim
-        #     self.proxy.setup()
         self.rescale = rescale
         self.corr_type = corr_type
-    
-    # def set_oracle(self, oracle=None):
-    #     self.oracle = oracle
-    #     if oracle is not None and hasattr(oracle, "n_dim"):
-    #         # self.oracle.n_dim = self.n_dim
-    #         self.oracle.setup()
 
     def get_action_space(self):
         """

@@ -62,9 +62,6 @@ class Sequence(GFlowNetEnv):
         proxy=None,
         **kwargs,
     ):
-        super().__init__(
-            **kwargs,
-        )
         self.min_seq_length = min_seq_length
         self.max_seq_length = max_seq_length
         self.min_word_len = min_word_len
@@ -76,13 +73,6 @@ class Sequence(GFlowNetEnv):
         self.padding_idx = self.lookup["[PAD]"]
         # TODO: eos re-initalised in get_actions_space so why was this initialisation required in the first place (maybe mfenv)
         self.eos = self.lookup["[EOS]"]
-        self.action_space = self.get_actions_space()
-        self.reset()
-        self.fixed_policy_output = self.get_fixed_policy_output()
-        self.random_policy_output = self.get_fixed_policy_output()
-        self.policy_output_dim = len(self.fixed_policy_output)
-        self.policy_input_dim = self.state2policy().shape[-1]
-        self.max_traj_len = self.get_max_traj_len()
         self.source = (
             torch.ones(self.max_seq_length, dtype=torch.int64) * self.padding_idx
         )
@@ -90,8 +80,12 @@ class Sequence(GFlowNetEnv):
         self.min_reward = 1e-20
         if proxy is not None:
             self.proxy = proxy
+        super().__init__(
+            **kwargs,
+        )
+        self.policy_input_dim = self.state2policy().shape[-1]
 
-    def get_actions_space(self):
+    def get_action_space(self):
         """
         Constructs list with all possible actions
         If min_word_len = n_alphabet = 2, actions: [(0, 0,), (1, 1)] and so on
@@ -172,7 +166,7 @@ class Sequence(GFlowNetEnv):
     # def state2oracle(self, state: List = None):
     #     return "".join(self.state2readable(state))
 
-    def get_max_traj_len(
+    def get_max_traj_length(
         self,
     ):
         return self.max_seq_length / self.min_word_len + 1

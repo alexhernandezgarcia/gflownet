@@ -417,7 +417,7 @@ class GFlowNetAgent:
             valids = []
             for idx in range(n_empirical):
                 env = envs[idx]
-                env.n_actions = env.get_max_traj_len()
+                env.n_actions = env.get_max_traj_length()
                 # Required for env.done check in the mfenv env
                 env = env.set_state(x_tr[idx], done=True)
                 envs_offline.append(env)
