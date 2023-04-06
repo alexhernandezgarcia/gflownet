@@ -16,16 +16,6 @@ class Aptamers(Proxy):
         self.type = oracle_id
         self.norm = norm
         self.cost = cost
-        if self.type == "length":
-            self.__call__ = self._length
-        elif self.type == "pairs":
-            # self.__call__ = self._nupack
-            self.function = self._func_pairs
-        elif self.type == "energy":
-            # self.__call__ = self._nupack
-            self.function = self._func_energy
-        else:
-            raise NotImplementedError
         self.inverse_lookup = {0: 'A', 1: 'C', 2: 'G', 3: 'T'}
 
     def setup(self, max_seq_length, norm=True):
@@ -39,8 +29,20 @@ class Aptamers(Proxy):
     
     def numbers2letters(self, state):
         return "".join([self.inverse_lookup[el] for el in state])
-        
+    
     def __call__(self, sequences):
+        if self.type == "length":
+            return self._length(sequences)
+        elif self.type == "pairs":
+            self.function = self._func_pairs
+            return self._nupack(sequences)
+        elif self.type == "energy":
+            self.function = self._func_energy
+            return self._nupack(sequences)
+        else:
+            raise NotImplementedError
+        
+    def _nupack(self, sequences):
         """
         args:
             inputs: list of arrays in desired format interpretable by oracle
