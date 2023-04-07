@@ -1,7 +1,7 @@
 """
 Base class of GFlowNet proxies
 """
-from abc import abstractmethod
+from abc import ABC, abstractmethod
 
 import numpy as np
 import numpy.typing as npt
@@ -9,7 +9,7 @@ import numpy.typing as npt
 from gflownet.utils.common import set_device, set_float_precision
 
 
-class Proxy:
+class Proxy(ABC):
     """
     Generic proxy class
     """
@@ -22,7 +22,6 @@ class Proxy:
         # Reward2Proxy multiplicative factor (1 or -1)
         self.maximize = maximize
 
-    @abstractmethod
     def setup(self, env=None):
         pass
 

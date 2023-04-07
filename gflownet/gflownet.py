@@ -421,7 +421,7 @@ class GFlowNetAgent:
                 # Required for env.done check in the mfenv env
                 env = env.set_state(x_tr[idx], done=True)
                 envs_offline.append(env)
-                actions.append((env.eos,))
+                actions.append(env.eos)
                 valids.append(True)
         else:
             envs_offline = []
