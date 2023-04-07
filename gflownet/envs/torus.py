@@ -1,13 +1,15 @@
 """
 Classes to represent hyper-torus environments
 """
-from typing import List, Tuple
 import itertools
+from typing import List, Optional, Tuple
+
 import numpy as np
 import numpy.typing as npt
 import pandas as pd
 import torch
 from torchtyping import TensorType
+
 from gflownet.envs.base import GFlowNetEnv
 
 
@@ -36,98 +38,79 @@ class Torus(GFlowNetEnv):
 
     def __init__(
         self,
-        n_dim=2,
-        n_angles=3,
-        length_traj=1,
-        min_step_len=1,
-        max_step_len=1,
+        n_dim: int = 2,
+        n_angles: int = 3,
+        length_traj: int = 1,
+        max_increment: int = 1,
+        max_dim_per_action: int = 1,
         **kwargs,
     ):
-        super().__init__(**kwargs)
+        assert n_dim > 0
+        assert n_angles > 1
+        assert length_traj > 0
+        assert max_increment > 0
+        assert max_dim_per_action == -1 or max_dim_per_action > 0
         self.n_dim = n_dim
-        self.eos = self.n_dim
         self.n_angles = n_angles
         self.length_traj = length_traj
-        # Initialize angles and state attributes
-        self.source_angles = [0.0 for _ in range(self.n_dim)]
-        # States are the concatenation of the angle state and number of actions
+        self.max_increment = max_increment
+        if max_dim_per_action == -1:
+            max_dim_per_action = self.n_dim
+        self.max_dim_per_action = max_dim_per_action
+        # Source state: position 0 at all dimensions and number of actions 0
+        self.source_angles = [0 for _ in range(self.n_dim)]
         self.source = self.source_angles + [0]
-        self.reset()
-        self.source = self.angles.copy()
-        self.min_step_len = min_step_len
-        self.max_step_len = max_step_len
-        self.action_space = self.get_actions_space()
-        self.fixed_policy_output = self.get_fixed_policy_output()
-        self.random_policy_output = self.get_fixed_policy_output()
-        self.policy_output_dim = len(self.fixed_policy_output)
-        self.policy_input_dim = len(self.state2policy())
+        # End-of-sequence action: (self.max_incremement + 1) in all dimensions
+        self.eos = tuple([self.max_increment + 1 for _ in range(self.n_dim)])
+        # Angle increments in radians
         self.angle_rad = 2 * np.pi / self.n_angles
-        # Oracle
+        # TODO: assess if really needed
         self.state2oracle = self.state2proxy
         self.statebatch2oracle = self.statebatch2proxy
-        # Setup proxy
-        self.proxy.set_n_dim(self.n_dim)
+        # Base class init
+        super().__init__(**kwargs)
 
-    def get_actions_space(self):
+    def get_action_space(self):
         """
-        Constructs list with all possible actions. The actions are tuples with two
-        values: (dimension, direction) where dimension indicates the index of the
-        dimension on which the action is to be performed and direction indicates to
-        increment or decrement with 1 or -1, respectively. The action "keep" is
-        indicated by (-1, 0).
+        Constructs list with all possible actions, including eos. An action is
+        represented by a vector of length n_dim where each index d indicates the
+        increment/decrement to apply to dimension d of the hyper-torus. A negative
+        value indicates a decrement. The action "keep" (no increment/decrement of any
+        dimensions) is valid and is indicated by all zeros.
         """
-        valid_steplens = np.arange(self.min_step_len, self.max_step_len + 1)
-        dims = [a for a in range(self.n_dim)]
-        directions = [1, -1]
+        increments = [el for el in range(-self.max_increment, self.max_increment + 1)]
         actions = []
-        for r in valid_steplens:
-            actions_r = [el for el in itertools.product(dims, directions, repeat=r)]
-            actions += actions_r
-        # Add "keep" action
-        actions = actions + [(-1, 0)]
-        # Add "eos" action
-        actions = actions + [(self.eos, 0)]
+        for action in itertools.product(increments, repeat=self.n_dim):
+            if len([el for el in action if el != 0]) <= self.max_dim_per_action:
+                actions.append(tuple(action))
+        actions.append(self.eos)
         return actions
 
-    def get_mask_invalid_actions_forward(self, state=None, done=None):
+    def get_mask_invalid_actions_forward(
+        self,
+        state: Optional[List] = None,
+        done: Optional[bool] = None,
+    ) -> List:
         """
-        Returns a vector of length the action space + 1: True if action is invalid
-        given the current state, False otherwise.
+        Returns a list of length the action space with values:
+            - True if the forward action is invalid from the current state.
+            - False otherwise.
+        All actions except EOS are valid if the maximum number of actions has not been
+        reached, and vice versa.
         """
         if state is None:
             state = self.state.copy()
         if done is None:
             done = self.done
         if done:
-            return [True for _ in range(len(self.action_space))]
+            return [True for _ in range(self.action_space_dim)]
         if state[-1] >= self.length_traj:
-            mask = [True for _ in range(len(self.action_space))]
+            mask = [True for _ in range(self.action_space_dim)]
             mask[-1] = False
         else:
-            mask = [False for _ in range(len(self.action_space))]
+            mask = [False for _ in range(self.action_space_dim)]
             mask[-1] = True
         return mask
-
-    def true_density(self):
-        # Return pre-computed true density if already stored
-        if self._true_density is not None and self._log_z is not None:
-            return self._true_density, self._log_z
-        # Calculate true density
-        x = self.get_all_terminating_states()
-        rewards = self.reward_batch(x)
-        self._z = rewards.sum()
-        self._true_density = (
-            rewards / self._z,
-            rewards,
-            list(map(tuple, x)),
-        )
-        import ipdb
-
-        ipdb.set_trace()
-        return self._true_density
-
-    def fit_kde(x, kernel="exponential", bandwidth=0.1):
-        kde = KernelDensity(kernel=kernel, bandwidth=bandwidth).fit(last_states.numpy())
 
     def statebatch2proxy(self, states: List[List]) -> npt.NDArray[np.float32]:
         """
@@ -145,7 +128,7 @@ class Torus(GFlowNetEnv):
         """
         return states[:, :-1] * self.angle_rad
 
-    # TODO: A circular encoding of the policy state would be better?
+    # TODO: circular encoding as in htorus
     def state2policy(self, state=None) -> List:
         """
         Transforms the angles part of the state given as argument (or self.state if
@@ -253,17 +236,12 @@ class Torus(GFlowNetEnv):
         n_actions = [int(pair[1])]
         return angles + n_actions
 
-    def reset(self, env_id=None):
-        """
-        Resets the environment.
-        """
-        self.state = self.source.copy()
-        self.n_actions = 0
-        self.done = False
-        self.id = env_id
-        return self
-
-    def get_parents(self, state=None, done=None, action=None):
+    def get_parents(
+        self,
+        state: Optional[List] = None,
+        done: Optional[bool] = None,
+        action: Optional[Tuple] = None,
+    ) -> Tuple[List, List]:
         """
         Determines all parents and actions that lead to state.
 
@@ -288,52 +266,46 @@ class Torus(GFlowNetEnv):
             List of actions that lead to state for each parent in parents
         """
 
-        def _get_min_actions_to_source(source, ref):
-            def _get_min_actions_dim(u, v):
-                return np.min([np.abs(u - v), np.abs(u - (v - self.n_angles))])
-
-            return np.sum([_get_min_actions_dim(u, v) for u, v in zip(source, ref)])
-
         if state is None:
             state = self.state.copy()
         if done is None:
             done = self.done
         if done:
-            return [state], [(self.eos, 0)]
+            return [state], [self.eos]
         # If source state
         elif state[-1] == 0:
             return [], []
         else:
             parents = []
             actions = []
-            for idx, (a_dim, a_dir) in enumerate(self.action_space[:-1]):
+            for idx, action in enumerate(self.action_space[:-1]):
                 state_p = state.copy()
                 angles_p = state_p[: self.n_dim]
                 n_actions_p = state_p[-1]
                 # Get parent
                 n_actions_p -= 1
-                if a_dim != -1:
-                    angles_p[a_dim] -= a_dir
+                for dim, incr in enumerate(action):
+                    angles_p[dim] -= incr
                     # If negative angle index, restart from the back
-                    if angles_p[a_dim] < 0:
-                        angles_p[a_dim] = self.n_angles + angles_p[a_dim]
+                    if angles_p[dim] < 0:
+                        angles_p[dim] = self.n_angles + angles_p[dim]
                     # If angle index larger than n_angles, restart from 0
-                    if angles_p[a_dim] >= self.n_angles:
-                        angles_p[a_dim] = angles_p[a_dim] - self.n_angles
-                if _get_min_actions_to_source(self.source_angles, angles_p) < state[-1]:
+                    if angles_p[dim] >= self.n_angles:
+                        angles_p[dim] = angles_p[dim] - self.n_angles
+                if self._get_min_actions_to_source(angles_p) < state[-1]:
                     state_p = angles_p + [n_actions_p]
                     parents.append(state_p)
-                    actions.append((a_dim, a_dir))
+                    actions.append(action)
         return parents, actions
 
-    def step(self, action: Tuple[int]) -> Tuple[List[int], Tuple[int, int], bool]:
+    def step(self, action: Tuple[int]) -> Tuple[List[int], Tuple[int], bool]:
         """
         Executes step given an action.
 
         Args
         ----
         action : tuple
-            Action to be executed. See: get_actions_space()
+            Action to be executed. See: get_action_space()
 
         Returns
         -------
@@ -346,76 +318,59 @@ class Torus(GFlowNetEnv):
         valid : bool
             False, if the action is not allowed for the current state.
         """
-        assert action in self.action_space
-        a_dim, a_dir = action
+        # If done, return invalid
         if self.done:
+            return self.state, action, False
+        # If action not found in action space raise an error
+        if action not in self.action_space:
+            raise ValueError(
+                f"Tried to execute action {action} not present in action space."
+            )
+        else:
+            action_idx = self.action_space.index(action)
+        # If action is in invalid mask, return invalid
+        if self.get_mask_invalid_actions_forward()[action_idx]:
             return self.state, action, False
         # If only possible action is eos, then force eos
         # If the number of actions is equal to trajectory length
         elif self.n_actions == self.length_traj:
             self.done = True
             self.n_actions += 1
-            return self.state, (self.eos, 0), True
-        # If action is not eos, then perform action
-        elif a_dim != self.eos:
-            angles_next = self.angles.copy()
-            # If action is not "keep"
-            if a_dim != -1:
-                angles_next[a_dim] += a_dir
+            return self.state, self.eos, True
+        # Perform non-EOS action
+        else:
+            angles_next = self.state.copy()[: self.n_dim]
+            for dim, incr in enumerate(action):
+                angles_next[dim] += incr
                 # If negative angle index, restart from the back
-                if angles_next[a_dim] < 0:
-                    angles_next[a_dim] = self.n_angles + angles_next[a_dim]
+                if angles_next[dim] < 0:
+                    angles_next[dim] = self.n_angles + angles_next[dim]
                 # If angle index larger than n_angles, restart from 0
-                if angles_next[a_dim] >= self.n_angles:
-                    angles_next[a_dim] = angles_next[a_dim] - self.n_angles
-            self.angles = angles_next
+                if angles_next[dim] >= self.n_angles:
+                    angles_next[dim] = angles_next[dim] - self.n_angles
             self.n_actions += 1
-            self.state = self.angles + [self.n_actions]
+            self.state = angles_next + [self.n_actions]
             valid = True
             return self.state, action, valid
-        # If action is eos, then it is invalid
-        else:
-            return self.state, (self.eos, 0), False
-
-    def make_train_set(self, ntrain, oracle=None, seed=168, output_csv=None):
-        """
-        Constructs a randomly sampled train set.
-
-        Args
-        ----
-        """
-        rng = np.random.default_rng(seed)
-        angles = rng.integers(low=0, high=self.n_angles, size=(ntrain,) + (self.n_dim,))
-        n_actions = self.length_traj * np.ones([ntrain, 1], dtype=np.int32)
-        samples = np.concatenate([angles, n_actions], axis=1)
-        if oracle:
-            energies = oracle(self.state2oracle(samples))
-        else:
-            energies = self.oracle(self.state2oracle(samples))
-        df_train = pd.DataFrame({"samples": list(samples), "energies": energies})
-        if output_csv:
-            df_train.to_csv(output_csv)
-        return df_train
-
-    def make_test_set(self, config):
-        """
-        Constructs a test set.
-
-        Args
-        ----
-        """
-        if "all" in config and config.all:
-            samples = self.get_all_terminating_states()
-            energies = self.oracle(self.state2oracle(samples))
-        df_test = pd.DataFrame(
-            {"samples": [self.state2readable(s) for s in samples], "energies": energies}
-        )
-        return df_test
 
     def get_all_terminating_states(self):
-        all_x = np.int32(
-            list(itertools.product(*[list(range(self.n_angles))] * self.n_dim))
-        )
+        all_x = itertools.product(*[list(range(self.n_angles))] * self.n_dim)
+        all_x_valid = []
+        for x in all_x:
+            if self._get_min_actions_to_source(x) <= self.length_traj:
+                all_x_valid.append(x)
+        all_x = np.int32(all_x_valid)
         n_actions = self.length_traj * np.ones([all_x.shape[0], 1], dtype=np.int32)
         all_x = np.concatenate([all_x, n_actions], axis=1)
         return all_x.tolist()
+
+    def fit_kde(x, kernel="exponential", bandwidth=0.1):
+        kde = KernelDensity(kernel=kernel, bandwidth=bandwidth).fit(last_states.numpy())
+
+    def _get_min_actions_to_source(self, angles):
+        def _get_min_actions_dim(u, v):
+            return np.min([np.abs(u - v), np.abs(u - (v - self.n_angles))])
+
+        return np.sum(
+            [_get_min_actions_dim(u, v) for u, v in zip(self.source_angles, angles)]
+        )

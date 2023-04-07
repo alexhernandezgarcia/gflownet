@@ -1,6 +1,7 @@
-from gflownet.proxy.base import Proxy
 import torch
 from torchtyping import TensorType
+
+from gflownet.proxy.base import Proxy
 
 
 class Torus(Proxy):
@@ -10,8 +11,9 @@ class Torus(Proxy):
         self.alpha = alpha
         self.beta = beta
 
-    def set_n_dim(self, n_dim):
-        self.n_dim = n_dim
+    def setup(self, env=None):
+        if env:
+            self.n_dim = env.n_dim
 
     @property
     def min(self):

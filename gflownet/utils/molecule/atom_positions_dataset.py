@@ -2,6 +2,7 @@ import numpy as np
 
 from gflownet.utils.common import download_file_if_not_exists
 
+
 class AtomPositionsDataset:
     def __init__(self, path_to_data, url_to_data):
         path_to_data = download_file_if_not_exists(path_to_data, url_to_data)

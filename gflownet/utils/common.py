@@ -1,9 +1,10 @@
+from collections.abc import MutableMapping
+from pathlib import Path
+
 import numpy as np
 import torch
-
-from collections.abc import MutableMapping
 from hydra.utils import get_original_cwd
-from pathlib import Path
+
 
 def set_device(device: str):
     if device.lower() == "cuda" and torch.cuda.is_available():
@@ -45,12 +46,14 @@ def handle_logdir():
     else:
         print(f"working directory not defined - Ending run...")
 
+
 def download_file_if_not_exists(path: str, url: str):
     """
     Download a file from google drive if path doestn't exist.
     url should be in the format: https://drive.google.com/uc?id=FILE_ID
     """
     import gdown
+
     path = Path(path)
     if not path.is_absolute():
         # to avoid storing downloaded files with the logs, prefix is set to the original working dir

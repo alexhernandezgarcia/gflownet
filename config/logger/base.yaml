@@ -1,8 +1,10 @@
-_target_: logger.Logger
+_target_: gflownet.utils.logger.Logger
 
 do:
   online: False
   times: False
+
+project_name: "GFlowNet"
 
 # Train metrics
 train:

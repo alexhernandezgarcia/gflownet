@@ -3,18 +3,17 @@ This works.
 """
 
 import math
+import os
+import urllib.request
+from math import floor
+
+import gpytorch
 
 # import tqdm
 import torch
-import gpytorch
-from tqdm.notebook import tqdm
-
-import urllib.request
-import os
-from scipy.io import loadmat
-from math import floor
 from botorch.test_functions import Hartmann
-
+from scipy.io import loadmat
+from tqdm.notebook import tqdm
 
 """
 Initialise the dataset 
@@ -136,8 +135,8 @@ Acquistion Function
 """
 
 from botorch.models import SingleTaskGP
-from gpytorch.distributions import MultivariateNormal
 from botorch.posteriors import GPyTorchPosterior
+from gpytorch.distributions import MultivariateNormal
 
 
 class myGPModel(SingleTaskGP):

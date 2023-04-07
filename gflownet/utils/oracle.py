@@ -1,10 +1,10 @@
 """import statements"""
+import sys
+
 from omegaconf import ListConfig
+from potts_utils import load_potts_model, potts_energy
 from seqfold import dg, fold
 from utils import *
-from potts_utils import load_potts_model
-from potts_utils import potts_energy
-import sys
 
 try:  # we don't always install these on every platform
     from nupack import *
@@ -14,8 +14,8 @@ except:
     )
     pass
 try:
+    from bbdob import DeceptiveTrap, FourPeaks, NKLandscape, OneMax, TwoMin, WModel
     from bbdob.utils import idx2one_hot
-    from bbdob import OneMax, TwoMin, FourPeaks, DeceptiveTrap, NKLandscape, WModel
 except:
     print(
         "COULD NOT IMPORT BB-DOB ON THIS DEVICE - proceeding, but will crash with BB-DOB oracle selected"
@@ -401,7 +401,6 @@ class Oracle:
         return energies
 
     def PottsEnergyNew(self, sequences):
-
         # Load the potts model
         J, h = load_potts_model(435)
 

@@ -1,3 +1,4 @@
+import common
 import pytest
 import torch
 
@@ -82,7 +83,7 @@ def test__reset(env):
         (84, 3, 8),
     ],
 )
-def test__get_actions_space__returns_correct_number_of_actions(
+def test__get_action_space__returns_correct_number_of_actions(
     elements, min_atom_i, max_atom_i
 ):
     environment = Crystal(
@@ -90,17 +91,17 @@ def test__get_actions_space__returns_correct_number_of_actions(
     )
     exp_n_actions = elements * (max_atom_i - min_atom_i + 1) + 1
 
-    assert len(environment.get_actions_space()) == exp_n_actions
+    assert len(environment.get_action_space()) == exp_n_actions
 
 
 @pytest.mark.parametrize(
     "elements",
     [[1, 2, 3, 4], [1, 12, 84], [42]],
 )
-def test__get_actions_space__returns_actions_for_each_element(elements):
+def test__get_action_space__returns_actions_for_each_element(elements):
     environment = Crystal(elements=elements)
 
-    elements_in_action_space = set(e for e, n in environment.get_actions_space())
+    elements_in_action_space = set(e for e, n in environment.get_action_space())
     exp_elements_with_eos = set(elements + [-1])
 
     assert elements_in_action_space == exp_elements_with_eos
@@ -117,7 +118,7 @@ def test__get_actions_space__returns_actions_for_each_element(elements):
         (84, 3, 8),
     ],
 )
-def test__get_actions_space__returns_actions_for_each_step_size(
+def test__get_action_space__returns_actions_for_each_step_size(
     elements, min_atom_i, max_atom_i
 ):
     environment = Crystal(
@@ -125,24 +126,24 @@ def test__get_actions_space__returns_actions_for_each_step_size(
     )
 
     step_sizes_in_action_space = set(
-        n for e, n in environment.get_actions_space()[:-1]
+        n for e, n in environment.get_action_space()[:-1]
     )  # skip eos
     exp_step_sizes = set(range(min_atom_i, max_atom_i + 1))
 
     assert step_sizes_in_action_space == exp_step_sizes
 
 
-def test__get_mask_invalid_actions__all_false_but_eos_for_empty_state(env):
-    assert not any(env.get_mask_invalid_actions()[:-1])
-    assert env.get_mask_invalid_actions()[:-1]
+def test__get_mask_invalid_actions_forward__all_false_but_eos_for_empty_state(env):
+    assert not any(env.get_mask_invalid_actions_forward()[:-1])
+    assert env.get_mask_invalid_actions_forward()[:-1]
 
 
 @pytest.mark.parametrize(
     "state",
     [[0, 0, 0, 0], [0, 2, 0, 0], [0, 0, 0, 1], [1, 0, 1, 0]],
 )
-def test__get_mask_invalid_actions__already_set_elements_are_masked(env, state):
-    mask = env.get_mask_invalid_actions(state)[:-1]
+def test__get_mask_invalid_actions_forward__already_set_elements_are_masked(env, state):
+    mask = env.get_mask_invalid_actions_forward(state)[:-1]
     action_space = env.action_space[:-1]
 
     nonzero_indices = [i for i, s_i in enumerate(state) if s_i > 0]
@@ -154,10 +155,7 @@ def test__get_mask_invalid_actions__already_set_elements_are_masked(env, state):
 
 
 def test__get_parents__returns_no_parents_in_initial_state(env):
-    parents, actions = env.get_parents()
-
-    assert len(parents) == 0
-    assert len(actions) == 0
+    return common.test__get_parents__returns_no_parents_in_initial_state(env)
 
 
 def test__get_parents__returns_parents_after_step(env):

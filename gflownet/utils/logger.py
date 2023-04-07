@@ -1,10 +1,11 @@
 from datetime import datetime
+from pathlib import Path
+
+import matplotlib.pyplot as plt
 import numpy as np
 import torch
-from pathlib import Path
 from numpy import array
 from omegaconf import OmegaConf
-import matplotlib.pyplot as plt
 
 
 class Logger:
@@ -188,7 +189,7 @@ class Logger:
         states_term: list,
         batch_size: int,
         logz,
-        learning_rates: list, # [lr, lr_logZ]
+        learning_rates: list,  # [lr, lr_logZ]
         step: int,
         use_context: bool,
     ):
@@ -212,7 +213,7 @@ class Logger:
                     "batch_size",
                     "logZ",
                     "lr",
-                    "lr_logZ"
+                    "lr_logZ",
                 ],
                 [
                     np.mean(rewards),
@@ -224,7 +225,7 @@ class Logger:
                     batch_size,
                     logz,
                     learning_rates[0],
-                    learning_rates[1]
+                    learning_rates[1],
                 ],
             )
         )
