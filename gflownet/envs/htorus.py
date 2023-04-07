@@ -4,7 +4,7 @@ Classes to represent hyper-torus environments
 import itertools
 import re
 from copy import deepcopy
-from typing import List, Tuple
+from typing import List, Optional, Tuple
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -45,11 +45,11 @@ class HybridTorus(GFlowNetEnv):
         policy_encoding_dim_per_angle: int = None,
         do_nonzero_source_prob: bool = True,
         vonmises_min_concentration: float = 1e-3,
-        fixed_distribution: dict = {
+        fixed_distr_params: dict = {
             "vonmises_mean": 0.0,
             "vonmises_concentration": 0.5,
         },
-        random_distribution: dict = {
+        random_distr_params: dict = {
             "vonmises_mean": 0.0,
             "vonmises_concentration": 0.001,
         },
@@ -79,8 +79,8 @@ class HybridTorus(GFlowNetEnv):
         self.statebatch2oracle = self.statebatch2proxy
         # Base class init
         super().__init__(
-            fixed_distribution=fixed_distribution,
-            random_distribution=random_distribution,
+            fixed_distr_params=fixed_distr_params,
+            random_distr_params=random_distr_params,
             **kwargs,
         )
 
@@ -131,7 +131,11 @@ class HybridTorus(GFlowNetEnv):
         policy_output[2 :: self.n_params_per_dim] = params["vonmises_concentration"]
         return policy_output
 
-    def get_mask_invalid_actions_forward(self, state=None, done=None):
+    def get_mask_invalid_actions_forward(
+        self,
+        state: Optional[List] = None,
+        done: Optional[bool] = None,
+    ) -> List:
         """
         Returns a vector with the length of the discrete part of the action space:
         True if action is invalid going forward given the current state, False
@@ -168,10 +172,10 @@ class HybridTorus(GFlowNetEnv):
             mask = [False for _ in range(self.action_space_dim)]
             mask[-1] = True
         # Catch cases where it would not be possible to reach the initial state
-        noninit_states = [s for s, ss in zip(state[:-1], self.source_angles) if s != ss]
-        if len(noninit_states) > state[-1]:
+        noninit_dims = [s for s, ss in zip(state[:-1], self.source_angles) if s != ss]
+        if len(noninit_dims) > state[-1]:
             raise ValueError("This point in the code should never be reached!")
-        elif len(noninit_states) == state[-1] and len(noninit_states) >= state[-1] - 1:
+        elif len(noninit_dims) == state[-1] and len(noninit_dims) >= state[-1] - 1:
             mask = [
                 True if s == ss else m
                 for m, s, ss in zip(mask, state[:-1], self.source_angles)

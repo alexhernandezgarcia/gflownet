@@ -53,7 +53,7 @@ class ContinuousTorus(HybridTorus):
         random policy.
 
         For each dimension d of the hyper-torus and component c of the mixture, the
-        output of the policy should return 
+        output of the policy should return
           1) the weight of the component in the mixture
           2) the location of the von Mises distribution to sample the angle increment
           3) the log concentration of the von Mises distribution to sample the angle
@@ -69,7 +69,11 @@ class ContinuousTorus(HybridTorus):
         policy_output[2::3] = params["vonmises_concentration"]
         return policy_output
 
-    def get_mask_invalid_actions_forward(self, state=None, done=None):
+    def get_mask_invalid_actions_forward(
+        self,
+        state: Optional[List] = None,
+        done: Optional[bool] = None,
+    ) -> List:
         """
         Returns [True] if the only possible action is eos, [False] otherwise.
         """
