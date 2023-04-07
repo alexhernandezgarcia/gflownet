@@ -69,7 +69,7 @@ class Logger:
                     config=wandb_config,
                     # name=run_name,
                 )
-                run_folders = glob.glob(os.path.join(logdir.root, "wandb/run-*"))
+                run_folders = glob.glob(os.path.join(logdir.root, "wandb/*run-*"))
                 run_folders.sort()
                 run_folder = run_folders[-2]
                 path = os.path.join(run_folder, "files/cumulative_stats.pkl")
