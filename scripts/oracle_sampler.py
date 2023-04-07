@@ -1,18 +1,17 @@
 """
 Script to create data set of with nupack labels.
 """
-from argparse import ArgumentParser
 import os
 import pickle
-from pathlib import Path
-import yaml
 import time
+from argparse import ArgumentParser
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
-from tqdm import tqdm
-
+import yaml
 from oracle import Oracle
+from tqdm import tqdm
 from utils import get_config, namespace2dict, numpy2python
 
 

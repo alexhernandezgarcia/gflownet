@@ -1,12 +1,6 @@
 import numpy as np
-import torch
-
-from collections import defaultdict
-from copy import deepcopy
 from rdkit import Chem
-from rdkit.Chem import AllChem
-from rdkit.Chem import rdMolTransforms
-from rdkit.Chem import TorsionFingerprints
+from rdkit.Chem import AllChem, TorsionFingerprints, rdMolTransforms
 from rdkit.Geometry.rdGeometry import Point3D
 
 from gflownet.utils.molecule import constants
@@ -39,9 +33,7 @@ def get_dummy_ad_atom_positions():
 
 def get_dummy_ad_conf_base():
     pos = get_dummy_ad_atom_positions()
-    conf = ConformerBase(
-        pos, constants.ad_smiles, constants.ad_atom_types, constants.ad_free_tas
-    )
+    conf = ConformerBase(pos, constants.ad_smiles, constants.ad_free_tas)
     return conf
 
 
@@ -78,7 +70,8 @@ class ConformerBase:
         """Embed RDkit mol with a conformer and return the RDKit conformer object
         (which is synchronized with the RDKit molecule object)
         :param mol: rdkit.Chem.rdchem.Mol object defining the molecule
-        :param extre_opt: bool, if True, an additional optimisation of the conformer will be performed"""
+        :param extre_opt: bool, if True, an additional optimisation of the conformer will be performed
+        """
         AllChem.EmbedMolecule(mol)
         if extra_opt:
             AllChem.MMFFOptimizeMolecule(mol, confId=0, maxIters=1000)
@@ -86,7 +79,8 @@ class ConformerBase:
 
     def set_atom_positions(self, atom_positions):
         """Set atom positions of the self.rdk_conf to the input atom_positions values
-        :param atom_positions: 2d numpy array of shape [num atoms, 3] with new atom positions"""
+        :param atom_positions: 2d numpy array of shape [num atoms, 3] with new atom positions
+        """
         for idx, pos in enumerate(atom_positions):
             self.rdk_conf.SetAtomPosition(idx, Point3D(*pos))
 

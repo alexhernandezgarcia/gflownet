@@ -37,7 +37,7 @@ temperature_logits: 1.0
 # Percentage of random actions
 random_action_prob: 0.0
 # Percentage of trajectories in a batch from an empirical distribution
-pct_batch_empirical: 0.0
+pct_offline: 0.0
 # Replay buffer
 replay_capacity: 0
 policy:
@@ -54,3 +54,4 @@ oracle:
     # Number of samples for oracle metrics
     n: 500
 sample_only: False
+active_learning: False

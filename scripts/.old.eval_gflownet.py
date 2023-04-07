@@ -1,31 +1,31 @@
 """
 Computes evaluation metrics from a pre-trained GFlowNet model.
 """
-from argparse import ArgumentParser
 import copy
 import gzip
 import heapq
 import itertools
 import os
 import pickle
+import time
+from argparse import ArgumentParser
 from collections import defaultdict
 from itertools import count, product
 from pathlib import Path
-import yaml
-import time
 
 import numpy as np
 import pandas as pd
-from scipy.stats import norm
-from tqdm import tqdm
 import torch
 import torch.nn as nn
-from torch.distributions.categorical import Categorical
-
-from oracle import Oracle
-from utils import get_config, namespace2dict, numpy2python
-from gflownet import GFlowNetAgent, make_mlp, batch2dict
+import yaml
 from aptamers import AptamerSeq
+from oracle import Oracle
+from scipy.stats import norm
+from torch.distributions.categorical import Categorical
+from tqdm import tqdm
+from utils import get_config, namespace2dict, numpy2python
+
+from gflownet import GFlowNetAgent, batch2dict, make_mlp
 
 # Float and Long tensors
 _dev = [torch.device("cpu")]

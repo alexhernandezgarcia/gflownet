@@ -1,12 +1,12 @@
 """import statement"""
-from argparse import Namespace
-import yaml
-from pathlib import Path
-import numpy as np
-import matplotlib.pyplot as plt
 import os
 import time
+from argparse import Namespace
+from pathlib import Path
 
+import matplotlib.pyplot as plt
+import numpy as np
+import yaml
 
 """
 This is a general utilities file for the active learning pipeline

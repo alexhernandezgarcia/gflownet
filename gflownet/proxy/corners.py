@@ -1,7 +1,8 @@
-from gflownet.proxy.base import Proxy
 import numpy as np
 import torch
 from torchtyping import TensorType
+
+from gflownet.proxy.base import Proxy
 
 
 class Corners(Proxy):
@@ -15,7 +16,9 @@ class Corners(Proxy):
         self.mu = mu
         self.sigma = sigma
 
-    def setup(self):
+    def setup(self, env=None):
+        if env:
+            self.n_dim = env.n_dim
         if self.sigma and self.mu and self.n_dim:
             self.mu_vec = self.mu * torch.ones(
                 self.n_dim, device=self.device, dtype=self.float

@@ -1,17 +1,15 @@
+from abc import ABC
+
+import numpy as np
 import torch
 
 # from botorch.fit import fit_gpytorch_mll
 from botorch.models import SingleTaskGP
 from botorch.test_functions import Hartmann
 from gpytorch.mlls import ExactMarginalLogLikelihood
-from torch.optim import Adam
-from torch.nn import Linear
-from torch.nn import MSELoss
-from torch.nn import Sequential, ReLU, Dropout
 from torch import tensor
-import numpy as np
-from abc import ABC
-
+from torch.nn import Dropout, Linear, MSELoss, ReLU, Sequential
+from torch.optim import Adam
 
 neg_hartmann6 = Hartmann(dim=6, negate=True)
 
@@ -57,8 +55,8 @@ for epoch in range(NUM_EPOCHS):
 
 from botorch.acquisition.max_value_entropy_search import qMaxValueEntropy
 from botorch.models.model import Model
-from gpytorch.distributions import MultivariateNormal, MultitaskMultivariateNormal
 from botorch.posteriors.gpytorch import GPyTorchPosterior
+from gpytorch.distributions import MultitaskMultivariateNormal, MultivariateNormal
 
 # from botorch.posteriors.
 from torch.distributions import Normal
