@@ -2,7 +2,7 @@
 Classes to represent hyper-cube environments
 """
 import itertools
-from typing import List, Tuple
+from typing import List, Optional, Tuple
 
 import numpy as np
 import numpy.typing as npt
@@ -26,7 +26,11 @@ class HybridCube(GFlowNetEnv):
     Attributes
     ----------
     n_dim : int
-        Dimensionality of the hyper-cube
+        Dimensionality of the hyper-cube.
+
+    max_val : float
+        Max length of the hyper-cube.
+
     """
 
     def __init__(
@@ -35,18 +39,18 @@ class HybridCube(GFlowNetEnv):
         max_val: float = 1.0,
         n_comp: int = 1,
         do_nonzero_source_prob: bool = True,
-        fixed_distribution: dict = {
+        fixed_distr_params: dict = {
             "beta_alpha": 2.0,
             "beta_beta": 5.0,
         },
-        random_distribution: dict = {
+        random_distr_params: dict = {
             "beta_alpha": 1.0,
             "beta_beta": 1.0,
         },
         **kwargs,
     ):
         assert n_dim > 0
-        assert max_val > 1.0
+        assert max_val > 0.0
         assert n_comp > 0
         # Main properties
         self.continuous = True
@@ -63,10 +67,18 @@ class HybridCube(GFlowNetEnv):
         self.source = [0.0 for _ in range(self.n_dim)]
         # End-of-sequence action: (n_dim, 0)
         self.eos = (self.n_dim, 0)
+        # Conversions: only conversions to policy are implemented and the rest are the
+        # same
+        self.state2proxy = self.state2policy
+        self.statebatch2proxy = self.statebatch2policy
+        self.statetorch2proxy = self.statetorch2policy
+        self.state2oracle = self.state2proxy
+        self.statebatch2oracle = self.statebatch2proxy
+        self.statetorch2oracle = self.statetorch2proxy
         # Base class init
         super().__init__(
-            fixed_distribution=fixed_distribution,
-            random_distribution=random_distribution,
+            fixed_distr_params=fixed_distr_params,
+            random_distr_params=random_distr_params,
             **kwargs,
         )
 
@@ -86,7 +98,7 @@ class HybridCube(GFlowNetEnv):
         actions.append(self.eos)
         return actions
 
-    def get_policy_output(self, params: dict):
+    def get_policy_output(self, params: dict) -> TensorType["policy_output_dim"]:
         """
         Defines the structure of the output of the policy model, from which an
         action is to be determined or sampled, by returning a vector with a fixed
@@ -107,13 +119,20 @@ class HybridCube(GFlowNetEnv):
         correspond to the categorical logits. Then, the next 3 x C entries in the
         policy output correspond to the first dimension, and so on.
         """
-        self.n_logits = self.n_dim + 1
-        policy_output_fixed = np.ones(self.n_dim * self.n_comp * 3 + self.n_logits)
-        policy_output_fixed[self.n_logits + 1 :: 3] = params["beta_alpha"]
-        policy_output_fixed[self.n_logits + 2 :: 3] = params["beta_beta"]
+        policy_output_fixed = torch.ones(
+            self.n_dim * self.n_comp * 3 + self.n_dim + 1,
+            device=self.device,
+            dtype=self.float,
+        )
+        policy_output_fixed[self.n_dim + 2 :: 3] = params["beta_alpha"]
+        policy_output_fixed[self.n_dim + 3 :: 3] = params["beta_beta"]
         return policy_output_fixed
 
-    def get_mask_invalid_actions_forward(self, state=None, done=None):
+    def get_mask_invalid_actions_forward(
+        self,
+        state: Optional[List] = None,
+        done: Optional[bool] = None,
+    ) -> List:
         """
         Returns a vector with the length of the discrete part of the action space + 1:
         True if action is invalid going forward given the current state, False
@@ -128,10 +147,9 @@ class HybridCube(GFlowNetEnv):
             done = self.done
         if done:
             return [True for _ in range(self.action_space_dim)]
-        if (
-            any([s > self.max_val for s in self.state])
-            or self.n_actions >= self.max_traj_length
-        ):
+        # If the value of any dimension is greater than max_val, then next action can
+        # only be EOS.
+        if any([s > self.max_val for s in self.state]):
             mask = [True for _ in range(self.action_space_dim)]
             mask[-1] = False
         else:
@@ -151,35 +169,46 @@ class HybridCube(GFlowNetEnv):
         if done:
             mask = [True for _ in range(self.action_space_dim)]
             mask[-1] = False
+        # If the value of any dimension is smaller than 0.0, then next action can
+        # only be EOS (return to source).
+        if any([s < 0.0 for s in self.state]):
+            mask = [True for _ in range(self.action_space_dim)]
+            mask[-1] = False
         else:
             mask = [False for _ in range(self.action_space_dim)]
-        # TODO: review: anything to do with max_value?
         return mask
 
-    def statebatch2proxy(self, states: List[List] = None) -> npt.NDArray[np.float32]:
+    def statetorch2policy(
+        self, states: TensorType["batch", "state_dim"] = None
+    ) -> TensorType["batch", "policy_input_dim"]:
         """
-        Scales the states into [0, max_val]
+        Clips the states into [0, max_val]
 
         Args
         ----
         state : list
             State
         """
-        return -1.0 + np.array(states) * 2 / self.max_val
+        return torch.clip(states, min=0.0, max=self.max_val)
+
+    def statebatch2policy(self, states: List[List] = None) -> npt.NDArray[np.float32]:
+        """
+        Clips the states into [0, max_val]
+
+        Args
+        ----
+        state : list
+            State
+        """
+        return np.clip(np.array(states), a_min=0.0, a_max=self.max_val)
 
     def state2policy(self, state: List = None) -> List:
         """
-        Returns the state as is.
+        Clips the state into [0, max_val]
         """
         if state is None:
             state = self.state.copy()
-        return state
-
-    def policy2state(self, state_policy: List) -> List:
-        """
-        Returns the input as is.
-        """
-        return state_policy
+        return [min(max(0.0, s), self.max_val) for s in state]
 
     def state2readable(self, state: List) -> str:
         """
@@ -194,16 +223,6 @@ class HybridCube(GFlowNetEnv):
         positions.
         """
         return [el for el in readable.strip("[]").split(" ")]
-
-    def reset(self, env_id=None):
-        """
-        Resets the environment.
-        """
-        self.state = self.source.copy()
-        self.n_actions = 0
-        self.done = False
-        self.id = env_id
-        return self
 
     def get_parents(
         self, state: List = None, done: bool = None, action: Tuple[int, float] = None
