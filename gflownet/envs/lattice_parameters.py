@@ -68,12 +68,6 @@ class LatticeParameters(Grid):
 
         max_increment : int
             Maximum increment of each dimension by the actions.
-
-        min_step_len : int
-            Minimum value of the step (how many cells can be incremented in a single step).
-
-        max_step_len : int
-            Maximum value of the step (how many cells can be incremented in a single step).
         """
         super().__init__(
             n_dim=6,
