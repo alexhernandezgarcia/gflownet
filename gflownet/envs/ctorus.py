@@ -46,7 +46,7 @@ class ContinuousTorus(HybridTorus):
         actions = [generic_action, self.eos]
         return actions
 
-    def get_policy_output(self, params: dict):
+    def get_policy_output(self, params: dict) -> TensorType["policy_output_dim"]:
         """
         Defines the structure of the output of the policy model, from which an
         action is to be determined or sampled, by returning a vector with a fixed

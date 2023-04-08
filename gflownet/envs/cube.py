@@ -351,14 +351,14 @@ class HybridCube(Cube):
         correspond to the categorical logits. Then, the next 3 x C entries in the
         policy output correspond to the first dimension, and so on.
         """
-        policy_output_fixed = torch.ones(
+        policy_output = torch.ones(
             self.n_dim * self.n_comp * 3 + self.n_dim + 1,
             device=self.device,
             dtype=self.float,
         )
-        policy_output_fixed[self.n_dim + 2 :: 3] = params["beta_alpha"]
-        policy_output_fixed[self.n_dim + 3 :: 3] = params["beta_beta"]
-        return policy_output_fixed
+        policy_output[self.n_dim + 2 :: 3] = params["beta_alpha"]
+        policy_output[self.n_dim + 3 :: 3] = params["beta_beta"]
+        return policy_output
 
     def get_mask_invalid_actions_forward(
         self,
@@ -658,23 +658,22 @@ class ContinuousCube(Cube):
           2) the log(alpha) parameter of the Beta distribution to sample the increment
           3) the log(beta) parameter of the Beta distribution to sample the increment
 
-        Additionally, the policy output contains one logit per dimension plus one logit
-        for the EOS action, for the categorical distribution over dimensions.
+        Additionally, the policy output contains one logit of a Bernoulli distribution
+        to model the (discrete) forward probability of selecting the EOS action and the
+        (discrete) backward probability of returning to the source node.
 
-        Therefore, the output of the policy model has dimensionality D x C x 3 + D + 1,
+        Therefore, the output of the policy model has dimensionality D x C x 3 + 1,
         where D is the number of dimensions (self.n_dim) and C is the number of
-        components (self.n_comp). The first D + 1 entries in the policy output
-        correspond to the categorical logits. Then, the next 3 x C entries in the
-        policy output correspond to the first dimension, and so on.
+        components (self.n_comp).
         """
-        policy_output_fixed = torch.ones(
-            self.n_dim * self.n_comp * 3 + self.n_dim + 1,
+        policy_output = torch.ones(
+            self.n_dim * self.n_comp * 3 + 1,
             device=self.device,
             dtype=self.float,
         )
-        policy_output_fixed[self.n_dim + 2 :: 3] = params["beta_alpha"]
-        policy_output_fixed[self.n_dim + 3 :: 3] = params["beta_beta"]
-        return policy_output_fixed
+        policy_output[1::3] = params["beta_alpha"]
+        policy_output[2::3] = params["beta_beta"]
+        return policy_output
 
     def get_mask_invalid_actions_forward(
         self,
@@ -682,12 +681,13 @@ class ContinuousCube(Cube):
         done: Optional[bool] = None,
     ) -> List:
         """
-        Returns a vector with the length of the discrete part of the action space + 1:
+        Returns a vector with the length of the discrete part of the action space:
         True if action is invalid going forward given the current state, False
         otherwise.
 
-        All discrete actions are valid, including eos, except if the value of any
-        dimension has excedded max_val, in which case the only valid action is eos.
+        If the state is the source state, the only valid action is action_source. EOS
+        is valid valid from any state (including the source state) and EOS is the only
+        possible action if the value of any dimension has excedded max_val.
         """
         if state is None:
             state = self.state.copy()
@@ -695,24 +695,30 @@ class ContinuousCube(Cube):
             done = self.done
         if done:
             return [True for _ in range(self.action_space_dim)]
-        # If state is source, then next action can only be the action from source.
-        if all([s == ss for s in zip(self.state, self.source)]):
-            mask = [True for _ in range(self.action_space_dim)]
-            mask[-2] = False
+        # If state is source, the generic action is not valid.
+        if all([s == ss for s, ss in zip(state, self.source)]):
+            mask = [False for _ in range(self.action_space_dim)]
+            mask[0] = True
         # If the value of any dimension is greater than max_val, then next action can
         # only be EOS.
-        elif any([s > self.max_val for s in self.state]):
+        elif any([s > self.max_val for s in state]):
             mask = [True for _ in range(self.action_space_dim)]
             mask[-1] = False
+        # Otherwise, only the action_source is not valid
         else:
             mask = [False for _ in range(self.action_space_dim)]
+            mask[-2] = True
         return mask
 
     def get_mask_invalid_actions_backward(self, state=None, done=None, parents_a=None):
         """
-        Returns a vector with the length of the discrete part of the action space + 1:
+        Returns a vector with the length of the discrete part of the action space:
         True if action is invalid going backward given the current state, False
         otherwise.
+
+        The EOS action (returning to the source state for backward actions) is valid
+        from any state. The source action is ignored (invalid) for backward actions. If
+        any dimension is smaller than 0, then the only valid action is EOS.
         """
         if state is None:
             state = self.state.copy()
@@ -721,13 +727,15 @@ class ContinuousCube(Cube):
         if done:
             mask = [True for _ in range(self.action_space_dim)]
             mask[-1] = False
-        # If the value of any dimension is smaller than 0.0, then next action can
-        # return to source.
-        if any([s < 0.0 for s in self.state]):
+        # If the value of any dimension is smaller than 0.0, then next action can only
+        # be return to source (EOS)
+        if any([s < 0.0 for s in state]):
             mask = [True for _ in range(self.action_space_dim)]
-            mask[-2] = False
+            mask[-1] = False
         else:
             mask = [False for _ in range(self.action_space_dim)]
+        # action_source is ignored going backwards, thus always invalid.
+        mask[-2] = True
         return mask
 
     def get_parents(
@@ -762,11 +770,11 @@ class ContinuousCube(Cube):
         if done:
             return [state], [self.eos]
         # If source state
-        elif state[-1] == 0:
+        if all([s == ss for s, ss in zip(state, self.source)]):
             return [], []
         else:
-            dim, incr = action
-            state[dim] -= incr
+            for dim, incr in enumerate(action):
+                state[dim] -= incr
             parents = [state]
             return parents, [action]
 
@@ -782,53 +790,47 @@ class ContinuousCube(Cube):
         Samples a batch of actions from a batch of policy outputs.
         """
         device = policy_outputs.device
+        import ipdb
+
+        ipdb.set_trace()
+        mask_states_sample = ~mask_invalid_actions.flatten()
         n_states = policy_outputs.shape[0]
-        ns_range = torch.arange(n_states).to(device)
-        # Sample dimensions
-        if sampling_method == "uniform":
-            logits_dims = torch.ones(n_states, self.policy_output_dim).to(device)
-        elif sampling_method == "policy":
-            logits_dims = policy_outputs[:, 0 : self.n_dim + 1]
-            logits_dims /= temperature_logits
-        if mask_invalid_actions is not None:
-            logits_dims[mask_invalid_actions] = -loginf
-        dimensions = Categorical(logits=logits_dims).sample()
-        logprobs_dim = self.logsoftmax(logits_dims)[ns_range, dimensions]
-        # Sample increments
-        ns_range_noeos = ns_range[dimensions != self.eos[0]]
-        dimensions_noeos = dimensions[dimensions != self.eos[0]]
-        increments = torch.zeros(n_states).to(device)
-        logprobs_increments = torch.zeros(n_states).to(device)
-        if len(dimensions_noeos) > 0:
+        # Sample angle increments
+        angles = torch.zeros(n_states, self.n_dim).to(device)
+        logprobs = torch.zeros(n_states, self.n_dim).to(device)
+        if torch.any(mask_states_sample):
             if sampling_method == "uniform":
-                distr_increments = Uniform(
+                distr_angles = Uniform(
                     torch.zeros(len(ns_range_noeos)),
-                    self.max_val * torch.ones(len(ns_range_noeos)),
+                    2 * torch.pi * torch.ones(len(ns_range_noeos)),
                 )
             elif sampling_method == "policy":
-                alphas = policy_outputs[:, self.n_dim + 2 :: 3][
-                    ns_range_noeos, dimensions_noeos
-                ]
-                betas = policy_outputs[:, self.n_dim + 3 :: 3][
-                    ns_range_noeos, dimensions_noeos
-                ]
-                distr_increments = Beta(torch.exp(alphas), torch.exp(betas))
-            increments[ns_range_noeos] = distr_increments.sample()
-            logprobs_increments[ns_range_noeos] = distr_increments.log_prob(
-                increments[ns_range_noeos]
+                mix_logits = policy_outputs[mask_states_sample, 0::3].reshape(
+                    -1, self.n_dim, self.n_comp
+                )
+                mix = Categorical(logits=mix_logits)
+                locations = policy_outputs[mask_states_sample, 1::3].reshape(
+                    -1, self.n_dim, self.n_comp
+                )
+                concentrations = policy_outputs[mask_states_sample, 2::3].reshape(
+                    -1, self.n_dim, self.n_comp
+                )
+                vonmises = VonMises(
+                    locations,
+                    torch.exp(concentrations) + self.vonmises_min_concentration,
+                )
+                distr_angles = MixtureSameFamily(mix, vonmises)
+            angles[mask_states_sample] = distr_angles.sample()
+            logprobs[mask_states_sample] = distr_angles.log_prob(
+                angles[mask_states_sample]
             )
-            # Apply minimum increment
-            increments[ns_range_noeos] = torch.min(
-                increments[ns_range_noeos],
-                self.min_incr * torch.ones(ns_range_noeos.shape[0]),
-            )
-        # Combined probabilities
-        logprobs = logprobs_dim + logprobs_increments
+        logprobs = torch.sum(logprobs, axis=1)
         # Build actions
-        actions = [
-            (dimension, incr)
-            for dimension, incr in zip(dimensions.tolist(), increments.tolist())
-        ]
+        actions_tensor = torch.inf * torch.ones(
+            angles.shape, dtype=self.float, device=device
+        )
+        actions_tensor[mask_states_sample, :] = angles[mask_states_sample]
+        actions = [tuple(a.tolist()) for a in actions_tensor]
         return actions, logprobs
 
     def get_logprobs(
@@ -893,29 +895,21 @@ class ContinuousCube(Cube):
         """
         if self.done:
             return self.state, action, False
-        # If action is eos or any dimension is beyond max_val or n_actions has reached
-        # max_traj_length, then force eos
-        elif (
-            action[0] == self.eos
-            or any([s > self.max_val for s in self.state])
-            or self.n_actions >= self.max_traj_length
-        ):
+        # If action is eos or any dimension is beyond max_val, then force eos
+        elif action == self.eos or any([s > self.max_val for s in self.state]):
             self.done = True
-            self.n_actions += 1
-            return self.state, (self.eos, 0.0), True
+            return self.state, self.eos, True
         # If action is not eos, then perform action
-        elif action[0] != self.eos:
-            self.n_actions += 1
-            self.state[action[0]] += action[1]
-            return self.state, action, True
-        # Otherwise (unreachable?) it is invalid
         else:
-            return self.state, action, False
+            for dim, incr in enumerate(action):
+                self.state[dim] += incr
+            return self.state, action, True
 
-    def get_grid_terminating_states(self, n_states: int) -> List[List]:
-        n_per_dim = int(np.ceil(n_states ** (1 / self.n_dim)))
-        linspaces = [np.linspace(0, self.max_val, n_per_dim) for _ in range(self.n_dim)]
-        states = list(itertools.product(*linspaces))
-        # TODO: check if necessary
-        states = [list(el) for el in states]
-        return states
+
+#     def get_grid_terminating_states(self, n_states: int) -> List[List]:
+#         n_per_dim = int(np.ceil(n_states ** (1 / self.n_dim)))
+#         linspaces = [np.linspace(0, self.max_val, n_per_dim) for _ in range(self.n_dim)]
+#         states = list(itertools.product(*linspaces))
+#         # TODO: check if necessary
+#         states = [list(el) for el in states]
+#         return states
