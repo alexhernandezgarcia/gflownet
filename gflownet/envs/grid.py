@@ -8,6 +8,8 @@ import numpy as np
 import numpy.typing as npt
 import torch
 from torchtyping import TensorType
+import matplotlib.pyplot as plt
+from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 from gflownet.envs.base import GFlowNetEnv
 
@@ -392,22 +394,45 @@ class Grid(GFlowNetEnv):
         states = np.random.randint(low=0, high=self.length, size=(n_states, self.n_dim))
         return states.tolist()
 
-    def get_pairwise_distance(self, sample_set1, sample_set2=None):
+    def plot_samples_frequency(self, samples, ax=None, title=None, rescale=1):
         """
-        Calculates the pairwise distance between two set of states.
+        Plot 2D histogram of samples.
         """
-        if sample_set2 == None:
-            get_diversity_within_set = True
-            sample_set2 = sample_set1
+        if self.n_dim > 2:
+            return None
+        if ax is None:
+            fig, ax = plt.subplots()
+            standalone = True
         else:
-            get_diversity_within_set = False
-        sample_states1 = torch.tensor(sample_set1, device=self.device, dtype=self.float)
-        sample_states2 = torch.tensor(sample_set2, device=self.device, dtype=self.float)
-        dist_matrix = torch.cdist(sample_states1, sample_states2, p=2)
-        if get_diversity_within_set == True:
-            dist_upper_triangle = torch.triu(dist_matrix, diagonal=1)
-            dist_vector = dist_upper_triangle[dist_upper_triangle != 0]
-            return dist_vector
+            standalone = False
+        # assuming the first time this function would be called when the dataset is created
+        if self.rescale == None:
+            self.rescale = rescale
+        # make a list of integers from 0 to n_dim
+        if self.rescale != 1:
+            step = int(self.length / self.rescale)
         else:
-            dist_vector = torch.min(dist_matrix, dim=1)[0]
-            return dist_vector
+            step = 1
+        ax.set_xticks(np.arange(start=0, stop=self.length, step=step))
+        ax.set_yticks(np.arange(start=0, stop=self.length, step=step))
+        # check if samples is on GPU
+        if torch.is_tensor(samples) and samples.is_cuda:
+            samples = samples.detach().cpu()
+        states = np.array(samples).astype(int)
+        grid = np.zeros((self.length, self.length))
+        if title == None:
+            ax.set_title("Frequency of Coordinates Sampled")
+        else:
+            ax.set_title(title)
+        # TODO: optimize
+        for state in states:
+            grid[state[0], state[1]] += 1
+        im = ax.imshow(grid)
+        divider = make_axes_locatable(ax)
+        cax = divider.append_axes("right", size="5%", pad=0.05)
+        plt.colorbar(im, cax=cax)
+        plt.show()
+        if standalone == True:
+            plt.tight_layout()
+            plt.close()
+        return ax

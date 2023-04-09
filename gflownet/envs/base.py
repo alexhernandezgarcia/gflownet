@@ -13,6 +13,7 @@ from torchtyping import TensorType
 
 from gflownet.utils.common import set_device, set_float_precision
 from pathlib import Path
+import matplotlib.pyplot as plt
 
 
 class GFlowNetEnv:
@@ -595,3 +596,32 @@ class GFlowNetEnv:
     def setup_proxy(self):
         if self.proxy:
             self.proxy.setup(self)
+
+    def plot_reward_distribution(
+        self, states=None, scores=None, ax=None, title=None, oracle=None, **kwargs
+    ):
+        if ax is None:
+            fig, ax = plt.subplots()
+            standalone = True
+        else:
+            standalone = False
+        if title == None:
+            title = "Scores of Sampled States"
+        if oracle is None:
+            oracle = self.oracle
+        if scores is None:
+            if isinstance(states, torch.Tensor) == False:
+                states = torch.tensor(states, device=self.device, dtype=self.float)
+            oracle_states = self.statetorch2oracle(states)
+            scores = oracle(oracle_states)
+        if isinstance(scores, TensorType):
+            scores = scores.cpu().detach().numpy()
+        ax.hist(scores)
+        ax.set_title(title)
+        ax.set_ylabel("Number of Samples")
+        ax.set_xlabel("Energy")
+        plt.show()
+        if standalone == True:
+            plt.tight_layout()
+            plt.close()
+        return ax

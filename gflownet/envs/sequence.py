@@ -469,26 +469,3 @@ class Sequence(GFlowNetEnv):
                 valid = True
                 self.n_actions += 1
             return self.state, (self.eos,), valid
-
-    def get_pairwise_distance(self, samples, *kwargs):
-        dists = []
-        for pair in itertools.combinations(samples, 2):
-            distance = self.get_distance(*pair)
-            dists.append(distance)
-        dists = torch.FloatTensor(dists)
-        return dists
-
-    def get_distance_from_D0(self, samples, dataset_states):
-        # TODO: optimize
-        dataset_samples = self.statetorch2oracle(dataset_states)
-        min_dists = []
-        for sample in samples:
-            dists = []
-            sample_repeated = itertools.repeat(sample, len(dataset_samples))
-            for s_0, x_0 in zip(sample_repeated, dataset_samples):
-                dists.append(self.get_distance(s_0, x_0))
-            min_dists.append(np.min(np.array(dists)))
-        return torch.FloatTensor(min_dists)
-
-    def get_distance(self, seq1, seq2):
-        return levenshtein(seq1, seq2) / 1
