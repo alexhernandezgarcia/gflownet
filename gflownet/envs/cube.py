@@ -9,7 +9,7 @@ import numpy as np
 import numpy.typing as npt
 import pandas as pd
 import torch
-from torch.distributions import Beta, Categorical, Uniform
+from torch.distributions import Bernoulli, Beta, Categorical, Uniform,  MixtureSameFamily
 from torchtyping import TensorType
 
 from gflownet.envs.base import GFlowNetEnv
@@ -671,8 +671,8 @@ class ContinuousCube(Cube):
             device=self.device,
             dtype=self.float,
         )
-        policy_output[1::3] = params["beta_alpha"]
-        policy_output[2::3] = params["beta_beta"]
+        policy_output[1:-1:3] = params["beta_alpha"]
+        policy_output[2:-1:3] = params["beta_beta"]
         return policy_output
 
     def get_mask_invalid_actions_forward(
@@ -790,54 +790,58 @@ class ContinuousCube(Cube):
         Samples a batch of actions from a batch of policy outputs.
         """
         device = policy_outputs.device
-        import ipdb
-
-        ipdb.set_trace()
-        mask_states_sample = ~mask_invalid_actions.flatten()
         n_states = policy_outputs.shape[0]
+        ns_range = torch.arange(n_states).to(device)
+        # EOS
+        mask_eos = torch.logical_and(mask_invalid_actions[:, 0], mask_invalid_actions[:, 1])
+        distr_eos = Bernoulli(logits=policy_outputs[:, -1])
+        states_eos = distr_eos.sample().to(torch.bool)
+        mask_eos[states_eos] = True
+        mask_sample = ~mask_eos
         # Sample angle increments
-        angles = torch.zeros(n_states, self.n_dim).to(device)
-        logprobs = torch.zeros(n_states, self.n_dim).to(device)
-        if torch.any(mask_states_sample):
+        ns_range_sample = ns_range[mask_sample]
+        n_states_sample = len(ns_range_sample)
+        increments = torch.inf * torch.ones((n_states, self.n_dim), device=device, dtype=self.float)
+        logprobs = torch.zeros((n_states, self.n_dim), device=device, dtype=self.float)
+        if torch.any(mask_sample):
             if sampling_method == "uniform":
-                distr_angles = Uniform(
-                    torch.zeros(len(ns_range_noeos)),
-                    2 * torch.pi * torch.ones(len(ns_range_noeos)),
+                distr_increments = Uniform(
+                    torch.zeros(len(ns_range_sample)),
+                    torch.ones(len(ns_range_sample)),
                 )
             elif sampling_method == "policy":
-                mix_logits = policy_outputs[mask_states_sample, 0::3].reshape(
+                mix_logits = policy_outputs[mask_sample, 0:-1:3].reshape(
                     -1, self.n_dim, self.n_comp
                 )
                 mix = Categorical(logits=mix_logits)
-                locations = policy_outputs[mask_states_sample, 1::3].reshape(
+                alphas = policy_outputs[mask_sample, 1:-1:3].reshape(
                     -1, self.n_dim, self.n_comp
                 )
-                concentrations = policy_outputs[mask_states_sample, 2::3].reshape(
+                betas = policy_outputs[mask_sample, 2:-1:3].reshape(
                     -1, self.n_dim, self.n_comp
                 )
-                vonmises = VonMises(
-                    locations,
-                    torch.exp(concentrations) + self.vonmises_min_concentration,
-                )
-                distr_angles = MixtureSameFamily(mix, vonmises)
-            angles[mask_states_sample] = distr_angles.sample()
-            logprobs[mask_states_sample] = distr_angles.log_prob(
-                angles[mask_states_sample]
+                beta_distr = Beta(torch.exp(alphas), torch.exp(betas))
+                distr_increments = MixtureSameFamily(mix, beta_distr)
+            increments[mask_sample] = distr_increments.sample()
+            logprobs[mask_sample] = distr_increments.log_prob(increments[mask_sample])
+            # Apply minimum increment to generic (not from source) actions
+            # TODO: before or after computing logprob?
+            mask_action_generic = ~mask_invalid_actions[:, 0]
+            increments[mask_action_generic] = torch.max(
+                increments[mask_action_generic],
+                self.min_incr * torch.ones(increments[mask_action_generic].shape, device=device),
             )
+        # TODO: Consider Bernoulli logprobs.
         logprobs = torch.sum(logprobs, axis=1)
         # Build actions
-        actions_tensor = torch.inf * torch.ones(
-            angles.shape, dtype=self.float, device=device
-        )
-        actions_tensor[mask_states_sample, :] = angles[mask_states_sample]
-        actions = [tuple(a.tolist()) for a in actions_tensor]
+        actions = [tuple(a.tolist()) for a in increments]
         return actions, logprobs
 
     def get_logprobs(
         self,
         policy_outputs: TensorType["n_states", "policy_output_dim"],
         is_forward: bool,
-        actions: TensorType["n_states", 2],
+        actions: TensorType["n_states", "n_dim"],
         states_target: TensorType["n_states", "policy_input_dim"],
         mask_invalid_actions: TensorType["batch_size", "policy_output_dim"] = None,
         loginf: float = 1000,
@@ -845,6 +849,56 @@ class ContinuousCube(Cube):
         """
         Computes log probabilities of actions given policy outputs and actions.
         """
+        device = policy_outputs.device
+        n_states = policy_outputs.shape[0]
+        ns_range = torch.arange(n_states).to(device)
+        # EOS actions
+        mask_actions_eos = torch.all(actions == torch.inf, axis=1)
+        logprobs_eos = torch.zeros(n_states, device=device, dtype=self.float)
+        distr_eos = Bernoulli(logits=policy_outputs[:, -1])
+        logprobs_eos = distr_eos.log_prob(mask_actions_eos.to(self.float))
+        mask_force_eos = torch.logical_and(mask_invalid_actions[:, 0], mask_invalid_actions[:, 1])
+        logprobs_eos[mask_force_eos] = -loginf
+        import ipdb; ipdb.set_trace()
+        # Increments
+        mask_sample = torch.logical_and(~mask_actions_eos, ~mask_force_eos)
+        ns_range_sample = ns_range[mask_sample]
+        n_states_sample = len(ns_range_sample)
+        increments = torch.inf * torch.ones((n_states, self.n_dim), device=device, dtype=self.float)
+        logprobs = torch.zeros((n_states, self.n_dim), device=device, dtype=self.float)
+        if torch.any(mask_sample):
+            increments = actions[mask_sample, :]
+            mix_logits = policy_outputs[mask_sample, 0:-1:3].reshape(
+                -1, self.n_dim, self.n_comp
+            )
+            mix = Categorical(logits=mix_logits)
+            alphas = policy_outputs[mask_sample, 1:-1:3].reshape(
+                -1, self.n_dim, self.n_comp
+            )
+            betas = policy_outputs[mask_sample, 2:-1:3].reshape(
+                -1, self.n_dim, self.n_comp
+            )
+            beta_distr = Beta(torch.exp(alphas), torch.exp(betas))
+            distr_increments = MixtureSameFamily(mix, beta_distr)
+            # TODO: what to do with the minimum increments, since the logprob will not
+            # reflect the tru probability of sampling that increment.
+            logprobs_sample = distr_increments.log_prob(increments)
+            increments[mask_sample] = distr_increments.sample()
+            logprobs[mask_sample] = distr_increments.log_prob(increments[mask_sample])
+            # Apply minimum increment to generic (not from source) actions
+            # TODO: before or after computing logprob?
+            mask_action_generic = ~mask_invalid_actions[:, 0]
+            increments[mask_action_generic] = torch.max(
+                increments[mask_action_generic],
+                self.min_incr * torch.ones(increments[mask_action_generic].shape, device=device),
+            )
+        logprobs = torch.sum(logprobs, axis=1)
+        # Build actions
+        actions = [tuple(a.tolist()) for a in increments]
+        import ipdb; ipdb.set_trace()
+        return actions, logprobs
+
+
         device = policy_outputs.device
         dimensions, steps = zip(*actions)
         dimensions = torch.LongTensor([d.long() for d in dimensions]).to(device)
