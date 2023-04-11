@@ -407,19 +407,16 @@ class Sequence(GFlowNetEnv):
                 state_last_element = int(torch.where(state == self.padding_idx)[0][0])
             else:
                 state_last_element = len(state)
-            for idx, a in enumerate(self.action_space):
-                is_parent = state[
-                    state_last_element - len(a) : state_last_element
-                ] == torch.LongTensor(a)
-                if not isinstance(is_parent, bool):
-                    is_parent = all(is_parent)
-                if is_parent:
+            max_parent_action_length = self.max_word_len + 1 - self.min_word_len
+            for parent_action_length in range(1, max_parent_action_length + 1):
+                parent_action = tuple(state[state_last_element - parent_action_length : state_last_element].numpy())
+                if parent_action in self.action_space:
                     parent = state.clone().detach()
                     parent[
-                        state_last_element - len(a) : state_last_element
+                        state_last_element - parent_action_length : state_last_element
                     ] = self.padding_idx
                     parents.append(parent)
-                    actions.append(a)
+                    actions.append(parent_action)
         return parents, actions
 
     def step(self, action: Tuple[int]) -> Tuple[List[int], Tuple[int, int], bool]:
