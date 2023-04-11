@@ -37,6 +37,7 @@ class GFlowNetEnv:
         oracle=None,
         fixed_distribution: dict = None,
         random_distribution: dict = None,
+        corr_type: str = None,
         **kwargs,
     ):
         # Call reset() to set initial state, done, n_actions
@@ -86,6 +87,7 @@ class GFlowNetEnv:
         if proxy is not None and self.proxy == self.oracle:
             self.statebatch2proxy = self.statebatch2oracle
             self.statetorch2proxy = self.statetorch2oracle
+        self.corr_type = corr_type
 
     def set_proxy(self, proxy):
         self.proxy = proxy
