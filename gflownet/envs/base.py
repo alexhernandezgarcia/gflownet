@@ -437,7 +437,7 @@ class GFlowNetEnv:
             elif isinstance(states_proxy, list):
                 states_proxy = [states_proxy[i] for i in range(len(done)) if done[i]]
         rewards = np.zeros(len(done))
-        if states_proxy.shape[0] > 0:
+        if len(states_proxy) > 0:
             rewards[list(done)] = self.proxy2reward(self.proxy(states_proxy)).tolist()
         return rewards
 
