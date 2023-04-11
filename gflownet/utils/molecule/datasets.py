@@ -38,6 +38,7 @@ class ConformersDataset:
             - edge features
             - rotatable bonds mask
         """
+        # TODO make it work if there're several conformers for a single molecule
         smiles = np.random.choice(self.conformers.keys())
         edges = self.conformers[smiles]['edges']
         graph = dgl.graph(edges)
