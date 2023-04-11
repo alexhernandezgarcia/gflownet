@@ -260,8 +260,6 @@ class Grid(GFlowNetEnv):
         """
         return str(state).replace("(", "[").replace(")", "]").replace(",", "")
 
-
-
     def get_parents(
         self,
         state: Optional[List] = None,
