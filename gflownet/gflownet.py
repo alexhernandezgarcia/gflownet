@@ -182,22 +182,36 @@ class GFlowNetAgent:
         self.jsd = -1.0
 
     def _tfloat(self, x):
-        if isinstance(x, torch.Tensor):  # logq
-            return x.to(self.device, self.float)
-        elif isinstance(x[0], torch.Tensor):  # state is already a tensor
-            x = [x_element.unsqueeze(0) for x_element in x]
-            return torch.cat(x).to(self.device, self.float)
-        else:  # if x is a list
+        if isinstance(x, list) and torch.is_tensor(x[0]):
+            return torch.stack(x).type(self.float).to(self.device)
+        if torch.is_tensor(x):
+            return x.type(self.float).to(self.device)
+        else:
             return torch.tensor(x, dtype=self.float, device=self.device)
 
     def _tlong(self, x):
-        return torch.tensor(x, dtype=torch.long, device=self.device)
+        if isinstance(x, list) and torch.is_tensor(x[0]):
+            return torch.stack(x).type(torch.long).to(self.device)
+        if torch.is_tensor(x):
+            return x.type(torch.long).to(self.device)
+        else:
+            return torch.tensor(x, dtype=torch.long, device=self.device)
 
     def _tint(self, x):
-        return torch.tensor(x, dtype=torch.int, device=self.device)
+        if isinstance(x, list) and torch.is_tensor(x[0]):
+            return torch.stack(x).type(torch.int).to(self.device)
+        if torch.is_tensor(x):
+            return x.type(torch.int).to(self.device)
+        else:
+            return torch.tensor(x, dtype=torch.int, device=self.device)
 
     def _tbool(self, x):
-        return torch.tensor(x, dtype=torch.bool, device=self.device)
+        if isinstance(x, list) and torch.is_tensor(x[0]):
+            return torch.stack(x).type(torch.bool).to(self.device)
+        if torch.is_tensor(x):
+            return x.type(torch.bool).to(self.device)
+        else:
+            return torch.tensor(x, dtype=torch.bool, device=self.device)
 
     def parameters(self):
         if self.backward_policy.is_model == False:
@@ -367,7 +381,12 @@ class GFlowNetAgent:
                 mask_b = env.get_mask_invalid_actions_backward(
                     env.state, env.done, parents_a
                 )
-                assert action in parents_a
+                assert (
+                    action in parents_a
+                ), f"""
+                Sampled action is not in the list of valid actions from parents.
+                \nState:\n{env.state}\nAction:\n{action}
+                """
                 if train:
                     batch.append(
                         [
