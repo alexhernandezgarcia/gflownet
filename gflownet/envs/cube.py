@@ -858,14 +858,14 @@ class ContinuousCube(Cube):
         distr_eos = Bernoulli(logits=policy_outputs[:, -1])
         logprobs_eos = distr_eos.log_prob(mask_actions_eos.to(self.float))
         mask_force_eos = torch.logical_and(mask_invalid_actions[:, 0], mask_invalid_actions[:, 1])
-        logprobs_eos[mask_force_eos] = -loginf
+        logprobs_eos[mask_force_eos] = 0.0
         import ipdb; ipdb.set_trace()
         # Increments
         mask_sample = torch.logical_and(~mask_actions_eos, ~mask_force_eos)
         ns_range_sample = ns_range[mask_sample]
         n_states_sample = len(ns_range_sample)
         increments = torch.inf * torch.ones((n_states, self.n_dim), device=device, dtype=self.float)
-        logprobs = torch.zeros((n_states, self.n_dim), device=device, dtype=self.float)
+        logprobs_sample = torch.zeros((n_states, self.n_dim), device=device, dtype=self.float)
         if torch.any(mask_sample):
             increments = actions[mask_sample, :]
             mix_logits = policy_outputs[mask_sample, 0:-1:3].reshape(
@@ -884,7 +884,7 @@ class ContinuousCube(Cube):
             # reflect the tru probability of sampling that increment.
             logprobs_sample = distr_increments.log_prob(increments)
             increments[mask_sample] = distr_increments.sample()
-            logprobs[mask_sample] = distr_increments.log_prob(increments[mask_sample])
+            logprobs_sample[mask_sample] = distr_increments.log_prob(increments[mask_sample])
             # Apply minimum increment to generic (not from source) actions
             # TODO: before or after computing logprob?
             mask_action_generic = ~mask_invalid_actions[:, 0]
