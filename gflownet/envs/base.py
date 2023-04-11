@@ -619,6 +619,8 @@ class GFlowNetEnv:
         if oracle is None:
             oracle = self.oracle
         if scores is None:
+            if isinstance(states[0], torch.Tensor):
+                states = torch.vstack(states).to(self.device, self.float)
             if isinstance(states, torch.Tensor) == False:
                 states = torch.tensor(states, device=self.device, dtype=self.float)
             oracle_states = self.statetorch2oracle(states)
