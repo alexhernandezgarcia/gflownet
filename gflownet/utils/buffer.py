@@ -2,7 +2,7 @@
 Buffer class to handle train and test data sets, reply buffer, etc.
 """
 import pickle
-
+from pathlib import Path
 import numpy as np
 import pandas as pd
 
@@ -41,7 +41,7 @@ class Buffer:
             self.train_type = train.type
         else:
             self.train_type = None
-        self.train, dict_tr = self.make_data_set(train)
+        self.train, dict_tr, train_stats = self.make_data_set(train)
         if (
             self.train is not None
             and "output_csv" in train
@@ -70,7 +70,7 @@ class Buffer:
             self.test_type = test.type
         else:
             self.train_type = None
-        self.test, dict_tt = self.make_data_set(test)
+        self.test, dict_tt, test_stats = self.make_data_set(test)
         if (
             self.test is not None
             and "output_csv" in test
@@ -93,16 +93,20 @@ class Buffer:
             self.test_pkl = None
         # Compute buffer statistics
         if self.train is not None:
-            (
-                self.mean_tr,
-                self.std_tr,
-                self.min_tr,
-                self.max_tr,
-                self.max_norm_tr,
-            ) = self.compute_stats(self.train)
+            (self.mean_tr, self.std_tr, self.min_tr, self.max_tr, self.max_norm_tr,) = (
+                train_stats[0],
+                train_stats[1],
+                train_stats[2],
+                train_stats[3],
+                train_stats[4],
+            )
         if self.test is not None:
-            self.mean_tt, self.std_tt, self.min_tt, self.max_tt, _ = self.compute_stats(
-                self.test
+            self.mean_tt, self.std_tt, self.min_tt, self.max_tt, _ = (
+                test_stats[0],
+                test_stats[1],
+                test_stats[2],
+                test_stats[3],
+                test_stats[4],
             )
 
     def add(
@@ -165,15 +169,16 @@ class Buffer:
         """
         Constructs a data set as a DataFrame according to the configuration.
         """
+        stats = None
         if config is None:
-            return None, None
+            return None, None, None
         elif "path" in config and config.path is not None:
             path = self.logger.logdir / Path("data") / config.path
             df = pd.read_csv(path, index_col=0)
-            # TODO: check if state2readable transformation is required.
-            return df
+            samples = [self.env.readable2state(s) for s in df["samples"].values]
+            stats = self.compute_stats(df)
         elif "type" not in config:
-            return None, None
+            return None, None, None
         elif config.type == "all" and hasattr(self.env, "get_all_terminating_states"):
             samples = self.env.get_all_terminating_states()
         elif (
@@ -185,20 +190,21 @@ class Buffer:
         elif (
             config.type == "uniform"
             and "n" in config
-            and "seed" in config
             and hasattr(self.env, "get_uniform_terminating_states")
         ):
-            samples = self.env.get_uniform_terminating_states(config.n, config.seed)
+            samples = self.env.get_uniform_terminating_states(config.n)
         else:
-            return None, None
-        energies = self.env.oracle(self.env.statebatch2oracle(samples)).tolist()
+            return None, None, None
+        energies = self.env.proxy(self.env.statebatch2proxy(samples)).tolist()
         df = pd.DataFrame(
             {
                 "samples": [self.env.state2readable(s) for s in samples],
                 "energies": energies,
             }
         )
-        return df, {"x": samples, "energy": energies}
+        if stats is None:
+            stats = self.compute_stats(df)
+        return df, {"x": samples, "energy": energies}, stats
 
     def compute_stats(self, data):
         mean_data = data["energies"].mean()
