@@ -28,10 +28,3 @@ class Aptamers(Sequence):
             **kwargs,
             special_tokens=special_tokens,
         )
-
-        # if (
-        #     hasattr(self, "proxy")
-        #     and self.proxy is not None
-        #     and hasattr(self.proxy, "setup")
-        # ):
-        #     self.proxy.setup(self.max_seq_length)
