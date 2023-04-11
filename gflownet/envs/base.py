@@ -542,8 +542,8 @@ class GFlowNetEnv:
         return self
 
     def copy(self):
-        return self.__class__(**self.__dict__)
-        # return deepcopy(self)
+        # return self.__class__(**self.__dict__)
+        return deepcopy(self)
 
     def set_energies_stats(self, energies_stats):
         self.energies_stats = energies_stats

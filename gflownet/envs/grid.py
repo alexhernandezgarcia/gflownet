@@ -178,7 +178,7 @@ class Grid(GFlowNetEnv):
             self.statetorch2policy(states).reshape(
                 (len(states), self.n_dim, self.length)
             )
-            * torch.tensor(self.cells[None, :]).to(states.device).to(self.float)
+            * torch.tensor(self.cells[None, :]).to(states.device, self.float)
         ).sum(axis=2)
 
     def state2policy(self, state: List = None) -> List:
@@ -260,14 +260,7 @@ class Grid(GFlowNetEnv):
         """
         return str(state).replace("(", "[").replace(")", "]").replace(",", "")
 
-    def statetorch2readable(self, state, alphabet={}):
-        """
-        Dataset Handler in activelearning deals only in tensors. This function converts the tesnor to readble format to save the train dataset
-        """
-        assert torch.eq(state.to(torch.long), state).all()
-        state = state.to(torch.long)
-        state = state.detach().cpu().numpy()
-        return str(state).replace("(", "[").replace(")", "]").replace(",", "")
+
 
     def get_parents(
         self,

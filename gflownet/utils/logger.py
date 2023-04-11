@@ -87,7 +87,6 @@ class Logger:
         self.logdir = Path(logdir.root)
         if self.logdir.exists() or logdir.overwrite:
             self.logdir.mkdir(parents=True, exist_ok=True)
-            print("saving to logdir {}".format(logdir.root))
         else:
             # TODO: this message seems contradictory with the logic
             print(f"logdir {logdir} already exists! - Ending run...")

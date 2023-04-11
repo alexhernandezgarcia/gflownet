@@ -102,6 +102,10 @@ class Sequence(GFlowNetEnv):
         actions = actions + [(len(actions),)]
         self.eos = len(actions) - 1
         return actions
+    
+    def copy(self):
+        return self.__class__(**self.__dict__)
+        # return deepcopy(self)
 
     def get_mask_invalid_actions_forward(self, state=None, done=None):
         """
