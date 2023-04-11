@@ -1,10 +1,10 @@
 defaults:
   - base
 
-_target_: gflownet.envs.aptamers.AptamerSeq
+_target_: gflownet.envs.aptamers.Aptamers
 
 id: aptamers
-func: nupack energy
+# func: nupack energy
 # Minimum and maximum length for the sequences
 min_seq_length: 30
 max_seq_length: 30
@@ -13,4 +13,4 @@ n_alphabet: 4
 # Minimum and maximum number of steps in the action space
 min_word_len: 1
 max_word_len: 1
-
+corr_type: None
