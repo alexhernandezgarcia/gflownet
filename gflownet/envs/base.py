@@ -83,6 +83,9 @@ class GFlowNetEnv:
         self.policy_input_dim = len(self.state2policy())
         if proxy is not None:
             self.set_proxy(proxy)
+        if proxy is not None and self.proxy == self.oracle:
+            self.statebatch2proxy = self.statebatch2oracle
+            self.statetorch2proxy = self.statetorch2oracle
 
     def set_proxy(self, proxy):
         self.proxy = proxy
@@ -426,7 +429,11 @@ class GFlowNetEnv:
         """
         if done is None:
             done = np.ones(len(states), dtype=bool)
-        states_proxy = self.statebatch2proxy(states)[list(done), :]
+            states_proxy = self.statebatch2proxy(states)
+            if isinstance(states_proxy, torch.Tensor):
+                states_proxy = states_proxy[list(done), :]
+            elif isinstance(states_proxy, list):
+                states_proxy = [states_proxy[i] for i in range(len(done)) if done[i]]
         rewards = np.zeros(len(done))
         if states_proxy.shape[0] > 0:
             rewards[list(done)] = self.proxy2reward(self.proxy(states_proxy)).tolist()

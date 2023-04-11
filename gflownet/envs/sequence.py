@@ -59,7 +59,6 @@ class Sequence(GFlowNetEnv):
         min_word_len=1,
         max_word_len=1,
         special_tokens=None,
-        proxy=None,
         **kwargs,
     ):
         self.min_seq_length = min_seq_length
@@ -78,12 +77,13 @@ class Sequence(GFlowNetEnv):
         )
         # reset this to a lower value
         self.min_reward = 1e-20
-        if proxy is not None:
-            self.proxy = proxy
+        # if proxy is not None:
+        #     self.proxy = proxy
         super().__init__(
             **kwargs,
         )
         self.policy_input_dim = self.state2policy().shape[-1]
+        self.tokenizer = None
 
     def get_action_space(self):
         """
@@ -399,13 +399,11 @@ class Sequence(GFlowNetEnv):
         else:
             parents = []
             actions = []
+            if state[-1] == self.padding_idx:
+                state_last_element = int(torch.where(state == self.padding_idx)[0][0])
+            else:
+                state_last_element = len(state)
             for idx, a in enumerate(self.action_space):
-                if state[-1] == self.padding_idx:
-                    state_last_element = int(
-                        torch.where(state == self.padding_idx)[0][0]
-                    )
-                else:
-                    state_last_element = len(state)
                 is_parent = state[
                     state_last_element - len(a) : state_last_element
                 ] == torch.LongTensor(a)

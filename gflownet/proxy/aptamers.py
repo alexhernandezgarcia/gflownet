@@ -16,20 +16,16 @@ class Aptamers(Proxy):
         self.type = oracle_id
         self.norm = norm
         self.cost = cost
-        self.inverse_lookup = {0: 'A', 1: 'C', 2: 'G', 3: 'T'}
 
-    def setup(self, max_seq_length, norm=True):
-        self.max_seq_length = max_seq_length
-    
+    def setup(self, env, norm=True):
+        self.max_seq_length = env.max_seq_length
+
     def _length(self, x):
         if self.norm:
             return -1.0 * np.sum(x, axis=1) / self.max_seq_length
         else:
             return -1.0 * np.sum(x, axis=1)
-    
-    def numbers2letters(self, state):
-        return "".join([self.inverse_lookup[el] for el in state])
-    
+
     def __call__(self, sequences):
         if self.type == "length":
             return self._length(sequences)
@@ -41,7 +37,7 @@ class Aptamers(Proxy):
             return self._nupack(sequences)
         else:
             raise NotImplementedError
-        
+
     def _nupack(self, sequences):
         """
         args:
@@ -69,7 +65,7 @@ class Aptamers(Proxy):
 
         energy = self.function(sequences, results, comps)
 
-        return torch.tensor(energy, device = self.device, dtype = self.float)
+        return torch.tensor(energy, device=self.device, dtype=self.float)
 
     def _func_energy(self, sequences, results, comps):
         energies = np.zeros(len(sequences))

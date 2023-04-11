@@ -29,9 +29,9 @@ class Aptamers(Sequence):
             special_tokens=special_tokens,
         )
 
-        if (
-            hasattr(self, "proxy")
-            and self.proxy is not None
-            and hasattr(self.proxy, "setup")
-        ):
-            self.proxy.setup(self.max_seq_length)
+        # if (
+        #     hasattr(self, "proxy")
+        #     and self.proxy is not None
+        #     and hasattr(self.proxy, "setup")
+        # ):
+        #     self.proxy.setup(self.max_seq_length)
