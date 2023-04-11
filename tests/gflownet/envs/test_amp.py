@@ -22,14 +22,14 @@ def test__environment__initializes_properly():
 
 def test__environment__action_space_has_eos():
     env = AMP(proxy_state_format="state")
-    assert (env.eos,) in env.action_space
+    assert env.eos in env.action_space
 
 
 @pytest.mark.parametrize(
     "state, expected_state_policy",
     [
         (
-            torch.tensor([[3, 2, 21, 21, 21]]),
+            torch.tensor([[3, 2, 20, 20, 20]]),
             [
                 [0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
                 [0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
@@ -49,7 +49,7 @@ def test__environment__action_space_has_eos():
             ],
         ),
         (
-            torch.tensor([[21, 21, 21, 21, 21]]),
+            torch.tensor([[20, 20, 20, 20, 20]]),
             [
                 [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
                 [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
@@ -73,31 +73,31 @@ def test_environment_policy_transformation(state, expected_state_policy):
     "state, done, expected_parent, expected_parent_action",
     [
         (
-            torch.tensor([3, 21, 21, 21, 21]),
+            torch.tensor([3, 20, 20, 20, 20]),
             False,
-            [torch.tensor([21, 21, 21, 21, 21])],
+            [torch.tensor([20, 20, 20, 20, 20])],
             [(3,)],
         ),
         (
             torch.tensor([3, 2, 4, 2, 0]),
             False,
-            [torch.tensor([3, 2, 4, 2, 21])],
+            [torch.tensor([3, 2, 4, 2, 20])],
             [(0,)],
         ),
         (
-            torch.tensor([3, 21, 21, 21, 21]),
+            torch.tensor([3, 20, 20, 20, 20]),
             False,
-            [torch.tensor([21, 21, 21, 21, 21])],
+            [torch.tensor([20, 20, 20, 20, 20])],
             [(3,)],
         ),
         (
-            torch.tensor([3, 21, 21, 21, 21]),
+            torch.tensor([3, 20, 20, 20, 20]),
             True,
-            [torch.tensor([3, 21, 21, 21, 21])],
+            [torch.tensor([3, 20, 20, 20, 20])],
             [(20,)],
         ),
         (
-            torch.tensor([21, 21, 21, 21, 21]),
+            torch.tensor([20, 20, 20, 20, 20]),
             False,
             [],
             [],
@@ -123,9 +123,9 @@ def test_environment_get_parents(state, done, expected_parent, expected_parent_a
     "state, action, expected_next_state, expected_executed_action, expected_valid",
     [
         (
-            torch.tensor([3, 21, 21, 21, 21]),
+            torch.tensor([3, 20, 20, 20, 20]),
             (2,),
-            torch.tensor([3, 2, 21, 21, 21]),
+            torch.tensor([3, 2, 20, 20, 20]),
             (2,),
             True,
         ),
@@ -137,16 +137,16 @@ def test_environment_get_parents(state, done, expected_parent, expected_parent_a
             True,
         ),
         (
-            torch.tensor([21, 21, 21, 21, 21]),
+            torch.tensor([20, 20, 20, 20, 20]),
             (20,),
-            torch.tensor([21, 21, 21, 21, 21]),
+            torch.tensor([20, 20, 20, 20, 20]),
             (20,),
             False,
         ),
         (
-            torch.tensor([3, 21, 21, 21, 21]),
+            torch.tensor([3, 20, 20, 20, 20]),
             (20,),
-            torch.tensor([3, 21, 21, 21, 21]),
+            torch.tensor([3, 20, 20, 20, 20]),
             (20,),
             True,
         ),

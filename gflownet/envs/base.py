@@ -37,6 +37,7 @@ class GFlowNetEnv:
         oracle=None,
         fixed_distribution: dict = None,
         random_distribution: dict = None,
+        corr_type: str = None,
         **kwargs,
     ):
         # Call reset() to set initial state, done, n_actions
@@ -86,6 +87,7 @@ class GFlowNetEnv:
         if proxy is not None and self.proxy == self.oracle:
             self.statebatch2proxy = self.statebatch2oracle
             self.statetorch2proxy = self.statetorch2oracle
+        self.corr_type = corr_type
 
     def set_proxy(self, proxy):
         self.proxy = proxy
@@ -435,7 +437,7 @@ class GFlowNetEnv:
             elif isinstance(states_proxy, list):
                 states_proxy = [states_proxy[i] for i in range(len(done)) if done[i]]
         rewards = np.zeros(len(done))
-        if states_proxy.shape[0] > 0:
+        if len(states_proxy) > 0:
             rewards[list(done)] = self.proxy2reward(self.proxy(states_proxy)).tolist()
         return rewards
 
@@ -617,6 +619,8 @@ class GFlowNetEnv:
         if oracle is None:
             oracle = self.oracle
         if scores is None:
+            if isinstance(states[0], torch.Tensor):
+                states = torch.vstack(states).to(self.device, self.float)
             if isinstance(states, torch.Tensor) == False:
                 states = torch.tensor(states, device=self.device, dtype=self.float)
             oracle_states = self.statetorch2oracle(states)

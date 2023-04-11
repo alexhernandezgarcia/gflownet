@@ -51,7 +51,6 @@ class Sequence(GFlowNetEnv):
 
     def __init__(
         self,
-        corr_type,
         max_seq_length=50,
         min_seq_length=1,
         # Not required in env. But used in config_env in MLP. TODO: Find a way out
@@ -65,25 +64,24 @@ class Sequence(GFlowNetEnv):
         self.max_seq_length = max_seq_length
         self.min_word_len = min_word_len
         self.max_word_len = max_word_len
-        self.corr_type = corr_type
         self.lookup = {a: i for (i, a) in enumerate(self.vocab)}
         self.inverse_lookup = {i: a for (i, a) in enumerate(self.vocab)}
         self.n_alphabet = len(self.vocab) - len(special_tokens)
         self.padding_idx = self.lookup["[PAD]"]
         # TODO: eos re-initalised in get_actions_space so why was this initialisation required in the first place (maybe mfenv)
-        self.eos = self.lookup["[EOS]"]
+        self.eos = (self.lookup["[EOS]"],)
         self.source = (
             torch.ones(self.max_seq_length, dtype=torch.int64) * self.padding_idx
         )
         # reset this to a lower value
         self.min_reward = 1e-20
-        # if proxy is not None:
-        #     self.proxy = proxy
         super().__init__(
             **kwargs,
         )
         self.policy_input_dim = self.state2policy().shape[-1]
         self.tokenizer = None
+        length_of_action = [len(a) for a in self.action_space]
+        self.length_of_action = torch.tensor(length_of_action)
 
     def get_action_space(self):
         """
@@ -100,7 +98,7 @@ class Sequence(GFlowNetEnv):
         # Add "eos" action
         # eos != n_alphabet in the init because it would break if max_word_len >1
         actions = actions + [(len(actions),)]
-        self.eos = len(actions) - 1
+        self.eos = (len(actions) - 1,)
         return actions
 
     def copy(self):
@@ -118,17 +116,21 @@ class Sequence(GFlowNetEnv):
             done = self.done
         if done:
             return [True for _ in range(len(self.action_space))]
-        mask = [False for _ in range(len(self.action_space))]
+        # mask = [False for _ in range(len(self.action_space))]
         seq_length = (
             torch.where(state == self.padding_idx)[0][0]
             if state[-1] == self.padding_idx
             else len(state)
         )
+
+        # set mask to True for all actions that would exceed max_seq_length
+        seq_length_tensor = torch.ones((len(self.action_space),), dtype=torch.int64) * (
+            seq_length
+        )
+        updated_seq_length = seq_length_tensor + self.length_of_action
+        mask = updated_seq_length > self.max_seq_length
         if seq_length < self.min_seq_length:
             mask[self.eos] = True
-        for idx, a in enumerate(self.action_space[:-1]):
-            if seq_length + len(list(a)) > self.max_seq_length:
-                mask[idx] = True
         return mask
 
     def true_density(self, max_states=1e6):
@@ -397,7 +399,7 @@ class Sequence(GFlowNetEnv):
         if done is None:
             done = self.done
         if done:
-            return [state], [(self.eos,)]
+            return [state], [self.eos]
         elif torch.eq(state, self.source).all():
             return [], []
         else:
@@ -407,19 +409,20 @@ class Sequence(GFlowNetEnv):
                 state_last_element = int(torch.where(state == self.padding_idx)[0][0])
             else:
                 state_last_element = len(state)
-            for idx, a in enumerate(self.action_space):
-                is_parent = state[
-                    state_last_element - len(a) : state_last_element
-                ] == torch.LongTensor(a)
-                if not isinstance(is_parent, bool):
-                    is_parent = all(is_parent)
-                if is_parent:
+            max_parent_action_length = self.max_word_len + 1 - self.min_word_len
+            for parent_action_length in range(1, max_parent_action_length + 1):
+                parent_action = tuple(
+                    state[
+                        state_last_element - parent_action_length : state_last_element
+                    ].numpy()
+                )
+                if parent_action in self.action_space:
                     parent = state.clone().detach()
                     parent[
-                        state_last_element - len(a) : state_last_element
+                        state_last_element - parent_action_length : state_last_element
                     ] = self.padding_idx
                     parents.append(parent)
-                    actions.append(a)
+                    actions.append(parent_action)
         return parents, actions
 
     def step(self, action: Tuple[int]) -> Tuple[List[int], Tuple[int, int], bool]:
@@ -448,10 +451,10 @@ class Sequence(GFlowNetEnv):
         if self.state[-1] != self.padding_idx:
             self.done = True
             self.n_actions += 1
-            return self.state, (self.eos,), True
+            return self.state, self.eos, True
         # If action is not eos, then perform action
         state_last_element = int(torch.where(self.state == self.padding_idx)[0][0])
-        if action[0] != self.eos:
+        if action != self.eos:
             state_next = self.state.clone().detach()
             if state_last_element + len(action) > self.max_seq_length:
                 valid = False
@@ -470,4 +473,4 @@ class Sequence(GFlowNetEnv):
                 self.done = True
                 valid = True
                 self.n_actions += 1
-            return self.state, (self.eos,), valid
+            return self.state, self.eos, valid
