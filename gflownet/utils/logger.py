@@ -6,6 +6,10 @@ import numpy as np
 import torch
 from numpy import array
 from omegaconf import OmegaConf
+import matplotlib.pyplot as plt
+import os
+import glob
+import pickle
 
 
 class Logger:
@@ -25,9 +29,12 @@ class Logger:
         test: dict,
         oracle: dict,
         checkpoints: dict,
+        plot: dict,
         progress: bool,
         lightweight: bool,
         debug: bool,
+        resume: bool = False,
+        run_id: str = None,
         run_name=None,
         tags: list = None,
         context: str = "0",
@@ -39,11 +46,13 @@ class Logger:
         self.test = test
         self.oracle = oracle
         self.checkpoints = checkpoints
+        self.plot = plot
         if run_name is None:
             date_time = datetime.today().strftime("%d/%m-%H:%M:%S")
             run_name = "{}".format(
                 date_time,
             )
+        self.resume = resume
         if self.do.online:
             import wandb
 
@@ -51,9 +60,21 @@ class Logger:
             wandb_config = OmegaConf.to_container(
                 config, resolve=True, throw_on_missing=True
             )
-            self.run = self.wandb.init(
-                config=wandb_config, project=project_name, name=run_name
-            )
+
+            if self.resume is True and run_id is not None:
+                self.run_id = run_id
+                print("Resuming wandb run with run_id {}".format(run_id))
+                self.run = self.wandb.init(
+                    project=project_name,
+                    id=run_id,
+                    resume=resume,
+                    config=wandb_config,
+                )
+            else:
+                self.run = self.wandb.init(
+                    config=wandb_config, project=project_name, name=run_name
+                )
+
         else:
             self.wandb = None
             self.run = None
@@ -88,6 +109,14 @@ class Logger:
         else:
             return not step % self.test.period
 
+    def do_plot(self, step):
+        if self.plot.period is None or self.plot.period < 0:
+            return False
+        elif step == 1 and self.plot.first_it:
+            return True
+        else:
+            return not step % self.plot.period
+
     def do_oracle(self, step):
         if self.oracle.period is None or self.oracle.period < 0:
             return False
@@ -117,6 +146,9 @@ class Logger:
 
     def set_forward_policy_ckpt_path(self, ckpt_id: str = None):
         if ckpt_id is None:
+            print(
+                "Note: Forward Policy Checkpoints will not be saved as gflownet.policy.forward.checkpoint is None"
+            )
             self.pf_ckpt_path = None
         else:
             self.pf_ckpt_path = self.ckpts_dir / f"{ckpt_id}_"
@@ -137,7 +169,7 @@ class Logger:
             )
             pbar.set_description(description)
 
-    def log_metric(self, key: str, value, step, use_context=True):
+    def log_metric(self, key: str, value, step=None, use_context=True):
         if not self.do.online:
             return
         if use_context:
@@ -161,25 +193,31 @@ class Logger:
         if not self.do.online:
             self.close_figs(figs)
             return
-        keys = ["True reward and GFlowNet samples", "GFlowNet KDE Policy", "Reward KDE"]
+        keys = [
+            "True reward and GFlowNet samples",
+            "GFlowNet KDE Policy",
+            "Reward KDE",
+            "Frequency of Samples",
+            "Reward Distribution",
+        ]
         for key, fig in zip(keys, figs):
             if use_context:
-                context = self.context + "/" + key
+                key = self.context + "/" + key
             if fig is not None:
                 figimg = self.wandb.Image(fig)
                 self.wandb.log({key: figimg}, step)
-                plt.close(fig)
+                plt.close()
 
     def close_figs(self, figs: list):
         for fig in figs:
             if fig is not None:
-                plt.close(fig)
+                plt.close()
 
-    def log_metrics(self, metrics: dict, step: int, use_context: bool = True):
+    def log_metrics(self, metrics: dict, step: int = None, use_context: bool = True):
         if not self.do.online:
             return
         for key, _ in metrics.items():
-            self.log_metric(key, metrics[key], step=step, use_context=use_context)
+            self.log_metric(key, metrics[key], use_context=use_context)
 
     def log_train(
         self,
@@ -187,12 +225,16 @@ class Logger:
         rewards: list,
         proxy_vals: array,
         states_term: list,
+        costs: list,
         batch_size: int,
         logz,
         learning_rates: list,  # [lr, lr_logZ]
         step: int,
         use_context: bool,
+        unpad_function: int = None,
     ):
+        if unpad_function != None:
+            states_term = unpad_function(states_term)
         if not self.do.online or not self.do_train(step):
             return
         if logz is None:
@@ -209,6 +251,7 @@ class Logger:
                     "mean_proxy",
                     "min_proxy",
                     "max_proxy",
+                    "mean_cost",
                     "mean_seq_length",
                     "batch_size",
                     "logZ",
@@ -221,6 +264,7 @@ class Logger:
                     np.mean(proxy_vals),
                     np.min(proxy_vals),
                     np.max(proxy_vals),
+                    np.mean(costs),
                     np.mean([len(state) for state in states_term]),
                     batch_size,
                     logz,
@@ -304,6 +348,7 @@ class Logger:
         l1: float,
         kl: float,
         jsd: float,
+        corr: float,
         step: int,
         use_context: bool,
     ):
@@ -311,8 +356,8 @@ class Logger:
             return
         metrics = dict(
             zip(
-                ["L1 error", "KL Div.", "Jensen Shannon Div."],
-                [l1, kl, jsd],
+                ["L1 error", "KL Div.", "Jensen Shannon Div.", "Corr."],
+                [l1, kl, jsd, corr],
             )
         )
         self.log_metrics(

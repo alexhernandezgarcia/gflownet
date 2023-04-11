@@ -17,6 +17,9 @@ test:
   kde:
     bandwidth: 0.1
     kernel: gaussian
+plot:
+  period: 200 #1000
+  first_it: True
 # Oracle metrics
 oracle:
   period: 100000
