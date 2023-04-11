@@ -12,6 +12,8 @@ from torch.distributions import Categorical
 from torchtyping import TensorType
 
 from gflownet.utils.common import set_device, set_float_precision
+from pathlib import Path
+import matplotlib.pyplot as plt
 
 
 class GFlowNetEnv:
@@ -33,15 +35,17 @@ class GFlowNetEnv:
         denorm_proxy: bool = False,
         proxy=None,
         oracle=None,
-        proxy_state_format: str = "oracle",
-        fixed_distribution: Optional[dict] = None,
-        random_distribution: Optional[dict] = None,
+        fixed_distribution: dict = None,
+        random_distribution: dict = None,
         **kwargs,
     ):
         # Call reset() to set initial state, done, n_actions
         self.reset()
         # Device
-        self.device = set_device(device)
+        if isinstance(device, str):
+            self.device = set_device(device)
+        else:
+            self.device = device
         # Float precision
         self.float = set_float_precision(float_precision)
         # Reward settings
@@ -62,11 +66,6 @@ class GFlowNetEnv:
             self.oracle = self.proxy
         else:
             self.oracle = oracle
-        if self.oracle is None or self.oracle.higher_is_better:
-            self.proxy_factor = 1.0
-        else:
-            self.proxy_factor = -1.0
-        self.proxy_state_format = proxy_state_format
         # Log SoftMax function
         self.logsoftmax = torch.nn.LogSoftmax(dim=1)
         # Action space
@@ -82,6 +81,27 @@ class GFlowNetEnv:
         self.random_policy_output = self.get_policy_output(random_distribution)
         self.policy_output_dim = len(self.fixed_policy_output)
         self.policy_input_dim = len(self.state2policy())
+        if proxy is not None:
+            self.set_proxy(proxy)
+        if proxy is not None and self.proxy == self.oracle:
+            self.statebatch2proxy = self.statebatch2oracle
+            self.statetorch2proxy = self.statetorch2oracle
+
+    def set_proxy(self, proxy):
+        self.proxy = proxy
+        if hasattr(self, "proxy_factor"):
+            return
+        if self.proxy is not None and self.proxy.maximize is not None:
+            # can be None for dropout regressor/UCB
+            maximize = self.proxy.maximize
+        elif self.oracle is not None:
+            maximize = self.oracle.maximize
+        else:
+            raise ValueError("Proxy and Oracle cannot be None together.")
+        if maximize:
+            self.proxy_factor = 1.0
+        else:
+            self.proxy_factor = -1.0
 
     @abstractmethod
     def get_action_space(self):
@@ -409,7 +429,11 @@ class GFlowNetEnv:
         """
         if done is None:
             done = np.ones(len(states), dtype=bool)
-        states_proxy = self.statebatch2proxy(states)[list(done), :]
+            states_proxy = self.statebatch2proxy(states)
+            if isinstance(states_proxy, torch.Tensor):
+                states_proxy = states_proxy[list(done), :]
+            elif isinstance(states_proxy, list):
+                states_proxy = [states_proxy[i] for i in range(len(done)) if done[i]]
         rewards = np.zeros(len(done))
         if states_proxy.shape[0] > 0:
             rewards[list(done)] = self.proxy2reward(self.proxy(states_proxy)).tolist()
@@ -442,7 +466,11 @@ class GFlowNetEnv:
         """
         if self.denorm_proxy:
             # TODO: do with torch
-            proxy_vals = proxy_vals * self.energies_stats[3] + self.energies_stats[2]
+            proxy_vals = (
+                proxy_vals * (self.energies_stats[1] - self.energies_stats[0])
+                + self.energies_stats[0]
+            )
+            # proxy_vals = proxy_vals * self.energies_stats[3] + self.energies_stats[2]
         if self.reward_func == "power":
             return torch.clamp(
                 (self.proxy_factor * proxy_vals / self.reward_norm) ** self.reward_beta,
@@ -458,6 +486,12 @@ class GFlowNetEnv:
         elif self.reward_func == "identity":
             return torch.clamp(
                 self.proxy_factor * proxy_vals,
+                min=self.min_reward,
+                max=None,
+            )
+        elif self.reward_func == "linear_shift":
+            return torch.clamp(
+                self.proxy_factor * proxy_vals + self.reward_beta,
                 min=self.min_reward,
                 max=None,
             )
@@ -481,6 +515,8 @@ class GFlowNetEnv:
             return self.proxy_factor * torch.log(reward) / self.reward_beta
         elif self.reward_func == "identity":
             return self.proxy_factor * reward
+        elif self.reward_func == "linear_shift":
+            return self.proxy_factor * (reward - self.reward_beta)
         else:
             raise NotImplementedError
 
@@ -549,6 +585,13 @@ class GFlowNetEnv:
         parents, parents_actions = self.get_parents(current_traj[-1], False)
         if parents == []:
             traj_list.append(current_traj)
+            if hasattr(self, "action_pad_length"):
+                # Required for compatibility with mfenv when length(sfenv_action) != length(fidelity.action)
+                # For example, in AMP, length(sfenv_action) = 1 like (2,), length(fidelity.action) = 2 like (22, 1)
+                current_actions = [
+                    tuple(list(action) + [0] * (self.action_length - len(action)))
+                    for action in current_actions
+                ]
             traj_actions_list.append(current_actions)
             return traj_list, traj_actions_list
         for idx, (p, a) in enumerate(zip(parents, parents_actions)):
@@ -560,3 +603,32 @@ class GFlowNetEnv:
     def setup_proxy(self):
         if self.proxy:
             self.proxy.setup(self)
+
+    def plot_reward_distribution(
+        self, states=None, scores=None, ax=None, title=None, oracle=None, **kwargs
+    ):
+        if ax is None:
+            fig, ax = plt.subplots()
+            standalone = True
+        else:
+            standalone = False
+        if title == None:
+            title = "Scores of Sampled States"
+        if oracle is None:
+            oracle = self.oracle
+        if scores is None:
+            if isinstance(states, torch.Tensor) == False:
+                states = torch.tensor(states, device=self.device, dtype=self.float)
+            oracle_states = self.statetorch2oracle(states)
+            scores = oracle(oracle_states)
+        if isinstance(scores, TensorType):
+            scores = scores.cpu().detach().numpy()
+        ax.hist(scores)
+        ax.set_title(title)
+        ax.set_ylabel("Number of Samples")
+        ax.set_xlabel("Energy")
+        plt.show()
+        if standalone == True:
+            plt.tight_layout()
+            plt.close()
+        return ax
