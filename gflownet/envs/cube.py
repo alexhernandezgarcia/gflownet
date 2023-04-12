@@ -118,7 +118,9 @@ class Cube(GFlowNetEnv, ABC):
         """
         return torch.clip(states, min=0.0, max=self.max_val)
 
-    def statebatch2policy(self, states: List[List] = None) -> npt.NDArray[np.float32]:
+    def statebatch2policy(
+        self, states: List[List]
+    ) -> TensorType["batch", "state_proxy_dim"]:
         """
         Clips the states into [0, max_val]
 
@@ -127,7 +129,7 @@ class Cube(GFlowNetEnv, ABC):
         state : list
             State
         """
-        return np.clip(np.array(states), a_min=0.0, a_max=self.max_val)
+        return self.statetorch2policy(torch.tensor(states, device=self.device))
 
     def state2policy(self, state: List = None) -> List:
         """
