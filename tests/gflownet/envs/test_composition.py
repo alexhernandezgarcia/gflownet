@@ -7,7 +7,7 @@ from gflownet.envs.crystals.composition import Composition
 
 @pytest.fixture
 def env():
-    return Crystal(
+    return Composition(
         elements=4,
         alphabet={1: "H", 2: "He", 3: "Li", 4: "Be"},
         oxidation_states={1: [-1, 0, 1], 2: [0], 3: [0, 1], 4: [0, 1, 2]},
@@ -16,7 +16,7 @@ def env():
 
 @pytest.mark.parametrize("elements", [2, 5, 10, 84])
 def test__environment__initializes_properly(elements):
-    env = Crystal(elements=elements)
+    env = Composition(elements=elements)
 
     assert env.state == [0] * elements
 
@@ -86,7 +86,7 @@ def test__reset(env):
 def test__get_action_space__returns_correct_number_of_actions(
     elements, min_atom_i, max_atom_i
 ):
-    environment = Crystal(
+    environment = Composition(
         elements=elements, min_atom_i=min_atom_i, max_atom_i=max_atom_i
     )
     exp_n_actions = elements * (max_atom_i - min_atom_i + 1) + 1
@@ -99,7 +99,7 @@ def test__get_action_space__returns_correct_number_of_actions(
     [[1, 2, 3, 4], [1, 12, 84], [42]],
 )
 def test__get_action_space__returns_actions_for_each_element(elements):
-    environment = Crystal(elements=elements)
+    environment = Composition(elements=elements)
 
     elements_in_action_space = set(e for e, n in environment.get_action_space())
     exp_elements_with_eos = set(elements + [-1])
@@ -121,7 +121,7 @@ def test__get_action_space__returns_actions_for_each_element(elements):
 def test__get_action_space__returns_actions_for_each_step_size(
     elements, min_atom_i, max_atom_i
 ):
-    environment = Crystal(
+    environment = Composition(
         elements=elements, min_atom_i=min_atom_i, max_atom_i=max_atom_i
     )
 
@@ -284,7 +284,7 @@ def test__step__does_not_change_state_if_element_already_set(
     ],
 )
 def test__can_produce_neutral_charge__returns_expected_result(state, exp_result):
-    environment = Crystal(
+    environment = Composition(
         elements=4,
         oxidation_states={1: [-1, 0, 1], 2: [0], 3: [1], 4: [2, 3]},
     )
