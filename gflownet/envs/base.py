@@ -471,7 +471,10 @@ class GFlowNetEnv:
         """
         if self.reward_func == "power":
             return self.proxy_factor * torch.exp(
-                (torch.log(reward) + self.reward_beta * torch.log(self.reward_norm))
+                (
+                    torch.log(reward)
+                    + self.reward_beta * torch.log(torch.as_tensor(self.reward_norm))
+                )
                 / self.reward_beta
             )
         elif self.reward_func == "boltzmann":
@@ -485,7 +488,10 @@ class GFlowNetEnv:
         """
         Resets the environment.
         """
-        self.state = self.source.copy()
+        if torch.is_tensor(self.source):
+            self.state = self.source.clone().detach()
+        else:
+            self.state = self.source.copy()
         self.n_actions = 0
         self.done = False
         self.id = env_id

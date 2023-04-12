@@ -44,6 +44,12 @@ class Batch:
                 self.mask_invalid_actions_forward.append(mask_f)
                 if self.loss == 'flowmatch':
                     parents, parents_a = env.get_parents(action=action)
+                    assert (
+                        action in parents_a
+                    ), f"""
+                    Sampled action is not in the list of valid actions from parents.
+                    \nState:\n{env.state}\nAction:\n{action}
+                    """
                     self.parents.append(parents)
                     self.parents_actions.append(parents_a)
                 if self.loss == 'trajectorybalance':

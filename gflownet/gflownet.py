@@ -180,18 +180,6 @@ class GFlowNetAgent:
         self.kl = -1.0
         self.jsd = -1.0
 
-    # def _tfloat(self, x):
-    #     return torch.tensor(x, dtype=self.float, device=self.device)
-
-    # def _tlong(self, x):
-    #     return torch.tensor(x, dtype=torch.long, device=self.device)
-
-    # def _tint(self, x):
-    #     return torch.tensor(x, dtype=torch.int, device=self.device)
-
-    # def _tbool(self, x):
-    #     return torch.tensor(x, dtype=torch.bool, device=self.device)
-
     def parameters(self):
         if self.backward_policy.is_model == False:
             return list(self.forward_policy.model.parameters())
@@ -262,14 +250,15 @@ class GFlowNetAgent:
             .to(bool)
         )
         # Check for at least one non-random action
-        if sampling_method == "policy" and idx_norandom.sum() > 0:
-            policy_outputs[idx_norandom, :] = model(
-                tfloat(
-                    self.env.statebatch2policy(
-                        [s for s, do in zip(states, idx_norandom) if do]
+        if sampling_method == "policy":
+            if idx_norandom.sum() > 0:
+                policy_outputs[idx_norandom, :] = model(
+                    tfloat(
+                        self.env.statebatch2policy(
+                            [s for s, do in zip(states, idx_norandom) if do]
+                        )
                     ), device=self.device, float=self.float
                 )
-            )
         else:
             raise NotImplementedError
         # Sample actions from policy outputs
@@ -349,7 +338,6 @@ class GFlowNetAgent:
         Args
         ----
         """
-        
         times = {
             "all": 0.0,
             "forward_actions": 0.0,
