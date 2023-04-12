@@ -61,7 +61,6 @@ class Logger:
 
             if self.resume is True and run_id is not None:
                 self.run_id = run_id
-                print("Resuming wandb run")
                 self.run = self.wandb.init(
                     project=project_name,
                     id=run_id,
@@ -69,7 +68,7 @@ class Logger:
                     config=wandb_config,
                     # name=run_name,
                 )
-                run_folders = glob.glob(os.path.join(logdir.root, "wandb/run-*"))
+                run_folders = glob.glob(os.path.join(logdir.root, "wandb/*run-*"))
                 run_folders.sort()
                 run_folder = run_folders[-2]
                 path = os.path.join(run_folder, "files/cumulative_stats.pkl")
