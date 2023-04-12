@@ -1,6 +1,8 @@
 import numpy as np
 import torch
 
+from copy import deepcopy
+
 from gflownet.utils.common import tfloat, tlong, tint, tbool
 
 class Batch:
@@ -26,15 +28,14 @@ class Batch:
         return len(self.state)
 
     def add_to_batch(self, envs, actions, valids, train=True):
-        self.needs_update = True
         for env in envs:
             self.envs.update({env.id: env})
 
         for env, action, valid in zip(envs, actions, valids):
-            if valid is False:
+            if not valid:
                 continue 
             if train:
-                self.state.append(env.state)
+                self.state.append(deepcopy(env.state))
                 self.action.append(action)
                 self.env_id.append(env.id)
                 self.done.append(env.done)
