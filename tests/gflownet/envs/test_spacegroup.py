@@ -197,7 +197,6 @@ def test__state2readable2state(env, state):
     )
 
 
-# @pytest.mark.skip(reason="Takes considerable time")
 def test__states_are_compatible_with_pymatgen(env):
     for idx in range(env.n_space_groups):
         env = env.reset()
