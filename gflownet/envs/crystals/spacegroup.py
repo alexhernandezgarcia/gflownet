@@ -2,15 +2,16 @@
 Classes to represent crystal environments
 """
 import itertools
+from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import torch
 import yaml
-from gflownet.envs.base import GFlowNetEnv
-import os
 from torch import Tensor
 from torchtyping import TensorType
+
+from gflownet.envs.base import GFlowNetEnv
 
 CRYSTAL_LATTICE_SYSTEMS = None
 POINT_SYMMETRIES = None
@@ -20,9 +21,7 @@ SPACE_GROUPS = None
 def _get_crystal_lattice_systems():
     global CRYSTAL_LATTICE_SYSTEMS
     if CRYSTAL_LATTICE_SYSTEMS is None:
-        with open(
-            os.path.join(os.path.dirname(__file__), "crystal_lattice_systems.yaml"), "r"
-        ) as f:
+        with open(Path(__file__).parent / "crystal_lattice_systems.yaml", "r") as f:
             CRYSTAL_LATTICE_SYSTEMS = yaml.safe_load(f)
     return CRYSTAL_LATTICE_SYSTEMS
 
@@ -30,9 +29,7 @@ def _get_crystal_lattice_systems():
 def _get_point_symmetries():
     global POINT_SYMMETRIES
     if POINT_SYMMETRIES is None:
-        with open(
-            os.path.join(os.path.dirname(__file__), "point_symmetries.yaml"), "r"
-        ) as f:
+        with open(Path(__file__).parent / "point_symmetries.yaml", "r") as f:
             POINT_SYMMETRIES = yaml.safe_load(f)
     return POINT_SYMMETRIES
 
@@ -40,9 +37,7 @@ def _get_point_symmetries():
 def _get_space_groups():
     global SPACE_GROUPS
     if SPACE_GROUPS is None:
-        with open(
-            os.path.join(os.path.dirname(__file__), "space_groups.yaml"), "r"
-        ) as f:
+        with open(Path(__file__).parent / "space_groups.yaml", "r") as f:
             SPACE_GROUPS = yaml.safe_load(f)
     return SPACE_GROUPS
 

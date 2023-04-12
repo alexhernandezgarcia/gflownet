@@ -1,4 +1,5 @@
-import os
+from pathlib import Path
+
 import pandas as pd
 import torch
 from torchtyping import TensorType
@@ -11,9 +12,7 @@ SPACE_GROUP_COUNTS = None
 def _read_space_group_counts():
     global SPACE_GROUP_COUNTS
     if SPACE_GROUP_COUNTS is None:
-        return pd.read_csv(
-            os.path.join(os.path.dirname(__file__), "spacegroups_limat_counts.csv")
-        )
+        return pd.read_csv(Path(__file__).parent / "spacegroups_limat_counts.csv")
     return SPACE_GROUP_COUNTS
 
 
