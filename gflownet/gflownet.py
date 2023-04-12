@@ -991,10 +991,14 @@ class Policy:
             self.fixed_output = torch.tensor(env.fixed_policy_output).to(
                 dtype=self.float, device=self.device
             )
+        else:
+            self.fixed_output = env.fixed_policy_output
         if not torch.is_tensor(env.random_policy_output):
             self.random_output = torch.tensor(env.random_policy_output).to(
                 dtype=self.float, device=self.device
             )
+        else:
+            self.random_output = env.random_policy_output
         self.output_dim = len(self.fixed_output)
         if "shared_weights" in config:
             self.shared_weights = config.shared_weights
