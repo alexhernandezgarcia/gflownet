@@ -128,17 +128,20 @@ class Sequence(GFlowNetEnv):
             if state[-1] == self.padding_idx
             else len(state)
         )
-        # set mask to True for all actions that would exceed max_seq_length
-        seq_length_tensor = torch.ones((len(self.action_space),), dtype=torch.int64) * (
+        # # set mask to True for all actions that would exceed max_seq_length
+        seq_length_tensor = torch.ones((len(self.action_space[:-1]),), dtype=torch.int64) * (
             seq_length
         )
-        updated_seq_length = seq_length_tensor + self.length_of_action
+        updated_seq_length = seq_length_tensor + self.length_of_action[:-1]
         mask = updated_seq_length > self.max_seq_length
+        mask = mask.tolist()
         if seq_length < self.min_seq_length:
-            mask[self.eos] = True
+            mask.append(True)
+        else:
+            mask.append(False)
         # for idx, a in enumerate(self.action_space[:-1]):
-            # if seq_length + len(list(a)) > self.max_seq_length:
-                # mask[idx] = True
+        #     if seq_length + len(list(a)) > self.max_seq_length:
+        #         mask[idx] = True
         return mask
 
     def true_density(self, max_states=1e6):
