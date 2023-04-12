@@ -216,9 +216,11 @@ def test__step__returns_same_state_action_and_invalid_if_done(env):
     mask_invalid = torch.unsqueeze(
         torch.BoolTensor(env.get_mask_invalid_actions_forward()), 0
     )
-    random_policy = torch.unsqueeze(
-        torch.tensor(env.random_policy_output, dtype=env.float), 0
-    )
+    if not torch.is_tensor(env.random_policy_output):
+        random_policy = torch.tensor(env.random_policy_output, dtype=env.float)
+    else:
+        random_policy = env.random_policy_output
+    random_policy = torch.unsqueeze(random_policy, 0)
     actions, _ = env.sample_actions(
         policy_outputs=random_policy, mask_invalid_actions=mask_invalid
     )
