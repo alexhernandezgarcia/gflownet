@@ -61,7 +61,7 @@ def main(config):
             }
         )
         df.to_csv("gfn_samples.csv")
-        dct = {"x": samples, "energy": energies}
+        dct = {"x": batch.state_gfn.cpu(), "energy": energies}
         pickle.dump(dct, open("gfn_samples.pkl", "wb"))
     print(gflownet.buffer.replay)
     gflownet.logger.end()

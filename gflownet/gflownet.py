@@ -257,7 +257,8 @@ class GFlowNetAgent:
                         self.env.statebatch2policy(
                             [s for s, do in zip(states, idx_norandom) if do]
                         )
-                    ), device=self.device, float=self.float
+                    , device=self.device, float=self.float
+                    )
                 )
         else:
             raise NotImplementedError
