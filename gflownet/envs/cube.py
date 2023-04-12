@@ -935,10 +935,10 @@ class ContinuousCube(Cube):
             return self.state, action, True
 
 
-#     def get_grid_terminating_states(self, n_states: int) -> List[List]:
-#         n_per_dim = int(np.ceil(n_states ** (1 / self.n_dim)))
-#         linspaces = [np.linspace(0, self.max_val, n_per_dim) for _ in range(self.n_dim)]
-#         states = list(itertools.product(*linspaces))
-#         # TODO: check if necessary
-#         states = [list(el) for el in states]
-#         return states
+    def get_grid_terminating_states(self, n_states: int) -> List[List]:
+        n_per_dim = int(np.ceil(n_states ** (1 / self.n_dim)))
+        linspaces = [np.linspace(0, self.max_val, n_per_dim) for _ in range(self.n_dim)]
+        states = list(itertools.product(*linspaces))
+        # TODO: check if necessary
+        states = [list(el) for el in states]
+        return states
