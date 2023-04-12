@@ -90,6 +90,8 @@ class Sequence(GFlowNetEnv):
         self.min_reward = 1e-20
         if proxy is not None:
             self.proxy = proxy
+        length_of_action = [len(a) for a in self.action_space]
+        self.length_of_action = torch.tensor(length_of_action)
 
     def get_actions_space(self):
         """
@@ -120,17 +122,23 @@ class Sequence(GFlowNetEnv):
             done = self.done
         if done:
             return [True for _ in range(len(self.action_space))]
-        mask = [False for _ in range(len(self.action_space))]
+        # mask = [False for _ in range(len(self.action_space))]
         seq_length = (
             torch.where(state == self.padding_idx)[0][0]
             if state[-1] == self.padding_idx
             else len(state)
         )
+        # set mask to True for all actions that would exceed max_seq_length
+        seq_length_tensor = torch.ones((len(self.action_space),), dtype=torch.int64) * (
+            seq_length
+        )
+        updated_seq_length = seq_length_tensor + self.length_of_action
+        mask = updated_seq_length > self.max_seq_length
         if seq_length < self.min_seq_length:
             mask[self.eos] = True
-        for idx, a in enumerate(self.action_space[:-1]):
-            if seq_length + len(list(a)) > self.max_seq_length:
-                mask[idx] = True
+        # for idx, a in enumerate(self.action_space[:-1]):
+            # if seq_length + len(list(a)) > self.max_seq_length:
+                # mask[idx] = True
         return mask
 
     def true_density(self, max_states=1e6):
@@ -417,25 +425,24 @@ class Sequence(GFlowNetEnv):
         else:
             parents = []
             actions = []
-            for idx, a in enumerate(self.action_space):
-                if state[-1] == self.padding_idx:
-                    state_last_element = int(
-                        torch.where(state == self.padding_idx)[0][0]
-                    )
-                else:
-                    state_last_element = len(state)
-                is_parent = state[
-                    state_last_element - len(a) : state_last_element
-                ] == torch.LongTensor(a)
-                if not isinstance(is_parent, bool):
-                    is_parent = all(is_parent)
-                if is_parent:
+            if state[-1] == self.padding_idx:
+                state_last_element = int(torch.where(state == self.padding_idx)[0][0])
+            else:
+                state_last_element = len(state)
+            max_parent_action_length = self.max_word_len + 1 - self.min_word_len
+            for parent_action_length in range(1, max_parent_action_length + 1):
+                parent_action = tuple(
+                    state[
+                        state_last_element - parent_action_length : state_last_element
+                    ].numpy()
+                )
+                if parent_action in self.action_space:
                     parent = state.clone().detach()
                     parent[
-                        state_last_element - len(a) : state_last_element
+                        state_last_element - parent_action_length : state_last_element
                     ] = self.padding_idx
                     parents.append(parent)
-                    actions.append(a)
+                    actions.append(parent_action)
         return parents, actions
 
     def step(self, action: Tuple[int]) -> Tuple[List[int], Tuple[int, int], bool]:
