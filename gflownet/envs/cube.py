@@ -5,6 +5,7 @@ import itertools
 from abc import ABC, abstractmethod
 from typing import List, Optional, Tuple
 
+import matplotlib.pyplot as plt
 import numpy as np
 import numpy.typing as npt
 import pandas as pd
@@ -998,7 +999,7 @@ class ContinuousCube(Cube):
         low=0.0,
         high=1.0,
         dpi=150,
-        limit_n_samples=500,
+        max_samples=500,
         **kwargs,
     ):
         x = np.linspace(low, high, 201)
@@ -1011,9 +1012,9 @@ class ContinuousCube(Cube):
         fig, ax = plt.subplots()
         fig.set_dpi(dpi)
         # Plot reward contour
-#         h = ax.contourf(xx, yy, rewards.reshape(xx.shape), alpha=alpha)
-#         ax.axis("scaled")
-#         fig.colorbar(h, ax=ax)
+        h = ax.contourf(xx, yy, rewards.reshape(xx.shape), alpha=alpha)
+        ax.axis("scaled")
+        fig.colorbar(h, ax=ax)
 #         ax.plot([0, 0], [0, 2 * np.pi], "-w", alpha=alpha)
 #         ax.plot([0, 2 * np.pi], [0, 0], "-w", alpha=alpha)
 #         ax.plot([2 * np.pi, 2 * np.pi], [2 * np.pi, 0], "-w", alpha=alpha)
@@ -1026,18 +1027,20 @@ class ContinuousCube(Cube):
 #                     extra_samples.append(
 #                         np.stack(
 #                             [
-#                                 samples[:limit_n_samples, 0] + add_0,
-#                                 samples[:limit_n_samples, 1] + add_1,
+#                                 samples[:max_samples, 0] + add_0,
+#                                 samples[:max_samples, 1] + add_1,
 #                             ],
 #                             axis=1,
 #                         )
 #                     )
 #         extra_samples = np.concatenate(extra_samples)
         ax.scatter(
-            samples[:limit_n_samples, 0], samples[:limit_n_samples, 1], alpha=alpha
+            samples[:max_samples, 0], samples[:max_samples, 1], alpha=alpha
         )
 #         ax.scatter(extra_samples[:, 0], extra_samples[:, 1], alpha=alpha, color="white")
         ax.grid()
+        ax.set_xlim([low, high])
+        ax.set_ylim([low, high])
         # Set tight layout
         plt.tight_layout()
         return fig
