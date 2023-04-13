@@ -943,60 +943,60 @@ class ContinuousCube(Cube):
         states = [list(el) for el in states]
         return states
 
-    # TODO: make generic for all environments
-    def sample_from_reward(
-        self, n_samples: int, epsilon=1e-4
-    ) -> TensorType["n_samples", "state_dim"]:
-        """
-        Rejection sampling  with proposal the uniform distribution in 
-        [0, max_val]]^n_dim.
-
-        Returns a tensor in GFloNet (state) format.
-        """
-        samples_final = []
-        max_reward = self.proxy2reward(torch.tensor([self.proxy.min])).to(self.device)
-        while len(samples_final) < n_samples:
-            angles_uniform = (
-                torch.rand(
-                    (n_samples, self.n_dim), dtype=self.float, device=self.device
-                )
-                * 2
-                * np.pi
-            )
-            samples = torch.cat(
-                (
-                    angles_uniform,
-                    torch.ones((angles_uniform.shape[0], 1)).to(angles_uniform),
-                ),
-                axis=1,
-            )
-            rewards = self.reward_torchbatch(samples)
-            mask = (
-                torch.rand(n_samples, dtype=self.float, device=self.device)
-                * (max_reward + epsilon)
-                < rewards
-            )
-            samples_accepted = samples[mask, :]
-            samples_final.extend(samples_accepted[-(n_samples - len(samples_final)) :])
-        return torch.vstack(samples_final)
-
-    def fit_kde(self, samples, kernel="gaussian", bandwidth=0.1):
-        aug_samples = []
-        for add_0 in [0, -2 * np.pi, 2 * np.pi]:
-            for add_1 in [0, -2 * np.pi, 2 * np.pi]:
-                aug_samples.append(
-                    np.stack([samples[:, 0] + add_0, samples[:, 1] + add_1], axis=1)
-                )
-        aug_samples = np.concatenate(aug_samples)
-        kde = KernelDensity(kernel=kernel, bandwidth=bandwidth).fit(aug_samples)
-        return kde
+#     # TODO: make generic for all environments
+#     def sample_from_reward(
+#         self, n_samples: int, epsilon=1e-4
+#     ) -> TensorType["n_samples", "state_dim"]:
+#         """
+#         Rejection sampling  with proposal the uniform distribution in 
+#         [0, max_val]]^n_dim.
+# 
+#         Returns a tensor in GFloNet (state) format.
+#         """
+#         samples_final = []
+#         max_reward = self.proxy2reward(torch.tensor([self.proxy.min])).to(self.device)
+#         while len(samples_final) < n_samples:
+#             angles_uniform = (
+#                 torch.rand(
+#                     (n_samples, self.n_dim), dtype=self.float, device=self.device
+#                 )
+#                 * 2
+#                 * np.pi
+#             )
+#             samples = torch.cat(
+#                 (
+#                     angles_uniform,
+#                     torch.ones((angles_uniform.shape[0], 1)).to(angles_uniform),
+#                 ),
+#                 axis=1,
+#             )
+#             rewards = self.reward_torchbatch(samples)
+#             mask = (
+#                 torch.rand(n_samples, dtype=self.float, device=self.device)
+#                 * (max_reward + epsilon)
+#                 < rewards
+#             )
+#             samples_accepted = samples[mask, :]
+#             samples_final.extend(samples_accepted[-(n_samples - len(samples_final)) :])
+#         return torch.vstack(samples_final)
+# 
+#     def fit_kde(self, samples, kernel="gaussian", bandwidth=0.1):
+#         aug_samples = []
+#         for add_0 in [0, -2 * np.pi, 2 * np.pi]:
+#             for add_1 in [0, -2 * np.pi, 2 * np.pi]:
+#                 aug_samples.append(
+#                     np.stack([samples[:, 0] + add_0, samples[:, 1] + add_1], axis=1)
+#                 )
+#         aug_samples = np.concatenate(aug_samples)
+#         kde = KernelDensity(kernel=kernel, bandwidth=bandwidth).fit(aug_samples)
+#         return kde
 
     def plot_reward_samples(
         self,
         samples,
         alpha=0.5,
-        low=-np.pi * 0.5,
-        high=2.5 * np.pi,
+        low=0.0,
+        high=1.0,
         dpi=150,
         limit_n_samples=500,
         **kwargs,
@@ -1005,79 +1005,74 @@ class ContinuousCube(Cube):
         y = np.linspace(low, high, 201)
         xx, yy = np.meshgrid(x, y)
         X = np.stack([xx, yy], axis=-1)
-        samples_mesh = torch.tensor(X.reshape(-1, 2), dtype=self.float)
-        states_mesh = torch.cat(
-            [samples_mesh, torch.ones(samples_mesh.shape[0], 1)], 1
-        ).to(self.device)
-        rewards = torch2np(
-            self.proxy2reward(self.proxy(self.statetorch2proxy(states_mesh)))
-        )
+        states_mesh = torch.tensor(X.reshape(-1, 2), device=self.device, dtype=self.float)
+        rewards = self.reward_torchbatch(states_mesh)
         # Init figure
         fig, ax = plt.subplots()
         fig.set_dpi(dpi)
         # Plot reward contour
-        h = ax.contourf(xx, yy, rewards.reshape(xx.shape), alpha=alpha)
-        ax.axis("scaled")
-        fig.colorbar(h, ax=ax)
-        ax.plot([0, 0], [0, 2 * np.pi], "-w", alpha=alpha)
-        ax.plot([0, 2 * np.pi], [0, 0], "-w", alpha=alpha)
-        ax.plot([2 * np.pi, 2 * np.pi], [2 * np.pi, 0], "-w", alpha=alpha)
-        ax.plot([2 * np.pi, 0], [2 * np.pi, 2 * np.pi], "-w", alpha=alpha)
+#         h = ax.contourf(xx, yy, rewards.reshape(xx.shape), alpha=alpha)
+#         ax.axis("scaled")
+#         fig.colorbar(h, ax=ax)
+#         ax.plot([0, 0], [0, 2 * np.pi], "-w", alpha=alpha)
+#         ax.plot([0, 2 * np.pi], [0, 0], "-w", alpha=alpha)
+#         ax.plot([2 * np.pi, 2 * np.pi], [2 * np.pi, 0], "-w", alpha=alpha)
+#         ax.plot([2 * np.pi, 0], [2 * np.pi, 2 * np.pi], "-w", alpha=alpha)
         # Plot samples
-        extra_samples = []
-        for add_0 in [0, -2 * np.pi, 2 * np.pi]:
-            for add_1 in [0, -2 * np.pi, 2 * np.pi]:
-                if not (add_0 == add_1 == 0):
-                    extra_samples.append(
-                        np.stack(
-                            [
-                                samples[:limit_n_samples, 0] + add_0,
-                                samples[:limit_n_samples, 1] + add_1,
-                            ],
-                            axis=1,
-                        )
-                    )
-        extra_samples = np.concatenate(extra_samples)
+#         extra_samples = []
+#         for add_0 in [0, -2 * np.pi, 2 * np.pi]:
+#             for add_1 in [0, -2 * np.pi, 2 * np.pi]:
+#                 if not (add_0 == add_1 == 0):
+#                     extra_samples.append(
+#                         np.stack(
+#                             [
+#                                 samples[:limit_n_samples, 0] + add_0,
+#                                 samples[:limit_n_samples, 1] + add_1,
+#                             ],
+#                             axis=1,
+#                         )
+#                     )
+#         extra_samples = np.concatenate(extra_samples)
         ax.scatter(
             samples[:limit_n_samples, 0], samples[:limit_n_samples, 1], alpha=alpha
         )
-        ax.scatter(extra_samples[:, 0], extra_samples[:, 1], alpha=alpha, color="white")
+#         ax.scatter(extra_samples[:, 0], extra_samples[:, 1], alpha=alpha, color="white")
         ax.grid()
         # Set tight layout
         plt.tight_layout()
         return fig
 
-    def plot_kde(
-        self,
-        kde,
-        alpha=0.5,
-        low=-np.pi * 0.5,
-        high=2.5 * np.pi,
-        dpi=150,
-        colorbar=True,
-        **kwargs,
-    ):
-        x = np.linspace(0, 2 * np.pi, 101)
-        y = np.linspace(0, 2 * np.pi, 101)
-        xx, yy = np.meshgrid(x, y)
-        X = np.stack([xx, yy], axis=-1)
-        Z = np.exp(kde.score_samples(X.reshape(-1, 2))).reshape(xx.shape)
-        # Init figure
-        fig, ax = plt.subplots()
-        fig.set_dpi(dpi)
-        # Plot KDE
-        h = ax.contourf(xx, yy, Z, alpha=alpha)
-        ax.axis("scaled")
-        if colorbar:
-            fig.colorbar(h, ax=ax)
-        ax.set_xticks([])
-        ax.set_yticks([])
-        ax.text(0, -0.3, r"$0$", fontsize=15)
-        ax.text(-0.28, 0, r"$0$", fontsize=15)
-        ax.text(2 * np.pi - 0.4, -0.3, r"$2\pi$", fontsize=15)
-        ax.text(-0.45, 2 * np.pi - 0.3, r"$2\pi$", fontsize=15)
-        for spine in ax.spines.values():
-            spine.set_visible(False)
-        # Set tight layout
-        plt.tight_layout()
-        return fig
+#     def plot_kde(
+#         self,
+#         kde,
+#         alpha=0.5,
+#         low=-np.pi * 0.5,
+#         high=2.5 * np.pi,
+#         dpi=150,
+#         colorbar=True,
+#         **kwargs,
+#     ):
+#         x = np.linspace(0, 2 * np.pi, 101)
+#         y = np.linspace(0, 2 * np.pi, 101)
+#         xx, yy = np.meshgrid(x, y)
+#         X = np.stack([xx, yy], axis=-1)
+#         Z = np.exp(kde.score_samples(X.reshape(-1, 2))).reshape(xx.shape)
+#         # Init figure
+#         fig, ax = plt.subplots()
+#         fig.set_dpi(dpi)
+#         # Plot KDE
+#         h = ax.contourf(xx, yy, Z, alpha=alpha)
+#         ax.axis("scaled")
+#         if colorbar:
+#             fig.colorbar(h, ax=ax)
+#         ax.set_xticks([])
+#         ax.set_yticks([])
+#         ax.text(0, -0.3, r"$0$", fontsize=15)
+#         ax.text(-0.28, 0, r"$0$", fontsize=15)
+#         ax.text(2 * np.pi - 0.4, -0.3, r"$2\pi$", fontsize=15)
+#         ax.text(-0.45, 2 * np.pi - 0.3, r"$2\pi$", fontsize=15)
+#         for spine in ax.spines.values():
+#             spine.set_visible(False)
+#         # Set tight layout
+#         plt.tight_layout()
+#         return fig
