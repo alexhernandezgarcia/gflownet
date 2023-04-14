@@ -65,6 +65,7 @@ class Grid(GFlowNetEnv):
             self.proxy.setup()
         self.rescale = rescale
         self.corr_type = corr_type
+        self.min_reward = 1e-15
 
     def get_actions_space(self):
         """
