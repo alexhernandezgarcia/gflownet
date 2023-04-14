@@ -179,6 +179,7 @@ class GFlowNetAgent:
         self.l1 = -1.0
         self.kl = -1.0
         self.jsd = -1.0
+        self.fid2_count = 0
 
     def _tfloat(self, x):
         if isinstance(x, torch.Tensor):  # logq
@@ -668,6 +669,17 @@ class GFlowNetAgent:
             .pow(2)
             .mean()
         )
+        # done_states = states[done.eq(1)][torch.argsort(traj_id[done.eq(1)])]
+        # fidelities = done_states[:, -1]
+        # xx = torch.unique(fidelities).sort()[0]
+        # yy = torch.arange(3).to(fidelities.device).sort()[0]
+        # if torch.max(rewards)>1e-1 and len(xx) == len(yy) and torch.eq(xx,yy).all():
+        #     argmax_fid = torch.argmax(rewards)
+        #     fid_with_max_reward = fidelities[argmax_fid]
+        #     print(fid_with_max_reward.item(), rewards[argmax_fid].item(), done_states[argmax_fid])
+        # self.fid2_count = self.fid2_count + torch.unique(fidelities, return_counts=True)[1][-1]
+        # if (it>4000 and loss>10):
+        #     print(states)
         return (loss, loss, loss), rewards
 
     def unpack_terminal_states(self, batch):
@@ -713,7 +725,7 @@ class GFlowNetAgent:
                 self.logger.log_test_metrics(
                     self.l1, self.kl, self.jsd, self.corr, it, self.use_context
                 )
-            if self.logger.do_plot(it) and x_sampled is not None:
+            if self.logger.do_plot(it) and x_sampled is not None and len(x_sampled) > 0:
                 figs = self.plot(x_sampled, kde_pred, kde_true)
                 self.logger.log_plots(figs, it, self.use_context)
             t0_iter = time.time()
@@ -923,7 +935,11 @@ class GFlowNetAgent:
         )
 
     def plot(self, x_sampled, kde_pred, kde_true, **plot_kwargs):
-
+        x_sampled_torch = torch.tensor(x_sampled, dtype=torch.float32)
+        # fidelity = x_sampled_torch[:, -1]
+        # unique, frequency = torch.unique(fidelity, dim=0, return_counts=True)
+        # print("Unique samples: ", unique.shape[0])
+        # print("Frequency: ", frequency)
         if hasattr(self.env, "plot_reward_samples"):
             fig_reward_samples = self.env.plot_reward_samples(x_sampled, **plot_kwargs)
         else:
