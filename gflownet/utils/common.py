@@ -64,6 +64,7 @@ def download_file_if_not_exists(path: str, url: str):
         gdown.download(url, str(path.absolute()), quiet=False)
     return path
 
+
 def tfloat(x, device, float):
     if isinstance(x, list) and torch.is_tensor(x[0]):
         return torch.stack(x).type(float).to(device)
@@ -71,6 +72,7 @@ def tfloat(x, device, float):
         return x.type(float).to(device)
     else:
         return torch.tensor(x, dtype=float, device=device)
+
 
 def tlong(x, device):
     if isinstance(x, list) and torch.is_tensor(x[0]):
@@ -80,6 +82,7 @@ def tlong(x, device):
     else:
         return torch.tensor(x, dtype=torch.long, device=device)
 
+
 def tint(x, device):
     if isinstance(x, list) and torch.is_tensor(x[0]):
         return torch.stack(x).type(torch.int).to(device)
@@ -87,6 +90,7 @@ def tint(x, device):
         return x.type(torch.int).to(device)
     else:
         return torch.tensor(x, dtype=torch.int, device=device)
+
 
 def tbool(x, device):
     if isinstance(x, list) and torch.is_tensor(x[0]):
