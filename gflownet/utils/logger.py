@@ -61,7 +61,6 @@ class Logger:
 
             if self.resume is True and run_id is not None:
                 self.run_id = run_id
-                print("Resuming wandb run")
                 self.run = self.wandb.init(
                     project=project_name,
                     id=run_id,
