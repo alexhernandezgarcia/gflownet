@@ -377,7 +377,7 @@ class GFlowNetAgent:
                             self._tfloat(parents_a),
                             self._tbool([env.done]),
                             self._tlong([env.id] * len(parents)),
-                            self._tlong([env.n_actions]),
+                            self._tlong([env.n_actions-1]),
                             self._tbool([mask_f]),
                             self._tbool([mask_b]),
                         ]
@@ -628,15 +628,15 @@ class GFlowNetAgent:
             ],
         )
         # Shift state_id to [1, 2, ...]
-        for tid in traj_id.unique():
-            state_id[traj_id == tid] -= state_id[traj_id == tid].min() + 1
+        # for tid in traj_id.unique():
+            # state_id[traj_id == tid] -= state_id[traj_id == tid].min() + 1
         # Compute rewards
         rewards = self.env.reward_torchbatch(states, done)
         # Build parents forward masks from state masks
         masks_f = torch.cat(
             [
                 masks_sf[torch.where((state_id == sid - 1) & (traj_id == pid))]
-                if sid > 1
+                if sid > 0
                 else self.mask_source
                 for sid, pid in zip(state_id, traj_id)
             ]
@@ -669,17 +669,17 @@ class GFlowNetAgent:
             .pow(2)
             .mean()
         )
-        # done_states = states[done.eq(1)][torch.argsort(traj_id[done.eq(1)])]
-        # fidelities = done_states[:, -1]
-        # xx = torch.unique(fidelities).sort()[0]
-        # yy = torch.arange(3).to(fidelities.device).sort()[0]
+        done_states = states[done.eq(1)][torch.argsort(traj_id[done.eq(1)])]
+        fidelities = done_states[:, -1]
+        xx = torch.unique(fidelities).sort()[0]
+        yy = torch.arange(3).to(fidelities.device).sort()[0]
         # if torch.max(rewards)>1e-1 and len(xx) == len(yy) and torch.eq(xx,yy).all():
         #     argmax_fid = torch.argmax(rewards)
         #     fid_with_max_reward = fidelities[argmax_fid]
         #     print(fid_with_max_reward.item(), rewards[argmax_fid].item(), done_states[argmax_fid])
-        # self.fid2_count = self.fid2_count + torch.unique(fidelities, return_counts=True)[1][-1]
-        # if (it>4000 and loss>10):
-        #     print(states)
+        self.fid2_count = self.fid2_count + torch.unique(fidelities, return_counts=True)[1][-1]
+        if (it>4000 and loss>10):
+            print(states)
         return (loss, loss, loss), rewards
 
     def unpack_terminal_states(self, batch):
@@ -936,10 +936,10 @@ class GFlowNetAgent:
 
     def plot(self, x_sampled, kde_pred, kde_true, **plot_kwargs):
         x_sampled_torch = torch.tensor(x_sampled, dtype=torch.float32)
-        # fidelity = x_sampled_torch[:, -1]
-        # unique, frequency = torch.unique(fidelity, dim=0, return_counts=True)
-        # print("Unique samples: ", unique.shape[0])
-        # print("Frequency: ", frequency)
+        fidelity = x_sampled_torch[:, -1]
+        unique, frequency = torch.unique(fidelity, dim=0, return_counts=True)
+        print("Unique samples: ", unique.shape[0])
+        print("Frequency: ", frequency)
         if hasattr(self.env, "plot_reward_samples"):
             fig_reward_samples = self.env.plot_reward_samples(x_sampled, **plot_kwargs)
         else:
