@@ -377,7 +377,7 @@ class GFlowNetAgent:
                             self._tfloat(parents_a),
                             self._tbool([env.done]),
                             self._tlong([env.id] * len(parents)),
-                            self._tlong([env.n_actions-1]),
+                            self._tlong([env.n_actions - 1]),
                             self._tbool([mask_f]),
                             self._tbool([mask_b]),
                         ]
@@ -629,7 +629,7 @@ class GFlowNetAgent:
         )
         # Shift state_id to [1, 2, ...]
         # for tid in traj_id.unique():
-            # state_id[traj_id == tid] -= state_id[traj_id == tid].min() + 1
+        # state_id[traj_id == tid] -= state_id[traj_id == tid].min() + 1
         # Compute rewards
         rewards = self.env.reward_torchbatch(states, done)
         # Build parents forward masks from state masks
@@ -677,9 +677,11 @@ class GFlowNetAgent:
         #     argmax_fid = torch.argmax(rewards)
         #     fid_with_max_reward = fidelities[argmax_fid]
         #     print(fid_with_max_reward.item(), rewards[argmax_fid].item(), done_states[argmax_fid])
-        self.fid2_count = self.fid2_count + torch.unique(fidelities, return_counts=True)[1][-1]
-        if (it>4000 and loss>10):
-            print(states)
+        self.fid2_count = (
+            self.fid2_count + torch.unique(fidelities, return_counts=True)[1][-1]
+        )
+        # if (it>4000 and loss>10):
+        #     print(states)
         return (loss, loss, loss), rewards
 
     def unpack_terminal_states(self, batch):
