@@ -540,23 +540,6 @@ class GFlowNetAgent:
         # Convert lists in the batch into tensors
         batch.process_batch()
 
-        # Unpack batch
-        # (
-        #     states,
-        #     actions,
-        #     parents,
-        #     parents_a,
-        #     done,
-        #     traj_id_parents,
-        #     state_id,
-        #     masks_sf,
-        #     masks_b,
-        # ) = zip(*batch)
-        # Keep only parents in trajectory
-        # parents = [
-        #     p[torch.where(torch.all(torch.eq(a, p_a), axis=1))]
-        #     for a, p, p_a in zip(actions, parents, parents_a)
-        # ]
         states = batch.state
         actions = batch.action
         parents = batch.parents
@@ -566,20 +549,6 @@ class GFlowNetAgent:
         traj_id = batch.env_id
         state_id = batch.step
 
-        # traj_id = torch.cat([el[:1] for el in traj_id_parents])
-        # Concatenate lists of tensors
-        # states, actions, parents, done, state_id, masks_sf, masks_b = map(
-        #     torch.cat,
-        #     [
-        #         states,
-        #         actions,
-        #         parents,
-        #         done,
-        #         state_id,
-        #         masks_sf,
-        #         masks_b,
-        #     ],
-        # )
         # Shift state_id to [1, 2, ...]
         for tid in traj_id.unique():
             state_id[traj_id == tid] -= state_id[traj_id == tid].min() + 1
