@@ -98,7 +98,7 @@ class Batch:
         elif self.loss == 'trajectorybalance':
             parents = torch.zeros_like(self.state)
             for env_id, traj in self.trajectory_indicies.items():
-                parents[traj[0]] = tfloat(self.envs[env_id].source, device=self.device, float=self.float)
+                parents[traj[0]] = tfloat(self.envs[env_id].state2policy(self.envs[env_id].source), device=self.device, float=self.float)
                 parents[traj[1:]] = self.state[traj[:-1]]
             self.parents = parents
 
