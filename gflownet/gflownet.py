@@ -23,7 +23,15 @@ from tqdm import tqdm
 
 from gflownet.utils.batch import Batch
 from gflownet.utils.buffer import Buffer
-from gflownet.utils.common import set_device, set_float_precision, torch2np, tfloat, tlong, tint, tbool
+from gflownet.utils.common import (
+    set_device,
+    set_float_precision,
+    tbool,
+    tfloat,
+    tint,
+    tlong,
+    torch2np,
+)
 
 
 class GFlowNetAgent:
@@ -57,7 +65,9 @@ class GFlowNetAgent:
         self.float = set_float_precision(float_precision)
         # Environment
         self.env = env
-        self.mask_source = tbool([self.env.get_mask_invalid_actions_forward()], device=self.device)
+        self.mask_source = tbool(
+            [self.env.get_mask_invalid_actions_forward()], device=self.device
+        )
         # Continuous environments
         self.continuous = hasattr(self.env, "continuous") and self.env.continuous
         if self.continuous and optimizer.loss in ["flowmatch", "flowmatching"]:
@@ -234,11 +244,13 @@ class GFlowNetAgent:
         states = [env.state for env in envs]
         if is_forward:
             mask_invalid_actions = tbool(
-                [env.get_mask_invalid_actions_forward() for env in envs], device=self.device
+                [env.get_mask_invalid_actions_forward() for env in envs],
+                device=self.device,
             )
         else:
             mask_invalid_actions = tbool(
-                [env.get_mask_invalid_actions_backward() for env in envs], device=self.device
+                [env.get_mask_invalid_actions_backward() for env in envs],
+                device=self.device,
             )
         # Build policy outputs
         policy_outputs = model.random_distribution(states)
@@ -256,8 +268,9 @@ class GFlowNetAgent:
                     tfloat(
                         self.env.statebatch2policy(
                             [s for s, do in zip(states, idx_norandom) if do]
-                        )
-                    , device=self.device, float=self.float
+                        ),
+                        device=self.device,
+                        float=self.float,
                     )
                 )
         else:
@@ -465,8 +478,8 @@ class GFlowNetAgent:
         batch.process_batch()
         # Unpack batch
         parents_state_idx = batch.parents_state_idx
-        states = batch.state 
-        parents = batch.parents 
+        states = batch.state
+        parents = batch.parents
         parents_actions = batch.parents_actions
         done = batch.done
         masks_sf = batch.mask_invalid_actions_forward
@@ -480,7 +493,9 @@ class GFlowNetAgent:
             (states.shape[0], self.env.policy_output_dim),
             device=self.device,
         )
-        inflow_logits[parents_state_idx, parents_a_idx] = self.forward_policy(parents)[torch.arange(parents.shape[0]), parents_a_idx]
+        inflow_logits[parents_state_idx, parents_a_idx] = self.forward_policy(parents)[
+            torch.arange(parents.shape[0]), parents_a_idx
+        ]
         inflow = torch.logsumexp(inflow_logits, dim=1)
         # Out-flows
         outflow_logits = self.forward_policy(states)
@@ -542,9 +557,9 @@ class GFlowNetAgent:
         #     p[torch.where(torch.all(torch.eq(a, p_a), axis=1))]
         #     for a, p, p_a in zip(actions, parents, parents_a)
         # ]
-        states = batch.state 
+        states = batch.state
         actions = batch.action
-        parents = batch.parents 
+        parents = batch.parents
         done = batch.done
         masks_sf = batch.mask_invalid_actions_forward
         masks_b = batch.mask_invalid_actions_backward
@@ -1062,10 +1077,15 @@ def logq(traj_list, actions_list, model, env, loginf=1000):
         traj = traj[::-1]
         actions = actions[::-1]
         masks = tbool(
-            [env.get_mask_invalid_actions_forward(state, 0) for state in traj], device=self.device
+            [env.get_mask_invalid_actions_forward(state, 0) for state in traj],
+            device=self.device,
         )
         with torch.no_grad():
-            logits_traj = model(tfloat(env.statebatch2policy(traj), device=self.device, float=self.float))
+            logits_traj = model(
+                tfloat(
+                    env.statebatch2policy(traj), device=self.device, float=self.float
+                )
+            )
         logits_traj[masks] = -loginf
         logsoftmax = torch.nn.LogSoftmax(dim=1)
         logprobs_traj = logsoftmax(logits_traj)
