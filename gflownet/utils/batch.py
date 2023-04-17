@@ -8,7 +8,8 @@ from gflownet.utils.common import tbool, tfloat, tint, tlong
 
 class Batch:
     """
-    Important note: one env should correspond to only one trajectory, all env_id should be unique
+    Important note: one env should correspond to only one trajectory, all env_id should
+    be unique.
     """
 
     def __init__(self, loss, device, float):
