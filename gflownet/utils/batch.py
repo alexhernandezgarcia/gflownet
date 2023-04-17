@@ -70,7 +70,7 @@ class Batch:
         self._process_states()
         self.env_id = tlong(self.env_id, device=self.device)
         self.step = tlong(self.step, device=self.device)
-        self._process_trajectory_indicies()
+        self._process_trajectory_indices()
         if len(self.action) > 0:
             self.action = tfloat(self.action, device=self.device, float=self.float)
             self.done = tbool(self.done, device=self.device)
@@ -140,7 +140,7 @@ class Batch:
         self.parents_actions += another_batch.parents_actions
         self.step += another_batch.step
 
-    def _process_trajectory_indicies(self):
+    def _process_trajectory_indices(self):
         trajs = {env_id: [] for env_id in self.envs.keys()}
         for idx, (env_id, step) in enumerate(zip(self.env_id, self.step)):
             trajs[env_id.item()].append((idx, step))
