@@ -147,7 +147,7 @@ class Batch:
             self.parents = torch.cat(parents)
         elif self.loss == "trajectorybalance":
             parents = torch.zeros_like(self.states)
-            for env_id, traj in self.trajectory_indicies.items():
+            for env_id, traj in self.trajectory_indices.items():
                 parents[traj[0]] = tfloat(
                     self.envs[env_id].state2policy(self.envs[env_id].source),
                     device=self.device,
@@ -182,7 +182,7 @@ class Batch:
             env_id: list(map(lambda x: x[0], sorted(traj, key=lambda x: x[1])))
             for env_id, traj in trajs.items()
         }
-        self.trajectory_indicies = trajs
+        self.trajectory_indices = trajs
 
     def unpack_terminal_states(self):
         """
@@ -192,11 +192,11 @@ class Batch:
         """
         # TODO: make sure that unpacked states and trajs are sorted by traj_id (like
         # rewards will be)
-        if not hasattr(self, "trajectory_indicies"):
+        if not hasattr(self, "trajectory_indices"):
             self.process_batch()
         traj_actions = []
         terminal_states = []
-        for traj_idx in self.trajectory_indicies.values():
+        for traj_idx in self.trajectory_indices.values():
             traj_actions.append(self.actions[traj_idx].tolist())
             terminal_states.append(tuple(self.state_gfn[traj_idx[-1]].tolist()))
         traj_actions = [tuple([tuple(a) for a in t]) for t in traj_actions]
