@@ -73,16 +73,16 @@ def test__environment__has_expected_initial_values(env, lattice_system, exp_angl
 
 
 @pytest.mark.parametrize("lattice_system", LATTICE_SYSTEMS)
-@pytest.mark.parametrize("max_step_len", [1, 3, 5])
-def test__get_actions_space__returns_correct_number_of_actions(
-    lattice_system, max_step_len
+@pytest.mark.parametrize("max_increment", [1, 3, 5])
+def test__get_action_space__returns_correct_number_of_actions(
+    lattice_system, max_increment
 ):
     environment = LatticeParameters(
-        lattice_system=lattice_system, max_step_len=max_step_len
+        lattice_system=lattice_system, max_increment=max_increment
     )
-    exp_n_actions = 9 * max_step_len + 1
+    exp_n_actions = 9 * max_increment + 1
 
-    assert len(environment.get_actions_space()) == exp_n_actions
+    assert len(environment.get_action_space()) == exp_n_actions
 
 
 @pytest.mark.parametrize("lattice_system", [CUBIC, HEXAGONAL, ORTHORHOMBIC, TETRAGONAL])
@@ -158,7 +158,7 @@ def test__get_parents__returns_no_parents_in_initial_state(env, lattice_system):
 
 @pytest.mark.parametrize("lattice_system", LATTICE_SYSTEMS)
 def test__get_parents__returns_parents_after_step(env, lattice_system):
-    env.step((0, 1, 2))
+    env.step((1, 1, 1, 0, 0, 0))
 
     parents, actions = env.get_parents()
 
@@ -169,7 +169,12 @@ def test__get_parents__returns_parents_after_step(env, lattice_system):
 @pytest.mark.parametrize("lattice_system", LATTICE_SYSTEMS)
 @pytest.mark.parametrize(
     "actions",
-    [[], [(0, 1, 2), (3, 4, 5)], [(0, 1, 2)], [(0, 1, 2), (3, 4, 5), (0, 1, 2)]],
+    [
+        [],
+        [(1, 1, 1, 0, 0, 0), (0, 0, 0, 1, 1, 1)],
+        [(1, 1, 1, 0, 0, 0)],
+        [(1, 1, 1, 0, 0, 0), (1, 1, 1, 0, 0, 0), (1, 1, 1, 0, 0, 0)],
+    ],
 )
 def test__get_parents__returns_same_number_of_parents_and_actions(
     env, lattice_system, actions
@@ -185,32 +190,63 @@ def test__get_parents__returns_same_number_of_parents_and_actions(
 @pytest.mark.parametrize(
     "lattice_system, actions, exp_state",
     [
-        (TRICLINIC, [(0,), (1,), (2,), (3,), (4,)], [1, 1, 1, 1, 1, 0]),
         (
             TRICLINIC,
             [
-                (
-                    0,
-                    1,
-                    2,
-                )
+                (1, 0, 0, 0, 0, 0),
+                (0, 1, 0, 0, 0, 0),
+                (0, 0, 1, 0, 0, 0),
+                (0, 0, 0, 1, 0, 0),
+                (0, 0, 0, 0, 1, 0),
             ],
+            [1, 1, 1, 1, 1, 0],
+        ),
+        (
+            TRICLINIC,
+            [(1, 1, 1, 0, 0, 0)],
             [1, 1, 1, 0, 0, 0],
         ),
-        (TRICLINIC, [(1,), (1,), (0,), (1,), (3, 4, 5), (0, 1, 2)], [2, 4, 1, 1, 1, 1]),
-        (CUBIC, [(0,), (1,), (2,), (3,), (4,)], [0, 0, 0, 30, 30, 30]),
-        (CUBIC, [(0,), (1,), (2,), (3,), (0, 1, 2)], [1, 1, 1, 30, 30, 30]),
+        (
+            TRICLINIC,
+            [
+                (0, 1, 0, 0, 0, 0),
+                (0, 1, 0, 0, 0, 0),
+                (1, 0, 0, 0, 0, 0),
+                (0, 1, 0, 0, 0, 0),
+                (0, 0, 0, 1, 1, 1),
+                (1, 1, 1, 0, 0, 0),
+            ],
+            [2, 4, 1, 1, 1, 1],
+        ),
         (
             CUBIC,
             [
-                (
-                    0,
-                    1,
-                    2,
-                ),
-                (0, 1, 2),
-                (0, 1, 2),
-                (3, 4, 5),
+                (1, 0, 0, 0, 0, 0),
+                (0, 1, 0, 0, 0, 0),
+                (0, 0, 1, 0, 0, 0),
+                (0, 0, 0, 1, 0, 0),
+                (0, 0, 0, 0, 1, 0),
+            ],
+            [0, 0, 0, 30, 30, 30],
+        ),
+        (
+            CUBIC,
+            [
+                (1, 0, 0, 0, 0, 0),
+                (0, 1, 0, 0, 0, 0),
+                (0, 0, 1, 0, 0, 0),
+                (0, 0, 0, 1, 0, 0),
+                (1, 1, 1, 0, 0, 0),
+            ],
+            [1, 1, 1, 30, 30, 30],
+        ),
+        (
+            CUBIC,
+            [
+                (1, 1, 1, 0, 0, 0),
+                (1, 1, 1, 0, 0, 0),
+                (1, 1, 1, 0, 0, 0),
+                (0, 0, 0, 1, 1, 1),
             ],
             [3, 3, 3, 30, 30, 30],
         ),
@@ -244,7 +280,7 @@ def test__state2oracle__returns_expected_tensor(env, lattice_system, state, exp_
 
 @pytest.mark.parametrize("lattice_system", [TRICLINIC])
 def test__reset(env, lattice_system):
-    env.step((0, 1, 2))
+    env.step((1, 1, 1, 0, 0, 0))
 
     assert env.state != env.source
 

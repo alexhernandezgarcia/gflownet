@@ -40,8 +40,7 @@ class LatticeParameters(Grid):
         min_angle: float = 30.0,
         max_angle: float = 150.0,
         grid_size: int = 61,
-        min_step_len: int = 1,
-        max_step_len: int = 1,
+        max_increment: int = 1,
         **kwargs,
     ):
         """
@@ -67,17 +66,14 @@ class LatticeParameters(Grid):
             Note that it has to be defined in such a way that 90 and 120 degree angles will be present in the
             mapping from grid cells to angles (np.linspace(min_angle, max_angle, grid_size)).
 
-        min_step_len : int
-            Minimum value of the step (how many cells can be incremented in a single step).
-
-        max_step_len : int
-            Maximum value of the step (how many cells can be incremented in a single step).
+        max_increment : int
+            Maximum increment of each dimension by the actions.
         """
         super().__init__(
             n_dim=6,
             length=grid_size,
-            min_step_len=min_step_len,
-            max_step_len=max_step_len,
+            max_increment=max_increment,
+            max_dim_per_action=3,
             **kwargs,
         )
 
@@ -141,12 +137,12 @@ class LatticeParameters(Grid):
 
         self.source = [0, 0, 0] + [self.angle2cell[angle] for angle in angles]
 
-    def get_actions_space(self) -> List[Tuple[int]]:
+    def get_action_space(self) -> List[Tuple[int]]:
         """
         Constructs list with all possible actions, including eos.
 
-        The action is described by a tuple of dimensions (possibly duplicate) that will all be incremented
-        by 1, e.g. (0, 0, 0, 2, 4, 4, 4) would increment the 0th and the 4th dimension by 3, and 2nd by 1.
+        The action is described by a 6-dimensional tuple, i-th value of which corresponds to increasing the
+        i-th value of state by action[i].
 
         State is encoded as a 6-dimensional list of numbers: the first three describe edge lengths,
         and the last three angles. Note that they are not directly lengths and angles, but rather integer values
@@ -169,23 +165,27 @@ class LatticeParameters(Grid):
             - increment all alpha, beta and gama by n (required by rhombohedral lattice systems, for which
                 alpha == beta == gamma =/= 90 degrees).
         """
-        valid_steplens = np.arange(self.min_step_len, self.max_step_len + 1)
+        valid_steplens = [el for el in range(1, self.max_increment + 1)]
         actions = []
 
         # lengths
         for r in valid_steplens:
             for dim in [0, 1, 2]:
-                actions.append((dim,) * r)
-            actions.append((0, 1) * r)
-            actions.append((0, 1, 2) * r)
+                action = [0 for _ in range(6)]
+                action[dim] = r
+                actions.append(tuple(action))
+            actions.append((r, r, 0, 0, 0, 0))
+            actions.append((r, r, r, 0, 0, 0))
 
         # angles
         for r in valid_steplens:
             for dim in [3, 4, 5]:
-                actions.append((dim,) * r)
-            actions.append((3, 4, 5) * r)
+                action = [0 for _ in range(6)]
+                action[dim] = r
+                actions.append(tuple(action))
+            actions.append((0, 0, 0, r, r, r))
 
-        actions.append((self.eos,))
+        actions.append(self.eos)
 
         return actions
 
@@ -318,8 +318,8 @@ class LatticeParameters(Grid):
         # actions invalid if intermediate lattice system constraints not met
         for idx, a in enumerate(self.action_space[:-1]):
             child = state.copy()
-            for d in a:
-                child[d] += 1
+            for d, incr in enumerate(a):
+                child[d] += incr
             if not self._is_intermediate_state_valid(child):
                 mask[idx] = True
 
@@ -422,7 +422,7 @@ class LatticeParameters(Grid):
         if done is None:
             done = self.done
         if done:
-            return [state], [(self.eos,)]
+            return [state], [self.eos]
 
         parents = []
         actions = []
