@@ -47,9 +47,9 @@ def test__add_to_batch__minimal_grid2d_returns_expected(
     assert valid
     # TB
     batch_tb.add_to_batch([grid2d], [action], [valid])
-    assert batch_tb.state == [state_expected]
-    assert batch_tb.action == [action]
+    assert batch_tb.states == [state_expected]
+    assert batch_tb.actions == [action]
     # FM
     batch_fm.add_to_batch([grid2d], [action], [valid])
-    assert batch_fm.state == [state_expected]
-    assert batch_fm.action == [action]
+    assert batch_fm.states == [state_expected]
+    assert batch_fm.actions == [action]
