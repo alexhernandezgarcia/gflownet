@@ -1,20 +1,45 @@
 from copy import deepcopy
+from typing import Any
 
 import numpy as np
 import torch
 
-from gflownet.utils.common import tbool, tfloat, tint, tlong
+from gflownet.utils.common import (
+    set_device,
+    set_float_precision,
+    tbool,
+    tfloat,
+    tint,
+    tlong,
+)
 
 
 class Batch:
     """
+    Class to handle GFlowNet batches.
+
+    loss: string
+        String identifier of the GFlowNet loss.
+
+    device: str or torch.device
+        torch.device or string indicating the device to use ("cpu" or "cuda")
+
+    float_type: torch.dtype or int
+        One of float torch.dtype or an int indicating the float precision (16, 32 or
+        64).
+
     Important note: one env should correspond to only one trajectory, all env_id should
     be unique.
     """
 
-    def __init__(self, loss, device, float_type):
-        # Device and float precision
+    def __init__(self, loss: str, device: Any = "cpu", float_type: Any = 32):
+        # Device
+        if isinstance(device, str):
+            device = set_device(device)
         self.device = device
+        # Float precision
+        if isinstance(float_type, int):
+            float_type = set_float_precision(float_type)
         self.float = float_type
         # Loss
         self.loss = loss
