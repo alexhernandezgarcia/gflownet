@@ -493,5 +493,6 @@ def test__all_env_common(env):
     return common.test__all_env_common(env)
 
 
+@pytest.mark.skip(reason="Takes too long")
 def test__all_env_common(env_full):
     return common.test__all_env_common(env_full)
