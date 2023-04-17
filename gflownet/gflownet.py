@@ -478,11 +478,11 @@ class GFlowNetAgent:
         batch.process_batch()
         # Unpack batch
         parents_state_idx = batch.parents_state_idx
-        states = batch.state
+        states = batch.states
         parents = batch.parents
         parents_actions = batch.parents_actions
         done = batch.done
-        masks_sf = batch.mask_invalid_actions_forward
+        masks_sf = batch.masks_invalid_actions_forward
 
         parents_a_idx = self.env.actions2indices(parents_actions)
         # Compute rewards
@@ -540,27 +540,27 @@ class GFlowNetAgent:
         # Convert lists in the batch into tensors
         batch.process_batch()
 
-        states = batch.state
-        actions = batch.action
+        states = batch.states
+        actions = batch.actions
         parents = batch.parents
         done = batch.done
-        masks_sf = batch.mask_invalid_actions_forward
-        masks_b = batch.mask_invalid_actions_backward
-        traj_id = batch.env_id
-        state_id = batch.step
+        masks_sf = batch.masks_invalid_actions_forward
+        masks_b = batch.masks_invalid_actions_backward
+        traj_ids = batch.env_ids
+        state_ids = batch.steps
 
-        # Shift state_id to [1, 2, ...]
-        for tid in traj_id.unique():
-            state_id[traj_id == tid] -= state_id[traj_id == tid].min() + 1
+        # Shift state_ids to [1, 2, ...]
+        for tid in traj_ids.unique():
+            state_ids[traj_ids == tid] -= state_ids[traj_ids == tid].min() + 1
         # Compute rewards
         rewards = batch.compute_rewards()
         # Build parents forward masks from state masks
         masks_f = torch.cat(
             [
-                masks_sf[torch.where((state_id == sid - 1) & (traj_id == pid))]
+                masks_sf[torch.where((state_ids == sid - 1) & (traj_ids == pid))]
                 if sid > 1
                 else self.mask_source
-                for sid, pid in zip(state_id, traj_id)
+                for sid, pid in zip(state_ids, traj_ids)
             ]
         )
         # Forward trajectories
@@ -569,22 +569,22 @@ class GFlowNetAgent:
             policy_output_f, True, actions, states, masks_f, loginf
         )
         sumlogprobs_f = torch.zeros(
-            len(torch.unique(traj_id, sorted=True)),
+            len(torch.unique(traj_ids, sorted=True)),
             dtype=self.float,
             device=self.device,
-        ).index_add_(0, traj_id, logprobs_f)
+        ).index_add_(0, traj_ids, logprobs_f)
         # Backward trajectories
         policy_output_b = self.backward_policy(states)
         logprobs_b = self.env.get_logprobs(
             policy_output_b, False, actions, parents, masks_b, loginf
         )
         sumlogprobs_b = torch.zeros(
-            len(torch.unique(traj_id, sorted=True)),
+            len(torch.unique(traj_ids, sorted=True)),
             dtype=self.float,
             device=self.device,
-        ).index_add_(0, traj_id, logprobs_b)
+        ).index_add_(0, traj_ids, logprobs_b)
         # Sort rewards of done states by ascending traj id
-        rewards = rewards[done.eq(1)][torch.argsort(traj_id[done.eq(1)])]
+        rewards = rewards[done.eq(1)][torch.argsort(traj_ids[done.eq(1)])]
         # Trajectory balance loss
         loss = (
             (self.logZ.sum() + sumlogprobs_f - sumlogprobs_b - torch.log(rewards))
