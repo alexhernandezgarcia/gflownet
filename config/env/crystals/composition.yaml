@@ -1,10 +1,10 @@
 defaults:
   - base
 
-_target_: gflownet.envs.crystals.Crystal
+_target_: gflownet.envs.crystals.composition.Composition
 
-# Crystal parameters
-id: crystal
+# Composition parameters
+id: composition
 max_diff_elem: 4
 min_diff_elem: 2
 elements: 5
@@ -17,7 +17,7 @@ buffer:
   data_path: null
   train:
     type: all
-    output_csv: grid_train.csv
+    output_csv: composition_train.csv
   test:
     type: all
-    output_csv: grid_test.csv
+    output_csv: composition_test.csv
