@@ -71,8 +71,9 @@ class Batch:
                 self.env_ids.append(env.id)
                 self.done.append(env.done)
                 self.steps.append(env.n_actions)
-                mask_f = env.get_mask_invalid_actions_forward()
-                self.masks_invalid_actions_forward.append(mask_f)
+                self.masks_invalid_actions_forward.append(
+                    env.get_mask_invalid_actions_forward()
+                )
                 if self.loss == "flowmatch":
                     parents, parents_a = env.get_parents(action=action)
                     assert (
@@ -84,10 +85,11 @@ class Batch:
                     self.parents.append(parents)
                     self.parents_actions.append(parents_a)
                 if self.loss == "trajectorybalance":
-                    mask_b = env.get_mask_invalid_actions_backward(
-                        env.state, env.done, [action]
+                    self.masks_invalid_actions_backward.append(
+                        env.get_mask_invalid_actions_backward(
+                            env.state, env.done, [action]
+                        )
                     )
-                    self.masks_invalid_actions_backward.append(mask_b)
             else:
                 if env.done:
                     self.states.append(env.state)
