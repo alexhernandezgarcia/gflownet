@@ -12,10 +12,13 @@ class Batch:
     be unique.
     """
 
-    def __init__(self, loss, device, float):
-        self.loss = loss
+    def __init__(self, loss, device, float_type):
+        # Device and float precision
         self.device = device
-        self.float = float
+        self.float = float_type
+        # Loss
+        self.loss = loss
+        # Initialize empty batch variables
         self.envs = dict()
         self.state = []
         self.action = []
@@ -72,7 +75,7 @@ class Batch:
         self.step = tlong(self.step, device=self.device)
         self._process_trajectory_indices()
         if len(self.action) > 0:
-            self.action = tfloat(self.action, device=self.device, float=self.float)
+            self.action = tfloat(self.action, device=self.device, float_type=self.float)
             self.done = tbool(self.done, device=self.device)
             self.mask_invalid_actions_forward = tbool(
                 self.mask_invalid_actions_forward, device=self.device
@@ -84,7 +87,7 @@ class Batch:
                 )
                 self.parents_actions = torch.cat(
                     [
-                        tfloat(x, device=self.device, float=self.float)
+                        tfloat(x, device=self.device, float_type=self.float)
                         for x in self.parents_actions
                     ]
                 )
@@ -95,11 +98,11 @@ class Batch:
             self._process_parents()
 
     def _process_states(self):
-        self.state_gfn = tfloat(self.state, device=self.device, float=self.float)
+        self.state_gfn = tfloat(self.state, device=self.device, float_type=self.float)
         states = []
         for state, env_id in zip(self.state, self.env_id):
             states.append(self.envs[env_id].state2policy(state))
-        self.state = tfloat(states, device=self.device, float=self.float)
+        self.state = tfloat(states, device=self.device, float_type=self.float)
 
     def _process_parents(self):
         if self.loss == "flowmatch":
@@ -109,7 +112,7 @@ class Batch:
                     tfloat(
                         self.envs[env_id.item()].statebatch2policy(par),
                         device=self.device,
-                        float=self.float,
+                        float_type=self.float,
                     )
                 )
             self.parents = torch.cat(parents)
@@ -119,7 +122,7 @@ class Batch:
                 parents[traj[0]] = tfloat(
                     self.envs[env_id].state2policy(self.envs[env_id].source),
                     device=self.device,
-                    float=self.float,
+                    float_type=self.float,
                 )
                 parents[traj[1:]] = self.state[traj[:-1]]
             self.parents = parents

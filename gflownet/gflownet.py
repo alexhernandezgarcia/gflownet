@@ -270,7 +270,7 @@ class GFlowNetAgent:
                             [s for s, do in zip(states, idx_norandom) if do]
                         ),
                         device=self.device,
-                        float=self.float,
+                        float_type=self.float,
                     )
                 )
         else:
@@ -360,7 +360,7 @@ class GFlowNetAgent:
             "rewards": 0.0,
         }
         t0_all = time.time()
-        batch = Batch(loss=self.loss, device=self.device, float=self.float)
+        batch = Batch(loss=self.loss, device=self.device, float_type=self.float)
         if isinstance(envs, list):
             envs = [env.reset(idx) for idx, env in enumerate(envs)]
         elif n_samples is not None and n_samples > 0:
@@ -472,7 +472,7 @@ class GFlowNetAgent:
         flow_loss : float
             Loss of the intermediate nodes only
         """
-        loginf = tfloat([loginf], device=self.device, float=self.float)
+        loginf = tfloat([loginf], device=self.device, float_type=self.float)
 
         # Convert lists in the batch into tensors
         batch.process_batch()
@@ -536,7 +536,7 @@ class GFlowNetAgent:
         flow_loss : float
             Loss of the intermediate nodes only
         """
-        loginf = tfloat([loginf], device=self.device, float=self.float)
+        loginf = tfloat([loginf], device=self.device, float_type=self.float)
         # Convert lists in the batch into tensors
         batch.process_batch()
 
@@ -612,7 +612,7 @@ class GFlowNetAgent:
                 )
                 self.logger.log_plots(figs, it, self.use_context)
             t0_iter = time.time()
-            data = Batch(loss=self.loss, device=self.device, float=self.float)
+            data = Batch(loss=self.loss, device=self.device, float_type=self.float)
             for j in range(self.sttr):
                 batch, times = self.sample_batch(envs)
                 data.merge(batch)
@@ -1041,7 +1041,7 @@ def logq(traj_list, actions_list, model, env, loginf=1000):
     # TODO: this method is probably suboptimal, since it may repeat forward calls for
     # the same nodes.
     log_q = torch.tensor(1.0)
-    loginf = tfloat([loginf], device=self.device, float=self.float)
+    loginf = tfloat([loginf], device=self.device, float_type=self.float)
     for traj, actions in zip(traj_list, actions_list):
         traj = traj[::-1]
         actions = actions[::-1]
@@ -1052,7 +1052,9 @@ def logq(traj_list, actions_list, model, env, loginf=1000):
         with torch.no_grad():
             logits_traj = model(
                 tfloat(
-                    env.statebatch2policy(traj), device=self.device, float=self.float
+                    env.statebatch2policy(traj),
+                    device=self.device,
+                    float_type=self.float,
                 )
             )
         logits_traj[masks] = -loginf
