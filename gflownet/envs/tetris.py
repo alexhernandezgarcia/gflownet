@@ -29,9 +29,11 @@ class Tetris(GFlowNetEnv):
     supposed to be a game, but rather a toy environment with an intuitive state and
     action space.
 
-    The state space is 2D board, with all the combinations of pieces on it. Pieces are
-    identified by an index that starts from piece_idx * max_pieces_per_type, and is
-    incremented by 1 with each new piece from the same type.
+    The state space is 2D board, with all the combinations of pieces on it. Pieces that
+    are added to the board are identified by a number that starts from
+    piece_idx * max_pieces_per_type, and is incremented by 1 with each new piece from
+    the same type. This number fills in the cells of the board where the piece is
+    located. This enables telling apart pieces of the same type.
 
     The action space is the choice of piece, its rotation and horizontal location
     where to drop the piece. The action space may be constrained according to needs.
