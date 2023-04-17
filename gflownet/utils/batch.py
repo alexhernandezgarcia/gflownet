@@ -1,3 +1,4 @@
+from collections import defaultdict
 from copy import deepcopy
 
 import numpy as np
@@ -30,10 +31,8 @@ class Batch:
         return len(self.state)
 
     def add_to_batch(self, envs, actions, valids, train=True):
-        for env in envs:
-            self.envs.update({env.id: env})
-
         for env, action, valid in zip(envs, actions, valids):
+            self.envs.update({env.id: env})
             if not valid:
                 continue
             if train:
@@ -69,7 +68,7 @@ class Batch:
         self._process_states()
         self.env_id = tlong(self.env_id, device=self.device)
         self.step = tlong(self.step, device=self.device)
-        self._process_trajectory_indicies()
+        self._process_trajectory_indices()
         if len(self.action) > 0:
             self.action = tfloat(self.action, device=self.device, float=self.float)
             self.done = tbool(self.done, device=self.device)
@@ -114,7 +113,7 @@ class Batch:
             self.parents = torch.cat(parents)
         elif self.loss == "trajectorybalance":
             parents = torch.zeros_like(self.state)
-            for env_id, traj in self.trajectory_indicies.items():
+            for env_id, traj in self.trajectory_indices.items():
                 parents[traj[0]] = tfloat(
                     self.envs[env_id].state2policy(self.envs[env_id].source),
                     device=self.device,
@@ -139,15 +138,20 @@ class Batch:
         self.parents_actions += another_batch.parents_actions
         self.step += another_batch.step
 
-    def _process_trajectory_indicies(self):
-        trajs = {env_id: [] for env_id in self.envs.keys()}
+    def _process_trajectory_indices(self):
+        """
+        Creates a dict of trajectory indices (key: env_id, value: indecies of the
+        states in self.states going in the order from s_1 to s_f. The dict is created
+        and stored in the self.trajectory_indices
+        """
+        trajs = defaultdict(list)
         for idx, (env_id, step) in enumerate(zip(self.env_id, self.step)):
             trajs[env_id.item()].append((idx, step))
         trajs = {
             env_id: list(map(lambda x: x[0], sorted(traj, key=lambda x: x[1])))
             for env_id, traj in trajs.items()
         }
-        self.trajectory_indicies = trajs
+        self.trajectory_indices = trajs
 
     def unpack_terminal_states(self):
         """
@@ -157,11 +161,11 @@ class Batch:
         """
         # TODO: make sure that unpacked states and trajs are sorted by traj_id (like
         # rewards will be)
-        if not hasattr(self, "trajectory_indicies"):
+        if not hasattr(self, "trajectory_indices"):
             self.process_batch()
         traj_actions = []
         terminal_states = []
-        for traj_idx in self.trajectory_indicies.values():
+        for traj_idx in self.trajectory_indices.values():
             traj_actions.append(self.action[traj_idx].tolist())
             terminal_states.append(tuple(self.state_gfn[traj_idx[-1]].tolist()))
         traj_actions = [tuple([tuple(a) for a in t]) for t in traj_actions]
