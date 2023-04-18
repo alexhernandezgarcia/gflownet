@@ -5,6 +5,7 @@ TODO:
 """
 import copy
 import pickle
+import random
 import sys
 import time
 from collections import defaultdict
@@ -18,13 +19,11 @@ import torch.nn as nn
 import yaml
 from omegaconf import OmegaConf
 from scipy.special import logsumexp
-import random
 from torch.distributions import Bernoulli, Categorical
 from tqdm import tqdm
 
 from gflownet.utils.buffer import Buffer
 from gflownet.utils.common import set_device, set_float_precision, torch2np
-from torchtyping import TensorType
 
 
 class GFlowNetAgent:
@@ -464,14 +463,16 @@ class GFlowNetAgent:
             )
             assert all(valids)
             # Filter out finished trajectories
-            if isinstance(env.state, list):
-                envs_offline = [env for env in envs_offline if env.state != env.source]
-            elif isinstance(env.state, TensorType):
+            if torch.is_tensor(env.state):
                 envs_offline = [
                     env
                     for env in envs_offline
                     if not torch.eq(env.state, env.source).all()
                 ]
+            elif isinstance(env.state, list):
+                envs_offline = [env for env in envs_offline if env.state != env.source]
+            else:
+                raise ValueError("States must be lists or tensors")
         envs = envs[n_empirical:]
         # Policy trajectories
         while envs:
@@ -943,7 +944,6 @@ class GFlowNetAgent:
         )
 
     def plot(self, x_sampled, kde_pred, kde_true, **plot_kwargs):
-
         if hasattr(self.env, "plot_reward_samples"):
             fig_reward_samples = self.env.plot_reward_samples(x_sampled, **plot_kwargs)
         else:
