@@ -178,7 +178,7 @@ class Grid(GFlowNetEnv):
             self.statetorch2policy(states).reshape(
                 (len(states), self.n_dim, self.length)
             )
-            * torch.tensor(self.cells[None, :]).to(states.device, self.float)
+            * torch.tensor(self.cells[None, :], device=states.device, dtype=self.float)
         ).sum(axis=2)
 
     def state2policy(self, state: List = None) -> List:
