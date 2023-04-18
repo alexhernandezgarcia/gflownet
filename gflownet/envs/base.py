@@ -432,10 +432,12 @@ class GFlowNetEnv:
         if done is None:
             done = np.ones(len(states), dtype=bool)
             states_proxy = self.statebatch2proxy(states)
-            if isinstance(states_proxy, torch.Tensor):
+            if torch.is_tensor(states_proxy):
                 states_proxy = states_proxy[list(done), :]
             elif isinstance(states_proxy, list):
                 states_proxy = [states_proxy[i] for i in range(len(done)) if done[i]]
+            else:
+                raise ValueError("States must be lists or tensors")
         rewards = np.zeros(len(done))
         if len(states_proxy) > 0:
             rewards[list(done)] = self.proxy2reward(self.proxy(states_proxy)).tolist()
