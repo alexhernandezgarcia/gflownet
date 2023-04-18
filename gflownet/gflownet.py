@@ -377,11 +377,12 @@ class GFlowNetAgent:
                             self._tfloat(parents_a),
                             self._tbool([env.done]),
                             self._tlong([env.id] * len(parents)),
-                            self._tlong([env.n_actions - 1]),
+                            self._tlong([env.n_actions-1]),
                             self._tbool([mask_f]),
                             self._tbool([mask_b]),
                         ]
                     )
+
                 else:
                     if env.done:
                         batch.append(env.state)
