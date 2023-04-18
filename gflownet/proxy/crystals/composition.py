@@ -1,3 +1,4 @@
+import numpy as np
 import pickle
 from gflownet.proxy.base import Proxy
 
@@ -15,7 +16,44 @@ def _read_protons_number_counts():
 class Composition(Proxy):
     def __init__(self, normalise: bool = True, **kwargs):
         super().__init__(**kwargs)
-        counts = _read_protons_number_counts()
-        # next steps: 
-        # - look into the env, find the max number of protons
-        # - tensor of charges
+        self.counts_dict = _read_protons_number_counts()
+        self.normalise = normalise
+
+    def _get_max_protons_number(self, env):
+        max_protons_state = np.array(env.source.copy())
+        for elem in env.required_elements:
+            max_protons_state[env.elem2idx[elem]] = max(1, env.min_atom_i)
+        for idx in range(env.min_diff_elem - len(env.required_elements)):
+            max_protons_state[-1-idx] = max(1, env.min_atom_i)
+        
+        for idx in range(len(max_protons_state)):
+            if ((max_protons_state[idx] == 0 
+                and (max_protons_state != 0).sum() < env.max_diff_elem) or
+                max_protons_state[idx] != 0):
+                while (sum(max_protons_state) < env.max_atoms and
+                        max_protons_state[-1-idx] < env.max_atom_i):
+                    max_protons_state[-1-idx] += 1
+
+        max_protons_number = 0
+        for idx, count in enumerate(max_protons_state):
+            max_protons_number += env.idx2elem[idx] * count
+        return max_protons_number 
+
+    def setup(self, env):
+        mpn = self._get_max_protons_number(env)
+        self.counts = torch.zeros(mpn, device=self.device, dtype=torch.int16)
+        for idx in range(mpn + 1):
+            if idx in self.counts_dict.keys():
+                self.counts[idx] = self.counts_dict[idx]
+
+        self.atomic_numbers = torch.tensor(env.elements, device=self.device,
+                dtype=torch.int16)
+        if self.normalise:
+            self.norm = -1.0 * torch.sum(self.counts)
+        else:
+            self.norm = -1.0
+
+    def __call__(self, states: TensorType["batch", "state"]) -> TensorType["batch"]:
+        return self.counts(torch.sum(states * self.atomic_numbers, dim=1)) / self.norm
+
+
