@@ -8,9 +8,9 @@ from typing import List
 import numpy as np
 import numpy.typing as npt
 import pandas as pd
-import time
-from gflownet.utils.sequence.aptamers import NUCLEOTIDES
+
 from gflownet.envs.sequence import Sequence
+from gflownet.utils.sequence.aptamers import NUCLEOTIDES
 
 
 class Aptamer(Sequence):

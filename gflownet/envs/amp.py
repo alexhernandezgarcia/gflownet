@@ -1,19 +1,20 @@
 """
 Classes to represent aptamers environments
 """
+import itertools
 from typing import List, Tuple
-import itertools
-import numpy as np
-from gflownet.envs.base import GFlowNetEnv
-import itertools
-from polyleven import levenshtein
-import numpy.typing as npt
-from torchtyping import TensorType
-import torch
+
 import matplotlib.pyplot as plt
+import numpy as np
+import numpy.typing as npt
+import torch
 import torch.nn.functional as F
-from gflownet.utils.sequence.amp import AMINO_ACIDS
+from polyleven import levenshtein
+from torchtyping import TensorType
+
+from gflownet.envs.base import GFlowNetEnv
 from gflownet.envs.sequence import Sequence
+from gflownet.utils.sequence.amp import AMINO_ACIDS
 
 
 class AMP(Sequence):

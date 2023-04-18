@@ -1,7 +1,7 @@
 import numpy as np
 import numpy.typing as npt
-from nupack import *
 import torch
+from nupack import *
 
 from gflownet.proxy.base import Proxy
 

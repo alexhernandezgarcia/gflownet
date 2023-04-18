@@ -2,17 +2,18 @@
 Classes to represent sequence-like environments
 Particularly AMP and DNA
 """
+import itertools
 from typing import List, Tuple
-import itertools
-import numpy as np
-from gflownet.envs.base import GFlowNetEnv
-import itertools
-from polyleven import levenshtein
-import numpy.typing as npt
-from torchtyping import TensorType
-import torch
+
 import matplotlib.pyplot as plt
+import numpy as np
+import numpy.typing as npt
+import torch
 import torch.nn.functional as F
+from polyleven import levenshtein
+from torchtyping import TensorType
+
+from gflownet.envs.base import GFlowNetEnv
 
 
 class Sequence(GFlowNetEnv):
@@ -409,7 +410,11 @@ class Sequence(GFlowNetEnv):
                 state_last_element = len(state)
             max_parent_action_length = self.max_word_len + 1 - self.min_word_len
             for parent_action_length in range(1, max_parent_action_length + 1):
-                parent_action = tuple(state[state_last_element - parent_action_length : state_last_element].numpy())
+                parent_action = tuple(
+                    state[
+                        state_last_element - parent_action_length : state_last_element
+                    ].numpy()
+                )
                 if parent_action in self.action_space:
                     parent = state.clone().detach()
                     parent[
