@@ -633,11 +633,12 @@ class GFlowNetAgent:
         # state_id[traj_id == tid] -= state_id[traj_id == tid].min() + 1
         # Compute rewards
         rewards = self.env.reward_torchbatch(states, done)
+        xx = torch.where((state_id == 3 - 1) & (traj_id == 7))
         # Build parents forward masks from state masks
         masks_f = torch.cat(
             [
                 masks_sf[torch.where((state_id == sid - 1) & (traj_id == pid))]
-                if sid > 0
+                if (sid > 0 and len(torch.where((state_id == sid - 1) & (traj_id == pid))[0]) > 0)
                 else self.mask_source
                 for sid, pid in zip(state_id, traj_id)
             ]
