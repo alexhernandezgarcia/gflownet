@@ -44,6 +44,8 @@ class Cube(GFlowNetEnv, ABC):
         max_val: float = 1.0,
         min_incr: float = 0.1,
         n_comp: int = 1,
+        beta_params_min: float = 0.1,
+        beta_params_max: float = 2.0,
         fixed_distr_params: dict = {
             "beta_alpha": 2.0,
             "beta_beta": 5.0,
@@ -65,6 +67,8 @@ class Cube(GFlowNetEnv, ABC):
         self.min_incr = min_incr * self.max_val
         # Parameters of the policy distribution
         self.n_comp = n_comp
+        self.beta_params_min = beta_params_min
+        self.beta_params_max = beta_params_max
         # Source state: position 0 at all dimensions
         self.source = [0.0 for _ in range(self.n_dim)]
         # Action from source: (n_dim, 0)
@@ -342,8 +346,8 @@ class HybridCube(Cube):
         For each dimension d of the hyper-cube and component c of the mixture, the
         output of the policy should return
           1) the weight of the component in the mixture
-          2) the log(alpha) parameter of the Beta distribution to sample the increment
-          3) the log(beta) parameter of the Beta distribution to sample the increment
+          2) the logit(alpha) parameter of the Beta distribution to sample the increment
+          3) the logit(beta) parameter of the Beta distribution to sample the increment
 
         Additionally, the policy output contains one logit per dimension plus one logit
         for the EOS action, for the categorical distribution over dimensions.
@@ -658,8 +662,8 @@ class ContinuousCube(Cube):
         For each dimension d of the hyper-cube and component c of the mixture, the
         output of the policy should return
           1) the weight of the component in the mixture
-          2) the log(alpha) parameter of the Beta distribution to sample the increment
-          3) the log(beta) parameter of the Beta distribution to sample the increment
+          2) the logit(alpha) parameter of the Beta distribution to sample the increment
+          3) the logit(beta) parameter of the Beta distribution to sample the increment
 
         Additionally, the policy output contains one logit of a Bernoulli distribution
         to model the (discrete) forward probability of selecting the EOS action and the
@@ -805,6 +809,7 @@ class ContinuousCube(Cube):
         logprobs_eos[idx_nofix] = distr_eos.log_prob(mask_sampled_eos.to(self.float))
         # Sample angle increments
         idx_sample = idx_nofix[~mask_sampled_eos]
+        idx_generic = idx_sample[~mask_invalid_actions[idx_sample, 0]]
         n_sample = idx_sample.shape[0]
         logprobs_sample = torch.zeros(n_states, device=device, dtype=self.float)
         increments = torch.inf * torch.ones(
@@ -824,23 +829,28 @@ class ContinuousCube(Cube):
                 alphas = policy_outputs[idx_sample, 1:-1:3].reshape(
                     -1, self.n_dim, self.n_comp
                 )
+                alphas = (
+                    self.beta_params_max * torch.sigmoid(alphas) + self.beta_params_min
+                )
                 betas = policy_outputs[idx_sample, 2:-1:3].reshape(
                     -1, self.n_dim, self.n_comp
                 )
-                beta_distr = Beta(torch.exp(alphas), torch.exp(betas))
+                betas = (
+                    self.beta_params_max * torch.sigmoid(betas) + self.beta_params_min
+                )
+                beta_distr = Beta(alphas, betas)
                 distr_increments = MixtureSameFamily(mix, beta_distr)
             increments[idx_sample, :] = distr_increments.sample()
             logprobs_sample[idx_sample] = distr_increments.log_prob(
                 increments[idx_sample, :]
             ).sum(axis=1)
-            # Apply minimum increment to generic (not from source) actions
+            # Map increments of generic (not from source) actions to [min_incr, 1.0]
             # TODO: before or after computing logprob?
-            mask_action_generic = ~mask_invalid_actions[:, 0]
-            increments[mask_action_generic] = torch.max(
-                increments[mask_action_generic],
-                self.min_incr
-                * torch.ones(increments[mask_action_generic].shape, device=device),
-            )
+#             increments[idx_generic] = (
+#                 increments[idx_generic] * (1 - self.min_incr) + self.min_incr
+#             )
+#             assert torch.all(increments[idx_generic] >= self.min_incr)
+#             assert torch.all(increments[idx_generic] <= 1.0)
         # Combined probabilities
         logprobs = logprobs_eos + logprobs_sample
         # Build actions
@@ -871,11 +881,12 @@ class ContinuousCube(Cube):
             ~torch.logical_and(mask_invalid_actions[:, 0], mask_invalid_actions[:, 1])
         ]
         distr_eos = Bernoulli(logits=policy_outputs[idx_nofix, -1])
-        mask_sampled_eos = torch.all(actions == torch.inf, axis=1)
+        mask_sampled_eos = torch.all(actions[idx_nofix] == torch.inf, axis=1)
         logprobs_eos = torch.zeros(n_states, device=device, dtype=self.float)
         logprobs_eos[idx_nofix] = distr_eos.log_prob(mask_sampled_eos.to(self.float))
         # Log probs of sampled increments
         idx_sample = idx_nofix[~mask_sampled_eos]
+        idx_generic = idx_sample[~mask_invalid_actions[idx_sample, 0]]
         logprobs_sample = torch.zeros(n_states, device=device, dtype=self.float)
         if torch.any(idx_sample):
             mix_logits = policy_outputs[idx_sample, 0:-1:3].reshape(
@@ -885,16 +896,20 @@ class ContinuousCube(Cube):
             alphas = policy_outputs[idx_sample, 1:-1:3].reshape(
                 -1, self.n_dim, self.n_comp
             )
+            alphas = self.beta_params_max * torch.sigmoid(alphas) + self.beta_params_min
             betas = policy_outputs[idx_sample, 2:-1:3].reshape(
                 -1, self.n_dim, self.n_comp
             )
-            beta_distr = Beta(torch.exp(alphas), torch.exp(betas))
+            betas = self.beta_params_max * torch.sigmoid(betas) + self.beta_params_min
+            beta_distr = Beta(alphas, betas)
             distr_increments = MixtureSameFamily(mix, beta_distr)
-            # TODO: what to do with the minimum increments, since the logprob will not
-            # reflect the true probability of sampling that increment.
-            logprobs_sample[idx_sample] = distr_increments.log_prob(
-                actions[idx_sample, :]
-            ).sum(axis=1)
+            increments = actions.clone().detach()
+            # Remap increments of generic actions to [0, 1] to obtain correct probs.
+#             if len(idx_generic) > 0:
+#                 increments[idx_generic] = (increments[idx_generic] - self.min_incr) / (1 - self.min_incr)
+#                 assert torch.all(increments[idx_sample] >= 0.0)
+#                 assert torch.all(increments[idx_sample] <= 1.0)
+            logprobs_sample[idx_sample] = distr_increments.log_prob(increments[idx_sample]).sum(axis=1)
         # Combined probabilities
         logprobs = logprobs_eos + logprobs_sample
         return logprobs
@@ -935,7 +950,6 @@ class ContinuousCube(Cube):
                 self.state[dim] += incr
             return self.state, action, True
 
-
     def get_grid_terminating_states(self, n_states: int) -> List[List]:
         n_per_dim = int(np.ceil(n_states ** (1 / self.n_dim)))
         linspaces = [np.linspace(0, self.max_val, n_per_dim) for _ in range(self.n_dim)]
@@ -944,53 +958,53 @@ class ContinuousCube(Cube):
         states = [list(el) for el in states]
         return states
 
-#     # TODO: make generic for all environments
-#     def sample_from_reward(
-#         self, n_samples: int, epsilon=1e-4
-#     ) -> TensorType["n_samples", "state_dim"]:
-#         """
-#         Rejection sampling  with proposal the uniform distribution in 
-#         [0, max_val]]^n_dim.
-# 
-#         Returns a tensor in GFloNet (state) format.
-#         """
-#         samples_final = []
-#         max_reward = self.proxy2reward(torch.tensor([self.proxy.min])).to(self.device)
-#         while len(samples_final) < n_samples:
-#             angles_uniform = (
-#                 torch.rand(
-#                     (n_samples, self.n_dim), dtype=self.float, device=self.device
-#                 )
-#                 * 2
-#                 * np.pi
-#             )
-#             samples = torch.cat(
-#                 (
-#                     angles_uniform,
-#                     torch.ones((angles_uniform.shape[0], 1)).to(angles_uniform),
-#                 ),
-#                 axis=1,
-#             )
-#             rewards = self.reward_torchbatch(samples)
-#             mask = (
-#                 torch.rand(n_samples, dtype=self.float, device=self.device)
-#                 * (max_reward + epsilon)
-#                 < rewards
-#             )
-#             samples_accepted = samples[mask, :]
-#             samples_final.extend(samples_accepted[-(n_samples - len(samples_final)) :])
-#         return torch.vstack(samples_final)
-# 
-#     def fit_kde(self, samples, kernel="gaussian", bandwidth=0.1):
-#         aug_samples = []
-#         for add_0 in [0, -2 * np.pi, 2 * np.pi]:
-#             for add_1 in [0, -2 * np.pi, 2 * np.pi]:
-#                 aug_samples.append(
-#                     np.stack([samples[:, 0] + add_0, samples[:, 1] + add_1], axis=1)
-#                 )
-#         aug_samples = np.concatenate(aug_samples)
-#         kde = KernelDensity(kernel=kernel, bandwidth=bandwidth).fit(aug_samples)
-#         return kde
+    #     # TODO: make generic for all environments
+    #     def sample_from_reward(
+    #         self, n_samples: int, epsilon=1e-4
+    #     ) -> TensorType["n_samples", "state_dim"]:
+    #         """
+    #         Rejection sampling  with proposal the uniform distribution in
+    #         [0, max_val]]^n_dim.
+    #
+    #         Returns a tensor in GFloNet (state) format.
+    #         """
+    #         samples_final = []
+    #         max_reward = self.proxy2reward(torch.tensor([self.proxy.min])).to(self.device)
+    #         while len(samples_final) < n_samples:
+    #             angles_uniform = (
+    #                 torch.rand(
+    #                     (n_samples, self.n_dim), dtype=self.float, device=self.device
+    #                 )
+    #                 * 2
+    #                 * np.pi
+    #             )
+    #             samples = torch.cat(
+    #                 (
+    #                     angles_uniform,
+    #                     torch.ones((angles_uniform.shape[0], 1)).to(angles_uniform),
+    #                 ),
+    #                 axis=1,
+    #             )
+    #             rewards = self.reward_torchbatch(samples)
+    #             mask = (
+    #                 torch.rand(n_samples, dtype=self.float, device=self.device)
+    #                 * (max_reward + epsilon)
+    #                 < rewards
+    #             )
+    #             samples_accepted = samples[mask, :]
+    #             samples_final.extend(samples_accepted[-(n_samples - len(samples_final)) :])
+    #         return torch.vstack(samples_final)
+    #
+    #     def fit_kde(self, samples, kernel="gaussian", bandwidth=0.1):
+    #         aug_samples = []
+    #         for add_0 in [0, -2 * np.pi, 2 * np.pi]:
+    #             for add_1 in [0, -2 * np.pi, 2 * np.pi]:
+    #                 aug_samples.append(
+    #                     np.stack([samples[:, 0] + add_0, samples[:, 1] + add_1], axis=1)
+    #                 )
+    #         aug_samples = np.concatenate(aug_samples)
+    #         kde = KernelDensity(kernel=kernel, bandwidth=bandwidth).fit(aug_samples)
+    #         return kde
 
     def plot_reward_samples(
         self,
@@ -1006,7 +1020,9 @@ class ContinuousCube(Cube):
         y = np.linspace(cell_min, cell_max, 201)
         xx, yy = np.meshgrid(x, y)
         X = np.stack([xx, yy], axis=-1)
-        states_mesh = torch.tensor(X.reshape(-1, 2), device=self.device, dtype=self.float)
+        states_mesh = torch.tensor(
+            X.reshape(-1, 2), device=self.device, dtype=self.float
+        )
         rewards = self.proxy2reward(self.proxy(states_mesh))
         # Init figure
         fig, ax = plt.subplots()
@@ -1015,29 +1031,27 @@ class ContinuousCube(Cube):
         h = ax.contourf(xx, yy, rewards.reshape(xx.shape).cpu().numpy(), alpha=alpha)
         ax.axis("scaled")
         fig.colorbar(h, ax=ax)
-#         ax.plot([0, 0], [0, 2 * np.pi], "-w", alpha=alpha)
-#         ax.plot([0, 2 * np.pi], [0, 0], "-w", alpha=alpha)
-#         ax.plot([2 * np.pi, 2 * np.pi], [2 * np.pi, 0], "-w", alpha=alpha)
-#         ax.plot([2 * np.pi, 0], [2 * np.pi, 2 * np.pi], "-w", alpha=alpha)
+        #         ax.plot([0, 0], [0, 2 * np.pi], "-w", alpha=alpha)
+        #         ax.plot([0, 2 * np.pi], [0, 0], "-w", alpha=alpha)
+        #         ax.plot([2 * np.pi, 2 * np.pi], [2 * np.pi, 0], "-w", alpha=alpha)
+        #         ax.plot([2 * np.pi, 0], [2 * np.pi, 2 * np.pi], "-w", alpha=alpha)
         # Plot samples
-#         extra_samples = []
-#         for add_0 in [0, -2 * np.pi, 2 * np.pi]:
-#             for add_1 in [0, -2 * np.pi, 2 * np.pi]:
-#                 if not (add_0 == add_1 == 0):
-#                     extra_samples.append(
-#                         np.stack(
-#                             [
-#                                 samples[:max_samples, 0] + add_0,
-#                                 samples[:max_samples, 1] + add_1,
-#                             ],
-#                             axis=1,
-#                         )
-#                     )
-#         extra_samples = np.concatenate(extra_samples)
-        ax.scatter(
-            samples[:max_samples, 0], samples[:max_samples, 1], alpha=alpha
-        )
-#         ax.scatter(extra_samples[:, 0], extra_samples[:, 1], alpha=alpha, color="white")
+        #         extra_samples = []
+        #         for add_0 in [0, -2 * np.pi, 2 * np.pi]:
+        #             for add_1 in [0, -2 * np.pi, 2 * np.pi]:
+        #                 if not (add_0 == add_1 == 0):
+        #                     extra_samples.append(
+        #                         np.stack(
+        #                             [
+        #                                 samples[:max_samples, 0] + add_0,
+        #                                 samples[:max_samples, 1] + add_1,
+        #                             ],
+        #                             axis=1,
+        #                         )
+        #                     )
+        #         extra_samples = np.concatenate(extra_samples)
+        ax.scatter(samples[:max_samples, 0], samples[:max_samples, 1], alpha=alpha)
+        #         ax.scatter(extra_samples[:, 0], extra_samples[:, 1], alpha=alpha, color="white")
         ax.grid()
         padding = 0.05 * (cell_max - cell_min)
         ax.set_xlim([cell_min - padding, cell_max + padding])
@@ -1045,6 +1059,7 @@ class ContinuousCube(Cube):
         # Set tight layout
         plt.tight_layout()
         return fig
+
 
 #     def plot_kde(
 #         self,
