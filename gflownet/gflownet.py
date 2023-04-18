@@ -928,11 +928,9 @@ class GFlowNetAgent:
         jsd = 0.5 * np.sum(density_true * (log_density_true - log_mean_dens))
         jsd += 0.5 * np.sum(density_pred * (log_density_pred - log_mean_dens))
         # Correlation
-        if hasattr(self.env, "corr_type"):
-            corr_type = self.env.corr_type
-        else:
-            corr_type = None
-        corr = self.get_corr(density_pred, density_true, x_tt, dict_tt, corr_type)
+        corr = self.get_corr(
+            density_pred, density_true, x_tt, dict_tt, self.env.can_get_all_trajs
+        )
 
         return (
             l1,
@@ -975,14 +973,12 @@ class GFlowNetAgent:
             fig_reward_distribution,
         ]
 
-    def get_corr(self, density_pred, density_true, x_tt, dict_tt, corr_type=None):
-        if corr_type == None:
-            return 0.0
-        if corr_type == "density_ratio":
-            return np.corrcoef(density_pred, density_true)[0, 1]
-        if corr_type == "from_trajectory":
+    def get_corr(self, density_pred, density_true, x_tt, dict_tt, can_get_all_trajs):
+        if can_get_all_trajs:
             corr_matrix, _ = self.get_log_corr(x_tt, dict_tt["energy"])
             return corr_matrix[0][1]
+        else:
+            return 0.0
 
     def get_log_corr(self, x_tt, energy):
         """

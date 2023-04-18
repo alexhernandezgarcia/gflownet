@@ -36,6 +36,7 @@ class GFlowNetEnv:
         proxy_state_format: str = "oracle",
         fixed_distribution: Optional[dict] = None,
         random_distribution: Optional[dict] = None,
+        can_get_all_trajs=False,
         **kwargs,
     ):
         # Call reset() to set initial state, done, n_actions
@@ -82,6 +83,8 @@ class GFlowNetEnv:
         self.random_policy_output = self.get_policy_output(random_distribution)
         self.policy_output_dim = len(self.fixed_policy_output)
         self.policy_input_dim = len(self.state2policy())
+        # Misc.
+        self.can_get_all_trajs = can_get_all_trajs
 
     @abstractmethod
     def get_action_space(self):
