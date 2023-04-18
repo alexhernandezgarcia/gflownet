@@ -63,7 +63,7 @@ class Cube(GFlowNetEnv, ABC):
         self.eos = self.n_dim
         self.max_val = max_val
         self.min_incr = min_incr * self.max_val
-        # Parameters of fixed policy distribution
+        # Parameters of the policy distribution
         self.n_comp = n_comp
         # Source state: position 0 at all dimensions
         self.source = [0.0 for _ in range(self.n_dim)]
@@ -110,20 +110,20 @@ class Cube(GFlowNetEnv, ABC):
         self, states: TensorType["batch", "state_dim"] = None
     ) -> TensorType["batch", "policy_input_dim"]:
         """
-        Clips the states into [0, max_val]
+        Clips the states into [0, max_val] and maps them to [-1.0, 1.0]
 
         Args
         ----
         state : list
             State
         """
-        return torch.clip(states, min=0.0, max=self.max_val)
+        return 2.0 * torch.clip(states, min=0.0, max=self.max_val) - 1.0
 
     def statebatch2policy(
         self, states: List[List]
     ) -> TensorType["batch", "state_proxy_dim"]:
         """
-        Clips the states into [0, max_val]
+        Clips the states into [0, max_val] and maps them to [-1.0, 1.0]
 
         Args
         ----
@@ -134,11 +134,11 @@ class Cube(GFlowNetEnv, ABC):
 
     def state2policy(self, state: List = None) -> List:
         """
-        Clips the state into [0, max_val]
+        Clips the state into [0, max_val] and maps it to [-1.0, 1.0]
         """
         if state is None:
             state = self.state.copy()
-        return [min(max(0.0, s), self.max_val) for s in state]
+        return [2.0 * min(max(0.0, s), self.max_val) - 1.0 for s in state]
 
     def state2readable(self, state: List) -> str:
         """
@@ -996,23 +996,23 @@ class ContinuousCube(Cube):
         self,
         samples,
         alpha=0.5,
-        low=0.0,
-        high=1.0,
+        cell_min=-1.0,
+        cell_max=1.0,
         dpi=150,
         max_samples=500,
         **kwargs,
     ):
-        x = np.linspace(low, high, 201)
-        y = np.linspace(low, high, 201)
+        x = np.linspace(cell_min, cell_max, 201)
+        y = np.linspace(cell_min, cell_max, 201)
         xx, yy = np.meshgrid(x, y)
         X = np.stack([xx, yy], axis=-1)
         states_mesh = torch.tensor(X.reshape(-1, 2), device=self.device, dtype=self.float)
-        rewards = self.reward_torchbatch(states_mesh)
+        rewards = self.proxy2reward(self.proxy(states_mesh))
         # Init figure
         fig, ax = plt.subplots()
         fig.set_dpi(dpi)
         # Plot reward contour
-        h = ax.contourf(xx, yy, rewards.reshape(xx.shape), alpha=alpha)
+        h = ax.contourf(xx, yy, rewards.reshape(xx.shape).cpu().numpy(), alpha=alpha)
         ax.axis("scaled")
         fig.colorbar(h, ax=ax)
 #         ax.plot([0, 0], [0, 2 * np.pi], "-w", alpha=alpha)
@@ -1039,8 +1039,9 @@ class ContinuousCube(Cube):
         )
 #         ax.scatter(extra_samples[:, 0], extra_samples[:, 1], alpha=alpha, color="white")
         ax.grid()
-        ax.set_xlim([low, high])
-        ax.set_ylim([low, high])
+        padding = 0.05 * (cell_max - cell_min)
+        ax.set_xlim([cell_min - padding, cell_max + padding])
+        ax.set_ylim([cell_min - padding, cell_max + padding])
         # Set tight layout
         plt.tight_layout()
         return fig
