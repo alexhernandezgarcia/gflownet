@@ -6,7 +6,7 @@ import torch
 from gflownet.proxy.base import Proxy
 
 
-class Aptamers(Proxy):
+class Aptamer(Proxy):
     """
     DNA Aptamer oracles
     """

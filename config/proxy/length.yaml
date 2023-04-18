@@ -1,4 +1,4 @@
-_target_: gflownet.proxy.aptamers.Aptamers
+_target_: gflownet.proxy.aptamer.Aptamer
 
 oracle_id: length
 norm: True

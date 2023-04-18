@@ -13,7 +13,7 @@ from gflownet.utils.sequence.aptamers import NUCLEOTIDES
 from gflownet.envs.sequence import Sequence
 
 
-class Aptamers(Sequence):
+class Aptamer(Sequence):
     """
     Aptamer sequence environment
     """

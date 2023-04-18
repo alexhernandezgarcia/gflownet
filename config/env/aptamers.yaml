@@ -1,9 +1,9 @@
 defaults:
   - base
 
-_target_: gflownet.envs.aptamers.Aptamers
+_target_: gflownet.envs.aptamer.Aptamer
 
-id: aptamers
+id: aptamer
 # Minimum and maximum length for the sequences
 min_seq_length: 30
 max_seq_length: 30
