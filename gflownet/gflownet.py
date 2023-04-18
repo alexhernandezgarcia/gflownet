@@ -737,6 +737,7 @@ class GFlowNetAgent:
             if self.logger.do_plot(it) and x_sampled is not None:
                 figs = self.plot(x_sampled, kde_pred, kde_true)
                 self.logger.log_plots(figs, it, self.use_context)
+            # Train
             t0_iter = time.time()
             data = []
             for j in range(self.sttr):
