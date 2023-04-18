@@ -3,8 +3,10 @@ Base class of GFlowNet environments
 """
 from abc import abstractmethod
 from copy import deepcopy
+from pathlib import Path
 from typing import List, Optional, Tuple, Union
 
+import matplotlib.pyplot as plt
 import numpy as np
 import numpy.typing as npt
 import torch
@@ -12,8 +14,6 @@ from torch.distributions import Categorical
 from torchtyping import TensorType
 
 from gflownet.utils.common import set_device, set_float_precision
-from pathlib import Path
-import matplotlib.pyplot as plt
 
 
 class GFlowNetEnv:

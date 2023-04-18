@@ -4,12 +4,12 @@ Classes to represent a hyper-grid environments
 import itertools
 from typing import List, Optional, Tuple
 
+import matplotlib.pyplot as plt
 import numpy as np
 import numpy.typing as npt
 import torch
-from torchtyping import TensorType
-import matplotlib.pyplot as plt
 from mpl_toolkits.axes_grid1 import make_axes_locatable
+from torchtyping import TensorType
 
 from gflownet.envs.base import GFlowNetEnv
 
