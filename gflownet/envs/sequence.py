@@ -1,6 +1,7 @@
 """
-Classes to represent sequence-like environments
-Particularly AMP and DNA
+Base class to represent sequence-like environments.
+
+Examples: anti-microbial peptides (AMP) and DNA
 """
 import itertools
 from typing import List, Tuple
@@ -18,7 +19,7 @@ from gflownet.envs.base import GFlowNetEnv
 
 class Sequence(GFlowNetEnv):
     """
-    Anti-microbial peptide sequence environment
+    Sequence environment
 
     Attributes
     ----------
@@ -52,54 +53,50 @@ class Sequence(GFlowNetEnv):
 
     def __init__(
         self,
-        corr_type,
-        max_seq_length=50,
-        min_seq_length=1,
-        # Not required in env. But used in config_env in MLP. TODO: Find a way out
-        n_alphabet=20,
-        min_word_len=1,
-        max_word_len=1,
-        special_tokens=None,
+        alphabet: List = ["A", "B", "C"],
+        special_tokens=["[PAD]", "[EOS]"],
+        max_seq_length: int = 10,
+        min_seq_length: int = 1,
+        min_word_length: int = 1,
+        max_word_length: int = 1,
         **kwargs,
     ):
+        self.special_tokens = special_tokens
+        self.alphabet = alphabet + self.special_tokens
+        self.n_alphabet = len(self.alphabet)
         self.min_seq_length = min_seq_length
         self.max_seq_length = max_seq_length
-        self.min_word_len = min_word_len
-        self.max_word_len = max_word_len
-        self.corr_type = corr_type
-        self.lookup = {a: i for (i, a) in enumerate(self.vocab)}
-        self.inverse_lookup = {i: a for (i, a) in enumerate(self.vocab)}
-        self.n_alphabet = len(self.vocab) - len(special_tokens)
-        self.padding_idx = self.lookup["[PAD]"]
-        # TODO: eos re-initalised in get_actions_space so why was this initialisation required in the first place (maybe mfenv)
-        self.eos = self.lookup["[EOS]"]
-        self.source = (
-            torch.ones(self.max_seq_length, dtype=torch.int64) * self.padding_idx
-        )
-        # reset this to a lower value
-        self.min_reward = 1e-20
-        # if proxy is not None:
-        #     self.proxy = proxy
+        # Minimum and maximum lengths of actions (word lengths)
+        self.min_word_length = min_word_length
+        self.max_word_length = max_word_length
+        # Helper dicts
+        self.token2idx = {a: i for (i, a) in enumerate(self.alphabet)}
+        self.idx2token = {i: a for (i, a) in enumerate(self.alphabet)}
+        # Indices of padding and EOS tokens
+        self.pad_idx = self.token2idx["[PAD]"]
+        self.eos_idx = self.token2idx["[EOS]"]
+        # Source state: all tokens in the sequence are the padding token
+        self.source = torch.ones(self.max_seq_length, dtype=torch.int64) * self.pad_idx
+        # Tokenizer
+        self.tokenizer = None
         super().__init__(
             **kwargs,
         )
-        self.policy_input_dim = self.state2policy().shape[-1]
-        self.tokenizer = None
 
     def get_action_space(self):
         """
         Constructs list with all possible actions
-        If min_word_len = n_alphabet = 2, actions: [(0, 0,), (1, 1)] and so on
+        If min_word_length = n_alphabet = 2, actions: [(0, 0,), (1, 1)] and so on
         """
-        assert self.max_word_len >= self.min_word_len
-        valid_wordlens = np.arange(self.min_word_len, self.max_word_len + 1)
+        assert self.max_word_length >= self.min_word_length
+        valid_wordlens = np.arange(self.min_word_length, self.max_word_length + 1)
         alphabet = [a for a in range(self.n_alphabet)]
         actions = []
         for r in valid_wordlens:
             actions_r = [el for el in itertools.product(alphabet, repeat=r)]
             actions += actions_r
         # Add "eos" action
-        # eos != n_alphabet in the init because it would break if max_word_len >1
+        # eos != n_alphabet in the init because it would break if max_word_length >1
         actions = actions + [(len(actions),)]
         self.eos = len(actions) - 1
         return actions
@@ -121,8 +118,8 @@ class Sequence(GFlowNetEnv):
             return [True for _ in range(len(self.action_space))]
         mask = [False for _ in range(len(self.action_space))]
         seq_length = (
-            torch.where(state == self.padding_idx)[0][0]
-            if state[-1] == self.padding_idx
+            torch.where(state == self.pad_idx)[0][0]
+            if state[-1] == self.pad_idx
             else len(state)
         )
         if seq_length < self.min_seq_length:
@@ -174,15 +171,15 @@ class Sequence(GFlowNetEnv):
     def get_max_traj_length(
         self,
     ):
-        return self.max_seq_length / self.min_word_len + 1
+        return self.max_seq_length / self.min_word_length + 1
 
     def statebatch2oracle(
         self, states: List[TensorType["max_seq_length"]]
     ) -> List[str]:
         state_oracle = []
         for state in states:
-            if state[-1] == self.padding_idx:
-                state = state[: torch.where(state == self.padding_idx)[0][0]]
+            if state[-1] == self.pad_idx:
+                state = state[: torch.where(state == self.pad_idx)[0][0]]
             if self.tokenizer is not None and state[0] == self.tokenizer.bos_idx:
                 state = state[1:-1]
             state_numpy = state.detach().cpu().numpy()
@@ -215,8 +212,8 @@ class Sequence(GFlowNetEnv):
         if state is None:
             state = self.state.clone().detach()
         state = (
-            state[: torch.where(state == self.padding_idx)[0][0]]
-            if state[-1] == self.padding_idx
+            state[: torch.where(state == self.pad_idx)[0][0]]
+            if state[-1] == self.pad_idx
             else state
         )
         state_policy = torch.zeros(1, self.max_seq_length, self.n_alphabet)
@@ -251,7 +248,7 @@ class Sequence(GFlowNetEnv):
             .to(self.float)
             .to(self.device)
         )
-        state_padding_mask = (states != self.padding_idx).to(self.float).to(self.device)
+        state_padding_mask = (states != self.pad_idx).to(self.float).to(self.device)
         state_onehot_pad = state_onehot * state_padding_mask.unsqueeze(-1)
         # Assertion works as long as [PAD] is last key in lookup table.
         assert torch.eq(state_onehot_pad, state_onehot).all()
@@ -310,8 +307,8 @@ class Sequence(GFlowNetEnv):
     ) -> List[str]:
         state_oracle = []
         for state in states:
-            if state[-1] == self.padding_idx:
-                state = state[: torch.where(state == self.padding_idx)[0][0]]
+            if state[-1] == self.pad_idx:
+                state = state[: torch.where(state == self.pad_idx)[0][0]]
             if self.tokenizer is not None and state[0] == self.tokenizer.bos_idx:
                 state = state[1:-1]
             state_numpy = state.detach().cpu().numpy()
@@ -331,23 +328,23 @@ class Sequence(GFlowNetEnv):
         """
         if isinstance(state, torch.Tensor) == False:
             state = torch.tensor(state).long()
-        if state[-1] == self.padding_idx:
-            state = state[: torch.where(state == self.padding_idx)[0][0]]
+        if state[-1] == self.pad_idx:
+            state = state[: torch.where(state == self.pad_idx)[0][0]]
         state = state.tolist()
-        return "".join([self.inverse_lookup[el] for el in state])
+        return "".join([self.idx2token[el] for el in state])
 
     def statetorch2readable(self, state: TensorType["1", "max_seq_length"]) -> str:
-        if state[-1] == self.padding_idx:
-            state = state[: torch.where(state == self.padding_idx)[0][0]]
+        if state[-1] == self.pad_idx:
+            state = state[: torch.where(state == self.pad_idx)[0][0]]
         # TODO: neater way without having lookup as input arg
         if (
-            self.lookup is not None
-            and "[CLS]" in self.lookup.keys()
-            and state[0] == self.lookup["[CLS]"]
+            self.token2idx is not None
+            and "[CLS]" in self.token2idx.keys()
+            and state[0] == self.token2idx["[CLS]"]
         ):
             state = state[1:-1]
         state = state.tolist()
-        readable = [self.inverse_lookup[el] for el in state]
+        readable = [self.idx2token[el] for el in state]
         return "".join(readable)
 
     def readable2state(self, readable) -> TensorType["batch_dim", "max_seq_length"]:
@@ -355,16 +352,14 @@ class Sequence(GFlowNetEnv):
         Transforms a list or string of letters into a list of indices according to an alphabet.
         """
         if isinstance(readable, str):
-            encoded_readable = [self.lookup[el] for el in readable]
-            state = (
-                torch.ones(self.max_seq_length, dtype=torch.int64) * self.padding_idx
-            )
+            encoded_readable = [self.token2idx[el] for el in readable]
+            state = torch.ones(self.max_seq_length, dtype=torch.int64) * self.pad_idx
             state[: len(encoded_readable)] = torch.tensor(encoded_readable)
         else:
-            encoded_readable = [[self.lookup[el] for el in seq] for seq in readable]
+            encoded_readable = [[self.token2idx[el] for el in seq] for seq in readable]
             state = (
                 torch.ones((len(readable), self.max_seq_length), dtype=torch.int64)
-                * self.padding_idx
+                * self.pad_idx
             )
             for i, seq in enumerate(encoded_readable):
                 state[i, : len(seq)] = torch.tensor(seq)
@@ -404,11 +399,11 @@ class Sequence(GFlowNetEnv):
         else:
             parents = []
             actions = []
-            if state[-1] == self.padding_idx:
-                state_last_element = int(torch.where(state == self.padding_idx)[0][0])
+            if state[-1] == self.pad_idx:
+                state_last_element = int(torch.where(state == self.pad_idx)[0][0])
             else:
                 state_last_element = len(state)
-            max_parent_action_length = self.max_word_len + 1 - self.min_word_len
+            max_parent_action_length = self.max_word_length + 1 - self.min_word_length
             for parent_action_length in range(1, max_parent_action_length + 1):
                 parent_action = tuple(
                     state[
@@ -419,7 +414,7 @@ class Sequence(GFlowNetEnv):
                     parent = state.clone().detach()
                     parent[
                         state_last_element - parent_action_length : state_last_element
-                    ] = self.padding_idx
+                    ] = self.pad_idx
                     parents.append(parent)
                     actions.append(parent_action)
         return parents, actions
@@ -447,12 +442,12 @@ class Sequence(GFlowNetEnv):
         """
         assert action in self.action_space
         # If only possible action is eos, then force eos
-        if self.state[-1] != self.padding_idx:
+        if self.state[-1] != self.pad_idx:
             self.done = True
             self.n_actions += 1
             return self.state, (self.eos,), True
         # If action is not eos, then perform action
-        state_last_element = int(torch.where(self.state == self.padding_idx)[0][0])
+        state_last_element = int(torch.where(self.state == self.pad_idx)[0][0])
         if action[0] != self.eos:
             state_next = self.state.clone().detach()
             if state_last_element + len(action) > self.max_seq_length:
