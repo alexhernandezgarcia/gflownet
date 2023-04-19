@@ -863,14 +863,6 @@ class ContinuousCube(Cube):
             logprobs_sample[idx_sample] = distr_increments.log_prob(
                 increments[idx_sample, :]
             ).sum(axis=1)
-            # Map increments of generic (not from source) actions to [min_incr, 1.0]
-        #             if len(idx_generic) > 0:
-        #                 increments[idx_generic] = (
-        #                     increments[idx_generic] * (1 - self.min_incr) + self.min_incr
-        #                 )
-        #             assert torch.all(increments[idx_sample] >= 0.0)
-        #             assert torch.all(increments[idx_generic] >= self.min_incr)
-        #             assert torch.all(increments[idx_generic] <= 1.0)
         # Combined probabilities
         logprobs = logprobs_eos + logprobs_sample
         # Build actions
@@ -933,15 +925,6 @@ class ContinuousCube(Cube):
             beta_distr = Beta(alphas, betas)
             distr_increments = MixtureSameFamily(mix, beta_distr)
             increments = actions[:, :-1].clone().detach()
-            # Remap increments of generic actions to [0, 1] to obtain correct
-            # probabilities, in the case where the actions are not from the source
-            # state (generic) and the transitions are forward.
-            #             if len(idx_generic) > 0 and is_forward:
-            #                 increments[idx_generic] = (increments[idx_generic] - self.min_incr) / (
-            #                     1 - self.min_incr
-            #                 )
-            #                 assert torch.all(increments[idx_sample] >= 0.0)
-            #                 assert torch.all(increments[idx_sample] <= 1.0)
             # TODO: do something with the logprob of returning to source (backwards)?
             logprobs_sample[idx_sample] = distr_increments.log_prob(
                 increments[idx_sample]
