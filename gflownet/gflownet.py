@@ -633,7 +633,6 @@ class GFlowNetAgent:
         # state_id[traj_id == tid] -= state_id[traj_id == tid].min() + 1
         # Compute rewards
         rewards = self.env.reward_torchbatch(states, done)
-        xx = torch.where((state_id == 3 - 1) & (traj_id == 7))
         # Build parents forward masks from state masks
         masks_f = torch.cat(
             [
@@ -774,10 +773,10 @@ class GFlowNetAgent:
                 costs = self.env.get_cost(states_term)
             else:
                 costs = 0.0
-            self.buffer.add(states_term, trajs_term, rewards, proxy_vals, it)
-            self.buffer.add(
-                states_term, trajs_term, rewards, proxy_vals, it, buffer="replay"
-            )
+            # self.buffer.add(states_term, trajs_term, rewards, proxy_vals, it)
+            # self.buffer.add(
+                # states_term, trajs_term, rewards, proxy_vals, it, buffer="replay"
+            # )
             t1_buffer = time.time()
             times.update({"buffer": t1_buffer - t0_buffer})
             # Log
