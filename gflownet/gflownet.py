@@ -1152,6 +1152,7 @@ class GFlowNetAgent:
                 print(f"\t Mean Energy: {mean_energy_topk}")
                 print(f"\t Mean Pairwise Distance: {mean_pairwise_dist_topk}")
                 print(f"\t Mean Min Distance from Mode: {mean_min_dist_from_mode_topk}")
+                print(f"\t Cumulative Cost: {cumulative_cost}")
                 if do_novelty:
                     print(f"\t Mean Min Distance from D0: {mean_dist_from_D0_topk}")
             metrics_dict.update(dict_topk)
