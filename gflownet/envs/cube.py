@@ -898,16 +898,15 @@ class ContinuousCube(Cube):
         if is_forward:
             mask_sampled_eos = torch.all(actions[idx_nofix] == torch.inf, axis=1)
         else:
-            mask_sampled_eos = torch.all(actions[idx_nofix] == torch.inf, axis=1)
-        #             mask_sampled_eos = torch.logical_or(
-        #                 torch.all(states_target[idx_nofix] == 0.0, axis=1),
-        #                 torch.all(actions[idx_nofix] == torch.inf, axis=1),
-        #             )
+#             mask_sampled_eos = torch.all(actions[idx_nofix] == torch.inf, axis=1)
+            mask_sampled_eos = torch.logical_or(
+                torch.all(states_target[idx_nofix] == 0.0, axis=1),
+                torch.all(actions[idx_nofix] == torch.inf, axis=1),
+            )
         logprobs_eos = torch.zeros(n_states, device=device, dtype=self.float)
         logprobs_eos[idx_nofix] = distr_eos.log_prob(mask_sampled_eos.to(self.float))
         # Log probs of sampled increments
         idx_sample = idx_nofix[~mask_sampled_eos]
-        idx_generic = idx_sample[~mask_invalid_actions[idx_sample, 0]]
         logprobs_sample = torch.zeros(n_states, device=device, dtype=self.float)
         if len(idx_sample) > 0:
             mix_logits = policy_outputs[idx_sample, 0:-1:3].reshape(
@@ -962,6 +961,7 @@ class ContinuousCube(Cube):
         # If action is eos or any dimension is beyond max_val, then force eos
         elif action == self.eos or any([s > (1 - self.min_incr) for s in self.state]):
             self.done = True
+            self.n_actions += 1
             return self.state, self.eos, True
         # If action is not eos, then perform action
         else:
@@ -972,6 +972,7 @@ class ContinuousCube(Cube):
             assert all([s <= self.max_val for s in self.state]), print(
                 self.state, action
             )
+            self.n_actions += 1
             return self.state, action, True
 
     def get_grid_terminating_states(self, n_states: int) -> List[List]:
