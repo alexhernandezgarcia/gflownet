@@ -614,12 +614,14 @@ class HybridCube(Cube):
 
 class ContinuousCube(Cube):
     """
-    Continuous hyper-cube environment (continuous
-    version of a hyper-grid) in which the action space consists of the increment of
-    each dimension d, modelled by a mixture of Beta distributions.
-
-    The states space is the value of each dimension. If the value of any dimension gets
-    larger than max_val, then the trajectory is ended.
+    Continuous hyper-cube environment (continuous version of a hyper-grid) in which the
+    action space consists of the increment of each dimension d, modelled by a mixture
+    of Beta distributions. The states space is the value of each dimension. In order to
+    ensure that all trajectories are of finite length, actions have a minimum increment
+    for all dimensions determined by min_incr. If the value of any dimension is larger
+    than 1 - min_incr, then the trajectory is ended (the only next valid action is
+    EOS). In order to ensure the coverage of the state space, the first action (from
+    the source state) is not constrained by the minimum increment.
 
     Attributes
     ----------
@@ -706,9 +708,9 @@ class ContinuousCube(Cube):
         if all([s == ss for s, ss in zip(state, self.source)]):
             mask = [False for _ in range(self.action_space_dim)]
             mask[0] = True
-        # If the value of any dimension is greater than max_val, then next action can
-        # only be EOS.
-        elif any([s > self.max_val for s in state]):
+        # If the value of any dimension is greater than 1 - min_incr, then next action
+        # can only be EOS.
+        elif any([s > (1 - self.min_incr) for s in state]):
             mask = [True for _ in range(self.action_space_dim)]
             mask[-1] = False
         # Otherwise, only the action_source is not valid
@@ -736,6 +738,7 @@ class ContinuousCube(Cube):
             mask[-1] = False
         # If the value of any dimension is smaller than 0.0, then next action can only
         # be return to source (EOS)
+        # TODO: make sure this is correct
         if any([s < 0.0 for s in state]):
             mask = [True for _ in range(self.action_space_dim)]
             mask[-1] = False
@@ -845,12 +848,13 @@ class ContinuousCube(Cube):
                 increments[idx_sample, :]
             ).sum(axis=1)
             # Map increments of generic (not from source) actions to [min_incr, 1.0]
-            # TODO: before or after computing logprob?
-#             increments[idx_generic] = (
-#                 increments[idx_generic] * (1 - self.min_incr) + self.min_incr
-#             )
-#             assert torch.all(increments[idx_generic] >= self.min_incr)
-#             assert torch.all(increments[idx_generic] <= 1.0)
+            if len(idx_generic) > 0:
+                increments[idx_generic] = (
+                    increments[idx_generic] * (1 - self.min_incr) + self.min_incr
+                )
+            assert torch.all(increments[idx_sample] >= 0.0)
+            assert torch.all(increments[idx_generic] >= self.min_incr)
+            assert torch.all(increments[idx_generic] <= 1.0)
         # Combined probabilities
         logprobs = logprobs_eos + logprobs_sample
         # Build actions
@@ -876,12 +880,19 @@ class ContinuousCube(Cube):
         device = policy_outputs.device
         n_states = policy_outputs.shape[0]
         ns_range = torch.arange(n_states).to(device)
-        # Log probs of EOS actions
+        # Log probs of EOS (back to source if backwards) actions
         idx_nofix = ns_range[
             ~torch.logical_and(mask_invalid_actions[:, 0], mask_invalid_actions[:, 1])
         ]
         distr_eos = Bernoulli(logits=policy_outputs[idx_nofix, -1])
-        mask_sampled_eos = torch.all(actions[idx_nofix] == torch.inf, axis=1)
+        if is_forward:
+            mask_sampled_eos = torch.all(actions[idx_nofix] == torch.inf, axis=1)
+        else:
+            mask_sampled_eos = torch.all(actions[idx_nofix] == torch.inf, axis=1)
+#             mask_sampled_eos = torch.logical_or(
+#                 torch.all(states_target[idx_nofix] == 0.0, axis=1),
+#                 torch.all(actions[idx_nofix] == torch.inf, axis=1),
+#             )
         logprobs_eos = torch.zeros(n_states, device=device, dtype=self.float)
         logprobs_eos[idx_nofix] = distr_eos.log_prob(mask_sampled_eos.to(self.float))
         # Log probs of sampled increments
@@ -904,12 +915,19 @@ class ContinuousCube(Cube):
             beta_distr = Beta(alphas, betas)
             distr_increments = MixtureSameFamily(mix, beta_distr)
             increments = actions.clone().detach()
-            # Remap increments of generic actions to [0, 1] to obtain correct probs.
-#             if len(idx_generic) > 0:
-#                 increments[idx_generic] = (increments[idx_generic] - self.min_incr) / (1 - self.min_incr)
-#                 assert torch.all(increments[idx_sample] >= 0.0)
-#                 assert torch.all(increments[idx_sample] <= 1.0)
-            logprobs_sample[idx_sample] = distr_increments.log_prob(increments[idx_sample]).sum(axis=1)
+            # Remap increments of generic actions to [0, 1] to obtain correct
+            # probabilities, in the case where the actions are not from the source
+            # state (generic) and the transitions are forward.
+            if len(idx_generic) > 0 and is_forward:
+                increments[idx_generic] = (increments[idx_generic] - self.min_incr) / (
+                    1 - self.min_incr
+                )
+                assert torch.all(increments[idx_sample] >= 0.0)
+                assert torch.all(increments[idx_sample] <= 1.0)
+            # TODO: do something with the logprob of returning to source (backwards)?
+            logprobs_sample[idx_sample] = distr_increments.log_prob(
+                increments[idx_sample]
+            ).sum(axis=1)
         # Combined probabilities
         logprobs = logprobs_eos + logprobs_sample
         return logprobs
@@ -941,13 +959,14 @@ class ContinuousCube(Cube):
         if self.done:
             return self.state, action, False
         # If action is eos or any dimension is beyond max_val, then force eos
-        elif action == self.eos or any([s > self.max_val for s in self.state]):
+        elif action == self.eos or any([s > (1 - self.min_incr) for s in self.state]):
             self.done = True
             return self.state, self.eos, True
         # If action is not eos, then perform action
         else:
             for dim, incr in enumerate(action):
                 self.state[dim] += incr
+                assert all([s <= self.max_val for s in self.state])
             return self.state, action, True
 
     def get_grid_terminating_states(self, n_states: int) -> List[List]:
