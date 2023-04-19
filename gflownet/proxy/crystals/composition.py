@@ -1,5 +1,9 @@
 import numpy as np
 import pickle
+
+from pathlib import Path
+from torchtyping import TensorType
+
 from gflownet.proxy.base import Proxy
 
 PROTONS_NUMBER_COUNTS = None
@@ -13,14 +17,14 @@ def _read_protons_number_counts():
     return PROTONS_NUMBER_COUNTS
 
 
-class Composition(Proxy):
+class CompositionMPFrequency(Proxy):
     def __init__(self, normalise: bool = True, **kwargs):
         super().__init__(**kwargs)
         self.counts_dict = _read_protons_number_counts()
         self.normalise = normalise
 
-    def _get_max_protons_number(self, env):
-        max_protons_state = np.array(env.source.copy())
+    def _get_max_protons_state(self, env):
+        max_protons_state = env.source.copy()
         for elem in env.required_elements:
             max_protons_state[env.elem2idx[elem]] = max(1, env.min_atom_i)
         for idx in range(env.min_diff_elem - len(env.required_elements)):
@@ -28,12 +32,15 @@ class Composition(Proxy):
         
         for idx in range(len(max_protons_state)):
             if ((max_protons_state[idx] == 0 
-                and (max_protons_state != 0).sum() < env.max_diff_elem) or
+                and env.get_diff_elem_number(max_protons_state) < env.max_diff_elem) or
                 max_protons_state[idx] != 0):
-                while (sum(max_protons_state) < env.max_atoms and
+                while (env.get_atoms_number(max_protons_state) < env.max_atoms and
                         max_protons_state[-1-idx] < env.max_atom_i):
                     max_protons_state[-1-idx] += 1
+        return max_protons_state
 
+    def _get_max_protons_number(self, env):
+        max_protons_state = self._get_max_protons_state(env)
         max_protons_number = 0
         for idx, count in enumerate(max_protons_state):
             max_protons_number += env.idx2elem[idx] * count

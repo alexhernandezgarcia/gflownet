@@ -367,3 +367,14 @@ class Composition(GFlowNetEnv):
         ]
 
         return any(poss_charge_sum)
+
+    def get_diff_elem_number(self, state=None):
+        if state is None:
+            state = self.state
+        return (np.array(state) != 0).sum()
+
+    def get_atoms_number(self, state=None):
+        if state is None:
+            state = self.state
+        return sum(state)
+
