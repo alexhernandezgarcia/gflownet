@@ -1,5 +1,6 @@
 import numpy as np
 import pickle
+import torch
 
 from pathlib import Path
 from torchtyping import TensorType
@@ -31,9 +32,9 @@ class CompositionMPFrequency(Proxy):
             max_protons_state[-1-idx] = max(1, env.min_atom_i)
         
         for idx in range(len(max_protons_state)):
-            if ((max_protons_state[idx] == 0 
+            if ((max_protons_state[-1-idx] == 0 
                 and env.get_diff_elem_number(max_protons_state) < env.max_diff_elem) or
-                max_protons_state[idx] != 0):
+                max_protons_state[-1-idx] != 0):
                 while (env.get_atoms_number(max_protons_state) < env.max_atoms and
                         max_protons_state[-1-idx] < env.max_atom_i):
                     max_protons_state[-1-idx] += 1
@@ -48,7 +49,9 @@ class CompositionMPFrequency(Proxy):
 
     def setup(self, env):
         mpn = self._get_max_protons_number(env)
-        self.counts = torch.zeros(mpn, device=self.device, dtype=torch.int16)
+        # index in self.counts corresponds to the number of protons in the composition
+        # (nth position is n protons)
+        self.counts = torch.zeros(mpn + 1, device=self.device, dtype=torch.int16)
         for idx in range(mpn + 1):
             if idx in self.counts_dict.keys():
                 self.counts[idx] = self.counts_dict[idx]
@@ -61,6 +64,6 @@ class CompositionMPFrequency(Proxy):
             self.norm = -1.0
 
     def __call__(self, states: TensorType["batch", "state"]) -> TensorType["batch"]:
-        return self.counts(torch.sum(states * self.atomic_numbers, dim=1)) / self.norm
+        return self.counts[torch.sum(states * self.atomic_numbers, dim=1)] / self.norm
 
 
