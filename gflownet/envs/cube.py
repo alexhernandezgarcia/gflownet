@@ -749,6 +749,7 @@ class ContinuousCube(Cube):
         # be return to source (EOS)
         # TODO: make sure this is correct
         if any([s < 0.0 for s in state]):
+            import ipdb; ipdb.set_trace()
             mask = [True for _ in range(self.action_space_dim)]
             mask[-1] = False
         else:
@@ -1075,7 +1076,8 @@ class ContinuousCube(Cube):
         #                         )
         #                     )
         #         extra_samples = np.concatenate(extra_samples)
-        ax.scatter(samples[:max_samples, 0], samples[:max_samples, 1], alpha=alpha)
+        random_indices = np.random.permutation(samples.shape[0])[:max_samples]
+        ax.scatter(samples[random_indices, 0], samples[random_indices, 1], alpha=alpha)
         #         ax.scatter(extra_samples[:, 0], extra_samples[:, 1], alpha=alpha, color="white")
         ax.grid()
         padding = 0.05 * (cell_max - cell_min)
