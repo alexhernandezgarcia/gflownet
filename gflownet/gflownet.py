@@ -939,11 +939,11 @@ class GFlowNetAgent:
         )
 
     def plot(self, x_sampled, kde_pred, kde_true, **plot_kwargs):
-        x_sampled_torch = torch.tensor(x_sampled, dtype=torch.float32)
-        fidelity = x_sampled_torch[:, -1]
-        unique, frequency = torch.unique(fidelity, dim=0, return_counts=True)
-        print("Unique samples: ", unique.shape[0])
-        print("Frequency: ", frequency)
+        # x_sampled_torch = torch.tensor(x_sampled, dtype=torch.float32)
+        # fidelity = x_sampled_torch[:, -1]
+        # unique, frequency = torch.unique(fidelity, dim=0, return_counts=True)
+        # print("Unique samples: ", unique.shape[0])
+        # print("Frequency: ", frequency)
         if hasattr(self.env, "plot_reward_samples"):
             fig_reward_samples = self.env.plot_reward_samples(x_sampled, **plot_kwargs)
         else:
