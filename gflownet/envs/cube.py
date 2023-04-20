@@ -676,21 +676,22 @@ class ContinuousCube(Cube):
           2) the logit(alpha) parameter of the Beta distribution to sample the increment
           3) the logit(beta) parameter of the Beta distribution to sample the increment
 
-        Additionally, the policy output contains one logit of a Bernoulli distribution
-        to model the (discrete) forward probability of selecting the EOS action and the
-        (discrete) backward probability of returning to the source node.
+        Additionally, the policy output contains one logit (pos [-1]) of a Bernoulli
+        distribution to model the (discrete) forward probability of selecting the EOS
+        action and another logit (pos [-2]) for the (discrete) backward probability of
+        returning to the source node.
 
-        Therefore, the output of the policy model has dimensionality D x C x 3 + 1,
+        Therefore, the output of the policy model has dimensionality D x C x 3 + 2,
         where D is the number of dimensions (self.n_dim) and C is the number of
         components (self.n_comp).
         """
         policy_output = torch.ones(
-            self.n_dim * self.n_comp * 3 + 1,
+            self.n_dim * self.n_comp * 3 + 2,
             device=self.device,
             dtype=self.float,
         )
-        policy_output[1:-1:3] = params["beta_alpha"]
-        policy_output[2:-1:3] = params["beta_beta"]
+        policy_output[1:-2:3] = params["beta_alpha"]
+        policy_output[2:-2:3] = params["beta_beta"]
         return policy_output
 
     def get_mask_invalid_actions_forward(
@@ -745,6 +746,7 @@ class ContinuousCube(Cube):
         if done:
             mask = [True for _ in range(self.action_space_dim)]
             mask[-1] = False
+            return mask
         # If the value of any dimension is smaller than 0.0, then next action can only
         # be return to source (EOS)
         # TODO: make sure this is correct
@@ -814,9 +816,7 @@ class ContinuousCube(Cube):
         n_states = policy_outputs.shape[0]
         ns_range = torch.arange(n_states).to(device)
         # EOS
-        idx_nofix = ns_range[
-            ~torch.logical_and(mask_invalid_actions[:, 0], mask_invalid_actions[:, 1])
-        ]
+        idx_nofix = ns_range[torch.any(~mask_invalid_actions[:, :-1], axis=1)]
         distr_eos = Bernoulli(logits=policy_outputs[idx_nofix, -1])
         mask_sampled_eos = distr_eos.sample().to(torch.bool)
         logprobs_eos = torch.zeros(n_states, device=device, dtype=self.float)
@@ -842,17 +842,17 @@ class ContinuousCube(Cube):
                     torch.ones(n_sample),
                 )
             elif sampling_method == "policy":
-                mix_logits = policy_outputs[idx_sample, 0:-1:3].reshape(
+                mix_logits = policy_outputs[idx_sample, 0:-2:3].reshape(
                     -1, self.n_dim, self.n_comp
                 )
                 mix = Categorical(logits=mix_logits)
-                alphas = policy_outputs[idx_sample, 1:-1:3].reshape(
+                alphas = policy_outputs[idx_sample, 1:-2:3].reshape(
                     -1, self.n_dim, self.n_comp
                 )
                 alphas = (
                     self.beta_params_max * torch.sigmoid(alphas) + self.beta_params_min
                 )
-                betas = policy_outputs[idx_sample, 2:-1:3].reshape(
+                betas = policy_outputs[idx_sample, 2:-2:3].reshape(
                     -1, self.n_dim, self.n_comp
                 )
                 betas = (
@@ -891,34 +891,34 @@ class ContinuousCube(Cube):
         device = policy_outputs.device
         n_states = policy_outputs.shape[0]
         ns_range = torch.arange(n_states).to(device)
-        # Log probs of EOS (back to source if backwards) actions
-        idx_nofix = ns_range[
-            ~torch.logical_and(mask_invalid_actions[:, 0], mask_invalid_actions[:, 1])
-        ]
-        distr_eos = Bernoulli(logits=policy_outputs[idx_nofix, -1])
-        if is_forward:
-            mask_sampled_eos = torch.all(actions[idx_nofix] == torch.inf, axis=1)
-        else:
-#             mask_sampled_eos = torch.all(actions[idx_nofix] == torch.inf, axis=1)
-            mask_sampled_eos = torch.logical_or(
-                torch.all(states_target[idx_nofix] == 0.0, axis=1),
-                torch.all(actions[idx_nofix] == torch.inf, axis=1),
-            )
+        # Log probs of EOS and source (backwards) actions
+        idx_nofix = ns_range[torch.any(~mask_invalid_actions[:, :-1], axis=1)]
         logprobs_eos = torch.zeros(n_states, device=device, dtype=self.float)
-        logprobs_eos[idx_nofix] = distr_eos.log_prob(mask_sampled_eos.to(self.float))
+        logprobs_source = torch.zeros(n_states, device=device, dtype=self.float)
+        if is_forward:
+            mask_eos = torch.all(actions[idx_nofix] == torch.inf, axis=1)
+            distr_eos = Bernoulli(logits=policy_outputs[idx_nofix, -1])
+            logprobs_eos[idx_nofix] = distr_eos.log_prob(mask_eos.to(self.float))
+            mask_sample = ~mask_eos
+        else:
+            source = torch.tensor(self.source, device=device)
+            mask_source = torch.all(states_target[idx_nofix] == source, axis=1)
+            distr_source = Bernoulli(logits=policy_outputs[idx_nofix, -2])
+            logprobs_source[idx_nofix] = distr_source.log_prob(mask_source.to(self.float))
+            mask_sample = ~mask_source
         # Log probs of sampled increments
-        idx_sample = idx_nofix[~mask_sampled_eos]
+        idx_sample = idx_nofix[mask_sample]
         logprobs_sample = torch.zeros(n_states, device=device, dtype=self.float)
         if len(idx_sample) > 0:
-            mix_logits = policy_outputs[idx_sample, 0:-1:3].reshape(
+            mix_logits = policy_outputs[idx_sample, 0:-2:3].reshape(
                 -1, self.n_dim, self.n_comp
             )
             mix = Categorical(logits=mix_logits)
-            alphas = policy_outputs[idx_sample, 1:-1:3].reshape(
+            alphas = policy_outputs[idx_sample, 1:-2:3].reshape(
                 -1, self.n_dim, self.n_comp
             )
             alphas = self.beta_params_max * torch.sigmoid(alphas) + self.beta_params_min
-            betas = policy_outputs[idx_sample, 2:-1:3].reshape(
+            betas = policy_outputs[idx_sample, 2:-2:3].reshape(
                 -1, self.n_dim, self.n_comp
             )
             betas = self.beta_params_max * torch.sigmoid(betas) + self.beta_params_min
@@ -930,7 +930,7 @@ class ContinuousCube(Cube):
                 increments[idx_sample]
             ).sum(axis=1)
         # Combined probabilities
-        logprobs = logprobs_eos + logprobs_sample
+        logprobs = logprobs_eos + logprobs_source + logprobs_sample
         return logprobs
 
     def step(
@@ -959,6 +959,7 @@ class ContinuousCube(Cube):
         """
         if self.done:
             return self.state, action, False
+        # TODO: remove condition
         # If action is eos or any dimension is beyond max_val, then force eos
         elif action == self.eos or any([s > (1 - self.min_incr) for s in self.state]):
             self.done = True
