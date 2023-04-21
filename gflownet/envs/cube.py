@@ -821,11 +821,6 @@ class ContinuousCube(Cube):
         increments = torch.inf * torch.ones(
             (n_states, self.n_dim), device=device, dtype=self.float
         )
-        min_increments = torch.inf * torch.ones(
-            n_states, device=device, dtype=self.float
-        )
-        min_increments[idx_generic] = self.min_incr
-        min_increments[idx_source] = 0.0
         if len(idx_sample) > 0:
             if sampling_method == "uniform":
                 distr_increments = Uniform(
@@ -858,6 +853,11 @@ class ContinuousCube(Cube):
         # Combined probabilities
         logprobs = logprobs_eos + logprobs_sample
         # Build actions
+        min_increments = torch.inf * torch.ones(
+            n_states, device=device, dtype=self.float
+        )
+        min_increments[idx_generic] = self.min_incr
+        min_increments[idx_source] = 0.0
         actions = [
             tuple(a.tolist() + [m.item()]) for a, m in zip(increments, min_increments)
         ]
