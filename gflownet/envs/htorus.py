@@ -534,6 +534,14 @@ class HybridTorus(GFlowNetEnv):
         states = [list(el) + [self.length_traj] for el in angles]
         return states
 
+    def get_uniform_terminating_states(
+        self, n_states: int, seed: int = None
+    ) -> List[List]:
+        rng = np.random.default_rng(seed)
+        angles = rng.uniform(low=0.0, high=(2 * np.pi), size=(n_states, self.n_dim))
+        states = np.concatenate((angles, np.ones((n_states, 1))), axis=1)
+        return states.tolist()
+
     # TODO: make generic for all environments
     def sample_from_reward(
         self, n_samples: int, epsilon=1e-4
@@ -546,27 +554,16 @@ class HybridTorus(GFlowNetEnv):
         samples_final = []
         max_reward = self.proxy2reward(torch.tensor([self.proxy.min])).to(self.device)
         while len(samples_final) < n_samples:
-            angles_uniform = (
-                torch.rand(
-                    (n_samples, self.n_dim), dtype=self.float, device=self.device
-                )
-                * 2
-                * np.pi
+            samples_uniform = self.statebatch2proxy(
+                self.get_uniform_terminating_states(n_samples)
             )
-            samples = torch.cat(
-                (
-                    angles_uniform,
-                    torch.ones((angles_uniform.shape[0], 1)).to(angles_uniform),
-                ),
-                axis=1,
-            )
-            rewards = self.reward_torchbatch(samples)
+            rewards = self.proxy2reward(self.proxy(samples_uniform))
             mask = (
                 torch.rand(n_samples, dtype=self.float, device=self.device)
                 * (max_reward + epsilon)
                 < rewards
             )
-            samples_accepted = samples[mask, :]
+            samples_accepted = samples_uniform[mask]
             samples_final.extend(samples_accepted[-(n_samples - len(samples_final)) :])
         return torch.vstack(samples_final)
 
