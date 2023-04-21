@@ -654,14 +654,15 @@ class ContinuousCube(Cube):
         source state, min_incr otherwise.
 
         Additionally, there are two special discrete actions:
-            - Action from the source state, with no minimum increment. Only valid from
-              the source state. Indicated by -1 for all dimensions.
-            - EOS action. Indicated by np.inf for all dimensions.
+            - EOS action. Indicated by np.inf for all dimensions. Only valid forwards.
+            - Back-to-source action. Indicated by -1 for all dimensions. Only valid
+              backwards.
         """
         generic_action = tuple([0.0 for _ in range(self.n_dim)] + [self.min_incr])
-        action_source = tuple([0.0 for _ in range(self.n_dim)] + [0.0])
+        from_source = tuple([0.0 for _ in range(self.n_dim)] + [0.0])
+        to_source = tuple([-1.0 for _ in range(self.n_dim + 1)])
         self.eos = tuple([np.inf for _ in range(self.n_dim + 1)])
-        actions = [generic_action, action_source, self.eos]
+        actions = [generic_action, from_source, to_source, self.eos]
         return actions
 
     def get_policy_output(self, params: dict) -> TensorType["policy_output_dim"]:
@@ -704,9 +705,9 @@ class ContinuousCube(Cube):
         True if action is invalid going forward given the current state, False
         otherwise.
 
-        If the state is the source state, the only valid action is action_source. EOS
-        is valid valid from any state (including the source state) and EOS is the only
-        possible action if the value of any dimension has excedded max_val.
+        If the state is the source state, the generic action is not valid. EOS is valid
+        valid from any state (including the source state). The back-to-source action is
+        ignored (invalid) going forward.
         """
         if state is None:
             state = self.state.copy()
@@ -716,18 +717,14 @@ class ContinuousCube(Cube):
             return [True for _ in range(self.action_space_dim)]
         # If state is source, the generic action is not valid.
         if all([s == ss for s, ss in zip(state, self.source)]):
-            mask = [False for _ in range(self.action_space_dim)]
-            mask[0] = True
+            return [True, False, True, False]
         # If the value of any dimension is greater than 1 - min_incr, then next action
         # can only be EOS.
         elif any([s > (1 - self.min_incr) for s in state]):
-            mask = [True for _ in range(self.action_space_dim)]
-            mask[-1] = False
+            return [True, True, True, False]
         # Otherwise, only the action_source is not valid
         else:
-            mask = [False for _ in range(self.action_space_dim)]
-            mask[-2] = True
-        return mask
+            return [False, True, True, False]
 
     def get_mask_invalid_actions_backward(self, state=None, done=None, parents_a=None):
         """
@@ -735,30 +732,17 @@ class ContinuousCube(Cube):
         True if action is invalid going backward given the current state, False
         otherwise.
 
-        The EOS action (returning to the source state for backward actions) is valid
-        from any state. The source action is ignored (invalid) for backward actions. If
-        any dimension is smaller than 0, then the only valid action is EOS.
+        The back-to-source action (returning to the source state for backward actions)
+        is valid from any state. The source action is ignored (invalid) for backward
+        actions.
         """
         if state is None:
             state = self.state.copy()
         if done is None:
             done = self.done
         if done:
-            mask = [True for _ in range(self.action_space_dim)]
-            mask[-1] = False
-            return mask
-        # If the value of any dimension is smaller than 0.0, then next action can only
-        # be return to source (EOS)
-        # TODO: make sure this is correct
-        if any([s < 0.0 for s in state]):
-            import ipdb; ipdb.set_trace()
-            mask = [True for _ in range(self.action_space_dim)]
-            mask[-1] = False
-        else:
-            mask = [False for _ in range(self.action_space_dim)]
-        # action_source is ignored going backwards, thus always invalid.
-        mask[-2] = True
-        return mask
+            return [True, True, True, False]
+        return [False, True, False, True]
 
     def get_parents(
         self, state: List = None, done: bool = None, action: Tuple[int, float] = None
@@ -816,7 +800,7 @@ class ContinuousCube(Cube):
         n_states = policy_outputs.shape[0]
         ns_range = torch.arange(n_states).to(device)
         # EOS
-        idx_nofix = ns_range[torch.any(~mask_invalid_actions[:, :-1], axis=1)]
+        idx_nofix = ns_range[torch.any(~mask_invalid_actions[:, :2], axis=1)]
         distr_eos = Bernoulli(logits=policy_outputs[idx_nofix, -1])
         mask_sampled_eos = distr_eos.sample().to(torch.bool)
         logprobs_eos = torch.zeros(n_states, device=device, dtype=self.float)
@@ -892,7 +876,7 @@ class ContinuousCube(Cube):
         n_states = policy_outputs.shape[0]
         ns_range = torch.arange(n_states).to(device)
         # Log probs of EOS and source (backwards) actions
-        idx_nofix = ns_range[torch.any(~mask_invalid_actions[:, :-1], axis=1)]
+        idx_nofix = ns_range[torch.any(~mask_invalid_actions[:, :2], axis=1)]
         logprobs_eos = torch.zeros(n_states, device=device, dtype=self.float)
         logprobs_source = torch.zeros(n_states, device=device, dtype=self.float)
         if is_forward:
