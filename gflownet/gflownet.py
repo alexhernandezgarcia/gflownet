@@ -864,7 +864,7 @@ class GFlowNetAgent:
                     x_from_reward = self.env.sample_from_reward(
                         n_samples=self.logger.test.n
                     )
-                    x_from_reward = torch2np(self.env.statetorch2proxy(x_from_reward))
+                    x_from_reward = torch2np(x_from_reward)
                     # Fit KDE with samples from reward
                     kde_true = self.env.fit_kde(
                         x_from_reward,
