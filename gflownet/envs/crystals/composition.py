@@ -53,7 +53,7 @@ class Composition(GFlowNetEnv):
             Maximum number of atoms that can be used to construct a crystal
 
         min_atom_i : int
-            Minimum number of elements of each used kind that needs to be used to
+            Minimum number of elements of each kind that needs to be used to
             construct a crystal
 
         max_atom_i : int
