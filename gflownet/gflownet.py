@@ -638,7 +638,9 @@ class GFlowNetAgent:
         )
         # Shift state_id to [1, 2, ...]
         for tid in traj_id.unique():
-            state_id[traj_id == tid] = state_id[traj_id == tid] - state_id[traj_id == tid].min() + 1
+            state_id[traj_id == tid] = (
+                state_id[traj_id == tid] - state_id[traj_id == tid].min() + 1
+            )
         # Compute rewards
         rewards = self.env.reward_torchbatch(states, done)
         # Build parents forward masks from state masks
@@ -891,14 +893,18 @@ class GFlowNetAgent:
             # KL divergence
             kl = (density_true * (log_density_true - log_density_pred)).mean()
             # Jensen-Shannon divergence
-            log_mean_dens = np.logaddexp(log_density_true, log_density_pred) + np.log(0.5)
+            log_mean_dens = np.logaddexp(log_density_true, log_density_pred) + np.log(
+                0.5
+            )
             jsd = 0.5 * np.sum(density_true * (log_density_true - log_mean_dens))
             jsd += 0.5 * np.sum(density_pred * (log_density_pred - log_mean_dens))
 
         # Plots
         if hasattr(self.env, "plot_reward_samples"):
             if x_sampled is None:
-                x_sampled, _ = self.sample_batch(self.env, self.logger.test.n, train=False)
+                x_sampled, _ = self.sample_batch(
+                    self.env, self.logger.test.n, train=False
+                )
                 x_sampled = torch2np(self.env.statebatch2proxy(x_sampled))
             fig_reward_samples = self.env.plot_reward_samples(x_sampled, **plot_kwargs)
         else:
