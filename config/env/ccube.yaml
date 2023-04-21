@@ -16,9 +16,11 @@ n_comp: 1
 fixed_distribution:
   beta_alpha: 2.0
   beta_beta: 5.0
+  bernoulli_logit: -2.3
 random_distribution:
   beta_alpha: 1.0
   beta_beta: 1.0
+  bernoulli_logit: -0.693
 # Buffer
 buffer:
   data_path: null

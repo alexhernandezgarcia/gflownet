@@ -10,6 +10,7 @@ import numpy as np
 import numpy.typing as npt
 import pandas as pd
 import torch
+from sklearn.neighbors import KernelDensity
 from torch.distributions import Bernoulli, Beta, Categorical, MixtureSameFamily, Uniform
 from torchtyping import TensorType
 
@@ -49,10 +50,12 @@ class Cube(GFlowNetEnv, ABC):
         fixed_distr_params: dict = {
             "beta_alpha": 2.0,
             "beta_beta": 5.0,
+            "bernoulli_logit": -2.3,
         },
         random_distr_params: dict = {
             "beta_alpha": 1.0,
             "beta_beta": 1.0,
+            "bernoulli_logit": -0.693,
         },
         **kwargs,
     ):
@@ -134,7 +137,9 @@ class Cube(GFlowNetEnv, ABC):
         state : list
             State
         """
-        return self.statetorch2policy(torch.tensor(states, device=self.device))
+        return self.statetorch2policy(
+            torch.tensor(states, device=self.device, dtype=self.float)
+        )
 
     def state2policy(self, state: List = None) -> List:
         """
@@ -693,6 +698,8 @@ class ContinuousCube(Cube):
         )
         policy_output[1:-2:3] = params["beta_alpha"]
         policy_output[2:-2:3] = params["beta_beta"]
+        policy_output[-2] = params["bernoulli_logit"]
+        policy_output[-1] = params["bernoulli_logit"]
         return policy_output
 
     def get_mask_invalid_actions_forward(
@@ -888,7 +895,9 @@ class ContinuousCube(Cube):
             source = torch.tensor(self.source, device=device)
             mask_source = torch.all(states_target[idx_nofix] == source, axis=1)
             distr_source = Bernoulli(logits=policy_outputs[idx_nofix, -2])
-            logprobs_source[idx_nofix] = distr_source.log_prob(mask_source.to(self.float))
+            logprobs_source[idx_nofix] = distr_source.log_prob(
+                mask_source.to(self.float)
+            )
             mask_sample = ~mask_source
         # Log probs of sampled increments
         idx_sample = idx_nofix[mask_sample]
@@ -969,53 +978,42 @@ class ContinuousCube(Cube):
         states = [list(el) for el in states]
         return states
 
+    def get_uniform_terminating_states(
+        self, n_states: int, seed: int = None
+    ) -> List[List]:
+        rng = np.random.default_rng(seed)
+        states = rng.uniform(low=0.0, high=self.max_val, size=(n_states, self.n_dim))
+        return states.tolist()
+
     #     # TODO: make generic for all environments
-    #     def sample_from_reward(
-    #         self, n_samples: int, epsilon=1e-4
-    #     ) -> TensorType["n_samples", "state_dim"]:
-    #         """
-    #         Rejection sampling  with proposal the uniform distribution in
-    #         [0, max_val]]^n_dim.
-    #
-    #         Returns a tensor in GFloNet (state) format.
-    #         """
-    #         samples_final = []
-    #         max_reward = self.proxy2reward(torch.tensor([self.proxy.min])).to(self.device)
-    #         while len(samples_final) < n_samples:
-    #             angles_uniform = (
-    #                 torch.rand(
-    #                     (n_samples, self.n_dim), dtype=self.float, device=self.device
-    #                 )
-    #                 * 2
-    #                 * np.pi
-    #             )
-    #             samples = torch.cat(
-    #                 (
-    #                     angles_uniform,
-    #                     torch.ones((angles_uniform.shape[0], 1)).to(angles_uniform),
-    #                 ),
-    #                 axis=1,
-    #             )
-    #             rewards = self.reward_torchbatch(samples)
-    #             mask = (
-    #                 torch.rand(n_samples, dtype=self.float, device=self.device)
-    #                 * (max_reward + epsilon)
-    #                 < rewards
-    #             )
-    #             samples_accepted = samples[mask, :]
-    #             samples_final.extend(samples_accepted[-(n_samples - len(samples_final)) :])
-    #         return torch.vstack(samples_final)
-    #
-    #     def fit_kde(self, samples, kernel="gaussian", bandwidth=0.1):
-    #         aug_samples = []
-    #         for add_0 in [0, -2 * np.pi, 2 * np.pi]:
-    #             for add_1 in [0, -2 * np.pi, 2 * np.pi]:
-    #                 aug_samples.append(
-    #                     np.stack([samples[:, 0] + add_0, samples[:, 1] + add_1], axis=1)
-    #                 )
-    #         aug_samples = np.concatenate(aug_samples)
-    #         kde = KernelDensity(kernel=kernel, bandwidth=bandwidth).fit(aug_samples)
-    #         return kde
+    def sample_from_reward(
+        self, n_samples: int, epsilon=1e-4
+    ) -> TensorType["n_samples", "state_dim"]:
+        """
+        Rejection sampling  with proposal the uniform distribution in
+        [0, max_val]]^n_dim.
+
+        Returns a tensor in GFloNet (state) format.
+        """
+        samples_final = []
+        max_reward = self.proxy2reward(self.proxy.min)
+        while len(samples_final) < n_samples:
+            samples_uniform = self.statebatch2proxy(
+                self.get_uniform_terminating_states(n_samples)
+            )
+            rewards = self.proxy2reward(self.proxy(samples_uniform))
+            mask = (
+                torch.rand(n_samples, dtype=self.float, device=self.device)
+                * (max_reward + epsilon)
+                < rewards
+            )
+            samples_accepted = samples_uniform[mask]
+            samples_final.extend(samples_accepted[-(n_samples - len(samples_final)) :])
+        return torch.vstack(samples_final)
+
+    # TODO: make generic for all envs
+    def fit_kde(self, samples, kernel="gaussian", bandwidth=0.1):
+        return KernelDensity(kernel=kernel, bandwidth=bandwidth).fit(samples)
 
     def plot_reward_samples(
         self,
@@ -1027,6 +1025,7 @@ class ContinuousCube(Cube):
         max_samples=500,
         **kwargs,
     ):
+        # Sample a grid of points in the state space and obtain the rewards
         x = np.linspace(cell_min, cell_max, 201)
         y = np.linspace(cell_min, cell_max, 201)
         xx, yy = np.meshgrid(x, y)
@@ -1042,68 +1041,46 @@ class ContinuousCube(Cube):
         h = ax.contourf(xx, yy, rewards.reshape(xx.shape).cpu().numpy(), alpha=alpha)
         ax.axis("scaled")
         fig.colorbar(h, ax=ax)
-        #         ax.plot([0, 0], [0, 2 * np.pi], "-w", alpha=alpha)
-        #         ax.plot([0, 2 * np.pi], [0, 0], "-w", alpha=alpha)
-        #         ax.plot([2 * np.pi, 2 * np.pi], [2 * np.pi, 0], "-w", alpha=alpha)
-        #         ax.plot([2 * np.pi, 0], [2 * np.pi, 2 * np.pi], "-w", alpha=alpha)
         # Plot samples
-        #         extra_samples = []
-        #         for add_0 in [0, -2 * np.pi, 2 * np.pi]:
-        #             for add_1 in [0, -2 * np.pi, 2 * np.pi]:
-        #                 if not (add_0 == add_1 == 0):
-        #                     extra_samples.append(
-        #                         np.stack(
-        #                             [
-        #                                 samples[:max_samples, 0] + add_0,
-        #                                 samples[:max_samples, 1] + add_1,
-        #                             ],
-        #                             axis=1,
-        #                         )
-        #                     )
-        #         extra_samples = np.concatenate(extra_samples)
         random_indices = np.random.permutation(samples.shape[0])[:max_samples]
         ax.scatter(samples[random_indices, 0], samples[random_indices, 1], alpha=alpha)
-        #         ax.scatter(extra_samples[:, 0], extra_samples[:, 1], alpha=alpha, color="white")
+        # Figure settings
         ax.grid()
         padding = 0.05 * (cell_max - cell_min)
         ax.set_xlim([cell_min - padding, cell_max + padding])
         ax.set_ylim([cell_min - padding, cell_max + padding])
-        # Set tight layout
         plt.tight_layout()
         return fig
 
-
-#     def plot_kde(
-#         self,
-#         kde,
-#         alpha=0.5,
-#         low=-np.pi * 0.5,
-#         high=2.5 * np.pi,
-#         dpi=150,
-#         colorbar=True,
-#         **kwargs,
-#     ):
-#         x = np.linspace(0, 2 * np.pi, 101)
-#         y = np.linspace(0, 2 * np.pi, 101)
-#         xx, yy = np.meshgrid(x, y)
-#         X = np.stack([xx, yy], axis=-1)
-#         Z = np.exp(kde.score_samples(X.reshape(-1, 2))).reshape(xx.shape)
-#         # Init figure
-#         fig, ax = plt.subplots()
-#         fig.set_dpi(dpi)
-#         # Plot KDE
-#         h = ax.contourf(xx, yy, Z, alpha=alpha)
-#         ax.axis("scaled")
-#         if colorbar:
-#             fig.colorbar(h, ax=ax)
-#         ax.set_xticks([])
-#         ax.set_yticks([])
-#         ax.text(0, -0.3, r"$0$", fontsize=15)
-#         ax.text(-0.28, 0, r"$0$", fontsize=15)
-#         ax.text(2 * np.pi - 0.4, -0.3, r"$2\pi$", fontsize=15)
-#         ax.text(-0.45, 2 * np.pi - 0.3, r"$2\pi$", fontsize=15)
-#         for spine in ax.spines.values():
-#             spine.set_visible(False)
-#         # Set tight layout
-#         plt.tight_layout()
-#         return fig
+    # TODO: make generic for all envs
+    def plot_kde(
+        self,
+        kde,
+        alpha=0.5,
+        cell_min=-1.0,
+        cell_max=1.0,
+        dpi=150,
+        colorbar=True,
+        **kwargs,
+    ):
+        # Sample a grid of points in the state space and score them with the KDE
+        x = np.linspace(cell_min, cell_max, 201)
+        y = np.linspace(cell_min, cell_max, 201)
+        xx, yy = np.meshgrid(x, y)
+        X = np.stack([xx, yy], axis=-1)
+        Z = np.exp(kde.score_samples(X.reshape(-1, 2))).reshape(xx.shape)
+        # Init figure
+        fig, ax = plt.subplots()
+        fig.set_dpi(dpi)
+        # Plot KDE
+        h = ax.contourf(xx, yy, Z, alpha=alpha)
+        ax.axis("scaled")
+        if colorbar:
+            fig.colorbar(h, ax=ax)
+        ax.set_xticks([])
+        ax.set_yticks([])
+        for spine in ax.spines.values():
+            spine.set_visible(False)
+        # Set tight layout
+        plt.tight_layout()
+        return fig
