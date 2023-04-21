@@ -552,7 +552,7 @@ class HybridTorus(GFlowNetEnv):
         Returns a tensor in GFloNet (state) format.
         """
         samples_final = []
-        max_reward = self.proxy2reward(torch.tensor([self.proxy.min])).to(self.device)
+        max_reward = self.proxy2reward(self.proxy.min)
         while len(samples_final) < n_samples:
             samples_uniform = self.statebatch2proxy(
                 self.get_uniform_terminating_states(n_samples)
