@@ -6,9 +6,10 @@ from typing import Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import torch
+from torch import Tensor
+
 from gflownet.envs.base import GFlowNetEnv
 from gflownet.utils.crystals.constants import ELEMENT_NAMES, OXIDATION_STATES
-from torch import Tensor
 
 
 class Composition(GFlowNetEnv):
@@ -377,4 +378,3 @@ class Composition(GFlowNetEnv):
         if state is None:
             state = self.state
         return sum(state)
-
