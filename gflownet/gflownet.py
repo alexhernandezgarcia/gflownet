@@ -630,7 +630,9 @@ class GFlowNetAgent:
         )
         # Shift state_id to [1, 2, ...]
         for tid in traj_id.unique():
-            state_id[traj_id == tid] = (state_id[traj_id == tid] - state_id[traj_id == tid].min()) + 1
+            state_id[traj_id == tid] = (
+                state_id[traj_id == tid] - state_id[traj_id == tid].min()
+            ) + 1
             # state_id[traj_id == tid] -= state_id[traj_id == tid].min() + 1
         # Compute rewards
         rewards = self.env.reward_torchbatch(states, done)
@@ -638,7 +640,7 @@ class GFlowNetAgent:
         masks_f = torch.cat(
             [
                 masks_sf[torch.where((state_id == sid - 1) & (traj_id == pid))]
-                if sid > 1 
+                if sid > 1
                 else self.mask_source
                 for sid, pid in zip(state_id, traj_id)
             ]
@@ -776,7 +778,7 @@ class GFlowNetAgent:
                 costs = 0.0
             # self.buffer.add(states_term, trajs_term, rewards, proxy_vals, it)
             # self.buffer.add(
-                # states_term, trajs_term, rewards, proxy_vals, it, buffer="replay"
+            # states_term, trajs_term, rewards, proxy_vals, it, buffer="replay"
             # )
             t1_buffer = time.time()
             times.update({"buffer": t1_buffer - t0_buffer})
@@ -1065,6 +1067,8 @@ class GFlowNetAgent:
         maximize,
         cumulative_cost,
         modes=None,
+        extrema=None,
+        proxy_extrema=None,
         dataset_states=None,
     ):
         """Evaluate the policy on a set of queries.
@@ -1095,6 +1099,8 @@ class GFlowNetAgent:
         self.logger.define_metric(
             "mean_min_distance_from_mode_top1", step_metric="post_al_cum_cost"
         )
+        self.logger.define_metric("simple_regret", step_metric="post_al_cum_cost")
+        self.logger.define_metric("inference_regret", step_metric="post_al_cum_cost")
         energies = torch.sort(energies, descending=maximize)[0]
         if hasattr(self.env, "get_pairwise_distance"):
             pairwise_dists = self.env.get_pairwise_distance(samples)
@@ -1153,11 +1159,22 @@ class GFlowNetAgent:
                 print(f"\t Mean Energy: {mean_energy_topk}")
                 print(f"\t Mean Pairwise Distance: {mean_pairwise_dist_topk}")
                 print(f"\t Mean Min Distance from Mode: {mean_min_dist_from_mode_topk}")
-                print(f"\t Cumulative Cost: {cumulative_cost}")
                 if do_novelty:
                     print(f"\t Mean Min Distance from D0: {mean_dist_from_D0_topk}")
             metrics_dict.update(dict_topk)
 
+        if extrema is not None and proxy_extrema is not None:
+            simple_regret = abs(torch.mean(extrema - energies[0]))
+            inference_regret = abs(
+                torch.mean(proxy_extrema.to(energies.device) - energies[0])
+            )
+            metrics_dict.update({"simple_regret": simple_regret})
+            metrics_dict.update({"inference_regret": inference_regret})
+            if self.logger.progress:
+                print(f"\t Simple Regret: {simple_regret}")
+                print(f"\t Inference Regret: {inference_regret}")
+        if self.logger.progress:
+            print(f"\t Cumulative Cost: {cumulative_cost}")
         metrics_dict.update({"post_al_cum_cost": cumulative_cost})
         self.logger.log_metrics(metrics_dict, use_context=False)
 
