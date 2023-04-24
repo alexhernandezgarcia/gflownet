@@ -724,9 +724,7 @@ class ContinuousCube(Cube):
         done: Optional[bool] = None,
     ) -> List:
         """
-        Returns a vector with the length of the discrete part of the action space:
-        True if action is invalid going forward given the current state, False
-        otherwise.
+        Returns a vector indicating which backward actions are invalid.
 
         The forward mask has the following structure:
 
@@ -758,21 +756,34 @@ class ContinuousCube(Cube):
 
     def get_mask_invalid_actions_backward(self, state=None, done=None, parents_a=None):
         """
-        Returns a vector with the length of the discrete part of the action space:
-        True if action is invalid going backward given the current state, False
-        otherwise.
+        Returns a vector indicating which backward actions are invalid.
 
-        The back-to-source action (returning to the source state for backward actions)
-        is valid from any state. The source action is ignored (invalid) for backward
-        actions.
+        The backward mask has the following structure:
+
+        - 0:n_dim : whether keeping a dimension as is, that is sampling a decrement of
+          0, can have zero probability. True if the value at the dimension is smaller
+          than or equal to 1 - min_incr.
+        - n_dim : whether going to source is invalid. Always valid, hence always False,
+          except if done.
+        - n_dim + 1 : whether sampling EOS is invalid. Only valid if done.
         """
         if state is None:
             state = self.state.copy()
         if done is None:
             done = self.done
+        mask_dim = self.n_dim + 2
+        # If done, only valid action is EOS.
         if done:
-            return [True, True, True, False]
-        return [False, True, False, True]
+            mask = [True for _ in range(mask_dim)]
+            mask[-1] = False
+        mask = [True for _ in range(mask_dim)]
+        mask[-2] = False
+        # Dimensions whose value is greater than 1 - min_incr must have non-zero
+        # probability of sampling a decrement of exactly zero.
+        for dim, s in enumerate(state):
+            if s > 1 - self.min_incr:
+                mask[dim] = False
+        return mask
 
     def get_parents(
         self, state: List = None, done: bool = None, action: Tuple[int, float] = None
