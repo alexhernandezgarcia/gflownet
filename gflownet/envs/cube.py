@@ -409,21 +409,32 @@ class HybridCube(Cube):
         Returns a vector with the length of the discrete part of the action space + 1:
         True if action is invalid going backward given the current state, False
         otherwise.
+
+        The backward mask has the following structure:
+
+        - 0:n_dim : whether keeping a dimension as is, that is sampling a decrement of
+          0, can have zero probability. True if the value at the dimension is smaller
+          than or equal to 1 - min_incr.
+        - n_dim : whether going to source is invalid. Always valid, hence always False,
+          except if done.
+        - n_dim + 1 : whether sampling EOS is invalid. Only valid if done.
         """
         if state is None:
             state = self.state.copy()
         if done is None:
             done = self.done
+        mask_dim = self.n_dim + 2
+        # If done, only valid action is EOS.
         if done:
-            mask = [True for _ in range(self.action_space_dim)]
+            mask = [True for _ in range(mask_dim)]
             mask[-1] = False
-        # If the value of any dimension is smaller than 0.0, then next action can
-        # return to source.
-        if any([s < 0.0 for s in self.state]):
-            mask = [True for _ in range(self.action_space_dim)]
-            mask[-2] = False
-        else:
-            mask = [False for _ in range(self.action_space_dim)]
+        mask = [True for _ in range(mask_dim)]
+        mask[-2] = False
+        # Dimensions whose value is greater than 1 - min_incr must have non-zero
+        # probability of sampling a decrement of exactly zero.
+        for dim, s in enumerate(state):
+            if s > 1 - self.min_incr:
+                mask[dim] = False
         return mask
 
     def get_parents(
@@ -687,17 +698,22 @@ class ContinuousCube(Cube):
         action and another logit (pos [-2]) for the (discrete) backward probability of
         returning to the source node.
 
+        Finally, the backward distribution requires a discrete probability distribution
+        (Bernoulli) for each dimension, to model the probability of sampling an
+        increment equal to zero when the value at the dimension is larger than
+        1 - min_incr. These are stored at [0:n_dim].
+
         Therefore, the output of the policy model has dimensionality D x C x 3 + 2,
         where D is the number of dimensions (self.n_dim) and C is the number of
         components (self.n_comp).
         """
         policy_output = torch.ones(
-            self.n_dim * self.n_comp * 3 + 2,
+            self.n_dim + self.n_dim * self.n_comp * 3 + 2,
             device=self.device,
             dtype=self.float,
         )
-        policy_output[1:-2:3] = params["beta_alpha"]
-        policy_output[2:-2:3] = params["beta_beta"]
+        policy_output[self.n_dim + 1 : -2 : 3] = params["beta_alpha"]
+        policy_output[self.n_dim + 2 : -2 : 3] = params["beta_beta"]
         policy_output[-2] = params["bernoulli_logit"]
         policy_output[-1] = params["bernoulli_logit"]
         return policy_output
@@ -712,26 +728,33 @@ class ContinuousCube(Cube):
         True if action is invalid going forward given the current state, False
         otherwise.
 
-        If the state is the source state, the generic action is not valid. EOS is valid
-        valid from any state (including the source state). The back-to-source action is
-        ignored (invalid) going forward.
+        The forward mask has the following structure:
+
+        - 0:n_dim : whether sampling each dimension is invalid. Invalid (True) if the
+          value at the dimension is larger than 1 - min_incr.
+        - n_dim : whether sampling from source is invalid. Invalid except when when the
+          state is the source state.
+        - n_dim + 1 : whether sampling EOS is invalid. EOS is valid from any state
+          (including the source state), hence always False.
         """
         if state is None:
             state = self.state.copy()
         if done is None:
             done = self.done
+        mask_dim = self.n_dim + 2
+        # If done, no action is valid
         if done:
-            return [True for _ in range(self.action_space_dim)]
-        # If state is source, the generic action is not valid.
-        if all([s == ss for s, ss in zip(state, self.source)]):
-            return [True, False, True, False]
-        # If the value of any dimension is greater than 1 - min_incr, then next action
-        # can only be EOS.
-        elif any([s > (1 - self.min_incr) for s in state]):
-            return [True, True, True, False]
-        # Otherwise, only the action_source is not valid
-        else:
-            return [False, True, True, False]
+            return [True for _ in range(mask_dim)]
+        mask = [False for _ in range(mask_dim)]
+        # If state is not source, sampling from source is invalid.
+        if state != self.source:
+            mask[-2] = True
+        # Dimensions whose value is greater than 1 - min_incr cannot be further
+        # incremented
+        for dim, s in enumerate(state):
+            if s > 1 - self.min_incr:
+                mask[dim] = True
+        return mask
 
     def get_mask_invalid_actions_backward(self, state=None, done=None, parents_a=None):
         """
