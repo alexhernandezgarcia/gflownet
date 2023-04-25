@@ -75,7 +75,7 @@ class Sequence(GFlowNetEnv):
         self.n_alphabet = len(self.vocab) - len(special_tokens)
         self.padding_idx = self.lookup["[PAD]"]
         # TODO: eos re-initalised in get_actions_space so why was this initialisation required in the first place (maybe mfenv)
-        self.eos = self.lookup["[EOS]"]
+        # self.eos = self.lookup["[EOS]"]
         self.action_space = self.get_actions_space()
         self.reset()
         self.fixed_policy_output = self.get_fixed_policy_output()

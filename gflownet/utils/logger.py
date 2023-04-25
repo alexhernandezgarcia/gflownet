@@ -267,6 +267,7 @@ class Logger:
             zip(
                 [
                     "mean_reward",
+                    "mean_log_rewards",
                     "max_reward",
                     "mean_proxy",
                     "min_proxy",
@@ -280,6 +281,7 @@ class Logger:
                 ],
                 [
                     np.mean(rewards),
+                    np.mean(np.log(rewards)),
                     np.max(rewards),
                     np.mean(proxy_vals),
                     np.min(proxy_vals),

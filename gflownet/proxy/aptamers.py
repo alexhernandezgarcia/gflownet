@@ -24,7 +24,7 @@ class Aptamers(Proxy):
             self.function = self._func_energy
         else:
             raise NotImplementedError
-        self.inverse_lookup = {0: 'A', 1: 'C', 2: 'G', 3: 'T'}
+        # self.inverse_lookup = {0: 'A', 1: 'C', 2: 'G', 3: 'T'}
 
     def setup(self, max_seq_length, norm=True):
         self.max_seq_length = max_seq_length
@@ -35,8 +35,8 @@ class Aptamers(Proxy):
         else:
             return -1.0 * np.sum(x, axis=1)
     
-    def numbers2letters(self, state):
-        return "".join([self.inverse_lookup[el] for el in state])
+    # def numbers2letters(self, state):
+    #     return "".join([self.inverse_lookup[el] for el in state])
         
     def __call__(self, sequences):
         """
