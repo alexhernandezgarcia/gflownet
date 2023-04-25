@@ -824,26 +824,27 @@ class ContinuousCube(Cube):
         if all([s == ss for s, ss in zip(state, self.source)]):
             return [], []
         else:
+            epsilon = 1e-9
             min_incr = action[-1]
             for dim, incr_rel in enumerate(action[:-1]):
                 incr = (min_incr + incr_rel * (1.0 - state[dim] - min_incr)) / (
                     1 - incr_rel
                 )
                 assert (
-                    incr >= min_incr
+                    incr >= (min_incr - epsilon)
                 ), f"""
                 Increment {incr} at dim {dim} smaller than minimum increment ({min_incr}).
                 \nState:\n{state}\nAction:\n{action}
                 """
                 state[dim] -= incr
                 assert all(
-                    [s <= self.max_val for s in state]
+                    [s <= (self.max_val + epsilon) for s in state]
                 ), f"""
                 State is out of cube bounds.
                 \nState:\n{state}\nAction:\n{action}\nIncrement: {incr}
                 """
                 assert all(
-                    [s >= 0.0 for s in state]
+                    [s >= (0.0 - epsilon) for s in state]
                 ), f"""
                 State is out of cube bounds.
                 \nState:\n{state}\nAction:\n{action}\nIncrement: {incr}
@@ -1123,24 +1124,25 @@ class ContinuousCube(Cube):
             return self.state, self.eos, True
         # If action is not eos, then perform action
         else:
+            epsilon = 1e-9
             min_incr = action[-1]
             for dim, incr_rel in enumerate(action[:-1]):
                 incr = min_incr + incr_rel * (1.0 - self.state[dim] - min_incr)
                 assert (
-                    incr >= min_incr
+                    incr >= (min_incr - epsilon)
                 ), f"""
                 Increment {incr} at dim {dim} smaller than minimum increment ({min_incr}).
                 \nState:\n{self.state}\nAction:\n{action}
                 """
                 self.state[dim] += incr
             assert all(
-                [s <= self.max_val for s in self.state]
+                [s <= (self.max_val + epsilon) for s in self.state]
             ), f"""
             State is out of cube bounds.
             \nState:\n{self.state}\nAction:\n{action}\nIncrement: {incr}
             """
             assert all(
-                [s >= 0.0 for s in self.state]
+                [s >= (0.0 - epsilon) for s in self.state]
             ), f"""
             State is out of cube bounds.
             \nState:\n{self.state}\nAction:\n{action}\nIncrement: {incr}
