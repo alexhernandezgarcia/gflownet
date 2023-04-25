@@ -826,7 +826,9 @@ class ContinuousCube(Cube):
         else:
             min_incr = action[-1]
             for dim, incr_rel in enumerate(action[:-1]):
-                incr = (min_incr + incr_rel * (1.0 - state[dim] - min_incr)) / (1 - incr_rel)
+                incr = (min_incr + incr_rel * (1.0 - state[dim] - min_incr)) / (
+                    1 - incr_rel
+                )
                 assert (
                     incr >= min_incr
                 ), f"""
@@ -1053,9 +1055,7 @@ class ContinuousCube(Cube):
             # Log probs of sampling zero increments
             if not is_forward:
                 mask_zeroincr = increments[mask_nearedge_dims] == 0.0
-                logits_zeroincr = policy_outputs[:, : self.n_dim][
-                    mask_nearedge_dims
-                ]
+                logits_zeroincr = policy_outputs[:, : self.n_dim][mask_nearedge_dims]
                 distr_zeroincr = Bernoulli(logits=logits_zeroincr)
                 logprobs_zeroincr[mask_nearedge_dims] = distr_zeroincr.log_prob(
                     mask_zeroincr.to(self.float)
