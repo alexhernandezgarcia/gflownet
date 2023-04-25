@@ -826,9 +826,26 @@ class ContinuousCube(Cube):
         else:
             min_incr = action[-1]
             for dim, incr_rel in enumerate(action[:-1]):
-                incr = (incr_rel * (1.0 - state[dim] - min_incr)) / (1 - incr_rel)
-                assert incr >= min_incr
+                incr = (min_incr + incr_rel * (1.0 - state[dim] - min_incr)) / (1 - incr_rel)
+                assert (
+                    incr >= min_incr
+                ), f"""
+                Increment {incr} at dim {dim} smaller than minimum increment ({min_incr}).
+                \nState:\n{state}\nAction:\n{action}
+                """
                 state[dim] -= incr
+                assert all(
+                    [s <= self.max_val for s in state]
+                ), f"""
+                State is out of cube bounds.
+                \nState:\n{state}\nAction:\n{action}\nIncrement: {incr}
+                """
+                assert all(
+                    [s >= 0.0 for s in state]
+                ), f"""
+                State is out of cube bounds.
+                \nState:\n{state}\nAction:\n{action}\nIncrement: {incr}
+                """
             return [state], [action]
 
     def sample_actions(
@@ -1108,7 +1125,7 @@ class ContinuousCube(Cube):
         else:
             min_incr = action[-1]
             for dim, incr_rel in enumerate(action[:-1]):
-                incr = incr_rel * (1.0 - self.state[dim] - min_incr)
+                incr = min_incr + incr_rel * (1.0 - self.state[dim] - min_incr)
                 assert (
                     incr >= min_incr
                 ), f"""
@@ -1118,6 +1135,12 @@ class ContinuousCube(Cube):
                 self.state[dim] += incr
             assert all(
                 [s <= self.max_val for s in self.state]
+            ), f"""
+            State is out of cube bounds.
+            \nState:\n{self.state}\nAction:\n{action}\nIncrement: {incr}
+            """
+            assert all(
+                [s >= 0.0 for s in self.state]
             ), f"""
             State is out of cube bounds.
             \nState:\n{self.state}\nAction:\n{action}\nIncrement: {incr}
