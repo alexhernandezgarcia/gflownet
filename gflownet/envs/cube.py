@@ -1053,7 +1053,7 @@ class ContinuousCube(Cube):
             # Log probs of sampling zero increments
             if not is_forward:
                 mask_zeroincr = increments[mask_nearedge_dims] == 0.0
-                logits_zeroincr = policy_outputs[idx_sample, : self.n_dim][
+                logits_zeroincr = policy_outputs[:, : self.n_dim][
                     mask_nearedge_dims
                 ]
                 distr_zeroincr = Bernoulli(logits=logits_zeroincr)
