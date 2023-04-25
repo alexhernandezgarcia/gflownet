@@ -776,6 +776,10 @@ class ContinuousCube(Cube):
         if done:
             mask = [True for _ in range(mask_dim)]
             mask[-1] = False
+            return mask
+        # If state is source, all actions are invalid.
+        if state == self.source:
+            return [True for _ in range(mask_dim)]
         mask = [True for _ in range(mask_dim)]
         mask[-2] = False
         # Dimensions whose value is greater than 1 - min_incr must have non-zero
@@ -842,15 +846,23 @@ class ContinuousCube(Cube):
         n_states = policy_outputs.shape[0]
         ns_range = torch.arange(n_states).to(device)
         # EOS
-        idx_nofix = ns_range[torch.any(~mask_invalid_actions[:, :2], axis=1)]
+        idx_nofix = ns_range[torch.any(~mask_invalid_actions[:, : self.n_dim], axis=1)]
         distr_eos = Bernoulli(logits=policy_outputs[idx_nofix, -1])
         mask_sampled_eos = distr_eos.sample().to(torch.bool)
         logprobs_eos = torch.zeros(n_states, device=device, dtype=self.float)
         logprobs_eos[idx_nofix] = distr_eos.log_prob(mask_sampled_eos.to(self.float))
         # Sample increments
         idx_sample = idx_nofix[~mask_sampled_eos]
-        idx_generic = idx_sample[~mask_invalid_actions[idx_sample, 0]]
-        idx_source = idx_sample[~mask_invalid_actions[idx_sample, 1]]
+        mask_idx_sample = torch.zeros(n_states, device=device, dtype=torch.bool)
+        mask_idx_sample[idx_sample] = True
+        mask_source_sample = torch.logical_and(
+            ~mask_invalid_actions[:, self.n_dim], mask_idx_sample
+        )
+        mask_generic_sample = torch.logical_and(
+            mask_invalid_actions[:, self.n_dim], mask_idx_sample
+        )
+        idx_source = ns_range[mask_source_sample]
+        idx_generic = ns_range[mask_generic_sample]
         n_sample = idx_sample.shape[0]
         logprobs_sample = torch.zeros(n_states, device=device, dtype=self.float)
         increments = torch.inf * torch.ones(
@@ -863,17 +875,17 @@ class ContinuousCube(Cube):
                     torch.ones(n_sample),
                 )
             elif sampling_method == "policy":
-                mix_logits = policy_outputs[idx_sample, 0:-2:3].reshape(
+                mix_logits = policy_outputs[idx_sample, self.n_dim : -2 : 3].reshape(
                     -1, self.n_dim, self.n_comp
                 )
                 mix = Categorical(logits=mix_logits)
-                alphas = policy_outputs[idx_sample, 1:-2:3].reshape(
+                alphas = policy_outputs[idx_sample, self.n_dim + 1 : -2 : 3].reshape(
                     -1, self.n_dim, self.n_comp
                 )
                 alphas = (
                     self.beta_params_max * torch.sigmoid(alphas) + self.beta_params_min
                 )
-                betas = policy_outputs[idx_sample, 2:-2:3].reshape(
+                betas = policy_outputs[idx_sample, self.n_dim + 2 : -2 : 3].reshape(
                     -1, self.n_dim, self.n_comp
                 )
                 betas = (
@@ -887,15 +899,25 @@ class ContinuousCube(Cube):
             ).sum(axis=1)
         # Combined probabilities
         logprobs = logprobs_eos + logprobs_sample
-        # Build actions
+        # Set minimum increments
         min_increments = torch.inf * torch.ones(
             n_states, device=device, dtype=self.float
         )
         min_increments[idx_generic] = self.min_incr
         min_increments[idx_source] = 0.0
+        # Make increments of near-edge dims 0
+        mask_nearedge_dims = mask_invalid_actions[:, : self.n_dim]
+        mask_idx_sample = torch.zeros(
+            mask_nearedge_dims.shape, device=device, dtype=torch.bool
+        )
+        mask_idx_sample[idx_sample, :] = True
+        mask_nearedge_dims = torch.logical_and(mask_nearedge_dims, mask_idx_sample)
+        increments[mask_nearedge_dims] = 0.0
+        # Build actions
         actions = [
             tuple(a.tolist() + [m.item()]) for a, m in zip(increments, min_increments)
         ]
+        # TODO: implement logprobs here too
         return actions, logprobs
 
     def get_logprobs(
@@ -910,15 +932,55 @@ class ContinuousCube(Cube):
         """
         Computes log probabilities of actions given policy outputs and actions.
 
-        At every state, the EOS action can be sampled with probability p(EOS).
-        Otherwise, an increment incr is sampled with probablility
-        p(incr) * (1 - p(EOS)).
+        For forward transitons, at every state, the probability of the EOS action is
+        p(EOS). Otherwise, the probability of an increment incr is p(incr) * (1 -
+        p(EOS)). When a dimension is larger than 1 - min_incr, the probabililty of
+        incrementing that dimension by 0 is 1.
+
+        For backward transitons, at every state, the probability of the back-to-source
+        action is p(back-to-source). Otherwise, the probability of an increment
+        (decrement) incr is p(incr) * (1 - p(back-to-source)). When a dimension is
+        larger than 1 - min_incr, the probabililty of incrementing that dimension by 0
+        must be non-zero and is p(zeroincr). In turn, the probability of sampling a
+        non-zero increment incr is (1 - p(zeroincr)) * p(incr).
+
+        Overall, we compute the log probabilities as follows:
+
+        log p = logprobs_eos + logprobs_source + logprobs_increments + logprobs_zeroincr
+
+        - logprobs_eos:
+            - 0, that is p(~EOS) = 1 for backward transitions.
+            - forward, the log p of the sampled event (EOS or not EOS)
+
+        - logprobs_source:
+            - 0, that is p(~source) = 1 for forward transitions.
+            - backward, the log p of the sampled event (source or not source)
+
+        - logprobs_increments:
+            - 0, that is p(~increment) = 1 for EOS or source events.
+            - otherwise, the log p of sampling the increment.
+
+        - logprobs_zeroincr:
+            - 0, that is p(~zeroincr) = 1 for forward transitions.
+            - 0, that is p(~zeroincr) = 1 for for dimensions that are smaller than or
+              equal to 1 - min_incr, backwards.
+            - otherwise, the log p of the sampled event (sampled 0 or not).
         """
         device = policy_outputs.device
         n_states = policy_outputs.shape[0]
         ns_range = torch.arange(n_states).to(device)
+        # Determine which states have non-deterministic actions
+        if is_forward:
+            # EOS is the only valid action if all dimensions are invalid. That is, the
+            # action is non-deterministic if any dimension is valid (i.e. mask = False).
+            idx_nofix = ns_range[
+                torch.any(~mask_invalid_actions[:, : self.n_dim], axis=1)
+            ]
+        else:
+            # The action is non-deterministic if sampling EOS (last value of mask) is
+            # invalid (True).
+            idx_nofix = ns_range[mask_invalid_actions[:, -1]]
         # Log probs of EOS and source (backwards) actions
-        idx_nofix = ns_range[torch.any(~mask_invalid_actions[:, :2], axis=1)]
         logprobs_eos = torch.zeros(n_states, device=device, dtype=self.float)
         logprobs_source = torch.zeros(n_states, device=device, dtype=self.float)
         if is_forward:
@@ -936,29 +998,78 @@ class ContinuousCube(Cube):
             mask_sample = ~mask_source
         # Log probs of sampled increments
         idx_sample = idx_nofix[mask_sample]
-        logprobs_sample = torch.zeros(n_states, device=device, dtype=self.float)
+        logprobs_increments = torch.zeros(
+            (n_states, self.n_dim), device=device, dtype=self.float
+        )
+        logprobs_zeroincr = torch.zeros(
+            (n_states, self.n_dim), device=device, dtype=self.float
+        )
         if len(idx_sample) > 0:
-            mix_logits = policy_outputs[idx_sample, 0:-2:3].reshape(
+            mix_logits = policy_outputs[idx_sample, self.n_dim : -2 : 3].reshape(
                 -1, self.n_dim, self.n_comp
             )
             mix = Categorical(logits=mix_logits)
-            alphas = policy_outputs[idx_sample, 1:-2:3].reshape(
+            alphas = policy_outputs[idx_sample, self.n_dim + 1 : -2 : 3].reshape(
                 -1, self.n_dim, self.n_comp
             )
             alphas = self.beta_params_max * torch.sigmoid(alphas) + self.beta_params_min
-            betas = policy_outputs[idx_sample, 2:-2:3].reshape(
+            betas = policy_outputs[idx_sample, self.n_dim + 2 : -2 : 3].reshape(
                 -1, self.n_dim, self.n_comp
             )
             betas = self.beta_params_max * torch.sigmoid(betas) + self.beta_params_min
             beta_distr = Beta(alphas, betas)
             distr_increments = MixtureSameFamily(mix, beta_distr)
             increments = actions[:, :-1].clone().detach()
-            # TODO: do something with the logprob of returning to source (backwards)?
-            logprobs_sample[idx_sample] = distr_increments.log_prob(
+            logprobs_increments[idx_sample] = distr_increments.log_prob(
                 increments[idx_sample]
-            ).sum(axis=1)
+            )
+            # Make logprobs of "invalid" dimensions (value larger than 1 - mincr) 0.
+            # TODO: indexing can be done more efficiently to avoid sampling from the
+            # distribution above.
+            mask_nearedge_dims = ~mask_invalid_actions[:, : self.n_dim]
+            mask_idx_sample = torch.zeros(
+                mask_nearedge_dims.shape, device=device, dtype=torch.bool
+            )
+            mask_idx_sample[idx_sample, :] = True
+            mask_nearedge_dims = torch.logical_and(mask_nearedge_dims, mask_idx_sample)
+            logprobs_increments[mask_nearedge_dims] = 0.0
+            # Log probs of sampling zero increments
+            if not is_forward:
+                mask_zeroincr = increments[mask_nearedge_dims] == 0.0
+                logits_zeroincr = policy_outputs[idx_sample, : self.n_dim][
+                    mask_nearedge_dims
+                ]
+                distr_zeroincr = Bernoulli(logits=logits_zeroincr)
+                logprobs_zeroincr[mask_nearedge_dims] = distr_zeroincr.log_prob(
+                    mask_zeroincr.to(self.float)
+                )
+                # TODO: make logprobs_increments = 0 if increment was zero and
+                # near-edge. Already done?
         # Combined probabilities
-        logprobs = logprobs_eos + logprobs_source + logprobs_sample
+        sumlogprobs_increments = logprobs_increments.sum(axis=1)
+        sumlogprobs_zeroincr = logprobs_zeroincr.sum(axis=1)
+        logprobs = (
+            logprobs_eos
+            + logprobs_source
+            + sumlogprobs_increments
+            + sumlogprobs_zeroincr
+        )
+        # Sanity checks
+        if is_forward:
+            mask_fix = torch.all(mask_invalid_actions[:, : self.n_dim], axis=1)
+            assert torch.all(logprobs_source == 0.0)
+            assert torch.all(logprobs_zeroincr == 0.0)
+            assert torch.all(sumlogprobs_increments[idx_nofix][mask_eos] == 0.0)
+            mask_fixdim = mask_invalid_actions[:, self.n_dim]
+            assert torch.all(logprobs_increments[mask_fixdim] == 0.0)
+        else:
+            mask_fix = ~mask_invalid_actions[:, -1]
+            assert torch.all(logprobs_eos == 0.0)
+            assert torch.all(sumlogprobs_increments[idx_nofix][mask_source] == 0.0)
+            assert torch.all(sumlogprobs_zeroincr[idx_nofix][mask_source] == 0.0)
+            mask_nozeroincr = mask_invalid_actions[:, self.n_dim]
+            assert torch.all(logprobs_zeroincr[mask_nozeroincr] == 0.0)
+        assert torch.all(logprobs[mask_fix] == 0.0)
         return logprobs
 
     def step(
@@ -998,11 +1109,19 @@ class ContinuousCube(Cube):
             min_incr = action[-1]
             for dim, incr_rel in enumerate(action[:-1]):
                 incr = incr_rel * (1.0 - self.state[dim] - min_incr)
-                assert incr >= min_incr
+                assert (
+                    incr >= min_incr
+                ), f"""
+                Increment {incr} at dim {dim} smaller than minimum increment ({min_incr}).
+                \nState:\n{self.state}\nAction:\n{action}
+                """
                 self.state[dim] += incr
-            assert all([s <= self.max_val for s in self.state]), print(
-                self.state, action
-            )
+            assert all(
+                [s <= self.max_val for s in self.state]
+            ), f"""
+            State is out of cube bounds.
+            \nState:\n{self.state}\nAction:\n{action}\nIncrement: {incr}
+            """
             self.n_actions += 1
             return self.state, action, True
 
