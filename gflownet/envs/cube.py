@@ -788,7 +788,9 @@ class ContinuousCube(Cube):
         else:
             min_incr = action[-1]
             for dim, incr_rel in enumerate(action[:-1]):
-                incr = (incr_rel * (1.0 - state[dim] - min_incr)) / (1 - incr_rel)
+                incr = (min_incr + incr_rel * (1.0 - state[dim] - min_incr)) / (
+                    1 - incr_rel
+                )
                 assert incr >= min_incr
                 state[dim] -= incr
             return [state], [action]
@@ -963,7 +965,7 @@ class ContinuousCube(Cube):
         else:
             min_incr = action[-1]
             for dim, incr_rel in enumerate(action[:-1]):
-                incr = incr_rel * (1.0 - self.state[dim] - min_incr)
+                incr = min_incr + incr_rel * (1.0 - self.state[dim] - min_incr)
                 assert incr >= min_incr
                 self.state[dim] += incr
             assert all([s <= self.max_val for s in self.state]), print(
