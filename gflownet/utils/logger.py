@@ -267,7 +267,7 @@ class Logger:
             zip(
                 [
                     "mean_reward",
-                    "mean_log_rewards",
+                    "mean_log_reward",
                     "max_reward",
                     "mean_proxy",
                     "min_proxy",
