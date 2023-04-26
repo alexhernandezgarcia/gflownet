@@ -2,7 +2,7 @@ import pytest
 
 import torch
 
-from gflownet.envs.lattice_parameters import (
+from gflownet.envs.crystals.lattice_parameters import (
     CUBIC,
     HEXAGONAL,
     LATTICE_SYSTEMS,
