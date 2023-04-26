@@ -3,7 +3,7 @@ import pytest
 import torch
 
 from gflownet.proxy.molecule import TorchANIMoleculeEnergy
-from gflownet.utils.molecule.conformer_base import get_dummy_ad_conf_base
+from gflownet.utils.molecule.rdkit_conformer import get_dummy_ad_rdkconf
 
 
 @pytest.fixture()
@@ -12,14 +12,14 @@ def proxy():
 
 
 def test__torchani_molecule_energy__predicts_energy_for_a_single_numpy_conformer(proxy):
-    conf = get_dummy_ad_conf_base()
+    conf = get_dummy_ad_rdkconf()
     coordinates, elements = conf.get_atom_positions(), conf.get_atomic_numbers()
 
     proxy(elements[np.newaxis, ...], coordinates[np.newaxis, ...])
 
 
 def test__torchani_molecule_energy__predicts_energy_for_a_pytorch_batch(proxy):
-    conf = get_dummy_ad_conf_base()
+    conf = get_dummy_ad_rdkconf()
     coordinates, elements = conf.get_atom_positions(), conf.get_atomic_numbers()
 
     coordinates = torch.Tensor(coordinates).repeat(3, 1, 1)

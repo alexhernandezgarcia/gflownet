@@ -34,7 +34,7 @@ def get_dummy_ad_atom_positions():
 def get_dummy_ad_rdkconf():
     pos = get_dummy_ad_atom_positions()
     conf = RDKitConformer(
-        pos, constants.ad_smiles, constants.ad_atom_types, constants.ad_free_tas
+        pos, constants.ad_smiles, constants.ad_free_tas
     )
     return conf
 
