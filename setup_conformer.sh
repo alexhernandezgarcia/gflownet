@@ -17,8 +17,8 @@ python -m pip install pyg-lib torch-scatter torch-sparse torch-cluster torch-spl
 # Install DGL (see https://www.dgl.ai/pages/start.html) - giving problems
 python -m pip install dgl-cu102 dglgo -f https://data.dgl.ai/wheels/repo.html
 # Requirements to run
-python -m pip install numpy pandas hydra-core tqdm torchtyping six xtb scikit-learn torchani
+python -m pip install numpy pandas hydra-core tqdm torchtyping six xtb scikit-learn torchani pytorch3d
 # Conditional requirements
-python -m pip install wandb matplotlib plotly gdown
+python -m pip install wandb matplotlib plotly pymatgen gdown
 # Dev packages
 # python -m pip install black flake8 isort pylint ipdb jupyter pytest pytest-repeat
