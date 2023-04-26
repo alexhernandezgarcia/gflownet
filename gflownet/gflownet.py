@@ -179,7 +179,6 @@ class GFlowNetAgent:
         self.l1 = -1.0
         self.kl = -1.0
         self.jsd = -1.0
-        self.fid2_count = 0
 
     def _tfloat(self, x):
         if isinstance(x, torch.Tensor):  # logq
@@ -674,18 +673,6 @@ class GFlowNetAgent:
             .mean()
         )
         done_states = states[done.eq(1)][torch.argsort(traj_id[done.eq(1)])]
-        fidelities = done_states[:, -1]
-        xx = torch.unique(fidelities).sort()[0]
-        yy = torch.arange(3).to(fidelities.device).sort()[0]
-        # if torch.max(rewards)>1e-1 and len(xx) == len(yy) and torch.eq(xx,yy).all():
-        #     argmax_fid = torch.argmax(rewards)
-        #     fid_with_max_reward = fidelities[argmax_fid]
-        #     print(fid_with_max_reward.item(), rewards[argmax_fid].item(), done_states[argmax_fid])
-        self.fid2_count = (
-            self.fid2_count + torch.unique(fidelities, return_counts=True)[1][-1]
-        )
-        # if (it>4000 and loss>10):
-        #     print(states)
         return (loss, loss, loss), rewards
 
     def unpack_terminal_states(self, batch):
@@ -772,7 +759,7 @@ class GFlowNetAgent:
             states_term, trajs_term = self.unpack_terminal_states(batch)
             proxy_vals = self.env.reward2proxy(rewards).tolist()
             rewards = rewards.tolist()
-            if hasattr(self.env, "get_cost"):
+            if self.logger.do_test(it) and hasattr(self.env, "get_cost"):
                 costs = self.env.get_cost(states_term)
             else:
                 costs = 0.0
