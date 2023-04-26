@@ -1,13 +1,15 @@
 """
 Runnable script with hydra capabilities
 """
-import sys
 import os
+import pickle
 import random
+import sys
+
 import hydra
 import pandas as pd
 import yaml
-from omegaconf import OmegaConf, DictConfig
+from omegaconf import DictConfig, OmegaConf
 
 
 @hydra.main(config_path="./config", config_name="main", version_base="1.1")
@@ -15,6 +17,8 @@ def main(config):
     # Get current directory and set it as root log dir for Logger
     cwd = os.getcwd()
     config.logger.logdir.root = cwd
+    print(f"\nLogging directory of this run:  {cwd}\n")
+
     # Reset seed for job-name generation in multirun jobs
     random.seed(None)
     # Set other random seeds
@@ -56,13 +60,15 @@ def main(config):
             }
         )
         df.to_csv("gfn_samples.csv")
+        dct = {"x": samples, "energy": energies}
+        pickle.dump(dct, open("gfn_samples.pkl", "wb"))
     print(gflownet.buffer.replay)
     gflownet.logger.end()
 
 
 def set_seeds(seed):
-    import torch
     import numpy as np
+    import torch
 
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False

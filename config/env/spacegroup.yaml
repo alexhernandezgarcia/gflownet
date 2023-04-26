@@ -1,0 +1,16 @@
+defaults:
+  - base
+
+_target_: gflownet.envs.spacegroup.SpaceGroup
+
+id: spacegroup
+
+# Buffer
+buffer:
+  data_path: null
+  train:
+    type: all
+    output_csv: spacegroup_train.csv
+  test:
+    type: all
+    output_csv: spacegroup_test.csv

@@ -1,14 +1,16 @@
 """
 Computes evaluation metrics and plots from a pre-trained GFlowNet model.
 """
+import sys
 from argparse import ArgumentParser
+from pathlib import Path
+
 import hydra
+import torch
 from hydra import compose, initialize, initialize_config_dir
 from omegaconf import OmegaConf
-from pathlib import Path
-import torch
 from torch.distributions.categorical import Categorical
-import sys
+
 from gflownet.gflownet import GFlowNetAgent, Policy
 
 
@@ -54,9 +56,18 @@ def main(args):
     # Logger
     logger = hydra.utils.instantiate(config.logger, config, _recursive_=False)
     # The proxy is required in the env for scoring: might be an oracle or a model
-    proxy = hydra.utils.instantiate(config.proxy)
+    proxy = hydra.utils.instantiate(
+        config.proxy,
+        device=config.device,
+        float_precision=config.float_precision,
+    )
     # The proxy is passed to env and used for computing rewards
-    env = hydra.utils.instantiate(config.env, proxy=proxy)
+    env = hydra.utils.instantiate(
+        config.env,
+        proxy=proxy,
+        device=config.device,
+        float_precision=config.float_precision,
+    )
     gflownet = hydra.utils.instantiate(
         config.gflownet,
         device=config.device,

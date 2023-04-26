@@ -1,13 +1,14 @@
 """
 Script to retrieve results from Comet.ml
 """
+from argparse import ArgumentParser
+from pathlib import Path
+
+import numpy as np
+import pandas as pd
 from comet_ml import Experiment
 from comet_ml.api import API
 from tqdm import tqdm
-from argparse import ArgumentParser
-from pathlib import Path
-import numpy as np
-import pandas as pd
 
 
 def add_args(parser):

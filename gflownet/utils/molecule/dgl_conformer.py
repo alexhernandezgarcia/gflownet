@@ -1,5 +1,6 @@
 import torch
 
+
 class DGLConformer:
     def __init__(self, dgl_graph):
         self.graph = dgl_graph
@@ -15,5 +16,3 @@ class DGLConformer:
 
     def randomise_torsion_angles(self):
         raise NotImplementedError
-
-    

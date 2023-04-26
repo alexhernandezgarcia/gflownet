@@ -2,21 +2,19 @@
 Tutorial: https://botorch.org/tutorials/max_value_entropy
 """
 
+from abc import ABC
+
+import numpy as np
 import torch
 
 # from botorch.fit import fit_gpytorch_mll
 from botorch.models import SingleTaskGP
-from botorch.test_functions import Hartmann
-from botorch.test_functions import Branin
+from botorch.test_functions import Branin, Hartmann
+from botorch.utils.transforms import normalize, standardize
 from gpytorch.mlls import ExactMarginalLogLikelihood
-from botorch.utils.transforms import standardize, normalize
-from torch.optim import Adam
-from torch.nn import Linear
-from torch.nn import MSELoss
-from torch.nn import Sequential, ReLU, Dropout
 from torch import tensor
-import numpy as np
-from abc import ABC
+from torch.nn import Dropout, Linear, MSELoss, ReLU, Sequential
+from torch.optim import Adam
 
 bounds = torch.tensor(Branin._bounds).T
 # train_X = bounds[0] + (bounds[1] - bounds[0]) * torch.rand(10, 2)

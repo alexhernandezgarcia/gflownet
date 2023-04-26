@@ -1,15 +1,14 @@
-import numpy as np
-import torch
-
 from collections import defaultdict
 from copy import deepcopy
+
+import numpy as np
+import torch
 from rdkit import Chem
-from rdkit.Chem import AllChem
-from rdkit.Chem import rdMolTransforms
-from rdkit.Chem import TorsionFingerprints
+from rdkit.Chem import AllChem, TorsionFingerprints, rdMolTransforms
 from rdkit.Geometry.rdGeometry import Point3D
 
 from gflownet.utils.molecule import constants
+from gflownet.utils.molecule.conformer_base import ConformerBase
 from gflownet.utils.molecule.featurizer import MolDGLFeaturizer
 from gflownet.utils.molecule.rdkit_conformer import RDKitConformer
 
@@ -35,7 +34,8 @@ class Conformer(RDKitConformer):
 
     def set_atom_positions_dgl(self, atom_positions):
         """Set atom positions of the self.dgl_graph to the input atom_positions values
-        :param atom_positions: 2d numpy array of shape [num atoms, 3] with new atom positions"""
+        :param atom_positions: 2d numpy array of shape [num atoms, 3] with new atom positions
+        """
         self._dgl_graph.ndata[constants.atom_position_name] = torch.Tensor(
             atom_positions
         )
@@ -73,6 +73,7 @@ class Conformer(RDKitConformer):
 
 if __name__ == "__main__":
     from tabulate import tabulate
+
     from gflownet.utils.molecule.conformer_base import get_all_torsion_angles
 
     rmol = Chem.MolFromSmiles(constants.ad_smiles)

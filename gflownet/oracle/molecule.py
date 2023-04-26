@@ -1,17 +1,15 @@
 import numpy as np
 import numpy.typing as npt
 import torch
-
 from xtb.interface import Calculator, Param, XTBException
 from xtb.libxtb import VERBOSITY_MUTED
-
 
 from gflownet.proxy.base import Proxy
 
 
-class MoleculeEnergy(Proxy):
-    def __init__(self):
-        super().__init__()
+class XTBMoleculeEnergy(Proxy):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
 
     def __call__(self, states_proxy):
         # todo: probably make it parallel with mpi
@@ -20,12 +18,6 @@ class MoleculeEnergy(Proxy):
             dtype=self.float,
             device=self.device,
         )
-
-    def set_device(self, device):
-        self.device = device
-
-    def set_float_precision(self, dtype):
-        self.float = dtype
 
     def get_energy(
         self,
@@ -38,23 +30,15 @@ class MoleculeEnergy(Proxy):
         calc = Calculator(Param.GFN2xTB, atomic_numbers, atom_positions)
         calc.set_verbosity(VERBOSITY_MUTED)
         try:
-            res = calc.singlepoint()
-        except XTBException as exc:
-            print(exc)
-            print("try again")
-            try:
-                res = calc.singlepoint()
-            except XTBException as exc:
-                print(exc)
-                print("try again")
-                res = calc.singlepoint()
-        return res.get_energy()
+            return calc.singlepoint().get_energy()
+        except XTBException:
+            return np.nan
 
 
 if __name__ == "__main__":
     from gflownet.utils.molecule.conformer_base import get_dummy_ad_conf_base
 
     conf = get_dummy_ad_conf_base()
-    proxy = MoleculeEnergy()
+    proxy = XTBMoleculeEnergy()
     energy = proxy.get_energy(conf.get_atom_positions(), conf.get_atomic_numbers())
     print("energy", energy)

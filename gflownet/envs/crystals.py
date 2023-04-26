@@ -35,9 +35,11 @@ class Crystal(GFlowNetEnv):
         Args
         ----------
         elements : list or int
-            Elements that will be used for construction of crystal. Either list, in which case every value should
-            indicate the atomic number of an element, or int, in which case n consecutive atomic numbers will
-            be used. Note that we assume this will correspond to real atomic numbers, i.e. start from 1, not 0.
+            Elements that will be used for construction of crystal. Either list, in
+            which case every value should indicate the atomic number of an element, or
+            int, in which case n consecutive atomic numbers will be used. Note that we
+            assume this will correspond to real atomic numbers, i.e. start from 1, not
+            0.
 
         max_diff_elem : int
             Maximum number of unique elements in the crystal
@@ -52,35 +54,35 @@ class Crystal(GFlowNetEnv):
             Maximum number of atoms that can be used to construct a crystal
 
         min_atom_i : int
-            Minimum number of elements of each used kind that needs to be used to construct a crystal
+            Minimum number of elements of each used kind that needs to be used to
+            construct a crystal
 
         max_atom_i : int
-            Maximum number of elements of each kind that can be used to construct a crystal
+            Maximum number of elements of each kind that can be used to construct a
+            crystal
 
         oxidation_states : (optional) dict
-            Mapping from ints (representing elements) to lists of different oxidation states
+            Mapping from ints (representing elements) to lists of different oxidation
+            states
 
         alphabet : (optional) dict
-            Mapping from ints (representing elements) to strings containing human-readable elements' names
+            Mapping from ints (representing elements) to strings containing
+            human-readable elements' names
 
         required_elements : (optional) list
-            List of elements that must be present in a crystal for it to represent a valid end state
+            List of elements that must be present in a crystal for it to represent a
+            valid end state
         """
-        super().__init__(**kwargs)
-
         if isinstance(elements, int):
             elements = [i + 1 for i in range(elements)]
-
         if len(elements) != len(set(elements)):
             raise ValueError(
                 f"Provided elements must be unique, detected {len(elements) - len(set(elements))} duplicates."
             )
-
         if any(e <= 0 for e in elements):
             raise ValueError(
                 "Provided elements should be non-negative (assumed indexing from 1 for H)."
             )
-
         self.elements = sorted(elements)
         self.max_diff_elem = max_diff_elem
         self.min_diff_elem = min_diff_elem
@@ -97,15 +99,15 @@ class Crystal(GFlowNetEnv):
         self.required_elements = (
             required_elements if required_elements is not None else []
         )
-
-        self.source = [0 for _ in range(periodic_table)]
         self.elem2idx = {e: i for i, e in enumerate(self.elements)}
         self.idx2elem = {i: e for i, e in enumerate(self.elements)}
-        self.eos = -1
-        self.action_space = self.get_actions_space()
-        self.reset()
+        # Source state: 0 atoms for all elements
+        self.source = [0 for _ in self.elements]
+        # End-of-sequence action
+        self.eos = (-1, -1)
+        super().__init__(**kwargs)
 
-    def get_actions_space(self):
+    def get_action_space(self):
         """
         Constructs list with all possible actions. An action is described by a
         tuple (element, n), indicating that the count of element will be
@@ -115,10 +117,10 @@ class Crystal(GFlowNetEnv):
         assert self.max_atom_i > self.min_atom_i
         valid_word_len = np.arange(self.min_atom_i, self.max_atom_i + 1)
         actions = [(element, n) for n in valid_word_len for element in self.elements]
-        actions.append((self.eos, 0))
+        actions.append(self.eos)
         return actions
 
-    def get_max_traj_len(self):
+    def get_max_traj_length(self):
         return min(len(self.state), self.max_atoms // self.min_atom_i)
 
     def get_mask_invalid_actions(self, state=None, done=None):
@@ -132,18 +134,18 @@ class Crystal(GFlowNetEnv):
             done = self.done
 
         if done:
-            return [True for _ in range(len(self.action_space))]
+            return [True for _ in range(self.action_space_dim)]
 
         mask = [False for _ in self.action_space]
         state_elem = [self.idx2elem[i] for i, e in enumerate(state) if e > 0]
         n_state_atoms = sum(state)
 
         if n_state_atoms < self.min_atoms:
-            mask[self.eos] = True
+            mask[-1] = True
         if len(state_elem) < self.min_diff_elem:
-            mask[self.eos] = True
+            mask[-1] = True
         if any(r not in state_elem for r in self.required_elements):
-            mask[self.eos] = True
+            mask[-1] = True
 
         for idx, (element, n) in enumerate(self.action_space[:-1]):
             if state[self.elem2idx[element]] > 0:
@@ -170,7 +172,8 @@ class Crystal(GFlowNetEnv):
         Returns
         ----
         oracle_state : Tensor
-            Tensor containing # of Li atoms, total # of atoms, and fractions of individual elements
+            Tensor containing # of Li atoms, total # of atoms, and fractions of
+            individual elements
         """
         if state is None:
             state = self.state
@@ -237,9 +240,9 @@ class Crystal(GFlowNetEnv):
         Args
         ----
         state : list
-            Representation of a state as a list of length equal to that of self.elements,
-            where i-th value contains the count of atoms for i-th element, from 0 to
-            self.max_atoms_i.
+            Representation of a state as a list of length equal to that of
+            self.elements, where i-th value contains the count of atoms for i-th
+            element, from 0 to self.max_atoms_i.
 
         done : bool
             Whether the trajectory is done. If None, done is taken from instance.
@@ -280,7 +283,7 @@ class Crystal(GFlowNetEnv):
         Args
         ----
         action : tuple
-            Action to be executed. See: get_actions_space()
+            Action to be executed. See: get_action_space()
 
         Returns
         -------
@@ -293,11 +296,14 @@ class Crystal(GFlowNetEnv):
         valid : bool
             False, if the action is not allowed for the current state.
         """
+        # If done, return invalid
+        if self.done:
+            return self.state, action, False
         # If only possible action is eos, then force eos
         if sum(self.state) == self.max_atoms:
             self.done = True
             self.n_actions += 1
-            return self.state, (self.eos, 0), True
+            return self.state, self.eos, True
         # If action not found in action space raise an error
         action_idx = None
         for i, a in enumerate(self.action_space):
@@ -312,7 +318,7 @@ class Crystal(GFlowNetEnv):
         if self.get_mask_invalid_actions()[action_idx]:
             return self.state, action, False
         # If action is not eos, then perform action
-        if action[0] != self.eos:
+        if action != self.eos:
             atomic_number, num = action
             idx = self.elem2idx[atomic_number]
             state_next = self.state[:]
@@ -326,7 +332,7 @@ class Crystal(GFlowNetEnv):
             return self.state, action, valid
         # If action is eos, then perform eos
         else:
-            if self.get_mask_invalid_actions()[self.eos]:
+            if self.get_mask_invalid_actions()[-1]:
                 valid = False
             else:
                 if self._can_produce_neutral_charge():
@@ -335,7 +341,7 @@ class Crystal(GFlowNetEnv):
                     self.n_actions += 1
                 else:
                     valid = False
-            return self.state, (self.eos, 0), valid
+            return self.state, self.eos, valid
 
     def _can_produce_neutral_charge(self, state: Optional[List[int]] = None) -> bool:
         """
