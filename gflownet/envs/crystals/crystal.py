@@ -112,11 +112,11 @@ class Crystal(GFlowNetEnv):
         underlying environment.
         """
         if stage == Stage.COMPOSITION:
-            dim = self.composition.action_space_dim
+            dim = max(len(a) for a in self.composition.action_space)
         elif stage == Stage.SPACE_GROUP:
-            dim = self.space_group.action_space_dim
+            dim = max(len(a) for a in self.space_group.action_space)
         elif stage == Stage.LATTICE_PARAMETERS:
-            dim = self.lattice_parameters.action_space_dim
+            dim = max(len(a) for a in self.lattice_parameters.action_space)
         else:
             raise ValueError(f"Unrecognized stage {stage}.")
 
