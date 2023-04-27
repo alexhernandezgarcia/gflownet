@@ -330,7 +330,9 @@ class Crystal(GFlowNetEnv):
         )
         space_group_oracle_state = self.space_group.state2oracle(
             state=self._get_space_group_state(state)
-        )
+        ).unsqueeze(
+            -1
+        )  # StateGroup oracle state is a single number
         lattice_parameters_oracle_state = self.lattice_parameters.state2oracle(
             state=self._get_lattice_parameters_state(state)
         )
