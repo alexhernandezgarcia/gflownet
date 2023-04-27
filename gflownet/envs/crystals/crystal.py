@@ -25,7 +25,7 @@ class Stage(Enum):
 class Crystal(GFlowNetEnv):
     """
     A combination of Composition, SpaceGroup and LatticeParameters into a single environment.
-    Works sequentially, by first filling in the composition, then SpaceGroup, and finally
+    Works sequentially, by first filling in the Composition, then SpaceGroup, and finally
     LatticeParameters.
     """
 
