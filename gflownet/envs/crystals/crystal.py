@@ -12,9 +12,14 @@ from gflownet.utils.crystals.constants import TRICLINIC
 
 
 class Stage(Enum):
-    COMPOSITION = 0
-    SPACE_GROUP = 1
-    LATTICE_PARAMETERS = 2
+    """
+    In addition to encoding current stage, values of this enum are used for padding individual
+    component environment's actions (to ensure they have the same length for tensorization).
+    """
+
+    COMPOSITION = -2
+    SPACE_GROUP = -3
+    LATTICE_PARAMETERS = -4
 
 
 class Crystal(GFlowNetEnv):
@@ -63,6 +68,11 @@ class Crystal(GFlowNetEnv):
 
         self.eos = self.lattice_parameters.eos
         self.stage = Stage.COMPOSITION
+        self.max_action_length = max(
+            self.composition.action_space_dim,
+            self.space_group.action_space_dim,
+            self.lattice_parameters.action_space_dim,
+        )
         self.done = False
 
         super().__init__(**kwargs)
@@ -80,11 +90,39 @@ class Crystal(GFlowNetEnv):
             **self.lattice_parameters_kwargs,
         )
 
+    def _pad_action(self, action, stage):
+        return action + (stage.value,) * (self.max_action_length - len(action))
+
+    def _pad_action_space(self, action_space, stage):
+        return [self._pad_action(a, stage) for a in action_space]
+
+    def _depad_action(self, action, stage):
+        if stage == Stage.COMPOSITION:
+            dim = self.composition.action_space_dim
+        elif stage == Stage.SPACE_GROUP:
+            dim = self.space_group.action_space_dim
+        elif stage == Stage.LATTICE_PARAMETERS:
+            dim = self.lattice_parameters.action_space_dim
+        else:
+            raise ValueError(f"Unrecognized stage {stage}.")
+
+        return action[:dim]
+
     def get_action_space(self) -> List:
+        composition_action_space = self._pad_action_space(
+            self.composition.action_space, Stage.COMPOSITION
+        )
+        space_group_action_space = self._pad_action_space(
+            self.space_group.action_space, Stage.SPACE_GROUP
+        )
+        lattice_parameters_action_space = self._pad_action_space(
+            self.lattice_parameters.action_space, Stage.LATTICE_PARAMETERS
+        )
+
         action_space = (
-            self.composition.action_space
-            + self.space_group.action_space
-            + self.lattice_parameters.action_space
+            composition_action_space
+            + space_group_action_space
+            + lattice_parameters_action_space
         )
 
         if len(action_space) != len(set(action_space)):
@@ -185,19 +223,21 @@ class Crystal(GFlowNetEnv):
         self.n_actions += 1
 
         if self.stage == Stage.COMPOSITION:
-            executed_action, state, valid = self.composition.step(action)
-            assert executed_action == action
+            composition_action = self._depad_action(action, Stage.COMPOSITION)
+            _, state, valid = self.composition.step(composition_action)
             if valid and state == self.composition.eos:
                 self.stage = Stage.SPACE_GROUP
         elif self.stage == Stage.SPACE_GROUP:
-            executed_action, state, valid = self.space_group.step(action)
-            assert executed_action == action
+            stage_group_action = self._depad_action(action, Stage.SPACE_GROUP)
+            _, state, valid = self.space_group.step(stage_group_action)
             if valid and state == self.space_group.eos:
                 self.stage = Stage.LATTICE_PARAMETERS
                 self._set_lattice_parameters()
         elif self.stage == Stage.LATTICE_PARAMETERS:
-            executed_action, state, valid = self.lattice_parameters.step(action)
-            assert executed_action == action
+            lattice_parameters_action = self._depad_action(
+                action, Stage.LATTICE_PARAMETERS
+            )
+            _, state, valid = self.lattice_parameters.step(lattice_parameters_action)
             if valid and state == self.space_group.eos:
                 self.done = True
         else:
@@ -231,6 +271,7 @@ class Crystal(GFlowNetEnv):
                 p + self.space_group.state + self.lattice_parameters.state
                 for p in parents
             ]
+            actions = [self._pad_action(a, Stage.COMPOSITION) for a in actions]
         elif self.stage == Stage.SPACE_GROUP or (
             self.stage == Stage.LATTICE_PARAMETERS
             and self.lattice_parameters.state == self.lattice_parameters.source
@@ -242,6 +283,7 @@ class Crystal(GFlowNetEnv):
                 self.composition.state + p + self.lattice_parameters.state
                 for p in parents
             ]
+            actions = [self._pad_action(a, Stage.SPACE_GROUP) for a in actions]
         elif self.stage == Stage.LATTICE_PARAMETERS:
             parents, actions = self.lattice_parameters.get_parents(
                 state=self._get_lattice_parameters_state(state)
@@ -249,6 +291,7 @@ class Crystal(GFlowNetEnv):
             parents = [
                 self.composition.state + self.space_group.state + p for p in parents
             ]
+            actions = [self._pad_action(a, Stage.LATTICE_PARAMETERS) for a in actions]
         else:
             raise ValueError(f"Unrecognized stage {self.stage}.")
 
