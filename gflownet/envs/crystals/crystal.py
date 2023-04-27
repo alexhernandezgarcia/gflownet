@@ -57,13 +57,27 @@ class Crystal(GFlowNetEnv):
         )
 
         # start and end indices of individual substates
-        self.composition_start = 0
-        self.composition_end = len(self.composition.source)
-        self.space_group_start = self.composition_end
-        self.space_group_end = self.space_group_start + len(self.space_group.source)
-        self.lattice_parameters_start = self.space_group_end
-        self.lattice_parameters_end = self.lattice_parameters_start + len(
+        self.composition_state_start = 0
+        self.composition_state_end = len(self.composition.source)
+        self.space_group_state_start = self.composition_state_end
+        self.space_group_state_end = self.space_group_state_start + len(
+            self.space_group.source
+        )
+        self.lattice_parameters_state_start = self.space_group_state_end
+        self.lattice_parameters_state_end = self.lattice_parameters_state_start + len(
             self.lattice_parameters.source
+        )
+
+        # start and end indices of individual submasks
+        self.composition_mask_start = 0
+        self.composition_mask_end = len(self.composition.action_space)
+        self.space_group_mask_start = self.composition_mask_end
+        self.space_group_mask_end = self.space_group_mask_start + len(
+            self.space_group.action_space
+        )
+        self.lattice_parameters_mask_start = self.space_group_mask_end
+        self.lattice_parameters_mask_end = self.lattice_parameters_mask_start + len(
+            self.lattice_parameters.action_space
         )
 
         self.eos = self.lattice_parameters.eos
@@ -167,13 +181,13 @@ class Crystal(GFlowNetEnv):
         if state is None:
             state = self.state.copy()
 
-        return state[self.composition_start : self.composition_end]
+        return state[self.composition_state_start : self.composition_state_end]
 
     def _get_space_group_state(self, state: Optional[List[int]] = None) -> List[int]:
         if state is None:
             state = self.state.copy()
 
-        return state[self.space_group_start : self.space_group_end]
+        return state[self.space_group_state_start : self.space_group_state_end]
 
     def _get_lattice_parameters_state(
         self, state: Optional[List[int]] = None
@@ -181,7 +195,9 @@ class Crystal(GFlowNetEnv):
         if state is None:
             state = self.state.copy()
 
-        return state[self.lattice_parameters_start : self.lattice_parameters_end]
+        return state[
+            self.lattice_parameters_state_start : self.lattice_parameters_state_end
+        ]
 
     def get_mask_invalid_actions_forward(
         self, state: Optional[List[int]] = None, done: Optional[bool] = None
@@ -200,12 +216,16 @@ class Crystal(GFlowNetEnv):
             composition_mask = self.composition.get_mask_invalid_actions_forward(
                 state=self._get_composition_state(state)
             )
-            mask[self.composition_start : self.composition_end] = composition_mask
+            mask[
+                self.composition_mask_start : self.composition_mask_end
+            ] = composition_mask
         elif self.stage == Stage.SPACE_GROUP:
             space_group_mask = self.space_group.get_mask_invalid_actions_forward(
                 state=self._get_space_group_state(state)
             )
-            mask[self.space_group_start : self.space_group_end] = space_group_mask
+            mask[
+                self.space_group_mask_start : self.space_group_mask_end
+            ] = space_group_mask
         elif self.stage == Stage.LATTICE_PARAMETERS:
             lattice_parameters_mask = (
                 self.lattice_parameters.get_mask_invalid_actions_forward(
@@ -213,7 +233,7 @@ class Crystal(GFlowNetEnv):
                 )
             )
             mask[
-                self.lattice_parameters_start : self.lattice_parameters_end
+                self.lattice_parameters_mask_start : self.lattice_parameters_mask_end
             ] = lattice_parameters_mask
         else:
             raise ValueError(f"Unrecognized stage {self.stage}.")
