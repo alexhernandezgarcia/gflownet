@@ -39,7 +39,7 @@ class LatticeParameters(Grid):
         max_length: float = 5.0,
         min_angle: float = 30.0,
         max_angle: float = 150.0,
-        grid_size: int = 61,
+        grid_size: int = 100,
         max_increment: int = 1,
         **kwargs,
     ):
@@ -63,8 +63,6 @@ class LatticeParameters(Grid):
 
         grid_size : int
             Length of the underlying grid that is used to map discrete values to actual edge lengths and angles.
-            Note that it has to be defined in such a way that 90 and 120 degree angles will be present in the
-            mapping from grid cells to angles (np.linspace(min_angle, max_angle, grid_size)).
 
         max_increment : int
             Maximum increment of each dimension by the actions.
@@ -89,9 +87,13 @@ class LatticeParameters(Grid):
         self.max_angle = max_angle
         self.grid_size = grid_size
 
-        self.cell2angle = {
-            k: v for k, v in enumerate(np.linspace(min_angle, max_angle, grid_size))
-        }
+        # we ensure that 90 and 120 degrees angle are present in the search space,
+        # since for some systems they must be set to one of these values
+        angles = np.linspace(min_angle, max_angle, grid_size)
+        angles[np.abs(angles - 90.0).argmin()] = 90.0
+        angles[np.abs(angles - 120.0).argmin()] = 120.0
+
+        self.cell2angle = {k: v for k, v in enumerate(angles)}
         self.angle2cell = {v: k for k, v in self.cell2angle.items()}
         self.cell2length = {
             k: v for k, v in enumerate(np.linspace(min_length, max_length, grid_size))

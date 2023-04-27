@@ -17,7 +17,7 @@ from gflownet.envs.crystals.lattice_parameters import (
 
 @pytest.fixture()
 def env(lattice_system):
-    return LatticeParameters(lattice_system=lattice_system)
+    return LatticeParameters(lattice_system=lattice_system, grid_size=61)
 
 
 @pytest.mark.parametrize("lattice_system", LATTICE_SYSTEMS)
@@ -28,6 +28,14 @@ def test__environment__initializes_properly(env, lattice_system):
 @pytest.mark.parametrize("lattice_system", LATTICE_SYSTEMS)
 @pytest.mark.parametrize("grid_size", [61, 121, 241])
 def test__environment__initializes_properly_with_non_default_grid_size(
+    env, lattice_system, grid_size
+):
+    LatticeParameters(lattice_system=lattice_system, grid_size=grid_size)
+
+
+@pytest.mark.parametrize("lattice_system", LATTICE_SYSTEMS)
+@pytest.mark.parametrize("grid_size", [17, 42, 69, 2137])
+def test__environment__initializes_properly_with_arbitrary_grid_size(
     env, lattice_system, grid_size
 ):
     LatticeParameters(lattice_system=lattice_system, grid_size=grid_size)
