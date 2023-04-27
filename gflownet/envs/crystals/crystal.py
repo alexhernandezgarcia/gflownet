@@ -78,6 +78,9 @@ class Crystal(GFlowNetEnv):
         super().__init__(**kwargs)
 
     def _set_lattice_parameters(self):
+        """
+        Sets LatticeParameters conditioned on the lattice system derived from the SpaceGroup.
+        """
         crystal_system = self.space_group.get_crystal_system()
 
         if crystal_system is None:
@@ -90,13 +93,24 @@ class Crystal(GFlowNetEnv):
             **self.lattice_parameters_kwargs,
         )
 
-    def _pad_action(self, action, stage):
+    def _pad_action(self, action: Tuple[int], stage: Stage) -> Tuple[int]:
+        """
+        Pads action such that all actions, regardless of the underlying environment, have
+        the same length. Required due to the fact that action space has to be convertable to
+        a tensor.
+        """
         return action + (stage.value,) * (self.max_action_length - len(action))
 
-    def _pad_action_space(self, action_space, stage):
+    def _pad_action_space(
+        self, action_space: List[Tuple[int]], stage: Stage
+    ) -> List[Tuple[int]]:
         return [self._pad_action(a, stage) for a in action_space]
 
-    def _depad_action(self, action, stage):
+    def _depad_action(self, action: Tuple[int], stage: Stage) -> Tuple[int]:
+        """
+        Reverses padding operation, such that the resulting action can be passed to the
+        underlying environment.
+        """
         if stage == Stage.COMPOSITION:
             dim = self.composition.action_space_dim
         elif stage == Stage.SPACE_GROUP:
@@ -108,7 +122,7 @@ class Crystal(GFlowNetEnv):
 
         return action[:dim]
 
-    def get_action_space(self) -> List:
+    def get_action_space(self) -> List[Tuple[int]]:
         composition_action_space = self._pad_action_space(
             self.composition.action_space, Stage.COMPOSITION
         )
@@ -132,7 +146,7 @@ class Crystal(GFlowNetEnv):
 
         return action_space
 
-    def get_max_traj_length(self):
+    def get_max_traj_length(self) -> int:
         return (
             self.composition.get_max_traj_length()
             + self.space_group.get_max_traj_length()
@@ -149,25 +163,29 @@ class Crystal(GFlowNetEnv):
 
         super().reset(env_id=env_id)
 
-    def _get_composition_state(self, state=None):
+    def _get_composition_state(self, state: Optional[List[int]] = None) -> List[int]:
         if state is None:
             state = self.state.copy()
 
         return state[self.composition_start : self.composition_end]
 
-    def _get_space_group_state(self, state=None):
+    def _get_space_group_state(self, state: Optional[List[int]] = None) -> List[int]:
         if state is None:
             state = self.state.copy()
 
         return state[self.space_group_start : self.space_group_end]
 
-    def _get_lattice_parameters_state(self, state=None):
+    def _get_lattice_parameters_state(
+        self, state: Optional[List[int]] = None
+    ) -> List[int]:
         if state is None:
             state = self.state.copy()
 
         return state[self.lattice_parameters_start : self.lattice_parameters_end]
 
-    def get_mask_invalid_actions_forward(self, state=None, done=None):
+    def get_mask_invalid_actions_forward(
+        self, state: Optional[List[int]] = None, done: Optional[bool] = None
+    ) -> List[bool]:
         if state is None:
             state = self.state.copy()
         if done is None:
@@ -203,6 +221,9 @@ class Crystal(GFlowNetEnv):
         return mask
 
     def _update_state(self):
+        """
+        Updates current state based on the states of underlying environments.
+        """
         self.state = (
             self.composition.state
             + self.space_group.state
@@ -300,16 +321,6 @@ class Crystal(GFlowNetEnv):
     def state2oracle(self, state: Optional[List[int]] = None) -> Tensor:
         """
         Prepares a list of states in "GFlowNet format" for the oracle.
-
-        Args
-        ----
-        state : list
-            A state.
-
-        Returns
-        ----
-        oracle_state : Tensor
-            Tensor containing lengths and angles converted from the Grid format.
         """
         if state is None:
             state = self.state.copy()
