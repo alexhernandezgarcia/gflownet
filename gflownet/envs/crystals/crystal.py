@@ -51,11 +51,6 @@ class Crystal(GFlowNetEnv):
             + self.lattice_parameters.source
         )
 
-        if len(self.source) != len(set(self.source)):
-            raise ValueError(
-                "Detected duplicate actions between different components of Crystal environment."
-            )
-
         # start and end indices of individual substates
         self.composition_start = 0
         self.composition_end = len(self.composition.source)
@@ -86,11 +81,18 @@ class Crystal(GFlowNetEnv):
         )
 
     def get_action_space(self) -> List:
-        return (
+        action_space = (
             self.composition.action_space
             + self.space_group.action_space
             + self.lattice_parameters.action_space
         )
+
+        if len(action_space) != len(set(action_space)):
+            raise ValueError(
+                "Detected duplicate actions between different components of Crystal environment."
+            )
+
+        return action_space
 
     def get_max_traj_length(self):
         return (
