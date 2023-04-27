@@ -714,7 +714,7 @@ class GFlowNetAgent:
                     x_sampled,
                     kde_pred,
                     kde_true,
-                ) = self.test()
+                ) = self.test(it)
                 self.logger.log_test_metrics(
                     self.l1, self.kl, self.jsd, self.corr, it, self.use_context
                 )
@@ -833,7 +833,7 @@ class GFlowNetAgent:
         if self.use_context == False:
             self.logger.end()
 
-    def test(self):
+    def test(self, it):
         """
         Computes metrics by sampling trajectories from the forward policy.
         """
@@ -916,6 +916,12 @@ class GFlowNetAgent:
         else:
             corr_type = None
         corr = self.get_corr(density_pred, density_true, x_tt, dict_tt, corr_type)
+        if hasattr(self.env, "write_samples_to_file"):
+            self.env.write_samples_to_file(
+                x_sampled,
+                self.logger.data_path.parent
+                / Path("interim_sampled_points_{}.csv".format(it)),
+            )
 
         return (
             l1,
