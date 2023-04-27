@@ -69,9 +69,9 @@ class Crystal(GFlowNetEnv):
         self.eos = self.lattice_parameters.eos
         self.stage = Stage.COMPOSITION
         self.max_action_length = max(
-            self.composition.action_space_dim,
-            self.space_group.action_space_dim,
-            self.lattice_parameters.action_space_dim,
+            max(len(a) for a in self.composition.action_space),
+            max(len(a) for a in self.space_group.action_space),
+            max(len(a) for a in self.lattice_parameters.action_space),
         )
         self.done = False
 
