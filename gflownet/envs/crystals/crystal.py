@@ -3,6 +3,7 @@ from typing import Dict, List, Optional, Tuple, Union
 
 import torch
 from torch import Tensor
+from torchtyping import TensorType
 
 from gflownet.envs.base import GFlowNetEnv
 from gflownet.envs.crystals.composition import Composition
@@ -88,6 +89,11 @@ class Crystal(GFlowNetEnv):
             max(len(a) for a in self.lattice_parameters.action_space),
         )
         self.done = False
+
+        # Conversions
+        self.state2proxy = self.state2oracle
+        self.statebatch2proxy = self.statebatch2oracle
+        self.statetorch2proxy = self.statetorch2oracle
 
         super().__init__(**kwargs)
 
@@ -183,11 +189,21 @@ class Crystal(GFlowNetEnv):
 
         return state[self.composition_state_start : self.composition_state_end]
 
+    def _get_composition_tensor_states(
+        self, states: TensorType["batch", "state_dim"]
+    ) -> TensorType["batch", "state_oracle_dim"]:
+        return states[:, self.composition_state_start : self.composition_state_end]
+
     def _get_space_group_state(self, state: Optional[List[int]] = None) -> List[int]:
         if state is None:
             state = self.state.copy()
 
         return state[self.space_group_state_start : self.space_group_state_end]
+
+    def _get_space_group_tensor_states(
+        self, states: TensorType["batch", "state_dim"]
+    ) -> TensorType["batch", "state_oracle_dim"]:
+        return states[:, self.space_group_state_start : self.space_group_state_end]
 
     def _get_lattice_parameters_state(
         self, state: Optional[List[int]] = None
@@ -197,6 +213,13 @@ class Crystal(GFlowNetEnv):
 
         return state[
             self.lattice_parameters_state_start : self.lattice_parameters_state_end
+        ]
+
+    def _get_lattice_parameters_tensor_states(
+        self, states: TensorType["batch", "state_dim"]
+    ) -> TensorType["batch", "state_oracle_dim"]:
+        return states[
+            :, self.lattice_parameters_state_start : self.lattice_parameters_state_end
         ]
 
     def get_mask_invalid_actions_forward(
@@ -363,6 +386,34 @@ class Crystal(GFlowNetEnv):
                 space_group_oracle_state,
                 lattice_parameters_oracle_state,
             ]
+        )
+
+    def statebatch2oracle(
+        self, states: List[List]
+    ) -> TensorType["batch", "state_oracle_dim"]:
+        return self.statetorch2oracle(
+            torch.tensor(states, device=self.device, dtype=torch.long)
+        )
+
+    def statetorch2oracle(
+        self, states: TensorType["batch", "state_dim"]
+    ) -> TensorType["batch", "state_oracle_dim"]:
+        composition_oracle_states = self.composition.statetorch2oracle(
+            self._get_composition_tensor_states(states)
+        )
+        space_group_oracle_states = self.space_group.statetorch2oracle(
+            self._get_space_group_tensor_states(states)
+        )
+        lattice_parameters_oracle_states = self.lattice_parameters.statetorch2oracle(
+            self._get_lattice_parameters_tensor_states(states)
+        )
+        return torch.cat(
+            [
+                composition_oracle_states,
+                space_group_oracle_states,
+                lattice_parameters_oracle_states,
+            ],
+            dim=1,
         )
 
     def state2readable(self, state: Optional[List[int]] = None) -> str:

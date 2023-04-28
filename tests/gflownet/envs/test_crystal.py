@@ -56,12 +56,20 @@ def test__pad_depad_action(env):
     [
         [
             (1, 1, 1, 1, 1, 2, 3, 1, 2, 3, 4, 5, 6),
-            [1.0, 1.0, 1.0, 1.0, 3.0, 1.4444, 1.8889, 2.3333, 90.0, 96.6667, 110.0],
-        ]
+            Tensor(
+                [1.0, 1.0, 1.0, 1.0, 3.0, 1.4444, 1.8889, 2.3333, 90.0, 96.6667, 110.0]
+            ),
+        ],
+        [
+            (4, 9, 0, 3, 0, 0, 105, 5, 3, 1, 0, 0, 9),
+            Tensor(
+                [4.0, 9.0, 0.0, 3.0, 105.0, 3.2222, 2.3333, 1.4444, 30.0, 30.0, 150.0]
+            ),
+        ],
     ],
 )
 def test__state2oracle__returns_expected_value(env, state, expected):
-    assert torch.allclose(env.state2oracle(state), Tensor(expected), atol=1e-4)
+    assert torch.allclose(env.state2oracle(state), expected, atol=1e-4)
 
 
 @pytest.mark.parametrize(
@@ -69,12 +77,65 @@ def test__state2oracle__returns_expected_value(env, state, expected):
     [
         [
             (1, 1, 1, 1, 1, 2, 3, 1, 2, 3, 4, 5, 6),
-            [1.0, 1.0, 1.0, 1.0, 3.0, 1.4444, 1.8889, 2.3333, 90.0, 96.6667, 110.0],
-        ]
+            Tensor(
+                [1.0, 1.0, 1.0, 1.0, 3.0, 1.4444, 1.8889, 2.3333, 90.0, 96.6667, 110.0]
+            ),
+        ],
+        [
+            (4, 9, 0, 3, 0, 0, 105, 5, 3, 1, 0, 0, 9),
+            Tensor(
+                [4.0, 9.0, 0.0, 3.0, 105.0, 3.2222, 2.3333, 1.4444, 30.0, 30.0, 150.0]
+            ),
+        ],
     ],
 )
 def test__state2proxy__returns_expected_value(env, state, expected):
-    assert torch.allclose(env.state2proxy(state), Tensor(expected), atol=1e-4)
+    assert torch.allclose(env.state2proxy(state), expected, atol=1e-4)
+
+
+@pytest.mark.parametrize(
+    "batch, expected",
+    [
+        [
+            [
+                (1, 1, 1, 1, 1, 2, 3, 1, 2, 3, 4, 5, 6),
+                (4, 9, 0, 3, 0, 0, 105, 5, 3, 1, 0, 0, 9),
+            ],
+            Tensor(
+                [
+                    [
+                        1.0,
+                        1.0,
+                        1.0,
+                        1.0,
+                        3.0,
+                        1.4444,
+                        1.8889,
+                        2.3333,
+                        90.0,
+                        96.6667,
+                        110.0,
+                    ],
+                    [
+                        4.0,
+                        9.0,
+                        0.0,
+                        3.0,
+                        105.0,
+                        3.2222,
+                        2.3333,
+                        1.4444,
+                        30.0,
+                        30.0,
+                        150.0,
+                    ],
+                ]
+            ),
+        ],
+    ],
+)
+def test__statebatch2proxy__returns_expected_value(env, batch, expected):
+    assert torch.allclose(env.statebatch2proxy(batch), expected, atol=1e-4)
 
 
 @pytest.mark.parametrize("action", [(1, 1, -2, -2, -2, -2), (3, 4, -2, -2, -2, -2)])

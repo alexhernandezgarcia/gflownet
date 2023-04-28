@@ -4,7 +4,9 @@ Classes to represent crystal environments
 from typing import List, Optional, Tuple
 
 import numpy as np
+import torch
 from torch import Tensor
+from torchtyping import TensorType
 
 from gflownet.envs.grid import Grid
 from gflownet.utils.crystals.constants import (
@@ -92,13 +94,14 @@ class LatticeParameters(Grid):
         angles = np.linspace(min_angle, max_angle, grid_size)
         angles[np.abs(angles - 90.0).argmin()] = 90.0
         angles[np.abs(angles - 120.0).argmin()] = 120.0
+        lengths = np.linspace(min_length, max_length, grid_size)
 
         self.cell2angle = {k: v for k, v in enumerate(angles)}
         self.angle2cell = {v: k for k, v in self.cell2angle.items()}
-        self.cell2length = {
-            k: v for k, v in enumerate(np.linspace(min_length, max_length, grid_size))
-        }
+        self.cell2length = {k: v for k, v in enumerate(lengths)}
         self.length2cell = {v: k for k, v in self.cell2length.items()}
+        self.angles_tensor = Tensor(angles)
+        self.lengths_tensor = Tensor(lengths)
 
         if (
             90.0 not in self.cell2angle.values()
@@ -347,6 +350,32 @@ class LatticeParameters(Grid):
         return Tensor(
             [self.cell2length[s] for s in state[:3]]
             + [self.cell2angle[s] for s in state[3:]]
+        )
+
+    def statetorch2oracle(
+        self, states: TensorType["batch", "state_dim"]
+    ) -> TensorType["batch", "state_oracle_dim"]:
+        """
+        Prepares a batch of states in "GFlowNet format" for the oracle. The input to the
+        oracle is the lengths and angles.
+
+        Args
+        ----
+        states : Tensor
+            A state
+
+        Returns
+        ----
+        oracle_states : Tensor
+        """
+        return torch.stack(
+            [
+                Tensor(
+                    [self.lengths_tensor[s] for s in state[:3]]
+                    + [self.angles_tensor[s] for s in state[3:]]
+                )
+                for state in states
+            ]
         )
 
     def state2readable(self, state: Optional[List[int]] = None) -> str:

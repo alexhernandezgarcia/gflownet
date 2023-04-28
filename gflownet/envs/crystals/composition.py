@@ -6,9 +6,11 @@ from typing import Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import torch
+from torch import Tensor
+from torchtyping import TensorType
+
 from gflownet.envs.base import GFlowNetEnv
 from gflownet.utils.crystals.constants import ELEMENT_NAMES, OXIDATION_STATES
-from torch import Tensor
 
 
 class Composition(GFlowNetEnv):
@@ -177,6 +179,24 @@ class Composition(GFlowNetEnv):
             state = self.state
 
         return torch.Tensor(state)
+
+    def statetorch2oracle(
+        self, states: TensorType["batch", "state_dim"]
+    ) -> TensorType["batch", "state_oracle_dim"]:
+        """
+        Prepares a batch of states in "GFlowNet format" for the oracle. The input to the
+        oracle is the atom counts for individual elements.
+
+        Args
+        ----
+        states : Tensor
+            A state
+
+        Returns
+        ----
+        oracle_states : Tensor
+        """
+        return states
 
     def state2readable(self, state=None):
         """
