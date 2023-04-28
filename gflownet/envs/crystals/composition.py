@@ -276,12 +276,13 @@ class Composition(GFlowNetEnv):
         else:
             parents = []
             actions = []
-            for idx, (element, n) in enumerate(self.action_space[:-1]):
+            for idx, action in enumerate(self.action_space[:-1]):
+                element, n = action
                 if state[self.elem2idx[element]] == n > 0:
                     parent = state.copy()
                     parent[self.elem2idx[element]] -= n
                     parents.append(parent)
-                    actions.append(idx)
+                    actions.append(action)
         return parents, actions
 
     def step(self, action: Tuple[int, int]) -> Tuple[List[int], Tuple[int, int], bool]:
