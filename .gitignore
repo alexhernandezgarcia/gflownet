@@ -9,3 +9,5 @@ old
 sh/
 *.txt
 !requirements.txt
+.vscode/
+external/repos
