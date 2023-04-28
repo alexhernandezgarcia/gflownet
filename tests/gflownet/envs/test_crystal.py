@@ -3,6 +3,7 @@ import torch
 from torch import Tensor
 
 from gflownet.envs.crystals.crystal import Crystal, Stage
+from gflownet.envs.crystals.lattice_parameters import TRICLINIC
 
 
 @pytest.fixture
@@ -206,3 +207,35 @@ def test__step__action_sequence_has_expected_result(
     assert env.state == exp_result
     assert env.stage == exp_stage
     assert valid == last_action_valid
+
+
+@pytest.mark.parametrize(
+    "actions",
+    [
+        [
+            (1, 1, -2, -2, -2, -2),
+            (3, 4, -2, -2, -2, -2),
+            (-1, -1, -2, -2, -2, -2),
+            (2, 105, 0, -3, -3, -3),
+            (-1, -1, -1, -3, -3, -3),
+            (1, 1, 1, 0, 0, 0),
+            (1, 1, 0, 0, 0, 0),
+            (0, 0, 0, 0, 0, 0),
+        ]
+    ],
+)
+def test__reset(env, actions):
+    for action in actions:
+        env.step(action)
+
+    assert env.state != env.source
+    for subenv in [env.composition, env.space_group, env.lattice_parameters]:
+        assert subenv.state != subenv.source
+    assert env.lattice_parameters.lattice_system != TRICLINIC
+
+    env.reset()
+
+    assert env.state == env.source
+    for subenv in [env.composition, env.space_group, env.lattice_parameters]:
+        assert subenv.state == subenv.source
+    assert env.lattice_parameters.lattice_system == TRICLINIC
