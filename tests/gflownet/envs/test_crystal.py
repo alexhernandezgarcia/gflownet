@@ -239,3 +239,65 @@ def test__reset(env, actions):
     for subenv in [env.composition, env.space_group, env.lattice_parameters]:
         assert subenv.state == subenv.source
     assert env.lattice_parameters.lattice_system == TRICLINIC
+
+
+@pytest.mark.parametrize(
+    "actions, exp_stage",
+    [
+        [
+            [],
+            Stage.COMPOSITION,
+        ],
+        [
+            [(1, 1, -2, -2, -2, -2), (3, 4, -2, -2, -2, -2), (-1, -1, -2, -2, -2, -2)],
+            Stage.SPACE_GROUP,
+        ],
+        [
+            [
+                (1, 1, -2, -2, -2, -2),
+                (3, 4, -2, -2, -2, -2),
+                (-1, -1, -2, -2, -2, -2),
+                (2, 105, 0, -3, -3, -3),
+                (-1, -1, -1, -3, -3, -3),
+            ],
+            Stage.LATTICE_PARAMETERS,
+        ],
+    ],
+)
+def test__get_mask_invalid_actions_forward__masks_all_actions_from_different_stages(
+    env, actions, exp_stage
+):
+    for action in actions:
+        env.step(action)
+
+    assert env.stage == exp_stage
+
+    mask = env.get_mask_invalid_actions_forward()
+
+    if env.stage == Stage.COMPOSITION:
+        assert not all(mask[: len(env.composition.action_space)])
+        assert all(mask[len(env.composition.action_space) :])
+    if env.stage == Stage.SPACE_GROUP:
+        assert not all(
+            mask[
+                len(env.composition.action_space) : len(env.composition.action_space)
+                + len(env.space_group.action_space)
+            ]
+        )
+        assert all(mask[: len(env.composition.action_space)])
+        assert all(
+            mask[
+                len(env.composition.action_space) + len(env.space_group.action_space) :
+            ]
+        )
+    if env.stage == Stage.LATTICE_PARAMETERS:
+        assert not all(
+            mask[
+                len(env.composition.action_space) + len(env.space_group.action_space) :
+            ]
+        )
+        assert all(
+            mask[
+                : len(env.composition.action_space) + len(env.space_group.action_space)
+            ]
+        )
