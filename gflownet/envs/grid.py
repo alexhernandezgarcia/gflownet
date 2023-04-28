@@ -60,7 +60,11 @@ class Grid(GFlowNetEnv):
             self.oracle.n_dim = self.n_dim
             self.oracle.setup()
         # non-AL
-        if hasattr(self, "proxy")  and self.proxy is not None and hasattr(self.proxy, "n_dim"):
+        if (
+            hasattr(self, "proxy")
+            and self.proxy is not None
+            and hasattr(self.proxy, "n_dim")
+        ):
             self.proxy.n_dim = self.n_dim
             self.proxy.setup()
         self.rescale = rescale
@@ -384,3 +388,6 @@ class Grid(GFlowNetEnv):
         else:
             dist_vector = torch.min(dist_matrix, dim=1)[0]
             return dist_vector
+
+    def get_distance_from_D0(self, samples, dataset_states):
+        return self.get_pairwise_distance(samples, dataset_states)
