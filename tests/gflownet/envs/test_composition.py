@@ -1,7 +1,7 @@
-import common
 import pytest
 import torch
 
+import common
 from gflownet.envs.crystals.composition import Composition
 
 
@@ -213,7 +213,7 @@ def test__get_parents__returns_expected_parents_and_actions(
     parents, actions = env.get_parents()
 
     assert set(tuple(x) for x in parents) == set(tuple(x) for x in exp_parents)
-    assert set(env.action_space[x] for x in actions) == set(exp_actions)
+    assert set(actions) == set(exp_actions)
 
 
 @pytest.mark.parametrize(

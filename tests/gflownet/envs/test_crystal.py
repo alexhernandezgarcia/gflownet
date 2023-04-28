@@ -2,6 +2,7 @@ import pytest
 import torch
 from torch import Tensor
 
+import common
 from gflownet.envs.crystals.crystal import Crystal, Stage
 from gflownet.envs.crystals.lattice_parameters import TRICLINIC
 
@@ -267,6 +268,33 @@ def test__step__action_sequence_has_expected_result(
     assert env.state == exp_result
     assert env.stage == exp_stage
     assert valid == last_action_valid
+
+
+def test__get_parents__returns_no_parents_in_initial_state(env):
+    return common.test__get_parents__returns_no_parents_in_initial_state(env)
+
+
+@pytest.mark.parametrize(
+    "actions",
+    [
+        [(1, 1, -2, -2, -2, -2), (3, 4, -2, -2, -2, -2)],
+        [
+            (1, 1, -2, -2, -2, -2),
+            (3, 4, -2, -2, -2, -2),
+            (-1, -1, -2, -2, -2, -2),
+            (2, 105, 0, -3, -3, -3),
+            (-1, -1, -1, -3, -3, -3),
+            (1, 1, 1, 0, 0, 0),
+            (1, 1, 0, 0, 0, 0),
+            (0, 0, 0, 0, 0, 0),
+        ],
+    ],
+)
+def test__get_parents__contains_previous_action_after_a_step(env, actions):
+    for action in actions:
+        env.step(action)
+        parents, parent_actions = env.get_parents()
+        assert action in parent_actions
 
 
 @pytest.mark.parametrize(
