@@ -833,7 +833,7 @@ class GFlowNetAgent:
         if self.use_context == False:
             self.logger.end()
 
-    def test(self, it):
+    def test(self, it=None):
         """
         Computes metrics by sampling trajectories from the forward policy.
         """
@@ -1053,123 +1053,6 @@ class GFlowNetAgent:
                 use_context=self.use_context,
             )
 
-    def evaluate(
-        self,
-        samples,
-        energies,
-        maximize,
-        cumulative_cost,
-        modes=None,
-        extrema=None,
-        proxy_extrema=None,
-        dataset_states=None,
-    ):
-        """Evaluate the policy on a set of queries.
-        Args:
-            queries (list): List of queries to evaluate the policy on.
-        Returns:
-            dictionary with topk performance, diversity and novelty scores
-        """
-        do_novelty = False
-        self.logger.define_metric("mean_energy_top100", step_metric="post_al_cum_cost")
-        self.logger.define_metric(
-            "mean_pairwise_distance_top100", step_metric="post_al_cum_cost"
-        )
-        self.logger.define_metric(
-            "mean_min_distance_from_mode_top100", step_metric="post_al_cum_cost"
-        )
-        self.logger.define_metric("mean_energy_top10", step_metric="post_al_cum_cost")
-        self.logger.define_metric(
-            "mean_pairwise_distance_top10", step_metric="post_al_cum_cost"
-        )
-        self.logger.define_metric(
-            "mean_min_distance_from_mode_top10", step_metric="post_al_cum_cost"
-        )
-        self.logger.define_metric("mean_energy_top1", step_metric="post_al_cum_cost")
-        self.logger.define_metric(
-            "mean_pairwise_distance_top1", step_metric="post_al_cum_cost"
-        )
-        self.logger.define_metric(
-            "mean_min_distance_from_mode_top1", step_metric="post_al_cum_cost"
-        )
-        self.logger.define_metric("simple_regret", step_metric="post_al_cum_cost")
-        self.logger.define_metric("inference_regret", step_metric="post_al_cum_cost")
-        energies = torch.sort(energies, descending=maximize)[0]
-        if hasattr(self.env, "get_pairwise_distance"):
-            pairwise_dists = self.env.get_pairwise_distance(samples)
-            pairwise_dists = torch.sort(pairwise_dists, descending=True)[0]
-            if modes is not None:
-                min_dist_from_mode = self.env.get_pairwise_distance(samples, modes)
-                # Sort in ascending order because we want minimum distance from mode
-                min_dist_from_mode = torch.sort(min_dist_from_mode, descending=False)[0]
-            else:
-                min_dist_from_mode = torch.zeros_like(energies)
-        else:
-            pairwise_dists = torch.zeros_like(energies)
-            min_dist_from_mode = torch.zeros_like(energies)
-
-        dict_topk = {}
-        if self.use_context and self.buffer.train is not None:
-            do_novelty = True
-            with open(self.buffer.train_pkl, "rb") as f:
-                dict_tr = pickle.load(f)
-                dataset_states = dict_tr["x"]
-            dists_from_D0 = self.env.get_distance_from_D0(samples, dataset_states)
-            dists_from_D0 = torch.sort(dists_from_D0, descending=True)[0]
-            self.logger.define_metric(
-                "mean_min_distance_from_D0_top100", step_metric="post_al_cum_cost"
-            )
-            self.logger.define_metric(
-                "mean_min_distance_from_D0_top10", step_metric="post_al_cum_cost"
-            )
-            self.logger.define_metric(
-                "mean_min_distance_from_D0_top1", step_metric="post_al_cum_cost"
-            )
-        metrics_dict = {}
-        for k in self.logger.oracle.k:
-            print(f"\n Top-{k} Performance")
-            mean_energy_topk = torch.mean(energies[:k])
-            mean_pairwise_dist_topk = torch.mean(pairwise_dists[:k])
-            mean_min_dist_from_mode_topk = torch.mean(min_dist_from_mode[:k])
-            if do_novelty:
-                mean_dist_from_D0_topk = torch.mean(dists_from_D0[:k])
-            dict_topk.update({"mean_energy_top{}".format(k): mean_energy_topk})
-            dict_topk.update(
-                {"mean_pairwise_distance_top{}".format(k): mean_pairwise_dist_topk}
-            )
-            dict_topk.update(
-                {
-                    "mean_min_distance_from_mode_top{}".format(
-                        k
-                    ): mean_min_dist_from_mode_topk
-                }
-            )
-            if do_novelty:
-                dict_topk.update(
-                    {"min_distance_from_D0_top{}".format(k): mean_dist_from_D0_topk}
-                )
-            if self.logger.progress:
-                print(f"\t Mean Energy: {mean_energy_topk}")
-                print(f"\t Mean Pairwise Distance: {mean_pairwise_dist_topk}")
-                print(f"\t Mean Min Distance from Mode: {mean_min_dist_from_mode_topk}")
-                if do_novelty:
-                    print(f"\t Mean Min Distance from D0: {mean_dist_from_D0_topk}")
-            metrics_dict.update(dict_topk)
-
-        if extrema is not None and proxy_extrema is not None:
-            simple_regret = abs(torch.mean(extrema - energies[0]))
-            inference_regret = abs(
-                torch.mean(proxy_extrema.to(energies.device) - energies[0])
-            )
-            metrics_dict.update({"simple_regret": simple_regret})
-            metrics_dict.update({"inference_regret": inference_regret})
-            if self.logger.progress:
-                print(f"\t Simple Regret: {simple_regret}")
-                print(f"\t Inference Regret: {inference_regret}")
-        if self.logger.progress:
-            print(f"\t Cumulative Cost: {cumulative_cost}")
-        metrics_dict.update({"post_al_cum_cost": cumulative_cost})
-        self.logger.log_metrics(metrics_dict, use_context=False)
 
     def logq(self, traj_list, actions_list, model, env, loginf=1000):
         # TODO: this method is probably suboptimal, since it may repeat forward calls for
