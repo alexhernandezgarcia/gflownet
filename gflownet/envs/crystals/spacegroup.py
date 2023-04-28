@@ -68,7 +68,7 @@ class SpaceGroup(GFlowNetEnv):
     crystal-lattice system restricts the possible point symmetries and space groups;
     the selection of point symmetry restricts the possible crystal-lattice systems and
     space groups. The selection of space groups determines a specific crystal-lattice
-    system and point symmestry. There is no restriction in the order of selection of
+    system and point symmetry. There is no restriction in the order of selection of
     properties.
     """
 
