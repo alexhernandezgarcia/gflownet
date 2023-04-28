@@ -61,8 +61,12 @@ class DAV(Proxy):
             }
         )
         assert hasattr(self.model, "pred_inp_size")
+        self.model.n_elements = 89  # TEMPORARY for release `v0-dev-embeddings`
         assert hasattr(self.model, "n_elements")
+        self.model.eval()
+        self.model.to(self.device)
 
+    @torch.no_grad()
     def __call__(self, states: TensorType["batch", "96"]) -> TensorType["batch"]:
         # state shape and model expected input shape must match
         assert states.shape[-1] == self.model.pred_inp_size
