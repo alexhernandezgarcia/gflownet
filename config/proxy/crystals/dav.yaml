@@ -1,0 +1,4 @@
+_target_: gflownet.proxy.crystals.dav.DAV
+
+release: v0-dev-embeddings
+ckpt_path: clusterPathToSet
