@@ -1,6 +1,5 @@
 from pathlib import Path
 
-import pandas as pd
 import torch
 from torchtyping import TensorType
 from gflownet.proxy.base import Proxy
@@ -27,17 +26,22 @@ class DAV(Proxy):
             REPO_PATH.parent.mkdir(exist_ok=True, parents=True)
             git.Repo.clone_from(REPO_URL, str(REPO_PATH))
         assert REPO_PATH.exists()
-        assert checkout_tag(kwargs["release"])
-        sys.path.append(str(REPO_PATH))
+        checkout_tag(kwargs["release"])
 
+        sys.path.append(str(REPO_PATH))
         from proxies.models import make_model
 
         ckpt_path = Path(kwargs["ckpt_path"]).resolve()
         assert ckpt_path.exists(), f"Checkpoint {str(ckpt_path)} not found."
-        ckpt = torch.load(str(ckpt_path))
+        ckpt = torch.load(str(ckpt_path), map_location="cpu")
         self.model_config = ckpt["hyper_parameters"]
         self.model = make_model(self.model_config)
-        self.model.load_state_dict(ckpt["state_dict"])
+        self.model.load_state_dict(
+            {
+                k[6:] if k.startswith("model.") else k: v
+                for k, v in ckpt["state_dict"].items()
+            }
+        )
 
     def __call__(
         self, states: TensorType["batch", "96"]  # noqa: F821
