@@ -183,6 +183,8 @@ class Crystal(GFlowNetEnv):
 
         super().reset(env_id=env_id)
 
+        return self
+
     def _get_composition_state(self, state: Optional[List[int]] = None) -> List[int]:
         if state is None:
             state = self.state.copy()
