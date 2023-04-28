@@ -171,22 +171,12 @@ class Composition(GFlowNetEnv):
         Returns
         ----
         oracle_state : Tensor
-            Tensor containing # of Li atoms, total # of atoms, and fractions of
-            individual elements
+            Tensor containing counts of individual elements
         """
         if state is None:
             state = self.state
 
-        li_idx = self.elem2idx.get(3)
-
-        if li_idx is None:
-            raise ValueError(
-                "state2oracle needs to return the number of Li atoms, but Li not present in allowed elements."
-            )
-
-        return torch.Tensor(
-            [state[li_idx], sum(state)] + [x / sum(state) for x in state]
-        )
+        return torch.Tensor(state)
 
     def state2readable(self, state=None):
         """

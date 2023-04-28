@@ -56,26 +56,25 @@ def test__pad_depad_action(env):
     [
         [
             (1, 1, 1, 1, 1, 2, 3, 1, 2, 3, 4, 5, 6),
-            [
-                1.0,
-                4.0,
-                0.25,
-                0.25,
-                0.25,
-                0.25,
-                3.0,
-                1.4444,
-                1.8889,
-                2.3333,
-                90.0,
-                96.6667,
-                110.0,
-            ],
+            [1.0, 1.0, 1.0, 1.0, 3.0, 1.4444, 1.8889, 2.3333, 90.0, 96.6667, 110.0],
         ]
     ],
 )
 def test__state2oracle__returns_expected_value(env, state, expected):
     assert torch.allclose(env.state2oracle(state), Tensor(expected), atol=1e-4)
+
+
+@pytest.mark.parametrize(
+    "state, expected",
+    [
+        [
+            (1, 1, 1, 1, 1, 2, 3, 1, 2, 3, 4, 5, 6),
+            [1.0, 1.0, 1.0, 1.0, 3.0, 1.4444, 1.8889, 2.3333, 90.0, 96.6667, 110.0],
+        ]
+    ],
+)
+def test__state2proxy__returns_expected_value(env, state, expected):
+    assert torch.allclose(env.state2proxy(state), Tensor(expected), atol=1e-4)
 
 
 @pytest.mark.parametrize("action", [(1, 1, -2, -2, -2, -2), (3, 4, -2, -2, -2, -2)])
