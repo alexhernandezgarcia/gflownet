@@ -75,3 +75,134 @@ def test__pad_depad_action(env):
 )
 def test__state2oracle__returns_expected_value(env, state, expected):
     assert torch.allclose(env.state2oracle(state), Tensor(expected), atol=1e-4)
+
+
+@pytest.mark.parametrize("action", [(1, 1, -2, -2, -2, -2), (3, 4, -2, -2, -2, -2)])
+def test__step__single_action_works(env, action):
+    env.step(action)
+
+    assert env.state != env.source
+
+
+@pytest.mark.parametrize(
+    "actions, exp_result, exp_stage, last_action_valid",
+    [
+        [
+            [(1, 1, -2, -2, -2, -2), (3, 4, -2, -2, -2, -2)],
+            [1, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            Stage.COMPOSITION,
+            True,
+        ],
+        [
+            [(2, 225, 3, -3, -3, -3)],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            Stage.COMPOSITION,
+            False,
+        ],
+        [
+            [(1, 1, -2, -2, -2, -2), (3, 4, -2, -2, -2, -2), (-1, -1, -2, -2, -2, -2)],
+            [1, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            Stage.SPACE_GROUP,
+            True,
+        ],
+        [
+            [
+                (1, 1, -2, -2, -2, -2),
+                (3, 4, -2, -2, -2, -2),
+                (-1, -1, -2, -2, -2, -2),
+                (2, 105, 0, -3, -3, -3),
+            ],
+            [1, 0, 4, 0, 4, 3, 105, 0, 0, 0, 0, 0, 0],
+            Stage.SPACE_GROUP,
+            True,
+        ],
+        [
+            [
+                (1, 1, -2, -2, -2, -2),
+                (3, 4, -2, -2, -2, -2),
+                (-1, -1, -2, -2, -2, -2),
+                (2, 105, 0, -3, -3, -3),
+                (2, 105, 0, -3, -3, -3),
+            ],
+            [1, 0, 4, 0, 4, 3, 105, 0, 0, 0, 0, 0, 0],
+            Stage.SPACE_GROUP,
+            False,
+        ],
+        [
+            [
+                (1, 1, -2, -2, -2, -2),
+                (3, 4, -2, -2, -2, -2),
+                (-1, -1, -2, -2, -2, -2),
+                (2, 105, 0, -3, -3, -3),
+                (-1, -1, -1, -3, -3, -3),
+            ],
+            [1, 0, 4, 0, 4, 3, 105, 0, 0, 0, 4, 4, 4],
+            Stage.LATTICE_PARAMETERS,
+            True,
+        ],
+        [
+            [
+                (1, 1, -2, -2, -2, -2),
+                (3, 4, -2, -2, -2, -2),
+                (-1, -1, -2, -2, -2, -2),
+                (2, 105, 0, -3, -3, -3),
+                (-1, -1, -1, -3, -3, -3),
+                (1, 0, 0, 0, 0, 0),
+            ],
+            [1, 0, 4, 0, 4, 3, 105, 0, 0, 0, 4, 4, 4],
+            Stage.LATTICE_PARAMETERS,
+            False,
+        ],
+        [
+            [
+                (1, 1, -2, -2, -2, -2),
+                (3, 4, -2, -2, -2, -2),
+                (-1, -1, -2, -2, -2, -2),
+                (2, 105, 0, -3, -3, -3),
+                (-1, -1, -1, -3, -3, -3),
+                (1, 1, 1, 0, 0, 0),
+            ],
+            [1, 0, 4, 0, 4, 3, 105, 1, 1, 1, 4, 4, 4],
+            Stage.LATTICE_PARAMETERS,
+            True,
+        ],
+        [
+            [
+                (1, 1, -2, -2, -2, -2),
+                (3, 4, -2, -2, -2, -2),
+                (-1, -1, -2, -2, -2, -2),
+                (2, 105, 0, -3, -3, -3),
+                (-1, -1, -1, -3, -3, -3),
+                (1, 1, 1, 0, 0, 0),
+                (0, 0, 0, 0, 0, 0),
+            ],
+            [1, 0, 4, 0, 4, 3, 105, 1, 1, 1, 4, 4, 4],
+            Stage.LATTICE_PARAMETERS,
+            False,
+        ],
+        [
+            [
+                (1, 1, -2, -2, -2, -2),
+                (3, 4, -2, -2, -2, -2),
+                (-1, -1, -2, -2, -2, -2),
+                (2, 105, 0, -3, -3, -3),
+                (-1, -1, -1, -3, -3, -3),
+                (1, 1, 1, 0, 0, 0),
+                (1, 1, 0, 0, 0, 0),
+                (0, 0, 0, 0, 0, 0),
+            ],
+            [1, 0, 4, 0, 4, 3, 105, 2, 2, 1, 4, 4, 4],
+            Stage.LATTICE_PARAMETERS,
+            True,
+        ],
+    ],
+)
+def test__step__action_sequence_has_expected_result(
+    env, actions, exp_result, exp_stage, last_action_valid
+):
+    for action in actions:
+        _, _, valid = env.step(action)
+
+    assert env.state == exp_result
+    assert env.stage == exp_stage
+    assert valid == last_action_valid
