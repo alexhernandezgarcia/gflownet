@@ -290,3 +290,7 @@ def test__can_produce_neutral_charge__returns_expected_result(state, exp_result)
     )
 
     assert environment._can_produce_neutral_charge(state) == exp_result
+
+
+def test__all_env_common(env):
+    return common.test__all_env_common(env)
