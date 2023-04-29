@@ -290,21 +290,23 @@ class Crystal(GFlowNetEnv):
 
         if self.stage == Stage.COMPOSITION:
             composition_action = self._depad_action(action, Stage.COMPOSITION)
-            _, state, valid = self.composition.step(composition_action)
-            if valid and state == self.composition.eos:
+            _, executed_action, valid = self.composition.step(composition_action)
+            if valid and executed_action == self.composition.eos:
                 self.stage = Stage.SPACE_GROUP
         elif self.stage == Stage.SPACE_GROUP:
             stage_group_action = self._depad_action(action, Stage.SPACE_GROUP)
-            _, state, valid = self.space_group.step(stage_group_action)
-            if valid and state == self.space_group.eos:
+            _, executed_action, valid = self.space_group.step(stage_group_action)
+            if valid and executed_action == self.space_group.eos:
                 self.stage = Stage.LATTICE_PARAMETERS
                 self._set_lattice_parameters()
         elif self.stage == Stage.LATTICE_PARAMETERS:
             lattice_parameters_action = self._depad_action(
                 action, Stage.LATTICE_PARAMETERS
             )
-            _, state, valid = self.lattice_parameters.step(lattice_parameters_action)
-            if valid and state == self.space_group.eos:
+            _, executed_action, valid = self.lattice_parameters.step(
+                lattice_parameters_action
+            )
+            if valid and executed_action == self.lattice_parameters.eos:
                 self.done = True
         else:
             raise ValueError(f"Unrecognized stage {self.stage}.")
