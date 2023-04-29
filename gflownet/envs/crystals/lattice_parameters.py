@@ -328,6 +328,12 @@ class LatticeParameters(Grid):
             if not self._is_intermediate_state_valid(child):
                 mask[idx] = True
 
+        # If there are no valid actions (which can happen if we set all of the dimensions
+        # to their maximum values, and one of the constraints is not satisfied), force eos
+        # to be valid to avoid getting stuck in an infinite loop during sampling.
+        if all(mask):
+            mask[-1] = False
+
         return mask
 
     def state2oracle(self, state: Optional[List[int]] = None) -> Tensor:
@@ -368,14 +374,12 @@ class LatticeParameters(Grid):
         ----
         oracle_states : Tensor
         """
-        return torch.stack(
+        return torch.cat(
             [
-                Tensor(
-                    [self.lengths_tensor[s] for s in state[:3]]
-                    + [self.angles_tensor[s] for s in state[3:]]
-                )
-                for state in states
-            ]
+                self.lengths_tensor[states[:, :3].long()],
+                self.angles_tensor[states[:, 3:].long()],
+            ],
+            dim=1,
         )
 
     def state2readable(self, state: Optional[List[int]] = None) -> str:
