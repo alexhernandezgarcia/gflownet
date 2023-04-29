@@ -91,10 +91,10 @@ class LatticeParameters(Grid):
 
         # we ensure that 90 and 120 degrees angle are present in the search space,
         # since for some systems they must be set to one of these values
-        angles = np.linspace(min_angle, max_angle, grid_size)
+        angles = np.linspace(min_angle, max_angle, grid_size + 1)
         angles[np.abs(angles - 90.0).argmin()] = 90.0
         angles[np.abs(angles - 120.0).argmin()] = 120.0
-        lengths = np.linspace(min_length, max_length, grid_size)
+        lengths = np.linspace(min_length, max_length, grid_size + 1)
 
         self.cell2angle = {k: v for k, v in enumerate(angles)}
         self.angle2cell = {v: k for k, v in self.cell2angle.items()}
