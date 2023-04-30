@@ -977,6 +977,8 @@ class ContinuousCube(Cube):
 
         - logprobs_source:
             - 0, that is p(~source) = 1 for forward transitions.
+            - 0, that is p(~source) = 1 for backward transitions when any dimension is
+              smaller than min_incr.
             - backward, the log p of the sampled event (source or not source)
 
         - logprobs_increments:
@@ -1001,8 +1003,13 @@ class ContinuousCube(Cube):
             ]
         else:
             # The action is non-deterministic if sampling EOS (last value of mask) is
-            # invalid (True).
-            idx_nofix = ns_range[mask_invalid_actions[:, -1]]
+            # invalid (True) and back-to-source (second to last) is not the only action
+            # (False).
+            idx_nofix = ns_range[
+                torch.logical_and(
+                    mask_invalid_actions[:, -1], ~mask_invalid_actions[:, -2]
+                )
+            ]
         # Log probs of EOS and source (backwards) actions
         logprobs_eos = torch.zeros(n_states, device=device, dtype=self.float)
         logprobs_source = torch.zeros(n_states, device=device, dtype=self.float)
