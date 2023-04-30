@@ -346,12 +346,18 @@ class Composition(GFlowNetEnv):
             if self.get_mask_invalid_actions_forward()[-1]:
                 valid = False
             else:
-                if self._can_produce_neutral_charge():
-                    self.done = True
-                    valid = True
-                    self.n_actions += 1
-                else:
-                    valid = False
+                # TODO: re-enable charge check
+                # Currently enabling it causes errors when training combined
+                # Crystal env, and very significantly increases training time.
+                # if self._can_produce_neutral_charge():
+                #     self.done = True
+                #     valid = True
+                #     self.n_actions += 1
+                # else:
+                #     valid = False
+                self.done = True
+                valid = True
+                self.n_actions += 1
             return self.state, self.eos, valid
 
     def _can_produce_neutral_charge(self, state: Optional[List[int]] = None) -> bool:
