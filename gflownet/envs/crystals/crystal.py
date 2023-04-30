@@ -51,15 +51,20 @@ class Crystal(GFlowNetEnv):
             lattice_system=TRICLINIC, **self.lattice_parameters_kwargs
         )
 
+        # 0-th element of state encodes current stage: 0 for composition,
+        # 1 for space group, 2 for lattice parameters
         self.source = (
-            self.composition.source
+            [0]
+            + self.composition.source
             + self.space_group.source
             + self.lattice_parameters.source
         )
 
         # start and end indices of individual substates
-        self.composition_state_start = 0
-        self.composition_state_end = len(self.composition.source)
+        self.composition_state_start = 1
+        self.composition_state_end = self.composition_state_start + len(
+            self.composition.source
+        )
         self.space_group_state_start = self.composition_state_end
         self.space_group_state_end = self.space_group_state_start + len(
             self.space_group.source
@@ -71,7 +76,9 @@ class Crystal(GFlowNetEnv):
 
         # start and end indices of individual submasks
         self.composition_mask_start = 0
-        self.composition_mask_end = len(self.composition.action_space)
+        self.composition_mask_end = self.composition_mask_start + len(
+            self.composition.action_space
+        )
         self.space_group_mask_start = self.composition_mask_end
         self.space_group_mask_end = self.space_group_mask_start + len(
             self.space_group.action_space
@@ -229,6 +236,9 @@ class Crystal(GFlowNetEnv):
     ) -> List[bool]:
         if state is None:
             state = self.state.copy()
+            stage = self.stage
+        else:
+            stage = Crystal._value2stage(state[0])
         if done is None:
             done = self.done
 
@@ -237,40 +247,53 @@ class Crystal(GFlowNetEnv):
 
         mask = [True for _ in range(self.action_space_dim)]
 
-        if self.stage == Stage.COMPOSITION:
+        if stage == Stage.COMPOSITION:
             composition_mask = self.composition.get_mask_invalid_actions_forward(
-                state=self._get_composition_state(state)
+                state=self._get_composition_state(state), done=False
             )
             mask[
                 self.composition_mask_start : self.composition_mask_end
             ] = composition_mask
-        elif self.stage == Stage.SPACE_GROUP:
+        elif stage == Stage.SPACE_GROUP:
+            space_group_state = self._get_space_group_state(state)
             space_group_mask = self.space_group.get_mask_invalid_actions_forward(
-                state=self._get_space_group_state(state)
+                state=space_group_state, done=False
             )
             mask[
                 self.space_group_mask_start : self.space_group_mask_end
             ] = space_group_mask
-        elif self.stage == Stage.LATTICE_PARAMETERS:
+        elif stage == Stage.LATTICE_PARAMETERS:
+            # TODO: to be stateless this needs to set lattice system based on state
+            lattice_parameters_state = self._get_lattice_parameters_state(state)
             lattice_parameters_mask = (
                 self.lattice_parameters.get_mask_invalid_actions_forward(
-                    state=self._get_lattice_parameters_state(state)
+                    state=lattice_parameters_state, done=False
                 )
             )
             mask[
                 self.lattice_parameters_mask_start : self.lattice_parameters_mask_end
             ] = lattice_parameters_mask
         else:
-            raise ValueError(f"Unrecognized stage {self.stage}.")
+            raise ValueError(f"Unrecognized stage {stage}.")
 
         return mask
+
+    @staticmethod
+    def _stage2value(stage: Stage) -> int:
+        # -2 => 0, -3 => 1, -4 => 2
+        return -(stage.value + 2)
+
+    @staticmethod
+    def _value2stage(value: int) -> Stage:
+        return Stage(-value - 2)
 
     def _update_state(self):
         """
         Updates current state based on the states of underlying environments.
         """
         self.state = (
-            self.composition.state
+            [Crystal._stage2value(self.stage)]
+            + self.composition.state
             + self.space_group.state
             + self.lattice_parameters.state
         )
@@ -323,45 +346,54 @@ class Crystal(GFlowNetEnv):
     ) -> Tuple[List, List]:
         if state is None:
             state = self.state.copy()
+            stage = self.stage
+        else:
+            stage = Crystal._value2stage(state[0])
         if done is None:
             done = self.done
         if done:
             return [state], [self.eos]
 
-        if self.stage == Stage.COMPOSITION or (
-            self.stage == Stage.SPACE_GROUP
+        if stage == Stage.COMPOSITION or (
+            stage == Stage.SPACE_GROUP
             and self.space_group.state == self.space_group.source
         ):
             parents, actions = self.composition.get_parents(
                 state=self._get_composition_state(state)
             )
             parents = [
-                p + self.space_group.state + self.lattice_parameters.state
+                [0] + p + self.space_group.source + self.lattice_parameters.source
                 for p in parents
             ]
             actions = [self._pad_action(a, Stage.COMPOSITION) for a in actions]
-        elif self.stage == Stage.SPACE_GROUP or (
-            self.stage == Stage.LATTICE_PARAMETERS
+        elif stage == Stage.SPACE_GROUP or (
+            stage == Stage.LATTICE_PARAMETERS
             and self.lattice_parameters.state == self.lattice_parameters.source
         ):
             parents, actions = self.space_group.get_parents(
                 state=self._get_space_group_state(state)
             )
             parents = [
-                self.composition.state + p + self.lattice_parameters.state
+                [1]
+                + self.composition.state
+                + p
+                + [0]
+                * 6  # hard-code LatticeParameters` source, since it can change with other lattice system
                 for p in parents
             ]
             actions = [self._pad_action(a, Stage.SPACE_GROUP) for a in actions]
-        elif self.stage == Stage.LATTICE_PARAMETERS:
+        elif stage == Stage.LATTICE_PARAMETERS:
+            # TODO: to be stateless this needs to set lattice system based on state
             parents, actions = self.lattice_parameters.get_parents(
                 state=self._get_lattice_parameters_state(state)
             )
             parents = [
-                self.composition.state + self.space_group.state + p for p in parents
+                [2] + self.composition.state + self.space_group.state + p
+                for p in parents
             ]
             actions = [self._pad_action(a, Stage.LATTICE_PARAMETERS) for a in actions]
         else:
-            raise ValueError(f"Unrecognized stage {self.stage}.")
+            raise ValueError(f"Unrecognized stage {stage}.")
 
         return parents, actions
 
@@ -435,6 +467,7 @@ class Crystal(GFlowNetEnv):
         )
 
         return (
+            f"Stage = {state[0]}, "
             f"Composition = {composition_readable}, "
             f"SpaceGroup = {space_group_readable}, "
             f"LatticeParameters = {lattice_parameters_readable}"
