@@ -1138,10 +1138,15 @@ class ContinuousCube(Cube):
         other than itself are zero. Therefore, the Jacobian is diagonal and the
         determinant is the product of the diagonal.
         """
+        epsilon = 1e-9
         if is_forward:
-            return torch.sum(torch.log(1.0 / (1 - states - self.min_incr)), dim=1)
+            return torch.sum(
+                torch.log(1.0 / ((1 - states - self.min_incr) + epsilon)), dim=1
+            )
         else:
-            return torch.sum(torch.log(-1.0 / (states - self.min_incr)), dim=1)
+            return torch.sum(
+                torch.log(-1.0 / ((states - self.min_incr) + epsilon)), dim=1
+            )
 
     def step(
         self, action: Tuple[int, float]
