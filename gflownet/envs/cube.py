@@ -763,8 +763,8 @@ class ContinuousCube(Cube):
         - 0:n_dim : whether keeping a dimension as is, that is sampling a decrement of
           0, can have zero probability. True if the value at the dimension is smaller
           than or equal to 1 - min_incr.
-        - n_dim : whether going to source is invalid. Always valid, hence always False,
-          except if done.
+        - n_dim : whether other actions except back-to-source are invalid. False if any
+          dimension is smaller than min_incr.
         - n_dim + 1 : whether sampling EOS is invalid. Only valid if done.
         """
         if state is None:
@@ -780,8 +780,13 @@ class ContinuousCube(Cube):
         # If state is source, all actions are invalid.
         if state == self.source:
             return [True for _ in range(mask_dim)]
+        # If any dimension is smaller than m, then back-to-source is the only valid
+        # action
+        if any([s < self.min_incr for s in state]):
+            mask = [True for _ in range(mask_dim)]
+            mask[-2] = False
+            return mask
         mask = [True for _ in range(mask_dim)]
-        mask[-2] = False
         # Dimensions whose value is greater than 1 - min_incr must have non-zero
         # probability of sampling a decrement of exactly zero.
         for dim, s in enumerate(state):
@@ -828,8 +833,8 @@ class ContinuousCube(Cube):
             min_incr = action[-1]
             for dim, incr_rel in enumerate(action[:-1]):
                 incr = min_incr + incr_rel * (state[dim] - min_incr)
-                assert (
-                    incr >= (min_incr - epsilon)
+                assert incr >= (
+                    min_incr - epsilon
                 ), f"""
                 Increment {incr} at dim {dim} smaller than minimum increment ({min_incr}).
                 \nState:\n{state}\nAction:\n{action}
@@ -1126,8 +1131,8 @@ class ContinuousCube(Cube):
             min_incr = action[-1]
             for dim, incr_rel in enumerate(action[:-1]):
                 incr = min_incr + incr_rel * (1.0 - self.state[dim] - min_incr)
-                assert (
-                    incr >= (min_incr - epsilon)
+                assert incr >= (
+                    min_incr - epsilon
                 ), f"""
                 Increment {incr} at dim {dim} smaller than minimum increment ({min_incr}).
                 \nState:\n{self.state}\nAction:\n{action}
