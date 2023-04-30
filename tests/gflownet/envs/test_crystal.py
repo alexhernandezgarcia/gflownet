@@ -20,8 +20,8 @@ def test__environment__initializes_properly(env):
 
 def test__environment__has_expected_initial_state(env):
     assert (
-        env.state == env.source == [0] * (4 + 3 + 6)
-    )  # n elements + space groups + lattice parameters
+        env.state == env.source == [0] * (1 + 4 + 3 + 6)
+    )  # stage + n elements + space groups + lattice parameters
 
 
 def test__environment__has_expected_action_space(env):
@@ -56,11 +56,11 @@ def test__pad_depad_action(env):
     "state, expected",
     [
         [
-            (1, 1, 1, 1, 1, 2, 3, 1, 2, 3, 4, 5, 6),
+            (2, 1, 1, 1, 1, 1, 2, 3, 1, 2, 3, 4, 5, 6),
             Tensor([1.0, 1.0, 1.0, 1.0, 3.0, 1.4, 1.8, 2.2, 78.0, 90.0, 102.0]),
         ],
         [
-            (4, 9, 0, 3, 0, 0, 105, 5, 3, 1, 0, 0, 9),
+            (2, 4, 9, 0, 3, 0, 0, 105, 5, 3, 1, 0, 0, 9),
             Tensor([4.0, 9.0, 0.0, 3.0, 105.0, 3.0, 2.2, 1.4, 30.0, 30.0, 138.0]),
         ],
     ],
@@ -73,11 +73,11 @@ def test__state2oracle__returns_expected_value(env, state, expected):
     "state, expected",
     [
         [
-            (1, 1, 1, 1, 1, 2, 3, 1, 2, 3, 4, 5, 6),
+            (2, 1, 1, 1, 1, 1, 2, 3, 1, 2, 3, 4, 5, 6),
             Tensor([1.0, 1.0, 1.0, 1.0, 3.0, 1.4, 1.8, 2.2, 78.0, 90.0, 102.0]),
         ],
         [
-            (4, 9, 0, 3, 0, 0, 105, 5, 3, 1, 0, 0, 9),
+            (2, 4, 9, 0, 3, 0, 0, 105, 5, 3, 1, 0, 0, 9),
             Tensor([4.0, 9.0, 0.0, 3.0, 105.0, 3.0, 2.2, 1.4, 30.0, 30.0, 138.0]),
         ],
     ],
@@ -91,8 +91,8 @@ def test__state2proxy__returns_expected_value(env, state, expected):
     [
         [
             [
-                (1, 1, 1, 1, 1, 2, 3, 1, 2, 3, 4, 5, 6),
-                (4, 9, 0, 3, 0, 0, 105, 5, 3, 1, 0, 0, 9),
+                (2, 1, 1, 1, 1, 1, 2, 3, 1, 2, 3, 4, 5, 6),
+                (2, 4, 9, 0, 3, 0, 0, 105, 5, 3, 1, 0, 0, 9),
             ],
             Tensor(
                 [
@@ -119,19 +119,19 @@ def test__step__single_action_works(env, action):
     [
         [
             [(1, 1, -2, -2, -2, -2), (3, 4, -2, -2, -2, -2)],
-            [1, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 1, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
             Stage.COMPOSITION,
             True,
         ],
         [
             [(2, 225, 3, -3, -3, -3)],
-            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
             Stage.COMPOSITION,
             False,
         ],
         [
             [(1, 1, -2, -2, -2, -2), (3, 4, -2, -2, -2, -2), (-1, -1, -2, -2, -2, -2)],
-            [1, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [1, 1, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
             Stage.SPACE_GROUP,
             True,
         ],
@@ -142,7 +142,7 @@ def test__step__single_action_works(env, action):
                 (-1, -1, -2, -2, -2, -2),
                 (2, 105, 0, -3, -3, -3),
             ],
-            [1, 0, 4, 0, 4, 3, 105, 0, 0, 0, 0, 0, 0],
+            [1, 1, 0, 4, 0, 4, 3, 105, 0, 0, 0, 0, 0, 0],
             Stage.SPACE_GROUP,
             True,
         ],
@@ -154,7 +154,7 @@ def test__step__single_action_works(env, action):
                 (2, 105, 0, -3, -3, -3),
                 (2, 105, 0, -3, -3, -3),
             ],
-            [1, 0, 4, 0, 4, 3, 105, 0, 0, 0, 0, 0, 0],
+            [1, 1, 0, 4, 0, 4, 3, 105, 0, 0, 0, 0, 0, 0],
             Stage.SPACE_GROUP,
             False,
         ],
@@ -166,7 +166,7 @@ def test__step__single_action_works(env, action):
                 (2, 105, 0, -3, -3, -3),
                 (-1, -1, -1, -3, -3, -3),
             ],
-            [1, 0, 4, 0, 4, 3, 105, 0, 0, 0, 5, 5, 5],
+            [2, 1, 0, 4, 0, 4, 3, 105, 0, 0, 0, 5, 5, 5],
             Stage.LATTICE_PARAMETERS,
             True,
         ],
@@ -179,7 +179,7 @@ def test__step__single_action_works(env, action):
                 (-1, -1, -1, -3, -3, -3),
                 (1, 0, 0, 0, 0, 0),
             ],
-            [1, 0, 4, 0, 4, 3, 105, 0, 0, 0, 5, 5, 5],
+            [2, 1, 0, 4, 0, 4, 3, 105, 0, 0, 0, 5, 5, 5],
             Stage.LATTICE_PARAMETERS,
             False,
         ],
@@ -192,7 +192,7 @@ def test__step__single_action_works(env, action):
                 (-1, -1, -1, -3, -3, -3),
                 (1, 1, 1, 0, 0, 0),
             ],
-            [1, 0, 4, 0, 4, 3, 105, 1, 1, 1, 5, 5, 5],
+            [2, 1, 0, 4, 0, 4, 3, 105, 1, 1, 1, 5, 5, 5],
             Stage.LATTICE_PARAMETERS,
             True,
         ],
@@ -206,7 +206,7 @@ def test__step__single_action_works(env, action):
                 (1, 1, 1, 0, 0, 0),
                 (0, 0, 0, 0, 0, 0),
             ],
-            [1, 0, 4, 0, 4, 3, 105, 1, 1, 1, 5, 5, 5],
+            [2, 1, 0, 4, 0, 4, 3, 105, 1, 1, 1, 5, 5, 5],
             Stage.LATTICE_PARAMETERS,
             False,
         ],
@@ -221,7 +221,7 @@ def test__step__single_action_works(env, action):
                 (1, 1, 0, 0, 0, 0),
                 (0, 0, 0, 0, 0, 0),
             ],
-            [1, 0, 4, 0, 4, 3, 105, 2, 2, 1, 5, 5, 5],
+            [2, 1, 0, 4, 0, 4, 3, 105, 2, 2, 1, 5, 5, 5],
             Stage.LATTICE_PARAMETERS,
             True,
         ],
