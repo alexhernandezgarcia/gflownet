@@ -29,7 +29,7 @@ class Composition(GFlowNetEnv):
         max_atom_i: int = 10,
         oxidation_states: Optional[Dict] = None,
         alphabet: Optional[Dict] = None,
-        required_elements: Optional[Union[Tuple, List]] = (3,),
+        required_elements: Optional[Union[Tuple, List]] = (),
         **kwargs,
     ):
         """
@@ -102,8 +102,10 @@ class Composition(GFlowNetEnv):
         )
         self.elem2idx = {e: i for i, e in enumerate(self.elements)}
         self.idx2elem = {i: e for i, e in enumerate(self.elements)}
-        # Source state: 0 atoms for all elements
+        # Source state: 0 atoms for all elements except the required ones
         self.source = [0 for _ in self.elements]
+        for e in required_elements:
+            self.source[self.elem2idx[e]] = 1
         # End-of-sequence action
         self.eos = (-1, -1)
         super().__init__(**kwargs)
