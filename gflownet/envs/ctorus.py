@@ -203,7 +203,8 @@ class ContinuousTorus(HybridTorus):
         policy_outputs: TensorType["n_states", "policy_output_dim"],
         is_forward: bool,
         actions: TensorType["n_states", "n_dim"],
-        states_target: TensorType["n_states", "policy_input_dim"],
+        states_from: TensorType["n_states", "policy_input_dim"],
+        states_to: TensorType["n_states", "policy_input_dim"],
         mask_invalid_actions: TensorType["n_states", "1"] = None,
         loginf: float = 1000,
     ) -> TensorType["batch_size"]:

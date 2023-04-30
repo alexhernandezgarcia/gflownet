@@ -210,7 +210,7 @@ class Cube(GFlowNetEnv, ABC):
         policy_outputs: TensorType["n_states", "policy_output_dim"],
         is_forward: bool,
         actions: TensorType["n_states", 2],
-        states_target: TensorType["n_states", "policy_input_dim"],
+        states_to: TensorType["n_states", "policy_input_dim"],
         mask_invalid_actions: TensorType["batch_size", "policy_output_dim"] = None,
         loginf: float = 1000,
     ) -> TensorType["batch_size"]:
@@ -543,7 +543,7 @@ class HybridCube(Cube):
         policy_outputs: TensorType["n_states", "policy_output_dim"],
         is_forward: bool,
         actions: TensorType["n_states", 2],
-        states_target: TensorType["n_states", "policy_input_dim"],
+        states_to: TensorType["n_states", "policy_input_dim"],
         mask_invalid_actions: TensorType["batch_size", "policy_output_dim"] = None,
         loginf: float = 1000,
     ) -> TensorType["batch_size"]:
@@ -948,7 +948,8 @@ class ContinuousCube(Cube):
         policy_outputs: TensorType["n_states", "policy_output_dim"],
         is_forward: bool,
         actions: TensorType["n_states", "n_dim"],
-        states_target: TensorType["n_states", "policy_input_dim"],
+        states_to: TensorType["n_states", "policy_input_dim"],
+        states_to: TensorType["n_states", "policy_input_dim"],
         mask_invalid_actions: TensorType["batch_size", "policy_output_dim"] = None,
         loginf: float = 1000,
     ) -> TensorType["batch_size"]:
@@ -1020,7 +1021,7 @@ class ContinuousCube(Cube):
             mask_sample = ~mask_eos
         else:
             source = torch.tensor(self.source, device=device)
-            mask_source = torch.all(states_target[idx_nofix] == source, axis=1)
+            mask_source = torch.all(states_to[idx_nofix] == source, axis=1)
             distr_source = Bernoulli(logits=policy_outputs[idx_nofix, -2])
             logprobs_source[idx_nofix] = distr_source.log_prob(
                 mask_source.to(self.float)
@@ -1073,6 +1074,11 @@ class ContinuousCube(Cube):
                 )
                 # TODO: make logprobs_increments = 0 if increment was zero and
                 # near-edge. Already done?
+        # Log determinant of the Jacobian
+        log_det_jacobian = torch.zeros(n_states, device=device, dtype=self.float)
+        log_det_jacobian[idx_sample] = self.get_log_det_jacobian(
+            states_from[idx_sample], is_forward
+        )
         # Combined probabilities
         sumlogprobs_increments = logprobs_increments.sum(axis=1)
         sumlogprobs_zeroincr = logprobs_zeroincr.sum(axis=1)
@@ -1081,6 +1087,7 @@ class ContinuousCube(Cube):
             + logprobs_source
             + sumlogprobs_increments
             + sumlogprobs_zeroincr
+            + log_det_jacobian
         )
         # Sanity checks
         if is_forward:
