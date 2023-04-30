@@ -406,15 +406,15 @@ class Crystal(GFlowNetEnv):
 
         composition_oracle_state = self.composition.state2oracle(
             state=self._get_composition_state(state)
+        ).to(self.device)
+        space_group_oracle_state = (
+            self.space_group.state2oracle(state=self._get_space_group_state(state))
+            .unsqueeze(-1)  # StateGroup oracle state is a single number
+            .to(self.device)
         )
-        space_group_oracle_state = self.space_group.state2oracle(
-            state=self._get_space_group_state(state)
-        ).unsqueeze(
-            -1
-        )  # StateGroup oracle state is a single number
         lattice_parameters_oracle_state = self.lattice_parameters.state2oracle(
             state=self._get_lattice_parameters_state(state)
-        )
+        ).to(self.device)
 
         return torch.cat(
             [
@@ -436,13 +436,13 @@ class Crystal(GFlowNetEnv):
     ) -> TensorType["batch", "state_oracle_dim"]:
         composition_oracle_states = self.composition.statetorch2oracle(
             self._get_composition_tensor_states(states)
-        )
+        ).to(self.device)
         space_group_oracle_states = self.space_group.statetorch2oracle(
             self._get_space_group_tensor_states(states)
-        )
+        ).to(self.device)
         lattice_parameters_oracle_states = self.lattice_parameters.statetorch2oracle(
             self._get_lattice_parameters_tensor_states(states)
-        )
+        ).to(self.device)
         return torch.cat(
             [
                 composition_oracle_states,
