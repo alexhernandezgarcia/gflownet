@@ -827,9 +827,7 @@ class ContinuousCube(Cube):
             epsilon = 1e-9
             min_incr = action[-1]
             for dim, incr_rel in enumerate(action[:-1]):
-                incr = (min_incr + incr_rel * (1.0 - state[dim] - min_incr)) / (
-                    1 - incr_rel
-                )
+                incr = min_incr + incr_rel * (state[dim] - min_incr)
                 assert (
                     incr >= (min_incr - epsilon)
                 ), f"""
