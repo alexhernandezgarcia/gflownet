@@ -1100,6 +1100,42 @@ class ContinuousCube(Cube):
         assert torch.all(logprobs[mask_fix] == 0.0)
         return logprobs
 
+    def get_log_det_jacobian(
+        self, states: TensorType["batch_size", "state_dim"], is_forward: bool
+    ):
+        """
+        Computes the logarithm of the determinant of the Jacobian of the sampled
+        actions with respect to the states.
+
+        Forward: the sampled variables are the relative increments r and the state
+        updates (s -> s') are:
+
+        s' = s + m + r(1 - s - m)
+        r = (s' - s - m) / (1 - s - m)
+
+        Therefore, the derivative of r wrt to s' is
+
+        dr/ds' = 1 / (1 - s - m)
+
+        Backward: the sampled variables are the relative decrements r and the state
+        updates (s' -> s) are:
+
+        s = s' - m - r(s' - m)
+        r = (s' - s - m) / (s' - m)
+
+        Therefore, the derivative of r wrt to s is
+
+        dr/ds = -1 / (s' - m)
+
+        The derivatives of the components of r with respect to dimensions of s or s'
+        other than itself are zero. Therefore, the Jacobian is diagonal and the
+        determinant is the product of the diagonal.
+        """
+        if is_forward:
+            return torch.sum(torch.log(1.0 / (1 - states - self.min_incr)), dim=1)
+        else:
+            return torch.sum(torch.log(-1.0 / (states - self.min_incr)), dim=1)
+
     def step(
         self, action: Tuple[int, float]
     ) -> Tuple[List[float], Tuple[int, float], bool]:

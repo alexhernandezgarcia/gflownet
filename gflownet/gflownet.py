@@ -657,6 +657,7 @@ class GFlowNetAgent:
         logprobs_f = self.env.get_logprobs(
             policy_output_f, True, actions, states, masks_f, loginf
         )
+        logprobs_f = logprobs_f + self.env.get_log_det_jacobian(parents, True)
         sumlogprobs_f = torch.zeros(
             len(torch.unique(traj_id, sorted=True)),
             dtype=self.float,
@@ -667,6 +668,7 @@ class GFlowNetAgent:
         logprobs_b = self.env.get_logprobs(
             policy_output_b, False, actions, parents, masks_b, loginf
         )
+        logprobs_b = logprobs_b + self.env.get_log_det_jacobian(states, False)
         sumlogprobs_b = torch.zeros(
             len(torch.unique(traj_id, sorted=True)),
             dtype=self.float,
