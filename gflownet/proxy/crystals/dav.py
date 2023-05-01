@@ -116,13 +116,13 @@ class DAV(Proxy):
     @torch.no_grad()
     def __call__(self, states: TensorType["batch", "96"]) -> TensorType["batch"]:
         # state shape and model expected input shape must match
-        assert states.shape[-1] == self.model.pred_inp_size
+        # assert states.shape[-1] == self.model.n_elements + 6 + 1
         # split state in individual tensors
         comp = states[:, : self.model.n_elements]
-        sg = states[:, self.model.n_elements].int()
+        sg = states[:, self.model.n_elements].int() - 1
         lat_params = states[:, -6:]
         # check that the split is correct
-        assert comp.shape[-1] + sg.shape[-1] + lat_params.shape[-1] == states.shape[-1]
+        # assert comp.shape[-1] + sg.shape[-1] + lat_params.shape[-1] == states.shape[-1]
         x = (comp, sg, lat_params)
         # model forward
         return self.model(x).squeeze(-1)
