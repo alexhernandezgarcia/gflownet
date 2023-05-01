@@ -1,4 +1,2 @@
 logdir:
   root: /Users/victor/Documents/Github/gflownet/datasets
-proxy: crysals/dav
-proxy.ckpt_path: /Users/victor/Documents/Github/ActiveLearningMaterials/checkpoints/980065c0/checkpoints-3ff648a2/epoch=12-step=11024-val_acc=0.23676522076129913.ckpt
