@@ -2,12 +2,20 @@
 
 defaults:
   - override /env: crystal
-  - override /gflownet: trajectorybalance
+  - override /gflownet: flowmatch
   - override /proxy: dav
   - override /logger: wandb
 
 # Environment
-env: {}
+env:
+  lattice_parameters_kwargs:
+    min_length: 1.0
+    max_length: 5.0
+    min_angle: 30.0
+    max_angle: 150.0
+    grid_size: 10
+  composition_kwargs:
+    elements: 89
 
 # GFlowNet hyperparameters
 gflownet:
