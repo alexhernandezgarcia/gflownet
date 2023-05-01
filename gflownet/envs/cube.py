@@ -1005,10 +1005,10 @@ class ContinuousCube(Cube):
         else:
             # The action is non-deterministic if sampling EOS (last value of mask) is
             # invalid (True) and back-to-source (second to last) is not the only action
-            # (False).
+            # (True).
             idx_nofix = ns_range[
                 torch.logical_and(
-                    mask_invalid_actions[:, -1], ~mask_invalid_actions[:, -2]
+                    mask_invalid_actions[:, -1], mask_invalid_actions[:, -2]
                 )
             ]
         # Log probs of EOS and source (backwards) actions
@@ -1090,19 +1090,22 @@ class ContinuousCube(Cube):
             + log_det_jacobian
         )
         # Sanity checks
+        if torch.any(torch.isnan(logprobs)):
+            import ipdb; ipdb.set_trace()
+        assert not torch.any(torch.isnan(logprobs))
         if is_forward:
             mask_fix = torch.all(mask_invalid_actions[:, : self.n_dim], axis=1)
             assert torch.all(logprobs_source == 0.0)
             assert torch.all(logprobs_zeroincr == 0.0)
             assert torch.all(sumlogprobs_increments[idx_nofix][mask_eos] == 0.0)
-            mask_fixdim = mask_invalid_actions[:, self.n_dim]
+            mask_fixdim = mask_invalid_actions[:, : self.n_dim]
             assert torch.all(logprobs_increments[mask_fixdim] == 0.0)
         else:
             mask_fix = ~mask_invalid_actions[:, -1]
             assert torch.all(logprobs_eos == 0.0)
             assert torch.all(sumlogprobs_increments[idx_nofix][mask_source] == 0.0)
             assert torch.all(sumlogprobs_zeroincr[idx_nofix][mask_source] == 0.0)
-            mask_nozeroincr = mask_invalid_actions[:, self.n_dim]
+            mask_nozeroincr = mask_invalid_actions[:, : self.n_dim]
             assert torch.all(logprobs_zeroincr[mask_nozeroincr] == 0.0)
         assert torch.all(logprobs[mask_fix] == 0.0)
         return logprobs
@@ -1134,6 +1137,9 @@ class ContinuousCube(Cube):
 
         dr/ds = -1 / (s' - m)
 
+        We change the sign of the derivative (Jacobian) because r is strictly
+        decreasing in the domain of s.
+
         The derivatives of the components of r with respect to dimensions of s or s'
         other than itself are zero. Therefore, the Jacobian is diagonal and the
         determinant is the product of the diagonal.
@@ -1145,7 +1151,7 @@ class ContinuousCube(Cube):
             )
         else:
             return torch.sum(
-                torch.log(-1.0 / ((states - self.min_incr) + epsilon)), dim=1
+                torch.log(1.0 / ((states - self.min_incr) + epsilon)), dim=1
             )
 
     def step(
