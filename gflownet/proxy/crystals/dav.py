@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 
 import torch
@@ -28,8 +29,54 @@ def checkout_tag(tag):
     repo.git.checkout(repo.tags[tag].path)
 
 
+def resolve(path: str) -> Path:
+    return Path(os.path.expandvars(str(path))).expanduser().resolve()
+
+
+def find_ckpt(ckpt_path: dict) -> Path:
+    loc = os.environ.get("SLURM_CLUSTER_NAME", os.environ["USER"])
+    if loc not in ckpt_path:
+        raise ValueError(f"DAV proxy checkpoint path not found for location {loc}.")
+    path = resolve(ckpt_path[loc])
+    if not path.exists():
+        raise ValueError(f"DAV proxy checkpoint not found at {str(path)}.")
+    if path.is_file():
+        return path
+    ckpts = list(path.glob("*.ckpt"))
+    if len(ckpts) == 0:
+        raise ValueError(f"No DAV proxy checkpoint found at {str(path)}.")
+    if len(ckpts) > 1:
+        raise ValueError(
+            f"Multiple DAV proxy checkpoints found at {str(path)}. "
+            "Please specify the checkpoint explicitly."
+        )
+    return ckpts[0]
+
+
 class DAV(Proxy):
     def __init__(self, ckpt_path=None, release=None, **kwargs):
+        """
+        Wrapper class around the Divya-Alexandre-Victor proxy.
+
+        * git clone the repo
+        * checkout the appropriate tag/release as per ``release``
+        * import the proxy build function ``make_model`` by updating ``sys.path``
+        * load the checkpoint from ``ckpt_path`` and build the proxy model
+
+        The checkpoint path is resolved as follows:
+        * if ``ckpt_path`` is a dict, it is assumed to be a mapping from cluster
+            or $USER to path (e.g. {mila: /path/ckpt.ckpt, victor: /path/ckpt.ckpt})
+        * on the cluster, the path to the ckpt is public so everyone resolves to
+            "mila". For local dev you need to specify a path in dav.yaml that maps
+            to your local $USER.
+        * if the resulting path is a dir, it must contain exactly one .ckpt file
+        * if the resulting path is a file, it must be a .ckpt file
+
+        Args:
+            ckpt_path (dict, optional): Mapping from cluster / ``$USER`` to checkpoint.
+                Defaults to None.
+            release (str, optional): Tag to checkout in the DAV repo. Defaults to None.
+        """
         super().__init__(**kwargs)
         if not REPO_PATH.exists():
             # creatre $root/external/repos
@@ -46,7 +93,7 @@ class DAV(Proxy):
         from proxies.models import make_model
 
         # load the checkpoint
-        ckpt_path = Path(ckpt_path).resolve()
+        ckpt_path = find_ckpt(ckpt_path)
         assert ckpt_path.exists(), f"Checkpoint {str(ckpt_path)} not found."
         ckpt = torch.load(str(ckpt_path), map_location="cpu")
         # extract config
