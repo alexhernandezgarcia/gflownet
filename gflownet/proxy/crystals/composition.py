@@ -45,7 +45,7 @@ class CompositionMPFrequency(Proxy):
                     max_protons_state[-1 - idx] += 1
         return max_protons_state
 
-    def _get_max_protons_number(self, env):
+    def get_max_n_protons(self, env):
         max_protons_state = self._get_max_protons_state(env)
         max_protons_number = 0
         for idx, count in enumerate(max_protons_state):
@@ -53,7 +53,7 @@ class CompositionMPFrequency(Proxy):
         return max_protons_number
 
     def setup(self, env):
-        mpn = self._get_max_protons_number(env)
+        mpn = self.get_max_n_protons(env)
         # index in self.counts corresponds to the number of protons in the composition
         # (nth position is n protons)
         self.counts = torch.zeros(mpn + 1, device=self.device, dtype=torch.int16)

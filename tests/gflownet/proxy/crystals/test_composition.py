@@ -62,7 +62,7 @@ def test_max_protons_number(
     max_protons_state = proxy_no_norm._get_max_protons_state(env)
     assert max_protons_state == expected_state
     expected_n_protons = np.sum(np.array(sorted(elements)) * np.array(expected_state))
-    max_protons_number = proxy_no_norm._get_max_protons_number(env)
+    max_protons_number = proxy_no_norm.get_max_n_protons(env)
     assert max_protons_number == expected_n_protons
 
 
