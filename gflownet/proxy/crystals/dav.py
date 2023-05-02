@@ -38,7 +38,9 @@ def resolve(path: str) -> Path:
 
 
 def find_ckpt(ckpt_path: dict) -> Path:
-    loc = os.environ.get("SLURM_CLUSTER_NAME", os.environ.get("SLURM_JOB_ID", os.environ["USER"]))
+    loc = os.environ.get(
+        "SLURM_CLUSTER_NAME", os.environ.get("SLURM_JOB_ID", os.environ["USER"])
+    )
     if all(s.isdigit() for s in loc):
         loc = "mila"
     if loc not in ckpt_path:
