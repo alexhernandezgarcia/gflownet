@@ -406,7 +406,8 @@ class HybridTorus(GFlowNetEnv):
         policy_outputs: TensorType["n_states", "policy_output_dim"],
         is_forward: bool,
         actions: TensorType["n_states", 2],
-        states_target: TensorType["n_states", "policy_input_dim"],
+        states_from: TensorType["n_states", "policy_input_dim"],
+        states_to: TensorType["n_states", "policy_input_dim"],
         mask_invalid_actions: TensorType["batch_size", "policy_output_dim"] = None,
         loginf: float = 1000,
     ) -> TensorType["batch_size"]:
@@ -439,11 +440,11 @@ class HybridTorus(GFlowNetEnv):
         source = torch.tensor(self.source_angles, device=device)
         source_aux = torch.tensor(self.source_angles + [-1], device=device)
         nsource_ne_nsteps = torch.ne(
-            torch.sum(torch.ne(states_target[:, :-1], source), axis=1),
-            states_target[:, -1],
+            torch.sum(torch.ne(states_to[:, :-1], source), axis=1),
+            states_to[:, -1],
         )
         angledim_ne_source = torch.ne(
-            states_target[ns_range, dimensions], source_aux[dimensions]
+            states_to[ns_range, dimensions], source_aux[dimensions]
         )
         noeos = torch.ne(dimensions, self.eos[0])
         nofix_indices = torch.logical_and(

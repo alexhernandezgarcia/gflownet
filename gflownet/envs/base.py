@@ -256,7 +256,8 @@ class GFlowNetEnv:
         policy_outputs: TensorType["n_states", "policy_output_dim"],
         is_forward: bool,
         actions: TensorType["n_states", "actions_dim"],
-        states_target: TensorType["n_states", "policy_input_dim"],
+        states_from: TensorType["n_states", "policy_input_dim"],
+        states_to: TensorType["n_states", "policy_input_dim"],
         mask_invalid_actions: TensorType["batch_size", "policy_output_dim"] = None,
         loginf: float = 1000,
     ) -> TensorType["batch_size"]:
@@ -279,6 +280,17 @@ class GFlowNetEnv:
         )
         logprobs = self.logsoftmax(logits)[ns_range, action_indices]
         return logprobs
+
+    def get_jacobian_diag(
+        self, states: TensorType["batch_size", "state_dim"], is_forward: bool
+    ):
+        """
+        Computes the logarithm of the determinant of the Jacobian of the sampled
+        actions with respect to the states. In general, the determinant is equal to 1.
+        Environments where this is not the case must implement the computation of the
+        Jacobian for forward and backward transitions.
+        """
+        return torch.ones(states.shape, device=states.device, dtype=self.float)
 
     def get_policy_output(self, params: Optional[dict] = None):
         """

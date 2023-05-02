@@ -184,7 +184,8 @@ def test__sample_actions__get_logprobs__return_valid_actions_and_logprobs(env):
             policy_outputs=policy_outputs,
             is_forward=True,
             actions=actions_torch,
-            states_target=None,
+            states_from=None,
+            states_to=None,
             mask_invalid_actions=masks_invalid_torch,
         )
         action = actions[0]
