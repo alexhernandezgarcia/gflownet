@@ -638,7 +638,9 @@ class GFlowNetAgent:
         )
         # Shift state_id to [1, 2, ...]
         for tid in traj_id.unique():
-            state_id[traj_id == tid] -= state_id[traj_id == tid].min() + 1
+            state_id[traj_id == tid] = (
+                    state_id[traj_id == tid] - state_id[traj_id == tid].min() + 1
+            )
         # Compute rewards
         rewards = self.env.reward_torchbatch(states, done)
         # Build parents forward masks from state masks
