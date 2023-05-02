@@ -1,6 +1,7 @@
 _target_: gflownet.proxy.crystals.dav.DAV
 
-release: v1-dev-embeddings
+release: v1.1-dev-embedding
 ckpt_path:
-  mila: /network/scratch/s/schmidtv/Public/crystals/proxy-ckpts/v1-dev-embeddings
+  mila: /network/scratch/s/schmidtv/Public/crystals/proxy-ckpts/v1-dev-embedding
   victor: ~/Documents/Github/ActiveLearningMaterials/checkpoints/980065c0/checkpoints-3ff648a2
+rescale_outptuts: true
