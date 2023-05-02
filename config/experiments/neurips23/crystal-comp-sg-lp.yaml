@@ -16,6 +16,7 @@ env:
     grid_size: 10
   composition_kwargs:
     elements: 89
+  reward_func: identity
 
 # GFlowNet hyperparameters
 gflownet:
