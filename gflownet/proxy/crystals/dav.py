@@ -62,7 +62,7 @@ def find_ckpt(ckpt_path: dict) -> Path:
 
 
 class DAV(Proxy):
-    def __init__(self, ckpt_path=None, release=None, **kwargs):
+    def __init__(self, ckpt_path=None, release=None, rescale_outptuts=True, **kwargs):
         """
         Wrapper class around the Divya-Alexandre-Victor proxy.
 
@@ -84,8 +84,15 @@ class DAV(Proxy):
             ckpt_path (dict, optional): Mapping from cluster / ``$USER`` to checkpoint.
                 Defaults to None.
             release (str, optional): Tag to checkout in the DAV repo. Defaults to None.
+            rescale_outptuts (bool, optional): Whether to rescale the proxy outputs
+                using its training mean and std. Defaults to True.
         """
         super().__init__(**kwargs)
+        self.rescale_outptuts = rescale_outptuts
+        self.scaled = False
+
+        print("Initializing DAV proxy:")
+        print("  Fetching proxy Github code...")
         if not REPO_PATH.exists():
             # creatre $root/external/repos
             REPO_PATH.parent.mkdir(exist_ok=True, parents=True)
@@ -100,15 +107,22 @@ class DAV(Proxy):
         sys.path.append(str(REPO_PATH))
         from proxies.models import make_model
 
+        print("  Making model...")
         # load the checkpoint
         ckpt_path = find_ckpt(ckpt_path)
         assert ckpt_path.exists(), f"Checkpoint {str(ckpt_path)} not found."
         ckpt = torch.load(str(ckpt_path), map_location="cpu")
         # extract config
         self.model_config = ckpt["hyper_parameters"]
+        self.scales = self.model_config.get("scales")
+        if self.rescale_outptuts:
+            assert self.scales is not None
+            assert all(t in self.scales for t in ["x", "y"])
+            assert all(u in self.scales[t] for t in ["x", "y"] for u in ["mean", "std"])
         # make model from ckpt config
         self.model = make_model(self.model_config)
         # load state dict and remove potential leading `model.` in the keys
+        print("  Loading proxy checkpoint...")
         self.model.load_state_dict(
             {
                 k[6:] if k.startswith("model.") else k: v
@@ -120,17 +134,49 @@ class DAV(Proxy):
         assert hasattr(self.model, "n_elements")
         self.model.eval()
         self.model.to(self.device)
+        print("Proxy ready.")
+
+    def _set_scales(self):
+        if self.scaled:
+            return
+        if self.rescale_outptuts:
+            if self.model_config["scales"]["x"]["mean"].device != self.device:
+                self.scales["x"]["mean"] = self.scales["x"]["mean"].to(self.device)
+                self.scales["x"]["std"] = self.scales["x"]["std"].to(self.device)
+                self.scales["y"]["mean"] = self.scales["y"]["mean"].to(self.device)
+                self.scales["y"]["std"] = self.scales["y"]["std"].to(self.device)
+            if self.scales["x"]["mean"].ndim == 1:
+                self.scales["x"]["mean"] = self.scales["x"]["mean"][None, :].float()
+                self.scales["x"]["std"] = self.scales["x"]["std"][None, :].float()
+                self.scales["y"]["mean"] = self.scales["y"]["mean"][None].float()
+                self.scales["y"]["std"] = self.scales["y"]["std"][None].float()
+        self.scaled = True
 
     @torch.no_grad()
     def __call__(self, states: TensorType["batch", "96"]) -> TensorType["batch"]:
-        # state shape and model expected input shape must match
-        # assert states.shape[-1] == self.model.n_elements + 6 + 1
-        # split state in individual tensors
-        comp = states[:, : self.model.n_elements]
-        sg = states[:, self.model.n_elements].int() - 1
+        self._set_scales()
+
+        comp = states[:, :-7]
+        sg = states[:, -7] - 1
         lat_params = states[:, -6:]
-        # check that the split is correct
-        # assert comp.shape[-1] + sg.shape[-1] + lat_params.shape[-1] == states.shape[-1]
-        x = (comp, sg, lat_params)
+
+        n_env = comp.shape[-1]
+        if n_env != self.model.n_elements:
+            missing = torch.zeros(
+                (len(comp), self.model.n_elements - n_env), device=comp.device
+            )
+            comp = torch.cat([comp, missing], dim=-1)
+
+        if self.rescale_outptuts:
+            lat_params = (lat_params - self.scales["x"]["mean"]) / self.scales["x"][
+                "std"
+            ]
+
         # model forward
-        return self.model(x).squeeze(-1)
+        x = (comp.long(), sg.long(), lat_params.float())
+        y = self.model(x).squeeze(-1)
+
+        if self.rescale_outptuts:
+            y = y * self.scales["y"]["std"] + self.scales["y"]["mean"]
+
+        return y
