@@ -23,9 +23,13 @@ def checkout_tag(tag):
         tag (str): Tag/release to checkout
     """
     repo = git.Repo(str(REPO_PATH))
-    assert (
-        tag in repo.tags
-    ), f"Tag {tag} not found in repo {str(REPO_PATH)}. Verify the `release` config."
+    for remote in repo.remotes:
+        remote.fetch()
+    if tag not in repo.tags:
+        raise ValueError(
+            f"Tag {tag} not found in repo {str(REPO_PATH)}. Available tags: {repo.tags}"
+            + "\nVerify the `release` config."
+        )
     repo.git.checkout(repo.tags[tag].path)
 
 
