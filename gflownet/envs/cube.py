@@ -744,6 +744,9 @@ class ContinuousCube(Cube):
         if done:
             return [True for _ in range(mask_dim)]
         mask = [False for _ in range(mask_dim)]
+        # If state is source, EOS is invalid
+        if state == self.source:
+            mask[-1] = True
         # If state is not source, sampling from source is invalid.
         if state != self.source:
             mask[-2] = True
@@ -868,21 +871,25 @@ class ContinuousCube(Cube):
         device = policy_outputs.device
         n_states = policy_outputs.shape[0]
         ns_range = torch.arange(n_states).to(device)
+        mask_nofix = torch.any(~mask_invalid_actions[:, : self.n_dim], axis=1)
+        idx_nofix = ns_range[mask_nofix]
         # EOS
-        idx_nofix = ns_range[torch.any(~mask_invalid_actions[:, : self.n_dim], axis=1)]
-        distr_eos = Bernoulli(logits=policy_outputs[idx_nofix, -1])
+        mask_can_eos = torch.logical_and(mask_nofix, ~mask_invalid_actions[:, -1])
+        idx_can_eos = ns_range[mask_can_eos]
+        distr_eos = Bernoulli(logits=policy_outputs[idx_can_eos, -1])
         mask_sampled_eos = distr_eos.sample().to(torch.bool)
+        idx_sampled_eos = idx_can_eos[mask_sampled_eos]
         logprobs_eos = torch.zeros(n_states, device=device, dtype=self.float)
-        logprobs_eos[idx_nofix] = distr_eos.log_prob(mask_sampled_eos.to(self.float))
         # Sample increments
-        idx_sample = idx_nofix[~mask_sampled_eos]
-        mask_idx_sample = torch.zeros(n_states, device=device, dtype=torch.bool)
-        mask_idx_sample[idx_sample] = True
+        mask_sample = torch.zeros(n_states, device=device, dtype=torch.bool)
+        mask_sample[idx_nofix] = True
+        mask_sample[idx_sampled_eos] = False
+        idx_sample = ns_range[mask_sample]
         mask_source_sample = torch.logical_and(
-            ~mask_invalid_actions[:, self.n_dim], mask_idx_sample
+            ~mask_invalid_actions[:, self.n_dim], mask_sample
         )
         mask_generic_sample = torch.logical_and(
-            mask_invalid_actions[:, self.n_dim], mask_idx_sample
+            mask_invalid_actions[:, self.n_dim], mask_sample
         )
         idx_source = ns_range[mask_source_sample]
         idx_generic = ns_range[mask_generic_sample]
@@ -930,11 +937,11 @@ class ContinuousCube(Cube):
         min_increments[idx_source] = 0.0
         # Make increments of near-edge dims 0
         mask_nearedge_dims = mask_invalid_actions[:, : self.n_dim]
-        mask_idx_sample = torch.zeros(
+        mask_sample = torch.zeros(
             mask_nearedge_dims.shape, device=device, dtype=torch.bool
         )
-        mask_idx_sample[idx_sample, :] = True
-        mask_nearedge_dims = torch.logical_and(mask_nearedge_dims, mask_idx_sample)
+        mask_sample[idx_sample, :] = True
+        mask_nearedge_dims = torch.logical_and(mask_nearedge_dims, mask_sample)
         increments[mask_nearedge_dims] = 0.0
         # Build actions
         actions = [
@@ -999,18 +1006,16 @@ class ContinuousCube(Cube):
         if is_forward:
             # EOS is the only valid action if all dimensions are invalid. That is, the
             # action is non-deterministic if any dimension is valid (i.e. mask = False).
-            idx_nofix = ns_range[
-                torch.any(~mask_invalid_actions[:, : self.n_dim], axis=1)
-            ]
+            mask_nofix = torch.any(~mask_invalid_actions[:, : self.n_dim], axis=1)
+            idx_nofix = ns_range[mask_nofix]
         else:
             # The action is non-deterministic if sampling EOS (last value of mask) is
             # invalid (True) and back-to-source (second to last) is not the only action
             # (True).
-            idx_nofix = ns_range[
-                torch.logical_and(
-                    mask_invalid_actions[:, -1], mask_invalid_actions[:, -2]
-                )
-            ]
+            mask_nofix = torch.logical_and(
+                mask_invalid_actions[:, -1], mask_invalid_actions[:, -2]
+            )
+            idx_nofix = ns_range[mask_nofix]
         # Log probs of EOS and source (backwards) actions
         logprobs_eos = torch.zeros(n_states, device=device, dtype=self.float)
         logprobs_source = torch.zeros(n_states, device=device, dtype=self.float)
@@ -1090,8 +1095,6 @@ class ContinuousCube(Cube):
             + log_det_jacobian
         )
         # Sanity checks
-        if torch.any(torch.isnan(logprobs)):
-            import ipdb; ipdb.set_trace()
         assert not torch.any(torch.isnan(logprobs))
         if is_forward:
             mask_fix = torch.all(mask_invalid_actions[:, : self.n_dim], axis=1)
