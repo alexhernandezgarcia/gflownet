@@ -3,20 +3,23 @@ Reads a dictionary with crystal classes and their point groups, and a dictionary
 the point group of each space group, and outputs a dictionary containing both the point
 groups and space groups of each crystal class.
 """
-import numpy as np
 import sys
-import yaml
-from pymatgen.symmetry.groups import PointGroup, SpaceGroup, SymmetryGroup
-from pymatgen.symmetry.groups import sg_symbol_from_int_number
-
 from argparse import ArgumentParser
 
+import numpy as np
+import yaml
 from lattice_constants import (
     CRYSTAL_CLASSES_WIKIPEDIA,
     CRYSTAL_LATTICE_SYSTEMS,
     CRYSTAL_SYSTEMS,
     POINT_SYMMETRIES,
     RHOMBOHEDRAL_SPACE_GROUPS_WIKIPEDIA,
+)
+from pymatgen.symmetry.groups import (
+    PointGroup,
+    SpaceGroup,
+    SymmetryGroup,
+    sg_symbol_from_int_number,
 )
 
 N_SPACE_GROUPS = 230

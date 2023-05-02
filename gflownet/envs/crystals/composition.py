@@ -6,9 +6,10 @@ from typing import Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import torch
+from torch import Tensor
+
 from gflownet.envs.base import GFlowNetEnv
 from gflownet.utils.crystals.constants import ELEMENT_NAMES, OXIDATION_STATES
-from torch import Tensor
 
 
 class Composition(GFlowNetEnv):
@@ -368,13 +369,12 @@ class Composition(GFlowNetEnv):
 
         return any(poss_charge_sum)
 
-    def get_diff_elem_number(self, state=None):
+    def get_n_elements(self, state=None):
         if state is None:
             state = self.state
         return (np.array(state) != 0).sum()
 
-    def get_atoms_number(self, state=None):
+    def get_n_atoms(self, state=None):
         if state is None:
             state = self.state
         return sum(state)
-
