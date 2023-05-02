@@ -281,16 +281,16 @@ class GFlowNetEnv:
         logprobs = self.logsoftmax(logits)[ns_range, action_indices]
         return logprobs
 
-    def get_log_det_jacobian(
+    def get_jacobian_diag(
         self, states: TensorType["batch_size", "state_dim"], is_forward: bool
     ):
         """
         Computes the logarithm of the determinant of the Jacobian of the sampled
-        actions with respect to the states. In general, the determinant is equal to 1,
-        hence the logarithm is 0. Environments where this is not the case must
-        implement the computation of the Jacobian for forward and backward transitions.
+        actions with respect to the states. In general, the determinant is equal to 1.
+        Environments where this is not the case must implement the computation of the
+        Jacobian for forward and backward transitions.
         """
-        return torch.zeros(states.shape[0], device=states.device, dtype=self.float)
+        return torch.ones(states.shape, device=states.device, dtype=self.float)
 
     def get_policy_output(self, params: Optional[dict] = None):
         """

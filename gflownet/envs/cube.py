@@ -1080,10 +1080,14 @@ class ContinuousCube(Cube):
                 # TODO: make logprobs_increments = 0 if increment was zero and
                 # near-edge. Already done?
         # Log determinant of the Jacobian
-        log_det_jacobian = torch.zeros(n_states, device=device, dtype=self.float)
-        log_det_jacobian[idx_sample] = self.get_log_det_jacobian(
+        jacobian_diag = torch.ones(
+            (n_states, self.n_dim), device=device, dtype=self.float
+        )
+        jacobian_diag[idx_sample] = self.get_jacobian_diag(
             states_from[idx_sample], is_forward
         )
+        jacobian_diag[mask_nearedge_dims] = 1.0
+        log_det_jacobian = torch.sum(torch.log(jacobian_diag), dim=1)
         # Combined probabilities
         sumlogprobs_increments = logprobs_increments.sum(axis=1)
         sumlogprobs_zeroincr = logprobs_zeroincr.sum(axis=1)
@@ -1113,7 +1117,7 @@ class ContinuousCube(Cube):
         assert torch.all(logprobs[mask_fix] == 0.0)
         return logprobs
 
-    def get_log_det_jacobian(
+    def get_jacobian_diag(
         self, states: TensorType["batch_size", "state_dim"], is_forward: bool
     ):
         """
@@ -1149,13 +1153,9 @@ class ContinuousCube(Cube):
         """
         epsilon = 1e-9
         if is_forward:
-            return torch.sum(
-                torch.log(1.0 / ((1 - states - self.min_incr) + epsilon)), dim=1
-            )
+            return 1.0 / ((1 - states - self.min_incr) + epsilon)
         else:
-            return torch.sum(
-                torch.log(1.0 / ((states - self.min_incr) + epsilon)), dim=1
-            )
+            return 1.0 / ((states - self.min_incr) + epsilon)
 
     def step(
         self, action: Tuple[int, float]
