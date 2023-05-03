@@ -832,29 +832,24 @@ class ContinuousCube(Cube):
         if all([s == ss for s, ss in zip(state, self.source)]):
             return [], []
         else:
-            epsilon = 1e-9
             min_incr = action[-1]
             for dim, incr_rel in enumerate(action[:-1]):
-                incr = min_incr + incr_rel * (state[dim] - min_incr)
-                assert incr >= (
-                    min_incr - epsilon
-                ), f"""
-                Increment {incr} at dim {dim} smaller than minimum increment ({min_incr}).
-                \nState:\n{state}\nAction:\n{action}
-                """
-                state[dim] -= incr
-                assert all(
-                    [s <= (self.max_val + epsilon) for s in state]
-                ), f"""
-                State is out of cube bounds.
-                \nState:\n{state}\nAction:\n{action}\nIncrement: {incr}
-                """
-                assert all(
-                    [s >= (0.0 - epsilon) for s in state]
-                ), f"""
-                State is out of cube bounds.
-                \nState:\n{state}\nAction:\n{action}\nIncrement: {incr}
-                """
+                state[dim] = (state[dim] - min_incr - incr_rel * (1.0 - min_incr)) / (
+                    1.0 - incr_rel
+                )
+            epsilon = 1e-9
+            assert all(
+                [s <= (self.max_val + epsilon) for s in state]
+            ), f"""
+            State is out of cube bounds.
+            \nState:\n{state}\nAction:\n{action}\nIncrement: {incr}
+            """
+            assert all(
+                [s >= (0.0 - epsilon) for s in state]
+            ), f"""
+            State is out of cube bounds.
+            \nState:\n{state}\nAction:\n{action}\nIncrement: {incr}
+            """
             return [state], [action]
 
     def sample_actions(
@@ -1124,7 +1119,7 @@ class ContinuousCube(Cube):
         Computes the logarithm of the determinant of the Jacobian of the sampled
         actions with respect to the states.
 
-        Forward: the sampled variables are the relative increments r and the state
+        The sampled variables are the relative increments r and the state
         updates (s -> s') are:
 
         s' = s + m + r(1 - s - m)
@@ -1134,19 +1129,6 @@ class ContinuousCube(Cube):
 
         dr/ds' = 1 / (1 - s - m)
 
-        Backward: the sampled variables are the relative decrements r and the state
-        updates (s' -> s) are:
-
-        s = s' - m - r(s' - m)
-        r = (s' - s - m) / (s' - m)
-
-        Therefore, the derivative of r wrt to s is
-
-        dr/ds = -1 / (s' - m)
-
-        We change the sign of the derivative (Jacobian) because r is strictly
-        decreasing in the domain of s.
-
         The derivatives of the components of r with respect to dimensions of s or s'
         other than itself are zero. Therefore, the Jacobian is diagonal and the
         determinant is the product of the diagonal.
@@ -1155,7 +1137,7 @@ class ContinuousCube(Cube):
         if is_forward:
             return 1.0 / ((1 - states - self.min_incr) + epsilon)
         else:
-            return 1.0 / ((states - self.min_incr) + epsilon)
+            return 1.0 / ((1 - states - self.min_incr) + epsilon)
 
     def step(
         self, action: Tuple[int, float]
