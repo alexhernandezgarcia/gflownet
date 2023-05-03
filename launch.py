@@ -24,12 +24,12 @@ HELP = dedent(
     $ python launch.py --runs=runs/comp-sg-lp/v0" --mem=32G
         where the file ./runs/comp-sg-lp/v0.yaml contains:
         ```
-        shared_job:
+        shared:
+          job:
             gres: gpu:1
             mem: 16G
             cpus_per_task: 2
-
-        shared_main_args: "user=$USER +experiments=neurips23/crystal-comp-sg-lp.yaml"
+          main_args: "user=$USER +experiments=neurips23/crystal-comp-sg-lp.yaml"
 
         runs:
         - main_args: "gflownet.policy.backward=null gflownet=flowmatch"
@@ -50,25 +50,70 @@ HELP = dedent(
 
 
 def resolve(path):
+    """
+    Resolves a path with environment variables and user expansion.
+    All paths will end up as absolute paths.
+
+    Args:
+        path (str | Path): The path to resolve
+
+    Returns:
+        Path: resolved path
+    """
     if path is None:
         return None
     return Path(expandvars(str(path))).expanduser().resolve()
 
 
 def now_str():
+    """
+    Returns a string with the current date and time.
+    Eg: "20210923_123456"
+
+    Returns:
+        str: current date and time
+    """
     return datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
 
 
 def load_runs(yaml_path):
+    """
+    Loads a yaml file with run configurations and turns it into a list of runs.
+
+    Example yaml file:
+
+    ```
+    shared:
+      job:
+        gres: gpu:1
+        mem: 16G
+        cpus_per_task: 2
+      main_args: "user=$USER +experiments=neurips23/crystal-comp-sg-lp.yaml"
+
+    runs:
+    - main_args: "gflownet.policy.backward=null gflownet=flowmatch"
+    - job:
+        partition: main
+      main_args: "gflownet.policy.backward=null gflownet=flowmatch"
+    ```
+
+    Args:
+        yaml_path (str | Path): Where to fine the yaml file
+
+    Returns:
+        list[dict]: List of run configurations as dicts
+    """
     if yaml_path is None:
         return []
     with open(yaml_path, "r") as f:
         run_config = safe_load(f)
-    runs = []
-    job = run_config.get("shared_job", {})
-    sma = run_config.get("shared_main_args", "")
+
+    job = run_config.get("shared", {}).get("job", {})
+    sma = run_config.get("shared", {}).get("main_args", "")
     if sma:
         sma = sma + " "
+
+    runs = []
     for r in run_config["runs"]:
         rj = job.copy()
         if "job" in r:
@@ -81,6 +126,30 @@ def load_runs(yaml_path):
 
         runs.append(r)
     return runs
+
+
+def find_run_conf(args):
+    if not args.get("runs"):
+        return None
+    if args["runs"].endswith(".yaml"):
+        args["runs"] = args["runs"][:-5]
+    if args["runs"].endswith(".yml"):
+        args["runs"] = args["runs"][:-4]
+    if args["runs"].startswith("external/"):
+        args["runs"] = args["runs"][9:]
+    if args["runs"].startswith("runs/"):
+        args["runs"] = args["runs"][5:]
+    yamls = [
+        str(y) for y in (root / "external" / "runs").glob(f"**/{args['runs']}.y*ml")
+    ]
+    if len(yamls) == 0:
+        raise ValueError(f"Could not find {args['runs']}.y(a)ml in ./external/runs/")
+    if len(yamls) > 1:
+        print(">>> Warning: found multiple matches:\n  •" + "\n  •".join(yamls))
+    runs_conf_path = Path(yamls[0])
+    print("🗂 Using run file: ./" + str(runs_conf_path.relative_to(Path.cwd())))
+    print()
+    return runs_conf_path
 
 
 if __name__ == "__main__":
@@ -136,45 +205,36 @@ if __name__ == "__main__":
         print(HELP)
         sys.exit(0)
 
+    # load sbatch template file to format
     template = resolve(args.get("template", defaults["template"])).read_text()
+    # find the required formatting keys
     template_keys = set(re.findall(r"{(\w+)}", template))
 
+    # in dev mode: no mkdir, no sbatch etc.
     dev = args.get("dev")
 
+    # where to write the slurm output file
     outdir = resolve(args.get("outdir", defaults["outdir"]))
     if not dev:
         outdir.mkdir(parents=True, exist_ok=True)
 
-    runs_conf_path = None
-    if args.get("runs"):
-        if args["runs"].endswith(".yaml"):
-            args["runs"] = args["runs"][:-5]
-        if args["runs"].endswith(".yml"):
-            args["runs"] = args["runs"][:-4]
-        if args["runs"].startswith("external/"):
-            args["runs"] = args["runs"][9:]
-        if args["runs"].startswith("runs/"):
-            args["runs"] = args["runs"][5:]
-        yamls = [
-            str(y) for y in (root / "external" / "runs").glob(f"**/{args['runs']}.y*ml")
-        ]
-        if len(yamls) == 0:
-            raise ValueError(
-                f"Could not find {args['runs']}.y(a)ml in ./external/runs/"
-            )
-        if len(yamls) > 1:
-            print(">>> Warning: found multiple matches:\n  •" + "\n  •".join(yamls))
-        runs_conf_path = Path(yamls[0])
-        print("Using run file:", runs_conf_path)
-
+    # find runs config file in external/runs as a yaml file
+    runs_conf_path = find_run_conf(args)
+    # load yaml file as list of dicts. May be empty if runs_conf_path is None
     runs = load_runs(runs_conf_path)
-
+    # No run passed in the CLI args or in the associated yaml file so run the
+    # CLI main_args, if any.
     if not runs:
         assert args["main_args"], "main_args must be specified if no runs are given"
         runs = [{}]
 
+    # Save submitted jobs ids
+    job_ids = []
+
+    # A unique datetime identifier for the runs about to be submitted
+    now = now_str()
+
     for i, run in enumerate(runs):
-        now = now_str()
         job = defaults.copy()
         job.update(run.pop("job", {}))
         run_args = {**job, **run, **args}
@@ -183,7 +243,9 @@ if __name__ == "__main__":
         run_args["outdir"] = str(resolve(run_args["outdir"]))
         run_args["venv"] = str(resolve(run_args["venv"]))
 
+        # filter out useless args for the template
         run_args = {k: str(v) for k, v in run_args.items() if k in template_keys}
+        # Make sure all the keys in the template are in the args
         if set(template_keys) != set(run_args.keys()):
             print(f"template keys: {template_keys}")
             print(f"template args: {run_args}")
@@ -191,8 +253,10 @@ if __name__ == "__main__":
                 "template keys != template args (see details printed above)"
             )
 
+        # format template for this run
         templated = template.format(**run_args)
 
+        # set output path for the sbatch file to execute in order to submit the job
         if runs_conf_path is not None:
             sbatch_path = (
                 runs_conf_path.parent / f"{runs_conf_path.stem}_{now}_{i}.sbatch"
@@ -201,22 +265,36 @@ if __name__ == "__main__":
             sbatch_path = root / f"various/{run_args['job_name']}_{now}.sbatch"
 
         if not dev:
+            # make sure the sbatch file parent directory exists
             sbatch_path.parent.mkdir(parents=True, exist_ok=True)
+            # write template
             sbatch_path.write_text(templated)
-            print(f"created {sbatch_path}")
+            print(f"  🏷 Created ./{sbatch_path.relative_to(Path.cwd())}")
+            # Submit job to SLURM
             out = popen(f"sbatch {sbatch_path}").read()
-            print(out)
+            # Identify printed-out job id
             job_id = re.findall(r"Submitted batch job (\d+)", out)[0]
+            job_ids.append(job_id)
+            print("  ✅ " + out)
+            # Write job ID & output file path in the sbatch file
             templated += (
-                "\n# Output file: "
+                "\n# SLURM_JOB_ID: "
+                + job_id
+                + "\n# Output file: "
                 + str(outdir / f"{run_args['job_name']}-{job_id}.out")
                 + "\n"
             )
             sbatch_path.write_text(templated)
+
+        # final prints for dev & verbose mode
         if dev or args.get("verbose"):
             if dev:
                 print("\nDEV: would have writen in sbatch file:", str(sbatch_path))
-            print("#" * 30 + " <sbatch> " + "#" * 30)
+            print("#" * 40 + " <sbatch> " + "#" * 40)
             print(templated)
-            print("#" * 30 + " </sbatch> " + "#" * 29)
+            print("#" * 40 + " </sbatch> " + "#" * 39)
             print()
+
+    # Recap submitted jobs. Useful for scancel for instance.
+    if job_ids:
+        print("\n🔥 All jobs submitted: " + " ".join(job_ids) + "\n")
