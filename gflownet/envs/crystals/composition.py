@@ -21,7 +21,7 @@ class Composition(GFlowNetEnv):
     def __init__(
         self,
         elements: Union[List, int] = 84,
-        max_diff_elem: int = 4,
+        max_diff_elem: int = 5,
         min_diff_elem: int = 2,
         min_atoms: int = 2,
         max_atoms: int = 20,
