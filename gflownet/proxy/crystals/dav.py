@@ -62,7 +62,7 @@ def find_ckpt(ckpt_path: dict) -> Path:
 
 
 class DAV(Proxy):
-    def __init__(self, ckpt_path=None, release=None, rescale_outptuts=True, **kwargs):
+    def __init__(self, ckpt_path=None, release=None, rescale_outputs=True, **kwargs):
         """
         Wrapper class around the Divya-Alexandre-Victor proxy.
 
@@ -84,11 +84,11 @@ class DAV(Proxy):
             ckpt_path (dict, optional): Mapping from cluster / ``$USER`` to checkpoint.
                 Defaults to None.
             release (str, optional): Tag to checkout in the DAV repo. Defaults to None.
-            rescale_outptuts (bool, optional): Whether to rescale the proxy outputs
+            rescale_outputs (bool, optional): Whether to rescale the proxy outputs
                 using its training mean and std. Defaults to True.
         """
         super().__init__(**kwargs)
-        self.rescale_outptuts = rescale_outptuts
+        self.rescale_outputs = rescale_outputs
         self.scaled = False
 
         print("Initializing DAV proxy:")
@@ -115,7 +115,7 @@ class DAV(Proxy):
         # extract config
         self.model_config = ckpt["hyper_parameters"]
         self.scales = self.model_config.get("scales")
-        if self.rescale_outptuts:
+        if self.rescale_outputs:
             assert self.scales is not None
             assert all(t in self.scales for t in ["x", "y"])
             assert all(u in self.scales[t] for t in ["x", "y"] for u in ["mean", "std"])
@@ -139,7 +139,7 @@ class DAV(Proxy):
     def _set_scales(self):
         if self.scaled:
             return
-        if self.rescale_outptuts:
+        if self.rescale_outputs:
             if self.model_config["scales"]["x"]["mean"].device != self.device:
                 self.scales["x"]["mean"] = self.scales["x"]["mean"].to(self.device)
                 self.scales["x"]["std"] = self.scales["x"]["std"].to(self.device)
@@ -167,7 +167,7 @@ class DAV(Proxy):
             )
             comp = torch.cat([comp, missing], dim=-1)
 
-        if self.rescale_outptuts:
+        if self.rescale_outputs:
             lat_params = (lat_params - self.scales["x"]["mean"]) / self.scales["x"][
                 "std"
             ]
@@ -176,7 +176,7 @@ class DAV(Proxy):
         x = (comp.long(), sg.long(), lat_params.float())
         y = self.model(x).squeeze(-1)
 
-        if self.rescale_outptuts:
+        if self.rescale_outputs:
             y = y * self.scales["y"]["std"] + self.scales["y"]["mean"]
 
         return y
