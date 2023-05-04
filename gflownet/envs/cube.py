@@ -1058,20 +1058,21 @@ class ContinuousCube(Cube):
             beta_distr = Beta(alphas, betas)
             distr_increments = MixtureSameFamily(mix, beta_distr)
             increments_f = actions[:, :-1].clone().detach()
-            # Compute backward relative increments (rb) from forward relative
-            # increments (rf)
-            # Forward (s -> s'): s' = s + m + rf * (1 - s - m)
-            # Forward: rf = (s' - s - m) / (1 - s - m)
-            # Backward (s' -> s): s = (s' - m - rf * (1 - m) / (1 - rf)
-            # Backward (s' -> s): s = s' - m - rb * (s' - m)
-            # Backward: rb = (s' - s - m) / (s' - m)
-            # rb = rf (1 - s - m) / (s' - m)
+            # Compute backward relative increments (r_b) from forward relative
+            # increments (r_f)
+            # Forward (s -> s'): s' = s + m + r_f * (1 - s - m)
+            # Forward: r_f = (s' - s - m) / (1 - s - m)
+            # Backward (s' -> s): s = (s' - m - r_f * (1 - m) / (1 - r_f)
+            # Backward (s' -> s): s = s' - m - r_b * (s' - m)
+            # Backward: r_b = (s' - s - m) / (s' - m)
+            # r_b = r_f (1 - s - m) / (s' - m)
             if not is_forward:
                 increments_b = (
                     increments_f
                     * (1 - states_to - self.min_incr)
                     / (states_from - self.min_incr)
                 )
+                increments_b = torch.clip(increments_b, min=0.0, max=1.0)
                 increments = increments_b
             else:
                 increments = increments_f
@@ -1093,13 +1094,11 @@ class ContinuousCube(Cube):
                 # TODO: make logprobs_increments = 0 if increment was zero and
                 # near-edge. Already done?
         # Log determinant of the Jacobian
-        min_increments = torch.self.min_incr * torch.ones(
-            idx_sample.shape[0], device=device, dtype=self.float
+        min_increments = self.min_incr * torch.ones(
+            len(idx_sample), device=device, dtype=self.float
         )
         if is_forward:
-            mask_source_sample = torch.logical_and(
-                ~mask_invalid_actions[:, -2], mask_sample
-            )
+            mask_source_sample = ~mask_invalid_actions[idx_sample, -2]
             min_increments[mask_source_sample] = 0.0
         jacobian_diag = torch.ones(
             (n_states, self.n_dim), device=device, dtype=self.float
@@ -1146,24 +1145,37 @@ class ContinuousCube(Cube):
         min_increments: TensorType["batch_size"],
     ):
         """
-        Computes the logarithm of the determinant of the Jacobian of the sampled
-        actions with respect to the states.
+        Computes the diagonal of the Jacobian of the sampled actions with respect to
+        the states.
 
-        The sampled variables are the relative increments r and the state
+        Forward: the sampled variables are the relative increments r_f and the state
         updates (s -> s') are:
 
-        s' = s + m + r(1 - s - m)
-        r = (s' - s - m) / (1 - s - m)
+        s' = s + m + r_f(1 - s - m)
+        r_f = (s' - s - m) / (1 - s - m)
 
-        Therefore, the derivative of r wrt to s' is
+        Therefore, the derivative of r_f wrt to s' is
 
-        dr/ds' = 1 / (1 - s - m)
+        dr_f/ds' = 1 / (1 - s - m)
+
+        Backward: the sampled variables are the relative decrements r_b and the state
+        updates (s' -> s) are:
+
+        s = s' - m - r_b(s' - m)
+        r_b = (s' - s - m) / (s' - m)
+
+        Therefore, the derivative of r_b wrt to s is
+
+        dr_b/ds = -1 / (s' - m)
+
+        We take the absolute value of the derivative (Jacobian).
 
         The derivatives of the components of r with respect to dimensions of s or s'
         other than itself are zero. Therefore, the Jacobian is diagonal and the
         determinant is the product of the diagonal.
         """
         epsilon = 1e-9
+        min_increments = min_increments.unsqueeze(-1).repeat(1, states.shape[1])
         if is_forward:
             return 1.0 / ((1 - states - min_increments) + epsilon)
         else:
