@@ -282,7 +282,10 @@ class GFlowNetEnv:
         return logprobs
 
     def get_jacobian_diag(
-        self, states: TensorType["batch_size", "state_dim"], is_forward: bool
+        self,
+        states: TensorType["batch_size", "state_dim"],
+        is_forward: bool,
+        **kwargs,
     ):
         """
         Computes the logarithm of the determinant of the Jacobian of the sampled
