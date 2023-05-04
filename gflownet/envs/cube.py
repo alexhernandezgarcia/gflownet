@@ -1035,6 +1035,13 @@ class ContinuousCube(Cube):
         logprobs_zeroincr = torch.zeros(
             (n_states, self.n_dim), device=device, dtype=self.float
         )
+        # Build mask of near-edge values
+        mask_nearedge_dims = ~mask_invalid_actions[:, : self.n_dim]
+        mask_idx_sample = torch.zeros(
+            mask_nearedge_dims.shape, device=device, dtype=torch.bool
+        )
+        mask_idx_sample[idx_sample, :] = True
+        mask_nearedge_dims = torch.logical_and(mask_nearedge_dims, mask_idx_sample)
         if len(idx_sample) > 0:
             mix_logits = policy_outputs[idx_sample, self.n_dim : -2 : 3].reshape(
                 -1, self.n_dim, self.n_comp
@@ -1057,12 +1064,6 @@ class ContinuousCube(Cube):
             # Make logprobs of "invalid" dimensions (value larger than 1 - mincr) 0.
             # TODO: indexing can be done more efficiently to avoid sampling from the
             # distribution above.
-            mask_nearedge_dims = ~mask_invalid_actions[:, : self.n_dim]
-            mask_idx_sample = torch.zeros(
-                mask_nearedge_dims.shape, device=device, dtype=torch.bool
-            )
-            mask_idx_sample[idx_sample, :] = True
-            mask_nearedge_dims = torch.logical_and(mask_nearedge_dims, mask_idx_sample)
             logprobs_increments[mask_nearedge_dims] = 0.0
             # Log probs of sampling zero increments
             if not is_forward:
