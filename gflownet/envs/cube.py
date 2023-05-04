@@ -730,8 +730,8 @@ class ContinuousCube(Cube):
 
         - 0:n_dim : whether sampling each dimension is invalid. Invalid (True) if the
           value at the dimension is larger than 1 - min_incr.
-        - n_dim : whether sampling from source is invalid. Invalid except when when the
-          state is the source state.
+        - n_dim : whether sampling from source is invalid. Invalid (True) except when
+          when the state is the source state.
         - n_dim + 1 : whether sampling EOS is invalid. EOS is valid from any state
           (including the source state), hence always False.
         """
@@ -833,9 +833,9 @@ class ContinuousCube(Cube):
             return [], []
         else:
             min_incr = action[-1]
-            for dim, incr_rel in enumerate(action[:-1]):
-                state[dim] = (state[dim] - min_incr - incr_rel * (1.0 - min_incr)) / (
-                    1.0 - incr_rel
+            for dim, incr_rel_f in enumerate(action[:-1]):
+                state[dim] = (state[dim] - min_incr - incr_rel_f * (1.0 - min_incr)) / (
+                    1.0 - incr_rel_f
                 )
             epsilon = 1e-9
             assert all(
@@ -1057,7 +1057,24 @@ class ContinuousCube(Cube):
             betas = self.beta_params_max * torch.sigmoid(betas) + self.beta_params_min
             beta_distr = Beta(alphas, betas)
             distr_increments = MixtureSameFamily(mix, beta_distr)
-            increments = actions[:, :-1].clone().detach()
+            increments_f = actions[:, :-1].clone().detach()
+            # Compute backward relative increments (rb) from forward relative
+            # increments (rf)
+            # Forward (s -> s'): s' = s + m + rf * (1 - s - m)
+            # Forward: rf = (s' - s - m) / (1 - s - m)
+            # Backward (s' -> s): s = (s' - m - rf * (1 - m) / (1 - rf)
+            # Backward (s' -> s): s = s' - m - rb * (s' - m)
+            # Backward: rb = (s' - s - m) / (s' - m)
+            # rb = rf (1 - s - m) / (s' - m)
+            if not is_forward:
+                increments_b = (
+                    increments_f
+                    * (1 - states_to - self.min_incr)
+                    / (states_from - self.min_incr)
+                )
+                increments = increments_b
+            else:
+                increments = increments_f
             logprobs_increments[idx_sample] = distr_increments.log_prob(
                 increments[idx_sample]
             )
@@ -1076,11 +1093,19 @@ class ContinuousCube(Cube):
                 # TODO: make logprobs_increments = 0 if increment was zero and
                 # near-edge. Already done?
         # Log determinant of the Jacobian
+        min_increments = torch.self.min_incr * torch.ones(
+            idx_sample.shape[0], device=device, dtype=self.float
+        )
+        if is_forward:
+            mask_source_sample = torch.logical_and(
+                ~mask_invalid_actions[:, -2], mask_sample
+            )
+            min_increments[mask_source_sample] = 0.0
         jacobian_diag = torch.ones(
             (n_states, self.n_dim), device=device, dtype=self.float
         )
         jacobian_diag[idx_sample] = self.get_jacobian_diag(
-            states_from[idx_sample], is_forward
+            states_from[idx_sample], is_forward, min_increments
         )
         jacobian_diag[mask_nearedge_dims] = 1.0
         log_det_jacobian = torch.sum(torch.log(jacobian_diag), dim=1)
@@ -1113,8 +1138,12 @@ class ContinuousCube(Cube):
         assert torch.all(logprobs[mask_fix] == 0.0)
         return logprobs
 
+    # TODO: min_incr is zero from source!
     def get_jacobian_diag(
-        self, states: TensorType["batch_size", "state_dim"], is_forward: bool
+        self,
+        states: TensorType["batch_size", "state_dim"],
+        is_forward: bool,
+        min_increments: TensorType["batch_size"],
     ):
         """
         Computes the logarithm of the determinant of the Jacobian of the sampled
@@ -1136,9 +1165,9 @@ class ContinuousCube(Cube):
         """
         epsilon = 1e-9
         if is_forward:
-            return 1.0 / ((1 - states - self.min_incr) + epsilon)
+            return 1.0 / ((1 - states - min_increments) + epsilon)
         else:
-            return 1.0 / ((1 - states - self.min_incr) + epsilon)
+            return 1.0 / ((states - min_increments) + epsilon)
 
     def step(
         self, action: Tuple[int, float]
