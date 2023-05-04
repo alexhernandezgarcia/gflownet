@@ -1,3 +1,4 @@
+import json
 from enum import Enum
 from typing import Dict, List, Optional, Tuple, Union
 
@@ -467,8 +468,21 @@ class Crystal(GFlowNetEnv):
         )
 
         return (
-            f"Stage = {state[0]}, "
-            f"Composition = {composition_readable}, "
-            f"SpaceGroup = {space_group_readable}, "
+            f"Stage = {state[0]}; "
+            f"Composition = {composition_readable}; "
+            f"SpaceGroup = {space_group_readable}; "
             f"LatticeParameters = {lattice_parameters_readable}"
+        )
+
+    def readable2state(self, readable: str) -> List[int]:
+        splits = readable.split("; ")
+        readables = [x.split(" = ")[1] for x in splits]
+
+        return (
+            [int(readables[0])]
+            + self.composition.readable2state(
+                json.loads(readables[1].replace("'", '"'))
+            )
+            + self.space_group.readable2state(readables[2])
+            + self.lattice_parameters.readable2state(readables[3])
         )
