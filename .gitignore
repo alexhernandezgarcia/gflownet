@@ -10,5 +10,4 @@ sh/
 *.txt
 !requirements.txt
 .vscode/
-external/repos
-external/runs
+external/
