@@ -97,13 +97,6 @@ class Batch:
 
     def process_batch(self):
         self._process_states()
-<<<<<<< HEAD
-        self.env_id = tlong(self.env_id, device=self.device)
-        self.step = tlong(self.step, device=self.device)
-        self._process_trajectory_indices()
-        if len(self.action) > 0:
-            self.action = tfloat(self.action, device=self.device, float=self.float)
-=======
         self.env_ids = tlong(self.env_ids, device=self.device)
         self.steps = tlong(self.steps, device=self.device)
         self._process_trajectory_indices()
@@ -111,7 +104,6 @@ class Batch:
             self.actions = tfloat(
                 self.actions, device=self.device, float_type=self.float
             )
->>>>>>> 426f4ac7d202277229b7975ec080ebcb8f6092d5
             self.done = tbool(self.done, device=self.device)
             self.masks_invalid_actions_forward = tbool(
                 self.masks_invalid_actions_forward, device=self.device
@@ -153,11 +145,7 @@ class Batch:
                 )
             self.parents = torch.cat(parents)
         elif self.loss == "trajectorybalance":
-<<<<<<< HEAD
-            parents = torch.zeros_like(self.state)
-=======
             parents = torch.zeros_like(self.states)
->>>>>>> 426f4ac7d202277229b7975ec080ebcb8f6092d5
             for env_id, traj in self.trajectory_indices.items():
                 parents[traj[0]] = tfloat(
                     self.envs[env_id].state2policy(self.envs[env_id].source),
@@ -186,18 +174,13 @@ class Batch:
         self.steps += another_batch.steps
 
     def _process_trajectory_indices(self):
-<<<<<<< HEAD
         """
         Creates a dict of trajectory indices (key: env_id, value: indecies of the
         states in self.states going in the order from s_1 to s_f. The dict is created
         and stored in the self.trajectory_indices
         """
         trajs = defaultdict(list)
-        for idx, (env_id, step) in enumerate(zip(self.env_id, self.step)):
-=======
-        trajs = {env_id: [] for env_id in self.envs.keys()}
         for idx, (env_id, step) in enumerate(zip(self.env_ids, self.steps)):
->>>>>>> 426f4ac7d202277229b7975ec080ebcb8f6092d5
             trajs[env_id.item()].append((idx, step))
         trajs = {
             env_id: list(map(lambda x: x[0], sorted(traj, key=lambda x: x[1])))
@@ -218,11 +201,7 @@ class Batch:
         traj_actions = []
         terminal_states = []
         for traj_idx in self.trajectory_indices.values():
-<<<<<<< HEAD
-            traj_actions.append(self.action[traj_idx].tolist())
-=======
             traj_actions.append(self.actions[traj_idx].tolist())
->>>>>>> 426f4ac7d202277229b7975ec080ebcb8f6092d5
             terminal_states.append(tuple(self.state_gfn[traj_idx[-1]].tolist()))
         traj_actions = [tuple([tuple(a) for a in t]) for t in traj_actions]
         return terminal_states, traj_actions
