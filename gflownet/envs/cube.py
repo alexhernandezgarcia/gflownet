@@ -1072,7 +1072,7 @@ class ContinuousCube(Cube):
                     * (1 - states_to - self.min_incr)
                     / (states_from - self.min_incr)
                 )
-                increments_b = torch.clip(increments_b, min=0.0, max=1.0)
+                increments_b = torch.clip(increments_b, min=1e-6, max=1.0 - 1e-6)
                 increments = increments_b
             else:
                 increments = increments_f
@@ -1120,6 +1120,7 @@ class ContinuousCube(Cube):
         )
         # Sanity checks
         assert not torch.any(torch.isnan(logprobs))
+        assert not torch.any(torch.isinf(logprobs))
         if is_forward:
             mask_fix = torch.all(mask_invalid_actions[:, : self.n_dim], axis=1)
             assert torch.all(logprobs_source == 0.0)
