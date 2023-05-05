@@ -1,34 +1,63 @@
 from collections import defaultdict
 from copy import deepcopy
+from typing import Any
 
 import numpy as np
 import torch
 
-from gflownet.utils.common import tbool, tfloat, tint, tlong
+from gflownet.utils.common import (
+    set_device,
+    set_float_precision,
+    tbool,
+    tfloat,
+    tint,
+    tlong,
+)
 
 
 class Batch:
     """
-    Important note: one env should correspond to only one trajectory, all env_id should be unique
+    Class to handle GFlowNet batches.
+
+    loss: string
+        String identifier of the GFlowNet loss.
+
+    device: str or torch.device
+        torch.device or string indicating the device to use ("cpu" or "cuda")
+
+    float_type: torch.dtype or int
+        One of float torch.dtype or an int indicating the float precision (16, 32 or
+        64).
+
+    Important note: one env should correspond to only one trajectory, all env_id should
+    be unique.
     """
 
-    def __init__(self, loss, device, float):
-        self.loss = loss
+    def __init__(self, loss: str, device: Any = "cpu", float_type: Any = 32):
+        # Device
+        if isinstance(device, str):
+            device = set_device(device)
         self.device = device
-        self.float = float
+        # Float precision
+        if isinstance(float_type, int):
+            float_type = set_float_precision(float_type)
+        self.float = float_type
+        # Loss
+        self.loss = loss
+        # Initialize empty batch variables
         self.envs = dict()
-        self.state = []
-        self.action = []
+        self.states = []
+        self.actions = []
         self.done = []
-        self.env_id = []
-        self.mask_invalid_actions_forward = []
-        self.mask_invalid_actions_backward = []
+        self.env_ids = []
+        self.masks_invalid_actions_forward = []
+        self.masks_invalid_actions_backward = []
         self.parents = []
         self.parents_actions = []
-        self.step = []
+        self.steps = []
 
     def __len__(self):
-        return len(self.state)
+        return len(self.states)
 
     def add_to_batch(self, envs, actions, valids, train=True):
         for env, action, valid in zip(envs, actions, valids):
@@ -36,13 +65,14 @@ class Batch:
             if not valid:
                 continue
             if train:
-                self.state.append(deepcopy(env.state))
-                self.action.append(action)
-                self.env_id.append(env.id)
+                self.states.append(deepcopy(env.state))
+                self.actions.append(action)
+                self.env_ids.append(env.id)
                 self.done.append(env.done)
-                self.step.append(env.n_actions)
-                mask_f = env.get_mask_invalid_actions_forward()
-                self.mask_invalid_actions_forward.append(mask_f)
+                self.steps.append(env.n_actions)
+                self.masks_invalid_actions_forward.append(
+                    env.get_mask_invalid_actions_forward()
+                )
                 if self.loss == "flowmatch":
                     parents, parents_a = env.get_parents(action=action)
                     assert (
@@ -54,26 +84,37 @@ class Batch:
                     self.parents.append(parents)
                     self.parents_actions.append(parents_a)
                 if self.loss == "trajectorybalance":
-                    mask_b = env.get_mask_invalid_actions_backward(
-                        env.state, env.done, [action]
+                    self.masks_invalid_actions_backward.append(
+                        env.get_mask_invalid_actions_backward(
+                            env.state, env.done, [action]
+                        )
                     )
-                    self.mask_invalid_actions_backward.append(mask_b)
             else:
                 if env.done:
-                    self.state.append(env.state)
-                    self.env_id.append(env.id)
-                    self.step.append(env.n_actions)
+                    self.states.append(env.state)
+                    self.env_ids.append(env.id)
+                    self.steps.append(env.n_actions)
 
     def process_batch(self):
         self._process_states()
+<<<<<<< HEAD
         self.env_id = tlong(self.env_id, device=self.device)
         self.step = tlong(self.step, device=self.device)
         self._process_trajectory_indices()
         if len(self.action) > 0:
             self.action = tfloat(self.action, device=self.device, float=self.float)
+=======
+        self.env_ids = tlong(self.env_ids, device=self.device)
+        self.steps = tlong(self.steps, device=self.device)
+        self._process_trajectory_indices()
+        if len(self.actions) > 0:
+            self.actions = tfloat(
+                self.actions, device=self.device, float_type=self.float
+            )
+>>>>>>> 426f4ac7d202277229b7975ec080ebcb8f6092d5
             self.done = tbool(self.done, device=self.device)
-            self.mask_invalid_actions_forward = tbool(
-                self.mask_invalid_actions_forward, device=self.device
+            self.masks_invalid_actions_forward = tbool(
+                self.masks_invalid_actions_forward, device=self.device
             )
             if self.loss == "flowmatch":
                 self.parents_state_idx = tlong(
@@ -82,63 +123,70 @@ class Batch:
                 )
                 self.parents_actions = torch.cat(
                     [
-                        tfloat(x, device=self.device, float=self.float)
+                        tfloat(x, device=self.device, float_type=self.float)
                         for x in self.parents_actions
                     ]
                 )
             elif self.loss == "trajectorybalance":
-                self.mask_invalid_actions_backward = tbool(
-                    self.mask_invalid_actions_backward, device=self.device
+                self.masks_invalid_actions_backward = tbool(
+                    self.masks_invalid_actions_backward, device=self.device
                 )
             self._process_parents()
 
     def _process_states(self):
-        self.state_gfn = tfloat(self.state, device=self.device, float=self.float)
+        self.state_gfn = tfloat(self.states, device=self.device, float_type=self.float)
         states = []
-        for state, env_id in zip(self.state, self.env_id):
+        for state, env_id in zip(self.states, self.env_ids):
             states.append(self.envs[env_id].state2policy(state))
-        self.state = tfloat(states, device=self.device, float=self.float)
+        self.states = tfloat(states, device=self.device, float_type=self.float)
 
     def _process_parents(self):
         if self.loss == "flowmatch":
             parents = []
-            for par, env_id in zip(self.parents, self.env_id):
+            for par, env_id in zip(self.parents, self.env_ids):
                 parents.append(
                     tfloat(
                         self.envs[env_id.item()].statebatch2policy(par),
                         device=self.device,
-                        float=self.float,
+                        float_type=self.float,
                     )
                 )
             self.parents = torch.cat(parents)
         elif self.loss == "trajectorybalance":
+<<<<<<< HEAD
             parents = torch.zeros_like(self.state)
+=======
+            parents = torch.zeros_like(self.states)
+>>>>>>> 426f4ac7d202277229b7975ec080ebcb8f6092d5
             for env_id, traj in self.trajectory_indices.items():
                 parents[traj[0]] = tfloat(
                     self.envs[env_id].state2policy(self.envs[env_id].source),
                     device=self.device,
-                    float=self.float,
+                    float_type=self.float,
                 )
-                parents[traj[1:]] = self.state[traj[:-1]]
+                parents[traj[1:]] = self.states[traj[:-1]]
             self.parents = parents
 
     def merge(self, another_batch):
         if self.loss != another_batch.loss:
             raise Exception("Cannot merge batches with different losses")
         self.envs.update(another_batch.envs)
-        self.state += another_batch.state
-        self.action += another_batch.action
+        self.states += another_batch.states
+        self.actions += another_batch.actions
         self.done += another_batch.done
-        self.env_id += another_batch.env_id
-        self.mask_invalid_actions_forward += another_batch.mask_invalid_actions_forward
-        self.mask_invalid_actions_backward += (
-            another_batch.mask_invalid_actions_backward
+        self.env_ids += another_batch.env_ids
+        self.masks_invalid_actions_forward += (
+            another_batch.masks_invalid_actions_forward
+        )
+        self.masks_invalid_actions_backward += (
+            another_batch.masks_invalid_actions_backward
         )
         self.parents += another_batch.parents
         self.parents_actions += another_batch.parents_actions
-        self.step += another_batch.step
+        self.steps += another_batch.steps
 
     def _process_trajectory_indices(self):
+<<<<<<< HEAD
         """
         Creates a dict of trajectory indices (key: env_id, value: indecies of the
         states in self.states going in the order from s_1 to s_f. The dict is created
@@ -146,6 +194,10 @@ class Batch:
         """
         trajs = defaultdict(list)
         for idx, (env_id, step) in enumerate(zip(self.env_id, self.step)):
+=======
+        trajs = {env_id: [] for env_id in self.envs.keys()}
+        for idx, (env_id, step) in enumerate(zip(self.env_ids, self.steps)):
+>>>>>>> 426f4ac7d202277229b7975ec080ebcb8f6092d5
             trajs[env_id.item()].append((idx, step))
         trajs = {
             env_id: list(map(lambda x: x[0], sorted(traj, key=lambda x: x[1])))
@@ -166,7 +218,11 @@ class Batch:
         traj_actions = []
         terminal_states = []
         for traj_idx in self.trajectory_indices.values():
+<<<<<<< HEAD
             traj_actions.append(self.action[traj_idx].tolist())
+=======
+            traj_actions.append(self.actions[traj_idx].tolist())
+>>>>>>> 426f4ac7d202277229b7975ec080ebcb8f6092d5
             terminal_states.append(tuple(self.state_gfn[traj_idx[-1]].tolist()))
         traj_actions = [tuple([tuple(a) for a in t]) for t in traj_actions]
         return terminal_states, traj_actions
@@ -174,6 +230,6 @@ class Batch:
     def compute_rewards(self):
         rewards = torch.zeros(len(self.state_gfn), device=self.device, dtype=self.float)
         for env_id, env in self.envs.items():
-            idx = self.env_id == env_id
+            idx = self.env_ids == env_id
             rewards[idx] = env.reward_torchbatch(self.state_gfn[idx], self.done[idx])
         return rewards

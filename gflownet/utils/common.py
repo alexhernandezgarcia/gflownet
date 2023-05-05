@@ -65,13 +65,13 @@ def download_file_if_not_exists(path: str, url: str):
     return path
 
 
-def tfloat(x, device, float):
+def tfloat(x, device, float_type):
     if isinstance(x, list) and torch.is_tensor(x[0]):
-        return torch.stack(x).type(float).to(device)
+        return torch.stack(x).type(float_type).to(device)
     if torch.is_tensor(x):
-        return x.type(float).to(device)
+        return x.type(float_type).to(device)
     else:
-        return torch.tensor(x, dtype=float, device=device)
+        return torch.tensor(x, dtype=float_type, device=device)
 
 
 def tlong(x, device):
