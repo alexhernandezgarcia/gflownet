@@ -478,8 +478,8 @@ class GFlowNetAgent:
         batch.process_batch()
         # Unpack batch
         parents_state_idx = batch.parents_state_idx
-        states = batch.states
-        parents = batch.parents
+        states = batch.states_policy
+        parents = batch.parents_policy
         parents_actions = batch.parents_actions
         done = batch.done
         masks_sf = batch.masks_invalid_actions_forward
@@ -540,9 +540,9 @@ class GFlowNetAgent:
         # Convert lists in the batch into tensors
         batch.process_batch()
 
-        states = batch.states
+        states = batch.states_policy
         actions = batch.actions
-        parents = batch.parents
+        parents = batch.parents_policy
         done = batch.done
         masks_sf = batch.masks_invalid_actions_forward
         masks_b = batch.masks_invalid_actions_backward
@@ -722,7 +722,7 @@ class GFlowNetAgent:
             x_tt = dict_tt["x"]
         batch, _ = self.sample_batch(self.env, self.logger.test.n, train=False)
         batch.process_batch()
-        x_sampled = batch.state_gfn.tolist()
+        x_sampled = batch.states.tolist()
         if self.buffer.test_type is not None and self.buffer.test_type == "all":
             if "density_true" in dict_tt:
                 density_true = dict_tt["density_true"]
