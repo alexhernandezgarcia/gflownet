@@ -73,7 +73,10 @@ class Sequence(GFlowNetEnv):
         self.lookup = {a: i for (i, a) in enumerate(self.vocab)}
         self.inverse_lookup = {i: a for (i, a) in enumerate(self.vocab)}
         self.n_alphabet = len(self.vocab) - len(special_tokens)
-        self.padding_idx = self.lookup["[PAD]"]
+        if "[PAD]" in self.lookup:
+            self.padding_idx = self.lookup["[PAD]"]
+        else:
+            self.padding_idx = self.lookup["[nop]"]
         # TODO: eos re-initalised in get_actions_space so why was this initialisation required in the first place (maybe mfenv)
         # self.eos = self.lookup["[EOS]"]
         self.action_space = self.get_actions_space()

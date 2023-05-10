@@ -3,6 +3,7 @@ import numpy as np
 import numpy.typing as npt
 from nupack import *
 import torch
+import time
 
 class Aptamers(Proxy):
     """
@@ -49,6 +50,7 @@ class Aptamers(Proxy):
         """
         # x = x.tolist()
         # sequences = [self.numbers2letters(seq) for seq in x]
+        # t1 = time.time()
         temperature = 310.0  # Kelvin
         ionicStrength = 1.0  # molar
         strandList = []
@@ -66,7 +68,8 @@ class Aptamers(Proxy):
         results = complex_analysis(set, model=model1, compute=["mfe"])
 
         energy = self.function(sequences, results, comps)
-
+        # t2 = time.time()
+        # yy = t2 - t1
         return torch.tensor(energy, device = self.device, dtype = self.float)
 
     def _func_energy(self, sequences, results, comps):
