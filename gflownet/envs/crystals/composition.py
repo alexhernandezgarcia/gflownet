@@ -339,17 +339,13 @@ class Composition(GFlowNetEnv):
             return self.state, action, False
         # If action is not eos, then perform action
         if action != self.eos:
-            atomic_number, num = action
-            idx = self.elem2idx[atomic_number]
+            element, num = action
+            idx = self.elem2idx[element]
             state_next = self.state[:]
             state_next[idx] = num
-            if sum(state_next) > self.max_atoms:
-                valid = False
-            else:
-                self.state = state_next
-                valid = True
-                self.n_actions += 1
-            return self.state, action, valid
+            self.state = state_next
+            self.n_actions += 1
+            return self.state, action, True
         # If action is eos, then perform eos
         else:
             if self.get_mask_invalid_actions_forward()[-1]:
