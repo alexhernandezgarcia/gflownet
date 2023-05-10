@@ -1,0 +1,9 @@
+defaults:
+    - override /env: crystals/composition
+    - override /gflownet: trajectorybalance
+    - override /proxy: crystals/composition_freq 
+    - override /logger: wandb
+
+logger:
+  do:
+    online: false
