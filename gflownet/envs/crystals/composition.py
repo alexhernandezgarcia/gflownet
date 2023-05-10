@@ -114,8 +114,8 @@ class Composition(GFlowNetEnv):
         tuple (element, n), indicating that the count of element will be
         set to n.
         """
-        assert self.max_diff_elem > self.min_diff_elem
-        assert self.max_atom_i > self.min_atom_i
+        assert self.max_diff_elem >= self.min_diff_elem
+        assert self.max_atom_i >= self.min_atom_i
         valid_word_len = np.arange(self.min_atom_i, self.max_atom_i + 1)
         actions = [(element, n) for n in valid_word_len for element in self.elements]
         actions.append(self.eos)
@@ -138,27 +138,40 @@ class Composition(GFlowNetEnv):
             return [True for _ in range(self.action_space_dim)]
 
         mask = [False for _ in self.action_space]
-        state_elem = [self.idx2elem[i] for i, e in enumerate(state) if e > 0]
-        n_state_atoms = sum(state)
+        used_elements = [self.idx2elem[i] for i, e in enumerate(state) if e > 0]
+        unused_required_elements = [
+            e for e in self.required_elements if e not in used_elements
+        ]
+        n_used_elements = len(used_elements)
+        n_unused_required_elements = len(unused_required_elements)
+        n_used_atoms = sum(state)
 
-        if n_state_atoms < self.min_atoms:
+        if n_used_atoms < self.min_atoms:
             mask[-1] = True
-        if len(state_elem) < self.min_diff_elem:
+        if n_used_elements < self.min_diff_elem:
             mask[-1] = True
-        if any(r not in state_elem for r in self.required_elements):
+        if any(r not in used_elements for r in self.required_elements):
             mask[-1] = True
 
         for idx, (element, n) in enumerate(self.action_space[:-1]):
+            # compute how many additional atoms and elements need to be reserved
+            if element in unused_required_elements:
+                reserved_atoms = (n_unused_required_elements - 1) * self.min_atom_i
+                reserved_elements = n_unused_required_elements - 1
+            else:
+                reserved_atoms = n_unused_required_elements * self.min_atom_i
+                reserved_elements = n_unused_required_elements
+
+            # cannot modify already set element
             if state[self.elem2idx[element]] > 0:
                 mask[idx] = True
-            if n_state_atoms + n > self.max_atoms:
+            # cannot add atoms over the limit
+            elif n_used_atoms + n + reserved_atoms > self.max_atoms:
                 mask[idx] = True
-            else:
-                new_elem = element not in state_elem
-                if not new_elem:
-                    mask[idx] = True
-                if new_elem and len(state_elem) >= self.max_diff_elem:
-                    mask[idx] = True
+            # cannot add elements over the limit
+            elif n_used_elements + 1 + reserved_elements > self.max_diff_elem:
+                mask[idx] = True
+
         return mask
 
     def state2oracle(self, state: List = None) -> Tensor:
