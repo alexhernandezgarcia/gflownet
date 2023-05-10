@@ -550,9 +550,9 @@ class GFlowNetAgent:
         state_ids = batch.steps
 
         # Shift state_ids to [1, 2, ...]
-        for tid in traj_id.unique():
-            state_id[traj_id == tid] = (
-                state_id[traj_id == tid] - state_id[traj_id == tid].min() + 1
+        for tid in traj_ids.unique():
+            state_ids[traj_ids == tid] = (
+                state_ids[traj_ids == tid] - state_ids[traj_ids == tid].min() + 1
             )
         # Compute rewards
         rewards = batch.compute_rewards()
