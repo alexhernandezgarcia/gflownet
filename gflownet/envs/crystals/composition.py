@@ -327,21 +327,13 @@ class Composition(GFlowNetEnv):
         # If done, return invalid
         if self.done:
             return self.state, action, False
-        # If only possible action is eos, then force eos
-        if sum(self.state) == self.max_atoms:
-            self.done = True
-            self.n_actions += 1
-            return self.state, self.eos, True
         # If action not found in action space raise an error
-        action_idx = None
-        for i, a in enumerate(self.action_space):
-            if a == action:
-                action_idx = i
-                break
-        if action_idx is None:
+        if action not in self.action_space:
             raise ValueError(
                 f"Tried to execute action {action} not present in action space."
             )
+        else:
+            action_idx = self.action_space.index(action)
         # If action is in invalid mask, exit immediately
         if self.get_mask_invalid_actions_forward()[action_idx]:
             return self.state, action, False
