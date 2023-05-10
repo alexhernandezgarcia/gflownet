@@ -154,23 +154,29 @@ class Composition(GFlowNetEnv):
             mask[-1] = True
 
         for idx, (element, n) in enumerate(self.action_space[:-1]):
-            # compute how many additional atoms and elements need to be reserved
-            if element in unused_required_elements:
-                reserved_atoms = (n_unused_required_elements - 1) * self.min_atom_i
-                reserved_elements = n_unused_required_elements - 1
-            else:
-                reserved_atoms = n_unused_required_elements * self.min_atom_i
-                reserved_elements = n_unused_required_elements
-
             # cannot modify already set element
             if state[self.elem2idx[element]] > 0:
                 mask[idx] = True
+                continue
+
+            # compute how many additional atoms and elements need to be reserved
+            if element in unused_required_elements:
+                reserved_elements = n_unused_required_elements - 1
+            else:
+                reserved_elements = n_unused_required_elements
+            reserved_elements = max(
+                reserved_elements, self.min_diff_elem - n_used_elements - 1
+            )
+            reserved_atoms = reserved_elements * self.min_atom_i
+
             # cannot add atoms over the limit
-            elif n_used_atoms + n + reserved_atoms > self.max_atoms:
+            if n_used_atoms + n + reserved_atoms > self.max_atoms:
                 mask[idx] = True
+                continue
             # cannot add elements over the limit
-            elif n_used_elements + 1 + reserved_elements > self.max_diff_elem:
+            if n_used_elements + 1 + reserved_elements > self.max_diff_elem:
                 mask[idx] = True
+                continue
 
         return mask
 
