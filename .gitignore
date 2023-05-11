@@ -8,6 +8,6 @@ old
 *.sw*
 sh/
 *.txt
-!requirements.txt
 .vscode/
 external/
+!requirements.txt

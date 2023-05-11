@@ -19,7 +19,3 @@ python -m pip install numpy pandas hydra-core tqdm torchtyping scikit-learn
 python -m pip install wandb matplotlib plotly pymatgen
 # Dev packages
 # python -m pip install black flake8 isort pylint ipdb jupyter pytest pytest-repeat
-
-# Crystal deps
-# pip install phast
-# pip install torch-scatter -f https://data.pyg.org/whl/torch-1.12.1+cu113.html
