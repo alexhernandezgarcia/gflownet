@@ -102,7 +102,7 @@ class Composition(GFlowNetEnv):
         )
         self.elem2idx = {e: i for i, e in enumerate(self.elements)}
         self.idx2elem = {i: e for i, e in enumerate(self.elements)}
-        # Source state: 0 atoms for all elements except the required ones
+        # Source state: 0 atoms for all elements
         self.source = [0 for _ in self.elements]
         # End-of-sequence action
         self.eos = (-1, -1)
