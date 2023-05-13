@@ -132,9 +132,9 @@ class Sequence(GFlowNetEnv):
             else len(state)
         )
         # # set mask to True for all actions that would exceed max_seq_length
-        seq_length_tensor = torch.ones((len(self.action_space[:-1]),), dtype=torch.int64) * (
-            seq_length
-        )
+        seq_length_tensor = torch.ones(
+            (len(self.action_space[:-1]),), dtype=torch.int64
+        ) * (seq_length)
         updated_seq_length = seq_length_tensor + self.length_of_action[:-1]
         mask = updated_seq_length > self.max_seq_length
         mask = mask.tolist()
@@ -209,7 +209,6 @@ class Sequence(GFlowNetEnv):
     ) -> List[str]:
         return self.statebatch2oracle(states)
 
-    # TODO: Deprecate as never used.
     def state2policy(self, state=None):
         """
         Transforms the sequence (state) given as argument (or self.state if None) into a
@@ -227,21 +226,18 @@ class Sequence(GFlowNetEnv):
         If max_seq_length > len(state), the last (max_seq_length - len(state)) blocks are all
         0s.
         """
+
         if state is None:
             state = self.state.clone().detach()
-        state = (
-            state[: torch.where(state == self.padding_idx)[0][0]]
-            if state[-1] == self.padding_idx
-            else state
+        state_onehot = (
+            F.one_hot(state, num_classes=self.n_alphabet + 2)[:, :-2]
+            .to(self.float)
+            .to(self.device)
         )
+        state_onehot = state_onehot.unsqueeze(0)
         state_policy = torch.zeros(1, self.max_seq_length, self.n_alphabet)
-        if len(state) == 0:
-            return state_policy.reshape(1, -1)
-        state_onehot = F.one_hot(state, num_classes=self.n_alphabet + 1)[:, :, 1:].to(
-            self.float
-        )
         state_policy[:, : state_onehot.shape[1], :] = state_onehot
-        return state_policy.reshape(state.shape[0], -1)
+        return state_policy.reshape(1, -1)
 
     def statebatch2policy(
         self, states: List[TensorType["1", "max_seq_length"]]
