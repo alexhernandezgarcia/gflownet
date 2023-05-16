@@ -129,7 +129,7 @@ def load_gflow_net_from_run_path(run_path, device="cuda"):
         gflownet.backward_policy.model.load_state_dict(
             torch.load(backward_latest, map_location=device)
         )
-    except ValueError:
+    except AttributeError:
         print("No backward policy found")
 
     return gflownet
