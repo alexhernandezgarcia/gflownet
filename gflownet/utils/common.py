@@ -1,9 +1,10 @@
-from collections.abc import MutableMapping
 from pathlib import Path
-
+from os.path import expandvars
 import numpy as np
 import torch
-from hydra.utils import get_original_cwd
+from hydra import compose, initialize_config_dir
+from hydra.utils import get_original_cwd, instantiate
+from omegaconf import OmegaConf
 
 
 def set_device(device: str):
@@ -63,3 +64,72 @@ def download_file_if_not_exists(path: str, url: str):
         path.absolute().parent.mkdir(parents=True, exist_ok=True)
         gdown.download(url, str(path.absolute()), quiet=False)
     return path
+
+
+def resolve_path(path: str) -> Path:
+    return Path(expandvars(str(path))).expanduser().resolve()
+
+
+def find_latest_checkpoint(ckpt_dir, pattern):
+    final = list(ckpt_dir.glob(f"{pattern}*final*"))
+    if len(final) > 0:
+        return final[0]
+    ckpts = list(ckpt_dir.glob(f"{pattern}*"))
+    if not ckpts:
+        raise ValueError(f"No checkpoints found in {ckpt_dir} with pattern {pattern}")
+    return sorted(ckpts, key=lambda f: float(f.stem.split("iter")[1]))[-1]
+
+
+def load_gflow_net_from_run_path(run_path, device="cuda"):
+    device = str(device)
+    run_path = resolve_path(run_path)
+    hydra_dir = run_path / ".hydra"
+    with initialize_config_dir(
+        version_base=None, config_dir=str(hydra_dir), job_name="xxx"
+    ):
+        config = compose(config_name="config")
+        print(OmegaConf.to_yaml(config))
+    # Disable wandb
+    config.logger.do.online = False
+    # Logger
+    logger = instantiate(config.logger, config, _recursive_=False)
+    # The proxy is required in the env for scoring: might be an oracle or a model
+    proxy = instantiate(
+        config.proxy,
+        device=device,
+        float_precision=config.float_precision,
+    )
+    # The proxy is passed to env and used for computing rewards
+    env = instantiate(
+        config.env,
+        proxy=proxy,
+        device=device,
+        float_precision=config.float_precision,
+    )
+    gflownet = instantiate(
+        config.gflownet,
+        device=device,
+        float_precision=config.float_precision,
+        env=env,
+        buffer=config.env.buffer,
+        logger=logger,
+    )
+    # Load final models
+    ckpt_dir = Path(run_path) / config.logger.logdir.ckpts
+    forward_latest = find_latest_checkpoint(
+        ckpt_dir, config.gflownet.policy.forward.checkpoint
+    )
+    gflownet.forward_policy.model.load_state_dict(
+        torch.load(forward_latest, map_location=device)
+    )
+    try:
+        backward_latest = find_latest_checkpoint(
+            ckpt_dir, config.gflownet.policy.backward.checkpoint
+        )
+        gflownet.backward_policy.model.load_state_dict(
+            torch.load(backward_latest, map_location=device)
+        )
+    except ValueError:
+        print("No backward policy found")
+
+    return gflownet
