@@ -1,7 +1,7 @@
 import sys
 from argparse import ArgumentParser
 from pathlib import Path
-
+import pickle
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
@@ -14,7 +14,7 @@ sys.path.append(str(ROOT / "external" / "repos" / "ActiveLearningMaterials"))
 
 from external.repos.ActiveLearningMaterials.utils.loaders import make_loaders
 from gflownet.proxy.crystals.dav import DAV
-from gflownet.utils.common import load_gflow_net_from_run_path
+from gflownet.utils.common import load_gflow_net_from_run_path, resolve_path
 
 
 def set_seeds(seed):
@@ -63,60 +63,8 @@ def sample_random_crystal(comp_size=89):
     return torch.cat([comp_vec, sg, lengths, angles])
 
 
-if __name__ == "__main__":
-    parser = ArgumentParser(add_help=False)
-    parser.add_argument(
-        "--gflownet-path",
-        type=str,
-        default="/network/scratch/s/schmidtv/crystals/logs/neurips23/composition/2023-05-02_15-09-03",
-    )
-    parser.add_argument("--seed", type=int, default=123)
-    args = parser.parse_args()
-
-    set_seeds(args.seed)
-
-    dav_config = safe_load((ROOT / "config" / "proxy" / "dav.yaml").read_text())
-    dav_config["device"] = "cuda" if torch.cuda.is_available() else "cpu"
-    dav_config["float_precision"] = 32
-    dav_config["rescale_outputs"] = True
-    dav = DAV(**dav_config)
-
-    gflownet = load_gflow_net_from_run_path(args.gflownet_path)
-
-    loaders = make_loaders(dav.model_config)
-    loaders["train"].dataset.ytransform = False
-    loaders["train"].dataset.xtransform = False
-
-    torch.set_grad_enabled(False)
-
-    data = {"energy": [], "proxy": [], "random": [], "gfn": []}
-    for b in tqdm(loaders["train"], desc="train loader"):
-        x, y = b
-        x[1] = x[1][:, None]
-        data["energy"].append(y.numpy())
-        prox_pred = dav(torch.cat(x, dim=-1).to(dav.device))
-        data["proxy"].append(prox_pred.cpu().numpy())
-
-    for b in tqdm(range(len(loaders["train"])), desc="random samples"):
-        bs = loaders["train"].batch_size
-        x = torch.cat(
-            [sample_random_crystal(comp_size=10)[None, :] for _ in range(bs)],
-            axis=0,
-        ).to(dav.device)
-        prox_pred = dav(x)
-        data["random"].append(prox_pred.cpu().numpy())
-
-    for b in tqdm(range(len(loaders["train"])), desc="gfn samples"):
-        bs = loaders["train"].batch_size
-        x = sample_gfn(gflownet, bs).to(dav.device)
-        prox_pred = dav(x)
-        data["gfn"].append(prox_pred.cpu().numpy())
-
-    data = {k: np.concatenate(v, axis=0) for k, v in data.items() if v}
-
+def plot_reward_hist(data, now_str):
     n_bins = 250
-    (ROOT / "external" / "plots").mkdir(exist_ok=True)
-
     coefs = {
         "energy": 2,
         "proxy": 2,
@@ -194,6 +142,82 @@ if __name__ == "__main__":
     plt.tight_layout()
     plt.setp((a0, a1, a2, a3, a4), ylim=(0, 900))
     # plt.suptitle(f"Train set: ground truth energy vs. proxy ({n_bins} bins)")
-    outpath = ROOT / "external" / "plots" / f"train_energy_vs_proxy_{now()}.png"
+    outpath = ROOT / "external" / "plots" / f"train_energy_vs_proxy_{now_str}.png"
     plt.savefig(outpath)
     print("Saved to", outpath)
+
+
+if __name__ == "__main__":
+    parser = ArgumentParser(add_help=False)
+    parser.add_argument(
+        "--gflownet-path",
+        type=str,
+        default="/network/scratch/s/schmidtv/crystals/logs/neurips23/composition/2023-05-02_15-09-03",
+    )
+    parser.add_argument(
+        "--plot_reward_hist",
+        action="store_true",
+    )
+    parser.add_argument(
+        "--save_data",
+        action="store_true",
+    )
+    parser.add_argument("--seed", type=int, default=123)
+    args = parser.parse_args()
+
+    now_str = now()
+
+    set_seeds(args.seed)
+
+    dav_config = safe_load((ROOT / "config" / "proxy" / "dav.yaml").read_text())
+    dav_config["device"] = "cuda" if torch.cuda.is_available() else "cpu"
+    dav_config["float_precision"] = 32
+    dav_config["rescale_outputs"] = True
+    dav = DAV(**dav_config)
+
+    gflownet = load_gflow_net_from_run_path(args.gflownet_path, device=dav.device)
+
+    loaders = make_loaders(dav.model_config)
+    loaders["train"].dataset.ytransform = False
+    loaders["train"].dataset.xtransform = False
+
+    torch.set_grad_enabled(False)
+
+    data = {"energy": [], "proxy": [], "random": [], "gfn": []}
+    for b in tqdm(loaders["train"], desc="train loader"):
+        x, y = b
+        x[1] = x[1][:, None]
+        data["energy"].append(y.numpy())
+        prox_pred = dav(torch.cat(x, dim=-1).to(dav.device))
+        data["proxy"].append(prox_pred.cpu().numpy())
+
+    for b in tqdm(range(len(loaders["train"])), desc="random samples"):
+        bs = loaders["train"].batch_size
+        x = torch.cat(
+            [sample_random_crystal(comp_size=10)[None, :] for _ in range(bs)],
+            axis=0,
+        ).to(dav.device)
+        prox_pred = dav(x)
+        data["random"].append(prox_pred.cpu().numpy())
+
+    for b in tqdm(range(len(loaders["train"])), desc="gfn samples"):
+        bs = loaders["train"].batch_size
+        x = sample_gfn(gflownet, bs).to(dav.device)
+        prox_pred = dav(x)
+        data["gfn"].append(prox_pred.cpu().numpy())
+
+    data = {k: np.concatenate(v, axis=0) for k, v in data.items() if v}
+
+    (ROOT / "external" / "plots").mkdir(exist_ok=True)
+
+    if args.save_data:
+        with (
+            ROOT
+            / "external"
+            / "plots"
+            / f"data_{resolve_path(args.gflownet_path).name}_{now_str}.pkl"
+        ).open("wb") as f:
+            pickle.dump(data, f)
+
+    if args.plot_reward_hist:
+        plot_reward_hist(data, now_str)
