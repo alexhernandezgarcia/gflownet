@@ -3,6 +3,7 @@ from argparse import ArgumentParser
 from pathlib import Path
 import pickle
 import matplotlib.pyplot as plt
+import matplotlib as mpl
 import numpy as np
 import torch
 from tqdm import tqdm
@@ -12,10 +13,13 @@ from copy import deepcopy
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.append(str(ROOT))
 sys.path.append(str(ROOT / "external" / "repos" / "ActiveLearningMaterials"))
+CMAP = mpl.colormaps["cividis"]
 
 from external.repos.ActiveLearningMaterials.utils.loaders import make_loaders
 from gflownet.proxy.crystals.dav import DAV
 from gflownet.utils.common import load_gflow_net_from_run_path, resolve_path
+
+from collections import Counter
 
 
 def set_seeds(seed):
@@ -34,24 +38,24 @@ def set_seeds(seed):
 def get_cls_ref():
     yaml_data = safe_load(
         (
-            ROOT / "gflownet" / "env" / "crystal" / "crystal_lattice_systems.yaml"
+            ROOT / "gflownet" / "envs" / "crystals" / "crystal_lattice_systems.yaml"
         ).read_text()
     )
     ref = np.zeros((231,)) - 1
     for k, d in yaml_data.items():
         for sg in d["space_groups"]:
-            ref[sg] = d[k]
+            ref[sg] = k
     return ref
 
 
 def get_ps_ref():
     yaml_data = safe_load(
-        (ROOT / "gflownet" / "env" / "crystal" / "point_symmetries.yaml").read_text()
+        (ROOT / "gflownet" / "envs" / "crystals" / "point_symmetries.yaml").read_text()
     )
     ref = np.zeros((231,)) - 1
     for k, d in yaml_data.items():
         for sg in d["space_groups"]:
-            ref[sg] = d[k]
+            ref[sg] = k
     return ref
 
 
@@ -62,27 +66,23 @@ def now():
 
 
 def sample_gfn(gflownet, n):
+    prob = deepcopy(gflownet.random_action_prob)
+    gflownet.random_action_prob = 0.0
     x_sampled, _ = gflownet.sample_batch(gflownet.env, n, train=False)
+    gflownet.random_action_prob = prob
     return torch.stack([gflownet.env.state2proxy(x) for x in x_sampled]).to(
         gflownet.device
     )
 
 
-def sample_random_crystal(comp_size=89):
-    sg = torch.randint(1, 231, (1,))
-
-    n_els = torch.randint(2, 6, (1,))  # sample number of elements [2; 5]
-    n_ats = torch.randint(1, 13, (n_els,))  # sample number of atoms per element [1; 12]
-    comp = torch.randint(1, comp_size, (n_els,))  # sample element id [1; 89]
-    comp_vec = torch.zeros((comp_size,)).long()
-    comp_vec[comp] = n_ats  # composition vector with counts per atom
-    if comp_size < 89:
-        comp_vec = torch.cat([comp_vec, torch.zeros((89 - comp_size,))])
-
-    angles = torch.randint(30, 150, (3,))  # angles in [30, 150[
-    lengths = torch.rand((3,)) * 4 + 1.0  # lengths in [1; 5[
-
-    return torch.cat([comp_vec, sg, lengths, angles])
+def sample_gfn_uniform(gflownet, n):
+    prob = deepcopy(gflownet.random_action_prob)
+    gflownet.random_action_prob = 1.0
+    x_sampled, _ = gflownet.sample_batch(gflownet.env, n, train=False)
+    gflownet.random_action_prob = prob
+    return torch.stack([gflownet.env.state2proxy(x) for x in x_sampled]).to(
+        gflownet.device
+    )
 
 
 def top_k_data(data, top_k):
@@ -93,79 +93,192 @@ def top_k_data(data, top_k):
         x_key = key if "train" not in key else "x_train"
         indices = np.argsort(data[y_key])[:top_k]
         top_data[key] = data[x_key][indices]
+        top_data[y_key] = data[y_key][indices]
     return top_data
 
 
 def plot_sg_states(data, id_str, top_k):
-    coefs = colors = None
-    if top_k > 0:
-        top_str = f"top-{top_k}"
-        data = top_k_data(data, top_k)
-        keys = ["x_train_energy", "x_train_proxy", "x_gfn", "x_random"]
-        # colors = {
-        #     "x_train_energy": "cadetblue",
-        #     "x_train_proxy": "cyan",
-        #     "x_gfn": "red",
-        #     "x_random": "green",
-        # }
-        # coefs = {"x_train_energy": 1, "x_train_proxy": 1, "x_gfn": 1, "x_random": 1}
-    else:
-        top_str = "all"
-        keys = ["x_train", "x_gfn", "x_random"]
-        # colors = {"x_train": "cadetblue", "x_gfn": "red", "x_random": "green"}
-        # coefs = {"x_train": 1, "x_gfn": 1, "x_random": 1}
-
-    n_bins = 231
-    plot_data = {k: v[:, 89] for k, v in data.items() if k in keys}
-    name = "space group"
-    plot_sgs(plot_data, id_str, top_str, n_bins, keys, name, colors, coefs)
-
-    n_bins = 8
-    cls_ref = get_cls_ref()
-    plot_data = {k: cls_ref[v[:, 89]] for k, v in data.items() if k in keys}
-    name = "crystal lattice system"
-    plot_sgs(plot_data, id_str, top_str, n_bins, keys, name, colors, coefs)
-
-    n_bins = 5
-    ps_ref = get_ps_ref()
-    plot_data = {k: ps_ref[v[:, 89]] for k, v in data.items() if k in keys}
-    name = "point symmetries"
-    plot_sgs(plot_data, id_str, top_str, n_bins, keys, name, colors, coefs)
-
-
-def plot_sgs(data, id_str, top_str, n_bins, keys, name, colors=None, coefs=None):
     data = deepcopy(data)
 
-    z = sum(coefs.values())
-    coefs = {k: v / z for k, v in coefs.items()}
+    keys = ["x_train_energy", "x_train_proxy", "x_gfn", "x_random"]
+    data["x_train_energy"] = data["x_train"]
+    data["x_train_proxy"] = data["x_train"]
+
+    normalizer = mpl.colors.Normalize(vmin=-1, vmax=len(keys))
+    colors = {k: CMAP(normalizer(i)) for i, k in enumerate(keys)}
+    coefs = {k: 1 / 3 for k in keys}
+
+    name = "space group"
+    plot_data = deepcopy(data)
+    for k, v in data.items():
+        if k.startswith("x_"):
+            plot_data[k] = v[:, 89].astype(int)
+    plot_sgs(plot_data, id_str, top_k, keys, name, colors, coefs)
+
+    name = "crystal lattice system"
+    cls_ref = get_cls_ref()
+    plot_data = deepcopy(data)
+    for k, v in data.items():
+        if k.startswith("x_"):
+            plot_data[k] = cls_ref[v[:, 89].astype(int)]
+    plot_sgs(plot_data, id_str, top_k, keys, name, colors, coefs)
+
+    name = "point symmetries"
+    ps_ref = get_ps_ref()
+    plot_data = deepcopy(data)
+    for k, v in data.items():
+        if k.startswith("x_"):
+            plot_data[k] = ps_ref[v[:, 89].astype(int)]
+    plot_sgs(plot_data, id_str, top_k, keys, name, colors, coefs)
+
+
+def energy_curve_data(categories, energies):
+    data = {c: [] for c in set(categories)}
+    for c, e in zip(categories, energies):
+        data[c].append(e)
+    means = {c: np.mean(v) for c, v in data.items()}
+    stds = {c: np.std(v) for c, v in data.items()}
+    # deciles:
+    d19 = {c: np.percentile(v, (0, 100)) for c, v in data.items()}
+    d1 = {c: d19[c][0] for c in d19}
+    d9 = {c: d19[c][1] for c in d19}
+    m_k = sorted(means.keys())
+    means = [means[k] for k in m_k]
+    stds = [stds[k] for k in m_k]
+    d1 = [d1[k] for k in m_k]
+    d9 = [d9[k] for k in m_k]
+    return np.array(means), np.array(stds), np.array(d1), np.array(d9)
+
+
+def plot_sgs(data, id_str, top_k, keys, name, colors=None, coefs=None):
+    data = deepcopy(data)
+    all_str = f"all={len(list(data.values())[0])}"
+    top_data = top_str = None
+    if top_k > 0:
+        top_data = top_k_data(data, top_k)
+        top_str = f"top-{top_k}"
+
+    if coefs is not None:
+        if any(c > 1 for c in coefs.values()):
+            z = sum(coefs.values())
+            coefs = {k: v / z for k, v in coefs.items()}
+    else:
+        z = len(keys)
+        coefs = {k: 1 / len(keys) for k in keys}
+
+    COMBINED = True
 
     f, axs = plt.subplots(
-        len(keys) + 1,
-        1,
-        height_ratios=[2] + [1] * len(keys),
+        len(keys) + 1 if COMBINED else len(keys),
+        1 if top_data is None else 2,
+        height_ratios=[1] + [1] * len(keys) if COMBINED else [1] * len(keys),
         sharex=True,
-        figsize=(8, 10),
+        figsize=(18, 15),
     )
 
-    for k, key in enumerate(keys):
-        axs[0].hist(
-            data[key],
-            bins=n_bins,
-            alpha=coefs[key] if coefs is not None else 1,
-            color=colors[key] if colors is not None else None,
-            label=f"{name} in {key} ({top_str})",
-        )
-        axs[k + 1].hist(
-            data[key],
-            bins=n_bins,
-            alpha=1,
-            color=colors[key] if colors is not None else None,
-            label=f"{name} in {key} ({top_str})",
-        )
+    if top_data is None:
+        axs = axs[:, None]
 
-    axs[0].legend()
-    plt.tight_layout()
-    # plt.setp(axs, ylim=(0, 1000))
+    datas = [data] if top_data is None else [top_data, data]
+    all_strs = [all_str] if top_data is None else [top_str, all_str]
+
+    min_e = min([min([v.min() for k, v in d.items() if "x" not in k]) for d in datas])
+    max_e = max([max([v.max() for k, v in d.items() if "x" not in k]) for d in datas])
+
+    for d, (frame, split_str) in enumerate(zip(datas, all_strs)):
+        for k, key in enumerate(keys):
+            count = Counter(frame[key].tolist())
+            xs = sorted(count.keys())
+            ys = [count[x] for x in xs]
+            label = f"{name} in {key} ({split_str})"
+
+            m_e, s_e, d1, d9 = energy_curve_data(
+                frame[key], frame[key.replace("x_train_", "").replace("x_", "")]
+            )
+            if COMBINED:
+                axs[0][d].bar(
+                    xs,
+                    ys,
+                    alpha=coefs[key] if coefs is not None else 1,
+                    color=colors[key] if colors is not None else None,
+                    label=label,
+                )
+
+            ax = axs[k + 1 if COMBINED else k][d]
+
+            if d > 0 and k == 0:
+                ax.spines[["right", "top", "left", "bottom"]].set_visible(False)
+                ax.tick_params(axis="x", which="both", bottom=False)
+                ax.set_yticks([])
+                continue
+
+            if d > 0:
+                if k == 1:
+                    label = label.replace("_proxy", "").replace("_energy", "")
+
+            ax.bar(
+                xs,
+                ys,
+                alpha=1,
+                color=colors[key] if colors is not None else None,
+                label=label,
+            )
+            ax.set_title(
+                "Bar plot for " + label,
+                y=0,
+                pad=-8 - (12 if k == len(keys) - 1 else 0),
+                verticalalignment="top",
+            )
+            plot_color = np.array(colors[key]) + 0.1 if colors is not None else None
+            if colors is not None:
+                plot_color[-1] = 1.0
+                plot_color = tuple(plot_color)
+            ax_r = ax.twinx()
+            ax_r.plot(
+                xs,
+                m_e,
+                color=plot_color,
+                label="mean energy",
+            )
+            ax_r.fill_between(
+                xs,
+                m_e - s_e,
+                m_e + s_e,
+                facecolor=plot_color,
+                alpha=0.5,
+                label="1 std range",
+            )
+            ax_r.fill_between(
+                xs,
+                d1,
+                d9,
+                facecolor=plot_color,
+                alpha=0.25,
+                label="min/max range",
+            )
+            ax_r.legend()
+            ax_r.set_ylim(min_e, max_e)
+            # axs[k + 1 if COMBINED else k][d].legend()
+
+        if COMBINED:
+            axs[0][d].legend()
+
+    cols = [s for s in all_strs]
+
+    for ax, col in zip(axs[0], cols):
+        ax.set_title(col)
+
+    f.suptitle(
+        " ".join([n.capitalize() for n in name.split()])
+        + " Distributions: Bar plots and Energy Curves",
+        fontsize=17,
+    )
+
+    f.tight_layout(rect=[0, 0.02, 1, 0.98])
+    plt.setp(axs[:, 0], ylim=(0, max([ax.get_ylim()[1] for ax in axs[:, 0]])))
+    if top_data is not None:
+        plt.setp(axs[:, 1], ylim=(0, max([ax.get_ylim()[1] for ax in axs[:, 1]])))
+
     outpath = (
         ROOT / "external" / "plots" / id_str / f"{name.replace(' ', '-')}_{top_str}.png"
     )
@@ -195,7 +308,7 @@ def plot_reward_hist(data, id_str, top_k):
             top_data[k] = v[indices]
         data = top_data
     else:
-        top_str = "all"
+        top_str = f"all ({len(data['energy'])})"
 
     f, (a0, a1, a2, a3, a4) = plt.subplots(
         5,
@@ -318,11 +431,12 @@ if __name__ == "__main__":
             "x_gfn": [],
             "x_random": [],
         }
-        gfn_samples = (
-            args.gfn_samples
-            if args.gfn_samples > 0
-            else len(loaders["train"]) * loaders["train"].batch_size
-        )
+
+        bs = loaders["train"].batch_size
+        n_batches = len(loaders["train"])
+        n_samples = len(loaders["train"].dataset)
+        gfn_samples = args.gfn_samples if args.gfn_samples > 0 else n_samples
+
         for b in tqdm(loaders["train"], desc="train loader"):
             x, y = b
             x[1] = x[1][:, None]
@@ -332,21 +446,13 @@ if __name__ == "__main__":
             data["proxy"].append(prox_pred.cpu().numpy())
             data["x_train"].append(x.cpu().numpy())
 
-        for b in tqdm(range(len(loaders["train"])), desc="random samples"):
-            bs = loaders["train"].batch_size
-            x = torch.cat(
-                [sample_random_crystal(comp_size=10)[None, :] for _ in range(bs)],
-                axis=0,
-            ).to(dav.device)
+        for b in tqdm(range(n_batches), desc="random samples"):
+            x = sample_gfn_uniform(gflownet, bs).to(dav.device)
             prox_pred = dav(x)
             data["random"].append(prox_pred.cpu().numpy())
             data["x_random"].append(x.cpu().numpy())
 
-        for b in tqdm(
-            range(gfn_samples // loaders["train"].batch_size),
-            desc=f"gfn samples (bs={loaders['train'].batch_size})",
-        ):
-            bs = loaders["train"].batch_size
+        for b in tqdm(range(gfn_samples // bs), desc=f"gfn samples (bs={bs})"):
             x = sample_gfn(gflownet, bs)
             x = x.to(dav.device)
             prox_pred = dav(x)
@@ -367,11 +473,9 @@ if __name__ == "__main__":
     (ROOT / "external" / "plots").mkdir(exist_ok=True)
 
     if args.plot_reward_hist:
-        if args.top_k > 0:
-            plot_reward_hist(data, id_str, args.top_k)
-        plot_reward_hist(data, id_str, -1)
+        plot_reward_hist(data, id_str, args.top_k)
 
     if args.plot_sgs:
-        if args.top_k > 0:
-            plot_sg_states(data, id_str, args.top_k)
-        plot_sg_states(data, id_str, -1)
+        plot_sg_states(data, id_str, args.top_k)
+
+    plt.close("all")
