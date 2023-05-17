@@ -1,0 +1,4 @@
+_target_: gflownet.proxy.molecule.RFMoleculeEnergy
+
+path_to_model: './data/random_forest_reward_100.pkl'
+url_to_model: 'https://drive.google.com/uc?id=1OpQNC8WWIsMh8K4olfSaQRFlj3emYThF'
