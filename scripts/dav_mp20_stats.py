@@ -9,6 +9,7 @@ import torch
 from tqdm import tqdm
 from yaml import safe_load
 from copy import deepcopy
+from Levenshtein import distance as levenshtein_distance
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.append(str(ROOT))
@@ -20,6 +21,19 @@ from gflownet.proxy.crystals.dav import DAV
 from gflownet.utils.common import load_gflow_net_from_run_path, resolve_path
 
 from collections import Counter
+
+
+def make_str(v):
+    return "".join(["".join([chr(i + 97) for _ in range(k)]) for i, k in enumerate(v)])
+
+
+def all_dists(x_array):
+    x_strs = [make_str(x) for x in x_array.astype(int)]
+    dists = np.zeros((len(x_strs), len(x_strs)))
+    for i, x1 in enumerate(tqdm(x_strs)):
+        for j, x2 in enumerate(x_strs):
+            dists[i, j] = levenshtein_distance(x1, x2)
+    return dists
 
 
 def set_seeds(seed):
