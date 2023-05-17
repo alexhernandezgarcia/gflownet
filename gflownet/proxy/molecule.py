@@ -83,6 +83,7 @@ class TorchANIMoleculeEnergy(Proxy):
         self.model = TORCHANI_MODELS[model](
             periodic_table_index=True, model_index=None if use_ensemble else 0
         ).to(self.device)
+        self.conformer = None
 
     def setup(self, env=None):
         self.conformer = env.conformer  # deepcopy(env.conformer)
@@ -126,3 +127,12 @@ class TorchANIMoleculeEnergy(Proxy):
             energies.append(self.model((elements_batch, coordinates_batch)).energies)
 
         return torch.cat(energies).float()
+
+    def __deepcopy__(self, memo):
+        cls = self.__class__
+        new_obj = cls.__new__(cls)
+        new_obj.batch_size = self.batch_size
+        new_obj.min = self.min
+        new_obj.model = self.model
+        new_obj.conformer = self.conformer
+        return new_obj
