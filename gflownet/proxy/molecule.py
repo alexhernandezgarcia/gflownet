@@ -52,9 +52,9 @@ class RFMoleculeEnergy(Proxy):
 class TorchANIMoleculeEnergy(Proxy):
     def __init__(
         self,
-        model: str = "ANI1x",
-        use_ensemble: bool = False,
-        batch_size: int = 8,
+        model: str = "ANI2x",
+        use_ensemble: bool = True,
+        batch_size: int = 128,
         **kwargs,
     ):
         """
