@@ -220,11 +220,11 @@ def plot_sgs(data, id_str, top_k, keys, name, colors=None, coefs=None):
 
             ax = axs[k + 1 if COMBINED else k][d]
 
-            if d > 0 and k == 0:
-                ax.spines[["right", "top", "left", "bottom"]].set_visible(False)
-                ax.tick_params(axis="x", which="both", bottom=False)
-                ax.set_yticks([])
-                continue
+            # if d > 0 and k == 0:
+            #     ax.spines[["right", "top", "left", "bottom"]].set_visible(False)
+            #     ax.tick_params(axis="x", which="both", bottom=False)
+            #     ax.set_yticks([])
+            #     continue
 
             if d > 0:
                 if k == 1:
