@@ -72,7 +72,7 @@ class TorchANIMoleculeEnergy(Proxy):
         super().__init__(**kwargs)
 
         self.batch_size = batch_size
-        self.min = -500
+        self.min = -5
 
         if TORCHANI_MODELS.get(model) is None:
             raise ValueError(
@@ -130,7 +130,7 @@ class TorchANIMoleculeEnergy(Proxy):
         else:
             energies = self.model((elements, coordinates)).energies.float()
 
-        return energies
+        return energies / 100
 
     def __deepcopy__(self, memo):
         cls = self.__class__
