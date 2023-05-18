@@ -1,6 +1,6 @@
 import pickle
 from copy import deepcopy
-from typing import Iterable, List
+from typing import Iterable, List, Optional
 
 import numpy as np
 import torch
@@ -54,7 +54,7 @@ class TorchANIMoleculeEnergy(Proxy):
         self,
         model: str = "ANI2x",
         use_ensemble: bool = True,
-        batch_size: int = 128,
+        batch_size: Optional[int] = None,
         **kwargs,
     ):
         """
@@ -67,7 +67,7 @@ class TorchANIMoleculeEnergy(Proxy):
             Whether to use whole ensemble of the models for prediction or only the first one.
 
         batch_size : int
-            Batch size for TorchANI.
+            Batch size for TorchANI. If none, will process all states as a single batch.
         """
         super().__init__(**kwargs)
 
@@ -119,14 +119,18 @@ class TorchANIMoleculeEnergy(Proxy):
         elements = LongTensor(np.array(elements)).to(self.device)
         coordinates = FloatTensor(np.array(coordinates)).to(self.device)
 
-        energies = []
-        for elements_batch, coordinates_batch in zip(
-            torch.split(elements, self.batch_size),
-            torch.split(coordinates, self.batch_size),
-        ):
-            energies.append(self.model((elements_batch, coordinates_batch)).energies)
+        if self.batch_size is not None:
+            energies = []
+            for elements_batch, coordinates_batch in zip(
+                torch.split(elements, self.batch_size),
+                torch.split(coordinates, self.batch_size),
+            ):
+                energies.append(self.model((elements_batch, coordinates_batch)).energies)
+            energies = torch.cat(energies).float()
+        else:
+            energies = self.model((elements, coordinates)).energies.float()
 
-        return torch.cat(energies).float()
+        return energies
 
     def __deepcopy__(self, memo):
         cls = self.__class__
