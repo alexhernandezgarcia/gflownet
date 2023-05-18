@@ -104,7 +104,7 @@ class TorchANIMoleculeEnergy(Proxy):
         Returns
         ----
         energies : tensor
-            Torch with dimensionality (batch_size,), containing energies
+            Torch tensor with dimensionality (batch_size,), containing energies
             predicted by a TorchANI model (in Hartree).
         """
         elements = []
