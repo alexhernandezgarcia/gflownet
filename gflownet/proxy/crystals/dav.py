@@ -106,6 +106,7 @@ class DAV(Proxy):
         # import the proxu build funcion
         sys.path.append(str(REPO_PATH))
         from proxies.models import make_model
+        from utils.loaders import make_loaders
 
         print("  Making model...")
         # load the checkpoint
@@ -121,6 +122,7 @@ class DAV(Proxy):
             assert all(u in self.scales[t] for t in ["x", "y"] for u in ["mean", "std"])
         # make model from ckpt config
         self.model = make_model(self.model_config)
+        self.proxy_loaders = make_loaders(self.model_config)
         # load state dict and remove potential leading `model.` in the keys
         print("  Loading proxy checkpoint...")
         self.model.load_state_dict(
