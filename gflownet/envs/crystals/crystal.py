@@ -2,6 +2,9 @@ import json
 from enum import Enum
 from typing import Dict, List, Optional, Tuple, Union
 
+import matplotlib as mpl
+import matplotlib.pyplot as plt
+import numpy as np
 import torch
 from torch import Tensor
 from torchtyping import TensorType
@@ -11,6 +14,8 @@ from gflownet.envs.crystals.composition import Composition
 from gflownet.envs.crystals.lattice_parameters import LatticeParameters
 from gflownet.envs.crystals.spacegroup import SpaceGroup
 from gflownet.utils.crystals.constants import TRICLINIC
+
+CMAP = mpl.colormaps["cividis"]
 
 
 class Stage(Enum):
@@ -486,3 +491,169 @@ class Crystal(GFlowNetEnv):
             + self.space_group.readable2state(readables[2])
             + self.lattice_parameters.readable2state(readables[3])
         )
+
+    @torch.no_grad()
+    def top_k_metrics_and_plots(self, states, top_k, name, **kwargs):
+        x = torch.stack([self.state2proxy(s) for s in states])
+        energy = self.proxy(x.to(self.device)).cpu()
+        reward = self.proxy2reward(energy)
+
+        top_k_e = torch.topk(energy, top_k, largest=False, dim=0).values.numpy()
+        top_k_r = torch.topk(reward, top_k, largest=True, dim=0).values.numpy()
+
+        best_e = torch.min(energy).item()
+        best_r = torch.max(reward).item()
+
+        energy = energy.numpy()
+        reward = reward.numpy()
+
+        mean_e = np.mean(energy)
+        mean_r = np.mean(reward)
+
+        std_e = np.std(energy)
+        std_r = np.std(reward)
+
+        mean_top_k_e = np.mean(top_k_e)
+        mean_top_k_r = np.mean(top_k_r)
+
+        std_top_k_e = np.std(top_k_e)
+        std_top_k_r = np.std(top_k_r)
+
+        colors = ["full", "top_k"]
+        normalizer = mpl.colors.Normalize(vmin=0, vmax=len(colors) - 0.5)
+        colors = {k: CMAP(normalizer(i)) for i, k in enumerate(colors[::-1])}
+
+        fig, ax = plt.subplots(1, 2, figsize=(10, 5))
+
+        ax[0].hist(
+            energy,
+            bins=100,
+            alpha=0.35,
+            label=f"All = {len(states)}",
+            color=colors["full"],
+        )
+        ax[0].axvline(
+            mean_e,
+            color=colors["full"],
+            linestyle=(0, (5, 10)),
+            label=f"Mean = {mean_e:.3f}",
+        )
+        ax[0].axvline(
+            mean_e + std_e,
+            color=colors["full"],
+            linestyle=(0, (1, 10)),
+            label=f"Std = {std_e:.3f}",
+        )
+        ax[0].axvline(
+            mean_e - std_e,
+            color=colors["full"],
+            linestyle=(0, (1, 10)),
+        )
+
+        ax[0].hist(
+            top_k_e,
+            bins=100,
+            alpha=0.7,
+            label=f"Top k = {top_k}",
+            color=colors["top_k"],
+        )
+        ax[0].axvline(
+            mean_top_k_e,
+            color=colors["top_k"],
+            linestyle=(0, (5, 10)),
+            label=f"Mean = {mean_top_k_e:.3f}",
+        )
+        ax[0].axvline(
+            mean_top_k_e + std_top_k_e,
+            color=colors["top_k"],
+            linestyle=(0, (1, 10)),
+            label=f"Std = {std_top_k_e:.3f}",
+        )
+        ax[0].axvline(
+            mean_top_k_e - std_top_k_e,
+            color=colors["top_k"],
+            linestyle=(0, (1, 10)),
+        )
+
+        ax[0].set_title(
+            f"Energy distribution for {top_k} vs {len(energy)}"
+            + f" samples\nBest: {best_e:.3f}",
+            y=0,
+            pad=-20,
+            verticalalignment="top",
+            size=12,
+        )
+        ax[0].legend()
+
+        ax[1].hist(
+            reward,
+            bins=100,
+            alpha=0.35,
+            label=f"All = {len(states)}",
+            color=colors["full"],
+        )
+        ax[1].axvline(
+            mean_r,
+            color=colors["full"],
+            linestyle=(0, (5, 10)),
+            label=f"Mean = {mean_r:.3f}",
+        )
+        ax[1].axvline(
+            mean_r + std_r,
+            color=colors["full"],
+            linestyle=(0, (1, 10)),
+            label=f"Std = {std_r:.3f}",
+        )
+        ax[1].axvline(
+            mean_r - std_r,
+            color=colors["full"],
+            linestyle=(0, (1, 10)),
+        )
+        ax[1].hist(
+            top_k_r,
+            bins=100,
+            alpha=0.7,
+            label=f"Top k = {top_k}",
+            color=colors["top_k"],
+        )
+        ax[1].axvline(
+            mean_top_k_r,
+            color=colors["top_k"],
+            linestyle=(0, (5, 10)),
+            label=f"Mean = {mean_top_k_r:.3f}",
+        )
+        ax[1].axvline(
+            mean_top_k_r + std_top_k_r,
+            color=colors["top_k"],
+            linestyle=(0, (1, 10)),
+            label=f"Std = {std_top_k_r:.3f}",
+        )
+        ax[1].axvline(
+            mean_top_k_r - std_top_k_r,
+            color=colors["top_k"],
+            linestyle=(0, (1, 10)),
+        )
+        ax[1].set_title(
+            f"Reward distribution for {top_k} vs {len(reward)}"
+            + f" samples\nBest: {best_r:.3f}",
+            y=0,
+            pad=-20,
+            verticalalignment="top",
+            size=12,
+        )
+        ax[1].legend()
+        fig.suptitle(f"{name.capitalize()} energy and reward distributions", y=0.95)
+        plt.tight_layout(rect=[0, 0.02, 1, 0.98])
+
+        return {
+            f"Mean {name} energy": mean_e,
+            f"Std {name} energy": std_e,
+            f"Mean {name} reward": mean_r,
+            f"Std {name} reward": std_r,
+            f"Mean {name} top k energy": mean_top_k_e,
+            f"Std {name} top k energy": std_top_k_e,
+            f"Mean {name} top k reward": mean_top_k_r,
+            f"Std {name} top k reward": std_top_k_r,
+            f"Best (min) {name} energy": best_e,
+            f"Best (max) {name} reward": best_r,
+        }, [fig]
