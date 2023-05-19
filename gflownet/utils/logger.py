@@ -88,6 +88,15 @@ class Logger:
         else:
             return not step % self.test.period
 
+    def do_top_k(self, step):
+        if self.test.top_k is None or self.test.top_k < 0:
+            return False
+
+        if self.test.top_k_period is None or self.test.top_k_period < 0:
+            return False
+
+        return not step % self.test.top_k_period
+
     def do_oracle(self, step):
         if self.oracle.period is None or self.oracle.period < 0:
             return False
