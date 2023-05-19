@@ -908,6 +908,58 @@ class GFlowNetAgent:
             fig_kde_true = None
         return l1, kl, jsd, [fig_reward_samples, fig_kde_pred, fig_kde_true]
 
+    @torch.no_grad()
+    def test_top_k(self, it, progress=False, gfn_states=None, random_states=None):
+        """
+        Sample from the current GFN and compute metrics and plots for the top k states
+        according to both the energy and the reward.
+
+        Args:
+            it (int): current iteration
+            progress (bool, optional): Print sampling progress. Defaults to False.
+            gfn_states (list, optional): Already sampled gfn states. Defaults to None.
+            random_states (list, optional): Already sampled random states.
+                Defaults to None.
+
+        Returns:
+            tuple[dict, list[plt.Figure]]: Computed dict of metrics and figures to
+                upload
+        """
+        # only do random top k plots & metrics once
+        do_random = it // self.logger.test.top_k_period == 1
+        prob = copy.deepcopy(self.random_action_prob)
+
+        if not gfn_states:
+            # sample states from the current gfn
+            self.random_action_prob = 0
+            gfn_states, _ = self.sample_batch(
+                self.env, self.logger.test.n_top_k, train=False, progress=progress
+            )
+
+        # compute metrics and get plots
+        metrics, figs = self.env.top_k_metrics_and_plots(
+            gfn_states, self.logger.test.top_k, name="gflownet"
+        )
+
+        if do_random:
+            # sample random states from uniform actions
+            if not random_states:
+                self.random_action_prob = 1.0
+                random_states, _ = self.sample_batch(
+                    self.env, self.logger.test.n_top_k, train=False, progress=progress
+                )
+            # compute metrics and get plots
+            random_metrics, random_figs = self.env.top_k_metrics_and_plots(
+                random_states, self.logger.test.top_k, name="random"
+            )
+            # add to current metrics and plots
+            metrics.update(random_metrics)
+            figs += random_figs
+
+        self.random_action_prob = prob
+
+        return metrics, figs
+
     def get_log_corr(self, times):
         data_logq = []
         times.update(
