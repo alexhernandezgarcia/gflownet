@@ -656,4 +656,37 @@ class Crystal(GFlowNetEnv):
             f"Std {name} top k reward": std_top_k_r,
             f"Best (min) {name} energy": best_e,
             f"Best (max) {name} reward": best_r,
-        }, [fig]
+
+    def compute_train_energy_proxy_and_rewards(self):
+        rso = deepcopy(self.proxy.rescale_outputs)
+        self.proxy.rescale_outputs = False
+        y_mean = self.proxy.scales["y"]["mean"]
+        y_std = self.proxy.scales["y"]["std"]
+
+        energy = []
+        proxy = []
+
+        for b in self.proxy.proxy_loaders["train"]:
+            x, e_normed = b
+            for k, t in enumerate(x):
+                if t.ndim == 1:
+                    x[k] = t[:, None]
+                if t.ndim > 2:
+                    x[k] = t.squeeze()
+                assert (
+                    x[k].ndim == 2
+                ), f"t.ndim = {x[k].ndim} != 2 (t.shape: {x[k].shape})"
+            p_normed = self.proxy(torch.cat(x, dim=-1))
+            e = e_normed * y_std + y_mean
+            p = p_normed * y_std + y_mean
+            energy.append(e)
+            proxy.append(p)
+
+        energy = torch.cat(energy).cpu()
+        proxy = torch.cat(proxy).cpu()
+        energy_reward = self.proxy2reward(energy)
+        proxy_reward = self.proxy2reward(proxy)
+
+        self.proxy.rescale_outputs = rso
+
+        return energy, proxy, energy_reward, proxy_reward
