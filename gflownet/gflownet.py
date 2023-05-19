@@ -22,7 +22,12 @@ from torch.distributions import Bernoulli, Categorical
 from tqdm import tqdm
 
 from gflownet.utils.buffer import Buffer
-from gflownet.utils.common import set_device, set_float_precision, torch2np
+from gflownet.utils.common import (
+    set_device,
+    set_float_precision,
+    torch2np,
+    batch_with_rest,
+)
 
 
 class GFlowNetAgent:
@@ -937,9 +942,11 @@ class GFlowNetAgent:
         if not gfn_states:
             # sample states from the current gfn
             self.random_action_prob = 0
-            gfn_states, _ = self.sample_batch(
-                self.env, self.logger.test.n_top_k, train=False, progress=progress
-            )
+            gfn_states = []
+            for b in batch_with_rest(0, self.logger.test.n_top_k, self.batch_size):
+                gfn_states += self.sample_batch(
+                    self.env, len(b), train=False, progress=progress
+                )[0]
 
         # compute metrics and get plots
         metrics, figs = self.env.top_k_metrics_and_plots(
@@ -950,9 +957,11 @@ class GFlowNetAgent:
             # sample random states from uniform actions
             if not random_states:
                 self.random_action_prob = 1.0
-                random_states, _ = self.sample_batch(
-                    self.env, self.logger.test.n_top_k, train=False, progress=progress
-                )
+                random_states = []
+                for b in batch_with_rest(0, self.logger.test.n_top_k, self.batch_size):
+                    random_states += self.sample_batch(
+                        self.env, len(b), train=False, progress=progress
+                    )[0]
             # compute metrics and get plots
             random_metrics, random_figs = self.env.top_k_metrics_and_plots(
                 random_states, self.logger.test.top_k, name="random"
