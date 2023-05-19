@@ -969,6 +969,13 @@ class GFlowNetAgent:
             # add to current metrics and plots
             metrics.update(random_metrics)
             figs += random_figs
+            # compute training data metrics and get plots
+            train_metrics, train_figs = self.env.top_k_metrics_and_plots(
+                None, self.logger.test.top_k, name="train"
+            )
+            # add to current metrics and plots
+            metrics.update(train_metrics)
+            figs += train_figs
 
         self.random_action_prob = prob
 
