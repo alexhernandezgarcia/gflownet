@@ -718,6 +718,11 @@ class GFlowNetAgent:
                     self.l1, self.kl, self.jsd, it, self.use_context
                 )
                 self.logger.log_plots(figs, it, self.use_context)
+            if self.logger.do_top_k(it):
+                metrics, figs = self.test_top_k(it)
+                self.logger.log_plots(figs, it, self.use_context)
+                self.logger.log_metrics(metrics, use_context=self.use_context, step=it)
+
             t0_iter = time.time()
             data = []
             for j in range(self.sttr):
