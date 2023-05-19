@@ -133,3 +133,11 @@ def load_gflow_net_from_run_path(run_path, device="cuda"):
         print("No backward policy found")
 
     return gflownet
+
+
+def batch_with_rest(start, stop, step, tensor=False):
+    for i in range(start, stop, step):
+        if tensor:
+            yield torch.arange(i, min(i + step, stop))
+        else:
+            yield np.arange(i, min(i + step, stop))
