@@ -22,7 +22,9 @@ def checkout_tag(tag):
     Args:
         tag (str): Tag/release to checkout
     """
-    repo = git.Repo(str(REPO_PATH))
+    repo = git.Repo(REPO_PATH)
+    if repo.git.describe("--tags") == tag:
+        return
     for remote in repo.remotes:
         remote.fetch()
     if tag not in repo.tags:
