@@ -605,6 +605,7 @@ class Crystal(GFlowNetEnv):
             alpha=0.35,
             label=f"All = {len(reward)}",
             color=colors["full"],
+            density=True,
         )
         ax[1].axvline(
             mean_r,
@@ -629,6 +630,7 @@ class Crystal(GFlowNetEnv):
             alpha=0.7,
             label=f"Top k = {top_k}",
             color=colors["top_k"],
+            density=True,
         )
         ax[1].axvline(
             mean_top_k_r,
