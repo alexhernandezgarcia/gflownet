@@ -495,7 +495,7 @@ class Crystal(GFlowNetEnv):
 
     @torch.no_grad()
     def top_k_metrics_and_plots(
-        self, states, top_k, name, energy=None, reward=None, **kwargs
+        self, states, top_k, name, energy=None, reward=None, step=None, **kwargs
     ):
         if states is None and energy is None and reward is None:
             assert name == "train"
@@ -656,7 +656,10 @@ class Crystal(GFlowNetEnv):
             size=12,
         )
         ax[1].legend()
-        fig.suptitle(f"{name.capitalize()} energy and reward distributions", y=0.95)
+        title = f"{name.capitalize()} energy and reward distributions"
+        if step is not None:
+            title += f" (step {step})"
+        fig.suptitle(title, y=0.95)
         plt.tight_layout(rect=[0, 0.02, 1, 0.98])
 
         metrics = {
@@ -672,15 +675,23 @@ class Crystal(GFlowNetEnv):
             f"Best (max) {name} reward": best_r,
         }
         figs = [fig]
+        fig_names = [title]
 
         if name.lower() == "train ground truth":
-            proxy_metrics, proxy_figs = self.top_k_metrics_and_plots(
-                None, top_k, "train proxy", energy=proxy, reward=proxy_reward, **kwargs
+            proxy_metrics, proxy_figs, proxy_fig_names = self.top_k_metrics_and_plots(
+                None,
+                top_k,
+                "train proxy",
+                energy=proxy,
+                reward=proxy_reward,
+                step=None,
+                **kwargs,
             )
             metrics.update(proxy_metrics)
             figs += proxy_figs
+            fig_names += proxy_fig_names
 
-        return metrics, figs
+        return metrics, figs, fig_names
 
     def compute_train_energy_proxy_and_rewards(self):
         rso = deepcopy(self.proxy.rescale_outputs)

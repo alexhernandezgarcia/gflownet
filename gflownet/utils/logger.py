@@ -166,18 +166,18 @@ class Logger:
         fig = self.wandb.Image(fig)
         self.wandb.log({key: fig}, step)
 
-    def log_plots(self, figs: list, step, use_context=True):
+    def log_plots(self, figs: list, step, fig_names=None, use_context=True):
         if not self.do.online:
             self.close_figs(figs)
             return
-        keys = ["True reward and GFlowNet samples", "GFlowNet KDE Policy", "Reward KDE"]
+        keys = fig_names or [f"Figure {i} at step {step}" for i in range(len(figs))]
         for key, fig in zip(keys, figs):
-            if use_context:
+            if use_context:  # fixme
                 context = self.context + "/" + key
             if fig is not None:
                 figimg = self.wandb.Image(fig)
                 self.wandb.log({key: figimg}, step)
-                plt.close(fig)
+        self.close_figs(figs)
 
     def close_figs(self, figs: list):
         for fig in figs:

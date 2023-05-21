@@ -722,10 +722,19 @@ class GFlowNetAgent:
                 self.logger.log_test_metrics(
                     self.l1, self.kl, self.jsd, it, self.use_context
                 )
-                self.logger.log_plots(figs, it, self.use_context)
+                fig_names = [
+                    "True reward and GFlowNet samples",
+                    "GFlowNet KDE Policy",
+                    "Reward KDE",
+                ]
+                self.logger.log_plots(
+                    figs, it, fig_names=fig_names, use_context=self.use_context
+                )
             if self.logger.do_top_k(it):
-                metrics, figs = self.test_top_k(it)
-                self.logger.log_plots(figs, it, self.use_context)
+                metrics, figs, fig_names = self.test_top_k(it)
+                self.logger.log_plots(
+                    figs, it, use_context=self.use_context, fig_names=fig_names
+                )
                 self.logger.log_metrics(metrics, use_context=self.use_context, step=it)
 
             t0_iter = time.time()
@@ -949,8 +958,8 @@ class GFlowNetAgent:
                 )[0]
 
         # compute metrics and get plots
-        metrics, figs = self.env.top_k_metrics_and_plots(
-            gfn_states, self.logger.test.top_k, name="gflownet"
+        metrics, figs, fig_names = self.env.top_k_metrics_and_plots(
+            gfn_states, self.logger.test.top_k, name="gflownet", step=it
         )
 
         if do_random:
@@ -963,23 +972,33 @@ class GFlowNetAgent:
                         self.env, len(b), train=False, progress=progress
                     )[0]
             # compute metrics and get plots
-            random_metrics, random_figs = self.env.top_k_metrics_and_plots(
-                random_states, self.logger.test.top_k, name="random"
+            (
+                random_metrics,
+                random_figs,
+                random_fig_names,
+            ) = self.env.top_k_metrics_and_plots(
+                random_states, self.logger.test.top_k, name="random", step=None
             )
             # add to current metrics and plots
             metrics.update(random_metrics)
             figs += random_figs
+            fig_names += random_fig_names
             # compute training data metrics and get plots
-            train_metrics, train_figs = self.env.top_k_metrics_and_plots(
-                None, self.logger.test.top_k, name="train"
+            (
+                train_metrics,
+                train_figs,
+                train_fig_names,
+            ) = self.env.top_k_metrics_and_plots(
+                None, self.logger.test.top_k, name="train", step=None
             )
             # add to current metrics and plots
             metrics.update(train_metrics)
             figs += train_figs
+            fig_names += train_fig_names
 
         self.random_action_prob = prob
 
-        return metrics, figs
+        return metrics, figs, fig_names
 
     def get_log_corr(self, times):
         data_logq = []
