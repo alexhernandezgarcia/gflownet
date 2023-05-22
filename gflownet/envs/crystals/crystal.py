@@ -293,7 +293,17 @@ class Crystal(GFlowNetEnv):
                 self.space_group_mask_start : self.space_group_mask_end
             ] = space_group_mask
         elif stage == Stage.LATTICE_PARAMETERS:
-            # TODO: to be stateless this needs to set lattice system based on state
+            """
+            TODO: to be stateless (meaning, operating as a function, not a method with 
+            current object context) this needs to set lattice system based on the passed 
+            state only. Right now it uses the current LatticeParameter environment, in 
+            particular the lattice system that it was set to, and that changes the invalid 
+            actions mask.
+
+            If for some reason a state will be passed to this method that describes an 
+            object with different lattice system than what self.lattice_system contains, 
+            the result will be invalid.
+            """
             lattice_parameters_state = self._get_lattice_parameters_state(state)
             lattice_parameters_mask = (
                 self.lattice_parameters.get_mask_invalid_actions_forward(
