@@ -1,0 +1,18 @@
+defaults:
+  - gflownet
+
+optimizer:
+  loss: forwardlooking
+  lr: 0.0001
+  lr_decay_period: 1000000
+  lr_decay_gamma: 0.5
+
+policy:
+  backward:
+    shared_weights: True
+    checkpoint: null
+    reload_ckpt: False
+  forward_flow:
+    shared_weights: True
+    checkpoint: null
+    reload_ckpt: False
