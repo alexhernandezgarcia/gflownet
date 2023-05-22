@@ -89,6 +89,7 @@ class Crystal(GFlowNetEnv):
             self.lattice_parameters.action_space
         )
 
+        # EOS is EOS of LatticeParameters because it is the last stage
         self.eos = self.lattice_parameters.eos
         self.stage = Stage.COMPOSITION
         self.max_action_length = max(
