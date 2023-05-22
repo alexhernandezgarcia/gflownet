@@ -48,6 +48,7 @@ policy:
     checkpoint: null
     reload_ckpt: False
   backward: null
+  forward_flow: null
   ckpt_period: null
 num_empirical_loss: 200000
 oracle:
