@@ -15,13 +15,30 @@ from gflownet.utils.crystals.constants import TRICLINIC
 
 class Stage(Enum):
     """
-    In addition to encoding current stage, values of this enum are used for padding individual
+    In addition to encoding current stage, contains methods used for padding individual
     component environment's actions (to ensure they have the same length for tensorization).
     """
 
-    COMPOSITION = -2
-    SPACE_GROUP = -3
-    LATTICE_PARAMETERS = -4
+    COMPOSITION = 0
+    SPACE_GROUP = 1
+    LATTICE_PARAMETERS = 2
+
+    def to_pad(self) -> int:
+        """
+        Maps stage value to a padding. The following mapping is used:
+
+        COMPOSITION = -2
+        SPACE_GROUP = -3
+        LATTICE_PARAMETERS = -4
+
+        We use negative numbers starting from -2 because they are not used by any of the
+        underlying environments, which should lead to every padded action being unique.
+        """
+        return -(self.value + 2)
+
+    @classmethod
+    def from_pad(cls, pad_value: int) -> "Stage":
+        return Stage(-pad_value - 2)
 
 
 class Crystal(GFlowNetEnv):
@@ -130,7 +147,7 @@ class Crystal(GFlowNetEnv):
         the same length. Required due to the fact that action space has to be convertable to
         a tensor.
         """
-        return action + (stage.value,) * (self.max_action_length - len(action))
+        return action + (Stage.to_pad(stage),) * (self.max_action_length - len(action))
 
     def _pad_action_space(
         self, action_space: List[Tuple[int]], stage: Stage
@@ -242,7 +259,7 @@ class Crystal(GFlowNetEnv):
             state = self.state.copy()
             stage = self.stage
         else:
-            stage = Crystal._value2stage(state[0])
+            stage = Stage(state[0])
         if done is None:
             done = self.done
 
@@ -282,21 +299,12 @@ class Crystal(GFlowNetEnv):
 
         return mask
 
-    @staticmethod
-    def _stage2value(stage: Stage) -> int:
-        # -2 => 0, -3 => 1, -4 => 2
-        return -(stage.value + 2)
-
-    @staticmethod
-    def _value2stage(value: int) -> Stage:
-        return Stage(-value - 2)
-
     def _update_state(self):
         """
         Updates current state based on the states of underlying environments.
         """
         self.state = (
-            [Crystal._stage2value(self.stage)]
+            [self.stage.value]
             + self.composition.state
             + self.space_group.state
             + self.lattice_parameters.state
@@ -352,7 +360,7 @@ class Crystal(GFlowNetEnv):
             state = self.state.copy()
             stage = self.stage
         else:
-            stage = Crystal._value2stage(state[0])
+            stage = Crystal(state[0])
         if done is None:
             done = self.done
         if done:
