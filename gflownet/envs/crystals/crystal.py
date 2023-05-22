@@ -400,7 +400,8 @@ class Crystal(GFlowNetEnv):
 
     def state2oracle(self, state: Optional[List[int]] = None) -> Tensor:
         """
-        Prepares a list of states in "GFlowNet format" for the oracle.
+        Prepares a list of states in "GFlowNet format" for the oracle. Simply
+        a concatenation of all crystal components.
         """
         if state is None:
             state = self.state.copy()
