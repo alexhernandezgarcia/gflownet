@@ -4,7 +4,9 @@ Classes to represent crystal environments
 from typing import List, Optional, Tuple
 
 import numpy as np
+import torch
 from torch import Tensor
+from torchtyping import TensorType
 
 from gflownet.envs.grid import Grid
 from gflownet.utils.crystals.constants import (
@@ -39,7 +41,7 @@ class LatticeParameters(Grid):
         max_length: float = 5.0,
         min_angle: float = 30.0,
         max_angle: float = 150.0,
-        grid_size: int = 61,
+        grid_size: int = 10,
         max_increment: int = 1,
         **kwargs,
     ):
@@ -63,8 +65,6 @@ class LatticeParameters(Grid):
 
         grid_size : int
             Length of the underlying grid that is used to map discrete values to actual edge lengths and angles.
-            Note that it has to be defined in such a way that 90 and 120 degree angles will be present in the
-            mapping from grid cells to angles (np.linspace(min_angle, max_angle, grid_size)).
 
         max_increment : int
             Maximum increment of each dimension by the actions.
@@ -89,14 +89,19 @@ class LatticeParameters(Grid):
         self.max_angle = max_angle
         self.grid_size = grid_size
 
-        self.cell2angle = {
-            k: v for k, v in enumerate(np.linspace(min_angle, max_angle, grid_size))
-        }
+        # we ensure that 90 and 120 degrees angle are present in the search space,
+        # since for some systems they must be set to one of these values
+        angles = np.linspace(min_angle, max_angle, grid_size + 1)
+        angles[np.abs(angles - 90.0).argmin()] = 90.0
+        angles[np.abs(angles - 120.0).argmin()] = 120.0
+        lengths = np.linspace(min_length, max_length, grid_size + 1)
+
+        self.cell2angle = {k: v for k, v in enumerate(angles)}
         self.angle2cell = {v: k for k, v in self.cell2angle.items()}
-        self.cell2length = {
-            k: v for k, v in enumerate(np.linspace(min_length, max_length, grid_size))
-        }
+        self.cell2length = {k: v for k, v in enumerate(lengths)}
         self.length2cell = {v: k for k, v in self.cell2length.items()}
+        self.angles_tensor = Tensor(angles)
+        self.lengths_tensor = Tensor(lengths)
 
         if (
             90.0 not in self.cell2angle.values()
@@ -323,6 +328,12 @@ class LatticeParameters(Grid):
             if not self._is_intermediate_state_valid(child):
                 mask[idx] = True
 
+        # If there are no valid actions (which can happen if we set all of the dimensions
+        # to their maximum values, and one of the constraints is not satisfied), force eos
+        # to be valid to avoid getting stuck in an infinite loop during sampling.
+        if all(mask):
+            mask[-1] = False
+
         return mask
 
     def state2oracle(self, state: Optional[List[int]] = None) -> Tensor:
@@ -345,6 +356,30 @@ class LatticeParameters(Grid):
         return Tensor(
             [self.cell2length[s] for s in state[:3]]
             + [self.cell2angle[s] for s in state[3:]]
+        )
+
+    def statetorch2oracle(
+        self, states: TensorType["batch", "state_dim"]
+    ) -> TensorType["batch", "state_oracle_dim"]:
+        """
+        Prepares a batch of states in "GFlowNet format" for the oracle. The input to the
+        oracle is the lengths and angles.
+
+        Args
+        ----
+        states : Tensor
+            A state
+
+        Returns
+        ----
+        oracle_states : Tensor
+        """
+        return torch.cat(
+            [
+                self.lengths_tensor[states[:, :3].long()],
+                self.angles_tensor[states[:, 3:].long()],
+            ],
+            dim=1,
         )
 
     def state2readable(self, state: Optional[List[int]] = None) -> str:

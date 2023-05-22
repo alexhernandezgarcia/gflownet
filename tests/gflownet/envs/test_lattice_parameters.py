@@ -2,6 +2,7 @@ import pytest
 
 import torch
 
+import common
 from gflownet.envs.crystals.lattice_parameters import (
     CUBIC,
     HEXAGONAL,
@@ -17,7 +18,7 @@ from gflownet.envs.crystals.lattice_parameters import (
 
 @pytest.fixture()
 def env(lattice_system):
-    return LatticeParameters(lattice_system=lattice_system)
+    return LatticeParameters(lattice_system=lattice_system, grid_size=61)
 
 
 @pytest.mark.parametrize("lattice_system", LATTICE_SYSTEMS)
@@ -33,11 +34,19 @@ def test__environment__initializes_properly_with_non_default_grid_size(
     LatticeParameters(lattice_system=lattice_system, grid_size=grid_size)
 
 
+@pytest.mark.parametrize("lattice_system", LATTICE_SYSTEMS)
+@pytest.mark.parametrize("grid_size", [17, 42, 69, 2137])
+def test__environment__initializes_properly_with_arbitrary_grid_size(
+    env, lattice_system, grid_size
+):
+    LatticeParameters(lattice_system=lattice_system, grid_size=grid_size)
+
+
 @pytest.mark.parametrize(
     "lattice_system, exp_state",
     [
         (CUBIC, [0, 0, 0, 30, 30, 30]),
-        (HEXAGONAL, [0, 0, 0, 30, 30, 45]),
+        (HEXAGONAL, [0, 0, 0, 30, 30, 46]),
         (MONOCLINIC, [0, 0, 0, 30, 0, 30]),
         (ORTHORHOMBIC, [0, 0, 0, 30, 30, 30]),
         (RHOMBOHEDRAL, [0, 0, 0, 0, 0, 0]),
@@ -269,7 +278,7 @@ def test__step__changes_state_as_expected(env, lattice_system, actions, exp_stat
         ),
         (
             TRICLINIC,
-            [60, 60, 60, 60, 60, 60],
+            [61, 61, 61, 61, 61, 61],
             [5.0, 5.0, 5.0, 150.0, 150.0, 150.0],
         ),
     ],
@@ -318,3 +327,9 @@ def test__readable2state__returns_initial_state_for_rhombohedral_and_triclinic(
     env, lattice_system, readable
 ):
     assert env.readable2state(readable) == [0, 0, 0, 0, 0, 0]
+
+
+def test__all_env_common():
+    env = LatticeParameters(lattice_system=TRICLINIC, grid_size=5)
+
+    return common.test__all_env_common(env)

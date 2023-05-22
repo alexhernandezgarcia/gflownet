@@ -3,7 +3,7 @@
 #
 # Arguments
 # $1: Environment name
-# 
+#
 module --force purge
 module load cuda/11.2
 module load python/3.8

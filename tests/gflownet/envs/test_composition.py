@@ -1,7 +1,8 @@
-import common
+import numpy as np
 import pytest
 import torch
 
+import common
 from gflownet.envs.crystals.composition import Composition
 
 
@@ -26,15 +27,15 @@ def test__environment__initializes_properly(elements):
     [
         (
             [0, 0, 2, 0],
-            [2, 2, 0, 0, 1, 0],
+            [0, 0, 2, 0],
         ),
         (
             [3, 0, 0, 0],
-            [0, 3, 1, 0, 0, 0],
+            [3, 0, 0, 0],
         ),
         (
             [0, 1, 0, 1],
-            [0, 2, 0, 0.5, 0, 0.5],
+            [0, 1, 0, 1],
         ),
     ],
 )
@@ -213,7 +214,7 @@ def test__get_parents__returns_expected_parents_and_actions(
     parents, actions = env.get_parents()
 
     assert set(tuple(x) for x in parents) == set(tuple(x) for x in exp_parents)
-    assert set(env.action_space[x] for x in actions) == set(exp_actions)
+    assert set(actions) == set(exp_actions)
 
 
 @pytest.mark.parametrize(
@@ -290,3 +291,55 @@ def test__can_produce_neutral_charge__returns_expected_result(state, exp_result)
     )
 
     assert environment._can_produce_neutral_charge(state) == exp_result
+
+
+def test__get_mask_invalid_actions_forward__accounts_for_required_elements():
+    required_elements = [1, 2, 4, 5]
+    env = Composition(
+        elements=6, required_elements=required_elements, max_atom_i=1, max_diff_elem=4
+    )
+    mask = env.get_mask_invalid_actions_forward()
+
+    for (element, n), masked in zip(env.action_space, mask):
+        if element in required_elements:
+            assert not masked
+        else:
+            assert masked
+
+
+@pytest.mark.repeat(25)
+def test__required_elements_does_not_cause_environment_to_get_stuck():
+    required_elements = [1, 2, 3, 4, 5]
+    env = Composition(
+        elements=89, max_diff_elem=10, required_elements=required_elements
+    )
+
+    while not env.done:
+        mask = env.get_mask_invalid_actions_forward()
+        actions = [action for action, m in zip(env.action_space, mask) if not m]
+        assert len(actions) > 0
+        action = actions[np.random.choice(len(actions))]
+        env.step(action)
+
+
+@pytest.mark.repeat(25)
+def test__insufficient_elements_left_does_not_cause_environment_to_get_stuck():
+    env = Composition(
+        elements=10,
+        min_diff_elem=5,
+        max_diff_elem=5,
+        max_atoms=25,
+        min_atom_i=4,
+        max_atom_i=10,
+    )
+
+    while not env.done:
+        mask = env.get_mask_invalid_actions_forward()
+        actions = [action for action, m in zip(env.action_space, mask) if not m]
+        assert len(actions) > 0
+        action = actions[np.random.choice(len(actions))]
+        env.step(action)
+
+
+def test__all_env_common(env):
+    return common.test__all_env_common(env)

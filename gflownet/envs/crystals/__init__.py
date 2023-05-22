@@ -1,1 +1,1 @@
-__all__ = ["composition", "lattice_parameters", "spacegroup"]
+__all__ = ["composition", "crystal", "lattice_parameters", "spacegroup"]
