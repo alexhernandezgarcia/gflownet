@@ -118,7 +118,7 @@ class Batch:
                     """
                     self.parents_all.append(parents)
                     self.parents_actions_all.append(parents_a)
-                if self.loss == "trajectorybalance":
+                if self.loss in ["trajectorybalance", "forwardlooking"]:
                     self.masks_invalid_actions_backward.append(
                         env.get_mask_invalid_actions_backward(
                             env.state, env.done, [action]
@@ -165,7 +165,7 @@ class Batch:
                     device=self.device,
                     float_type=self.float,
                 )
-            elif self.loss == "trajectorybalance":
+            elif self.loss in ["trajectorybalance", "forwardlooking"]:
                 self.masks_invalid_actions_backward = tbool(
                     self.masks_invalid_actions_backward, device=self.device
                 )
@@ -324,7 +324,7 @@ class Batch:
                 device=self.device,
                 float_type=self.float,
             )
-        elif self.loss == "trajectorybalance":
+        elif self.loss in ["trajectorybalance", "forwardlooking"]:
             assert self.trajectory_indices is not None
             parents_policy = torch.zeros_like(self.states_policy)
             parents = torch.zeros_like(self.states)
