@@ -138,11 +138,9 @@ class Crystal(GFlowNetEnv):
         """
         Sets LatticeParameters conditioned on the lattice system derived from the SpaceGroup.
         """
-        crystal_system = self.space_group.get_crystal_system()
-
-        if crystal_system is None:
+        if self.space_group.lattice_system == "None":
             raise ValueError(
-                "Cannot set lattice parameters without crystal system determined in the space group."
+                "Cannot set lattice parameters without lattice system determined in the space group."
             )
 
         self.lattice_parameters = LatticeParameters(
