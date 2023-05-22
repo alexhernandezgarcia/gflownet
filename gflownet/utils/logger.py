@@ -127,6 +127,12 @@ class Logger:
         else:
             self.pb_ckpt_path = self.ckpts_dir / f"{ckpt_id}_"
 
+    def set_forward_flow_policy_ckpt_path(self, ckpt_id: str = None):
+        if ckpt_id is None:
+            self.ff_ckpt_path = None
+        else:
+            self.ff_ckpt_path = self.ckpts_dir / f"{ckpt_id}_"
+
     def progressbar_update(
         self, pbar, losses, rewards, jsd, step, use_context=True, n_mean=100
     ):
