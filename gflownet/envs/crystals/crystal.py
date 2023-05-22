@@ -97,7 +97,6 @@ class Crystal(GFlowNetEnv):
             max(len(a) for a in self.space_group.action_space),
             max(len(a) for a in self.lattice_parameters.action_space),
         )
-        self.done = False
 
         # Conversions
         self.state2proxy = self.state2oracle
