@@ -30,6 +30,7 @@ class Composition(GFlowNetEnv):
         oxidation_states: Optional[Dict] = None,
         alphabet: Optional[Dict] = None,
         required_elements: Optional[Union[Tuple, List]] = (),
+        do_charge_check: bool = False,
         **kwargs,
     ):
         """
@@ -73,6 +74,10 @@ class Composition(GFlowNetEnv):
         required_elements : (optional) list
             List of elements that must be present in a crystal for it to represent a
             valid end state
+
+        do_charge_check : bool
+            Whether to do neutral charge check and forbid compositions for which neutral
+            charge is not possible.
         """
         if isinstance(elements, int):
             elements = [i + 1 for i in range(elements)]
@@ -100,6 +105,7 @@ class Composition(GFlowNetEnv):
         self.required_elements = (
             required_elements if required_elements is not None else []
         )
+        self.do_charge_check = do_charge_check
         self.elem2idx = {e: i for i, e in enumerate(self.elements)}
         self.idx2elem = {i: e for i, e in enumerate(self.elements)}
         # Source state: 0 atoms for all elements
@@ -344,18 +350,19 @@ class Composition(GFlowNetEnv):
             if self.get_mask_invalid_actions_forward()[-1]:
                 valid = False
             else:
-                # TODO: re-enable charge check
-                # Currently enabling it causes errors when training combined
-                # Crystal env, and very significantly increases training time.
-                # if self._can_produce_neutral_charge():
-                #     self.done = True
-                #     valid = True
-                #     self.n_actions += 1
-                # else:
-                #     valid = False
-                self.done = True
-                valid = True
-                self.n_actions += 1
+                if self.do_charge_check:
+                    # Currently enabling it causes errors when training combined
+                    # Crystal env, and very significantly increases training time.
+                    if self._can_produce_neutral_charge():
+                        self.done = True
+                        valid = True
+                        self.n_actions += 1
+                    else:
+                        valid = False
+                else:
+                    self.done = True
+                    valid = True
+                    self.n_actions += 1
             return self.state, self.eos, valid
 
     def _can_produce_neutral_charge(self, state: Optional[List[int]] = None) -> bool:
