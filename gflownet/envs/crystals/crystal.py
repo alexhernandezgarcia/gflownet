@@ -107,10 +107,19 @@ class Crystal(GFlowNetEnv):
         )
 
         self.stage = Stage.COMPOSITION
+        self.composition_action_length = max(
+            len(a) for a in self.composition.action_space
+        )
+        self.space_group_action_length = max(
+            len(a) for a in self.space_group.action_space
+        )
+        self.lattice_parameters_action_length = max(
+            len(a) for a in self.lattice_parameters.action_space
+        )
         self.max_action_length = max(
-            max(len(a) for a in self.composition.action_space),
-            max(len(a) for a in self.space_group.action_space),
-            max(len(a) for a in self.lattice_parameters.action_space),
+            self.composition_action_length,
+            self.space_group_action_length,
+            self.lattice_parameters_action_length,
         )
 
         # EOS is EOS of LatticeParameters because it is the last stage
@@ -160,11 +169,11 @@ class Crystal(GFlowNetEnv):
         underlying environment.
         """
         if stage == Stage.COMPOSITION:
-            dim = max(len(a) for a in self.composition.action_space)
+            dim = self.composition_action_length
         elif stage == Stage.SPACE_GROUP:
-            dim = max(len(a) for a in self.space_group.action_space)
+            dim = self.space_group_action_length
         elif stage == Stage.LATTICE_PARAMETERS:
-            dim = max(len(a) for a in self.lattice_parameters.action_space)
+            dim = self.lattice_parameters_action_length
         else:
             raise ValueError(f"Unrecognized stage {stage}.")
 
