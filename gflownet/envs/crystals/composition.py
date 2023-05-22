@@ -122,7 +122,7 @@ class Composition(GFlowNetEnv):
         return actions
 
     def get_max_traj_length(self):
-        return min(self.max_diff_elem, self.max_atoms // self.min_atom_i) + 1
+        return min(self.max_diff_elem, self.max_atoms // self.min_atom_i)
 
     def get_mask_invalid_actions_forward(self, state=None, done=None):
         """
