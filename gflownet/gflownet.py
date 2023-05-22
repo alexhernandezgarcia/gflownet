@@ -85,6 +85,9 @@ class GFlowNetAgent:
         elif optimizer.loss in ["trajectorybalance", "tb"]:
             self.loss = "trajectorybalance"
             self.logZ = nn.Parameter(torch.ones(optimizer.z_dim) * 150.0 / 64)
+        elif optimizer.loss in ["forwardlooking", "fl"]:
+            self.loss = "forwardlooking"
+            self.logZ = None
         else:
             print("Unkown loss. Using flowmatch as default")
             self.loss = "flowmatch"
@@ -138,6 +141,7 @@ class GFlowNetAgent:
                 print("Reloaded GFN forward policy model Checkpoint")
         else:
             self.logger.set_forward_policy_ckpt_path(None)
+
         self.backward_policy = Policy(
             policy.backward,
             self.env,
@@ -159,6 +163,35 @@ class GFlowNetAgent:
                 print("Reloaded GFN backward policy model Checkpoint")
         else:
             self.logger.set_backward_policy_ckpt_path(None)
+
+        # Forward-looking flow model
+        if policy.forward_flow is None:
+            self.forward_flow_policy = None
+            if self.loss == "forward-looking":
+                raise ValueError("Using the forward-looking loss requires a forward-flow config")
+        else:
+            self.forward_flow_policy = ForwardFlow(
+                policy.forward_flow,
+                self.env,
+                self.device,
+                self.float,
+                base=self.forward_policy,
+            )
+            if (
+                policy.forward_flow
+                and "checkpoint" in policy.forward_flow
+                and policy.forward_flow.checkpoint
+            ):
+                self.logger.set_forward_flow_policy_ckpt_path(policy.forward_flow.checkpoint)
+                # TODO: re-write the logic and conditions to reload a model
+                if False:
+                    self.forward_flow.load_state_dict(
+                        torch.load(self.policy_forward_flow_path)
+                    )
+                    print("Reloaded GFN forward-looking flow policy model Checkpoint")
+            else:
+                self.logger.set_forward_flow_policy_ckpt_path(None)
+
         self.ckpt_period = policy.ckpt_period
         if self.ckpt_period in [None, -1]:
             self.ckpt_period = np.inf
@@ -196,6 +229,12 @@ class GFlowNetAgent:
         elif self.loss == "trajectorybalance":
             return list(self.forward_policy.model.parameters()) + list(
                 self.backward_policy.model.parameters()
+            )
+        elif self.loss == "forwardlooking":
+            return (
+                list(self.forward_policy.model.parameters()) +
+                list(self.backward_policy.model.parameters()) +
+                list(self.forward_flow_policy.model.parameters())
             )
         else:
             raise ValueError("Backward Policy cannot be a nn in flowmatch.")
@@ -595,6 +634,117 @@ class GFlowNetAgent:
         )
         return (loss, loss, loss), rewards
 
+    def forwardlooking_loss(self, it, batch, loginf=1000):
+        """
+        Computes the Forward-Looking GFlowNet loss of a batch
+        Reference : https://arxiv.org/pdf/2302.01687.pdf
+
+        Args
+        ----
+        it : int
+            Iteration
+
+        batch : Batch
+            A Batch object containing the data (parent, action, state, reward, ...)
+            for all the samples included in the batch.
+
+        loginf : float
+            Logarithm of a very large value. Used as an approximation of log(infinity)
+            for computational convenience.
+
+        Returns
+        -------
+        tuple
+            Losses computed over the provided batch. The tuple contains these three
+            losses : the FL (forward-looking) loss computed on all nodes, the FL loss
+            computed only on the terminal nodes, and the FL loss computed only on
+            non-terminal nodes.
+
+        rewards : torch.tensor
+            Reward associated with each state in the batch.
+        """
+        loginf_tensor = tfloat([loginf], device=self.device, float_type=self.float)
+        # Convert lists in the batch into tensors
+        batch.process_batch()
+
+        states_policy = batch.states_policy
+        actions = batch.actions
+        parents = batch.parents
+        parents_policy = batch.parents_policy
+        done = batch.done
+        masks_sf = batch.masks_invalid_actions_forward
+        masks_b = batch.masks_invalid_actions_backward
+        traj_ids = batch.env_ids
+        state_ids = batch.steps
+
+        # Ensure that the state_ids are indexed from 1 for any trajectory : [1, 2, ...].
+        for tid in traj_ids.unique():
+            state_ids[traj_ids == tid] = (
+                state_ids[traj_ids == tid] - state_ids[traj_ids == tid].min() + 1
+            )
+
+        # Build parents forward masks from state masks
+        masks_f = torch.cat(
+            [
+                masks_sf[torch.where((state_ids == sid - 1) & (traj_ids == pid))]
+                if sid > 1
+                else self.mask_source
+                for sid, pid in zip(state_ids, traj_ids)
+            ]
+        )
+
+        # Obtain the log forward-looking flows for the starting state of each transition
+        parents_log_flow = self.forward_flow_policy(parents_policy)[:, 0]
+
+        # Obtain the log forward-looking flows for the arrival state of each transition.
+        # For terminal states, the log forward-looking flow will be 1.
+        states_log_flow = self.forward_flow_policy(states_policy)[:, 0]
+        states_log_flow[done.eq(1)] = 1
+
+        # Obtain the log probabilities for the parent->state forward transitions
+        policy_output_f = self.forward_policy(parents_policy)
+        logprobs_f = self.env.get_logprobs(
+            policy_output_f, True, actions, states_policy, masks_f, loginf_tensor
+        )
+
+        # Obtain the log probabilities for the parent<-state backward transitions
+        policy_output_b = self.backward_policy(states_policy)
+        logprobs_b = self.env.get_logprobs(
+            policy_output_b, False, actions, parents_policy, masks_b, loginf_tensor
+        )
+
+        # Compute rewards for all states and their parents
+        rewards = batch.compute_rewards()
+        parent_rewards = self.env.reward_torchbatch(parents, done=torch.zeros_like(done))
+
+        # Compute the energies associated with each reward. For rewards of 0 (undefined),
+        # we set them to 1. This will make their energies equal to 0 which will make
+        # the forward-looking loss equivalent to a detailed balance loss on environments
+        # that have null rewards for non-terminal states.
+        stable_rewards = rewards.eq(0) + rewards * rewards.ne(0)
+        stable_parent_rewards = parent_rewards.eq(0) + parent_rewards * parent_rewards.ne(0)
+
+        state_energies = -torch.log(stable_rewards)
+        parent_energies = -torch.log(stable_parent_rewards)
+
+        # Compute the transition energy associated with each transition.
+        energies = state_energies - parent_energies
+
+        # Forward-looking loss
+        per_node_loss = (
+            parents_log_flow + logprobs_f - states_log_flow - logprobs_b + energies
+        ).pow(2)
+        loss = per_node_loss.mean()
+
+        # Compute loss for terminating nodes and for all other nodes
+        with torch.no_grad():
+            term_loss = (per_node_loss * done).pow(2).sum() / (done.sum() + 1e-20)
+            flow_loss = (per_node_loss * torch.logical_not(done)).pow(2).sum() / (
+                torch.logical_not(done).sum() + 1e-20
+            )
+
+        return (loss, term_loss, flow_loss), rewards[done.eq(1)]
+
     def train(self):
         # Metrics
         all_losses = []
@@ -627,6 +777,10 @@ class GFlowNetAgent:
                     losses, rewards = self.trajectorybalance_loss(
                         it * self.ttsr + j, data
                     )  # returns (opt loss, *metrics)
+                elif self.loss == "forwardlooking":
+                    losses, rewards = self.forwardlooking_loss(
+                        it * self.ttsr + j, data
+                    )
                 else:
                     print("Unknown loss!")
                 if not all([torch.isfinite(loss) for loss in losses]):
