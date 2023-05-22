@@ -294,14 +294,14 @@ class Crystal(GFlowNetEnv):
             ] = space_group_mask
         elif stage == Stage.LATTICE_PARAMETERS:
             """
-            TODO: to be stateless (meaning, operating as a function, not a method with 
-            current object context) this needs to set lattice system based on the passed 
-            state only. Right now it uses the current LatticeParameter environment, in 
-            particular the lattice system that it was set to, and that changes the invalid 
+            TODO: to be stateless (meaning, operating as a function, not a method with
+            current object context) this needs to set lattice system based on the passed
+            state only. Right now it uses the current LatticeParameter environment, in
+            particular the lattice system that it was set to, and that changes the invalid
             actions mask.
 
-            If for some reason a state will be passed to this method that describes an 
-            object with different lattice system than what self.lattice_system contains, 
+            If for some reason a state will be passed to this method that describes an
+            object with different lattice system than what self.lattice_system contains,
             the result will be invalid.
             """
             lattice_parameters_state = self._get_lattice_parameters_state(state)
@@ -369,6 +369,29 @@ class Crystal(GFlowNetEnv):
 
         return self.state, action, valid
 
+    def _build_state(self, substate: List, stage: Stage) -> List:
+        """
+        Converts the state coming from one of the subenvironments into a combined state
+        format used by the Crystal environment.
+        """
+        if stage == Stage.COMPOSITION:
+            output = (
+                [0]
+                + substate
+                + self.space_group.source
+                + self.lattice_parameters.source
+            )
+        elif stage == Stage.SPACE_GROUP:
+            output = (
+                [1] + self.composition.state + substate + [0] * 6
+            )  # hard-code LatticeParameters` source, since it can change with other lattice system
+        elif stage == Stage.LATTICE_PARAMETERS:
+            output = [2] + self.composition.state + self.space_group.state + substate
+        else:
+            raise ValueError(f"Unrecognized stage {stage}.")
+
+        return output
+
     def get_parents(
         self,
         state: Optional[List] = None,
@@ -392,10 +415,7 @@ class Crystal(GFlowNetEnv):
             parents, actions = self.composition.get_parents(
                 state=self._get_composition_state(state)
             )
-            parents = [
-                [0] + p + self.space_group.source + self.lattice_parameters.source
-                for p in parents
-            ]
+            parents = [self._build_state(p, Stage.COMPOSITION) for p in parents]
             actions = [self._pad_action(a, Stage.COMPOSITION) for a in actions]
         elif stage == Stage.SPACE_GROUP or (
             stage == Stage.LATTICE_PARAMETERS
@@ -404,34 +424,24 @@ class Crystal(GFlowNetEnv):
             parents, actions = self.space_group.get_parents(
                 state=self._get_space_group_state(state)
             )
-            parents = [
-                [1]
-                + self.composition.state
-                + p
-                + [0]
-                * 6  # hard-code LatticeParameters` source, since it can change with other lattice system
-                for p in parents
-            ]
+            parents = [self._build_state(p, Stage.SPACE_GROUP) for p in parents]
             actions = [self._pad_action(a, Stage.SPACE_GROUP) for a in actions]
         elif stage == Stage.LATTICE_PARAMETERS:
             """
-            TODO: to be stateless (meaning, operating as a function, not a method with 
-            current object context) this needs to set lattice system based on the passed 
-            state only. Right now it uses the current LatticeParameter environment, in 
-            particular the lattice system that it was set to, and that changes the invalid 
+            TODO: to be stateless (meaning, operating as a function, not a method with
+            current object context) this needs to set lattice system based on the passed
+            state only. Right now it uses the current LatticeParameter environment, in
+            particular the lattice system that it was set to, and that changes the invalid
             actions mask.
 
-            If for some reason a state will be passed to this method that describes an 
-            object with different lattice system than what self.lattice_system contains, 
+            If for some reason a state will be passed to this method that describes an
+            object with different lattice system than what self.lattice_system contains,
             the result will be invalid.
             """
             parents, actions = self.lattice_parameters.get_parents(
                 state=self._get_lattice_parameters_state(state)
             )
-            parents = [
-                [2] + self.composition.state + self.space_group.state + p
-                for p in parents
-            ]
+            parents = [self._build_state(p, Stage.LATTICE_PARAMETERS) for p in parents]
             actions = [self._pad_action(a, Stage.LATTICE_PARAMETERS) for a in actions]
         else:
             raise ValueError(f"Unrecognized stage {stage}.")
