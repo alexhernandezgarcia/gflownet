@@ -30,6 +30,7 @@ class GFlowNetEnv:
         reward_norm: float = 1.0,
         reward_norm_std_mult: float = 0.0,
         reward_func: str = "identity",
+        non_terminal_rewards: bool = False,
         energies_stats: List[int] = None,
         denorm_proxy: bool = False,
         proxy=None,
@@ -58,6 +59,7 @@ class GFlowNetEnv:
         assert self.reward_norm > 0
         self.reward_norm_std_mult = reward_norm_std_mult
         self.reward_func = reward_func
+        self.non_terminal_rewards = non_terminal_rewards
         self.energies_stats = energies_stats
         self.denorm_proxy = denorm_proxy
         # Proxy and oracle
@@ -509,7 +511,7 @@ class GFlowNetEnv:
         """
         if done is None:
             done = self.done
-        if done:
+        if done and not self.non_terminal_rewards:
             return np.array(0.0)
         if state is None:
             state = self.state.copy()
@@ -521,10 +523,17 @@ class GFlowNetEnv:
         """
         if done is None:
             done = np.ones(len(states), dtype=bool)
-        states_proxy = self.statebatch2proxy(states)[list(done), :]
         rewards = np.zeros(len(done))
-        if states_proxy.shape[0] > 0:
-            rewards[list(done)] = self.proxy2reward(self.proxy(states_proxy)).tolist()
+
+        if self.non_terminal_rewards:
+            # Compute rewards for all states
+            states_proxy = self.statebatch2proxy(states)
+            rewards = self.proxy2reward(self.proxy(states_proxy)).tolist()
+        else:
+            # Only compute rewards for terminal states
+            states_proxy = self.statebatch2proxy(states)[list(done), :]
+            if states_proxy.shape[0] > 0:
+                rewards[list(done)] = self.proxy2reward(self.proxy(states_proxy)).tolist()
         return rewards
 
     def reward_torchbatch(
@@ -537,10 +546,17 @@ class GFlowNetEnv:
         """
         if done is None:
             done = torch.ones(states.shape[0], dtype=torch.bool, device=self.device)
-        states_proxy = self.statetorch2proxy(states[done, :])
         reward = torch.zeros(done.shape[0], dtype=self.float, device=self.device)
-        if states[done, :].shape[0] > 0:
-            reward[done] = self.proxy2reward(self.proxy(states_proxy))
+
+        if self.non_terminal_rewards:
+            # Compute rewards for all states
+            states_proxy = self.statetorch2proxy(states)
+            reward = self.proxy2reward(self.proxy(states_proxy))
+        else:
+            # Only compute rewards for terminal states
+            states_proxy = self.statetorch2proxy(states[done, :])
+            if states[done, :].shape[0] > 0:
+                reward[done] = self.proxy2reward(self.proxy(states_proxy))
         return reward
 
     def proxy2reward(self, proxy_vals):
