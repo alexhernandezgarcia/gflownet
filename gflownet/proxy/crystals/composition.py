@@ -64,7 +64,7 @@ class CompositionMPFrequency(Proxy):
         self.atomic_numbers = torch.tensor(
             env.elements, device=self.device, dtype=torch.int16
         )
-        if self.normalise:
+        if self.normalize:
             self.norm = -1.0 * torch.sum(self.counts)
         else:
             self.norm = -1.0
