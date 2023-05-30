@@ -24,7 +24,7 @@ class CompositionMPFrequency(Proxy):
     def __init__(self, normalize: bool = True, **kwargs):
         super().__init__(**kwargs)
         self.counts_dict = _read_protons_number_counts()
-        self.normalise = normalise
+        self.normalize = normalize
 
     def _get_max_protons_state(self, env):
         max_protons_state = env.source.copy()
