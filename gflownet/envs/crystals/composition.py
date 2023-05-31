@@ -7,6 +7,7 @@ from typing import Dict, List, Optional, Tuple, Union
 import numpy as np
 import torch
 from torch import Tensor
+from torchtyping import TensorType
 
 from gflownet.envs.base import GFlowNetEnv
 from gflownet.utils.crystals.constants import ELEMENT_NAMES, OXIDATION_STATES
@@ -20,7 +21,7 @@ class Composition(GFlowNetEnv):
     def __init__(
         self,
         elements: Union[List, int] = 84,
-        max_diff_elem: int = 4,
+        max_diff_elem: int = 5,
         min_diff_elem: int = 2,
         min_atoms: int = 2,
         max_atoms: int = 20,
@@ -28,7 +29,8 @@ class Composition(GFlowNetEnv):
         max_atom_i: int = 10,
         oxidation_states: Optional[Dict] = None,
         alphabet: Optional[Dict] = None,
-        required_elements: Optional[Union[Tuple, List]] = (3,),
+        required_elements: Optional[Union[Tuple, List]] = (),
+        do_charge_check: bool = False,
         **kwargs,
     ):
         """
@@ -54,7 +56,7 @@ class Composition(GFlowNetEnv):
             Maximum number of atoms that can be used to construct a crystal
 
         min_atom_i : int
-            Minimum number of elements of each used kind that needs to be used to
+            Minimum number of elements of each kind that needs to be used to
             construct a crystal
 
         max_atom_i : int
@@ -72,6 +74,10 @@ class Composition(GFlowNetEnv):
         required_elements : (optional) list
             List of elements that must be present in a crystal for it to represent a
             valid end state
+
+        do_charge_check : bool
+            Whether to do neutral charge check and forbid compositions for which neutral
+            charge is not possible.
         """
         if isinstance(elements, int):
             elements = [i + 1 for i in range(elements)]
@@ -99,6 +105,7 @@ class Composition(GFlowNetEnv):
         self.required_elements = (
             required_elements if required_elements is not None else []
         )
+        self.do_charge_check = do_charge_check
         self.elem2idx = {e: i for i, e in enumerate(self.elements)}
         self.idx2elem = {i: e for i, e in enumerate(self.elements)}
         # Source state: 0 atoms for all elements
@@ -113,15 +120,15 @@ class Composition(GFlowNetEnv):
         tuple (element, n), indicating that the count of element will be
         set to n.
         """
-        assert self.max_diff_elem > self.min_diff_elem
-        assert self.max_atom_i > self.min_atom_i
+        assert self.max_diff_elem >= self.min_diff_elem
+        assert self.max_atom_i >= self.min_atom_i
         valid_word_len = np.arange(self.min_atom_i, self.max_atom_i + 1)
         actions = [(element, n) for n in valid_word_len for element in self.elements]
         actions.append(self.eos)
         return actions
 
     def get_max_traj_length(self):
-        return min(len(self.state), self.max_atoms // self.min_atom_i)
+        return min(self.max_diff_elem, self.max_atoms // self.min_atom_i)
 
     def get_mask_invalid_actions_forward(self, state=None, done=None):
         """
@@ -137,27 +144,46 @@ class Composition(GFlowNetEnv):
             return [True for _ in range(self.action_space_dim)]
 
         mask = [False for _ in self.action_space]
-        state_elem = [self.idx2elem[i] for i, e in enumerate(state) if e > 0]
-        n_state_atoms = sum(state)
+        used_elements = [self.idx2elem[i] for i, e in enumerate(state) if e > 0]
+        unused_required_elements = [
+            e for e in self.required_elements if e not in used_elements
+        ]
+        n_used_elements = len(used_elements)
+        n_unused_required_elements = len(unused_required_elements)
+        n_used_atoms = sum(state)
 
-        if n_state_atoms < self.min_atoms:
+        if n_used_atoms < self.min_atoms:
             mask[-1] = True
-        if len(state_elem) < self.min_diff_elem:
+        if n_used_elements < self.min_diff_elem:
             mask[-1] = True
-        if any(r not in state_elem for r in self.required_elements):
+        if any(r not in used_elements for r in self.required_elements):
             mask[-1] = True
 
         for idx, (element, n) in enumerate(self.action_space[:-1]):
+            # cannot modify already set element
             if state[self.elem2idx[element]] > 0:
                 mask[idx] = True
-            if n_state_atoms + n > self.max_atoms:
-                mask[idx] = True
+                continue
+
+            # compute how many additional atoms and elements need to be reserved
+            if element in unused_required_elements:
+                reserved_elements = n_unused_required_elements - 1
             else:
-                new_elem = element not in state_elem
-                if not new_elem:
-                    mask[idx] = True
-                if new_elem and len(state_elem) >= self.max_diff_elem:
-                    mask[idx] = True
+                reserved_elements = n_unused_required_elements
+            reserved_elements = max(
+                reserved_elements, self.min_diff_elem - n_used_elements - 1
+            )
+            reserved_atoms = reserved_elements * self.min_atom_i
+
+            # cannot add atoms over the limit
+            if n_used_atoms + n + reserved_atoms > self.max_atoms:
+                mask[idx] = True
+                continue
+            # cannot add elements over the limit
+            if n_used_elements + 1 + reserved_elements > self.max_diff_elem:
+                mask[idx] = True
+                continue
+
         return mask
 
     def state2oracle(self, state: List = None) -> Tensor:
@@ -172,22 +198,30 @@ class Composition(GFlowNetEnv):
         Returns
         ----
         oracle_state : Tensor
-            Tensor containing # of Li atoms, total # of atoms, and fractions of
-            individual elements
+            Tensor containing counts of individual elements
         """
         if state is None:
             state = self.state
 
-        li_idx = self.elem2idx.get(3)
+        return torch.Tensor(state)
 
-        if li_idx is None:
-            raise ValueError(
-                "state2oracle needs to return the number of Li atoms, but Li not present in allowed elements."
-            )
+    def statetorch2oracle(
+        self, states: TensorType["batch", "state_dim"]
+    ) -> TensorType["batch", "state_oracle_dim"]:
+        """
+        Prepares a batch of states in "GFlowNet format" for the oracle. The input to the
+        oracle is the atom counts for individual elements.
 
-        return torch.Tensor(
-            [state[li_idx], sum(state)] + [x / sum(state) for x in state]
-        )
+        Args
+        ----
+        states : Tensor
+            A state
+
+        Returns
+        ----
+        oracle_states : Tensor
+        """
+        return states
 
     def state2readable(self, state=None):
         """
@@ -267,12 +301,13 @@ class Composition(GFlowNetEnv):
         else:
             parents = []
             actions = []
-            for idx, (element, n) in enumerate(self.action_space[:-1]):
+            for idx, action in enumerate(self.action_space[:-1]):
+                element, n = action
                 if state[self.elem2idx[element]] == n > 0:
                     parent = state.copy()
                     parent[self.elem2idx[element]] -= n
                     parents.append(parent)
-                    actions.append(idx)
+                    actions.append(action)
         return parents, actions
 
     def step(self, action: Tuple[int, int]) -> Tuple[List[int], Tuple[int, int], bool]:
@@ -298,48 +333,43 @@ class Composition(GFlowNetEnv):
         # If done, return invalid
         if self.done:
             return self.state, action, False
-        # If only possible action is eos, then force eos
-        if sum(self.state) == self.max_atoms:
-            self.done = True
-            self.n_actions += 1
-            return self.state, self.eos, True
         # If action not found in action space raise an error
-        action_idx = None
-        for i, a in enumerate(self.action_space):
-            if a == action:
-                action_idx = i
-                break
-        if action_idx is None:
+        if action not in self.action_space:
             raise ValueError(
                 f"Tried to execute action {action} not present in action space."
             )
+        else:
+            action_idx = self.action_space.index(action)
         # If action is in invalid mask, exit immediately
         if self.get_mask_invalid_actions_forward()[action_idx]:
             return self.state, action, False
         # If action is not eos, then perform action
         if action != self.eos:
-            atomic_number, num = action
-            idx = self.elem2idx[atomic_number]
+            element, num = action
+            idx = self.elem2idx[element]
             state_next = self.state[:]
             state_next[idx] = num
-            if sum(state_next) > self.max_atoms:
-                valid = False
-            else:
-                self.state = state_next
-                valid = True
-                self.n_actions += 1
-            return self.state, action, valid
+            self.state = state_next
+            self.n_actions += 1
+            return self.state, action, True
         # If action is eos, then perform eos
         else:
             if self.get_mask_invalid_actions_forward()[-1]:
                 valid = False
             else:
-                if self._can_produce_neutral_charge():
+                if self.do_charge_check:
+                    # Currently enabling it causes errors when training combined
+                    # Crystal env, and very significantly increases training time.
+                    if self._can_produce_neutral_charge():
+                        self.done = True
+                        valid = True
+                        self.n_actions += 1
+                    else:
+                        valid = False
+                else:
                     self.done = True
                     valid = True
                     self.n_actions += 1
-                else:
-                    valid = False
             return self.state, self.eos, valid
 
     def _can_produce_neutral_charge(self, state: Optional[List[int]] = None) -> bool:
