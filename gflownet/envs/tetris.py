@@ -141,11 +141,13 @@ class Tetris(GFlowNetEnv):
         piece_mat = torch.rot90(
             self.piece2mat(self.idx2piece[piece_idx]), k=self.rot2idx[rotation]
         )
+        piece_mat_mask = piece_mat != 0
         hp, wp = piece_mat.shape
         # Get and set index of new piece
         indices = board.unique()
         piece_idx = self._get_max_piece_idx(board, piece_idx, incr=1)
-        piece_mat[piece_mat != 0] = piece_idx
+        piece_mat[piece_mat_mask] = piece_idx
+
         # Check if piece goes overboard horizontally
         if col + wp > self.width:
             return board, False
@@ -188,7 +190,7 @@ class Tetris(GFlowNetEnv):
             else:
                 # The piece can be placed here if all board cells under piece are empty
                 board_section = board[row : row + hp, col : col + wp]
-                if sum(board_section[piece_mat != 0]) == 0:
+                if sum(board_section[piece_mat_mask]) == 0:
                     # The piece can be placed here.
                     lowest_valid_row = row
                 else:
