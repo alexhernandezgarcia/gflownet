@@ -43,30 +43,6 @@ def resolve(path: str) -> Path:
     return Path(os.path.expandvars(str(path))).expanduser().resolve()
 
 
-def find_ckpt(ckpt_path: dict) -> Path:
-    loc = os.environ.get(
-        "SLURM_CLUSTER_NAME", os.environ.get("SLURM_JOB_ID", os.environ["USER"])
-    )
-    if all(s.isdigit() for s in loc):
-        loc = "mila"
-    if loc not in ckpt_path:
-        raise ValueError(f"DAV proxy checkpoint path not found for location {loc}.")
-    path = resolve(ckpt_path[loc])
-    if not path.exists():
-        raise ValueError(f"DAV proxy checkpoint not found at {str(path)}.")
-    if path.is_file():
-        return path
-    ckpts = list(path.glob("*.ckpt"))
-    if len(ckpts) == 0:
-        raise ValueError(f"No DAV proxy checkpoint found at {str(path)}.")
-    if len(ckpts) > 1:
-        raise ValueError(
-            f"Multiple DAV proxy checkpoints found at {str(path)}. "
-            "Please specify the checkpoint explicitly."
-        )
-    return ckpts[0]
-
-
 class DAV(Proxy):
     def __init__(self, ckpt_path=None, release=None, rescale_outputs=True, **kwargs):
         """
