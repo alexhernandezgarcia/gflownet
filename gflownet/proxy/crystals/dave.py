@@ -90,17 +90,16 @@ class DAVE(Proxy):
         from dave import prepare_for_gfn
 
         self.model, self.proxy_loaders, self.scales = prepare_for_gfn(
-            ckpt_path, self.rescale_outputs
+            ckpt_path, release, self.rescale_outputs
         )
 
         self.model.to(self.device)
-        print("Proxy ready.")
 
     def _set_scales(self):
         if self.scaled:
             return
         if self.rescale_outputs:
-            if self.model_config["scales"]["x"]["mean"].device != self.device:
+            if self.scales["x"]["mean"].device != self.device:
                 self.scales["x"]["mean"] = self.scales["x"]["mean"].to(self.device)
                 self.scales["x"]["std"] = self.scales["x"]["std"].to(self.device)
                 self.scales["y"]["mean"] = self.scales["y"]["mean"].to(self.device)
