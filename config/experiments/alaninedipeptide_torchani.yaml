@@ -3,9 +3,8 @@
 defaults:
    - override /env: alaninedipeptide
    - override /gflownet: trajectorybalance
-   - override /proxy: molecule_rf
+   - override /proxy: molecule_torchani
    - override /logger: wandb
-   - override /user: sasha
 
 # Environment
 env:
@@ -13,6 +12,7 @@ env:
   policy_encoding_dim_per_angle: 10
   n_comp: 5
   vonmises_min_concentration: 4
+  reward_func: boltzmann
 
 # GFlowNet hyperparameters
 gflownet:
@@ -41,17 +41,17 @@ gflownet:
 logger:
   lightweight: True
   project_name: "gflownet"
-  tags: 
+  tags:
     - gflownet
     - continuous
     - molecule
   test:
-    period: 500
+    period: 5000
     n: 10000
   checkpoints:
-    period: 500
+    period: 5000
 
 # Hydra
 hydra:
   run:
-    dir: ${user.logdir.root}/icml23/molecule/${now:%Y-%m-%d_%H-%M-%S}
+    dir: ${user.logdir.root}/molecule/${now:%Y-%m-%d_%H-%M-%S}

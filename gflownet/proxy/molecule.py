@@ -1,11 +1,11 @@
 import pickle
-from typing import Union
+from typing import Iterable, List, Optional
 
 import numpy as np
-import numpy.typing as npt
 import torch
 import torchani
 from sklearn.ensemble import RandomForestRegressor
+from torch import FloatTensor, LongTensor, Tensor
 
 from gflownet.proxy.base import Proxy
 from gflownet.utils.common import download_file_if_not_exists
@@ -49,7 +49,14 @@ class RFMoleculeEnergy(Proxy):
 
 
 class TorchANIMoleculeEnergy(Proxy):
-    def __init__(self, model: str = "ANI2x", use_ensemble: bool = True, **kwargs):
+    def __init__(
+        self,
+        model: str = "ANI2x",
+        use_ensemble: bool = True,
+        batch_size: Optional[int] = None,
+        divider: float = 100.0,
+        **kwargs,
+    ):
         """
         Parameters
         ----------
@@ -58,8 +65,19 @@ class TorchANIMoleculeEnergy(Proxy):
 
         use_ensemble : bool
             Whether to use whole ensemble of the models for prediction or only the first one.
+
+        batch_size : int
+            Batch size for TorchANI. If none, will process all states as a single batch.
+
+        divider : float
+            The value by which the output of TorchANI will be divided. Necessary for Boltzmann
+            reward function with high betas, for which the values can explode without division.
         """
         super().__init__(**kwargs)
+
+        self.batch_size = batch_size
+        self.divider = divider
+        self.min = -5
 
         if TORCHANI_MODELS.get(model) is None:
             raise ValueError(
@@ -70,36 +88,62 @@ class TorchANIMoleculeEnergy(Proxy):
         self.model = TORCHANI_MODELS[model](
             periodic_table_index=True, model_index=None if use_ensemble else 0
         ).to(self.device)
+        self.conformer = None
+
+    def setup(self, env=None):
+        self.conformer = env.conformer
+
+    def _sync_conformer_with_state(self, state: List):
+        for idx, ta in enumerate(self.conformer.freely_rotatable_tas):
+            self.conformer.set_torsion_angle(ta, state[idx])
+        return self.conformer
 
     @torch.no_grad()
-    def __call__(
-        self,
-        elements: Union[npt.NDArray[np.int64], torch.LongTensor],
-        coordinates: Union[npt.NDArray[np.float32], torch.FloatTensor],
-    ) -> npt.NDArray[np.float32]:
+    def __call__(self, states: Iterable) -> Tensor:
         """
         Args
         ----
-        elements : tensor
-            Either numpy or torch tensor with dimensionality (batch_size, n_atoms),
-            with values indicating atomic number of individual atoms.
-
-        coordinates : tensor
-            Either numpy or torch tensor with dimensionality (batch_size, n_atoms, 3),
-            with values indicating 3D positions of individual atoms.
+        states
+            An iterable of states in AlanineDipeptide environment format (torsion angles).
 
         Returns
         ----
         energies : tensor
-            Numpy array with dimensionality (batch_size,), containing energies
+            Torch tensor with dimensionality (batch_size,), containing energies
             predicted by a TorchANI model (in Hartree).
         """
-        if isinstance(elements, np.ndarray):
-            elements = torch.from_numpy(elements)
-        if isinstance(coordinates, np.ndarray):
-            coordinates = torch.from_numpy(coordinates)
+        elements = []
+        coordinates = []
 
-        elements = elements.long().to(self.device)
-        coordinates = coordinates.float().to(self.device)
+        for st in states:
+            conf = self._sync_conformer_with_state(st)
 
-        return self.model((elements, coordinates)).energies.cpu().numpy()
+            elements.append(conf.get_atomic_numbers())
+            coordinates.append(conf.get_atom_positions())
+
+        elements = LongTensor(np.array(elements)).to(self.device)
+        coordinates = FloatTensor(np.array(coordinates)).to(self.device)
+
+        if self.batch_size is not None:
+            energies = []
+            for elements_batch, coordinates_batch in zip(
+                torch.split(elements, self.batch_size),
+                torch.split(coordinates, self.batch_size),
+            ):
+                energies.append(
+                    self.model((elements_batch, coordinates_batch)).energies
+                )
+            energies = torch.cat(energies).float()
+        else:
+            energies = self.model((elements, coordinates)).energies.float()
+
+        return energies / self.divider
+
+    def __deepcopy__(self, memo):
+        cls = self.__class__
+        new_obj = cls.__new__(cls)
+        new_obj.batch_size = self.batch_size
+        new_obj.min = self.min
+        new_obj.model = self.model
+        new_obj.conformer = self.conformer
+        return new_obj
