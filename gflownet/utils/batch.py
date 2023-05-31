@@ -192,7 +192,6 @@ class Batch:
                     )
                 )
             self.parents_policy = torch.cat(parents_policy)
-            # import ipdb; ipdb.set_trace()
             self.parents = torch.cat(
                 [
                     tfloat(par, device=self.device, float_type=self.float)
