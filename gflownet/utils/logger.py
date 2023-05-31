@@ -187,8 +187,8 @@ class Logger:
     def log_metrics(self, metrics: dict, step: int, use_context: bool = True):
         if not self.do.online:
             return
-        for key, _ in metrics.items():
-            self.log_metric(key, metrics[key], step=step, use_context=use_context)
+        for key, value in metrics.items():
+            self.log_metric(key, value, step=step, use_context=use_context)
 
     def log_train(
         self,
