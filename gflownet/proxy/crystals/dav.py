@@ -6,6 +6,7 @@ from torchtyping import TensorType
 from gflownet.proxy.base import Proxy
 import git
 import sys
+import re
 
 # gflownet/ repo root
 ROOT = Path(__file__).resolve().parent.parent.parent.parent
@@ -23,6 +24,9 @@ def checkout_tag(tag):
         tag (str): Tag/release to checkout
     """
     repo = git.Repo(REPO_PATH)
+    major_revison = re.findall(r"v(\d+)\.\d+", tag)[0]
+    if int(major_revison) < 2:
+        raise ValueError("Version is too old. Please use Dave v2.0.0 or later.")
     if repo.git.describe("--tags") == tag:
         return
     for remote in repo.remotes:
