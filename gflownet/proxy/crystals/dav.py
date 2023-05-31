@@ -107,36 +107,12 @@ class DAV(Proxy):
 
         # import the proxu build funcion
         sys.path.append(str(REPO_PATH))
-        from proxies.models import make_model
-        from utils.loaders import make_loaders
+        from dave import prepare_for_gfn
 
-        print("  Making model...")
-        # load the checkpoint
-        ckpt_path = find_ckpt(ckpt_path)
-        assert ckpt_path.exists(), f"Checkpoint {str(ckpt_path)} not found."
-        ckpt = torch.load(str(ckpt_path), map_location="cpu")
-        # extract config
-        self.model_config = ckpt["hyper_parameters"]
-        self.scales = self.model_config.get("scales")
-        if self.rescale_outputs:
-            assert self.scales is not None
-            assert all(t in self.scales for t in ["x", "y"])
-            assert all(u in self.scales[t] for t in ["x", "y"] for u in ["mean", "std"])
-        # make model from ckpt config
-        self.model = make_model(self.model_config)
-        self.proxy_loaders = make_loaders(self.model_config)
-        # load state dict and remove potential leading `model.` in the keys
-        print("  Loading proxy checkpoint...")
-        self.model.load_state_dict(
-            {
-                k[6:] if k.startswith("model.") else k: v
-                for k, v in ckpt["state_dict"].items()
-            }
+        self.model, self.proxy_loaders, self.scales = prepare_for_gfn(
+            ckpt_path, self.rescale_outputs
         )
-        assert hasattr(self.model, "pred_inp_size")
-        self.model.n_elements = 89  # TEMPORARY for release `v0-dev-embeddings`
-        assert hasattr(self.model, "n_elements")
-        self.model.eval()
+
         self.model.to(self.device)
         print("Proxy ready.")
 
