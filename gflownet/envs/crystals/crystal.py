@@ -21,13 +21,30 @@ CMAP = mpl.colormaps["cividis"]
 
 class Stage(Enum):
     """
-    In addition to encoding current stage, values of this enum are used for padding individual
+    In addition to encoding current stage, contains methods used for padding individual
     component environment's actions (to ensure they have the same length for tensorization).
     """
 
-    COMPOSITION = -2
-    SPACE_GROUP = -3
-    LATTICE_PARAMETERS = -4
+    COMPOSITION = 0
+    SPACE_GROUP = 1
+    LATTICE_PARAMETERS = 2
+
+    def to_pad(self) -> int:
+        """
+        Maps stage value to a padding. The following mapping is used:
+
+        COMPOSITION = -2
+        SPACE_GROUP = -3
+        LATTICE_PARAMETERS = -4
+
+        We use negative numbers starting from -2 because they are not used by any of the
+        underlying environments, which should lead to every padded action being unique.
+        """
+        return -(self.value + 2)
+
+    @classmethod
+    def from_pad(cls, pad_value: int) -> "Stage":
+        return Stage(-pad_value - 2)
 
 
 class Crystal(GFlowNetEnv):
@@ -95,14 +112,26 @@ class Crystal(GFlowNetEnv):
             self.lattice_parameters.action_space
         )
 
-        self.eos = self.lattice_parameters.eos
         self.stage = Stage.COMPOSITION
-        self.max_action_length = max(
-            max(len(a) for a in self.composition.action_space),
-            max(len(a) for a in self.space_group.action_space),
-            max(len(a) for a in self.lattice_parameters.action_space),
+        self.composition_action_length = max(
+            len(a) for a in self.composition.action_space
         )
-        self.done = False
+        self.space_group_action_length = max(
+            len(a) for a in self.space_group.action_space
+        )
+        self.lattice_parameters_action_length = max(
+            len(a) for a in self.lattice_parameters.action_space
+        )
+        self.max_action_length = max(
+            self.composition_action_length,
+            self.space_group_action_length,
+            self.lattice_parameters_action_length,
+        )
+
+        # EOS is EOS of LatticeParameters because it is the last stage
+        self.eos = self._pad_action(
+            self.lattice_parameters.eos, Stage.LATTICE_PARAMETERS
+        )
 
         # Conversions
         self.state2proxy = self.state2oracle
@@ -115,11 +144,9 @@ class Crystal(GFlowNetEnv):
         """
         Sets LatticeParameters conditioned on the lattice system derived from the SpaceGroup.
         """
-        crystal_system = self.space_group.get_crystal_system()
-
-        if crystal_system is None:
+        if self.space_group.lattice_system == "None":
             raise ValueError(
-                "Cannot set lattice parameters without crystal system determined in the space group."
+                "Cannot set lattice parameters without lattice system determined in the space group."
             )
 
         self.lattice_parameters = LatticeParameters(
@@ -133,7 +160,7 @@ class Crystal(GFlowNetEnv):
         the same length. Required due to the fact that action space has to be convertable to
         a tensor.
         """
-        return action + (stage.value,) * (self.max_action_length - len(action))
+        return action + (Stage.to_pad(stage),) * (self.max_action_length - len(action))
 
     def _pad_action_space(
         self, action_space: List[Tuple[int]], stage: Stage
@@ -146,11 +173,11 @@ class Crystal(GFlowNetEnv):
         underlying environment.
         """
         if stage == Stage.COMPOSITION:
-            dim = max(len(a) for a in self.composition.action_space)
+            dim = self.composition_action_length
         elif stage == Stage.SPACE_GROUP:
-            dim = max(len(a) for a in self.space_group.action_space)
+            dim = self.space_group_action_length
         elif stage == Stage.LATTICE_PARAMETERS:
-            dim = max(len(a) for a in self.lattice_parameters.action_space)
+            dim = self.lattice_parameters_action_length
         else:
             raise ValueError(f"Unrecognized stage {stage}.")
 
@@ -245,7 +272,7 @@ class Crystal(GFlowNetEnv):
             state = self.state.copy()
             stage = self.stage
         else:
-            stage = Crystal._value2stage(state[0])
+            stage = Stage(state[0])
         if done is None:
             done = self.done
 
@@ -270,7 +297,17 @@ class Crystal(GFlowNetEnv):
                 self.space_group_mask_start : self.space_group_mask_end
             ] = space_group_mask
         elif stage == Stage.LATTICE_PARAMETERS:
-            # TODO: to be stateless this needs to set lattice system based on state
+            """
+            TODO: to be stateless (meaning, operating as a function, not a method with
+            current object context) this needs to set lattice system based on the passed
+            state only. Right now it uses the current LatticeParameter environment, in
+            particular the lattice system that it was set to, and that changes the invalid
+            actions mask.
+
+            If for some reason a state will be passed to this method that describes an
+            object with different lattice system than what self.lattice_system contains,
+            the result will be invalid.
+            """
             lattice_parameters_state = self._get_lattice_parameters_state(state)
             lattice_parameters_mask = (
                 self.lattice_parameters.get_mask_invalid_actions_forward(
@@ -285,21 +322,12 @@ class Crystal(GFlowNetEnv):
 
         return mask
 
-    @staticmethod
-    def _stage2value(stage: Stage) -> int:
-        # -2 => 0, -3 => 1, -4 => 2
-        return -(stage.value + 2)
-
-    @staticmethod
-    def _value2stage(value: int) -> Stage:
-        return Stage(-value - 2)
-
     def _update_state(self):
         """
         Updates current state based on the states of underlying environments.
         """
         self.state = (
-            [Crystal._stage2value(self.stage)]
+            [self.stage.value]
             + self.composition.state
             + self.space_group.state
             + self.lattice_parameters.state
@@ -345,6 +373,29 @@ class Crystal(GFlowNetEnv):
 
         return self.state, action, valid
 
+    def _build_state(self, substate: List, stage: Stage) -> List:
+        """
+        Converts the state coming from one of the subenvironments into a combined state
+        format used by the Crystal environment.
+        """
+        if stage == Stage.COMPOSITION:
+            output = (
+                [0]
+                + substate
+                + self.space_group.source
+                + self.lattice_parameters.source
+            )
+        elif stage == Stage.SPACE_GROUP:
+            output = (
+                [1] + self.composition.state + substate + [0] * 6
+            )  # hard-code LatticeParameters` source, since it can change with other lattice system
+        elif stage == Stage.LATTICE_PARAMETERS:
+            output = [2] + self.composition.state + self.space_group.state + substate
+        else:
+            raise ValueError(f"Unrecognized stage {stage}.")
+
+        return output
+
     def get_parents(
         self,
         state: Optional[List] = None,
@@ -355,7 +406,7 @@ class Crystal(GFlowNetEnv):
             state = self.state.copy()
             stage = self.stage
         else:
-            stage = Crystal._value2stage(state[0])
+            stage = Crystal(state[0])
         if done is None:
             done = self.done
         if done:
@@ -368,10 +419,7 @@ class Crystal(GFlowNetEnv):
             parents, actions = self.composition.get_parents(
                 state=self._get_composition_state(state)
             )
-            parents = [
-                [0] + p + self.space_group.source + self.lattice_parameters.source
-                for p in parents
-            ]
+            parents = [self._build_state(p, Stage.COMPOSITION) for p in parents]
             actions = [self._pad_action(a, Stage.COMPOSITION) for a in actions]
         elif stage == Stage.SPACE_GROUP or (
             stage == Stage.LATTICE_PARAMETERS
@@ -380,24 +428,24 @@ class Crystal(GFlowNetEnv):
             parents, actions = self.space_group.get_parents(
                 state=self._get_space_group_state(state)
             )
-            parents = [
-                [1]
-                + self.composition.state
-                + p
-                + [0]
-                * 6  # hard-code LatticeParameters` source, since it can change with other lattice system
-                for p in parents
-            ]
+            parents = [self._build_state(p, Stage.SPACE_GROUP) for p in parents]
             actions = [self._pad_action(a, Stage.SPACE_GROUP) for a in actions]
         elif stage == Stage.LATTICE_PARAMETERS:
-            # TODO: to be stateless this needs to set lattice system based on state
+            """
+            TODO: to be stateless (meaning, operating as a function, not a method with
+            current object context) this needs to set lattice system based on the passed
+            state only. Right now it uses the current LatticeParameter environment, in
+            particular the lattice system that it was set to, and that changes the invalid
+            actions mask.
+
+            If for some reason a state will be passed to this method that describes an
+            object with different lattice system than what self.lattice_system contains,
+            the result will be invalid.
+            """
             parents, actions = self.lattice_parameters.get_parents(
                 state=self._get_lattice_parameters_state(state)
             )
-            parents = [
-                [2] + self.composition.state + self.space_group.state + p
-                for p in parents
-            ]
+            parents = [self._build_state(p, Stage.LATTICE_PARAMETERS) for p in parents]
             actions = [self._pad_action(a, Stage.LATTICE_PARAMETERS) for a in actions]
         else:
             raise ValueError(f"Unrecognized stage {stage}.")
@@ -406,7 +454,8 @@ class Crystal(GFlowNetEnv):
 
     def state2oracle(self, state: Optional[List[int]] = None) -> Tensor:
         """
-        Prepares a list of states in "GFlowNet format" for the oracle.
+        Prepares a list of states in "GFlowNet format" for the oracle. Simply
+        a concatenation of all crystal components.
         """
         if state is None:
             state = self.state.copy()

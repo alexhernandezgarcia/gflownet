@@ -1,0 +1,21 @@
+defaults:
+  - base
+
+_target_: gflownet.envs.tetris.Tetris
+
+id: tetris
+# Board dimensions
+width: 10
+height: 20
+# Pieces
+pieces: ["I", "J", "L", "O", "S", "T", "Z"]
+# Allowed roations
+rotations: [0, 90, 180, 270]
+# Other config
+allow_redundant_rotations: False
+allow_eos_before_full: False
+buffer:
+  data_path: null
+  train: null
+  test: null
+

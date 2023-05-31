@@ -41,7 +41,7 @@ class LatticeParameters(Grid):
         max_length: float = 5.0,
         min_angle: float = 30.0,
         max_angle: float = 150.0,
-        grid_size: int = 100,
+        grid_size: int = 10,
         max_increment: int = 1,
         **kwargs,
     ):
