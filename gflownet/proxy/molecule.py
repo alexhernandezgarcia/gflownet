@@ -1,5 +1,4 @@
 import pickle
-from copy import deepcopy
 from typing import Iterable, List, Optional
 
 import numpy as np
@@ -92,7 +91,7 @@ class TorchANIMoleculeEnergy(Proxy):
         self.conformer = None
 
     def setup(self, env=None):
-        self.conformer = env.conformer  # deepcopy(env.conformer)
+        self.conformer = env.conformer
 
     def _sync_conformer_with_state(self, state: List):
         for idx, ta in enumerate(self.conformer.freely_rotatable_tas):
