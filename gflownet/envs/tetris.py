@@ -155,9 +155,6 @@ class Tetris(GFlowNetEnv):
         piece_mat = self.piece_rotation_mat[self.idx2piece[piece_idx]][rotation]
         piece_mat_mask = self.piece_rotation_mask_mat[self.idx2piece[piece_idx]][rotation]
         hp, wp = piece_mat.shape
-        # Get and set index of new piece
-        piece_idx = self._get_max_piece_idx(board, piece_idx, incr=1)
-        piece_mat[piece_mat_mask] = piece_idx
 
         # Check if piece goes overboard horizontally
         if col + wp > self.width:
@@ -192,8 +189,8 @@ class Tetris(GFlowNetEnv):
                 # to check for obstacles because any obstacle will prevent placing the
                 # piece at any position below
                 board_section = board[: row + hp, col : col + wp]
-                piece_mat_section = piece_mat[-(row + hp) :]
-                if (board_section * (piece_mat_section != 0)).any():
+                piece_mask_section = piece_mat_mask[-(row + hp) :]
+                if (board_section * (piece_mask_section != 0)).any():
                     # An obstacle has been found.
                     break
 
@@ -213,6 +210,10 @@ class Tetris(GFlowNetEnv):
             # The piece cannot be placed. Return the board as-is.
             return board, False
         else:
+            # Get and set index of new piece
+            piece_idx = self._get_max_piece_idx(board, piece_idx, incr=1)
+            piece_mat[piece_mat_mask] = piece_idx
+
             # Place the piece on the board.
             row = lowest_valid_row
             board[row : row + hp, col : col + wp] += piece_mat
