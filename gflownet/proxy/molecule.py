@@ -55,6 +55,7 @@ class TorchANIMoleculeEnergy(Proxy):
         model: str = "ANI2x",
         use_ensemble: bool = True,
         batch_size: Optional[int] = None,
+        divider: float = 100.0,
         **kwargs,
     ):
         """
@@ -68,10 +69,15 @@ class TorchANIMoleculeEnergy(Proxy):
 
         batch_size : int
             Batch size for TorchANI. If none, will process all states as a single batch.
+
+        divider : float
+            The value by which the output of TorchANI will be divided. Necessary for Boltzmann
+            reward function with high betas, for which the values can explode without division.
         """
         super().__init__(**kwargs)
 
         self.batch_size = batch_size
+        self.divider = divider
         self.min = -5
 
         if TORCHANI_MODELS.get(model) is None:
@@ -125,12 +131,14 @@ class TorchANIMoleculeEnergy(Proxy):
                 torch.split(elements, self.batch_size),
                 torch.split(coordinates, self.batch_size),
             ):
-                energies.append(self.model((elements_batch, coordinates_batch)).energies)
+                energies.append(
+                    self.model((elements_batch, coordinates_batch)).energies
+                )
             energies = torch.cat(energies).float()
         else:
             energies = self.model((elements, coordinates)).energies.float()
 
-        return energies / 100
+        return energies / self.divider
 
     def __deepcopy__(self, memo):
         cls = self.__class__
