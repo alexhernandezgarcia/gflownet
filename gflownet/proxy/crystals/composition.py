@@ -21,12 +21,31 @@ def _read_protons_number_counts():
 
 
 class CompositionMPFrequency(Proxy):
+    """
+    A class that calculates the frequency of the number of protons in the composition. 
+    The frequency is based on stable crystals from Materials Project (MP)
+
+    Args:
+        normalise (bool, optional): Indicates whether to normalize the frequency counts. Defaults to True.
+        **kwargs: Additional keyword arguments to be passed to the parent class.
+
+    Attributes:
+        counts_dict (dict): A dictionary containing the counts of the number of protons in MP.
+        normalise (bool): Indicates whether to normalize the frequency counts.
+        counts (torch.Tensor): A tensor containing the frequency counts for each number of protons.
+        atomic_numbers (torch.Tensor): A tensor containing the atomic numbers of the elements.
+        norm (float): Normalization factor for the frequency counts.
+    """
+
     def __init__(self, normalise: bool = True, **kwargs):
         super().__init__(**kwargs)
         self.counts_dict = _read_protons_number_counts()
         self.normalise = normalise
 
     def _get_max_protons_state(self, env):
+        """
+        Calculates the state of the environment with the maximum number of protons.
+        """
         max_protons_state = env.source.copy()
         for elem in env.required_elements:
             max_protons_state[env.elem2idx[elem]] = max(1, env.min_atom_i)
@@ -46,6 +65,9 @@ class CompositionMPFrequency(Proxy):
         return max_protons_state
 
     def get_max_n_protons(self, env):
+        """
+        Calculates the maximum reachiable number of protons in a composition in the given enviroment.
+        """
         max_protons_state = self._get_max_protons_state(env)
         max_protons_number = 0
         for idx, count in enumerate(max_protons_state):
@@ -53,6 +75,9 @@ class CompositionMPFrequency(Proxy):
         return max_protons_number
 
     def setup(self, env):
+        """
+        Sets up the necessary attributes for frequency calculation.
+        """
         mpn = self.get_max_n_protons(env)
         # index in self.counts corresponds to the number of protons in the composition
         # (nth position is n protons)
@@ -70,4 +95,7 @@ class CompositionMPFrequency(Proxy):
             self.norm = -1.0
 
     def __call__(self, states: TensorType["batch", "state"]) -> TensorType["batch"]:
+        """
+        Calculates the frequency of the number of protons in the given states.
+        """
         return self.counts[torch.sum(states * self.atomic_numbers, dim=1)] / self.norm
