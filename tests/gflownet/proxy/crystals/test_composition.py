@@ -8,7 +8,7 @@ import torch
 from gflownet.envs.crystals.composition import Composition
 from gflownet.proxy.crystals.composition import CompositionMPFrequency
 
-DEVICE = "cuda"
+DEVICE = "cpu"
 FLOAT = 32
 
 
@@ -32,6 +32,9 @@ def proxy_norm():
         ([1, 10, 25, 16, 50], [1], 4, 2, 2, 20, 1, 10, [1, 0, 0, 9, 10]),
         ([1, 10, 25, 16, 50], [1], 4, 2, 2, 20, 2, 10, [2, 0, 0, 8, 10]),
         ([1, 10, 25, 16, 50], [1, 10, 16], 4, 2, 2, 20, 2, 10, [2, 2, 6, 0, 10]),
+        ([1, 10, 25, 16, 50], [1, 10, 50], 4, 2, 2, 20, 2, 10, [2, 2, 0, 6, 10]),
+        ([1, 10, 25, 16, 50], [1, 10, 50], 5, 4, 2, 20, 2, 10, [2, 2, 0, 6, 10]),
+        ([1, 10, 25, 16, 50], [1, 10, 50], 5, 4, 2, 20, 2, 20, [2, 2, 0, 2, 14]),
     ],
 )
 def test_max_protons_number(
@@ -59,6 +62,7 @@ def test_max_protons_number(
         float_precision=FLOAT,
         device=DEVICE,
     )
+    # import ipdb; ipdb.set_trace();
     max_protons_state = proxy_no_norm._get_max_protons_state(env)
     assert max_protons_state == expected_state
     expected_n_protons = np.sum(np.array(sorted(elements)) * np.array(expected_state))

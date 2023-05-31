@@ -46,12 +46,22 @@ class CompositionMPFrequency(Proxy):
         """
         Calculates the state of the environment with the maximum number of protons.
         """
+        # set all the required elements to the min required number
         max_protons_state = env.source.copy()
         for elem in env.required_elements:
             max_protons_state[env.elem2idx[elem]] = max(1, env.min_atom_i)
-        for idx in range(env.min_diff_elem - len(env.required_elements)):
-            max_protons_state[-1 - idx] = max(1, env.min_atom_i)
+        
+        # satisfy requirement for min different elements by 
+        # adding the heviest available atoms (with largest number of protons)
+        n_diff_elem = len(np.nonzero(max_protons_state)[0])
+        for idx, counts in reversed(list(enumerate(max_protons_state))):
+            if n_diff_elem >= env.min_diff_elem:
+                break
+            if counts == 0:
+                max_protons_state[idx] = max(1, env.min_atom_i)
+                n_diff_elem += 1
 
+        # add more heavy atoms untill reaching max_atoms or max_diff_elem or max_atom_i
         for idx in range(len(max_protons_state)):
             if (
                 max_protons_state[-1 - idx] == 0
