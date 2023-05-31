@@ -545,6 +545,7 @@ class Crystal(GFlowNetEnv):
             alpha=0.35,
             label=f"All = {len(energy)}",
             color=colors["full"],
+            density=True,
         )
         ax[0].axvline(
             mean_e,
@@ -570,6 +571,7 @@ class Crystal(GFlowNetEnv):
             alpha=0.7,
             label=f"Top k = {top_k}",
             color=colors["top_k"],
+            density=True,
         )
         ax[0].axvline(
             mean_top_k_e,
@@ -695,6 +697,7 @@ class Crystal(GFlowNetEnv):
 
         return metrics, figs, fig_names
 
+    @torch.no_grad()
     def compute_train_energy_proxy_and_rewards(self):
         rso = deepcopy(self.proxy.rescale_outputs)
         self.proxy.rescale_outputs = False
