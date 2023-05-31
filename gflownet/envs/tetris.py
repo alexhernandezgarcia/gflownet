@@ -181,20 +181,20 @@ class Tetris(GFlowNetEnv):
                 # piece at any position below
                 board_section = board[: row + hp, col : col + wp]
                 piece_mat_section = piece_mat[-(row + hp) :]
-                if board_section[piece_mat_section != 0].sum(0) != 0:
+                if (board_section * (piece_mat_section != 0)).any():
                     # An obstacle has been found.
                     break
 
             else:
                 # The piece can be placed here if all board cells under piece are empty
                 board_section = board[row : row + hp, col : col + wp]
-                if sum(board_section[piece_mat_mask]) == 0:
-                    # The piece can be placed here.
-                    lowest_valid_row = row
-                else:
+                if (board_section * piece_mat_mask).any():
                     # The piece cannot be placed here and cannot be placed any lower because
                     # of an obstacle.
                     break
+                else:
+                    # The piece can be placed here.
+                    lowest_valid_row = row
 
         # Place the piece if possible
         if lowest_valid_row is None:
