@@ -946,21 +946,26 @@ class GFlowNetAgent:
         """
         # only do random top k plots & metrics once
         do_random = it // self.logger.test.top_k_period == 1
+        duration = None
         prob = copy.deepcopy(self.random_action_prob)
 
         if not gfn_states:
             # sample states from the current gfn
             self.random_action_prob = 0
             gfn_states = []
+            t = time.time()
             for b in batch_with_rest(0, self.logger.test.n_top_k, self.batch_size):
                 gfn_states += self.sample_batch(
                     self.env, len(b), train=False, progress=progress
                 )[0]
+            duration = time.time() - t
 
         # compute metrics and get plots
         metrics, figs, fig_names = self.env.top_k_metrics_and_plots(
             gfn_states, self.logger.test.top_k, name="gflownet", step=it
         )
+        if duration:
+            metrics["gflownet top k sampling duration"] = duration
 
         if do_random:
             # sample random states from uniform actions
@@ -998,6 +1003,13 @@ class GFlowNetAgent:
 
         self.random_action_prob = prob
 
+        print("\ntest_top_k metrics:")
+        max_k = max([len(k) for k in metrics])
+        print(
+            "  •  "
+            + "\n  •  ".join(f"{k:{max_k}}: {v:.4f}" for k, v in metrics.items())
+        )
+        print()
         return metrics, figs, fig_names
 
     def get_log_corr(self, times):
