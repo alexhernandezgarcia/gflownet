@@ -26,21 +26,20 @@ class CompositionMPFrequency(Proxy):
     The frequency is based on stable crystals from Materials Project (MP)
 
     Args:
-        normalise (bool, optional): Indicates whether to normalize the frequency counts. Defaults to True.
+        normalize (bool, optional): Indicates whether to normalize the frequency counts. Defaults to True.
         **kwargs: Additional keyword arguments to be passed to the parent class.
 
     Attributes:
         counts_dict (dict): A dictionary containing the counts of the number of protons in MP.
-        normalise (bool): Indicates whether to normalize the frequency counts.
+        normalize (bool): Indicates whether to normalize the frequency counts.
         counts (torch.Tensor): A tensor containing the frequency counts for each number of protons.
         atomic_numbers (torch.Tensor): A tensor containing the atomic numbers of the elements.
         norm (float): Normalization factor for the frequency counts.
     """
-
-    def __init__(self, normalise: bool = True, **kwargs):
+    def __init__(self, normalize: bool = True, **kwargs):
         super().__init__(**kwargs)
         self.counts_dict = _read_protons_number_counts()
-        self.normalise = normalise
+        self.normalize = normalize
 
     def _get_max_protons_state(self, env):
         """
@@ -99,7 +98,7 @@ class CompositionMPFrequency(Proxy):
         self.atomic_numbers = torch.tensor(
             env.elements, device=self.device, dtype=torch.int16
         )
-        if self.normalise:
+        if self.normalize:
             self.norm = -1.0 * torch.sum(self.counts)
         else:
             self.norm = -1.0

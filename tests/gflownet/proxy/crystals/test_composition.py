@@ -14,12 +14,12 @@ FLOAT = 32
 
 @pytest.fixture
 def proxy_no_norm():
-    return CompositionMPFrequency(normalise=False, device=DEVICE, float_precision=FLOAT)
+    return CompositionMPFrequency(normalize=False, device=DEVICE, float_precision=FLOAT)
 
 
 @pytest.fixture
 def proxy_norm():
-    return CompositionMPFrequency(normalise=True, device=DEVICE, float_precision=FLOAT)
+    return CompositionMPFrequency(normalize=True, device=DEVICE, float_precision=FLOAT)
 
 
 @pytest.mark.parametrize(
@@ -107,6 +107,7 @@ def test_proxy_call(proxy_no_norm, small_env_no_norm, state):
         protons_number_counts = pickle.load(handle)
     idx = np.sum(np.array(state) * np.arange(1, 11))
     expected = -protons_number_counts[idx] if idx in protons_number_counts.keys() else 0
+
     assert (
         expected
         == proxy_no_norm(
