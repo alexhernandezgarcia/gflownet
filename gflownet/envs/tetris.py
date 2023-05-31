@@ -97,6 +97,20 @@ class Tetris(GFlowNetEnv):
         self.state2proxy = self.state2oracle
         self.statebatch2proxy = self.statebatch2oracle
         self.statetorch2proxy = self.statetorch2oracle
+
+        # Precompute all possible rotation of each piece and the corresponding binary
+        # mask
+        self.piece_rotation_mat = {}
+        self.piece_rotation_mask_mat = {}
+        for p in pieces:
+            self.piece_rotation_mat[p] = {}
+            self.piece_rotation_mask_mat[p] = {}
+            for r in rotations:
+                self.piece_rotation_mat[p][r] = torch.rot90(
+                    self.piece2mat(p), k=self.rot2idx[r]
+                )
+                self.piece_rotation_mask_mat[p][r] = self.piece_rotation_mat[p][r] != 0
+
         # Base class init
         super().__init__(**kwargs)
 
@@ -138,10 +152,8 @@ class Tetris(GFlowNetEnv):
         board = state.clone().detach()
 
         piece_idx, rotation, col = action
-        piece_mat = torch.rot90(
-            self.piece2mat(self.idx2piece[piece_idx]), k=self.rot2idx[rotation]
-        )
-        piece_mat_mask = piece_mat != 0
+        piece_mat = self.piece_rotation_mat[self.idx2piece[piece_idx]][rotation]
+        piece_mat_mask = self.piece_rotation_mask_mat[self.idx2piece[piece_idx]][rotation]
         hp, wp = piece_mat.shape
         # Get and set index of new piece
         piece_idx = self._get_max_piece_idx(board, piece_idx, incr=1)
