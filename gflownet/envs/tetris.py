@@ -144,7 +144,6 @@ class Tetris(GFlowNetEnv):
         piece_mat_mask = piece_mat != 0
         hp, wp = piece_mat.shape
         # Get and set index of new piece
-        indices = board.unique()
         piece_idx = self._get_max_piece_idx(board, piece_idx, incr=1)
         piece_mat[piece_mat_mask] = piece_idx
 
@@ -166,7 +165,6 @@ class Tetris(GFlowNetEnv):
         # As soon as we reach a row where we can't place the piece because it
         # creates a collision, we can stop the search (since we can't put a piece under
         # this obstacle anyway).
-        starting_row = max(0, first_occupied_row - hp)
         starting_row = first_occupied_row - hp
         lowest_valid_row = None
         for row in range(starting_row, self.height - hp + 1):
