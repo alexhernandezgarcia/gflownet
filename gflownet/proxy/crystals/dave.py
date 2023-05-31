@@ -24,7 +24,7 @@ def checkout_tag(tag):
         tag (str): Tag/release to checkout
     """
     repo = git.Repo(REPO_PATH)
-    major_revison = re.findall(r"v(\d+)\.\d+", tag)[0]
+    major_revison = re.findall(r"v(\d+)", tag)[0]
     if int(major_revison) < 2:
         raise ValueError("Version is too old. Please use Dave v2.0.0 or later.")
     if repo.git.describe("--tags") == tag:
