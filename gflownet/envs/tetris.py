@@ -149,19 +149,62 @@ class Tetris(GFlowNetEnv):
         # Check if piece goes overboard horizontally
         if col + wp > self.width:
             return board, False
-        # Iteratively attempts to place piece on the board starting from the bottom
-        for row in reversed(range(self.height)):
-            if row - hp + 1 < 0:
-                return board, False
-            board_section = board[row - hp + 1 : row + 1, col : col + wp]
-            # If all board cells under piece are empty
-            if sum(board_section[piece_mat != 0]) == 0:
-                board_aux = board.clone().detach()
-                board_aux[row - hp + 1 : row + 1, col : col + wp] += piece_mat
-                # If all columns above piece are empty
-                if self._piece_can_be_lifted(board_aux, piece_idx):
-                    return board_aux, True
-        return board, False
+
+        # Find the highest row occupied by any other piece in the columns where we wish
+        # to add the new piece
+        occupied_rows = board[:, col:col+wp].sum(1).nonzero()
+        if len(occupied_rows) == 0:
+            # All rows are unoccupied. Set first occupied row as the row "below" the
+            # board.
+            first_occupied_row = self.height
+        else:
+            first_occupied_row = occupied_rows[0,0]
+
+        # Iteratively attempt to place piece on the board starting from the top.
+        # As soon as we reach a row where we can't place the piece because it
+        # creates a collision, we can stop the search (since we can't put a piece under
+        # this obstacle anyway).
+        starting_row = max(0, first_occupied_row - hp)
+        starting_row = first_occupied_row - hp
+        lowest_valid_row = None
+        for row in range(starting_row, self.height - hp + 1):
+
+            if row == -hp:
+                # Placing the piece here would make it land fully outside the board. This
+                # means that there is no place on the board for the piece
+                break
+
+            elif row < 0:
+                # It is not possible to place the piece at this row because the piece
+                # would not completely be in the board. However, it is still possible
+                # to check for obstacles because any obstacle will prevent placing the
+                # piece at any position below
+                board_section = board[: row + hp, col : col + wp]
+                piece_mat_section = piece_mat[-(row + hp) :]
+                if board_section[piece_mat_section != 0].sum(0) != 0:
+                    # An obstacle has been found.
+                    break
+
+            else:
+                # The piece can be placed here if all board cells under piece are empty
+                board_section = board[row : row + hp, col : col + wp]
+                if sum(board_section[piece_mat != 0]) == 0:
+                    # The piece can be placed here.
+                    lowest_valid_row = row
+                else:
+                    # The piece cannot be placed here and cannot be placed any lower because
+                    # of an obstacle.
+                    break
+
+        # Place the piece if possible
+        if lowest_valid_row is None:
+            # The piece cannot be placed. Return the board as-is.
+            return board, False
+        else:
+            # Place the piece on the board.
+            row = lowest_valid_row
+            board[row : row + hp, col : col + wp] += piece_mat
+            return board, True
 
     def get_mask_invalid_actions_forward(
         self,
