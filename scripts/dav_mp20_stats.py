@@ -16,8 +16,8 @@ sys.path.append(str(ROOT))
 sys.path.append(str(ROOT / "external" / "repos" / "ActiveLearningMaterials"))
 CMAP = mpl.colormaps["cividis"]
 
-from external.repos.ActiveLearningMaterials.utils.loaders import make_loaders
-from gflownet.proxy.crystals.dav import DAV
+from external.repos.ActiveLearningMaterials.dave.utils.loaders import make_loaders
+from gflownet.proxy.crystals.dave import DAVE
 from gflownet.utils.common import load_gflow_net_from_run_path, resolve_path
 
 from collections import Counter
@@ -419,15 +419,15 @@ if __name__ == "__main__":
 
     set_seeds(args.seed)
 
-    dav_config = safe_load((ROOT / "config" / "proxy" / "dav.yaml").read_text())
-    dav_config["device"] = "cuda" if torch.cuda.is_available() else "cpu"
-    dav_config["float_precision"] = 32
-    dav_config["rescale_outputs"] = True
-    dav = DAV(**dav_config)
+    dave_config = safe_load((ROOT / "config" / "proxy" / "dave.yaml").read_text())
+    dave_config["device"] = "cuda" if torch.cuda.is_available() else "cpu"
+    dave_config["float_precision"] = 32
+    dave_config["rescale_outputs"] = True
+    dave = DAVE(**dave_config)
 
-    gflownet = load_gflow_net_from_run_path(args.gflownet_path, device=dav.device)
+    gflownet = load_gflow_net_from_run_path(args.gflownet_path, device=dave.device)
 
-    loaders = make_loaders(dav.model_config)
+    loaders = make_loaders(dave.model_config)
     loaders["train"].dataset.ytransform = False
     loaders["train"].dataset.xtransform = False
 
@@ -454,22 +454,22 @@ if __name__ == "__main__":
         for b in tqdm(loaders["train"], desc="train loader"):
             x, y = b
             x[1] = x[1][:, None]
-            x = torch.cat(x, dim=-1).to(dav.device)
+            x = torch.cat(x, dim=-1).to(dave.device)
             data["energy"].append(y.numpy())
-            prox_pred = dav(x)
+            prox_pred = dave(x)
             data["proxy"].append(prox_pred.cpu().numpy())
             data["x_train"].append(x.cpu().numpy())
 
         for b in tqdm(range(n_batches), desc="random samples"):
-            x = sample_gfn_uniform(gflownet, bs).to(dav.device)
-            prox_pred = dav(x)
+            x = sample_gfn_uniform(gflownet, bs).to(dave.device)
+            prox_pred = dave(x)
             data["random"].append(prox_pred.cpu().numpy())
             data["x_random"].append(x.cpu().numpy())
 
         for b in tqdm(range(gfn_samples // bs), desc=f"gfn samples (bs={bs})"):
             x = sample_gfn(gflownet, bs)
-            x = x.to(dav.device)
-            prox_pred = dav(x)
+            x = x.to(dave.device)
+            prox_pred = dave(x)
             data["gfn"].append(prox_pred.cpu().numpy())
             data["x_gfn"].append(x.cpu().numpy())
 

@@ -1,4 +1,4 @@
-_target_: gflownet.proxy.crystals.dav.DAV
+_target_: gflownet.proxy.crystals.dave.DAVE
 
 release: v1.1-dev-embedding
 ckpt_path:

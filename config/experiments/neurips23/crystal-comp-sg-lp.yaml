@@ -3,7 +3,7 @@
 defaults:
   - override /env: crystal
   - override /gflownet: trajectorybalance
-  - override /proxy: dav
+  - override /proxy: dave
   - override /logger: wandb
 
 # Environment

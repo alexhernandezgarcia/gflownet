@@ -43,7 +43,7 @@ def resolve(path: str) -> Path:
     return Path(os.path.expandvars(str(path))).expanduser().resolve()
 
 
-class DAV(Proxy):
+class DAVE(Proxy):
     def __init__(self, ckpt_path=None, release=None, rescale_outputs=True, **kwargs):
         """
         Wrapper class around the Divya-Alexandre-Victor proxy.
@@ -57,7 +57,7 @@ class DAV(Proxy):
         * if ``ckpt_path`` is a dict, it is assumed to be a mapping from cluster
             or $USER to path (e.g. {mila: /path/ckpt.ckpt, victor: /path/ckpt.ckpt})
         * on the cluster, the path to the ckpt is public so everyone resolves to
-            "mila". For local dev you need to specify a path in dav.yaml that maps
+            "mila". For local dev you need to specify a path in dave.yaml that maps
             to your local $USER.
         * if the resulting path is a dir, it must contain exactly one .ckpt file
         * if the resulting path is a file, it must be a .ckpt file
@@ -65,7 +65,7 @@ class DAV(Proxy):
         Args:
             ckpt_path (dict, optional): Mapping from cluster / ``$USER`` to checkpoint.
                 Defaults to None.
-            release (str, optional): Tag to checkout in the DAV repo. Defaults to None.
+            release (str, optional): Tag to checkout in the DAVE repo. Defaults to None.
             rescale_outputs (bool, optional): Whether to rescale the proxy outputs
                 using its training mean and std. Defaults to True.
         """
@@ -73,7 +73,7 @@ class DAV(Proxy):
         self.rescale_outputs = rescale_outputs
         self.scaled = False
 
-        print("Initializing DAV proxy:")
+        print("Initializing DAVE proxy:")
         print("  Fetching proxy Github code...")
         if not REPO_PATH.exists():
             # creatre $root/external/repos
