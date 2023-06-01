@@ -14,7 +14,9 @@ rotation_signs_name = "rotation_signs"
 ad_atom_types = ("H", "C", "N", "O")
 atom_degrees = tuple(range(1, 7))
 atom_hybridizations = tuple(list(Chem.rdchem.HybridizationType.names.values()))
-bond_types = tuple([Chem.rdchem.BondType.SINGLE, Chem.rdchem.BondType.DOUBLE])
+bond_types = tuple(
+    [Chem.rdchem.BondType.SINGLE, Chem.rdchem.BondType.DOUBLE, Chem.rdchem.BondType.AROMATIC]
+)
 
 # SMILES strings
 ad_smiles = "CC(C(=O)NC)NC(=O)C"
