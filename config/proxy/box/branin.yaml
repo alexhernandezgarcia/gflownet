@@ -1,0 +1,4 @@
+_target_: gflownet.proxy.box.branin.Branin
+
+fidelity: 1.0
+higher_is_better: False
