@@ -17,9 +17,9 @@ test:
   kde:
     bandwidth: 0.1
     kernel: gaussian
-  n_top_k: 10000
-  top_k: 200
-  top_k_period: 5000
+  n_top_k: 5000
+  top_k: 100
+  top_k_period: 2500
 # Oracle metrics
 oracle:
   period: 100000

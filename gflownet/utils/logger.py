@@ -95,7 +95,7 @@ class Logger:
         if self.test.top_k_period is None or self.test.top_k_period < 0:
             return False
 
-        return not step % self.test.top_k_period
+        return step == 2 or step % self.test.top_k_period == 0
 
     def do_oracle(self, step):
         if self.oracle.period is None or self.oracle.period < 0:
