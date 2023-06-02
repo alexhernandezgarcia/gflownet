@@ -1,8 +1,7 @@
 import numpy as np
 import torch
-from torchtyping import TensorType
-
 from gflownet.proxy.base import Proxy
+from torchtyping import TensorType
 
 
 class Corners(Proxy):
