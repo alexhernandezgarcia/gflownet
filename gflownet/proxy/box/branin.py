@@ -3,17 +3,28 @@ Branin objective function, relying on the botorch implementation.
 
 This code is based on the implementation by Nikita Saxena (nikita-0209) in 
 https://github.com/alexhernandezgarcia/activelearning
+
+The implementation assumes by default that the inputs will be on [0, 1] x [0, 1] and
+will be mapped to the standard domain of the Branin function (see X1_DOMAIN and
+X2_DOMAIN). Setting do_domain_map to False will prevent the mapping.
 """
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
 from botorch.test_functions.multi_fidelity import AugmentedBranin
+from gflownet.proxy.base import Proxy
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 from torchtyping import TensorType
 
+X1_DOMAIN = [-5, 10]
+X1_LENGTH = X1_DOMAIN[1] - X1_DOMAIN[0]
+X2_DOMAIN = [0, 15]
+X2_LENGTH = X2_DOMAIN[1] - X2_DOMAIN[0]
+UPPER_BOUND_IN_DOMAIN = 309
+
 
 class Branin(Proxy):
-    def __init__(self, fidelity=1.0, **kwargs):
+    def __init__(self, fidelity=1.0, do_domain_map=True, **kwargs):
         """
         fidelity : float
             Fidelity of the Branin oracle. 1.0 corresponds to the original Branin.
@@ -23,7 +34,8 @@ class Branin(Proxy):
         """
         super().__init__(**kwargs)
         self.fidelity = fidelity
-        self.function_mf_botorch = AugmentedBranin(negate=True)
+        self.do_domain_map = do_domain_map
+        self.function_mf_botorch = AugmentedBranin(negate=False)
         # Modes and extremum compatible with 100x100 grid
         self.modes = [
             [12.4, 81.833],
@@ -32,7 +44,7 @@ class Branin(Proxy):
         ]
         self.extremum = 0.397887
 
-    def __call__(self, states: TensorType["batch", "state_dim"]) -> TensorType["batch"]:
+    def __call__(self, states: TensorType["batch", "2"]) -> TensorType["batch"]:
         if states.shape[1] != 2:
             raise ValueError(
                 """
@@ -40,7 +52,8 @@ class Branin(Proxy):
             {states.shape[1]} dimensions were passed.
             """
             )
-        # TODO: need to map states onto [-5, 10] x [0, 15]?
+        if self.do_domain_map:
+            states = Branin.map_to_standard_domain(states)
         # Append fidelity as a new dimension of states
         states = torch.cat(
             [
@@ -52,7 +65,37 @@ class Branin(Proxy):
             ],
             dim=1,
         )
-        return self.function_mf_botorch(states)
+        return Branin.map_to_negative_range(self.function_mf_botorch(states))
+
+    @staticmethod
+    def map_to_standard_domain(
+        states: TensorType["batch", "2"]
+    ) -> TensorType["batch", "2"]:
+        """
+        Maps a batch of input states onto the domain typically used to evaluate the
+        Branin function. See X1_DOMAIN and X2_DOMAIN. It assumes that the inputs are on
+        [0, 1] x [0, 1].
+        """
+        states[:, 0] = X1_DOMAIN[0] + states[:, 0] * X1_LENGTH
+        states[:, 1] = X2_DOMAIN[0] + states[:, 1] * X2_LENGTH
+        return states
+
+    @staticmethod
+    def map_to_negative_range(values: TensorType["batch"]) -> TensorType["batch"]:
+        """
+        Maps a batch of function values onto a negative range by substracting an upper
+        bound of the Branin function in the standard domain (UPPER_BOUND_IN_DOMAIN).
+        """
+        return values - UPPER_BOUND_IN_DOMAIN
+
+    @staticmethod
+    def map_to_standard_range(values: TensorType["batch"]) -> TensorType["batch"]:
+        """
+        Maps a batch of function values in a negative range back onto the standard
+        range by adding an upper bound of the Branin function in the standard domain
+        (UPPER_BOUND_IN_DOMAIN).
+        """
+        return values + UPPER_BOUND_IN_DOMAIN
 
     def plot_true_rewards(self, env, ax, rescale):
         states = torch.FloatTensor(env.get_all_terminating_states()).to(self.device)
@@ -67,8 +110,8 @@ class Branin(Proxy):
         else:
             title = "Oracle Energy (TrainY)"
         # what the GP is trained on
-        if self.maximize == False:
-            scores = scores * (-1)
+#         if self.maximize == False:
+#             scores = scores * (-1)
         index = states.long().detach().cpu().numpy()
         grid_scores = np.zeros((env.length, env.length))
         grid_scores[index[:, 0], index[:, 1]] = scores
