@@ -1,4 +1,4 @@
 logdir:
-  root: /network/scratch/a/alex.hernandez-garcia/logs/gflownet
+  root: /network/scratch/h/hernanga/logs/gflownet
 data:
-  alanine_dipeptide: /home/mila/a/alex.hernandez-garcia/gflownet/data/alanine_dipeptide_conformers_1.npy
+  alanine_dipeptide: /home/mila/h/hernanga/gflownet/data/alanine_dipeptide_conformers_1.npy
