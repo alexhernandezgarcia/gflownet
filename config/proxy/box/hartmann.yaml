@@ -1,4 +1,3 @@
 _target_: gflownet.proxy.box.hartmann.Hartmann
 
 fidelity: 1.0
-higher_is_better: False

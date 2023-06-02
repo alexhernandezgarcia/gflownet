@@ -1,5 +1,4 @@
 _target_: gflownet.proxy.tetris.Tetris
 
 normalize: True
-higher_is_better: False
 

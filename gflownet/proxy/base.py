@@ -3,10 +3,8 @@ Base class of GFlowNet proxies
 """
 from abc import ABC, abstractmethod
 
-import numpy as np
-import numpy.typing as npt
-
 from gflownet.utils.common import set_device, set_float_precision
+from torchtyping import TensorType
 
 
 class Proxy(ABC):
@@ -14,19 +12,17 @@ class Proxy(ABC):
     Generic proxy class
     """
 
-    def __init__(self, device, float_precision, higher_is_better=False, **kwargs):
+    def __init__(self, device, float_precision, **kwargs):
         # Device
         self.device = set_device(device)
         # Float precision
         self.float = set_float_precision(float_precision)
-        # Reward2Proxy multiplicative factor (1 or -1)
-        self.higher_is_better = higher_is_better
 
     def setup(self, env=None):
         pass
 
     @abstractmethod
-    def __call__(self, states: npt.NDArray[np.float32]) -> npt.NDArray[np.float32]:
+    def __call__(self, states: TensorType["batch", "state_dim"]) -> TensorType["batch"]:
         """
         Args:
             states: ndarray
@@ -35,3 +31,12 @@ class Proxy(ABC):
             Oracle etc)
         """
         pass
+
+    @staticmethod
+    def map_to_standard_range(values: TensorType["batch"]) -> TensorType["batch"]:
+        """
+        Maps a batch of proxy values back onto the standard range of the proxy or
+        oracle. By default, it returns the values as are, so this method may be
+        overwritten when needed.
+        """
+        return values

@@ -2,4 +2,3 @@ _target_: gflownet.proxy.aptamers.Aptamers
 
 oracle_id: length
 norm: True
-higher_is_better: False
