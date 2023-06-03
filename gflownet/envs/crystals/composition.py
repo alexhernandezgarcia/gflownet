@@ -123,7 +123,7 @@ class Composition(GFlowNetEnv):
         assert self.max_diff_elem >= self.min_diff_elem
         assert self.max_atom_i >= self.min_atom_i
         valid_word_len = np.arange(self.min_atom_i, self.max_atom_i + 1)
-        actions = [(element, n) for n in valid_word_len for element in self.elements]
+        actions = [(element, n) for element in self.elements for n in valid_word_len]
         actions.append(self.eos)
         return actions
 
