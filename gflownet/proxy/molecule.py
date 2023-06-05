@@ -2,10 +2,15 @@ import pickle
 from typing import Iterable, List, Optional
 
 import numpy as np
+import numpy.typing as npt
 import torch
 import torchani
 from sklearn.ensemble import RandomForestRegressor
 from torch import FloatTensor, LongTensor, Tensor
+from wurlitzer import pipes
+from xtb.interface import Calculator, XTBException
+from xtb.libxtb import VERBOSITY_MUTED
+from xtb.utils import get_method
 
 from gflownet.proxy.base import Proxy
 from gflownet.utils.common import download_file_if_not_exists
@@ -46,6 +51,62 @@ class RFMoleculeEnergy(Proxy):
         new_obj = cls.__new__(cls)
         new_obj.model = self.model
         return new_obj
+
+
+class XTBMoleculeEnergy(Proxy):
+    def __init__(self, method: str = "gfn-ff", **kwargs):
+        super().__init__(**kwargs)
+
+        self.method = get_method(method)
+        if self.method is None:
+            raise ValueError(f"Unrecognized XTB method: {method}.")
+        self.min = -1000
+        self.max = 1000
+        self.conformer = None
+
+    def setup(self, env=None):
+        self.conformer = env.conformer
+
+    def _sync_conformer_with_state(self, state: List):
+        for idx, ta in enumerate(self.conformer.freely_rotatable_tas):
+            self.conformer.set_torsion_angle(ta, state[idx])
+        return self.conformer
+
+    def __call__(self, states: Iterable) -> Tensor:
+        elements = []
+        coordinates = []
+
+        for st in states:
+            conf = self._sync_conformer_with_state(st)
+
+            elements.append(conf.get_atomic_numbers())
+            coordinates.append(conf.get_atom_positions())
+
+        # todo: probably make it parallel with mpi
+        energies = [self.get_energy(c, e) for (c, e) in zip(coordinates, elements)]
+
+        return torch.tensor(energies, dtype=self.float, device=self.device)
+
+    def get_energy(
+        self,
+        atom_positions: npt.NDArray[np.float32],
+        atomic_numbers: npt.NDArray[np.int64],
+    ) -> float:
+        """
+        Compute energy of a molecule defined by atom_positions and atomic_numbers
+        """
+        with pipes():
+            calc = Calculator(self.method, atomic_numbers, atom_positions)
+            calc.set_verbosity(VERBOSITY_MUTED)
+            try:
+                energy = calc.singlepoint().get_energy()
+
+                if np.isnan(energy):
+                    return self.max
+
+                return energy
+            except XTBException:
+                return self.max
 
 
 class TorchANIMoleculeEnergy(Proxy):
