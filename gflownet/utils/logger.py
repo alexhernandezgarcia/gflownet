@@ -6,6 +6,7 @@ import numpy as np
 import torch
 from numpy import array
 from omegaconf import OmegaConf
+import os
 
 
 class Logger:
@@ -39,11 +40,16 @@ class Logger:
         self.test = test
         self.oracle = oracle
         self.checkpoints = checkpoints
+        slurm_job_id = os.environ.get("SLURM_JOB_ID")
+
         if run_name is None:
             date_time = datetime.today().strftime("%d/%m-%H:%M:%S")
             run_name = "{}".format(
                 date_time,
             )
+            if slurm_job_id is not None:
+                run_name = slurm_job_id + " - " + run_name
+
         if self.do.online:
             import wandb
 
@@ -51,6 +57,8 @@ class Logger:
             wandb_config = OmegaConf.to_container(
                 config, resolve=True, throw_on_missing=True
             )
+            if slurm_job_id:
+                wandb_config["slurm_job_id"] = slurm_job_id
             self.run = self.wandb.init(
                 config=wandb_config, project=project_name, name=run_name
             )
