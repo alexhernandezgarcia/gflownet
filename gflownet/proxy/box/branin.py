@@ -7,14 +7,19 @@ https://github.com/alexhernandezgarcia/activelearning
 The implementation assumes by default that the inputs will be on [0, 1] x [0, 1] and
 will be mapped to the standard domain of the Branin function (see X1_DOMAIN and
 X2_DOMAIN). Setting do_domain_map to False will prevent the mapping.
+
+Branin function is typically used as a minimization problem, with the minima around
+zero but positive. In order to map the range into the convential negative range, an
+upper bound of of Branin in the standard domain (UPPER_BOUND_IN_DOMAIN) is subtracted.
 """
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
 from botorch.test_functions.multi_fidelity import AugmentedBranin
-from gflownet.proxy.base import Proxy
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 from torchtyping import TensorType
+
+from gflownet.proxy.base import Proxy
 
 X1_DOMAIN = [-5, 10]
 X1_LENGTH = X1_DOMAIN[1] - X1_DOMAIN[0]
@@ -110,8 +115,8 @@ class Branin(Proxy):
         else:
             title = "Oracle Energy (TrainY)"
         # what the GP is trained on
-#         if self.maximize == False:
-#             scores = scores * (-1)
+        #         if self.maximize == False:
+        #             scores = scores * (-1)
         index = states.long().detach().cpu().numpy()
         grid_scores = np.zeros((env.length, env.length))
         grid_scores[index[:, 0], index[:, 1]] = scores

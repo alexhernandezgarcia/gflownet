@@ -1,8 +1,15 @@
+"""
+Hartmann objective function, relying on the botorch implementation.
+
+This code is based on the implementation by Nikita Saxena (nikita-0209) in
+https://github.com/alexhernandezgarcia/activelearning
+"""
 import numpy as np
 import torch
 from botorch.test_functions.multi_fidelity import AugmentedHartmann
-from gflownet.proxy.base import Proxy
 from torchtyping import TensorType
+
+from gflownet.proxy.base import Proxy
 
 
 class Hartmann(Proxy):
