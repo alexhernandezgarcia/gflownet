@@ -45,6 +45,15 @@ def resolve(path: str) -> Path:
 
 class DAVE(Proxy):
     def __init__(self, ckpt_path=None, release=None, rescale_outputs=True, **kwargs):
+        super().__init__(**kwargs)
+        print("\n\nUSING DUMMY PROXY\n\n")
+
+    def __call__(self, *args, **kwargs):
+        return torch.zeros(1, device=self.device) + 1
+
+
+class _DAVE(Proxy):
+    def __init__(self, ckpt_path=None, release=None, rescale_outputs=True, **kwargs):
         """
         Wrapper class around the Divya-Alexandre-Victor proxy.
 
