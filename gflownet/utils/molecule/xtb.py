@@ -27,7 +27,7 @@ def run_gfn_xtb(
     gfn_version="gfnff",
     opt=False,
     gfn_xtb_config: str = None,
-    remove_scratch=False,
+    remove_scratch=True,
 ):
     """
     Runs GFN_XTB/FF given a directory and either a coord file or all coord files will be run
