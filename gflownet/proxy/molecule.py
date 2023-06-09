@@ -51,7 +51,7 @@ class RFMoleculeEnergy(Proxy):
 
 @ray.remote
 def _get_energy(numbers, positions):
-    calc = Calculator("GFN2-xTB", numbers, positions)
+    calc = Calculator("GFN2-xTB", numbers, positions * 1.8897259886)
     res = calc.singlepoint()
     return res.get("energy").item()
 
