@@ -97,7 +97,7 @@ def run_gfn_xtb(
                 os.remove(os.path.join(filepath, file_name + ".out"))
                 os.remove(os.path.join(filepath, "gfnff_charges"))
                 os.remove(os.path.join(filepath, "gfnff_adjacency"))
-                os.remove(os.path.join(filepath, 'gfnff_topo'))
+                os.remove(os.path.join(filepath, "gfnff_topo"))
                 os.remove(os.path.join(filepath, "xtbopt.log"))
                 os.remove(os.path.join(filepath, "xtbopt.xyz"))
                 os.remove(os.path.join(filepath, "xtbtopo.mol"))

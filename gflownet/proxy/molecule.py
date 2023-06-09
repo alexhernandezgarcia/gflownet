@@ -1,18 +1,15 @@
+from tblite.interface import Calculator, Structure
 import pickle
-from pathlib import Path
-from tempfile import TemporaryDirectory
 from typing import Iterable, List, Optional
-
+import ray
 import numpy as np
 import torch
 import torchani
-from rdkit.Chem.rdmolfiles import MolToXYZFile
 from sklearn.ensemble import RandomForestRegressor
 from torch import FloatTensor, LongTensor, Tensor
 
 from gflownet.proxy.base import Proxy
 from gflownet.utils.common import download_file_if_not_exists
-from gflownet.utils.molecule.xtb import run_gfn_xtb
 
 TORCHANI_MODELS = {
     "ANI1x": torchani.models.ANI1x,
@@ -52,11 +49,24 @@ class RFMoleculeEnergy(Proxy):
         return new_obj
 
 
+@ray.remote
+def _get_energy(numbers, positions):
+    calc = Calculator("GFN2-xTB", numbers, positions)
+    res = calc.singlepoint()
+    return res.get("energy").item()
+
+
+def _chunks(lst, n):
+    """Yield successive n-sized chunks from lst."""
+    for i in range(0, len(lst), n):
+        yield lst[i : i + n]
+
+
 class XTBMoleculeEnergy(Proxy):
-    def __init__(self, method: str = "gfnff", **kwargs):
+    def __init__(self, batch_size=100, **kwargs):
         super().__init__(**kwargs)
 
-        self.method = method
+        self.batch_size = batch_size
         self.min = -5
         self.max = 0
         self.conformer = None
@@ -69,34 +79,22 @@ class XTBMoleculeEnergy(Proxy):
             self.conformer.set_torsion_angle(ta, state[idx])
         return self.conformer
 
-    def __call__(self, states: Iterable) -> Tensor:
-        directories = []
+    def __call__(self, states: List) -> Tensor:
+        energies = []
 
-        for st in states:
-            conf = self._sync_conformer_with_state(st)
-            directory = TemporaryDirectory()
-            directories.append(directory)
-            MolToXYZFile(conf.rdk_mol, str(Path(directory.name) / "input.xyz"))
+        for batch in _chunks(states, self.batch_size):
+            structures = []
 
-        # todo: probably make it parallel with mpi
-        energies = [self.get_energy(d, "input.xyz") for d in directories]
+            for state in batch:
+                conf = self._sync_conformer_with_state(state)
+                structures.append(
+                    (conf.get_atomic_numbers(), conf.get_atom_positions())
+                )
 
-        for directory in directories:
-            directory.cleanup()
+            tasks = [_get_energy.remote(s[0], s[1]) for s in structures]
+            energies.extend(ray.get(tasks))
 
         return torch.tensor(energies, dtype=self.float, device=self.device)
-
-    def get_energy(
-        self,
-        directory: TemporaryDirectory,
-        file_name: str
-    ) -> float:
-        energy = run_gfn_xtb(directory.name, file_name, gfn_version=self.method)
-
-        if np.isnan(energy):
-            return self.max
-
-        return energy
 
 
 class TorchANIMoleculeEnergy(Proxy):
