@@ -161,7 +161,7 @@ class Batch:
 
     def states2policy(self, states=None, env_ids=None):
         """
-        Converts states from a list of states in gflownet fromat to a tensor of states in policy format
+        Converts states from a list of states in gflownet format to a tensor of states in policy format
         states: list of gflownet states,
         env_ids: list of env ids indicating which env corresponds to each state in states list
 
@@ -185,7 +185,7 @@ class Batch:
         Prepares self.parents (gflownet format) and self.parents_policy (policy format) as torch tensors.
         Different behaviour depending on self.loss:
             - for flowmatch, parents contain all the possible parents for each state,
-            so this tensor is bigger than self.state (all the parents are alinged the zero dimension, )
+            so this tensor is bigger than self.state (all the parents are aligned along the zero dimension)
             - for trajectorybalance, parents contain only one parent for each state which was its parent in the trajectory
         """
         if self.loss == "flowmatch":
