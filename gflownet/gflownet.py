@@ -689,10 +689,12 @@ class GFlowNetAgent:
             # Moving average of the loss for early stopping
             if loss_term_ema and loss_flow_ema:
                 loss_term_ema = (
-                    self.ema_alpha * losses[1].item() + (1.0 - self.ema_alpha) * loss_term_ema
+                    self.ema_alpha * losses[1].item()
+                    + (1.0 - self.ema_alpha) * loss_term_ema
                 )
                 loss_flow_ema = (
-                    self.ema_alpha * losses[2].item() + (1.0 - self.ema_alpha) * loss_flow_ema
+                    self.ema_alpha * losses[2].item()
+                    + (1.0 - self.ema_alpha) * loss_flow_ema
                 )
                 if (
                     loss_term_ema < self.early_stopping

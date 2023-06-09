@@ -129,7 +129,13 @@ class Batch:
             )
             if self.loss == "flowmatch":
                 self.all_possible_parents_state_idx = tlong(
-                    sum([[idx] * len(p) for idx, p in enumerate(self.all_possible_parents)], []),
+                    sum(
+                        [
+                            [idx] * len(p)
+                            for idx, p in enumerate(self.all_possible_parents)
+                        ],
+                        [],
+                    ),
                     device=self.device,
                 )
                 self.all_possible_parents_actions = torch.cat(
