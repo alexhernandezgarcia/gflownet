@@ -1,6 +1,7 @@
+from tblite.interface import Calculator, Structure
 import pickle
 from typing import Iterable, List, Optional
-
+import ray
 import numpy as np
 import torch
 import torchani
@@ -46,6 +47,54 @@ class RFMoleculeEnergy(Proxy):
         new_obj = cls.__new__(cls)
         new_obj.model = self.model
         return new_obj
+
+
+@ray.remote
+def _get_energy(numbers, positions):
+    calc = Calculator("GFN2-xTB", numbers, positions * 1.8897259886)
+    res = calc.singlepoint()
+    return res.get("energy").item()
+
+
+def _chunks(lst, n):
+    """Yield successive n-sized chunks from lst."""
+    for i in range(0, len(lst), n):
+        yield lst[i : i + n]
+
+
+class XTBMoleculeEnergy(Proxy):
+    def __init__(self, batch_size=100, **kwargs):
+        super().__init__(**kwargs)
+
+        self.batch_size = batch_size
+        self.min = -5
+        self.max = 0
+        self.conformer = None
+
+    def setup(self, env=None):
+        self.conformer = env.conformer
+
+    def _sync_conformer_with_state(self, state: List):
+        for idx, ta in enumerate(self.conformer.freely_rotatable_tas):
+            self.conformer.set_torsion_angle(ta, state[idx])
+        return self.conformer
+
+    def __call__(self, states: List) -> Tensor:
+        energies = []
+
+        for batch in _chunks(states, self.batch_size):
+            structures = []
+
+            for state in batch:
+                conf = self._sync_conformer_with_state(state)
+                structures.append(
+                    (conf.get_atomic_numbers(), conf.get_atom_positions())
+                )
+
+            tasks = [_get_energy.remote(s[0], s[1]) for s in structures]
+            energies.extend(ray.get(tasks))
+
+        return torch.tensor(energies, dtype=self.float, device=self.device)
 
 
 class TorchANIMoleculeEnergy(Proxy):
