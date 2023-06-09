@@ -53,7 +53,8 @@ class Batch:
         self.masks_invalid_actions_forward = []
         self.masks_invalid_actions_backward = []
         self.parents = []
-        self.parents_actions = []
+        self.all_possible_parents = []
+        self.all_possible_parents_actions = []
         self.steps = []
         self.is_processed = False
         self.states_policy = None
@@ -92,8 +93,8 @@ class Batch:
                     Sampled action is not in the list of valid actions from parents.
                     \nState:\n{env.state}\nAction:\n{action}
                     """
-                    self.parents.append(parents)
-                    self.parents_actions.append(parents_a)
+                    self.all_possible_parents.append(parents)
+                    self.all_possible_parents_actions.append(parents_a)
                 if self.loss == "trajectorybalance":
                     self.masks_invalid_actions_backward.append(
                         env.get_mask_invalid_actions_backward(
@@ -127,14 +128,14 @@ class Batch:
                 self.masks_invalid_actions_forward, device=self.device
             )
             if self.loss == "flowmatch":
-                self.parents_state_idx = tlong(
-                    sum([[idx] * len(p) for idx, p in enumerate(self.parents)], []),
+                self.all_possible_parents_state_idx = tlong(
+                    sum([[idx] * len(p) for idx, p in enumerate(self.all_possible_parents)], []),
                     device=self.device,
                 )
-                self.parents_actions = torch.cat(
+                self.all_possible_parents_actions = torch.cat(
                     [
                         tfloat(x, device=self.device, float_type=self.float)
-                        for x in self.parents_actions
+                        for x in self.all_possible_parents_actions
                     ]
                 )
             elif self.loss == "trajectorybalance":
@@ -182,20 +183,20 @@ class Batch:
             - for trajectorybalance, parents contain only one parent for each state which was its parent in the trajectory
         """
         if self.loss == "flowmatch":
-            parents_policy = []
-            for par, env_id in zip(self.parents, self.env_ids):
-                parents_policy.append(
+            all_possible_parents_policy = []
+            for par, env_id in zip(self.all_possible_parents, self.env_ids):
+                all_possible_parents_policy.append(
                     tfloat(
                         self.envs[env_id.item()].statebatch2policy(par),
                         device=self.device,
                         float_type=self.float,
                     )
                 )
-            self.parents_policy = torch.cat(parents_policy)
-            self.parents = torch.cat(
+            self.all_possible_parents_policy = torch.cat(all_possible_parents_policy)
+            self.all_possible_parents = torch.cat(
                 [
                     tfloat(par, device=self.device, float_type=self.float)
-                    for par in self.parents
+                    for par in self.all_possible_parents
                 ]
             )
         elif self.loss == "trajectorybalance":
@@ -240,7 +241,8 @@ class Batch:
             another_batch.masks_invalid_actions_backward
         )
         self.parents += another_batch.parents
-        self.parents_actions += another_batch.parents_actions
+        self.all_possible_parents += another_batch.all_possible_parents
+        self.all_possible_parents_actions += another_batch.all_possible_parents_actions
         self.steps += another_batch.steps
 
     def _process_trajectory_indices(self):

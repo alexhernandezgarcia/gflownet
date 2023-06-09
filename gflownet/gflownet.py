@@ -477,10 +477,10 @@ class GFlowNetAgent:
         # Convert lists in the batch into tensors
         batch.process_batch()
         # Unpack batch
-        parents_state_idx = batch.parents_state_idx
+        parents_state_idx = batch.all_possible_parents_state_idx
         states = batch.states_policy
-        parents = batch.parents_policy
-        parents_actions = batch.parents_actions
+        parents = batch.all_possible_parents_policy
+        parents_actions = batch.all_possible_parents_actions
         done = batch.done
         masks_sf = batch.masks_invalid_actions_forward
 
