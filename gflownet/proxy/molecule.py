@@ -45,7 +45,7 @@ class RFMoleculeEnergy(Proxy):
     def __deepcopy__(self, memo):
         cls = self.__class__
         new_obj = cls.__new__(cls)
-        new_obj.model = self.model
+        new_obj.__dict__.update(self.__dict__)
         return new_obj
 
 

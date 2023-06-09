@@ -63,3 +63,39 @@ def download_file_if_not_exists(path: str, url: str):
         path.absolute().parent.mkdir(parents=True, exist_ok=True)
         gdown.download(url, str(path.absolute()), quiet=False)
     return path
+
+
+def tfloat(x, device, float_type):
+    if isinstance(x, list) and torch.is_tensor(x[0]):
+        return torch.stack(x).type(float_type).to(device)
+    if torch.is_tensor(x):
+        return x.type(float_type).to(device)
+    else:
+        return torch.tensor(x, dtype=float_type, device=device)
+
+
+def tlong(x, device):
+    if isinstance(x, list) and torch.is_tensor(x[0]):
+        return torch.stack(x).type(torch.long).to(device)
+    if torch.is_tensor(x):
+        return x.type(torch.long).to(device)
+    else:
+        return torch.tensor(x, dtype=torch.long, device=device)
+
+
+def tint(x, device):
+    if isinstance(x, list) and torch.is_tensor(x[0]):
+        return torch.stack(x).type(torch.int).to(device)
+    if torch.is_tensor(x):
+        return x.type(torch.int).to(device)
+    else:
+        return torch.tensor(x, dtype=torch.int, device=device)
+
+
+def tbool(x, device):
+    if isinstance(x, list) and torch.is_tensor(x[0]):
+        return torch.stack(x).type(torch.bool).to(device)
+    if torch.is_tensor(x):
+        return x.type(torch.bool).to(device)
+    else:
+        return torch.tensor(x, dtype=torch.bool, device=device)
