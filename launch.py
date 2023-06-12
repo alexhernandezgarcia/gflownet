@@ -10,19 +10,29 @@ import sys
 
 HELP = dedent(
     """
+    >>> HOW TO USE:
+
     Fill in an sbatch template and submit a job.
 
     Examples:
 
+    # using default job configuration, with script args from the command-line:
     $ python launch.py --main_args='user=$USER logger.do.online=False'
 
+    # overriding the default job configuration:
     $ python launch.py --template=sbatch/template-venv.sh \\
         --venv='~/.venvs/gfn' \\
         --modules='python/3.7 cuda/11.3' \\
         --main_args='user=$USER logger.do.online=False'
 
+    # using a yaml file to specify multiple jobs to run:
     $ python launch.py --runs=runs/comp-sg-lp/v0" --mem=32G
-        where the file ./runs/comp-sg-lp/v0.yaml contains:
+
+        Explanation:
+        ------------
+
+        Say the file ./extenal/runs/comp-sg-lp/v0.yaml contains:
+
         ```
         shared:
           job:
@@ -36,15 +46,18 @@ HELP = dedent(
         - main_args: "gflownet=trajectorybalance"
         ```
 
-        This will execute 2 jobs with the following args order update:
+        Then the command-line ^ will execute 2 jobs with the following
+        configurations:
             * SLURM params:
-                1. shared_job params
+                1. shared.job params
                 2. run.job params
-                3. command-line args
-            * main.py args:
-                1. shared_main_args
+                3. command-line args (eg: --mem=32G in this example)
+            * Python script (main.py) args:
+                1. shared.main_args
                 2. run.main_args
-                3. command-line --main_args='[...]'
+                3. command-line args (eg: --main_args='[...]', absent in this example)
+            * All of the above are optional granted they are defined at least once
+                somewhere.
         """
 )
 
@@ -155,7 +168,7 @@ def find_run_conf(args):
 if __name__ == "__main__":
     parser = ArgumentParser(add_help=False)
     parser.add_argument(
-        "--help", action="store_true", help="show this help message and exit"
+        "-h", "--help", action="store_true", help="show this help message and exit"
     )
     parser.add_argument("--job_name", type=str)
     parser.add_argument("--outdir", type=str, help="where to write the slurm .out file")
@@ -202,6 +215,7 @@ if __name__ == "__main__":
     }
 
     if args.get("help"):
+        print(parser.format_help())
         print(HELP)
         sys.exit(0)
 
