@@ -2,6 +2,7 @@
 Classes to represent crystal environments
 """
 import itertools
+import warnings
 from typing import Dict, List, Optional, Tuple, Union
 
 import numpy as np
@@ -366,6 +367,21 @@ class SpaceGroup(GFlowNetEnv):
 
     def get_max_traj_length(self):
         return 3
+
+    def set_state(self, state: List, done: Optional[bool] = False):
+        """
+        Sets the state and done. If done is True but incompatible with state (space
+        group is missing), then force done False and print warning.
+        """
+        if done == True and state[self.sg_idx] == 0:
+            done = False
+            warnings.warn(
+                f"""
+            Attempted to set state {self.state2readable(state)} with done = True, which
+            is not compatible with the environment. Forcing done = False.
+            """
+            )
+        return super().set_state(state, done)
 
     def _set_constrained_properties(self, state: List[int]) -> List[int]:
         if state[self.sg_idx] != 0:

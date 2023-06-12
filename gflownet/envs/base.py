@@ -516,7 +516,9 @@ class GFlowNetEnv:
 
     def set_state(self, state: List, done: Optional[bool] = False):
         """
-        Sets the state and done of an environment.
+        Sets the state and done of an environment. Environments that cannot be "done"
+        at all states (intermediate states are not fully constructed objects) should
+        overwrite this method and check for validity.
         """
         self.state = state
         self.done = done

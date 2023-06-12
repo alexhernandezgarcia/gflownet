@@ -140,11 +140,7 @@ class Crystal(GFlowNetEnv):
         state_elem = [self.idx2elem[i] for i, e in enumerate(state) if e > 0]
         n_state_atoms = sum(state)
 
-        if n_state_atoms < self.min_atoms:
-            mask[-1] = True
-        if len(state_elem) < self.min_diff_elem:
-            mask[-1] = True
-        if any(r not in state_elem for r in self.required_elements):
+        if not self._can_eos(state, state_elem, n_state_atoms):
             mask[-1] = True
 
         for idx, (element, n) in enumerate(self.action_space[:-1]):
@@ -337,6 +333,23 @@ class Crystal(GFlowNetEnv):
                 valid = False
             return self.state, self.eos, valid
 
+    def set_state(self, state: List, done: Optional[bool] = False):
+        """
+        Sets the state and done. If done is True but incompatible with state (space
+        group is missing), then force done False and print warning.
+        """
+        state_elem = [self.idx2elem[i] for i, e in enumerate(state) if e > 0]
+        n_state_atoms = sum(state)
+        if done == True and not self._can_eos(state, state_elem, n_state_atoms):
+            done = False
+            warnings.warn(
+                f"""
+            Attempted to set state {self.state2readable(state)} with done = True, which
+            is not compatible with the environment. Forcing done = False.
+            """
+            )
+        return super().set_state(state, done)
+
     def _can_produce_neutral_charge(self, state: Optional[List[int]] = None) -> bool:
         """
         Helper that checks whether there is a configuration of oxidation states that
@@ -363,3 +376,16 @@ class Crystal(GFlowNetEnv):
         ]
 
         return any(poss_charge_sum)
+
+    def _can_eos(self, state: List, state_elem: List, n_state_atoms: int):
+        """
+        Returns True if the end of sequence action (EOS) can be chosen from the
+        state passed as an argument. False otherwise.
+        """
+        if n_state_atoms < self.min_atoms:
+            return False
+        if len(state_elem) < self.min_diff_elem:
+            return False
+        if any(r not in state_elem for r in self.required_elements):
+            return False
+        return True

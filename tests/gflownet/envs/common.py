@@ -1,3 +1,5 @@
+import warnings
+
 import hydra
 import numpy as np
 import pytest
@@ -212,9 +214,10 @@ def test__get_parents__returns_same_state_and_eos_if_done(env):
 
 @pytest.mark.repeat(10)
 def test__step__returns_same_state_action_and_invalid_if_done(env):
+    env.reset()
     # Sample random action
     mask_invalid = torch.unsqueeze(
-        torch.BoolTensor(env.get_mask_invalid_actions_forward()), 0
+        torch.tensor(env.get_mask_invalid_actions_forward(), dtype=torch.bool), 0
     )
     random_policy = torch.unsqueeze(
         torch.tensor(env.random_policy_output, dtype=env.float), 0
@@ -223,14 +226,19 @@ def test__step__returns_same_state_action_and_invalid_if_done(env):
         policy_outputs=random_policy, mask_invalid_actions=mask_invalid
     )
     action = actions[0]
-    env.set_state(env.state, done=True)
-    next_state, action_step, valid = env.step(action)
-    if torch.is_tensor(env.state):
-        assert torch.equal(next_state, env.state)
-    else:
-        assert next_state == env.state
-    assert action_step == action
-    assert valid is False
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        env.set_state(env.state, done=True)
+    if env.done:
+        next_state, action_step, valid = env.step(action)
+        if torch.is_tensor(env.state):
+            assert torch.equal(next_state, env.state)
+        else:
+            assert next_state == env.state
+        assert action_step == action
+        if valid is True:
+            print(env.state2readable())
+        assert valid is False
 
 
 @pytest.mark.repeat(10)
