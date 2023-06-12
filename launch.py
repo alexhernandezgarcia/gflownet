@@ -198,7 +198,7 @@ if __name__ == "__main__":
         "dev": False,
         "verbose": False,
         "venv": None,
-        "template": root / "sbatch" / "template.sh",
+        "template": root / "sbatch" / "template-conda.sh",
     }
 
     if args.get("help"):
