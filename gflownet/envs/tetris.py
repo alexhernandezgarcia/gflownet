@@ -98,7 +98,7 @@ class Tetris(GFlowNetEnv):
         self.statebatch2proxy = self.statebatch2oracle
         self.statetorch2proxy = self.statetorch2oracle
 
-        # Precompute all possible rotation of each piece and the corresponding binary
+        # Precompute all possible rotations of each piece and the corresponding binary
         # mask
         self.piece_rotation_mat = {}
         self.piece_rotation_mask_mat = {}
@@ -180,8 +180,8 @@ class Tetris(GFlowNetEnv):
         lowest_valid_row = None
         for row in range(starting_row, self.height - hp + 1):
             if row == -hp:
-                # Placing the piece here would make it land fully outside the board. This
-                # means that there is no place on the board for the piece
+                # Placing the piece here would make it land fully outside the board.
+                # This means that there is no place on the board for the piece
                 break
 
             elif row < 0:
@@ -199,8 +199,8 @@ class Tetris(GFlowNetEnv):
                 # The piece can be placed here if all board cells under piece are empty
                 board_section = board[row : row + hp, col : col + wp]
                 if (board_section * piece_mat_mask).any():
-                    # The piece cannot be placed here and cannot be placed any lower because
-                    # of an obstacle.
+                    # The piece cannot be placed here and cannot be placed any lower
+                    # because of an obstacle.
                     break
                 else:
                     # The piece can be placed here.
