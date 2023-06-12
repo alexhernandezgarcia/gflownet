@@ -386,7 +386,7 @@ class Tetris(GFlowNetEnv):
         else:
             action_idx = self.action_space.index(action)
         # If action is eos
-        if action == self.eos:-1]):
+        if action == self.eos:
             self.done = True
             self.n_actions += 1
             return self.state, self.eos, True
