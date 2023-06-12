@@ -4,6 +4,7 @@ TODO:
     - Seeds
 """
 import copy
+import os
 import pickle
 import sys
 import time
@@ -774,10 +775,10 @@ class GFlowNetAgent:
             states_term, trajs_term = self.unpack_terminal_states(batch)
             proxy_vals = self.env.reward2proxy(rewards).tolist()
             rewards = rewards.tolist()
-            self.buffer.add(states_term, trajs_term, rewards, proxy_vals, it)
-            self.buffer.add(
-                states_term, trajs_term, rewards, proxy_vals, it, buffer="replay"
-            )
+            # self.buffer.add(states_term, trajs_term, rewards, proxy_vals, it)
+            # self.buffer.add(
+            #     states_term, trajs_term, rewards, proxy_vals, it, buffer="replay"
+            # )
             t1_buffer = time.time()
             times.update({"buffer": t1_buffer - t0_buffer})
             # Log
