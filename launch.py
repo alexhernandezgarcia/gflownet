@@ -7,6 +7,7 @@ from yaml import safe_load
 import re
 from textwrap import dedent
 import sys
+from copy import deepcopy
 
 HELP = dedent(
     """
@@ -17,13 +18,13 @@ HELP = dedent(
     Examples:
 
     # using default job configuration, with script args from the command-line:
-    $ python launch.py --main_args='user=$USER logger.do.online=False'
+    $ python launch.py user=$USER logger.do.online=False
 
-    # overriding the default job configuration:
+    # overriding the default job configuration and adding script args:
     $ python launch.py --template=sbatch/template-venv.sh \\
         --venv='~/.venvs/gfn' \\
         --modules='python/3.7 cuda/11.3' \\
-        --main_args='user=$USER logger.do.online=False'
+        user=$USER logger.do.online=False
 
     # using a yaml file to specify multiple jobs to run:
     $ python launch.py --runs=runs/comp-sg-lp/v0" --mem=32G
@@ -39,11 +40,22 @@ HELP = dedent(
             gres: gpu:1
             mem: 16G
             cpus_per_task: 2
-          main_args: "user=$USER +experiments=neurips23/crystal-comp-sg-lp.yaml"
+          script:
+            user: $USER
+            +experiments: neurips23/crystal-comp-sg-lp.yaml
+            gflownet:
+              __value__: flowmatch
+              optimizer:
+                lr: 0.0001
 
         runs:
-        - main_args: "gflownet.policy.backward=null gflownet=flowmatch"
-        - main_args: "gflownet=trajectorybalance"
+        - script:
+            gflownet:
+              policy:
+                backward: null
+        - script:
+            gflownet:
+              __value__: trajectorybalance
         ```
 
         Then the command-line ^ will execute 2 jobs with the following
@@ -54,10 +66,13 @@ HELP = dedent(
                 3. command-line args (eg: --mem=32G in this example)
             * Python script (main.py) args:
                 1. shared.main_args
-                2. run.main_args
+                2. run.main_args (appended to shared.main_args if present)
                 3. command-line args (eg: --main_args='[...]', absent in this example)
             * All of the above are optional granted they are defined at least once
                 somewhere.
+
+        1. -> python main.py user=$USER +experiments=neurips23/crystal-comp-sg-lp.yaml gflownet=flowmatch gflownet.optimizer.lr=0.0001 gflownet.policy.backward=None
+        2. -> python main.py user=$USER +experiments=neurips23/crystal-comp-sg-lp.yaml gflownet=trajectorybalance gflownet.optimizer.lr=0.0001
         """
 )
 
@@ -101,13 +116,24 @@ def load_runs(yaml_path):
         gres: gpu:1
         mem: 16G
         cpus_per_task: 2
-      main_args: "user=$USER +experiments=neurips23/crystal-comp-sg-lp.yaml"
+      script:
+        user: $USER
+        +experiments: neurips23/crystal-comp-sg-lp.yaml
+        gflownet:
+          __value__: tranjectorybalance
 
     runs:
-    - main_args: "gflownet.policy.backward=null gflownet=flowmatch"
+    - {}
+    - script:
+        gflownet:
+            __value__: flowmatch
+            policy:
+                backward: null
     - job:
         partition: main
-      main_args: "gflownet.policy.backward=null gflownet=flowmatch"
+      script:
+        gflownet.policy.backward: null
+        gflownet: flowmatch
     ```
 
     Args:
@@ -121,23 +147,15 @@ def load_runs(yaml_path):
     with open(yaml_path, "r") as f:
         run_config = safe_load(f)
 
-    job = run_config.get("shared", {}).get("job", {})
-    sma = run_config.get("shared", {}).get("main_args", "")
-    if sma:
-        sma = sma + " "
-
+    shared_job = run_config.get("shared", {}).get("job", {})
+    shared_script = run_config.get("shared", {}).get("script", {})
     runs = []
-    for r in run_config["runs"]:
-        rj = job.copy()
-        if "job" in r:
-            rj.update(r["job"])
-            r["job"] = rj
-        else:
-            r["job"] = rj
-        assert "main_args" in r, f"main_args not in {r}"
-        r["main_args"] = sma + r["main_args"].strip()
-
-        runs.append(r)
+    for run_dict in run_config["runs"]:
+        run_job = deep_update(shared_job, run_dict.get("job", {}))
+        run_script = deep_update(shared_script, run_dict.get("script", {}))
+        run_dict["job"] = run_job
+        run_dict["script"] = run_script
+        runs.append(run_dict)
     return runs
 
 
@@ -163,6 +181,60 @@ def find_run_conf(args):
     print("🗂 Using run file: ./" + str(runs_conf_path.relative_to(Path.cwd())))
     print()
     return runs_conf_path
+
+
+def script_args_dict_to_main_args_str(script_dict, is_first=True, nested_key=""):
+    """
+    Recursively turns a dict of script args into a string of main.py args
+    as `nested.key=value` pairs
+
+    Args:
+        script_dict (dict): script dictionary of args
+        previous_str (str, optional): base string to append to. Defaults to "".
+    """
+    if not isinstance(script_dict, dict):
+        return nested_key + "=" + str(script_dict) + " "
+    new_str = ""
+    for k, v in script_dict.items():
+        if k == "__value__":
+            new_str += nested_key + "=" + str(v) + " "
+            continue
+        new_key = k if not nested_key else nested_key + "." + str(k)
+        new_str += script_args_dict_to_main_args_str(
+            v, nested_key=new_key, is_first=False
+        )
+    if is_first:
+        new_str = new_str.strip()
+    return new_str
+
+
+def deep_update(a, b, path=None, verbose=None):
+    """
+    https://stackoverflow.com/questions/7204805/how-to-merge-dictionaries-of-dictionaries/7205107#7205107
+
+    Args:
+        a (dict): dict to update
+        b (dict): dict to update from
+
+    Returns:
+        dict: updated copy of a
+    """
+    if path is None:
+        path = []
+        a = deepcopy(a)
+    for key in b:
+        if key in a:
+            if isinstance(a[key], dict) and isinstance(b[key], dict):
+                deep_update(a[key], b[key], path + [str(key)])
+            elif a[key] == b[key]:
+                pass  # same leaf value
+            else:
+                if verbose:
+                    print(">>> Warning: Overwriting", ".".join(path + [str(key)]))
+                a[key] = b[key]
+        else:
+            a[key] = b[key]
+    return a
 
 
 if __name__ == "__main__":
@@ -192,26 +264,32 @@ if __name__ == "__main__":
     parser.add_argument(
         "--verbose", action="store_true", help="print templated sbatch after running it"
     )
+    parser.add_argument("--force", action="store_true", help="skip user confirmation")
 
-    args = {k: v for k, v in vars(parser.parse_args()).items() if v is not None}
+    known, unknown = parser.parse_known_args()
+
+    cli_script_args = " ".join(unknown) if unknown else ""
+
+    args = {k: v for k, v in vars(known).items() if v is not None}
     root = Path(__file__).resolve().parent
 
     defaults = {
-        "job_name": "crystal-gfn",
-        "outdir": "$SCRATCH/crystals/logs/slurm",
-        "cpus_per_task": 2,
-        "mem": "32G",
-        "gres": "gpu:1",
-        "partition": "long",
-        "modules": "anaconda/3 cuda/11.3",
-        "conda_env": "gflownet",
         "code_dir": "~/ocp-project/gflownet",
-        "main_args": None,
-        "runs": None,
+        "conda_env": "gflownet",
+        "cpus_per_task": 2,
         "dev": False,
-        "verbose": False,
-        "venv": None,
+        "force": False,
+        "gres": "gpu:1",
+        "job_name": "crystal-gfn",
+        "main_args": None,
+        "mem": "32G",
+        "modules": "anaconda/3 cuda/11.3",
+        "outdir": "$SCRATCH/crystals/logs/slurm",
+        "partition": "long",
+        "runs": None,
         "template": root / "sbatch" / "template-conda.sh",
+        "venv": None,
+        "verbose": False,
     }
 
     if args.get("help"):
@@ -227,6 +305,9 @@ if __name__ == "__main__":
     # in dev mode: no mkdir, no sbatch etc.
     dev = args.get("dev")
 
+    # in force mode, no confirmation is asked
+    force = args.get("force", defaults["force"])
+
     # where to write the slurm output file
     outdir = resolve(args.get("outdir", defaults["outdir"]))
     if not dev:
@@ -235,12 +316,11 @@ if __name__ == "__main__":
     # find runs config file in external/runs as a yaml file
     runs_conf_path = find_run_conf(args)
     # load yaml file as list of dicts. May be empty if runs_conf_path is None
-    runs = load_runs(runs_conf_path)
+    run_dicts = load_runs(runs_conf_path)
     # No run passed in the CLI args or in the associated yaml file so run the
     # CLI main_args, if any.
-    if not runs:
-        assert args["main_args"], "main_args must be specified if no runs are given"
-        runs = [{}]
+    if not run_dicts:
+        run_dicts = [{}]
 
     # Save submitted jobs ids
     job_ids = []
@@ -248,14 +328,32 @@ if __name__ == "__main__":
     # A unique datetime identifier for the runs about to be submitted
     now = now_str()
 
-    for i, run in enumerate(runs):
-        job = defaults.copy()
-        job.update(run.pop("job", {}))
-        run_args = {**job, **run, **args}
+    if not force and not dev:
+        if "y" not in input(f"🚨 Submit {len(run_dicts)} jobs? [y/N] ").lower():
+            print("🛑 Aborted")
+            sys.exit(0)
+        print()
+
+    local_out_dir = root / "external" / "launched_sbatch_scripts"
+    if runs_conf_path is not None:
+        local_out_dir = local_out_dir / runs_conf_path.parent.relative_to(
+            root / "external" / "runs"
+        )
+    else:
+        local_out_dir = local_out_dir / "_other_"
+
+    for i, run_dict in enumerate(run_dicts):
+        run_args = defaults.copy()
+        run_args = deep_update(run_args, run_dict.pop("job", {}))
+        run_args = deep_update(run_args, run_dict)
+        run_args = deep_update(run_args, args)
 
         run_args["code_dir"] = str(resolve(run_args["code_dir"]))
         run_args["outdir"] = str(resolve(run_args["outdir"]))
         run_args["venv"] = str(resolve(run_args["venv"]))
+        run_args["main_args"] = (
+            script_args_dict_to_main_args_str(run_args["script"]) + cli_script_args
+        )
 
         # filter out useless args for the template
         run_args = {k: str(v) for k, v in run_args.items() if k in template_keys}
@@ -272,18 +370,16 @@ if __name__ == "__main__":
 
         # set output path for the sbatch file to execute in order to submit the job
         if runs_conf_path is not None:
-            sbatch_path = (
-                runs_conf_path.parent / f"{runs_conf_path.stem}_{now}_{i}.sbatch"
-            )
+            sbatch_path = local_out_dir / f"{runs_conf_path.stem}_{now}_{i}.sbatch"
         else:
-            sbatch_path = root / f"various/{run_args['job_name']}_{now}.sbatch"
+            sbatch_path = local_out_dir / f"{run_args['job_name']}_{now}.sbatch"
 
         if not dev:
             # make sure the sbatch file parent directory exists
             sbatch_path.parent.mkdir(parents=True, exist_ok=True)
             # write template
             sbatch_path.write_text(templated)
-            print(f"  🏷 Created ./{sbatch_path.relative_to(Path.cwd())}")
+            print(f"  🏷  Created ./{sbatch_path.relative_to(Path.cwd())}")
             # Submit job to SLURM
             out = popen(f"sbatch {sbatch_path}").read()
             # Identify printed-out job id
@@ -310,5 +406,21 @@ if __name__ == "__main__":
             print()
 
     # Recap submitted jobs. Useful for scancel for instance.
+    jobs_str = "⚠️ No job submitted!"
     if job_ids:
-        print("\n🔥 All jobs submitted: " + " ".join(job_ids) + "\n")
+        jobs_str = "All jobs submitted: " + " ".join(job_ids)
+        print(f"\n🚀 Submitted job {i+1}/{len(run_dicts)}")
+
+    # make copy of original yaml conf and append all the sbatch info:
+    if runs_conf_path is not None:
+        conf = runs_conf_path.read_text()
+        new_conf_path = local_out_dir / f"{runs_conf_path.stem}_{now}.yaml"
+        new_conf_path.parent.mkdir(parents=True, exist_ok=True)
+        conf += "\n# " + jobs_str + "\n"
+        new_conf_path.write_text(conf)
+        rel = new_conf_path.relative_to(Path.cwd())
+        if not dev:
+            print(f"   Created summary YAML in ./{rel}")
+
+    if job_ids:
+        print(f"   {jobs_str}\n")
