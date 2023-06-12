@@ -251,6 +251,7 @@ def test__step__does_not_change_state_if_element_already_set(
     assert valid
     assert initial_state != state_after_valid
 
+
 # TODO: uncomment when step can handle invalid actions
 #     state_after_invalid, action, valid = env.step(invalid_action)
 
