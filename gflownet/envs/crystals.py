@@ -314,9 +314,6 @@ class Crystal(GFlowNetEnv):
             raise ValueError(
                 f"Tried to execute action {action} not present in action space."
             )
-        # If action is in invalid mask, exit immediately
-        if self.get_mask_invalid_actions()[action_idx]:
-            return self.state, action, False
         # If action is not eos, then perform action
         if action != self.eos:
             atomic_number, num = action
@@ -332,15 +329,12 @@ class Crystal(GFlowNetEnv):
             return self.state, action, valid
         # If action is eos, then perform eos
         else:
-            if self.get_mask_invalid_actions()[-1]:
-                valid = False
+            if self._can_produce_neutral_charge():
+                self.done = True
+                valid = True
+                self.n_actions += 1
             else:
-                if self._can_produce_neutral_charge():
-                    self.done = True
-                    valid = True
-                    self.n_actions += 1
-                else:
-                    valid = False
+                valid = False
             return self.state, self.eos, valid
 
     def _can_produce_neutral_charge(self, state: Optional[List[int]] = None) -> bool:

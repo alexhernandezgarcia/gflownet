@@ -385,12 +385,8 @@ class Tetris(GFlowNetEnv):
             )
         else:
             action_idx = self.action_space.index(action)
-        # If action is in invalid mask, return invalid
-        mask_invalid = self.get_mask_invalid_actions_forward()
-        if mask_invalid[action_idx]:
-            return self.state, action, False
-        # If action is eos or only possible action is eos, then force eos
-        if action == self.eos or all(mask_invalid[:-1]):
+        # If action is eos
+        if action == self.eos:-1]):
             self.done = True
             self.n_actions += 1
             return self.state, self.eos, True

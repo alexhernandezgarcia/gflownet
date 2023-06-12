@@ -349,9 +349,6 @@ class SpaceGroup(GFlowNetEnv):
             )
         else:
             action_idx = self.action_space.index(action)
-        # If action is in invalid mask, exit immediately
-        if self.get_mask_invalid_actions_forward()[action_idx]:
-            return self.state, action, False
         valid = True
         self.n_actions += 1
         prop, idx = action

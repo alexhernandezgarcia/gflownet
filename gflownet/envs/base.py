@@ -186,6 +186,7 @@ class GFlowNetEnv:
         actions = []
         return parents, actions
 
+    @abstractmethod
     def step(self, action: Tuple[int]) -> Tuple[List[int], Tuple[int], bool]:
         """
         Executes step given an action.
@@ -215,10 +216,6 @@ class GFlowNetEnv:
             raise ValueError(
                 f"Tried to execute action {action} not present in action space."
             )
-        action_idx = self.action_space.index(action)
-        # If action is in invalid mask, exit immediately
-        if self.get_mask_invalid_actions_forward()[action_idx]:
-            return self.state, action, False
         return None, None, None
 
     def sample_actions(
@@ -228,6 +225,7 @@ class GFlowNetEnv:
         mask_invalid_actions: TensorType["n_states", "policy_output_dim"] = None,
         temperature_logits: float = 1.0,
         loginf: float = 1000,
+        max_sampling_attempts: int = 10,
     ) -> Tuple[List[Tuple], TensorType["n_states"]]:
         """
         Samples a batch of actions from a batch of policy outputs. This implementation
@@ -242,8 +240,27 @@ class GFlowNetEnv:
             logits = policy_outputs
             logits /= temperature_logits
         if mask_invalid_actions is not None:
+            assert not torch.all(
+                mask_invalid_actions
+            ), """
+            All actions in the mask are invalid.
+            """
             logits[mask_invalid_actions] = -loginf
-        action_indices = Categorical(logits=logits).sample()
+        else:
+            mask_invalid_actions = torch.zeros(
+                policy_outputs.shape, dtype=torch.bool, device=device
+            )
+        # Make sure that a valid action is sampled, otherwise throw an error.
+        for _ in range(max_sampling_attempts):
+            action_indices = Categorical(logits=logits).sample()
+            if not torch.any(mask_invalid_actions[ns_range, action_indices]):
+                break
+        else:
+            raise ValueError(
+                f"""
+            No valid action could be sampled after {max_sampling_attempts} attempts.
+            """
+            )
         logprobs = self.logsoftmax(logits)[ns_range, action_indices]
         # Build actions
         actions = [self.action_space[idx] for idx in action_indices]
