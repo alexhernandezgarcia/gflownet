@@ -153,7 +153,9 @@ class Tetris(GFlowNetEnv):
 
         piece_idx, rotation, col = action
         piece_mat = self.piece_rotation_mat[self.idx2piece[piece_idx]][rotation]
-        piece_mat_mask = self.piece_rotation_mask_mat[self.idx2piece[piece_idx]][rotation]
+        piece_mat_mask = self.piece_rotation_mask_mat[self.idx2piece[piece_idx]][
+            rotation
+        ]
         hp, wp = piece_mat.shape
 
         # Check if piece goes overboard horizontally
@@ -162,13 +164,13 @@ class Tetris(GFlowNetEnv):
 
         # Find the highest row occupied by any other piece in the columns where we wish
         # to add the new piece
-        occupied_rows = board[:, col:col+wp].sum(1).nonzero()
+        occupied_rows = board[:, col : col + wp].sum(1).nonzero()
         if len(occupied_rows) == 0:
             # All rows are unoccupied. Set first occupied row as the row "below" the
             # board.
             first_occupied_row = self.height
         else:
-            first_occupied_row = occupied_rows[0,0]
+            first_occupied_row = occupied_rows[0, 0]
 
         # Iteratively attempt to place piece on the board starting from the top.
         # As soon as we reach a row where we can't place the piece because it
@@ -177,7 +179,6 @@ class Tetris(GFlowNetEnv):
         starting_row = first_occupied_row - hp
         lowest_valid_row = None
         for row in range(starting_row, self.height - hp + 1):
-
             if row == -hp:
                 # Placing the piece here would make it land fully outside the board. This
                 # means that there is no place on the board for the piece
