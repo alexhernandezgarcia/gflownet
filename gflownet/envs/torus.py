@@ -330,7 +330,7 @@ class Torus(GFlowNetEnv):
             action_idx = self.action_space.index(action)
         # If only possible action is eos, then force eos
         # If the number of actions is equal to trajectory length
-        elif self.n_actions == self.length_traj:
+        if self.n_actions == self.length_traj:
             self.done = True
             self.n_actions += 1
             return self.state, self.eos, True
