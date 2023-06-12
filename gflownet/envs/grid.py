@@ -342,7 +342,6 @@ class Grid(GFlowNetEnv):
             )
         else:
             action_idx = self.action_space.index(action)
-        # TODO: simplify by relying on mask
         # If only possible action is eos, then force eos
         # All dimensions are at the maximum length
         if all([s == self.length - 1 for s in self.state]):
