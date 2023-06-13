@@ -271,9 +271,9 @@ class Crystal(GFlowNetEnv):
             done = self.done
 
         if done:
-            return [True for _ in range(self.action_space_dim)]
+            return [True] * self.action_space_dim
 
-        mask = [True for _ in range(self.action_space_dim)]
+        mask = [True] * self.action_space_dim
 
         if stage == Stage.COMPOSITION:
             composition_mask = self.composition.get_mask_invalid_actions_forward(
