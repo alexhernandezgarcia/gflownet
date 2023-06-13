@@ -284,7 +284,7 @@ if __name__ == "__main__":
 
     known, unknown = parser.parse_known_args()
 
-    cli_script_args = " ".join(unknown) if unknown else ""
+    cli_script_args = (" " + " ".join(unknown)) if unknown else ""
 
     args = {k: v for k, v in vars(known).items() if v is not None}
     root = Path(__file__).resolve().parent
