@@ -49,7 +49,7 @@ class Conformer(ContinuousTorus):
     def statebatch2proxy(self, states: List[List]) -> List[npt.NDArray]:
         """
         Returns a list of proxy states, each being a numpy array with dimensionality
-        (n_atoms, 4), in which first the column encodes atomic number, and the last
+        (n_atoms, 4), in which the first column encodes atomic number, and the last
         three columns encode atom positions.
         """
         states_proxy = []
