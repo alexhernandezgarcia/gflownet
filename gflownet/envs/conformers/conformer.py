@@ -2,7 +2,6 @@ from typing import List, Tuple
 
 import numpy as np
 import numpy.typing as npt
-import torch
 from torchtyping import TensorType
 
 from gflownet.envs.ctorus import ContinuousTorus
@@ -46,12 +45,7 @@ class Conformer(ContinuousTorus):
         """
         Prepares a batch of states in torch "GFlowNet format" for the oracle.
         """
-        device = states.device
-        if device == torch.device("cpu"):
-            np_states = states.numpy()
-        else:
-            np_states = states.cpu().numpy()
-        return np_states[:, :-1]
+        return states.cpu().numpy()[:, :-1]
 
     def statebatch2proxy(self, states: List[List]) -> npt.NDArray:
         """
@@ -67,13 +61,7 @@ class Conformer(ContinuousTorus):
         """
         Prepares a batch of states in torch "GFlowNet format" for the oracle.
         """
-        device = states.device
-        if device == torch.device("cpu"):
-            np_states = states.numpy()
-        else:
-            np_states = states.cpu().numpy()
-        result = self.statebatch2oracle(np_states)
-        return result
+        return self.statebatch2oracle(states.cpu().numpy())
 
     def statebatch2oracle(
         self, states: List[List]
