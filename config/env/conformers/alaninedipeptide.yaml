@@ -1,7 +1,7 @@
 defaults:
   - base
 
-_target_: gflownet.envs.alaninedipeptide.AlanineDipeptide
+_target_: gflownet.envs.conformers.alaninedipeptide.AlanineDipeptide
 
 path_to_dataset: './data/alanine_dipeptide_conformers_1.npy'
 url_to_dataset: 'https://drive.google.com/uc?id=1r1KRGcpBhR3xaS8yt2i64dfMnJGgNj4C'

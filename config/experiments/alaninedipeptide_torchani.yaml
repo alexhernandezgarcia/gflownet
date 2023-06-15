@@ -1,9 +1,9 @@
 # @package _global_
 
 defaults:
-   - override /env: alaninedipeptide
+   - override /env: conformers/alaninedipeptide
    - override /gflownet: trajectorybalance
-   - override /proxy: molecule_torchani
+   - override /proxy: conformers/molecule_torchani
    - override /logger: wandb
 
 # Environment
