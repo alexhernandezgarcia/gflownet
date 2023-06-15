@@ -14,7 +14,7 @@ class Conformer(ContinuousTorus):
     """
     Extension of continuous torus to conformer generation. Based on AlanineDipeptide,
     but accepts any molecule (defined by SMILES, freely rotatable torsion angles, and
-    path to dataset containing sample conformers.
+    path to dataset containing sample conformers).
     """
 
     def __init__(
