@@ -3,7 +3,7 @@
 defaults:
    - override /env: conformers/alaninedipeptide
    - override /gflownet: trajectorybalance
-   - override /proxy: conformers/molecule_rf
+   - override /proxy: conformers/rf
    - override /logger: wandb
    - override /user: sasha
 

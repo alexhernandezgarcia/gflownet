@@ -3,7 +3,7 @@
 defaults:
    - override /env: conformers/conformer
    - override /gflownet: trajectorybalance
-   - override /proxy: conformers/molecule_xtb
+   - override /proxy: conformers/xtb
    - override /logger: wandb
 
 # Environment
