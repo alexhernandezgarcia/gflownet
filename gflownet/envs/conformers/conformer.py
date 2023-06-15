@@ -25,10 +25,10 @@ class Conformer(ContinuousTorus):
         url_to_dataset: str,
         **kwargs,
     ):
-        self.atom_positions_dataset = AtomPositionsDataset(
+        atom_positions_dataset = AtomPositionsDataset(
             path_to_dataset, url_to_dataset
         )
-        atom_positions = self.atom_positions_dataset.sample()
+        atom_positions = atom_positions_dataset.sample()
         self.conformer = RDKitConformer(atom_positions, smiles, torsion_angles)
 
         # Conversions
