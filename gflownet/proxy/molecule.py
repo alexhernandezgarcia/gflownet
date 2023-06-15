@@ -1,12 +1,14 @@
-from tblite.interface import Calculator, Structure
 import pickle
 from typing import Iterable, List, Optional
+
 import ray
 import numpy as np
 import torch
 import torchani
 from sklearn.ensemble import RandomForestRegressor
+from tblite.interface import Calculator, Structure
 from torch import FloatTensor, LongTensor, Tensor
+from wurlitzer import pipes
 
 from gflownet.proxy.base import Proxy
 from gflownet.utils.common import download_file_if_not_exists
@@ -51,9 +53,12 @@ class RFMoleculeEnergy(Proxy):
 
 @ray.remote
 def _get_energy(numbers, positions):
-    calc = Calculator("GFN2-xTB", numbers, positions * 1.8897259886)
-    res = calc.singlepoint()
-    return res.get("energy").item()
+    with pipes():
+        calc = Calculator("GFN2-xTB", numbers, positions * 1.8897259886)
+        res = calc.singlepoint()
+        energy = res.get("energy").item()
+
+    return energy
 
 
 def _chunks(lst, n):
