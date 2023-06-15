@@ -3,9 +3,11 @@ from typing import List
 
 import numpy as np
 import numpy.typing as npt
+import ray
 from torchtyping import TensorType
 
 from gflownet.envs.ctorus import ContinuousTorus
+from gflownet.proxy.conformers.xtb import get_energy
 from gflownet.utils.molecule.datasets import AtomPositionsDataset
 from gflownet.utils.molecule.rdkit_conformer import RDKitConformer
 
@@ -31,6 +33,11 @@ class Conformer(ContinuousTorus):
         torsion_angles = atom_positions_dataset.torsion_angles
         self.conformer = RDKitConformer(atom_positions, smiles, torsion_angles)
 
+        tasks = []
+        for positions in atom_positions_dataset.positions:
+            tasks.append(get_energy.remote(self.conformer.get_atomic_numbers(), positions))
+        self.max_energy = max(ray.get(tasks))
+
         # Conversions
         self.statebatch2oracle = self.statebatch2proxy
         self.statetorch2oracle = self.statetorch2proxy
@@ -38,7 +45,6 @@ class Conformer(ContinuousTorus):
         super().__init__(n_dim=len(self.conformer.freely_rotatable_tas), **kwargs)
 
         self.sync_conformer_with_state()
-
     def sync_conformer_with_state(self, state: List = None):
         if state is None:
             state = self.state
