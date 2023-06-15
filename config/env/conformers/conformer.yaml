@@ -3,17 +3,10 @@ defaults:
 
 _target_: gflownet.envs.conformers.conformer.Conformer
 
-# alanine dipeptide
-smiles: 'CC(C(=O)NC)NC(=O)C'
-torsion_angles: [[0, 1, 2, 3], [0, 1, 6, 7]]
-path_to_dataset: './data/alanine_dipeptide_conformers_1.npy'
-url_to_dataset: 'https://drive.google.com/uc?id=1r1KRGcpBhR3xaS8yt2i64dfMnJGgNj4C'
+smiles: 'CC(C(=O)NC)NC(=O)C' # alanine dipeptide
 
-# ibuprofen
-# smiles: 'CC(C)Cc1ccc(cc1)[C@@H](C)C(=O)O'
-# torsion_angles: [[2, 1, 3, 4], [1, 3, 4, 5]]
-# path_to_dataset: './data/ibuprofen_conformers_1.npy'
-# url_to_dataset: 'https://drive.google.com/uc?id=1wRvaiQ0H2gP3gNqRfpwXRJJ4pF70ulyf'
+path_to_dataset: './data/conformers.npy'
+url_to_dataset: 'https://drive.google.com/uc?id=1MefikIedDjUtUJtzCHwXhZtpXHJX3ImA'
 
 id: conformer
 policy_encoding_dim_per_angle: null
