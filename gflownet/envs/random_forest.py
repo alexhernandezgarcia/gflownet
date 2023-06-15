@@ -117,7 +117,7 @@ class Tree(GFlowNetEnv):
         for node in self.state:
             x = self.state.nodes[node]["x"]
             if x[0] == 1:
-                labels[node] = fr"$x_{int(x[1])}$ < {x[2]}"
+                labels[node] = rf"$x_{int(x[1])}$ < {np.round(x[2], 4)}"
                 node_color.append("white")
             else:
                 labels[node] = f"C={x[3]}"
