@@ -32,35 +32,12 @@ class XTBMoleculeEnergy(Proxy):
         self.batch_size = batch_size
         self.min = -5
         self.max = 0
-        self.conformer = None
-
-    def setup(self, env=None):
-        self.conformer = env.conformer
-
-    def _sync_conformer_with_state(self, state: List):
-        for idx, ta in enumerate(self.conformer.freely_rotatable_tas):
-            self.conformer.set_torsion_angle(ta, state[idx])
-        return self.conformer
 
     def __call__(self, states: List) -> Tensor:
         energies = []
 
         for batch in _chunks(states, self.batch_size):
-            structures = []
-
-            for state in batch:
-                conf = self._sync_conformer_with_state(state)
-                structures.append(
-                    (conf.get_atomic_numbers(), conf.get_atom_positions())
-                )
-
-            tasks = [_get_energy.remote(s[0], s[1]) for s in structures]
+            tasks = [_get_energy.remote(s[:, 0], s[:, 1:]) for s in batch]
             energies.extend(ray.get(tasks))
 
         return torch.tensor(energies, dtype=self.float, device=self.device)
-
-    def __deepcopy__(self, memo):
-        cls = self.__class__
-        new_obj = cls.__new__(cls)
-        new_obj.__dict__.update(self.__dict__)
-        return new_obj

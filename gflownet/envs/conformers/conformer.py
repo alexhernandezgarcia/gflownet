@@ -1,4 +1,5 @@
-from typing import List, Tuple
+import copy
+from typing import List
 
 import numpy as np
 import numpy.typing as npt
@@ -15,6 +16,7 @@ class Conformer(ContinuousTorus):
     but accepts any molecule (defined by SMILES, freely rotatable torsion angles, and
     path to dataset containing sample conformers.
     """
+
     def __init__(
         self,
         smiles: str,
@@ -27,11 +29,14 @@ class Conformer(ContinuousTorus):
             path_to_dataset, url_to_dataset
         )
         atom_positions = self.atom_positions_dataset.sample()
-        self.conformer = RDKitConformer(
-            atom_positions, smiles, torsion_angles
-        )
-        n_dim = len(self.conformer.freely_rotatable_tas)
-        super().__init__(n_dim=n_dim, **kwargs)
+        self.conformer = RDKitConformer(atom_positions, smiles, torsion_angles)
+
+        # Conversions
+        self.statebatch2oracle = self.statebatch2proxy
+        self.statetorch2oracle = self.statetorch2proxy
+
+        super().__init__(n_dim=len(self.conformer.freely_rotatable_tas), **kwargs)
+
         self.sync_conformer_with_state()
 
     def sync_conformer_with_state(self, state: List = None):
@@ -41,39 +46,47 @@ class Conformer(ContinuousTorus):
             self.conformer.set_torsion_angle(ta, state[idx])
         return self.conformer
 
-    def statetorch2proxy(self, states: TensorType["batch", "state_dim"]) -> npt.NDArray:
+    def statebatch2proxy(self, states: List[List]) -> List[npt.NDArray]:
         """
-        Prepares a batch of states in torch "GFlowNet format" for the oracle.
+        Returns a list of proxy states, each being a numpy array with dimensionality
+        (n_atoms, 4), in which first the column encodes atomic number, and the last
+        three columns encode atom positions.
         """
-        return states.cpu().numpy()[:, :-1]
-
-    def statebatch2proxy(self, states: List[List]) -> npt.NDArray:
-        """
-        Prepares a batch of states in "GFlowNet format" for the proxy: a tensor where
-        each state is a row of length n_dim with an angle in radians. The n_actions
-        item is removed.
-        """
-        return np.array(states)[:, :-1]
-
-    def statetorch2oracle(
-        self, states: TensorType["batch", "state_dim"]
-    ) -> List[Tuple[npt.NDArray, npt.NDArray]]:
-        """
-        Prepares a batch of states in torch "GFlowNet format" for the oracle.
-        """
-        return self.statebatch2oracle(states.cpu().numpy())
-
-    def statebatch2oracle(
-        self, states: List[List]
-    ) -> List[Tuple[npt.NDArray, npt.NDArray]]:
-        """
-        Prepares a batch of states in "GFlowNet format" for the oracle: a list of
-        tuples, where first element in the tuple is numpy array of atom positions of
-        shape [num_atoms, 3] and the second element is numpy array of atomic numbers of
-        shape [num_atoms, ]
-        """
-        states_oracle = []
+        states_proxy = []
         for st in states:
             conf = self.sync_conformer_with_state(st)
-            states_oracle.append((conf.get_atom_positions(), conf.get_atomic_numbers()))
-        return states_oracle
+            states_proxy.append(
+                np.concatenate(
+                    [
+                        conf.get_atomic_numbers()[..., np.newaxis],
+                        conf.get_atom_positions(),
+                    ],
+                    axis=1,
+                )
+            )
+        return states_proxy
+
+    def statetorch2proxy(
+        self, states: TensorType["batch", "state_dim"]
+    ) -> List[npt.NDArray]:
+        return self.statebatch2proxy(states.cpu().numpy())
+
+    def statebatch2kde(self, states: List[List]) -> npt.NDArray[np.float32]:
+        return np.array(states)[:, :-1]
+
+    def statetorch2kde(
+        self, states: TensorType["batch_size", "state_dim"]
+    ) -> TensorType["batch_size", "state_proxy_dim"]:
+        return states.cpu().numpy()[:, :-1]
+
+    def __deepcopy__(self, memo):
+        cls = self.__class__
+        new_instance = cls.__new__(cls)
+
+        for attr_name, attr_value in self.__dict__.items():
+            if attr_name != "conformer":
+                setattr(new_instance, attr_name, copy.copy(attr_value))
+
+        new_instance.conformer = self.conformer
+
+        return new_instance

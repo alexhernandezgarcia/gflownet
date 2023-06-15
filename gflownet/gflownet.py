@@ -747,8 +747,8 @@ class GFlowNetAgent:
             log_density_pred = np.log(density_pred + 1e-8)
         elif self.continuous:
             # TODO make it work with conditional env
-            x_sampled = torch2np(self.env.statebatch2proxy(x_sampled))
-            x_tt = torch2np(self.env.statebatch2proxy(x_tt))
+            x_sampled = torch2np(self.env.statebatch2kde(x_sampled))
+            x_tt = torch2np(self.env.statebatch2kde(x_tt))
             kde_pred = self.env.fit_kde(
                 x_sampled,
                 kernel=self.logger.test.kde.kernel,
@@ -762,7 +762,7 @@ class GFlowNetAgent:
                 x_from_reward = self.env.sample_from_reward(
                     n_samples=self.logger.test.n
                 )
-                x_from_reward = torch2np(self.env.statetorch2proxy(x_from_reward))
+                x_from_reward = torch2np(self.env.statetorch2kde(x_from_reward))
                 # Fit KDE with samples from reward
                 kde_true = self.env.fit_kde(
                     x_from_reward,
