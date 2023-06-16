@@ -26,12 +26,12 @@ def _chunks(lst, n):
 
 
 class XTBMoleculeEnergy(Proxy):
-    def __init__(self, batch_size=100, **kwargs):
+    def __init__(self, batch_size=1000, **kwargs):
         super().__init__(**kwargs)
 
         self.batch_size = batch_size
         self.max_energy = 0
-        self.min = -5
+        self.min = 0
 
     def __call__(self, states: List) -> Tensor:
         energies = []
@@ -47,3 +47,4 @@ class XTBMoleculeEnergy(Proxy):
 
     def setup(self, env=None):
         self.max_energy = env.max_energy
+        self.min = env.min_energy - env.max_energy

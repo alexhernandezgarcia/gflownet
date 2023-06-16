@@ -36,7 +36,9 @@ class Conformer(ContinuousTorus):
         tasks = []
         for positions in atom_positions_dataset.positions:
             tasks.append(get_energy.remote(self.conformer.get_atomic_numbers(), positions))
-        self.max_energy = max(ray.get(tasks))
+        energies = ray.get(tasks)
+        self.max_energy = max(energies)
+        self.min_energy = min(energies)
 
         # Conversions
         self.statebatch2oracle = self.statebatch2proxy
