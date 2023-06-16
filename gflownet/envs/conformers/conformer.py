@@ -35,7 +35,9 @@ class Conformer(ContinuousTorus):
 
         tasks = []
         for positions in atom_positions_dataset.positions:
-            tasks.append(get_energy.remote(self.conformer.get_atomic_numbers(), positions))
+            tasks.append(
+                get_energy.remote(self.conformer.get_atomic_numbers(), positions)
+            )
         energies = ray.get(tasks)
         self.max_energy = max(energies)
         self.min_energy = min(energies)
@@ -47,6 +49,7 @@ class Conformer(ContinuousTorus):
         super().__init__(n_dim=len(self.conformer.freely_rotatable_tas), **kwargs)
 
         self.sync_conformer_with_state()
+
     def sync_conformer_with_state(self, state: List = None):
         if state is None:
             state = self.state

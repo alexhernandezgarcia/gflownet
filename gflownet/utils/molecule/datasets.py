@@ -11,8 +11,8 @@ class AtomPositionsDataset:
         path_to_data = download_file_if_not_exists(path_to_data, url_to_data)
         conformers = np.load(path_to_data, allow_pickle=True).item()
 
-        self.positions = conformers[smiles]['conformers']
-        self.torsion_angles = conformers[smiles]['torsion_angles']
+        self.positions = conformers[smiles]["conformers"]
+        self.torsion_angles = conformers[smiles]["torsion_angles"]
 
     def __getitem__(self, i):
         return self.positions[i]
