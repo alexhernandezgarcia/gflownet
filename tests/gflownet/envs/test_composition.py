@@ -323,6 +323,21 @@ def test__required_elements_does_not_cause_environment_to_get_stuck():
 
 
 @pytest.mark.repeat(25)
+def test__required_atoms_does_not_cause_environment_to_get_stuck():
+    required_elements = []
+    env = Composition(
+        elements=10, min_diff_elem=2, max_diff_elem=2, min_atoms=20, max_atoms=20,
+    )
+
+    while not env.done:
+        mask = env.get_mask_invalid_actions_forward()
+        actions = [action for action, m in zip(env.action_space, mask) if not m]
+        assert len(actions) > 0
+        action = actions[np.random.choice(len(actions))]
+        env.step(action)
+
+
+@pytest.mark.repeat(25)
 def test__insufficient_elements_left_does_not_cause_environment_to_get_stuck():
     env = Composition(
         elements=10,

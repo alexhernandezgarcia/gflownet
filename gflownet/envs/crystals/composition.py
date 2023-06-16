@@ -123,7 +123,7 @@ class Composition(GFlowNetEnv):
         assert self.max_diff_elem >= self.min_diff_elem
         assert self.max_atom_i >= self.min_atom_i
         valid_word_len = np.arange(self.min_atom_i, self.max_atom_i + 1)
-        actions = [(element, n) for n in valid_word_len for element in self.elements]
+        actions = [(element, n) for element in self.elements for n in valid_word_len]
         actions.append(self.eos)
         return actions
 
@@ -143,7 +143,7 @@ class Composition(GFlowNetEnv):
         if done:
             return [True for _ in range(self.action_space_dim)]
 
-        mask = [False for _ in self.action_space]
+        mask = [False] * self.action_space_dim
         used_elements = [self.idx2elem[i] for i, e in enumerate(state) if e > 0]
         unused_required_elements = [
             e for e in self.required_elements if e not in used_elements
@@ -152,6 +152,69 @@ class Composition(GFlowNetEnv):
         n_unused_required_elements = len(unused_required_elements)
         n_used_atoms = sum(state)
 
+        # Compute the min and max number of atoms to add to satisfy constraints
+        nb_atoms_still_needed = max(0, self.min_atoms - n_used_atoms)
+        nb_atoms_still_allowed = self.max_atoms - n_used_atoms
+        # Compute the min and max number of elements to add to satisfy constraints
+        nb_elems_still_needed = max(
+            n_unused_required_elements, self.min_diff_elem - n_used_elements
+        )
+        nb_elems_still_allowed = self.max_diff_elem - n_used_elements
+        # How many elements, other than the required elements, can still be added
+        n_max_unrequired_elements_left = self.max_diff_elem - (
+            n_used_elements + n_unused_required_elements
+        )
+        # What is the minimum number of atoms needed for a new required element in
+        # order to reach the number of required atoms before we can't add new elements
+        # anymore
+        min_atoms_per_required_element = max(
+            nb_atoms_still_needed - (nb_elems_still_allowed - 1) * self.max_atom_i,
+            self.min_atom_i,
+        )
+        # What is the maximum number of atoms allowed for a new required element in
+        # order to be able to reach the number of required elements before we can't add
+        # new atoms anymore
+        max_atoms_per_required_element = min(
+            nb_atoms_still_allowed - (nb_elems_still_needed - 1) * self.min_atom_i,
+            self.max_atom_i,
+        )
+        # Determine if there is a need to add unrequired elements to either reach the
+        # number of required distinct elements or the number of required atoms
+        unrequired_element_needed = (
+            nb_elems_still_needed > n_unused_required_elements
+            or max_atoms_per_required_element * n_unused_required_elements
+            < nb_atoms_still_needed
+        )
+        # Determine if it is possible to add unrequired elements without going over the
+        # maximum number of elements or atoms
+        unrequired_element_allowed = (
+            n_max_unrequired_elements_left > 0
+            and min_atoms_per_required_element * n_unused_required_elements
+            + self.min_atom_i
+            < self.max_atoms
+        )
+        # Compute the minimum and maximum number of atoms available for an unrequired
+        # element
+        if unrequired_element_needed:
+            # Some unrequired elements are needed so they are treated the same as the
+            # required elements
+            min_atoms_per_unrequired_element = min_atoms_per_required_element
+            max_atoms_per_unrequired_element = max_atoms_per_required_element
+        elif unrequired_element_allowed:
+            # Unrequired elements are optional so there is no minium amount to add for
+            # them and the maximum is only as high as possible without preventing the
+            # addition of the required elements later
+            min_atoms_per_unrequired_element = 0
+            max_atoms_per_unrequired_element = min(
+                nb_atoms_still_allowed
+                - min_atoms_per_required_element * n_unused_required_elements,
+                self.max_atom_i,
+            )
+        else:
+            # No unrequired elements can be added
+            min_atoms_per_unrequired_element = 0
+            max_atoms_per_unrequired_element = 0
+
         if n_used_atoms < self.min_atoms:
             mask[-1] = True
         if n_used_elements < self.min_diff_elem:
@@ -159,30 +222,35 @@ class Composition(GFlowNetEnv):
         if any(r not in used_elements for r in self.required_elements):
             mask[-1] = True
 
-        for idx, (element, n) in enumerate(self.action_space[:-1]):
-            # cannot modify already set element
-            if state[self.elem2idx[element]] > 0:
-                mask[idx] = True
-                continue
+        # Obtain action mask for each category of element
+        def get_element_mask(min_atoms, max_atoms):
+            return [
+                bool(i < min_atoms or i > max_atoms)
+                for i in range(self.min_atom_i, self.max_atom_i + 1)
+            ]
 
-            # compute how many additional atoms and elements need to be reserved
-            if element in unused_required_elements:
-                reserved_elements = n_unused_required_elements - 1
+        mask_required_element = get_element_mask(
+            min_atoms_per_required_element, max_atoms_per_required_element
+        )
+        mask_unrequired_element = get_element_mask(
+            min_atoms_per_unrequired_element, max_atoms_per_unrequired_element
+        )
+
+        # Set action mask for each element
+        nb_actions_per_element = self.max_atom_i - self.min_atom_i + 1
+        for element_idx, element in enumerate(self.elements):
+            # Compute the start and end indices of the actions associated with this
+            # element
+            action_start_idx = element_idx * nb_actions_per_element
+            action_end_idx = action_start_idx + nb_actions_per_element
+            # Set the mask for the actions associated with this element
+            if state[element_idx] > 0:
+                # This element has already been added, we cannot add more
+                mask[action_start_idx:action_end_idx] = [True] * nb_actions_per_element
+            elif element in unused_required_elements:
+                mask[action_start_idx:action_end_idx] = mask_required_element
             else:
-                reserved_elements = n_unused_required_elements
-            reserved_elements = max(
-                reserved_elements, self.min_diff_elem - n_used_elements - 1
-            )
-            reserved_atoms = reserved_elements * self.min_atom_i
-
-            # cannot add atoms over the limit
-            if n_used_atoms + n + reserved_atoms > self.max_atoms:
-                mask[idx] = True
-                continue
-            # cannot add elements over the limit
-            if n_used_elements + 1 + reserved_elements > self.max_diff_elem:
-                mask[idx] = True
-                continue
+                mask[action_start_idx:action_end_idx] = mask_unrequired_element
 
         return mask
 

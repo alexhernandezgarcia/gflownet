@@ -4,6 +4,7 @@ TODO:
     - Seeds
 """
 import copy
+import os
 import pickle
 import sys
 import time
@@ -774,10 +775,10 @@ class GFlowNetAgent:
             states_term, trajs_term = self.unpack_terminal_states(batch)
             proxy_vals = self.env.reward2proxy(rewards).tolist()
             rewards = rewards.tolist()
-            self.buffer.add(states_term, trajs_term, rewards, proxy_vals, it)
-            self.buffer.add(
-                states_term, trajs_term, rewards, proxy_vals, it, buffer="replay"
-            )
+            # self.buffer.add(states_term, trajs_term, rewards, proxy_vals, it)
+            # self.buffer.add(
+            #     states_term, trajs_term, rewards, proxy_vals, it, buffer="replay"
+            # )
             t1_buffer = time.time()
             times.update({"buffer": t1_buffer - t0_buffer})
             # Log
@@ -814,10 +815,10 @@ class GFlowNetAgent:
             # Moving average of the loss for early stopping
             if loss_term_ema and loss_flow_ema:
                 loss_term_ema = (
-                    self.ema_alpha * losses[1] + (1.0 - self.ema_alpha) * loss_term_ema
+                    self.ema_alpha * losses[1].item() + (1.0 - self.ema_alpha) * loss_term_ema
                 )
                 loss_flow_ema = (
-                    self.ema_alpha * losses[2] + (1.0 - self.ema_alpha) * loss_flow_ema
+                    self.ema_alpha * losses[2].item() + (1.0 - self.ema_alpha) * loss_flow_ema
                 )
                 if (
                     loss_term_ema < self.early_stopping
@@ -825,8 +826,9 @@ class GFlowNetAgent:
                 ):
                     break
             else:
-                loss_term_ema = losses[1]
-                loss_flow_ema = losses[2]
+                loss_term_ema = losses[1].item()
+                loss_flow_ema = losses[2].item()
+
             # Log times
             t1_iter = time.time()
             times.update({"iter": t1_iter - t0_iter})

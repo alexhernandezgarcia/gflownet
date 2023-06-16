@@ -236,6 +236,7 @@ class Logger:
                     "logZ",
                     "lr",
                     "lr_logZ",
+                    "step",
                 ],
                 [
                     np.mean(rewards),
@@ -248,6 +249,7 @@ class Logger:
                     logz,
                     learning_rates[0],
                     learning_rates[1],
+                    step,
                 ],
             )
         )

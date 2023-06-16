@@ -187,10 +187,8 @@ class SpaceGroup(GFlowNetEnv):
         # Merge space_groups constraints and determine valid space group actions
         space_groups = list(set(space_groups_cls).intersection(set(space_groups_ps)))
         # Construct mask
-        actions_valid = list(
-            set.union(
-                set(crystal_lattice_systems), set(point_symmetries), set(space_groups)
-            )
+        actions_valid = set.union(
+            set(crystal_lattice_systems), set(point_symmetries), set(space_groups)
         )
         assert len(actions_valid) > 0
         mask = [
