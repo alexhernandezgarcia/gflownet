@@ -236,8 +236,6 @@ def test__step__returns_same_state_action_and_invalid_if_done(env):
         else:
             assert next_state == env.state
         assert action_step == action
-        if valid is True:
-            print(env.state2readable())
         assert valid is False
 
 
