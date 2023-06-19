@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 import networkx as nx
 import numpy as np
 import numpy.typing as npt
+import torch
 import torch_geometric as pyg
 from networkx.drawing.nx_pydot import graphviz_layout
 from torch_geometric.utils.convert import from_networkx
@@ -48,7 +49,7 @@ class Node:
         else:
             return self.right.predict(x)
 
-    def attributes(self) -> npt.NDArray:
+    def attributes(self) -> torch.Tensor:
         if isinstance(self.content, Classifier):
             node_type = 0
             feature = -1
@@ -60,7 +61,7 @@ class Node:
             threshold = self.content.threshold
             output = -1
 
-        return np.array([node_type, feature, threshold, output])
+        return torch.Tensor([node_type, feature, threshold, output])
 
 
 class Classifier:
@@ -109,7 +110,10 @@ class Tree(GFlowNetEnv):
         self.leafs[node.index] = node
 
     def _to_pyg(self) -> pyg.data.Data:
-        return from_networkx(self.state)
+        data = from_networkx(self.state)
+        data.x = data.x.float()
+
+        return data
 
     def plot(self) -> None:
         labels = {}
