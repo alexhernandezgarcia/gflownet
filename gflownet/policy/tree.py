@@ -83,6 +83,33 @@ class LeafSelectionHead(torch.nn.Module):
         return F.softmax(x, dim=0)
 
 
+def _construct_node_head(
+    input_dim: int,
+    hidden_dim: int,
+    output_dim: int,
+    n_layers: int,
+    activation: str,
+    dropout: float,
+) -> torch.nn.Module:
+    activation = getattr(torch.nn, activation)
+
+    layers = []
+    for i in range(n_layers):
+        layers.append(
+            torch.nn.Linear(
+                input_dim if i == 0 else hidden_dim,
+                output_dim if i == n_layers - 1 else hidden_dim,
+            ),
+        )
+        if i < n_layers - 1:
+            layers.append(activation())
+            if dropout > 0:
+                layers.append(torch.nn.Dropout(p=dropout))
+    layers.append(torch.nn.ReLU())
+
+    return torch.nn.Sequential(*layers)
+
+
 class FeatureSelectionHead(torch.nn.Module):
     def __init__(
         self,
@@ -96,24 +123,10 @@ class FeatureSelectionHead(torch.nn.Module):
     ):
         super().__init__()
 
-        activation = getattr(torch.nn, activation)
-
-        layers = []
-        for i in range(n_layers):
-            layers.append(
-                torch.nn.Linear(
-                    input_dim if i == 0 else hidden_dim,
-                    output_dim if i == n_layers - 1 else hidden_dim,
-                ),
-            )
-            if i < n_layers - 1:
-                layers.append(activation())
-                if dropout > 0:
-                    layers.append(torch.nn.Dropout(p=dropout))
-        layers.append(torch.nn.Softmax(dim=1))
-
         self.backbone = backbone
-        self.model = torch.nn.Sequential(*layers)
+        self.model = _construct_node_head(
+            input_dim, hidden_dim, output_dim, n_layers, activation, dropout
+        )
 
     def forward(
         self, data: torch_geometric.data.Data, node_index: torch.Tensor
@@ -141,24 +154,10 @@ class ThresholdSelectionHead(torch.nn.Module):
     ):
         super().__init__()
 
-        activation = getattr(torch.nn, activation)
-
-        layers = []
-        for i in range(n_layers):
-            layers.append(
-                torch.nn.Linear(
-                    input_dim if i == 0 else hidden_dim,
-                    output_dim if i == n_layers - 1 else hidden_dim,
-                ),
-            )
-            if i < n_layers - 1:
-                layers.append(activation())
-                if dropout > 0:
-                    layers.append(torch.nn.Dropout(p=dropout))
-        layers.append(torch.nn.ReLU())
-
         self.backbone = backbone
-        self.model = torch.nn.Sequential(*layers)
+        self.model = _construct_node_head(
+            input_dim, hidden_dim, output_dim, n_layers, activation, dropout
+        )
 
     def forward(
         self,
@@ -188,24 +187,10 @@ class SignSelectionHead(torch.nn.Module):
     ):
         super().__init__()
 
-        activation = getattr(torch.nn, activation)
-
-        layers = []
-        for i in range(n_layers):
-            layers.append(
-                torch.nn.Linear(
-                    input_dim if i == 0 else hidden_dim,
-                    1 if i == n_layers - 1 else hidden_dim,
-                ),
-            )
-            if i < n_layers - 1:
-                layers.append(activation())
-                if dropout > 0:
-                    layers.append(torch.nn.Dropout(p=dropout))
-        layers.append(torch.nn.Sigmoid())
-
         self.backbone = backbone
-        self.model = torch.nn.Sequential(*layers)
+        self.model = _construct_node_head(
+            input_dim, hidden_dim, 1, n_layers, activation, dropout
+        )
 
     def forward(
         self,
