@@ -295,6 +295,53 @@ class GFlowNetEnv:
         logprobs = self.logsoftmax(logits)[ns_range, action_indices]
         return logprobs
 
+    def step_random(self):
+        """
+        Samples a random action and executes the step.
+
+        Returns
+        -------
+        state : list
+            The state after executing the action.
+
+        action : int
+            Action, randomly sampled.
+
+        valid : bool
+            False, if the action is not allowed for the current state.
+        """
+        mask_invalid = torch.unsqueeze(
+            torch.tensor(self.get_mask_invalid_actions_forward(), dtype=torch.bool), 0
+        )
+        random_policy = torch.unsqueeze(
+            torch.tensor(self.random_policy_output, dtype=self.float), 0
+        )
+        actions, _ = self.sample_actions(
+            policy_outputs=random_policy, mask_invalid_actions=mask_invalid
+        )
+        action = actions[0]
+        return self.step(action)
+
+    def trajectory_random(self):
+        """
+        Samples a random trajectory, by sampling random actions until an EOS action is
+        sampled.
+
+        Returns
+        -------
+        state : list
+            The final state.
+
+        action: list
+            The list of actions (tuples) in the trajectory.
+        """
+        actions = []
+        while self.done is not True:
+            _, action, valid = self.step_random()
+            if valid:
+                actions.append(action)
+        return self.state, actions
+
     def get_policy_output(self, params: Optional[dict] = None):
         """
         Defines the structure of the output of the policy model, from which an
