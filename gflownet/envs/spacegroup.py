@@ -343,6 +343,9 @@ class SpaceGroup(GFlowNetEnv):
         valid : bool
             False, if the action is not allowed for the current state.
         """
+        # If done, return invalid
+        if self.done:
+            return self.state, action, False
         # If action not found in action space raise an error
         if action not in self.action_space:
             raise ValueError(
