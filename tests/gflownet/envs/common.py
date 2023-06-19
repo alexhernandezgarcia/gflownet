@@ -37,16 +37,7 @@ def test__get_parents_step_get_mask__are_compatible(env):
     while not env.done:
         state = env.state
         # Sample random action
-        mask_invalid = torch.unsqueeze(
-            torch.BoolTensor(env.get_mask_invalid_actions_forward()), 0
-        )
-        random_policy = torch.unsqueeze(
-            torch.tensor(env.random_policy_output, dtype=env.float), 0
-        )
-        actions, _ = env.sample_actions(
-            policy_outputs=random_policy, mask_invalid_actions=mask_invalid
-        )
-        next_state, action, valid = env.step(actions[0])
+        _, _, valid = env.step_random()
         if valid is False:
             continue
         n_actions += 1
@@ -115,16 +106,7 @@ def test__state_conversions_are_reversible(env):
             else:
                 assert np.isclose(el1, el2)
         # Sample random action
-        mask_invalid = torch.unsqueeze(
-            torch.BoolTensor(env.get_mask_invalid_actions_forward()), 0
-        )
-        random_policy = torch.unsqueeze(
-            torch.tensor(env.random_policy_output, dtype=env.float), 0
-        )
-        actions, _ = env.sample_actions(
-            policy_outputs=random_policy, mask_invalid_actions=mask_invalid
-        )
-        env.step(actions[0])
+        env.step_random()
 
 
 def test__get_parents__returns_no_parents_in_initial_state(env):
