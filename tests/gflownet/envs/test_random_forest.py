@@ -1,26 +1,51 @@
 import numpy as np
 import pytest
+import torch
 
-from gflownet.envs.random_forest import Operator, Node
-
-
-@pytest.mark.repeat(10)
-@pytest.mark.parametrize("output", [0, 1])
-def test__basic_node_tree__always_predicts_output(output):
-    node_tree = Node(output=output)
-    x = np.random.random(5)
-
-    assert node_tree.predict(x) == output
+from gflownet.envs.random_forest import NodeType, Operator, Tree
 
 
 @pytest.fixture
-def node_tree():
-    node_tree = Node(1)
-    node_tree.split(0, 0.5, Operator.LT)
-    node_tree.right.split(1, 0.3, Operator.GTE)
-    node_tree.right.right.split(2, 0.7, Operator.LT)
+def X():
+    return np.random.rand(17, 5)
 
-    return node_tree
+
+@pytest.fixture
+def y():
+    return np.random.randint(2, size=17)
+
+
+@pytest.mark.repeat(10)
+def test__starting_tree__always_predicts_positive_class(X, y):
+    tree = Tree(X, y)
+    x = np.random.random(5)
+
+    assert tree.predict(x) == 1
+
+
+@pytest.fixture
+def tree(X, y):
+    _tree = Tree(X, y)
+
+    # split node k = 0 (root) on feature = 0, with threshold = 0.5 and < operator
+    _tree.step((0, 0, -1))
+    _tree.step((1, 0, 0))
+    _tree.step((2, 0, 0.5))
+    _tree.step((3, 0, Operator.LT))
+
+    # split node k = 2 (right child of root) on feature = 1, with threshold = 0.3 and >= operator
+    _tree.step((0, 2, -1))
+    _tree.step((1, 2, 1))
+    _tree.step((2, 2, 0.3))
+    _tree.step((3, 2, Operator.GTE))
+
+    # split node k = 6 (right child of right child of root) on feature = 2, with threshold = 0.7 and < operator
+    _tree.step((0, 6, -1))
+    _tree.step((1, 6, 2))
+    _tree.step((2, 6, 0.7))
+    _tree.step((3, 6, Operator.LT))
+
+    return _tree
 
 
 @pytest.mark.parametrize(
@@ -33,15 +58,17 @@ def node_tree():
         ([0.7, 0.8, 0.9], 1),
     ],
 )
-def test__node_tree__has_expected_output(node_tree, x, output):
-    assert node_tree.predict(x) == output
+def test__predict__has_expected_output(tree, x, output):
+    assert tree.predict(x) == output
 
 
-def test__node_tree__has_expected_node_attributes(node_tree):
-    assert np.allclose(node_tree.attributes(), [1, 0, 0.5, -1])
-    assert np.allclose(node_tree.left.attributes(), [0, -1, -1, 0])
-    assert np.allclose(node_tree.right.attributes(), [1, 1, 0.3, -1])
-    assert np.allclose(node_tree.right.left.attributes(), [0, -1, -1, 1])
-    assert np.allclose(node_tree.right.right.attributes(), [1, 2, 0.7, -1])
-    assert np.allclose(node_tree.right.right.left.attributes(), [0, -1, -1, 0])
-    assert np.allclose(node_tree.right.right.right.attributes(), [0, -1, -1, 1])
+def test__node_tree__has_expected_node_attributes(tree):
+    assert np.allclose(tree._get_attributes(0), [NodeType.CONDITION, 0, 0.5, -1])
+    assert np.allclose(tree._get_attributes(1), [NodeType.CLASSIFIER, -1, -1, 0])
+    assert np.allclose(tree._get_attributes(2), [NodeType.CONDITION, 1, 0.3, -1])
+    assert torch.all(torch.isnan(tree._get_attributes(3)))
+    assert torch.all(torch.isnan(tree._get_attributes(4)))
+    assert np.allclose(tree._get_attributes(5), [NodeType.CLASSIFIER, -1, -1, 1])
+    assert np.allclose(tree._get_attributes(6), [NodeType.CONDITION, 2, 0.7, -1])
+    assert np.allclose(tree._get_attributes(13), [NodeType.CLASSIFIER, -1, -1, 0])
+    assert np.allclose(tree._get_attributes(14), [NodeType.CLASSIFIER, -1, -1, 1])

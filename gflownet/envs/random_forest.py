@@ -1,4 +1,3 @@
-from enum import Enum
 from typing import List, Optional, Tuple
 
 import matplotlib.pyplot as plt
@@ -13,17 +12,17 @@ from torch_geometric.utils.convert import from_networkx
 from gflownet.envs.base import GFlowNetEnv
 
 
-class NodeType(Enum):
+class NodeType:
     CONDITION = 0
     CLASSIFIER = 1
 
 
-class Operator(Enum):
+class Operator:
     LT = 0
     GTE = 1
 
 
-class Stage(Enum):
+class Stage:
     COMPLETE = 0
     LEAF = 1
     FEATURE = 2
@@ -31,7 +30,7 @@ class Stage(Enum):
     OPERATOR = 4
 
 
-class ActionType(Enum):
+class ActionType:
     PICK_LEAF = 0
     PICK_FEATURE = 1
     PICK_THRESHOLD = 2
@@ -54,10 +53,7 @@ class Tree(GFlowNetEnv):
         self.y = y
         self.max_depth = max_depth
         self.components = threshold_components
-
         self.leafs = set()
-        # TODO: use most frequent class as the output
-        self._insert_classifier(k=0, output=1)
 
         # Source will contain information about the current stage (on the 0-th position),
         # and up to 2**max_depth - 1 nodes, each with N_ATTRIBUTES attributes, for a total of
@@ -70,6 +66,9 @@ class Tree(GFlowNetEnv):
         self.eos = (-1, -1)
 
         super().__init__(**kwargs)
+
+        # TODO: use most frequent class as the output
+        self._insert_classifier(k=0, output=1)
 
     @staticmethod
     def _get_start_end(k: int) -> Tuple[int, int]:
@@ -158,6 +157,8 @@ class Tree(GFlowNetEnv):
         else:
             self._insert_classifier(k_left, output=1)
             self._insert_classifier(k_right, output=0)
+
+        attributes[3] = -1
 
         self.leafs.remove(k)
         self.state[0] = Stage.COMPLETE
@@ -251,7 +252,7 @@ class Tree(GFlowNetEnv):
         if attributes[0] == NodeType.CLASSIFIER:
             return attributes[3]
 
-        if x[attributes[1]] < attributes[2]:
+        if x[attributes[1].long().item()] < attributes[2]:
             return self.predict(x, k=Tree._get_left_child(k))
         else:
             return self.predict(x, k=Tree._get_right_child(k))
@@ -263,11 +264,11 @@ class Tree(GFlowNetEnv):
         node_color = []
         for node in graph:
             x = graph.nodes[node]["x"]
-            if x[0] == 1:
-                labels[node] = rf"$x_{int(x[1])}$ < {np.round(x[2], 4)}"
+            if x[0] == NodeType.CONDITION:
+                labels[node] = rf"$x_{int(x[1].item())}$ < {np.round(x[2].item(), 4)}"
                 node_color.append("white")
             else:
-                labels[node] = f"C={x[3]}"
+                labels[node] = f"C={int(x[3].item())}"
                 node_color.append("red")
 
         nx.draw(
