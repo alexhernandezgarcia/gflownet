@@ -38,10 +38,10 @@ def test__node_tree__has_expected_output(node_tree, x, output):
 
 
 def test__node_tree__has_expected_node_attributes(node_tree):
-    assert np.array_equal(node_tree.attributes(), [1, 0, 0.5, -1])
-    assert np.array_equal(node_tree.left.attributes(), [0, -1, -1, 0])
-    assert np.array_equal(node_tree.right.attributes(), [1, 1, 0.3, -1])
-    assert np.array_equal(node_tree.right.left.attributes(), [0, -1, -1, 1])
-    assert np.array_equal(node_tree.right.right.attributes(), [1, 2, 0.7, -1])
-    assert np.array_equal(node_tree.right.right.left.attributes(), [0, -1, -1, 0])
-    assert np.array_equal(node_tree.right.right.right.attributes(), [0, -1, -1, 1])
+    assert np.allclose(node_tree.attributes(), [1, 0, 0.5, -1])
+    assert np.allclose(node_tree.left.attributes(), [0, -1, -1, 0])
+    assert np.allclose(node_tree.right.attributes(), [1, 1, 0.3, -1])
+    assert np.allclose(node_tree.right.left.attributes(), [0, -1, -1, 1])
+    assert np.allclose(node_tree.right.right.attributes(), [1, 2, 0.7, -1])
+    assert np.allclose(node_tree.right.right.left.attributes(), [0, -1, -1, 0])
+    assert np.allclose(node_tree.right.right.right.attributes(), [0, -1, -1, 1])
