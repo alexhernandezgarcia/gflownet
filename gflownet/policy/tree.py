@@ -175,7 +175,7 @@ class ThresholdSelectionHead(torch.nn.Module):
         return x
 
 
-class SignSelectionHead(torch.nn.Module):
+class OperatorSelectionHead(torch.nn.Module):
     def __init__(
         self,
         backbone: torch.nn.Module,

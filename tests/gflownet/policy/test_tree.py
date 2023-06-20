@@ -7,7 +7,7 @@ from gflownet.policy.tree import (
     Backbone,
     FeatureSelectionHead,
     LeafSelectionHead,
-    SignSelectionHead,
+    OperatorSelectionHead,
     ThresholdSelectionHead,
 )
 
@@ -83,9 +83,9 @@ def test__threshold_selection__output_has_correct_shape(data, backbone):
     assert output.shape[1] == output_dim
 
 
-def test__sign_selection__output_has_correct_shape(data, backbone):
+def test__operator_selection__output_has_correct_shape(data, backbone):
     input_dim = BACKBONE_HIDDEN_DIM * 2 + 2
-    head = SignSelectionHead(backbone, input_dim=input_dim)
+    head = OperatorSelectionHead(backbone, input_dim=input_dim)
     output = head.forward(
         data,
         node_index=torch.Tensor([0]).long(),
