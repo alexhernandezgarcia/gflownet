@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import Optional, Union
+from typing import List, Optional, Tuple
 
 import matplotlib.pyplot as plt
 import networkx as nx
@@ -13,113 +13,256 @@ from torch_geometric.utils.convert import from_networkx
 from gflownet.envs.base import GFlowNetEnv
 
 
+class NodeType(Enum):
+    CONDITION = 0
+    CLASSIFIER = 1
+
+
 class Operator(Enum):
-    LT = -1
+    LT = 0
     GTE = 1
 
 
-class Node:
-    def __init__(self, output: int, parent: Optional["Node"] = None):
-        self.content: Union[Classifier, Condition] = Classifier(output)
-        self.parent: Optional[Node] = parent
-        self.left: Optional[Node] = None
-        self.right: Optional[Node] = None
-        self.index: Optional[int] = None
-
-    def split(self, feature: int, threshold: float, operator: Operator) -> None:
-        assert isinstance(self.content, Classifier)
-
-        self.content = Condition(feature, threshold, operator)
-
-        if self.content.operator == Operator.LT:
-            self.left = Node(output=0, parent=self)
-            self.right = Node(output=1, parent=self)
-        elif self.content.operator == Operator.GTE:
-            self.left = Node(output=1, parent=self)
-            self.right = Node(output=0, parent=self)
-        else:
-            raise NotImplementedError(f"Unrecognized operator {self.content.operator}.")
-
-    def predict(self, x: npt.NDArray) -> int:
-        if isinstance(self.content, Classifier):
-            return self.content.output
-
-        if x[self.content.feature] < self.content.threshold:
-            return self.left.predict(x)
-        else:
-            return self.right.predict(x)
-
-    def attributes(self) -> torch.Tensor:
-        if isinstance(self.content, Classifier):
-            node_type = 0
-            feature = -1
-            threshold = -1
-            output = self.content.output
-        else:
-            node_type = 1
-            feature = self.content.feature
-            threshold = self.content.threshold
-            output = -1
-
-        return torch.Tensor([node_type, feature, threshold, output])
+class Stage(Enum):
+    COMPLETE = 0
+    LEAF = 1
+    FEATURE = 2
+    THRESHOLD = 3
+    OPERATOR = 4
 
 
-class Classifier:
-    def __init__(self, output: int):
-        self.output = output
+class ActionType(Enum):
+    PICK_LEAF = 0
+    PICK_FEATURE = 1
+    PICK_THRESHOLD = 2
+    PICK_OPERATOR = 3
 
 
-class Condition:
-    def __init__(self, feature: int, threshold: float, operator: Operator):
-        self.feature = feature
-        self.threshold = threshold
-        self.operator = operator
+N_ATTRIBUTES = 4
 
 
 class Tree(GFlowNetEnv):
-    def __init__(self, X, y, **kwargs):
+    def __init__(
+        self,
+        X: npt.NDArray,
+        y: npt.NDArray,
+        max_depth: int = 10,
+        threshold_components: int = 1,
+        **kwargs,
+    ):
         self.X = X
         self.y = y
-        self.state = nx.DiGraph()
+        self.max_depth = max_depth
+        self.components = threshold_components
 
-        self.root = Node(output=1)  # TODO: use most frequent class
-        self.leafs = {}
-        self._insert_node(self.root)
+        self.leafs = set()
+        # TODO: use most frequent class as the output
+        self._insert_classifier(k=0, output=1)
 
-        # super().__init__(**kwargs)
+        # Source will contain information about the current stage (on the 0-th position),
+        # and up to 2**max_depth - 1 nodes, each with N_ATTRIBUTES attributes, for a total of
+        # 1 + N_ATTRIBUTES * (2**max_depth - 1) values.
+        self.n_nodes = 2**max_depth - 1
+        self.source = torch.full((N_ATTRIBUTES * self.n_nodes + 1,), torch.nan)
+        self.source[0] = Stage.COMPLETE
 
-    def _split_node(
-        self, node: Node, feature: int, threshold: float, operator: Operator
-    ) -> None:
-        node.split(feature, threshold, operator)
+        # End-of-sequence action
+        self.eos = (-1, -1)
 
-        self.state.nodes[node.index]["x"] = node.attributes()
+        super().__init__(**kwargs)
 
-        self._insert_node(node.left)
-        self._insert_node(node.right)
+    @staticmethod
+    def _get_start_end(k: int) -> Tuple[int, int]:
+        return k * N_ATTRIBUTES + 1, (k + 1) * N_ATTRIBUTES + 1
 
-        self.leafs.pop(node.index)
+    @staticmethod
+    def _get_parent(k: int) -> int:
+        return (k - 1) // 2
 
-    def _insert_node(self, node: Node) -> None:
-        node.index = len(self.state)
+    @staticmethod
+    def _get_left_child(k: int) -> int:
+        return 2 * k + 1
 
-        self.state.add_node(node.index, x=node.attributes())
-        if node.parent is not None:
-            self.state.add_edge(node.parent.index, node.index)
+    @staticmethod
+    def _get_right_child(k: int) -> int:
+        return 2 * k + 2
 
-        self.leafs[node.index] = node
+    def _get_attributes(self, k: int) -> torch.Tensor:
+        st, en = Tree._get_start_end(k)
+
+        return self.state[st:en]
+
+    def _pick_leaf(self, k: int) -> None:
+        attributes = self._get_attributes(k)
+
+        assert self.state[0] == Stage.COMPLETE
+        assert attributes[0] == NodeType.CLASSIFIER
+        assert not torch.any(torch.isnan(attributes))
+        assert torch.all(attributes[1:3] == -1)
+
+        attributes[0] = NodeType.CONDITION
+        attributes[1:4] = -1
+
+        self.state[0] = Stage.LEAF
+
+    def _pick_feature(self, k: int, feature: int) -> None:
+        attributes = self._get_attributes(k)
+
+        assert self.state[0] == Stage.LEAF
+        assert attributes[0] == NodeType.CONDITION
+        assert torch.all(attributes[1:4] == -1)
+
+        attributes[1] = feature
+
+        self.state[0] = Stage.FEATURE
+
+    def _pick_threshold(self, k: int, threshold: float) -> None:
+        attributes = self._get_attributes(k)
+
+        assert self.state[0] == Stage.FEATURE
+        assert attributes[0] == NodeType.CONDITION
+        assert attributes[1] >= 0
+        assert torch.all(attributes[2:4] == -1)
+
+        attributes[2] = threshold
+
+        self.state[0] = Stage.THRESHOLD
+
+    def _pick_operator(self, k: int, operator: int) -> None:
+        attributes = self._get_attributes(k)
+
+        assert self.state[0] == Stage.THRESHOLD
+        assert attributes[0] == NodeType.CONDITION
+        assert torch.all(attributes[1:3] >= 0)
+        assert attributes[3] == -1
+
+        attributes[3] = operator
+
+        self.state[0] = Stage.OPERATOR
+
+        self._split_leaf(k)
+
+    def _split_leaf(self, k: int) -> None:
+        attributes = self._get_attributes(k)
+
+        assert self.state[0] == Stage.OPERATOR
+        assert attributes[0] == NodeType.CONDITION
+        assert torch.all(attributes[1:4] >= 0)
+
+        k_left = Tree._get_left_child(k)
+        k_right = Tree._get_right_child(k)
+
+        if attributes[3] == Operator.LT:
+            self._insert_classifier(k_left, output=0)
+            self._insert_classifier(k_right, output=1)
+        else:
+            self._insert_classifier(k_left, output=1)
+            self._insert_classifier(k_right, output=0)
+
+        self.leafs.remove(k)
+        self.state[0] = Stage.COMPLETE
+
+    def _insert_classifier(self, k: int, output: int) -> None:
+        attributes = self._get_attributes(k)
+
+        assert torch.all(torch.isnan(attributes))
+
+        attributes[0] = NodeType.CLASSIFIER
+        attributes[1:3] = -1
+        attributes[3] = output
+
+        self.leafs.add(k)
+
+    def get_action_space(self) -> List[Tuple[int, int]]:
+        """
+        Actions are a tuple containing:
+            1) action type:
+                0 - pick leaf to split,
+                1 - pick feature,
+                2 - pick threshold,
+                3 - pick operator,
+            2) node index.
+        """
+        actions = [(t, k) for t in range(4) for k in range(self.n_nodes)]
+        actions.append(self.eos)
+
+        return actions
+
+    def step(self, action: Tuple[int, int, float]) -> Tuple[List[int], Tuple[int, int, float], bool]:
+        # If action not found in action space raise an error
+        if action[:2] not in self.action_space:
+            raise ValueError(
+                f"Tried to execute action {action} not present in action space."
+            )
+        else:
+            action_idx = self.action_space.index(action[:2])
+
+        # If action is in invalid mask, exit immediately
+        if self.get_mask_invalid_actions_forward()[action_idx]:
+            return self.state, action, False
+
+        self.n_actions += 1
+
+        if action != self.eos:
+            action_type, k, action_value = action
+
+            if action_type == ActionType.PICK_LEAF:
+                self._pick_leaf(k)
+            elif action_type == ActionType.PICK_FEATURE:
+                self._pick_feature(k, action_value)
+            elif action_type == ActionType.PICK_THRESHOLD:
+                self._pick_threshold(k, action_value)
+            elif action_type == ActionType.PICK_OPERATOR:
+                self._pick_operator(k, action_value)
+            else:
+                raise NotImplementedError(f"Unrecognized action type: {action_type}.")
+
+            return self.state, action, True
+        else:
+            self.done = True
+            return self.state, action, True
+
+    def _get_graph(self, graph: Optional[nx.DiGraph] = None, k: int = 0) -> nx.DiGraph:
+        if graph is None:
+            graph = nx.DiGraph()
+
+        attributes = self._get_attributes(k)
+        graph.add_node(k, x=attributes)
+
+        if attributes[0] != NodeType.CLASSIFIER:
+            k_left = Tree._get_left_child(k)
+            if not torch.any(torch.isnan(self._get_attributes(k_left))):
+                self._get_graph(graph, k=k_left)
+                graph.add_edge(k, k_left)
+
+            k_right = Tree._get_right_child(k)
+            if not torch.any(torch.isnan(self._get_attributes(k_right))):
+                self._get_graph(graph, k=k_right)
+                graph.add_edge(k, k_right)
+
+        return graph
 
     def _to_pyg(self) -> pyg.data.Data:
-        data = from_networkx(self.state)
-        data.x = data.x.float()
+        return from_networkx(self._get_graph())
 
-        return data
+    def predict(self, x: npt.NDArray, k: int = 0) -> int:
+        attributes = self._get_attributes(k)
+
+        if attributes[0] == NodeType.CLASSIFIER:
+            return attributes[3]
+
+        if x[attributes[1]] < attributes[2]:
+            return self.predict(x, k=Tree._get_left_child(k))
+        else:
+            return self.predict(x, k=Tree._get_right_child(k))
 
     def plot(self) -> None:
+        graph = self._get_graph()
+
         labels = {}
         node_color = []
-        for node in self.state:
-            x = self.state.nodes[node]["x"]
+        for node in graph:
+            x = graph.nodes[node]["x"]
             if x[0] == 1:
                 labels[node] = rf"$x_{int(x[1])}$ < {np.round(x[2], 4)}"
                 node_color.append("white")
@@ -128,8 +271,8 @@ class Tree(GFlowNetEnv):
                 node_color.append("red")
 
         nx.draw(
-            self.state,
-            graphviz_layout(self.state, prog="dot"),
+            graph,
+            graphviz_layout(graph, prog="dot"),
             labels=labels,
             node_color=node_color,
             with_labels=True,
