@@ -30,11 +30,15 @@ def tree(
     _tree = Tree(X=X, y=y)
 
     for _ in range(n_nodes):
-        node = np.random.choice(list(_tree.leafs.values()))
-        op = np.random.choice([Operator.LT, Operator.GTE])
-        feat = np.random.randint(n_features)
-        th = np.random.rand()
-        _tree._split_node(node, feat, th, op)
+        node = np.random.choice(list(_tree.leafs))
+        operator = np.random.choice([Operator.LT, Operator.GTE])
+        feature = np.random.randint(n_features)
+        threshold = np.random.rand()
+
+        _tree.step((0, node, -1))
+        _tree.step((1, node, feature))
+        _tree.step((2, node, threshold))
+        _tree.step((3, node, operator))
 
     return _tree
 
