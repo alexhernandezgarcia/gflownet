@@ -104,7 +104,7 @@ class Tree(GFlowNetEnv):
 
         self.state[0] = Stage.LEAF
 
-    def _pick_feature(self, k: int, feature: int) -> None:
+    def _pick_feature(self, k: int, feature: float) -> None:
         attributes = self._get_attributes(k)
 
         assert self.state[0] == Stage.LEAF
@@ -127,7 +127,7 @@ class Tree(GFlowNetEnv):
 
         self.state[0] = Stage.THRESHOLD
 
-    def _pick_operator(self, k: int, operator: int) -> None:
+    def _pick_operator(self, k: int, operator: float) -> None:
         attributes = self._get_attributes(k)
 
         assert self.state[0] == Stage.THRESHOLD
