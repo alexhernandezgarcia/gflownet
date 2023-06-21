@@ -13,21 +13,61 @@ from gflownet.envs.base import GFlowNetEnv
 
 
 class NodeType:
+    """
+    Encodes two types of nodes present in a tree:
+    0 - condition node (node other than leaf), that stores the information
+        about on which feature to make the decision, and using what threshold.
+    1 - classifier node (leaf), that stores the information about class output
+        that will be predicted once that node is reached.
+    """
+
     CONDITION = 0
     CLASSIFIER = 1
 
 
 class Operator:
+    """
+    Operator based on which the decision is made (< or >=).
+
+    We assume the convention of having left child output label = 0
+    and right child label = 1 if operator is <, and the opposite if
+    operator is >=. That way, during prediction, we can act as if
+    the operator was always the same (and only care about the output
+    label).
+    """
+
     LT = 0
     GTE = 1
 
 
 class Status:
+    """
+    Status of the node. Every node except the one on which a macro step
+    was initiated will be marked as inactive; the node will be marked
+    as active iff the process of its splitting is in progress.
+    """
+
     INACTIVE = 0
     ACTIVE = 1
 
 
 class Stage:
+    """
+    Current stage of the tree, encoded as part of the state.
+    0 - complete, indicates that there is no macro step initiated, and
+        the only allowed action is to pick one of the leafs for splitting.
+    1 - leaf, indicates that a leaf was picked for splitting, and the only
+        allowed action is picking a feature on which it will be split.
+    2 - feature, indicates that a feature was picked, and the only allowed
+        action is picking a threshold for splitting.
+    3 - threshold, indicates that a threshold was picked, and the only
+        allowed action is picking an operator.
+    4 - operator, indicates that operator was picked. The only allowed
+        action from here is finalizing the splitting process and spawning
+        two new leafs, which should be done automatically, upon which
+        the stage should be changed to complete.
+    """
+
     COMPLETE = 0
     LEAF = 1
     FEATURE = 2
@@ -36,12 +76,17 @@ class Stage:
 
 
 class ActionType:
+    """
+    Type of action that will be passed to Tree.step. Refer to Stage for details.
+    """
+
     PICK_LEAF = 0
     PICK_FEATURE = 1
     PICK_THRESHOLD = 2
     PICK_OPERATOR = 3
 
 
+# Number of attributes encoding each node; see Tree._get_attributes
 N_ATTRIBUTES = 5
 
 
@@ -77,18 +122,32 @@ class Tree(GFlowNetEnv):
 
     @staticmethod
     def _get_start_end(k: int) -> Tuple[int, int]:
+        """
+        Get start and end index of attribute tensor encoding k-th node in self.state.
+        """
         return k * N_ATTRIBUTES + 1, (k + 1) * N_ATTRIBUTES + 1
 
     @staticmethod
-    def _get_parent(k: int) -> int:
+    def _get_parent(k: int) -> Optional[int]:
+        """
+        Get node index of a parent of k-th node.
+        """
+        if k == 0:
+            return None
         return (k - 1) // 2
 
     @staticmethod
     def _get_left_child(k: int) -> int:
+        """
+        Get node index of a left child of k-th node.
+        """
         return 2 * k + 1
 
     @staticmethod
     def _get_right_child(k: int) -> int:
+        """
+        Get node index of a right child of k-th node.
+        """
         return 2 * k + 2
 
     def _get_attributes(self, k: int) -> torch.Tensor:
@@ -108,6 +167,10 @@ class Tree(GFlowNetEnv):
         return self.state[st:en]
 
     def _pick_leaf(self, k: int) -> None:
+        """
+        Select one of the leafs (classifier nodes) that will be split, and initiate
+        macro step.
+        """
         attributes = self._get_attributes(k)
 
         assert self.state[0] == Stage.COMPLETE
@@ -123,6 +186,9 @@ class Tree(GFlowNetEnv):
         self.state[0] = Stage.LEAF
 
     def _pick_feature(self, k: int, feature: float) -> None:
+        """
+        Select the feature on which currently selected leaf will be split.
+        """
         attributes = self._get_attributes(k)
 
         assert self.state[0] == Stage.LEAF
@@ -135,6 +201,10 @@ class Tree(GFlowNetEnv):
         self.state[0] = Stage.FEATURE
 
     def _pick_threshold(self, k: int, threshold: float) -> None:
+        """
+        Select the threshold for splitting the currently selected leaf ond
+        the selected feature.
+        """
         attributes = self._get_attributes(k)
 
         assert self.state[0] == Stage.FEATURE
@@ -148,6 +218,11 @@ class Tree(GFlowNetEnv):
         self.state[0] = Stage.THRESHOLD
 
     def _pick_operator(self, k: int, operator: float) -> None:
+        """
+        Select the operator (< or >=) for splitting the currently selected
+        left, feature and threshold, temporarily encode it in attributes,
+        and initiate final splitting.
+        """
         attributes = self._get_attributes(k)
 
         assert self.state[0] == Stage.THRESHOLD
@@ -163,6 +238,17 @@ class Tree(GFlowNetEnv):
         self._split_leaf(k)
 
     def _split_leaf(self, k: int) -> None:
+        """
+        Finalize the splitting of a leaf using set feature, threshold
+        and operator: transformer the leaf into a condition node and
+        spawn two children.
+
+        We assume the convention of having left child output label = 0
+        and right child label = 1 if operator is <, and the opposite if
+        operator is >=. That way, during prediction, we can act as if
+        the operator was always the same (and only care about the output
+        label).
+        """
         attributes = self._get_attributes(k)
 
         assert self.state[0] == Stage.OPERATOR
@@ -187,6 +273,9 @@ class Tree(GFlowNetEnv):
         self.state[0] = Stage.COMPLETE
 
     def _insert_classifier(self, k: int, output: int) -> None:
+        """
+        Replace attributes of k-th node with those of a classifier node.
+        """
         attributes = self._get_attributes(k)
 
         assert torch.all(torch.isnan(attributes))
@@ -300,6 +389,9 @@ class Tree(GFlowNetEnv):
         return self.n_nodes * N_ATTRIBUTES
 
     def _get_graph(self, graph: Optional[nx.DiGraph] = None, k: int = 0) -> nx.DiGraph:
+        """
+        Recursively convert self.state into a networkx directional graph.
+        """
         if graph is None:
             graph = nx.DiGraph()
 
@@ -320,9 +412,16 @@ class Tree(GFlowNetEnv):
         return graph
 
     def _to_pyg(self) -> pyg.data.Data:
+        """
+        Convert self.state into a PyG graph.
+        """
         return from_networkx(self._get_graph())
 
     def predict(self, x: npt.NDArray, k: int = 0) -> int:
+        """
+        Recursively predict output label given a feature vector x
+        of a single observation.
+        """
         attributes = self._get_attributes(k)
 
         if attributes[0] == NodeType.CLASSIFIER:
@@ -334,6 +433,9 @@ class Tree(GFlowNetEnv):
             return self.predict(x, k=Tree._get_right_child(k))
 
     def plot(self) -> None:
+        """
+        Plot current state of the tree.
+        """
         graph = self._get_graph()
 
         labels = {}
