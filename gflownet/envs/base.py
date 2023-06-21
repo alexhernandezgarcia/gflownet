@@ -370,8 +370,8 @@ class GFlowNetEnv:
 
     def trajectory_random(self):
         """
-        Samples a random trajectory, by sampling random actions until an EOS action is
-        sampled.
+        Samples and applies a random trajectory on the environment, by sampling random
+        actions until an EOS action is sampled.
 
         Returns
         -------
