@@ -34,6 +34,7 @@ class GFlowNetEnv:
         proxy=None,
         oracle=None,
         proxy_state_format: str = "oracle",
+        skip_mask_check: bool = False,
         fixed_distribution: Optional[dict] = None,
         random_distribution: Optional[dict] = None,
         **kwargs,
@@ -67,6 +68,8 @@ class GFlowNetEnv:
         else:
             self.proxy_factor = -1.0
         self.proxy_state_format = proxy_state_format
+        # Flag to skip checking if action is valid (computing mask) before step
+        self.skip_mask_check = skip_mask_check
         # Log SoftMax function
         self.logsoftmax = torch.nn.LogSoftmax(dim=1)
         # Action space
@@ -187,7 +190,9 @@ class GFlowNetEnv:
         return parents, actions
 
     @abstractmethod
-    def step(self, action: Tuple[int]) -> Tuple[List[int], Tuple[int], bool]:
+    def step(
+        self, action: Tuple[int], skip_mask_check: bool = False
+    ) -> Tuple[List[int], Tuple[int], bool]:
         """
         Executes step given an action.
 
@@ -195,6 +200,10 @@ class GFlowNetEnv:
         ----
         action : tuple
             Action from the action space.
+
+        skip_mask_check : bool
+            If True, skip computing forward mask of invalid actions to check if the
+            action is valid.
 
         Returns
         -------
@@ -216,6 +225,11 @@ class GFlowNetEnv:
             raise ValueError(
                 f"Tried to execute action {action} not present in action space."
             )
+        # If action is in invalid mask, exit immediately
+        if not (self.skip_mask_check or skip_mask_check):
+            action_idx = self.action_space.index(action)
+            if self.get_mask_invalid_actions_forward()[action_idx]:
+                return self.state, action, False
         return None, None, None
 
     def sample_actions(
