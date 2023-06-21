@@ -114,6 +114,7 @@ class Tree(GFlowNetEnv):
         assert attributes[0] == NodeType.CLASSIFIER
         assert not torch.any(torch.isnan(attributes))
         assert torch.all(attributes[1:3] == -1)
+        assert attributes[4] == Status.INACTIVE
 
         attributes[0] = NodeType.CONDITION
         attributes[1:4] = -1
@@ -167,6 +168,7 @@ class Tree(GFlowNetEnv):
         assert self.state[0] == Stage.OPERATOR
         assert attributes[0] == NodeType.CONDITION
         assert torch.all(attributes[1:4] >= 0)
+        assert attributes[4] == Status.ACTIVE
 
         k_left = Tree._get_left_child(k)
         k_right = Tree._get_right_child(k)
