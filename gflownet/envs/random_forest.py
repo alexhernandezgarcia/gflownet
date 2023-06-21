@@ -254,8 +254,7 @@ class Tree(GFlowNetEnv):
             state = self.state
             leafs = self.leafs
         else:
-            # TODO: compute leafs
-            raise NotImplementedError
+            leafs = [x.item() for x in torch.where(state[1::5] == 1)[0]]
         if done is None:
             done = self.done
 
@@ -275,7 +274,9 @@ class Tree(GFlowNetEnv):
             mask[-1] = False
         else:
             # Find index of the (only) active node.
-            k = torch.where(state[N_ATTRIBUTES::N_ATTRIBUTES] == Status.ACTIVE)[0].item()
+            k = torch.where(state[N_ATTRIBUTES::N_ATTRIBUTES] == Status.ACTIVE)[
+                0
+            ].item()
 
             if stage == Stage.LEAF:
                 # Leaf was picked, only picking the feature is valid.
