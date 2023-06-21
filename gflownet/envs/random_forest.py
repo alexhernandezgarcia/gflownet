@@ -189,7 +189,9 @@ class Tree(GFlowNetEnv):
 
         return actions
 
-    def step(self, action: Tuple[int, int, float]) -> Tuple[List[int], Tuple[int, int, float], bool]:
+    def step(
+        self, action: Tuple[int, int, float]
+    ) -> Tuple[List[int], Tuple[int, int, float], bool]:
         # If action not found in action space raise an error
         if action[:2] not in self.action_space:
             raise ValueError(
