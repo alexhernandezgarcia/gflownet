@@ -281,7 +281,7 @@ class Tree(GFlowNetEnv):
     def _split_leaf(self, k: int) -> None:
         """
         Finalize the splitting of a leaf using set feature, threshold
-        and operator: transformer the leaf into a condition node and
+        and operator: transform the leaf into a condition node and
         spawn two children.
 
         We assume the convention of having left child output label = 0
