@@ -225,6 +225,42 @@ class Tree(GFlowNetEnv):
             self.done = True
             return self.state, action, True
 
+    def get_mask_invalid_actions_forward(
+        self, state: Optional[List[int]] = None, done: Optional[bool] = None
+    ) -> List[bool]:
+        if state is None:
+            state = self.state
+        if done is None:
+            done = self.done
+
+        if done:
+            return [True] * self.action_space_dim
+
+        stage = state[0]
+        mask = [True] * self.action_space_dim
+
+        if stage == Stage.COMPLETE:
+            # In the "complete" stage (in which there are no ongoing micro steps)
+            # only valid actions are the ones for picking one of the leafs or EOS.
+            for k in self.leafs:
+                # Check if splitting the node wouldn't exceed max depth
+                if Tree._get_right_child(k) < self.n_nodes:
+                    mask[k] = True
+            mask[-1] = False
+        elif stage == Stage.LEAF:
+            # Leaf was picked, only picking the feature is valid.
+            pass
+        elif stage == Stage.FEATURE:
+            # Feature was picked, only picking threshold is valid.
+            pass
+        elif stage == Stage.THRESHOLD:
+            # Threshold was picked, only picking operator is valid.
+            pass
+        else:
+            raise ValueError(f"Unrecognized stage {stage}.")
+
+        return mask
+
     def get_max_traj_length(self) -> int:
         return self.n_nodes * N_ATTRIBUTES
 
