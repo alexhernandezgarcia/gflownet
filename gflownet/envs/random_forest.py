@@ -91,6 +91,26 @@ N_ATTRIBUTES = 5
 
 
 class Tree(GFlowNetEnv):
+    """
+    GFlowNet environment representing a decision tree.
+
+    Constructing a tree consists of a combination of macro steps (picking a leaf
+    to split using a given feature, threshold and operator), which are divided
+    into a series of consecutive micro steps (1 - pick a leaf, 2 - pick a feature,
+    3 - pick a threshold, 4 - pick an operator). A consequence of that is, as long
+    as a macro step is not in progress, the tree constructed so far is always a
+    valid decision tree, which means that forward-looking loss etc. can be used.
+
+    Internally, the tree is represented as a fixed-size tensor (thus, specifying
+    the maximum depth is required), with nodes index from k = 0 to 2**max_depth - 2,
+    and each node containing a 5-element attribute tensor (see _get_attributes for
+    details). The nodes are indexed from top left to bottom right, as follows:
+
+                0
+        1               2
+    3       4       5       6
+    """
+
     def __init__(
         self,
         X: npt.NDArray,
@@ -99,6 +119,22 @@ class Tree(GFlowNetEnv):
         threshold_components: int = 1,
         **kwargs,
     ):
+        """
+        Attributes
+        ----------
+        X : np.array
+            Input dataset, with dimensionality (n_observations, n_features).
+
+        y : np.array
+            Target labels, with dimensionality (n_observations,).
+
+        max_depth : int
+            Maximum depth of a tree.
+
+        threshold_components : int
+            The number of mixture components that will be used for sampling
+            the threshold.
+        """
         self.X = X
         self.y = y
         self.max_depth = max_depth
