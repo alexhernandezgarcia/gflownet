@@ -283,6 +283,10 @@ class Crystal(GFlowNetEnv):
         action : tuple
             Action to be executed. See: get_action_space()
 
+        skip_mask_check : bool
+            If True, skip computing forward mask of invalid actions to check if the
+            action is valid.
+
         Returns
         -------
         self.state : list

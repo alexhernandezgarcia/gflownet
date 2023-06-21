@@ -366,6 +366,10 @@ class Tetris(GFlowNetEnv):
             Action to be executed. An action is a tuple int values indicating the
             dimensions to increment by 1.
 
+        skip_mask_check : bool
+            If True, skip computing forward mask of invalid actions to check if the
+            action is valid.
+
         Returns
         -------
         self.state : list
