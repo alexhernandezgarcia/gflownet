@@ -248,10 +248,14 @@ class Tree(GFlowNetEnv):
             return self.state, action, True
 
     def get_mask_invalid_actions_forward(
-        self, state: Optional[List[int]] = None, done: Optional[bool] = None
+        self, state: Optional[torch.Tensor] = None, done: Optional[bool] = None
     ) -> List[bool]:
         if state is None:
             state = self.state
+            leafs = self.leafs
+        else:
+            # TODO: compute leafs
+            raise NotImplementedError
         if done is None:
             done = self.done
 
@@ -264,22 +268,26 @@ class Tree(GFlowNetEnv):
         if stage == Stage.COMPLETE:
             # In the "complete" stage (in which there are no ongoing micro steps)
             # only valid actions are the ones for picking one of the leafs or EOS.
-            for k in self.leafs:
+            for k in leafs:
                 # Check if splitting the node wouldn't exceed max depth
                 if Tree._get_right_child(k) < self.n_nodes:
-                    mask[k] = True
+                    mask[k] = False
             mask[-1] = False
-        elif stage == Stage.LEAF:
-            # Leaf was picked, only picking the feature is valid.
-            pass
-        elif stage == Stage.FEATURE:
-            # Feature was picked, only picking threshold is valid.
-            pass
-        elif stage == Stage.THRESHOLD:
-            # Threshold was picked, only picking operator is valid.
-            pass
         else:
-            raise ValueError(f"Unrecognized stage {stage}.")
+            # Find index of the (only) active node.
+            k = torch.where(state[N_ATTRIBUTES::N_ATTRIBUTES] == Status.ACTIVE)[0].item()
+
+            if stage == Stage.LEAF:
+                # Leaf was picked, only picking the feature is valid.
+                mask[k + self.n_nodes] = False
+            elif stage == Stage.FEATURE:
+                # Feature was picked, only picking threshold is valid.
+                mask[k + 2 * self.n_nodes] = False
+            elif stage == Stage.THRESHOLD:
+                # Threshold was picked, only picking operator is valid.
+                mask[k + 3 * self.n_nodes] = False
+            else:
+                raise ValueError(f"Unrecognized stage {stage}.")
 
         return mask
 
