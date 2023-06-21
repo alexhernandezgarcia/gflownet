@@ -86,7 +86,7 @@ class ActionType:
     PICK_OPERATOR = 3
 
 
-# Number of attributes encoding each node; see Tree._get_attributes
+# Number of attributes encoding each node; see Tree._get_attributes.
 N_ATTRIBUTES = 5
 
 
@@ -148,12 +148,12 @@ class Tree(GFlowNetEnv):
         self.source = torch.full((N_ATTRIBUTES * self.n_nodes + 1,), torch.nan)
         self.source[0] = Stage.COMPLETE
 
-        # End-of-sequence action
+        # End-of-sequence action.
         self.eos = (-1, -1)
 
         super().__init__(**kwargs)
 
-        # TODO: use most frequent class as the output
+        # TODO: use most frequent class as the output.
         self._insert_classifier(k=0, output=1)
 
     @staticmethod
@@ -186,7 +186,9 @@ class Tree(GFlowNetEnv):
         """
         return 2 * k + 2
 
-    def _get_attributes(self, k: int) -> torch.Tensor:
+    def _get_attributes(
+        self, k: int, state: Optional[torch.Tensor] = None
+    ) -> torch.Tensor:
         """
         Returns a 5-element tensor of attributes for k-th node. The encoded values are:
         0 - node type (condition or classifier),
@@ -198,9 +200,12 @@ class Tree(GFlowNetEnv):
         4 - whether the node has active status (1 if node was picked and the macro step
             didn't finish yet, 0 otherwise).
         """
+        if state is None:
+            state = self.state
+
         st, en = Tree._get_start_end(k)
 
-        return self.state[st:en]
+        return state[st:en]
 
     def _pick_leaf(self, k: int) -> None:
         """
@@ -341,7 +346,7 @@ class Tree(GFlowNetEnv):
     def step(
         self, action: Tuple[int, int, float]
     ) -> Tuple[List[int], Tuple[int, int, float], bool]:
-        # If action not found in action space raise an error
+        # If action not found in action space raise an error.
         if action[:2] not in self.action_space:
             raise ValueError(
                 f"Tried to execute action {action} not present in action space."
@@ -349,7 +354,7 @@ class Tree(GFlowNetEnv):
         else:
             action_idx = self.action_space.index(action[:2])
 
-        # If action is in invalid mask, exit immediately
+        # If action is in invalid mask, exit immediately.
         if self.get_mask_invalid_actions_forward()[action_idx]:
             return self.state, action, False
 
@@ -374,6 +379,25 @@ class Tree(GFlowNetEnv):
             self.done = True
             return self.state, action, True
 
+    @staticmethod
+    def _find_leafs(state: torch.Tensor) -> List[int]:
+        """
+        Compute indices of leafs from a state.
+        """
+        leafs = [x.item() for x in torch.where(state[1::5] == NodeType.CLASSIFIER)[0]]
+
+        return leafs
+
+    @staticmethod
+    def _find_active(state: torch.Tensor) -> int:
+        """
+        Compute index of the (only) active node. Assumes that active node exists
+        (that we are in the middle of a macro step).
+        """
+        k = torch.where(state[N_ATTRIBUTES::N_ATTRIBUTES] == Status.ACTIVE)[0].item()
+
+        return k
+
     def get_mask_invalid_actions_forward(
         self, state: Optional[torch.Tensor] = None, done: Optional[bool] = None
     ) -> List[bool]:
@@ -381,9 +405,7 @@ class Tree(GFlowNetEnv):
             state = self.state
             leafs = self.leafs
         else:
-            leafs = [
-                x.item() for x in torch.where(state[1::5] == NodeType.CLASSIFIER)[0]
-            ]
+            leafs = Tree._find_leafs(state)
         if done is None:
             done = self.done
 
@@ -397,15 +419,12 @@ class Tree(GFlowNetEnv):
             # In the "complete" stage (in which there are no ongoing micro steps)
             # only valid actions are the ones for picking one of the leafs or EOS.
             for k in leafs:
-                # Check if splitting the node wouldn't exceed max depth
+                # Check if splitting the node wouldn't exceed max depth.
                 if Tree._get_right_child(k) < self.n_nodes:
                     mask[k] = False
             mask[-1] = False
         else:
-            # Find index of the (only) active node.
-            k = torch.where(state[N_ATTRIBUTES::N_ATTRIBUTES] == Status.ACTIVE)[
-                0
-            ].item()
+            k = Tree._find_active(state)
 
             if stage == Stage.LEAF:
                 # Leaf was picked, only picking the feature is valid.
@@ -420,6 +439,105 @@ class Tree(GFlowNetEnv):
                 raise ValueError(f"Unrecognized stage {stage}.")
 
         return mask
+
+    def get_parents(
+        self,
+        state: Optional[torch.Tensor] = None,
+        done: Optional[bool] = None,
+        action: Optional[Tuple] = None,
+    ) -> Tuple[List, List]:
+        if state is None:
+            state = self.state
+            leafs = self.leafs
+        else:
+            leafs = Tree._find_leafs(state)
+        if done is None:
+            done = self.done
+
+        if done:
+            return [state], [self.eos]
+
+        stage = state[0]
+        parents = []
+        actions = []
+
+        if stage == Stage.COMPLETE:
+            # In the "complete" stage (in which there are no ongoing micro steps),
+            # to find parents we first look for the nodes for which both children
+            # are leafs, and then undo the last "pick operator" micro step.
+            # In other words, reverse self._pick_operator, self._split_leaf and
+            # self._insert_classifier (for both children).
+            leafs = set(leafs)
+            triplets = []
+            for k in leafs:
+                if k % 2 == 1 and k + 1 in leafs:
+                    triplets.append((Tree._get_parent(k), k, k + 1))
+            for k_parent, k_left, k_right in triplets:
+                parent = state.clone()
+
+                # Revert stage (to "threshold": we skip "operator" because from it,
+                # finalizing splitting should be automatically executed).
+                parent[0] = Stage.THRESHOLD
+
+                # Reset children attributes.
+                attributes_left = self._get_attributes(k_left, parent)
+                attributes_left[:] = torch.nan
+                attributes_right = self._get_attributes(k_right, parent)
+                attributes_right[:] = torch.nan
+
+                # Revert parent attributes to the previous state.
+                attributes_parent = self._get_attributes(k_parent, parent)
+                action = (
+                    ActionType.PICK_OPERATOR,
+                    k_parent,
+                    attributes_parent[3].item(),
+                )
+                attributes_parent[3] = -1
+                attributes_parent[4] = Status.ACTIVE
+
+                parents.append(parent)
+                actions.append(action)
+        else:
+            k = Tree._find_active(state)
+
+            if stage == Stage.LEAF:
+                # Reverse self._pick_leaf.
+                for output in [0, 1]:
+                    parent = state.clone()
+                    attributes = self._get_attributes(k, parent)
+
+                    parent[0] = Stage.COMPLETE
+                    attributes[0] = NodeType.CLASSIFIER
+                    attributes[1:3] = -1
+                    attributes[3] = output
+                    attributes[4] = Status.INACTIVE
+
+                    parents.append(parent)
+                    actions.append(action)
+            elif stage == Stage.FEATURE:
+                # Reverse self._pick_feature.
+                parent = state.clone()
+                attributes = self._get_attributes(k, parent)
+
+                parent[0] = Stage.LEAF
+                attributes[1] = -1
+
+                parents.append(parent)
+                actions.append(action)
+            elif stage == Stage.THRESHOLD:
+                # Reverse self._pick_threshold.
+                parent = state.clone()
+                attributes = self._get_attributes(k, parent)
+
+                parent[0] = Stage.FEATURE
+                attributes[2] = -1
+
+                parents.append(parent)
+                actions.append(action)
+            else:
+                raise ValueError(f"Unrecognized stage {stage}.")
+
+        return parents, actions
 
     def get_max_traj_length(self) -> int:
         return self.n_nodes * N_ATTRIBUTES
