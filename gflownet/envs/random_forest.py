@@ -22,6 +22,11 @@ class Operator:
     GTE = 1
 
 
+class Status:
+    PROCESSED = 0
+    ACTIVE = 1
+
+
 class Stage:
     COMPLETE = 0
     LEAF = 1
@@ -37,7 +42,7 @@ class ActionType:
     PICK_OPERATOR = 3
 
 
-N_ATTRIBUTES = 4
+N_ATTRIBUTES = 5
 
 
 class Tree(GFlowNetEnv):
@@ -87,6 +92,18 @@ class Tree(GFlowNetEnv):
         return 2 * k + 2
 
     def _get_attributes(self, k: int) -> torch.Tensor:
+        """
+        Returns a 5-element tensor of attributes for k-th node. The encoded values are:
+        0 - node type (condition or classifier),
+        1 - index of the feature used for splitting (condition node only, -1 otherwise),
+        2 - decision threshold (condition node only, -1 otherwise),
+        3 - class output (classifier node only, -1 otherwise), in the case of < operator
+            the left child will have class = 0, and the right child will have class = 1;
+            reverse for the >= operator,
+        4 - whether the node has active status (1 if node was picked and the macro step
+            didn't finish yet, 0 if the node was picked previously and the macro step
+            already completed).
+        """
         st, en = Tree._get_start_end(k)
 
         return self.state[st:en]
@@ -101,6 +118,7 @@ class Tree(GFlowNetEnv):
 
         attributes[0] = NodeType.CONDITION
         attributes[1:4] = -1
+        attributes[4] = Status.ACTIVE
 
         self.state[0] = Stage.LEAF
 
@@ -110,6 +128,7 @@ class Tree(GFlowNetEnv):
         assert self.state[0] == Stage.LEAF
         assert attributes[0] == NodeType.CONDITION
         assert torch.all(attributes[1:4] == -1)
+        assert attributes[4] == Status.ACTIVE
 
         attributes[1] = feature
 
@@ -122,6 +141,7 @@ class Tree(GFlowNetEnv):
         assert attributes[0] == NodeType.CONDITION
         assert attributes[1] >= 0
         assert torch.all(attributes[2:4] == -1)
+        assert attributes[4] == Status.ACTIVE
 
         attributes[2] = threshold
 
@@ -134,6 +154,7 @@ class Tree(GFlowNetEnv):
         assert attributes[0] == NodeType.CONDITION
         assert torch.all(attributes[1:3] >= 0)
         assert attributes[3] == -1
+        assert attributes[4] == Status.ACTIVE
 
         attributes[3] = operator
 
@@ -159,6 +180,7 @@ class Tree(GFlowNetEnv):
             self._insert_classifier(k_right, output=0)
 
         attributes[3] = -1
+        attributes[4] = Status.PROCESSED
 
         self.leafs.remove(k)
         self.state[0] = Stage.COMPLETE
@@ -171,6 +193,7 @@ class Tree(GFlowNetEnv):
         attributes[0] = NodeType.CLASSIFIER
         attributes[1:3] = -1
         attributes[3] = output
+        attributes[4] = 0
 
         self.leafs.add(k)
 

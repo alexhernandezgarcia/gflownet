@@ -11,7 +11,7 @@ class Backbone(torch.nn.Module):
         self,
         n_layers: int = 3,
         hidden_dim: int = 64,
-        input_dim: int = 4,
+        input_dim: int = 5,
         layer: str = "GCNConv",
         activation: str = "LeakyReLU",
         dropout: float = 0.5,

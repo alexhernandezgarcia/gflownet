@@ -63,12 +63,12 @@ def test__predict__has_expected_output(tree, x, output):
 
 
 def test__node_tree__has_expected_node_attributes(tree):
-    assert np.allclose(tree._get_attributes(0), [NodeType.CONDITION, 0, 0.5, -1])
-    assert np.allclose(tree._get_attributes(1), [NodeType.CLASSIFIER, -1, -1, 0])
-    assert np.allclose(tree._get_attributes(2), [NodeType.CONDITION, 1, 0.3, -1])
+    assert np.allclose(tree._get_attributes(0), [NodeType.CONDITION, 0, 0.5, -1, 0])
+    assert np.allclose(tree._get_attributes(1), [NodeType.CLASSIFIER, -1, -1, 0, 0])
+    assert np.allclose(tree._get_attributes(2), [NodeType.CONDITION, 1, 0.3, -1, 0])
     assert torch.all(torch.isnan(tree._get_attributes(3)))
     assert torch.all(torch.isnan(tree._get_attributes(4)))
-    assert np.allclose(tree._get_attributes(5), [NodeType.CLASSIFIER, -1, -1, 1])
-    assert np.allclose(tree._get_attributes(6), [NodeType.CONDITION, 2, 0.7, -1])
-    assert np.allclose(tree._get_attributes(13), [NodeType.CLASSIFIER, -1, -1, 0])
-    assert np.allclose(tree._get_attributes(14), [NodeType.CLASSIFIER, -1, -1, 1])
+    assert np.allclose(tree._get_attributes(5), [NodeType.CLASSIFIER, -1, -1, 1, 0])
+    assert np.allclose(tree._get_attributes(6), [NodeType.CONDITION, 2, 0.7, -1, 0])
+    assert np.allclose(tree._get_attributes(13), [NodeType.CLASSIFIER, -1, -1, 0, 0])
+    assert np.allclose(tree._get_attributes(14), [NodeType.CLASSIFIER, -1, -1, 1, 0])
