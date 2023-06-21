@@ -1,3 +1,4 @@
+from collections import Counter
 from typing import List, Optional, Tuple
 
 import matplotlib.pyplot as plt
@@ -153,8 +154,7 @@ class Tree(GFlowNetEnv):
 
         super().__init__(**kwargs)
 
-        # TODO: use most frequent class as the output.
-        self._insert_classifier(k=0, output=1)
+        self._insert_classifier(k=0, output=Counter(y).most_common()[0][0])
 
     @staticmethod
     def _get_start_end(k: int) -> Tuple[int, int]:

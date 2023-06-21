@@ -1,3 +1,5 @@
+from collections import Counter
+
 import numpy as np
 import pytest
 import torch
@@ -17,11 +19,11 @@ def y():
 
 
 @pytest.mark.repeat(10)
-def test__starting_tree__always_predicts_positive_class(X, y):
+def test__starting_tree__always_predicts_most_common_class(X, y):
     tree = Tree(X, y)
     x = np.random.random(5)
 
-    assert tree.predict(x) == 1
+    assert tree.predict(x) == Counter(y).most_common()[0][0]
 
 
 @pytest.fixture
