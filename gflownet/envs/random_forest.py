@@ -102,7 +102,7 @@ class Tree(GFlowNetEnv):
     valid decision tree, which means that forward-looking loss etc. can be used.
 
     Internally, the tree is represented as a fixed-size tensor (thus, specifying
-    the maximum depth is required), with nodes index from k = 0 to 2**max_depth - 2,
+    the maximum depth is required), with nodes indexed from k = 0 to 2**max_depth - 2,
     and each node containing a 5-element attribute tensor (see _get_attributes for
     details). The nodes are indexed from top left to bottom right, as follows:
 
