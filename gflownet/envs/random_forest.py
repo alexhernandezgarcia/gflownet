@@ -23,7 +23,7 @@ class Operator:
 
 
 class Status:
-    PROCESSED = 0
+    INACTIVE = 0
     ACTIVE = 1
 
 
@@ -101,8 +101,7 @@ class Tree(GFlowNetEnv):
             the left child will have class = 0, and the right child will have class = 1;
             reverse for the >= operator,
         4 - whether the node has active status (1 if node was picked and the macro step
-            didn't finish yet, 0 if the node was picked previously and the macro step
-            already completed).
+            didn't finish yet, 0 otherwise).
         """
         st, en = Tree._get_start_end(k)
 
@@ -180,7 +179,7 @@ class Tree(GFlowNetEnv):
             self._insert_classifier(k_right, output=0)
 
         attributes[3] = -1
-        attributes[4] = Status.PROCESSED
+        attributes[4] = Status.INACTIVE
 
         self.leafs.remove(k)
         self.state[0] = Stage.COMPLETE
@@ -193,7 +192,7 @@ class Tree(GFlowNetEnv):
         attributes[0] = NodeType.CLASSIFIER
         attributes[1:3] = -1
         attributes[3] = output
-        attributes[4] = 0
+        attributes[4] = Status.INACTIVE
 
         self.leafs.add(k)
 
