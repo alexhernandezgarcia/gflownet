@@ -256,7 +256,9 @@ class Tree(GFlowNetEnv):
             state = self.state
             leafs = self.leafs
         else:
-            leafs = [x.item() for x in torch.where(state[1::5] == 1)[0]]
+            leafs = [
+                x.item() for x in torch.where(state[1::5] == NodeType.CLASSIFIER)[0]
+            ]
         if done is None:
             done = self.done
 
