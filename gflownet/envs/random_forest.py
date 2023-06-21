@@ -225,6 +225,9 @@ class Tree(GFlowNetEnv):
             self.done = True
             return self.state, action, True
 
+    def get_max_traj_length(self) -> int:
+        return self.n_nodes * N_ATTRIBUTES
+
     def _get_graph(self, graph: Optional[nx.DiGraph] = None, k: int = 0) -> nx.DiGraph:
         if graph is None:
             graph = nx.DiGraph()
