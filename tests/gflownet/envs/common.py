@@ -204,7 +204,15 @@ def test__get_parents__returns_same_state_and_eos_if_done(env):
     env.set_state(env.state, done=True)
     parents, actions = env.get_parents()
     if torch.is_tensor(env.state):
-        assert all([torch.equal(p, env.state) for p in parents])
+        assert all(
+            [torch.equal(torch.isnan(p), torch.isnan(env.state)) for p in parents]
+        )
+        assert all(
+            [
+                torch.equal(p[~torch.isnan(p)], env.state[~torch.isnan(env.state)])
+                for p in parents
+            ]
+        )
     else:
         assert parents == [env.state]
     assert actions == [env.action_space[-1]]

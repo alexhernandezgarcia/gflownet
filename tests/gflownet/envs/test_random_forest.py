@@ -2,6 +2,7 @@ import numpy as np
 import pytest
 import torch
 
+import common
 from gflownet.envs.random_forest import NodeType, Operator, Tree
 
 
@@ -72,3 +73,24 @@ def test__node_tree__has_expected_node_attributes(tree):
     assert np.allclose(tree._get_attributes(6), [NodeType.CONDITION, 2, 0.7, -1, 0])
     assert np.allclose(tree._get_attributes(13), [NodeType.CLASSIFIER, -1, -1, 0, 0])
     assert np.allclose(tree._get_attributes(14), [NodeType.CLASSIFIER, -1, -1, 1, 0])
+
+
+@pytest.fixture
+def env(X, y):
+    return Tree(X, y)
+
+
+def test__get_parents__returns_no_parents_in_initial_state(env):
+    common.test__get_parents__returns_no_parents_in_initial_state(env)
+
+
+def test__get_parents__returns_same_state_and_eos_if_done(env):
+    common.test__get_parents__returns_same_state_and_eos_if_done(env)
+
+
+def test__step__returns_same_state_action_and_invalid_if_done(env):
+    common.test__step__returns_same_state_action_and_invalid_if_done(env)
+
+
+def test__actions2indices__returns_expected_tensor(env):
+    common.test__actions2indices__returns_expected_tensor(env)
