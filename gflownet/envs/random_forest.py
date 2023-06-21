@@ -284,10 +284,10 @@ class Tree(GFlowNetEnv):
                 # Leaf was picked, only picking the feature is valid.
                 mask[k + self.n_nodes] = False
             elif stage == Stage.FEATURE:
-                # Feature was picked, only picking threshold is valid.
+                # Feature was picked, only picking the threshold is valid.
                 mask[k + 2 * self.n_nodes] = False
             elif stage == Stage.THRESHOLD:
-                # Threshold was picked, only picking operator is valid.
+                # Threshold was picked, only picking the operator is valid.
                 mask[k + 3 * self.n_nodes] = False
             else:
                 raise ValueError(f"Unrecognized stage {stage}.")
