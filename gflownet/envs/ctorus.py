@@ -233,7 +233,9 @@ class ContinuousTorus(HybridTorus):
         logprobs = torch.sum(logprobs, axis=1)
         return logprobs
 
-    def step(self, action: Tuple[float]) -> Tuple[List[float], Tuple[int, float], bool]:
+    def step(
+        self, action: Tuple[float], skip_mask_check: bool = False
+    ) -> Tuple[List[float], Tuple[int, float], bool]:
         """
         Executes step given an action.
 

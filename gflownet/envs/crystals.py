@@ -272,7 +272,9 @@ class Crystal(GFlowNetEnv):
                     actions.append(idx)
         return parents, actions
 
-    def step(self, action: Tuple[int, int]) -> Tuple[List[int], Tuple[int, int], bool]:
+    def step(
+        self, action: Tuple[int, int], skip_mask_check: bool = False
+    ) -> Tuple[List[int], Tuple[int, int], bool]:
         """
         Executes step given an action.
 
@@ -292,9 +294,12 @@ class Crystal(GFlowNetEnv):
         valid : bool
             False, if the action is not allowed for the current state.
         """
-        # If done, return invalid
-        if self.done:
-            return self.state, action, False
+        # Generic pre-step checks
+        do_step, self.state, action, valid = self._pre_step(
+            action, skip_mask_check or self.skip_mask_check
+        )
+        if not do_step:
+            return self.state, action, valid
         # If only possible action is eos, then force eos
         if sum(self.state) == self.max_atoms:
             self.done = True

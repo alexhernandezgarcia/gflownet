@@ -476,7 +476,7 @@ class HybridTorus(GFlowNetEnv):
         return logprobs
 
     def step(
-        self, action: Tuple[int, float]
+        self, action: Tuple[int, float], skip_mask_check: bool = False
     ) -> Tuple[List[float], Tuple[int, float], bool]:
         """
         Executes step given an action.

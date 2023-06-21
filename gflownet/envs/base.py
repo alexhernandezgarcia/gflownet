@@ -189,6 +189,50 @@ class GFlowNetEnv:
         actions = []
         return parents, actions
 
+    def _pre_step(
+        self, action: Tuple[int], skip_mask_check: bool = False
+    ) -> Tuple[List[int], Tuple[int], bool]:
+        """
+        Performs generic checks shared by the step() method of all environments.
+
+        Args
+        ----
+        action : tuple
+            Action from the action space.
+
+        skip_mask_check : bool
+            If True, skip computing forward mask of invalid actions to check if the
+            action is valid.
+
+        Returns
+        -------
+        do_step : bool
+            If True, step() should continue further, False otherwise.
+        self.state : list
+            The sequence after executing the action
+
+        action : int
+            Action index
+
+        valid : bool
+            False, if the action is not allowed for the current state, e.g. stop at the
+            root state
+        """
+        # If action not found in action space raise an error
+        if action not in self.action_space:
+            raise ValueError(
+                f"Tried to execute action {action} not present in action space."
+            )
+        # If env is done, return invalid
+        if self.done:
+            return False, self.state, action, False
+        # If action is in invalid mask, exit immediately
+        if not (self.skip_mask_check or skip_mask_check):
+            action_idx = self.action_space.index(action)
+            if self.get_mask_invalid_actions_forward()[action_idx]:
+                return False, self.state, action, False
+        return True, self.state, action, True
+
     @abstractmethod
     def step(
         self, action: Tuple[int], skip_mask_check: bool = False
@@ -217,20 +261,8 @@ class GFlowNetEnv:
             False, if the action is not allowed for the current state, e.g. stop at the
             root state
         """
-        # If env is done, return invalid
-        if self.done:
-            return self.state, action, False
-        # If action not found in action space raise an error
-        if action not in self.action_space:
-            raise ValueError(
-                f"Tried to execute action {action} not present in action space."
-            )
-        # If action is in invalid mask, exit immediately
-        if not (self.skip_mask_check or skip_mask_check):
-            action_idx = self.action_space.index(action)
-            if self.get_mask_invalid_actions_forward()[action_idx]:
-                return self.state, action, False
-        return None, None, None
+        _, self.state, action, valid = self._pre_step(action, skip_mask_check)
+        return state, action, valid
 
     def sample_actions(
         self,

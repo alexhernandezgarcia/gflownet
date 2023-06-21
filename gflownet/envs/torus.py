@@ -298,7 +298,9 @@ class Torus(GFlowNetEnv):
                     actions.append(action)
         return parents, actions
 
-    def step(self, action: Tuple[int]) -> Tuple[List[int], Tuple[int], bool]:
+    def step(
+        self, action: Tuple[int], skip_mask_check: bool = False
+    ) -> Tuple[List[int], Tuple[int], bool]:
         """
         Executes step given an action.
 
@@ -318,16 +320,12 @@ class Torus(GFlowNetEnv):
         valid : bool
             False, if the action is not allowed for the current state.
         """
-        # If done, return invalid
-        if self.done:
-            return self.state, action, False
-        # If action not found in action space raise an error
-        if action not in self.action_space:
-            raise ValueError(
-                f"Tried to execute action {action} not present in action space."
-            )
-        else:
-            action_idx = self.action_space.index(action)
+        # Generic pre-step checks
+        do_step, self.state, action, valid = self._pre_step(
+            action, skip_mask_check or self.skip_mask_check
+        )
+        if not do_step:
+            return self.state, action, valid
         # If only possible action is eos, then force eos
         # If the number of actions is equal to trajectory length
         if self.n_actions == self.length_traj:
