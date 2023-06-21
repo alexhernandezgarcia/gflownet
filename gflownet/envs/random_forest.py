@@ -99,7 +99,7 @@ class Tree(GFlowNetEnv):
         2 - decision threshold (condition node only, -1 otherwise),
         3 - class output (classifier node only, -1 otherwise), in the case of < operator
             the left child will have class = 0, and the right child will have class = 1;
-            reverse for the >= operator,
+            the opposite for the >= operator,
         4 - whether the node has active status (1 if node was picked and the macro step
             didn't finish yet, 0 otherwise).
         """
