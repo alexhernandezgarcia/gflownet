@@ -57,7 +57,7 @@ class Conformer(ContinuousTorus):
             self.conformer.set_torsion_angle(ta, state[idx])
         return self.conformer
 
-    def statebatch2proxy(self, states: List[List]) -> List[npt.NDArray]:
+    def statebatch2proxy(self, states: List[List]) -> npt.NDArray:
         """
         Returns a list of proxy states, each being a numpy array with dimensionality
         (n_atoms, 4), in which the first column encodes atomic number, and the last
@@ -75,11 +75,9 @@ class Conformer(ContinuousTorus):
                     axis=1,
                 )
             )
-        return states_proxy
+        return np.array(states_proxy)
 
-    def statetorch2proxy(
-        self, states: TensorType["batch", "state_dim"]
-    ) -> List[npt.NDArray]:
+    def statetorch2proxy(self, states: TensorType["batch", "state_dim"]) -> npt.NDArray:
         return self.statebatch2proxy(states.cpu().numpy())
 
     def statebatch2kde(self, states: List[List]) -> npt.NDArray[np.float32]:
