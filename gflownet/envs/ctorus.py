@@ -233,7 +233,9 @@ class ContinuousTorus(HybridTorus):
         logprobs = torch.sum(logprobs, axis=1)
         return logprobs
 
-    def step(self, action: Tuple[float]) -> Tuple[List[float], Tuple[int, float], bool]:
+    def step(
+        self, action: Tuple[float], skip_mask_check: bool = False
+    ) -> Tuple[List[float], Tuple[int, float], bool]:
         """
         Executes step given an action.
 
@@ -242,6 +244,10 @@ class ContinuousTorus(HybridTorus):
         action : tuple
             Action to be executed. An action is a vector where the value at position d
             indicates the increment in the angle at dimension d.
+
+        skip_mask_check : bool
+            If True, skip computing forward mask of invalid actions to check if the
+            action is valid.
 
         Returns
         -------

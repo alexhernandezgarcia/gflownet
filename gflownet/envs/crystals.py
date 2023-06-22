@@ -140,11 +140,7 @@ class Crystal(GFlowNetEnv):
         state_elem = [self.idx2elem[i] for i, e in enumerate(state) if e > 0]
         n_state_atoms = sum(state)
 
-        if n_state_atoms < self.min_atoms:
-            mask[-1] = True
-        if len(state_elem) < self.min_diff_elem:
-            mask[-1] = True
-        if any(r not in state_elem for r in self.required_elements):
+        if not self._can_eos(state, state_elem, n_state_atoms):
             mask[-1] = True
 
         for idx, (element, n) in enumerate(self.action_space[:-1]):
@@ -276,7 +272,9 @@ class Crystal(GFlowNetEnv):
                     actions.append(idx)
         return parents, actions
 
-    def step(self, action: Tuple[int, int]) -> Tuple[List[int], Tuple[int, int], bool]:
+    def step(
+        self, action: Tuple[int, int], skip_mask_check: bool = False
+    ) -> Tuple[List[int], Tuple[int, int], bool]:
         """
         Executes step given an action.
 
@@ -284,6 +282,10 @@ class Crystal(GFlowNetEnv):
         ----
         action : tuple
             Action to be executed. See: get_action_space()
+
+        skip_mask_check : bool
+            If True, skip computing forward mask of invalid actions to check if the
+            action is valid.
 
         Returns
         -------
@@ -296,9 +298,12 @@ class Crystal(GFlowNetEnv):
         valid : bool
             False, if the action is not allowed for the current state.
         """
-        # If done, return invalid
-        if self.done:
-            return self.state, action, False
+        # Generic pre-step checks
+        do_step, self.state, action, valid = self._pre_step(
+            action, skip_mask_check or self.skip_mask_check
+        )
+        if not do_step:
+            return self.state, action, valid
         # If only possible action is eos, then force eos
         if sum(self.state) == self.max_atoms:
             self.done = True
@@ -314,9 +319,6 @@ class Crystal(GFlowNetEnv):
             raise ValueError(
                 f"Tried to execute action {action} not present in action space."
             )
-        # If action is in invalid mask, exit immediately
-        if self.get_mask_invalid_actions()[action_idx]:
-            return self.state, action, False
         # If action is not eos, then perform action
         if action != self.eos:
             atomic_number, num = action
@@ -332,16 +334,30 @@ class Crystal(GFlowNetEnv):
             return self.state, action, valid
         # If action is eos, then perform eos
         else:
-            if self.get_mask_invalid_actions()[-1]:
-                valid = False
+            if self._can_produce_neutral_charge():
+                self.done = True
+                valid = True
+                self.n_actions += 1
             else:
-                if self._can_produce_neutral_charge():
-                    self.done = True
-                    valid = True
-                    self.n_actions += 1
-                else:
-                    valid = False
+                valid = False
             return self.state, self.eos, valid
+
+    def set_state(self, state: List, done: Optional[bool] = False):
+        """
+        Sets the state and done. If done is True but incompatible with state (space
+        group is missing), then force done False and print warning.
+        """
+        state_elem = [self.idx2elem[i] for i, e in enumerate(state) if e > 0]
+        n_state_atoms = sum(state)
+        if done == True and not self._can_eos(state, state_elem, n_state_atoms):
+            done = False
+            warnings.warn(
+                f"""
+            Attempted to set state {self.state2readable(state)} with done = True, which
+            is not compatible with the environment. Forcing done = False.
+            """
+            )
+        return super().set_state(state, done)
 
     def _can_produce_neutral_charge(self, state: Optional[List[int]] = None) -> bool:
         """
@@ -369,3 +385,16 @@ class Crystal(GFlowNetEnv):
         ]
 
         return any(poss_charge_sum)
+
+    def _can_eos(self, state: List, state_elem: List, n_state_atoms: int):
+        """
+        Returns True if the end of sequence action (EOS) can be chosen from the
+        state passed as an argument. False otherwise.
+        """
+        if n_state_atoms < self.min_atoms:
+            return False
+        if len(state_elem) < self.min_diff_elem:
+            return False
+        if any(r not in state_elem for r in self.required_elements):
+            return False
+        return True
