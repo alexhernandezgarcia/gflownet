@@ -200,6 +200,7 @@ class Batch:
             )
         states_proxy = []
         # this loop could be optimised futher (converting all states with the same env_id at once)
+        # add a flag about conditions
         for state, env_id in zip(states, env_ids):
             states_proxy.append(
                 self.envs[env_id.item()].statetorch2proxy(state[None, :])
@@ -320,6 +321,7 @@ class Batch:
         states_proxy_done = self.states2proxy(
             states=self.states[self.done], env_ids=self.env_ids[self.done]
         )
+        # fix
         env = self.envs[self.env_ids[0].item()]
         rewards = torch.zeros(self.done.shape[0], dtype=self.float, device=self.device)
         if self.states[self.done, :].shape[0] > 0:

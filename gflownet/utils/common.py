@@ -106,3 +106,5 @@ def concat_items(list_of_items):
         return np.concatenate(list_of_items)
     elif torch.is_tensor(list_of_items[0]):
         return torch.cat(list_of_items)
+    else:
+        raise raise NotImplementedError("cannot concatenate {}".(type(list_of_items[0]))) 
