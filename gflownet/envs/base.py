@@ -621,6 +621,13 @@ class GFlowNetEnv:
         # return self.__class__(**self.__dict__)
         return deepcopy(self)
 
+    @staticmethod
+    def equal(state_x, state_y):
+        if torch.is_tensor(state_x) and torch.is_tensor(state_y):
+            return torch.equal(state_x, state_y)
+        else:
+            return state_x == state_y
+
     def set_energies_stats(self, energies_stats):
         self.energies_stats = energies_stats
 
