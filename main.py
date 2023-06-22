@@ -23,7 +23,7 @@ from omegaconf import DictConfig, OmegaConf
 
 @hydra.main(config_path="./config", config_name="main", version_base="1.1")
 def main(config):
-    ray.init(num_cpus=config.n_jobs)
+    ray.init(num_cpus=config.n_jobs, log_to_driver=False)
 
     # Get current directory and set it as root log dir for Logger
     cwd = os.getcwd()
