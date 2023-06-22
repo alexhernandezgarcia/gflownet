@@ -6,6 +6,9 @@ defaults:
    - override /proxy: conformers/xtb
    - override /logger: wandb
 
+# Number of parallel ray jobs (XTB greatly benefits from parallelization)
+n_jobs: 12
+
 # Environment
 env:
   length_traj: 10
