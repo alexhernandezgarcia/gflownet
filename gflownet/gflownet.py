@@ -700,6 +700,39 @@ class GFlowNetAgent:
         trajs = [tuple(el) for el in trajs]
         return states, trajs
 
+    def sample_backwards(self, states_term: List, n_trajectories: int = 1):
+        times = {}
+        batch = {}
+        envs = []
+        for idx, x in enumerate(states_term):
+            env = self.env.copy().reset(idx)
+            env.set_state(x, done=True)
+            envs.append(env)
+            batch.update({env.id: {"states": [env.state], "actions": []}})
+        valids = [True] * len(envs)
+        while envs:
+            # Sample backward actions
+            with torch.no_grad():
+                actions = self.sample_actions(
+                    envs,
+                    times,
+                    sampling_method="policy",
+                    model=self.backward_policy,
+                    is_forward=False,
+                    temperature=1.0,
+                    random_action_prob=0.0,
+                )
+            # Update environments with sampled actions
+            envs, actions, valids = self.step(envs, actions, is_forward=False)
+            assert all(valids)
+            # Add to batch
+            for env, action in zip(envs, actions):
+                batch[env.id]["states"].append(env.state)
+                batch[env.id]["actions"].append(action)
+            # Filter out finished trajectories
+            envs = [env for env in envs if not env.equal(env.state, env.source)]
+        return batch
+
     def train(self):
         # Metrics
         all_losses = []
@@ -794,10 +827,12 @@ class GFlowNetAgent:
             # Moving average of the loss for early stopping
             if loss_term_ema and loss_flow_ema:
                 loss_term_ema = (
-                    self.ema_alpha * losses[1].item() + (1.0 - self.ema_alpha) * loss_term_ema
+                    self.ema_alpha * losses[1].item()
+                    + (1.0 - self.ema_alpha) * loss_term_ema
                 )
                 loss_flow_ema = (
-                    self.ema_alpha * losses[2].item() + (1.0 - self.ema_alpha) * loss_flow_ema
+                    self.ema_alpha * losses[2].item()
+                    + (1.0 - self.ema_alpha) * loss_flow_ema
                 )
                 if (
                     loss_term_ema < self.early_stopping
