@@ -36,8 +36,11 @@ class GFlowNetEnv:
         proxy_state_format: str = "oracle",
         fixed_distribution: Optional[dict] = None,
         random_distribution: Optional[dict] = None,
+        conditional=False,
         **kwargs,
     ):
+        # Flag whether env is conditional
+        self.conditional = conditional
         # Call reset() to set initial state, done, n_actions
         self.reset()
         # Device
