@@ -12,7 +12,7 @@ from gflownet.utils.common import (
     tfloat,
     tint,
     tlong,
-    concat_items
+    concat_items,
 )
 
 
@@ -201,8 +201,10 @@ class Batch:
         states_proxy = []
         # this loop could be optimised futher (converting all states with the same env_id at once)
         for state, env_id in zip(states, env_ids):
-            states_proxy.append(self.envs[env_id.item()].statetorch2proxy(state[None, :]))
-        
+            states_proxy.append(
+                self.envs[env_id.item()].statetorch2proxy(state[None, :])
+            )
+
         # may not work for dgl graphs
         states_proxy = concat_items(states_proxy)
         return states_proxy
@@ -315,8 +317,9 @@ class Batch:
         """
         Computes rewards for self.states using proxy from one of the self.envs
         """
-        states_proxy_done = self.states2proxy(states=self.states[self.done], 
-                                              env_ids=self.env_ids[self.done])
+        states_proxy_done = self.states2proxy(
+            states=self.states[self.done], env_ids=self.env_ids[self.done]
+        )
         env = self.envs[self.env_ids[0].item()]
         rewards = torch.zeros(self.done.shape[0], dtype=self.float, device=self.device)
         if self.states[self.done, :].shape[0] > 0:
