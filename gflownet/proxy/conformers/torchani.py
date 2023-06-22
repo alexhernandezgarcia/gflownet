@@ -1,9 +1,8 @@
-from typing import Iterable, List, Optional
+from typing import Iterable, Optional
 
-import numpy as np
 import torch
 import torchani
-from torch import FloatTensor, LongTensor, Tensor
+from torch import Tensor
 
 from gflownet.proxy.base import Proxy
 
@@ -54,15 +53,6 @@ class TorchANIMoleculeEnergy(Proxy):
         self.model = TORCHANI_MODELS[model](
             periodic_table_index=True, model_index=None if use_ensemble else 0
         ).to(self.device)
-        self.conformer = None
-
-    def setup(self, env=None):
-        self.conformer = env.conformer
-
-    def _sync_conformer_with_state(self, state: List):
-        for idx, ta in enumerate(self.conformer.freely_rotatable_tas):
-            self.conformer.set_torsion_angle(ta, state[idx])
-        return self.conformer
 
     @torch.no_grad()
     def __call__(self, states: Iterable) -> Tensor:
@@ -70,7 +60,9 @@ class TorchANIMoleculeEnergy(Proxy):
         Args
         ----
         states
-            An iterable of states in AlanineDipeptide environment format (torsion angles).
+            An iterable of states in Conformer environment format (tensors with
+            dimensionality (n_atoms, 4), in which the first column encodes atomic
+            number, and the last three columns encode atom positions).
 
         Returns
         ----
@@ -82,13 +74,17 @@ class TorchANIMoleculeEnergy(Proxy):
         coordinates = []
 
         for st in states:
-            conf = self._sync_conformer_with_state(st)
+            el = st[:, 0]
+            if not isinstance(el, Tensor):
+                el = Tensor(el)
+            co = st[:, 1:]
+            if not isinstance(co, Tensor):
+                co = Tensor(co)
+            elements.append(el)
+            coordinates.append(co)
 
-            elements.append(conf.get_atomic_numbers())
-            coordinates.append(conf.get_atom_positions())
-
-        elements = LongTensor(np.array(elements)).to(self.device)
-        coordinates = FloatTensor(np.array(coordinates)).to(self.device)
+        elements = torch.stack(elements).long().to(self.device)
+        coordinates = torch.stack(coordinates).float().to(self.device)
 
         if self.batch_size is not None:
             energies = []
@@ -111,5 +107,4 @@ class TorchANIMoleculeEnergy(Proxy):
         new_obj.batch_size = self.batch_size
         new_obj.min = self.min
         new_obj.model = self.model
-        new_obj.conformer = self.conformer
         return new_obj
