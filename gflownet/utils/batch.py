@@ -218,7 +218,7 @@ class Batch:
                 )
                 perm_index.append(index[env_ids == env_id])
             perm_index = torch.cat(perm_index)
-            # reverse permutation to make it index for states_proxy array
+            # reverse permutation to make it index the states_proxy array
             index[perm_index] = index.clone()
             states_proxy = concat_items(states_proxy, index)
         else:
