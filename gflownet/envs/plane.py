@@ -381,8 +381,7 @@ class Plane(GFlowNetEnv):
             (dimension, increment).
 
         skip_mask_check : bool
-            If True, skip computing forward mask of invalid actions to check if the
-            action is valid.
+            Ignored.
 
         Returns
         -------

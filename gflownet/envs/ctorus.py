@@ -246,8 +246,7 @@ class ContinuousTorus(HybridTorus):
             indicates the increment in the angle at dimension d.
 
         skip_mask_check : bool
-            If True, skip computing forward mask of invalid actions to check if the
-            action is valid.
+            Ignored.
 
         Returns
         -------
