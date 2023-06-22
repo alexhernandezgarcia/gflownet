@@ -12,6 +12,7 @@ from gflownet.utils.common import (
     tfloat,
     tint,
     tlong,
+    concat_items
 )
 
 
@@ -176,9 +177,35 @@ class Batch:
                 "env_ids must be provided to the batch for converting provided states to the policy format"
             )
         states_policy = []
+        # this loop could be optimised futher (converting all states with the same env_id at once)
         for state, env_id in zip(states, env_ids):
             states_policy.append(self.envs[env_id].state2policy(state))
         return tfloat(states_policy, device=self.device, float_type=self.float)
+
+    def states2proxy(self, states=None, env_ids=None):
+        """
+        Converts states from a list of states in gflownet format to a tensor of states in proxy format
+        states: list of gflownet states,
+        env_ids: list of env ids indicating which env corresponds to each state in states list
+
+        Returns: list of stattes in proxy format
+        """
+        if states is None:
+            states = self.states
+            env_ids = self.env_ids
+        elif env_ids is None:
+            # if states are provided, env_ids should be provided too
+            raise Exception(
+                "env_ids must be provided to the batch for converting provided states to the policy format"
+            )
+        states_proxy = []
+        # this loop could be optimised futher (converting all states with the same env_id at once)
+        for state, env_id in zip(states, env_ids):
+            states_proxy.append(self.envs[env_id.item()].statetorch2proxy(state[None, :]))
+        
+        # may not work for dgl graphs
+        states_proxy = concat_items(states_proxy)
+        return states_proxy
 
     def _process_parents(self):
         """
@@ -286,10 +313,12 @@ class Batch:
 
     def compute_rewards(self):
         """
-        Computes rewards for self.states using env.reward_tobatch
+        Computes rewards for self.states using proxy from one of the self.envs
         """
-        rewards = torch.zeros(len(self.states), device=self.device, dtype=self.float)
-        for env_id, env in self.envs.items():
-            idx = self.env_ids == env_id
-            rewards[idx] = env.reward_torchbatch(self.states[idx], self.done[idx])
+        states_proxy_done = self.states2proxy(states=self.states[self.done], 
+                                              env_ids=self.env_ids[self.done])
+        env = self.envs[self.env_ids[0].item()]
+        rewards = torch.zeros(self.done.shape[0], dtype=self.float, device=self.device)
+        if self.states[self.done, :].shape[0] > 0:
+            rewards[self.done] = env.proxy2reward(env.proxy(states_proxy_done))
         return rewards

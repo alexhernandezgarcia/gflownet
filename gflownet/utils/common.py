@@ -99,3 +99,9 @@ def tbool(x, device):
         return x.type(torch.bool).to(device)
     else:
         return torch.tensor(x, dtype=torch.bool, device=device)
+
+def concat_items(list_of_items):
+    if isinstance(list_of_items[0], np.ndarray):
+        return np.concatenate(list_of_items)
+    elif torch.is_tensor(list_of_items[0]):
+        return torch.cat(list_of_items)
