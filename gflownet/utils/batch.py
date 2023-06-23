@@ -302,11 +302,10 @@ class Batch:
                     )
                 )
             self.all_possible_parents_policy = torch.cat(all_possible_parents_policy)
-            self.all_possible_parents = torch.cat(
-                [
-                    tfloat(par, device=self.device, float_type=self.float)
-                    for par in self.all_possible_parents
-                ]
+            self.all_possible_parents = tfloat(
+                [p for parents in self.all_possible_parents for p in parents],
+                device=self.device,
+                float_type=self.float,
             )
         elif self.loss == "trajectorybalance":
             assert self.trajectory_indices is not None
