@@ -101,8 +101,19 @@ def tbool(x, device):
         return torch.tensor(x, dtype=torch.bool, device=device)
 
 
-def concat_items(list_of_items):
+def concat_items(list_of_items, index=None):
     if isinstance(list_of_items[0], np.ndarray):
-        return np.concatenate(list_of_items)
+        result = np.concatenate(list_of_items)
+        if index is not None:
+            index = index.cpu().numpy()
+            result = result[index]
     elif torch.is_tensor(list_of_items[0]):
-        return torch.cat(list_of_items)
+        result = torch.cat(list_of_items)
+        if index is not None:
+            result = result[index]
+    else:
+        raise NotImplementedError(
+            "cannot concatenate {}".format(type(list_of_items[0]))
+        )
+
+    return result

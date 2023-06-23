@@ -115,8 +115,8 @@ class Batch:
         - computes trajectory indicies (indecies of the states in self.states corresponding to each trajectory)
         - if needed, computes states and parents in policy formats (stored in self.states_policy, self.parents_policy)
         """
-        self._process_states()
         self.env_ids = tlong(self.env_ids, device=self.device)
+        self._process_states()
         self.steps = tlong(self.steps, device=self.device)
         self._process_trajectory_indices()
         # process other variables, if we are in the train mode and recorded them
@@ -157,8 +157,8 @@ class Batch:
         Converts self.statees from list to torch tensor, computes states in the policy format
         (stored in self.states_policy)
         """
-        self.states_policy = self.states2policy()
         self.states = tfloat(self.states, device=self.device, float_type=self.float)
+        self.states_policy = self.states2policy()
 
     def states2policy(self, states=None, env_ids=None):
         """
@@ -176,11 +176,20 @@ class Batch:
             raise Exception(
                 "env_ids must be provided to the batch for converting provided states to the policy format"
             )
-        states_policy = []
-        # this loop could be optimised futher (converting all states with the same env_id at once)
-        for state, env_id in zip(states, env_ids):
-            states_policy.append(self.envs[env_id].state2policy(state))
-        return tfloat(states_policy, device=self.device, float_type=self.float)
+        env = self._get_first_env()
+        if env.conditional:
+            states_policy = torch.zeros(
+                (states.shape[0], env.policy_input_dim),
+                device=self.device,
+                dtype=self.float,
+            )
+            for env_id in torch.unique(env_ids):
+                states_policy[env_ids == env_id] = self.envs[
+                    env_id.item()
+                ].statetorch2policy(states[env_ids == env_id])
+        else:
+            states_policy = env.statetorch2policy(states)
+        return states_policy
 
     def states2proxy(self, states=None, env_ids=None):
         """
@@ -198,15 +207,22 @@ class Batch:
             raise Exception(
                 "env_ids must be provided to the batch for converting provided states to the policy format"
             )
-        states_proxy = []
-        # this loop could be optimised futher (converting all states with the same env_id at once)
-        for state, env_id in zip(states, env_ids):
-            states_proxy.append(
-                self.envs[env_id.item()].statetorch2proxy(state[None, :])
-            )
-
-        # may not work for dgl graphs
-        states_proxy = concat_items(states_proxy)
+        env = self._get_first_env()
+        if env.conditional:
+            states_proxy = []
+            index = torch.arange(states.shape[0], device=self.device)
+            perm_index = []
+            for env_id in torch.unique(env_ids):
+                states_proxy.append(
+                    self.envs[env_id.item()].statetorch2proxy(states[env_ids == env_id])
+                )
+                perm_index.append(index[env_ids == env_id])
+            perm_index = torch.cat(perm_index)
+            # reverse permutation to make it index the states_proxy array
+            index[perm_index] = index.clone()
+            states_proxy = concat_items(states_proxy, index)
+        else:
+            states_proxy = env.statetorch2proxy(states)
         return states_proxy
 
     def _process_parents(self):
@@ -320,8 +336,11 @@ class Batch:
         states_proxy_done = self.states2proxy(
             states=self.states[self.done], env_ids=self.env_ids[self.done]
         )
-        env = self.envs[self.env_ids[0].item()]
+        env = self._get_first_env()
         rewards = torch.zeros(self.done.shape[0], dtype=self.float, device=self.device)
         if self.states[self.done, :].shape[0] > 0:
             rewards[self.done] = env.proxy2reward(env.proxy(states_proxy_done))
         return rewards
+
+    def _get_first_env(self):
+        return self.envs[next(iter(self.envs))]
