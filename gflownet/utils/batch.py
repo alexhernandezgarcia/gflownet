@@ -372,6 +372,9 @@ class Batch:
         }
         self.trajectory_indices = trajs
 
+    # TODO: rethink and re-implement. Outputs should not be tuples. It needs to be
+    # refactored together with the buffer.
+    # TODO: docstring
     def unpack_terminal_states(self):
         """
         For storing terminal states and trajectory actions in the buffer
@@ -382,8 +385,8 @@ class Batch:
         # rewards will be)
         if not self.is_processed:
             self.process_batch()
-        traj_actions = []
         terminal_states = []
+        traj_actions = []
         for traj_idx in self.trajectory_indices.values():
             traj_actions.append(self.actions[traj_idx].tolist())
             terminal_states.append(tuple(self.states[traj_idx[-1]].tolist()))
