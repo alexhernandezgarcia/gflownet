@@ -66,7 +66,6 @@ class XTBMoleculeEnergy(Proxy):
         for batch in _chunks(states, self.batch_size):
             tasks = [get_energy.remote(s[:, 0], s[:, 1:], self.method) for s in batch]
             energies.extend(ray.get(tasks))
-            print(len(energies))
 
         energies = torch.tensor(energies, dtype=self.float, device=self.device)
         energies -= self.max_energy
