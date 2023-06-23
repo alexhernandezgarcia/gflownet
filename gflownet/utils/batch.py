@@ -68,9 +68,10 @@ class Batch:
 
     def add_to_batch(self, envs, actions, valids, train=True):
         """
-        Adds information about current state of env to the batch after performing step in this env.
-        If train, updates internal lists with values required for computing self.loss.
-        Otherwise, stores only states, env_id, step number (everything needed when sampling a trajectory at inference)
+        Adds information about current state of env to the batch after performing step
+        in this env.  If train, updates internal lists with values required for
+        computing self.loss.  Otherwise, stores only states, env_id, step number
+        (everything needed when sampling a trajectory at inference)
         """
         if self.is_processed:
             raise Exception("Cannot append to the processed batch")
@@ -113,8 +114,10 @@ class Batch:
         """
         Process internal lists to more convenient formats:
         - converts and stacks list to a single torch tensor
-        - computes trajectory indicies (indecies of the states in self.states corresponding to each trajectory)
-        - if needed, computes states and parents in policy formats (stored in self.states_policy, self.parents_policy)
+        - computes trajectory indicies (indecies of the states in self.states
+          corresponding to each trajectory)
+        - if needed, computes states and parents in policy formats (stored in
+          self.states_policy, self.parents_policy)
         """
         self.env_ids = tlong(self.env_ids, device=self.device)
         self._process_states()
@@ -155,17 +158,19 @@ class Batch:
 
     def _process_states(self):
         """
-        Converts self.statees from list to torch tensor, computes states in the policy format
-        (stored in self.states_policy)
+        Converts self.statees from list to torch tensor, computes states in the policy
+        format (stored in self.states_policy)
         """
         self.states = tfloat(self.states, device=self.device, float_type=self.float)
         self.states_policy = self.states2policy()
 
     def states2policy(self, states=None, env_ids=None):
         """
-        Converts states from a list of states in gflownet format to a tensor of states in policy format
+        Converts states from a list of states in gflownet format to a tensor of states
+        in policy format
         states: list of gflownet states,
-        env_ids: list of env ids indicating which env corresponds to each state in states list
+        env_ids: list of env ids indicating which env corresponds to each state in
+        states list
 
         Returns: torch tensor of stattes in policy format
         """
@@ -175,7 +180,10 @@ class Batch:
         elif env_ids is None:
             # if states are provided, env_ids should be provided too
             raise Exception(
-                "env_ids must be provided to the batch for converting provided states to the policy format"
+                """
+                env_ids must be provided to the batch for converting provided states to
+                the policy format
+                """
             )
         env = self._get_first_env()
         if env.conditional:
@@ -194,9 +202,11 @@ class Batch:
 
     def states2proxy(self, states=None, env_ids=None):
         """
-        Converts states from a list of states in gflownet format to a tensor of states in proxy format
+        Converts states from a list of states in gflownet format to a tensor of states
+        in proxy format
         states: list of gflownet states,
-        env_ids: list of env ids indicating which env corresponds to each state in states list
+        env_ids: list of env ids indicating which env corresponds to each state in
+        states list
 
         Returns: list of stattes in proxy format
         """
@@ -206,7 +216,10 @@ class Batch:
         elif env_ids is None:
             # if states are provided, env_ids should be provided too
             raise Exception(
-                "env_ids must be provided to the batch for converting provided states to the policy format"
+                """
+                env_ids must be provided to the batch for converting provided states to
+                the policy format
+                """
             )
         env = self._get_first_env()
         if env.conditional:
@@ -228,11 +241,14 @@ class Batch:
 
     def _process_parents(self):
         """
-        Prepares self.parents (gflownet format) and self.parents_policy (policy format) as torch tensors.
+        Prepares self.parents (gflownet format) and self.parents_policy (policy format)
+        as torch tensors.
         Different behaviour depending on self.loss:
             - for flowmatch, parents contain all the possible parents for each state,
-            so this tensor is bigger than self.state (all the parents are aligned along the zero dimension)
-            - for trajectorybalance, parents contain only one parent for each state which was its parent in the trajectory
+              so this tensor is bigger than self.state (all the parents are aligned
+              along the zero dimension)
+            - for trajectorybalance, parents contain only one parent for each state
+              which was its parent in the trajectory
         """
         if self.loss == "flowmatch":
             all_possible_parents_policy = []
