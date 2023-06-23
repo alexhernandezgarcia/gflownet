@@ -1,19 +1,24 @@
 from collections.abc import MutableMapping
 from pathlib import Path
+from typing import Union
 
 import numpy as np
 import torch
 from hydra.utils import get_original_cwd
 
 
-def set_device(device: str):
+def set_device(device: Union[str, torch.device]):
+    if isinstance(device, torch.device):
+        return device
     if device.lower() == "cuda" and torch.cuda.is_available():
         return torch.device("cuda")
     else:
         return torch.device("cpu")
 
 
-def set_float_precision(precision: int):
+def set_float_precision(precision: Union[int, torch.dtype]):
+    if isinstance(precision, torch.dtype):
+        return precision
     if precision == 16:
         return torch.float16
     elif precision == 32:

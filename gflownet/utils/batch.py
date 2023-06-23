@@ -1,18 +1,18 @@
 from collections import defaultdict
 from copy import deepcopy
-from typing import Any
+from typing import Union
 
 import numpy as np
 import torch
 
 from gflownet.utils.common import (
+    concat_items,
     set_device,
     set_float_precision,
     tbool,
     tfloat,
     tint,
     tlong,
-    concat_items,
 )
 
 
@@ -34,15 +34,16 @@ class Batch:
     be unique.
     """
 
-    def __init__(self, loss: str, device: Any = "cpu", float_type: Any = 32):
+    def __init__(
+        self,
+        loss: str,
+        device: Union[str, torch.device] = "cpu",
+        float_type: Union[int, torch.dtype] = 32,
+    ):
         # Device
-        if isinstance(device, str):
-            device = set_device(device)
-        self.device = device
+        self.device = set_device(device)
         # Float precision
-        if isinstance(float_type, int):
-            float_type = set_float_precision(float_type)
-        self.float = float_type
+        self.float = set_float_precision(float_type)
         # Loss
         self.loss = loss
         # Initialize empty batch variables
