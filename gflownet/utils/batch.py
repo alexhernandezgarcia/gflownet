@@ -4,6 +4,7 @@ from typing import List, Optional, Tuple, Union
 
 import numpy as np
 import torch
+from torchtyping import TensorType
 
 from gflownet.envs.base import GFlowNetEnv
 from gflownet.utils.common import (
@@ -177,7 +178,7 @@ class Batch:
 
     def _process_states(self):
         """
-        Converts self.statees from list to torch tensor, computes states in the policy
+        Converts self.states from list to torch tensor, computes states in the policy
         format (stored in self.states_policy)
         """
         self.states = tfloat(self.states, device=self.device, float_type=self.float)
@@ -185,7 +186,7 @@ class Batch:
 
     def states2policy(
         self,
-        states: Optional[Union[List, TensorType["n_states", ...]]] = None,
+        states: Optional[Union[List, TensorType["n_states", "..."]]] = None,
         env_ids: Optional[List[int]] = None,
     ):
         """
@@ -232,7 +233,7 @@ class Batch:
 
     def states2proxy(
         self,
-        states: Optional[Union[List, TensorType["n_states", ...]]] = None,
+        states: Optional[Union[List, TensorType["n_states", "..."]]] = None,
         env_ids: Optional[List[int]] = None,
     ):
         """
@@ -282,14 +283,13 @@ class Batch:
 
     def _process_parents(self):
         """
-        Prepares self.parents (gflownet format) and self.parents_policy (policy format)
-        as torch tensors.
-        Different behaviour depending on self.loss:
-            - for flowmatch, parents contain all the possible parents for each state,
+        Converts self.parents (GFlowNet format) and self.parents_policy (policy format)
+        into torch tensors. Different behaviour depending on self.loss:
+            - flowmatch: parents contain all the possible parents for each state,
               so this tensor is bigger than self.state (all the parents are aligned
-              along the zero dimension)
-            - for trajectorybalance, parents contain only one parent for each state
-              which was its parent in the trajectory
+              along the zero dimension).
+            - trajectorybalance: parents contains only one parent for each state
+              which corresponds to the actual parent in the trajectory.
         """
         if self.loss == "flowmatch":
             all_possible_parents_policy = []
