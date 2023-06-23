@@ -163,11 +163,14 @@ class Batch:
                     ),
                     device=self.device,
                 )
-                self.all_possible_parents_actions = torch.cat(
+                self.all_possible_parents_actions = tfloat(
                     [
-                        tfloat(x, device=self.device, float_type=self.float)
-                        for x in self.all_possible_parents_actions
-                    ]
+                        a
+                        for actions in self.all_possible_parents_actions
+                        for a in actions
+                    ],
+                    device=self.device,
+                    float_type=self.float,
                 )
             elif self.loss == "trajectorybalance":
                 self.masks_invalid_actions_backward = tbool(
