@@ -227,9 +227,8 @@ class Batch:
                 states_policy[env_ids == env_id] = self.envs[
                     env_id.item()
                 ].statetorch2policy(states[env_ids == env_id])
-        else:
-            states_policy = env.statetorch2policy(states)
-        return states_policy
+            return states_policy
+        return env.statetorch2policy(states)
 
     def states2proxy(self, states=None, env_ids=None):
         """
