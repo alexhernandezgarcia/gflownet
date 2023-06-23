@@ -1,6 +1,6 @@
 from collections import defaultdict
 from copy import deepcopy
-from typing import Tuple, Union
+from typing import List, Optional, Tuple, Union
 
 import numpy as np
 import torch
@@ -72,7 +72,7 @@ class Batch:
         envs: List[GFlowNetEnv],
         actions: List[Tuple],
         valids: List[bool],
-        train: bool = True,
+        train: Optional[bool] = True,
     ):
         """
         Adds information from a list of environments and actions to the batch after
@@ -131,11 +131,11 @@ class Batch:
 
     def process_batch(self):
         """
-        Process internal lists to more convenient formats:
-        - converts and stacks list to a single torch tensor
-        - computes trajectory indicies (indecies of the states in self.states
+        Converts internal lists into more convenient formats:
+        - converts and stacks lists into a single torch tensor
+        - computes trajectory indices (indices of the states in self.states
           corresponding to each trajectory)
-        - if needed, computes states and parents in policy formats (stored in
+        - if needed, converts states and parents into policy formats (stored in
           self.states_policy, self.parents_policy)
         """
         self.env_ids = tlong(self.env_ids, device=self.device)
@@ -183,15 +183,27 @@ class Batch:
         self.states = tfloat(self.states, device=self.device, float_type=self.float)
         self.states_policy = self.states2policy()
 
-    def states2policy(self, states=None, env_ids=None):
+    def states2policy(
+        self,
+        states: Optional[Union[List, TensorType["n_states", ...]]] = None,
+        env_ids: Optional[List[int]] = None,
+    ):
         """
         Converts states from a list of states in gflownet format to a tensor of states
         in policy format
-        states: list of gflownet states,
-        env_ids: list of env ids indicating which env corresponds to each state in
-        states list
 
-        Returns: torch tensor of stattes in policy format
+        Args
+        ----
+        states: list or torch.tensor
+            States in GFlowNet format.
+
+        env_ids: list
+            Ids indicating which env corresponds to each state in states.
+
+        Returns
+        -------
+        states: torch.tensor
+            States in policy format.
         """
         if states is None:
             states = self.states
@@ -201,7 +213,7 @@ class Batch:
             raise Exception(
                 """
                 env_ids must be provided to the batch for converting provided states to
-                the policy format
+                the policy format.
                 """
             )
         env = self._get_first_env()
