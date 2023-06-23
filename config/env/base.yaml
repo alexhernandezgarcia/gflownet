@@ -14,6 +14,8 @@ reward_norm: 1.0
 # If > 0, reward_norm = reward_norm_std_mult * std(energies)
 reward_norm_std_mult: 0.0
 proxy_state_format: oracle
+# Whether the environment has conditioning variables
+conditional: False
 # Buffer
 buffer:
   replay_capacity: 10
