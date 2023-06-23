@@ -4,7 +4,7 @@ import torch
 import torchani
 from torch import Tensor
 
-from gflownet.proxy.base import Proxy
+from gflownet.proxy.conformers.base import MoleculeEnergyBase
 
 TORCHANI_MODELS = {
     "ANI1x": torchani.models.ANI1x,
@@ -13,13 +13,13 @@ TORCHANI_MODELS = {
 }
 
 
-class TorchANIMoleculeEnergy(Proxy):
+class TorchANIMoleculeEnergy(MoleculeEnergyBase):
     def __init__(
         self,
         model: str = "ANI2x",
         use_ensemble: bool = True,
-        batch_size: Optional[int] = None,
-        divider: float = 100.0,
+        batch_size: Optional[int] = 128,
+        n_samples: int = 5000,
         **kwargs,
     ):
         """
@@ -33,16 +33,8 @@ class TorchANIMoleculeEnergy(Proxy):
 
         batch_size : int
             Batch size for TorchANI. If none, will process all states as a single batch.
-
-        divider : float
-            The value by which the output of TorchANI will be divided. Necessary for Boltzmann
-            reward function with high betas, for which the values can explode without division.
         """
-        super().__init__(**kwargs)
-
-        self.batch_size = batch_size
-        self.divider = divider
-        self.min = -5
+        super().__init__(batch_size=batch_size, n_samples=n_samples, **kwargs)
 
         if TORCHANI_MODELS.get(model) is None:
             raise ValueError(
@@ -99,12 +91,16 @@ class TorchANIMoleculeEnergy(Proxy):
         else:
             energies = self.model((elements, coordinates)).energies.float()
 
-        return energies / self.divider
+        energies -= self.max_energy
+
+        return energies
 
     def __deepcopy__(self, memo):
         cls = self.__class__
         new_obj = cls.__new__(cls)
         new_obj.batch_size = self.batch_size
+        new_obj.n_samples = self.n_samples
+        new_obj.max_energy = self.max_energy
         new_obj.min = self.min
         new_obj.model = self.model
         return new_obj

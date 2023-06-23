@@ -1,13 +1,12 @@
 from typing import List
 
-import numpy as np
 import ray
 import torch
 from tblite.interface import Calculator
 from torch import Tensor
 from wurlitzer import pipes
 
-from gflownet.proxy.base import Proxy
+from gflownet.proxy.conformers.base import MoleculeEnergyBase
 
 
 @ray.remote
@@ -26,14 +25,9 @@ def _chunks(lst, n):
         yield lst[i : i + n]
 
 
-class TBLiteMoleculeEnergy(Proxy):
-    def __init__(self, batch_size=1024, n_samples=5000, **kwargs):
-        super().__init__(**kwargs)
-
-        self.batch_size = batch_size
-        self.n_samples = n_samples
-        self.max_energy = 0
-        self.min = 0
+class TBLiteMoleculeEnergy(MoleculeEnergyBase):
+    def __init__(self, batch_size: int = 1024, n_samples: int = 5000, **kwargs):
+        super().__init__(batch_size=batch_size, n_samples=n_samples, **kwargs)
 
     def __call__(self, states: List) -> Tensor:
         energies = []
@@ -46,10 +40,3 @@ class TBLiteMoleculeEnergy(Proxy):
         energies -= self.max_energy
 
         return energies
-
-    def setup(self, env=None):
-        states = env.statebatch2proxy(2 * np.pi * np.random.rand(self.n_samples, 3))
-        energies = self(states)
-
-        self.max_energy = max(energies)
-        self.min = min(energies) - self.max_energy
