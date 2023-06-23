@@ -334,12 +334,12 @@ class Batch:
 
     def merge(self, another_batch):
         """
-        Merges two unprocessed batches
+        Merges two unprocessed batches.
         """
         if self.is_processed or another_batch.is_processed:
-            raise Exception("Cannot merge processed batches")
+            raise Exception("Cannot merge processed batches.")
         if self.loss != another_batch.loss:
-            raise Exception("Cannot merge batches with different losses")
+            raise Exception("Cannot merge batches with different losses.")
         self.envs.update(another_batch.envs)
         self.states += another_batch.states
         self.actions += another_batch.actions
@@ -358,9 +358,10 @@ class Batch:
 
     def _process_trajectory_indices(self):
         """
-        Creates a dict of trajectory indices (key: env_id, value: indecies of the
-        states in self.states going in the order from s_1 to s_f. The dict is created
-        and stored in the self.trajectory_indices
+        Obtains the indices in the batch that correspond to each env. It creates a dict
+        of trajectory indices (key: env_id, value: indices of the states in self.states
+        going in the order from s_1 to s_f. The dict is created and stored in the
+        self.trajectory_indices.
         """
         trajs = defaultdict(list)
         for idx, (env_id, step) in enumerate(zip(self.env_ids, self.steps)):
