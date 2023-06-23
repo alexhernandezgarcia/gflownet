@@ -1,10 +1,11 @@
 from collections import defaultdict
 from copy import deepcopy
-from typing import Union
+from typing import Tuple, Union
 
 import numpy as np
 import torch
 
+from gflownet.envs.base import GFlowNetEnv
 from gflownet.utils.common import (
     concat_items,
     set_device,
@@ -66,12 +67,30 @@ class Batch:
     def __len__(self):
         return len(self.states)
 
-    def add_to_batch(self, envs, actions, valids, train=True):
+    def add_to_batch(
+        self,
+        envs: List[GFlowNetEnv],
+        actions: List[Tuple],
+        valids: List[bool],
+        train: bool = True,
+    ):
         """
-        Adds information about current state of env to the batch after performing step
-        in this env.  If train, updates internal lists with values required for
-        computing self.loss.  Otherwise, stores only states, env_id, step number
-        (everything needed when sampling a trajectory at inference)
+        Adds information from a list of environments and actions to the batch after
+        performing steps in the envs. If train is True, it adds all the variables
+        required for computing the loss specified by self.loss. Otherwise, it stores
+        only states, env_id, step number (everything needed when sampling a trajectory
+        at inference)
+
+        Args
+        ----
+        envs : list
+            A list of environments (GFlowNetEnv).
+
+        actions : list
+            A list of actions attempted or performed on the envs.
+
+        valids : list
+            A list of boolean values indicated whether the actions were valid.
         """
         if self.is_processed:
             raise Exception("Cannot append to the processed batch")
