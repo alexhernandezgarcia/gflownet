@@ -51,11 +51,12 @@ def get_energy(numbers, positions, method="gfnff"):
 
 
 class XTBMoleculeEnergy(Proxy):
-    def __init__(self, method: str = "gfnff", batch_size=1000, **kwargs):
+    def __init__(self, method: str = "gfnff", batch_size=1024, n_samples=5000, **kwargs):
         super().__init__(**kwargs)
 
         self.method = method
         self.batch_size = batch_size
+        self.n_samples = n_samples
         self.max_energy = 0
         self.min = 0
 
@@ -65,6 +66,7 @@ class XTBMoleculeEnergy(Proxy):
         for batch in _chunks(states, self.batch_size):
             tasks = [get_energy.remote(s[:, 0], s[:, 1:], self.method) for s in batch]
             energies.extend(ray.get(tasks))
+            print(len(energies))
 
         energies = torch.tensor(energies, dtype=self.float, device=self.device)
         energies -= self.max_energy
@@ -72,5 +74,8 @@ class XTBMoleculeEnergy(Proxy):
         return energies
 
     def setup(self, env=None):
-        self.max_energy = env.max_energy
-        self.min = env.min_energy - env.max_energy
+        states = env.statebatch2proxy(2 * np.pi * np.random.rand(self.n_samples, 3))
+        energies = self(states)
+
+        self.max_energy = max(energies)
+        self.min = min(energies) - self.max_energy

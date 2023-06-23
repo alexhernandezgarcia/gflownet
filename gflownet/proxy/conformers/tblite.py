@@ -1,8 +1,9 @@
 from typing import List
 
+import numpy as np
 import ray
 import torch
-from tblite.interface import Calculator, Structure
+from tblite.interface import Calculator
 from torch import Tensor
 from wurlitzer import pipes
 
@@ -26,10 +27,11 @@ def _chunks(lst, n):
 
 
 class TBLiteMoleculeEnergy(Proxy):
-    def __init__(self, batch_size=1000, **kwargs):
+    def __init__(self, batch_size=1024, n_samples=5000, **kwargs):
         super().__init__(**kwargs)
 
         self.batch_size = batch_size
+        self.n_samples = n_samples
         self.max_energy = 0
         self.min = 0
 
@@ -46,5 +48,8 @@ class TBLiteMoleculeEnergy(Proxy):
         return energies
 
     def setup(self, env=None):
-        self.max_energy = env.max_energy
-        self.min = env.min_energy - env.max_energy
+        states = env.statebatch2proxy(2 * np.pi * np.random.rand(self.n_samples, 3))
+        energies = self(states)
+
+        self.max_energy = max(energies)
+        self.min = min(energies) - self.max_energy
