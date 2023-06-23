@@ -277,9 +277,8 @@ class Batch:
             # Reverse permutation to make it index the states_proxy array
             index[perm_index] = index.clone()
             states_proxy = concat_items(states_proxy, index)
-        else:
-            states_proxy = env.statetorch2proxy(states)
-        return states_proxy
+            return states_proxy
+        return env.statetorch2proxy(states)
 
     def _process_parents(self):
         """
