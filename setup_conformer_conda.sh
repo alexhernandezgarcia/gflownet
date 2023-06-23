@@ -13,6 +13,7 @@ conda activate $1
 
 conda install mamba -n base -c conda-forge
 
+mamba install xtb -c conda-forge
 mamba install tblite -c conda-forge
 mamba install tblite-python -c conda-forge
 
