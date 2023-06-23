@@ -189,8 +189,8 @@ class Batch:
         env_ids: Optional[List[int]] = None,
     ):
         """
-        Converts states from a list of states in gflownet format to a tensor of states
-        in policy format
+        Converts states from a list of states in GFlowNet format to a tensor of states
+        in policy format.
 
         Args
         ----
@@ -230,15 +230,27 @@ class Batch:
             return states_policy
         return env.statetorch2policy(states)
 
-    def states2proxy(self, states=None, env_ids=None):
+    def states2proxy(
+        self,
+        states: Optional[Union[List, TensorType["n_states", ...]]] = None,
+        env_ids: Optional[List[int]] = None,
+    ):
         """
-        Converts states from a list of states in gflownet format to a tensor of states
-        in proxy format
-        states: list of gflownet states,
-        env_ids: list of env ids indicating which env corresponds to each state in
-        states list
+        Converts states from a list of states in GFlowNet format to a tensor of states
+        in proxy format.
 
-        Returns: list of stattes in proxy format
+        Args
+        ----
+        states: list or torch.tensor
+            States in GFlowNet format.
+
+        env_ids: list
+            Ids indicating which env corresponds to each state in states.
+
+        Returns
+        -------
+        states: torch.tensor
+            States in policy format.
         """
         if states is None:
             states = self.states
@@ -248,7 +260,7 @@ class Batch:
             raise Exception(
                 """
                 env_ids must be provided to the batch for converting provided states to
-                the policy format
+                the proxy format.
                 """
             )
         env = self._get_first_env()
@@ -262,7 +274,7 @@ class Batch:
                 )
                 perm_index.append(index[env_ids == env_id])
             perm_index = torch.cat(perm_index)
-            # reverse permutation to make it index the states_proxy array
+            # Reverse permutation to make it index the states_proxy array
             index[perm_index] = index.clone()
             states_proxy = concat_items(states_proxy, index)
         else:
