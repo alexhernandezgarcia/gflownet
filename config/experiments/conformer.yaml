@@ -3,7 +3,7 @@
 defaults:
    - override /env: conformers/conformer
    - override /gflownet: trajectorybalance
-   - override /proxy: conformers/xtb
+   - override /proxy: conformers/tblite
    - override /logger: wandb
 
 # Number of parallel ray jobs (XTB greatly benefits from parallelization)

@@ -7,7 +7,7 @@ import ray
 from torchtyping import TensorType
 
 from gflownet.envs.ctorus import ContinuousTorus
-from gflownet.proxy.conformers.xtb import get_energy
+from gflownet.proxy.conformers.tblite import get_energy
 from gflownet.utils.molecule.datasets import AtomPositionsDataset
 from gflownet.utils.molecule.rdkit_conformer import RDKitConformer
 

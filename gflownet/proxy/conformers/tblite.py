@@ -25,7 +25,7 @@ def _chunks(lst, n):
         yield lst[i : i + n]
 
 
-class XTBMoleculeEnergy(Proxy):
+class TBLiteMoleculeEnergy(Proxy):
     def __init__(self, batch_size=1000, **kwargs):
         super().__init__(**kwargs)
 
