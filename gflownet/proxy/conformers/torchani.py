@@ -47,7 +47,7 @@ class TorchANIMoleculeEnergy(MoleculeEnergyBase):
         ).to(self.device)
 
     @torch.no_grad()
-    def __call__(self, states: Iterable) -> Tensor:
+    def compute_energy(self, states: Iterable) -> Tensor:
         """
         Args
         ----
@@ -90,8 +90,6 @@ class TorchANIMoleculeEnergy(MoleculeEnergyBase):
             energies = torch.cat(energies).float()
         else:
             energies = self.model((elements, coordinates)).energies.float()
-
-        energies -= self.max_energy
 
         return energies
 

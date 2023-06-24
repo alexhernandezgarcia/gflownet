@@ -60,7 +60,7 @@ class XTBMoleculeEnergy(MoleculeEnergyBase):
 
         self.method = method
 
-    def __call__(self, states: Iterable) -> Tensor:
+    def compute_energy(self, states: Iterable) -> Tensor:
         energies = []
 
         for batch in _chunks(states, self.batch_size):
@@ -68,6 +68,5 @@ class XTBMoleculeEnergy(MoleculeEnergyBase):
             energies.extend(ray.get(tasks))
 
         energies = torch.tensor(energies, dtype=self.float, device=self.device)
-        energies -= self.max_energy
 
         return energies

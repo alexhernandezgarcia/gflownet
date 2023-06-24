@@ -12,6 +12,7 @@ from gflownet.proxy.conformers.base import MoleculeEnergyBase
 @ray.remote
 def get_energy(numbers, positions):
     with pipes():
+        # The positions are converted from Angstrom to Bohr.
         calc = Calculator("GFN2-xTB", numbers, positions * 1.8897259886)
         res = calc.singlepoint()
         energy = res.get("energy").item()
@@ -29,7 +30,7 @@ class TBLiteMoleculeEnergy(MoleculeEnergyBase):
     def __init__(self, batch_size: int = 1024, n_samples: int = 5000, **kwargs):
         super().__init__(batch_size=batch_size, n_samples=n_samples, **kwargs)
 
-    def __call__(self, states: List) -> Tensor:
+    def compute_energy(self, states: List) -> Tensor:
         energies = []
 
         for batch in _chunks(states, self.batch_size):
@@ -37,6 +38,5 @@ class TBLiteMoleculeEnergy(MoleculeEnergyBase):
             energies.extend(ray.get(tasks))
 
         energies = torch.tensor(energies, dtype=self.float, device=self.device)
-        energies -= self.max_energy
 
         return energies
