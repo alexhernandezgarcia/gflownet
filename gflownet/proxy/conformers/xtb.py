@@ -21,6 +21,9 @@ from gflownet.proxy.conformers.tblite import _chunks
 from gflownet.utils.molecule.xtb import run_gfn_xtb
 
 
+METHODS = {"gfn2": "gfn 2", "gfnff": "gfnff"}
+
+
 def _write_xyz_file(
     elements: npt.NDArray, coordinates: npt.NDArray, file_path: str
 ) -> None:
@@ -58,7 +61,11 @@ class XTBMoleculeEnergy(MoleculeEnergyBase):
     ):
         super().__init__(batch_size=batch_size, n_samples=n_samples, **kwargs)
 
-        self.method = method
+        if method not in METHODS.keys():
+            raise ValueError(
+                f"Unrecognized method: {method}, expected one from {METHODS.keys()}."
+            )
+        self.method = METHODS[method]
 
     def compute_energy(self, states: Iterable) -> Tensor:
         energies = []
