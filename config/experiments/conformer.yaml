@@ -16,7 +16,7 @@ env:
   n_comp: 5
   vonmises_min_concentration: 4
   reward_func: boltzmann
-  reward_beta: 64
+  reward_beta: 32
 
 # GFlowNet hyperparameters
 gflownet:
