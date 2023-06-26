@@ -11,3 +11,4 @@ sh/
 .vscode/
 external/
 !requirements.txt
+.DS_Store
