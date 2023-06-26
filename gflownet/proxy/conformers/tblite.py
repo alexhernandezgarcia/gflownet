@@ -1,15 +1,17 @@
+# This needs to be imported first due to conda/pip package conflicts.
+from tblite.interface import Calculator
+
+import os
 from typing import List
 
-import ray
 import torch
-from tblite.interface import Calculator
+from joblib import delayed, Parallel
 from torch import Tensor
 from wurlitzer import pipes
 
 from gflownet.proxy.conformers.base import MoleculeEnergyBase
 
 
-@ray.remote
 def get_energy(numbers, positions):
     with pipes():
         # The positions are converted from Angstrom to Bohr.
@@ -31,11 +33,17 @@ class TBLiteMoleculeEnergy(MoleculeEnergyBase):
         super().__init__(batch_size=batch_size, n_samples=n_samples, **kwargs)
 
     def compute_energy(self, states: List) -> Tensor:
+        # Get the number of available CPUs.
+        n_jobs = len(os.sched_getaffinity(0))
+
         energies = []
 
         for batch in _chunks(states, self.batch_size):
-            tasks = [get_energy.remote(s[:, 0], s[:, 1:]) for s in batch]
-            energies.extend(ray.get(tasks))
+            energies.extend(
+                Parallel(n_jobs=n_jobs)(
+                    delayed(get_energy)(s[:, 0], s[:, 1:]) for s in batch
+                )
+            )
 
         energies = torch.tensor(energies, dtype=self.float, device=self.device)
 

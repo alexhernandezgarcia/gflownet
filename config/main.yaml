@@ -14,8 +14,6 @@ float_precision: 32
 n_samples: 1000
 # Random seeds
 seed: 0
-# Number of parallel ray jobs
-n_jobs: 1
 
 # Hydra config
 hydra:
@@ -26,4 +24,3 @@ hydra:
     # See: https://hydra.cc/docs/upgrades/1.1_to_1.2/changes_to_job_working_dir/
     # See: https://hydra.cc/docs/tutorials/basic/running_your_app/working_directory/#disable-changing-current-working-dir-to-jobs-output-dir
     chdir: True
-

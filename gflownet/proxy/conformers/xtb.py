@@ -5,14 +5,15 @@ try:
 except:
     pass
 
+import os
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Iterable
 
 import numpy as np
 import numpy.typing as npt
-import ray
 import torch
+from joblib import delayed, Parallel
 from torch import Tensor
 from wurlitzer import pipes
 
@@ -39,7 +40,6 @@ def _write_xyz_file(
             f.write(line)
 
 
-@ray.remote
 def get_energy(numbers, positions, method="gfnff"):
     directory = TemporaryDirectory()
     file_name = "input.xyz"
@@ -68,11 +68,17 @@ class XTBMoleculeEnergy(MoleculeEnergyBase):
         self.method = METHODS[method]
 
     def compute_energy(self, states: Iterable) -> Tensor:
+        # Get the number of available CPUs.
+        n_jobs = len(os.sched_getaffinity(0))
+
         energies = []
 
         for batch in _chunks(states, self.batch_size):
-            tasks = [get_energy.remote(s[:, 0], s[:, 1:], self.method) for s in batch]
-            energies.extend(ray.get(tasks))
+            energies.extend(
+                Parallel(n_jobs=n_jobs)(
+                    delayed(get_energy)(s[:, 0], s[:, 1:], self.method) for s in batch
+                )
+            )
 
         energies = torch.tensor(energies, dtype=self.float, device=self.device)
 

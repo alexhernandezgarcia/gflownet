@@ -9,7 +9,7 @@ module --force purge
 module load cuda/11.7
 
 conda create -n $1 python=3.8
-conda activate $1
+source activate $1
 
 conda install mamba -n base -c conda-forge
 
@@ -25,7 +25,6 @@ python -m pip install pyg_lib torch_scatter torch_sparse torch_cluster torch_spl
 # Install DGL (see https://www.dgl.ai/pages/start.html)
 python -m pip install dgl -f https://data.dgl.ai/wheels/cu117/repo.html
 # Requirements to run
-python -m pip install ray ray[tune] ray[default]
 python -m pip install numpy pandas hydra-core tqdm torchtyping six xtb scikit-learn torchani pytorch3d rdkit wurlitzer
 # Conditional requirements
 python -m pip install wandb matplotlib plotly pymatgen gdown
