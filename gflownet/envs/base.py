@@ -191,7 +191,7 @@ class GFlowNetEnv:
 
     def _pre_step(
         self, action: Tuple[int], skip_mask_check: bool = False
-    ) -> Tuple[List[int], Tuple[int], bool]:
+    ) -> Tuple[bool, List[int], Tuple[int]]:
         """
         Performs generic checks shared by the step() method of all environments.
 
@@ -213,25 +213,21 @@ class GFlowNetEnv:
 
         action : int
             Action index
-
-        valid : bool
-            False, if the action is not allowed for the current state, e.g. stop at the
-            root state
         """
         # If action not found in action space raise an error
         if action not in self.action_space:
             raise ValueError(
                 f"Tried to execute action {action} not present in action space."
             )
-        # If env is done, return invalid
+        # If env is done, step should not proceed.
         if self.done:
-            return False, self.state, action, False
-        # If action is in invalid mask, exit immediately
+            return False, self.state, action
+        # If action is in invalid mask, step should not proceed.
         if not (self.skip_mask_check or skip_mask_check):
             action_idx = self.action_space.index(action)
             if self.get_mask_invalid_actions_forward()[action_idx]:
-                return False, self.state, action, False
-        return True, self.state, action, True
+                return False, self.state, action
+        return True, self.state, action
 
     @abstractmethod
     def step(
@@ -261,8 +257,8 @@ class GFlowNetEnv:
             False, if the action is not allowed for the current state, e.g. stop at the
             root state
         """
-        _, self.state, action, valid = self._pre_step(action, skip_mask_check)
-        return state, action, valid
+        _, self.state, action = self._pre_step(action, skip_mask_check)
+        return None, None, None
 
     def sample_actions(
         self,

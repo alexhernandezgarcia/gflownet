@@ -299,11 +299,11 @@ class Crystal(GFlowNetEnv):
             False, if the action is not allowed for the current state.
         """
         # Generic pre-step checks
-        do_step, self.state, action, valid = self._pre_step(
+        do_step, self.state, action = self._pre_step(
             action, skip_mask_check or self.skip_mask_check
         )
         if not do_step:
-            return self.state, action, valid
+            return self.state, action, False
         # If only possible action is eos, then force eos
         if sum(self.state) == self.max_atoms:
             self.done = True
