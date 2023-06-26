@@ -4,7 +4,6 @@ An environment inspired by the game of Tetris.
 import itertools
 import re
 import warnings
-from textwrap import dedent
 from typing import List, Optional, Tuple
 
 import numpy as np
