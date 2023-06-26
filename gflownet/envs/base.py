@@ -36,7 +36,7 @@ class GFlowNetEnv:
         proxy_state_format: str = "oracle",
         fixed_distribution: Optional[dict] = None,
         random_distribution: Optional[dict] = None,
-        conditional=False,
+        conditional: bool = False,
         **kwargs,
     ):
         # Flag whether env is conditional
