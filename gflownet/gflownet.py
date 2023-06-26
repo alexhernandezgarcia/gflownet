@@ -700,7 +700,10 @@ class GFlowNetAgent:
         trajs = [tuple(el) for el in trajs]
         return states, trajs
 
-    def sample_backwards(self, states_term: List, n_trajectories: int = 1):
+    @torch.no_grad()
+    def sample_backwards(
+        self, states_term: List, n_trajectories: int = 1, max_iters_per_traj: int = 10
+    ):
         times = {}
         batch = {}
         envs = []
@@ -710,27 +713,30 @@ class GFlowNetAgent:
             envs.append(env)
             batch.update({env.id: {"states": [env.state], "actions": []}})
         valids = [True] * len(envs)
-        while envs:
+        max_iters = n_trajectories * max_iters_per_traj
+        iters = 0
+        while envs and iters < max_iters:
             # Sample backward actions
-            with torch.no_grad():
-                actions = self.sample_actions(
-                    envs,
-                    times,
-                    sampling_method="policy",
-                    model=self.backward_policy,
-                    is_forward=False,
-                    temperature=1.0,
-                    random_action_prob=0.0,
-                )
+            actions = self.sample_actions(
+                envs,
+                times,
+                sampling_method="policy",
+                model=self.backward_policy,
+                is_forward=False,
+                temperature=1.0,
+                random_action_prob=0.0,
+            )
             # Update environments with sampled actions
             envs, actions, valids = self.step(envs, actions, is_forward=False)
             assert all(valids)
             # Add to batch
+            # TODO: check repeated trajectories
             for env, action in zip(envs, actions):
                 batch[env.id]["states"].append(env.state)
                 batch[env.id]["actions"].append(action)
             # Filter out finished trajectories
             envs = [env for env in envs if not env.equal(env.state, env.source)]
+            iters += 1
         return batch
 
     def train(self):
