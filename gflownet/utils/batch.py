@@ -155,20 +155,13 @@ class Batch:
             if self.loss == "flowmatch":
                 self.parents_all_state_idx = tlong(
                     sum(
-                        [
-                            [idx] * len(p)
-                            for idx, p in enumerate(self.parents_all)
-                        ],
+                        [[idx] * len(p) for idx, p in enumerate(self.parents_all)],
                         [],
                     ),
                     device=self.device,
                 )
                 self.parents_actions_all = tfloat(
-                    [
-                        a
-                        for actions in self.parents_actions_all
-                        for a in actions
-                    ],
+                    [a for actions in self.parents_actions_all for a in actions],
                     device=self.device,
                     float_type=self.float,
                 )
@@ -176,7 +169,12 @@ class Batch:
                 self.masks_invalid_actions_backward = tbool(
                     self.masks_invalid_actions_backward, device=self.device
                 )
-            self.parents, self.parents_policy, self.parents_all, self.parents_all_policy = self._process_parents()
+            (
+                self.parents,
+                self.parents_policy,
+                self.parents_all,
+                self.parents_all_policy,
+            ) = self._process_parents()
         self.is_processed = True
 
     def _process_states(self):
@@ -185,7 +183,7 @@ class Batch:
 
         Returns
         -------
-        states: torch.tensor 
+        states: torch.tensor
             Tensor containing the states converted to a torch tensor.
         states_policy: torch.tensor
             Tensor containing the states converted to the policy format.
@@ -415,7 +413,7 @@ class Batch:
     def compute_rewards(self):
         """
         Computes rewards for self.states using proxy from one of the self.envs
-        
+
         Returns
         -------
         rewards: torch.tensor
