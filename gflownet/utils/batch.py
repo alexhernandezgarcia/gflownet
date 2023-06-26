@@ -63,7 +63,9 @@ class Batch:
     def __len__(self):
         return len(self.states)
 
-    def add_to_batch(self, envs, actions, valids, train=True):
+    def add_to_batch(
+        self, envs, actions, valids, masks_invalid_actions_forward=None, train=True
+    ):
         """
         Adds information about current state of env to the batch after performing step in this env.
         If train, updates internal lists with values required for computing self.loss.
@@ -71,7 +73,19 @@ class Batch:
         """
         if self.is_processed:
             raise Exception("Cannot append to the processed batch")
-        for env, action, valid in zip(envs, actions, valids):
+
+        # Sample masks of invalid actions if required and none are provided
+        if masks_invalid_actions_forward is None:
+            if train:
+                masks_invalid_actions_forward = [
+                    env.get_mask_invalid_actions_forward() for env in envs
+                ]
+            else:
+                masks_invalid_actions_forward = [None] * len(envs)
+
+        # Add data samples to the batch
+        for sample_data in zip(envs, actions, valids, masks_invalid_actions_forward):
+            env, action, valid, mask_forward = sample_data
             self.envs.update({env.id: env})
             if not valid:
                 continue
@@ -81,9 +95,7 @@ class Batch:
                 self.env_ids.append(env.id)
                 self.done.append(env.done)
                 self.steps.append(env.n_actions)
-                self.masks_invalid_actions_forward.append(
-                    env.get_mask_invalid_actions_forward()
-                )
+                self.masks_invalid_actions_forward.append(mask_forward)
                 if self.loss == "flowmatch":
                     parents, parents_a = env.get_parents(action=action)
                     assert (
