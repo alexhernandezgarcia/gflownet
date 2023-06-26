@@ -282,7 +282,7 @@ class GFlowNetAgent:
             mask_invalid_actions,
             temperature,
         )
-        return actions
+        return actions, mask_invalid_actions
 
     def step(
         self,
@@ -392,7 +392,7 @@ class GFlowNetAgent:
         while envs_offline:
             # Sample backward actions
             with torch.no_grad():
-                actions = self.sample_actions(
+                actions, _ = self.sample_actions(
                     envs_offline,
                     times,
                     sampling_method="policy",
@@ -416,7 +416,7 @@ class GFlowNetAgent:
             # Sample forward actions
             with torch.no_grad():
                 if train is False:
-                    actions = self.sample_actions(
+                    actions, mask_invalid_actions_forward = self.sample_actions(
                         envs,
                         times,
                         sampling_method="policy",
@@ -426,7 +426,7 @@ class GFlowNetAgent:
                         random_action_prob=self.random_action_prob,
                     )
                 else:
-                    actions = self.sample_actions(
+                    actions, mask_invalid_actions_forward = self.sample_actions(
                         envs,
                         times,
                         sampling_method="policy",
