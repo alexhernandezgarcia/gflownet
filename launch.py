@@ -288,7 +288,6 @@ if __name__ == "__main__":
 
     args = {k: v for k, v in vars(known).items() if v is not None}
     root = Path(__file__).resolve().parent
-
     defaults = {
         "code_dir": "~/ocp-project/gflownet",
         "conda_env": "gflownet",
@@ -308,20 +307,102 @@ if __name__ == "__main__":
         "verbose": False,
     }
 
-    if args.get("help"):
-        print(parser.format_help())
-        print()
-        print(">>> DEFAULTS VALUES:")
-        print(
-            "\n".join(
-                [
-                    f"    {k:{max(len(d) for d in defaults)+1}}: {str(v)}"
-                    for k, v in defaults.items()
-                ]
-            )
-        )
-        print()
-        print(HELP)
+    parser = ArgumentParser(add_help=False)
+    parser.add_argument(
+        "-h", "--help", action="store_true", help="show this help message and exit"
+    )
+    parser.add_argument(
+        "--help-md",
+        action="store_true",
+        help="Show an extended help message as markdown. Can be useful to overwrite "
+        + "LAUNCH.md with `$ python launch.py --help-md > LAUNCH.md`",
+    )
+    parser.add_argument(
+        "--job_name",
+        type=str,
+        help="slurm job name to show in squeue."
+        + f" Defaults to {defaults['job_name']}",
+    )
+    parser.add_argument(
+        "--outdir",
+        type=str,
+        help="where to write the slurm .out file."
+        + f" Defaults to {defaults['outdir']}",
+    )
+    parser.add_argument(
+        "--cpus_per_task",
+        type=int,
+        help="number of cpus per SLURM task."
+        + f" Defaults to {defaults['cpus_per_task']}",
+    )
+    parser.add_argument(
+        "--mem",
+        type=str,
+        help="memory per node (e.g. 32G)." + f" Defaults to {defaults['mem']}",
+    )
+    parser.add_argument(
+        "--gres",
+        type=str,
+        help="gres per node (e.g. gpu:1)." + f" Defaults to {defaults['gres']}",
+    )
+    parser.add_argument(
+        "--partition",
+        type=str,
+        help="slurm partition to use for the job."
+        + f" Defaults to {defaults['partition']}",
+    )
+    parser.add_argument(
+        "--modules",
+        type=str,
+        help="string after 'module load'." + f" Defaults to {defaults['modules']}",
+    )
+    parser.add_argument(
+        "--conda_env",
+        type=str,
+        help="conda environment name." + f" Defaults to {defaults['gflownet']}",
+    )
+    parser.add_argument(
+        "--venv",
+        type=str,
+        help="path to venv (without bin/activate)."
+        + f" Defaults to {defaults['venv']}",
+    )
+    parser.add_argument(
+        "--code_dir",
+        type=str,
+        help="cd before running main.py (defaults to here)."
+        + f" Defaults to {defaults['code_dir']}",
+    )
+    parser.add_argument(
+        "--jobs",
+        type=str,
+        help="run file name in external/jobs (without .yaml)."
+        + f" Defaults to {defaults['jobs']}",
+    )
+    parser.add_argument(
+        "--dev",
+        action="store_true",
+        help="Don't run just, show what it would have run."
+        + f" Defaults to {defaults['dev']}",
+    )
+    parser.add_argument(
+        "--verbose",
+        action="store_true",
+        help="print templated sbatch after running it."
+        + f" Defaults to {defaults['verbose']}",
+    )
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="skip user confirmation." + f" Defaults to {defaults['force']}",
+    )
+
+    known, unknown = parser.parse_known_args()
+
+    cli_script_args = (" " + " ".join(unknown)) if unknown else ""
+
+    args = {k: v for k, v in vars(known).items() if v is not None}
+
         sys.exit(0)
 
     # load sbatch template file to format
