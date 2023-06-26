@@ -378,7 +378,7 @@ class SpaceGroup(GFlowNetEnv):
         Sets the state and done. If done is True but incompatible with state (space
         group is missing), then force done False and print warning.
         """
-        if done == True and state[self.sg_idx] == 0:
+        if done is True and state[self.sg_idx] == 0:
             done = False
             warnings.warn(
                 f"""
