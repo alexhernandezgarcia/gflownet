@@ -560,3 +560,32 @@ class GFlowNetEnv:
     def setup_proxy(self):
         if self.proxy:
             self.proxy.setup(self)
+
+    @torch.no_grad()
+    def compute_train_energy_proxy_and_rewards(self):
+        """
+        Gather batched proxy data:
+
+        * The ground-truth energy of the train set
+        * The predicted proxy energy over the train set
+        * The reward version of those energies (with env.proxy2reward)
+
+        Returns
+        -------
+        gt_energy : torch.Tensor
+            The ground-truth energies in the proxy's train set
+
+        proxy_energy : torch.Tensor
+            The proxy's predicted energies over its train set
+
+        gt_reward : torch.Tensor
+            The reward version of the ground-truth energies
+
+        proxy_reward : torch.Tensor
+            The reward version of the proxy's predicted energies
+        """
+        gt_energy, proxy_energy = self.proxy.infer_on_train_set()
+        gt_reward = self.proxy2reward(gt_energy)
+        proxy_reward = self.proxy2reward(proxy_energy)
+
+        return gt_energy, proxy_energy, gt_reward, proxy_reward

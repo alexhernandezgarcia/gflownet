@@ -1,12 +1,14 @@
 import os
+import re
+import sys
+from copy import deepcopy
 from pathlib import Path
 
+import git
 import torch
 from torchtyping import TensorType
+
 from gflownet.proxy.base import Proxy
-import git
-import sys
-import re
 
 # gflownet/ repo root
 ROOT = Path(__file__).resolve().parent.parent.parent.parent
@@ -139,3 +141,46 @@ class DAVE(Proxy):
             y = y * self.scales["y"]["std"] + self.scales["y"]["mean"]
 
         return y
+
+    @torch.no_grad()
+    def infer_on_train_set(self):
+        """
+        Infer on the training set and return the ground-truth and proxy values.
+
+        Returns:
+        --------
+        energy: torch.Tensor
+            Ground-truth energies in the proxy's training set.
+        proxy: torch.Tensor
+            Proxy inference on its training set.
+        """
+        rso = deepcopy(self.rescale_outputs)
+        self.rescale_outputs = False
+        y_mean = self.scales["y"]["mean"]
+        y_std = self.scales["y"]["std"]
+
+        energy = []
+        proxy = []
+
+        for b in self.proxy_loaders["train"]:
+            x, e_normed = b
+            for k, t in enumerate(x):
+                if t.ndim == 1:
+                    x[k] = t[:, None]
+                if t.ndim > 2:
+                    x[k] = t.squeeze()
+                assert (
+                    x[k].ndim == 2
+                ), f"t.ndim = {x[k].ndim} != 2 (t.shape: {x[k].shape})"
+            p_normed = self.proxy(torch.cat(x, dim=-1))
+            e = e_normed * y_std + y_mean
+            p = p_normed * y_std + y_mean
+            energy.append(e)
+            proxy.append(p)
+
+        self.rescale_outputs = rso
+
+        energy = torch.cat(energy).cpu()
+        proxy = torch.cat(proxy).cpu()
+
+        return energy, proxy
