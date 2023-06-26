@@ -140,7 +140,7 @@ class Batch:
           self.states_policy, self.parents_policy)
         """
         self.env_ids = tlong(self.env_ids, device=self.device)
-        self._process_states()
+        self.states, self.states_policy = self._process_states()
         self.n_actions = tlong(self.n_actions, device=self.device)
         self._process_trajectory_indices()
         # process other variables, if we are in the train mode and recorded them
@@ -184,8 +184,9 @@ class Batch:
         Converts self.states from list to torch tensor, computes states in the policy
         format (stored in self.states_policy)
         """
-        self.states = tfloat(self.states, device=self.device, float_type=self.float)
-        self.states_policy = self.states2policy()
+        states = tfloat(self.states, device=self.device, float_type=self.float)
+        states_policy = self.states2policy(states, self.env_ids)
+        return states, states_policy
 
     def states2policy(
         self,
