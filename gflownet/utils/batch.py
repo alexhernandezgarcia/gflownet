@@ -1,11 +1,14 @@
 from collections import defaultdict
 from copy import deepcopy
-from typing import Any
+from typing import List, Optional, Tuple, Union
 
 import numpy as np
 import torch
+from torchtyping import TensorType
 
+from gflownet.envs.base import GFlowNetEnv
 from gflownet.utils.common import (
+    concat_items,
     set_device,
     set_float_precision,
     tbool,
@@ -33,15 +36,16 @@ class Batch:
     be unique.
     """
 
-    def __init__(self, loss: str, device: Any = "cpu", float_type: Any = 32):
+    def __init__(
+        self,
+        loss: str,
+        device: Union[str, torch.device] = "cpu",
+        float_type: Union[int, torch.dtype] = 32,
+    ):
         # Device
-        if isinstance(device, str):
-            device = set_device(device)
-        self.device = device
+        self.device = set_device(device)
         # Float precision
-        if isinstance(float_type, int):
-            float_type = set_float_precision(float_type)
-        self.float = float_type
+        self.float = set_float_precision(float_type)
         # Loss
         self.loss = loss
         # Initialize empty batch variables
@@ -53,8 +57,9 @@ class Batch:
         self.masks_invalid_actions_forward = []
         self.masks_invalid_actions_backward = []
         self.parents = []
-        self.parents_actions = []
-        self.steps = []
+        self.parents_all = []
+        self.parents_actions_all = []
+        self.n_actions = []
         self.is_processed = False
         self.states_policy = None
         self.parents_policy = None
@@ -64,12 +69,30 @@ class Batch:
         return len(self.states)
 
     def add_to_batch(
-        self, envs, actions, valids, masks_invalid_actions_forward=None, train=True
+        self,
+        envs: List[GFlowNetEnv],
+        actions: List[Tuple],
+        valids: List[bool],
+        masks_invalid_actions_forward: Optional[List[bool]] = True,
+        train: Optional[bool] = True,
     ):
         """
-        Adds information about current state of env to the batch after performing step in this env.
-        If train, updates internal lists with values required for computing self.loss.
-        Otherwise, stores only states, env_id, step number (everything needed when sampling a trajectory at inference)
+        Adds information from a list of environments and actions to the batch after
+        performing steps in the envs. If train is True, it adds all the variables
+        required for computing the loss specified by self.loss. Otherwise, it stores
+        only states, env_id, step number (everything needed when sampling a trajectory
+        at inference)
+
+        Args
+        ----
+        envs : list
+            A list of environments (GFlowNetEnv).
+
+        actions : list
+            A list of actions attempted or performed on the envs.
+
+        valids : list
+            A list of boolean values indicated whether the actions were valid.
         """
         if self.is_processed:
             raise Exception("Cannot append to the processed batch")
@@ -94,7 +117,7 @@ class Batch:
                 self.actions.append(action)
                 self.env_ids.append(env.id)
                 self.done.append(env.done)
-                self.steps.append(env.n_actions)
+                self.n_actions.append(env.n_actions)
                 self.masks_invalid_actions_forward.append(mask_forward)
                 if self.loss == "flowmatch":
                     parents, parents_a = env.get_parents(action=action)
@@ -104,8 +127,8 @@ class Batch:
                     Sampled action is not in the list of valid actions from parents.
                     \nState:\n{env.state}\nAction:\n{action}
                     """
-                    self.parents.append(parents)
-                    self.parents_actions.append(parents_a)
+                    self.parents_all.append(parents)
+                    self.parents_actions_all.append(parents_a)
                 if self.loss == "trajectorybalance":
                     self.masks_invalid_actions_backward.append(
                         env.get_mask_invalid_actions_backward(
@@ -116,19 +139,21 @@ class Batch:
                 if env.done:
                     self.states.append(env.state)
                     self.env_ids.append(env.id)
-                    self.steps.append(env.n_actions)
+                    self.n_actions.append(env.n_actions)
 
     def process_batch(self):
         """
-        Process internal lists to more convenient formats:
-        - converts and stacks list to a single torch tensor
-        - computes trajectory indicies (indecies of the states in self.states corresponding to each trajectory)
-        - if needed, computes states and parents in policy formats (stored in self.states_policy, self.parents_policy)
+        Converts internal lists into more convenient formats:
+        - converts and stacks lists into a single torch tensor
+        - computes trajectory indices (indices of the states in self.states
+          corresponding to each trajectory)
+        - if needed, converts states and parents into policy formats (stored in
+          self.states_policy, self.parents_policy)
         """
-        self._process_states()
         self.env_ids = tlong(self.env_ids, device=self.device)
-        self.steps = tlong(self.steps, device=self.device)
-        self._process_trajectory_indices()
+        self.states, self.states_policy = self._process_states()
+        self.n_actions = tlong(self.n_actions, device=self.device)
+        self.trajectory_indices = self._process_trajectory_indices()
         # process other variables, if we are in the train mode and recorded them
         if len(self.actions) > 0:
             self.actions = tfloat(
@@ -139,38 +164,67 @@ class Batch:
                 self.masks_invalid_actions_forward, device=self.device
             )
             if self.loss == "flowmatch":
-                self.parents_state_idx = tlong(
-                    sum([[idx] * len(p) for idx, p in enumerate(self.parents)], []),
+                self.parents_all_state_idx = tlong(
+                    sum(
+                        [[idx] * len(p) for idx, p in enumerate(self.parents_all)],
+                        [],
+                    ),
                     device=self.device,
                 )
-                self.parents_actions = torch.cat(
-                    [
-                        tfloat(x, device=self.device, float_type=self.float)
-                        for x in self.parents_actions
-                    ]
+                self.parents_actions_all = tfloat(
+                    [a for actions in self.parents_actions_all for a in actions],
+                    device=self.device,
+                    float_type=self.float,
                 )
             elif self.loss == "trajectorybalance":
                 self.masks_invalid_actions_backward = tbool(
                     self.masks_invalid_actions_backward, device=self.device
                 )
-            self._process_parents()
+            (
+                self.parents,
+                self.parents_policy,
+                self.parents_all,
+                self.parents_all_policy,
+            ) = self._process_parents()
         self.is_processed = True
 
     def _process_states(self):
         """
-        Converts self.statees from list to torch tensor, computes states in the policy format
-        (stored in self.states_policy)
-        """
-        self.states_policy = self.states2policy()
-        self.states = tfloat(self.states, device=self.device, float_type=self.float)
+        Convert self.states from a list to a torch tensor and compute states in the policy format.
 
-    def states2policy(self, states=None, env_ids=None):
-        """
-        Converts states from a list of states in gflownet fromat to a tensor of states in policy format
-        states: list of gflownet states,
-        env_ids: list of env ids indicating which env corresponds to each state in states list
+        Returns
+        -------
+        states: torch.tensor
+            Tensor containing the states converted to a torch tensor.
+        states_policy: torch.tensor
+            Tensor containing the states converted to the policy format.
 
-        Returns: torch tensor of stattes in policy format
+        """
+        states = tfloat(self.states, device=self.device, float_type=self.float)
+        states_policy = self.states2policy(states, self.env_ids)
+        return states, states_policy
+
+    def states2policy(
+        self,
+        states: Optional[Union[List, TensorType["n_states", "..."]]] = None,
+        env_ids: Optional[List[int]] = None,
+    ):
+        """
+        Converts states from a list of states in GFlowNet format to a tensor of states
+        in policy format.
+
+        Args
+        ----
+        states: list or torch.tensor
+            States in GFlowNet format.
+
+        env_ids: list
+            Ids indicating which env corresponds to each state in states.
+
+        Returns
+        -------
+        states: torch.tensor
+            States in policy format.
         """
         if states is None:
             states = self.states
@@ -178,38 +232,108 @@ class Batch:
         elif env_ids is None:
             # if states are provided, env_ids should be provided too
             raise Exception(
-                "env_ids must be provided to the batch for converting provided states to the policy format"
+                """
+                env_ids must be provided to the batch for converting provided states to
+                the policy format.
+                """
             )
-        states_policy = []
-        for state, env_id in zip(states, env_ids):
-            states_policy.append(self.envs[env_id].state2policy(state))
-        return tfloat(states_policy, device=self.device, float_type=self.float)
+        env = self._get_first_env()
+        if env.conditional:
+            states_policy = torch.zeros(
+                (states.shape[0], env.policy_input_dim),
+                device=self.device,
+                dtype=self.float,
+            )
+            for env_id in torch.unique(env_ids):
+                states_policy[env_ids == env_id] = self.envs[
+                    env_id.item()
+                ].statetorch2policy(states[env_ids == env_id])
+            return states_policy
+        return env.statetorch2policy(states)
+
+    def states2proxy(
+        self,
+        states: Optional[Union[List, TensorType["n_states", "..."]]] = None,
+        env_ids: Optional[List[int]] = None,
+    ):
+        """
+        Converts states from a list of states in GFlowNet format to a tensor of states
+        in proxy format.
+
+        Args
+        ----
+        states: list or torch.tensor
+            States in GFlowNet format.
+
+        env_ids: list
+            Ids indicating which env corresponds to each state in states.
+
+        Returns
+        -------
+        states: torch.tensor
+            States in policy format.
+        """
+        if states is None:
+            states = self.states
+            env_ids = self.env_ids
+        elif env_ids is None:
+            # if states are provided, env_ids should be provided too
+            raise Exception(
+                """
+                env_ids must be provided to the batch for converting provided states to
+                the proxy format.
+                """
+            )
+        env = self._get_first_env()
+        if env.conditional:
+            states_proxy = []
+            index = torch.arange(states.shape[0], device=self.device)
+            perm_index = []
+            for env_id in torch.unique(env_ids):
+                states_proxy.append(
+                    self.envs[env_id.item()].statetorch2proxy(states[env_ids == env_id])
+                )
+                perm_index.append(index[env_ids == env_id])
+            perm_index = torch.cat(perm_index)
+            # Reverse permutation to make it index the states_proxy array
+            index[perm_index] = index.clone()
+            states_proxy = concat_items(states_proxy, index)
+            return states_proxy
+        return env.statetorch2proxy(states)
 
     def _process_parents(self):
         """
-        Prepares self.parents (gflownet format) and self.parents_policy (policy format) as torch tensors.
-        Different behaviour depending on self.loss:
-            - for flowmatch, parents contain all the possible parents for each state,
-            so this tensor is bigger than self.state (all the parents are alinged the zero dimension, )
-            - for trajectorybalance, parents contain only one parent for each state which was its parent in the trajectory
+        Process parents for the given loss type.
+
+        Returns
+        -------
+        parents: torch.tensor
+            Tensor of parent states.
+        parents_policy: torch.tensor
+            Tensor of parent states converted to policy format.
+        parents_all: torch.tensor
+            Tensor of all parent states.
+        parents_all_policy: torch.tensor
+            Tensor of all parent states converted to policy format.
         """
+        parents = []
+        parents_policy = []
+        parents_all = []
+        parents_all_policy = []
         if self.loss == "flowmatch":
-            parents_policy = []
-            for par, env_id in zip(self.parents, self.env_ids):
-                parents_policy.append(
+            for par, env_id in zip(self.parents_all, self.env_ids):
+                parents_all_policy.append(
                     tfloat(
                         self.envs[env_id.item()].statebatch2policy(par),
                         device=self.device,
                         float_type=self.float,
                     )
                 )
-            self.parents_policy = torch.cat(parents_policy)
-            # import ipdb; ipdb.set_trace()
-            self.parents = torch.cat(
-                [
-                    tfloat(par, device=self.device, float_type=self.float)
-                    for par in self.parents
-                ]
+            parents_all_policy = torch.cat(parents_all_policy)
+            parents_all = tfloat(
+                [p for parents in self.parents_all for p in parents],
+                device=self.device,
+                float_type=self.float,
             )
         elif self.loss == "trajectorybalance":
             assert self.trajectory_indices is not None
@@ -230,17 +354,16 @@ class Batch:
                 # parent is not source
                 parents_policy[traj[1:]] = self.states_policy[traj[:-1]]
                 parents[traj[1:]] = self.states[traj[:-1]]
-            self.parents_policy = parents_policy
-            self.parents = parents
+        return parents, parents_policy, parents_all, parents_all_policy
 
     def merge(self, another_batch):
         """
-        Merges two unprocessed batches
+        Merges two unprocessed batches.
         """
         if self.is_processed or another_batch.is_processed:
-            raise Exception("Cannot merge processed batches")
+            raise Exception("Cannot merge processed batches.")
         if self.loss != another_batch.loss:
-            raise Exception("Cannot merge batches with different losses")
+            raise Exception("Cannot merge batches with different losses.")
         self.envs.update(another_batch.envs)
         self.states += another_batch.states
         self.actions += another_batch.actions
@@ -253,24 +376,33 @@ class Batch:
             another_batch.masks_invalid_actions_backward
         )
         self.parents += another_batch.parents
-        self.parents_actions += another_batch.parents_actions
-        self.steps += another_batch.steps
+        self.parents_all += another_batch.parents_all
+        self.parents_actions_all += another_batch.parents_actions_all
+        self.n_actions += another_batch.n_actions
 
     def _process_trajectory_indices(self):
         """
-        Creates a dict of trajectory indices (key: env_id, value: indecies of the
-        states in self.states going in the order from s_1 to s_f. The dict is created
-        and stored in the self.trajectory_indices
+        Obtain the indices in the batch that correspond to each environment.
+        Creates a dictionary of trajectory indices (key: env_id, value: indices of the states in self.states
+        ordered from s_1 to s_f).
+
+        Returns
+        -------
+        trajs: dict
+            Dictionary containing trajectory indices for each environment.
         """
         trajs = defaultdict(list)
-        for idx, (env_id, step) in enumerate(zip(self.env_ids, self.steps)):
+        for idx, (env_id, step) in enumerate(zip(self.env_ids, self.n_actions)):
             trajs[env_id.item()].append((idx, step))
         trajs = {
             env_id: list(map(lambda x: x[0], sorted(traj, key=lambda x: x[1])))
             for env_id, traj in trajs.items()
         }
-        self.trajectory_indices = trajs
+        return trajs
 
+    # TODO: rethink and re-implement. Outputs should not be tuples. It needs to be
+    # refactored together with the buffer.
+    # TODO: docstring
     def unpack_terminal_states(self):
         """
         For storing terminal states and trajectory actions in the buffer
@@ -281,8 +413,8 @@ class Batch:
         # rewards will be)
         if not self.is_processed:
             self.process_batch()
-        traj_actions = []
         terminal_states = []
+        traj_actions = []
         for traj_idx in self.trajectory_indices.values():
             traj_actions.append(self.actions[traj_idx].tolist())
             terminal_states.append(tuple(self.states[traj_idx[-1]].tolist()))
@@ -291,10 +423,21 @@ class Batch:
 
     def compute_rewards(self):
         """
-        Computes rewards for self.states using env.reward_tobatch
+        Computes rewards for self.states using proxy from one of the self.envs
+
+        Returns
+        -------
+        rewards: torch.tensor
+            Tensor of rewards.
         """
-        rewards = torch.zeros(len(self.states), device=self.device, dtype=self.float)
-        for env_id, env in self.envs.items():
-            idx = self.env_ids == env_id
-            rewards[idx] = env.reward_torchbatch(self.states[idx], self.done[idx])
+        states_proxy_done = self.states2proxy(
+            states=self.states[self.done], env_ids=self.env_ids[self.done]
+        )
+        env = self._get_first_env()
+        rewards = torch.zeros(self.done.shape[0], dtype=self.float, device=self.device)
+        if self.states[self.done, :].shape[0] > 0:
+            rewards[self.done] = env.proxy2reward(env.proxy(states_proxy_done))
         return rewards
+
+    def _get_first_env(self):
+        return self.envs[next(iter(self.envs))]

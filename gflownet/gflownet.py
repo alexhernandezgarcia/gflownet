@@ -479,10 +479,10 @@ class GFlowNetAgent:
         # Convert lists in the batch into tensors
         batch.process_batch()
         # Unpack batch
-        parents_state_idx = batch.parents_state_idx
+        parents_state_idx = batch.parents_all_state_idx
         states = batch.states_policy
-        parents = batch.parents_policy
-        parents_actions = batch.parents_actions
+        parents = batch.parents_all_policy
+        parents_actions = batch.parents_actions_all
         done = batch.done
         masks_sf = batch.masks_invalid_actions_forward
 
@@ -549,7 +549,7 @@ class GFlowNetAgent:
         masks_sf = batch.masks_invalid_actions_forward
         masks_b = batch.masks_invalid_actions_backward
         traj_ids = batch.env_ids
-        state_ids = batch.steps
+        state_ids = batch.n_actions
 
         # Shift state_ids to [1, 2, ...]
         for tid in traj_ids.unique():
@@ -691,10 +691,12 @@ class GFlowNetAgent:
             # Moving average of the loss for early stopping
             if loss_term_ema and loss_flow_ema:
                 loss_term_ema = (
-                    self.ema_alpha * losses[1] + (1.0 - self.ema_alpha) * loss_term_ema
+                    self.ema_alpha * losses[1].item()
+                    + (1.0 - self.ema_alpha) * loss_term_ema
                 )
                 loss_flow_ema = (
-                    self.ema_alpha * losses[2] + (1.0 - self.ema_alpha) * loss_flow_ema
+                    self.ema_alpha * losses[2].item()
+                    + (1.0 - self.ema_alpha) * loss_flow_ema
                 )
                 if (
                     loss_term_ema < self.early_stopping
@@ -702,8 +704,9 @@ class GFlowNetAgent:
                 ):
                     break
             else:
-                loss_term_ema = losses[1]
-                loss_flow_ema = losses[2]
+                loss_term_ema = losses[1].item()
+                loss_flow_ema = losses[2].item()
+
             # Log times
             t1_iter = time.time()
             times.update({"iter": t1_iter - t0_iter})

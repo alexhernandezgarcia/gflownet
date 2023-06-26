@@ -1,19 +1,24 @@
 from collections.abc import MutableMapping
 from pathlib import Path
+from typing import Union
 
 import numpy as np
 import torch
 from hydra.utils import get_original_cwd
 
 
-def set_device(device: str):
+def set_device(device: Union[str, torch.device]):
+    if isinstance(device, torch.device):
+        return device
     if device.lower() == "cuda" and torch.cuda.is_available():
         return torch.device("cuda")
     else:
         return torch.device("cpu")
 
 
-def set_float_precision(precision: int):
+def set_float_precision(precision: Union[int, torch.dtype]):
+    if isinstance(precision, torch.dtype):
+        return precision
     if precision == 16:
         return torch.float16
     elif precision == 32:
@@ -99,3 +104,21 @@ def tbool(x, device):
         return x.type(torch.bool).to(device)
     else:
         return torch.tensor(x, dtype=torch.bool, device=device)
+
+
+def concat_items(list_of_items, index=None):
+    if isinstance(list_of_items[0], np.ndarray):
+        result = np.concatenate(list_of_items)
+        if index is not None:
+            index = index.cpu().numpy()
+            result = result[index]
+    elif torch.is_tensor(list_of_items[0]):
+        result = torch.cat(list_of_items)
+        if index is not None:
+            result = result[index]
+    else:
+        raise NotImplementedError(
+            "cannot concatenate {}".format(type(list_of_items[0]))
+        )
+
+    return result
