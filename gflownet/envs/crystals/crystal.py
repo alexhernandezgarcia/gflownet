@@ -544,8 +544,73 @@ class Crystal(GFlowNetEnv):
 
     @torch.no_grad()
     def top_k_metrics_and_plots(
-        self, states, top_k, name, energy=None, reward=None, step=None, **kwargs
+        self,
+        states,
+        top_k,
+        name,
+        energy=None,
+        reward=None,
+        step=None,
+        **kwargs,
     ):
+        """
+        Compute top_k metrics and plots for the given states.
+
+        In particular, if no states, energy, or reward are passed, then the name
+        *must* be "train", and the energy and reward will be computed from the
+        proxy using `env.compute_train_energy_proxy_and_rewards()`. In this case,
+        `top_k_metrics_and_plots` will be called a second time to compute the
+        metrics and plots of the proxy distribution in addition to the ground-truth
+        distribution.
+        Train mode should only be called once at the begining of training as
+        distributions do not change over time.
+
+        If `states` are passed, then the energy and reward will be computed from the
+        proxy for those states. They are typically sampled from the current GFN.
+
+        Otherwise, energy and reward should be passed directly.
+
+        *Plots and metrics*:
+        - mean+std of energy and reward
+        - mean+std of top_k energy and reward
+        - histogram of energy and reward
+        - histogram of top_k energy and reward
+
+
+        Args
+        ----
+        states: list
+            List of states to compute metrics and plots for.
+
+        top_k: int
+            Number of top k states to compute metrics and plots for.
+            "top" means lowest energy/highest reward.
+
+        name: str
+            Name of the distribution to compute metrics and plots for.
+            Typically "gflownet", "random" or "train".
+
+        energy: torch.Tensor, optional
+            Batch of pre-computed energies
+
+        reward: torch.Tensor, optional
+            Batch of pre-computed rewards
+
+        step: int, optional
+            Step number to use for the plot title.
+
+        Returns
+        -------
+        metrics: dict
+            Dictionary of metrics: str->float
+
+        figs: list
+            List of matplotlib figures
+
+        figs_names: list
+            List of figure names for `figs`
+        """
+
         if states is None and energy is None and reward is None:
             assert name == "train"
             (
@@ -560,6 +625,8 @@ class Crystal(GFlowNetEnv):
             x = torch.stack([self.state2proxy(s) for s in states])
             energy = self.proxy(x.to(self.device)).cpu()
             reward = self.proxy2reward(energy)
+
+        assert energy is not None and reward is not None
 
         top_k_e = torch.topk(energy, top_k, largest=False, dim=0).values.numpy()
         top_k_r = torch.topk(reward, top_k, largest=True, dim=0).values.numpy()
