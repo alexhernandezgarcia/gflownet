@@ -547,7 +547,7 @@ class GFlowNetAgent:
         masks_sf = batch.masks_invalid_actions_forward
         masks_b = batch.masks_invalid_actions_backward
         traj_ids = batch.env_ids
-        state_ids = batch.steps
+        state_ids = batch.n_actions
 
         # Shift state_ids to [1, 2, ...]
         for tid in traj_ids.unique():

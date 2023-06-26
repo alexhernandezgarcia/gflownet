@@ -59,7 +59,7 @@ class Batch:
         self.parents = []
         self.all_possible_parents = []
         self.all_possible_parents_actions = []
-        self.steps = []
+        self.n_actions = []
         self.is_processed = False
         self.states_policy = None
         self.parents_policy = None
@@ -104,7 +104,7 @@ class Batch:
                 self.actions.append(action)
                 self.env_ids.append(env.id)
                 self.done.append(env.done)
-                self.steps.append(env.n_actions)
+                self.n_actions.append(env.n_actions)
                 self.masks_invalid_actions_forward.append(
                     env.get_mask_invalid_actions_forward()
                 )
@@ -128,7 +128,7 @@ class Batch:
                 if env.done:
                     self.states.append(env.state)
                     self.env_ids.append(env.id)
-                    self.steps.append(env.n_actions)
+                    self.n_actions.append(env.n_actions)
 
     def process_batch(self):
         """
@@ -141,7 +141,7 @@ class Batch:
         """
         self.env_ids = tlong(self.env_ids, device=self.device)
         self._process_states()
-        self.steps = tlong(self.steps, device=self.device)
+        self.n_actions = tlong(self.n_actions, device=self.device)
         self._process_trajectory_indices()
         # process other variables, if we are in the train mode and recorded them
         if len(self.actions) > 0:
@@ -354,7 +354,7 @@ class Batch:
         self.parents += another_batch.parents
         self.all_possible_parents += another_batch.all_possible_parents
         self.all_possible_parents_actions += another_batch.all_possible_parents_actions
-        self.steps += another_batch.steps
+        self.n_actions += another_batch.n_actions
 
     def _process_trajectory_indices(self):
         """
@@ -364,7 +364,7 @@ class Batch:
         self.trajectory_indices.
         """
         trajs = defaultdict(list)
-        for idx, (env_id, step) in enumerate(zip(self.env_ids, self.steps)):
+        for idx, (env_id, step) in enumerate(zip(self.env_ids, self.n_actions)):
             trajs[env_id.item()].append((idx, step))
         trajs = {
             env_id: list(map(lambda x: x[0], sorted(traj, key=lambda x: x[1])))
