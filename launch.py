@@ -71,7 +71,7 @@ HELP = dedent(
     Let's study the following example:
 
     ```
-    $ python launch.py --jobs=crystals/explore-losses
+    $ python launch.py --jobs=crystals/explore-losses --mem=64G
 
     🗂 Using run file: ./external/jobs/crystals/explore-losses.yaml
 
