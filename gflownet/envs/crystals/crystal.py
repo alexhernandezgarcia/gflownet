@@ -588,7 +588,8 @@ class Crystal(GFlowNetEnv):
 
         name: str
             Name of the distribution to compute metrics and plots for.
-            Typically "gflownet", "random" or "train".
+            Typically "gflownet", "random" or "train". Will be used in
+            metrics names like `f"Mean {name} energy"`.
 
         energy: torch.Tensor, optional
             Batch of pre-computed energies
@@ -628,15 +629,19 @@ class Crystal(GFlowNetEnv):
 
         assert energy is not None and reward is not None
 
+        # select top k best energies and rewards
         top_k_e = torch.topk(energy, top_k, largest=False, dim=0).values.numpy()
         top_k_r = torch.topk(reward, top_k, largest=True, dim=0).values.numpy()
 
+        # find best energy and reward
         best_e = torch.min(energy).item()
         best_r = torch.max(reward).item()
 
+        # to numpy to plot
         energy = energy.numpy()
         reward = reward.numpy()
 
+        # compute stats
         mean_e = np.mean(energy)
         mean_r = np.mean(reward)
 
@@ -649,12 +654,16 @@ class Crystal(GFlowNetEnv):
         std_top_k_e = np.std(top_k_e)
         std_top_k_r = np.std(top_k_r)
 
+        # automatic color scale
+        # currently: cividis colour map
         colors = ["full", "top_k"]
         normalizer = mpl.colors.Normalize(vmin=0, vmax=len(colors) - 0.5)
         colors = {k: CMAP(normalizer(i)) for i, k in enumerate(colors[::-1])}
 
+        # two sublopts: left is energy, right is reward
         fig, ax = plt.subplots(1, 2, figsize=(10, 5))
 
+        # energy full distribution and stats lines
         ax[0].hist(
             energy,
             bins=100,
@@ -681,6 +690,7 @@ class Crystal(GFlowNetEnv):
             linestyle=(0, (1, 10)),
         )
 
+        # energy top k distribution and stats lines
         ax[0].hist(
             top_k_e,
             bins=100,
@@ -706,7 +716,7 @@ class Crystal(GFlowNetEnv):
             color=colors["top_k"],
             linestyle=(0, (1, 10)),
         )
-
+        # energy title & legend
         ax[0].set_title(
             f"Energy distribution for {top_k} vs {len(energy)}"
             + f" samples\nBest: {best_e:.3f}",
@@ -717,6 +727,7 @@ class Crystal(GFlowNetEnv):
         )
         ax[0].legend()
 
+        # reward full distribution and stats lines
         ax[1].hist(
             reward,
             bins=100,
@@ -742,6 +753,8 @@ class Crystal(GFlowNetEnv):
             color=colors["full"],
             linestyle=(0, (1, 10)),
         )
+
+        # reward top k distribution and stats lines
         ax[1].hist(
             top_k_r,
             bins=100,
@@ -767,6 +780,8 @@ class Crystal(GFlowNetEnv):
             color=colors["top_k"],
             linestyle=(0, (1, 10)),
         )
+
+        # reward title & legend
         ax[1].set_title(
             f"Reward distribution for {top_k} vs {len(reward)}"
             + f" samples\nBest: {best_r:.3f}",
@@ -776,12 +791,15 @@ class Crystal(GFlowNetEnv):
             size=12,
         )
         ax[1].legend()
+
+        # Finalize figure
         title = f"{name.capitalize()} energy and reward distributions"
         if step is not None:
             title += f" (step {step})"
         fig.suptitle(title, y=0.95)
         plt.tight_layout(rect=[0, 0.02, 1, 0.98])
 
+        # store metrics
         metrics = {
             f"Mean {name} energy": mean_e,
             f"Std {name} energy": std_e,
@@ -798,6 +816,10 @@ class Crystal(GFlowNetEnv):
         fig_names = [title]
 
         if name.lower() == "train ground truth":
+            # train stats mode: the ground truth data has meen plotted
+            # and computed, let's do it again for the proxy data.
+            # This can be used to visualize potential distribution mismatch
+            # between the proxy and the ground truth data.
             proxy_metrics, proxy_figs, proxy_fig_names = self.top_k_metrics_and_plots(
                 None,
                 top_k,
@@ -807,6 +829,7 @@ class Crystal(GFlowNetEnv):
                 step=None,
                 **kwargs,
             )
+            # aggregate metrics and figures
             metrics.update(proxy_metrics)
             figs += proxy_figs
             fig_names += proxy_fig_names
