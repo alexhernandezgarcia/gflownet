@@ -121,8 +121,26 @@ $ python launch.py --jobs=jobs/comp-sg-lp/v0" --mem=32G
 
 Let's study the following example:
 
-```sh
-python launch.py --jobs=crystals/explore-losses --mem=64G
+```
+$ python launch.py --jobs=crystals/explore-losses
+
+🗂 Using run file: ./external/jobs/crystals/explore-losses.yaml
+
+🚨 Submit 3 jobs? [y/N] y
+
+  🏷  Created ./external/launched_sbatch_scripts/example_20230613_194430_0.sbatch
+  ✅  Submitted batch job 3301572
+
+  🏷  Created ./external/launched_sbatch_scripts/example_20230613_194430_1.sbatch
+  ✅  Submitted batch job 3301573
+
+  🏷  Created ./external/launched_sbatch_scripts/example_20230613_194430_2.sbatch
+  ✅  Submitted batch job 3301574
+
+
+🚀 Submitted job 3/3
+Created summary YAML in ./external/launched_sbatch_scripts/example_20230613_194430.yaml
+All jobs submitted: 3301572 3301573 3301574
 ```
 
 Say the file `./external/jobs/crystals/explore-losses.yaml` contains:
@@ -149,7 +167,7 @@ shared:
     gflownet:
       __value__: flowmatch               # special entry if you want to see `gflownet=flowmatch`
     optimizer:
-      lr: 0.0001                     # will be translated to `gflownet.optimizer.lr=0.0001`
+      lr: 0.0001                         # will be translated to `gflownet.optimizer.lr=0.0001`
 
 # list of slurm jobs to execute
 jobs:
