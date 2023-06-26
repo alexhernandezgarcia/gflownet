@@ -3,6 +3,7 @@ Base class of GFlowNet environments
 """
 from abc import abstractmethod
 from copy import deepcopy
+from textwrap import dedent
 from typing import List, Optional, Tuple, Union
 
 import numpy as np
@@ -282,11 +283,11 @@ class GFlowNetEnv:
             logits = policy_outputs
             logits /= temperature_logits
         if mask_invalid_actions is not None:
-            assert not torch.all(
-                mask_invalid_actions
-            ), """
+            assert not torch.all(mask_invalid_actions), dedent(
+                """
             All actions in the mask are invalid.
             """
+            )
             logits[mask_invalid_actions] = -loginf
         else:
             mask_invalid_actions = torch.zeros(
@@ -299,9 +300,11 @@ class GFlowNetEnv:
                 break
         else:
             raise ValueError(
-                f"""
+                dedent(
+                    f"""
             No valid action could be sampled after {max_sampling_attempts} attempts.
             """
+                )
             )
         logprobs = self.logsoftmax(logits)[ns_range, action_indices]
         # Build actions
