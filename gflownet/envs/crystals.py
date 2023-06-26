@@ -350,7 +350,7 @@ class Crystal(GFlowNetEnv):
         """
         state_elem = [self.idx2elem[i] for i, e in enumerate(state) if e > 0]
         n_state_atoms = sum(state)
-        if done == True and not self._can_eos(state, state_elem, n_state_atoms):
+        if done is True and not self._can_eos(state, state_elem, n_state_atoms):
             done = False
             warnings.warn(
                 dedent(
