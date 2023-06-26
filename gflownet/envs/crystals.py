@@ -2,6 +2,7 @@
 Classes to represent crystal environments
 """
 import itertools
+from textwrap import dedent
 from typing import Dict, List, Optional, Tuple, Union
 
 import numpy as np
@@ -352,10 +353,12 @@ class Crystal(GFlowNetEnv):
         if done == True and not self._can_eos(state, state_elem, n_state_atoms):
             done = False
             warnings.warn(
-                f"""
+                dedent(
+                    f"""
             Attempted to set state {self.state2readable(state)} with done = True, which
             is not compatible with the environment. Forcing done = False.
             """
+                )
             )
         return super().set_state(state, done)
 
