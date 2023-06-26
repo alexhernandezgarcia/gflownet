@@ -359,7 +359,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--conda_env",
         type=str,
-        help="conda environment name." + f" Defaults to {defaults['gflownet']}",
+        help="conda environment name." + f" Defaults to {defaults['conda_env']}",
     )
     parser.add_argument(
         "--venv",
