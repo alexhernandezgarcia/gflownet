@@ -176,13 +176,20 @@ class Batch:
                 self.masks_invalid_actions_backward = tbool(
                     self.masks_invalid_actions_backward, device=self.device
                 )
-            self._process_parents()
+            self.parents, self.parents_policy, self.parents_all, self.parents_all_policy = self._process_parents()
         self.is_processed = True
 
     def _process_states(self):
         """
-        Converts self.states from list to torch tensor, computes states in the policy
-        format (stored in self.states_policy)
+        Convert self.states from a list to a torch tensor and compute states in the policy format.
+
+        Returns
+        -------
+        states: torch.tensor 
+            Tensor containing the states converted to a torch tensor.
+        states_policy: torch.tensor
+            Tensor containing the states converted to the policy format.
+
         """
         states = tfloat(self.states, device=self.device, float_type=self.float)
         states_policy = self.states2policy(states, self.env_ids)
@@ -287,16 +294,24 @@ class Batch:
 
     def _process_parents(self):
         """
-        Converts self.parents (GFlowNet format) and self.parents_policy (policy format)
-        into torch tensors. Different behaviour depending on self.loss:
-            - flowmatch: parents contain all the possible parents for each state,
-              so this tensor is bigger than self.state (all the parents are aligned
-              along the zero dimension).
-            - trajectorybalance: parents contains only one parent for each state
-              which corresponds to the actual parent in the trajectory.
+        Process parents for the given loss type.
+
+        Returns
+        -------
+        parents: torch.tensor
+            Tensor of parent states.
+        parents_policy: torch.tensor
+            Tensor of parent states converted to policy format.
+        parents_all: torch.tensor
+            Tensor of all parent states.
+        parents_all_policy: torch.tensor
+            Tensor of all parent states converted to policy format.
         """
+        parents = []
+        parents_policy = []
+        parents_all = []
+        parents_all_policy = []
         if self.loss == "flowmatch":
-            parents_all_policy = []
             for par, env_id in zip(self.parents_all, self.env_ids):
                 parents_all_policy.append(
                     tfloat(
@@ -305,8 +320,8 @@ class Batch:
                         float_type=self.float,
                     )
                 )
-            self.parents_all_policy = torch.cat(parents_all_policy)
-            self.parents_all = tfloat(
+            parents_all_policy = torch.cat(parents_all_policy)
+            parents_all = tfloat(
                 [p for parents in self.parents_all for p in parents],
                 device=self.device,
                 float_type=self.float,
@@ -330,8 +345,7 @@ class Batch:
                 # parent is not source
                 parents_policy[traj[1:]] = self.states_policy[traj[:-1]]
                 parents[traj[1:]] = self.states[traj[:-1]]
-            self.parents_policy = parents_policy
-            self.parents = parents
+        return parents, parents_policy, parents_all, parents_all_policy
 
     def merge(self, another_batch):
         """
@@ -359,10 +373,14 @@ class Batch:
 
     def _process_trajectory_indices(self):
         """
-        Obtains the indices in the batch that correspond to each env. It creates a dict
-        of trajectory indices (key: env_id, value: indices of the states in self.states
-        going in the order from s_1 to s_f. The dict is created and stored in the
-        self.trajectory_indices.
+        Obtain the indices in the batch that correspond to each environment.
+        Creates a dictionary of trajectory indices (key: env_id, value: indices of the states in self.states
+        ordered from s_1 to s_f).
+
+        Returns
+        -------
+        trajs: dict
+            Dictionary containing trajectory indices for each environment.
         """
         trajs = defaultdict(list)
         for idx, (env_id, step) in enumerate(zip(self.env_ids, self.n_actions)):
@@ -397,6 +415,11 @@ class Batch:
     def compute_rewards(self):
         """
         Computes rewards for self.states using proxy from one of the self.envs
+        
+        Returns
+        -------
+        rewards: torch.tensor
+            Tensor of rewards.
         """
         states_proxy_done = self.states2proxy(
             states=self.states[self.done], env_ids=self.env_ids[self.done]
