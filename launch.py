@@ -264,7 +264,9 @@ def print_md_help(parser, defaults):
 
     print("# 🤝 Gflownet Launch tool help\n")
     print("## 💻 Command-line help\n")
+    print("```sh")
     print(parser.format_help())
+    print("```\n")
     print("## 🎛️ Default values\n")
     print(
         "```yaml\n"

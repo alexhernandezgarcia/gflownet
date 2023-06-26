@@ -2,6 +2,7 @@
 
 ## 💻 Command-line help
 
+```sh
 usage: launch.py [-h] [--help-md] [--job_name JOB_NAME] [--outdir OUTDIR]
                  [--cpus_per_task CPUS_PER_TASK] [--mem MEM] [--gres GRES]
                  [--partition PARTITION] [--modules MODULES]
@@ -37,6 +38,8 @@ optional arguments:
   --verbose             print templated sbatch after running it. Defaults to
                         False
   --force               skip user confirmation. Defaults to False
+
+```
 
 ## 🎛️ Default values
 
