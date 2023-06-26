@@ -13,8 +13,8 @@ HELP = dedent(
     """
     ## 🥳 User guide
 
-    In a word, use `launch.py` to fill in an sbatch template and submit a list
-    of `sbatch` jobs.
+    In a word, use `launch.py` to fill in an sbatch template and submit either
+    a single job from the command-line, or a list of jobs from a `yaml` file.
 
     Examples:
 
@@ -240,7 +240,7 @@ def find_jobs_conf(args):
     return jobs_conf_path
 
 
-def script_args_dict_to_main_args_str(script_dict, is_first=True, nested_key=""):
+def script_dict_to_main_args_str(script_dict, is_first=True, nested_key=""):
     """
     Recursively turns a dict of script args into a string of main.py args
     as `nested.key=value` pairs
@@ -257,9 +257,7 @@ def script_args_dict_to_main_args_str(script_dict, is_first=True, nested_key="")
             new_str += nested_key + "=" + str(v) + " "
             continue
         new_key = k if not nested_key else nested_key + "." + str(k)
-        new_str += script_args_dict_to_main_args_str(
-            v, nested_key=new_key, is_first=False
-        )
+        new_str += script_dict_to_main_args_str(v, nested_key=new_key, is_first=False)
     if is_first:
         new_str = new_str.strip()
     return new_str
@@ -429,7 +427,7 @@ if __name__ == "__main__":
 
     known, unknown = parser.parse_known_args()
 
-    cli_script_args = (" " + " ".join(unknown)) if unknown else ""
+    cli_script_args = " ".join(unknown) if unknown else ""
 
     args = {k: v for k, v in vars(known).items() if v is not None}
 
@@ -494,9 +492,10 @@ if __name__ == "__main__":
         job_args["code_dir"] = str(resolve(job_args["code_dir"]))
         job_args["outdir"] = str(resolve(job_args["outdir"]))
         job_args["venv"] = str(resolve(job_args["venv"]))
-        job_args["main_args"] = (
-            script_args_dict_to_main_args_str(job_args["script"]) + cli_script_args
-        )
+        job_args["main_args"] = script_dict_to_main_args_str(job_args.get("script", {}))
+        if job_args["main_args"] and cli_script_args:
+            job_args["main_args"] += " "
+        job_args["main_args"] += cli_script_args
 
         # filter out useless args for the template
         job_args = {k: str(v) for k, v in job_args.items() if k in template_keys}
