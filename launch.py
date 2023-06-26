@@ -32,12 +32,46 @@ HELP = dedent(
     $ python launch.py --jobs=jobs/comp-sg-lp/v0" --mem=32G
     ```
 
-    ### 📝 Explanation
+    ### 🤓 How it works
 
-    Case-study:
+    1. All experiment files should be in `external/jobs`
+        1. Note that all the content in `external/` is **ignored by git**
+    2. You can nest experiment files infinitely, let's say you work on crystals and call your experiment `explore-losses.yaml` then you could put your config in `external/jobs/crystals/explore-losses.yaml`
+    3. An experiment file contains 2 main sections:
+        1. `shared:` contains the configuration that will be, you guessed it, shared across jobs.
+        2. `jobs:` lists configurations for the SLURM jobs that you want to run. The `shared` configuration will be loaded first, then updated from the `run`'s.
+    4. Both `shared` and `job` dicts contain (optional) sub-sections:
+        1. `slurm:` contains what's necessary to parameterize the SLURM job
+        2. `script:` contains a dict version of the command-line args to give `main.py`
+
+        ```yaml
+        script:
+          gflownet:
+            optimizer:
+              lr: 0.001
+
+        # is equivalent to
+        script:
+          gflownet.optimizer.lr: 0.001
+
+        # and will be translated to
+        python main.py gflownet.optimizer.lr=0.001
+        ```
+
+    5. Launch the SLURM jobs with `python launch.py --jobs=crystals/explore-losses`
+        1. `launch.py` knows to look in `external/jobs/` and add `.yaml`
+        2. You can overwrite anything from the command-line: the command-line arguments have the final say and will overwrite all the jobs' final dicts. Run `python launch.py -h` to see all the known args.
+        3. You can also override `script` params from the command-line: unknown arguments will be given as-is to `main.py`. For instance `python launch.py --jobs=crystals/explore-losses --mem=32G env.some_param=value` is valid
+    6. `launch.py` loads a template (`sbatch/template-conda.sh`) by default, and fills it with the arguments specified, then writes the filled template in `external/launched_sbatch_scripts/crystals/` with the current datetime and experiment file name.
+    7. `launch.py` executes `sbatch` in a subprocess to execute the filled template above
+    8. A summary yaml is also created there, with the exact experiment file and appended `SLURM_JOB_ID`s returned by `sbatch`
+
+    ### 📝 Case-study
+
+    Let's study the following example:
 
     ```sh
-    python launch.py --jobs=crystals/explore-losses --mem=32G
+    python launch.py --jobs=crystals/explore-losses --mem=64G
     ```
 
     Say the file `./external/jobs/crystals/explore-losses.yaml` contains:
@@ -80,8 +114,7 @@ HELP = dedent(
             __value__: trajectorybalance
     ```
 
-    Then the command-line ^ will execute 3 jobs with the following
-    configurations:
+    Then the launch command-line ^ will execute 3 jobs with the following configurations:
 
     ```bash
     python main.py user=$USER +experiments=neurips23/crystal-comp-sg-lp.yaml gflownet=flowmatch gflownet.optimizer.lr=0.0001
@@ -96,40 +129,6 @@ HELP = dedent(
     1. The second job will have `partition: unkillable` instead of the default (`long`).
     2. They will all have `64G` of memory instead of the default (`32G`) because the `--mem=64G` command-line
         argument overrides everything.
-
-    ### 🤓 How it works
-
-    1. All experiment files should be in `external/jobs`
-        1. Note that all the content in `external/` is **ignored by git**
-    2. You can nest experiment files infinitely, let's say you work on crystals and call your experiment `explore-losses.yaml` then you could put your config in `external/jobs/crystals/explore-losses.yaml`
-    3. An experiment file contains 2 main sections:
-        1. `shared:` contains the configuration that will be, you guessed it, shared across jobs.
-        2. `jobs:` lists configurations for the SLURM jobs that you want to run. The `shared` configuration will be loaded first, then updated from the `run`'s.
-    4. Both `shared` and `job` dicts contain (optional) sub-sections:
-        1. `slurm:` contains what's necessary to parameterize the SLURM job
-        2. `script:` contains a dict version of the command-line args to give `main.py`
-
-        ```yaml
-        script:
-          gflownet:
-            optimizer:
-              lr: 0.001
-
-        # is equivalent to
-        script:
-          gflownet.optimizer.lr: 0.001
-
-        # and will be translated to
-        python main.py gflownet.optimizer.lr=0.001
-        ```
-
-    5. Launch the SLURM jobs with `python launch.py --jobs=crystals/explore-losses`
-        1. `launch.py` knows to look in `external/jobs/` and add `.yaml`
-        2. You can overwrite anything from the command-line: the command-line arguments have the final say and will overwrite all the jobs' final dicts. Run `python launch.py -h` to see all the known args.
-        3. You can also override `script` params from the command-line: unknown arguments will be given as-is to `main.py`. For instance `python launch.py --jobs=crystals/explore-losses --mem=32G env.some_param=value` is valid
-    6. `launch.py` loads a template (`sbatch/template-conda.sh`) by default, and fills it with the arguments specified, then writes the filled template in `external/launched_sbatch_scripts/crystals/` with the current datetime and experiment file name.
-    7. `launch.py` executes `sbatch` in a subprocess to execute the filled template above
-    8. A summary yaml is also created there, with the exact experiment file and appended `SLURM_JOB_ID`s returned by `sbatch`
     """
 )
 
