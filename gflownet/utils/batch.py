@@ -73,7 +73,7 @@ class Batch:
         envs: List[GFlowNetEnv],
         actions: List[Tuple],
         valids: List[bool],
-        masks_invalid_actions_forward: Optional[List[bool]] = True,
+        masks_invalid_actions_forward: Optional[List[bool]] = None,
         train: Optional[bool] = True,
     ):
         """
