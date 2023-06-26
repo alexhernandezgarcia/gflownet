@@ -11,12 +11,13 @@ from copy import deepcopy
 
 HELP = dedent(
     """
-    >>> HOW TO USE:
+    ## 🥳 User guide
 
     Fill in an sbatch template and submit a job.
 
     Examples:
 
+    ```sh
     # using default job configuration, with script args from the command-line:
     $ python launch.py user=$USER logger.do.online=False
 
@@ -28,64 +29,73 @@ HELP = dedent(
 
     # using a yaml file to specify multiple jobs to run:
     $ python launch.py --jobs=jobs/comp-sg-lp/v0" --mem=32G
+    ```
 
-        Explanation:
-        ------------
+    ### 📝 Explanation
 
-        Say the file ./extenal/jobs/comp-sg-lp/v0.yaml contains:
+    Case-study:
 
-        ```
-        # Shared section across runs
-        shared:
-        # job params
-        slurm:
-            template: sbatch/template-conda.sh # which template to use
-            modules: anaconda/3 cuda/11.3      # string of the modules to load
-            conda_env: gflownet                # name of the environment
-            code_dir: ~/ocp-project/gflownet   # where to find the repo
-            gres: gpu:1                        # slurm gres
-            mem: 16G                           # node memory
-            cpus_per_task: 2                   # task cpus
+    ```sh
+    python launch.py --jobs=crystals/explore-losses --mem=32G
+    ```
 
-        # main.py params
-        script:
-            user: $USER
-            +experiments: neurips23/crystal-comp-sg-lp.yaml
-            gflownet:
-            __value__: flowmatch               # special entry if you want to see `gflownet=flowmatch`
-            optimizer:
-                lr: 0.0001                     # will be translated to `gflownet.optimizer.lr=0.0001`
+    Say the file `./external/jobs/crystals/explore-losses.yaml` contains:
 
-        # list of slurm jobs to execute
-        jobs:
-        - {}                                   # empty dictionary = just run with the shared params
-        - slurm:                               # change this job's slurm params
-            partition: unkillable
-        script:                                # change this job's script params
-            gflownet:
+    ```yaml
+    # Contents of external/jobs/crystals/explore-losses.yaml
+
+    # Shared section across jobs
+    shared:
+      # job params
+      slurm:
+          template: sbatch/template-conda.sh # which template to use
+          modules: anaconda/3 cuda/11.3      # string of the modules to load
+          conda_env: gflownet                # name of the environment
+          code_dir: ~/ocp-project/gflownet   # where to find the repo
+          gres: gpu:1                        # slurm gres
+          mem: 16G                           # node memory
+          cpus_per_task: 2                   # task cpus
+
+      # main.py params
+      script:
+        user: $USER
+        +experiments: neurips23/crystal-comp-sg-lp.yaml
+        gflownet:
+          __value__: flowmatch               # special entry if you want to see `gflownet=flowmatch`
+        optimizer:
+          lr: 0.0001                     # will be translated to `gflownet.optimizer.lr=0.0001`
+
+    # list of slurm jobs to execute
+    jobs:
+      - {}                                   # empty dictionary = just run with the shared params
+      - slurm:                               # change this job's slurm params
+          partition: unkillable
+        script:                              # change this job's script params
+          gflownet:
             policy:
-                backward: null
-        - script:
-            gflownet:
+              backward: null
+      - script:
+          gflownet:
             __value__: trajectorybalance
-        ```
+    ```
 
-        Then the command-line ^ will execute 2 jobs with the following
-        configurations:
-            * SLURM params:
-                1. shared.slurm params
-                2. job.slurm params
-                3. command-line args (eg: --mem=32G in this example)
-            * Python script (main.py) args:
-                1. shared.script dict
-                2. job.script dict
-                3. command-line args (eg: env.param=value, absent in this example)
-            * All of the above are optional granted they are defined at least once
-                somewhere.
+    Then the command-line ^ will execute 3 jobs with the following
+    configurations:
 
-        1. -> python main.py user=$USER +experiments=neurips23/crystal-comp-sg-lp.yaml gflownet=flowmatch gflownet.optimizer.lr=0.0001 gflownet.policy.backward=None
-        2. -> python main.py user=$USER +experiments=neurips23/crystal-comp-sg-lp.yaml gflownet=trajectorybalance gflownet.optimizer.lr=0.0001
-        """
+    ```bash
+    python main.py user=$USER +experiments=neurips23/crystal-comp-sg-lp.yaml gflownet=flowmatch gflownet.optimizer.lr=0.0001
+
+    python main.py user=$USER +experiments=neurips23/crystal-comp-sg-lp.yaml gflownet=flowmatch gflownet.optimizer.lr=0.0001 gflownet.policy.backward=None
+
+    python main.py user=$USER +experiments=neurips23/crystal-comp-sg-lp.yaml gflownet=trajectorybalance gflownet.optimizer.lr=0.0001
+    ```
+
+    And their SLURM configuration will be similar as the `shared.slurm` params, with the following differences:
+
+    1. The second job will have `partition: unkillable` instead of the default (`long`).
+    2. They will all have `64G` of memory instead of the default (`32G`) because the `--mem=64G` command-line
+        argument overrides everything.
+    """
 )
 
 
@@ -249,44 +259,27 @@ def deep_update(a, b, path=None, verbose=None):
     return a
 
 
+def print_md_help(parser, defaults):
+    global HELP
+
+    print("# 🤝 Gflownet Launch tool help\n")
+    print("## 💻 Command-line help\n")
+    print(parser.format_help())
+    print("## 🎛️ Default values\n")
+    print(
+        "```yaml\n"
+        + "\n".join(
+            [
+                f"{k:{max(len(d) for d in defaults)+1}}: {str(v)}"
+                for k, v in defaults.items()
+            ]
+        )
+        + "\n```"
+    )
+    print(HELP, end="")
+
+
 if __name__ == "__main__":
-    parser = ArgumentParser(add_help=False)
-    parser.add_argument(
-        "-h", "--help", action="store_true", help="show this help message and exit"
-    )
-    parser.add_argument("--job_name", type=str, help="slurm job name to show in squeue")
-    parser.add_argument("--outdir", type=str, help="where to write the slurm .out file")
-    parser.add_argument(
-        "--cpus_per_task", type=int, help="number of cpus per SLURM task"
-    )
-    parser.add_argument("--mem", type=str, help="memory per node (e.g. 32G)")
-    parser.add_argument("--gres", type=str, help="gres per node (e.g. gpu:1)")
-    parser.add_argument(
-        "--partition", type=str, help="slurm partition to use for the job"
-    )
-    parser.add_argument("--modules", type=str, help="string after 'module load'")
-    parser.add_argument("--conda_env", type=str, help="conda environment name")
-    parser.add_argument("--venv", type=str, help="path to venv (without bin/activate)")
-    parser.add_argument(
-        "--code_dir", type=str, help="cd before running main.py (defaults to here)"
-    )
-    parser.add_argument("--main_args", type=str, help="main.py args")
-    parser.add_argument(
-        "--jobs", type=str, help="run file name in external/jobs (without .yaml)"
-    )
-    parser.add_argument(
-        "--dev", action="store_true", help="Don't run just show what it would have run"
-    )
-    parser.add_argument(
-        "--verbose", action="store_true", help="print templated sbatch after running it"
-    )
-    parser.add_argument("--force", action="store_true", help="skip user confirmation")
-
-    known, unknown = parser.parse_known_args()
-
-    cli_script_args = (" " + " ".join(unknown)) if unknown else ""
-
-    args = {k: v for k, v in vars(known).items() if v is not None}
     root = Path(__file__).resolve().parent
     defaults = {
         "code_dir": "~/ocp-project/gflownet",
@@ -403,6 +396,11 @@ if __name__ == "__main__":
 
     args = {k: v for k, v in vars(known).items() if v is not None}
 
+    if args.get("help_md"):
+        print_md_help(parser, defaults)
+        sys.exit(0)
+    if args.get("help"):
+        print(parser.format_help())
         sys.exit(0)
 
     # load sbatch template file to format
