@@ -98,7 +98,7 @@ HELP = dedent(
         gflownet:
           __value__: flowmatch               # special entry if you want to see `gflownet=flowmatch`
         optimizer:
-          lr: 0.0001                     # will be translated to `gflownet.optimizer.lr=0.0001`
+          lr: 0.0001                         # will be translated to `gflownet.optimizer.lr=0.0001`
 
     # list of slurm jobs to execute
     jobs:
