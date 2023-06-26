@@ -142,7 +142,7 @@ class Batch:
         self.env_ids = tlong(self.env_ids, device=self.device)
         self.states, self.states_policy = self._process_states()
         self.n_actions = tlong(self.n_actions, device=self.device)
-        self._process_trajectory_indices()
+        self.trajectory_indices = self._process_trajectory_indices()
         # process other variables, if we are in the train mode and recorded them
         if len(self.actions) > 0:
             self.actions = tfloat(
@@ -371,7 +371,7 @@ class Batch:
             env_id: list(map(lambda x: x[0], sorted(traj, key=lambda x: x[1])))
             for env_id, traj in trajs.items()
         }
-        self.trajectory_indices = trajs
+        return trajs
 
     # TODO: rethink and re-implement. Outputs should not be tuples. It needs to be
     # refactored together with the buffer.
