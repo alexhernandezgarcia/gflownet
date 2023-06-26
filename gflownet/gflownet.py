@@ -21,8 +21,17 @@ from scipy.special import logsumexp
 from torch.distributions import Bernoulli, Categorical
 from tqdm import tqdm
 
+from gflownet.utils.batch import Batch
 from gflownet.utils.buffer import Buffer
-from gflownet.utils.common import set_device, set_float_precision, torch2np
+from gflownet.utils.common import (
+    set_device,
+    set_float_precision,
+    tbool,
+    tfloat,
+    tint,
+    tlong,
+    torch2np,
+)
 
 
 class GFlowNetAgent:
@@ -56,7 +65,9 @@ class GFlowNetAgent:
         self.float = set_float_precision(float_precision)
         # Environment
         self.env = env
-        self.mask_source = self._tbool([self.env.get_mask_invalid_actions_forward()])
+        self.mask_source = tbool(
+            [self.env.get_mask_invalid_actions_forward()], device=self.device
+        )
         # Continuous environments
         self.continuous = hasattr(self.env, "continuous") and self.env.continuous
         if self.continuous and optimizer.loss in ["flowmatch", "flowmatching"]:
@@ -179,38 +190,6 @@ class GFlowNetAgent:
         self.kl = -1.0
         self.jsd = -1.0
 
-    def _tfloat(self, x):
-        if isinstance(x, list) and torch.is_tensor(x[0]):
-            return torch.stack(x).type(self.float).to(self.device)
-        if torch.is_tensor(x):
-            return x.type(self.float).to(self.device)
-        else:
-            return torch.tensor(x, dtype=self.float, device=self.device)
-
-    def _tlong(self, x):
-        if isinstance(x, list) and torch.is_tensor(x[0]):
-            return torch.stack(x).type(torch.long).to(self.device)
-        if torch.is_tensor(x):
-            return x.type(torch.long).to(self.device)
-        else:
-            return torch.tensor(x, dtype=torch.long, device=self.device)
-
-    def _tint(self, x):
-        if isinstance(x, list) and torch.is_tensor(x[0]):
-            return torch.stack(x).type(torch.int).to(self.device)
-        if torch.is_tensor(x):
-            return x.type(torch.int).to(self.device)
-        else:
-            return torch.tensor(x, dtype=torch.int, device=self.device)
-
-    def _tbool(self, x):
-        if isinstance(x, list) and torch.is_tensor(x[0]):
-            return torch.stack(x).type(torch.bool).to(self.device)
-        if torch.is_tensor(x):
-            return x.type(torch.bool).to(self.device)
-        else:
-            return torch.tensor(x, dtype=torch.bool, device=self.device)
-
     def parameters(self):
         if self.backward_policy.is_model == False:
             return list(self.forward_policy.model.parameters())
@@ -264,12 +243,14 @@ class GFlowNetAgent:
         # Build states and masks
         states = [env.state for env in envs]
         if is_forward:
-            mask_invalid_actions = self._tbool(
-                [env.get_mask_invalid_actions_forward() for env in envs]
+            mask_invalid_actions = tbool(
+                [env.get_mask_invalid_actions_forward() for env in envs],
+                device=self.device,
             )
         else:
-            mask_invalid_actions = self._tbool(
-                [env.get_mask_invalid_actions_backward() for env in envs]
+            mask_invalid_actions = tbool(
+                [env.get_mask_invalid_actions_backward() for env in envs],
+                device=self.device,
             )
         # Build policy outputs
         policy_outputs = model.random_distribution(states)
@@ -284,10 +265,12 @@ class GFlowNetAgent:
         if sampling_method == "policy":
             if idx_norandom.sum() > 0:
                 policy_outputs[idx_norandom, :] = model(
-                    self._tfloat(
+                    tfloat(
                         self.env.statebatch2policy(
                             [s for s, do in zip(states, idx_norandom) if do]
-                        )
+                        ),
+                        device=self.device,
+                        float_type=self.float,
                     )
                 )
         else:
@@ -369,41 +352,6 @@ class GFlowNetAgent:
         Args
         ----
         """
-
-        def _add_to_batch(batch, envs, actions, valids, train=True):
-            for env, action, valid in zip(envs, actions, valids):
-                if valid is False:
-                    continue
-                parents, parents_a = env.get_parents(action=action)
-                mask_f = env.get_mask_invalid_actions_forward()
-                mask_b = env.get_mask_invalid_actions_backward(
-                    env.state, env.done, parents_a
-                )
-                assert (
-                    action in parents_a
-                ), f"""
-                Sampled action is not in the list of valid actions from parents.
-                \nState:\n{env.state}\nAction:\n{action}
-                """
-                if train:
-                    batch.append(
-                        [
-                            self._tfloat([env.state]),
-                            self._tfloat([action]),
-                            self._tfloat(parents),
-                            self._tfloat(parents_a),
-                            self._tbool([env.done]),
-                            self._tlong([env.id] * len(parents)),
-                            self._tlong([env.n_actions]),
-                            self._tbool([mask_f]),
-                            self._tbool([mask_b]),
-                        ]
-                    )
-                else:
-                    if env.done:
-                        batch.append(env.state)
-            return batch
-
         times = {
             "all": 0.0,
             "forward_actions": 0.0,
@@ -412,7 +360,7 @@ class GFlowNetAgent:
             "rewards": 0.0,
         }
         t0_all = time.time()
-        batch = []
+        batch = Batch(loss=self.loss, device=self.device, float_type=self.float)
         if isinstance(envs, list):
             envs = [env.reset(idx) for idx, env in enumerate(envs)]
         elif n_samples is not None and n_samples > 0:
@@ -454,7 +402,7 @@ class GFlowNetAgent:
                     random_action_prob=self.random_action_prob,
                 )
             # Add to batch
-            batch = _add_to_batch(batch, envs_offline, actions, valids)
+            batch.add_to_batch(envs_offline, actions, valids, train=True)
             # Update environments with sampled actions
             envs_offline, actions, valids = self.step(
                 envs_offline, actions, is_forward=False
@@ -491,7 +439,7 @@ class GFlowNetAgent:
             envs, actions, valids = self.step(envs, actions, is_forward=True)
             # Add to batch
             t0_a_envs = time.time()
-            batch = _add_to_batch(batch, envs, actions, valids, train)
+            batch.add_to_batch(envs, actions, valids, train)
             # Filter out finished trajectories
             envs = [env for env in envs if not env.done]
             t1_a_envs = time.time()
@@ -524,49 +472,33 @@ class GFlowNetAgent:
         flow_loss : float
             Loss of the intermediate nodes only
         """
-        loginf = self._tfloat([loginf])
+        loginf = tfloat([loginf], device=self.device, float_type=self.float)
+
+        # Convert lists in the batch into tensors
+        batch.process_batch()
         # Unpack batch
-        (
-            states,
-            actions,
-            parents,
-            parents_a,
-            done,
-            traj_id_parents,
-            state_id,
-            masks_sf,
-            masks_b,
-        ) = zip(*batch)
-        # Get state/batch id
-        parents_batch_id = self._tlong(
-            sum([[idx] * len(p) for idx, p in enumerate(parents)], [])
-        )
-        # Concatenate lists of tensors
-        states, parents, parents_a, done, masks_sf = map(
-            torch.cat,
-            [
-                states,
-                parents,
-                parents_a,
-                done,
-                masks_sf,
-            ],
-        )
-        parents_a_idx = self.env.actions2indices(parents_a)
+        parents_state_idx = batch.parents_all_state_idx
+        states = batch.states_policy
+        parents = batch.parents_all_policy
+        parents_actions = batch.parents_actions_all
+        done = batch.done
+        masks_sf = batch.masks_invalid_actions_forward
+
+        parents_a_idx = self.env.actions2indices(parents_actions)
         # Compute rewards
-        rewards = self.env.reward_torchbatch(states, done)
+        rewards = batch.compute_rewards()
         assert torch.all(rewards[done] > 0)
         # In-flows
         inflow_logits = -loginf * torch.ones(
             (states.shape[0], self.env.policy_output_dim),
             device=self.device,
         )
-        inflow_logits[parents_batch_id, parents_a_idx] = self.forward_policy(
-            self.env.statetorch2policy(parents)
-        )[torch.arange(parents.shape[0]), parents_a_idx]
+        inflow_logits[parents_state_idx, parents_a_idx] = self.forward_policy(parents)[
+            torch.arange(parents.shape[0]), parents_a_idx
+        ]
         inflow = torch.logsumexp(inflow_logits, dim=1)
         # Out-flows
-        outflow_logits = self.forward_policy(self.env.statetorch2policy(states))
+        outflow_logits = self.forward_policy(states)
         outflow_logits[masks_sf] = -loginf
         outflow = torch.logsumexp(outflow_logits, dim=1)
         outflow = outflow * torch.logical_not(done) - loginf * done
@@ -604,76 +536,57 @@ class GFlowNetAgent:
         flow_loss : float
             Loss of the intermediate nodes only
         """
-        loginf = self._tfloat([loginf])
-        # Unpack batch
-        (
-            states,
-            actions,
-            parents,
-            parents_a,
-            done,
-            traj_id_parents,
-            state_id,
-            masks_sf,
-            masks_b,
-        ) = zip(*batch)
-        # Keep only parents in trajectory
-        parents = [
-            p[torch.where(torch.all(torch.eq(a, p_a), axis=1))]
-            for a, p, p_a in zip(actions, parents, parents_a)
-        ]
-        traj_id = torch.cat([el[:1] for el in traj_id_parents])
-        # Concatenate lists of tensors
-        states, actions, parents, done, state_id, masks_sf, masks_b = map(
-            torch.cat,
-            [
-                states,
-                actions,
-                parents,
-                done,
-                state_id,
-                masks_sf,
-                masks_b,
-            ],
-        )
-        # Shift state_id to [1, 2, ...]
-        for tid in traj_id.unique():
-            state_id[traj_id == tid] = (
-                state_id[traj_id == tid] - state_id[traj_id == tid].min() + 1
+        loginf = tfloat([loginf], device=self.device, float_type=self.float)
+        # Convert lists in the batch into tensors
+        batch.process_batch()
+
+        states = batch.states_policy
+        actions = batch.actions
+        parents = batch.parents_policy
+        done = batch.done
+        masks_sf = batch.masks_invalid_actions_forward
+        masks_b = batch.masks_invalid_actions_backward
+        traj_ids = batch.env_ids
+        state_ids = batch.n_actions
+
+        # Shift state_ids to [1, 2, ...]
+        for tid in traj_ids.unique():
+            state_ids[traj_ids == tid] = (
+                state_ids[traj_ids == tid] - state_ids[traj_ids == tid].min() + 1
             )
         # Compute rewards
-        rewards = self.env.reward_torchbatch(states, done)
+        rewards = batch.compute_rewards()
         # Build parents forward masks from state masks
         masks_f = torch.cat(
             [
-                masks_sf[torch.where((state_id == sid - 1) & (traj_id == pid))]
+                masks_sf[torch.where((state_ids == sid - 1) & (traj_ids == pid))]
                 if sid > 1
                 else self.mask_source
-                for sid, pid in zip(state_id, traj_id)
+                for sid, pid in zip(state_ids, traj_ids)
             ]
         )
         # Forward trajectories
-        policy_output_f = self.forward_policy(self.env.statetorch2policy(parents))
+        policy_output_f = self.forward_policy(parents)
         logprobs_f = self.env.get_logprobs(
             policy_output_f, True, actions, states, masks_f, loginf
         )
         sumlogprobs_f = torch.zeros(
-            len(torch.unique(traj_id, sorted=True)),
+            len(torch.unique(traj_ids, sorted=True)),
             dtype=self.float,
             device=self.device,
-        ).index_add_(0, traj_id, logprobs_f)
+        ).index_add_(0, traj_ids, logprobs_f)
         # Backward trajectories
-        policy_output_b = self.backward_policy(self.env.statetorch2policy(states))
+        policy_output_b = self.backward_policy(states)
         logprobs_b = self.env.get_logprobs(
             policy_output_b, False, actions, parents, masks_b, loginf
         )
         sumlogprobs_b = torch.zeros(
-            len(torch.unique(traj_id, sorted=True)),
+            len(torch.unique(traj_ids, sorted=True)),
             dtype=self.float,
             device=self.device,
-        ).index_add_(0, traj_id, logprobs_b)
+        ).index_add_(0, traj_ids, logprobs_b)
         # Sort rewards of done states by ascending traj id
-        rewards = rewards[done.eq(1)][torch.argsort(traj_id[done.eq(1)])]
+        rewards = rewards[done.eq(1)][torch.argsort(traj_ids[done.eq(1)])]
         # Trajectory balance loss
         loss = (
             (self.logZ.sum() + sumlogprobs_f - sumlogprobs_b - torch.log(rewards))
@@ -681,24 +594,6 @@ class GFlowNetAgent:
             .mean()
         )
         return (loss, loss, loss), rewards
-
-    def unpack_terminal_states(self, batch):
-        """
-        Unpacks the terminating states and trajectories of a batch and converts them
-        to Python lists/tuples.
-        """
-        # TODO: make sure that unpacked states and trajs are sorted by traj_id (like
-        # rewards will be)
-        trajs = [[] for _ in range(self.batch_size)]
-        states = [None] * self.batch_size
-        for el in batch:
-            traj_id = el[5][:1].item()
-            state_id = el[6][:1].item()
-            trajs[traj_id].append(tuple(el[1][0].tolist()))
-            if bool(el[4].item()):
-                states[traj_id] = tuple(el[0][0].tolist())
-        trajs = [tuple(el) for el in trajs]
-        return states, trajs
 
     @torch.no_grad()
     def sample_backwards(
@@ -758,10 +653,10 @@ class GFlowNetAgent:
                 )
                 self.logger.log_plots(figs, it, self.use_context)
             t0_iter = time.time()
-            data = []
+            data = Batch(loss=self.loss, device=self.device, float_type=self.float)
             for j in range(self.sttr):
                 batch, times = self.sample_batch(envs)
-                data += batch
+                data.merge(batch)
             for j in range(self.ttsr):
                 if self.loss == "flowmatch":
                     losses, rewards = self.flowmatch_loss(
@@ -790,7 +685,7 @@ class GFlowNetAgent:
                     all_losses.append([i.item() for i in losses])
             # Buffer
             t0_buffer = time.time()
-            states_term, trajs_term = self.unpack_terminal_states(batch)
+            states_term, trajs_term = batch.unpack_terminal_states()
             proxy_vals = self.env.reward2proxy(rewards).tolist()
             rewards = rewards.tolist()
             self.buffer.add(states_term, trajs_term, rewards, proxy_vals, it)
@@ -869,7 +764,9 @@ class GFlowNetAgent:
         with open(self.buffer.test_pkl, "rb") as f:
             dict_tt = pickle.load(f)
             x_tt = dict_tt["x"]
-        x_sampled, _ = self.sample_batch(self.env, self.logger.test.n, train=False)
+        batch, _ = self.sample_batch(self.env, self.logger.test.n, train=False)
+        batch.process_batch()
+        x_sampled = batch.states.tolist()
         if self.buffer.test_type is not None and self.buffer.test_type == "all":
             if "density_true" in dict_tt:
                 density_true = dict_tt["density_true"]
@@ -888,6 +785,7 @@ class GFlowNetAgent:
             log_density_true = np.log(density_true + 1e-8)
             log_density_pred = np.log(density_pred + 1e-8)
         elif self.continuous:
+            # TODO make it work with conditional env
             x_sampled = torch2np(self.env.statebatch2proxy(x_sampled))
             x_tt = torch2np(self.env.statebatch2proxy(x_tt))
             kde_pred = self.env.fit_kde(
@@ -1187,15 +1085,22 @@ def logq(traj_list, actions_list, model, env, loginf=1000):
     # TODO: this method is probably suboptimal, since it may repeat forward calls for
     # the same nodes.
     log_q = torch.tensor(1.0)
-    loginf = self._tfloat([loginf])
+    loginf = tfloat([loginf], device=self.device, float_type=self.float)
     for traj, actions in zip(traj_list, actions_list):
         traj = traj[::-1]
         actions = actions[::-1]
-        masks = self._tbool(
-            [env.get_mask_invalid_actions_forward(state, 0) for state in traj]
+        masks = tbool(
+            [env.get_mask_invalid_actions_forward(state, 0) for state in traj],
+            device=self.device,
         )
         with torch.no_grad():
-            logits_traj = model(self._tfloat(env.statebatch2policy(traj)))
+            logits_traj = model(
+                tfloat(
+                    env.statebatch2policy(traj),
+                    device=self.device,
+                    float_type=self.float,
+                )
+            )
         logits_traj[masks] = -loginf
         logsoftmax = torch.nn.LogSoftmax(dim=1)
         logprobs_traj = logsoftmax(logits_traj)
