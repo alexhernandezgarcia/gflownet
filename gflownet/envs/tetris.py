@@ -3,8 +3,9 @@ An environment inspired by the game of Tetris.
 """
 import itertools
 import re
-from typing import List, Optional, Tuple
 import warnings
+from textwrap import dedent
+from typing import List, Optional, Tuple
 
 import numpy as np
 import numpy.typing as npt
@@ -472,16 +473,14 @@ class Tetris(GFlowNetEnv):
         """
         if not torch.is_tensor(state):
             state = torch.tensor(state, dtype=torch.int16)
-        if done and not self.allow_eos_before_full:
+        if done is True and not self.allow_eos_before_full:
             mask = self.get_mask_invalid_actions_forward(state, done=False)
             if not all(mask[:-1]):
                 done = False
                 warnings.warn(
-                    f"""
-                Attempted to set state {self.state2readable(state)} with done = True,
-                which is not compatible with allow_eos_before_full = False. Forcing
-                done = False.
-                """
+                    f"Attempted to set state\n\n{self.state2readable(state)}\n\n"
+                    "with done = True, which is not compatible with "
+                    "allow_eos_before_full = False. Forcing done = False."
                 )
         self.state = state
         self.done = done
