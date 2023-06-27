@@ -1,34 +1,40 @@
 import copy
-from typing import List
+from typing import List, Optional, Tuple
 
 import numpy as np
 import numpy.typing as npt
+from rdkit import Chem
+from rdkit.Chem import AllChem
 from torchtyping import TensorType
 
 from gflownet.envs.ctorus import ContinuousTorus
-from gflownet.utils.molecule.datasets import AtomPositionsDataset
 from gflownet.utils.molecule.rdkit_conformer import RDKitConformer
+from gflownet.utils.molecule.rotatable_bonds import find_rotor_from_smile
 
 
 class Conformer(ContinuousTorus):
     """
     Extension of continuous torus to conformer generation. Based on AlanineDipeptide,
-    but accepts any molecule (defined by SMILES, freely rotatable torsion angles, and
-    path to dataset containing sample conformers).
+    but accepts any molecule (defined by SMILES and freely rotatable torsion angles).
     """
 
     def __init__(
         self,
         smiles: str,
-        path_to_dataset: str,
-        url_to_dataset: str,
+        n_torsion_angles: Optional[int] = 2,
+        torsion_indices: Optional[List[int]] = None,
         **kwargs,
     ):
-        atom_positions_dataset = AtomPositionsDataset(
-            smiles, path_to_dataset, url_to_dataset
-        )
-        atom_positions = atom_positions_dataset.first()
-        torsion_angles = atom_positions_dataset.torsion_angles
+        if torsion_indices is None:
+            # We hard code default torsion indices for Alanine Dipeptide to preserve
+            # backward compatibility.
+            if smiles == "CC(C(=O)NC)NC(=O)C" and n_torsion_angles == 2:
+                torsion_indices = [2, 1]
+            else:
+                torsion_indices = list(range(n_torsion_angles))
+
+        atom_positions = Conformer._get_positions(smiles)
+        torsion_angles = Conformer._get_torsion_angles(smiles, torsion_indices)
         self.conformer = RDKitConformer(atom_positions, smiles, torsion_angles)
 
         # Conversions
@@ -38,6 +44,19 @@ class Conformer(ContinuousTorus):
         super().__init__(n_dim=len(self.conformer.freely_rotatable_tas), **kwargs)
 
         self.sync_conformer_with_state()
+
+    @staticmethod
+    def _get_positions(smiles: str) -> npt.NDArray:
+        mol = Chem.MolFromSmiles(smiles)
+        mol = Chem.AddHs(mol)
+        AllChem.EmbedMolecule(mol, randomSeed=0)
+        return mol.GetConformer().GetPositions()
+
+    @staticmethod
+    def _get_torsion_angles(smiles: str, indices: List[int]) -> List[Tuple[int]]:
+        torsion_angles = find_rotor_from_smile(smiles)
+        torsion_angles = [torsion_angles[i] for i in indices]
+        return torsion_angles
 
     def sync_conformer_with_state(self, state: List = None):
         if state is None:

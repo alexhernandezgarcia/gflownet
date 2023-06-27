@@ -6,9 +6,9 @@ _target_: gflownet.envs.conformers.conformer.Conformer
 # smiles: 'CC(C(=O)NC)NC(=O)C' # alanine dipeptide
 # smiles: 'CC(C)Cc1ccc(cc1)[C@@H](C)C(=O)O' # ibuprofen
 smiles: 'O=C(c1ccc2n1CCC2C(=O)O)c3ccccc3' # ketorolac
-
-path_to_dataset: './data/conformers.npy'
-url_to_dataset: 'https://drive.google.com/uc?id=1MefikIedDjUtUJtzCHwXhZtpXHJX3ImA'
+# smiles: 'CCCCCC1=CC(=C(C(=C1)O)C2C=C(CCC2C(=C)C)C)O' # cannabidiol
+# smiles: 'CN1C2CCC1C(C(C2)OC(=O)C3=CC=CC=C3)C(=O)OC' # cocaine
+n_torsion_angles: 2
 
 id: conformer
 policy_encoding_dim_per_angle: null
