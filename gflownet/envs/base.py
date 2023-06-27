@@ -3,6 +3,7 @@ Base class of GFlowNet environments
 """
 from abc import abstractmethod
 from copy import deepcopy
+from textwrap import dedent
 from typing import List, Optional, Tuple, Union
 
 import numpy as np
@@ -34,6 +35,7 @@ class GFlowNetEnv:
         proxy=None,
         oracle=None,
         proxy_state_format: str = "oracle",
+        skip_mask_check: bool = False,
         fixed_distribution: Optional[dict] = None,
         random_distribution: Optional[dict] = None,
         conditional: bool = False,
@@ -70,6 +72,8 @@ class GFlowNetEnv:
         else:
             self.proxy_factor = -1.0
         self.proxy_state_format = proxy_state_format
+        # Flag to skip checking if action is valid (computing mask) before step
+        self.skip_mask_check = skip_mask_check
         # Log SoftMax function
         self.logsoftmax = torch.nn.LogSoftmax(dim=1)
         # Action space
@@ -189,7 +193,50 @@ class GFlowNetEnv:
         actions = []
         return parents, actions
 
-    def step(self, action: Tuple[int]) -> Tuple[List[int], Tuple[int], bool]:
+    def _pre_step(
+        self, action: Tuple[int], skip_mask_check: bool = False
+    ) -> Tuple[bool, List[int], Tuple[int]]:
+        """
+        Performs generic checks shared by the step() method of all environments.
+
+        Args
+        ----
+        action : tuple
+            Action from the action space.
+
+        skip_mask_check : bool
+            If True, skip computing forward mask of invalid actions to check if the
+            action is valid.
+
+        Returns
+        -------
+        do_step : bool
+            If True, step() should continue further, False otherwise.
+        self.state : list
+            The sequence after executing the action
+
+        action : int
+            Action index
+        """
+        # If action not found in action space raise an error
+        if action not in self.action_space:
+            raise ValueError(
+                f"Tried to execute action {action} not present in action space."
+            )
+        # If env is done, step should not proceed.
+        if self.done:
+            return False, self.state, action
+        # If action is in invalid mask, step should not proceed.
+        if not (self.skip_mask_check or skip_mask_check):
+            action_idx = self.action_space.index(action)
+            if self.get_mask_invalid_actions_forward()[action_idx]:
+                return False, self.state, action
+        return True, self.state, action
+
+    @abstractmethod
+    def step(
+        self, action: Tuple[int], skip_mask_check: bool = False
+    ) -> Tuple[List[int], Tuple[int], bool]:
         """
         Executes step given an action.
 
@@ -197,6 +244,10 @@ class GFlowNetEnv:
         ----
         action : tuple
             Action from the action space.
+
+        skip_mask_check : bool
+            If True, skip computing forward mask of invalid actions to check if the
+            action is valid.
 
         Returns
         -------
@@ -210,18 +261,7 @@ class GFlowNetEnv:
             False, if the action is not allowed for the current state, e.g. stop at the
             root state
         """
-        # If env is done, return invalid
-        if self.done:
-            return self.state, action, False
-        # If action not found in action space raise an error
-        if action not in self.action_space:
-            raise ValueError(
-                f"Tried to execute action {action} not present in action space."
-            )
-        action_idx = self.action_space.index(action)
-        # If action is in invalid mask, exit immediately
-        if self.get_mask_invalid_actions_forward()[action_idx]:
-            return self.state, action, False
+        _, self.state, action = self._pre_step(action, skip_mask_check)
         return None, None, None
 
     def sample_actions(
@@ -231,6 +271,7 @@ class GFlowNetEnv:
         mask_invalid_actions: TensorType["n_states", "policy_output_dim"] = None,
         temperature_logits: float = 1.0,
         loginf: float = 1000,
+        max_sampling_attempts: int = 10,
     ) -> Tuple[List[Tuple], TensorType["n_states"]]:
         """
         Samples a batch of actions from a batch of policy outputs. This implementation
@@ -245,8 +286,29 @@ class GFlowNetEnv:
             logits = policy_outputs
             logits /= temperature_logits
         if mask_invalid_actions is not None:
+            assert not torch.all(mask_invalid_actions), dedent(
+                """
+            All actions in the mask are invalid.
+            """
+            )
             logits[mask_invalid_actions] = -loginf
-        action_indices = Categorical(logits=logits).sample()
+        else:
+            mask_invalid_actions = torch.zeros(
+                policy_outputs.shape, dtype=torch.bool, device=device
+            )
+        # Make sure that a valid action is sampled, otherwise throw an error.
+        for _ in range(max_sampling_attempts):
+            action_indices = Categorical(logits=logits).sample()
+            if not torch.any(mask_invalid_actions[ns_range, action_indices]):
+                break
+        else:
+            raise ValueError(
+                dedent(
+                    f"""
+            No valid action could be sampled after {max_sampling_attempts} attempts.
+            """
+                )
+            )
         logprobs = self.logsoftmax(logits)[ns_range, action_indices]
         # Build actions
         actions = [self.action_space[idx] for idx in action_indices]
@@ -280,6 +342,53 @@ class GFlowNetEnv:
         )
         logprobs = self.logsoftmax(logits)[ns_range, action_indices]
         return logprobs
+
+    def step_random(self):
+        """
+        Samples a random action and executes the step.
+
+        Returns
+        -------
+        state : list
+            The state after executing the action.
+
+        action : int
+            Action, randomly sampled.
+
+        valid : bool
+            False, if the action is not allowed for the current state.
+        """
+        mask_invalid = torch.unsqueeze(
+            torch.tensor(self.get_mask_invalid_actions_forward(), dtype=torch.bool), 0
+        )
+        random_policy = torch.unsqueeze(
+            torch.tensor(self.random_policy_output, dtype=self.float), 0
+        )
+        actions, _ = self.sample_actions(
+            policy_outputs=random_policy, mask_invalid_actions=mask_invalid
+        )
+        action = actions[0]
+        return self.step(action)
+
+    def trajectory_random(self):
+        """
+        Samples and applies a random trajectory on the environment, by sampling random
+        actions until an EOS action is sampled.
+
+        Returns
+        -------
+        state : list
+            The final state.
+
+        action: list
+            The list of actions (tuples) in the trajectory.
+        """
+        actions = []
+        while self.done is not True:
+            _, action, valid = self.step_random()
+            if valid:
+                actions.append(action)
+        return self.state, actions
 
     def get_policy_output(self, params: Optional[dict] = None):
         """
@@ -502,7 +611,9 @@ class GFlowNetEnv:
 
     def set_state(self, state: List, done: Optional[bool] = False):
         """
-        Sets the state and done of an environment.
+        Sets the state and done of an environment. Environments that cannot be "done"
+        at all states (intermediate states are not fully constructed objects) should
+        overwrite this method and check for validity.
         """
         self.state = state
         self.done = done

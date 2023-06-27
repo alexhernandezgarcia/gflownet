@@ -2,6 +2,7 @@
 Classes to represent crystal environments
 """
 import itertools
+import warnings
 from typing import Dict, List, Optional, Tuple, Union
 
 import numpy as np
@@ -322,7 +323,9 @@ class SpaceGroup(GFlowNetEnv):
                     actions.append(action)
         return parents, actions
 
-    def step(self, action: Tuple[int, int]) -> Tuple[List[int], Tuple[int, int], bool]:
+    def step(
+        self, action: Tuple[int, int], skip_mask_check: bool = False
+    ) -> Tuple[List[int], Tuple[int, int], bool]:
         """
         Executes step given an action.
 
@@ -330,6 +333,10 @@ class SpaceGroup(GFlowNetEnv):
         ----
         action : tuple
             Action to be executed. See: get_action_space()
+
+        skip_mask_check : bool
+            If True, skip computing forward mask of invalid actions to check if the
+            action is valid.
 
         Returns
         -------
@@ -342,15 +349,11 @@ class SpaceGroup(GFlowNetEnv):
         valid : bool
             False, if the action is not allowed for the current state.
         """
-        # If action not found in action space raise an error
-        if action not in self.action_space:
-            raise ValueError(
-                f"Tried to execute action {action} not present in action space."
-            )
-        else:
-            action_idx = self.action_space.index(action)
-        # If action is in invalid mask, exit immediately
-        if self.get_mask_invalid_actions_forward()[action_idx]:
+        # Generic pre-step checks
+        do_step, self.state, action = self._pre_step(
+            action, skip_mask_check or self.skip_mask_check
+        )
+        if not do_step:
             return self.state, action, False
         valid = True
         self.n_actions += 1
@@ -369,6 +372,21 @@ class SpaceGroup(GFlowNetEnv):
 
     def get_max_traj_length(self):
         return 3
+
+    def set_state(self, state: List, done: Optional[bool] = False):
+        """
+        Sets the state and done. If done is True but incompatible with state (space
+        group is missing), then force done False and print warning.
+        """
+        if done is True and state[self.sg_idx] == 0:
+            done = False
+            warnings.warn(
+                f"""
+            Attempted to set state {self.state2readable(state)} with done = True, which
+            is not compatible with the environment. Forcing done = False.
+            """
+            )
+        return super().set_state(state, done)
 
     def _set_constrained_properties(self, state: List[int]) -> List[int]:
         if state[self.sg_idx] != 0:
