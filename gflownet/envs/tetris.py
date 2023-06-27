@@ -97,6 +97,20 @@ class Tetris(GFlowNetEnv):
         self.state2proxy = self.state2oracle
         self.statebatch2proxy = self.statebatch2oracle
         self.statetorch2proxy = self.statetorch2oracle
+
+        # Precompute all possible rotations of each piece and the corresponding binary
+        # mask
+        self.piece_rotation_mat = {}
+        self.piece_rotation_mask_mat = {}
+        for p in pieces:
+            self.piece_rotation_mat[p] = {}
+            self.piece_rotation_mask_mat[p] = {}
+            for r in rotations:
+                self.piece_rotation_mat[p][r] = torch.rot90(
+                    self.piece2mat(p), k=self.rot2idx[r]
+                )
+                self.piece_rotation_mask_mat[p][r] = self.piece_rotation_mat[p][r] != 0
+
         # Base class init
         super().__init__(**kwargs)
 
@@ -138,30 +152,73 @@ class Tetris(GFlowNetEnv):
         board = state.clone().detach()
 
         piece_idx, rotation, col = action
-        piece_mat = torch.rot90(
-            self.piece2mat(self.idx2piece[piece_idx]), k=self.rot2idx[rotation]
-        )
+        piece_mat = self.piece_rotation_mat[self.idx2piece[piece_idx]][rotation]
+        piece_mat_mask = self.piece_rotation_mask_mat[self.idx2piece[piece_idx]][
+            rotation
+        ]
         hp, wp = piece_mat.shape
-        # Get and set index of new piece
-        indices = board.unique()
-        piece_idx = self._get_max_piece_idx(board, piece_idx, incr=1)
-        piece_mat[piece_mat != 0] = piece_idx
+
         # Check if piece goes overboard horizontally
         if col + wp > self.width:
             return board, False
-        # Iteratively attempts to place piece on the board starting from the bottom
-        for row in reversed(range(self.height)):
-            if row - hp + 1 < 0:
-                return board, False
-            board_section = board[row - hp + 1 : row + 1, col : col + wp]
-            # If all board cells under piece are empty
-            if sum(board_section[piece_mat != 0]) == 0:
-                board_aux = board.clone().detach()
-                board_aux[row - hp + 1 : row + 1, col : col + wp] += piece_mat
-                # If all columns above piece are empty
-                if self._piece_can_be_lifted(board_aux, piece_idx):
-                    return board_aux, True
-        return board, False
+
+        # Find the highest row occupied by any other piece in the columns where we wish
+        # to add the new piece
+        occupied_rows = board[:, col : col + wp].sum(1).nonzero()
+        if len(occupied_rows) == 0:
+            # All rows are unoccupied. Set highest occupied row as the row "below" the
+            # board.
+            highest_occupied_row = self.height
+        else:
+            highest_occupied_row = occupied_rows[0, 0]
+
+        # Iteratively attempt to place piece on the board starting from the top.
+        # As soon as we reach a row where we can't place the piece because it
+        # creates a collision, we can stop the search (since we can't put a piece under
+        # this obstacle anyway).
+        starting_row = highest_occupied_row - hp
+        lowest_valid_row = None
+        for row in range(starting_row, self.height - hp + 1):
+            if row == -hp:
+                # Placing the piece here would make it land fully outside the board.
+                # This means that there is no place on the board for the piece
+                break
+
+            elif row < 0:
+                # It is not possible to place the piece at this row because the piece
+                # would not completely be in the board. However, it is still possible
+                # to check for obstacles because any obstacle will prevent placing the
+                # piece at any position below
+                board_section = board[: row + hp, col : col + wp]
+                piece_mask_section = piece_mat_mask[-(row + hp) :]
+                if (board_section * (piece_mask_section != 0)).any():
+                    # An obstacle has been found.
+                    break
+
+            else:
+                # The piece can be placed here if all board cells under piece are empty
+                board_section = board[row : row + hp, col : col + wp]
+                if (board_section * piece_mat_mask).any():
+                    # The piece cannot be placed here and cannot be placed any lower
+                    # because of an obstacle.
+                    break
+                else:
+                    # The piece can be placed here.
+                    lowest_valid_row = row
+
+        # Place the piece if possible
+        if lowest_valid_row is None:
+            # The piece cannot be placed. Return the board as-is.
+            return board, False
+        else:
+            # Get and set index of new piece
+            piece_idx = self._get_max_piece_idx(board, piece_idx, incr=1)
+            piece_mat[piece_mat_mask] = piece_idx
+
+            # Place the piece on the board.
+            row = lowest_valid_row
+            board[row : row + hp, col : col + wp] += piece_mat
+            return board, True
 
     def get_mask_invalid_actions_forward(
         self,
@@ -454,13 +511,15 @@ class Tetris(GFlowNetEnv):
         incr : int
             Increment of the returned index with respect to the max.
         """
-        indices = board.unique()
-        indices_relevant = indices[indices < (piece_idx + 1) * self.max_pieces_per_type]
-        if indices_relevant.shape[0] == 0:
-            return piece_idx * self.max_pieces_per_type
-        return max(
-            [torch.max(indices_relevant) + incr, piece_idx * self.max_pieces_per_type]
-        )
+
+        min_idx = piece_idx * self.max_pieces_per_type
+        max_idx = min_idx + self.max_pieces_per_type
+        max_relevant_piece_idx = (board * (board < max_idx)).max()
+
+        if max_relevant_piece_idx >= min_idx:
+            return max_relevant_piece_idx + incr
+        else:
+            return min_idx
 
     def get_uniform_terminating_states(
         self, n_states: int, seed: int, n_factor_max: int = 10

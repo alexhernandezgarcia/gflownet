@@ -38,8 +38,11 @@ class GFlowNetEnv:
         skip_mask_check: bool = False,
         fixed_distribution: Optional[dict] = None,
         random_distribution: Optional[dict] = None,
+        conditional: bool = False,
         **kwargs,
     ):
+        # Flag whether env is conditional
+        self.conditional = conditional
         # Call reset() to set initial state, done, n_actions
         self.reset()
         # Device
