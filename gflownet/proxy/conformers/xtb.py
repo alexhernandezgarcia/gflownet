@@ -19,7 +19,7 @@ from wurlitzer import pipes
 
 from gflownet.proxy.conformers.base import MoleculeEnergyBase
 from gflownet.proxy.conformers.tblite import _chunks
-from gflownet.utils.molecule.xtb import run_gfn_xtb
+from gflownet.utils.molecule.xtb_cli import run_gfn_xtb
 
 
 METHODS = {"gfn2": "gfn 2", "gfnff": "gfnff"}
