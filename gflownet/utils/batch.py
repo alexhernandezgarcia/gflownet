@@ -73,6 +73,7 @@ class Batch:
         envs: List[GFlowNetEnv],
         actions: List[Tuple],
         valids: List[bool],
+        masks_invalid_actions_forward: Optional[List[List[bool]]] = None,
         train: Optional[bool] = True,
     ):
         """
@@ -92,10 +93,31 @@ class Batch:
 
         valids : list
             A list of boolean values indicated whether the actions were valid.
+
+        masks_invalid_actions_forward : list
+            A list of masks indicating, among all the actions that could have been
+            selected for all environments, which ones were invalid. Optional, will be
+            computed if not provided.
+
+        train : bool
+            A boolean value indicating whether the data to add to the batch will be used
+            for training. Optional, default is True.
         """
         if self.is_processed:
             raise Exception("Cannot append to the processed batch")
-        for env, action, valid in zip(envs, actions, valids):
+
+        # Sample masks of invalid actions if required and none are provided
+        if masks_invalid_actions_forward is None:
+            if train:
+                masks_invalid_actions_forward = [
+                    env.get_mask_invalid_actions_forward() for env in envs
+                ]
+            else:
+                masks_invalid_actions_forward = [None] * len(envs)
+
+        # Add data samples to the batch
+        for sample_data in zip(envs, actions, valids, masks_invalid_actions_forward):
+            env, action, valid, mask_forward = sample_data
             self.envs.update({env.id: env})
             if not valid:
                 continue
@@ -105,9 +127,8 @@ class Batch:
                 self.env_ids.append(env.id)
                 self.done.append(env.done)
                 self.n_actions.append(env.n_actions)
-                self.masks_invalid_actions_forward.append(
-                    env.get_mask_invalid_actions_forward()
-                )
+                self.masks_invalid_actions_forward.append(mask_forward)
+
                 if self.loss == "flowmatch":
                     parents, parents_a = env.get_parents(action=action)
                     assert (
