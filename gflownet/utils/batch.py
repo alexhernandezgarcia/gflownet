@@ -210,6 +210,8 @@ class Batch:
             Tensor containing the states converted to the policy format.
 
         """
+        # TODO: check if available
+        # TODO: perhaps better, separate states and states2policy
         states = tfloat(self.states, device=self.device, float_type=self.float)
         states_policy = self.states2policy(states, self.env_ids)
         return states, states_policy
@@ -311,6 +313,198 @@ class Batch:
             return states_proxy
         return env.statetorch2proxy(states)
 
+    def get_parents(
+        self, policy: bool = False, force_recompute: bool = False
+    ) -> TensorType["n_states", "..."]:
+        """
+        Returns the parent (single parent for each state) of all states in the batch.
+        The parents are computed, obtaining all necessary components, if they are not
+        readily available. Missing components and newly computed components are added
+        to the batch (self.component is set).
+
+        The parents are returned in "policy format" if policy is True, otherwise they
+        are returned in "GFlowNet" format (default).
+
+        Args
+        ----
+        policy : bool
+            If True, the policy format of parents is returned. Otherwise, the GFlowNet
+            format is returned.
+
+        Returns
+        -------
+        self.parents or self.parents_policy : torch.tensor
+            The parent of all states in the batch.
+        """
+        if self.parents_available is False or force_recompute is True:
+            self._compute_parents()
+        if policy:
+            return (self.parents_policy,)
+        else:
+            return self.parents
+
+    def _compute_parents(self):
+        """
+        Obtains the parent (single parent for each state) of all states in the batch.
+        The parents are computed, obtaining all necessary components, if they are not
+        readily available. Missing components and newly computed components are added
+        to the batch (self.component is set). The following components are obtained:
+
+        - self.parents: the parent of each state in the batch.
+            Shape: [n_states, state_dims]
+        - self.parents: the parent of each state in the batch in policy format.
+            Shape: [n_states, state_policy_dims]
+
+        The above components are stored as torch tensors and self.parents_available is
+        set to True.
+        """
+        self.trajectory_indices = self._process_trajectory_indices()
+        self.states, self.states_policy = self._process_states()
+        self.parents_policy = torch.zeros_like(self.states_policy)
+        self.parents = torch.zeros_like(self.states)
+        # Iterate over the trajectories to obtain the parents from the states
+        for env_id, traj in self.trajectory_indices.items():
+            # parent is source
+            self.parents_policy[traj[0]] = tfloat(
+                self.envs[env_id].state2policy(self.envs[env_id].source),
+                device=self.device,
+                float_type=self.float,
+            )
+            self.parents[traj[0]] = tfloat(
+                self.envs[env_id].source,
+                device=self.device,
+                float_type=self.float,
+            )
+            # parent is not source
+            self.parents_policy[traj[1:]] = self.states_policy[traj[:-1]]
+            self.parents[traj[1:]] = self.states[traj[:-1]]
+
+    def get_parents_all(
+        self, policy: bool = False, force_recompute: bool = False
+    ) -> Tuple[
+        TensorType["n_parents", "..."],
+        TensorType["n_parents", "..."],
+        TensorType["n_parents"],
+    ]:
+        """
+        Returns the whole set of parents, their corresponding actions and indices of
+        all states in the batch. If the parents are not available
+        (self.parents_all_available is False) or if force_recompute is True, then
+        self._compute_parents_all() is called to compute the required components.
+
+        The parents are returned in "policy format" if policy is True, otherwise they
+        are returned in "GFlowNet" format (default).
+
+        Args
+        ----
+        policy : bool
+            If True, the policy format of parents is returned. Otherwise, the GFlowNet
+            format is returned.
+
+        force_recompute : bool
+            If True, the parents are recomputed even if they are available.
+
+        Returns
+        -------
+        self.parents_all or self.parents_all_policy : torch.tensor
+            The whole set of parents of all states in the batch.
+
+        self.parents_actions_all : torch.tensor
+            The actions corresponding to each parent in self.parents_all or
+            self.parents_all_policy, linking them to the corresponding state in the
+            trajectory.
+
+        self.parents_all_indices : torch.tensor
+            The state index corresponding to each parent in self.parents_all or
+            self.parents_all_policy, linking them to the corresponding state in the
+            batch.
+        """
+        if self.parents_all_available is False or force_recompute is True:
+            self._compute_parents_all()
+        if policy:
+            return (
+                self.parents_all_policy,
+                self.parents_actions_all,
+                self.parents_all_indices,
+            )
+        else:
+            return self.parents_all, self.parents_actions_all, self.parents_all_indices
+
+    def _compute_parents_all(self):
+        """
+        Obtains the whole set of parents all states in the batch. The parents are
+        computed via env.get_parents(). The following components are obtained:
+
+        - self.parents_all: all the parents of all states in the batch.
+            Shape: [n_parents, state_dims]
+        - self.parents_actions_all: the actions corresponding to the transition from
+          each parent in self.parents_all to its corresponding state in the batch.
+            Shape: [n_parents, action_dim]
+        - self.parents_all_indices: the indices corresponding to the state in the batch
+          of which each parent in self.parents_all is a parent.
+            Shape: [n_parents]
+        - self.parents_all_policy: self.parents_all in policy format.
+            Shape: [n_parents, state_policy_dims]
+
+        All the above components are stored as torch tensors and
+        self.parents_all_available is set to True.
+        """
+        # Iterate over the trajectories to obtain all parents
+        self.trajectory_indices = self._process_trajectory_indices()
+        self.parents_all = []
+        self.parents_actions_all = []
+        self.parents_all_indices = []
+        self.parents_all_policy = []
+        indices = []
+        for env_id, traj in self.trajectory_indices.items():
+            for idx in traj:
+                state = self.states[idx]
+                done = self.done[idx]
+                action = self.actions[idx]
+                parents, parents_a = self.envs[env_id].get_parents(
+                    state=state,
+                    done=done,
+                    action=action,
+                )
+                assert (
+                    action in parents_a
+                ), f"""
+                Sampled action is not in the list of valid actions from parents.
+                \nState:\n{state}\nAction:\n{action}
+                """
+                self.parents_all.append(parents)
+                self.parents_actions_all.append(parents_a)
+                self.parents_all_indices.append([[idx] * len(parents)])
+                self.parents_all_policy.append(
+                    tfloat(
+                        self.envs[env_id].statebatch2policy(parents),
+                        device=self.device,
+                        float_type=self.float,
+                    )
+                )
+        # Sort parents lists in the same order as states
+        self.parents_all = self.parents_all[indices]
+        self.parents_actions_all = self.parents_actions_all[indices]
+        self.parents_all_indices = self.parents_all_indices[indices]
+        self.parents_all_policy = self.parents_all_policy[indices]
+        # Flatten parents lists and convert to tensors
+        self.parents_all = tfloat(
+            [p for parents in self.parents_all for p in parents],
+            device=self.device,
+            float_type=self.float,
+        )
+        self.parents_actions_all = tfloat(
+            [a for actions in self.parents_actions_all for a in actions],
+            device=self.device,
+            float_type=self.float,
+        )
+        self.parents_all_indices = tlong(
+            [idx for indices in self.parents_all_indices for idx in indices],
+            device=self.device,
+        )
+        self.parents_all_policy = torch.cat(parents_all_policy)
+        self.parents_all_available = True
+
     def _process_parents(self):
         """
         Process parents for the given loss type.
@@ -392,15 +586,21 @@ class Batch:
 
     def _process_trajectory_indices(self):
         """
-        Obtain the indices in the batch that correspond to each environment.
-        Creates a dictionary of trajectory indices (key: env_id, value: indices of the states in self.states
-        ordered from s_1 to s_f).
+        Obtain the indices in the batch that correspond to each environment.  Creates a
+        dictionary of trajectory indices (key: env_id, value: indices of the states in
+        self.states ordered from s_1 to s_f).
 
         Returns
         -------
         trajs: dict
             Dictionary containing trajectory indices for each environment.
         """
+        # Check if self.trajectory_indices is already computed and valid
+        if self.trajectory_indices is not None:
+            n_indices = sum([len(v) for v in self.trajectory_indices.values])
+            if n_indices == len(self):
+                return self.trajectory_indices
+        # Obtain trajectory indices since they are not computed yet
         trajs = defaultdict(list)
         for idx, (env_id, step) in enumerate(zip(self.env_ids, self.n_actions)):
             trajs[env_id.item()].append((idx, step))
