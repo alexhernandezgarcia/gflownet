@@ -20,6 +20,7 @@ class TorchANIMoleculeEnergy(MoleculeEnergyBase):
         use_ensemble: bool = True,
         batch_size: Optional[int] = 128,
         n_samples: int = 5000,
+        normalize: bool = True,
         **kwargs,
     ):
         """
@@ -33,8 +34,14 @@ class TorchANIMoleculeEnergy(MoleculeEnergyBase):
 
         batch_size : int
             Batch size for TorchANI. If none, will process all states as a single batch.
+
+        normalize : bool
+            Whether to truncate the energies to a (0, 1) range (estimated based on
+            sample conformers).
         """
-        super().__init__(batch_size=batch_size, n_samples=n_samples, **kwargs)
+        super().__init__(
+            batch_size=batch_size, n_samples=n_samples, normalize=normalize, **kwargs
+        )
 
         if TORCHANI_MODELS.get(model) is None:
             raise ValueError(

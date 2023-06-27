@@ -57,9 +57,16 @@ def get_energy(numbers, positions, method="gfnff"):
 
 class XTBMoleculeEnergy(MoleculeEnergyBase):
     def __init__(
-        self, method: str = "gfnff", batch_size=1024, n_samples=5000, **kwargs
+        self,
+        method: str = "gfnff",
+        batch_size=1024,
+        n_samples=5000,
+        normalize: bool = True,
+        **kwargs,
     ):
-        super().__init__(batch_size=batch_size, n_samples=n_samples, **kwargs)
+        super().__init__(
+            batch_size=batch_size, n_samples=n_samples, normalize=normalize, **kwargs
+        )
 
         if method not in METHODS.keys():
             raise ValueError(

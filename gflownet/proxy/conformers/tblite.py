@@ -29,8 +29,16 @@ def _chunks(lst, n):
 
 
 class TBLiteMoleculeEnergy(MoleculeEnergyBase):
-    def __init__(self, batch_size: int = 1024, n_samples: int = 5000, **kwargs):
-        super().__init__(batch_size=batch_size, n_samples=n_samples, **kwargs)
+    def __init__(
+        self,
+        batch_size: int = 1024,
+        n_samples: int = 5000,
+        normalize: bool = True,
+        **kwargs
+    ):
+        super().__init__(
+            batch_size=batch_size, n_samples=n_samples, normalize=normalize, **kwargs
+        )
 
     def compute_energy(self, states: List) -> Tensor:
         # Get the number of available CPUs.
