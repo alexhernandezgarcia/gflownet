@@ -282,7 +282,7 @@ class GFlowNetAgent:
             mask_invalid_actions,
             temperature,
         )
-        return actions, mask_invalid_actions
+        return actions
 
     def step(
         self,
@@ -392,7 +392,7 @@ class GFlowNetAgent:
         while envs_offline:
             # Sample backward actions
             with torch.no_grad():
-                actions, _ = self.sample_actions(
+                actions = self.sample_actions(
                     envs_offline,
                     times,
                     sampling_method="policy",
@@ -416,7 +416,7 @@ class GFlowNetAgent:
             # Sample forward actions
             with torch.no_grad():
                 if train is False:
-                    actions, mask_invalid_actions_forward = self.sample_actions(
+                    actions = self.sample_actions(
                         envs,
                         times,
                         sampling_method="policy",
@@ -426,7 +426,7 @@ class GFlowNetAgent:
                         random_action_prob=self.random_action_prob,
                     )
                 else:
-                    actions, mask_invalid_actions_forward = self.sample_actions(
+                    actions = self.sample_actions(
                         envs,
                         times,
                         sampling_method="policy",
@@ -439,9 +439,7 @@ class GFlowNetAgent:
             envs, actions, valids = self.step(envs, actions, is_forward=True)
             # Add to batch
             t0_a_envs = time.time()
-            batch.add_to_batch(
-                envs, actions, valids, mask_invalid_actions_forward, train
-            )
+            batch.add_to_batch(envs, actions, valids, train)
             # Filter out finished trajectories
             envs = [env for env in envs if not env.done]
             t1_a_envs = time.time()
