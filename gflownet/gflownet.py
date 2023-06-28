@@ -261,10 +261,7 @@ class GFlowNetAgent:
                 )
         else:
             # Invalid action masks are provided, convert to pytorch tensors
-            mask_invalid_actions = tbool(
-                [m for m in mask_invalid_actions],
-                device=self.device,
-            )
+            mask_invalid_actions = tbool(mask_invalid_actions, device=self.device)
         # Build policy outputs
         policy_outputs = model.random_distribution(states)
         idx_norandom = (
