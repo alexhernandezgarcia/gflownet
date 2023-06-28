@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 import torch
 
-from gflownet.envs.random_forest import Operator, Tree
+from gflownet.envs.tree import Operator, Tree
 from gflownet.policy.tree import (
     Backbone,
     FeatureSelectionHead,

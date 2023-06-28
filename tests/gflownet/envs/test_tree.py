@@ -5,7 +5,7 @@ import pytest
 import torch
 
 import common
-from gflownet.envs.random_forest import NodeType, Operator, Tree
+from gflownet.envs.tree import NodeType, Operator, Tree
 
 
 @pytest.fixture
