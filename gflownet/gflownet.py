@@ -450,7 +450,7 @@ class GFlowNetAgent:
                 print(f"{n_samples - len(envs)}/{n_samples} done")
         return batch, times
 
-    def flowmatch_loss(self, it, batch, loginf=1000):
+    def flowmatch_loss(self, it, batch):
         """
         Computes the loss of a batch
 
@@ -474,8 +474,6 @@ class GFlowNetAgent:
         flow_loss : float
             Loss of the intermediate nodes only
         """
-        loginf = tfloat([loginf], device=self.device, float_type=self.float)
-
         # Convert lists in the batch into tensors
         batch.process_batch()
         # Unpack batch
@@ -491,8 +489,10 @@ class GFlowNetAgent:
         rewards = batch.compute_rewards()
         assert torch.all(rewards[done] > 0)
         # In-flows
-        inflow_logits = -loginf * torch.ones(
+        inflow_logits = torch.full(
             (states.shape[0], self.env.policy_output_dim),
+            -torch.inf,
+            dtype=self.float,
             device=self.device,
         )
         inflow_logits[parents_state_idx, parents_a_idx] = self.forward_policy(parents)[
@@ -501,9 +501,9 @@ class GFlowNetAgent:
         inflow = torch.logsumexp(inflow_logits, dim=1)
         # Out-flows
         outflow_logits = self.forward_policy(states)
-        outflow_logits[masks_sf] = -loginf
+        outflow_logits[masks_sf] = -torch.inf
         outflow = torch.logsumexp(outflow_logits, dim=1)
-        outflow = outflow * torch.logical_not(done) - loginf * done
+        outflow = outflow * torch.logical_not(done) - 1e6 * done
         outflow = torch.logaddexp(torch.log(rewards), outflow)
         # Flow matching loss
         loss = (inflow - outflow).pow(2).mean()
@@ -515,7 +515,7 @@ class GFlowNetAgent:
             )
         return (loss, term_loss, flow_loss), rewards[done.eq(1)]
 
-    def trajectorybalance_loss(self, it, batch, loginf=1000):
+    def trajectorybalance_loss(self, it, batch):
         """
         Computes the trajectory balance loss of a batch
 
@@ -538,7 +538,6 @@ class GFlowNetAgent:
         flow_loss : float
             Loss of the intermediate nodes only
         """
-        loginf = tfloat([loginf], device=self.device, float_type=self.float)
         # Convert lists in the batch into tensors
         batch.process_batch()
 
@@ -570,7 +569,7 @@ class GFlowNetAgent:
         # Forward trajectories
         policy_output_f = self.forward_policy(parents)
         logprobs_f = self.env.get_logprobs(
-            policy_output_f, True, actions, states, masks_f, loginf
+            policy_output_f, True, actions, states, masks_f
         )
         sumlogprobs_f = torch.zeros(
             len(torch.unique(traj_ids, sorted=True)),
@@ -580,7 +579,7 @@ class GFlowNetAgent:
         # Backward trajectories
         policy_output_b = self.backward_policy(states)
         logprobs_b = self.env.get_logprobs(
-            policy_output_b, False, actions, parents, masks_b, loginf
+            policy_output_b, False, actions, parents, masks_b
         )
         sumlogprobs_b = torch.zeros(
             len(torch.unique(traj_ids, sorted=True)),
@@ -1044,11 +1043,10 @@ def make_opt(params, logZ, config):
     return opt, lr_scheduler
 
 
-def logq(traj_list, actions_list, model, env, loginf=1000):
+def logq(traj_list, actions_list, model, env):
     # TODO: this method is probably suboptimal, since it may repeat forward calls for
     # the same nodes.
     log_q = torch.tensor(1.0)
-    loginf = tfloat([loginf], device=self.device, float_type=self.float)
     for traj, actions in zip(traj_list, actions_list):
         traj = traj[::-1]
         actions = actions[::-1]
@@ -1064,7 +1062,7 @@ def logq(traj_list, actions_list, model, env, loginf=1000):
                     float_type=self.float,
                 )
             )
-        logits_traj[masks] = -loginf
+        logits_traj[masks] = -torch.inf
         logsoftmax = torch.nn.LogSoftmax(dim=1)
         logprobs_traj = logsoftmax(logits_traj)
         log_q_traj = torch.tensor(0.0)
