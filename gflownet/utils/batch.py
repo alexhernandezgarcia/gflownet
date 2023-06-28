@@ -331,6 +331,9 @@ class Batch:
             If True, the policy format of parents is returned. Otherwise, the GFlowNet
             format is returned.
 
+        force_recompute : bool
+            If True, the parents are recomputed even if they are available.
+
         Returns
         -------
         self.parents or self.parents_policy : torch.tensor
@@ -559,6 +562,50 @@ class Batch:
                 parents_policy[traj[1:]] = self.states_policy[traj[:-1]]
                 parents[traj[1:]] = self.states[traj[:-1]]
         return parents, parents_policy, parents_all, parents_all_policy
+
+    # TODO: handle mix of backward and forward trajectories
+    # TODO: opportunity to improve efficiency by caching. Note that
+    # env.get_masks_invalid_actions_backward() may be expensive because it calls
+    # env.get_parents().
+    def get_masks_backward(
+        self,
+        force_recompute: bool = False,
+    ) -> TensorType["n_states", "action_space_dim"]:
+        """
+        Computes (and returns) the backward mask of invalid actions of all states in the
+        batch, by calling env.get_mask_invalid_actions_backward().
+
+        Args
+        ----
+        force_recompute : bool
+            If True, the masks are recomputed even if they are available.
+
+        Returns
+        -------
+        self.masks_invalid_actions_backward : torch.tensor
+            The backward mask of all states in the batch.
+        """
+        if self.masks_backward_available is True and force_recompute is False:
+            return self.masks_invalid_actions_backward
+        # Iterate over the trajectories to compute all backward masks
+        self.trajectory_indices = self._process_trajectory_indices()
+        self.masks_invalid_actions_backward = []
+        for env_id, traj in self.trajectory_indices.items():
+            for idx in traj:
+                state = self.states[idx]
+                done = self.done[idx]
+                action = self.actions[idx]
+                self.masks_invalid_actions_backward.append(
+                    self.envs[env_id].get_mask_invalid_actions_backward(
+                        state, done, [action]
+                    )
+                )
+        # Make tensor
+        self.masks_invalid_actions_backward = tbool(
+            self.masks_invalid_actions_backward, device=self.device
+        )
+        self.masks_backward_available = True
+        return self.masks_invalid_actions_backward
 
     def merge(self, another_batch):
         """
