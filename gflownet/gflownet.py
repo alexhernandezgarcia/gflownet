@@ -209,6 +209,7 @@ class GFlowNetAgent:
         is_forward: bool = True,
         temperature=1.0,
         random_action_prob=0.0,
+        mask_invalid_actions=None,
     ):
         """
         Samples one action on each environment of a list.
@@ -233,6 +234,10 @@ class GFlowNetAgent:
 
         temperature : float
             Temperature to adjust the logits by logits /= temperature
+
+        mask_invalid_actions : list or None
+            List of invalid action masks for the environments in env. Optional, will be
+            computed if not provided.
         """
         # TODO: implement backward sampling from forward policy as in old
         # backward_sample.
@@ -242,16 +247,24 @@ class GFlowNetAgent:
             envs = [envs]
         # Build states and masks
         states = [env.state for env in envs]
-        if is_forward:
-            mask_invalid_actions = tbool(
-                [env.get_mask_invalid_actions_forward() for env in envs],
-                device=self.device,
-            )
+        if mask_invalid_actions is None:
+            # Invalid actions masks are not provided, they need to be computed
+            if is_forward:
+                mask_invalid_actions = tbool(
+                    [env.get_mask_invalid_actions_forward() for env in envs],
+                    device=self.device,
+                )
+            else:
+                mask_invalid_actions = tbool(
+                    [env.get_mask_invalid_actions_backward() for env in envs],
+                    device=self.device,
+                )
         else:
+            # Invalid action masks are provided, convert to pytorch tensors
             mask_invalid_actions = tbool(
-                [env.get_mask_invalid_actions_backward() for env in envs],
-                device=self.device,
-            )
+                    [m for m in mask_invalid_actions],
+                    device=self.device,
+                )
         # Build policy outputs
         policy_outputs = model.random_distribution(states)
         idx_norandom = (
