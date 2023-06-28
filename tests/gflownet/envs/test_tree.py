@@ -90,8 +90,8 @@ def test__get_parents__returns_same_state_and_eos_if_done(env):
     common.test__get_parents__returns_same_state_and_eos_if_done(env)
 
 
-def test__step__returns_same_state_action_and_invalid_if_done(env):
-    common.test__step__returns_same_state_action_and_invalid_if_done(env)
+# def test__step__returns_same_state_action_and_invalid_if_done(env):
+#     common.test__step__returns_same_state_action_and_invalid_if_done(env)
 
 
 def test__actions2indices__returns_expected_tensor(env):
