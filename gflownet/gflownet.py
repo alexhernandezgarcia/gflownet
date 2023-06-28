@@ -262,9 +262,9 @@ class GFlowNetAgent:
         else:
             # Invalid action masks are provided, convert to pytorch tensors
             mask_invalid_actions = tbool(
-                    [m for m in mask_invalid_actions],
-                    device=self.device,
-                )
+                [m for m in mask_invalid_actions],
+                device=self.device,
+            )
         # Build policy outputs
         policy_outputs = model.random_distribution(states)
         idx_norandom = (
@@ -425,6 +425,7 @@ class GFlowNetAgent:
             envs_offline = [env for env in envs_offline if env.state != env.source]
         envs = envs[n_empirical:]
         # Policy trajectories
+        masks_invalid_actions_forward = None
         while envs:
             # Sample forward actions
             with torch.no_grad():
@@ -437,6 +438,7 @@ class GFlowNetAgent:
                         is_forward=True,
                         temperature=1.0,
                         random_action_prob=self.random_action_prob,
+                        mask_invalid_actions=masks_invalid_actions_forward,
                     )
                 else:
                     actions = self.sample_actions(
@@ -447,14 +449,39 @@ class GFlowNetAgent:
                         is_forward=True,
                         temperature=self.temperature_logits,
                         random_action_prob=self.random_action_prob,
+                        mask_invalid_actions=masks_invalid_actions_forward,
                     )
             # Update environments with sampled actions
             envs, actions, valids = self.step(envs, actions, is_forward=True)
+
+            # Compute updated action masks
+            masks_invalid_actions_forward = [
+                env.get_mask_invalid_actions_forward() for env in envs
+            ]
+
             # Add to batch
             t0_a_envs = time.time()
-            batch.add_to_batch(envs, actions, valids, train)
-            # Filter out finished trajectories
-            envs = [env for env in envs if not env.done]
+            batch.add_to_batch(
+                envs,
+                actions,
+                valids,
+                masks_invalid_actions_forward,
+                train,
+            )
+
+            # Filter out finished trajectories, and the corresponding masks
+            not_done_envs = []
+            not_done_masks = []
+            for (
+                env,
+                mask,
+            ) in zip(envs, masks_invalid_actions_forward):
+                if not env.done:
+                    not_done_envs.append(env)
+                    not_done_masks.append(mask)
+            envs = not_done_envs
+            masks_invalid_actions_forward = not_done_masks
+
             t1_a_envs = time.time()
             times["actions_envs"] += t1_a_envs - t0_a_envs
             if progress and n_samples is not None:
