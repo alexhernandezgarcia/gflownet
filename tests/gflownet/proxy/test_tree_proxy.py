@@ -2,8 +2,8 @@ import numpy as np
 import pytest
 import torch
 
-from gflownet.envs.tree import Tree as TreeEnvironment
-from gflownet.proxy.tree import Tree as TreeProxy
+from gflownet.envs.tree import Tree
+from gflownet.proxy.tree import TreeProxy
 
 
 @pytest.fixture
@@ -17,13 +17,11 @@ def y():
 
 
 def test__tree_proxy__returns_expected_energies(X, y):
-    empty_tree = TreeEnvironment(X, y, max_depth=4)
-    full_tree = TreeEnvironment(X, y, max_depth=4)
+    empty_tree = Tree(X, y, max_depth=4)
+    full_tree = Tree(X, y, max_depth=4)
     while True:
         splittable_leafs = [
-            l
-            for l in full_tree.leafs
-            if TreeEnvironment._get_right_child(l) < full_tree.n_nodes
+            l for l in full_tree.leafs if Tree._get_right_child(l) < full_tree.n_nodes
         ]
 
         if len(splittable_leafs) == 0:
