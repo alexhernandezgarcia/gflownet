@@ -114,8 +114,9 @@ class Tree(GFlowNetEnv):
 
     def __init__(
         self,
-        X: npt.NDArray,
-        y: npt.NDArray,
+        X: Optional[npt.NDArray] = None,
+        y: Optional[npt.NDArray] = None,
+        data_path: Optional[str] = None,
         max_depth: int = 10,
         threshold_components: int = 1,
         **kwargs,
@@ -124,10 +125,19 @@ class Tree(GFlowNetEnv):
         Attributes
         ----------
         X : np.array
-            Input dataset, with dimensionality (n_observations, n_features).
+            Input dataset, with dimensionality (n_observations, n_features). It may be
+            None if a data set is provided via data_path.
 
         y : np.array
-            Target labels, with dimensionality (n_observations,).
+            Target labels, with dimensionality (n_observations,). It may be
+            None if a data set is provided via data_path.
+
+        data_path : str
+            A path to a data set, with the following options:
+            - *.pkl: Pickled dict with X and y variables.
+            - *.csv: CSV with M columns where the first (M - 1) columns will be taken
+              to construct the input X, and column M-th will be the target y.
+            Ignored if X and y are not None.
 
         max_depth : int
             Maximum depth of a tree.
@@ -136,8 +146,16 @@ class Tree(GFlowNetEnv):
             The number of mixture components that will be used for sampling
             the threshold.
         """
-        self.X = X
-        self.y = y
+        if X is not None and y is not None:
+            self.X = X
+            self.y = y
+        elif data_path is not None:
+            self.X, self.y = Tree._load_dataset(data_path)
+        else:
+            raise ValueError(
+                "A Tree must be initialised with a data set. X, y and data_path cannot "
+                "be all None"
+            )
         self.max_depth = max_depth
         self.components = threshold_components
         self.leafs = set()
@@ -570,6 +588,30 @@ class Tree(GFlowNetEnv):
         Convert self.state into a PyG graph.
         """
         return from_networkx(self._get_graph())
+
+    @staticmethod
+    def _load_dataset(data_path):
+        from pathlib import Path
+
+        data_path = Path(data_path)
+        if data_path.suffix == ".csv":
+            import pandas as pd
+
+            df = pd.read_csv(data_path)
+            X = df.iloc[:, 0:-1].values
+            y = df.iloc[:, -1].values
+        elif data_path.suffix == ".pkl":
+            import pickle
+
+            with open(data_path, "rb") as f:
+                dct = pickle.load(f)
+                X = dct["X"]
+                y = dct["y"]
+        else:
+            raise ValueError(
+                "data_path must be a CSV (*.csv) or a pickled dict (*.pkl)."
+            )
+        return X, y
 
     def predict(self, x: npt.NDArray, k: int = 0) -> int:
         """
