@@ -10,8 +10,8 @@ from gflownet.proxy.base import Proxy
 
 class Tree(Proxy):
     """
-    Simple decision tree proxy that uses empirical frequency of correct predictions
-    for computing likelihood, and the number of leafs in the tree for computing the prior.
+    Simple decision tree proxy that uses empirical frequency of correct predictions for
+    computing likelihood, and the number of leafs in the tree for computing the prior.
     """
 
     def __init__(self, **kwargs):
