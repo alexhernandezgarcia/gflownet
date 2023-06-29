@@ -51,16 +51,17 @@ def main(config):
 
     # Sample from trained GFlowNet
     if config.n_samples > 0 and config.n_samples <= 1e5:
-        samples, times = gflownet.sample_batch(env, config.n_samples, train=False)
-        energies = env.oracle(env.statebatch2oracle(samples))
+        batch, times = gflownet.sample_batch(env, config.n_samples, train=False)
+        batch.process_batch()
+        energies = env.oracle(env.statebatch2oracle(batch.states))
         df = pd.DataFrame(
             {
-                "readable": [env.state2readable(s) for s in samples],
+                "readable": [env.state2readable(s) for s in batch.states.cpu()],
                 "energies": energies.tolist(),
             }
         )
         df.to_csv("gfn_samples.csv")
-        dct = {"x": samples, "energy": energies}
+        dct = {"x": batch.states.cpu(), "energy": energies}
         pickle.dump(dct, open("gfn_samples.pkl", "wb"))
     print(gflownet.buffer.replay)
     gflownet.logger.end()
