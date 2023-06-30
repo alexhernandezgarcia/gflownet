@@ -499,9 +499,15 @@ class GFlowNetAgent:
         inflow = torch.logsumexp(inflow_logits, dim=1)
         # Out-flows
         outflow_logits = self.forward_policy(states)
-        outflow_logits[masks_sf] = -torch.inf
+        outflow_logits[masks_sf] = -1000
         outflow = torch.logsumexp(outflow_logits, dim=1)
-        outflow = outflow * torch.logical_not(done) - 1e6 * done
+        # Loss at terminating nodes
+        loss_terminating = (inflow[done] - torch.log(rewards)[done]).pow(2).mean()
+        # Loss at intermediate nodes
+        loss_intermediate = (inflow[~done] - outflow[~done]).pow(2).mean()
+        # Total loss
+        loss_combined = loss_terminating + loss_intermediate
+        outflow = outflow * torch.logical_not(done) - 1000 * done
         outflow = torch.logaddexp(torch.log(rewards), outflow)
         # Flow matching loss
         loss = (inflow - outflow).pow(2).mean()
