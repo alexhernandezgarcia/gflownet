@@ -499,7 +499,7 @@ class GFlowNetAgent:
         inflow = torch.logsumexp(inflow_logits, dim=1)
         # Out-flows
         outflow_logits = self.forward_policy(states)
-        outflow_logits[masks_sf] = -1000
+        outflow_logits[masks_sf] = -torch.inf
         outflow = torch.logsumexp(outflow_logits, dim=1)
         # Loss at terminating nodes
         loss_term = (inflow[done] - torch.log(rewards[done])).pow(2).mean()
@@ -508,19 +508,8 @@ class GFlowNetAgent:
         loss_interm = (inflow[~done] - outflow[~done]).pow(2).mean()
         contrib_interm = done.eq(0).to(self.float).mean()
         # Combined loss
-        loss_combined = contrib_term * loss_term + contrib_interm * loss_interm
-        # Old way
-        outflow_rw = outflow * torch.logical_not(done) - 1000 * done
-        outflow_rw = torch.logaddexp(torch.log(rewards), outflow_rw)
-        # Flow matching loss
-        loss = (inflow - outflow_rw).pow(2).mean()
-        # Isolate loss at terminating nodes and all other nodes
-        with torch.no_grad():
-            term_loss = ((inflow - outflow_rw) * done).pow(2).sum() / (done.sum() + 1e-20)
-            flow_loss = ((inflow - outflow_rw) * torch.logical_not(done)).pow(2).sum() / (
-                torch.logical_not(done).sum() + 1e-20
-            )
-        return (loss, term_loss, flow_loss), rewards[done.eq(1)]
+        loss = contrib_term * loss_term + contrib_interm * loss_interm
+        return (loss, loss_term, loss_interm), rewards[done]
 
     def trajectorybalance_loss(self, it, batch):
         """
