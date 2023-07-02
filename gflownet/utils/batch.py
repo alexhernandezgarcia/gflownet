@@ -63,19 +63,21 @@ class Batch:
         self.is_processed = False
         self.states_policy = None
         self.parents_policy = None
-        self.batch_indices = {}
+        # Dictionary of env_id (traj_id): batch indices of the trajectory
+        self.trajectories = {}
+        # Trajectory index and state index of each element in the batch
         self.traj_state_indices = []
         self.parents_available = False
 
     def __len__(self):
         return len(self.states)
 
-    def batch_idx_to_traj_state_idx(batch_idx : int):
+    def batch_idx_to_traj_state_idx(batch_idx: int):
         traj_id, state_id = self.traj_state_indices[batch_idx]
         return traj_id, state_id
 
-    def traj_idx_to_batch_indices(traj_idx : int):
-        batch_indices = self.batch_indices[traj_idx]
+    def traj_idx_to_batch_indices(traj_idx: int):
+        batch_indices = self.trajectories[traj_idx]
         return batch_indices
 
     def add_to_batch(
@@ -160,6 +162,13 @@ class Batch:
                     self.states.append(env.state)
                     self.env_ids.append(env.id)
                     self.n_actions.append(env.n_actions)
+            # Add batch index to trajectory
+            if env.id not in trajectories:
+                self.trajectories.update({env.id: [len(self)]})
+            else:
+                self.trajectories[env.id].append(len(self))
+            # Add trajectory index and state index
+            self.traj_state_indices.append((env.id, env.n_actions))
 
     def process_batch(self):
         """
@@ -212,7 +221,7 @@ class Batch:
         self, policy: Optional[bool] = False, force_recompute: Optional[bool] = False
     ) -> Union[List, TensorType["n_states", "..."]]:
         """
-        Returns all the states in the batch. 
+        Returns all the states in the batch.
 
         The states are returned in "policy format" if policy is True, otherwise they
         are returned in "GFlowNet" format (default).
@@ -237,7 +246,6 @@ class Batch:
         if states_policy is None or force_recompute is True:
             self.states_policy = self.states2policy(self.states, self.env_ids)
         return self.states_policy
-
 
     def _process_states(self):
         """
@@ -404,24 +412,25 @@ class Batch:
         self.parents_policy is stored as a torch tensor and self.parents_available is
         set to True.
         """
-        self.trajectory_indices = self._process_trajectory_indices()
         self.states_policy = self.get_states(policy=True)
         self.parents_policy = torch.zeros_like(self.states_policy)
         self.parents = []
         indices = []
         # Iterate over the trajectories to obtain the parents from the states
-        for env_id, traj in self.trajectory_indices.items():
+        for traj_id, batch_indices in self.trajectories.items():
             # parent is source
-            self.parents.extend(self.envs[env_id].source)
-            self.parents_policy[traj[0]] = tfloat(
-                self.envs[env_id].state2policy(self.envs[env_id].source),
+            self.parents.extend(self.envs[traj_id].source)
+            self.parents_policy[batch_indices[0]] = tfloat(
+                self.envs[traj_id].state2policy(self.envs[traj_id].source),
                 device=self.device,
                 float_type=self.float,
             )
             # parent is not source
-            self.parents.extend(self.states[traj[:-1]])
-            self.parents_policy[traj[1:]] = self.states_policy[traj[:-1]]
-            indices.extend(traj)
+            self.parents.extend(self.states[batch_indices[:-1]])
+            self.parents_policy[batch_indices[1:]] = self.states_policy[
+                batch_indices[:-1]
+            ]
+            indices.extend(batch_indices)
         # Sort parents list in the same order as states
         self.parents = self.parents[indices]
 
@@ -496,43 +505,35 @@ class Batch:
         self.parents_all_available is set to True.
         """
         # Iterate over the trajectories to obtain all parents
-        self.trajectory_indices = self._process_trajectory_indices()
         self.parents_all = []
         self.parents_actions_all = []
         self.parents_all_indices = []
         self.parents_all_policy = []
-        indices = []
-        for env_id, traj in self.trajectory_indices.items():
-            for idx in traj:
-                state = self.states[idx]
-                done = self.done[idx]
-                action = self.actions[idx]
-                parents, parents_a = self.envs[env_id].get_parents(
-                    state=state,
-                    done=done,
-                    action=action,
+        for idx, (traj_idx, _) in self.traj_state_indices:
+            state = self.states[idx]
+            done = self.done[idx]
+            action = self.actions[idx]
+            parents, parents_a = self.envs[traj_id].get_parents(
+                state=state,
+                done=done,
+                action=action,
+            )
+            assert (
+                action in parents_a
+            ), f"""
+            Sampled action is not in the list of valid actions from parents.
+            \nState:\n{state}\nAction:\n{action}
+            """
+            self.parents_all.append(parents)
+            self.parents_actions_all.append(parents_a)
+            self.parents_all_indices.append([[idx] * len(parents)])
+            self.parents_all_policy.append(
+                tfloat(
+                    self.envs[traj_id].statebatch2policy(parents),
+                    device=self.device,
+                    float_type=self.float,
                 )
-                assert (
-                    action in parents_a
-                ), f"""
-                Sampled action is not in the list of valid actions from parents.
-                \nState:\n{state}\nAction:\n{action}
-                """
-                self.parents_all.append(parents)
-                self.parents_actions_all.append(parents_a)
-                self.parents_all_indices.append([[idx] * len(parents)])
-                self.parents_all_policy.append(
-                    tfloat(
-                        self.envs[env_id].statebatch2policy(parents),
-                        device=self.device,
-                        float_type=self.float,
-                    )
-                )
-        # Sort parents lists in the same order as states
-        self.parents_all = self.parents_all[indices]
-        self.parents_actions_all = self.parents_actions_all[indices]
-        self.parents_all_indices = self.parents_all_indices[indices]
-        self.parents_all_policy = self.parents_all_policy[indices]
+            )
         # Flatten parents lists and convert to tensors
         self.parents_all = tfloat(
             [p for parents in self.parents_all for p in parents],
@@ -631,18 +632,16 @@ class Batch:
         if self.masks_backward_available is True and force_recompute is False:
             return self.masks_invalid_actions_backward
         # Iterate over the trajectories to compute all backward masks
-        self.trajectory_indices = self._process_trajectory_indices()
         self.masks_invalid_actions_backward = []
-        for env_id, traj in self.trajectory_indices.items():
-            for idx in traj:
-                state = self.states[idx]
-                done = self.done[idx]
-                action = self.actions[idx]
-                self.masks_invalid_actions_backward.append(
-                    self.envs[env_id].get_mask_invalid_actions_backward(
-                        state, done, [action]
-                    )
+        for idx, (traj_idx, _) in self.traj_state_indices:
+            state = self.states[idx]
+            done = self.done[idx]
+            action = self.actions[idx]
+            self.masks_invalid_actions_backward.append(
+                self.envs[traj_idx].get_mask_invalid_actions_backward(
+                    state, done, [action]
                 )
+            )
         # Make tensor
         self.masks_invalid_actions_backward = tbool(
             self.masks_invalid_actions_backward, device=self.device
