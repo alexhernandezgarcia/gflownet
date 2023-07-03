@@ -63,18 +63,20 @@ class Batch:
         self.is_processed = False
         self.states_policy = None
         self.parents_policy = None
-        # Dictionary of env_id (traj_id): batch indices of the trajectory
+        # Dictionary of env_id (traj_idx): batch indices of the trajectory
         self.trajectories = {}
         # Trajectory index and state index of each element in the batch
         self.traj_state_indices = []
         self.parents_available = False
+        self.parents_all_available = False
+        self.masks_backward_available = False
 
     def __len__(self):
         return len(self.states)
 
     def batch_idx_to_traj_state_idx(batch_idx: int):
-        traj_id, state_id = self.traj_state_indices[batch_idx]
-        return traj_id, state_id
+        traj_idx, state_id = self.traj_state_indices[batch_idx]
+        return traj_idx, state_id
 
     def traj_idx_to_batch_indices(traj_idx: int):
         batch_indices = self.trajectories[traj_idx]
@@ -397,7 +399,7 @@ class Batch:
         if self.parents_available is False or force_recompute is True:
             self._compute_parents()
         if policy:
-            return (self.parents_policy,)
+            return self.parents_policy
         else:
             return self.parents
 
@@ -423,11 +425,11 @@ class Batch:
         self.parents = []
         indices = []
         # Iterate over the trajectories to obtain the parents from the states
-        for traj_id, batch_indices in self.trajectories.items():
+        for traj_idx, batch_indices in self.trajectories.items():
             # parent is source
-            self.parents.append(self.envs[traj_id].source)
+            self.parents.append(self.envs[traj_idx].source)
             self.parents_policy[batch_indices[0]] = tfloat(
-                self.envs[traj_id].state2policy(self.envs[traj_id].source),
+                self.envs[traj_idx].state2policy(self.envs[traj_idx].source),
                 device=self.device,
                 float_type=self.float,
             )
@@ -517,11 +519,11 @@ class Batch:
         self.parents_actions_all = []
         self.parents_all_indices = []
         self.parents_all_policy = []
-        for idx, (traj_idx, _) in self.traj_state_indices:
+        for idx, (traj_idx, _) in enumerate(self.traj_state_indices):
             state = self.states[idx]
             done = self.done[idx]
             action = self.actions[idx]
-            parents, parents_a = self.envs[traj_id].get_parents(
+            parents, parents_a = self.envs[traj_idx].get_parents(
                 state=state,
                 done=done,
                 action=action,
@@ -537,7 +539,7 @@ class Batch:
             self.parents_all_indices.append([[idx] * len(parents)])
             self.parents_all_policy.append(
                 tfloat(
-                    self.envs[traj_id].statebatch2policy(parents),
+                    self.envs[traj_idx].statebatch2policy(parents),
                     device=self.device,
                     float_type=self.float,
                 )
@@ -557,7 +559,7 @@ class Batch:
             [idx for indices in self.parents_all_indices for idx in indices],
             device=self.device,
         )
-        self.parents_all_policy = torch.cat(parents_all_policy)
+        self.parents_all_policy = torch.cat(self.parents_all_policy)
         self.parents_all_available = True
 
     def _process_parents(self):
@@ -641,7 +643,7 @@ class Batch:
             return self.masks_invalid_actions_backward
         # Iterate over the trajectories to compute all backward masks
         self.masks_invalid_actions_backward = []
-        for idx, (traj_idx, _) in self.traj_state_indices:
+        for idx, (traj_idx, _) in enumerate(self.traj_state_indices):
             state = self.states[idx]
             done = self.done[idx]
             action = self.actions[idx]
