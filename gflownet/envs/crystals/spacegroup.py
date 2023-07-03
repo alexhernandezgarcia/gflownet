@@ -8,6 +8,7 @@ from typing import Dict, List, Optional, Tuple, Union
 import numpy as np
 import torch
 import yaml
+from pyxtal.symmetry import Group
 from torch import Tensor
 from torchtyping import TensorType
 
@@ -72,16 +73,37 @@ class SpaceGroup(GFlowNetEnv):
     properties.
     """
 
-    def __init__(self, **kwargs):
+    def __init__(self, n_atoms: Optional[List[int]] = None, **kwargs):
+        """
+        Args
+        ----
+        n_atoms : list of int (optional)
+            A list with the number of atoms per element, used to compute constraints on
+            the space group. 0's are removed from the list. If None, composition/space
+            group constraints are ignored.
+        """
+        if n_atoms is not None:
+            self.n_atoms = [n for n in n_atoms if n > 0]
+        else:
+            self.n_atoms = None
+        # Get dictionaries
         self.crystal_lattice_systems = _get_crystal_lattice_systems()
         self.point_symmetries = _get_point_symmetries()
         self.space_groups = _get_space_groups()
         self.n_crystal_lattice_systems = len(self.crystal_lattice_systems)
         self.n_point_symmetries = len(self.point_symmetries)
         self.n_space_groups = len(self.space_groups)
+        # Get compatibility with stoichiometry
+        self.compatibility_stoichiometry_dict = (
+            SpaceGroup.get_compatibility_stoichiometry_dict(
+                self.n_atoms, self.space_groups.keys()
+            )
+        )
+        # Define indices
         self.cls_idx, self.ps_idx, self.sg_idx = 0, 1, 2
         self.ref_state_factors = [1, 2]
         self.ref_state_indices = [0, 1, 2, 3]
+        # End-of-sequence action
         self.eos = (-1, -1, -1)
         # Source state: index 0 (empty) for all three properties (crystal-lattice
         # system index, point symmetry index, space group)
@@ -156,6 +178,7 @@ class SpaceGroup(GFlowNetEnv):
             space_groups_cls = [
                 (self.sg_idx, sg, ref)
                 for sg in self.crystal_lattice_systems[cls_idx]["space_groups"]
+                if self.compatibility_stoichiometry_dict[sg]
             ]
             # If no point symmetry selected yet
             if ps_idx == 0:
@@ -165,7 +188,9 @@ class SpaceGroup(GFlowNetEnv):
                 ]
         else:
             space_groups_cls = [
-                (self.sg_idx, idx + 1, ref) for idx in range(self.n_space_groups)
+                (self.sg_idx, idx + 1, ref)
+                for idx in range(self.n_space_groups)
+                if self.compatibility_stoichiometry_dict[idx + 1]
             ]
         # Constraints after having selected point symmetry
         if ps_idx != 0:
@@ -173,6 +198,7 @@ class SpaceGroup(GFlowNetEnv):
             space_groups_ps = [
                 (self.sg_idx, sg, ref)
                 for sg in self.point_symmetries[ps_idx]["space_groups"]
+                if self.compatibility_stoichiometry_dict[sg]
             ]
             # If no crystal-lattice system selected yet
             if cls_idx == 0:
@@ -182,7 +208,9 @@ class SpaceGroup(GFlowNetEnv):
                 ]
         else:
             space_groups_ps = [
-                (self.sg_idx, idx + 1, ref) for idx in range(self.n_space_groups)
+                (self.sg_idx, idx + 1, ref)
+                for idx in range(self.n_space_groups)
+                if self.compatibility_stoichiometry_dict[idx + 1]
             ]
         # Merge space_groups constraints and determine valid space group actions
         space_groups = list(set(space_groups_cls).intersection(set(space_groups_ps)))
@@ -539,8 +567,48 @@ class SpaceGroup(GFlowNetEnv):
             state = self.state
         return sum([int(s > 0) * f for s, f in zip(state, self.ref_state_factors)])
 
-    def get_all_terminating_states(self) -> List[List]:
+    @staticmethod
+    def get_compatibility_stoichiometry_dict(
+        n_atoms: List[int], space_groups: List[int]
+    ):
+        """
+        Obtains which space groups are compatible with the stoichiometry given as
+        argument (n_atoms). It relies on pyxtal's
+        pyxtal.symmetry.Group.check_compatible(). Note that True is stored only if both
+        is_compatible and has_freedom are True.
+
+        See: https://pyxtal.readthedocs.io/en/latest/pyxtal.symmetry.html
+
+        Args
+        ----
+        n_atoms : list of int
+            A list of positive number of atoms for each element in a stoichiometry. If
+            None, all space groups will be marked as compatible.
+
+        space_groups : list of int
+            A list of space group international numbers, in [1, 230]
+
+        Returns
+        -------
+        A dictionary of {space_group: is_compatible} indicating whether each
+        space_group in space_groups is compatible with the stoichiometry defined by
+        n_atoms.
+        """
+        if n_atoms is None:
+            return {sg: True for sg in space_groups}
+        assert all([n > 0 for n in n_atoms])
+        assert all([sg > 0 and sg <= 230 for sg in space_groups])
+        return {sg: all(Group(sg).check_compatible(n_atoms)) for sg in space_groups}
+
+    def get_all_terminating_states(
+        self, apply_stoichiometry_constraints: Optional[bool] = True
+    ) -> List[List]:
         all_x = []
         for sg in range(1, self.n_space_groups + 1):
+            if (
+                apply_stoichiometry_constraints
+                and self.compatibility_stoichiometry_dict[sg] is False
+            ):
+                continue
             all_x.append(self._set_constrained_properties([0, 0, sg]))
         return all_x

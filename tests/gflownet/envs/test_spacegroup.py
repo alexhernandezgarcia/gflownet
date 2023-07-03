@@ -3,6 +3,7 @@ import numpy as np
 import pymatgen.symmetry.groups as pmgg
 import pytest
 import torch
+from pyxtal.symmetry import Group
 
 from gflownet.envs.crystals.spacegroup import SpaceGroup
 
@@ -10,6 +11,11 @@ from gflownet.envs.crystals.spacegroup import SpaceGroup
 @pytest.fixture
 def env():
     return SpaceGroup()
+
+
+@pytest.fixture
+def env_with_composition():
+    return SpaceGroup(n_atoms=[3, 7, 0, 9])
 
 
 def test__environment__initializes_properly():
@@ -195,6 +201,49 @@ def test__state2readable2state(env, state):
             for el1, el2 in zip(env.readable2state(env.state2readable(state)), state)
         ]
     )
+
+
+def test__env_with_composition__removes_zeros(env_with_composition):
+    assert all([n > 0 for n in env_with_composition.n_atoms])
+
+
+def test__env_with_composition__compatibility_dict_as_in_pyxtal(env_with_composition):
+    for (
+        sg,
+        is_compatible,
+    ) in env_with_composition.compatibility_stoichiometry_dict.items():
+        sg_pyxtal = Group(sg)
+        assert (
+            all(sg_pyxtal.check_compatible(env_with_composition.n_atoms))
+            == is_compatible
+        )
+
+
+def test__get_mask_invalid_actions_forward__incompatible_sg_are_invalid(
+    env_with_composition,
+):
+    """
+    For all states with crystal-lattice system and point symmetry but not space group
+    set, check that incompatible space groups according to pyxtal correspond to invalid
+    actions.
+
+    Note that this test takes non-negligible time. You may skip it for debugging/dev
+    with: @pytest.mark.skip(reason="disabled during debugging - reactivate!")
+    """
+    all_x = env_with_composition.get_all_terminating_states()
+    for state in all_x:
+        state[env_with_composition.sg_idx] = 0
+        env_with_composition.set_state(state=state, done=False)
+        mask_f = env_with_composition.get_mask_invalid_actions_forward()
+        ref = env_with_composition.get_ref_index(state)
+        for sg in range(1, env_with_composition.n_space_groups + 1):
+            sg_pyxtal = Group(sg)
+            is_compatible = all(
+                sg_pyxtal.check_compatible(env_with_composition.n_atoms)
+            )
+            action = (env_with_composition.sg_idx, sg, ref)
+            if not is_compatible:
+                assert mask_f[env_with_composition.action_space.index(action)] is True
 
 
 def test__states_are_compatible_with_pymatgen(env):
