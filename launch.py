@@ -391,7 +391,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--jobs",
         type=str,
-        help="run file name in external/jobs (without .yaml)."
+        help="run file name in external/jobs (with or without .yaml)."
         + f" Defaults to {defaults['jobs']}",
     )
     parser.add_argument(
