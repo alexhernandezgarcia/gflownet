@@ -4,6 +4,8 @@ defaults:
 _target_: gflownet.envs.crystals.spacegroup.SpaceGroup
 
 id: spacegroup
+# Stoichiometry
+n_atoms: null
 
 # Buffer
 buffer:
