@@ -59,7 +59,7 @@ HELP = dedent(
         ```
 
     5. Launch the SLURM jobs with `python launch.py --jobs=crystals/explore-losses`
-        1. `launch.py` knows to look in `external/jobs/` and add `.yaml`
+        1. `launch.py` knows to look in `external/jobs/` and add `.yaml` (but you can write `.yaml` yourself)
         2. You can overwrite anything from the command-line: the command-line arguments have the final say and will overwrite all the jobs' final dicts. Run `python launch.py -h` to see all the known args.
         3. You can also override `script` params from the command-line: unknown arguments will be given as-is to `main.py`. For instance `python launch.py --jobs=crystals/explore-losses --mem=32G env.some_param=value` is valid
     6. `launch.py` loads a template (`sbatch/template-conda.sh`) by default, and fills it with the arguments specified, then writes the filled template in `external/launched_sbatch_scripts/crystals/` with the current datetime and experiment file name.
@@ -97,39 +97,7 @@ HELP = dedent(
     ```yaml
     # Contents of external/jobs/crystals/explore-losses.yaml
 
-    # Shared section across jobs
-    shared:
-      # job params
-      slurm:
-          template: sbatch/template-conda.sh # which template to use
-          modules: anaconda/3 cuda/11.3      # string of the modules to load
-          conda_env: gflownet                # name of the environment
-          code_dir: ~/ocp-project/gflownet   # where to find the repo
-          gres: gpu:1                        # slurm gres
-          mem: 16G                           # node memory
-          cpus_per_task: 2                   # task cpus
-
-      # main.py params
-      script:
-        user: $USER
-        +experiments: neurips23/crystal-comp-sg-lp.yaml
-        gflownet:
-          __value__: flowmatch               # special entry if you want to see `gflownet=flowmatch`
-        optimizer:
-          lr: 0.0001                         # will be translated to `gflownet.optimizer.lr=0.0001`
-
-    # list of slurm jobs to execute
-    jobs:
-      - {}                                   # empty dictionary = just run with the shared params
-      - slurm:                               # change this job's slurm params
-          partition: unkillable
-        script:                              # change this job's script params
-          gflownet:
-            policy:
-              backward: null
-      - script:
-          gflownet:
-            __value__: trajectorybalance
+    {yaml_example}
     ```
 
     Then the launch command-line ^ will execute 3 jobs with the following configurations:
@@ -147,7 +115,9 @@ HELP = dedent(
     1. The second job will have `partition: unkillable` instead of the default (`long`).
     2. They will all have `64G` of memory instead of the default (`32G`) because the `--mem=64G` command-line
         argument overrides everything.
-    """
+    """.format(
+        yaml_example=(Path(__file__).parent / "sbatch/example-jobs.yaml").read_text()
+    )
 )
 
 
@@ -340,12 +310,12 @@ if __name__ == "__main__":
         "dev": False,
         "force": False,
         "gres": "gpu:1",
-        "job_name": "crystal-gfn",
+        "job_name": "gflownet",
         "jobs": None,
         "main_args": None,
         "mem": "32G",
         "modules": "anaconda/3 cuda/11.3",
-        "outdir": "$SCRATCH/crystals/logs/slurm",
+        "outdir": "$SCRATCH/gflownet/logs/slurm",
         "partition": "long",
         "template": root / "sbatch" / "template-conda.sh",
         "venv": None,
