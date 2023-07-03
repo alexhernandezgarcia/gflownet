@@ -9,6 +9,8 @@ from textwrap import dedent
 import sys
 from copy import deepcopy
 
+ROOT = Path(__file__).resolve().parent.parent
+
 HELP = dedent(
     """
     ## 🥳 User guide
@@ -20,16 +22,16 @@ HELP = dedent(
 
     ```sh
     # using default job configuration, with script args from the command-line:
-    $ python launch.py user=$USER logger.do.online=False
+    $ python mila/launch.py user=$USER logger.do.online=False
 
     # overriding the default job configuration and adding script args:
-    $ python launch.py --template=sbatch/template-venv.sh \\
+    $ python mila/launch.py --template=sbatch/template-venv.sh \\
         --venv='~/.venvs/gfn' \\
         --modules='python/3.7 cuda/11.3' \\
         user=$USER logger.do.online=False
 
     # using a yaml file to specify multiple jobs to run:
-    $ python launch.py --jobs=jobs/comp-sg-lp/v0" --mem=32G
+    $ python mila/launch.py --jobs=jobs/comp-sg-lp/v0" --mem=32G
     ```
 
     ### 🤓 How it works
@@ -58,10 +60,10 @@ HELP = dedent(
         python main.py gflownet.optimizer.lr=0.001
         ```
 
-    5. Launch the SLURM jobs with `python launch.py --jobs=crystals/explore-losses`
+    5. Launch the SLURM jobs with `python mila/launch.py --jobs=crystals/explore-losses`
         1. `launch.py` knows to look in `external/jobs/` and add `.yaml` (but you can write `.yaml` yourself)
-        2. You can overwrite anything from the command-line: the command-line arguments have the final say and will overwrite all the jobs' final dicts. Run `python launch.py -h` to see all the known args.
-        3. You can also override `script` params from the command-line: unknown arguments will be given as-is to `main.py`. For instance `python launch.py --jobs=crystals/explore-losses --mem=32G env.some_param=value` is valid
+        2. You can overwrite anything from the command-line: the command-line arguments have the final say and will overwrite all the jobs' final dicts. Run mila/`python mila/launch.py -h` to see all the known args.
+        3. You can also override `script` params from the command-line: unknown arguments will be given as-is to `main.py`. For instance `python mila/launch.py --jobs=crystals/explore-losses --mem=32G env.some_param=value` is valid
     6. `launch.py` loads a template (`sbatch/template-conda.sh`) by default, and fills it with the arguments specified, then writes the filled template in `external/launched_sbatch_scripts/crystals/` with the current datetime and experiment file name.
     7. `launch.py` executes `sbatch` in a subprocess to execute the filled template above
     8. A summary yaml is also created there, with the exact experiment file and appended `SLURM_JOB_ID`s returned by `sbatch`
@@ -71,7 +73,7 @@ HELP = dedent(
     Let's study the following example:
 
     ```
-    $ python launch.py --jobs=crystals/explore-losses --mem=64G
+    $ python mila/launch.py --jobs=crystals/explore-losses --mem=64G
 
     🗂 Using run file: ./external/jobs/crystals/explore-losses.yaml
 
@@ -121,7 +123,7 @@ HELP = dedent(
                 # need to indend those lines because of dedent()
                 "    " + l if i else l  # first line is already indented
                 for i, l in enumerate(
-                    (Path(__file__).parent / "sbatch/example-jobs.yaml")
+                    (ROOT / "sbatch/example-jobs.yaml")
                     .read_text()
                     .splitlines()[6:]  # ignore first lines which are just comments
                 )
@@ -225,7 +227,7 @@ def find_jobs_conf(args):
     if args["jobs"].startswith("jobs/"):
         args["jobs"] = args["jobs"][5:]
     yamls = [
-        str(y) for y in (root / "external" / "jobs").glob(f"**/{args['jobs']}.y*ml")
+        str(y) for y in (ROOT / "external" / "jobs").glob(f"**/{args['jobs']}.y*ml")
     ]
     if len(yamls) == 0:
         raise ValueError(f"Could not find {args['jobs']}.y(a)ml in ./external/jobs/")
@@ -312,7 +314,6 @@ def print_md_help(parser, defaults):
 
 
 if __name__ == "__main__":
-    root = Path(__file__).resolve().parent
     defaults = {
         "code_dir": "$PWD",
         "conda_env": "gflownet",
@@ -327,7 +328,7 @@ if __name__ == "__main__":
         "modules": "anaconda/3 cuda/11.3",
         "outdir": "$SCRATCH/gflownet/logs/slurm",
         "partition": "long",
-        "template": root / "sbatch" / "template-conda.sh",
+        "template": ROOT / "sbatch" / "template-conda.sh",
         "venv": None,
         "verbose": False,
     }
@@ -340,7 +341,7 @@ if __name__ == "__main__":
         "--help-md",
         action="store_true",
         help="Show an extended help message as markdown. Can be useful to overwrite "
-        + "LAUNCH.md with `$ python launch.py --help-md > LAUNCH.md`",
+        + "LAUNCH.md with `$ python mila/launch.py --help-md > LAUNCH.md`",
     )
     parser.add_argument(
         "--job_name",
@@ -472,10 +473,10 @@ if __name__ == "__main__":
             sys.exit(0)
         print()
 
-    local_out_dir = root / "external" / "launched_sbatch_scripts"
+    local_out_dir = ROOT / "external" / "launched_sbatch_scripts"
     if jobs_conf_path is not None:
         local_out_dir = local_out_dir / jobs_conf_path.parent.relative_to(
-            root / "external" / "jobs"
+            ROOT / "external" / "jobs"
         )
     else:
         local_out_dir = local_out_dir / "_other_"
