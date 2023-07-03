@@ -25,7 +25,7 @@ HELP = dedent(
     $ python mila/launch.py user=$USER logger.do.online=False
 
     # overriding the default job configuration and adding script args:
-    $ python mila/launch.py --template=sbatch/template-venv.sh \\
+    $ python mila/launch.py --template=mila/sbatch/template-venv.sh \\
         --venv='~/.venvs/gfn' \\
         --modules='python/3.7 cuda/11.3' \\
         user=$USER logger.do.online=False
@@ -64,7 +64,7 @@ HELP = dedent(
         1. `launch.py` knows to look in `external/jobs/` and add `.yaml` (but you can write `.yaml` yourself)
         2. You can overwrite anything from the command-line: the command-line arguments have the final say and will overwrite all the jobs' final dicts. Run mila/`python mila/launch.py -h` to see all the known args.
         3. You can also override `script` params from the command-line: unknown arguments will be given as-is to `main.py`. For instance `python mila/launch.py --jobs=crystals/explore-losses --mem=32G env.some_param=value` is valid
-    6. `launch.py` loads a template (`sbatch/template-conda.sh`) by default, and fills it with the arguments specified, then writes the filled template in `external/launched_sbatch_scripts/crystals/` with the current datetime and experiment file name.
+    6. `launch.py` loads a template (`mila/sbatch/template-conda.sh`) by default, and fills it with the arguments specified, then writes the filled template in `external/launched_sbatch_scripts/crystals/` with the current datetime and experiment file name.
     7. `launch.py` executes `sbatch` in a subprocess to execute the filled template above
     8. A summary yaml is also created there, with the exact experiment file and appended `SLURM_JOB_ID`s returned by `sbatch`
 
@@ -123,7 +123,7 @@ HELP = dedent(
                 # need to indend those lines because of dedent()
                 "    " + l if i else l  # first line is already indented
                 for i, l in enumerate(
-                    (ROOT / "sbatch/example-jobs.yaml")
+                    (ROOT / "mila/sbatch/example-jobs.yaml")
                     .read_text()
                     .splitlines()[6:]  # ignore first lines which are just comments
                 )
@@ -146,7 +146,8 @@ def resolve(path):
     """
     if path is None:
         return None
-    return Path(expandvars(str(path))).expanduser().resolve()
+    path = str(path).replace("$root", str(ROOT))
+    return Path(expandvars(path)).expanduser().resolve()
 
 
 def now_str():
