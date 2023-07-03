@@ -154,7 +154,7 @@ shared:
     template: sbatch/template-conda.sh # which template to use
     modules: anaconda/3 cuda/11.3 # string of the modules to load
     conda_env: gflownet # name of the environment
-    code_dir: ~/ocp-project/gflownet # where to find the repo
+    code_dir: . # where to find the repo (if relative, it's relative to where you run the `python` command)
     gres: gpu:1 # slurm gres
     mem: 16G # node memory
     cpus_per_task: 2 # task cpus
