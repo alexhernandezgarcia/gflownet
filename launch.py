@@ -304,7 +304,7 @@ def print_md_help(parser, defaults):
 if __name__ == "__main__":
     root = Path(__file__).resolve().parent
     defaults = {
-        "code_dir": "~/ocp-project/gflownet",
+        "code_dir": "$PWD",
         "conda_env": "gflownet",
         "cpus_per_task": 2,
         "dev": False,
