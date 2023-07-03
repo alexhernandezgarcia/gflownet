@@ -6,6 +6,7 @@ from typing import Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import torch
+from pyxtal.symmetry import Group
 from torch import Tensor
 from torchtyping import TensorType
 
@@ -30,7 +31,9 @@ class Composition(GFlowNetEnv):
         oxidation_states: Optional[Dict] = None,
         alphabet: Optional[Dict] = None,
         required_elements: Optional[Union[Tuple, List]] = (),
+        space_group: Optional[int] = None,
         do_charge_check: bool = False,
+        do_spacegroup_check: bool = True,
         **kwargs,
     ):
         """
@@ -75,9 +78,17 @@ class Composition(GFlowNetEnv):
             List of elements that must be present in a crystal for it to represent a
             valid end state
 
+        space_group : (optional) int
+            International number of a space group to be used for compatibility check,
+            using pyxtal.symmetry.Group.check_compatible().
+
         do_charge_check : bool
             Whether to do neutral charge check and forbid compositions for which neutral
             charge is not possible.
+
+        do_spacegroup_check : bool
+            Whether to do a space group compatibility check and forbid compositions
+            with incompatible Wyckoff positions with the given space group.
         """
         if isinstance(elements, int):
             elements = [i + 1 for i in range(elements)]
@@ -105,7 +116,9 @@ class Composition(GFlowNetEnv):
         self.required_elements = (
             required_elements if required_elements is not None else []
         )
+        self.space_group = space_group
         self.do_charge_check = do_charge_check
+        self.do_spacegroup_check = do_spacegroup_check
         self.elem2idx = {e: i for i, e in enumerate(self.elements)}
         self.idx2elem = {i: e for i, e in enumerate(self.elements)}
         # Source state: 0 atoms for all elements
@@ -215,11 +228,20 @@ class Composition(GFlowNetEnv):
             min_atoms_per_unrequired_element = 0
             max_atoms_per_unrequired_element = 0
 
+        # Check if current state is compatible with space group
+        if self.do_spacegroup_check and isinstance(self.space_group, int):
+            n_atoms = [s for s in state if s > 0]
+            sg_compatible = all(Group(self.space_group).check_compatible(n_atoms))
+        else:
+            sg_compatible = True
+
         if n_used_atoms < self.min_atoms:
             mask[-1] = True
         if n_used_elements < self.min_diff_elem:
             mask[-1] = True
         if any(r not in used_elements for r in self.required_elements):
+            mask[-1] = True
+        if not sg_compatible:
             mask[-1] = True
 
         # Obtain action mask for each category of element

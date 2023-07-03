@@ -1,8 +1,8 @@
+import common
 import numpy as np
 import pytest
 import torch
 
-import common
 from gflownet.envs.crystals.composition import Composition
 
 
@@ -12,6 +12,17 @@ def env():
         elements=4,
         alphabet={1: "H", 2: "He", 3: "Li", 4: "Be"},
         oxidation_states={1: [-1, 0, 1], 2: [0], 3: [0, 1], 4: [0, 1, 2]},
+    )
+
+
+@pytest.fixture
+def env_with_spacegroup():
+    return Composition(
+        elements=4,
+        alphabet={1: "H", 2: "He", 3: "Li", 4: "Be"},
+        oxidation_states={1: [-1, 0, 1], 2: [0], 3: [0, 1], 4: [0, 1, 2]},
+        space_group=162,
+        do_spacegroup_check=True,
     )
 
 
@@ -326,7 +337,11 @@ def test__required_elements_does_not_cause_environment_to_get_stuck():
 def test__required_atoms_does_not_cause_environment_to_get_stuck():
     required_elements = []
     env = Composition(
-        elements=10, min_diff_elem=2, max_diff_elem=2, min_atoms=20, max_atoms=20,
+        elements=10,
+        min_diff_elem=2,
+        max_diff_elem=2,
+        min_atoms=20,
+        max_atoms=20,
     )
 
     while not env.done:
@@ -358,3 +373,7 @@ def test__insufficient_elements_left_does_not_cause_environment_to_get_stuck():
 
 def test__all_env_common(env):
     return common.test__all_env_common(env)
+
+
+def test__all_env_common__with_spacegroup_constraints(env_with_spacegroup):
+    return common.test__all_env_common(env_with_spacegroup)
