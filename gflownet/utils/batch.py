@@ -137,6 +137,13 @@ class Batch:
             self.envs.update({env.id: env})
             if not valid:
                 continue
+            # Add batch index to trajectory
+            if env.id not in self.trajectories:
+                self.trajectories.update({env.id: [len(self)]})
+            else:
+                self.trajectories[env.id].append(len(self))
+            # Add trajectory index and state index
+            self.traj_state_indices.append((env.id, env.n_actions))
             if train:
                 self.states.append(deepcopy(env.state))
                 self.actions.append(action)
@@ -166,13 +173,6 @@ class Batch:
                     self.states.append(env.state)
                     self.env_ids.append(env.id)
                     self.n_actions.append(env.n_actions)
-            # Add batch index to trajectory
-            if env.id not in trajectories:
-                self.trajectories.update({env.id: [len(self)]})
-            else:
-                self.trajectories[env.id].append(len(self))
-            # Add trajectory index and state index
-            self.traj_state_indices.append((env.id, env.n_actions))
 
     def process_batch(self):
         """
@@ -247,7 +247,7 @@ class Batch:
         """
         if policy is False:
             return self.states
-        if states_policy is None or force_recompute is True:
+        if self.states_policy is None or force_recompute is True:
             self.states_policy = self.states2policy(self.states, self.env_ids)
         return self.states_policy
 
@@ -314,7 +314,9 @@ class Batch:
                     env_id.item()
                 ].statetorch2policy(states[env_ids == env_id])
             return states_policy
-        return env.statebatch2policy(states)
+        return tfloat(
+            env.statebatch2policy(states), device=self.device, float_type=self.float
+        )
 
     def states2proxy(
         self,
@@ -423,20 +425,22 @@ class Batch:
         # Iterate over the trajectories to obtain the parents from the states
         for traj_id, batch_indices in self.trajectories.items():
             # parent is source
-            self.parents.extend(self.envs[traj_id].source)
+            self.parents.append(self.envs[traj_id].source)
             self.parents_policy[batch_indices[0]] = tfloat(
                 self.envs[traj_id].state2policy(self.envs[traj_id].source),
                 device=self.device,
                 float_type=self.float,
             )
             # parent is not source
-            self.parents.extend(self.states[batch_indices[:-1]])
+            # TODO: check if tensor and sort without iter
+            self.parents.extend([self.states[idx] for idx in batch_indices[:-1]])
             self.parents_policy[batch_indices[1:]] = self.states_policy[
                 batch_indices[:-1]
             ]
             indices.extend(batch_indices)
         # Sort parents list in the same order as states
-        self.parents = self.parents[indices]
+        # TODO: check if tensor and sort without iter
+        self.parents = [self.parents[idx] for idx in indices]
 
     def get_parents_all(
         self, policy: bool = False, force_recompute: bool = False
