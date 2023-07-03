@@ -307,7 +307,7 @@ if __name__ == "__main__":
         "code_dir": "$PWD",
         "conda_env": "gflownet",
         "cpus_per_task": 2,
-        "dev": False,
+        "dry-run": False,
         "force": False,
         "gres": "gpu:1",
         "job_name": "gflownet",
@@ -395,10 +395,10 @@ if __name__ == "__main__":
         + f" Defaults to {defaults['jobs']}",
     )
     parser.add_argument(
-        "--dev",
+        "--dry-run",
         action="store_true",
         help="Don't run just, show what it would have run."
-        + f" Defaults to {defaults['dev']}",
+        + f" Defaults to {defaults['dry-run']}",
     )
     parser.add_argument(
         "--verbose",
@@ -430,15 +430,15 @@ if __name__ == "__main__":
     # find the required formatting keys
     template_keys = set(re.findall(r"{(\w+)}", template))
 
-    # in dev mode: no mkdir, no sbatch etc.
-    dev = args.get("dev")
+    # in dry run mode: no mkdir, no sbatch etc.
+    dry_run = args.get("dry_run")
 
     # in force mode, no confirmation is asked
     force = args.get("force", defaults["force"])
 
     # where to write the slurm output file
     outdir = resolve(args.get("outdir", defaults["outdir"]))
-    if not dev:
+    if not dry_run:
         outdir.mkdir(parents=True, exist_ok=True)
 
     # find jobs config file in external/jobs as a yaml file
@@ -456,7 +456,7 @@ if __name__ == "__main__":
     # A unique datetime identifier for the jobs about to be submitted
     now = now_str()
 
-    if not force and not dev:
+    if not force and not dry_run:
         if "y" not in input(f"🚨 Submit {len(job_dicts)} jobs? [y/N] ").lower():
             print("🛑 Aborted")
             sys.exit(0)
@@ -503,7 +503,7 @@ if __name__ == "__main__":
         else:
             sbatch_path = local_out_dir / f"{job_args['job_name']}_{now}.sbatch"
 
-        if not dev:
+        if not dry_run:
             # make sure the sbatch file parent directory exists
             sbatch_path.parent.mkdir(parents=True, exist_ok=True)
             # write template
@@ -525,10 +525,10 @@ if __name__ == "__main__":
             )
             sbatch_path.write_text(templated)
 
-        # final prints for dev & verbose mode
-        if dev or args.get("verbose"):
-            if dev:
-                print("\nDEV: would have writen in sbatch file:", str(sbatch_path))
+        # final prints for dry_run & verbose mode
+        if dry_run or args.get("verbose"):
+            if dry_run:
+                print("\nDRY RUN: would have writen in sbatch file:", str(sbatch_path))
             print("#" * 40 + " <sbatch> " + "#" * 40)
             print(templated)
             print("#" * 40 + " </sbatch> " + "#" * 39)
@@ -548,7 +548,7 @@ if __name__ == "__main__":
         conf += "\n# " + jobs_str + "\n"
         new_conf_path.write_text(conf)
         rel = new_conf_path.relative_to(Path.cwd())
-        if not dev:
+        if not dry_run:
             print(f"   Created summary YAML in ./{rel}")
 
     if job_ids:
