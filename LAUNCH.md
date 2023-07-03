@@ -73,7 +73,7 @@ Examples:
 $ python mila/launch.py user=$USER logger.do.online=False
 
 # overriding the default job configuration and adding script args:
-$ python mila/launch.py --template=sbatch/template-venv.sh \
+$ python mila/launch.py --template=mila/sbatch/template-venv.sh \
     --venv='~/.venvs/gfn' \
     --modules='python/3.7 cuda/11.3' \
     user=$USER logger.do.online=False
@@ -112,7 +112,7 @@ $ python mila/launch.py --jobs=jobs/comp-sg-lp/v0" --mem=32G
     1. `launch.py` knows to look in `external/jobs/` and add `.yaml` (but you can write `.yaml` yourself)
     2. You can overwrite anything from the command-line: the command-line arguments have the final say and will overwrite all the jobs' final dicts. Run mila/`python mila/launch.py -h` to see all the known args.
     3. You can also override `script` params from the command-line: unknown arguments will be given as-is to `main.py`. For instance `python mila/launch.py --jobs=crystals/explore-losses --mem=32G env.some_param=value` is valid
-6. `launch.py` loads a template (`sbatch/template-conda.sh`) by default, and fills it with the arguments specified, then writes the filled template in `external/launched_sbatch_scripts/crystals/` with the current datetime and experiment file name.
+6. `launch.py` loads a template (`mila/sbatch/template-conda.sh`) by default, and fills it with the arguments specified, then writes the filled template in `external/launched_sbatch_scripts/crystals/` with the current datetime and experiment file name.
 7. `launch.py` executes `sbatch` in a subprocess to execute the filled template above
 8. A summary yaml is also created there, with the exact experiment file and appended `SLURM_JOB_ID`s returned by `sbatch`
 
@@ -148,13 +148,14 @@ Say the file `./external/jobs/crystals/explore-losses.yaml` contains:
 # Contents of external/jobs/crystals/explore-losses.yaml
 
 # Shared section across jobs
+# $root is a special string that resolves to the root of the repo
 shared:
   # job params
   slurm:
-    template: sbatch/template-conda.sh # which template to use
+    template: $root/mila/sbatch/template-conda.sh # which template to use
     modules: anaconda/3 cuda/11.3 # string of the modules to load
     conda_env: gflownet # name of the environment
-    code_dir: . # where to find the repo (if relative, it's relative to where you run the `python` command)
+    code_dir: $root # needed if you have multiple repos, eg for dev and production
     gres: gpu:1 # slurm gres
     mem: 16G # node memory
     cpus_per_task: 2 # task cpus
@@ -179,7 +180,7 @@ jobs:
           backward: null
   - script:
       gflownet:
-        __value__: trajectorybalance
+        __value__: trajectorybalance # again, special entry to see `gflownet=trajectorybalance`
 ```
 
 Then the launch command-line ^ will execute 3 jobs with the following configurations:
