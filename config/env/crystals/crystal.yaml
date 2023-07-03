@@ -13,6 +13,8 @@ lattice_parameters_kwargs:
   min_angle: 30.0
   max_angle: 150.0
   grid_size: 10
+# Stoichiometry <-> space group check
+do_stoichiometry_sg_check: False
 
 # Buffer
 buffer:
