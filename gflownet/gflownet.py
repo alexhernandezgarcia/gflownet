@@ -168,7 +168,9 @@ class GFlowNetAgent:
         if policy.forward_flow is None:
             self.forward_flow_policy = None
             if self.loss == "forward-looking":
-                raise ValueError("Using the forward-looking loss requires a forward-flow config")
+                raise ValueError(
+                    "Using the forward-looking loss requires a forward-flow config"
+                )
         else:
             self.forward_flow_policy = ForwardFlow(
                 policy.forward_flow,
@@ -182,7 +184,9 @@ class GFlowNetAgent:
                 and "checkpoint" in policy.forward_flow
                 and policy.forward_flow.checkpoint
             ):
-                self.logger.set_forward_flow_policy_ckpt_path(policy.forward_flow.checkpoint)
+                self.logger.set_forward_flow_policy_ckpt_path(
+                    policy.forward_flow.checkpoint
+                )
                 # TODO: re-write the logic and conditions to reload a model
                 if False:
                     self.forward_flow.load_state_dict(
@@ -232,9 +236,9 @@ class GFlowNetAgent:
             )
         elif self.loss == "forwardlooking":
             return (
-                list(self.forward_policy.model.parameters()) +
-                list(self.backward_policy.model.parameters()) +
-                list(self.forward_flow_policy.model.parameters())
+                list(self.forward_policy.model.parameters())
+                + list(self.backward_policy.model.parameters())
+                + list(self.forward_flow_policy.model.parameters())
             )
         else:
             raise ValueError("Backward Policy cannot be a nn in flowmatch.")
@@ -715,14 +719,18 @@ class GFlowNetAgent:
 
         # Compute rewards for all states and their parents
         rewards = batch.compute_rewards()
-        parent_rewards = self.env.reward_torchbatch(parents, done=torch.zeros_like(done))
+        parent_rewards = self.env.reward_torchbatch(
+            parents, done=torch.zeros_like(done)
+        )
 
         # Compute the energies associated with each reward. For rewards of 0 (undefined),
         # we set them to 1. This will make their energies equal to 0 which will make
         # the forward-looking loss equivalent to a detailed balance loss on environments
         # that have null rewards for non-terminal states.
         stable_rewards = rewards.eq(0) + rewards * rewards.ne(0)
-        stable_parent_rewards = parent_rewards.eq(0) + parent_rewards * parent_rewards.ne(0)
+        stable_parent_rewards = parent_rewards.eq(
+            0
+        ) + parent_rewards * parent_rewards.ne(0)
 
         state_energies = -torch.log(stable_rewards)
         parent_energies = -torch.log(stable_parent_rewards)
@@ -778,9 +786,7 @@ class GFlowNetAgent:
                         it * self.ttsr + j, data
                     )  # returns (opt loss, *metrics)
                 elif self.loss == "forwardlooking":
-                    losses, rewards = self.forwardlooking_loss(
-                        it * self.ttsr + j, data
-                    )
+                    losses, rewards = self.forwardlooking_loss(it * self.ttsr + j, data)
                 else:
                     print("Unknown loss!")
                 if not all([torch.isfinite(loss) for loss in losses]):
@@ -1165,8 +1171,7 @@ class Policy:
         )
 
 
-class ForwardFlow():
-
+class ForwardFlow:
     def __init__(self, config, env, device, float_precision, base=None):
         # If config not provided, create a default config
         if config is None:
@@ -1210,9 +1215,7 @@ class ForwardFlow():
         if self.shared_weights == True and self.base is not None:
             mlp = nn.Sequential(
                 self.base.model[:-1],
-                nn.Linear(
-                    self.base.model[-1].in_features, self.output_dim
-                ),
+                nn.Linear(self.base.model[-1].in_features, self.output_dim),
             )
             return mlp
         elif self.shared_weights == False:
