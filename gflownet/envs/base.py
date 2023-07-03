@@ -1,6 +1,7 @@
 """
 Base class of GFlowNet environments
 """
+import uuid
 from abc import abstractmethod
 from copy import deepcopy
 from textwrap import dedent
@@ -599,6 +600,13 @@ class GFlowNetEnv:
     def reset(self, env_id: Union[int, str] = None):
         """
         Resets the environment.
+
+        Args
+        ----
+        env_id: int or str
+            Unique (ideally) identifier of the environment instance, used to identify
+            the trajectory generated with this environment. If None, uuid.uuid4() is
+            used.
         """
         if torch.is_tensor(self.source):
             self.state = self.source.clone().detach()
@@ -606,7 +614,10 @@ class GFlowNetEnv:
             self.state = self.source.copy()
         self.n_actions = 0
         self.done = False
-        self.id = env_id
+        if env_id is None:
+            self.id = str(uuid.uuid4())
+        else:
+            self.id = env_id
         return self
 
     def set_state(self, state: List, done: Optional[bool] = False):
