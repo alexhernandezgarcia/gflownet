@@ -44,6 +44,21 @@ def test__add_to_batch__single_env_adds_expected(grid2d, batch_tb):
 
 
 @pytest.mark.repeat(10)
+def test__get_states__single_env_returns_expected(grid2d, batch_tb):
+    grid2d = grid2d.reset()
+    states = []
+    while not grid2d.done:
+        # Sample random action
+        state, action, valid = grid2d.step_random()
+        # Add to batch
+        batch_tb.add_to_batch([grid2d], [action], [valid])
+        if valid:
+            states.append(state)
+    states_batch = batch_tb.get_states()
+    assert states_batch == states
+
+
+@pytest.mark.repeat(10)
 def test__get_parents__single_env_returns_expected(grid2d, batch_tb):
     grid2d = grid2d.reset()
     parents = []
@@ -57,21 +72,6 @@ def test__get_parents__single_env_returns_expected(grid2d, batch_tb):
             parents.append(parent)
     parents_batch = batch_tb.get_parents()
     assert parents_batch == parents
-
-
-@pytest.mark.repeat(10)
-def test__get_states__single_env_returns_expected(grid2d, batch_tb):
-    grid2d = grid2d.reset()
-    states = []
-    while not grid2d.done:
-        # Sample random action
-        state, action, valid = grid2d.step_random()
-        # Add to batch
-        batch_tb.add_to_batch([grid2d], [action], [valid])
-        if valid:
-            states.append(state)
-    states_batch = batch_tb.get_states()
-    assert states_batch == states
 
 
 @pytest.mark.parametrize(
