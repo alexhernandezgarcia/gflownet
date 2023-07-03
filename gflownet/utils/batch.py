@@ -447,7 +447,7 @@ class Batch:
     def get_parents_all(
         self, policy: bool = False, force_recompute: bool = False
     ) -> Tuple[
-        TensorType["n_parents", "..."],
+        Union[List, TensorType["n_parents", "..."]],
         TensorType["n_parents", "..."],
         TensorType["n_parents"],
     ]:
@@ -471,7 +471,7 @@ class Batch:
 
         Returns
         -------
-        self.parents_all or self.parents_all_policy : torch.tensor
+        self.parents_all or self.parents_all_policy : list or torch.tensor
             The whole set of parents of all states in the batch.
 
         self.parents_actions_all : torch.tensor
@@ -500,7 +500,9 @@ class Batch:
         Obtains the whole set of parents all states in the batch. The parents are
         computed via env.get_parents(). The following components are obtained:
 
-        - self.parents_all: all the parents of all states in the batch.
+        - self.parents_all: all the parents of all states in the batch. It will be the
+          same type as self.states (list of lists or tensor)
+            Length: n_parents
             Shape: [n_parents, state_dims]
         - self.parents_actions_all: the actions corresponding to the transition from
           each parent in self.parents_all to its corresponding state in the batch.
@@ -534,9 +536,9 @@ class Batch:
             Sampled action is not in the list of valid actions from parents.
             \nState:\n{state}\nAction:\n{action}
             """
-            self.parents_all.append(parents)
-            self.parents_actions_all.append(parents_a)
-            self.parents_all_indices.append([[idx] * len(parents)])
+            self.parents_all.extend(parents)
+            self.parents_actions_all.extend(parents_a)
+            self.parents_all_indices.extend([idx] * len(parents))
             self.parents_all_policy.append(
                 tfloat(
                     self.envs[traj_idx].statebatch2policy(parents),
@@ -544,19 +546,14 @@ class Batch:
                     float_type=self.float,
                 )
             )
-        # Flatten parents lists and convert to tensors
-        self.parents_all = tfloat(
-            [p for parents in self.parents_all for p in parents],
-            device=self.device,
-            float_type=self.float,
-        )
+        # Convert to tensors
         self.parents_actions_all = tfloat(
-            [a for actions in self.parents_actions_all for a in actions],
+            self.parents_actions_all,
             device=self.device,
             float_type=self.float,
         )
         self.parents_all_indices = tlong(
-            [idx for indices in self.parents_all_indices for idx in indices],
+            self.parents_all_indices,
             device=self.device,
         )
         self.parents_all_policy = torch.cat(self.parents_all_policy)
