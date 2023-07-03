@@ -82,10 +82,6 @@ class SpaceGroup(GFlowNetEnv):
             the space group. 0's are removed from the list. If None, composition/space
             group constraints are ignored.
         """
-        if n_atoms is not None:
-            self.n_atoms = [n for n in n_atoms if n > 0]
-        else:
-            self.n_atoms = None
         # Get dictionaries
         self.crystal_lattice_systems = _get_crystal_lattice_systems()
         self.point_symmetries = _get_point_symmetries()
@@ -93,12 +89,8 @@ class SpaceGroup(GFlowNetEnv):
         self.n_crystal_lattice_systems = len(self.crystal_lattice_systems)
         self.n_point_symmetries = len(self.point_symmetries)
         self.n_space_groups = len(self.space_groups)
-        # Get compatibility with stoichiometry
-        self.compatibility_stoichiometry_dict = (
-            SpaceGroup.get_compatibility_stoichiometry_dict(
-                self.n_atoms, self.space_groups.keys()
-            )
-        )
+        # Stoichiometry and compatibility dict
+        self.n_atoms, self.compatibility_stoichiometry_dict = self.set_n_atoms(n_atoms)
         # Define indices
         self.cls_idx, self.ps_idx, self.sg_idx = 0, 1, 2
         self.ref_state_factors = [1, 2]
@@ -566,6 +558,19 @@ class SpaceGroup(GFlowNetEnv):
         if state is None:
             state = self.state
         return sum([int(s > 0) * f for s, f in zip(state, self.ref_state_factors)])
+
+    def set_n_atoms(self, composition):
+        if composition is None:
+            self.n_atoms = None
+        else:
+            self.n_atoms = [n for n in composition if n > 0]
+        # Get compatibility with stoichiometry
+        self.compatibility_stoichiometry_dict = (
+            SpaceGroup.get_compatibility_stoichiometry_dict(
+                self.n_atoms, self.space_groups.keys()
+            )
+        )
+        return self.n_atoms, self.compatibility_stoichiometry_dict
 
     @staticmethod
     def get_compatibility_stoichiometry_dict(
