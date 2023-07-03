@@ -116,7 +116,17 @@ HELP = dedent(
     2. They will all have `64G` of memory instead of the default (`32G`) because the `--mem=64G` command-line
         argument overrides everything.
     """.format(
-        yaml_example=(Path(__file__).parent / "sbatch/example-jobs.yaml").read_text()
+        yaml_example="\n".join(
+            [
+                # need to indend those lines because of dedent()
+                "    " + l if i else l  # first line is already indented
+                for i, l in enumerate(
+                    (Path(__file__).parent / "sbatch/example-jobs.yaml")
+                    .read_text()
+                    .splitlines()[6:]  # ignore first lines which are just comments
+                )
+            ]
+        )
     )
 )
 

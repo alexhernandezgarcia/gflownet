@@ -7,17 +7,16 @@ usage: launch.py [-h] [--help-md] [--job_name JOB_NAME] [--outdir OUTDIR]
                  [--cpus_per_task CPUS_PER_TASK] [--mem MEM] [--gres GRES]
                  [--partition PARTITION] [--modules MODULES]
                  [--conda_env CONDA_ENV] [--venv VENV] [--code_dir CODE_DIR]
-                 [--jobs JOBS] [--dev] [--verbose] [--force]
+                 [--jobs JOBS] [--dry-run] [--verbose] [--force]
 
 optional arguments:
   -h, --help            show this help message and exit
   --help-md             Show an extended help message as markdown. Can be
                         useful to overwrite LAUNCH.md with `$ python launch.py
                         --help-md > LAUNCH.md`
-  --job_name JOB_NAME   slurm job name to show in squeue. Defaults to crystal-
-                        gfn
+  --job_name JOB_NAME   slurm job name to show in squeue. Defaults to gflownet
   --outdir OUTDIR       where to write the slurm .out file. Defaults to
-                        $SCRATCH/crystals/logs/slurm
+                        $SCRATCH/gflownet/logs/slurm
   --cpus_per_task CPUS_PER_TASK
                         number of cpus per SLURM task. Defaults to 2
   --mem MEM             memory per node (e.g. 32G). Defaults to 32G
@@ -30,10 +29,10 @@ optional arguments:
                         conda environment name. Defaults to gflownet
   --venv VENV           path to venv (without bin/activate). Defaults to None
   --code_dir CODE_DIR   cd before running main.py (defaults to here). Defaults
-                        to ~/ocp-project/gflownet
-  --jobs JOBS           run file name in external/jobs (without .yaml).
-                        Defaults to None
-  --dev                 Don't run just, show what it would have run. Defaults
+                        to $PWD
+  --jobs JOBS           run file name in external/jobs (with or without
+                        .yaml). Defaults to None
+  --dry-run             Don't run just, show what it would have run. Defaults
                         to False
   --verbose             print templated sbatch after running it. Defaults to
                         False
@@ -44,20 +43,20 @@ optional arguments:
 ## 🎛️ Default values
 
 ```yaml
-code_dir      : ~/ocp-project/gflownet
+code_dir      : $PWD
 conda_env     : gflownet
 cpus_per_task : 2
-dev           : False
+dry-run       : False
 force         : False
 gres          : gpu:1
-job_name      : crystal-gfn
+job_name      : gflownet
 jobs          : None
 main_args     : None
 mem           : 32G
 modules       : anaconda/3 cuda/11.3
-outdir        : $SCRATCH/crystals/logs/slurm
+outdir        : $SCRATCH/gflownet/logs/slurm
 partition     : long
-template      : /Users/victor/Documents/Github/gflownet-dev/sbatch/template-conda.sh
+template      : /Users/victor/Documents/Github/gflownet/sbatch/template-conda.sh
 venv          : None
 verbose       : False
 ```
@@ -110,7 +109,7 @@ $ python launch.py --jobs=jobs/comp-sg-lp/v0" --mem=32G
     ```
 
 5. Launch the SLURM jobs with `python launch.py --jobs=crystals/explore-losses`
-    1. `launch.py` knows to look in `external/jobs/` and add `.yaml`
+    1. `launch.py` knows to look in `external/jobs/` and add `.yaml` (but you can write `.yaml` yourself)
     2. You can overwrite anything from the command-line: the command-line arguments have the final say and will overwrite all the jobs' final dicts. Run `python launch.py -h` to see all the known args.
     3. You can also override `script` params from the command-line: unknown arguments will be given as-is to `main.py`. For instance `python launch.py --jobs=crystals/explore-losses --mem=32G env.some_param=value` is valid
 6. `launch.py` loads a template (`sbatch/template-conda.sh`) by default, and fills it with the arguments specified, then writes the filled template in `external/launched_sbatch_scripts/crystals/` with the current datetime and experiment file name.
@@ -152,29 +151,29 @@ Say the file `./external/jobs/crystals/explore-losses.yaml` contains:
 shared:
   # job params
   slurm:
-      template: sbatch/template-conda.sh # which template to use
-      modules: anaconda/3 cuda/11.3      # string of the modules to load
-      conda_env: gflownet                # name of the environment
-      code_dir: ~/ocp-project/gflownet   # where to find the repo
-      gres: gpu:1                        # slurm gres
-      mem: 16G                           # node memory
-      cpus_per_task: 2                   # task cpus
+    template: sbatch/template-conda.sh # which template to use
+    modules: anaconda/3 cuda/11.3 # string of the modules to load
+    conda_env: gflownet # name of the environment
+    code_dir: ~/ocp-project/gflownet # where to find the repo
+    gres: gpu:1 # slurm gres
+    mem: 16G # node memory
+    cpus_per_task: 2 # task cpus
 
   # main.py params
   script:
     user: $USER
     +experiments: neurips23/crystal-comp-sg-lp.yaml
     gflownet:
-      __value__: flowmatch               # special entry if you want to see `gflownet=flowmatch`
+      __value__: flowmatch # special entry if you want to see `gflownet=flowmatch`
     optimizer:
-      lr: 0.0001                         # will be translated to `gflownet.optimizer.lr=0.0001`
+      lr: 0.0001 # will be translated to `gflownet.optimizer.lr=0.0001`
 
 # list of slurm jobs to execute
 jobs:
-  - {}                                   # empty dictionary = just run with the shared params
-  - slurm:                               # change this job's slurm params
+  - {} # empty dictionary = just run with the shared params
+  - slurm: # change this job's slurm params
       partition: unkillable
-    script:                              # change this job's script params
+    script: # change this job's script params
       gflownet:
         policy:
           backward: null
