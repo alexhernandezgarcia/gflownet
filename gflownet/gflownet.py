@@ -679,7 +679,7 @@ class GFlowNetAgent:
         masks_sf = batch.masks_invalid_actions_forward
         masks_b = batch.masks_invalid_actions_backward
         traj_ids = batch.env_ids
-        state_ids = batch.steps
+        state_ids = batch.n_actions
 
         # Ensure that the state_ids are indexed from 1 for any trajectory : [1, 2, ...].
         for tid in traj_ids.unique():
