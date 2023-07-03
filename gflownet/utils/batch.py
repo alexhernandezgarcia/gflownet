@@ -80,6 +80,10 @@ class Batch:
         batch_indices = self.trajectories[traj_idx]
         return batch_indices
 
+    def traj_state_idx_to_batch_idx(traj_idx: int, state_idx: int):
+        batch_idx = self.trajectories[traj_idx][state_idx]
+        return batch_idx
+
     def add_to_batch(
         self,
         envs: List[GFlowNetEnv],
