@@ -53,7 +53,7 @@ class Crystal(GFlowNetEnv):
         composition_kwargs: Optional[Dict] = None,
         space_group_kwargs: Optional[Dict] = None,
         lattice_parameters_kwargs: Optional[Dict] = None,
-        do_stoichiometry_sg_check : bool = False,
+        do_stoichiometry_sg_check: bool = False,
         **kwargs,
     ):
         self.composition_kwargs = composition_kwargs or {}
@@ -348,9 +348,7 @@ class Crystal(GFlowNetEnv):
             if valid and executed_action == self.composition.eos:
                 self.stage = Stage.SPACE_GROUP
                 if self.do_stoichiometry_sg_check:
-                    self.space_group.set_n_atoms(
-                        self.composition.state
-                    )
+                    self.space_group.set_n_atoms(self.composition.state)
         elif self.stage == Stage.SPACE_GROUP:
             stage_group_action = self._depad_action(action, Stage.SPACE_GROUP)
             _, executed_action, valid = self.space_group.step(stage_group_action)
