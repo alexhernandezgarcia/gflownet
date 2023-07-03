@@ -746,8 +746,8 @@ class GFlowNetAgent:
 
         # Compute loss for terminating nodes and for all other nodes
         with torch.no_grad():
-            term_loss = (per_node_loss * done).pow(2).sum() / (done.sum() + 1e-20)
-            flow_loss = (per_node_loss * torch.logical_not(done)).pow(2).sum() / (
+            term_loss = (per_node_loss * done).sum() / (done.sum() + 1e-20)
+            flow_loss = (per_node_loss * torch.logical_not(done)).sum() / (
                 torch.logical_not(done).sum() + 1e-20
             )
 
