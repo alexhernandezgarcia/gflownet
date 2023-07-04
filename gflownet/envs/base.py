@@ -270,7 +270,6 @@ class GFlowNetEnv:
         sampling_method: str = "policy",
         mask_invalid_actions: TensorType["n_states", "policy_output_dim"] = None,
         temperature_logits: float = 1.0,
-        loginf: float = 1000,
         max_sampling_attempts: int = 10,
     ) -> Tuple[List[Tuple], TensorType["n_states"]]:
         """
@@ -279,9 +278,9 @@ class GFlowNetEnv:
         will likely have to implement its own.
         """
         device = policy_outputs.device
-        ns_range = torch.arange(policy_outputs.shape[0]).to(device)
+        ns_range = torch.arange(policy_outputs.shape[0], device=device)
         if sampling_method == "uniform":
-            logits = torch.ones(policy_outputs.shape).to(device)
+            logits = torch.ones(policy_outputs.shape, dtype=self.float, device=device)
         elif sampling_method == "policy":
             logits = policy_outputs
             logits /= temperature_logits
@@ -291,7 +290,7 @@ class GFlowNetEnv:
             All actions in the mask are invalid.
             """
             )
-            logits[mask_invalid_actions] = -loginf
+            logits[mask_invalid_actions] = -torch.inf
         else:
             mask_invalid_actions = torch.zeros(
                 policy_outputs.shape, dtype=torch.bool, device=device
@@ -321,7 +320,6 @@ class GFlowNetEnv:
         actions: TensorType["n_states", "actions_dim"],
         states_target: TensorType["n_states", "policy_input_dim"],
         mask_invalid_actions: TensorType["batch_size", "policy_output_dim"] = None,
-        loginf: float = 1000,
     ) -> TensorType["batch_size"]:
         """
         Computes log probabilities of actions given policy outputs and actions. This
@@ -332,7 +330,7 @@ class GFlowNetEnv:
         ns_range = torch.arange(policy_outputs.shape[0]).to(device)
         logits = policy_outputs
         if mask_invalid_actions is not None:
-            logits[mask_invalid_actions] = -loginf
+            logits[mask_invalid_actions] = -torch.inf
         action_indices = (
             torch.tensor(
                 [self.action_space.index(tuple(action.tolist())) for action in actions]
