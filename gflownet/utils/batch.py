@@ -153,23 +153,6 @@ class Batch:
                 self.done.append(env.done)
                 self.n_actions.append(env.n_actions)
                 self.masks_invalid_actions_forward.append(mask_forward)
-
-                if self.loss == "flowmatch":
-                    parents, parents_a = env.get_parents(action=action)
-                    assert (
-                        action in parents_a
-                    ), f"""
-                    Sampled action is not in the list of valid actions from parents.
-                    \nState:\n{env.state}\nAction:\n{action}
-                    """
-                    self.parents_all.append(parents)
-                    self.parents_actions_all.append(parents_a)
-                if self.loss == "trajectorybalance":
-                    self.masks_invalid_actions_backward.append(
-                        env.get_mask_invalid_actions_backward(
-                            env.state, env.done, [action]
-                        )
-                    )
             else:
                 if env.done:
                     self.states.append(env.state)
