@@ -137,6 +137,24 @@ def test__get_parents_all__single_env_returns_expected(grid2d, batch_tb):
 
 
 @pytest.mark.repeat(10)
+def test__get_masks_forward__single_env_returns_expected(grid2d, batch_tb):
+    grid2d = grid2d.reset()
+    masks_forward = []
+    while not grid2d.done:
+        parent = grid2d.state
+        # Sample random action
+        _, action, valid = grid2d.step_random()
+        # Add to batch
+        batch_tb.add_to_batch([grid2d], [action], [valid])
+        if valid:
+            masks_forward.append(grid2d.get_mask_invalid_actions_forward())
+    masks_forward_batch = batch_tb.get_masks_forward()
+    assert torch.equal(
+        masks_forward_batch, tbool(masks_forward, device=batch_tb.device)
+    )
+
+
+@pytest.mark.repeat(10)
 def test__get_masks_backward__single_env_returns_expected(grid2d, batch_tb):
     grid2d = grid2d.reset()
     masks_backward = []
