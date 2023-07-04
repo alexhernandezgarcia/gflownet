@@ -114,6 +114,34 @@ class GFlowNetEnv:
         # the action_dim dimension are True
         return torch.where(torch.all(actions == action_space, dim=2))[1]
 
+    def _get_state_done(self, state: Union[List, TensorType["state_dims"]], done: bool):
+        """
+        A helper method for other methods to determine whether state and done should be
+        taken from the arguments or from the instance (self.state and self.done): if
+        they are None, they are taken from the instance.
+
+        Args
+        ----
+        state : list or tensor or None
+            None, or a state in GFlowNet format.
+
+        done : bool or None
+            None, or whether the environment is done.
+
+        Returns
+        -------
+        state : list or tensor
+            The argument state, or self.state if state is None.
+
+        done: bool
+            The argument done, or self.done if done is None.
+        """
+        if state is None:
+            state = self.state.copy()
+        if done is None:
+            done = self.done
+        return state, done
+
     def get_mask_invalid_actions_forward(
         self,
         state: Optional[List] = None,
@@ -146,8 +174,9 @@ class GFlowNetEnv:
         Continuous environments will probably need to implement its specific version of
         this method.
         """
+        state, done = self._get_state_done(state, done)
         if parents_a is None:
-            _, parents_a = self.get_parents()
+            _, parents_a = self.get_parents(state, done)
         mask = [True for _ in range(self.action_space_dim)]
         for pa in parents_a:
             mask[self.action_space.index(pa)] = False
