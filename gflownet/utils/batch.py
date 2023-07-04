@@ -644,10 +644,10 @@ class Batch:
             state = self.states[idx]
             done = self.done[idx]
             action = self.actions[idx]
+            # TODO: if we pass parents_all_actions to get_mask... then we avoid calling
+            # get_parents again.
             self.masks_invalid_actions_backward.append(
-                self.envs[traj_idx].get_mask_invalid_actions_backward(
-                    state, done, [action]
-                )
+                self.envs[traj_idx].get_mask_invalid_actions_backward(state, done)
             )
         # Make tensor
         self.masks_invalid_actions_backward = tbool(
