@@ -2,6 +2,8 @@ import pytest
 import torch
 
 from gflownet.envs.grid import Grid
+from gflownet.proxy.uniform import Uniform
+from gflownet.proxy.corners import Corners
 from gflownet.utils.batch import Batch
 from gflownet.utils.common import (
     concat_items,
@@ -27,6 +29,11 @@ def batch_fm():
 @pytest.fixture
 def grid2d():
     return Grid(n_dim=2, length=3, cell_min=-1.0, cell_max=1.0)
+
+
+@pytest.fixture()
+def uniform_proxy():
+    return Uniform()
 
 
 def test__len__returnszero_at_init(batch_tb, batch_fm):
@@ -169,6 +176,28 @@ def test__get_masks_backward__single_env_returns_expected(grid2d, batch_tb):
     masks_backward_batch = batch_tb.get_masks_backward()
     assert torch.equal(
         masks_backward_batch, tbool(masks_backward, device=batch_tb.device)
+    )
+
+
+@pytest.mark.repeat(10)
+def test__get_rewards__single_env_returns_expected(grid2d, batch_tb):
+    grid2d = grid2d.reset()
+    proxy = Corners(device=grid2d.device, float_precision=grid2d.float, mu=0.75, sigma=0.05)
+    grid2d.proxy = proxy
+    grid2d.setup_proxy()
+
+    rewards = []
+    while not grid2d.done:
+        parent = grid2d.state
+        # Sample random action
+        _, action, valid = grid2d.step_random()
+        # Add to batch
+        batch_tb.add_to_batch([grid2d], [action], [valid])
+        if valid:
+            rewards.append(grid2d.reward())
+    rewards_batch = batch_tb.get_rewards()
+    assert torch.equal(
+        rewards_batch, tfloat(rewards, device=batch_tb.device)
     )
 
 

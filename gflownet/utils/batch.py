@@ -72,6 +72,7 @@ class Batch:
         self.parents_all_available = False
         self.masks_forward_available = True
         self.masks_backward_available = False
+        self.rewards_available = True
 
     def __len__(self):
         return len(self.states)
@@ -296,12 +297,14 @@ class Batch:
                 """
             )
         env = self._get_first_env()
+        # TODO: make conditional an attribute of the Batch
         if env.conditional:
             states_policy = torch.zeros(
                 (len(self), env.policy_input_dim),
                 device=self.device,
                 dtype=self.float,
             )
+            # TODO: this would not work for list states
             for env_id in torch.unique(env_ids):
                 states_policy[env_ids == env_id] = self.envs[
                     env_id.item()
@@ -354,6 +357,7 @@ class Batch:
             states_proxy = []
             index = torch.arange(states.shape[0], device=self.device)
             perm_index = []
+            # TODO: rethink this
             for env_id in torch.unique(env_ids):
                 states_proxy.append(
                     self.envs[env_id.item()].statetorch2proxy(states[env_ids == env_id])
@@ -786,15 +790,46 @@ class Batch:
         rewards: torch.tensor
             Tensor of rewards.
         """
-        states_proxy_done = self.states2proxy(
-            states=self.states[self.done], env_ids=self.env_ids[self.done]
-        )
+        states_proxy_done = self.get_terminating_states(proxy=True)
         env = self._get_first_env()
-        self.rewards = torch.zeros(
-            self.done.shape[0], dtype=self.float, device=self.device
-        )
-        if self.states[self.done, :].shape[0] > 0:
-            self.rewards[self.done] = env.proxy2reward(env.proxy(states_proxy_done))
+        self.rewards = torch.zeros(len(self), dtype=self.float, device=self.device)
+        done = self.get_done()
+        if len(done) > 0:
+            self.rewards[done] = env.proxy2reward(env.proxy(states_proxy_done))
+        self.rewards_available = True
 
     def _get_first_env(self):
         return self.envs[next(iter(self.envs))]
+
+    def get_terminating_states(
+        self, policy: Optional[bool] = False, proxy: Optional[bool] = False
+    ) -> Union[
+        TensorType["n_states", "state_proxy_dims"], npt.NDArray[np.float32], List
+    ]:
+        """
+        TODO: docstring
+        """
+        if policy is True and proxy is True:
+            raise ValueError(
+                "Ambiguous request! Only one of policy or proxy can be True."
+            )
+        if isinstance(self.states, list):
+            states_term = [state for state, done in zip(self.states, self.done) if done]
+            done = np.array(self.done, dtype=bool)
+            traj_indices = np.array(self.traj_state_indices)[done, 0]
+            assert len(traj_indices) == len(np.unique(traj_indices))
+        elif torch.is_tensor(self.states):
+            done = self.get_done()
+            states_term = self.states[done, :]
+            traj_indices = tlong(self.traj_state_indices)[done, 0]
+            assert len(traj_indices) == len(torch.unique(traj_indices))
+        else:
+            raise NotImplementedError("self.states can only be list or torch.tensor")
+        if policy is True:
+            # TODO: traj_indices can be None if the envs are not conditional
+            return self.states2policy(states_term, traj_indices)
+        elif proxy is True:
+            # TODO: traj_indices can be None if the envs are not conditional
+            return self.states2proxy(states_term, traj_indices)
+        else:
+            return states_term

@@ -535,12 +535,9 @@ class GFlowNetEnv:
         """
         Computes the reward of a state
         """
-        if done is None:
-            done = self.done
-        if done:
-            return np.array(0.0)
-        if state is None:
-            state = self.state.copy()
+        state, done = self._get_state_done(state, done)
+        if done is False:
+            return self.min_reward
         return self.proxy2reward(self.proxy(self.state2proxy(state)))
 
     def reward_batch(self, states: List[List], done=None):
