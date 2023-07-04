@@ -509,19 +509,13 @@ class GFlowNetAgent:
         flow_loss : float
             Loss of the intermediate nodes only
         """
-        # Convert lists in the batch into tensors
-        batch.process_batch()
-        # Unpack batch
-        parents_state_idx = batch.parents_all_state_idx
-        states = batch.states_policy
-        parents = batch.parents_all_policy
-        parents_actions = batch.parents_actions_all
-        done = batch.done
-        masks_sf = batch.masks_invalid_actions_forward
-
+        # Get necessary tensors from batch
+        states = batch.get_states(policy=True)
+        parents, parents_actions, parents_state_idx = batch.get_parents_all(policy=True)
+        done = batch.get_done()
+        masks_sf = batch.get_masks_forward()
         parents_a_idx = self.env.actions2indices(parents_actions)
-        # Compute rewards
-        rewards = batch.compute_rewards()
+        rewards = batch.get_rewards()
         assert torch.all(rewards[done] > 0)
         # In-flows
         inflow_logits = torch.full(

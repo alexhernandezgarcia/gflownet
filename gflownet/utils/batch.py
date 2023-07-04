@@ -3,6 +3,7 @@ from copy import deepcopy
 from typing import List, Optional, Tuple, Union
 
 import numpy as np
+import numpy.typing as npt
 import torch
 from torchtyping import TensorType
 
@@ -69,6 +70,7 @@ class Batch:
         self.traj_state_indices = []
         self.parents_available = False
         self.parents_all_available = False
+        self.masks_forward_available = True
         self.masks_backward_available = False
 
     def __len__(self):
@@ -236,6 +238,12 @@ class Batch:
             self.states_policy = self.states2policy(self.states, self.env_ids)
         return self.states_policy
 
+    def get_done(self) -> TensorType["n_states"]:
+        """
+        Returns the list of done flags as a boolean tensor.
+        """
+        return tbool(self.done, device=self.device)
+
     def _process_states(self):
         """
         Convert self.states from a list to a torch tensor and compute states in the policy format.
@@ -258,7 +266,7 @@ class Batch:
         self,
         states: Optional[Union[List, TensorType["n_states", "..."]]] = None,
         env_ids: Optional[List[int]] = None,
-    ):
+    ) -> TensorType["n_states", "state_policy_dims"]:
         """
         Converts states from a list of states in GFlowNet format to a tensor of states
         in policy format.
@@ -307,10 +315,15 @@ class Batch:
         self,
         states: Optional[Union[List, TensorType["n_states", "..."]]] = None,
         env_ids: Optional[List[int]] = None,
-    ):
+    ) -> Union[
+        TensorType["n_states", "state_proxy_dims"], npt.NDArray[np.float32], List
+    ]:
         """
         Converts states from a list of states in GFlowNet format to a tensor of states
-        in proxy format.
+        in proxy format. Note that the implementatiuon of this method differs from
+        Batch.states2policy() because the latter always returns torch.tensors. The
+        output of the present method can also be numpy arrays or Python lists,
+        depending on the proxy.
 
         Args
         ----
@@ -322,8 +335,8 @@ class Batch:
 
         Returns
         -------
-        states: torch.tensor
-            States in policy format.
+        states: torch.tensor or ndarray or list
+            States in proxy format.
         """
         if states is None:
             states = self.states
@@ -598,6 +611,44 @@ class Batch:
         return parents, parents_policy, parents_all, parents_all_policy
 
     # TODO: handle mix of backward and forward trajectories
+    # TODO: opportunity to improve efficiency by caching.
+    def get_masks_forward(
+        self,
+        force_recompute: bool = False,
+    ) -> TensorType["n_states", "action_space_dim"]:
+        """
+        Computes (and returns) the backward mask of invalid actions of all states in the
+        batch, by calling env.get_mask_invalid_actions_backward().
+
+        Args
+        ----
+        force_recompute : bool
+            If True, the masks are recomputed even if they are available.
+
+        Returns
+        -------
+        self.masks_invalid_actions_backward : torch.tensor
+            The backward mask of all states in the batch.
+        """
+        if self.masks_forward_available is True and force_recompute is False:
+            return tbool(self.masks_invalid_actions_forward, device=self.device)
+        # Iterate over the trajectories to compute all forward masks
+        self.masks_invalid_actions_forward = []
+        for idx, (traj_idx, _) in enumerate(self.traj_state_indices):
+            state = self.states[idx]
+            done = self.done[idx]
+            action = self.actions[idx]
+            self.masks_invalid_actions_forward.append(
+                self.envs[traj_idx].get_mask_invalid_actions_forward(state, done)
+            )
+        # Make tensor
+        self.masks_invalid_actions_forward = tbool(
+            self.masks_invalid_actions_forward, device=self.device
+        )
+        self.masks_forward_available = True
+        return self.masks_invalid_actions_forward
+
+    # TODO: handle mix of backward and forward trajectories
     # TODO: opportunity to improve efficiency by caching. Note that
     # env.get_masks_invalid_actions_backward() may be expensive because it calls
     # env.get_parents().
@@ -620,7 +671,7 @@ class Batch:
             The backward mask of all states in the batch.
         """
         if self.masks_backward_available is True and force_recompute is False:
-            return self.masks_invalid_actions_backward
+            return tbool(self.masks_invalid_actions_backward, device=self.device)
         # Iterate over the trajectories to compute all backward masks
         self.masks_invalid_actions_backward = []
         for idx, (traj_idx, _) in enumerate(self.traj_state_indices):
@@ -710,9 +761,25 @@ class Batch:
         traj_actions = [tuple([tuple(a) for a in t]) for t in traj_actions]
         return terminal_states, traj_actions
 
-    def compute_rewards(self):
+    def get_rewards(
+        self, force_recompute: Optional[bool] = False
+    ) -> TensorType["n_states"]:
         """
-        Computes rewards for self.states using proxy from one of the self.envs
+        Returns the rewards of all states in the batch.
+
+        Args
+        ----
+        force_recompute : bool
+            If True, the parents are recomputed even if they are available.
+        """
+        if self.rewards_available is False or force_recompute is True:
+            self._compute_rewards()
+        return self.rewards
+
+    def _compute_rewards(self):
+        """
+        Computes rewards for all self.states by first converting the states into proxy
+        format.
 
         Returns
         -------
@@ -723,10 +790,11 @@ class Batch:
             states=self.states[self.done], env_ids=self.env_ids[self.done]
         )
         env = self._get_first_env()
-        rewards = torch.zeros(self.done.shape[0], dtype=self.float, device=self.device)
+        self.rewards = torch.zeros(
+            self.done.shape[0], dtype=self.float, device=self.device
+        )
         if self.states[self.done, :].shape[0] > 0:
-            rewards[self.done] = env.proxy2reward(env.proxy(states_proxy_done))
-        return rewards
+            self.rewards[self.done] = env.proxy2reward(env.proxy(states_proxy_done))
 
     def _get_first_env(self):
         return self.envs[next(iter(self.envs))]
