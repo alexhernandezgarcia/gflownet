@@ -23,9 +23,6 @@ class Batch:
     """
     Class to handle GFlowNet batches.
 
-    loss: string
-        String identifier of the GFlowNet loss.
-
     device: str or torch.device
         torch.device or string indicating the device to use ("cpu" or "cuda")
 
@@ -39,7 +36,6 @@ class Batch:
 
     def __init__(
         self,
-        loss: str,
         device: Union[str, torch.device] = "cpu",
         float_type: Union[int, torch.dtype] = 32,
         conditional: Optional[bool] = False,
@@ -48,8 +44,6 @@ class Batch:
         self.device = set_device(device)
         # Float precision
         self.float = set_float_precision(float_type)
-        # Loss
-        self.loss = loss
         # Environments are conditional
         self.conditional = conditional
         # Initialize empty batch variables
@@ -104,6 +98,7 @@ class Batch:
         train: Optional[bool] = True,
     ):
         """
+        # TODO: remove mentions to loss
         Adds information from a list of environments and actions to the batch after
         performing steps in the envs. If train is True, it adds all the variables
         required for computing the loss specified by self.loss. Otherwise, it stores
