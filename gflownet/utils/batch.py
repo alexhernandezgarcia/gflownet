@@ -42,6 +42,7 @@ class Batch:
         loss: str,
         device: Union[str, torch.device] = "cpu",
         float_type: Union[int, torch.dtype] = 32,
+        conditional: Optional[bool] = False,
     ):
         # Device
         self.device = set_device(device)
@@ -49,6 +50,8 @@ class Batch:
         self.float = set_float_precision(float_type)
         # Loss
         self.loss = loss
+        # Environments are conditional
+        self.conditional = conditional
         # Initialize empty batch variables
         self.envs = dict()
         self.states = []
@@ -67,18 +70,21 @@ class Batch:
         # Dictionary of env_id (traj_idx): batch indices of the trajectory
         self.trajectories = {}
         # Trajectory index and state index of each element in the batch
-        self.traj_state_indices = []
+        self.traj_indices = []
+        self.state_indices = []
+        # Flags for available items
         self.parents_available = False
         self.parents_all_available = False
         self.masks_forward_available = True
         self.masks_backward_available = False
-        self.rewards_available = True
+        self.rewards_available = False
 
     def __len__(self):
         return len(self.states)
 
     def batch_idx_to_traj_state_idx(batch_idx: int):
-        traj_idx, state_id = self.traj_state_indices[batch_idx]
+        traj_idx = self.traj_indices[batch_idx]
+        state_idx = self.state_indices[batch_idx]
         return traj_idx, state_id
 
     def traj_idx_to_batch_indices(traj_idx: int):
@@ -148,7 +154,8 @@ class Batch:
             else:
                 self.trajectories[env.id].append(len(self))
             # Add trajectory index and state index
-            self.traj_state_indices.append((env.id, env.n_actions))
+            self.traj_indices.append(env.id)
+            self.state_indices.append(env.n_actions)
             if train:
                 self.states.append(deepcopy(env.state))
                 self.actions.append(action)
@@ -210,19 +217,27 @@ class Batch:
         self.is_processed = True
 
     def get_states(
-        self, policy: Optional[bool] = False, force_recompute: Optional[bool] = False
-    ) -> Union[List, TensorType["n_states", "..."]]:
+        self,
+        policy: Optional[bool] = False,
+        proxy: Optional[bool] = False,
+        force_recompute: Optional[bool] = False,
+    ) -> Union[TensorType["n_states", "..."], npt.NDArray[np.float32], List]:
         """
         Returns all the states in the batch.
 
-        The states are returned in "policy format" if policy is True, otherwise they
-        are returned in "GFlowNet" format (default).
+        The states are returned in "policy format" if policy is True, in "proxy format"
+        if proxy is True and otherwise they are returned in "GFlowNet" format by
+        default. An error is raised if both policy and proxy are True.
 
         Args
         ----
         policy : bool
-            If True, the policy format of the states is returned. Otherwise, the
-            GFlowNet format is returned.
+            If True, the policy format of the states is returned and self.states_policy
+            is updated if not available yet or if force_recompute is True.
+
+        proxy : bool
+            If True, the proxy format of the states is returned. States in proxy format
+            are not stored.
 
         force_recompute : bool
             If True, the policy states are recomputed even if they are available.
@@ -230,14 +245,21 @@ class Batch:
 
         Returns
         -------
-        self.states or self.states_policy : list or torch.tensor
+        self.states or self.states_policy or self.states2proxy(self.states) : list or
+        torch.tensor or ndarray
             The set of all states in the batch.
         """
-        if policy is False:
-            return self.states
-        if self.states_policy is None or force_recompute is True:
-            self.states_policy = self.states2policy(self.states, self.env_ids)
-        return self.states_policy
+        if policy is True and proxy is True:
+            raise ValueError(
+                "Ambiguous request! Only one of policy or proxy can be True."
+            )
+        if policy is True:
+            if self.states_policy is None or force_recompute is True:
+                self.states_policy = self.states2policy()
+            return self.states_policy
+        if proxy is True:
+            return self.states2proxy()
+        return self.states
 
     def get_done(self) -> TensorType["n_states"]:
         """
@@ -266,7 +288,7 @@ class Batch:
     def states2policy(
         self,
         states: Optional[Union[List, TensorType["n_states", "..."]]] = None,
-        env_ids: Optional[List[int]] = None,
+        traj_indices: Optional[Union[List, TensorType["n_states"]]] = None,
     ) -> TensorType["n_states", "state_policy_dims"]:
         """
         Converts states from a list of states in GFlowNet format to a tensor of states
@@ -277,39 +299,44 @@ class Batch:
         states: list or torch.tensor
             States in GFlowNet format.
 
-        env_ids: list
-            Ids indicating which env corresponds to each state in states.
+        traj_indices: list or torch.tensor
+            Ids indicating which env corresponds to each state in states. It is only
+            used if the environments are conditional to call state2policy from the
+            right environment. Ignored if self.conditional is False.
 
         Returns
         -------
         states: torch.tensor
             States in policy format.
         """
+        # If traj_indices is not None and self.conditional is True, then both states
+        # and traj_indices must be the same type and have the same length.
+        if traj_indices is not None and self.conditional is True:
+            assert type(states) == type(traj_indices)
+            assert len(states) == len(traj_indices)
         if states is None:
             states = self.states
-            env_ids = self.env_ids
-        elif env_ids is None:
-            # if states are provided, env_ids should be provided too
-            raise Exception(
-                """
-                env_ids must be provided to the batch for converting provided states to
-                the policy format.
-                """
-            )
+            traj_indices = self.traj_indices
+        # TODO: store env.policy_input_dim in the Batch?
+        # TODO: will env.policy_input_dim be the same for all envs if conditional?
         env = self._get_first_env()
-        # TODO: make conditional an attribute of the Batch
-        if env.conditional:
+        if self.conditional:
             states_policy = torch.zeros(
-                (len(self), env.policy_input_dim),
+                (len(states), env.policy_input_dim),
                 device=self.device,
                 dtype=self.float,
             )
-            # TODO: this would not work for list states
-            for env_id in torch.unique(env_ids):
-                states_policy[env_ids == env_id] = self.envs[
-                    env_id.item()
-                ].statetorch2policy(states[env_ids == env_id])
+            traj_indices_torch = tlong(traj_indices, device=self.device)
+            for traj_idx in self.trajectories:
+                if traj_idx not in traj_indices:
+                    continue
+                states_policy[traj_indices_torch == traj_idx] = self.envs[
+                    traj_idx
+                ].statebatchpolicy(
+                    self.get_states_of_trajectory(traj_idx, states, traj_indices)
+                )
             return states_policy
+        # TODO: do we need tfloat or is done in env.statebatch2policy?
         return tfloat(
             env.statebatch2policy(states), device=self.device, float_type=self.float
         )
@@ -317,7 +344,7 @@ class Batch:
     def states2proxy(
         self,
         states: Optional[Union[List, TensorType["n_states", "..."]]] = None,
-        env_ids: Optional[List[int]] = None,
+        traj_indices: Optional[Union[List, TensorType["n_states"]]] = None,
     ) -> Union[
         TensorType["n_states", "state_proxy_dims"], npt.NDArray[np.float32], List
     ]:
@@ -333,34 +360,37 @@ class Batch:
         states: list or torch.tensor
             States in GFlowNet format.
 
-        env_ids: list
-            Ids indicating which env corresponds to each state in states.
+        traj_indices: list or torch.tensor
+            Ids indicating which env corresponds to each state in states. It is only
+            used if the environments are conditional to call state2proxy from the right
+            environment. Ignored if self.conditional is False.
 
         Returns
         -------
         states: torch.tensor or ndarray or list
             States in proxy format.
         """
+        # If traj_indices is not None and self.conditional is True, then both states
+        # and traj_indices must be the same type and have the same length.
+        if traj_indices is not None and self.conditional is True:
+            assert type(states) == type(traj_indices)
+            assert len(states) == len(traj_indices)
         if states is None:
             states = self.states
-            env_ids = self.env_ids
-        elif env_ids is None:
-            # if states are provided, env_ids should be provided too
-            raise Exception(
-                """
-                env_ids must be provided to the batch for converting provided states to
-                the proxy format.
-                """
-            )
+            traj_indices = self.traj_indices
         env = self._get_first_env()
-        if env.conditional:
+        if self.conditional:
             states_proxy = []
-            index = torch.arange(states.shape[0], device=self.device)
+            index = torch.arange(len(states), device=self.device)
             perm_index = []
             # TODO: rethink this
-            for env_id in torch.unique(env_ids):
+            for traj_idx in self.trajectories:
+                if traj_idx not in traj_indices:
+                    continue
                 states_proxy.append(
-                    self.envs[env_id.item()].statetorch2proxy(states[env_ids == env_id])
+                    self.envs[traj_idx].statebatch2proxy(
+                        self.get_states_of_trajectory(traj_idx, states, traj_indices)
+                    )
                 )
                 perm_index.append(index[env_ids == env_id])
             perm_index = torch.cat(perm_index)
@@ -368,7 +398,7 @@ class Batch:
             index[perm_index] = index.clone()
             states_proxy = concat_items(states_proxy, index)
             return states_proxy
-        return env.statetorch2proxy(states)
+        return env.statebatch2proxy(states)
 
     def get_parents(
         self, policy: Optional[bool] = False, force_recompute: Optional[bool] = False
@@ -521,7 +551,7 @@ class Batch:
         self.parents_actions_all = []
         self.parents_all_indices = []
         self.parents_all_policy = []
-        for idx, (traj_idx, _) in enumerate(self.traj_state_indices):
+        for idx, traj_idx in enumerate(self.traj_indices):
             state = self.states[idx]
             done = self.done[idx]
             action = self.actions[idx]
@@ -638,7 +668,7 @@ class Batch:
             return tbool(self.masks_invalid_actions_forward, device=self.device)
         # Iterate over the trajectories to compute all forward masks
         self.masks_invalid_actions_forward = []
-        for idx, (traj_idx, _) in enumerate(self.traj_state_indices):
+        for idx, traj_idx in enumerate(self.traj_indices):
             state = self.states[idx]
             done = self.done[idx]
             action = self.actions[idx]
@@ -678,7 +708,7 @@ class Batch:
             return tbool(self.masks_invalid_actions_backward, device=self.device)
         # Iterate over the trajectories to compute all backward masks
         self.masks_invalid_actions_backward = []
-        for idx, (traj_idx, _) in enumerate(self.traj_state_indices):
+        for idx, traj_idx in enumerate(self.traj_indices):
             state = self.states[idx]
             done = self.done[idx]
             action = self.actions[idx]
@@ -802,10 +832,11 @@ class Batch:
         return self.envs[next(iter(self.envs))]
 
     def get_terminating_states(
-        self, policy: Optional[bool] = False, proxy: Optional[bool] = False
-    ) -> Union[
-        TensorType["n_states", "state_proxy_dims"], npt.NDArray[np.float32], List
-    ]:
+        self,
+        policy: Optional[bool] = False,
+        proxy: Optional[bool] = False,
+        force_recompute: Optional[bool] = False,
+    ) -> Union[TensorType["n_states", "..."], npt.NDArray[np.float32], List]:
         """
         TODO: docstring
         """
@@ -813,23 +844,54 @@ class Batch:
             raise ValueError(
                 "Ambiguous request! Only one of policy or proxy can be True."
             )
-        if isinstance(self.states, list):
-            states_term = [state for state, done in zip(self.states, self.done) if done]
-            done = np.array(self.done, dtype=bool)
-            traj_indices = np.array(self.traj_state_indices)[done, 0]
-            assert len(traj_indices) == len(np.unique(traj_indices))
-        elif torch.is_tensor(self.states):
+        traj_indices = None
+        if torch.is_tensor(self.states):
             done = self.get_done()
             states_term = self.states[done, :]
-            traj_indices = tlong(self.traj_state_indices)[done, 0]
-            assert len(traj_indices) == len(torch.unique(traj_indices))
+            if self.conditional:
+                traj_indices = tlong(self.traj_indices)[done]
+                assert len(traj_indices) == len(torch.unique(traj_indices))
+        elif isinstance(self.states, list):
+            states_term = [state for state, done in zip(self.states, self.done) if done]
+            if self.conditional:
+                done = np.array(self.done, dtype=bool)
+                traj_indices = np.array(self.traj_indices)[done]
+                assert len(traj_indices) == len(np.unique(traj_indices))
         else:
             raise NotImplementedError("self.states can only be list or torch.tensor")
         if policy is True:
-            # TODO: traj_indices can be None if the envs are not conditional
             return self.states2policy(states_term, traj_indices)
         elif proxy is True:
-            # TODO: traj_indices can be None if the envs are not conditional
             return self.states2proxy(states_term, traj_indices)
         else:
             return states_term
+
+    def get_states_of_trajectory(
+        self,
+        traj_idx: int,
+        states: Optional[
+            Union[TensorType["n_states", "..."], npt.NDArray[np.float32], List]
+        ] = None,
+        traj_indices: Optional[Union[List, TensorType["n_states"]]] = None,
+    ) -> Union[
+        TensorType["n_states", "state_proxy_dims"], npt.NDArray[np.float32], List
+    ]:
+        """
+        TODO: docstring
+        """
+        # If either states or traj_indices are not None, both must be the same type and
+        # have the same length.
+        if states is not None or traj_indices is not None:
+            assert type(states) == type(traj_indices)
+            assert len(states) == len(traj_indices)
+        else:
+            states = self.states
+            traj_indices = self.traj_indices
+        if torch.is_tensor(states):
+            return states[tlong(traj_indices) == traj_idx]
+        elif isinstance(states, list):
+            return [state for state, idx in zip(state, traj_indices) if idx == traj_idx]
+        elif isinstance(states, np.ndarray):
+            return states[np.array(traj_indices) == traj_idx]
+        else:
+            raise ValueError("states can only be list, torch.tensor or ndarray")

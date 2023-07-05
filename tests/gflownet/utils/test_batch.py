@@ -2,8 +2,8 @@ import pytest
 import torch
 
 from gflownet.envs.grid import Grid
-from gflownet.proxy.uniform import Uniform
 from gflownet.proxy.corners import Corners
+from gflownet.proxy.uniform import Uniform
 from gflownet.utils.batch import Batch
 from gflownet.utils.common import (
     concat_items,
@@ -182,7 +182,9 @@ def test__get_masks_backward__single_env_returns_expected(grid2d, batch_tb):
 @pytest.mark.repeat(10)
 def test__get_rewards__single_env_returns_expected(grid2d, batch_tb):
     grid2d = grid2d.reset()
-    proxy = Corners(device=grid2d.device, float_precision=grid2d.float, mu=0.75, sigma=0.05)
+    proxy = Corners(
+        device=grid2d.device, float_precision=grid2d.float, mu=0.75, sigma=0.05
+    )
     grid2d.proxy = proxy
     grid2d.setup_proxy()
 
@@ -196,9 +198,11 @@ def test__get_rewards__single_env_returns_expected(grid2d, batch_tb):
         if valid:
             rewards.append(grid2d.reward())
     rewards_batch = batch_tb.get_rewards()
+    rewards = torch.stack(rewards)
     assert torch.equal(
-        rewards_batch, tfloat(rewards, device=batch_tb.device)
-    )
+        rewards_batch,
+        tfloat(rewards, device=batch_tb.device, float_type=batch_tb.float),
+    ), (rewards, rewards_batch)
 
 
 @pytest.mark.parametrize(

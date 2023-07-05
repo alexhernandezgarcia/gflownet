@@ -13,7 +13,7 @@ import torch
 from torch.distributions import Categorical
 from torchtyping import TensorType
 
-from gflownet.utils.common import set_device, set_float_precision
+from gflownet.utils.common import set_device, set_float_precision, tfloat
 
 
 class GFlowNetEnv:
@@ -537,8 +537,8 @@ class GFlowNetEnv:
         """
         state, done = self._get_state_done(state, done)
         if done is False:
-            return self.min_reward
-        return self.proxy2reward(self.proxy(self.state2proxy(state)))
+            return tfloat(0.0, float_type=self.float, device=self.device)
+        return self.proxy2reward(self.proxy(self.state2proxy(state))[0])
 
     def reward_batch(self, states: List[List], done=None):
         """
