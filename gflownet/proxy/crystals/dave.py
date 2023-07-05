@@ -6,6 +6,10 @@ from pathlib import Path
 
 import git
 import torch
+from pyxtal import pyxtal
+from pyxtal.database.element import Element
+from pyxtal.lattice import Lattice
+from pyxtal.msg import Comp_CompatibilityError
 from torchtyping import TensorType
 
 from gflownet.proxy.base import Proxy
@@ -120,6 +124,57 @@ class DAVE(Proxy):
         comp = states[:, :-7]
         sg = states[:, -7] - 1
         lat_params = states[:, -6:]
+
+        # Adjust the lattice dimensions so that the lattice has a volume
+        # coherent with the composition of the crystal.
+        for idx_sample in range(comp.shape[0]):
+            # Recover the composition, space group and lattice parameters of
+            # this sample
+            sample_comp = comp[idx_sample].numpy().astype("int32")
+            sample_sg = int(sg[idx_sample].item())
+            sample_lat_params = lat_params[idx_sample].numpy()
+
+            # Recover the atoms that are present in the composition
+            nonzero_comp_indices = sample_comp.nonzero()[0]
+            elements = (nonzero_comp_indices + 1).tolist()
+            nb_atoms = sample_comp[nonzero_comp_indices].tolist()
+
+            # Recover the number of the space group
+            space_group = sample_sg + 1
+
+            # Recover the lattice parameters and compute the current volume of
+            # the crystal cell. The lattice type is not specified here since
+            # Lattice defaults to triclinic and it won't affect the volume
+            # computation.
+            lattice = Lattice.from_para(
+                a = sample_lat_params[0],
+                b = sample_lat_params[1],
+                c = sample_lat_params[2],
+                alpha = sample_lat_params[3],
+                beta = sample_lat_params[4],
+                gamma = sample_lat_params[5]
+            )
+            lattice_volume = lattice.volume
+
+            # Create crystal using the composition and space group but not the
+            # lattice parameters so PyXtal will automatically select some
+            # latttice parameters with an appropriate volume
+            try:
+                crystal = pyxtal()
+                crystal.from_random(3, space_group, elements, nb_atoms)
+                valid_volume = crystal.lattice.volume
+            except Comp_CompatibilityError:
+                # Composition is incompatible with selected space group. For
+                # now, skip. When we have the space group constraints
+                # implemented, this shouldn't happen so this should raise an
+                # exception.
+                continue
+
+            # Adjust all dimension of the lattice by the same factor to make
+            # the lattice volume identical to the desired volume without
+            # changing the angles or the proportions between the dimensions.
+            scale_factor = (valid_volume / lattice_volume) ** (1. / 3)
+            lat_params[idx_sample, :3] *= scale_factor
 
         n_env = comp.shape[-1]
         if n_env != self.model.n_elements:
