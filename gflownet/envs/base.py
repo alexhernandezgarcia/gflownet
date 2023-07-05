@@ -137,7 +137,10 @@ class GFlowNetEnv:
             The argument done, or self.done if done is None.
         """
         if state is None:
-            state = self.state.copy()
+            if torch.is_tensor(self.state):
+                state = self.state.clone().detach()
+            else:
+                state = self.state.copy()
         if done is None:
             done = self.done
         return state, done
