@@ -1,3 +1,4 @@
+import warnings
 from collections import defaultdict
 from copy import deepcopy
 from typing import List, Optional, Tuple, Union
@@ -10,6 +11,7 @@ from torchtyping import TensorType
 from gflownet.envs.base import GFlowNetEnv
 from gflownet.utils.common import (
     concat_items,
+    copy,
     set_device,
     set_float_precision,
     tbool,
@@ -39,6 +41,7 @@ class Batch:
         device: Union[str, torch.device] = "cpu",
         float_type: Union[int, torch.dtype] = 32,
         conditional: Optional[bool] = False,
+        continuous: Optional[bool] = None,
     ):
         # Device
         self.device = set_device(device)
@@ -46,6 +49,8 @@ class Batch:
         self.float = set_float_precision(float_type)
         # Environments are conditional
         self.conditional = conditional
+        # Environments are continuous
+        self.continuous = continuous
         # Initialize empty batch variables
         self.envs = dict()
         self.states = []
@@ -128,6 +133,9 @@ class Batch:
         if self.is_processed:
             raise Exception("Cannot append to the processed batch")
 
+        if self.continuous is None:
+            self.continuous = envs[0].continuous
+
         # Sample masks of invalid actions if required and none are provided
         if masks_invalid_actions_forward is None:
             if train:
@@ -152,7 +160,7 @@ class Batch:
             self.traj_indices.append(env.id)
             self.state_indices.append(env.n_actions)
             if train:
-                self.states.append(deepcopy(env.state))
+                self.states.append(copy(env.state))
                 self.actions.append(action)
                 self.env_ids.append(env.id)
                 self.done.append(env.done)
@@ -509,6 +517,8 @@ class Batch:
             self.parents_all_policy, linking them to the corresponding state in the
             batch.
         """
+        if self.continuous:
+            raise Exception("get_parents() is ill-defined for continuous environments!")
         if self.parents_all_available is False or force_recompute is True:
             self._compute_parents_all()
         if policy:
@@ -719,6 +729,7 @@ class Batch:
         self.masks_backward_available = True
         return self.masks_invalid_actions_backward
 
+    # TODO
     def merge(self, another_batch):
         """
         Merges two unprocessed batches.
