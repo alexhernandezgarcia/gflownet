@@ -475,7 +475,7 @@ class Batch:
             indices.extend(batch_indices)
         # Sort parents list in the same order as states
         # TODO: check if tensor and sort without iter
-        self.parents = [self.parents[idx] for idx in indices]
+        self.parents = [self.parents[indices.index(idx)] for idx in range(len(self))]
 
     def get_parents_all(
         self, policy: bool = False, force_recompute: bool = False
