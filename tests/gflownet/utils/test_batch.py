@@ -1,6 +1,7 @@
 import pytest
 import torch
 
+from gflownet.envs.ctorus import ContinuousTorus
 from gflownet.envs.grid import Grid
 from gflownet.envs.tetris import Tetris
 from gflownet.proxy.corners import Corners
@@ -8,6 +9,7 @@ from gflownet.proxy.tetris import Tetris as TetrisScore
 from gflownet.utils.batch import Batch
 from gflownet.utils.common import (
     concat_items,
+    copy,
     set_device,
     set_float_precision,
     tbool,
@@ -32,6 +34,11 @@ def tetris6x4():
     return Tetris(width=4, height=6)
 
 
+@pytest.fixture
+def ctorus2d5l():
+    return ContinuousTorus(n_dim=2, length_traj=10, n_comp=2)
+
+
 @pytest.fixture()
 def corners():
     return Corners(device="cpu", float_precision=32, mu=0.75, sigma=0.05)
@@ -47,7 +54,7 @@ def test__len__returnszero_at_init(batch):
 
 
 @pytest.mark.repeat(10)
-@pytest.mark.parametrize("env", ["grid2d", "tetris6x4"])
+@pytest.mark.parametrize("env", ["grid2d", "tetris6x4", "ctorus2d5l"])
 def test__add_to_batch__single_env_adds_expected(env, batch, request):
     env = request.getfixturevalue(env)
     env = env.reset()
@@ -70,7 +77,7 @@ def test__add_to_batch__single_env_adds_expected(env, batch, request):
 
 
 @pytest.mark.repeat(10)
-@pytest.mark.parametrize("env", ["grid2d", "tetris6x4"])
+@pytest.mark.parametrize("env", ["grid2d", "tetris6x4", "ctorus2d5l"])
 def test__get_states__single_env_returns_expected(env, batch, request):
     env = request.getfixturevalue(env)
     env = env.reset()
@@ -81,7 +88,7 @@ def test__get_states__single_env_returns_expected(env, batch, request):
         # Add to batch
         batch.add_to_batch([env], [action], [valid])
         if valid:
-            states.append(state)
+            states.append(copy(state))
     states_batch = batch.get_states()
     states_policy_batch = batch.get_states(policy=True)
     if torch.is_tensor(states[0]):
@@ -99,13 +106,13 @@ def test__get_states__single_env_returns_expected(env, batch, request):
 
 
 @pytest.mark.repeat(10)
-@pytest.mark.parametrize("env", ["grid2d", "tetris6x4"])
+@pytest.mark.parametrize("env", ["grid2d", "tetris6x4", "ctorus2d5l"])
 def test__get_parents__single_env_returns_expected(env, batch, request):
     env = request.getfixturevalue(env)
     env = env.reset()
     parents = []
     while not env.done:
-        parent = env.state
+        parent = copy(env.state)
         # Sample random action
         _, action, valid = env.step_random()
         # Add to batch
@@ -169,7 +176,7 @@ def test__get_parents_all__single_env_returns_expected(env, batch, request):
 
 
 @pytest.mark.repeat(10)
-@pytest.mark.parametrize("env", ["grid2d", "tetris6x4"])
+@pytest.mark.parametrize("env", ["grid2d", "tetris6x4", "ctorus2d5l"])
 def test__get_masks_forward__single_env_returns_expected(env, batch, request):
     env = request.getfixturevalue(env)
     env = env.reset()
@@ -187,7 +194,7 @@ def test__get_masks_forward__single_env_returns_expected(env, batch, request):
 
 
 @pytest.mark.repeat(10)
-@pytest.mark.parametrize("env", ["grid2d", "tetris6x4"])
+@pytest.mark.parametrize("env", ["grid2d", "tetris6x4", "ctorus2d5l"])
 def test__get_masks_backward__single_env_returns_expected(env, batch, request):
     env = request.getfixturevalue(env)
     env = env.reset()
@@ -206,7 +213,8 @@ def test__get_masks_backward__single_env_returns_expected(env, batch, request):
 
 @pytest.mark.repeat(10)
 @pytest.mark.parametrize(
-    "env, proxy", [("grid2d", "corners"), ("tetris6x4", "tetris_score")]
+    "env, proxy",
+    [("grid2d", "corners"), ("tetris6x4", "tetris_score"), ("ctorus2d5l", "corners")],
 )
 def test__get_rewards__single_env_returns_expected(env, proxy, batch, request):
     env = request.getfixturevalue(env)
@@ -230,28 +238,3 @@ def test__get_rewards__single_env_returns_expected(env, proxy, batch, request):
         rewards_batch,
         tfloat(rewards, device=batch.device, float_type=batch.float),
     ), (rewards, rewards_batch)
-
-
-# @pytest.mark.parametrize(
-#     "action, state_expected",
-#     [
-#         (
-#             (1, 0),
-#             [1, 0],
-#         ),
-#         (
-#             (0, 1),
-#             [0, 1],
-#         ),
-#     ],
-# )
-# def test__add_to_batch__minimal_env_returns_expected(
-#     batch, grid2d, action, state_expected
-# ):
-#     state, action_step, valid = grid2d.step(action)
-#     assert state == state_expected
-#     assert action_step == action
-#     assert valid
-#     batch.add_to_batch([grid2d], [action], [valid])
-#     assert batch.states == [state_expected]
-#     assert batch.actions == [action]
