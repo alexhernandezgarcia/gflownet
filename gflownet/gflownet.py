@@ -370,7 +370,7 @@ class GFlowNetAgent:
             "rewards": 0.0,
         }
         t0_all = time.time()
-        batch = Batch(loss=self.loss, device=self.device, float_type=self.float)
+        batch = Batch(device=self.device, float_type=self.float)
         if isinstance(envs, list):
             envs = [env.reset(idx) for idx, env in enumerate(envs)]
         elif n_samples is not None and n_samples > 0:
@@ -642,7 +642,7 @@ class GFlowNetAgent:
                 )
                 self.logger.log_plots(figs, it, self.use_context)
             t0_iter = time.time()
-            data = Batch(loss=self.loss, device=self.device, float_type=self.float)
+            data = Batch(device=self.device, float_type=self.float)
             for j in range(self.sttr):
                 batch, times = self.sample_batch(envs)
                 data.merge(batch)
@@ -754,8 +754,7 @@ class GFlowNetAgent:
             dict_tt = pickle.load(f)
             x_tt = dict_tt["x"]
         batch, _ = self.sample_batch(self.env, self.logger.test.n, train=False)
-        batch.process_batch()
-        x_sampled = batch.states.tolist()
+        x_sampled = batch.get_terminating_states()
         if self.buffer.test_type is not None and self.buffer.test_type == "all":
             if "density_true" in dict_tt:
                 density_true = dict_tt["density_true"]
