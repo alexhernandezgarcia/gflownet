@@ -1,10 +1,11 @@
 from collections.abc import MutableMapping
 from pathlib import Path
-from typing import Union
+from typing import List, Union
 
 import numpy as np
 import torch
 from hydra.utils import get_original_cwd
+from torchtyping import TensorType
 
 
 def set_device(device: Union[str, torch.device]):
@@ -122,3 +123,10 @@ def concat_items(list_of_items, index=None):
         )
 
     return result
+
+
+def copy(x: Union[List, TensorType["..."]]):
+    if torch.is_tensor(x):
+        return x.clone().detach()
+    else:
+        return x.copy()

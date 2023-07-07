@@ -13,7 +13,7 @@ import torch
 from torch.distributions import Categorical
 from torchtyping import TensorType
 
-from gflownet.utils.common import set_device, set_float_precision, tfloat
+from gflownet.utils.common import copy, set_device, set_float_precision, tfloat
 
 
 class GFlowNetEnv:
@@ -40,10 +40,13 @@ class GFlowNetEnv:
         fixed_distribution: Optional[dict] = None,
         random_distribution: Optional[dict] = None,
         conditional: bool = False,
+        continuous: bool = False,
         **kwargs,
     ):
         # Flag whether env is conditional
         self.conditional = conditional
+        # Flag whether env is continuous
+        self.continuous = continuous
         # Call reset() to set initial state, done, n_actions
         self.reset()
         # Device
@@ -137,10 +140,7 @@ class GFlowNetEnv:
             The argument done, or self.done if done is None.
         """
         if state is None:
-            if torch.is_tensor(self.state):
-                state = self.state.clone().detach()
-            else:
-                state = self.state.copy()
+            state = copy(self.state)
         if done is None:
             done = self.done
         return state, done
@@ -635,10 +635,7 @@ class GFlowNetEnv:
             the trajectory generated with this environment. If None, uuid.uuid4() is
             used.
         """
-        if torch.is_tensor(self.source):
-            self.state = self.source.clone().detach()
-        else:
-            self.state = self.source.copy()
+        self.state = copy(self.source)
         self.n_actions = 0
         self.done = False
         if env_id is None:
