@@ -77,7 +77,7 @@ def test__add_to_batch__single_env_adds_expected(env, batch, request):
         if valid is False:
             continue
         # Checks
-        assert batch.env_ids[-1] == env.id
+        assert batch.traj_indices[-1] == env.id
         if torch.is_tensor(state):
             assert torch.equal(batch.states[-1], state)
         else:

@@ -56,7 +56,6 @@ class Batch:
         self.states = []
         self.actions = []
         self.done = []
-        self.env_ids = []
         self.masks_invalid_actions_forward = []
         self.masks_invalid_actions_backward = []
         self.parents = []
@@ -162,14 +161,12 @@ class Batch:
             if train:
                 self.states.append(copy(env.state))
                 self.actions.append(action)
-                self.env_ids.append(env.id)
                 self.done.append(env.done)
                 self.n_actions.append(env.n_actions)
                 self.masks_invalid_actions_forward.append(mask_forward)
             else:
                 if env.done:
                     self.states.append(env.state)
-                    self.env_ids.append(env.id)
                     self.n_actions.append(env.n_actions)
 
     def process_batch(self):
@@ -730,9 +727,14 @@ class Batch:
         return self.masks_invalid_actions_backward
 
     # TODO
-    def merge(self, another_batch):
+    def merge(self, batches: List):
         """
-        Merges two unprocessed batches.
+        Merges the current Batch (self) with the Batch or list of Batches passed as
+        argument.
+
+        Returns
+        -------
+        self
         """
         if self.is_processed or another_batch.is_processed:
             raise Exception("Cannot merge processed batches.")
@@ -901,3 +903,50 @@ class Batch:
             return states[np.array(traj_indices) == traj_idx]
         else:
             raise ValueError("states can only be list, torch.tensor or ndarray")
+
+    def is_valid(self) -> bool:
+        """
+        Performs basic checks on the current state of the batch.
+
+        Returns
+        -------
+        True if all the checks are valid, False otherwise.
+        """
+        if len(self.states) != len(self):
+            return False
+        if len(self.actions) != len(self):
+            return False
+        if len(self.done) != len(self):
+            return False
+        if len(self.traj_indices) != len(self):
+            return False
+        if len(self.state_indices) != len(self):
+            return False
+        if set(np.unique(self.traj_indices)) != set(self.envs.keys()):
+            return False
+        if set(self.trajectories.keys()) != set(self.envs.keys()):
+            return False
+        batch_indices = [idx for indices in self.trajectories.values for idx in indices]
+        if len(batch_indices) != len(self):
+            return False
+        if len(np.unique(batch_indices)) != len(batch_indices):
+            return False
+        return True
+
+    def shift_traj_indices(by: int):
+        """
+        Adds the integer by given as an argument to all the trajectory indices and
+        environment ids.
+
+        Returns
+        -------
+        self
+        """
+        if not self.is_valid():
+            raise Exception("Batch is not valid before attempting indices shift")
+        self.traj_indices = [idx + by for idx in self.traj_indices]
+        self.trajectories = {k + by: v for k, v in self.trajectories.items()}
+        self.envs = {k + by: env.set_id(k + by) for k, env in self.trajectories.items()}
+        if not self.is_valid():
+            raise Exception("Batch is not valid after performing indices shift")
+        return self
