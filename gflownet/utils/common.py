@@ -125,6 +125,21 @@ def concat_items(list_of_items, index=None):
     return result
 
 
+def extend(
+    orig: Union[List, TensorType["..."]], new: Union[List, TensorType["..."]]
+) -> Union[List, TensorType["..."]]:
+    assert type(orig) == type(new)
+    if isinstance(orig, list):
+        orig.extend(new)
+    elif torch.tensor(orig):
+        orig = torch.cat([orig, new])
+    else:
+        raise NotImplementedError(
+            "Extension only supported for lists and torch tensors"
+        )
+    return orig
+
+
 def copy(x: Union[List, TensorType["..."]]):
     if torch.is_tensor(x):
         return x.clone().detach()

@@ -12,6 +12,7 @@ from gflownet.envs.base import GFlowNetEnv
 from gflownet.utils.common import (
     concat_items,
     copy,
+    extend,
     set_device,
     set_float_precision,
     tbool,
@@ -43,6 +44,7 @@ class Batch:
         conditional: Optional[bool] = False,
         continuous: Optional[bool] = None,
     ):
+        self.size = 0
         # Device
         self.device = set_device(device)
         # Float precision
@@ -58,7 +60,7 @@ class Batch:
         self.done = []
         self.masks_invalid_actions_forward = []
         self.masks_invalid_actions_backward = []
-        self.parents = []
+        self.parents = None
         self.parents_all = []
         self.parents_actions_all = []
         self.n_actions = []
@@ -78,7 +80,7 @@ class Batch:
         self.rewards_available = False
 
     def __len__(self):
-        return len(self.states)
+        return self.size
 
     def batch_idx_to_traj_state_idx(batch_idx: int):
         traj_idx = self.traj_indices[batch_idx]
@@ -150,6 +152,7 @@ class Batch:
             self.envs.update({env.id: env})
             if not valid:
                 continue
+            self.size += 1
             # Add batch index to trajectory
             if env.id not in self.trajectories:
                 self.trajectories.update({env.id: [len(self)]})
@@ -736,25 +739,49 @@ class Batch:
         -------
         self
         """
-        if self.is_processed or another_batch.is_processed:
-            raise Exception("Cannot merge processed batches.")
-        if self.loss != another_batch.loss:
-            raise Exception("Cannot merge batches with different losses.")
-        self.envs.update(another_batch.envs)
-        self.states += another_batch.states
-        self.actions += another_batch.actions
-        self.done += another_batch.done
-        self.env_ids += another_batch.env_ids
-        self.masks_invalid_actions_forward += (
-            another_batch.masks_invalid_actions_forward
-        )
-        self.masks_invalid_actions_backward += (
-            another_batch.masks_invalid_actions_backward
-        )
-        self.parents += another_batch.parents
-        self.parents_all += another_batch.parents_all
-        self.parents_actions_all += another_batch.parents_actions_all
-        self.n_actions += another_batch.n_actions
+        if not isinstance(batches, list):
+            batches = [batches]
+        for batch in batches:
+            # Shift trajectory indices of batch to merge
+            traj_idx_shift = np.max(self.trajectories.keys()) + 1
+            batch.shift_traj_indices(by=traj_idx_shift)
+            # Merge main data
+            self.size += batch.size
+            self.envs.update(batch.envs)
+            self.traj_indices.extend(batch.traj_indices)
+            self.state_indices.extend(batch.state_indices)
+            self.states.extend(batch.states)
+            self.actions.extend(batch.actions)
+            self.done.extend(batch.done)
+            # Merge "optional" data
+            if self.states_policy_available and batch.states_policy_available:
+                self.states_policy = extend(self.states_policy, batch.states_policy)
+            else:
+                self.states_policy = None
+            if self.parents_policy_available and batch.parents_policy_available:
+                self.parents_policy = extend(self.parents_policy, batch.parents_policy)
+            else:
+                self.parents_policy = None
+            if self.masks_forward_available and batch.masks_forward_available:
+                self.masks_forward = extend(self.masks_forward, batch.masks_forward)
+            else:
+                self.masks_forward = None
+            if self.masks_backward_available and batch.masks_backward_available:
+                self.masks_backward = extend(self.masks_backward, batch.masks_backward)
+            else:
+                self.masks_backward = None
+            if self.parents_available and batch.parents_available:
+                self.parents = extend(self.parents, batch.parents)
+            else:
+                self.parents = None
+            if self.parents_all_available and batch.parents_all_available:
+                self.parents_all = extend(self.parents_all, batch.parents_all)
+            else:
+                self.parents_all = None
+            if self.rewards_available and batch.rewards_available:
+                self.rewards = extend(self.rewards, batch.rewards)
+            else:
+                self.rewards = None
 
     def _process_trajectory_indices(self):
         """
