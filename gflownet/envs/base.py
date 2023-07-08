@@ -634,6 +634,10 @@ class GFlowNetEnv:
             Unique (ideally) identifier of the environment instance, used to identify
             the trajectory generated with this environment. If None, uuid.uuid4() is
             used.
+
+        Returns
+        -------
+        self
         """
         self.state = copy(self.source)
         self.n_actions = 0
@@ -642,6 +646,23 @@ class GFlowNetEnv:
             self.id = str(uuid.uuid4())
         else:
             self.id = env_id
+        return self
+
+    def set_id(self, env_id: Union[int, str]):
+        """
+        Sets the id given as argument and returns the environment.
+
+        Args
+        ----
+        env_id: int or str
+            Unique (ideally) identifier of the environment instance, used to identify
+            the trajectory generated with this environment.
+
+        Returns
+        -------
+        self
+        """
+        self.id = env_id
         return self
 
     def set_state(self, state: List, done: Optional[bool] = False):
