@@ -509,6 +509,7 @@ class GFlowNetAgent:
         flow_loss : float
             Loss of the intermediate nodes only
         """
+        assert batch.is_valid()
         # Get necessary tensors from batch
         states = batch.get_states(policy=True)
         parents, parents_actions, parents_state_idx = batch.get_parents_all(policy=True)

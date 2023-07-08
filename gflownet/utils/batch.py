@@ -152,7 +152,6 @@ class Batch:
             self.envs.update({env.id: env})
             if not valid:
                 continue
-            self.size += 1
             # Add batch index to trajectory
             if env.id not in self.trajectories:
                 self.trajectories.update({env.id: [len(self)]})
@@ -171,6 +170,8 @@ class Batch:
                 if env.done:
                     self.states.append(env.state)
                     self.n_actions.append(env.n_actions)
+            # Increment size of batch
+            self.size += 1
 
     def process_batch(self):
         """
@@ -743,31 +744,41 @@ class Batch:
             batches = [batches]
         for batch in batches:
             # Shift trajectory indices of batch to merge
-            traj_idx_shift = np.max(self.trajectories.keys()) + 1
+            if len(self) == 0:
+                traj_idx_shift = 0
+            else:
+                traj_idx_shift = np.max(list(self.trajectories.keys())) + 1
             batch.shift_traj_indices(by=traj_idx_shift)
             # Merge main data
             self.size += batch.size
             self.envs.update(batch.envs)
+            self.trajectories.update(batch.trajectories)
             self.traj_indices.extend(batch.traj_indices)
             self.state_indices.extend(batch.state_indices)
             self.states.extend(batch.states)
             self.actions.extend(batch.actions)
             self.done.extend(batch.done)
             # Merge "optional" data
-            if self.states_policy_available and batch.states_policy_available:
+            if self.states_policy is not None and batch.states_policy is not None:
                 self.states_policy = extend(self.states_policy, batch.states_policy)
             else:
                 self.states_policy = None
-            if self.parents_policy_available and batch.parents_policy_available:
+            if self.parents_policy is not None and batch.parents_policy is not None:
                 self.parents_policy = extend(self.parents_policy, batch.parents_policy)
             else:
                 self.parents_policy = None
             if self.masks_forward_available and batch.masks_forward_available:
-                self.masks_forward = extend(self.masks_forward, batch.masks_forward)
+                self.masks_invalid_actions_forward = extend(
+                    self.masks_invalid_actions_forward,
+                    batch.masks_invalid_actions_forward,
+                )
             else:
                 self.masks_forward = None
             if self.masks_backward_available and batch.masks_backward_available:
-                self.masks_backward = extend(self.masks_backward, batch.masks_backward)
+                self.masks_invalid_actions_backward = extend(
+                    self.masks_invalid_actions_backward,
+                    batch.masks_invalid_actions_backward,
+                )
             else:
                 self.masks_backward = None
             if self.parents_available and batch.parents_available:
@@ -782,6 +793,8 @@ class Batch:
                 self.rewards = extend(self.rewards, batch.rewards)
             else:
                 self.rewards = None
+        assert self.is_valid()
+        return self
 
     def _process_trajectory_indices(self):
         """
@@ -953,14 +966,16 @@ class Batch:
             return False
         if set(self.trajectories.keys()) != set(self.envs.keys()):
             return False
-        batch_indices = [idx for indices in self.trajectories.values for idx in indices]
+        batch_indices = [
+            idx for indices in self.trajectories.values() for idx in indices
+        ]
         if len(batch_indices) != len(self):
             return False
         if len(np.unique(batch_indices)) != len(batch_indices):
             return False
         return True
 
-    def shift_traj_indices(by: int):
+    def shift_traj_indices(self, by: int):
         """
         Adds the integer by given as an argument to all the trajectory indices and
         environment ids.
@@ -973,7 +988,7 @@ class Batch:
             raise Exception("Batch is not valid before attempting indices shift")
         self.traj_indices = [idx + by for idx in self.traj_indices]
         self.trajectories = {k + by: v for k, v in self.trajectories.items()}
-        self.envs = {k + by: env.set_id(k + by) for k, env in self.trajectories.items()}
+        self.envs = {k + by: env.set_id(k + by) for k, env in self.envs.items()}
         if not self.is_valid():
             raise Exception("Batch is not valid after performing indices shift")
         return self
