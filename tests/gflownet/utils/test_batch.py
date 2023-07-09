@@ -84,7 +84,7 @@ def test__add_to_batch__single_env_adds_expected(env, batch, request):
             assert batch.states[-1] == state
         assert batch.actions[-1] == action
         assert batch.done[-1] == env.done
-        assert batch.n_actions[-1] == env.n_actions
+        assert batch.state_indices[-1] == env.n_actions
 
 
 @pytest.mark.repeat(10)
@@ -270,7 +270,7 @@ def test__multiple_envs_all_as_expected(env, proxy, batch, request):
     # Make list of envs
     envs = []
     for idx in range(batch_size):
-        env_aux = env_ref.copy().reset()
+        env_aux = env_ref.copy().reset(idx)
         env_aux.proxy = proxy
         env_aux.setup_proxy()
         envs.append(env_aux)
@@ -287,6 +287,7 @@ def test__multiple_envs_all_as_expected(env, proxy, batch, request):
     rewards = []
     traj_indices = []
     state_indices = []
+    states_term_sorted = [None for _ in range(batch_size)]
 
     # Iterate until envs is empty
     while envs:
@@ -315,6 +316,8 @@ def test__multiple_envs_all_as_expected(env, proxy, batch, request):
                 rewards.append(env.reward())
                 traj_indices.append(env.id)
                 state_indices.append(env.n_actions)
+                if env.done:
+                    states_term_sorted[env.id] = env.state
         # Add all envs, actions and valids to batch
         batch.add_to_batch(envs, actions_iter, valids_iter)
         # Remove done envs
@@ -387,3 +390,20 @@ def test__multiple_envs_all_as_expected(env, proxy, batch, request):
         rewards_batch,
         tfloat(rewards, device=batch.device, float_type=batch.float),
     ), (rewards, rewards_batch)
+    # Check terminating states (sorted by trajectory)
+    states_term_batch = batch.get_terminating_states(sort_by="traj")
+    states_term_policy_batch = batch.get_terminating_states(sort_by="traj", policy=True)
+    if torch.is_tensor(states_term_sorted[0]):
+        assert torch.equal(
+            torch.stack(states_term_batch), torch.stack(states_term_sorted)
+        )
+    else:
+        assert states_term_batch == states_term_sorted
+    assert torch.equal(
+        states_term_policy_batch,
+        tfloat(
+            env.statebatch2policy(states_term_sorted),
+            device=batch.device,
+            float_type=batch.float,
+        ),
+    )

@@ -1,5 +1,5 @@
 import warnings
-from collections import defaultdict
+from collections import OrderedDict, defaultdict
 from copy import deepcopy
 from typing import List, Optional, Tuple, Union
 
@@ -54,7 +54,7 @@ class Batch:
         # Environments are continuous
         self.continuous = continuous
         # Initialize empty batch variables
-        self.envs = dict()
+        self.envs = OrderedDict()
         self.states = []
         self.actions = []
         self.done = []
@@ -68,7 +68,7 @@ class Batch:
         self.states_policy = None
         self.parents_policy = None
         # Dictionary of env_id (traj_idx): batch indices of the trajectory
-        self.trajectories = {}
+        self.trajectories = OrderedDict()
         # Trajectory index and state index of each element in the batch
         self.traj_indices = []
         self.state_indices = []
@@ -149,9 +149,13 @@ class Batch:
         # Add data samples to the batch
         for sample_data in zip(envs, actions, valids, masks_invalid_actions_forward):
             env, action, valid, mask_forward = sample_data
-            self.envs.update({env.id: env})
+            if train is False and env.done is False:
+                continue
             if not valid:
                 continue
+            # Add env to dictionary
+            if env.id not in self.envs:
+                self.envs.update({env.id: env})
             # Add batch index to trajectory
             if env.id not in self.trajectories:
                 self.trajectories.update({env.id: [len(self)]})
@@ -160,16 +164,11 @@ class Batch:
             # Add trajectory index and state index
             self.traj_indices.append(env.id)
             self.state_indices.append(env.n_actions)
-            if train:
-                self.states.append(copy(env.state))
-                self.actions.append(action)
-                self.done.append(env.done)
-                self.n_actions.append(env.n_actions)
-                self.masks_invalid_actions_forward.append(mask_forward)
-            else:
-                if env.done:
-                    self.states.append(env.state)
-                    self.n_actions.append(env.n_actions)
+            # Add states, actions, done and masks
+            self.states.append(copy(env.state))
+            self.actions.append(action)
+            self.done.append(env.done)
+            self.masks_invalid_actions_forward.append(mask_forward)
             # Increment size of batch
             self.size += 1
 
@@ -847,7 +846,7 @@ class Batch:
         self, force_recompute: Optional[bool] = False
     ) -> TensorType["n_states"]:
         """
-        Returns the rewards of all states in the batch.
+        Returns the rewards of all states in the batch (including not done).
 
         Args
         ----
@@ -881,29 +880,56 @@ class Batch:
 
     def get_terminating_states(
         self,
+        sort_by: str = "insertion",
         policy: Optional[bool] = False,
         proxy: Optional[bool] = False,
-        force_recompute: Optional[bool] = False,
     ) -> Union[TensorType["n_states", "..."], npt.NDArray[np.float32], List]:
         """
-        TODO: docstring
+        Returns the terminating states in the batch, that is all states with done =
+        True. The states will be returned in either GFlowNet format (default), policy
+        (policy = True) or proxy (proxy = True) format. If both policy and proxy are
+        True, it raises an error due to the ambiguity. The returned states may be
+        sorted by order of insertion (sort_by = "insert[ion]", default) or by
+        trajectory index (sort_by = "traj[ectory]".
+
+        Args
+        ----
+        sort_by : str
+            Indicates how to sort the output:
+                - insert[ion]: sort by order of insertion (states of trajectories that
+                  reached the terminating state first come first)
+                - traj[ectory]: sort by trajectory index (the order in the ordered
+                  dict self.trajectories)
+
+        policy : bool
+            If True, the policy format of the states is returned.
+
+        proxy : bool
+            If True, the proxy format of the states is returned.
         """
+        if sort_by == "insert" or sort_by == "insertion":
+            indices = np.arange(len(self))
+        elif sort_by == "traj" or sort_by == "trajectory":
+            indices = np.argsort(self.traj_indices)
+        else:
+            raise ValueError("sort_by must be either insert[ion] or traj[ectory]")
         if policy is True and proxy is True:
             raise ValueError(
                 "Ambiguous request! Only one of policy or proxy can be True."
             )
         traj_indices = None
         if torch.is_tensor(self.states):
-            done = self.get_done()
-            states_term = self.states[done, :]
-            if self.conditional:
-                traj_indices = tlong(self.traj_indices)[done]
+            indices = tlong(indices)
+            done = self.get_done()[indices]
+            states_term = self.states[indices][done, :]
+            if self.conditional and (policy is True or proxy is True):
+                traj_indices = tlong(self.traj_indices)[indices][done]
                 assert len(traj_indices) == len(torch.unique(traj_indices))
         elif isinstance(self.states, list):
-            states_term = [state for state, done in zip(self.states, self.done) if done]
-            if self.conditional:
-                done = np.array(self.done, dtype=bool)
-                traj_indices = np.array(self.traj_indices)[done]
+            states_term = [self.states[idx] for idx in indices if self.done[idx]]
+            if self.conditional and (policy is True or proxy is True):
+                done = np.array(self.done, dtype=bool)[indices]
+                traj_indices = np.array(self.traj_indices)[indices][done]
                 assert len(traj_indices) == len(np.unique(traj_indices))
         else:
             raise NotImplementedError("self.states can only be list or torch.tensor")
@@ -913,6 +939,12 @@ class Batch:
             return self.states2proxy(states_term, traj_indices)
         else:
             return states_term
+
+    def get_actions_trajectories(self) -> List[List[Tuple]]:
+        actions_trajectories = []
+        for batch_indices in self.trajectories.values():
+            actions_trajectories.append([self.actions[idx] for idx in batch_indices])
+        return actions_trajectories
 
     def get_states_of_trajectory(
         self,

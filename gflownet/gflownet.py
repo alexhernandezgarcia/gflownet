@@ -643,18 +643,18 @@ class GFlowNetAgent:
                 )
                 self.logger.log_plots(figs, it, self.use_context)
             t0_iter = time.time()
-            data = Batch(device=self.device, float_type=self.float)
+            batch = Batch(device=self.device, float_type=self.float)
             for j in range(self.sttr):
-                batch, times = self.sample_batch(envs)
-                data.merge(batch)
+                sub_batch, times = self.sample_batch(envs)
+                batch.merge(sub_batch)
             for j in range(self.ttsr):
                 if self.loss == "flowmatch":
                     losses, rewards = self.flowmatch_loss(
-                        it * self.ttsr + j, data
+                        it * self.ttsr + j, batch
                     )  # returns (opt loss, *metrics)
                 elif self.loss == "trajectorybalance":
                     losses, rewards = self.trajectorybalance_loss(
-                        it * self.ttsr + j, data
+                        it * self.ttsr + j, batch
                     )  # returns (opt loss, *metrics)
                 else:
                     print("Unknown loss!")
@@ -675,12 +675,20 @@ class GFlowNetAgent:
                     all_losses.append([i.item() for i in losses])
             # Buffer
             t0_buffer = time.time()
-            states_term, trajs_term = batch.unpack_terminal_states()
+            states_term = batch.get_terminating_states(sort_by="trajectory")
+            actions_trajectories = batch.get_actions_trajectories()
+            # TODO: losses do not need to return rewards any more, just take it from
+            # the batch (pre-computed)
             proxy_vals = self.env.reward2proxy(rewards).tolist()
             rewards = rewards.tolist()
-            self.buffer.add(states_term, trajs_term, rewards, proxy_vals, it)
+            self.buffer.add(states_term, actions_trajectories, rewards, proxy_vals, it)
             self.buffer.add(
-                states_term, trajs_term, rewards, proxy_vals, it, buffer="replay"
+                states_term,
+                actions_trajectories,
+                rewards,
+                proxy_vals,
+                it,
+                buffer="replay",
             )
             t1_buffer = time.time()
             times.update({"buffer": t1_buffer - t0_buffer})
@@ -701,7 +709,7 @@ class GFlowNetAgent:
                 rewards=rewards,
                 proxy_vals=proxy_vals,
                 states_term=states_term,
-                batch_size=len(data),
+                batch_size=len(batch),
                 logz=self.logZ,
                 learning_rates=self.lr_scheduler.get_last_lr(),
                 step=it,
@@ -755,6 +763,7 @@ class GFlowNetAgent:
             dict_tt = pickle.load(f)
             x_tt = dict_tt["x"]
         batch, _ = self.sample_batch(self.env, self.logger.test.n, train=False)
+        assert batch.is_valid()
         x_sampled = batch.get_terminating_states()
         if self.buffer.test_type is not None and self.buffer.test_type == "all":
             if "density_true" in dict_tt:
