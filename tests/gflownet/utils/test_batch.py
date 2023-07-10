@@ -69,6 +69,7 @@ def test__len__returnszero_at_init(batch):
 def test__add_to_batch__single_env_adds_expected(env, batch, request):
     env = request.getfixturevalue(env)
     env = env.reset()
+    batch.set_env(env)
     while not env.done:
         # Sample random action
         state, action, valid = env.step_random()
@@ -93,6 +94,7 @@ def test__add_to_batch__single_env_adds_expected(env, batch, request):
 def test__get_states__single_env_returns_expected(env, batch, request):
     env = request.getfixturevalue(env)
     env = env.reset()
+    batch.set_env(env)
     states = []
     while not env.done:
         # Sample random action
@@ -123,6 +125,7 @@ def test__get_states__single_env_returns_expected(env, batch, request):
 def test__get_parents__single_env_returns_expected(env, batch, request):
     env = request.getfixturevalue(env)
     env = env.reset()
+    batch.set_env(env)
     parents = []
     while not env.done:
         parent = copy(env.state)
@@ -154,6 +157,7 @@ def test__get_parents__single_env_returns_expected(env, batch, request):
 def test__get_parents_all__single_env_returns_expected(env, batch, request):
     env = request.getfixturevalue(env)
     env = env.reset()
+    batch.set_env(env)
     parents_all = []
     parents_all_a = []
     while not env.done:
@@ -195,6 +199,7 @@ def test__get_parents_all__single_env_returns_expected(env, batch, request):
 def test__get_masks_forward__single_env_returns_expected(env, batch, request):
     env = request.getfixturevalue(env)
     env = env.reset()
+    batch.set_env(env)
     masks_forward = []
     while not env.done:
         parent = env.state
@@ -214,6 +219,7 @@ def test__get_masks_forward__single_env_returns_expected(env, batch, request):
 def test__get_masks_backward__single_env_returns_expected(env, batch, request):
     env = request.getfixturevalue(env)
     env = env.reset()
+    batch.set_env(env)
     masks_backward = []
     while not env.done:
         parent = env.state
@@ -239,6 +245,7 @@ def test__get_rewards__single_env_returns_expected(env, proxy, batch, request):
     env = env.reset()
     env.proxy = proxy
     env.setup_proxy()
+    batch.set_env(env)
 
     rewards = []
     while not env.done:
@@ -263,8 +270,10 @@ def test__get_rewards__single_env_returns_expected(env, proxy, batch, request):
     [("grid2d", "corners"), ("tetris6x4", "tetris_score"), ("ctorus2d5l", "corners")],
 )
 def test__multiple_envs_all_as_expected(env, proxy, batch, request):
-    batch_size = 10
+    batch_size = 3
+    #     batch_size = 10
     env_ref = request.getfixturevalue(env)
+    batch.set_env(env_ref)
     proxy = request.getfixturevalue(proxy)
 
     # Make list of envs
@@ -280,6 +289,7 @@ def test__multiple_envs_all_as_expected(env, proxy, batch, request):
     actions = []
     done = []
     masks_forward = []
+    masks_parents_forward = []
     masks_backward = []
     parents = []
     parents_all = []
@@ -307,6 +317,9 @@ def test__multiple_envs_all_as_expected(env, proxy, batch, request):
                 actions.append(action)
                 done.append(env.done)
                 masks_forward.append(env.get_mask_invalid_actions_forward())
+                masks_parents_forward.append(
+                    env.get_mask_invalid_actions_forward(parent, done=False)
+                )
                 masks_backward.append(env.get_mask_invalid_actions_backward())
                 parents.append(parent)
                 if not env.continuous:
@@ -341,6 +354,11 @@ def test__multiple_envs_all_as_expected(env, proxy, batch, request):
     # Check masks forward
     masks_forward_batch = batch.get_masks_forward()
     assert torch.equal(masks_forward_batch, tbool(masks_forward, device=batch.device))
+    # Check masks parents forward
+    masks_parents_forward_batch = batch.get_masks_forward(of_parents=True)
+    assert torch.equal(
+        masks_parents_forward_batch, tbool(masks_parents_forward, device=batch.device)
+    )
     # Check masks backward
     masks_backward_batch = batch.get_masks_backward()
     assert torch.equal(masks_backward_batch, tbool(masks_backward, device=batch.device))

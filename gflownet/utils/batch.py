@@ -26,35 +26,55 @@ class Batch:
     """
     Class to handle GFlowNet batches.
 
-    device: str or torch.device
-        torch.device or string indicating the device to use ("cpu" or "cuda")
-
-    float_type: torch.dtype or int
-        One of float torch.dtype or an int indicating the float precision (16, 32 or
-        64).
-
     Important note: one env should correspond to only one trajectory, all env_id should
     be unique.
+
+    Note: self.state_indices start by index 1 to indicate that index 0 would correspond
+    to the source state but the latter is not stored in the batch for each trajectory.
+    This implies that one has to be careful when indexing the list of batch_indices in
+    self.trajectories by using self.state_indices. For example, the batch index of
+    state state_idx of trajectory traj_idx is self.trajectories[traj_idx][state_idx-1]
+    (not self.trajectories[traj_idx][state_idx]).
     """
 
     def __init__(
         self,
+        env: Optional[GFlowNetEnv] = None,
         device: Union[str, torch.device] = "cpu",
         float_type: Union[int, torch.dtype] = 32,
-        conditional: Optional[bool] = False,
-        continuous: Optional[bool] = None,
     ):
-        self.size = 0
+        """
+        env : GFlowNetEnv
+            An instance of the environment that will be used to form the batch.
+
+        device : str or torch.device
+            torch.device or string indicating the device to use ("cpu" or "cuda")
+
+        float_type : torch.dtype or int
+            One of float torch.dtype or an int indicating the float precision (16, 32
+            or 64).
+
+        """
         # Device
         self.device = set_device(device)
         # Float precision
         self.float = set_float_precision(float_type)
-        # Environments are conditional
-        self.conditional = conditional
-        # Environments are continuous
-        self.continuous = continuous
+        # Generic environment, properties and dictionary of state and forward mask of
+        # source (as tensor)
+        if env is not None:
+            self.set_env(env)
+        else:
+            self.env = None
+            self.source = None
+            self.conditional = None
+            self.continuous = None
+        # Initialize batch size 0
+        self.size = 0
         # Initialize empty batch variables
         self.envs = OrderedDict()
+        self.trajectories = OrderedDict()
+        self.traj_indices = []
+        self.state_indices = []
         self.states = []
         self.actions = []
         self.done = []
@@ -67,11 +87,6 @@ class Batch:
         self.is_processed = False
         self.states_policy = None
         self.parents_policy = None
-        # Dictionary of env_id (traj_idx): batch indices of the trajectory
-        self.trajectories = OrderedDict()
-        # Trajectory index and state index of each element in the batch
-        self.traj_indices = []
-        self.state_indices = []
         # Flags for available items
         self.parents_available = False
         self.parents_all_available = False
@@ -94,6 +109,21 @@ class Batch:
     def traj_state_idx_to_batch_idx(traj_idx: int, state_idx: int):
         batch_idx = self.trajectories[traj_idx][state_idx]
         return batch_idx
+
+    def set_env(self, env: GFlowNetEnv):
+        """
+        Sets the generic environment passed as an argument an initializes the
+        environment-dependent properties.
+        """
+        self.env = env.copy().reset()
+        self.source = {
+            "state": self.env.source,
+            "mask_forward": tbool(
+                self.env.get_mask_invalid_actions_forward(), device=self.device
+            ),
+        }
+        self.conditional = self.env.conditional
+        self.continuous = self.env.continuous
 
     def add_to_batch(
         self,
@@ -219,6 +249,40 @@ class Batch:
             ) = self._process_parents()
         self.is_processed = True
 
+    def get_n_trajectories(self) -> int:
+        """
+        Returns the number of trajectories in the batch.
+
+        Returns
+        -------
+        The number of trajectories in the batch (int).
+        """
+        return len(self.trajectories)
+
+    def get_trajectory_indices(self) -> TensorType["n_states", int]:
+        """
+        Returns the trajectory index of all elements in the batch as a long int torch
+        tensor.
+
+        Returns
+        -------
+        traj_indices : torch.tensor
+            self.traj_indices as a long int torch tensor.
+        """
+        return tlong(self.traj_indices, device=self.device)
+
+    def get_state_indices(self) -> TensorType["n_states", int]:
+        """
+        Returns the state index of all elements in the batch as a long int torch
+        tensor.
+
+        Returns
+        -------
+        state_indices : torch.tensor
+            self.state_indices as a long int torch tensor.
+        """
+        return tlong(self.traj_indices, device=self.device)
+
     def get_states(
         self,
         policy: Optional[bool] = False,
@@ -263,6 +327,12 @@ class Batch:
         if proxy is True:
             return self.states2proxy()
         return self.states
+
+    def get_actions(self) -> TensorType["n_states, action_dim"]:
+        """
+        Returns the actions in the batch as a float tensor.
+        """
+        return tfloat(self.actions, float_type=self.float, device=self.device)
 
     def get_done(self) -> TensorType["n_states"]:
         """
@@ -653,24 +723,62 @@ class Batch:
     # TODO: opportunity to improve efficiency by caching.
     def get_masks_forward(
         self,
+        of_parents: bool = False,
         force_recompute: bool = False,
     ) -> TensorType["n_states", "action_space_dim"]:
         """
-        Computes (and returns) the backward mask of invalid actions of all states in the
-        batch, by calling env.get_mask_invalid_actions_backward().
+        Returns the forward mask of invalid actions of all states in the batch or of
+        their parent in the trajectory if of_parents is True. The masks are computed
+        via self._compute_masks_forward if they are not available or if force_recompute
+        is True.
 
         Args
         ----
+        of_parents : bool
+            If True, the returned masks will correspond to the parents of the states,
+            instead of to the states (default).
+
         force_recompute : bool
             If True, the masks are recomputed even if they are available.
 
         Returns
         -------
-        self.masks_invalid_actions_backward : torch.tensor
-            The backward mask of all states in the batch.
+        self.masks_invalid_actions_forward : torch.tensor
+            The forward mask of all states in the batch.
         """
         if self.masks_forward_available is True and force_recompute is False:
-            return tbool(self.masks_invalid_actions_forward, device=self.device)
+            self._compute_masks_forward()
+        if of_parents:
+            parents_indices = tlong(
+                [
+                    self.trajectories[traj_idx][state_idx - 2] if state_idx > 1 else -1
+                    for traj_idx, state_idx in zip(
+                        self.traj_indices, self.state_indices
+                    )
+                ],
+                device=self.device,
+            )
+            masks_invalid_actions_forward_parents = torch.zeros_like(
+                self.masks_invalid_actions_forward
+            )
+            masks_invalid_actions_forward_parents[parents_indices == -1] = self.source[
+                "mask_forward"
+            ]
+            masks_invalid_actions_forward_parents[
+                parents_indices != -1
+            ] = self.masks_invalid_actions_forward[
+                parents_indices[parents_indices != -1]
+            ]
+            return masks_invalid_actions_forward_parents
+        return self.masks_invalid_actions_forward
+
+    def _compute_masks_forward(self):
+        """
+        Computes the forward mask of invalid actions of all states in the batch, by
+        calling env.get_mask_invalid_actions_forward().
+        self.masks_invalid_actions_forward is stored as a torch tensor and
+        self.masks_forward_available is set to True.
+        """
         # Iterate over the trajectories to compute all forward masks
         self.masks_invalid_actions_forward = []
         for idx, traj_idx in enumerate(self.traj_indices):
@@ -685,7 +793,6 @@ class Batch:
             self.masks_invalid_actions_forward, device=self.device
         )
         self.masks_forward_available = True
-        return self.masks_invalid_actions_forward
 
     # TODO: handle mix of backward and forward trajectories
     # TODO: opportunity to improve efficiency by caching. Note that
@@ -919,11 +1026,13 @@ class Batch:
             )
         traj_indices = None
         if torch.is_tensor(self.states):
-            indices = tlong(indices)
+            indices = tlong(indices, device=self.device)
             done = self.get_done()[indices]
             states_term = self.states[indices][done, :]
             if self.conditional and (policy is True or proxy is True):
-                traj_indices = tlong(self.traj_indices)[indices][done]
+                traj_indices = tlong(self.traj_indices, device=self.device)[indices][
+                    done
+                ]
                 assert len(traj_indices) == len(torch.unique(traj_indices))
         elif isinstance(self.states, list):
             states_term = [self.states[idx] for idx in indices if self.done[idx]]
@@ -968,7 +1077,7 @@ class Batch:
             states = self.states
             traj_indices = self.traj_indices
         if torch.is_tensor(states):
-            return states[tlong(traj_indices) == traj_idx]
+            return states[tlong(traj_indices, device=self.device) == traj_idx]
         elif isinstance(states, list):
             return [state for state, idx in zip(state, traj_indices) if idx == traj_idx]
         elif isinstance(states, np.ndarray):
