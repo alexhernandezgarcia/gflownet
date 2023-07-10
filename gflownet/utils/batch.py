@@ -1,6 +1,4 @@
-import warnings
-from collections import OrderedDict, defaultdict
-from copy import deepcopy
+from collections import OrderedDict
 from typing import List, Optional, Tuple, Union
 
 import numpy as np
@@ -17,7 +15,6 @@ from gflownet.utils.common import (
     set_float_precision,
     tbool,
     tfloat,
-    tint,
     tlong,
 )
 
@@ -134,12 +131,9 @@ class Batch:
         train: Optional[bool] = True,
     ):
         """
-        # TODO: remove mentions to loss
         Adds information from a list of environments and actions to the batch after
-        performing steps in the envs. If train is True, it adds all the variables
-        required for computing the loss specified by self.loss. Otherwise, it stores
-        only states, env_id, step number (everything needed when sampling a trajectory
-        at inference)
+        performing steps in the envs. If train is False, only the variables of
+        terminating states are stored.
 
         Args
         ----
@@ -201,53 +195,6 @@ class Batch:
             self.masks_invalid_actions_forward.append(mask_forward)
             # Increment size of batch
             self.size += 1
-
-    def process_batch(self):
-        """
-        Converts internal lists into more convenient formats:
-        - converts and stacks lists into a single torch tensor
-        - computes trajectory indices (indices of the states in self.states
-          corresponding to each trajectory)
-        - if needed, converts states and parents into policy formats (stored in
-          self.states_policy, self.parents_policy)
-        """
-        self.env_ids = tlong(self.env_ids, device=self.device)
-        self.states, self.states_policy = self._process_states()
-        self.n_actions = tlong(self.n_actions, device=self.device)
-        self.trajectory_indices = self._process_trajectory_indices()
-        # process other variables, if we are in the train mode and recorded them
-        if len(self.actions) > 0:
-            self.actions = tfloat(
-                self.actions, device=self.device, float_type=self.float
-            )
-            self.done = tbool(self.done, device=self.device)
-            self.masks_invalid_actions_forward = tbool(
-                self.masks_invalid_actions_forward, device=self.device
-            )
-            if self.loss == "flowmatch":
-                self.parents_all_state_idx = tlong(
-                    sum(
-                        [[idx] * len(p) for idx, p in enumerate(self.parents_all)],
-                        [],
-                    ),
-                    device=self.device,
-                )
-                self.parents_actions_all = tfloat(
-                    [a for actions in self.parents_actions_all for a in actions],
-                    device=self.device,
-                    float_type=self.float,
-                )
-            elif self.loss == "trajectorybalance":
-                self.masks_invalid_actions_backward = tbool(
-                    self.masks_invalid_actions_backward, device=self.device
-                )
-            (
-                self.parents,
-                self.parents_policy,
-                self.parents_all,
-                self.parents_all_policy,
-            ) = self._process_parents()
-        self.is_processed = True
 
     def get_n_trajectories(self) -> int:
         """
@@ -328,36 +275,6 @@ class Batch:
             return self.states2proxy()
         return self.states
 
-    def get_actions(self) -> TensorType["n_states, action_dim"]:
-        """
-        Returns the actions in the batch as a float tensor.
-        """
-        return tfloat(self.actions, float_type=self.float, device=self.device)
-
-    def get_done(self) -> TensorType["n_states"]:
-        """
-        Returns the list of done flags as a boolean tensor.
-        """
-        return tbool(self.done, device=self.device)
-
-    def _process_states(self):
-        """
-        Convert self.states from a list to a torch tensor and compute states in the policy format.
-
-        Returns
-        -------
-        states: torch.tensor
-            Tensor containing the states converted to a torch tensor.
-        states_policy: torch.tensor
-            Tensor containing the states converted to the policy format.
-
-        """
-        # TODO: check if available
-        # TODO: perhaps better, separate states and states2policy
-        states = tfloat(self.states, device=self.device, float_type=self.float)
-        states_policy = self.states2policy(states, self.env_ids)
-        return states, states_policy
-
     def states2policy(
         self,
         states: Optional[Union[List, TensorType["n_states", "..."]]] = None,
@@ -390,12 +307,10 @@ class Batch:
         if states is None:
             states = self.states
             traj_indices = self.traj_indices
-        # TODO: store env.policy_input_dim in the Batch?
         # TODO: will env.policy_input_dim be the same for all envs if conditional?
-        env = self._get_first_env()
         if self.conditional:
             states_policy = torch.zeros(
-                (len(states), env.policy_input_dim),
+                (len(states), self.env.policy_input_dim),
                 device=self.device,
                 dtype=self.float,
             )
@@ -411,7 +326,9 @@ class Batch:
             return states_policy
         # TODO: do we need tfloat or is done in env.statebatch2policy?
         return tfloat(
-            env.statebatch2policy(states), device=self.device, float_type=self.float
+            self.env.statebatch2policy(states),
+            device=self.device,
+            float_type=self.float,
         )
 
     def states2proxy(
@@ -451,7 +368,6 @@ class Batch:
         if states is None:
             states = self.states
             traj_indices = self.traj_indices
-        env = self._get_first_env()
         if self.conditional:
             states_proxy = []
             index = torch.arange(len(states), device=self.device)
@@ -471,7 +387,19 @@ class Batch:
             index[perm_index] = index.clone()
             states_proxy = concat_items(states_proxy, index)
             return states_proxy
-        return env.statebatch2proxy(states)
+        return self.env.statebatch2proxy(states)
+
+    def get_actions(self) -> TensorType["n_states, action_dim"]:
+        """
+        Returns the actions in the batch as a float tensor.
+        """
+        return tfloat(self.actions, float_type=self.float, device=self.device)
+
+    def get_done(self) -> TensorType["n_states"]:
+        """
+        Returns the list of done flags as a boolean tensor.
+        """
+        return tbool(self.done, device=self.device)
 
     def get_parents(
         self, policy: Optional[bool] = False, force_recompute: Optional[bool] = False
@@ -664,61 +592,6 @@ class Batch:
         self.parents_all_policy = torch.cat(self.parents_all_policy)
         self.parents_all_available = True
 
-    def _process_parents(self):
-        """
-        Process parents for the given loss type.
-
-        Returns
-        -------
-        parents: torch.tensor
-            Tensor of parent states.
-        parents_policy: torch.tensor
-            Tensor of parent states converted to policy format.
-        parents_all: torch.tensor
-            Tensor of all parent states.
-        parents_all_policy: torch.tensor
-            Tensor of all parent states converted to policy format.
-        """
-        parents = []
-        parents_policy = []
-        parents_all = []
-        parents_all_policy = []
-        if self.loss == "flowmatch":
-            for par, env_id in zip(self.parents_all, self.env_ids):
-                parents_all_policy.append(
-                    tfloat(
-                        self.envs[env_id.item()].statebatch2policy(par),
-                        device=self.device,
-                        float_type=self.float,
-                    )
-                )
-            parents_all_policy = torch.cat(parents_all_policy)
-            parents_all = tfloat(
-                [p for parents in self.parents_all for p in parents],
-                device=self.device,
-                float_type=self.float,
-            )
-        elif self.loss == "trajectorybalance":
-            assert self.trajectory_indices is not None
-            parents_policy = torch.zeros_like(self.states_policy)
-            parents = torch.zeros_like(self.states)
-            for env_id, traj in self.trajectory_indices.items():
-                # parent is source
-                parents_policy[traj[0]] = tfloat(
-                    self.envs[env_id].state2policy(self.envs[env_id].source),
-                    device=self.device,
-                    float_type=self.float,
-                )
-                parents[traj[0]] = tfloat(
-                    self.envs[env_id].source,
-                    device=self.device,
-                    float_type=self.float,
-                )
-                # parent is not source
-                parents_policy[traj[1:]] = self.states_policy[traj[:-1]]
-                parents[traj[1:]] = self.states[traj[:-1]]
-        return parents, parents_policy, parents_all, parents_all_policy
-
     # TODO: handle mix of backward and forward trajectories
     # TODO: opportunity to improve efficiency by caching.
     def get_masks_forward(
@@ -836,119 +709,6 @@ class Batch:
         self.masks_backward_available = True
         return self.masks_invalid_actions_backward
 
-    # TODO
-    def merge(self, batches: List):
-        """
-        Merges the current Batch (self) with the Batch or list of Batches passed as
-        argument.
-
-        Returns
-        -------
-        self
-        """
-        if not isinstance(batches, list):
-            batches = [batches]
-        for batch in batches:
-            # Shift trajectory indices of batch to merge
-            if len(self) == 0:
-                traj_idx_shift = 0
-            else:
-                traj_idx_shift = np.max(list(self.trajectories.keys())) + 1
-            batch.shift_traj_indices(by=traj_idx_shift)
-            # Merge main data
-            self.size += batch.size
-            self.envs.update(batch.envs)
-            self.trajectories.update(batch.trajectories)
-            self.traj_indices.extend(batch.traj_indices)
-            self.state_indices.extend(batch.state_indices)
-            self.states.extend(batch.states)
-            self.actions.extend(batch.actions)
-            self.done.extend(batch.done)
-            # Merge "optional" data
-            if self.states_policy is not None and batch.states_policy is not None:
-                self.states_policy = extend(self.states_policy, batch.states_policy)
-            else:
-                self.states_policy = None
-            if self.parents_policy is not None and batch.parents_policy is not None:
-                self.parents_policy = extend(self.parents_policy, batch.parents_policy)
-            else:
-                self.parents_policy = None
-            if self.masks_forward_available and batch.masks_forward_available:
-                self.masks_invalid_actions_forward = extend(
-                    self.masks_invalid_actions_forward,
-                    batch.masks_invalid_actions_forward,
-                )
-            else:
-                self.masks_forward = None
-            if self.masks_backward_available and batch.masks_backward_available:
-                self.masks_invalid_actions_backward = extend(
-                    self.masks_invalid_actions_backward,
-                    batch.masks_invalid_actions_backward,
-                )
-            else:
-                self.masks_backward = None
-            if self.parents_available and batch.parents_available:
-                self.parents = extend(self.parents, batch.parents)
-            else:
-                self.parents = None
-            if self.parents_all_available and batch.parents_all_available:
-                self.parents_all = extend(self.parents_all, batch.parents_all)
-            else:
-                self.parents_all = None
-            if self.rewards_available and batch.rewards_available:
-                self.rewards = extend(self.rewards, batch.rewards)
-            else:
-                self.rewards = None
-        assert self.is_valid()
-        return self
-
-    def _process_trajectory_indices(self):
-        """
-        Obtain the indices in the batch that correspond to each environment.  Creates a
-        dictionary of trajectory indices (key: env_id, value: indices of the states in
-        self.states ordered from s_1 to s_f).
-
-        Returns
-        -------
-        trajs: dict
-            Dictionary containing trajectory indices for each environment.
-        """
-        # Check if self.trajectory_indices is already computed and valid
-        if self.trajectory_indices is not None:
-            n_indices = sum([len(v) for v in self.trajectory_indices.values])
-            if n_indices == len(self):
-                return self.trajectory_indices
-        # Obtain trajectory indices since they are not computed yet
-        trajs = defaultdict(list)
-        for idx, (env_id, step) in enumerate(zip(self.env_ids, self.n_actions)):
-            trajs[env_id.item()].append((idx, step))
-        trajs = {
-            env_id: list(map(lambda x: x[0], sorted(traj, key=lambda x: x[1])))
-            for env_id, traj in trajs.items()
-        }
-        return trajs
-
-    # TODO: rethink and re-implement. Outputs should not be tuples. It needs to be
-    # refactored together with the buffer.
-    # TODO: docstring
-    def unpack_terminal_states(self):
-        """
-        For storing terminal states and trajectory actions in the buffer
-        Unpacks the terminating states and trajectories of a batch and converts them
-        to Python lists/tuples.
-        """
-        # TODO: make sure that unpacked states and trajs are sorted by traj_id (like
-        # rewards will be)
-        if not self.is_processed:
-            self.process_batch()
-        terminal_states = []
-        traj_actions = []
-        for traj_idx in self.trajectory_indices.values():
-            traj_actions.append(self.actions[traj_idx].tolist())
-            terminal_states.append(tuple(self.states[traj_idx[-1]].tolist()))
-        traj_actions = [tuple([tuple(a) for a in t]) for t in traj_actions]
-        return terminal_states, traj_actions
-
     def get_rewards(
         self, force_recompute: Optional[bool] = False
     ) -> TensorType["n_states"]:
@@ -975,15 +735,13 @@ class Batch:
             Tensor of rewards.
         """
         states_proxy_done = self.get_terminating_states(proxy=True)
-        env = self._get_first_env()
         self.rewards = torch.zeros(len(self), dtype=self.float, device=self.device)
         done = self.get_done()
         if len(done) > 0:
-            self.rewards[done] = env.proxy2reward(env.proxy(states_proxy_done))
+            self.rewards[done] = self.env.proxy2reward(
+                self.env.proxy(states_proxy_done)
+            )
         self.rewards_available = True
-
-    def _get_first_env(self):
-        return self.envs[next(iter(self.envs))]
 
     def get_terminating_states(
         self,
@@ -1119,6 +877,71 @@ class Batch:
         else:
             raise ValueError("states can only be list, torch.tensor or ndarray")
 
+    def merge(self, batches: List):
+        """
+        Merges the current Batch (self) with the Batch or list of Batches passed as
+        argument.
+
+        Returns
+        -------
+        self
+        """
+        if not isinstance(batches, list):
+            batches = [batches]
+        for batch in batches:
+            # Shift trajectory indices of batch to merge
+            if len(self) == 0:
+                traj_idx_shift = 0
+            else:
+                traj_idx_shift = np.max(list(self.trajectories.keys())) + 1
+            batch._shift_traj_indices(by=traj_idx_shift)
+            # Merge main data
+            self.size += batch.size
+            self.envs.update(batch.envs)
+            self.trajectories.update(batch.trajectories)
+            self.traj_indices.extend(batch.traj_indices)
+            self.state_indices.extend(batch.state_indices)
+            self.states.extend(batch.states)
+            self.actions.extend(batch.actions)
+            self.done.extend(batch.done)
+            # Merge "optional" data
+            if self.states_policy is not None and batch.states_policy is not None:
+                self.states_policy = extend(self.states_policy, batch.states_policy)
+            else:
+                self.states_policy = None
+            if self.parents_policy is not None and batch.parents_policy is not None:
+                self.parents_policy = extend(self.parents_policy, batch.parents_policy)
+            else:
+                self.parents_policy = None
+            if self.masks_forward_available and batch.masks_forward_available:
+                self.masks_invalid_actions_forward = extend(
+                    self.masks_invalid_actions_forward,
+                    batch.masks_invalid_actions_forward,
+                )
+            else:
+                self.masks_forward = None
+            if self.masks_backward_available and batch.masks_backward_available:
+                self.masks_invalid_actions_backward = extend(
+                    self.masks_invalid_actions_backward,
+                    batch.masks_invalid_actions_backward,
+                )
+            else:
+                self.masks_backward = None
+            if self.parents_available and batch.parents_available:
+                self.parents = extend(self.parents, batch.parents)
+            else:
+                self.parents = None
+            if self.parents_all_available and batch.parents_all_available:
+                self.parents_all = extend(self.parents_all, batch.parents_all)
+            else:
+                self.parents_all = None
+            if self.rewards_available and batch.rewards_available:
+                self.rewards = extend(self.rewards, batch.rewards)
+            else:
+                self.rewards = None
+        assert self.is_valid()
+        return self
+
     def is_valid(self) -> bool:
         """
         Performs basic checks on the current state of the batch.
@@ -1150,7 +973,7 @@ class Batch:
             return False
         return True
 
-    def shift_traj_indices(self, by: int):
+    def _shift_traj_indices(self, by: int):
         """
         Adds the integer by given as an argument to all the trajectory indices and
         environment ids.
