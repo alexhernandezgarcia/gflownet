@@ -336,6 +336,12 @@ def test__multiple_envs_all_as_expected(env, proxy, batch, request):
         # Remove done envs
         envs = [env for env in envs if not env.done]
 
+    # Check trajectory indices
+    traj_indices_batch = batch.get_trajectory_indices()
+    assert torch.equal(traj_indices_batch, tlong(traj_indices, device=batch.device))
+    # Check state indices
+    state_indices_batch = batch.get_state_indices()
+    assert torch.equal(state_indices_batch, tlong(state_indices, device=batch.device))
     # Check states
     states_batch = batch.get_states()
     states_policy_batch = batch.get_states(policy=True)
@@ -351,6 +357,14 @@ def test__multiple_envs_all_as_expected(env, proxy, batch, request):
             float_type=batch.float,
         ),
     )
+    # Check actions
+    actions_batch = batch.get_actions()
+    assert torch.equal(
+        actions_batch, tfloat(actions, float_type=batch.float, device=batch.device)
+    )
+    # Check done
+    done_batch = batch.get_done()
+    assert torch.equal(done_batch, tbool(done, device=batch.device))
     # Check masks forward
     masks_forward_batch = batch.get_masks_forward()
     assert torch.equal(masks_forward_batch, tbool(masks_forward, device=batch.device))

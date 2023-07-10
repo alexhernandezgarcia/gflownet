@@ -281,7 +281,7 @@ class Batch:
         state_indices : torch.tensor
             self.state_indices as a long int torch tensor.
         """
-        return tlong(self.traj_indices, device=self.device)
+        return tlong(self.state_indices, device=self.device)
 
     def get_states(
         self,
