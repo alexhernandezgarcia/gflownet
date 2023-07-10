@@ -958,7 +958,7 @@ class Batch:
         Args
         ----
         force_recompute : bool
-            If True, the parents are recomputed even if they are available.
+            If True, the rewards are recomputed even if they are available.
         """
         if self.rewards_available is False or force_recompute is True:
             self._compute_rewards()
@@ -990,7 +990,7 @@ class Batch:
         sort_by: str = "insertion",
         policy: Optional[bool] = False,
         proxy: Optional[bool] = False,
-    ) -> Union[TensorType["n_states", "..."], npt.NDArray[np.float32], List]:
+    ) -> Union[TensorType["n_trajectories", "..."], npt.NDArray[np.float32], List]:
         """
         Returns the terminating states in the batch, that is all states with done =
         True. The states will be returned in either GFlowNet format (default), policy
@@ -1048,6 +1048,40 @@ class Batch:
             return self.states2proxy(states_term, traj_indices)
         else:
             return states_term
+
+    def get_terminating_rewards(
+        self,
+        sort_by: str = "insertion",
+        force_recompute: Optional[bool] = False,
+    ) -> TensorType["n_trajectories"]:
+        """
+        Returns the reward of the terminating states in the batch, that is all states
+        with done = True. The returned rewards may be sorted by order of insertion
+        (sort_by = "insert[ion]", default) or by trajectory index (sort_by =
+        "traj[ectory]".
+
+        Args
+        ----
+        sort_by : str
+            Indicates how to sort the output:
+                - insert[ion]: sort by order of insertion (rewards of trajectories that
+                  reached the terminating state first come first)
+                - traj[ectory]: sort by trajectory index (the order in the ordered
+                  dict self.trajectories)
+
+        force_recompute : bool
+            If True, the rewards are recomputed even if they are available.
+        """
+        if sort_by == "insert" or sort_by == "insertion":
+            indices = np.arange(len(self))
+        elif sort_by == "traj" or sort_by == "trajectory":
+            indices = np.argsort(self.traj_indices)
+        else:
+            raise ValueError("sort_by must be either insert[ion] or traj[ectory]")
+        if self.rewards_available is False or force_recompute is True:
+            self._compute_rewards()
+        done = self.get_done()[indices]
+        return self.rewards[indices][done]
 
     def get_actions_trajectories(self) -> List[List[Tuple]]:
         actions_trajectories = []

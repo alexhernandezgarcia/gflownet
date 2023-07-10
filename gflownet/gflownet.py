@@ -541,7 +541,7 @@ class GFlowNetAgent:
         contrib_interm = done.eq(0).to(self.float).mean()
         # Combined loss
         loss = contrib_term * loss_term + contrib_interm * loss_interm
-        return (loss, loss_term, loss_interm), rewards[done]
+        return loss, loss_term, loss_interm
 
     def trajectorybalance_loss(self, it, batch):
         """
@@ -575,8 +575,7 @@ class GFlowNetAgent:
         traj_indices = batch.get_trajectory_indices()
         masks_f = batch.get_masks_forward(of_parents=True)
         masks_b = batch.get_masks_backward()
-        rewards = batch.get_rewards()
-        assert torch.all(rewards[done] > 0)
+        rewards = batch.get_terminating_rewards(sort_by="trajectory")
 
         # Forward trajectories
         policy_output_f = self.forward_policy(parents)
@@ -598,15 +597,13 @@ class GFlowNetAgent:
             dtype=self.float,
             device=self.device,
         ).index_add_(0, traj_indices, logprobs_b)
-        # Sort rewards of done states by ascending traj id
-        rewards = rewards[done.eq(1)][torch.argsort(traj_ids[done.eq(1)])]
         # Trajectory balance loss
         loss = (
             (self.logZ.sum() + sumlogprobs_f - sumlogprobs_b - torch.log(rewards))
             .pow(2)
             .mean()
         )
-        return (loss, loss, loss), rewards
+        return loss, loss, loss
 
     def train(self):
         # Metrics
@@ -633,11 +630,11 @@ class GFlowNetAgent:
                 batch.merge(sub_batch)
             for j in range(self.ttsr):
                 if self.loss == "flowmatch":
-                    losses, rewards = self.flowmatch_loss(
+                    losses = self.flowmatch_loss(
                         it * self.ttsr + j, batch
                     )  # returns (opt loss, *metrics)
                 elif self.loss == "trajectorybalance":
-                    losses, rewards = self.trajectorybalance_loss(
+                    losses = self.trajectorybalance_loss(
                         it * self.ttsr + j, batch
                     )  # returns (opt loss, *metrics)
                 else:
@@ -660,9 +657,8 @@ class GFlowNetAgent:
             # Buffer
             t0_buffer = time.time()
             states_term = batch.get_terminating_states(sort_by="trajectory")
+            rewards = batch.get_terminating_rewards(sort_by="trajectory")
             actions_trajectories = batch.get_actions_trajectories()
-            # TODO: losses do not need to return rewards any more, just take it from
-            # the batch (pre-computed)
             proxy_vals = self.env.reward2proxy(rewards).tolist()
             rewards = rewards.tolist()
             self.buffer.add(states_term, actions_trajectories, rewards, proxy_vals, it)
