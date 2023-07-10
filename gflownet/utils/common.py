@@ -30,6 +30,19 @@ def set_float_precision(precision: Union[int, torch.dtype]):
         raise ValueError("Precision must be one of [16, 32, 64]")
 
 
+def set_int_precision(precision: Union[int, torch.dtype]):
+    if isinstance(precision, torch.dtype):
+        return precision
+    if precision == 16:
+        return torch.int16
+    elif precision == 32:
+        return torch.int32
+    elif precision == 64:
+        return torch.int64
+    else:
+        raise ValueError("Precision must be one of [16, 32, 64]")
+
+
 def torch2np(x):
     if hasattr(x, "is_cuda") and x.is_cuda:
         x = x.detach().cpu()
@@ -89,13 +102,13 @@ def tlong(x, device):
         return torch.tensor(x, dtype=torch.long, device=device)
 
 
-def tint(x, device):
+def tint(x, device, int_type):
     if isinstance(x, list) and torch.is_tensor(x[0]):
-        return torch.stack(x).type(torch.int).to(device)
+        return torch.stack(x).type(int_type).to(device)
     if torch.is_tensor(x):
-        return x.type(torch.int).to(device)
+        return x.type(int_type).to(device)
     else:
-        return torch.tensor(x, dtype=torch.int, device=device)
+        return torch.tensor(x, dtype=int_type, device=device)
 
 
 def tbool(x, device):

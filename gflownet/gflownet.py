@@ -65,9 +65,6 @@ class GFlowNetAgent:
         self.float = set_float_precision(float_precision)
         # Environment
         self.env = env
-        self.mask_source = tbool(
-            [self.env.get_mask_invalid_actions_forward()], device=self.device
-        )
         # Continuous environments
         self.continuous = hasattr(self.env, "continuous") and self.env.continuous
         if self.continuous and optimizer.loss in ["flowmatch", "flowmatching"]:
