@@ -270,8 +270,7 @@ def test__get_rewards__single_env_returns_expected(env, proxy, batch, request):
     [("grid2d", "corners"), ("tetris6x4", "tetris_score"), ("ctorus2d5l", "corners")],
 )
 def test__multiple_envs_all_as_expected(env, proxy, batch, request):
-    batch_size = 3
-    #     batch_size = 10
+    batch_size = 10
     env_ref = request.getfixturevalue(env)
     batch.set_env(env_ref)
     proxy = request.getfixturevalue(proxy)
@@ -280,6 +279,184 @@ def test__multiple_envs_all_as_expected(env, proxy, batch, request):
     envs = []
     for idx in range(batch_size):
         env_aux = env_ref.copy().reset(idx)
+        env_aux.proxy = proxy
+        env_aux.setup_proxy()
+        envs.append(env_aux)
+
+    # Initialize empty lists for checks
+    states = []
+    actions = []
+    done = []
+    masks_forward = []
+    masks_parents_forward = []
+    masks_backward = []
+    parents = []
+    parents_all = []
+    parents_all_a = []
+    rewards = []
+    traj_indices = []
+    state_indices = []
+    states_term_sorted = [None for _ in range(batch_size)]
+
+    # Iterate until envs is empty
+    while envs:
+        # Make step env by env (different to GFN Agent) to have full control
+        actions_iter = []
+        valids_iter = []
+        for env in envs:
+            parent = copy(env.state)
+            # Sample random action
+            state, action, valid = env.step_random()
+            if valid:
+                # Add to iter lists
+                actions_iter.append(action)
+                valids_iter.append(valid)
+                # Add to checking lists
+                states.append(copy(env.state))
+                actions.append(action)
+                done.append(env.done)
+                masks_forward.append(env.get_mask_invalid_actions_forward())
+                masks_parents_forward.append(
+                    env.get_mask_invalid_actions_forward(parent, done=False)
+                )
+                masks_backward.append(env.get_mask_invalid_actions_backward())
+                parents.append(parent)
+                if not env.continuous:
+                    env_parents, env_parents_a = env.get_parents()
+                    parents_all.extend(env_parents)
+                    parents_all_a.extend(env_parents_a)
+                rewards.append(env.reward())
+                traj_indices.append(env.id)
+                state_indices.append(env.n_actions)
+                if env.done:
+                    states_term_sorted[env.id] = env.state
+        # Add all envs, actions and valids to batch
+        batch.add_to_batch(envs, actions_iter, valids_iter)
+        # Remove done envs
+        envs = [env for env in envs if not env.done]
+
+    # Check trajectory indices
+    traj_indices_batch = batch.get_trajectory_indices()
+    assert torch.equal(traj_indices_batch, tlong(traj_indices, device=batch.device))
+    # Check state indices
+    state_indices_batch = batch.get_state_indices()
+    assert torch.equal(state_indices_batch, tlong(state_indices, device=batch.device))
+    # Check states
+    states_batch = batch.get_states()
+    states_policy_batch = batch.get_states(policy=True)
+    if torch.is_tensor(states[0]):
+        assert torch.equal(torch.stack(states_batch), torch.stack(states))
+    else:
+        assert states_batch == states
+    assert torch.equal(
+        states_policy_batch,
+        tfloat(
+            env.statebatch2policy(states),
+            device=batch.device,
+            float_type=batch.float,
+        ),
+    )
+    # Check actions
+    actions_batch = batch.get_actions()
+    assert torch.equal(
+        actions_batch, tfloat(actions, float_type=batch.float, device=batch.device)
+    )
+    # Check done
+    done_batch = batch.get_done()
+    assert torch.equal(done_batch, tbool(done, device=batch.device))
+    # Check masks forward
+    masks_forward_batch = batch.get_masks_forward()
+    assert torch.equal(masks_forward_batch, tbool(masks_forward, device=batch.device))
+    # Check masks parents forward
+    masks_parents_forward_batch = batch.get_masks_forward(of_parents=True)
+    assert torch.equal(
+        masks_parents_forward_batch, tbool(masks_parents_forward, device=batch.device)
+    )
+    # Check masks backward
+    masks_backward_batch = batch.get_masks_backward()
+    assert torch.equal(masks_backward_batch, tbool(masks_backward, device=batch.device))
+    # Check parents
+    parents_batch = batch.get_parents()
+    parents_policy_batch = batch.get_parents(policy=True)
+    if torch.is_tensor(parents[0]):
+        assert torch.equal(torch.stack(parents_batch), torch.stack(parents))
+    else:
+        assert parents_batch == parents
+    assert torch.equal(
+        parents_policy_batch,
+        tfloat(
+            env.statebatch2policy(parents),
+            device=batch.device,
+            float_type=batch.float,
+        ),
+    )
+    # Check parents_all
+    if not env.continuous:
+        parents_all_batch, parents_all_a_batch, _ = batch.get_parents_all()
+        parents_all_policy_batch, _, _ = batch.get_parents_all(policy=True)
+        if torch.is_tensor(parents_all[0]):
+            assert torch.equal(torch.stack(parents_all_batch), torch.stack(parents_all))
+        else:
+            assert parents_all_batch == parents_all
+        assert torch.equal(
+            parents_all_a_batch,
+            tfloat(
+                parents_all_a,
+                device=batch.device,
+                float_type=batch.float,
+            ),
+        )
+        assert torch.equal(
+            parents_all_policy_batch,
+            tfloat(
+                env.statebatch2policy(parents_all),
+                device=batch.device,
+                float_type=batch.float,
+            ),
+        )
+    # Check rewards
+    rewards_batch = batch.get_rewards()
+    rewards = torch.stack(rewards)
+    assert torch.equal(
+        rewards_batch,
+        tfloat(rewards, device=batch.device, float_type=batch.float),
+    ), (rewards, rewards_batch)
+    # Check terminating states (sorted by trajectory)
+    states_term_batch = batch.get_terminating_states(sort_by="traj")
+    states_term_policy_batch = batch.get_terminating_states(sort_by="traj", policy=True)
+    if torch.is_tensor(states_term_sorted[0]):
+        assert torch.equal(
+            torch.stack(states_term_batch), torch.stack(states_term_sorted)
+        )
+    else:
+        assert states_term_batch == states_term_sorted
+    assert torch.equal(
+        states_term_policy_batch,
+        tfloat(
+            env.statebatch2policy(states_term_sorted),
+            device=batch.device,
+            float_type=batch.float,
+        ),
+    )
+
+@pytest.mark.repeat(10)
+@pytest.mark.parametrize(
+    "env, proxy",
+    [("grid2d", "corners"), ("tetris6x4", "tetris_score")],
+)
+def test__backward_sampling_multiple_envs_all_as_expected(env, proxy, batch, request):
+    batch_size = 10
+    env_ref = request.getfixturevalue(env)
+    batch.set_env(env_ref)
+    proxy = request.getfixturevalue(proxy)
+
+    # Sample terminating states and build list of envs
+    x_batch = env_ref.get_uniform_terminating_states(n_states = batch_size)
+    envs = []
+    for idx, x in enumerate(range(x_batch)):
+        env_aux = env_ref.copy().reset(idx)
+        env_aux = env_aux.set_state(state=x, done=True)
+        env_aux.n_actions = env_aux.get_max_traj_length()
         env_aux.proxy = proxy
         env_aux.setup_proxy()
         envs.append(env_aux)
