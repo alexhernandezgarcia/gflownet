@@ -214,15 +214,21 @@ class Batch:
             # Add states, actions, done and masks
             if backward:
                 self.parents.append(copy(env.state))
-                if backward and len(self.trajectories[env.id]) == 1:
+                self.masks_invalid_actions_backward.append(mask)
+                if len(self.trajectories[env.id]) == 1:
                     self.states.append(copy(env.state))
                     self.done.append(True)
-                    self.masks_invalid_actions_backward.append(mask)
                 else:
                     self.states.append(copy(self.parents[self.trajectories[env.id][1]]))
                     self.done.append(env.done)
             else:
                 self.states.append(copy(env.state))
+                if len(self.trajectories[env.id]) == 1:
+                    self.parents.append(self.source["state"])
+                else:
+                    self.parents.append(
+                        copy(self.states[self.trajectories[env.id][-2]])
+                    )
                 self.done.append(env.done)
                 self.masks_invalid_actions_forward.append(mask)
             self.actions.append(action)
