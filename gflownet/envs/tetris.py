@@ -466,7 +466,7 @@ class Tetris(GFlowNetEnv):
 
     # TODO
     def get_max_traj_length(self):
-        return 1e9
+        return int(1e9)
 
     def _piece_can_be_lifted(self, board, piece_idx):
         """
