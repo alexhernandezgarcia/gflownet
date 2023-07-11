@@ -529,7 +529,7 @@ class Tetris(GFlowNetEnv):
             return min_idx
 
     def get_uniform_terminating_states(
-        self, n_states: int, seed: int, n_factor_max: int = 10
+        self, n_states: int, seed: int = None, n_factor_max: int = 10
     ) -> List[List]:
         rng = np.random.default_rng(seed)
         n_iter_max = n_states * n_factor_max
