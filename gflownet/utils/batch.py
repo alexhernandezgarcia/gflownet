@@ -71,23 +71,24 @@ class Batch:
         self.envs = OrderedDict()
         self.trajectories = OrderedDict()
         self.traj_indices = []
+        # TODO: state_indices is currently unused, it is redundant and inconsistent
+        # between forward and backward trajectories. We may want to remove it.
         self.state_indices = []
         self.states = []
         self.actions = []
         self.done = []
         self.masks_invalid_actions_forward = []
         self.masks_invalid_actions_backward = []
-        self.parents = None
+        self.parents = []
         self.parents_all = []
         self.parents_actions_all = []
         self.n_actions = []
-        self.is_processed = False
         self.states_policy = None
         self.parents_policy = None
         # Flags for available items
         self.parents_available = False
         self.parents_all_available = False
-        self.masks_forward_available = True
+        self.masks_forward_available = False
         self.masks_backward_available = False
         self.rewards_available = False
 
@@ -106,6 +107,9 @@ class Batch:
     def traj_state_idx_to_batch_idx(traj_idx: int, state_idx: int):
         batch_idx = self.trajectories[traj_idx][state_idx]
         return batch_idx
+
+    def idx2state_idx(self, idx: int):
+        return self.trajectories[self.traj_indices[idx]].index(idx)
 
     def set_env(self, env: GFlowNetEnv):
         """
@@ -127,7 +131,8 @@ class Batch:
         envs: List[GFlowNetEnv],
         actions: List[Tuple],
         valids: List[bool],
-        masks_invalid_actions_forward: Optional[List[List[bool]]] = None,
+        masks_invalid_actions: Optional[List[List[bool]]] = None,
+        backward: Optional[bool] = False,
         train: Optional[bool] = True,
     ):
         """
@@ -151,28 +156,43 @@ class Batch:
             selected for all environments, which ones were invalid. Optional, will be
             computed if not provided.
 
+        backward : bool
+            A boolean value indicating whether the action was sampled backward (False
+            by dfefault). If True, the behavior is slightly different so as to match
+            what is stored in forward sampling:
+                - If it is the first state in the trajectory (action from a done
+                  state/env), then done is stored as True, instead of taking env.done
+                  which will be False after having performed the step.
+                - If it is not the first state in the trajectory, the stored state will
+                  be the previous one in the trajectory, to match the state-action
+                  stored in forward sampling and the convention that the source state
+                  is not stored, but the terminating state is repeated with action eos.
+
         train : bool
             A boolean value indicating whether the data to add to the batch will be used
             for training. Optional, default is True.
         """
-        if self.is_processed:
-            raise Exception("Cannot append to the processed batch")
-
+        # TODO: do we need this?
         if self.continuous is None:
             self.continuous = envs[0].continuous
 
         # Sample masks of invalid actions if required and none are provided
-        if masks_invalid_actions_forward is None:
+        if masks_invalid_actions is None:
             if train:
-                masks_invalid_actions_forward = [
-                    env.get_mask_invalid_actions_forward() for env in envs
-                ]
+                if backward:
+                    masks_invalid_actions = [
+                        env.get_mask_invalid_actions_backward() for env in envs
+                    ]
+                else:
+                    masks_invalid_actions = [
+                        env.get_mask_invalid_actions_forward() for env in envs
+                    ]
             else:
-                masks_invalid_actions_forward = [None] * len(envs)
+                masks_invalid_actions = [None] * len(envs)
 
         # Add data samples to the batch
-        for sample_data in zip(envs, actions, valids, masks_invalid_actions_forward):
-            env, action, valid, mask_forward = sample_data
+        for sample_data in zip(envs, actions, valids, masks_invalid_actions):
+            env, action, valid, mask = sample_data
             if train is False and env.done is False:
                 continue
             if not valid:
@@ -184,15 +204,28 @@ class Batch:
             if env.id not in self.trajectories:
                 self.trajectories.update({env.id: [len(self)]})
             else:
-                self.trajectories[env.id].append(len(self))
+                if backward:
+                    self.trajectories[env.id].insert(0, len(self))
+                else:
+                    self.trajectories[env.id].append(len(self))
             # Add trajectory index and state index
             self.traj_indices.append(env.id)
             self.state_indices.append(env.n_actions)
             # Add states, actions, done and masks
-            self.states.append(copy(env.state))
+            if backward:
+                self.parents.append(copy(env.state))
+                if backward and len(self.trajectories[env.id]) == 1:
+                    self.states.append(copy(env.state))
+                    self.done.append(True)
+                    self.masks_invalid_actions_backward.append(mask)
+                else:
+                    self.states.append(copy(self.parents[self.trajectories[env.id][1]]))
+                    self.done.append(env.done)
+            else:
+                self.states.append(copy(env.state))
+                self.done.append(env.done)
+                self.masks_invalid_actions_forward.append(mask)
             self.actions.append(action)
-            self.done.append(env.done)
-            self.masks_invalid_actions_forward.append(mask_forward)
             # Increment size of batch
             self.size += 1
 
@@ -619,15 +652,20 @@ class Batch:
         self.masks_invalid_actions_forward : torch.tensor
             The forward mask of all states in the batch.
         """
-        if self.masks_forward_available is True and force_recompute is False:
+        # TODO: check availability element-wise
+        if self.masks_forward_available is False or force_recompute is True:
             self._compute_masks_forward()
         if of_parents:
+            trajectories_parents = {
+                traj_idx: [-1] + batch_indices[:-1]
+                for traj_idx, batch_indices in self.trajectories.items()
+            }
             parents_indices = tlong(
                 [
-                    self.trajectories[traj_idx][state_idx - 2] if state_idx > 1 else -1
-                    for traj_idx, state_idx in zip(
-                        self.traj_indices, self.state_indices
-                    )
+                    trajectories_parents[traj_idx][
+                        self.trajectories[traj_idx].index(idx)
+                    ]
+                    for idx, traj_idx in enumerate(self.traj_indices)
                 ],
                 device=self.device,
             )
@@ -696,7 +734,6 @@ class Batch:
         for idx, traj_idx in enumerate(self.traj_indices):
             state = self.states[idx]
             done = self.done[idx]
-            action = self.actions[idx]
             # TODO: if we pass parents_all_actions to get_mask... then we avoid calling
             # get_parents again.
             self.masks_invalid_actions_backward.append(
@@ -860,8 +897,10 @@ class Batch:
         """
         TODO: docstring
         """
+        # TODO: re-implement using the batch indices in self.trajectories[traj_idx]
         # If either states or traj_indices are not None, both must be the same type and
         # have the same length.
+        # TODO: or add sort_by
         if states is not None or traj_indices is not None:
             assert type(states) == type(traj_indices)
             assert len(states) == len(traj_indices)
@@ -871,7 +910,9 @@ class Batch:
         if torch.is_tensor(states):
             return states[tlong(traj_indices, device=self.device) == traj_idx]
         elif isinstance(states, list):
-            return [state for state, idx in zip(state, traj_indices) if idx == traj_idx]
+            return [
+                state for state, idx in zip(states, traj_indices) if idx == traj_idx
+            ]
         elif isinstance(states, np.ndarray):
             return states[np.array(traj_indices) == traj_idx]
         else:
