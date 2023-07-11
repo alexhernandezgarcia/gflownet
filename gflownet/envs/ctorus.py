@@ -149,7 +149,6 @@ class ContinuousTorus(HybridTorus):
         sampling_method: str = "policy",
         mask_invalid_actions: TensorType["n_states", "1"] = None,
         temperature_logits: float = 1.0,
-        loginf: float = 1000,
     ) -> Tuple[List[Tuple], TensorType["n_states"]]:
         """
         Samples a batch of actions from a batch of policy outputs.
@@ -202,7 +201,6 @@ class ContinuousTorus(HybridTorus):
         actions: TensorType["n_states", "n_dim"],
         states_target: TensorType["n_states", "policy_input_dim"],
         mask_invalid_actions: TensorType["n_states", "1"] = None,
-        loginf: float = 1000,
     ) -> TensorType["batch_size"]:
         """
         Computes log probabilities of actions given policy outputs and actions.
@@ -246,8 +244,7 @@ class ContinuousTorus(HybridTorus):
             indicates the increment in the angle at dimension d.
 
         skip_mask_check : bool
-            If True, skip computing forward mask of invalid actions to check if the
-            action is valid.
+            Ignored.
 
         Returns
         -------

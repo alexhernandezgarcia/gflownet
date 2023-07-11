@@ -339,11 +339,11 @@ class Grid(GFlowNetEnv):
             False, if the action is not allowed for the current state.
         """
         # Generic pre-step checks
-        do_step, self.state, action, valid = self._pre_step(
+        do_step, self.state, action = self._pre_step(
             action, skip_mask_check or self.skip_mask_check
         )
         if not do_step:
-            return self.state, action, valid
+            return self.state, action, False
         # If only possible action is eos, then force eos
         # All dimensions are at the maximum length
         if all([s == self.length - 1 for s in self.state]):
@@ -377,7 +377,9 @@ class Grid(GFlowNetEnv):
         )
         return all_x.tolist()
 
-    def get_uniform_terminating_states(self, n_states: int, seed: int) -> List[List]:
+    def get_uniform_terminating_states(
+        self, n_states: int, seed: int = None
+    ) -> List[List]:
         rng = np.random.default_rng(seed)
         states = rng.integers(low=0, high=self.length, size=(n_states, self.n_dim))
         return states.tolist()

@@ -12,6 +12,7 @@ import torch
 from torchtyping import TensorType
 
 from gflownet.envs.base import GFlowNetEnv
+from gflownet.utils.common import set_device, tint
 
 PIECES = {
     "I": [1, [[1], [1], [1], [1]]],
@@ -66,6 +67,8 @@ class Tetris(GFlowNetEnv):
     ):
         assert all([p in ["I", "J", "L", "O", "S", "T", "Z"] for p in pieces])
         assert all([r in [0, 90, 180, 270] for r in rotations])
+        self.device = set_device(kwargs["device"])
+        self.int = torch.int16
         self.width = width
         self.height = height
         self.pieces = pieces
@@ -76,8 +79,8 @@ class Tetris(GFlowNetEnv):
         # Helper functions and dicts
         self.piece2idx = lambda letter: PIECES[letter][0]
         self.idx2piece = {v[0]: k for k, v in PIECES.items()}
-        self.piece2mat = lambda letter: torch.tensor(
-            PIECES[letter][1], dtype=torch.int16
+        self.piece2mat = lambda letter: tint(
+            PIECES[letter][1], int_type=self.int, device=self.device
         )
         self.rot2idx = {0: 0, 90: 1, 180: 2, 270: 3}
         # Check width and height compatibility
@@ -91,7 +94,9 @@ class Tetris(GFlowNetEnv):
         assert all([self.height >= h for h in widths])
         assert all([self.width >= w for w in widths])
         # Source state: empty board
-        self.source = torch.zeros((self.height, self.width), dtype=torch.int16)
+        self.source = torch.zeros(
+            (self.height, self.width), dtype=self.int, device=self.device
+        )
         # End-of-sequence action: all -1
         self.eos = (-1, -1, -1)
         # Conversions
@@ -335,7 +340,7 @@ class Tetris(GFlowNetEnv):
         if isinstance(state, tuple):
             readable = str(np.stack(state))
         else:
-            readable = str(state.numpy())
+            readable = str(state.cpu().numpy())
         readable = readable.replace("[[", "[").replace("]]", "]").replace("\n ", "\n")
         return readable
 
@@ -354,8 +359,10 @@ class Tetris(GFlowNetEnv):
             row = row.replace("[ ", "[")
             # Process
             state.append(
-                torch.tensor(
-                    [int(el) for el in row.strip("[]").split(" ")], dtype=torch.int16
+                tint(
+                    [int(el) for el in row.strip("[]").split(" ")],
+                    int_type=self.int,
+                    device=self.device,
                 )
             )
         return torch.stack(state)
@@ -440,11 +447,11 @@ class Tetris(GFlowNetEnv):
             False, if the action is not allowed for the current state.
         """
         # Generic pre-step checks
-        do_step, self.state, action, valid = self._pre_step(
+        do_step, self.state, action = self._pre_step(
             action, skip_mask_check or self.skip_mask_check
         )
         if not do_step:
-            return self.state, action, valid
+            return self.state, action, False
         # If action is eos
         if action == self.eos:
             self.done = True
@@ -546,7 +553,7 @@ class Tetris(GFlowNetEnv):
             return min_idx
 
     def get_uniform_terminating_states(
-        self, n_states: int, seed: int, n_factor_max: int = 10
+        self, n_states: int, seed: int = None, n_factor_max: int = 10
     ) -> List[List]:
         rng = np.random.default_rng(seed)
         n_iter_max = n_states * n_factor_max

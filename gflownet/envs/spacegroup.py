@@ -350,11 +350,11 @@ class SpaceGroup(GFlowNetEnv):
             False, if the action is not allowed for the current state.
         """
         # Generic pre-step checks
-        do_step, self.state, action, valid = self._pre_step(
+        do_step, self.state, action = self._pre_step(
             action, skip_mask_check or self.skip_mask_check
         )
         if not do_step:
-            return self.state, action, valid
+            return self.state, action, False
         valid = True
         self.n_actions += 1
         prop, idx = action
@@ -378,7 +378,7 @@ class SpaceGroup(GFlowNetEnv):
         Sets the state and done. If done is True but incompatible with state (space
         group is missing), then force done False and print warning.
         """
-        if done == True and state[self.sg_idx] == 0:
+        if done is True and state[self.sg_idx] == 0:
             done = False
             warnings.warn(
                 f"""

@@ -18,6 +18,11 @@ proxy_state_format: oracle
 skip_mask_check: False
 # Whether the environment has conditioning variables
 conditional: False
+<<<<<<< HEAD
+=======
+# Whether the environment is continuous
+continuous: False
+>>>>>>> batch-loss-decoupling
 # Buffer
 buffer:
   replay_capacity: 10

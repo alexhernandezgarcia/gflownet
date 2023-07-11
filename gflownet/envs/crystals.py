@@ -2,6 +2,7 @@
 Classes to represent crystal environments
 """
 import itertools
+from textwrap import dedent
 from typing import Dict, List, Optional, Tuple, Union
 
 import numpy as np
@@ -299,11 +300,11 @@ class Crystal(GFlowNetEnv):
             False, if the action is not allowed for the current state.
         """
         # Generic pre-step checks
-        do_step, self.state, action, valid = self._pre_step(
+        do_step, self.state, action = self._pre_step(
             action, skip_mask_check or self.skip_mask_check
         )
         if not do_step:
-            return self.state, action, valid
+            return self.state, action, False
         # If only possible action is eos, then force eos
         if sum(self.state) == self.max_atoms:
             self.done = True
@@ -349,13 +350,15 @@ class Crystal(GFlowNetEnv):
         """
         state_elem = [self.idx2elem[i] for i, e in enumerate(state) if e > 0]
         n_state_atoms = sum(state)
-        if done == True and not self._can_eos(state, state_elem, n_state_atoms):
+        if done is True and not self._can_eos(state, state_elem, n_state_atoms):
             done = False
             warnings.warn(
-                f"""
+                dedent(
+                    f"""
             Attempted to set state {self.state2readable(state)} with done = True, which
             is not compatible with the environment. Forcing done = False.
             """
+                )
             )
         return super().set_state(state, done)
 

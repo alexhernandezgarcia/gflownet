@@ -1,0 +1,40 @@
+# Example yaml configuration to run SLURM jobs with `launch.py`
+# This file is the one used in the LAUNCH.md tutorial
+
+# In practice, this file should be in `external/jobs` and can be arbitrarily nested,
+# for instance `external/jobs/crystals/explore-losses.yaml
+
+# Shared section across jobs
+# $root is a special string that resolves to the root of the repo
+shared:
+  # job params
+  slurm:
+    template: $root/mila/sbatch/template-conda.sh # which template to use
+    modules: anaconda/3 cuda/11.3 # string of the modules to load
+    conda_env: gflownet # name of the environment
+    code_dir: $root # needed if you have multiple repos, eg for dev and production
+    gres: gpu:1 # slurm gres
+    mem: 16G # node memory
+    cpus_per_task: 2 # task cpus
+
+  # main.py params
+  script:
+    user: $USER
+    +experiments: neurips23/crystal-comp-sg-lp.yaml
+    gflownet:
+      __value__: flowmatch # special entry if you want to see `gflownet=flowmatch`
+    optimizer:
+      lr: 0.0001 # will be translated to `gflownet.optimizer.lr=0.0001`
+
+# list of slurm jobs to execute
+jobs:
+  - {} # empty dictionary = just run with the shared params
+  - slurm: # change this job's slurm params
+      partition: unkillable
+    script: # change this job's script params
+      gflownet:
+        policy:
+          backward: null
+  - script:
+      gflownet:
+        __value__: trajectorybalance # again, special entry to see `gflownet=trajectorybalance`
