@@ -86,7 +86,8 @@ class Batch:
         self.states_policy = None
         self.parents_policy = None
         # Flags for available items
-        self.parents_available = False
+        self.parents_available = True
+        self.parents_policy_available = False
         self.parents_all_available = False
         self.masks_forward_available = False
         self.masks_backward_available = False
@@ -235,7 +236,7 @@ class Batch:
             # Increment size of batch
             self.size += 1
             # Other variables are not available after new items were added to the batch
-            self.parents_available = False
+            self.parents_policy_available = False
             self.parents_all_available = False
             self.rewards_available = False
 
@@ -444,6 +445,7 @@ class Batch:
         """
         return tbool(self.done, device=self.device)
 
+    # TODO: check availability one by one as in get_masks
     def get_parents(
         self, policy: Optional[bool] = False, force_recompute: Optional[bool] = False
     ) -> TensorType["n_states", "..."]:
@@ -473,6 +475,8 @@ class Batch:
         if self.parents_available is False or force_recompute is True:
             self._compute_parents()
         if policy:
+            if self.parents_policy_available is False or force_recompute is True:
+                self._compute_parents_policy()
             return self.parents_policy
         else:
             return self.parents
@@ -482,41 +486,60 @@ class Batch:
         Obtains the parent (single parent for each state) of all states in the batch.
         The parents are computed, obtaining all necessary components, if they are not
         readily available. Missing components and newly computed components are added
-        to the batch (self.component is set). The following components are obtained:
+        to the batch (self.component is set). The following variable is stored:
 
         - self.parents: the parent of each state in the batch. It will be the same type
           as self.states (list of lists or tensor)
             Length: n_states
             Shape: [n_states, state_dims]
-        - self.parents_policy: the parent of each state in the batch in policy format.
-            Shape: [n_states, state_policy_dims]
 
-        self.parents_policy is stored as a torch tensor and self.parents_available is
-        set to True.
+        self.parents_available is set to True.
         """
-        self.states_policy = self.get_states(policy=True)
-        self.parents_policy = torch.zeros_like(self.states_policy)
         self.parents = []
         indices = []
         # Iterate over the trajectories to obtain the parents from the states
         for traj_idx, batch_indices in self.trajectories.items():
             # parent is source
             self.parents.append(self.envs[traj_idx].source)
+            # parent is not source
+            # TODO: check if tensor and sort without iter
+            self.parents.extend([self.states[idx] for idx in batch_indices[:-1]])
+            indices.extend(batch_indices)
+        # Sort parents list in the same order as states
+        # TODO: check if tensor and sort without iter
+        self.parents = [self.parents[indices.index(idx)] for idx in range(len(self))]
+        self.parents_available = True
+
+    # TODO: consider converting directly from self.parents
+    def _compute_parents_policy(self):
+        """
+        Obtains the parent (single parent for each state) of all states in the batch,
+        in policy format.  The parents are computed, obtaining all necessary
+        components, if they are not readily available. Missing components and newly
+        computed components are added to the batch (self.component is set). The
+        following variable is stored:
+
+        - self.parents_policy: the parent of each state in the batch in policy format.
+            Shape: [n_states, state_policy_dims]
+
+        self.parents_policy is stored as a torch tensor and
+        self.parents_policy_available is set to True.
+        """
+        self.states_policy = self.get_states(policy=True)
+        self.parents_policy = torch.zeros_like(self.states_policy)
+        # Iterate over the trajectories to obtain the parents from the states
+        for traj_idx, batch_indices in self.trajectories.items():
+            # parent is source
             self.parents_policy[batch_indices[0]] = tfloat(
                 self.envs[traj_idx].state2policy(self.envs[traj_idx].source),
                 device=self.device,
                 float_type=self.float,
             )
             # parent is not source
-            # TODO: check if tensor and sort without iter
-            self.parents.extend([self.states[idx] for idx in batch_indices[:-1]])
             self.parents_policy[batch_indices[1:]] = self.states_policy[
                 batch_indices[:-1]
             ]
-            indices.extend(batch_indices)
-        # Sort parents list in the same order as states
-        # TODO: check if tensor and sort without iter
-        self.parents = [self.parents[indices.index(idx)] for idx in range(len(self))]
+        self.parents_policy_available = True
 
     def get_parents_all(
         self, policy: bool = False, force_recompute: bool = False
@@ -954,33 +977,27 @@ class Batch:
             self.states.extend(batch.states)
             self.actions.extend(batch.actions)
             self.done.extend(batch.done)
+            self.masks_invalid_actions_forward = extend(
+                self.masks_invalid_actions_forward,
+                batch.masks_invalid_actions_forward,
+            )
+            self.masks_invalid_actions_backward = extend(
+                self.masks_invalid_actions_backward,
+                batch.masks_invalid_actions_backward,
+            )
             # Merge "optional" data
             if self.states_policy is not None and batch.states_policy is not None:
                 self.states_policy = extend(self.states_policy, batch.states_policy)
             else:
                 self.states_policy = None
-            if self.parents_policy is not None and batch.parents_policy is not None:
-                self.parents_policy = extend(self.parents_policy, batch.parents_policy)
-            else:
-                self.parents_policy = None
-            if self.masks_forward_available and batch.masks_forward_available:
-                self.masks_invalid_actions_forward = extend(
-                    self.masks_invalid_actions_forward,
-                    batch.masks_invalid_actions_forward,
-                )
-            else:
-                self.masks_forward = None
-            if self.masks_backward_available and batch.masks_backward_available:
-                self.masks_invalid_actions_backward = extend(
-                    self.masks_invalid_actions_backward,
-                    batch.masks_invalid_actions_backward,
-                )
-            else:
-                self.masks_backward = None
             if self.parents_available and batch.parents_available:
                 self.parents = extend(self.parents, batch.parents)
             else:
                 self.parents = None
+            if self.parents_policy_available and batch.parents_policy_available:
+                self.parents_policy = extend(self.parents_policy, batch.parents_policy)
+            else:
+                self.parents_policy = None
             if self.parents_all_available and batch.parents_all_available:
                 self.parents_all = extend(self.parents_all, batch.parents_all)
             else:
