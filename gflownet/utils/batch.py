@@ -178,15 +178,11 @@ class Batch:
 
         # Sample masks of invalid actions if required and none are provided
         if masks_invalid_actions is None:
-            if train:
-                if backward:
-                    masks_invalid_actions = [
-                        env.get_mask_invalid_actions_backward() for env in envs
-                    ]
-                else:
-                    masks_invalid_actions = [
-                        env.get_mask_invalid_actions_forward() for env in envs
-                    ]
+            # TODO: handle passing backward masks (of previous state)
+            if train and not backward:
+                masks_invalid_actions = [
+                    env.get_mask_invalid_actions_forward() for env in envs
+                ]
             else:
                 masks_invalid_actions = [None] * len(envs)
 
@@ -211,9 +207,12 @@ class Batch:
             # Add trajectory index and state index
             self.traj_indices.append(env.id)
             self.state_indices.append(env.n_actions)
-            # Add states, actions, done and masks
+            # Add states, parents, actions, done and masks
+            self.actions.append(action)
             if backward:
                 self.parents.append(copy(env.state))
+                self.masks_invalid_actions_forward.append(None)
+                self.masks_forward_available = False
                 self.masks_invalid_actions_backward.append(mask)
                 if len(self.trajectories[env.id]) == 1:
                     self.states.append(copy(env.state))
@@ -223,17 +222,22 @@ class Batch:
                     self.done.append(env.done)
             else:
                 self.states.append(copy(env.state))
+                self.done.append(env.done)
+                self.masks_invalid_actions_forward.append(mask)
+                self.masks_invalid_actions_backward.append(None)
+                self.masks_backward_available = False
                 if len(self.trajectories[env.id]) == 1:
                     self.parents.append(self.source["state"])
                 else:
                     self.parents.append(
                         copy(self.states[self.trajectories[env.id][-2]])
                     )
-                self.done.append(env.done)
-                self.masks_invalid_actions_forward.append(mask)
-            self.actions.append(action)
             # Increment size of batch
             self.size += 1
+            # Other variables are not available after new items were added to the batch
+            self.parents_available = False
+            self.parents_all_available = False
+            self.rewards_available = False
 
     def get_n_trajectories(self) -> int:
         """
@@ -631,7 +635,6 @@ class Batch:
         self.parents_all_policy = torch.cat(self.parents_all_policy)
         self.parents_all_available = True
 
-    # TODO: handle mix of backward and forward trajectories
     # TODO: opportunity to improve efficiency by caching.
     def get_masks_forward(
         self,
@@ -658,9 +661,12 @@ class Batch:
         self.masks_invalid_actions_forward : torch.tensor
             The forward mask of all states in the batch.
         """
-        # TODO: check availability element-wise
         if self.masks_forward_available is False or force_recompute is True:
             self._compute_masks_forward()
+        # Make tensor
+        masks_invalid_actions_forward = tbool(
+            self.masks_invalid_actions_forward, device=self.device
+        )
         if of_parents:
             trajectories_parents = {
                 traj_idx: [-1] + batch_indices[:-1]
@@ -676,42 +682,35 @@ class Batch:
                 device=self.device,
             )
             masks_invalid_actions_forward_parents = torch.zeros_like(
-                self.masks_invalid_actions_forward
+                masks_invalid_actions_forward
             )
             masks_invalid_actions_forward_parents[parents_indices == -1] = self.source[
                 "mask_forward"
             ]
             masks_invalid_actions_forward_parents[
                 parents_indices != -1
-            ] = self.masks_invalid_actions_forward[
-                parents_indices[parents_indices != -1]
-            ]
+            ] = masks_invalid_actions_forward[parents_indices[parents_indices != -1]]
             return masks_invalid_actions_forward_parents
-        return self.masks_invalid_actions_forward
+        return masks_invalid_actions_forward
 
     def _compute_masks_forward(self):
         """
         Computes the forward mask of invalid actions of all states in the batch, by
-        calling env.get_mask_invalid_actions_forward().
-        self.masks_invalid_actions_forward is stored as a torch tensor and
-        self.masks_forward_available is set to True.
+        calling env.get_mask_invalid_actions_forward(). self.masks_forward_available is
+        set to True.
         """
         # Iterate over the trajectories to compute all forward masks
-        self.masks_invalid_actions_forward = []
-        for idx, traj_idx in enumerate(self.traj_indices):
+        for idx, mask in enumerate(self.masks_invalid_actions_forward):
+            if mask is not None:
+                continue
             state = self.states[idx]
             done = self.done[idx]
-            action = self.actions[idx]
-            self.masks_invalid_actions_forward.append(
-                self.envs[traj_idx].get_mask_invalid_actions_forward(state, done)
-            )
-        # Make tensor
-        self.masks_invalid_actions_forward = tbool(
-            self.masks_invalid_actions_forward, device=self.device
-        )
+            traj_idx = self.traj_indices[idx]
+            self.masks_invalid_actions_forward[idx] = self.envs[
+                traj_idx
+            ].get_mask_invalid_actions_forward(state, done)
         self.masks_forward_available = True
 
-    # TODO: handle mix of backward and forward trajectories
     # TODO: opportunity to improve efficiency by caching. Note that
     # env.get_masks_invalid_actions_backward() may be expensive because it calls
     # env.get_parents().
@@ -720,8 +719,9 @@ class Batch:
         force_recompute: bool = False,
     ) -> TensorType["n_states", "action_space_dim"]:
         """
-        Computes (and returns) the backward mask of invalid actions of all states in the
-        batch, by calling env.get_mask_invalid_actions_backward().
+        Returns the backward mask of invalid actions of all states in the batch. The
+        masks are computed via self._compute_masks_backward if they are not available
+        or if force_recompute is True.
 
         Args
         ----
@@ -733,24 +733,27 @@ class Batch:
         self.masks_invalid_actions_backward : torch.tensor
             The backward mask of all states in the batch.
         """
-        if self.masks_backward_available is True and force_recompute is False:
-            return tbool(self.masks_invalid_actions_backward, device=self.device)
+        if self.masks_backward_available is False or force_recompute is True:
+            self._compute_masks_backward()
+        return tbool(self.masks_invalid_actions_backward, device=self.device)
+
+    def _compute_masks_backward(self):
+        """
+        Computes the backward mask of invalid actions of all states in the batch, by
+        calling env.get_mask_invalid_actions_backward(). self.masks_backward_available
+        is set to True.
+        """
         # Iterate over the trajectories to compute all backward masks
-        self.masks_invalid_actions_backward = []
-        for idx, traj_idx in enumerate(self.traj_indices):
+        for idx, mask in enumerate(self.masks_invalid_actions_backward):
+            if mask is not None:
+                continue
             state = self.states[idx]
             done = self.done[idx]
-            # TODO: if we pass parents_all_actions to get_mask... then we avoid calling
-            # get_parents again.
-            self.masks_invalid_actions_backward.append(
-                self.envs[traj_idx].get_mask_invalid_actions_backward(state, done)
-            )
-        # Make tensor
-        self.masks_invalid_actions_backward = tbool(
-            self.masks_invalid_actions_backward, device=self.device
-        )
+            traj_idx = self.traj_indices[idx]
+            self.masks_invalid_actions_backward[idx] = self.envs[
+                traj_idx
+            ].get_mask_invalid_actions_backward(state, done)
         self.masks_backward_available = True
-        return self.masks_invalid_actions_backward
 
     def get_rewards(
         self, force_recompute: Optional[bool] = False
