@@ -967,7 +967,7 @@ class Batch:
                 traj_idx_shift = 0
             else:
                 traj_idx_shift = np.max(list(self.trajectories.keys())) + 1
-            batch._shift_traj_indices(by=traj_idx_shift)
+            batch._shift_indices(traj_shift=traj_idx_shift, batch_shift=len(self))
             # Merge main data
             self.size += batch.size
             self.envs.update(batch.envs)
@@ -1040,10 +1040,10 @@ class Batch:
             return False
         return True
 
-    def _shift_traj_indices(self, by: int):
+    def _shift_indices(self, traj_shift: int, batch_shift: int):
         """
-        Adds the integer by given as an argument to all the trajectory indices and
-        environment ids.
+        Shifts all the trajectory indices and environment ids by traj_shift and the batch
+        indices by batch_shift.
 
         Returns
         -------
@@ -1051,9 +1051,14 @@ class Batch:
         """
         if not self.is_valid():
             raise Exception("Batch is not valid before attempting indices shift")
-        self.traj_indices = [idx + by for idx in self.traj_indices]
-        self.trajectories = {k + by: v for k, v in self.trajectories.items()}
-        self.envs = {k + by: env.set_id(k + by) for k, env in self.envs.items()}
+        self.traj_indices = [idx + traj_shift for idx in self.traj_indices]
+        self.trajectories = {
+            traj_idx + traj_shift: list(map(lambda x: x + batch_shift, batch_indices))
+            for traj_idx, batch_indices in self.trajectories.items()
+        }
+        self.envs = {
+            k + traj_shift: env.set_id(k + traj_shift) for k, env in self.envs.items()
+        }
         if not self.is_valid():
             raise Exception("Batch is not valid after performing indices shift")
         return self
