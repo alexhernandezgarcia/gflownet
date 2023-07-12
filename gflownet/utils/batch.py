@@ -68,8 +68,10 @@ class Batch:
         # Initialize batch size 0
         self.size = 0
         # Initialize empty batch variables
+        # TODO: make single ordered dictionary of dictionaries
         self.envs = OrderedDict()
         self.trajectories = OrderedDict()
+        self.is_backward = OrderedDict()
         self.traj_indices = []
         # TODO: state_indices is currently unused, it is redundant and inconsistent
         # between forward and backward trajectories. We may want to remove it.
@@ -96,18 +98,29 @@ class Batch:
     def __len__(self):
         return self.size
 
-    def batch_idx_to_traj_state_idx(batch_idx: int):
+    def batch_idx_to_traj_state_idx(self, batch_idx: int):
         traj_idx = self.traj_indices[batch_idx]
         state_idx = self.state_indices[batch_idx]
         return traj_idx, state_id
 
-    def traj_idx_to_batch_indices(traj_idx: int):
+    def traj_idx_to_batch_indices(self, traj_idx: int):
         batch_indices = self.trajectories[traj_idx]
         return batch_indices
 
-    def traj_state_idx_to_batch_idx(traj_idx: int, state_idx: int):
+    def traj_state_idx_to_batch_idx(self, traj_idx: int, state_idx: int):
         batch_idx = self.trajectories[traj_idx][state_idx]
         return batch_idx
+
+    def traj_idx_action_idx_to_batch_idx(
+        self, traj_idx: int, action_idx: int, backward: bool
+    ):
+        if traj_idx not in self.trajectories:
+            return None
+        if action_idx > len(self.trajectories[traj_idx]):
+            return None
+        if backward:
+            return self.trajectories[traj_idx][::-1][action_idx - 1]
+        return self.trajectories[traj_idx][action_idx - 1]
 
     def idx2state_idx(self, idx: int):
         return self.trajectories[self.traj_indices[idx]].index(idx)
@@ -132,7 +145,6 @@ class Batch:
         envs: List[GFlowNetEnv],
         actions: List[Tuple],
         valids: List[bool],
-        masks_invalid_actions: Optional[List[List[bool]]] = None,
         backward: Optional[bool] = False,
         train: Optional[bool] = True,
     ):
@@ -151,11 +163,6 @@ class Batch:
 
         valids : list
             A list of boolean values indicated whether the actions were valid.
-
-        masks_invalid_actions_forward : list
-            A list of masks indicating, among all the actions that could have been
-            selected for all environments, which ones were invalid. Optional, will be
-            computed if not provided.
 
         backward : bool
             A boolean value indicating whether the action was sampled backward (False
@@ -177,19 +184,8 @@ class Batch:
         if self.continuous is None:
             self.continuous = envs[0].continuous
 
-        # Sample masks of invalid actions if required and none are provided
-        if masks_invalid_actions is None:
-            # TODO: handle passing backward masks (of previous state)
-            if train and not backward:
-                masks_invalid_actions = [
-                    env.get_mask_invalid_actions_forward() for env in envs
-                ]
-            else:
-                masks_invalid_actions = [None] * len(envs)
-
         # Add data samples to the batch
-        for sample_data in zip(envs, actions, valids, masks_invalid_actions):
-            env, action, valid, mask = sample_data
+        for env, action, valid in zip(envs, actions, valids):
             if train is False and env.done is False:
                 continue
             if not valid:
@@ -205,6 +201,9 @@ class Batch:
                     self.trajectories[env.id].insert(0, len(self))
                 else:
                     self.trajectories[env.id].append(len(self))
+            # Set whether trajectory is backward
+            if env.id not in self.is_backward:
+                self.is_backward.update({env.id: backward})
             # Add trajectory index and state index
             self.traj_indices.append(env.id)
             self.state_indices.append(env.n_actions)
@@ -212,9 +211,6 @@ class Batch:
             self.actions.append(action)
             if backward:
                 self.parents.append(copy(env.state))
-                self.masks_invalid_actions_forward.append(None)
-                self.masks_forward_available = False
-                self.masks_invalid_actions_backward.append(mask)
                 if len(self.trajectories[env.id]) == 1:
                     self.states.append(copy(env.state))
                     self.done.append(True)
@@ -224,18 +220,20 @@ class Batch:
             else:
                 self.states.append(copy(env.state))
                 self.done.append(env.done)
-                self.masks_invalid_actions_forward.append(mask)
-                self.masks_invalid_actions_backward.append(None)
-                self.masks_backward_available = False
                 if len(self.trajectories[env.id]) == 1:
                     self.parents.append(copy(self.source["state"]))
                 else:
                     self.parents.append(
                         copy(self.states[self.trajectories[env.id][-2]])
                     )
+            # Set masks to None
+            self.masks_invalid_actions_forward.append(None)
+            self.masks_invalid_actions_backward.append(None)
             # Increment size of batch
             self.size += 1
         # Other variables are not available after new items were added to the batch
+        self.masks_forward_available = False
+        self.masks_backward_available = False
         self.parents_policy_available = False
         self.parents_all_available = False
         self.rewards_available = False
@@ -962,6 +960,8 @@ class Batch:
         if not isinstance(batches, list):
             batches = [batches]
         for batch in batches:
+            if len(batch) == 0:
+                continue
             # Shift trajectory indices of batch to merge
             if len(self) == 0:
                 traj_idx_shift = 0
@@ -1062,3 +1062,94 @@ class Batch:
         if not self.is_valid():
             raise Exception("Batch is not valid after performing indices shift")
         return self
+
+    def get_item(
+        self, item: str, traj_idx: int, action_idx: int, backward: bool = False
+    ):
+        """
+        Returns the item specified by item of trajectory traj_idx at position
+        action_idx in the order of sampling.
+
+        If a mask is requested but is missing, it is computed and stored.
+
+        Args
+        ----
+        item : str
+            String identifier of the item to retrieve from the batch. Options
+                - state
+                - parent
+                - action
+                - done
+                - mask_f[orward]
+                - mask_b[ackward]
+
+        traj_idx : int
+            Trajectory index
+
+        action_idx : int
+            Action index. Regardless of forward of backward, n-th item sampled when
+            forming the batch.
+
+        backward : bool
+            Whether the trajectory is sampling backward. False (forward) by default.
+
+        Returns
+        -------
+        The requested item if it is available or None if it is not. It raises an error
+        if the request can be identified as incorrect.
+        """
+        # Handle action_idx = 0 (source state)
+        if action_idx == 0:
+            if backward is False:
+                if item == "state":
+                    return self.source["state"]
+                elif item == "mask_f" or item == "mask_forward":
+                    return self.source["mask_forward"]
+                else:
+                    raise ValueError(
+                        "Only state or mask_forward are available for a fresh env "
+                        "(action_idx = 0)"
+                    )
+            else:
+                # TODO: handle backward masks with cache
+                raise NotImplementedError(
+                    "get_item at action_idx = 0 for backward trajectories is currently "
+                    "not supported"
+                )
+        batch_idx = self.traj_idx_action_idx_to_batch_idx(
+            traj_idx, action_idx, backward
+        )
+        if batch_idx is None:
+            # TODO: handle this
+            raise ValueError(
+                "{item} not available for action {action_idx} of trajectory {traj_idx}"
+            )
+        if item == "state":
+            return self.states[batch_idx]
+        elif item == "parent":
+            return self.parents[batch_idx]
+        elif item == "action":
+            return self.actions[batch_idx]
+        elif item == "done":
+            return self.done[batch_idx]
+        elif item == "mask_f" or item == "mask_forward":
+            if self.masks_invalid_actions_forward[batch_idx] is None:
+                state = self.states[batch_idx]
+                done = self.done[batch_idx]
+                self.masks_invalid_actions_forward[batch_idx] = self.envs[
+                    traj_idx
+                ].get_mask_invalid_actions_forward(state, done)
+            return self.masks_invalid_actions_forward[batch_idx]
+        elif item == "mask_b" or item == "mask_backward":
+            if self.masks_invalid_actions_backward[batch_idx] is None:
+                state = self.states[batch_idx]
+                done = self.done[batch_idx]
+                self.masks_invalid_actions_backward[batch_idx] = self.envs[
+                    traj_idx
+                ].get_mask_invalid_actions_backward(state, done)
+            return self.masks_invalid_actions_backward[batch_idx]
+        else:
+            raise ValueError(
+                "item must be one of: state, parent, action, done, mask_f[orward] or "
+                "mask_b[ackward]"
+            )
