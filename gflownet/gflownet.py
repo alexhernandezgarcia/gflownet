@@ -409,7 +409,7 @@ class GFlowNetAgent:
                     random_action_prob=self.random_action_prob,
                 )
             # Add to batch
-            batch.add_to_batch(envs_offline, actions, valids, train=True)
+            batch.add_to_batch(envs_offline, actions, valids, backward=True, train=True)
             # Update environments with sampled actions
             envs_offline, actions, valids = self.step(
                 envs_offline, actions, is_forward=False
@@ -460,7 +460,8 @@ class GFlowNetAgent:
                 actions,
                 valids,
                 masks_invalid_actions_forward,
-                train,
+                backward=False,
+                train=True,
             )
 
             # Filter out finished trajectories, and the corresponding masks

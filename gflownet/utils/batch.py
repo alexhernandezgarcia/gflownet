@@ -228,17 +228,17 @@ class Batch:
                 self.masks_invalid_actions_backward.append(None)
                 self.masks_backward_available = False
                 if len(self.trajectories[env.id]) == 1:
-                    self.parents.append(self.source["state"])
+                    self.parents.append(copy(self.source["state"]))
                 else:
                     self.parents.append(
                         copy(self.states[self.trajectories[env.id][-2]])
                     )
             # Increment size of batch
             self.size += 1
-            # Other variables are not available after new items were added to the batch
-            self.parents_policy_available = False
-            self.parents_all_available = False
-            self.rewards_available = False
+        # Other variables are not available after new items were added to the batch
+        self.parents_policy_available = False
+        self.parents_all_available = False
+        self.rewards_available = False
 
     def get_n_trajectories(self) -> int:
         """
