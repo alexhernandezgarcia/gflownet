@@ -288,7 +288,10 @@ class GFlowNetAgent:
             if batch is not None:
                 if backward:
                     mask_invalid_actions = tbool(
-                        [batch.get_item("mask_backward", env) for env in envs],
+                        [
+                            batch.get_item("mask_backward", env, backward=True)
+                            for env in envs
+                        ],
                         device=self.device,
                     )
                 else:
@@ -354,7 +357,7 @@ class GFlowNetAgent:
     ):
         """
         Executes the actions on the environments envs, one by one. This method simply
-        calls env.step(action) or env.step_backward(action) for each (env, action)
+        calls env.step(action) or env.step_backwards(action) for each (env, action)
         pair, depending on thhe value of backward.
 
         Args
@@ -373,7 +376,7 @@ class GFlowNetAgent:
             envs = [envs]
         if backward:
             _, actions, valids = zip(
-                *[env.step_backward(action) for env, action in zip(envs, actions)]
+                *[env.step_backwards(action) for env, action in zip(envs, actions)]
             )
         else:
             _, actions, valids = zip(
@@ -383,8 +386,14 @@ class GFlowNetAgent:
 
     # @profile
     @torch.no_grad()
+    # TODO: extract code from while loop to avoid replication
     def sample_batch(
-        self, envs, n_samples=None, train=True, model=None, progress=False
+        self,
+        n_forward: int = 0,
+        n_train: int = 0,
+        n_replay: int = 0,
+        train=True,
+        progress=False,
     ):
         """
         TODO: extend docstring.
@@ -394,85 +403,107 @@ class GFlowNetAgent:
         times = {
             "all": 0.0,
             "forward_actions": 0.0,
-            "backward_actions": 0.0,
+            "train_actions": 0.0,
+            "replay_actions": 0.0,
             "actions_envs": 0.0,
         }
         t0_all = time.time()
         batch = Batch(env=self.env, device=self.device, float_type=self.float)
-        if isinstance(envs, list):
-            envs = [env.reset(idx) for idx, env in enumerate(envs)]
-        elif n_samples is not None and n_samples > 0:
-            envs = [self.env.copy().reset(idx) for idx in range(n_samples)]
-        else:
-            return None, None
-        if train:
-            n_offline = int(self.pct_offline * len(envs))
-        else:
-            n_offline = 0
-        envs_forward = envs[n_offline:]
-        envs_backward = envs[:n_offline]
 
         # ON-POLICY FORWARD trajectories
         t0_forward = time.time()
+        envs = [self.env.copy().reset(idx) for idx in range(n_forward)]
         batch_forward = Batch(env=self.env, device=self.device, float_type=self.float)
-        while envs_forward:
+        while envs:
             # Sample actions
             t0_a_envs = time.time()
             actions = self.sample_actions(
-                envs_forward,
+                envs,
                 batch_forward,
                 no_random=not train,
                 times=times,
             )
             times["actions_envs"] += time.time() - t0_a_envs
             # Update environments with sampled actions
-            envs_forward, actions, valids = self.step(envs_forward, actions)
+            envs, actions, valids = self.step(envs, actions)
             # Add to batch
-            batch_forward.add_to_batch(envs_forward, actions, valids, train=train)
+            batch_forward.add_to_batch(envs, actions, valids, train=train)
             # Filter out finished trajectories
-            envs_forward = [env for env in envs_forward if not env.done]
+            envs = [env for env in envs if not env.done]
         times["forward_actions"] = time.time() - t0_forward
 
-        # OFFLINE BACKWARD trajectories
-        t0_backward = time.time()
-        batch_backward = Batch(env=self.env, device=self.device, float_type=self.float)
-        if n_offline > 0 and self.buffer.train_pkl is not None:
+        # TRAIN BACKWARD trajectories
+        t0_train = time.time()
+        envs = [self.env.copy().reset(idx) for idx in range(n_train)]
+        batch_train = Batch(env=self.env, device=self.device, float_type=self.float)
+        if n_train > 0 and self.buffer.train_pkl is not None:
             with open(self.buffer.train_pkl, "rb") as f:
                 dict_tr = pickle.load(f)
                 # TODO: implement other sampling options besides permutation
+                # TODO: this converts to numpy
                 x_tr = self.rng.permutation(dict_tr["x"])
             actions = []
             valids = []
-            for idx, env in enumerate(envs_backward):
+            for idx, env in enumerate(envs):
                 env.set_state(x_tr[idx], done=True)
-        while envs_backward:
+        while envs:
             # Sample backward actions
             t0_a_envs = time.time()
             actions = self.sample_actions(
-                envs_backward,
-                batch_backward,
+                envs,
+                batch_train,
                 backward=True,
                 no_random=not train,
                 times=times,
             )
             times["actions_envs"] += time.time() - t0_a_envs
             # Update environments with sampled actions
-            envs_backward, actions, valids = self.step(
-                envs_backward, actions, backward=True
-            )
+            envs, actions, valids = self.step(envs, actions, backward=True)
             # Add to batch
-            batch_backward.add_to_batch(
-                envs_backward, actions, valids, backward=True, train=train
-            )
+            batch_train.add_to_batch(envs, actions, valids, backward=True, train=train)
             assert all(valids)
             # Filter out finished trajectories
-            envs_backward = [
-                env for env in envs_backward if not env.equal(env.state, env.source)
-            ]
-        times["backward_actions"] = time.time() - t0_backward
+            envs = [env for env in envs if not env.equal(env.state, env.source)]
+        times["train_actions"] = time.time() - t0_train
+
+        # REPLAY BACKWARD trajectories
+        t0_replay = time.time()
+        batch_replay = Batch(env=self.env, device=self.device, float_type=self.float)
+        if n_replay > 0 and self.buffer.replay_pkl is not None:
+            with open(self.buffer.replay_pkl, "rb") as f:
+                dict_replay = pickle.load(f)
+                n_replay = min(n_replay, len(dict_replay["x"]))
+                envs = [self.env.copy().reset(idx) for idx in range(n_replay)]
+                # TODO: implement other sampling options besides permutation
+                if n_replay > 0:
+                    x_replay = [x for x in dict_replay["x"].values()]
+                    x_replay = [x_replay[idx] for idx in self.rng.permutation(n_replay)]
+            actions = []
+            valids = []
+            for idx, env in enumerate(envs):
+                env.set_state(x_replay[idx], done=True)
+        while envs:
+            # Sample backward actions
+            t0_a_envs = time.time()
+            actions = self.sample_actions(
+                envs,
+                batch_replay,
+                backward=True,
+                no_random=not train,
+                times=times,
+            )
+            times["actions_envs"] += time.time() - t0_a_envs
+            # Update environments with sampled actions
+            envs, actions, valids = self.step(envs, actions, backward=True)
+            # Add to batch
+            batch_replay.add_to_batch(envs, actions, valids, backward=True, train=train)
+            assert all(valids)
+            # Filter out finished trajectories
+            envs = [env for env in envs if not env.equal(env.state, env.source)]
+        times["replay_actions"] = time.time() - t0_replay
 
         # Merge forward and backward batches
-        batch = batch.merge([batch_forward, batch_backward])
+        batch = batch.merge([batch_forward, batch_train, batch_replay])
 
         times["all"] = time.time() - t0_all
 
@@ -603,8 +634,6 @@ class GFlowNetAgent:
         all_visited = []
         loss_term_ema = None
         loss_flow_ema = None
-        # Generate list of environments
-        envs = [self.env.copy().reset() for _ in range(self.batch_size)]
         # Train loop
         pbar = tqdm(range(1, self.n_train_steps + 1), disable=not self.logger.progress)
         for it in pbar:
@@ -618,7 +647,11 @@ class GFlowNetAgent:
             t0_iter = time.time()
             batch = Batch(env=self.env, device=self.device, float_type=self.float)
             for j in range(self.sttr):
-                sub_batch, times = self.sample_batch(envs)
+                sub_batch, times = self.sample_batch(
+                    n_forward=self.batch_size.forward,
+                    n_train=self.batch_size.train,
+                    n_replay=self.batch_size.replay,
+                )
                 batch.merge(sub_batch)
             for j in range(self.ttsr):
                 if self.loss == "flowmatch":
@@ -734,7 +767,7 @@ class GFlowNetAgent:
         with open(self.buffer.test_pkl, "rb") as f:
             dict_tt = pickle.load(f)
             x_tt = dict_tt["x"]
-        batch, _ = self.sample_batch(self.env, self.logger.test.n, train=False)
+        batch, _ = self.sample_batch(n_forward=self.logger.test.n, train=False)
         assert batch.is_valid()
         x_sampled = batch.get_terminating_states()
         if self.buffer.test_type is not None and self.buffer.test_type == "all":
@@ -876,7 +909,7 @@ class GFlowNetAgent:
 
         # oracle metrics
         oracle_batch, oracle_times = self.sample_batch(
-            self.env, self.oracle_n, train=False
+            n_forward=self.oracle_n, train=False
         )
 
         if not self.logger.lightweight:

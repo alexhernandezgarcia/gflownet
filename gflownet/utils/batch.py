@@ -1139,12 +1139,12 @@ class Batch:
                         "Only state or mask_forward are available for a fresh env "
                         "(action_idx = 0)"
                     )
-            else:
-                # TODO: handle backward masks with cache
-                raise NotImplementedError(
-                    "get_item at action_idx = 0 for backward trajectories is currently "
-                    "not supported"
-                )
+        #             else:
+        #                 # TODO: handle backward masks with cache
+        #                 raise NotImplementedError(
+        #                     "get_item at action_idx = 0 for backward trajectories is currently "
+        #                     "not supported"
+        #                 )
         batch_idx = self.traj_idx_action_idx_to_batch_idx(
             traj_idx, action_idx, backward
         )

@@ -33,14 +33,14 @@ class Buffer:
             np.empty((self.replay_capacity, 5), dtype=object),
             columns=["state", "traj", "reward", "energy", "iter"],
         )
-        self.replay_pkl = "replay.pkl"
         self.replay.reward = pd.to_numeric(self.replay.reward)
         self.replay.energy = pd.to_numeric(self.replay.energy)
         self.replay.reward = [-1 for _ in range(self.replay_capacity)]
         self.replay_states = {}
         self.replay_trajs = {}
-        with open("replay.pkl", "wb") as f:
-            pickle.dump({"states": self.replay_states, "trajs": self.replay_trajs}, f)
+        self.replay_pkl = "replay.pkl"
+        with open(self.replay_pkl, "wb") as f:
+            pickle.dump({"x": self.replay_states, "trajs": self.replay_trajs}, f)
         # Define train and test data sets
         if train is not None and "type" in train:
             self.train_type = train.type
@@ -148,7 +148,7 @@ class Buffer:
         rewards,
         energies,
         it,
-        allow_duplicate_states=True,
+        allow_duplicate_states=False,
     ):
         for idx, (state, traj, reward, energy) in enumerate(
             zip(states, trajs, rewards, energies)
@@ -169,8 +169,8 @@ class Buffer:
                 self.replay_states[(idx, it)] = state
                 self.replay_trajs[(idx, it)] = traj
                 self.replay.sort_values(by="reward", ascending=False, inplace=True)
-        with open("replay.pkl", "wb") as f:
-            pickle.dump({"states": self.replay_states, "trajs": self.replay_trajs}, f)
+        with open(self.replay_pkl, "wb") as f:
+            pickle.dump({"x": self.replay_states, "trajs": self.replay_trajs}, f)
         return self.replay
 
     def make_data_set(self, config):
