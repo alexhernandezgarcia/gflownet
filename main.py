@@ -51,8 +51,7 @@ def main(config):
 
     # Sample from trained GFlowNet
     if config.n_samples > 0 and config.n_samples <= 1e5:
-        # TODO: handle batch with train = False
-        batch, times = gflownet.sample_batch(env, config.n_samples, train=True)
+        batch, times = gflownet.sample_batch(env, config.n_samples, train=False)
         x_sampled = batch.get_terminating_states(proxy=True)
         energies = env.oracle(x_sampled)
         x_sampled = batch.get_terminating_states()

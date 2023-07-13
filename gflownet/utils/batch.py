@@ -1063,12 +1063,23 @@ class Batch:
             raise Exception("Batch is not valid after performing indices shift")
         return self
 
+    # TODO: rewrite once cache is implemnted
     def get_item(
-        self, item: str, traj_idx: int, action_idx: int, backward: bool = False
+        self,
+        item: str,
+        env: GFlowNetEnv = None,
+        traj_idx: int = None,
+        action_idx: int = None,
+        backward: bool = False,
     ):
         """
-        Returns the item specified by item of trajectory traj_idx at position
-        action_idx in the order of sampling.
+        Returns the item specified by item of either:
+            - environment env, OR
+            - trajectory traj_idx AND action number action_idx (in the order of
+              sampling)
+
+        If all arguments are given, then they must be consistent, otherwise an
+        exception (assert) is raised due to ambiguity.
 
         If a mask is requested but is missing, it is computed and stored.
 
@@ -1098,6 +1109,24 @@ class Batch:
         The requested item if it is available or None if it is not. It raises an error
         if the request can be identified as incorrect.
         """
+        # Preliminary checks
+        if env is not None:
+            if traj_idx is not None:
+                assert (
+                    env.id == traj_idx
+                ), "env.id {env.id} different to traj_idx {traj_idx}."
+            else:
+                traj_idx = env.id
+            if action_idx is not None:
+                assert (
+                    env.n_actions == action_idx
+                ), "env.n_actions {env.n_actions} different to action_idx {action_idx}."
+            else:
+                action_idx = env.n_actions
+        else:
+            assert (
+                traj_idx is not None and action_idx is not None
+            ), "Either env or traj_idx AND action_idx must be provided"
         # Handle action_idx = 0 (source state)
         if action_idx == 0:
             if backward is False:
@@ -1121,9 +1150,25 @@ class Batch:
         )
         if batch_idx is None:
             # TODO: handle this
-            raise ValueError(
-                "{item} not available for action {action_idx} of trajectory {traj_idx}"
-            )
+            if env is None:
+                raise ValueError(
+                    "{item} not available for action {action_idx} of trajectory "
+                    "{traj_idx} and no env was provided."
+                )
+            else:
+                if item == "state":
+                    return env.state
+                elif item == "done":
+                    return env.done
+                elif item == "mask_f" or item == "mask_forward":
+                    return env.get_mask_invalid_actions_forward()
+                elif item == "mask_b" or item == "mask_backward":
+                    return env.get_mask_invalid_actions_backward()
+                else:
+                    raise ValueError(
+                        "Not available in the batch. item must be one of: state, done, "
+                        "mask_f[orward] or mask_b[ackward]."
+                    )
         if item == "state":
             return self.states[batch_idx]
         elif item == "parent":

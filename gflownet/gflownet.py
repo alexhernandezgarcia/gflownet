@@ -288,23 +288,12 @@ class GFlowNetAgent:
             if batch is not None:
                 if backward:
                     mask_invalid_actions = tbool(
-                        [env.get_mask_invalid_actions_backward() for env in envs],
+                        [batch.get_item("mask_backward", env) for env in envs],
                         device=self.device,
                     )
-                    # TODO: implement this, currently not supported
-                    # mask_invalid_actions = tbool(
-                    #     [
-                    #         batch.get_item("mask_backward", env.id, env.n_actions)
-                    #         for env in envs
-                    #     ],
-                    #     device=self.device,
-                    # )
                 else:
                     mask_invalid_actions = tbool(
-                        [
-                            batch.get_item("mask_forward", env.id, env.n_actions)
-                            for env in envs
-                        ],
+                        [batch.get_item("mask_forward", env) for env in envs],
                         device=self.device,
                     )
             # Compute masks since a batch was not provided
@@ -745,8 +734,7 @@ class GFlowNetAgent:
         with open(self.buffer.test_pkl, "rb") as f:
             dict_tt = pickle.load(f)
             x_tt = dict_tt["x"]
-        # TODO: handle batch with train = False
-        batch, _ = self.sample_batch(self.env, self.logger.test.n, train=True)
+        batch, _ = self.sample_batch(self.env, self.logger.test.n, train=False)
         assert batch.is_valid()
         x_sampled = batch.get_terminating_states()
         if self.buffer.test_type is not None and self.buffer.test_type == "all":
