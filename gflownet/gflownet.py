@@ -270,6 +270,7 @@ class GFlowNetAgent:
             if random_action_prob is not None:
                 random_action_prob = self.random_action_prob
         if backward:
+            # TODO: backward sampling with FM?
             model = self.backward_policy
         else:
             model = self.forward_policy

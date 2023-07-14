@@ -246,6 +246,7 @@ class GFlowNetEnv:
         -------
         do_step : bool
             If True, step() should continue further, False otherwise.
+
         self.state : list
             The sequence after executing the action
 

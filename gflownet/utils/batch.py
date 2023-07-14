@@ -116,10 +116,12 @@ class Batch:
     ):
         if traj_idx not in self.trajectories:
             return None
+        if backward:
+            if action_idx >= len(self.trajectories[traj_idx]):
+                return None
+            return self.trajectories[traj_idx][::-1][action_idx]
         if action_idx > len(self.trajectories[traj_idx]):
             return None
-        if backward:
-            return self.trajectories[traj_idx][::-1][action_idx - 1]
         return self.trajectories[traj_idx][action_idx - 1]
 
     def idx2state_idx(self, idx: int):
