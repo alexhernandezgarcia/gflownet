@@ -5,7 +5,7 @@ _target_: gflownet.envs.tree.Tree
 
 id: tree
 # Data set
-data_path: data/iris.csv
+data_path: ${user.data.root}/iris.csv
 # Max depth
 max_depth: 10
 # Number of mixture components to sample the threshold
