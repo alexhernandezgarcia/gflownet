@@ -56,7 +56,7 @@ class Stage:
     """
     Current stage of the tree, encoded as part of the state.
     0 - complete, indicates that there is no macro step initiated, and
-        the only allowed action is to pick one of the leafs for splitting.
+        the only allowed action is to pick one of the leaves for splitting.
     1 - leaf, indicates that a leaf was picked for splitting, and the only
         allowed action is picking a feature on which it will be split.
     2 - feature, indicates that a feature was picked, and the only allowed
@@ -65,7 +65,7 @@ class Stage:
         allowed action is picking an operator.
     4 - operator, indicates that operator was picked. The only allowed
         action from here is finalizing the splitting process and spawning
-        two new leafs, which should be done automatically, upon which
+        two new leaves, which should be done automatically, upon which
         the stage should be changed to complete.
     """
 
@@ -158,7 +158,7 @@ class Tree(GFlowNetEnv):
             )
         self.max_depth = max_depth
         self.components = threshold_components
-        self.leafs = set()
+        self.leaves = set()
 
         # Source will contain information about the current stage (on the 0-th position),
         # and up to 2**max_depth - 1 nodes, each with N_ATTRIBUTES attributes, for a total of
@@ -172,7 +172,7 @@ class Tree(GFlowNetEnv):
 
         super().__init__(**kwargs)
 
-        self._insert_classifier(k=0, output=Counter(y).most_common()[0][0])
+        self._insert_classifier(k=0, output=int(Counter(self.y).most_common()[0][0]))
 
     @staticmethod
     def _get_start_end(k: int) -> Tuple[int, int]:
@@ -227,7 +227,7 @@ class Tree(GFlowNetEnv):
 
     def _pick_leaf(self, k: int) -> None:
         """
-        Select one of the leafs (classifier nodes) that will be split, and initiate
+        Select one of the leaves (classifier nodes) that will be split, and initiate
         macro step.
         """
         attributes = self._get_attributes(k)
@@ -328,7 +328,7 @@ class Tree(GFlowNetEnv):
         attributes[3] = -1
         attributes[4] = Status.INACTIVE
 
-        self.leafs.remove(k)
+        self.leaves.remove(k)
         self.state[0] = Stage.COMPLETE
 
     def _insert_classifier(self, k: int, output: int) -> None:
@@ -344,7 +344,7 @@ class Tree(GFlowNetEnv):
         attributes[3] = output
         attributes[4] = Status.INACTIVE
 
-        self.leafs.add(k)
+        self.leaves.add(k)
 
     def get_action_space(self) -> List[Tuple[int, int]]:
         """
@@ -398,13 +398,13 @@ class Tree(GFlowNetEnv):
             return self.state, action, True
 
     @staticmethod
-    def _find_leafs(state: torch.Tensor) -> List[int]:
+    def _find_leaves(state: torch.Tensor) -> List[int]:
         """
-        Compute indices of leafs from a state.
+        Compute indices of leaves from a state.
         """
-        leafs = [x.item() for x in torch.where(state[1::5] == NodeType.CLASSIFIER)[0]]
+        leaves = [x.item() for x in torch.where(state[1::5] == NodeType.CLASSIFIER)[0]]
 
-        return leafs
+        return leaves
 
     @staticmethod
     def _find_active(state: torch.Tensor) -> int:
@@ -421,9 +421,9 @@ class Tree(GFlowNetEnv):
     ) -> List[bool]:
         if state is None:
             state = self.state
-            leafs = self.leafs
+            leaves = self.leaves
         else:
-            leafs = Tree._find_leafs(state)
+            leaves = Tree._find_leaves(state)
         if done is None:
             done = self.done
 
@@ -435,8 +435,8 @@ class Tree(GFlowNetEnv):
 
         if stage == Stage.COMPLETE:
             # In the "complete" stage (in which there are no ongoing micro steps)
-            # only valid actions are the ones for picking one of the leafs or EOS.
-            for k in leafs:
+            # only valid actions are the ones for picking one of the leaves or EOS.
+            for k in leaves:
                 # Check if splitting the node wouldn't exceed max depth.
                 if Tree._get_right_child(k) < self.n_nodes:
                     mask[k] = False
@@ -466,9 +466,9 @@ class Tree(GFlowNetEnv):
     ) -> Tuple[List, List]:
         if state is None:
             state = self.state
-            leafs = self.leafs
+            leaves = self.leaves
         else:
-            leafs = Tree._find_leafs(state)
+            leaves = Tree._find_leaves(state)
         if done is None:
             done = self.done
 
@@ -482,13 +482,13 @@ class Tree(GFlowNetEnv):
         if stage == Stage.COMPLETE:
             # In the "complete" stage (in which there are no ongoing micro steps),
             # to find parents we first look for the nodes for which both children
-            # are leafs, and then undo the last "pick operator" micro step.
+            # are leaves, and then undo the last "pick operator" micro step.
             # In other words, reverse self._pick_operator, self._split_leaf and
             # self._insert_classifier (for both children).
-            leafs = set(leafs)
+            leaves = set(leaves)
             triplets = []
-            for k in leafs:
-                if k % 2 == 1 and k + 1 in leafs:
+            for k in leaves:
+                if k % 2 == 1 and k + 1 in leaves:
                     triplets.append((Tree._get_parent(k), k, k + 1))
             for k_parent, k_left, k_right in triplets:
                 parent = state.clone()
