@@ -226,6 +226,7 @@ class GFlowNetEnv:
         actions = []
         return parents, actions
 
+    # TODO: consider returning only do_step
     def _pre_step(
         self, action: Tuple[int], backward: bool = False, skip_mask_check: bool = False
     ) -> Tuple[bool, List[int], Tuple[int]]:
