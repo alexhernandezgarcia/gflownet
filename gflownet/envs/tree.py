@@ -355,6 +355,11 @@ class Tree(GFlowNetEnv):
                 2 - pick threshold,
                 3 - pick operator,
             2) node index.
+            3) action value
+
+        Note: The action space consists of only the discrete (fixed) part of the
+        actions, that is the first two elements of tge tuple (action type, node index),
+        since action value can vary and be continuous-valued.
         """
         actions = [(t, k) for t in range(4) for k in range(self.n_nodes)]
         actions.append(self.eos)
@@ -388,8 +393,8 @@ class Tree(GFlowNetEnv):
         valid : bool
             False, if the action is not allowed for the current state.
         """
-        do_step, self.state, action = self._pre_step(
-            action, skip_mask_check or self.skip_mask_check
+        do_step, self.state, _ = self._pre_step(
+            action[:2], skip_mask_check or self.skip_mask_check
         )
         if not do_step:
             return self.state, action, False
