@@ -1,10 +1,11 @@
 from collections.abc import MutableMapping
 from pathlib import Path
-from typing import Union
+from typing import List, Union
 
 import numpy as np
 import torch
 from hydra.utils import get_original_cwd
+from torchtyping import TensorType
 
 
 def set_device(device: Union[str, torch.device]):
@@ -25,6 +26,19 @@ def set_float_precision(precision: Union[int, torch.dtype]):
         return torch.float32
     elif precision == 64:
         return torch.float64
+    else:
+        raise ValueError("Precision must be one of [16, 32, 64]")
+
+
+def set_int_precision(precision: Union[int, torch.dtype]):
+    if isinstance(precision, torch.dtype):
+        return precision
+    if precision == 16:
+        return torch.int16
+    elif precision == 32:
+        return torch.int32
+    elif precision == 64:
+        return torch.int64
     else:
         raise ValueError("Precision must be one of [16, 32, 64]")
 
@@ -88,13 +102,13 @@ def tlong(x, device):
         return torch.tensor(x, dtype=torch.long, device=device)
 
 
-def tint(x, device):
+def tint(x, device, int_type):
     if isinstance(x, list) and torch.is_tensor(x[0]):
-        return torch.stack(x).type(torch.int).to(device)
+        return torch.stack(x).type(int_type).to(device)
     if torch.is_tensor(x):
-        return x.type(torch.int).to(device)
+        return x.type(int_type).to(device)
     else:
-        return torch.tensor(x, dtype=torch.int, device=device)
+        return torch.tensor(x, dtype=int_type, device=device)
 
 
 def tbool(x, device):
@@ -122,3 +136,25 @@ def concat_items(list_of_items, index=None):
         )
 
     return result
+
+
+def extend(
+    orig: Union[List, TensorType["..."]], new: Union[List, TensorType["..."]]
+) -> Union[List, TensorType["..."]]:
+    assert type(orig) == type(new)
+    if isinstance(orig, list):
+        orig.extend(new)
+    elif torch.tensor(orig):
+        orig = torch.cat([orig, new])
+    else:
+        raise NotImplementedError(
+            "Extension only supported for lists and torch tensors"
+        )
+    return orig
+
+
+def copy(x: Union[List, TensorType["..."]]):
+    if torch.is_tensor(x):
+        return x.clone().detach()
+    else:
+        return x.copy()

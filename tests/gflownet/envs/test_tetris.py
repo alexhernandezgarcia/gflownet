@@ -7,27 +7,27 @@ from gflownet.envs.tetris import Tetris
 
 @pytest.fixture
 def env():
-    return Tetris(width=4, height=5)
+    return Tetris(width=4, height=5, device="cpu")
 
 
 @pytest.fixture
 def env6x4():
-    return Tetris(width=4, height=6)
+    return Tetris(width=4, height=6, device="cpu")
 
 
 @pytest.fixture
 def env_mini():
-    return Tetris(width=4, height=5, pieces=["I", "O"], rotations=[0])
+    return Tetris(width=4, height=5, pieces=["I", "O"], rotations=[0], device="cpu")
 
 
 @pytest.fixture
 def env_1piece():
-    return Tetris(width=4, height=5, pieces=["O"], rotations=[0])
+    return Tetris(width=4, height=5, pieces=["O"], rotations=[0], device="cpu")
 
 
 @pytest.fixture
 def env_full():
-    return Tetris(width=10, height=20)
+    return Tetris(width=10, height=20, device="cpu")
 
 
 @pytest.mark.parametrize(
