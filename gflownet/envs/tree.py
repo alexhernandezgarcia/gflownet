@@ -362,18 +362,36 @@ class Tree(GFlowNetEnv):
         return actions
 
     def step(
-        self, action: Tuple[int, int, float]
+        self, action: Tuple[int, int, float], skip_mask_check: bool = False
     ) -> Tuple[List[int], Tuple[int, int, float], bool]:
-        # If action not found in action space raise an error.
-        if action[:2] not in self.action_space:
-            raise ValueError(
-                f"Tried to execute action {action} not present in action space."
-            )
-        else:
-            action_idx = self.action_space.index(action[:2])
+        """
+        Executes step given an action.
 
-        # If action is in invalid mask, exit immediately.
-        if self.get_mask_invalid_actions_forward()[action_idx]:
+        Args
+        ----
+        action : tuple
+            Action to be executed.
+            See: self.get_action_space()
+
+        skip_mask_check : bool
+            If True, skip computing forward mask of invalid actions to check if the
+            action is valid.
+
+        Returns
+        -------
+        self.state : list
+            The sequence after executing the action
+
+        action : tuple
+            Action executed
+
+        valid : bool
+            False, if the action is not allowed for the current state.
+        """
+        do_step, self.state, action = self._pre_step(
+            action, skip_mask_check or self.skip_mask_check
+        )
+        if not do_step:
             return self.state, action, False
 
         self.n_actions += 1
