@@ -39,6 +39,17 @@ def main(config):
         device=config.device,
         float_precision=config.float_precision,
     )
+    # Action 0.1 (pick leaf 0)
+    action = (0, 0, 0)
+    next_state, action, valid = env.step(action)
+    # Action 0.2 (pick feature 0)
+#     print("Valid actions after action 0.1")
+#     for a, m in zip(env.action_space, env.get_mask_invalid_actions_forward()):
+#         if m is False:
+#             print(a)
+    action = (1, 0, 0)
+    next_state, action, valid = env.step(action)
+    import ipdb; ipdb.set_trace()
     gflownet = hydra.utils.instantiate(
         config.gflownet,
         device=config.device,
