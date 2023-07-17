@@ -348,7 +348,7 @@ class GFlowNetAgent:
             mask_invalid_actions,
             temperature,
         )
-        return actions, mask_invalid_actions
+        return actions
 
     def step(
         self,
