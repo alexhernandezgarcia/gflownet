@@ -9,6 +9,7 @@ import torch
 import torch_geometric as pyg
 from networkx.drawing.nx_pydot import graphviz_layout
 from torch_geometric.utils.convert import from_networkx
+from torchtyping import TensorType
 
 from gflownet.envs.base import GFlowNetEnv
 
@@ -419,6 +420,95 @@ class Tree(GFlowNetEnv):
         else:
             self.done = True
             return self.state, action, True
+
+    def sample_actions(
+        self,
+        policy_outputs: TensorType["n_states", "policy_output_dim"],
+        sampling_method: str = "policy",
+        mask_invalid_actions: TensorType["n_states", "action_space_dim"] = None,
+        temperature_logits: float = 1.0,
+    ) -> Tuple[List[Tuple], TensorType["n_states"]]:
+        """
+        Samples a batch of actions from a batch of policy outputs.
+        """
+        import ipdb; ipdb.set_trace()
+        device = policy_outputs.device
+        mask_states_sample = ~mask_invalid_actions.flatten()
+        n_states = policy_outputs.shape[0]
+        # Sample angle increments
+        angles = torch.zeros(n_states, self.n_dim).to(device)
+        logprobs = torch.zeros(n_states, self.n_dim).to(device)
+        if torch.any(mask_states_sample):
+            if sampling_method == "uniform":
+                distr_angles = Uniform(
+                    torch.zeros(len(ns_range_noeos)),
+                    2 * torch.pi * torch.ones(len(ns_range_noeos)),
+                )
+            elif sampling_method == "policy":
+                mix_logits = policy_outputs[mask_states_sample, 0::3].reshape(
+                    -1, self.n_dim, self.n_comp
+                )
+                mix = Categorical(logits=mix_logits)
+                locations = policy_outputs[mask_states_sample, 1::3].reshape(
+                    -1, self.n_dim, self.n_comp
+                )
+                concentrations = policy_outputs[mask_states_sample, 2::3].reshape(
+                    -1, self.n_dim, self.n_comp
+                )
+                vonmises = VonMises(
+                    locations,
+                    torch.exp(concentrations) + self.vonmises_min_concentration,
+                )
+                distr_angles = MixtureSameFamily(mix, vonmises)
+            angles[mask_states_sample] = distr_angles.sample()
+            logprobs[mask_states_sample] = distr_angles.log_prob(
+                angles[mask_states_sample]
+            )
+        logprobs = torch.sum(logprobs, axis=1)
+        # Build actions
+        actions_tensor = torch.inf * torch.ones(
+            angles.shape, dtype=self.float, device=device
+        )
+        actions_tensor[mask_states_sample, :] = angles[mask_states_sample]
+        actions = [tuple(a.tolist()) for a in actions_tensor]
+        return actions, logprobs
+
+    def get_logprobs(
+        self,
+        policy_outputs: TensorType["n_states", "policy_output_dim"],
+        is_forward: bool,
+        actions: TensorType["n_states", "n_dim"],
+        states_target: TensorType["n_states", "policy_input_dim"],
+        mask_invalid_actions: TensorType["n_states", "1"] = None,
+    ) -> TensorType["batch_size"]:
+        """
+        Computes log probabilities of actions given policy outputs and actions.
+        """
+        device = policy_outputs.device
+        mask_states_sample = ~mask_invalid_actions.flatten()
+        n_states = policy_outputs.shape[0]
+        logprobs = torch.zeros(n_states, self.n_dim).to(device)
+        if torch.any(mask_states_sample):
+            mix_logits = policy_outputs[mask_states_sample, 0::3].reshape(
+                -1, self.n_dim, self.n_comp
+            )
+            mix = Categorical(logits=mix_logits)
+            locations = policy_outputs[mask_states_sample, 1::3].reshape(
+                -1, self.n_dim, self.n_comp
+            )
+            concentrations = policy_outputs[mask_states_sample, 2::3].reshape(
+                -1, self.n_dim, self.n_comp
+            )
+            vonmises = VonMises(
+                locations,
+                torch.exp(concentrations) + self.vonmises_min_concentration,
+            )
+            distr_angles = MixtureSameFamily(mix, vonmises)
+            logprobs[mask_states_sample] = distr_angles.log_prob(
+                actions[mask_states_sample]
+            )
+        logprobs = torch.sum(logprobs, axis=1)
+        return logprobs
 
     @staticmethod
     def _find_leaves(state: torch.Tensor) -> List[int]:

@@ -39,16 +39,57 @@ def main(config):
         device=config.device,
         float_precision=config.float_precision,
     )
-    # Action 0.1 (pick leaf 0)
+    print("Source")
+    print("Attributes Node 0")
+    print(env._get_attributes(0))
+    print("Valid actions:")
+    for a, m in zip(env.action_space, env.get_mask_invalid_actions_forward()):
+        if m is False:
+            print(a)
+    print("Action 0.1 (0, 0, 0) - node 0, pick leaf 0")
     action = (0, 0, 0)
     next_state, action, valid = env.step(action)
-    # Action 0.2 (pick feature 0)
-#     print("Valid actions after action 0.1")
-#     for a, m in zip(env.action_space, env.get_mask_invalid_actions_forward()):
-#         if m is False:
-#             print(a)
+    print("---")
+    print("State 1")
+    print("Attributes Node 0")
+    print(env._get_attributes(0))
+    print("Valid actions:")
+    for a, m in zip(env.action_space, env.get_mask_invalid_actions_forward()):
+        if m is False:
+            print(a)
+    print("Action 0.2 (1, 0, 0) - node 0, pick feature 0")
     action = (1, 0, 0)
     next_state, action, valid = env.step(action)
+    print("---")
+    print("State 2")
+    print("Attributes Node 0")
+    print(env._get_attributes(0))
+    print("Valid actions:")
+    for a, m in zip(env.action_space, env.get_mask_invalid_actions_forward()):
+        if m is False:
+            print(a)
+    print("Action 0.3 (2, 0, 0.2) - node 0, pick threshold 0.2")
+    action = (2, 0, 0.2)
+    next_state, action, valid = env.step(action)
+    print("---")
+    print("State 3")
+    print("Attributes Node 0")
+    print(env._get_attributes(0))
+    print("Valid actions:")
+    for a, m in zip(env.action_space, env.get_mask_invalid_actions_forward()):
+        if m is False:
+            print(a)
+    print("Action 0.4 (3, 0, 0) - node 0, pick operator <")
+    action = (3, 0, 0)
+    next_state, action, valid = env.step(action)
+    print("---")
+    print("State 3")
+    print("Attributes Node 0")
+    print(env._get_attributes(0))
+    print("Valid actions:")
+    for a, m in zip(env.action_space, env.get_mask_invalid_actions_forward()):
+        if m is False:
+            print(a)
     import ipdb; ipdb.set_trace()
     gflownet = hydra.utils.instantiate(
         config.gflownet,

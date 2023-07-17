@@ -564,14 +564,18 @@ class GFlowNetEnv:
         """
         if state is None:
             state = self.state
-        return state
+        return tfloat(state, float_type=self.float, device=self.device)
 
-    def statebatch2policy(self, states: List[List]) -> npt.NDArray[np.float32]:
+    def statebatch2policy(
+        self, states: List[List]
+    ) -> TensorType["batch_size", "policy_input_dim"]:
         """
         Converts a batch of states into a format suitable for a machine learning model,
         such as a one-hot encoding. Returns a numpy array.
         """
-        return np.array(states)
+        return self.statetorch2policy(
+            tfloat(states, float_type=self.float, device=self.device)
+        )
 
     def policy2state(self, state_policy: List) -> List:
         """
