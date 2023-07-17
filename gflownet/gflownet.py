@@ -630,42 +630,78 @@ class GFlowNetAgent:
         return loss, loss, loss
 
     @torch.no_grad()
-    def sample_backwards(
-        self, states_term: List, n_trajectories: int = 1, max_iters_per_traj: int = 10
+    def estimate_logprobs_data(
+        self,
+        data: Union[List, str],
+        n_trajectories: int = 1,
+        max_iters_per_traj: int = 10,
     ):
+        """
+        Estimates the probability of sampling with current GFlowNet policy
+        (self.forward_policy) the objects in a data set given by the argument data. The
+        (log) probabilities are estimated by sampling a number of backward trajectories
+        (n_trajectories) through importance sampling and calculating the forward
+        probabilities of the trajectories.
+
+        Args
+        ----
+        data : list or string
+            A data set of terminating states. The data set may be passed directly as a
+            list of states, or it may be a string defining the path to a pickled data
+            set where the terminating states are stored in key "x".
+
+        n_trajectories : int
+            The number of trajectories per object to sample for estimating the log
+            probabilities.
+
+        max_iters_per_traj : int
+            The maximum number of attempts to sample a distinct trajectory, to avoid
+            getting trapped in an infinite loop.
+
+        """
+        max_data = 1e5
+        batch = Batch(env=self.env, device=self.device, float_type=self.float)
         times = {}
-        batch = {}
+        # Determine terminating states
+        if isinstance(data, list):
+            states_term = data
+        elif isinstance(data, str) and Path(data).suffix == ".pkl":
+            with open(data, "rb") as f:
+                data_dict = pickle.load(f)
+                states_term = data_dict["x"]
+        else:
+            raise NotImplementedError(
+                "data must be either a list of states or a path to a .pkl file."
+            )
+        assert len(states_term) < max_data
         envs = []
-        for idx, x in enumerate(states_term):
-            env = self.env.copy().reset(idx)
-            env.set_state(x, done=True)
-            envs.append(env)
-            batch.update({env.id: {"states": [env.state], "actions": []}})
-        valids = [True] * len(envs)
+        for state_idx, x in enumerate(states_term):
+            for traj_idx in range(n_trajectories):
+                idx = max_data * state_idx + traj_idx
+                env = self.env.copy().reset(idx)
+                env.set_state(x, done=True)
+                envs.append(env)
+        # Sample trajectories
+        actions = []
+        valids = []
         max_iters = n_trajectories * max_iters_per_traj
         iters = 0
-        while envs and iters < max_iters:
+        while envs:
             # Sample backward actions
             actions = self.sample_actions(
                 envs,
-                times,
-                sampling_method="policy",
-                model=self.backward_policy,
-                is_forward=False,
-                temperature=1.0,
-                random_action_prob=0.0,
+                batch,
+                backward=True,
+                no_random=True,
+                times=times,
             )
             # Update environments with sampled actions
-            envs, actions, valids = self.step(envs, actions, is_forward=False)
-            assert all(valids)
+            envs, actions, valids = self.step(envs, actions, backward=True)
             # Add to batch
-            # TODO: check repeated trajectories
-            for env, action in zip(envs, actions):
-                batch[env.id]["states"].append(env.state)
-                batch[env.id]["actions"].append(action)
+            batch_train.add_to_batch(envs, actions, valids, backward=True, train=train)
+            assert all(valids)
             # Filter out finished trajectories
             envs = [env for env in envs if not env.equal(env.state, env.source)]
-            iters += 1
         return batch
 
     def train(self):
