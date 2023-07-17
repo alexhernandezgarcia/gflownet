@@ -13,7 +13,7 @@ import torch
 from torch.distributions import Categorical
 from torchtyping import TensorType
 
-from gflownet.utils.common import copy, set_device, set_float_precision, tfloat
+from gflownet.utils.common import copy, set_device, set_float_precision, tbool, tfloat
 
 
 class GFlowNetEnv:
@@ -227,10 +227,11 @@ class GFlowNetEnv:
         return parents, actions
 
     def _pre_step(
-        self, action: Tuple[int], skip_mask_check: bool = False
+        self, action: Tuple[int], backward: bool = False, skip_mask_check: bool = False
     ) -> Tuple[bool, List[int], Tuple[int]]:
         """
-        Performs generic checks shared by the step() method of all environments.
+        Performs generic checks shared by the step() and step_backward() (backward must
+        be True) methods of all environments.
 
         Args
         ----
@@ -245,6 +246,7 @@ class GFlowNetEnv:
         -------
         do_step : bool
             If True, step() should continue further, False otherwise.
+
         self.state : list
             The sequence after executing the action
 
@@ -256,14 +258,23 @@ class GFlowNetEnv:
             raise ValueError(
                 f"Tried to execute action {action} not present in action space."
             )
-        # If env is done, step should not proceed.
-        if self.done:
-            return False, self.state, action
+        # If backward and state is source, step should not proceed.
+        if backward is True:
+            if self.equal(self.state, self.source) and action != self.eos:
+                return False, self.state, action
+        # If forward and env is done, step should not proceed.
+        else:
+            if self.done:
+                return False, self.state, action
         # If action is in invalid mask, step should not proceed.
         if not (self.skip_mask_check or skip_mask_check):
             action_idx = self.action_space.index(action)
-            if self.get_mask_invalid_actions_forward()[action_idx]:
-                return False, self.state, action
+            if backward:
+                if self.get_mask_invalid_actions_backward()[action_idx]:
+                    return False, self.state, action
+            else:
+                if self.get_mask_invalid_actions_forward()[action_idx]:
+                    return False, self.state, action
         return True, self.state, action
 
     @abstractmethod
@@ -296,6 +307,50 @@ class GFlowNetEnv:
         """
         _, self.state, action = self._pre_step(action, skip_mask_check)
         return None, None, None
+
+    def step_backwards(
+        self, action: Tuple[int], skip_mask_check: bool = False
+    ) -> Tuple[List[int], Tuple[int], bool]:
+        """
+        Executes a backward step given an action. This generic implementation should
+        work for all discrete environments, as it relies on get_parents(). Continuous
+        environments should re-implement a custom step_backwards(). Despite being valid
+        for any discrete environment, the call to get_parents() may be expensive. Thus,
+        it may be advantageous to re-implement step_backwards() in a more efficient
+        way as well for discrete environments. Especially, because this generic
+        implementation will make two calls to get_parents - once here and one in
+        _pre_step() through the call to get_mask_invalid_actions_backward() if
+        skip_mask_check is True.
+
+        Args
+        ----
+        action : tuple
+            Action from the action space.
+
+        skip_mask_check : bool
+            If True, skip computing forward mask of invalid actions to check if the
+            action is valid.
+
+        Returns
+        -------
+        self.state : list
+            The sequence after executing the action
+
+        action : int
+            Action index
+
+        valid : bool
+            False, if the action is not allowed for the current state.
+        """
+        do_step, self.state, action = self._pre_step(action, True, skip_mask_check)
+        if not do_step:
+            return self.state, action, False
+        parents, parents_a = self.get_parents()
+        state_next = parents[parents_a.index(action)]
+        self.state = state_next
+        self.done = False
+        self.n_actions += 1
+        return self.state, action, True
 
     def sample_actions(
         self,
@@ -374,7 +429,7 @@ class GFlowNetEnv:
         logprobs = self.logsoftmax(logits)[ns_range, action_indices]
         return logprobs
 
-    def step_random(self):
+    def step_random(self, backward: bool = False):
         """
         Samples a random action and executes the step.
 
@@ -389,16 +444,26 @@ class GFlowNetEnv:
         valid : bool
             False, if the action is not allowed for the current state.
         """
-        mask_invalid = torch.unsqueeze(
-            torch.tensor(self.get_mask_invalid_actions_forward(), dtype=torch.bool), 0
-        )
+        if backward:
+            mask_invalid = torch.unsqueeze(
+                tbool(self.get_mask_invalid_actions_backward(), device=self.device), 0
+            )
+        else:
+            mask_invalid = torch.unsqueeze(
+                tbool(self.get_mask_invalid_actions_forward(), device=self.device), 0
+            )
         random_policy = torch.unsqueeze(
-            torch.tensor(self.random_policy_output, dtype=self.float), 0
+            tfloat(
+                self.random_policy_output, float_type=self.float, device=self.device
+            ),
+            0,
         )
         actions, _ = self.sample_actions(
             policy_outputs=random_policy, mask_invalid_actions=mask_invalid
         )
         action = actions[0]
+        if backward:
+            return self.step_backwards(action)
         return self.step(action)
 
     def trajectory_random(self):

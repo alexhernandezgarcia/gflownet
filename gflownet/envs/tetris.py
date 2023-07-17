@@ -467,7 +467,7 @@ class Tetris(GFlowNetEnv):
 
     # TODO
     def get_max_traj_length(self):
-        return 1e9
+        return int(1e9)
 
     def set_state(
         self, state: TensorType["height", "width"], done: Optional[bool] = False

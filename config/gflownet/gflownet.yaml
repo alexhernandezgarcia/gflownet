@@ -19,8 +19,11 @@ optimizer:
   adam_beta2: 0.999
   # Momentum for SGD
   sgd_momentum: 0.9
-  # Mini-batch size
-  batch_size: 10
+  # Number of trajectories of each kind
+  batch_size:
+    forward: 10
+    train: 0
+    replay: 0
   # Train to sample ratio
   train_to_sample_ratio: 1
   # Number of training iterations
