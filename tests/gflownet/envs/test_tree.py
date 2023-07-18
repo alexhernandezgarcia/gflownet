@@ -1,10 +1,10 @@
 from collections import Counter
 
+import common
 import numpy as np
 import pytest
 import torch
 
-import common
 from gflownet.envs.tree import NodeType, Operator, Tree
 
 
@@ -31,22 +31,22 @@ def tree(X, y):
     _tree = Tree(X, y)
 
     # split node k = 0 (root) on feature = 0, with threshold = 0.5 and < operator
-    _tree.step((0, 0, -1))
-    _tree.step((1, 0, 0))
-    _tree.step((2, 0, 0.5))
-    _tree.step((3, 0, Operator.LT))
+    _tree.step((0, 0))
+    _tree.step((1, 0))
+    _tree.step((2, 0.5))
+    _tree.step((3, Operator.LT))
 
     # split node k = 2 (right child of root) on feature = 1, with threshold = 0.3 and >= operator
-    _tree.step((0, 2, -1))
-    _tree.step((1, 2, 1))
-    _tree.step((2, 2, 0.3))
-    _tree.step((3, 2, Operator.GTE))
+    _tree.step((0, 2))
+    _tree.step((1, 1))
+    _tree.step((2, 0.3))
+    _tree.step((3, Operator.GTE))
 
     # split node k = 6 (right child of right child of root) on feature = 2, with threshold = 0.7 and < operator
-    _tree.step((0, 6, -1))
-    _tree.step((1, 6, 2))
-    _tree.step((2, 6, 0.7))
-    _tree.step((3, 6, Operator.LT))
+    _tree.step((0, 6))
+    _tree.step((1, 2))
+    _tree.step((2, 0.7))
+    _tree.step((3, Operator.LT))
 
     return _tree
 
