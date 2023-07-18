@@ -157,6 +157,7 @@ class Tree(GFlowNetEnv):
                 "A Tree must be initialised with a data set. X, y and data_path cannot "
                 "be all None"
             )
+        self.n_features = self.X.shape[1]
         self.max_depth = max_depth
         self.components = threshold_components
         self.leaves = set()
@@ -355,14 +356,31 @@ class Tree(GFlowNetEnv):
                 1 - pick feature,
                 2 - pick threshold,
                 3 - pick operator,
-            2) node index.
-            3) action value
-
-        Note: The action space consists of only the discrete (fixed) part of the
-        actions, that is the first two elements of tge tuple (action type, node index),
-        since action value can vary and be continuous-valued.
+            2) action value, depending on the action type:
+                pick leaf: leaf index
+                pick feature: feature index
+                pick threshold: threshold value
+                pick operator: operator index
         """
-        actions = [(t, k) for t in range(4) for k in range(self.n_nodes)]
+        actions = []
+        # Pick leaf
+        self._action_index_pick_leaf = 0
+        actions.extend([(ActionType.PICK_LEAF, idx) for idx in range(self.n_nodes)])
+        # Pick feature
+        self._action_index_pick_feature = len(actions)
+        actions.extend(
+            [(ActionType.PICK_FEATURE, idx) for idx in range(self.n_features)]
+        )
+        # Pick threshold
+        self._action_index_pick_threshold = len(actions)
+        actions.extend([(ActionType.PICK_THRESHOLD, -1)])
+        # Pick operator
+        self._action_index_pick_operator = len(actions)
+        actions.extend(
+            [(ActionType.PICK_OPERATOR, idx) for idx in [Operator.LT, Operator.GTE]]
+        )
+        # EOS
+        self._action_index_eos = len(actions)
         actions.append(self.eos)
 
         return actions
@@ -394,8 +412,12 @@ class Tree(GFlowNetEnv):
         valid : bool
             False, if the action is not allowed for the current state.
         """
-        do_step, self.state, _ = self._pre_step(
-            action[:2], skip_mask_check or self.skip_mask_check
+        # Replace the continuous value of threshold by -1 to allow checking it
+        action_to_check = action
+        if action[0] == ActionType.PICK_THRESHOLD:
+            action_to_check = (ActionType.PICK_THRESHOLD, -1)
+        do_step, self.state, action_to_check = self._pre_step(
+            action_to_check, skip_mask_check or self.skip_mask_check
         )
         if not do_step:
             return self.state, action, False
@@ -403,18 +425,22 @@ class Tree(GFlowNetEnv):
         self.n_actions += 1
 
         if action != self.eos:
-            action_type, k, action_value = action
+            action_type, action_value = action
 
             if action_type == ActionType.PICK_LEAF:
-                self._pick_leaf(k)
-            elif action_type == ActionType.PICK_FEATURE:
-                self._pick_feature(k, action_value)
-            elif action_type == ActionType.PICK_THRESHOLD:
-                self._pick_threshold(k, action_value)
-            elif action_type == ActionType.PICK_OPERATOR:
-                self._pick_operator(k, action_value)
+                self._pick_leaf(action_value)
             else:
-                raise NotImplementedError(f"Unrecognized action type: {action_type}.")
+                active_node = self._find_active(self.state)
+                if action_type == ActionType.PICK_FEATURE:
+                    self._pick_feature(active_node, action_value)
+                elif action_type == ActionType.PICK_THRESHOLD:
+                    self._pick_threshold(active_node, action_value)
+                elif action_type == ActionType.PICK_OPERATOR:
+                    self._pick_operator(active_node, action_value)
+                else:
+                    raise NotImplementedError(
+                        f"Unrecognized action type: {action_type}."
+                    )
 
             return self.state, action, True
         else:
@@ -431,7 +457,6 @@ class Tree(GFlowNetEnv):
         """
         Samples a batch of actions from a batch of policy outputs.
         """
-        import ipdb; ipdb.set_trace()
         device = policy_outputs.device
         mask_states_sample = ~mask_invalid_actions.flatten()
         n_states = policy_outputs.shape[0]
@@ -552,22 +577,26 @@ class Tree(GFlowNetEnv):
             for k in leaves:
                 # Check if splitting the node wouldn't exceed max depth.
                 if Tree._get_right_child(k) < self.n_nodes:
-                    mask[k] = False
-            mask[-1] = False
+                    mask[self._action_index_pick_leaf + k] = False
+            mask[self._action_index_eos] = False
+        elif stage == Stage.LEAF:
+            # Leaf was picked, only picking the feature actions are valid.
+            for idx in range(
+                self._action_index_pick_feature, self._action_index_pick_threshold
+            ):
+                mask[idx] = False
+        elif stage == Stage.FEATURE:
+            # Feature was picked, only picking the threshold action is valid.
+            for idx in range(
+                self._action_index_pick_threshold, self._action_index_pick_operator
+            ):
+                mask[idx] = False
+        elif stage == Stage.THRESHOLD:
+            # Threshold was picked, only picking the operator actions are valid.
+            for idx in range(self._action_index_pick_operator, self._action_index_eos):
+                mask[idx] = False
         else:
-            k = Tree._find_active(state)
-
-            if stage == Stage.LEAF:
-                # Leaf was picked, only picking the feature is valid.
-                mask[k + self.n_nodes] = False
-            elif stage == Stage.FEATURE:
-                # Feature was picked, only picking the threshold is valid.
-                mask[k + 2 * self.n_nodes] = False
-            elif stage == Stage.THRESHOLD:
-                # Threshold was picked, only picking the operator is valid.
-                mask[k + 3 * self.n_nodes] = False
-            else:
-                raise ValueError(f"Unrecognized stage {stage}.")
+            raise ValueError(f"Unrecognized stage {stage}.")
 
         return mask
 
