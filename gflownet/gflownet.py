@@ -7,7 +7,8 @@ import copy
 import pickle
 import time
 from collections import defaultdict
-from typing import List, Optional, Tuple
+from pathlib import Path
+from typing import List, Optional, Tuple, Union
 
 import numpy as np
 import torch
@@ -510,6 +511,57 @@ class GFlowNetAgent:
 
         return batch, times
 
+    def get_logprobs_trajectories(self, batch):
+        """
+        Computes the forward and backward log probabilities of the trajectories in a
+        batch.
+
+        Args
+        ----
+        batch : Batch
+            A batch of data, containing all the states in the trajectories.
+
+        Returns
+        -------
+        logprobs_f : torch.tensor
+            The log probabilities of the forward trajectories.
+
+        logprobs_b : torch.tensor
+            The log probabilities of the backward trajectories.
+        """
+        assert batch.is_valid()
+        # TODO: implement method in batch to make traj_indices 0, 1, 2 ... N
+        # Get necessary tensors from batch
+        states = batch.get_states(policy=True)
+        actions = batch.get_actions()
+        parents = batch.get_parents(policy=True)
+        traj_indices = batch.get_trajectory_indices()
+        masks_f = batch.get_masks_forward(of_parents=True)
+        masks_b = batch.get_masks_backward()
+
+        # Forward trajectories
+        import ipdb; ipdb.set_trace()
+        policy_output_f = self.forward_policy(parents)
+        logprobs_f_states = self.env.get_logprobs(
+            policy_output_f, True, actions, states, masks_f
+        )
+        logprobs_f = torch.zeros(
+            batch.get_n_trajectories(),
+            dtype=self.float,
+            device=self.device,
+        ).index_add_(0, traj_indices, logprobs_f_states)
+        # Backward trajectories
+        policy_output_b = self.backward_policy(states)
+        logprobs_b_states = self.env.get_logprobs(
+            policy_output_b, False, actions, parents, masks_b
+        )
+        logprobs_b = torch.zeros(
+            batch.get_n_trajectories(),
+            dtype=self.float,
+            device=self.device,
+        ).index_add_(0, traj_indices, logprobs_b_states)
+        return sumlogprobs_f, sumlogprobs_f
+
     def flowmatch_loss(self, it, batch):
         """
         Computes the loss of a batch
@@ -568,6 +620,7 @@ class GFlowNetAgent:
         loss = contrib_term * loss_term + contrib_interm * loss_interm
         return loss, loss_term, loss_interm
 
+    # TODO: rewrite using get_logprobs_trajectories()
     def trajectorybalance_loss(self, it, batch):
         """
         Computes the trajectory balance loss of a batch
@@ -577,9 +630,8 @@ class GFlowNetAgent:
         it : int
             Iteration
 
-        batch : ndarray
-            A batch of data: every row is a state (list), corresponding to all states
-            visited in each state in the batch.
+        batch : Batch
+            A batch of data, containing all the states in the trajectories.
 
         Returns
         -------
@@ -698,10 +750,13 @@ class GFlowNetAgent:
             # Update environments with sampled actions
             envs, actions, valids = self.step(envs, actions, backward=True)
             # Add to batch
-            batch_train.add_to_batch(envs, actions, valids, backward=True, train=train)
+            batch.add_to_batch(envs, actions, valids, backward=True, train=True)
             assert all(valids)
             # Filter out finished trajectories
             envs = [env for env in envs if not env.equal(env.state, env.source)]
+        # Get log probabilities of the trajectories
+        logprobs_f, logprobs_b = self.get_logprobs_trajectories(batch)
+        import ipdb; ipdb.set_trace()
         return batch
 
     def train(self):
@@ -755,6 +810,11 @@ class GFlowNetAgent:
                     self.lr_scheduler.step()
                     self.opt.zero_grad()
                     all_losses.append([i.item() for i in losses])
+            # Log-probs trajectories
+            batch_test_trajs = self.estimate_logprobs_data(
+                self.buffer.test_pkl, n_trajectories=5
+            )
+            import ipdb; ipdb.set_trace()
             # Buffer
             t0_buffer = time.time()
             states_term = batch.get_terminating_states(sort_by="trajectory")
