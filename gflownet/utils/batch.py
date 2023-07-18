@@ -911,6 +911,10 @@ class Batch:
         return self.rewards[indices][done]
 
     def get_actions_trajectories(self) -> List[List[Tuple]]:
+        """
+        Returns the actions corresponding to all trajectories in the batch, sorted by
+        trajectory index (the order in the ordered dict self.trajectories).
+        """
         actions_trajectories = []
         for batch_indices in self.trajectories.values():
             actions_trajectories.append([self.actions[idx] for idx in batch_indices])
