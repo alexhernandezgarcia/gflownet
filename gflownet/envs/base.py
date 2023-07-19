@@ -101,6 +101,15 @@ class GFlowNetEnv:
         """
         pass
 
+    def action2index(self, action: Tuple) -> int:
+        """
+        Returns the index in the action space of the action passed as an argument. This
+        method should be valid for all discrete environments. Continuous environments
+        should re-implement this method in order to replace continuous actions by their
+        representatives in the action space.
+        """
+        return self.action_space.index(action)
+
     def actions2indices(
         self, actions: TensorType["batch_size", "action_dim"]
     ) -> TensorType["batch_size"]:
