@@ -165,32 +165,60 @@ class Composition(GFlowNetEnv):
         n_unused_required_elements = len(unused_required_elements)
         n_used_atoms = sum(state)
 
+        if self.do_spacegroup_check and isinstance(self.space_group, int):
+            space_group = Group(self.space_group)
+
+            # Determine, based on the space group's Wyckoff's positions, what
+            # is the min/max number of atoms of a given element that could be
+            # added.
+            most_specific_wp = space_group.get_wyckoff_position(-1)
+            min_atom_i = most_specific_wp.multiplicity
+            max_atom_i = (self.max_atom_i // min_atom_i) * min_atom_i
+
+            # Determine if the current composition is compatible with the
+            # space group
+            n_atoms = [s for s in state if s > 0]
+            sg_compatible = all(Group(self.space_group).check_compatible(n_atoms))
+        else:
+            # Don't impose additional constraints on the min/max number of
+            # atoms per element
+            min_atom_i = self.min_atom_i
+            max_atom_i = self.max_atom_i
+
+            # Assume the current composition is compatible with the space group
+            sg_compatible = True
+
         # Compute the min and max number of atoms to add to satisfy constraints
         nb_atoms_still_needed = max(0, self.min_atoms - n_used_atoms)
         nb_atoms_still_allowed = self.max_atoms - n_used_atoms
+
         # Compute the min and max number of elements to add to satisfy constraints
         nb_elems_still_needed = max(
             n_unused_required_elements, self.min_diff_elem - n_used_elements
         )
         nb_elems_still_allowed = self.max_diff_elem - n_used_elements
+
         # How many elements, other than the required elements, can still be added
         n_max_unrequired_elements_left = self.max_diff_elem - (
             n_used_elements + n_unused_required_elements
         )
+
         # What is the minimum number of atoms needed for a new required element in
         # order to reach the number of required atoms before we can't add new elements
         # anymore
         min_atoms_per_required_element = max(
-            nb_atoms_still_needed - (nb_elems_still_allowed - 1) * self.max_atom_i,
-            self.min_atom_i,
+            nb_atoms_still_needed - (nb_elems_still_allowed - 1) * max_atom_i,
+            min_atom_i,
         )
+
         # What is the maximum number of atoms allowed for a new required element in
         # order to be able to reach the number of required elements before we can't add
         # new atoms anymore
         max_atoms_per_required_element = min(
-            nb_atoms_still_allowed - (nb_elems_still_needed - 1) * self.min_atom_i,
-            self.max_atom_i,
+            nb_atoms_still_allowed - (nb_elems_still_needed - 1) * min_atom_i,
+            max_atom_i,
         )
+
         # Determine if there is a need to add unrequired elements to either reach the
         # number of required distinct elements or the number of required atoms
         unrequired_element_needed = (
@@ -198,14 +226,16 @@ class Composition(GFlowNetEnv):
             or max_atoms_per_required_element * n_unused_required_elements
             < nb_atoms_still_needed
         )
+
         # Determine if it is possible to add unrequired elements without going over the
         # maximum number of elements or atoms
         unrequired_element_allowed = (
             n_max_unrequired_elements_left > 0
             and min_atoms_per_required_element * n_unused_required_elements
-            + self.min_atom_i
-            < self.max_atoms
+            + min_atom_i
+            < nb_atoms_still_allowed
         )
+
         # Compute the minimum and maximum number of atoms available for an unrequired
         # element
         if unrequired_element_needed:
@@ -221,19 +251,12 @@ class Composition(GFlowNetEnv):
             max_atoms_per_unrequired_element = min(
                 nb_atoms_still_allowed
                 - min_atoms_per_required_element * n_unused_required_elements,
-                self.max_atom_i,
+                max_atom_i,
             )
         else:
             # No unrequired elements can be added
             min_atoms_per_unrequired_element = 0
             max_atoms_per_unrequired_element = 0
-
-        # Check if current state is compatible with space group
-        if self.do_spacegroup_check and isinstance(self.space_group, int):
-            n_atoms = [s for s in state if s > 0]
-            sg_compatible = Group(self.space_group).check_compatible(n_atoms)[0]
-        else:
-            sg_compatible = True
 
         if n_used_atoms < self.min_atoms:
             mask[-1] = True
