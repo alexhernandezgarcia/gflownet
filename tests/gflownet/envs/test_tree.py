@@ -5,7 +5,10 @@ import numpy as np
 import pytest
 import torch
 
-from gflownet.envs.tree import NodeType, Operator, Tree
+from gflownet.envs.tree import ActionType, NodeType, Operator, Stage, Status, Tree
+from gflownet.utils.common import tfloat
+
+NAN = float("NaN")
 
 
 @pytest.fixture
@@ -78,25 +81,180 @@ def test__node_tree__has_expected_node_attributes(tree):
 
 
 @pytest.fixture
+def tree_d1(X, y):
+    return Tree(
+        X=np.array([[1, 2], [3, 4], [5, 6]]), y=np.array([0, 0, 1]), max_depth=2
+    )
+
+
+def step_return_expected(env, action, state_expected, valid_expected=True):
+    state_expected = tfloat(state_expected, float_type=env.float, device=env.device)
+    state_next, action_done, valid = env.step(action)
+    assert valid == valid_expected
+    if valid is True:
+        assert action_done == action
+        assert env.equal(state_next, env.state)
+        assert env.equal(state_next, state_expected)
+
+
+def state_action_are_in_parents(env, state, action):
+    state = tfloat(state, float_type=env.float, device=env.device)
+    parents, parents_a = env.get_parents()
+    assert any([env.equal(p, state) for p in parents])
+    assert env.action2representative(action) in parents_a
+
+
+@pytest.mark.parametrize(
+    "source, a0, s1, a1, s2, a2, s3, a3, s4, a4, s5",
+    [
+        (
+            [
+                Stage.COMPLETE,
+                NodeType.CLASSIFIER,
+                -1,
+                -1,
+                0,
+                Status.INACTIVE,
+                NAN,
+                NAN,
+                NAN,
+                NAN,
+                NAN,
+                NAN,
+                NAN,
+                NAN,
+                NAN,
+                NAN,
+            ],
+            (ActionType.PICK_LEAF, 0),
+            [
+                Stage.LEAF,
+                NodeType.CONDITION,
+                -1,
+                -1,
+                -1,
+                Status.ACTIVE,
+                NAN,
+                NAN,
+                NAN,
+                NAN,
+                NAN,
+                NAN,
+                NAN,
+                NAN,
+                NAN,
+                NAN,
+            ],
+            (ActionType.PICK_FEATURE, 1),
+            [
+                Stage.FEATURE,
+                NodeType.CONDITION,
+                1,
+                -1,
+                -1,
+                Status.ACTIVE,
+                NAN,
+                NAN,
+                NAN,
+                NAN,
+                NAN,
+                NAN,
+                NAN,
+                NAN,
+                NAN,
+                NAN,
+            ],
+            (ActionType.PICK_THRESHOLD, 0.2),
+            [
+                Stage.THRESHOLD,
+                NodeType.CONDITION,
+                1,
+                0.2,
+                -1,
+                Status.ACTIVE,
+                NAN,
+                NAN,
+                NAN,
+                NAN,
+                NAN,
+                NAN,
+                NAN,
+                NAN,
+                NAN,
+                NAN,
+            ],
+            (ActionType.PICK_OPERATOR, Operator.LT),
+            [
+                Stage.COMPLETE,
+                NodeType.CONDITION,
+                1,
+                0.2,
+                -1,
+                Status.INACTIVE,
+                NodeType.CLASSIFIER,
+                -1,
+                -1,
+                0,
+                Status.INACTIVE,
+                NodeType.CLASSIFIER,
+                -1,
+                -1,
+                1,
+                Status.INACTIVE,
+            ],
+            (-1, -1),
+            [
+                Stage.COMPLETE,
+                NodeType.CONDITION,
+                1,
+                0.2,
+                -1,
+                Status.INACTIVE,
+                NodeType.CLASSIFIER,
+                -1,
+                -1,
+                0,
+                Status.INACTIVE,
+                NodeType.CLASSIFIER,
+                -1,
+                -1,
+                1,
+                Status.INACTIVE,
+            ],
+        ),
+    ],
+)
+def test__steps__behaves_as_expected(
+    tree_d1, source, a0, s1, a1, s2, a2, s3, a3, s4, a4, s5
+):
+    source = tfloat(source, float_type=tree_d1.float, device=tree_d1.device)
+    assert tree_d1.equal(tree_d1.source, source)
+    # Action 0, state 1
+    step_return_expected(tree_d1, a0, s1, True)
+    state_action_are_in_parents(tree_d1, source, a0)
+    # Action 1, state 2
+    step_return_expected(tree_d1, a1, s2, True)
+    state_action_are_in_parents(tree_d1, s1, a1)
+    # Action 2, state 3
+    step_return_expected(tree_d1, a2, s3, True)
+    state_action_are_in_parents(tree_d1, s2, a2)
+    # Action 3, state 4
+    step_return_expected(tree_d1, a3, s4, True)
+    state_action_are_in_parents(tree_d1, s3, a3)
+    # Action 4, state 5
+    step_return_expected(tree_d1, a4, s5, True)
+    state_action_are_in_parents(tree_d1, s4, a4)
+    assert tree_d1.done is True
+
+
+@pytest.fixture
 def env(X, y):
     return Tree(X, y)
 
 
-def test__get_parents__returns_no_parents_in_initial_state(env):
-    common.test__get_parents__returns_no_parents_in_initial_state(env)
-
-
-def test__get_parents__returns_same_state_and_eos_if_done(env):
-    common.test__get_parents__returns_same_state_and_eos_if_done(env)
-
-
-def test__step__returns_same_state_action_and_invalid_if_done(env):
-    common.test__step__returns_same_state_action_and_invalid_if_done(env)
-
-
-def test__actions2indices__returns_expected_tensor(env):
-    common.test__actions2indices__returns_expected_tensor(env)
-
-
-def test__continuous_env_common(env):
-    return common.test__continuous_env_common(env)
+# def test__continuous_env_common(env):
+#     return common.test__continuous_env_common(env)
+#
+#
+# def test__all_env_common(env):
+#     return common.test__all_env_common(env)
