@@ -7,20 +7,25 @@ import torch
 import yaml
 from hydra import compose, initialize
 
+from gflownet.utils.common import copy
+
 
 def test__all_env_common(env):
+    test__init__state_is_source_no_parents(env)
+    test__reset__state_is_source_no_parents(env)
+    test__step__returns_same_state_action_and_invalid_if_done(env)
+    test__sample_actions__get_logprobs__return_valid_actions_and_logprobs(env)
+    test__step_random__does_not_sample_invalid_actions(env)
     test__get_parents_step_get_mask__are_compatible(env)
     test__sample_backwards_reaches_source(env)
     test__state_conversions_are_reversible(env)
-    test__get_parents__returns_no_parents_in_initial_state(env)
-    test__sample_actions__get_logprobs__return_valid_actions_and_logprobs(env)
     test__get_parents__returns_same_state_and_eos_if_done(env)
-    test__step__returns_same_state_action_and_invalid_if_done(env)
     test__actions2indices__returns_expected_tensor(env)
     test__gflownet_minimal_runs(env)
 
 
 def test__continuous_env_common(env):
+    test__reset__state_is_source(env)
     #     test__state_conversions_are_reversible(env)
     test__get_parents__returns_no_parents_in_initial_state(env)
     #     test__gflownet_minimal_runs(env)
@@ -31,13 +36,29 @@ def test__continuous_env_common(env):
 
 
 @pytest.mark.repeat(100)
+def test__step_random__does_not_sample_invalid_actions(env):
+    env = env.reset()
+    while not env.done:
+        state = copy(env.state)
+        mask = env.get_mask_invalid_actions_forward()
+        # Sample random action
+        state_next, action, valid = env.step_random()
+        if valid is False:
+            continue
+        assert mask[env.action2index(action)] is False
+        # If action is not EOS then state should change
+        if action != env.eos:
+            assert not env.equal(state, state_next)
+
+
+@pytest.mark.repeat(100)
 def test__get_parents_step_get_mask__are_compatible(env):
     env = env.reset()
     n_actions = 0
     while not env.done:
-        state = env.state
+        state = copy(env.state)
         # Sample random action
-        _, _, valid = env.step_random()
+        state_next, action, valid = env.step_random()
         if valid is False:
             continue
         n_actions += 1
@@ -45,7 +66,7 @@ def test__get_parents_step_get_mask__are_compatible(env):
         assert env.n_actions == n_actions
         parents, parents_a = env.get_parents()
         if torch.is_tensor(state):
-            assert any([torch.equal(p, state) for p in parents])
+            assert any([env.equal(p, state) for p in parents])
         else:
             assert state in parents
         assert len(parents) == len(parents_a)
@@ -177,8 +198,26 @@ def test__sample_actions__get_logprobs__return_valid_actions_and_logprobs(env):
         env.step(action)
 
 
-def test__get_parents__returns_no_parents_in_initial_state(env):
+@pytest.mark.repeat(10)
+def test__init__state_is_source_no_parents(env):
+    assert env.equal(env.state, env.source)
+    parents, actions = env.get_parents()
+    assert len(parents) == 0
+    assert len(actions) == 0
+
+
+@pytest.mark.repeat(10)
+def test__reset__state_is_source(env):
+    env.step_random()
     env.reset()
+    assert env.equal(env.state, env.source)
+
+
+@pytest.mark.repeat(10)
+def test__reset__state_is_source_no_parents(env):
+    env.step_random()
+    env.reset()
+    assert env.equal(env.state, env.source)
     parents, actions = env.get_parents()
     assert len(parents) == 0
     assert len(actions) == 0
