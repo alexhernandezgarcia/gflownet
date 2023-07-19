@@ -2,7 +2,6 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 import torch_geometric
-
 from torch_geometric.nn import global_mean_pool
 
 
