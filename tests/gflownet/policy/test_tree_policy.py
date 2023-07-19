@@ -11,7 +11,6 @@ from gflownet.policy.tree import (
     ThresholdSelectionHead,
 )
 
-
 N_OBSERVATIONS = 17
 N_FEATURES = 5
 N_NODES = 11
