@@ -231,7 +231,7 @@ class Composition(GFlowNetEnv):
         # Check if current state is compatible with space group
         if self.do_spacegroup_check and isinstance(self.space_group, int):
             n_atoms = [s for s in state if s > 0]
-            sg_compatible = all(Group(self.space_group).check_compatible(n_atoms))
+            sg_compatible = Group(self.space_group).check_compatible(n_atoms)[0]
         else:
             sg_compatible = True
 

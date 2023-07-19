@@ -20,7 +20,9 @@ times = []
 for idx in tqdm(range(1, N_SYMMETRY_GROUPS + 1)):
     sg = Group(idx)
     times_sg = []
-    for n_atoms_withzeros in itertools.product(range(0, MAX_N_ATOMS + 1), repeat=N_SPECIES):
+    for n_atoms_withzeros in itertools.product(
+        range(0, MAX_N_ATOMS + 1), repeat=N_SPECIES
+    ):
         n_atoms = [n for n in n_atoms_withzeros if n > 0]
         time0 = time.time()
         is_compatible, _ = sg.check_compatible(list(n_atoms))

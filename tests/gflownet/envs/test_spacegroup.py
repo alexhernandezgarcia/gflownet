@@ -214,8 +214,7 @@ def test__env_with_composition__compatibility_dict_as_in_pyxtal(env_with_composi
     ) in env_with_composition.compatibility_stoichiometry_dict.items():
         sg_pyxtal = Group(sg)
         assert (
-            all(sg_pyxtal.check_compatible(env_with_composition.n_atoms))
-            == is_compatible
+            sg_pyxtal.check_compatible(env_with_composition.n_atoms)[0] == is_compatible
         )
 
 
@@ -238,9 +237,7 @@ def test__get_mask_invalid_actions_forward__incompatible_sg_are_invalid(
         ref = env_with_composition.get_ref_index(state)
         for sg in range(1, env_with_composition.n_space_groups + 1):
             sg_pyxtal = Group(sg)
-            is_compatible = all(
-                sg_pyxtal.check_compatible(env_with_composition.n_atoms)
-            )
+            is_compatible = sg_pyxtal.check_compatible(env_with_composition.n_atoms)[0]
             action = (env_with_composition.sg_idx, sg, ref)
             if not is_compatible:
                 assert mask_f[env_with_composition.action_space.index(action)] is True
