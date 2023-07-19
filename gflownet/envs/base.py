@@ -752,6 +752,13 @@ class GFlowNetEnv:
     @staticmethod
     def equal(state_x, state_y):
         if torch.is_tensor(state_x) and torch.is_tensor(state_y):
+            # Check for nans because torch.nan == torch.nan = False
+            x_nan = torch.isnan(state_x)
+            if torch.any(x_nan):
+                y_nan = torch.isnan(state_y)
+                if not torch.equal(x_nan, y_nan):
+                    return False
+                return torch.equal(state_x[~x_nan], state_y[~y_nan])
             return torch.equal(state_x, state_y)
         else:
             return state_x == state_y
