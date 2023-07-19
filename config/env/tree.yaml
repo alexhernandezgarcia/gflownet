@@ -8,8 +8,16 @@ id: tree
 data_path: ${user.data.root}/iris.csv
 # Max depth
 max_depth: 10
-# Number of mixture components to sample the threshold
+# Policy parameters
 threshold_components: 1
+beta_params_min: 0.1
+beta_params_max: 2.0
+fixed_distribution:
+  beta_alpha: 2.0
+  beta_beta: 5.0
+random_distribution:
+  beta_alpha: 1.0
+  beta_beta: 1.0
 # Buffer
 buffer:
   data_path: null

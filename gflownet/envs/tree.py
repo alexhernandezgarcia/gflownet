@@ -8,6 +8,7 @@ import numpy.typing as npt
 import torch
 import torch_geometric as pyg
 from networkx.drawing.nx_pydot import graphviz_layout
+from torch.distributions import Beta, Categorical, MixtureSameFamily, Uniform
 from torch_geometric.utils.convert import from_networkx
 from torchtyping import TensorType
 
@@ -120,6 +121,16 @@ class Tree(GFlowNetEnv):
         data_path: Optional[str] = None,
         max_depth: int = 10,
         threshold_components: int = 1,
+        beta_params_min: float = 0.1,
+        beta_params_max: float = 2.0,
+        fixed_distr_params: dict = {
+            "beta_alpha": 2.0,
+            "beta_beta": 5.0,
+        },
+        random_distr_params: dict = {
+            "beta_alpha": 1.0,
+            "beta_beta": 1.0,
+        },
         **kwargs,
     ):
         """
@@ -157,24 +168,42 @@ class Tree(GFlowNetEnv):
                 "A Tree must be initialised with a data set. X, y and data_path cannot "
                 "be all None"
             )
+        self.y = self.y.astype(int)
         self.n_features = self.X.shape[1]
         self.max_depth = max_depth
-        self.components = threshold_components
         self.leaves = set()
-
+        # Parameters of the policy distribution
+        self.components = threshold_components
+        self.beta_params_min = beta_params_min
+        self.beta_params_max = beta_params_max
         # Source will contain information about the current stage (on the 0-th position),
         # and up to 2**max_depth - 1 nodes, each with N_ATTRIBUTES attributes, for a total of
-        # 1 + N_ATTRIBUTES * (2**max_depth - 1) values.
+        # 1 + N_ATTRIBUTES * (2**max_depth - 1) values. The root (0-th node) of the
+        # source is initialized with a classifier.
         self.n_nodes = 2**max_depth - 1
         self.source = torch.full((N_ATTRIBUTES * self.n_nodes + 1,), torch.nan)
         self.source[0] = Stage.COMPLETE
+        attributes_0th = self._get_attributes(0, self.source)
+        attributes_0th[0] = NodeType.CLASSIFIER
+        attributes_0th[1:3] = -1
+        attributes_0th[3] = Counter(self.y).most_common()[0][0]
+        attributes_0th[4] = Status.INACTIVE
+        self.leaves.add(0)
 
         # End-of-sequence action.
         self.eos = (-1, -1)
 
-        super().__init__(**kwargs)
+        # Conversions
+        # TODO: add functionality to select conversion type depending on config
+        self.state2policy = self.state2policy_mlp
+        self.statetorch2policy = self.statetorch2policy_mlp
+        self.statetorch2proxy = self.statetorch2policy
 
-        self._insert_classifier(k=0, output=int(Counter(self.y).most_common()[0][0]))
+        super().__init__(
+            fixed_distr_params=fixed_distr_params,
+            random_distr_params=random_distr_params,
+            **kwargs,
+        )
 
     @staticmethod
     def _get_start_end(k: int) -> Tuple[int, int]:
@@ -457,45 +486,54 @@ class Tree(GFlowNetEnv):
         """
         Samples a batch of actions from a batch of policy outputs.
         """
-        device = policy_outputs.device
-        mask_states_sample = ~mask_invalid_actions.flatten()
         n_states = policy_outputs.shape[0]
-        # Sample angle increments
-        angles = torch.zeros(n_states, self.n_dim).to(device)
-        logprobs = torch.zeros(n_states, self.n_dim).to(device)
-        if torch.any(mask_states_sample):
-            if sampling_method == "uniform":
-                distr_angles = Uniform(
-                    torch.zeros(len(ns_range_noeos)),
-                    2 * torch.pi * torch.ones(len(ns_range_noeos)),
-                )
-            elif sampling_method == "policy":
-                mix_logits = policy_outputs[mask_states_sample, 0::3].reshape(
-                    -1, self.n_dim, self.n_comp
-                )
-                mix = Categorical(logits=mix_logits)
-                locations = policy_outputs[mask_states_sample, 1::3].reshape(
-                    -1, self.n_dim, self.n_comp
-                )
-                concentrations = policy_outputs[mask_states_sample, 2::3].reshape(
-                    -1, self.n_dim, self.n_comp
-                )
-                vonmises = VonMises(
-                    locations,
-                    torch.exp(concentrations) + self.vonmises_min_concentration,
-                )
-                distr_angles = MixtureSameFamily(mix, vonmises)
-            angles[mask_states_sample] = distr_angles.sample()
-            logprobs[mask_states_sample] = distr_angles.log_prob(
-                angles[mask_states_sample]
+        logprobs = torch.zeros(n_states, device=self.device, dtype=self.float)
+        # Discrete actions
+        mask_discrete = mask_invalid_actions[:, self._action_index_pick_threshold]
+        if torch.any(mask_discrete):
+            policy_outputs_discrete = policy_outputs[
+                mask_discrete, : self._index_continuous_policy_output
+            ]
+            actions_discrete, logprobs_discrete = super().sample_actions(
+                policy_outputs_discrete,
+                sampling_method,
+                mask_invalid_actions[mask_discrete],
+                temperature_logits,
             )
-        logprobs = torch.sum(logprobs, axis=1)
+            logprobs[mask_discrete] = logprobs_discrete
+        if torch.all(mask_discrete):
+            return actions_discrete, logprobs
+        # Continuous actions
+        mask_cont = torch.logical_not(mask_discrete)
+        n_cont = mask_cont.sum()
+        policy_outputs_cont = policy_outputs[
+            mask_cont, self._index_continuous_policy_output :
+        ]
+        if sampling_method == "uniform":
+            distr_threshold = Uniform(
+                torch.zeros(n_cont),
+                torch.ones(n_cont),
+            )
+        elif sampling_method == "policy":
+            mix_logits = policy_outputs_cont[:, 0::3]
+            mix = Categorical(logits=mix_logits)
+            alphas = policy_outputs_cont[:, 1::3]
+            alphas = self.beta_params_max * torch.sigmoid(alphas) + self.beta_params_min
+            betas = policy_outputs_cont[:, 2::3]
+            betas = self.beta_params_max * torch.sigmoid(betas) + self.beta_params_min
+            beta_distr = Beta(alphas, betas)
+            distr_threshold = MixtureSameFamily(mix, beta_distr)
+        thresholds = distr_threshold.sample()
+        # Log probs
+        logprobs[mask_cont] = distr_threshold.log_prob(thresholds)
         # Build actions
-        actions_tensor = torch.inf * torch.ones(
-            angles.shape, dtype=self.float, device=device
-        )
-        actions_tensor[mask_states_sample, :] = angles[mask_states_sample]
-        actions = [tuple(a.tolist()) for a in actions_tensor]
+        actions_cont = [(ActionType.PICK_THRESHOLD, th.item()) for th in thresholds]
+        actions = []
+        for is_discrete in mask_discrete:
+            if is_discrete:
+                actions.append(actions_discrete.pop(0))
+            else:
+                actions.append(actions_cont.pop(0))
         return actions, logprobs
 
     def get_logprobs(
@@ -509,31 +547,76 @@ class Tree(GFlowNetEnv):
         """
         Computes log probabilities of actions given policy outputs and actions.
         """
-        device = policy_outputs.device
-        mask_states_sample = ~mask_invalid_actions.flatten()
         n_states = policy_outputs.shape[0]
-        logprobs = torch.zeros(n_states, self.n_dim).to(device)
-        if torch.any(mask_states_sample):
-            mix_logits = policy_outputs[mask_states_sample, 0::3].reshape(
-                -1, self.n_dim, self.n_comp
+        logprobs = torch.zeros(n_states, device=self.device, dtype=self.float)
+        # Discrete actions
+        mask_discrete = mask_invalid_actions[:, self._action_index_pick_threshold]
+        if torch.any(mask_discrete):
+            policy_outputs_discrete = policy_outputs[
+                mask_discrete, : self._index_continuous_policy_output
+            ]
+            logprobs_discrete = super().get_logprobs(
+                policy_outputs_discrete,
+                is_forward,
+                actions[mask_discrete],
+                states_target[mask_discrete],
+                mask_invalid_actions[mask_discrete],
             )
-            mix = Categorical(logits=mix_logits)
-            locations = policy_outputs[mask_states_sample, 1::3].reshape(
-                -1, self.n_dim, self.n_comp
-            )
-            concentrations = policy_outputs[mask_states_sample, 2::3].reshape(
-                -1, self.n_dim, self.n_comp
-            )
-            vonmises = VonMises(
-                locations,
-                torch.exp(concentrations) + self.vonmises_min_concentration,
-            )
-            distr_angles = MixtureSameFamily(mix, vonmises)
-            logprobs[mask_states_sample] = distr_angles.log_prob(
-                actions[mask_states_sample]
-            )
-        logprobs = torch.sum(logprobs, axis=1)
+            logprobs[mask_discrete] = logprobs_discrete
+        if torch.all(mask_discrete):
+            return logprobs
+        # Continuous actions
+        mask_cont = torch.logical_not(mask_discrete)
+        n_cont = mask_cont.sum()
+        policy_outputs_cont = policy_outputs[
+            mask_cont, self._index_continuous_policy_output :
+        ]
+        mix_logits = policy_outputs_cont[:, 0::3]
+        mix = Categorical(logits=mix_logits)
+        alphas = policy_outputs_cont[:, 1::3]
+        alphas = self.beta_params_max * torch.sigmoid(alphas) + self.beta_params_min
+        betas = policy_outputs_cont[:, 2::3]
+        betas = self.beta_params_max * torch.sigmoid(betas) + self.beta_params_min
+        beta_distr = Beta(alphas, betas)
+        distr_threshold = MixtureSameFamily(mix, beta_distr)
+        thresholds = actions[mask_cont, -1]
+        logprobs[mask_cont] = distr_threshold.log_prob(thresholds)
         return logprobs
+
+    def state2policy_mlp(
+        self, state: Optional[TensorType["state_dim"]] = None
+    ) -> TensorType["policy_input_dim"]:
+        """
+        Prepares a state in "GFlowNet format" for the policy model.
+        """
+        if state is None:
+            state = self.state.clone().detach()
+        state[state.isnan()] = -1
+        return state
+
+    def statetorch2policy_mlp(
+        self, states: TensorType["batch_size", "state_dim"]
+    ) -> TensorType["batch_size", "policy_input_dim"]:
+        """
+        Prepares a batch of states in torch "GFlowNet format" for an MLP policy model.
+        It simply replaces the NaNs by -1s.
+        """
+        states[states.isnan()] = -1
+        return states
+
+    def statebatch2proxy(
+        self, states: List[TensorType["state_dim"]]
+    ) -> TensorType["batch", "state_proxy_dim"]:
+        """
+        Prepares a batch of states in "GFlowNet format" for the proxy: simply
+        stacks the list of tensors and calls self.statetorch2proxy.
+
+        Args
+        ----
+        state : list
+        """
+        states = torch.stack(states)
+        return self.statetorch2proxy(states)
 
     @staticmethod
     def _find_leaves(state: torch.Tensor) -> List[int]:
@@ -553,6 +636,47 @@ class Tree(GFlowNetEnv):
         k = torch.where(state[N_ATTRIBUTES::N_ATTRIBUTES] == Status.ACTIVE)[0].item()
 
         return k
+
+    def get_policy_output(self, params: dict) -> TensorType["policy_output_dim"]:
+        """
+        Defines the structure of the output of the policy model, from which an
+        action is to be determined or sampled. It initializes the output tensor
+        by using the parameters provided in the argument params.
+
+        The output of the policy of a Tree environment consists of a discrete and
+        continuous part. The discrete part corresponds to the discrete actions, while
+        the continuous part corresponds to the single continuous action, that is the
+        sampling of the threshold of a node classifier.
+
+        The latter is modelled by a mixture of Beta distributions. Therefore, the
+        continuous part of of the policy output is vector of dimensionality c * 3,
+        where c is the number of components in the mixture (self.components).
+        The three parameters of each component are the following:
+
+          1) the weight of the component in the mixture
+          2) the logit(alpha) parameter of the Beta distribution to sample the
+             threshold.
+          3) the logit(beta) parameter of the Beta distribution to sample the
+             threshold.
+
+        Note: contrary to other environments where there is a need to model a mixture
+        of discrete and continuous distributions (for example to consider the
+        possibility of sampling the EOS action instead of a continuous action), there
+        is no such need here because either the continuous action is the only valid
+        action or it is not valid.
+        """
+        policy_output_discrete = torch.ones(
+            self.action_space_dim, device=self.device, dtype=self.float
+        )
+        self._index_continuous_policy_output = len(policy_output_discrete)
+        policy_output_continuous = torch.ones(
+            self.components * 3,
+            device=self.device,
+            dtype=self.float,
+        )
+        policy_output_continuous[1::3] = params["beta_alpha"]
+        policy_output_continuous[2::3] = params["beta_beta"]
+        return torch.cat([policy_output_discrete, policy_output_continuous])
 
     def get_mask_invalid_actions_forward(
         self, state: Optional[torch.Tensor] = None, done: Optional[bool] = None
@@ -649,8 +773,7 @@ class Tree(GFlowNetEnv):
                 attributes_parent = self._get_attributes(k_parent, parent)
                 action = (
                     ActionType.PICK_OPERATOR,
-                    k_parent,
-                    attributes_parent[3].item(),
+                    self._get_attributes(k)[3].item(),
                 )
                 attributes_parent[3] = -1
                 attributes_parent[4] = Status.ACTIVE
@@ -673,7 +796,7 @@ class Tree(GFlowNetEnv):
                     attributes[4] = Status.INACTIVE
 
                     parents.append(parent)
-                    actions.append(action)
+                    actions.append((ActionType.PICK_LEAF, k))
             elif stage == Stage.FEATURE:
                 # Reverse self._pick_feature.
                 parent = state.clone()
@@ -683,7 +806,9 @@ class Tree(GFlowNetEnv):
                 attributes[1] = -1
 
                 parents.append(parent)
-                actions.append(action)
+                actions.append(
+                    (ActionType.PICK_FEATURE, self._get_attributes(k)[1].item())
+                )
             elif stage == Stage.THRESHOLD:
                 # Reverse self._pick_threshold.
                 parent = state.clone()
@@ -693,7 +818,7 @@ class Tree(GFlowNetEnv):
                 attributes[2] = -1
 
                 parents.append(parent)
-                actions.append(action)
+                actions.append((ActionType.PICK_THRESHOLD, -1))
             else:
                 raise ValueError(f"Unrecognized stage {stage}.")
 
