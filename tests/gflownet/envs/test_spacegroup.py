@@ -7,6 +7,8 @@ from pyxtal.symmetry import Group
 
 from gflownet.envs.crystals.spacegroup import SpaceGroup
 
+N_ATOMS = [3, 7, 9]
+
 
 @pytest.fixture
 def env():
@@ -15,7 +17,7 @@ def env():
 
 @pytest.fixture
 def env_with_composition():
-    return SpaceGroup(n_atoms=[3, 7, 0, 9])
+    return SpaceGroup(n_atoms=N_ATOMS)
 
 
 def test__environment__initializes_properly():
@@ -203,19 +205,13 @@ def test__state2readable2state(env, state):
     )
 
 
-def test__env_with_composition__removes_zeros(env_with_composition):
-    assert all([n > 0 for n in env_with_composition.n_atoms])
-
-
 def test__env_with_composition__compatibility_dict_as_in_pyxtal(env_with_composition):
     for (
         sg,
         is_compatible,
-    ) in env_with_composition.compatibility_stoichiometry_dict.items():
+    ) in env_with_composition.n_atoms_compatibility_dict.items():
         sg_pyxtal = Group(sg)
-        assert (
-            sg_pyxtal.check_compatible(env_with_composition.n_atoms)[0] == is_compatible
-        )
+        assert sg_pyxtal.check_compatible(N_ATOMS)[0] == is_compatible
 
 
 def test__get_mask_invalid_actions_forward__incompatible_sg_are_invalid(
@@ -237,7 +233,7 @@ def test__get_mask_invalid_actions_forward__incompatible_sg_are_invalid(
         ref = env_with_composition.get_ref_index(state)
         for sg in range(1, env_with_composition.n_space_groups + 1):
             sg_pyxtal = Group(sg)
-            is_compatible = sg_pyxtal.check_compatible(env_with_composition.n_atoms)[0]
+            is_compatible = sg_pyxtal.check_compatible(N_ATOMS)[0]
             action = (env_with_composition.sg_idx, sg, ref)
             if not is_compatible:
                 assert mask_f[env_with_composition.action_space.index(action)] is True

@@ -89,8 +89,8 @@ class SpaceGroup(GFlowNetEnv):
         self.n_crystal_lattice_systems = len(self.crystal_lattice_systems)
         self.n_point_symmetries = len(self.point_symmetries)
         self.n_space_groups = len(self.space_groups)
-        # Stoichiometry and compatibility dict
-        self.n_atoms, self.compatibility_stoichiometry_dict = self.set_n_atoms(n_atoms)
+        # Set dictionary of compatibility with number of atoms
+        self.set_n_atoms_compatibility_dict(n_atoms)
         # Define indices
         self.cls_idx, self.ps_idx, self.sg_idx = 0, 1, 2
         self.ref_state_factors = [1, 2]
@@ -170,7 +170,7 @@ class SpaceGroup(GFlowNetEnv):
             space_groups_cls = [
                 (self.sg_idx, sg, ref)
                 for sg in self.crystal_lattice_systems[cls_idx]["space_groups"]
-                if self.compatibility_stoichiometry_dict[sg]
+                if self.n_atoms_compatibility_dict[sg]
             ]
             # If no point symmetry selected yet
             if ps_idx == 0:
@@ -182,7 +182,7 @@ class SpaceGroup(GFlowNetEnv):
             space_groups_cls = [
                 (self.sg_idx, idx + 1, ref)
                 for idx in range(self.n_space_groups)
-                if self.compatibility_stoichiometry_dict[idx + 1]
+                if self.n_atoms_compatibility_dict[idx + 1]
             ]
         # Constraints after having selected point symmetry
         if ps_idx != 0:
@@ -190,7 +190,7 @@ class SpaceGroup(GFlowNetEnv):
             space_groups_ps = [
                 (self.sg_idx, sg, ref)
                 for sg in self.point_symmetries[ps_idx]["space_groups"]
-                if self.compatibility_stoichiometry_dict[sg]
+                if self.n_atoms_compatibility_dict[sg]
             ]
             # If no crystal-lattice system selected yet
             if cls_idx == 0:
@@ -202,7 +202,7 @@ class SpaceGroup(GFlowNetEnv):
             space_groups_ps = [
                 (self.sg_idx, idx + 1, ref)
                 for idx in range(self.n_space_groups)
-                if self.compatibility_stoichiometry_dict[idx + 1]
+                if self.n_atoms_compatibility_dict[idx + 1]
             ]
         # Merge space_groups constraints and determine valid space group actions
         space_groups = list(set(space_groups_cls).intersection(set(space_groups_ps)))
@@ -559,23 +559,33 @@ class SpaceGroup(GFlowNetEnv):
             state = self.state
         return sum([int(s > 0) * f for s, f in zip(state, self.ref_state_factors)])
 
-    def set_n_atoms(self, composition):
-        if composition is None:
-            self.n_atoms = None
-        else:
-            self.n_atoms = [n for n in composition if n > 0]
+    def set_n_atoms_compatibility_dict(self, n_atoms: List):
+        """
+        Sets self.n_atoms_compatibility_dict by calling
+        SpaceGroup.build_n_atoms_compatibility_dict(), which contains a dictionary of
+        {space_group: is_compatible} indicating whether each space_group in
+        space_groups is compatible with the stoichiometry defined by n_atoms.
+
+        See: build_n_atoms_compatibility_dict()
+
+        Args
+        ----
+        n_atoms : list of int
+            A list of number of atoms for each element in a composition. 0s will be
+            removed from the list since they do not count towards the compatibility
+            with a space group.
+        """
+        if n_atoms is not None:
+            n_atoms = [n for n in n_atoms if n > 0]
         # Get compatibility with stoichiometry
-        self.compatibility_stoichiometry_dict = (
-            SpaceGroup.get_compatibility_stoichiometry_dict(
-                self.n_atoms, self.space_groups.keys()
+        self.n_atoms_compatibility_dict = (
+            SpaceGroup.build_n_atoms_compatibility_dict(
+                n_atoms, self.space_groups.keys()
             )
         )
-        return self.n_atoms, self.compatibility_stoichiometry_dict
 
     @staticmethod
-    def get_compatibility_stoichiometry_dict(
-        n_atoms: List[int], space_groups: List[int]
-    ):
+    def build_n_atoms_compatibility_dict(n_atoms: List[int], space_groups: List[int]):
         """
         Obtains which space groups are compatible with the stoichiometry given as
         argument (n_atoms). It relies on pyxtal's
@@ -612,7 +622,7 @@ class SpaceGroup(GFlowNetEnv):
         for sg in range(1, self.n_space_groups + 1):
             if (
                 apply_stoichiometry_constraints
-                and self.compatibility_stoichiometry_dict[sg] is False
+                and self.n_atoms_compatibility_dict[sg] is False
             ):
                 continue
             all_x.append(self._set_constrained_properties([0, 0, sg]))
