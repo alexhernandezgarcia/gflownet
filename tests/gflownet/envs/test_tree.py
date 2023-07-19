@@ -96,3 +96,7 @@ def test__step__returns_same_state_action_and_invalid_if_done(env):
 
 def test__actions2indices__returns_expected_tensor(env):
     common.test__actions2indices__returns_expected_tensor(env)
+
+
+def test__continuous_env_common(env):
+    return common.test__continuous_env_common(env)
