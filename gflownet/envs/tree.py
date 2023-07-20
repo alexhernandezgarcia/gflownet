@@ -89,8 +89,17 @@ class ActionType:
     PICK_OPERATOR = 3
 
 
-# Number of attributes encoding each node; see Tree._get_attributes.
-N_ATTRIBUTES = 5
+class Attribute:
+    """
+    Types of attributes defining each node of the tree
+    """
+
+    TYPE = 0
+    FEATURE = 1
+    THRESHOLD = 2
+    CLASS = 3
+    ACTIVE = 4
+    N = 5
 
 
 class Tree(GFlowNetEnv):
@@ -181,11 +190,11 @@ class Tree(GFlowNetEnv):
         self.beta_params_min = beta_params_min
         self.beta_params_max = beta_params_max
         # Source will contain information about the current stage (on the 0-th position),
-        # and up to 2**max_depth - 1 nodes, each with N_ATTRIBUTES attributes, for a total of
-        # 1 + N_ATTRIBUTES * (2**max_depth - 1) values. The root (0-th node) of the
+        # and up to 2**max_depth - 1 nodes, each with Attribute.N attributes, for a total of
+        # 1 + Attribute.N * (2**max_depth - 1) values. The root (0-th node) of the
         # source is initialized with a classifier.
         self.n_nodes = 2**max_depth - 1
-        self.source = torch.full((self.n_nodes + 1, N_ATTRIBUTES), torch.nan)
+        self.source = torch.full((self.n_nodes + 1, Attribute.N), torch.nan)
         self.source[-1, 0] = Stage.COMPLETE
         attributes_root = self.source[0, :]
         attributes_root[0] = NodeType.CLASSIFIER
@@ -214,7 +223,7 @@ class Tree(GFlowNetEnv):
         """
         Get start and end index of attribute tensor encoding k-th node in self.state.
         """
-        return k * N_ATTRIBUTES + 1, (k + 1) * N_ATTRIBUTES + 1
+        return k * Attribute.N + 1, (k + 1) * Attribute.N + 1
 
     @staticmethod
     def _get_parent(k: int) -> Optional[int]:
@@ -260,14 +269,35 @@ class Tree(GFlowNetEnv):
 
         return state[st:en]
 
+    def _get_stage(self, state: Optional[torch.Tensor] = None) -> int:
+        """
+        Returns the stage of the current environment from self.state[-1, 0] or from the
+        state passed as an argument.
+        """
+        if state is None:
+            state = self.state
+        return state[-1, 0]
+
+    def _set_stage(
+        self, stage: int, state: Optional[torch.Tensor] = None
+    ) -> torch.Tensor:
+        """
+        Sets the stage of the current environment (self.state) or of the state passed
+        as an argument by updating state[-1, 0].
+        """
+        if state is None:
+            state = self.state
+        state[-1, 0] = stage
+        return state
+
     def _pick_leaf(self, k: int) -> None:
         """
         Select one of the leaves (classifier nodes) that will be split, and initiate
         macro step.
         """
-        attributes = self._get_attributes(k)
+        attributes = self.state[k]
 
-        assert self.state[0] == Stage.COMPLETE
+        assert self._get_stage() == Stage.COMPLETE
         assert attributes[0] == NodeType.CLASSIFIER
         assert not torch.any(torch.isnan(attributes))
         assert torch.all(attributes[1:3] == -1)
@@ -277,31 +307,31 @@ class Tree(GFlowNetEnv):
         attributes[1:4] = -1
         attributes[4] = Status.ACTIVE
 
-        self.state[0] = Stage.LEAF
+        self._set_stage(Stage.LEAF)
 
     def _pick_feature(self, k: int, feature: float) -> None:
         """
         Select the feature on which currently selected leaf will be split.
         """
-        attributes = self._get_attributes(k)
+        attributes = self.state[k]
 
-        assert self.state[0] == Stage.LEAF
+        assert self._get_stage() == Stage.LEAF
         assert attributes[0] == NodeType.CONDITION
         assert torch.all(attributes[1:4] == -1)
         assert attributes[4] == Status.ACTIVE
 
         attributes[1] = feature
 
-        self.state[0] = Stage.FEATURE
+        self._set_stage(Stage.FEATURE)
 
     def _pick_threshold(self, k: int, threshold: float) -> None:
         """
         Select the threshold for splitting the currently selected leaf ond
         the selected feature.
         """
-        attributes = self._get_attributes(k)
+        attributes = self.state[k]
 
-        assert self.state[0] == Stage.FEATURE
+        assert self._get_stage() == Stage.FEATURE
         assert attributes[0] == NodeType.CONDITION
         assert attributes[1] >= 0
         assert torch.all(attributes[2:4] == -1)
@@ -309,7 +339,7 @@ class Tree(GFlowNetEnv):
 
         attributes[2] = threshold
 
-        self.state[0] = Stage.THRESHOLD
+        self._set_stage(Stage.THRESHOLD)
 
     def _pick_operator(self, k: int, operator: float) -> None:
         """
@@ -317,9 +347,9 @@ class Tree(GFlowNetEnv):
         left, feature and threshold, temporarily encode it in attributes,
         and initiate final splitting.
         """
-        attributes = self._get_attributes(k)
+        attributes = self.state[k]
 
-        assert self.state[0] == Stage.THRESHOLD
+        assert self._get_stage() == Stage.THRESHOLD
         assert attributes[0] == NodeType.CONDITION
         assert torch.all(attributes[1:3] >= 0)
         assert attributes[3] == -1
@@ -327,7 +357,7 @@ class Tree(GFlowNetEnv):
 
         attributes[3] = operator
 
-        self.state[0] = Stage.OPERATOR
+        self._set_stage(Stage.OPERATOR)
 
         self._split_leaf(k)
 
@@ -343,9 +373,9 @@ class Tree(GFlowNetEnv):
         the operator was always the same (and only care about the output
         label).
         """
-        attributes = self._get_attributes(k)
+        attributes = self.state[k]
 
-        assert self.state[0] == Stage.OPERATOR
+        assert self._get_stage() == Stage.OPERATOR
         assert attributes[0] == NodeType.CONDITION
         assert torch.all(attributes[1:4] >= 0)
         assert attributes[4] == Status.ACTIVE
@@ -364,13 +394,13 @@ class Tree(GFlowNetEnv):
         attributes[4] = Status.INACTIVE
 
         self.leaves.remove(k)
-        self.state[0] = Stage.COMPLETE
+        self._set_stage(Stage.COMPLETE)
 
     def _insert_classifier(self, k: int, output: int) -> None:
         """
         Replace attributes of k-th node with those of a classifier node.
         """
-        attributes = self._get_attributes(k)
+        attributes = self.state[k]
 
         assert torch.all(torch.isnan(attributes))
 
@@ -658,10 +688,10 @@ class Tree(GFlowNetEnv):
         """
         if state is None:
             state = self.state
-        state = state.tolist()
+        state = state.cpu().numpy()
         readable = ""
         for idx in range(self.n_nodes):
-            attributes = self._attributes_to_readable(self._get_attributes(idx, state))
+            attributes = self._attributes_to_readable(state[idx])
             readable += f"{idx}: {attributes} | "
         # Remove last " | "
         readable = readable[:-3]
@@ -671,26 +701,31 @@ class Tree(GFlowNetEnv):
         """
         Converts a human-readable representation of a state into the standard format.
         """
+        # TODO
         return readable
 
     @staticmethod
-    def _find_leaves(state: torch.Tensor) -> List[int]:
+    def _find_leaves(state: Optional[torch.Tensor] = None) -> List[int]:
         """
         Compute indices of leaves from a state.
         """
-        leaves = [x.item() for x in torch.where(state[1::5] == NodeType.CLASSIFIER)[0]]
-
-        return leaves
+        if state is None:
+            state = self.state
+        return torch.where(state[:-1, Attribute.TYPE] == NodeType.CLASSIFIER)[
+            0
+        ].tolist()
 
     @staticmethod
-    def _find_active(state: torch.Tensor) -> int:
+    def _find_active(state: Optional[torch.Tensor] = None) -> int:
         """
-        Compute index of the (only) active node. Assumes that active node exists
+        Get index of the (only) active node. Assumes that active node exists
         (that we are in the middle of a macro step).
         """
-        k = torch.where(state[N_ATTRIBUTES::N_ATTRIBUTES] == Status.ACTIVE)[0].item()
-
-        return k
+        if state is None:
+            state = self.state
+        active = torch.where(state[:-1, Attribute.ACTIVE] == Status.ACTIVE)[0]
+        assert len(active) == 1
+        return active.item()
 
     def get_policy_output(self, params: dict) -> TensorType["policy_output_dim"]:
         """
@@ -747,7 +782,7 @@ class Tree(GFlowNetEnv):
         if done:
             return [True] * self.action_space_dim
 
-        stage = state[0]
+        stage = self._get_stage(state)
         mask = [True] * self.action_space_dim
 
         if stage == Stage.COMPLETE:
@@ -796,7 +831,7 @@ class Tree(GFlowNetEnv):
         if done:
             return [state], [self.eos]
 
-        stage = state[0]
+        stage = self._get_stage(state)
         parents = []
         actions = []
 
@@ -813,9 +848,9 @@ class Tree(GFlowNetEnv):
                     triplets.append((Tree._get_parent(k), k, k + 1))
             for k_parent, k_left, k_right in triplets:
                 parent = state.clone()
-                attributes_parent = self._get_attributes(k_parent, parent)
-                attributes_left = self._get_attributes(k_left, parent)
-                attributes_right = self._get_attributes(k_right, parent)
+                attributes_parent = parent[k_parent]
+                attributes_left = parent[k_left]
+                attributes_right = parent[k_right]
 
                 # Set action operator as class of left child
                 action = (
@@ -825,7 +860,7 @@ class Tree(GFlowNetEnv):
 
                 # Revert stage (to "threshold": we skip "operator" because from it,
                 # finalizing splitting should be automatically executed).
-                parent[0] = Stage.THRESHOLD
+                parent = self._set_state(Stage.THRESHOLD, parent)
 
                 # Reset children attributes.
                 attributes_left[:] = torch.nan
@@ -844,9 +879,9 @@ class Tree(GFlowNetEnv):
                 # Reverse self._pick_leaf.
                 for output in [0, 1]:
                     parent = state.clone()
-                    attributes = self._get_attributes(k, parent)
+                    attributes = parent[k]
 
-                    parent[0] = Stage.COMPLETE
+                    parent = self._set_stage(Stage.COMPLETE, parent)
                     attributes[0] = NodeType.CLASSIFIER
                     attributes[1:3] = -1
                     attributes[3] = output
@@ -857,21 +892,19 @@ class Tree(GFlowNetEnv):
             elif stage == Stage.FEATURE:
                 # Reverse self._pick_feature.
                 parent = state.clone()
-                attributes = self._get_attributes(k, parent)
+                attributes = parent[k]
 
-                parent[0] = Stage.LEAF
+                parent = self._set_stage(Stage.LEAF, parent)
                 attributes[1] = -1
 
                 parents.append(parent)
-                actions.append(
-                    (ActionType.PICK_FEATURE, self._get_attributes(k)[1].item())
-                )
+                actions.append((ActionType.PICK_FEATURE, self.state[k][1].item()))
             elif stage == Stage.THRESHOLD:
                 # Reverse self._pick_threshold.
                 parent = state.clone()
-                attributes = self._get_attributes(k, parent)
+                attributes = parent[k]
 
-                parent[0] = Stage.FEATURE
+                parent = self._set_stage(Stage.FEATURE, parent)
                 attributes[2] = -1
 
                 parents.append(parent)
@@ -896,7 +929,7 @@ class Tree(GFlowNetEnv):
         return super().action2index(action)
 
     def get_max_traj_length(self) -> int:
-        return self.n_nodes * N_ATTRIBUTES
+        return self.n_nodes * Attribute.N
 
     def _get_graph(self, graph: Optional[nx.DiGraph] = None, k: int = 0) -> nx.DiGraph:
         """
@@ -905,17 +938,17 @@ class Tree(GFlowNetEnv):
         if graph is None:
             graph = nx.DiGraph()
 
-        attributes = self._get_attributes(k)
+        attributes = self.state[k]
         graph.add_node(k, x=attributes)
 
         if attributes[0] != NodeType.CLASSIFIER:
             k_left = Tree._get_left_child(k)
-            if not torch.any(torch.isnan(self._get_attributes(k_left))):
+            if not torch.any(torch.isnan(self.state[k_left])):
                 self._get_graph(graph, k=k_left)
                 graph.add_edge(k, k_left)
 
             k_right = Tree._get_right_child(k)
-            if not torch.any(torch.isnan(self._get_attributes(k_right))):
+            if not torch.any(torch.isnan(self.state[k_right])):
                 self._get_graph(graph, k=k_right)
                 graph.add_edge(k, k_right)
 
@@ -956,7 +989,7 @@ class Tree(GFlowNetEnv):
         Recursively predict output label given a feature vector x
         of a single observation.
         """
-        attributes = self._get_attributes(k)
+        attributes = self.state[k]
 
         if attributes[0] == NodeType.CLASSIFIER:
             return attributes[3]
