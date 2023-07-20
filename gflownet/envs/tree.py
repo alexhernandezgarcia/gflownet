@@ -104,7 +104,7 @@ class Tree(GFlowNetEnv):
     as a macro step is not in progress, the tree constructed so far is always a
     valid decision tree, which means that forward-looking loss etc. can be used.
 
-    Internally, the tree is represented as a fixed-size tensor (thus, specifying
+    Internally, the tree is represented as a fixed-shape tensor (thus, specifying
     the maximum depth is required), with nodes indexed from k = 0 to 2**max_depth - 2,
     and each node containing a 5-element attribute tensor (see _get_attributes for
     details). The nodes are indexed from top left to bottom right, as follows:
@@ -112,6 +112,10 @@ class Tree(GFlowNetEnv):
                 0
         1               2
     3       4       5       6
+
+    States are represented by a tensor with shape [n_nodes + 1, 5], where each row k-th
+    corresponds to the attributes of the k-th node of the tree. The last row contains
+    the information about the stage of the tree (see class Stage).
     """
 
     def __init__(
@@ -181,13 +185,13 @@ class Tree(GFlowNetEnv):
         # 1 + N_ATTRIBUTES * (2**max_depth - 1) values. The root (0-th node) of the
         # source is initialized with a classifier.
         self.n_nodes = 2**max_depth - 1
-        self.source = torch.full((N_ATTRIBUTES * self.n_nodes + 1,), torch.nan)
-        self.source[0] = Stage.COMPLETE
-        attributes_0th = self._get_attributes(0, self.source)
-        attributes_0th[0] = NodeType.CLASSIFIER
-        attributes_0th[1:3] = -1
-        attributes_0th[3] = Counter(self.y).most_common()[0][0]
-        attributes_0th[4] = Status.INACTIVE
+        self.source = torch.full((self.n_nodes + 1, N_ATTRIBUTES), torch.nan)
+        self.source[-1, 0] = Stage.COMPLETE
+        attributes_root = self.source[0, :]
+        attributes_root[0] = NodeType.CLASSIFIER
+        attributes_root[1:3] = -1
+        attributes_root[3] = Counter(self.y).most_common()[0][0]
+        attributes_root[4] = Status.INACTIVE
         self.leaves.add(0)
 
         # End-of-sequence action.
