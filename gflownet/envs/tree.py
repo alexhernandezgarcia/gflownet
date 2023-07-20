@@ -91,7 +91,16 @@ class ActionType:
 
 class Attribute:
     """
-    Types of attributes defining each node of the tree
+    Types of attributes defining each node of the tree:
+
+        0 - node type (condition or classifier),
+        1 - index of the feature used for splitting (condition node only, -1 otherwise),
+        2 - decision threshold (condition node only, -1 otherwise),
+        3 - class output (classifier node only, -1 otherwise), in the case of < operator
+            the left child will have class = 0, and the right child will have class = 1;
+            the opposite for the >= operator,
+        4 - whether the node has active status (1 if node was picked and the macro step
+            didn't finish yet, 0 otherwise).
     """
 
     TYPE = 0
@@ -115,7 +124,7 @@ class Tree(GFlowNetEnv):
 
     Internally, the tree is represented as a fixed-shape tensor (thus, specifying
     the maximum depth is required), with nodes indexed from k = 0 to 2**max_depth - 2,
-    and each node containing a 5-element attribute tensor (see _get_attributes for
+    and each node containing a 5-element attribute tensor (see class Attribute for
     details). The nodes are indexed from top left to bottom right, as follows:
 
                 0
@@ -220,13 +229,6 @@ class Tree(GFlowNetEnv):
         )
 
     @staticmethod
-    def _get_start_end(k: int) -> Tuple[int, int]:
-        """
-        Get start and end index of attribute tensor encoding k-th node in self.state.
-        """
-        return k * Attribute.N + 1, (k + 1) * Attribute.N + 1
-
-    @staticmethod
     def _get_parent(k: int) -> Optional[int]:
         """
         Get node index of a parent of k-th node.
@@ -248,27 +250,6 @@ class Tree(GFlowNetEnv):
         Get node index of a right child of k-th node.
         """
         return 2 * k + 2
-
-    def _get_attributes(
-        self, k: int, state: Optional[Union[torch.Tensor, List]] = None
-    ) -> torch.Tensor:
-        """
-        Returns a 5-element tensor of attributes for k-th node. The encoded values are:
-        0 - node type (condition or classifier),
-        1 - index of the feature used for splitting (condition node only, -1 otherwise),
-        2 - decision threshold (condition node only, -1 otherwise),
-        3 - class output (classifier node only, -1 otherwise), in the case of < operator
-            the left child will have class = 0, and the right child will have class = 1;
-            the opposite for the >= operator,
-        4 - whether the node has active status (1 if node was picked and the macro step
-            didn't finish yet, 0 otherwise).
-        """
-        if state is None:
-            state = self.state
-
-        st, en = Tree._get_start_end(k)
-
-        return state[st:en]
 
     def _get_stage(self, state: Optional[torch.Tensor] = None) -> int:
         """
