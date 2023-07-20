@@ -195,7 +195,7 @@ class Tree(GFlowNetEnv):
         # source is initialized with a classifier.
         self.n_nodes = 2**max_depth - 1
         self.source = torch.full((self.n_nodes + 1, Attribute.N), torch.nan)
-        self.source._set_stage(Stage.COMPLETE, self.source)
+        self._set_stage(Stage.COMPLETE, self.source)
         attributes_root = self.source[0]
         attributes_root[Attribute.TYPE] = NodeType.CLASSIFIER
         attributes_root[Attribute.FEATURE] = -1
@@ -862,7 +862,7 @@ class Tree(GFlowNetEnv):
 
                 # Revert stage (to "threshold": we skip "operator" because from it,
                 # finalizing splitting should be automatically executed).
-                parent = self._set_state(Stage.THRESHOLD, parent)
+                parent = self._set_stage(Stage.THRESHOLD, parent)
 
                 # Reset children attributes.
                 attributes_left[:] = torch.nan
