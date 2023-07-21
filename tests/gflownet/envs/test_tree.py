@@ -81,9 +81,16 @@ def test__node_tree__has_expected_node_attributes(tree):
 
 
 @pytest.fixture
-def tree_d1(X, y):
+def tree_d2(X, y):
     return Tree(
         X=np.array([[1, 2], [3, 4], [5, 6]]), y=np.array([0, 0, 1]), max_depth=2
+    )
+
+
+@pytest.fixture
+def tree_d3(X, y):
+    return Tree(
+        X=np.array([[1, 2], [3, 4], [5, 6]]), y=np.array([0, 0, 1]), max_depth=3
     )
 
 
@@ -153,26 +160,121 @@ def state_action_are_in_parents(env, state, action):
     ],
 )
 def test__steps__behaves_as_expected(
-    tree_d1, source, a0, s1, a1, s2, a2, s3, a3, s4, a4, s5
+    tree_d2, source, a0, s1, a1, s2, a2, s3, a3, s4, a4, s5
 ):
-    source = tfloat(source, float_type=tree_d1.float, device=tree_d1.device)
-    assert tree_d1.equal(tree_d1.source, source)
+    source = tfloat(source, float_type=tree_d2.float, device=tree_d2.device)
+    assert tree_d2.equal(tree_d2.source, source)
     # Action 0, state 1
-    step_return_expected(tree_d1, a0, s1, True)
-    state_action_are_in_parents(tree_d1, source, a0)
+    step_return_expected(tree_d2, a0, s1, True)
+    state_action_are_in_parents(tree_d2, source, a0)
     # Action 1, state 2
-    step_return_expected(tree_d1, a1, s2, True)
-    state_action_are_in_parents(tree_d1, s1, a1)
+    step_return_expected(tree_d2, a1, s2, True)
+    state_action_are_in_parents(tree_d2, s1, a1)
     # Action 2, state 3
-    step_return_expected(tree_d1, a2, s3, True)
-    state_action_are_in_parents(tree_d1, s2, a2)
+    step_return_expected(tree_d2, a2, s3, True)
+    state_action_are_in_parents(tree_d2, s2, a2)
     # Action 3, state 4
-    step_return_expected(tree_d1, a3, s4, True)
-    state_action_are_in_parents(tree_d1, s3, a3)
+    step_return_expected(tree_d2, a3, s4, True)
+    state_action_are_in_parents(tree_d2, s3, a3)
     # Action 4, state 5
-    step_return_expected(tree_d1, a4, s5, True)
-    state_action_are_in_parents(tree_d1, s4, a4)
-    assert tree_d1.done is True
+    step_return_expected(tree_d2, a4, s5, True)
+    state_action_are_in_parents(tree_d2, s4, a4)
+    assert tree_d2.done is True
+
+
+@pytest.mark.parametrize(
+    "source, a0, s1, a1, s2, a2, s3, a3, s4, a4, s5",
+    [
+        (
+            [
+                [NodeType.CLASSIFIER, -1, -1, 0, Status.INACTIVE],
+                [NAN, NAN, NAN, NAN, NAN],
+                [NAN, NAN, NAN, NAN, NAN],
+                [NAN, NAN, NAN, NAN, NAN],
+                [NAN, NAN, NAN, NAN, NAN],
+                [NAN, NAN, NAN, NAN, NAN],
+                [NAN, NAN, NAN, NAN, NAN],
+                [Stage.COMPLETE, NAN, NAN, NAN, NAN],
+            ],
+            (ActionType.PICK_LEAF, 0),
+            [
+                [NodeType.CONDITION, -1, -1, -1, Status.ACTIVE],
+                [NAN, NAN, NAN, NAN, NAN],
+                [NAN, NAN, NAN, NAN, NAN],
+                [NAN, NAN, NAN, NAN, NAN],
+                [NAN, NAN, NAN, NAN, NAN],
+                [NAN, NAN, NAN, NAN, NAN],
+                [NAN, NAN, NAN, NAN, NAN],
+                [Stage.LEAF, NAN, NAN, NAN, NAN],
+            ],
+            (ActionType.PICK_FEATURE, 1),
+            [
+                [NodeType.CONDITION, 1, -1, -1, Status.ACTIVE],
+                [NAN, NAN, NAN, NAN, NAN],
+                [NAN, NAN, NAN, NAN, NAN],
+                [NAN, NAN, NAN, NAN, NAN],
+                [NAN, NAN, NAN, NAN, NAN],
+                [NAN, NAN, NAN, NAN, NAN],
+                [NAN, NAN, NAN, NAN, NAN],
+                [Stage.FEATURE, NAN, NAN, NAN, NAN],
+            ],
+            (ActionType.PICK_THRESHOLD, 0.2),
+            [
+                [NodeType.CONDITION, 1, 0.2, -1, Status.ACTIVE],
+                [NAN, NAN, NAN, NAN, NAN],
+                [NAN, NAN, NAN, NAN, NAN],
+                [NAN, NAN, NAN, NAN, NAN],
+                [NAN, NAN, NAN, NAN, NAN],
+                [NAN, NAN, NAN, NAN, NAN],
+                [NAN, NAN, NAN, NAN, NAN],
+                [Stage.THRESHOLD, NAN, NAN, NAN, NAN],
+            ],
+            (ActionType.PICK_OPERATOR, Operator.LT),
+            [
+                [NodeType.CONDITION, 1, 0.2, -1, Status.INACTIVE],
+                [NodeType.CLASSIFIER, -1, -1, 0, Status.INACTIVE],
+                [NodeType.CLASSIFIER, -1, -1, 1, Status.INACTIVE],
+                [NAN, NAN, NAN, NAN, NAN],
+                [NAN, NAN, NAN, NAN, NAN],
+                [NAN, NAN, NAN, NAN, NAN],
+                [NAN, NAN, NAN, NAN, NAN],
+                [Stage.COMPLETE, NAN, NAN, NAN, NAN],
+            ],
+            (-1, -1),
+            [
+                [NodeType.CONDITION, 1, 0.2, -1, Status.INACTIVE],
+                [NodeType.CLASSIFIER, -1, -1, 0, Status.INACTIVE],
+                [NodeType.CLASSIFIER, -1, -1, 1, Status.INACTIVE],
+                [NAN, NAN, NAN, NAN, NAN],
+                [NAN, NAN, NAN, NAN, NAN],
+                [NAN, NAN, NAN, NAN, NAN],
+                [NAN, NAN, NAN, NAN, NAN],
+                [Stage.COMPLETE, NAN, NAN, NAN, NAN],
+            ],
+        ),
+    ],
+)
+def test__steps__behaves_as_expected(
+    tree_d3, source, a0, s1, a1, s2, a2, s3, a3, s4, a4, s5
+):
+    source = tfloat(source, float_type=tree_d3.float, device=tree_d3.device)
+    assert tree_d3.equal(tree_d3.source, source)
+    # Action 0, state 1
+    step_return_expected(tree_d3, a0, s1, True)
+    state_action_are_in_parents(tree_d3, source, a0)
+    # Action 1, state 2
+    step_return_expected(tree_d3, a1, s2, True)
+    state_action_are_in_parents(tree_d3, s1, a1)
+    # Action 2, state 3
+    step_return_expected(tree_d3, a2, s3, True)
+    state_action_are_in_parents(tree_d3, s2, a2)
+    # Action 3, state 4
+    step_return_expected(tree_d3, a3, s4, True)
+    state_action_are_in_parents(tree_d3, s3, a3)
+    # Action 4, state 5
+    step_return_expected(tree_d3, a4, s5, True)
+    state_action_are_in_parents(tree_d3, s4, a4)
+    assert tree_d3.done is True
 
 
 @pytest.fixture
