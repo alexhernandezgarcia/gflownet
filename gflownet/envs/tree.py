@@ -200,7 +200,7 @@ class Tree(GFlowNetEnv):
         self.components = threshold_components
         self.beta_params_min = beta_params_min
         self.beta_params_max = beta_params_max
-        # Source will contain information about the current stage (on the 0-th position),
+        # Source will contain information about the current stage (on the last position),
         # and up to 2**max_depth - 1 nodes, each with Attribute.N attributes, for a total of
         # 1 + Attribute.N * (2**max_depth - 1) values. The root (0-th node) of the
         # source is initialized with a classifier.
