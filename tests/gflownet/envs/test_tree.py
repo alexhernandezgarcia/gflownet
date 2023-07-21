@@ -69,15 +69,15 @@ def test__predict__has_expected_output(tree, x, output):
 
 
 def test__node_tree__has_expected_node_attributes(tree):
-    assert np.allclose(tree._get_attributes(0), [NodeType.CONDITION, 0, 0.5, -1, 0])
-    assert np.allclose(tree._get_attributes(1), [NodeType.CLASSIFIER, -1, -1, 0, 0])
-    assert np.allclose(tree._get_attributes(2), [NodeType.CONDITION, 1, 0.3, -1, 0])
-    assert torch.all(torch.isnan(tree._get_attributes(3)))
-    assert torch.all(torch.isnan(tree._get_attributes(4)))
-    assert np.allclose(tree._get_attributes(5), [NodeType.CLASSIFIER, -1, -1, 1, 0])
-    assert np.allclose(tree._get_attributes(6), [NodeType.CONDITION, 2, 0.7, -1, 0])
-    assert np.allclose(tree._get_attributes(13), [NodeType.CLASSIFIER, -1, -1, 0, 0])
-    assert np.allclose(tree._get_attributes(14), [NodeType.CLASSIFIER, -1, -1, 1, 0])
+    assert np.allclose(tree.state[0], [NodeType.CONDITION, 0, 0.5, -1, 0])
+    assert np.allclose(tree.state[1], [NodeType.CLASSIFIER, -1, -1, 0, 0])
+    assert np.allclose(tree.state[2], [NodeType.CONDITION, 1, 0.3, -1, 0])
+    assert torch.all(torch.isnan(tree.state[3]))
+    assert torch.all(torch.isnan(tree.state[4]))
+    assert np.allclose(tree.state[5], [NodeType.CLASSIFIER, -1, -1, 1, 0])
+    assert np.allclose(tree.state[6], [NodeType.CONDITION, 2, 0.7, -1, 0])
+    assert np.allclose(tree.state[13], [NodeType.CLASSIFIER, -1, -1, 0, 0])
+    assert np.allclose(tree.state[14], [NodeType.CLASSIFIER, -1, -1, 1, 0])
 
 
 @pytest.fixture
@@ -109,117 +109,45 @@ def state_action_are_in_parents(env, state, action):
     [
         (
             [
-                Stage.COMPLETE,
-                NodeType.CLASSIFIER,
-                -1,
-                -1,
-                0,
-                Status.INACTIVE,
-                NAN,
-                NAN,
-                NAN,
-                NAN,
-                NAN,
-                NAN,
-                NAN,
-                NAN,
-                NAN,
-                NAN,
+                [NodeType.CLASSIFIER, -1, -1, 0, Status.INACTIVE],
+                [NAN, NAN, NAN, NAN, NAN],
+                [NAN, NAN, NAN, NAN, NAN],
+                [Stage.COMPLETE, NAN, NAN, NAN, NAN],
             ],
             (ActionType.PICK_LEAF, 0),
             [
-                Stage.LEAF,
-                NodeType.CONDITION,
-                -1,
-                -1,
-                -1,
-                Status.ACTIVE,
-                NAN,
-                NAN,
-                NAN,
-                NAN,
-                NAN,
-                NAN,
-                NAN,
-                NAN,
-                NAN,
-                NAN,
+                [NodeType.CONDITION, -1, -1, -1, Status.ACTIVE],
+                [NAN, NAN, NAN, NAN, NAN],
+                [NAN, NAN, NAN, NAN, NAN],
+                [Stage.LEAF, NAN, NAN, NAN, NAN],
             ],
             (ActionType.PICK_FEATURE, 1),
             [
-                Stage.FEATURE,
-                NodeType.CONDITION,
-                1,
-                -1,
-                -1,
-                Status.ACTIVE,
-                NAN,
-                NAN,
-                NAN,
-                NAN,
-                NAN,
-                NAN,
-                NAN,
-                NAN,
-                NAN,
-                NAN,
+                [NodeType.CONDITION, 1, -1, -1, Status.ACTIVE],
+                [NAN, NAN, NAN, NAN, NAN],
+                [NAN, NAN, NAN, NAN, NAN],
+                [Stage.FEATURE, NAN, NAN, NAN, NAN],
             ],
             (ActionType.PICK_THRESHOLD, 0.2),
             [
-                Stage.THRESHOLD,
-                NodeType.CONDITION,
-                1,
-                0.2,
-                -1,
-                Status.ACTIVE,
-                NAN,
-                NAN,
-                NAN,
-                NAN,
-                NAN,
-                NAN,
-                NAN,
-                NAN,
-                NAN,
-                NAN,
+                [NodeType.CONDITION, 1, 0.2, -1, Status.ACTIVE],
+                [NAN, NAN, NAN, NAN, NAN],
+                [NAN, NAN, NAN, NAN, NAN],
+                [Stage.THRESHOLD, NAN, NAN, NAN, NAN],
             ],
             (ActionType.PICK_OPERATOR, Operator.LT),
             [
-                Stage.COMPLETE,
-                NodeType.CONDITION,
-                1,
-                0.2,
-                -1,
-                Status.INACTIVE,
-                NodeType.CLASSIFIER,
-                -1,
-                -1,
-                0,
-                Status.INACTIVE,
-                NodeType.CLASSIFIER,
-                -1,
-                -1,
-                1,
-                Status.INACTIVE,
+                [NodeType.CONDITION, 1, 0.2, -1, Status.INACTIVE],
+                [NodeType.CLASSIFIER, -1, -1, 0, Status.INACTIVE],
+                [NodeType.CLASSIFIER, -1, -1, 1, Status.INACTIVE],
+                [Stage.COMPLETE, NAN, NAN, NAN, NAN],
             ],
             (-1, -1),
             [
-                Stage.COMPLETE,
-                NodeType.CONDITION,
-                1,
-                0.2,
-                -1,
-                Status.INACTIVE,
-                NodeType.CLASSIFIER,
-                -1,
-                -1,
-                0,
-                Status.INACTIVE,
-                NodeType.CLASSIFIER,
-                -1,
-                -1,
-                1,
-                Status.INACTIVE,
+                [NodeType.CONDITION, 1, 0.2, -1, Status.INACTIVE],
+                [NodeType.CLASSIFIER, -1, -1, 0, Status.INACTIVE],
+                [NodeType.CLASSIFIER, -1, -1, 1, Status.INACTIVE],
+                [Stage.COMPLETE, NAN, NAN, NAN, NAN],
             ],
         ),
     ],
