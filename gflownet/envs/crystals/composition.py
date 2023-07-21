@@ -12,6 +12,8 @@ from torchtyping import TensorType
 
 from gflownet.envs.base import GFlowNetEnv
 from gflownet.utils.crystals.constants import ELEMENT_NAMES, OXIDATION_STATES
+from gflownet.utils.crystals.pyxtal_cache import (get_space_group,
+                                                  space_group_check_compatible)
 
 
 class Composition(GFlowNetEnv):
@@ -166,7 +168,7 @@ class Composition(GFlowNetEnv):
         n_used_atoms = sum(state)
 
         if self.do_spacegroup_check and isinstance(self.space_group, int):
-            space_group = Group(self.space_group)
+            space_group = get_space_group(self.space_group)
 
             # Determine, based on the space group's Wyckoff's positions, what
             # is the min/max number of atoms of a given element that could be
@@ -178,7 +180,7 @@ class Composition(GFlowNetEnv):
             # Determine if the current composition is compatible with the
             # space group
             n_atoms = [s for s in state if s > 0]
-            sg_compatible = all(Group(self.space_group).check_compatible(n_atoms))
+            sg_compatible = space_group_check_compatible(self.space_group, n_atoms)
         else:
             # Don't impose additional constraints on the min/max number of
             # atoms per element
@@ -231,8 +233,7 @@ class Composition(GFlowNetEnv):
         # maximum number of elements or atoms
         unrequired_element_allowed = (
             n_max_unrequired_elements_left > 0
-            and min_atoms_per_required_element * n_unused_required_elements
-            + min_atom_i
+            and min_atoms_per_required_element * n_unused_required_elements + min_atom_i
             < nb_atoms_still_allowed
         )
 
@@ -247,7 +248,7 @@ class Composition(GFlowNetEnv):
             # Unrequired elements are optional so there is no minium amount to add for
             # them and the maximum is only as high as possible without preventing the
             # addition of the required elements later
-            min_atoms_per_unrequired_element = 0
+            min_atoms_per_unrequired_element = min_atom_i
             max_atoms_per_unrequired_element = min(
                 nb_atoms_still_allowed
                 - min_atoms_per_required_element * n_unused_required_elements,
@@ -265,7 +266,9 @@ class Composition(GFlowNetEnv):
         if any(r not in used_elements for r in self.required_elements):
             mask[-1] = True
         if not sg_compatible:
-            mask[-1] = True
+            # The current composition is incompatible with the space group,
+            # we must allow EOS to end the trajectory.
+            mask[-1] = False
 
         # Obtain action mask for each category of element
         def get_element_mask(min_atoms, max_atoms):
@@ -280,6 +283,66 @@ class Composition(GFlowNetEnv):
         mask_unrequired_element = get_element_mask(
             min_atoms_per_unrequired_element, max_atoms_per_unrequired_element
         )
+
+        # If required, refine the masks by doing compatibility checks between
+        # the space group and the number of atoms
+        if self.do_spacegroup_check and isinstance(self.space_group, int):
+            space_group = get_space_group(self.space_group)
+            n_atoms = [s for s in state if s > 0]
+
+            # Get the multiplicity of the group's most specific fixed wyckoff position
+            fixed_multiplicity = space_group.get_wyckoff_position(-1).multiplicity
+
+            # Get the multiplicity of the group's most specific wyckoff position with
+            # at least one degree of freedom
+            free_multiplicity = None
+            for wyckoff_idx in range(1, len(space_group.wyckoffs) + 1):
+                wyckoff_position = space_group.get_wyckoff_position(-wyckoff_idx)
+                if wyckoff_position.get_dof() > 0:
+                    free_multiplicity = wyckoff_position.multiplicity
+                    break
+
+            # Go through each action in the masks, validating them
+            # individually
+            for action_idx, nb_atoms_action in enumerate(
+                range(self.min_atom_i, self.max_atom_i + 1)
+            ):
+                if (
+                    not mask_required_element[action_idx]
+                    or not mask_unrequired_element[action_idx]
+                ):
+                    # If the number of atoms added by this action is not a
+                    # multiple of the most specific wyckoff position, mark
+                    # action as invalid
+                    if nb_atoms_action % fixed_multiplicity != 0:
+                        mask_required_element[action_idx] = True
+                        mask_unrequired_element[action_idx] = True
+                        continue
+
+                    # If the number of atoms added by this action is a
+                    # multiple of a non-specific wyckoff position, nothing
+                    # prevents it from being valid
+                    if nb_atoms_action % free_multiplicity == 0:
+                        continue
+
+                    # Checking validity by induction. If a composition is
+                    # valid, adding a number of atoms is equal to the
+                    # multiplicity of a non-specific position, then this
+                    # action must also be valid.
+                    if nb_atoms_action > free_multiplicity and (
+                        not mask_required_element[action_idx - free_multiplicity]
+                        or not mask_unrequired_element[action_idx - free_multiplicity]
+                    ):
+                        continue
+
+                    # If the composition resulting from this action is
+                    # incompatible with the space group, mark action as
+                    # invalid
+                    n_atoms_post_action = n_atoms + [nb_atoms_action]
+                    sg_compatible = space_group_check_compatible(self.space_group, n_atoms_post_action)
+                    if not sg_compatible:
+                        mask_required_element[action_idx] = True
+                        mask_unrequired_element[action_idx] = True
 
         # Set action mask for each element
         nb_actions_per_element = self.max_atom_i - self.min_atom_i + 1
