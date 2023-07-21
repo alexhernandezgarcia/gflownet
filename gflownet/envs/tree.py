@@ -91,6 +91,8 @@ class ActionType:
 
 class Attribute:
     """
+    Contains indices of individual attributes in a state tensor.
+    
     Types of attributes defining each node of the tree:
 
         0 - node type (condition or classifier),
