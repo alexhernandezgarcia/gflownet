@@ -131,7 +131,7 @@ class Tree(GFlowNetEnv):
         1               2
     3       4       5       6
 
-    States are represented by a tensor with shape [n_nodes + 1, 5], where each row k-th
+    States are represented by a tensor with shape [n_nodes + 1, 5], where each k-th row
     corresponds to the attributes of the k-th node of the tree. The last row contains
     the information about the stage of the tree (see class Stage).
     """
