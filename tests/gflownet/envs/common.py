@@ -115,14 +115,17 @@ def test__sample_backwards_reaches_source(env, n=100):
 def test__state_conversions_are_reversible(env):
     env = env.reset()
     while not env.done:
-        state = env.state
+        state = copy(env.state)
         if env.policy2state(env.state2policy(state)) is not None:
             if torch.is_tensor(state):
                 assert torch.equal(state, env.policy2state(env.state2policy(state)))
             else:
                 assert state == env.policy2state(env.state2policy(state))
+        state = copy(env.state)
         for el1, el2 in zip(state, env.readable2state(env.state2readable(state))):
             if torch.is_tensor(state):
+                if not torch.all(torch.isclose(el1, el2)):
+                    import ipdb; ipdb.set_trace()
                 assert torch.all(torch.isclose(el1, el2))
             else:
                 assert np.isclose(el1, el2)
