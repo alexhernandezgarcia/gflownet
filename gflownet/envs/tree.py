@@ -92,7 +92,7 @@ class ActionType:
 class Attribute:
     """
     Contains indices of individual attributes in a state tensor.
-    
+
     Types of attributes defining each node of the tree:
 
         0 - node type (condition or classifier),
@@ -195,7 +195,6 @@ class Tree(GFlowNetEnv):
         self.y = self.y.astype(int)
         self.n_features = self.X.shape[1]
         self.max_depth = max_depth
-        self.leaves = set()
         # Parameters of the policy distribution
         self.components = threshold_components
         self.beta_params_min = beta_params_min
@@ -213,7 +212,6 @@ class Tree(GFlowNetEnv):
         attributes_root[Attribute.THRESHOLD] = -1
         attributes_root[Attribute.CLASS] = Counter(self.y).most_common()[0][0]
         attributes_root[Attribute.ACTIVE] = Status.INACTIVE
-        self.leaves.add(0)
 
         # End-of-sequence action.
         self.eos = (-1, -1)
@@ -377,7 +375,6 @@ class Tree(GFlowNetEnv):
         attributes[Attribute.CLASS] = -1
         attributes[Attribute.ACTIVE] = Status.INACTIVE
 
-        self.leaves.remove(k)
         self._set_stage(Stage.COMPLETE)
 
     def _insert_classifier(self, k: int, output: int) -> None:
@@ -393,8 +390,6 @@ class Tree(GFlowNetEnv):
         attributes[Attribute.THRESHOLD] = -1
         attributes[Attribute.CLASS] = output
         attributes[Attribute.ACTIVE] = Status.INACTIVE
-
-        self.leaves.add(k)
 
     def get_action_space(self) -> List[Tuple[int, int]]:
         """
@@ -492,6 +487,21 @@ class Tree(GFlowNetEnv):
         else:
             self.done = True
             return self.state, action, True
+
+    def set_state(self, state: List, done: Optional[bool] = False):
+        """
+        Sets the state and done. If done is True but incompatible with state (Stage is
+        not COMPLETE), then force done False and print warning.
+        """
+        if done is True and self._get_stage() != Stage.COMPLETE:
+            done = False
+            warnings.warn(
+                f"""
+            Attempted to set state {self.state2readable(state)} with done = True, which
+            is not compatible with the environment. Forcing done = False.
+            """
+            )
+        return super().set_state(state, done)
 
     def sample_actions(
         self,
@@ -758,15 +768,13 @@ class Tree(GFlowNetEnv):
     ) -> List[bool]:
         if state is None:
             state = self.state
-            leaves = self.leaves
-        else:
-            leaves = Tree._find_leaves(state)
         if done is None:
             done = self.done
 
         if done:
             return [True] * self.action_space_dim
 
+        leaves = Tree._find_leaves(state)
         stage = self._get_stage(state)
         mask = [True] * self.action_space_dim
 
@@ -807,15 +815,13 @@ class Tree(GFlowNetEnv):
     ) -> Tuple[List, List]:
         if state is None:
             state = self.state
-            leaves = self.leaves
-        else:
-            leaves = Tree._find_leaves(state)
         if done is None:
             done = self.done
 
         if done:
             return [state], [self.eos]
 
+        leaves = Tree._find_leaves(state)
         stage = self._get_stage(state)
         parents = []
         actions = []
