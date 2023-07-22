@@ -240,16 +240,16 @@ def test__steps__behaves_as_expected(
                 [NAN, NAN, NAN, NAN, NAN],
                 [Stage.COMPLETE, NAN, NAN, NAN, NAN],
             ],
-            (-1, -1),
+            (0, 2),
             [
                 [NodeType.CONDITION, 1, 0.2, -1, Status.INACTIVE],
                 [NodeType.CLASSIFIER, -1, -1, 0, Status.INACTIVE],
-                [NodeType.CLASSIFIER, -1, -1, 1, Status.INACTIVE],
+                [NodeType.CONDITION, -1, -1, -1, Status.ACTIVE],
                 [NAN, NAN, NAN, NAN, NAN],
                 [NAN, NAN, NAN, NAN, NAN],
                 [NAN, NAN, NAN, NAN, NAN],
                 [NAN, NAN, NAN, NAN, NAN],
-                [Stage.COMPLETE, NAN, NAN, NAN, NAN],
+                [Stage.LEAF, NAN, NAN, NAN, NAN],
             ],
         ),
     ],
@@ -274,7 +274,285 @@ def test__steps__behaves_as_expected(
     # Action 4, state 5
     step_return_expected(tree_d3, a4, s5, True)
     state_action_are_in_parents(tree_d3, s4, a4)
-    assert tree_d3.done is True
+
+
+# Action space
+# [(0, 0), (0, 1), (0, 2), (0, 3), (0, 4), (0, 5), (0, 6),
+#  (1, 0), (1, 1),
+#  (2, -1),
+#  (3, 0), (3, 1),
+#  (-1, -1)]
+@pytest.mark.parametrize(
+    "state, m_leaf_exp, m_feat_exp, m_th_exp, m_op_exp, m_eos_exp",
+    [
+        (
+            [
+                [NodeType.CLASSIFIER, -1, -1, 0, Status.INACTIVE],
+                [NAN, NAN, NAN, NAN, NAN],
+                [NAN, NAN, NAN, NAN, NAN],
+                [NAN, NAN, NAN, NAN, NAN],
+                [NAN, NAN, NAN, NAN, NAN],
+                [NAN, NAN, NAN, NAN, NAN],
+                [NAN, NAN, NAN, NAN, NAN],
+                [Stage.COMPLETE, NAN, NAN, NAN, NAN],
+            ],
+            [False, True, True, True, True, True, True],
+            [True, True],
+            [True],
+            [True, True],
+            [False],
+        ),
+        (
+            [
+                [NodeType.CONDITION, -1, -1, -1, Status.ACTIVE],
+                [NAN, NAN, NAN, NAN, NAN],
+                [NAN, NAN, NAN, NAN, NAN],
+                [NAN, NAN, NAN, NAN, NAN],
+                [NAN, NAN, NAN, NAN, NAN],
+                [NAN, NAN, NAN, NAN, NAN],
+                [NAN, NAN, NAN, NAN, NAN],
+                [Stage.LEAF, NAN, NAN, NAN, NAN],
+            ],
+            [True, True, True, True, True, True, True],
+            [False, False],
+            [True],
+            [True, True],
+            [True],
+        ),
+        (
+            [
+                [NodeType.CONDITION, 1, -1, -1, Status.ACTIVE],
+                [NAN, NAN, NAN, NAN, NAN],
+                [NAN, NAN, NAN, NAN, NAN],
+                [NAN, NAN, NAN, NAN, NAN],
+                [NAN, NAN, NAN, NAN, NAN],
+                [NAN, NAN, NAN, NAN, NAN],
+                [NAN, NAN, NAN, NAN, NAN],
+                [Stage.FEATURE, NAN, NAN, NAN, NAN],
+            ],
+            [True, True, True, True, True, True, True],
+            [True, True],
+            [False],
+            [True, True],
+            [True],
+        ),
+        (
+            [
+                [NodeType.CONDITION, 1, 0.2, -1, Status.ACTIVE],
+                [NAN, NAN, NAN, NAN, NAN],
+                [NAN, NAN, NAN, NAN, NAN],
+                [NAN, NAN, NAN, NAN, NAN],
+                [NAN, NAN, NAN, NAN, NAN],
+                [NAN, NAN, NAN, NAN, NAN],
+                [NAN, NAN, NAN, NAN, NAN],
+                [Stage.THRESHOLD, NAN, NAN, NAN, NAN],
+            ],
+            [True, True, True, True, True, True, True],
+            [True, True],
+            [True],
+            [False, False],
+            [True],
+        ),
+        (
+            [
+                [NodeType.CONDITION, 1, 0.2, -1, Status.INACTIVE],
+                [NodeType.CLASSIFIER, -1, -1, 0, Status.INACTIVE],
+                [NodeType.CLASSIFIER, -1, -1, 1, Status.INACTIVE],
+                [NAN, NAN, NAN, NAN, NAN],
+                [NAN, NAN, NAN, NAN, NAN],
+                [NAN, NAN, NAN, NAN, NAN],
+                [NAN, NAN, NAN, NAN, NAN],
+                [Stage.COMPLETE, NAN, NAN, NAN, NAN],
+            ],
+            [True, False, False, True, True, True, True],
+            [True, True],
+            [True],
+            [True, True],
+            [False],
+        ),
+        (
+            [
+                [NodeType.CONDITION, 1, 0.2, -1, Status.INACTIVE],
+                [NodeType.CLASSIFIER, -1, -1, 0, Status.INACTIVE],
+                [NodeType.CONDITION, -1, -1, -1, Status.ACTIVE],
+                [NAN, NAN, NAN, NAN, NAN],
+                [NAN, NAN, NAN, NAN, NAN],
+                [NAN, NAN, NAN, NAN, NAN],
+                [NAN, NAN, NAN, NAN, NAN],
+                [Stage.LEAF, NAN, NAN, NAN, NAN],
+            ],
+            [True, True, True, True, True, True, True],
+            [False, False],
+            [True],
+            [True, True],
+            [True],
+        ),
+    ],
+)
+def test__get_masks_forward__returns_expected(
+    tree_d3, state, m_leaf_exp, m_feat_exp, m_th_exp, m_op_exp, m_eos_exp
+):
+    state = tfloat(state, float_type=tree_d3.float, device=tree_d3.device)
+    mask = m_leaf_exp + m_feat_exp + m_th_exp + m_op_exp + m_eos_exp
+    tree_d3.set_state(state, done=False)
+    assert tree_d3.get_mask_invalid_actions_forward() == mask
+
+
+# Action space
+# [(0, 0), (0, 1), (0, 2), (0, 3), (0, 4), (0, 5), (0, 6),
+#  (1, 0), (1, 1),
+#  (2, -1),
+#  (3, 0), (3, 1),
+#  (-1, -1)]
+@pytest.mark.parametrize(
+    "state, m_leaf_exp, m_feat_exp, m_th_exp, m_op_exp, m_eos_exp",
+    [
+        (
+            [
+                [NodeType.CLASSIFIER, -1, -1, 0, Status.INACTIVE],
+                [NAN, NAN, NAN, NAN, NAN],
+                [NAN, NAN, NAN, NAN, NAN],
+                [NAN, NAN, NAN, NAN, NAN],
+                [NAN, NAN, NAN, NAN, NAN],
+                [NAN, NAN, NAN, NAN, NAN],
+                [NAN, NAN, NAN, NAN, NAN],
+                [Stage.COMPLETE, NAN, NAN, NAN, NAN],
+            ],
+            [True, True, True, True, True, True, True],
+            [True, True],
+            [True],
+            [True, True],
+            [True],
+        ),
+        (
+            [
+                [NodeType.CONDITION, -1, -1, -1, Status.ACTIVE],
+                [NAN, NAN, NAN, NAN, NAN],
+                [NAN, NAN, NAN, NAN, NAN],
+                [NAN, NAN, NAN, NAN, NAN],
+                [NAN, NAN, NAN, NAN, NAN],
+                [NAN, NAN, NAN, NAN, NAN],
+                [NAN, NAN, NAN, NAN, NAN],
+                [Stage.LEAF, NAN, NAN, NAN, NAN],
+            ],
+            [False, True, True, True, True, True, True],
+            [True, True],
+            [True],
+            [True, True],
+            [True],
+        ),
+        (
+            [
+                [NodeType.CONDITION, 1, -1, -1, Status.ACTIVE],
+                [NAN, NAN, NAN, NAN, NAN],
+                [NAN, NAN, NAN, NAN, NAN],
+                [NAN, NAN, NAN, NAN, NAN],
+                [NAN, NAN, NAN, NAN, NAN],
+                [NAN, NAN, NAN, NAN, NAN],
+                [NAN, NAN, NAN, NAN, NAN],
+                [Stage.FEATURE, NAN, NAN, NAN, NAN],
+            ],
+            [True, True, True, True, True, True, True],
+            [True, False],
+            [True],
+            [True, True],
+            [True],
+        ),
+        (
+            [
+                [NodeType.CONDITION, 1, 0.2, -1, Status.ACTIVE],
+                [NAN, NAN, NAN, NAN, NAN],
+                [NAN, NAN, NAN, NAN, NAN],
+                [NAN, NAN, NAN, NAN, NAN],
+                [NAN, NAN, NAN, NAN, NAN],
+                [NAN, NAN, NAN, NAN, NAN],
+                [NAN, NAN, NAN, NAN, NAN],
+                [Stage.THRESHOLD, NAN, NAN, NAN, NAN],
+            ],
+            [True, True, True, True, True, True, True],
+            [True, True],
+            [False],
+            [True, True],
+            [True],
+        ),
+        (
+            [
+                [NodeType.CONDITION, 1, 0.2, -1, Status.INACTIVE],
+                [NodeType.CLASSIFIER, -1, -1, 0, Status.INACTIVE],
+                [NodeType.CLASSIFIER, -1, -1, 1, Status.INACTIVE],
+                [NAN, NAN, NAN, NAN, NAN],
+                [NAN, NAN, NAN, NAN, NAN],
+                [NAN, NAN, NAN, NAN, NAN],
+                [NAN, NAN, NAN, NAN, NAN],
+                [Stage.COMPLETE, NAN, NAN, NAN, NAN],
+            ],
+            [True, True, True, True, True, True, True],
+            [True, True],
+            [True],
+            [False, True],
+            [True],
+        ),
+        (
+            [
+                [NodeType.CONDITION, 1, 0.2, -1, Status.INACTIVE],
+                [NodeType.CLASSIFIER, -1, -1, 0, Status.INACTIVE],
+                [NodeType.CLASSIFIER, -1, -1, 1, Status.INACTIVE],
+                [NAN, NAN, NAN, NAN, NAN],
+                [NAN, NAN, NAN, NAN, NAN],
+                [NAN, NAN, NAN, NAN, NAN],
+                [NAN, NAN, NAN, NAN, NAN],
+                [Stage.COMPLETE, NAN, NAN, NAN, NAN],
+            ],
+            [True, True, True, True, True, True, True],
+            [True, True],
+            [True],
+            [True, True],
+            [False],
+        ),
+        (
+            [
+                [NodeType.CONDITION, 1, 0.2, -1, Status.INACTIVE],
+                [NodeType.CLASSIFIER, -1, -1, 0, Status.INACTIVE],
+                [NodeType.CONDITION, -1, -1, -1, Status.ACTIVE],
+                [NAN, NAN, NAN, NAN, NAN],
+                [NAN, NAN, NAN, NAN, NAN],
+                [NAN, NAN, NAN, NAN, NAN],
+                [NAN, NAN, NAN, NAN, NAN],
+                [Stage.LEAF, NAN, NAN, NAN, NAN],
+            ],
+            [True, True, False, True, True, True, True],
+            [True, True],
+            [True],
+            [True, True],
+            [True],
+        ),
+        # Both operators are compatible as backward actions
+        (
+            [
+                [NodeType.CONDITION, 1, 0.2, -1, Status.INACTIVE],
+                [NodeType.CONDITION, 0, 0.8, -1, Status.INACTIVE],
+                [NodeType.CONDITION, 1, 0.3, -1, Status.INACTIVE],
+                [NodeType.CLASSIFIER, -1, -1, 0, Status.INACTIVE],
+                [NodeType.CLASSIFIER, -1, -1, 1, Status.INACTIVE],
+                [NodeType.CLASSIFIER, -1, -1, 1, Status.INACTIVE],
+                [NodeType.CLASSIFIER, -1, -1, 0, Status.INACTIVE],
+                [Stage.COMPLETE, NAN, NAN, NAN, NAN],
+            ],
+            [True, True, True, True, True, True, True],
+            [True, True],
+            [True],
+            [False, False],
+            [True],
+        ),
+    ],
+)
+def test__get_masks_backward__returns_expected(
+    tree_d3, state, m_leaf_exp, m_feat_exp, m_th_exp, m_op_exp, m_eos_exp
+):
+    state = tfloat(state, float_type=tree_d3.float, device=tree_d3.device)
+    mask = m_leaf_exp + m_feat_exp + m_th_exp + m_op_exp + m_eos_exp
+    tree_d3.set_state(state, done=not mask[-1])
+    assert tree_d3.get_mask_invalid_actions_backward() == mask
 
 
 @pytest.fixture
