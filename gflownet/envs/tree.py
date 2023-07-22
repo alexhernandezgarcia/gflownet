@@ -664,13 +664,13 @@ class Tree(GFlowNetEnv):
             assert attributes[Attribute.TYPE] == 0
             threshold = f"th. {str(attributes[Attribute.THRESHOLD])}, "
         else:
-            threshold = ""
+            threshold = "th. -1, "
         # Class output
         if attributes[Attribute.CLASS] != -1:
             assert attributes[Attribute.TYPE] == 1
-            class_output = f"class {str(attributes[Attribute.CLASS])}"
+            class_output = f"class {str(attributes[Attribute.CLASS])}, "
         else:
-            class_output = ""
+            class_output = "class -1, "
         if attributes[Attribute.ACTIVE] == Status.ACTIVE:
             active = " (active)"
         else:
@@ -687,17 +687,49 @@ class Tree(GFlowNetEnv):
         readable = ""
         for idx in range(self.n_nodes):
             attributes = self._attributes_to_readable(state[idx])
+            if len(attributes) == 0:
+                continue
             readable += f"{idx}: {attributes} | "
-        # Remove last " | "
-        readable = readable[:-3]
+        readable += f"stage: {self._get_stage(state)}"
         return readable
+
+    def _readable_to_attributes(self, readable: str) -> List:
+        attributes_list = readable.split(", ")
+        # Node type
+        if attributes_list[0] == "condition":
+            node_type = NodeType.CONDITION
+        elif attributes_list[0] == "classifier":
+            node_type = NodeType.CLASSIFIER
+        else:
+            node_type = -1
+        # Feature
+        feature = float(attributes_list[1].split("feat. ")[-1])
+        # Decision threshold
+        threshold = float(attributes_list[2].split("th. ")[-1])
+        # Class output
+        class_output = float(attributes_list[3].split("class ")[-1])
+        # Active
+        if "(active)" in readable:
+            active = Status.ACTIVE
+        else:
+            active = Status.INACTIVE
+        return [node_type, feature, threshold, class_output, active]
 
     def readable2state(self, readable):
         """
         Converts a human-readable representation of a state into the standard format.
         """
-        # TODO
-        return readable
+        readable_list = readable.split(" | ")
+        state = torch.full((self.n_nodes + 1, Attribute.N), torch.nan)
+        for el in readable_list[:-1]:
+            node_index, attributes_str = el.split(": ")
+            node_index = int(node_index)
+            attributes = self._readable_to_attributes(attributes_str)
+            for idx, att in enumerate(attributes):
+                state[node_index, idx] = att
+        stage = float(readable_list[-1].split("stage: ")[-1])
+        state = self._set_stage(stage, state)
+        return state
 
     @staticmethod
     def _find_leaves(state: Optional[torch.Tensor] = None) -> List[int]:
