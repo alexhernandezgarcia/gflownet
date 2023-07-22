@@ -101,14 +101,24 @@ class GFlowNetEnv:
         """
         pass
 
+    def action2representative(self, action: Tuple) -> int:
+        """
+        For continuous or hybrid environments, converts a continuous action into its
+        representative in the action space. Discrete actions remain identical, thus
+        fully discrete environments do not need to re-implement this method.
+        Continuous environments should re-implement this method in order to replace
+        continuous actions by their representatives in the action space.
+        """
+        return action
+
     def action2index(self, action: Tuple) -> int:
         """
-        Returns the index in the action space of the action passed as an argument. This
-        method should be valid for all discrete environments. Continuous environments
-        should re-implement this method in order to replace continuous actions by their
-        representatives in the action space.
+        Returns the index in the action space of the action passed as an argument, or
+        its representative if it is a continuous action.
+
+        See: self.action2representative()
         """
-        return self.action_space.index(action)
+        return self.action_space.index(self.action2representative(action))
 
     def actions2indices(
         self, actions: TensorType["batch_size", "action_dim"]

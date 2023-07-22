@@ -193,7 +193,7 @@ def test__sample_actions__get_logprobs__return_valid_actions_and_logprobs(env):
             mask_invalid_actions=masks_invalid_torch,
         )
         action = actions[0]
-        assert action in valid_actions
+        assert env.action2representative(action) in valid_actions
         assert torch.equal(logprobs_sa, logprobs_glp)
         env.step(action)
 

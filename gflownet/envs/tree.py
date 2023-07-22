@@ -916,10 +916,6 @@ class Tree(GFlowNetEnv):
             action = (ActionType.PICK_THRESHOLD, -1)
         return action
 
-    def action2index(self, action: Tuple) -> int:
-        action = self.action2representative(action)
-        return super().action2index(action)
-
     def get_max_traj_length(self) -> int:
         return self.n_nodes * Attribute.N
 
