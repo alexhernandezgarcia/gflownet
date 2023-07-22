@@ -194,6 +194,22 @@ class GFlowNetEnv:
             mask[self.action_space.index(pa)] = False
         return mask
 
+    def get_valid_actions(
+        self,
+        state: Optional[List] = None,
+        done: Optional[bool] = None,
+        backward: Optional[bool] = False,
+    ) -> List[Tuple]:
+        """
+        Returns the list of non-invalid (valid, for short) according to the mask of
+        invalid actions.
+        """
+        if backward:
+            mask = self.get_mask_invalid_actions_backward(state, done)
+        else:
+            mask = self.get_mask_invalid_actions_forward(state, done)
+        return [action for action, m in zip(self.action_space, mask) if m is False]
+
     def get_parents(
         self,
         state: Optional[List] = None,
