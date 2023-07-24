@@ -51,6 +51,12 @@ def space_group_check_compatible(group_index, composition):
         True if the composition and space group are compatible. False
         otherwise.
     """
+    # Remove from composition the number of atoms that are a multiple of the
+    # space group's most specific free wyckoff position. This improves the
+    # cache hit rate without affecting the validity of the composition
+    free_multiplicity = space_group_lowest_free_wp_multiplicity(group_index)
+    composition = [c for c in composition if c % free_multiplicity != 0]
+
     # Get a tuple version of composition to ensure immutability and,
     # therefore, allow dictionary indexing by composition. Ensure the elements
     # in the tuple are sorted to improve cache hit rate since it doesn't
