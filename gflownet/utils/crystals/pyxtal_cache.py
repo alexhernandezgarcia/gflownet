@@ -2,6 +2,7 @@ from pyxtal.symmetry import Group
 
 _pyxtal_space_group_cache = {}
 _pyxtal_check_compatible_cache = {}
+_pyxtal_space_group_free_wp_multiplicity = {}
 
 
 def get_space_group(group_index):
@@ -73,3 +74,43 @@ def space_group_check_compatible(group_index, composition):
     # Store result in cache before returning it
     _pyxtal_check_compatible_cache[group_index][t_composition] = is_compatible
     return is_compatible
+
+
+def space_group_lowest_free_wp_multiplicity(group_index):
+    """
+    Returns the multiplicity of a space group's most specific free WP.
+
+    This methods includes a lazy caching mechanism since the call to PyXtal
+    methods to determine if a Wyckoff position is fixed or free is expensive.
+
+    Args
+    ----
+    group_index : int
+        Index (starting at 1) of the space group
+
+    Returns
+    -------
+    multiplicity : int
+        Multiplicity of the most specific free wyckoff position.
+    """
+    # Check in the cache to see if the multiplicity has previously been
+    # computed for this space group
+    if group_index in _pyxtal_space_group_free_wp_multiplicity:
+        return _pyxtal_space_group_free_wp_multiplicity[group_index]
+
+    # Obtain reference to the space group
+    space_group = get_space_group(group_index)
+
+    # Iterate over all of the space group's wyckoff positions from most
+    # specific to most general until a wyckoff position with a degree of
+    # freedom is found.
+    multiplicity = None
+    for wyckoff_idx in range(1, len(space_group.wyckoffs) + 1):
+        wyckoff_position = space_group.get_wyckoff_position(-wyckoff_idx)
+        if wyckoff_position.get_dof() > 0:
+            multiplicity = wyckoff_position.multiplicity
+            break
+
+    # Store the result in cache before retuning it
+    _pyxtal_space_group_free_wp_multiplicity[group_index] = multiplicity
+    return multiplicity
