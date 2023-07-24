@@ -12,8 +12,11 @@ from torchtyping import TensorType
 
 from gflownet.envs.base import GFlowNetEnv
 from gflownet.utils.crystals.constants import ELEMENT_NAMES, OXIDATION_STATES
-from gflownet.utils.crystals.pyxtal_cache import (get_space_group,
-                                                  space_group_check_compatible)
+from gflownet.utils.crystals.pyxtal_cache import (
+    get_space_group,
+    space_group_check_compatible,
+    space_group_lowest_free_wp_multiplicity,
+)
 
 
 class Composition(GFlowNetEnv):
@@ -295,12 +298,9 @@ class Composition(GFlowNetEnv):
 
             # Get the multiplicity of the group's most specific wyckoff position with
             # at least one degree of freedom
-            free_multiplicity = None
-            for wyckoff_idx in range(1, len(space_group.wyckoffs) + 1):
-                wyckoff_position = space_group.get_wyckoff_position(-wyckoff_idx)
-                if wyckoff_position.get_dof() > 0:
-                    free_multiplicity = wyckoff_position.multiplicity
-                    break
+            free_multiplicity = space_group_lowest_free_wp_multiplicity(
+                self.space_group
+            )
 
             # Go through each action in the masks, validating them
             # individually
@@ -339,7 +339,9 @@ class Composition(GFlowNetEnv):
                     # incompatible with the space group, mark action as
                     # invalid
                     n_atoms_post_action = n_atoms + [nb_atoms_action]
-                    sg_compatible = space_group_check_compatible(self.space_group, n_atoms_post_action)
+                    sg_compatible = space_group_check_compatible(
+                        self.space_group, n_atoms_post_action
+                    )
                     if not sg_compatible:
                         mask_required_element[action_idx] = True
                         mask_unrequired_element[action_idx] = True
