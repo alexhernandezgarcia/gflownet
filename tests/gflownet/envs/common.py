@@ -121,14 +121,7 @@ def test__state_conversions_are_reversible(env):
                 assert torch.equal(state, env.policy2state(env.state2policy(state)))
             else:
                 assert state == env.policy2state(env.state2policy(state))
-        state = copy(env.state)
-        for el1, el2 in zip(state, env.readable2state(env.state2readable(state))):
-            if torch.is_tensor(state):
-                if not torch.all(torch.isclose(el1, el2)):
-                    import ipdb; ipdb.set_trace()
-                assert torch.all(torch.isclose(el1, el2))
-            else:
-                assert np.isclose(el1, el2)
+        env.isclose(env.state, env.readable2state(env.state2readable(state)))
         # Sample random action
         env.step_random()
 
@@ -158,9 +151,11 @@ def test__gflownet_minimal_runs(env):
     )
     # Set proxy in env
     env.proxy = proxy
-    # No buffer
+    # No buffers
     config.env.buffer.train = None
     config.env.buffer.test = None
+    # No replay buffer
+    config.env.buffer.replay_capacity = 0
     # Set 1 training step
     config.gflownet.optimizer.n_train_steps = 1
     # GFlowNet agent
