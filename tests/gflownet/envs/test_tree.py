@@ -560,9 +560,11 @@ def env(X, y):
     return Tree(X, y)
 
 
-def test__continuous_env_common(env):
+def test__continuous_env_common__standard(env):
+    print("\n\nCommon (continuous) tests for standard Tree\n")
     return common.test__continuous_env_common(env)
 
 
-def test__all_env_common(env):
+def test__all_env_common__standard(env):
+    print("\n\nCommon tests for standard Tree\n")
     return common.test__all_env_common(env)
