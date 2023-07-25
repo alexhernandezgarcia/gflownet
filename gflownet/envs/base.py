@@ -209,7 +209,7 @@ class GFlowNetEnv:
         this method.
         """
         state = self._get_state(state)
-        done = self._get_done(state)
+        done = self._get_done(done)
         if parents_a is None:
             _, parents_a = self.get_parents(state, done)
         mask = [True for _ in range(self.action_space_dim)]
@@ -657,7 +657,7 @@ class GFlowNetEnv:
         Computes the reward of a state
         """
         state = self._get_state(state)
-        done = self._get_done(state)
+        done = self._get_done(done)
         if done is False:
             return tfloat(0.0, float_type=self.float, device=self.device)
         return self.proxy2reward(self.proxy(self.state2proxy(state))[0])
