@@ -635,6 +635,14 @@ class Tree(GFlowNetEnv):
         states[states.isnan()] = -1
         return states.flatten()
 
+    def policy2state(
+        self, policy: Optional[TensorType["policy_input_dim"]] = None
+    ) -> None:
+        """
+        Returns None to signal that the conversion is not reversible.
+        """
+        return None
+
     def statebatch2proxy(
         self, states: List[TensorType["state_dim"]]
     ) -> TensorType["batch", "state_proxy_dim"]:
@@ -682,7 +690,7 @@ class Tree(GFlowNetEnv):
         Converts a state into human-readable representation.
         """
         if state is None:
-            state = self.state
+            state = self.state.clone().detach()
         state = state.cpu().numpy()
         readable = ""
         for idx in range(self.n_nodes):
