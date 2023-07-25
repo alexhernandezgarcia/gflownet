@@ -623,7 +623,7 @@ class Tree(GFlowNetEnv):
         if state is None:
             state = self.state.clone().detach()
         state[state.isnan()] = -1
-        return state
+        return state.flatten()
 
     def statetorch2policy_mlp(
         self, states: TensorType["batch_size", "state_dim"]
@@ -633,7 +633,7 @@ class Tree(GFlowNetEnv):
         It simply replaces the NaNs by -1s.
         """
         states[states.isnan()] = -1
-        return states
+        return states.flatten()
 
     def statebatch2proxy(
         self, states: List[TensorType["state_dim"]]
