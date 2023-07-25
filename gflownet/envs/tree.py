@@ -524,7 +524,9 @@ class Tree(GFlowNetEnv):
             actions_discrete, logprobs_discrete = super().sample_actions(
                 policy_outputs_discrete,
                 sampling_method,
-                mask_invalid_actions[mask_discrete],
+                mask_invalid_actions[
+                    mask_discrete, : self._index_continuous_policy_output
+                ],
                 temperature_logits,
             )
             logprobs[mask_discrete] = logprobs_discrete
@@ -591,7 +593,9 @@ class Tree(GFlowNetEnv):
                 is_forward,
                 actions[mask_discrete],
                 states_target[mask_discrete],
-                mask_invalid_actions[mask_discrete],
+                mask_invalid_actions[
+                    mask_discrete, : self._index_continuous_policy_output
+                ],
             )
             logprobs[mask_discrete] = logprobs_discrete
         if torch.all(mask_discrete):
@@ -610,7 +614,7 @@ class Tree(GFlowNetEnv):
         betas = self.beta_params_max * torch.sigmoid(betas) + self.beta_params_min
         beta_distr = Beta(alphas, betas)
         distr_threshold = MixtureSameFamily(mix, beta_distr)
-        thresholds = actions[mask_cont, -1]
+        thresholds = actions[mask_cont, self._action_index_eos]
         logprobs[mask_cont] = distr_threshold.log_prob(thresholds)
         return logprobs
 
@@ -769,9 +773,9 @@ class Tree(GFlowNetEnv):
         by using the parameters provided in the argument params.
 
         The output of the policy of a Tree environment consists of a discrete and
-        continuous part. The discrete part corresponds to the discrete actions, while
-        the continuous part corresponds to the single continuous action, that is the
-        sampling of the threshold of a node classifier.
+        continuous part. The discrete part (first part) corresponds to the discrete
+        actions, while the continuous part (second part) corresponds to the single
+        continuous action, that is the sampling of the threshold of a node classifier.
 
         The latter is modelled by a mixture of Beta distributions. Therefore, the
         continuous part of of the policy output is vector of dimensionality c * 3,
@@ -794,8 +798,9 @@ class Tree(GFlowNetEnv):
             self.action_space_dim, device=self.device, dtype=self.float
         )
         self._index_continuous_policy_output = len(policy_output_discrete)
+        self._len_continuous_policy_output = self.components * 3
         policy_output_continuous = torch.ones(
-            self.components * 3,
+            self._len_continuous_policy_output,
             device=self.device,
             dtype=self.float,
         )
@@ -812,11 +817,11 @@ class Tree(GFlowNetEnv):
             done = self.done
 
         if done:
-            return [True] * self.action_space_dim
+            return [True] * self.policy_output_dim
 
         leaves = Tree._find_leaves(state)
         stage = self._get_stage(state)
-        mask = [True] * self.action_space_dim
+        mask = [True] * self.policy_output_dim
 
         if stage == Stage.COMPLETE:
             # In the "complete" stage (in which there are no ongoing micro steps)
@@ -846,6 +851,22 @@ class Tree(GFlowNetEnv):
             raise ValueError(f"Unrecognized stage {stage}.")
 
         return mask
+
+    def get_mask_invalid_actions_backward(
+        self,
+        state: Optional[torch.Tensor] = None,
+        done: Optional[bool] = None,
+        parents_a: Optional[List] = None,
+    ) -> List:
+        """
+        Simply appends to the standard "discrete part" of the mask a dummy part
+        corresponding to the continuous part of the policy output so as to match the
+        dimensionality.
+        """
+        return (
+            super().get_mask_invalid_actions_backward(state, done, parents_a)
+            + [True] * self._len_continuous_policy_output
+        )
 
     def get_parents(
         self,
