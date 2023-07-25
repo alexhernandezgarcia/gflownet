@@ -13,10 +13,8 @@ from torchtyping import TensorType
 from gflownet.envs.base import GFlowNetEnv
 from gflownet.utils.crystals.constants import ELEMENT_NAMES, OXIDATION_STATES
 from gflownet.utils.crystals.pyxtal_cache import (
-    get_space_group,
-    space_group_check_compatible,
-    space_group_lowest_free_wp_multiplicity,
-)
+    get_space_group, space_group_check_compatible,
+    space_group_lowest_free_wp_multiplicity, space_group_wyckoff_gcd)
 
 
 class Composition(GFlowNetEnv):
@@ -178,7 +176,9 @@ class Composition(GFlowNetEnv):
             # added.
             most_specific_wp = space_group.get_wyckoff_position(-1)
             min_atom_i = most_specific_wp.multiplicity
-            max_atom_i = (self.max_atom_i // min_atom_i) * min_atom_i
+
+            wyckoff_gcd = space_group_wyckoff_gcd(self.space_group)
+            max_atom_i = (self.max_atom_i // wyckoff_gcd) * wyckoff_gcd
 
             # Determine if the current composition is compatible with the
             # space group
@@ -293,8 +293,10 @@ class Composition(GFlowNetEnv):
             space_group = get_space_group(self.space_group)
             n_atoms = [s for s in state if s > 0]
 
-            # Get the multiplicity of the group's most specific fixed wyckoff position
-            fixed_multiplicity = space_group.get_wyckoff_position(-1).multiplicity
+            # Get the greated common divisor of the group's wyckoff position.
+            # It cannot be valid to add a number of atoms that is not a
+            # multiple of this value
+            wyckoff_gcd = space_group_wyckoff_gcd(self.space_group)
 
             # Get the multiplicity of the group's most specific wyckoff position with
             # at least one degree of freedom
@@ -312,9 +314,9 @@ class Composition(GFlowNetEnv):
                     or not mask_unrequired_element[action_idx]
                 ):
                     # If the number of atoms added by this action is not a
-                    # multiple of the most specific wyckoff position, mark
-                    # action as invalid
-                    if nb_atoms_action % fixed_multiplicity != 0:
+                    # multiple of the greatest common divisor of the wyckoff
+                    # positions' multiplicities, mark action as invalid
+                    if nb_atoms_action % wyckoff_gcd != 0:
                         mask_required_element[action_idx] = True
                         mask_unrequired_element[action_idx] = True
                         continue

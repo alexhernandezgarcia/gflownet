@@ -1,8 +1,10 @@
+import numpy
 from pyxtal.symmetry import Group
 
 _pyxtal_space_group_cache = {}
 _pyxtal_check_compatible_cache = {}
 _pyxtal_space_group_free_wp_multiplicity = {}
+_pyxtal_space_group_wp_lowest_common_factor = {}
 
 
 def get_space_group(group_index):
@@ -120,3 +122,41 @@ def space_group_lowest_free_wp_multiplicity(group_index):
     # Store the result in cache before retuning it
     _pyxtal_space_group_free_wp_multiplicity[group_index] = multiplicity
     return multiplicity
+
+
+def space_group_wyckoff_gcd(group_index):
+    """
+    Returns the greatest common divisor of a space group's Wyckoff positions
+
+    This methods includes a lazy caching mechanism.
+
+    Args
+    ----
+    group_index : int
+        Index (starting at 1) of the space group
+
+    Returns
+    -------
+    gcd : int
+        Greatest common divisor of the group's wyckoff position.
+    """
+    # Check in the cache to see if the lowest common factor has previously
+    # been computed for this space group
+    if group_index in _pyxtal_space_group_wp_lowest_common_factor:
+        return _pyxtal_space_group_wp_lowest_common_factor[group_index]
+
+    # Obtain reference to the space group
+    space_group = get_space_group(group_index)
+
+    # Iterate over all of the space group's wyckoff positions from most
+    # specific to most general until a wyckoff position with a degree of
+    # freedom is found.
+    multiplicities = []
+    for wyckoff_idx in range(0, len(space_group.wyckoffs)):
+        wyckoff_position = space_group.get_wyckoff_position(wyckoff_idx)
+        multiplicities.append(wyckoff_position.multiplicity)
+    gcd = numpy.gcd.reduce(multiplicities)
+
+    # Store the result in cache before retuning it
+    _pyxtal_space_group_wp_lowest_common_factor[group_index] = gcd
+    return gcd
