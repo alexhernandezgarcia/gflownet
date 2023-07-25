@@ -283,7 +283,7 @@ def test__steps__behaves_as_expected(
 #  (3, 0), (3, 1),
 #  (-1, -1)]
 @pytest.mark.parametrize(
-    "state, m_leaf_exp, m_feat_exp, m_th_exp, m_op_exp, m_eos_exp",
+    "state, m_leaf_exp, m_feat_exp, m_th_exp, m_op_exp, m_eos_exp, m_cont",
     [
         (
             [
@@ -301,6 +301,7 @@ def test__steps__behaves_as_expected(
             [True],
             [True, True],
             [False],
+            [True, True, True],
         ),
         (
             [
@@ -318,6 +319,7 @@ def test__steps__behaves_as_expected(
             [True],
             [True, True],
             [True],
+            [True, True, True],
         ),
         (
             [
@@ -335,6 +337,7 @@ def test__steps__behaves_as_expected(
             [False],
             [True, True],
             [True],
+            [True, True, True],
         ),
         (
             [
@@ -352,6 +355,7 @@ def test__steps__behaves_as_expected(
             [True],
             [False, False],
             [True],
+            [True, True, True],
         ),
         (
             [
@@ -369,6 +373,7 @@ def test__steps__behaves_as_expected(
             [True],
             [True, True],
             [False],
+            [True, True, True],
         ),
         (
             [
@@ -386,14 +391,15 @@ def test__steps__behaves_as_expected(
             [True],
             [True, True],
             [True],
+            [True, True, True],
         ),
     ],
 )
 def test__get_masks_forward__returns_expected(
-    tree_d3, state, m_leaf_exp, m_feat_exp, m_th_exp, m_op_exp, m_eos_exp
+    tree_d3, state, m_leaf_exp, m_feat_exp, m_th_exp, m_op_exp, m_eos_exp, m_cont
 ):
     state = tfloat(state, float_type=tree_d3.float, device=tree_d3.device)
-    mask = m_leaf_exp + m_feat_exp + m_th_exp + m_op_exp + m_eos_exp
+    mask = m_leaf_exp + m_feat_exp + m_th_exp + m_op_exp + m_eos_exp + m_cont
     tree_d3.set_state(state, done=False)
     assert tree_d3.get_mask_invalid_actions_forward() == mask
 
@@ -405,7 +411,7 @@ def test__get_masks_forward__returns_expected(
 #  (3, 0), (3, 1),
 #  (-1, -1)]
 @pytest.mark.parametrize(
-    "state, m_leaf_exp, m_feat_exp, m_th_exp, m_op_exp, m_eos_exp",
+    "state, m_leaf_exp, m_feat_exp, m_th_exp, m_op_exp, m_eos_exp, m_cont",
     [
         (
             [
@@ -423,6 +429,7 @@ def test__get_masks_forward__returns_expected(
             [True],
             [True, True],
             [True],
+            [True, True, True],
         ),
         (
             [
@@ -440,6 +447,7 @@ def test__get_masks_forward__returns_expected(
             [True],
             [True, True],
             [True],
+            [True, True, True],
         ),
         (
             [
@@ -457,6 +465,7 @@ def test__get_masks_forward__returns_expected(
             [True],
             [True, True],
             [True],
+            [True, True, True],
         ),
         (
             [
@@ -474,6 +483,7 @@ def test__get_masks_forward__returns_expected(
             [False],
             [True, True],
             [True],
+            [True, True, True],
         ),
         (
             [
@@ -491,6 +501,7 @@ def test__get_masks_forward__returns_expected(
             [True],
             [False, True],
             [True],
+            [True, True, True],
         ),
         (
             [
@@ -508,6 +519,7 @@ def test__get_masks_forward__returns_expected(
             [True],
             [True, True],
             [False],
+            [True, True, True],
         ),
         (
             [
@@ -525,6 +537,7 @@ def test__get_masks_forward__returns_expected(
             [True],
             [True, True],
             [True],
+            [True, True, True],
         ),
         # Both operators are compatible as backward actions
         (
@@ -543,15 +556,16 @@ def test__get_masks_forward__returns_expected(
             [True],
             [False, False],
             [True],
+            [True, True, True],
         ),
     ],
 )
 def test__get_masks_backward__returns_expected(
-    tree_d3, state, m_leaf_exp, m_feat_exp, m_th_exp, m_op_exp, m_eos_exp
+    tree_d3, state, m_leaf_exp, m_feat_exp, m_th_exp, m_op_exp, m_eos_exp, m_cont
 ):
     state = tfloat(state, float_type=tree_d3.float, device=tree_d3.device)
-    mask = m_leaf_exp + m_feat_exp + m_th_exp + m_op_exp + m_eos_exp
-    tree_d3.set_state(state, done=not mask[-1])
+    mask = m_leaf_exp + m_feat_exp + m_th_exp + m_op_exp + m_eos_exp + m_cont
+    tree_d3.set_state(state, done=not mask[tree_d3._action_index_eos])
     assert tree_d3.get_mask_invalid_actions_backward() == mask
 
 
