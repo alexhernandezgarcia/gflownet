@@ -1,8 +1,10 @@
+from typing import Optional
+
 import numpy as np
 import torch
 import torch.nn.functional as F
 import torch_geometric
-
+from omegaconf import OmegaConf
 from torch_geometric.nn import global_mean_pool
 
 
@@ -207,3 +209,69 @@ class OperatorSelectionHead(torch.nn.Module):
         x = self.model(x)
 
         return x
+
+
+class TreeModel(torch.nn.Module):
+    def __init__(
+        self,
+        backbone: Optional[torch.nn.Module] = None,
+        backbone_args: Optional[dict] = None,
+        leaf_head_args: Optional[dict] = None,
+        feature_head_args: Optional[dict] = None,
+        threshold_head_args: Optional[dict] = None,
+        operator_head_args: Optional[dict] = None,
+    ):
+        super().__init__()
+
+        if backbone is None:
+            self.backbone = Backbone(**backbone_args)
+        else:
+            self.backbone = backbone
+
+        self.leaf_head = LeafSelectionHead(backbone=backbone, **leaf_head_args)
+        self.feature_head = FeatureSelectionHead(backbone=backbone, **feature_head_args)
+        self.threshold_head = ThresholdSelectionHead(
+            backbone=backbone, **threshold_head_args
+        )
+        self.operator_head = OperatorSelectionHead(
+            backbone=backbone, **operator_head_args
+        )
+
+    def forward(self, x):
+        pass
+
+
+class TreePolicy:
+    def __init__(self, config, env, device, float_precision, base=None):
+        # Device and float precision
+        self.device = device
+        self.float = float_precision
+        # Optional base model
+        self.base = base
+
+        self.parse_config(config)
+        self.instantiate()
+        self.is_model = True
+
+    def parse_config(self, config):
+        if config is None:
+            config = OmegaConf.create()
+
+        self.backbone_args = config.get("backbone_args", {})
+        self.leaf_head_args = config.get("leaf_head_args", {})
+        self.feature_head_args = config.get("feature_head_args", {})
+        self.threshold_head_args = config.get("threshold_head_args", {})
+        self.operator_head_args = config.get("operator_head_args", {})
+
+    def instantiate(self):
+        self.model = TreeModel(
+            backbone=self.base,
+            backbone_args=self.backbone_args,
+            leaf_head_args=self.leaf_head_args,
+            feature_head_args=self.feature_head_args,
+            threshold_head_args=self.threshold_head_args,
+            operator_head_args=self.operator_head_args
+        ).to(self.device)
+
+    def __call__(self, states):
+        return self.model(states)
