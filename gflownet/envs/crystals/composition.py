@@ -311,13 +311,16 @@ class Composition(GFlowNetEnv):
                     not mask_required_element[action_idx]
                     or not mask_unrequired_element[action_idx]
                 ):
-                    # If the number of atoms added by this action is not a
-                    # multiple of the most specific wyckoff position, mark
-                    # action as invalid
-                    if nb_atoms_action % fixed_multiplicity != 0:
-                        mask_required_element[action_idx] = True
-                        mask_unrequired_element[action_idx] = True
-                        continue
+                    # For these space groups, all wyckoff positions have a
+                    # multiplicity that is a multiple of the most specific
+                    # wyckoff position. If the number of atoms added by this
+                    # action is not a multiple of the most specific wyckoff
+                    # position, mark action as invalid
+                    if self.space_group not in [199, 214, 220, 230]:
+                        if nb_atoms_action % fixed_multiplicity != 0:
+                            mask_required_element[action_idx] = True
+                            mask_unrequired_element[action_idx] = True
+                            continue
 
                     # If the number of atoms added by this action is a
                     # multiple of a non-specific wyckoff position, nothing
