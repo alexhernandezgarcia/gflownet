@@ -18,7 +18,8 @@ def test__all_env_common(env):
     test__step_random__does_not_sample_invalid_actions(env)
     test__get_parents_step_get_mask__are_compatible(env)
     test__sample_backwards_reaches_source(env)
-    test__state_conversions_are_reversible(env)
+    test__state2policy__is_reversible(env)
+    test__state2readable__is_reversible(env)
     test__get_parents__returns_same_state_and_eos_if_done(env)
     test__actions2indices__returns_expected_tensor(env)
     test__gflownet_minimal_runs(env)
@@ -26,7 +27,6 @@ def test__all_env_common(env):
 
 def test__continuous_env_common(env):
     test__reset__state_is_source(env)
-    #     test__state_conversions_are_reversible(env)
     test__get_parents__returns_no_parents_in_initial_state(env)
     #     test__gflownet_minimal_runs(env)
     #     test__sample_actions__get_logprobs__return_valid_actions_and_logprobs(env)
@@ -112,17 +112,22 @@ def test__sample_backwards_reaches_source(env, n=100):
 
 
 @pytest.mark.repeat(100)
-def test__state_conversions_are_reversible(env):
+def test__state2policy__is_reversible(env):
     env = env.reset()
     while not env.done:
-        state = copy(env.state)
-        if env.policy2state(env.state2policy(state)) is not None:
-            if torch.is_tensor(state):
-                assert torch.equal(state, env.policy2state(env.state2policy(state)))
-            else:
-                assert state == env.policy2state(env.state2policy(state))
-        env.isclose(env.state, env.readable2state(env.state2readable(state)))
-        # Sample random action
+        state_recovered = env.policy2state(env.state2policy())
+        if state_recovered is not None:
+            assert env.equal(env.state, state_recovered)
+        env.step_random()
+
+
+@pytest.mark.repeat(100)
+def test__state2readable__is_reversible(env):
+    env = env.reset()
+    while not env.done:
+        state_recovered = env.readable2state(env.state2readable())
+        if state_recovered is not None:
+            assert env.isclose(env.state, state_recovered)
         env.step_random()
 
 
