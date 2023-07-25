@@ -254,11 +254,12 @@ class Grid(GFlowNetEnv):
         """
         return [int(el) for el in readable.strip("[]").split(" ")]
 
-    def state2readable(self, state, alphabet={}):
+    def state2readable(self, state: Optional[List] = None, alphabet={}):
         """
         Converts a state (a list of positions) into a human-readable string
         representing a state.
         """
+        state = self._get_state(state)
         return str(state).replace("(", "[").replace(")", "]").replace(",", "")
 
     def get_parents(

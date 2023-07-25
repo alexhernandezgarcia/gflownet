@@ -136,33 +136,45 @@ class GFlowNetEnv:
         # the action_dim dimension are True
         return torch.where(torch.all(actions == action_space, dim=2))[1]
 
-    def _get_state_done(self, state: Union[List, TensorType["state_dims"]], done: bool):
+    def _get_state(self, state: Union[List, TensorType["state_dims"]]):
         """
-        A helper method for other methods to determine whether state and done should be
-        taken from the arguments or from the instance (self.state and self.done): if
-        they are None, they are taken from the instance.
+        A helper method for other methods to determine whether state should be taken
+        from the arguments or from the instance (self.state): if is None, it is taken
+        from the instance.
 
         Args
         ----
         state : list or tensor or None
             None, or a state in GFlowNet format.
 
+        Returns
+        -------
+        state : list or tensor
+            The argument state, or self.state if state is None.
+        """
+        if state is None:
+            state = copy(self.state)
+        return state
+
+    def _get_done(self, done: bool):
+        """
+        A helper method for other methods to determine whether done should be taken
+        from the arguments or from the instance (self.done): if it is None, it is taken
+        from the instance.
+
+        Args
+        ----
         done : bool or None
             None, or whether the environment is done.
 
         Returns
         -------
-        state : list or tensor
-            The argument state, or self.state if state is None.
-
         done: bool
             The argument done, or self.done if done is None.
         """
-        if state is None:
-            state = copy(self.state)
         if done is None:
             done = self.done
-        return state, done
+        return done
 
     def get_mask_invalid_actions_forward(
         self,
@@ -196,7 +208,8 @@ class GFlowNetEnv:
         Continuous environments will probably need to implement its specific version of
         this method.
         """
-        state, done = self._get_state_done(state, done)
+        state = self._get_state(state)
+        done = self._get_done(state)
         if parents_a is None:
             _, parents_a = self.get_parents(state, done)
         mask = [True for _ in range(self.action_space_dim)]
@@ -643,7 +656,8 @@ class GFlowNetEnv:
         """
         Computes the reward of a state
         """
-        state, done = self._get_state_done(state, done)
+        state = self._get_state(state)
+        done = self._get_done(state)
         if done is False:
             return tfloat(0.0, float_type=self.float, device=self.device)
         return self.proxy2reward(self.proxy(self.state2proxy(state))[0])
