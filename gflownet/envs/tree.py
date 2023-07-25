@@ -633,7 +633,7 @@ class Tree(GFlowNetEnv):
         It simply replaces the NaNs by -1s.
         """
         states[states.isnan()] = -1
-        return states.flatten()
+        return states.flatten(start_dim=1)
 
     def policy2state(
         self, policy: Optional[TensorType["policy_input_dim"]] = None
