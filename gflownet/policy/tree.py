@@ -270,7 +270,7 @@ class TreePolicy:
             leaf_head_args=self.leaf_head_args,
             feature_head_args=self.feature_head_args,
             threshold_head_args=self.threshold_head_args,
-            operator_head_args=self.operator_head_args
+            operator_head_args=self.operator_head_args,
         ).to(self.device)
 
     def __call__(self, states):
