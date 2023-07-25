@@ -614,7 +614,7 @@ class Tree(GFlowNetEnv):
         betas = self.beta_params_max * torch.sigmoid(betas) + self.beta_params_min
         beta_distr = Beta(alphas, betas)
         distr_threshold = MixtureSameFamily(mix, beta_distr)
-        thresholds = actions[mask_cont, self._action_index_eos]
+        thresholds = actions[mask_cont, -1]
         logprobs[mask_cont] = distr_threshold.log_prob(thresholds)
         return logprobs
 
