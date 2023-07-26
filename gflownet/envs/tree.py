@@ -1,5 +1,6 @@
+import warnings
 from collections import Counter
-from typing import List, Optional, Tuple, Union
+from typing import List, Optional, Tuple
 
 import matplotlib.pyplot as plt
 import networkx as nx
@@ -748,8 +749,6 @@ class Tree(GFlowNetEnv):
         """
         Compute indices of leaves from a state.
         """
-        if state is None:
-            state = self.state
         return torch.where(state[:-1, Attribute.TYPE] == NodeType.CLASSIFIER)[
             0
         ].tolist()
@@ -760,8 +759,6 @@ class Tree(GFlowNetEnv):
         Get index of the (only) active node. Assumes that active node exists
         (that we are in the middle of a macro step).
         """
-        if state is None:
-            state = self.state
         active = torch.where(state[:-1, Attribute.ACTIVE] == Status.ACTIVE)[0]
         assert len(active) == 1
         return active.item()
