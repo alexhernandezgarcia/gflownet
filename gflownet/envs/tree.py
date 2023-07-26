@@ -1,6 +1,6 @@
 import warnings
 from collections import Counter
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, Union
 
 import matplotlib.pyplot as plt
 import networkx as nx
@@ -430,8 +430,8 @@ class Tree(GFlowNetEnv):
         return actions
 
     def step(
-        self, action: Tuple[int, int, float], skip_mask_check: bool = False
-    ) -> Tuple[List[int], Tuple[int, int, float], bool]:
+        self, action: Tuple[int, Union[int, float]], skip_mask_check: bool = False
+    ) -> Tuple[List[int], Tuple[int, Union[int, float]], bool]:
         """
         Executes step given an action.
 
