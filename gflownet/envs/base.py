@@ -51,10 +51,7 @@ class GFlowNetEnv:
         # Call reset() to set initial state, done, n_actions
         self.reset()
         # Device
-        if isinstance(device, str):
-            self.device = set_device(device)
-        else:
-            self.device = device
+        self.device = set_device(device)
         # Float precision
         self.float = set_float_precision(float_precision)
         # Reward settings
