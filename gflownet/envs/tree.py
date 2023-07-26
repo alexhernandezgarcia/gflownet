@@ -745,7 +745,7 @@ class Tree(GFlowNetEnv):
         return state
 
     @staticmethod
-    def _find_leaves(state: Optional[torch.Tensor] = None) -> List[int]:
+    def _find_leaves(state: torch.Tensor) -> List[int]:
         """
         Compute indices of leaves from a state.
         """
@@ -754,7 +754,7 @@ class Tree(GFlowNetEnv):
         ].tolist()
 
     @staticmethod
-    def _find_active(state: Optional[torch.Tensor] = None) -> int:
+    def _find_active(state: torch.Tensor) -> int:
         """
         Get index of the (only) active node. Assumes that active node exists
         (that we are in the middle of a macro step).
