@@ -310,7 +310,9 @@ class Grid(GFlowNetEnv):
                     actions.append(action)
         return parents, actions
 
-    def step(self, action: Tuple[int]) -> Tuple[List[int], Tuple[int], bool]:
+    def step(
+        self, action: Tuple[int], skip_mask_check: bool = False
+    ) -> Tuple[List[int], Tuple[int], bool]:
         """
         Executes step given an action.
 
@@ -319,6 +321,10 @@ class Grid(GFlowNetEnv):
         action : tuple
             Action to be executed. An action is a tuple int values indicating the
             dimensions to increment by 1.
+
+        skip_mask_check : bool
+            If True, skip computing forward mask of invalid actions to check if the
+            action is valid.
 
         Returns
         -------
@@ -331,20 +337,12 @@ class Grid(GFlowNetEnv):
         valid : bool
             False, if the action is not allowed for the current state.
         """
-        # If done, return invalid
-        if self.done:
+        # Generic pre-step checks
+        do_step, self.state, action = self._pre_step(
+            action, skip_mask_check or self.skip_mask_check
+        )
+        if not do_step:
             return self.state, action, False
-        # If action not found in action space raise an error
-        if action not in self.action_space:
-            raise ValueError(
-                f"Tried to execute action {action} not present in action space."
-            )
-        else:
-            action_idx = self.action_space.index(action)
-        # If action is in invalid mask, return invalid
-        if self.get_mask_invalid_actions_forward()[action_idx]:
-            return self.state, action, False
-        # TODO: simplify by relying on mask
         # If only possible action is eos, then force eos
         # All dimensions are at the maximum length
         if all([s == self.length - 1 for s in self.state]):
@@ -378,8 +376,11 @@ class Grid(GFlowNetEnv):
         )
         return all_x.tolist()
 
-    def get_uniform_terminating_states(self, n_states: int) -> List[List]:
-        states = np.random.randint(low=0, high=self.length, size=(n_states, self.n_dim))
+    def get_uniform_terminating_states(
+        self, n_states: int, seed: int = None
+    ) -> List[List]:
+        rng = np.random.default_rng(seed)
+        states = rng.integers(low=0, high=self.length, size=(n_states, self.n_dim))
         return states.tolist()
 
     def plot_samples_frequency(self, samples, ax=None, title=None, rescale=1):
