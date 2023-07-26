@@ -44,6 +44,9 @@ class Logger:
             run_name = "{}".format(
                 date_time,
             )
+        else:
+            # TODO: remove
+            run_name = run_name.replace("_", " ")
         if self.do.online:
             import wandb
 
