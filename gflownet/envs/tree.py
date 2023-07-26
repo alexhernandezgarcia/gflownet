@@ -111,7 +111,7 @@ class Attribute:
     THRESHOLD = 2
     CLASS = 3
     ACTIVE = 4
-    N = 5
+    N = 5  # Total number of attributes.
 
 
 class Tree(GFlowNetEnv):
