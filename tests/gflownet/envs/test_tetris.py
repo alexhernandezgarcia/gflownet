@@ -7,27 +7,27 @@ from gflownet.envs.tetris import Tetris
 
 @pytest.fixture
 def env():
-    return Tetris(width=4, height=5)
+    return Tetris(width=4, height=5, device="cpu")
 
 
 @pytest.fixture
 def env6x4():
-    return Tetris(width=4, height=6)
+    return Tetris(width=4, height=6, device="cpu")
 
 
 @pytest.fixture
 def env_mini():
-    return Tetris(width=4, height=5, pieces=["I", "O"], rotations=[0])
+    return Tetris(width=4, height=5, pieces=["I", "O"], rotations=[0], device="cpu")
 
 
 @pytest.fixture
 def env_1piece():
-    return Tetris(width=4, height=5, pieces=["O"], rotations=[0])
+    return Tetris(width=4, height=5, pieces=["O"], rotations=[0], device="cpu")
 
 
 @pytest.fixture
 def env_full():
-    return Tetris(width=10, height=20)
+    return Tetris(width=10, height=20, device="cpu")
 
 
 @pytest.mark.parametrize(
@@ -186,6 +186,42 @@ def test__get_action_space__returns_expected(env, action_space):
                 [402, 402, 403, 403],
                 [400, 400, 401, 401],
                 [400, 400, 401, 401],
+            ],
+            False,
+        ),
+        (
+            [
+                [000, 000, 000, 000],
+                [000, 000, 000, 000],
+                [100, 100, 100, 100],
+                [400, 400, 000, 000],
+                [400, 400, 000, 000],
+            ],
+            (4, 0, 2),
+            [
+                [000, 000, 401, 401],
+                [000, 000, 401, 401],
+                [100, 100, 100, 100],
+                [400, 400, 000, 000],
+                [400, 400, 000, 000],
+            ],
+            True,
+        ),
+        (
+            [
+                [000, 000, 000, 000],
+                [101, 101, 101, 101],
+                [100, 100, 100, 100],
+                [400, 400, 000, 000],
+                [400, 400, 000, 000],
+            ],
+            (4, 0, 2),
+            [
+                [000, 000, 000, 000],
+                [101, 101, 101, 101],
+                [100, 100, 100, 100],
+                [400, 400, 000, 000],
+                [400, 400, 000, 000],
             ],
             False,
         ),

@@ -9,3 +9,6 @@ old
 sh/
 *.txt
 !requirements.txt
+.vscode
+*.DS_Store
+external/
