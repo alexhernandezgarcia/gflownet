@@ -13,8 +13,11 @@ from torchtyping import TensorType
 from gflownet.envs.base import GFlowNetEnv
 from gflownet.utils.crystals.constants import ELEMENT_NAMES, OXIDATION_STATES
 from gflownet.utils.crystals.pyxtal_cache import (
-    get_space_group, space_group_check_compatible,
-    space_group_lowest_free_wp_multiplicity, space_group_wyckoff_gcd)
+    get_space_group,
+    space_group_check_compatible,
+    space_group_lowest_free_wp_multiplicity,
+    space_group_wyckoff_gcd,
+)
 
 
 class Composition(GFlowNetEnv):
@@ -145,6 +148,90 @@ class Composition(GFlowNetEnv):
 
     def get_max_traj_length(self):
         return min(self.max_diff_elem, self.max_atoms // self.min_atom_i)
+
+    def _refine_compatibility_check(
+        self, state, mask_required_element, mask_unrequired_element
+    ):
+        """
+        Refines the masks of required and unrequired elements by doing compatibility
+        checks between the space group and the number of atoms
+
+        Args
+        ----
+        state : list
+            The state on which the masks are to be applied.
+
+        mask_required_element: list
+            Input element-wise mask indicating whether the element is required.
+
+        mask_unrequired_element: list
+            Input element-wise mask indicating whether the element is not required.
+
+        Returns
+        -------
+        mask_required_element: list
+            Updated element-wise mask indicating whether the element is required.
+
+        mask_unrequired_element: list
+            Updated element-wise mask indicating whether the element is not required.
+        """
+        space_group = get_space_group(self.space_group)
+        n_atoms = [s for s in state if s > 0]
+
+        # Get the greated common divisor of the group's wyckoff position.
+        # It cannot be valid to add a number of atoms that is not a
+        # multiple of this value
+        wyckoff_gcd = space_group_wyckoff_gcd(self.space_group)
+
+        # Get the multiplicity of the group's most specific wyckoff position with
+        # at least one degree of freedom
+        free_multiplicity = space_group_lowest_free_wp_multiplicity(self.space_group)
+
+        # Go through each action in the masks, validating them
+        # individually
+        for action_idx, nb_atoms_action in enumerate(
+            range(self.min_atom_i, self.max_atom_i + 1)
+        ):
+            if (
+                not mask_required_element[action_idx]
+                or not mask_unrequired_element[action_idx]
+            ):
+                # If the number of atoms added by this action is not a
+                # multiple of the greatest common divisor of the wyckoff
+                # positions' multiplicities, mark action as invalid
+                if nb_atoms_action % wyckoff_gcd != 0:
+                    mask_required_element[action_idx] = True
+                    mask_unrequired_element[action_idx] = True
+                    continue
+
+                # If the number of atoms added by this action is a
+                # multiple of a non-specific wyckoff position, nothing
+                # prevents it from being valid
+                if nb_atoms_action % free_multiplicity == 0:
+                    continue
+
+                # Checking validity by induction. If a composition is
+                # valid, adding a number of atoms is equal to the
+                # multiplicity of a non-specific position, then this
+                # action must also be valid.
+                if nb_atoms_action > free_multiplicity and (
+                    not mask_required_element[action_idx - free_multiplicity]
+                    or not mask_unrequired_element[action_idx - free_multiplicity]
+                ):
+                    continue
+
+                # If the composition resulting from this action is
+                # incompatible with the space group, mark action as
+                # invalid
+                n_atoms_post_action = n_atoms + [nb_atoms_action]
+                sg_compatible = space_group_check_compatible(
+                    self.space_group, n_atoms_post_action
+                )
+                if not sg_compatible:
+                    mask_required_element[action_idx] = True
+                    mask_unrequired_element[action_idx] = True
+
+        return mask_required_element, mask_unrequired_element
 
     def get_mask_invalid_actions_forward(self, state=None, done=None):
         """
@@ -290,63 +377,12 @@ class Composition(GFlowNetEnv):
         # If required, refine the masks by doing compatibility checks between
         # the space group and the number of atoms
         if self.do_spacegroup_check and isinstance(self.space_group, int):
-            space_group = get_space_group(self.space_group)
-            n_atoms = [s for s in state if s > 0]
-
-            # Get the greated common divisor of the group's wyckoff position.
-            # It cannot be valid to add a number of atoms that is not a
-            # multiple of this value
-            wyckoff_gcd = space_group_wyckoff_gcd(self.space_group)
-
-            # Get the multiplicity of the group's most specific wyckoff position with
-            # at least one degree of freedom
-            free_multiplicity = space_group_lowest_free_wp_multiplicity(
-                self.space_group
+            (
+                mask_required_element,
+                mask_unrequired_element,
+            ) = self._refine_compatibility_check(
+                state, mask_required_element, mask_unrequired_element
             )
-
-            # Go through each action in the masks, validating them
-            # individually
-            for action_idx, nb_atoms_action in enumerate(
-                range(self.min_atom_i, self.max_atom_i + 1)
-            ):
-                if (
-                    not mask_required_element[action_idx]
-                    or not mask_unrequired_element[action_idx]
-                ):
-                    # If the number of atoms added by this action is not a
-                    # multiple of the greatest common divisor of the wyckoff
-                    # positions' multiplicities, mark action as invalid
-                    if nb_atoms_action % wyckoff_gcd != 0:
-                        mask_required_element[action_idx] = True
-                        mask_unrequired_element[action_idx] = True
-                        continue
-
-                    # If the number of atoms added by this action is a
-                    # multiple of a non-specific wyckoff position, nothing
-                    # prevents it from being valid
-                    if nb_atoms_action % free_multiplicity == 0:
-                        continue
-
-                    # Checking validity by induction. If a composition is
-                    # valid, adding a number of atoms is equal to the
-                    # multiplicity of a non-specific position, then this
-                    # action must also be valid.
-                    if nb_atoms_action > free_multiplicity and (
-                        not mask_required_element[action_idx - free_multiplicity]
-                        or not mask_unrequired_element[action_idx - free_multiplicity]
-                    ):
-                        continue
-
-                    # If the composition resulting from this action is
-                    # incompatible with the space group, mark action as
-                    # invalid
-                    n_atoms_post_action = n_atoms + [nb_atoms_action]
-                    sg_compatible = space_group_check_compatible(
-                        self.space_group, n_atoms_post_action
-                    )
-                    if not sg_compatible:
-                        mask_required_element[action_idx] = True
-                        mask_unrequired_element[action_idx] = True
 
         # Set action mask for each element
         nb_actions_per_element = self.max_atom_i - self.min_atom_i + 1
