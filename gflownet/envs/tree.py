@@ -603,7 +603,6 @@ class Tree(GFlowNetEnv):
             return logprobs
         # Continuous actions
         mask_cont = torch.logical_not(mask_discrete)
-        n_cont = mask_cont.sum()
         policy_outputs_cont = policy_outputs[
             mask_cont, self._index_continuous_policy_output :
         ]
