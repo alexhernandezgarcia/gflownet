@@ -1,11 +1,14 @@
+import pickle
 import warnings
 from collections import Counter
+from pathlib import Path
 from typing import List, Optional, Tuple, Union
 
 import matplotlib.pyplot as plt
 import networkx as nx
 import numpy as np
 import numpy.typing as npt
+import pandas as pd
 import torch
 import torch_geometric as pyg
 from networkx.drawing.nx_pydot import graphviz_layout
@@ -1007,18 +1010,12 @@ class Tree(GFlowNetEnv):
 
     @staticmethod
     def _load_dataset(data_path):
-        from pathlib import Path
-
         data_path = Path(data_path)
         if data_path.suffix == ".csv":
-            import pandas as pd
-
             df = pd.read_csv(data_path)
             X = df.iloc[:, 0:-1].values
             y = df.iloc[:, -1].values
         elif data_path.suffix == ".pkl":
-            import pickle
-
             with open(data_path, "rb") as f:
                 dct = pickle.load(f)
                 X = dct["X"]
