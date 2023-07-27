@@ -77,6 +77,13 @@ class Grid(GFlowNetEnv):
         self.eos = tuple([0 for _ in range(self.n_dim)])
         # Base class init
         super().__init__(**kwargs)
+        # Proxy format
+        # TODO: assess if really needed
+        if self.proxy_state_format == "ohe":
+            self.statebatch2proxy = self.statebatch2policy
+        elif self.proxy_state_format == "oracle":
+            self.statebatch2proxy = self.statebatch2oracle
+            self.statetorch2proxy = self.statetorch2oracle
 
     def get_action_space(self):
         """
@@ -374,8 +381,9 @@ class Grid(GFlowNetEnv):
         )
         return all_x.tolist()
 
-    def get_uniform_terminating_states(self, n_states: int) -> List[List]:
-        states = np.random.randint(low=0, high=self.length, size=(n_states, self.n_dim))
+    def get_uniform_terminating_states(self, n_states: int, seed: int) -> List[List]:
+        rng = np.random.default_rng(seed)
+        states = rng.integers(low=0, high=self.length, size=(n_states, self.n_dim))
         return states.tolist()
 
     def plot_samples_frequency(self, samples, ax=None, title=None, rescale=1):
