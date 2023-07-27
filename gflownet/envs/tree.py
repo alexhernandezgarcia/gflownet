@@ -1026,12 +1026,13 @@ class Tree(GFlowNetEnv):
             )
         return X, y
 
-    def predict(self, x: npt.NDArray, k: int = 0) -> int:
+    @staticmethod
+    def predict(state: torch.Tensor, x: npt.NDArray, k: int = 0) -> int:
         """
         Recursively predict output label given a feature vector x
         of a single observation.
         """
-        attributes = self.state[k]
+        attributes = state[k]
 
         if attributes[Attribute.TYPE] == NodeType.CLASSIFIER:
             return attributes[Attribute.CLASS]
@@ -1040,9 +1041,12 @@ class Tree(GFlowNetEnv):
             x[attributes[Attribute.FEATURE].long().item()]
             < attributes[Attribute.THRESHOLD]
         ):
-            return self.predict(x, k=Tree._get_left_child(k))
+            return Tree.predict(state, x, k=Tree._get_left_child(k))
         else:
-            return self.predict(x, k=Tree._get_right_child(k))
+            return Tree.predict(state, x, k=Tree._get_right_child(k))
+
+    def _predict(self, x: npt.NDArray, k: int = 0) -> int:
+        return Tree.predict(self.state, x, k)
 
     def plot(self) -> None:
         """

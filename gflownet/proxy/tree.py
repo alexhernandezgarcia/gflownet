@@ -27,15 +27,12 @@ class TreeProxy(Proxy):
         self.max_depth = env.max_depth
 
     def __call__(self, states: TensorType["batch", "state_dim"]) -> TensorType["batch"]:
-        tree = Tree.__new__(Tree)
         energies = []
 
         for state in states:
-            tree.state = state
-
             predictions = []
             for x in self.X:
-                predictions.append(tree.predict(x))
+                predictions.append(Tree.predict(state, x))
 
             likelihood = (np.array(predictions) == self.y).mean()
             prior = 1 - np.log2(len(Tree._find_leaves(state))) / (self.max_depth - 1)

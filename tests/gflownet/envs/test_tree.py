@@ -26,7 +26,7 @@ def test__starting_tree__always_predicts_most_common_class(X, y):
     tree = Tree(X, y)
     x = np.random.random(5)
 
-    assert tree.predict(x) == Counter(y).most_common()[0][0]
+    assert tree._predict(x) == Counter(y).most_common()[0][0]
 
 
 @pytest.fixture
@@ -65,7 +65,7 @@ def tree(X, y):
     ],
 )
 def test__predict__has_expected_output(tree, x, output):
-    assert tree.predict(x) == output
+    assert tree._predict(x) == output
 
 
 def test__node_tree__has_expected_node_attributes(tree):
