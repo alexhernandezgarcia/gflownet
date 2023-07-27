@@ -7,7 +7,7 @@ id: tree
 # Data set
 data_path: ${user.data.root}/iris.csv
 # Max depth
-max_depth: 10
+max_depth: 4
 # Policy parameters
 threshold_components: 1
 beta_params_min: 0.1
