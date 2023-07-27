@@ -14,9 +14,10 @@ class TreeProxy(Proxy):
     computing likelihood, and the number of leafs in the tree for computing the prior.
     """
 
-    def __init__(self, **kwargs):
+    def __init__(self, use_prior: bool = True, **kwargs):
         super().__init__(**kwargs)
 
+        self.use_prior = use_prior
         self.X = None
         self.y = None
         self.max_depth = None
@@ -35,7 +36,10 @@ class TreeProxy(Proxy):
                 predictions.append(Tree.predict(state, x))
 
             likelihood = (np.array(predictions) == self.y).mean()
-            prior = 1 - np.log2(len(Tree._find_leaves(state))) / (self.max_depth - 1)
+            if self.use_prior:
+                prior = 1 - np.log2(len(Tree._find_leaves(state))) / (self.max_depth - 1)
+            else:
+                prior = 1
             energies.append(-likelihood * prior)
 
         return torch.Tensor(energies)
