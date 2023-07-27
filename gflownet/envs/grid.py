@@ -58,8 +58,6 @@ class Grid(GFlowNetEnv):
         max_dim_per_action: int = 1,
         cell_min: float = -1,
         cell_max: float = 1,
-        corr_type: str = None,
-        rescale: int = 1.0,
         **kwargs,
     ):
         assert n_dim > 0
@@ -79,8 +77,6 @@ class Grid(GFlowNetEnv):
         self.eos = tuple([0 for _ in range(self.n_dim)])
         # Base class init
         super().__init__(**kwargs)
-        self.rescale = rescale
-        self.corr_type = corr_type
 
     def get_action_space(self):
         """
@@ -393,12 +389,9 @@ class Grid(GFlowNetEnv):
             standalone = True
         else:
             standalone = False
-        # assuming the first time this function would be called when the dataset is created
-        if self.rescale == None:
-            self.rescale = rescale
         # make a list of integers from 0 to n_dim
-        if self.rescale != 1:
-            step = int(self.length / self.rescale)
+        if rescale != 1:
+            step = int(self.length / rescale)
         else:
             step = 1
         ax.set_xticks(np.arange(start=0, stop=self.length, step=step))
