@@ -226,6 +226,9 @@ class GFlowNetEnv:
         """
         Returns the list of non-invalid (valid, for short) according to the mask of
         invalid actions.
+
+        More documentation about the meaning and use of invalid actions can be found in
+        gflownet/envs/README.md.
         """
         if backward:
             mask = self.get_mask_invalid_actions_backward(state, done)
