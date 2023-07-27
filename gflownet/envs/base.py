@@ -12,7 +12,6 @@ from torch.distributions import Categorical
 from torchtyping import TensorType
 
 from gflownet.utils.common import set_device, set_float_precision
-from pathlib import Path
 import matplotlib.pyplot as plt
 
 
@@ -63,6 +62,11 @@ class GFlowNetEnv:
             self.oracle = self.proxy
         else:
             self.oracle = oracle
+        if self.oracle is None or self.oracle.higher_is_better:
+            self.proxy_factor = 1.0
+        else:
+            self.proxy_factor = -1.0
+        self.proxy_state_format = proxy_state_format
         # Log SoftMax function
         self.logsoftmax = torch.nn.LogSoftmax(dim=1)
         # Action space
