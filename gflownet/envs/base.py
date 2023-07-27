@@ -345,6 +345,7 @@ class GFlowNetEnv:
         logprobs = self.logsoftmax(logits)[ns_range, action_indices]
         return logprobs
 
+    # TODO: add seed
     def step_random(self):
         """
         Samples a random action and executes the step.
@@ -391,6 +392,44 @@ class GFlowNetEnv:
             if valid:
                 actions.append(action)
         return self.state, actions
+
+    def get_random_terminating_states(
+        self, n_states: int, unique: bool = True, max_attempts: int = 100000
+    ) -> List:
+        """
+        Samples n terminating states by using the random policy of the environment
+        (calling self.trajectory_random()).
+
+        Args
+        ----
+        n_states : int
+            The number of terminating states to sample.
+
+        unique : bool
+            Whether samples should be unique.
+
+        max_attempts : int
+            The maximum number of attempts, to prevent the method from getting stuck
+            trying to obtain n_states different samples if unique is True. 100000 by
+            default, therefore if more than 100000 are requested, max_attempts should
+            be increased
+            accordingly.
+        """
+        if unique is False:
+            max_attempts = n_states + 1
+        states = []
+        count = 0
+        while len(states) < n_states and count < max_attempts:
+            add = True
+            self.reset()
+            state, _ = self.trajectory_random()
+            if unique is True:
+                if any([self.equal(state, s) for s in states]):
+                    add = False
+            if add is True:
+                states.append(state)
+            count += 1
+        return states
 
     def get_policy_output(self, params: Optional[dict] = None):
         """

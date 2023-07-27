@@ -189,6 +189,12 @@ class Buffer:
             and hasattr(self.env, "get_uniform_terminating_states")
         ):
             samples = self.env.get_uniform_terminating_states(config.n, config.seed)
+        elif (
+            config.type == "random"
+            and "n" in config
+            and hasattr(self.env, "get_random_terminating_states")
+        ):
+            samples = self.env.get_random_terminating_states(config.n)
         else:
             return None, None
         energies = self.env.oracle(self.env.statebatch2oracle(samples)).tolist()
