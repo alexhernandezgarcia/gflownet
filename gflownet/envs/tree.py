@@ -224,7 +224,7 @@ class Tree(GFlowNetEnv):
         # TODO: add functionality to select conversion type depending on config
         self.state2policy = self.state2policy_mlp
         self.statetorch2policy = self.statetorch2policy_mlp
-        self.statetorch2proxy = self.statetorch2policy
+        # self.statetorch2proxy = self.statetorch2policy
 
         super().__init__(
             fixed_distribution=fixed_distribution,
