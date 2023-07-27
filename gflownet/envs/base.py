@@ -1,6 +1,7 @@
 """
 Base class of GFlowNet environments
 """
+import uuid
 from abc import abstractmethod
 from copy import deepcopy
 from textwrap import dedent
@@ -13,7 +14,7 @@ import torch
 from torch.distributions import Categorical
 from torchtyping import TensorType
 
-from gflownet.utils.common import set_device, set_float_precision
+from gflownet.utils.common import copy, set_device, set_float_precision, tbool, tfloat
 
 
 class GFlowNetEnv:
@@ -40,10 +41,13 @@ class GFlowNetEnv:
         fixed_distribution: Optional[dict] = None,
         random_distribution: Optional[dict] = None,
         conditional: bool = False,
+        continuous: bool = False,
         **kwargs,
     ):
         # Flag whether env is conditional
         self.conditional = conditional
+        # Flag whether env is continuous
+        self.continuous = continuous
         # Call reset() to set initial state, done, n_actions
         self.reset()
         # Device
@@ -117,6 +121,34 @@ class GFlowNetEnv:
         # the action_dim dimension are True
         return torch.where(torch.all(actions == action_space, dim=2))[1]
 
+    def _get_state_done(self, state: Union[List, TensorType["state_dims"]], done: bool):
+        """
+        A helper method for other methods to determine whether state and done should be
+        taken from the arguments or from the instance (self.state and self.done): if
+        they are None, they are taken from the instance.
+
+        Args
+        ----
+        state : list or tensor or None
+            None, or a state in GFlowNet format.
+
+        done : bool or None
+            None, or whether the environment is done.
+
+        Returns
+        -------
+        state : list or tensor
+            The argument state, or self.state if state is None.
+
+        done: bool
+            The argument done, or self.done if done is None.
+        """
+        if state is None:
+            state = copy(self.state)
+        if done is None:
+            done = self.done
+        return state, done
+
     def get_mask_invalid_actions_forward(
         self,
         state: Optional[List] = None,
@@ -149,8 +181,9 @@ class GFlowNetEnv:
         Continuous environments will probably need to implement its specific version of
         this method.
         """
+        state, done = self._get_state_done(state, done)
         if parents_a is None:
-            _, parents_a = self.get_parents()
+            _, parents_a = self.get_parents(state, done)
         mask = [True for _ in range(self.action_space_dim)]
         for pa in parents_a:
             mask[self.action_space.index(pa)] = False
@@ -198,10 +231,11 @@ class GFlowNetEnv:
         return parents, actions
 
     def _pre_step(
-        self, action: Tuple[int], skip_mask_check: bool = False
+        self, action: Tuple[int], backward: bool = False, skip_mask_check: bool = False
     ) -> Tuple[bool, List[int], Tuple[int]]:
         """
-        Performs generic checks shared by the step() method of all environments.
+        Performs generic checks shared by the step() and step_backward() (backward must
+        be True) methods of all environments.
 
         Args
         ----
@@ -216,6 +250,7 @@ class GFlowNetEnv:
         -------
         do_step : bool
             If True, step() should continue further, False otherwise.
+
         self.state : list
             The sequence after executing the action
 
@@ -227,14 +262,23 @@ class GFlowNetEnv:
             raise ValueError(
                 f"Tried to execute action {action} not present in action space."
             )
-        # If env is done, step should not proceed.
-        if self.done:
-            return False, self.state, action
+        # If backward and state is source, step should not proceed.
+        if backward is True:
+            if self.equal(self.state, self.source) and action != self.eos:
+                return False, self.state, action
+        # If forward and env is done, step should not proceed.
+        else:
+            if self.done:
+                return False, self.state, action
         # If action is in invalid mask, step should not proceed.
         if not (self.skip_mask_check or skip_mask_check):
             action_idx = self.action_space.index(action)
-            if self.get_mask_invalid_actions_forward()[action_idx]:
-                return False, self.state, action
+            if backward:
+                if self.get_mask_invalid_actions_backward()[action_idx]:
+                    return False, self.state, action
+            else:
+                if self.get_mask_invalid_actions_forward()[action_idx]:
+                    return False, self.state, action
         return True, self.state, action
 
     @abstractmethod
@@ -267,6 +311,50 @@ class GFlowNetEnv:
         """
         _, self.state, action = self._pre_step(action, skip_mask_check)
         return None, None, None
+
+    def step_backwards(
+        self, action: Tuple[int], skip_mask_check: bool = False
+    ) -> Tuple[List[int], Tuple[int], bool]:
+        """
+        Executes a backward step given an action. This generic implementation should
+        work for all discrete environments, as it relies on get_parents(). Continuous
+        environments should re-implement a custom step_backwards(). Despite being valid
+        for any discrete environment, the call to get_parents() may be expensive. Thus,
+        it may be advantageous to re-implement step_backwards() in a more efficient
+        way as well for discrete environments. Especially, because this generic
+        implementation will make two calls to get_parents - once here and one in
+        _pre_step() through the call to get_mask_invalid_actions_backward() if
+        skip_mask_check is True.
+
+        Args
+        ----
+        action : tuple
+            Action from the action space.
+
+        skip_mask_check : bool
+            If True, skip computing forward mask of invalid actions to check if the
+            action is valid.
+
+        Returns
+        -------
+        self.state : list
+            The sequence after executing the action
+
+        action : int
+            Action index
+
+        valid : bool
+            False, if the action is not allowed for the current state.
+        """
+        do_step, self.state, action = self._pre_step(action, True, skip_mask_check)
+        if not do_step:
+            return self.state, action, False
+        parents, parents_a = self.get_parents()
+        state_next = parents[parents_a.index(action)]
+        self.state = state_next
+        self.done = False
+        self.n_actions += 1
+        return self.state, action, True
 
     def sample_actions(
         self,
@@ -346,7 +434,7 @@ class GFlowNetEnv:
         return logprobs
 
     # TODO: add seed
-    def step_random(self):
+    def step_random(self, backward: bool = False):
         """
         Samples a random action and executes the step.
 
@@ -361,16 +449,26 @@ class GFlowNetEnv:
         valid : bool
             False, if the action is not allowed for the current state.
         """
-        mask_invalid = torch.unsqueeze(
-            torch.tensor(self.get_mask_invalid_actions_forward(), dtype=torch.bool), 0
-        )
+        if backward:
+            mask_invalid = torch.unsqueeze(
+                tbool(self.get_mask_invalid_actions_backward(), device=self.device), 0
+            )
+        else:
+            mask_invalid = torch.unsqueeze(
+                tbool(self.get_mask_invalid_actions_forward(), device=self.device), 0
+            )
         random_policy = torch.unsqueeze(
-            torch.tensor(self.random_policy_output, dtype=self.float), 0
+            tfloat(
+                self.random_policy_output, float_type=self.float, device=self.device
+            ),
+            0,
         )
         actions, _ = self.sample_actions(
             policy_outputs=random_policy, mask_invalid_actions=mask_invalid
         )
         action = actions[0]
+        if backward:
+            return self.step_backwards(action)
         return self.step(action)
 
     def trajectory_random(self):
@@ -548,13 +646,10 @@ class GFlowNetEnv:
         """
         Computes the reward of a state
         """
-        if done is None:
-            done = self.done
-        if done:
-            return np.array(0.0)
-        if state is None:
-            state = self.state.copy()
-        return self.proxy2reward(self.proxy(self.state2proxy(state)))
+        state, done = self._get_state_done(state, done)
+        if done is False:
+            return tfloat(0.0, float_type=self.float, device=self.device)
+        return self.proxy2reward(self.proxy(self.state2proxy(state))[0])
 
     def reward_batch(self, states: List[List], done=None):
         """
@@ -657,13 +752,41 @@ class GFlowNetEnv:
     def reset(self, env_id: Union[int, str] = None):
         """
         Resets the environment.
+
+        Args
+        ----
+        env_id: int or str
+            Unique (ideally) identifier of the environment instance, used to identify
+            the trajectory generated with this environment. If None, uuid.uuid4() is
+            used.
+
+        Returns
+        -------
+        self
         """
-        if torch.is_tensor(self.source):
-            self.state = self.source.clone().detach()
-        else:
-            self.state = self.source.copy()
+        self.state = copy(self.source)
         self.n_actions = 0
         self.done = False
+        if env_id is None:
+            self.id = str(uuid.uuid4())
+        else:
+            self.id = env_id
+        return self
+
+    def set_id(self, env_id: Union[int, str]):
+        """
+        Sets the id given as argument and returns the environment.
+
+        Args
+        ----
+        env_id: int or str
+            Unique (ideally) identifier of the environment instance, used to identify
+            the trajectory generated with this environment.
+
+        Returns
+        -------
+        self
+        """
         self.id = env_id
         return self
 
@@ -680,6 +803,13 @@ class GFlowNetEnv:
     def copy(self):
         # return self.__class__(**self.__dict__)
         return deepcopy(self)
+
+    @staticmethod
+    def equal(state_x, state_y):
+        if torch.is_tensor(state_x) and torch.is_tensor(state_y):
+            return torch.equal(state_x, state_y)
+        else:
+            return state_x == state_y
 
     def set_energies_stats(self, energies_stats):
         self.energies_stats = energies_stats
