@@ -14,7 +14,7 @@ class Proxy(ABC):
     Generic proxy class
     """
 
-    def __init__(self, device, float_precision, higher_is_better=None, **kwargs):
+    def __init__(self, device, float_precision, higher_is_better=False, **kwargs):
         # Device
         self.device = set_device(device)
         # Float precision
