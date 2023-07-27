@@ -5,6 +5,7 @@ from abc import abstractmethod
 from copy import deepcopy
 from typing import List, Optional, Tuple, Union
 
+import matplotlib.pyplot as plt
 import numpy as np
 import numpy.typing as npt
 import torch
@@ -12,7 +13,6 @@ from torch.distributions import Categorical
 from torchtyping import TensorType
 
 from gflownet.utils.common import set_device, set_float_precision
-import matplotlib.pyplot as plt
 
 
 class GFlowNetEnv:
