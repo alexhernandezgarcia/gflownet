@@ -23,8 +23,8 @@ class TreeProxy(Proxy):
         self.max_depth = None
 
     def setup(self, env: Optional[Tree] = None):
-        self.X = env.X
-        self.y = env.y
+        self.X = env.X_train
+        self.y = env.y_train
         self.max_depth = env.max_depth
 
     def __call__(self, states: TensorType["batch", "state_dim"]) -> TensorType["batch"]:
