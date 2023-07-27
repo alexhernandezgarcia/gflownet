@@ -204,6 +204,10 @@ class Tree(GFlowNetEnv):
         if scale_data:
             self.X = MinMaxScaler().fit_transform(self.X)
         self.y = self.y.astype(int)
+        if not set(self.y).issubset({0, 1}):
+            raise ValueError(
+                f"Expected y to have values in {{0, 1}}, received {set(self.y)}."
+            )
         self.n_features = self.X.shape[1]
         self.max_depth = max_depth
         # Parameters of the policy distribution
