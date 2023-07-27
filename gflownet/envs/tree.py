@@ -1,14 +1,20 @@
+import pickle
+import warnings
 from collections import Counter
-from typing import List, Optional, Tuple
+from pathlib import Path
+from typing import List, Optional, Tuple, Union
 
 import matplotlib.pyplot as plt
 import networkx as nx
 import numpy as np
 import numpy.typing as npt
+import pandas as pd
 import torch
 import torch_geometric as pyg
 from networkx.drawing.nx_pydot import graphviz_layout
+from torch.distributions import Beta, Categorical, MixtureSameFamily, Uniform
 from torch_geometric.utils.convert import from_networkx
+from torchtyping import TensorType
 
 from gflownet.envs.base import GFlowNetEnv
 
@@ -56,7 +62,7 @@ class Stage:
     """
     Current stage of the tree, encoded as part of the state.
     0 - complete, indicates that there is no macro step initiated, and
-        the only allowed action is to pick one of the leafs for splitting.
+        the only allowed action is to pick one of the leaves for splitting.
     1 - leaf, indicates that a leaf was picked for splitting, and the only
         allowed action is picking a feature on which it will be split.
     2 - feature, indicates that a feature was picked, and the only allowed
@@ -65,7 +71,7 @@ class Stage:
         allowed action is picking an operator.
     4 - operator, indicates that operator was picked. The only allowed
         action from here is finalizing the splitting process and spawning
-        two new leafs, which should be done automatically, upon which
+        two new leaves, which should be done automatically, upon which
         the stage should be changed to complete.
     """
 
@@ -87,8 +93,28 @@ class ActionType:
     PICK_OPERATOR = 3
 
 
-# Number of attributes encoding each node; see Tree._get_attributes.
-N_ATTRIBUTES = 5
+class Attribute:
+    """
+    Contains indices of individual attributes in a state tensor.
+
+    Types of attributes defining each node of the tree:
+
+        0 - node type (condition or classifier),
+        1 - index of the feature used for splitting (condition node only, -1 otherwise),
+        2 - decision threshold (condition node only, -1 otherwise),
+        3 - class output (classifier node only, -1 otherwise), in the case of < operator
+            the left child will have class = 0, and the right child will have class = 1;
+            the opposite for the >= operator,
+        4 - whether the node has active status (1 if node was picked and the macro step
+            didn't finish yet, 0 otherwise).
+    """
+
+    TYPE = 0
+    FEATURE = 1
+    THRESHOLD = 2
+    CLASS = 3
+    ACTIVE = 4
+    N = 5  # Total number of attributes.
 
 
 class Tree(GFlowNetEnv):
@@ -102,32 +128,56 @@ class Tree(GFlowNetEnv):
     as a macro step is not in progress, the tree constructed so far is always a
     valid decision tree, which means that forward-looking loss etc. can be used.
 
-    Internally, the tree is represented as a fixed-size tensor (thus, specifying
+    Internally, the tree is represented as a fixed-shape tensor (thus, specifying
     the maximum depth is required), with nodes indexed from k = 0 to 2**max_depth - 2,
-    and each node containing a 5-element attribute tensor (see _get_attributes for
+    and each node containing a 5-element attribute tensor (see class Attribute for
     details). The nodes are indexed from top left to bottom right, as follows:
 
                 0
         1               2
     3       4       5       6
+
+    States are represented by a tensor with shape [n_nodes + 1, 5], where each k-th row
+    corresponds to the attributes of the k-th node of the tree. The last row contains
+    the information about the stage of the tree (see class Stage).
     """
 
     def __init__(
         self,
-        X: npt.NDArray,
-        y: npt.NDArray,
+        X: Optional[npt.NDArray] = None,
+        y: Optional[npt.NDArray] = None,
+        data_path: Optional[str] = None,
         max_depth: int = 10,
         threshold_components: int = 1,
+        beta_params_min: float = 0.1,
+        beta_params_max: float = 2.0,
+        fixed_distribution: dict = {
+            "beta_alpha": 2.0,
+            "beta_beta": 5.0,
+        },
+        random_distribution: dict = {
+            "beta_alpha": 1.0,
+            "beta_beta": 1.0,
+        },
         **kwargs,
     ):
         """
         Attributes
         ----------
         X : np.array
-            Input dataset, with dimensionality (n_observations, n_features).
+            Input dataset, with dimensionality (n_observations, n_features). It may be
+            None if a data set is provided via data_path.
 
         y : np.array
-            Target labels, with dimensionality (n_observations,).
+            Target labels, with dimensionality (n_observations,). It may be
+            None if a data set is provided via data_path.
+
+        data_path : str
+            A path to a data set, with the following options:
+            - *.pkl: Pickled dict with X and y variables.
+            - *.csv: CSV with M columns where the first (M - 1) columns will be taken
+              to construct the input X, and column M-th will be the target y.
+            Ignored if X and y are not None.
 
         max_depth : int
             Maximum depth of a tree.
@@ -136,32 +186,51 @@ class Tree(GFlowNetEnv):
             The number of mixture components that will be used for sampling
             the threshold.
         """
-        self.X = X
-        self.y = y
+        if X is not None and y is not None:
+            self.X = X
+            self.y = y
+        elif data_path is not None:
+            self.X, self.y = Tree._load_dataset(data_path)
+        else:
+            raise ValueError(
+                "A Tree must be initialised with a data set. X, y and data_path cannot "
+                "be all None"
+            )
+        self.y = self.y.astype(int)
+        self.n_features = self.X.shape[1]
         self.max_depth = max_depth
+        # Parameters of the policy distribution
         self.components = threshold_components
-        self.leafs = set()
-
-        # Source will contain information about the current stage (on the 0-th position),
-        # and up to 2**max_depth - 1 nodes, each with N_ATTRIBUTES attributes, for a total of
-        # 1 + N_ATTRIBUTES * (2**max_depth - 1) values.
+        self.beta_params_min = beta_params_min
+        self.beta_params_max = beta_params_max
+        # Source will contain information about the current stage (on the last position),
+        # and up to 2**max_depth - 1 nodes, each with Attribute.N attributes, for a total of
+        # 1 + Attribute.N * (2**max_depth - 1) values. The root (0-th node) of the
+        # source is initialized with a classifier.
         self.n_nodes = 2**max_depth - 1
-        self.source = torch.full((N_ATTRIBUTES * self.n_nodes + 1,), torch.nan)
-        self.source[0] = Stage.COMPLETE
+        self.source = torch.full((self.n_nodes + 1, Attribute.N), torch.nan)
+        self._set_stage(Stage.COMPLETE, self.source)
+        attributes_root = self.source[0]
+        attributes_root[Attribute.TYPE] = NodeType.CLASSIFIER
+        attributes_root[Attribute.FEATURE] = -1
+        attributes_root[Attribute.THRESHOLD] = -1
+        attributes_root[Attribute.CLASS] = Counter(self.y).most_common()[0][0]
+        attributes_root[Attribute.ACTIVE] = Status.INACTIVE
 
         # End-of-sequence action.
         self.eos = (-1, -1)
 
-        super().__init__(**kwargs)
+        # Conversions
+        # TODO: add functionality to select conversion type depending on config
+        self.state2policy = self.state2policy_mlp
+        self.statetorch2policy = self.statetorch2policy_mlp
+        self.statetorch2proxy = self.statetorch2policy
 
-        self._insert_classifier(k=0, output=Counter(y).most_common()[0][0])
-
-    @staticmethod
-    def _get_start_end(k: int) -> Tuple[int, int]:
-        """
-        Get start and end index of attribute tensor encoding k-th node in self.state.
-        """
-        return k * N_ATTRIBUTES + 1, (k + 1) * N_ATTRIBUTES + 1
+        super().__init__(
+            fixed_distribution=fixed_distribution,
+            random_distribution=random_distribution,
+            **kwargs,
+        )
 
     @staticmethod
     def _get_parent(k: int) -> Optional[int]:
@@ -186,77 +255,77 @@ class Tree(GFlowNetEnv):
         """
         return 2 * k + 2
 
-    def _get_attributes(
-        self, k: int, state: Optional[torch.Tensor] = None
-    ) -> torch.Tensor:
+    def _get_stage(self, state: Optional[torch.Tensor] = None) -> int:
         """
-        Returns a 5-element tensor of attributes for k-th node. The encoded values are:
-        0 - node type (condition or classifier),
-        1 - index of the feature used for splitting (condition node only, -1 otherwise),
-        2 - decision threshold (condition node only, -1 otherwise),
-        3 - class output (classifier node only, -1 otherwise), in the case of < operator
-            the left child will have class = 0, and the right child will have class = 1;
-            the opposite for the >= operator,
-        4 - whether the node has active status (1 if node was picked and the macro step
-            didn't finish yet, 0 otherwise).
+        Returns the stage of the current environment from self.state[-1, 0] or from the
+        state passed as an argument.
         """
         if state is None:
             state = self.state
+        return state[-1, 0]
 
-        st, en = Tree._get_start_end(k)
-
-        return state[st:en]
+    def _set_stage(
+        self, stage: int, state: Optional[torch.Tensor] = None
+    ) -> torch.Tensor:
+        """
+        Sets the stage of the current environment (self.state) or of the state passed
+        as an argument by updating state[-1, 0].
+        """
+        if state is None:
+            state = self.state
+        state[-1, 0] = stage
+        return state
 
     def _pick_leaf(self, k: int) -> None:
         """
-        Select one of the leafs (classifier nodes) that will be split, and initiate
+        Select one of the leaves (classifier nodes) that will be split, and initiate
         macro step.
         """
-        attributes = self._get_attributes(k)
+        attributes = self.state[k]
 
-        assert self.state[0] == Stage.COMPLETE
-        assert attributes[0] == NodeType.CLASSIFIER
+        assert self._get_stage() == Stage.COMPLETE
+        assert attributes[Attribute.TYPE] == NodeType.CLASSIFIER
         assert not torch.any(torch.isnan(attributes))
         assert torch.all(attributes[1:3] == -1)
-        assert attributes[4] == Status.INACTIVE
+        assert attributes[Attribute.ACTIVE] == Status.INACTIVE
 
-        attributes[0] = NodeType.CONDITION
+        attributes[Attribute.TYPE] = NodeType.CONDITION
         attributes[1:4] = -1
-        attributes[4] = Status.ACTIVE
+        attributes[Attribute.ACTIVE] = Status.ACTIVE
 
-        self.state[0] = Stage.LEAF
+        self._set_stage(Stage.LEAF)
 
     def _pick_feature(self, k: int, feature: float) -> None:
         """
         Select the feature on which currently selected leaf will be split.
         """
-        attributes = self._get_attributes(k)
+        attributes = self.state[k]
 
-        assert self.state[0] == Stage.LEAF
-        assert attributes[0] == NodeType.CONDITION
+        assert self._get_stage() == Stage.LEAF
+        assert attributes[Attribute.TYPE] == NodeType.CONDITION
         assert torch.all(attributes[1:4] == -1)
-        assert attributes[4] == Status.ACTIVE
+        assert attributes[Attribute.ACTIVE] == Status.ACTIVE
 
-        attributes[1] = feature
+        attributes[Attribute.FEATURE] = feature
 
-        self.state[0] = Stage.FEATURE
+        self._set_stage(Stage.FEATURE)
 
     def _pick_threshold(self, k: int, threshold: float) -> None:
         """
         Select the threshold for splitting the currently selected leaf ond
         the selected feature.
         """
-        attributes = self._get_attributes(k)
+        attributes = self.state[k]
 
-        assert self.state[0] == Stage.FEATURE
-        assert attributes[0] == NodeType.CONDITION
-        assert attributes[1] >= 0
+        assert self._get_stage() == Stage.FEATURE
+        assert attributes[Attribute.TYPE] == NodeType.CONDITION
+        assert attributes[Attribute.FEATURE] >= 0
         assert torch.all(attributes[2:4] == -1)
-        assert attributes[4] == Status.ACTIVE
+        assert attributes[Attribute.ACTIVE] == Status.ACTIVE
 
-        attributes[2] = threshold
+        attributes[Attribute.THRESHOLD] = threshold
 
-        self.state[0] = Stage.THRESHOLD
+        self._set_stage(Stage.THRESHOLD)
 
     def _pick_operator(self, k: int, operator: float) -> None:
         """
@@ -264,17 +333,17 @@ class Tree(GFlowNetEnv):
         left, feature and threshold, temporarily encode it in attributes,
         and initiate final splitting.
         """
-        attributes = self._get_attributes(k)
+        attributes = self.state[k]
 
-        assert self.state[0] == Stage.THRESHOLD
-        assert attributes[0] == NodeType.CONDITION
+        assert self._get_stage() == Stage.THRESHOLD
+        assert attributes[Attribute.TYPE] == NodeType.CONDITION
         assert torch.all(attributes[1:3] >= 0)
-        assert attributes[3] == -1
-        assert attributes[4] == Status.ACTIVE
+        assert attributes[Attribute.CLASS] == -1
+        assert attributes[Attribute.ACTIVE] == Status.ACTIVE
 
-        attributes[3] = operator
+        attributes[Attribute.CLASS] = operator
 
-        self.state[0] = Stage.OPERATOR
+        self._set_stage(Stage.OPERATOR)
 
         self._split_leaf(k)
 
@@ -290,43 +359,41 @@ class Tree(GFlowNetEnv):
         the operator was always the same (and only care about the output
         label).
         """
-        attributes = self._get_attributes(k)
+        attributes = self.state[k]
 
-        assert self.state[0] == Stage.OPERATOR
-        assert attributes[0] == NodeType.CONDITION
+        assert self._get_stage() == Stage.OPERATOR
+        assert attributes[Attribute.TYPE] == NodeType.CONDITION
         assert torch.all(attributes[1:4] >= 0)
-        assert attributes[4] == Status.ACTIVE
+        assert attributes[Attribute.ACTIVE] == Status.ACTIVE
 
         k_left = Tree._get_left_child(k)
         k_right = Tree._get_right_child(k)
 
-        if attributes[3] == Operator.LT:
+        if attributes[Attribute.CLASS] == Operator.LT:
             self._insert_classifier(k_left, output=0)
             self._insert_classifier(k_right, output=1)
         else:
             self._insert_classifier(k_left, output=1)
             self._insert_classifier(k_right, output=0)
 
-        attributes[3] = -1
-        attributes[4] = Status.INACTIVE
+        attributes[Attribute.CLASS] = -1
+        attributes[Attribute.ACTIVE] = Status.INACTIVE
 
-        self.leafs.remove(k)
-        self.state[0] = Stage.COMPLETE
+        self._set_stage(Stage.COMPLETE)
 
     def _insert_classifier(self, k: int, output: int) -> None:
         """
         Replace attributes of k-th node with those of a classifier node.
         """
-        attributes = self._get_attributes(k)
+        attributes = self.state[k]
 
         assert torch.all(torch.isnan(attributes))
 
-        attributes[0] = NodeType.CLASSIFIER
-        attributes[1:3] = -1
-        attributes[3] = output
-        attributes[4] = Status.INACTIVE
-
-        self.leafs.add(k)
+        attributes[Attribute.TYPE] = NodeType.CLASSIFIER
+        attributes[Attribute.FEATURE] = -1
+        attributes[Attribute.THRESHOLD] = -1
+        attributes[Attribute.CLASS] = output
+        attributes[Attribute.ACTIVE] = Status.INACTIVE
 
     def get_action_space(self) -> List[Tuple[int, int]]:
         """
@@ -336,109 +403,469 @@ class Tree(GFlowNetEnv):
                 1 - pick feature,
                 2 - pick threshold,
                 3 - pick operator,
-            2) node index.
+            2) action value, depending on the action type:
+                pick leaf: leaf index
+                pick feature: feature index
+                pick threshold: threshold value
+                pick operator: operator index
         """
-        actions = [(t, k) for t in range(4) for k in range(self.n_nodes)]
+        actions = []
+        # Pick leaf
+        self._action_index_pick_leaf = 0
+        actions.extend([(ActionType.PICK_LEAF, idx) for idx in range(self.n_nodes)])
+        # Pick feature
+        self._action_index_pick_feature = len(actions)
+        actions.extend(
+            [(ActionType.PICK_FEATURE, idx) for idx in range(self.n_features)]
+        )
+        # Pick threshold
+        self._action_index_pick_threshold = len(actions)
+        actions.extend([(ActionType.PICK_THRESHOLD, -1)])
+        # Pick operator
+        self._action_index_pick_operator = len(actions)
+        actions.extend(
+            [(ActionType.PICK_OPERATOR, idx) for idx in [Operator.LT, Operator.GTE]]
+        )
+        # EOS
+        self._action_index_eos = len(actions)
         actions.append(self.eos)
 
         return actions
 
     def step(
-        self, action: Tuple[int, int, float]
-    ) -> Tuple[List[int], Tuple[int, int, float], bool]:
-        # If action not found in action space raise an error.
-        if action[:2] not in self.action_space:
-            raise ValueError(
-                f"Tried to execute action {action} not present in action space."
-            )
-        else:
-            action_idx = self.action_space.index(action[:2])
+        self, action: Tuple[int, Union[int, float]], skip_mask_check: bool = False
+    ) -> Tuple[List[int], Tuple[int, Union[int, float]], bool]:
+        """
+        Executes step given an action.
 
-        # If action is in invalid mask, exit immediately.
-        if self.get_mask_invalid_actions_forward()[action_idx]:
+        Args
+        ----
+        action : tuple
+            Action to be executed.
+            See: self.get_action_space()
+
+        skip_mask_check : bool
+            If True, skip computing forward mask of invalid actions to check if the
+            action is valid.
+
+        Returns
+        -------
+        self.state : list
+            The sequence after executing the action
+
+        action : tuple
+            Action executed
+
+        valid : bool
+            False, if the action is not allowed for the current state.
+        """
+        # Replace the continuous value of threshold by -1 to allow checking it
+        action_to_check = self.action2representative(action)
+        do_step, self.state, action_to_check = self._pre_step(
+            action_to_check, skip_mask_check or self.skip_mask_check
+        )
+        if not do_step:
             return self.state, action, False
 
         self.n_actions += 1
 
         if action != self.eos:
-            action_type, k, action_value = action
+            action_type, action_value = action
 
             if action_type == ActionType.PICK_LEAF:
-                self._pick_leaf(k)
-            elif action_type == ActionType.PICK_FEATURE:
-                self._pick_feature(k, action_value)
-            elif action_type == ActionType.PICK_THRESHOLD:
-                self._pick_threshold(k, action_value)
-            elif action_type == ActionType.PICK_OPERATOR:
-                self._pick_operator(k, action_value)
+                self._pick_leaf(action_value)
             else:
-                raise NotImplementedError(f"Unrecognized action type: {action_type}.")
+                active_node = self._find_active(self.state)
+                if action_type == ActionType.PICK_FEATURE:
+                    self._pick_feature(active_node, action_value)
+                elif action_type == ActionType.PICK_THRESHOLD:
+                    self._pick_threshold(active_node, action_value)
+                elif action_type == ActionType.PICK_OPERATOR:
+                    self._pick_operator(active_node, action_value)
+                else:
+                    raise NotImplementedError(
+                        f"Unrecognized action type: {action_type}."
+                    )
 
             return self.state, action, True
         else:
             self.done = True
             return self.state, action, True
 
-    @staticmethod
-    def _find_leafs(state: torch.Tensor) -> List[int]:
+    def set_state(self, state: List, done: Optional[bool] = False):
         """
-        Compute indices of leafs from a state.
+        Sets the state and done. If done is True but incompatible with state (Stage is
+        not COMPLETE), then force done False and print warning.
         """
-        leafs = [x.item() for x in torch.where(state[1::5] == NodeType.CLASSIFIER)[0]]
+        if done is True and self._get_stage() != Stage.COMPLETE:
+            done = False
+            warnings.warn(
+                f"""
+            Attempted to set state {self.state2readable(state)} with done = True, which
+            is not compatible with the environment. Forcing done = False.
+            """
+            )
+        return super().set_state(state, done)
 
-        return leafs
+    def sample_actions(
+        self,
+        policy_outputs: TensorType["n_states", "policy_output_dim"],
+        sampling_method: str = "policy",
+        mask_invalid_actions: TensorType["n_states", "action_space_dim"] = None,
+        temperature_logits: float = 1.0,
+    ) -> Tuple[List[Tuple], TensorType["n_states"]]:
+        """
+        Samples a batch of actions from a batch of policy outputs.
+        """
+        n_states = policy_outputs.shape[0]
+        logprobs = torch.zeros(n_states, device=self.device, dtype=self.float)
+        # Discrete actions
+        mask_discrete = mask_invalid_actions[:, self._action_index_pick_threshold]
+        if torch.any(mask_discrete):
+            policy_outputs_discrete = policy_outputs[
+                mask_discrete, : self._index_continuous_policy_output
+            ]
+            actions_discrete, logprobs_discrete = super().sample_actions(
+                policy_outputs_discrete,
+                sampling_method,
+                mask_invalid_actions[
+                    mask_discrete, : self._index_continuous_policy_output
+                ],
+                temperature_logits,
+            )
+            logprobs[mask_discrete] = logprobs_discrete
+        if torch.all(mask_discrete):
+            return actions_discrete, logprobs
+        # Continuous actions
+        mask_cont = torch.logical_not(mask_discrete)
+        n_cont = mask_cont.sum()
+        policy_outputs_cont = policy_outputs[
+            mask_cont, self._index_continuous_policy_output :
+        ]
+        if sampling_method == "uniform":
+            distr_threshold = Uniform(
+                torch.zeros(n_cont),
+                torch.ones(n_cont),
+            )
+        elif sampling_method == "policy":
+            mix_logits = policy_outputs_cont[:, 0::3]
+            mix = Categorical(logits=mix_logits)
+            alphas = policy_outputs_cont[:, 1::3]
+            alphas = self.beta_params_max * torch.sigmoid(alphas) + self.beta_params_min
+            betas = policy_outputs_cont[:, 2::3]
+            betas = self.beta_params_max * torch.sigmoid(betas) + self.beta_params_min
+            beta_distr = Beta(alphas, betas)
+            distr_threshold = MixtureSameFamily(mix, beta_distr)
+        thresholds = distr_threshold.sample()
+        # Log probs
+        logprobs[mask_cont] = distr_threshold.log_prob(thresholds)
+        # Build actions
+        actions_cont = [(ActionType.PICK_THRESHOLD, th.item()) for th in thresholds]
+        actions = []
+        for is_discrete in mask_discrete:
+            if is_discrete:
+                actions.append(actions_discrete.pop(0))
+            else:
+                actions.append(actions_cont.pop(0))
+        return actions, logprobs
+
+    def get_logprobs(
+        self,
+        policy_outputs: TensorType["n_states", "policy_output_dim"],
+        is_forward: bool,
+        actions: TensorType["n_states", "n_dim"],
+        states_target: TensorType["n_states", "policy_input_dim"],
+        mask_invalid_actions: TensorType["n_states", "1"] = None,
+    ) -> TensorType["batch_size"]:
+        """
+        Computes log probabilities of actions given policy outputs and actions.
+        """
+        n_states = policy_outputs.shape[0]
+        if states_target is None:
+            states_target = torch.empty(
+                (n_states, self.policy_input_dim), device=self.device
+            )
+        logprobs = torch.zeros(n_states, device=self.device, dtype=self.float)
+        # Discrete actions
+        mask_discrete = mask_invalid_actions[:, self._action_index_pick_threshold]
+        if torch.any(mask_discrete):
+            policy_outputs_discrete = policy_outputs[
+                mask_discrete, : self._index_continuous_policy_output
+            ]
+            logprobs_discrete = super().get_logprobs(
+                policy_outputs_discrete,
+                is_forward,
+                actions[mask_discrete],
+                states_target[mask_discrete],
+                mask_invalid_actions[
+                    mask_discrete, : self._index_continuous_policy_output
+                ],
+            )
+            logprobs[mask_discrete] = logprobs_discrete
+        if torch.all(mask_discrete):
+            return logprobs
+        # Continuous actions
+        mask_cont = torch.logical_not(mask_discrete)
+        policy_outputs_cont = policy_outputs[
+            mask_cont, self._index_continuous_policy_output :
+        ]
+        mix_logits = policy_outputs_cont[:, 0::3]
+        mix = Categorical(logits=mix_logits)
+        alphas = policy_outputs_cont[:, 1::3]
+        alphas = self.beta_params_max * torch.sigmoid(alphas) + self.beta_params_min
+        betas = policy_outputs_cont[:, 2::3]
+        betas = self.beta_params_max * torch.sigmoid(betas) + self.beta_params_min
+        beta_distr = Beta(alphas, betas)
+        distr_threshold = MixtureSameFamily(mix, beta_distr)
+        thresholds = actions[mask_cont, -1]
+        logprobs[mask_cont] = distr_threshold.log_prob(thresholds)
+        return logprobs
+
+    def state2policy_mlp(
+        self, state: Optional[TensorType["state_dim"]] = None
+    ) -> TensorType["policy_input_dim"]:
+        """
+        Prepares a state in "GFlowNet format" for the policy model.
+        """
+        if state is None:
+            state = self.state.clone().detach()
+        state[state.isnan()] = -1
+        return state.flatten()
+
+    def statetorch2policy_mlp(
+        self, states: TensorType["batch_size", "state_dim"]
+    ) -> TensorType["batch_size", "policy_input_dim"]:
+        """
+        Prepares a batch of states in torch "GFlowNet format" for an MLP policy model.
+        It simply replaces the NaNs by -1s.
+        """
+        states[states.isnan()] = -1
+        return states.flatten(start_dim=1)
+
+    def policy2state(
+        self, policy: Optional[TensorType["policy_input_dim"]] = None
+    ) -> None:
+        """
+        Returns None to signal that the conversion is not reversible.
+        """
+        return None
+
+    def statebatch2proxy(
+        self, states: List[TensorType["state_dim"]]
+    ) -> TensorType["batch", "state_proxy_dim"]:
+        """
+        Prepares a batch of states in "GFlowNet format" for the proxy: simply
+        stacks the list of tensors and calls self.statetorch2proxy.
+
+        Args
+        ----
+        state : list
+        """
+        states = torch.stack(states)
+        return self.statetorch2proxy(states)
+
+    def _attributes_to_readable(self, attributes: List) -> str:
+        # Node type
+        if attributes[Attribute.TYPE] == NodeType.CONDITION:
+            node_type = "condition, "
+        elif attributes[Attribute.TYPE] == NodeType.CLASSIFIER:
+            node_type = "classifier, "
+        else:
+            return ""
+        # Feature
+        feature = f"feat. {str(attributes[Attribute.FEATURE])}, "
+        # Decision threshold
+        if attributes[Attribute.THRESHOLD] != -1:
+            assert attributes[Attribute.TYPE] == 0
+            threshold = f"th. {str(attributes[Attribute.THRESHOLD])}, "
+        else:
+            threshold = "th. -1, "
+        # Class output
+        if attributes[Attribute.CLASS] != -1:
+            assert attributes[Attribute.TYPE] == 1
+            class_output = f"class {str(attributes[Attribute.CLASS])}, "
+        else:
+            class_output = "class -1, "
+        if attributes[Attribute.ACTIVE] == Status.ACTIVE:
+            active = " (active)"
+        else:
+            active = ""
+        return node_type + feature + threshold + class_output + active
+
+    def state2readable(self, state=None):
+        """
+        Converts a state into human-readable representation.
+        """
+        if state is None:
+            state = self.state.clone().detach()
+        state = state.cpu().numpy()
+        readable = ""
+        for idx in range(self.n_nodes):
+            attributes = self._attributes_to_readable(state[idx])
+            if len(attributes) == 0:
+                continue
+            readable += f"{idx}: {attributes} | "
+        readable += f"stage: {self._get_stage(state)}"
+        return readable
+
+    def _readable_to_attributes(self, readable: str) -> List:
+        attributes_list = readable.split(", ")
+        # Node type
+        if attributes_list[0] == "condition":
+            node_type = NodeType.CONDITION
+        elif attributes_list[0] == "classifier":
+            node_type = NodeType.CLASSIFIER
+        else:
+            node_type = -1
+        # Feature
+        feature = float(attributes_list[1].split("feat. ")[-1])
+        # Decision threshold
+        threshold = float(attributes_list[2].split("th. ")[-1])
+        # Class output
+        class_output = float(attributes_list[3].split("class ")[-1])
+        # Active
+        if "(active)" in readable:
+            active = Status.ACTIVE
+        else:
+            active = Status.INACTIVE
+        return [node_type, feature, threshold, class_output, active]
+
+    def readable2state(self, readable):
+        """
+        Converts a human-readable representation of a state into the standard format.
+        """
+        readable_list = readable.split(" | ")
+        state = torch.full((self.n_nodes + 1, Attribute.N), torch.nan)
+        for el in readable_list[:-1]:
+            node_index, attributes_str = el.split(": ")
+            node_index = int(node_index)
+            attributes = self._readable_to_attributes(attributes_str)
+            for idx, att in enumerate(attributes):
+                state[node_index, idx] = att
+        stage = float(readable_list[-1].split("stage: ")[-1])
+        state = self._set_stage(stage, state)
+        return state
+
+    @staticmethod
+    def _find_leaves(state: torch.Tensor) -> List[int]:
+        """
+        Compute indices of leaves from a state.
+        """
+        return torch.where(state[:-1, Attribute.TYPE] == NodeType.CLASSIFIER)[
+            0
+        ].tolist()
 
     @staticmethod
     def _find_active(state: torch.Tensor) -> int:
         """
-        Compute index of the (only) active node. Assumes that active node exists
+        Get index of the (only) active node. Assumes that active node exists
         (that we are in the middle of a macro step).
         """
-        k = torch.where(state[N_ATTRIBUTES::N_ATTRIBUTES] == Status.ACTIVE)[0].item()
+        active = torch.where(state[:-1, Attribute.ACTIVE] == Status.ACTIVE)[0]
+        assert len(active) == 1
+        return active.item()
 
-        return k
+    def get_policy_output(self, params: dict) -> TensorType["policy_output_dim"]:
+        """
+        Defines the structure of the output of the policy model, from which an
+        action is to be determined or sampled. It initializes the output tensor
+        by using the parameters provided in the argument params.
+
+        The output of the policy of a Tree environment consists of a discrete and
+        continuous part. The discrete part (first part) corresponds to the discrete
+        actions, while the continuous part (second part) corresponds to the single
+        continuous action, that is the sampling of the threshold of a node classifier.
+
+        The latter is modelled by a mixture of Beta distributions. Therefore, the
+        continuous part of of the policy output is vector of dimensionality c * 3,
+        where c is the number of components in the mixture (self.components).
+        The three parameters of each component are the following:
+
+          1) the weight of the component in the mixture
+          2) the logit(alpha) parameter of the Beta distribution to sample the
+             threshold.
+          3) the logit(beta) parameter of the Beta distribution to sample the
+             threshold.
+
+        Note: contrary to other environments where there is a need to model a mixture
+        of discrete and continuous distributions (for example to consider the
+        possibility of sampling the EOS action instead of a continuous action), there
+        is no such need here because either the continuous action is the only valid
+        action or it is not valid.
+        """
+        policy_output_discrete = torch.ones(
+            self.action_space_dim, device=self.device, dtype=self.float
+        )
+        self._index_continuous_policy_output = len(policy_output_discrete)
+        self._len_continuous_policy_output = self.components * 3
+        policy_output_continuous = torch.ones(
+            self._len_continuous_policy_output,
+            device=self.device,
+            dtype=self.float,
+        )
+        policy_output_continuous[1::3] = params["beta_alpha"]
+        policy_output_continuous[2::3] = params["beta_beta"]
+        return torch.cat([policy_output_discrete, policy_output_continuous])
 
     def get_mask_invalid_actions_forward(
         self, state: Optional[torch.Tensor] = None, done: Optional[bool] = None
     ) -> List[bool]:
         if state is None:
             state = self.state
-            leafs = self.leafs
-        else:
-            leafs = Tree._find_leafs(state)
         if done is None:
             done = self.done
 
         if done:
-            return [True] * self.action_space_dim
+            return [True] * self.policy_output_dim
 
-        stage = state[0]
-        mask = [True] * self.action_space_dim
+        leaves = Tree._find_leaves(state)
+        stage = self._get_stage(state)
+        mask = [True] * self.policy_output_dim
 
         if stage == Stage.COMPLETE:
             # In the "complete" stage (in which there are no ongoing micro steps)
-            # only valid actions are the ones for picking one of the leafs or EOS.
-            for k in leafs:
+            # only valid actions are the ones for picking one of the leaves or EOS.
+            for k in leaves:
                 # Check if splitting the node wouldn't exceed max depth.
                 if Tree._get_right_child(k) < self.n_nodes:
-                    mask[k] = False
-            mask[-1] = False
+                    mask[self._action_index_pick_leaf + k] = False
+            mask[self._action_index_eos] = False
+        elif stage == Stage.LEAF:
+            # Leaf was picked, only picking the feature actions are valid.
+            for idx in range(
+                self._action_index_pick_feature, self._action_index_pick_threshold
+            ):
+                mask[idx] = False
+        elif stage == Stage.FEATURE:
+            # Feature was picked, only picking the threshold action is valid.
+            for idx in range(
+                self._action_index_pick_threshold, self._action_index_pick_operator
+            ):
+                mask[idx] = False
+        elif stage == Stage.THRESHOLD:
+            # Threshold was picked, only picking the operator actions are valid.
+            for idx in range(self._action_index_pick_operator, self._action_index_eos):
+                mask[idx] = False
         else:
-            k = Tree._find_active(state)
-
-            if stage == Stage.LEAF:
-                # Leaf was picked, only picking the feature is valid.
-                mask[k + self.n_nodes] = False
-            elif stage == Stage.FEATURE:
-                # Feature was picked, only picking the threshold is valid.
-                mask[k + 2 * self.n_nodes] = False
-            elif stage == Stage.THRESHOLD:
-                # Threshold was picked, only picking the operator is valid.
-                mask[k + 3 * self.n_nodes] = False
-            else:
-                raise ValueError(f"Unrecognized stage {stage}.")
+            raise ValueError(f"Unrecognized stage {stage}.")
 
         return mask
+
+    def get_mask_invalid_actions_backward(
+        self,
+        state: Optional[torch.Tensor] = None,
+        done: Optional[bool] = None,
+        parents_a: Optional[List] = None,
+    ) -> List:
+        """
+        Simply appends to the standard "discrete part" of the mask a dummy part
+        corresponding to the continuous part of the policy output so as to match the
+        dimensionality.
+        """
+        return (
+            super().get_mask_invalid_actions_backward(state, done, parents_a)
+            + [True] * self._len_continuous_policy_output
+        )
 
     def get_parents(
         self,
@@ -448,52 +875,51 @@ class Tree(GFlowNetEnv):
     ) -> Tuple[List, List]:
         if state is None:
             state = self.state
-            leafs = self.leafs
-        else:
-            leafs = Tree._find_leafs(state)
         if done is None:
             done = self.done
 
         if done:
             return [state], [self.eos]
 
-        stage = state[0]
+        leaves = Tree._find_leaves(state)
+        stage = self._get_stage(state)
         parents = []
         actions = []
 
         if stage == Stage.COMPLETE:
             # In the "complete" stage (in which there are no ongoing micro steps),
             # to find parents we first look for the nodes for which both children
-            # are leafs, and then undo the last "pick operator" micro step.
+            # are leaves, and then undo the last "pick operator" micro step.
             # In other words, reverse self._pick_operator, self._split_leaf and
             # self._insert_classifier (for both children).
-            leafs = set(leafs)
+            leaves = set(leaves)
             triplets = []
-            for k in leafs:
-                if k % 2 == 1 and k + 1 in leafs:
+            for k in leaves:
+                if k % 2 == 1 and k + 1 in leaves:
                     triplets.append((Tree._get_parent(k), k, k + 1))
             for k_parent, k_left, k_right in triplets:
                 parent = state.clone()
+                attributes_parent = parent[k_parent]
+                attributes_left = parent[k_left]
+                attributes_right = parent[k_right]
+
+                # Set action operator as class of left child
+                action = (
+                    ActionType.PICK_OPERATOR,
+                    int(attributes_left[Attribute.CLASS].item()),
+                )
 
                 # Revert stage (to "threshold": we skip "operator" because from it,
                 # finalizing splitting should be automatically executed).
-                parent[0] = Stage.THRESHOLD
+                parent = self._set_stage(Stage.THRESHOLD, parent)
 
                 # Reset children attributes.
-                attributes_left = self._get_attributes(k_left, parent)
                 attributes_left[:] = torch.nan
-                attributes_right = self._get_attributes(k_right, parent)
                 attributes_right[:] = torch.nan
 
                 # Revert parent attributes to the previous state.
-                attributes_parent = self._get_attributes(k_parent, parent)
-                action = (
-                    ActionType.PICK_OPERATOR,
-                    k_parent,
-                    attributes_parent[3].item(),
-                )
-                attributes_parent[3] = -1
-                attributes_parent[4] = Status.ACTIVE
+                attributes_parent[Attribute.CLASS] = -1
+                attributes_parent[Attribute.ACTIVE] = Status.ACTIVE
 
                 parents.append(parent)
                 actions.append(action)
@@ -504,43 +930,54 @@ class Tree(GFlowNetEnv):
                 # Reverse self._pick_leaf.
                 for output in [0, 1]:
                     parent = state.clone()
-                    attributes = self._get_attributes(k, parent)
+                    attributes = parent[k]
 
-                    parent[0] = Stage.COMPLETE
-                    attributes[0] = NodeType.CLASSIFIER
-                    attributes[1:3] = -1
-                    attributes[3] = output
-                    attributes[4] = Status.INACTIVE
+                    parent = self._set_stage(Stage.COMPLETE, parent)
+                    attributes[Attribute.TYPE] = NodeType.CLASSIFIER
+                    attributes[Attribute.FEATURE] = -1
+                    attributes[Attribute.THRESHOLD] = -1
+                    attributes[Attribute.CLASS] = output
+                    attributes[Attribute.ACTIVE] = Status.INACTIVE
 
                     parents.append(parent)
-                    actions.append(action)
+                    actions.append((ActionType.PICK_LEAF, k))
             elif stage == Stage.FEATURE:
                 # Reverse self._pick_feature.
                 parent = state.clone()
-                attributes = self._get_attributes(k, parent)
+                attributes = parent[k]
 
-                parent[0] = Stage.LEAF
-                attributes[1] = -1
+                parent = self._set_stage(Stage.LEAF, parent)
+                attributes[Attribute.FEATURE] = -1
 
                 parents.append(parent)
-                actions.append(action)
+                actions.append((ActionType.PICK_FEATURE, self.state[k][1].item()))
             elif stage == Stage.THRESHOLD:
                 # Reverse self._pick_threshold.
                 parent = state.clone()
-                attributes = self._get_attributes(k, parent)
+                attributes = parent[k]
 
-                parent[0] = Stage.FEATURE
-                attributes[2] = -1
+                parent = self._set_stage(Stage.FEATURE, parent)
+                attributes[Attribute.THRESHOLD] = -1
 
                 parents.append(parent)
-                actions.append(action)
+                actions.append((ActionType.PICK_THRESHOLD, -1))
             else:
                 raise ValueError(f"Unrecognized stage {stage}.")
 
         return parents, actions
 
+    @staticmethod
+    def action2representative(action: Tuple) -> Tuple:
+        """
+        Replaces the continuous value of a PICK_THRESHOLD action by -1 so that it can
+        be contrasted with the action space and masks.
+        """
+        if action[0] == ActionType.PICK_THRESHOLD:
+            action = (ActionType.PICK_THRESHOLD, -1)
+        return action
+
     def get_max_traj_length(self) -> int:
-        return self.n_nodes * N_ATTRIBUTES
+        return self.n_nodes * Attribute.N
 
     def _get_graph(self, graph: Optional[nx.DiGraph] = None, k: int = 0) -> nx.DiGraph:
         """
@@ -549,17 +986,17 @@ class Tree(GFlowNetEnv):
         if graph is None:
             graph = nx.DiGraph()
 
-        attributes = self._get_attributes(k)
+        attributes = self.state[k]
         graph.add_node(k, x=attributes)
 
-        if attributes[0] != NodeType.CLASSIFIER:
+        if attributes[Attribute.TYPE] != NodeType.CLASSIFIER:
             k_left = Tree._get_left_child(k)
-            if not torch.any(torch.isnan(self._get_attributes(k_left))):
+            if not torch.any(torch.isnan(self.state[k_left])):
                 self._get_graph(graph, k=k_left)
                 graph.add_edge(k, k_left)
 
             k_right = Tree._get_right_child(k)
-            if not torch.any(torch.isnan(self._get_attributes(k_right))):
+            if not torch.any(torch.isnan(self.state[k_right])):
                 self._get_graph(graph, k=k_right)
                 graph.add_edge(k, k_right)
 
@@ -571,17 +1008,38 @@ class Tree(GFlowNetEnv):
         """
         return from_networkx(self._get_graph())
 
+    @staticmethod
+    def _load_dataset(data_path):
+        data_path = Path(data_path)
+        if data_path.suffix == ".csv":
+            df = pd.read_csv(data_path)
+            X = df.iloc[:, 0:-1].values
+            y = df.iloc[:, -1].values
+        elif data_path.suffix == ".pkl":
+            with open(data_path, "rb") as f:
+                dct = pickle.load(f)
+                X = dct["X"]
+                y = dct["y"]
+        else:
+            raise ValueError(
+                "data_path must be a CSV (*.csv) or a pickled dict (*.pkl)."
+            )
+        return X, y
+
     def predict(self, x: npt.NDArray, k: int = 0) -> int:
         """
         Recursively predict output label given a feature vector x
         of a single observation.
         """
-        attributes = self._get_attributes(k)
+        attributes = self.state[k]
 
-        if attributes[0] == NodeType.CLASSIFIER:
-            return attributes[3]
+        if attributes[Attribute.TYPE] == NodeType.CLASSIFIER:
+            return attributes[Attribute.CLASS]
 
-        if x[attributes[1].long().item()] < attributes[2]:
+        if (
+            x[attributes[Attribute.FEATURE].long().item()]
+            < attributes[Attribute.THRESHOLD]
+        ):
             return self.predict(x, k=Tree._get_left_child(k))
         else:
             return self.predict(x, k=Tree._get_right_child(k))

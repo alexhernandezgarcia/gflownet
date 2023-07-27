@@ -630,7 +630,7 @@ class Batch:
                 action=action,
             )
             assert (
-                action in parents_a
+                self.env.action2representative(action) in parents_a
             ), f"""
             Sampled action is not in the list of valid actions from parents.
             \nState:\n{state}\nAction:\n{action}

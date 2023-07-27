@@ -101,6 +101,25 @@ class GFlowNetEnv:
         """
         pass
 
+    def action2representative(self, action: Tuple) -> int:
+        """
+        For continuous or hybrid environments, converts a continuous action into its
+        representative in the action space. Discrete actions remain identical, thus
+        fully discrete environments do not need to re-implement this method.
+        Continuous environments should re-implement this method in order to replace
+        continuous actions by their representatives in the action space.
+        """
+        return action
+
+    def action2index(self, action: Tuple) -> int:
+        """
+        Returns the index in the action space of the action passed as an argument, or
+        its representative if it is a continuous action.
+
+        See: self.action2representative()
+        """
+        return self.action_space.index(self.action2representative(action))
+
     def actions2indices(
         self, actions: TensorType["batch_size", "action_dim"]
     ) -> TensorType["batch_size"]:
@@ -117,33 +136,45 @@ class GFlowNetEnv:
         # the action_dim dimension are True
         return torch.where(torch.all(actions == action_space, dim=2))[1]
 
-    def _get_state_done(self, state: Union[List, TensorType["state_dims"]], done: bool):
+    def _get_state(self, state: Union[List, TensorType["state_dims"]]):
         """
-        A helper method for other methods to determine whether state and done should be
-        taken from the arguments or from the instance (self.state and self.done): if
-        they are None, they are taken from the instance.
+        A helper method for other methods to determine whether state should be taken
+        from the arguments or from the instance (self.state): if is None, it is taken
+        from the instance.
 
         Args
         ----
         state : list or tensor or None
             None, or a state in GFlowNet format.
 
+        Returns
+        -------
+        state : list or tensor
+            The argument state, or self.state if state is None.
+        """
+        if state is None:
+            state = copy(self.state)
+        return state
+
+    def _get_done(self, done: bool):
+        """
+        A helper method for other methods to determine whether done should be taken
+        from the arguments or from the instance (self.done): if it is None, it is taken
+        from the instance.
+
+        Args
+        ----
         done : bool or None
             None, or whether the environment is done.
 
         Returns
         -------
-        state : list or tensor
-            The argument state, or self.state if state is None.
-
         done: bool
             The argument done, or self.done if done is None.
         """
-        if state is None:
-            state = copy(self.state)
         if done is None:
             done = self.done
-        return state, done
+        return done
 
     def get_mask_invalid_actions_forward(
         self,
@@ -177,13 +208,33 @@ class GFlowNetEnv:
         Continuous environments will probably need to implement its specific version of
         this method.
         """
-        state, done = self._get_state_done(state, done)
+        state = self._get_state(state)
+        done = self._get_done(done)
         if parents_a is None:
             _, parents_a = self.get_parents(state, done)
         mask = [True for _ in range(self.action_space_dim)]
         for pa in parents_a:
             mask[self.action_space.index(pa)] = False
         return mask
+
+    def get_valid_actions(
+        self,
+        state: Optional[List] = None,
+        done: Optional[bool] = None,
+        backward: Optional[bool] = False,
+    ) -> List[Tuple]:
+        """
+        Returns the list of non-invalid (valid, for short) according to the mask of
+        invalid actions.
+
+        More documentation about the meaning and use of invalid actions can be found in
+        gflownet/envs/README.md.
+        """
+        if backward:
+            mask = self.get_mask_invalid_actions_backward(state, done)
+        else:
+            mask = self.get_mask_invalid_actions_forward(state, done)
+        return [action for action, m in zip(self.action_space, mask) if m is False]
 
     def get_parents(
         self,
@@ -226,6 +277,7 @@ class GFlowNetEnv:
         actions = []
         return parents, actions
 
+    # TODO: consider returning only do_step
     def _pre_step(
         self, action: Tuple[int], backward: bool = False, skip_mask_check: bool = False
     ) -> Tuple[bool, List[int], Tuple[int]]:
@@ -563,14 +615,18 @@ class GFlowNetEnv:
         """
         if state is None:
             state = self.state
-        return state
+        return tfloat(state, float_type=self.float, device=self.device)
 
-    def statebatch2policy(self, states: List[List]) -> npt.NDArray[np.float32]:
+    def statebatch2policy(
+        self, states: List[List]
+    ) -> TensorType["batch_size", "policy_input_dim"]:
         """
         Converts a batch of states into a format suitable for a machine learning model,
         such as a one-hot encoding. Returns a numpy array.
         """
-        return np.array(states)
+        return self.statetorch2policy(
+            tfloat(states, float_type=self.float, device=self.device)
+        )
 
     def policy2state(self, state_policy: List) -> List:
         """
@@ -603,7 +659,8 @@ class GFlowNetEnv:
         """
         Computes the reward of a state
         """
-        state, done = self._get_state_done(state, done)
+        state = self._get_state(state)
+        done = self._get_done(done)
         if done is False:
             return tfloat(0.0, float_type=self.float, device=self.device)
         return self.proxy2reward(self.proxy(self.state2proxy(state))[0])
@@ -747,9 +804,30 @@ class GFlowNetEnv:
     @staticmethod
     def equal(state_x, state_y):
         if torch.is_tensor(state_x) and torch.is_tensor(state_y):
+            # Check for nans because (torch.nan == torch.nan) == False
+            x_nan = torch.isnan(state_x)
+            if torch.any(x_nan):
+                y_nan = torch.isnan(state_y)
+                if not torch.equal(x_nan, y_nan):
+                    return False
+                return torch.equal(state_x[~x_nan], state_y[~y_nan])
             return torch.equal(state_x, state_y)
         else:
             return state_x == state_y
+
+    @staticmethod
+    def isclose(state_x, state_y):
+        if torch.is_tensor(state_x) and torch.is_tensor(state_y):
+            # Check for nans because (torch.nan == torch.nan) == False
+            x_nan = torch.isnan(state_x)
+            if torch.any(x_nan):
+                y_nan = torch.isnan(state_y)
+                if not torch.equal(x_nan, y_nan):
+                    return False
+                return torch.all(torch.isclose(state_x[~x_nan], state_y[~y_nan]))
+            return torch.equal(state_x, state_y)
+        else:
+            return np.all(np.isclose(state_x, state_y))
 
     def set_energies_stats(self, energies_stats):
         self.energies_stats = energies_stats
