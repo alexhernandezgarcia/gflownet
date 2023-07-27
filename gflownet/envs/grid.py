@@ -386,6 +386,7 @@ class Grid(GFlowNetEnv):
         states = rng.integers(low=0, high=self.length, size=(n_states, self.n_dim))
         return states.tolist()
 
+    # TODO: review
     def plot_samples_frequency(self, samples, ax=None, title=None, rescale=1):
         """
         Plot 2D histogram of samples.
