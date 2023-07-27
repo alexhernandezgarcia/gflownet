@@ -35,18 +35,14 @@ class GFlowNetEnv:
         denorm_proxy: bool = False,
         proxy=None,
         oracle=None,
-        fixed_distribution: dict = None,
-        random_distribution: dict = None,
-        corr_type: str = None,
+        fixed_distribution: Optional[dict] = None,
+        random_distribution: Optional[dict] = None,
         **kwargs,
     ):
         # Call reset() to set initial state, done, n_actions
         self.reset()
         # Device
-        if isinstance(device, str):
-            self.device = set_device(device)
-        else:
-            self.device = device
+        self.device = set_device(device)
         # Float precision
         self.float = set_float_precision(float_precision)
         # Reward settings
@@ -82,28 +78,9 @@ class GFlowNetEnv:
         self.random_policy_output = self.get_policy_output(random_distribution)
         self.policy_output_dim = len(self.fixed_policy_output)
         self.policy_input_dim = len(self.state2policy())
-        if proxy is not None:
-            self.set_proxy(proxy)
         if proxy is not None and self.proxy == self.oracle:
             self.statebatch2proxy = self.statebatch2oracle
             self.statetorch2proxy = self.statetorch2oracle
-        self.corr_type = corr_type
-
-    def set_proxy(self, proxy):
-        self.proxy = proxy
-        if hasattr(self, "proxy_factor"):
-            return
-        if self.proxy is not None and self.proxy.maximize is not None:
-            # can be None for dropout regressor/UCB
-            maximize = self.proxy.maximize
-        elif self.oracle is not None:
-            maximize = self.oracle.maximize
-        else:
-            raise ValueError("Proxy and Oracle cannot be None together.")
-        if maximize:
-            self.proxy_factor = 1.0
-        else:
-            self.proxy_factor = -1.0
 
     @abstractmethod
     def get_action_space(self):
@@ -468,6 +445,7 @@ class GFlowNetEnv:
         """
         if self.denorm_proxy:
             # TODO: do with torch
+            # TODO: review
             proxy_vals = (
                 proxy_vals * (self.energies_stats[1] - self.energies_stats[0])
                 + self.energies_stats[0]
@@ -491,7 +469,7 @@ class GFlowNetEnv:
                 min=self.min_reward,
                 max=None,
             )
-        elif self.reward_func == "linear_shift":
+        elif self.reward_func == "shift":
             return torch.clamp(
                 self.proxy_factor * proxy_vals + self.reward_beta,
                 min=self.min_reward,
@@ -517,7 +495,7 @@ class GFlowNetEnv:
             return self.proxy_factor * torch.log(reward) / self.reward_beta
         elif self.reward_func == "identity":
             return self.proxy_factor * reward
-        elif self.reward_func == "linear_shift":
+        elif self.reward_func == "shift":
             return self.proxy_factor * (reward - self.reward_beta)
         else:
             raise NotImplementedError
@@ -587,13 +565,6 @@ class GFlowNetEnv:
         parents, parents_actions = self.get_parents(current_traj[-1], False)
         if parents == []:
             traj_list.append(current_traj)
-            if hasattr(self, "action_pad_length"):
-                # Required for compatibility with mfenv when length(sfenv_action) != length(fidelity.action)
-                # For example, in AMP, length(sfenv_action) = 1 like (2,), length(fidelity.action) = 2 like (22, 1)
-                current_actions = [
-                    tuple(list(action) + [0] * (self.action_length - len(action)))
-                    for action in current_actions
-                ]
             traj_actions_list.append(current_actions)
             return traj_list, traj_actions_list
         for idx, (p, a) in enumerate(zip(parents, parents_actions)):
