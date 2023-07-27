@@ -14,13 +14,13 @@ class Proxy(ABC):
     Generic proxy class
     """
 
-    def __init__(self, device, float_precision, maximize=None, **kwargs):
+    def __init__(self, device, float_precision, higher_is_better=None, **kwargs):
         # Device
         self.device = set_device(device)
         # Float precision
         self.float = set_float_precision(float_precision)
         # Reward2Proxy multiplicative factor (1 or -1)
-        self.maximize = maximize
+        self.higher_is_better = higher_is_better
 
     def setup(self, env=None):
         pass
