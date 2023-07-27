@@ -3,4 +3,4 @@ _target_: gflownet.proxy.torus.Torus
 normalize: True
 alpha: 1.0
 beta: 1.0
-maximize: False
+higher_is_better: False

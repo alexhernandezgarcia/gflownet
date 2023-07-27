@@ -2,4 +2,4 @@ _target_: gflownet.proxy.corners.Corners
 
 mu: 0.75
 sigma: 0.05
-maximize: False
+higher_is_better: False
