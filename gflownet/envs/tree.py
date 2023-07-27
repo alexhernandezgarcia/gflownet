@@ -9,6 +9,7 @@ import networkx as nx
 import numpy as np
 import numpy.typing as npt
 import pandas as pd
+from sklearn.preprocessing import MinMaxScaler
 import torch
 import torch_geometric as pyg
 from networkx.drawing.nx_pydot import graphviz_layout
@@ -147,6 +148,7 @@ class Tree(GFlowNetEnv):
         X: Optional[npt.NDArray] = None,
         y: Optional[npt.NDArray] = None,
         data_path: Optional[str] = None,
+        scale_data: bool = True,
         max_depth: int = 10,
         threshold_components: int = 1,
         beta_params_min: float = 0.1,
@@ -179,6 +181,9 @@ class Tree(GFlowNetEnv):
               to construct the input X, and column M-th will be the target y.
             Ignored if X and y are not None.
 
+        scale_data : bool
+            Whether to perform min-max scaling on the provided data (to a [0; 1] range).
+
         max_depth : int
             Maximum depth of a tree.
 
@@ -196,6 +201,8 @@ class Tree(GFlowNetEnv):
                 "A Tree must be initialised with a data set. X, y and data_path cannot "
                 "be all None"
             )
+        if scale_data:
+            self.X = MinMaxScaler().fit_transform(self.X)
         self.y = self.y.astype(int)
         self.n_features = self.X.shape[1]
         self.max_depth = max_depth
