@@ -11,7 +11,6 @@ from gflownet.policy.tree import (
     ThresholdSelectionHead,
 )
 
-
 N_OBSERVATIONS = 17
 N_FEATURES = 5
 N_NODES = 11
@@ -30,15 +29,15 @@ def tree(
     _tree = Tree(X=X, y=y)
 
     for _ in range(n_nodes):
-        node = np.random.choice(list(_tree.leafs))
+        node = np.random.choice(list(Tree._find_leaves(_tree.state)))
         operator = np.random.choice([Operator.LT, Operator.GTE])
         feature = np.random.randint(n_features)
         threshold = np.random.rand()
 
-        _tree.step((0, node, -1))
-        _tree.step((1, node, feature))
-        _tree.step((2, node, threshold))
-        _tree.step((3, node, operator))
+        _tree.step((0, node))
+        _tree.step((1, feature))
+        _tree.step((2, threshold))
+        _tree.step((3, operator))
 
     return _tree
 

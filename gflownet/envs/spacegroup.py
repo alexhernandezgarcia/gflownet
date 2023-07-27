@@ -5,12 +5,12 @@ import itertools
 import warnings
 from typing import Dict, List, Optional, Tuple, Union
 
-import numpy as np
 import torch
 from torch import Tensor
 from torchtyping import TensorType
 
 from gflownet.envs.base import GFlowNetEnv
+from gflownet.utils.common import tfloat
 from gflownet.utils.crystals.constants import (
     CRYSTAL_CLASSES,
     CRYSTAL_SYSTEMS,
@@ -56,6 +56,10 @@ class SpaceGroup(GFlowNetEnv):
         # Source state: index 0 (empty) for all three properties (crystal system index,
         # point symmetry index, space group)
         self.source = [0 for _ in range(3)]
+        # Conversions
+        self.state2proxy = self.state2oracle
+        self.statebatch2proxy = self.statebatch2oracle
+        self.statetorch2proxy = self.statetorch2oracle
         # Base class init
         super().__init__(**kwargs)
 
@@ -166,7 +170,7 @@ class SpaceGroup(GFlowNetEnv):
             raise ValueError(
                 "The space group must have been set in order to call the oracle"
             )
-        return torch.Tensor(state[self.sg_idx], device=self.device, dtype=self.float)
+        return tfloat(state[self.sg_idx], device=self.device, float_type=self.float)
 
     def statebatch2oracle(
         self, states: List[List]
@@ -185,7 +189,7 @@ class SpaceGroup(GFlowNetEnv):
         oracle_state : Tensor
         """
         return self.statetorch2oracle(
-            torch.Tensor(states, device=self.device, dtype=self.float)
+            tfloat(states, device=self.device, float_type=self.float)
         )
 
     def statetorch2oracle(
@@ -204,7 +208,15 @@ class SpaceGroup(GFlowNetEnv):
         ----
         oracle_state : Tensor
         """
-        return torch.unsqueeze(states[:, self.sg_idx])
+        return torch.unsqueeze(states[:, self.sg_idx], dim=1)
+
+    def policy2state(
+        self, policy: Optional[TensorType["policy_input_dim"]] = None
+    ) -> None:
+        """
+        Returns None to signal that the conversion is not reversible.
+        """
+        return None
 
     def state2readable(self, state=None):
         """
@@ -225,8 +237,7 @@ class SpaceGroup(GFlowNetEnv):
                 69 | orthorhombic (3) | rhombic-dipyramidal (8) | mmm |
                 centrosymmetric (2)
         """
-        if state is None:
-            state = self.state
+        state = self._get_state(state)
         crystal_system_idx = state[self.cs_idx]
         if crystal_system_idx != 0:
             crystal_system = self.crystal_systems[crystal_system_idx][0]
