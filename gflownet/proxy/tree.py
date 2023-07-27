@@ -37,7 +37,9 @@ class TreeProxy(Proxy):
 
             likelihood = (np.array(predictions) == self.y).mean()
             if self.use_prior:
-                prior = 1 - np.log2(len(Tree._find_leaves(state))) / (self.max_depth - 1)
+                prior = 1 - np.log2(len(Tree._find_leaves(state))) / (
+                    self.max_depth - 1
+                )
             else:
                 prior = 1
             energies.append(-likelihood * prior)
