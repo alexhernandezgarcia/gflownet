@@ -38,7 +38,7 @@ class TreeProxy(Proxy):
                 predictions.append(tree.predict(x))
 
             likelihood = (np.array(predictions) == self.y).mean()
-            prior = 1 - np.log2(len(Tree._find_leafs(state))) / (self.max_depth - 1)
+            prior = 1 - np.log2(len(Tree._find_leaves(state))) / (self.max_depth - 1)
             energies.append(-likelihood * prior)
 
         return torch.Tensor(energies)
