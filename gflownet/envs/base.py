@@ -498,20 +498,32 @@ class GFlowNetEnv:
         Samples n terminating states by using the random policy of the environment
         (calling self.trajectory_random()).
 
+        Note that this method is general for all environments but it may be suboptimal
+        in terms of efficiency. In particular, 1) it samples full trajectories in order
+        to get terminating states, 2) if unique is True, it needs to compare each newly
+        sampled state with all the previously sampled states. If
+        get_uniform_terminating_states is available, it may be preferred, or for some
+        environments, a custom get_random_terminating_states may be straightforward to
+        implement in a much more efficient way.
+
         Args
         ----
         n_states : int
             The number of terminating states to sample.
 
         unique : bool
-            Whether samples should be unique.
+            Whether samples should be unique. True by default.
 
         max_attempts : int
             The maximum number of attempts, to prevent the method from getting stuck
             trying to obtain n_states different samples if unique is True. 100000 by
             default, therefore if more than 100000 are requested, max_attempts should
-            be increased
-            accordingly.
+            be increased accordingly.
+
+        Returns
+        -------
+        states : list
+            A list of randomly sampled terminating states.
         """
         if unique is False:
             max_attempts = n_states + 1
