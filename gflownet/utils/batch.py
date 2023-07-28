@@ -927,7 +927,27 @@ class Batch:
         TensorType["n_states", "state_proxy_dims"], npt.NDArray[np.float32], List
     ]:
         """
-        TODO: docstring
+        Returns the states of the trajectory indicated by traj_idx. If states and
+        traj_indices are not None, then these will be the only states and trajectory
+        indices considered.
+
+        See: states2policy()
+        See: states2proxy()
+
+        Args
+        ----
+        traj_idx : int
+            Index of the trajectory from which to return the states.
+
+        states : tensor, array or list
+            States from the trajectory to consider.
+
+        traj_indices : tensor, array or list
+            Trajectory indices of the trajectory to consider.
+
+        Returns
+        -------
+        Tensor, array or list of states of the requested trajectory.
         """
         # TODO: re-implement using the batch indices in self.trajectories[traj_idx]
         # If either states or traj_indices are not None, both must be the same type and
