@@ -983,3 +983,25 @@ class GFlowNetEnv:
             plt.tight_layout()
             plt.close()
         return ax
+
+    def test(
+        self, samples: Union[
+            TensorType["n_trajectories", "..."], npt.NDArray[np.float32], List
+        ]
+    ) -> dict:
+        """
+        Placeholder for a custom test function that can be defined for a specific
+        environment. Can be overwritten if special evaluation procedure is needed
+        for a given environment.
+
+        Args
+        ----
+        samples
+            A collection of sampled terminating states.
+
+        Returns
+        -------
+        metrics
+            A dictionary with metrics and their calculated values.
+        """
+        return {}

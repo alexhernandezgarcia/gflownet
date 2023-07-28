@@ -9,6 +9,7 @@ import networkx as nx
 import numpy as np
 import numpy.typing as npt
 import pandas as pd
+from sklearn.metrics import accuracy_score, balanced_accuracy_score
 from sklearn.preprocessing import MinMaxScaler
 import torch
 import torch_geometric as pyg
@@ -264,6 +265,7 @@ class Tree(GFlowNetEnv):
         self.state2policy = self.state2policy_mlp
         self.statetorch2policy = self.statetorch2policy_mlp
         # self.statetorch2proxy = self.statetorch2policy
+        self.statetorch2oracle = self.statetorch2policy
 
         super().__init__(
             fixed_distribution=fixed_distribution,
@@ -1128,3 +1130,37 @@ class Tree(GFlowNetEnv):
             node_size=800,
         )
         plt.show()
+
+    @staticmethod
+    def _compute_scores(
+        states: torch.Tensor, X: npt.NDArray, y: npt.NDArray
+    ) -> dict:
+        scores = {}
+        metrics = {'acc': accuracy_score, 'bac': balanced_accuracy_score}
+
+        predictions = np.empty((len(states), len(X)))
+        for i, state in enumerate(states):
+            for j, x in enumerate(X):
+                predictions[i, j] = Tree.predict(state, x)
+
+        for metric_name, metric_function in metrics.items():
+            scores[f'mean_tree_{metric_name}'] = np.mean([metric_function(y, y_pred) for y_pred in predictions])
+            scores[f'forest_{metric_name}'] = metric_function(y, predictions.mean(axis=0).round())
+
+        return scores
+
+    def test(self,
+        samples: Union[
+            TensorType["n_trajectories", "..."], npt.NDArray[np.float32], List
+        ]
+    ) -> dict:
+        result = {}
+
+        for k, v in Tree._compute_scores(samples, self.X_train, self.y_train).items():
+            result[f'train_{k}'] = v
+
+        if self.X_test is not None:
+            for k, v in Tree._compute_scores(samples, self.X_test, self.y_test).items():
+                result[f'test_{k}'] = v
+
+        return result
