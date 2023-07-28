@@ -1081,8 +1081,10 @@ class Batch:
         -------
         self
         """
+        if self.traj_indices_are_consecutive():
+            return self
         traj_indices_unique, indices = np.unique(self.traj_indices, return_index=True)
-        traj_indices_unique = traj_indices_unique[indices]
+        traj_indices_unique = np.array(traj_indices_unique)[np.sort(indices)]
         traj_indices_map_dict = OrderedDict(
             zip(
                 traj_indices_unique,
