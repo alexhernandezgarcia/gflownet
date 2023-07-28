@@ -650,8 +650,8 @@ class GFlowNetAgent:
             for j in range(self.sttr):
                 sub_batch, times = self.sample_batch(
                     n_forward=self.batch_size.forward,
-                    n_train=self.batch_size.train,
-                    n_replay=self.batch_size.replay,
+                    n_train=self.batch_size.backward_dataset,
+                    n_replay=self.batch_size.backward_replay,
                 )
                 batch.merge(sub_batch)
             for j in range(self.ttsr):
