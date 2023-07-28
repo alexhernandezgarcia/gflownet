@@ -27,6 +27,7 @@ from gflownet.utils.common import (
     set_float_precision,
     tbool,
     tfloat,
+    tlong,
     torch2np,
 )
 
@@ -511,7 +512,7 @@ class GFlowNetAgent:
 
         return batch, times
 
-    def get_logprobs_trajectories(self, batch: Batch, backward: bool = False):
+    def compute_logprobs_trajectories(self, batch: Batch, backward: bool = False):
         """
         Computes the forward or backward log probabilities of the trajectories in a
         batch.
@@ -641,8 +642,8 @@ class GFlowNetAgent:
             Loss of the intermediate nodes only
         """
         # Get logprobs of forward and backward transitions
-        logprobs_f = self.get_logprobs_trajectories(batch, backward=False)
-        logprobs_b = self.get_logprobs_trajectories(batch, backward=True)
+        logprobs_f = self.compute_logprobs_trajectories(batch, backward=False)
+        logprobs_b = self.compute_logprobs_trajectories(batch, backward=True)
         # Get rewards from batch
         rewards = batch.get_terminating_rewards(sort_by="trajectory")
 
@@ -668,6 +669,15 @@ class GFlowNetAgent:
         (n_trajectories) through importance sampling and calculating the forward
         probabilities of the trajectories.
 
+        $\log p_T(x) = \int_{x \in \tau} P_F(\tau)d\tau$
+        $= \log \mathbb{E}_{P_B(\tau|x)} \frac{P_F(x)}{P_B(\tau|x)}$
+        $\approx \log \frac{1}{N} \sum_{i=1}^{N} \frac{P_F(x_i)}{P_B(\tau|x_i)}$
+        $= \log \sum_{i=1}^{N} \frac{P_F(x_i)}{P_B(\tau|x_i)} - \log N$
+
+        Note: torch.logsumexp is used to compute the log of the sum, in order to have
+        numerical stability, since we have the log PF and log PB, instead of directly
+        PF and PB.
+
         Args
         ----
         data : list or string
@@ -683,6 +693,11 @@ class GFlowNetAgent:
             The maximum number of attempts to sample a distinct trajectory, to avoid
             getting trapped in an infinite loop.
 
+        Returns
+        -------
+        logprobs_estimates: torch.tensor
+            The logarithm of the average ratio PF/PB over n trajectories sampled for
+            each data point.
         """
         max_data = 1e5
         batch = Batch(env=self.env, device=self.device, float_type=self.float)
@@ -727,10 +742,42 @@ class GFlowNetAgent:
             assert all(valids)
             # Filter out finished trajectories
             envs = [env for env in envs if not env.equal(env.state, env.source)]
-        # Get log probabilities of the trajectories
-        logprobs_f = self.get_logprobs_trajectories(batch, backward=False)
-        logprobs_b = self.get_logprobs_trajectories(batch, backward=True)
-        return batch
+        # Prepare data structures to compute log probabilities
+        traj_ids = np.array([k for k in batch.trajectories])
+        data_indices = tlong(traj_ids // max_data, device=self.device)
+        traj_indices = tlong(traj_ids % max_data, device=self.device)
+        logprobs_f = torch.full(
+            (data_indices.max() + 1, traj_indices.max() + 1),
+            -torch.inf,
+            dtype=self.float,
+            device=self.device,
+        )
+        logprobs_b = torch.full(
+            (data_indices.max() + 1, traj_indices.max() + 1),
+            -torch.inf,
+            dtype=self.float,
+            device=self.device,
+        )
+        traj_indices_mat = torch.full(
+            (data_indices.max() + 1, traj_indices.max() + 1),
+            -1,
+            dtype=torch.long,
+            device=self.device,
+        )
+        traj_indices_mat[data_indices, traj_indices] = traj_indices
+        n_trajs_per_sample, _ = traj_indices_mat.max(dim=1)
+        # Compute log probabilities of the trajectories
+        logprobs_f[data_indices, traj_indices] = self.compute_logprobs_trajectories(
+            batch, backward=False
+        )
+        logprobs_b[data_indices, traj_indices] = self.compute_logprobs_trajectories(
+            batch, backward=True
+        )
+        # Compute log of the average probabilities of the ratio PF / PB
+        logprobs_estimates = torch.logsumexp(
+            logprobs_f - logprobs_b, dim=1
+        ) - torch.log(n_trajs_per_sample)
+        return logprobs_estimates
 
     def train(self):
         # Metrics
