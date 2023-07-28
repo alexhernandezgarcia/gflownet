@@ -212,11 +212,12 @@ class Torus(GFlowNetEnv):
         angles = np.where(mat_angles_policy)[1].tolist()
         return angles + [int(state_policy[-1])]
 
-    def state2readable(self, state: List) -> str:
+    def state2readable(self, state: Optional[List] = None) -> str:
         """
         Converts a state (a list of positions) into a human-readable string
         representing a state.
         """
+        state = self._get_state(state)
         angles = (
             str(state[: self.n_dim])
             .replace("(", "[")
