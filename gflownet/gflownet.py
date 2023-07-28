@@ -511,9 +511,9 @@ class GFlowNetAgent:
 
         return batch, times
 
-    def get_logprobs_trajectories(self, batch):
+    def get_logprobs_trajectories(self, batch: Batch, backward: bool = False):
         """
-        Computes the forward and backward log probabilities of the trajectories in a
+        Computes the forward or backward log probabilities of the trajectories in a
         batch.
 
         Args
@@ -521,14 +521,16 @@ class GFlowNetAgent:
         batch : Batch
             A batch of data, containing all the states in the trajectories.
 
+        backward : bool
+            False: log probabilities of forward trajectories.
+            True: log probabilities of backward trajectories.
+
         Returns
         -------
-        logprobs_f : torch.tensor
-            The log probabilities of the forward trajectories.
-
-        logprobs_b : torch.tensor
-            The log probabilities of the backward trajectories.
+        logprobs : torch.tensor
+            The log probabilities of the trajectories.
         """
+        import ipdb; ipdb.set_trace()
         assert batch.is_valid()
         # TODO: implement method in batch to make traj_indices 0, 1, 2 ... N
         # Get necessary tensors from batch
@@ -536,31 +538,27 @@ class GFlowNetAgent:
         actions = batch.get_actions()
         parents = batch.get_parents(policy=True)
         traj_indices = batch.get_trajectory_indices()
-        masks_f = batch.get_masks_forward(of_parents=True)
-        masks_b = batch.get_masks_backward()
-
-        # Forward trajectories
-        import ipdb; ipdb.set_trace()
-        policy_output_f = self.forward_policy(parents)
-        logprobs_f_states = self.env.get_logprobs(
-            policy_output_f, True, actions, states, masks_f
-        )
-        logprobs_f = torch.zeros(
+        if backward:
+            # Backward trajectories
+            masks_b = batch.get_masks_backward()
+            policy_output_b = self.backward_policy(states)
+            logprobs_states = self.env.get_logprobs(
+                policy_output_b, False, actions, parents, masks_b
+            )
+        else:
+            # Forward trajectories
+            masks_f = batch.get_masks_forward(of_parents=True)
+            policy_output_f = self.forward_policy(parents)
+            logprobs_states = self.env.get_logprobs(
+                policy_output_f, True, actions, states, masks_f
+            )
+        # Sum log probabilities of all transitions in each trajectory
+        logprobs = torch.zeros(
             batch.get_n_trajectories(),
             dtype=self.float,
             device=self.device,
-        ).index_add_(0, traj_indices, logprobs_f_states)
-        # Backward trajectories
-        policy_output_b = self.backward_policy(states)
-        logprobs_b_states = self.env.get_logprobs(
-            policy_output_b, False, actions, parents, masks_b
-        )
-        logprobs_b = torch.zeros(
-            batch.get_n_trajectories(),
-            dtype=self.float,
-            device=self.device,
-        ).index_add_(0, traj_indices, logprobs_b_states)
-        return sumlogprobs_f, sumlogprobs_f
+        ).index_add_(0, traj_indices, logprobs_states)
+        return logprobs
 
     def flowmatch_loss(self, it, batch):
         """
@@ -755,7 +753,8 @@ class GFlowNetAgent:
             # Filter out finished trajectories
             envs = [env for env in envs if not env.equal(env.state, env.source)]
         # Get log probabilities of the trajectories
-        logprobs_f, logprobs_b = self.get_logprobs_trajectories(batch)
+        logprobs_f = self.get_logprobs_trajectories(batch, backward=False)
+        logprobs_b = self.get_logprobs_trajectories(batch, backward=True)
         import ipdb; ipdb.set_trace()
         return batch
 
