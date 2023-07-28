@@ -1066,6 +1066,46 @@ class Batch:
             return False
         return True
 
+    def traj_indices_are_consecutive(self) -> bool:
+        """
+        Returns True if the trajectory indices start from 0 and are consecutive; False
+        otherwise.
+        """
+        return set(self.trajectories) == set(np.arange(self.get_n_trajectories()))
+
+    def make_indices_consecutive(self):
+        """
+        Updates the trajectory indices such that they start from 0 and are consecutive.
+
+        Returns
+        -------
+        self
+        """
+        traj_indices_unique, indices = np.unique(self.traj_indices, return_index=True)
+        traj_indices_unique = traj_indices_unique[indices]
+        traj_indices_map_dict = OrderedDict(
+            zip(
+                traj_indices_unique,
+                np.arange(len(self.trajectories)),
+            )
+        )
+        self.trajectories = OrderedDict(
+            {
+                traj_idx_new: self.trajectories.pop(traj_idx_old)
+                for traj_idx_old, traj_idx_new in traj_indices_map_dict.items()
+            }
+        )
+        self.envs = OrderedDict(
+            {
+                traj_idx_new: self.envs.pop(traj_idx_old)
+                for traj_idx_old, traj_idx_new in traj_indices_map_dict.items()
+            }
+        )
+        self.traj_indices = list(
+            map(lambda x: traj_indices_map_dict[x], self.traj_indices)
+        )
+        return self
+
     def _shift_indices(self, traj_shift: int, batch_shift: int):
         """
         Shifts all the trajectory indices and environment ids by traj_shift and the batch

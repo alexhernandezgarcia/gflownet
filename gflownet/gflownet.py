@@ -530,9 +530,9 @@ class GFlowNetAgent:
         logprobs : torch.tensor
             The log probabilities of the trajectories.
         """
-        import ipdb; ipdb.set_trace()
         assert batch.is_valid()
-        # TODO: implement method in batch to make traj_indices 0, 1, 2 ... N
+        # Make indices of batch consecutive since they are used for indexing here
+        batch.make_indices_consecutive()
         # Get necessary tensors from batch
         states = batch.get_states(policy=True)
         actions = batch.get_actions()
@@ -727,7 +727,7 @@ class GFlowNetAgent:
         envs = []
         for state_idx, x in enumerate(states_term):
             for traj_idx in range(n_trajectories):
-                idx = max_data * state_idx + traj_idx
+                idx = int(max_data * state_idx + traj_idx)
                 env = self.env.copy().reset(idx)
                 env.set_state(x, done=True)
                 envs.append(env)
@@ -755,7 +755,6 @@ class GFlowNetAgent:
         # Get log probabilities of the trajectories
         logprobs_f = self.get_logprobs_trajectories(batch, backward=False)
         logprobs_b = self.get_logprobs_trajectories(batch, backward=True)
-        import ipdb; ipdb.set_trace()
         return batch
 
     def train(self):
@@ -814,7 +813,6 @@ class GFlowNetAgent:
             batch_test_trajs = self.estimate_logprobs_data(
                 self.buffer.test_pkl, n_trajectories=5
             )
-            import ipdb; ipdb.set_trace()
             # Buffer
             t0_buffer = time.time()
             states_term = batch.get_terminating_states(sort_by="trajectory")
