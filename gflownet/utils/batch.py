@@ -26,8 +26,8 @@ class Batch:
     Important note: one env should correspond to only one trajectory, all env_id should
     be unique.
 
-    Note: self.state_indices start by index 1 to indicate that index 0 would correspond
-    to the source state but the latter is not stored in the batch for each trajectory.
+    Note: self.state_indices start from index 1 to indicate that index 0 would correspond
+    to the source state, but the latter is not stored in the batch for each trajectory.
     This implies that one has to be careful when indexing the list of batch_indices in
     self.trajectories by using self.state_indices. For example, the batch index of
     state state_idx of trajectory traj_idx is self.trajectories[traj_idx][state_idx-1]
