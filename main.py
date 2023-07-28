@@ -11,8 +11,6 @@ import pandas as pd
 import yaml
 from omegaconf import DictConfig, OmegaConf
 
-from torch.profiler import profile, ProfilerActivity
-
 
 @hydra.main(config_path="./config", config_name="main", version_base="1.1")
 def main(config):
@@ -50,13 +48,6 @@ def main(config):
         logger=logger,
     )
     gflownet.train()
-    # with profile(
-    #     activities=[ProfilerActivity.CPU], profile_memory=True, record_shapes=True
-    # ) as prof:
-    #     gflownet.train()
-    # print(prof.key_averages().table(sort_by="self_cpu_memory_usage", row_limit=30))
-    # prof.export_chrome_trace("trace.json")
-    # return
 
     # Sample from trained GFlowNet
     if config.n_samples > 0 and config.n_samples <= 1e5:
