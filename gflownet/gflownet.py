@@ -385,7 +385,6 @@ class GFlowNetAgent:
             )
         return envs, actions, valids
 
-    # @profile
     @torch.no_grad()
     # TODO: extract code from while loop to avoid replication
     def sample_batch(
