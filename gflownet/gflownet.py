@@ -205,7 +205,7 @@ class GFlowNetAgent:
     ) -> List[Tuple]:
         """
         Samples one action on each environment of the list envs, according to the
-        sampling method specify by sampling_method.
+        sampling method specified by sampling_method.
 
         With probability 1 - random_action_prob, actions will be sampled from the
         self.forward_policy or self.backward_policy, depending on backward. The rest
@@ -221,7 +221,7 @@ class GFlowNetAgent:
             A list of instances of the environment
 
         batch_forward : Batch
-            A batch from which obtain required variables (e.g. masks) to avoid
+            A batch from which to obtain required variables (e.g. masks) to avoid
             recomputing them.
 
         sampling_method : string
