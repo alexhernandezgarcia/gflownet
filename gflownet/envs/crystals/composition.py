@@ -153,8 +153,8 @@ class Composition(GFlowNetEnv):
         self, state, mask_required_element, mask_unrequired_element
     ):
         """
-        Refines the masks of required and unrequired elements by doing compatibility
-        checks between the space group and the number of atoms
+        Refines the masks (in-place) of required and unrequired elements by doing
+        compatibility checks between the space group and the number of atoms.
 
         Args
         ----
@@ -162,18 +162,16 @@ class Composition(GFlowNetEnv):
             The state on which the masks are to be applied.
 
         mask_required_element: list
-            Input element-wise mask indicating whether the element is required.
+            Element-wise mask indicating invalid actions for required elements. This
+            masks indicates whether each individual actions is invalid or not for
+            elements that are required to be in the composition by the end of the
+            trajectory.
 
         mask_unrequired_element: list
-            Input element-wise mask indicating whether the element is not required.
-
-        Returns
-        -------
-        mask_required_element: list
-            Updated element-wise mask indicating whether the element is required.
-
-        mask_unrequired_element: list
-            Updated element-wise mask indicating whether the element is not required.
+            Element-wise mask indicating invalid actions for unrequired elements.
+            This masks indicates whether each individual actions is invalid or not for
+            elements that are not required to be in the composition by the end of the
+            trajectory.
         """
         space_group = get_space_group(self.space_group)
         n_atoms = [s for s in state if s > 0]
@@ -230,8 +228,6 @@ class Composition(GFlowNetEnv):
                 if not sg_compatible:
                     mask_required_element[action_idx] = True
                     mask_unrequired_element[action_idx] = True
-
-        return mask_required_element, mask_unrequired_element
 
     def get_mask_invalid_actions_forward(self, state=None, done=None):
         """
