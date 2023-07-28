@@ -1132,11 +1132,9 @@ class Tree(GFlowNetEnv):
         plt.show()
 
     @staticmethod
-    def _compute_scores(
-        states: torch.Tensor, X: npt.NDArray, y: npt.NDArray
-    ) -> dict:
+    def _compute_scores(states: torch.Tensor, X: npt.NDArray, y: npt.NDArray) -> dict:
         scores = {}
-        metrics = {'acc': accuracy_score, 'bac': balanced_accuracy_score}
+        metrics = {"acc": accuracy_score, "bac": balanced_accuracy_score}
 
         predictions = np.empty((len(states), len(X)))
         for i, state in enumerate(states):
@@ -1144,23 +1142,28 @@ class Tree(GFlowNetEnv):
                 predictions[i, j] = Tree.predict(state, x)
 
         for metric_name, metric_function in metrics.items():
-            scores[f'mean_tree_{metric_name}'] = np.mean([metric_function(y, y_pred) for y_pred in predictions])
-            scores[f'forest_{metric_name}'] = metric_function(y, predictions.mean(axis=0).round())
+            scores[f"mean_tree_{metric_name}"] = np.mean(
+                [metric_function(y, y_pred) for y_pred in predictions]
+            )
+            scores[f"forest_{metric_name}"] = metric_function(
+                y, predictions.mean(axis=0).round()
+            )
 
         return scores
 
-    def test(self,
+    def test(
+        self,
         samples: Union[
             TensorType["n_trajectories", "..."], npt.NDArray[np.float32], List
-        ]
+        ],
     ) -> dict:
         result = {}
 
         for k, v in Tree._compute_scores(samples, self.X_train, self.y_train).items():
-            result[f'train_{k}'] = v
+            result[f"train_{k}"] = v
 
         if self.X_test is not None:
             for k, v in Tree._compute_scores(samples, self.X_test, self.y_test).items():
-                result[f'test_{k}'] = v
+                result[f"test_{k}"] = v
 
         return result

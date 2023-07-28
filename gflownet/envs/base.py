@@ -985,9 +985,10 @@ class GFlowNetEnv:
         return ax
 
     def test(
-        self, samples: Union[
+        self,
+        samples: Union[
             TensorType["n_trajectories", "..."], npt.NDArray[np.float32], List
-        ]
+        ],
     ) -> dict:
         """
         Placeholder for a custom test function that can be defined for a specific
