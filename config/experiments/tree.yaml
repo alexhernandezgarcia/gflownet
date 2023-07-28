@@ -1,0 +1,56 @@
+# @package _global_
+
+defaults:
+   - override /env: tree
+   - override /gflownet: trajectorybalance
+   - override /proxy: tree
+   - override /logger: wandb
+
+# Environment
+env:
+  max_depth: 5
+  reward_func: boltzmann
+  reward_beta: 8
+
+# GFlowNet hyperparameters
+gflownet:
+  random_action_prob: 0.1
+  optimizer:
+    batch_size:
+      forward: 100
+      backward_dataset: 0
+      backward_replay: 0
+    lr: 0.00001
+    z_dim: 16
+    lr_z_mult: 1000
+    n_train_steps: 40000
+    lr_decay_period: 1000000
+  policy:
+    forward:
+      type: mlp
+      n_hid: 512
+      n_layers: 5
+      checkpoint: forward
+    backward:
+      type: mlp
+      n_hid: 512
+      n_layers: 5
+      shared_weights: False
+      checkpoint: backward
+
+# WandB
+logger:
+  lightweight: True
+  project_name: "RF-GFN"
+  tags:
+    - gflownet
+  test:
+    period: 1000
+    n: 5000
+  checkpoints:
+    period: 1000
+
+# Hydra
+hydra:
+  run:
+    dir: ${user.logdir.root}/rf-gfn/${now:%Y-%m-%d_%H-%M-%S}
