@@ -5,7 +5,7 @@ _target_: gflownet.envs.tree.Tree
 
 id: tree
 # Data set
-data_path: ${user.data.root}/haberman.csv
+data_path: ${user.data.root}/haberman_balanced.csv
 # Max depth
 max_depth: 5
 # Policy parameters
