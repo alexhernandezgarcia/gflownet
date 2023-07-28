@@ -1133,6 +1133,29 @@ class Tree(GFlowNetEnv):
 
     @staticmethod
     def _compute_scores(states: torch.Tensor, X: npt.NDArray, y: npt.NDArray) -> dict:
+        """
+        Computes accuracy and balanced accuracy metrics for a given dataset (X, y)
+        based on a tensor of sampled states representing individual trees.
+
+        The metrics are computed in two modes: either as an average of scores calculated
+        for individual trees (mean_tree_*), or as a single score calculated on a prediction
+        made by the whole ensemble (forest_*), with ensembling done via prediction averaging.
+
+        Args
+        ----
+        states : Tensor
+            Collection of sampled states representing the ensemble.
+
+        X : NDArray
+            Feature matrix with dimensionality (n_observations, n_features).
+
+        y : NDArray
+            Target vector with dimensionality (n_observations,).
+
+        Returns
+        -------
+        Dictionary of (metric_name, score) key-value pairs.
+        """
         scores = {}
         metrics = {"acc": accuracy_score, "bac": balanced_accuracy_score}
 
@@ -1157,6 +1180,19 @@ class Tree(GFlowNetEnv):
             TensorType["n_trajectories", "..."], npt.NDArray[np.float32], List
         ],
     ) -> dict:
+        """
+        Computes a dictionary of metrics, as described in Tree._compute_scores, for
+        both training and, if available, test data.
+
+        Args
+        ----
+        samples : Tensor
+            Collection of sampled states representing the ensemble.
+
+        Returns
+        -------
+        Dictionary of (metric_name, score) key-value pairs.
+        """
         result = {}
 
         for k, v in Tree._compute_scores(samples, self.X_train, self.y_train).items():
