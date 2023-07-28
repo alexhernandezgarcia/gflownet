@@ -8,4 +8,7 @@ old
 *.sw*
 sh/
 *.txt
+.vscode/
+external/
 !requirements.txt
+.DS_Store

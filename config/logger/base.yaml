@@ -17,6 +17,9 @@ test:
   kde:
     bandwidth: 0.1
     kernel: gaussian
+  n_top_k: 5000
+  top_k: 100
+  top_k_period: 2500
 # Oracle metrics
 oracle:
   period: 100000
@@ -33,7 +36,7 @@ logdir:
   root: ./logs
   ckpts: ckpts
   overwrite: True
-debug: False 
-lightweight: False 
+debug: False
+lightweight: False
 progress: True
 context: "0"

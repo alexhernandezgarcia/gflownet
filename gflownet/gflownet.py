@@ -4,6 +4,7 @@ TODO:
     - Seeds
 """
 import copy
+import os
 import pickle
 import sys
 import time
@@ -22,7 +23,12 @@ from torch.distributions import Bernoulli, Categorical
 from tqdm import tqdm
 
 from gflownet.utils.buffer import Buffer
-from gflownet.utils.common import set_device, set_float_precision, torch2np
+from gflownet.utils.common import (
+    set_device,
+    set_float_precision,
+    torch2np,
+    batch_with_rest,
+)
 
 
 class GFlowNetAgent:
@@ -717,7 +723,22 @@ class GFlowNetAgent:
                 self.logger.log_test_metrics(
                     self.l1, self.kl, self.jsd, it, self.use_context
                 )
-                self.logger.log_plots(figs, it, self.use_context)
+                fig_names = [
+                    "True reward and GFlowNet samples",
+                    "GFlowNet KDE Policy",
+                    "Reward KDE",
+                ]
+                self.logger.log_plots(
+                    figs, it, fig_names=fig_names, use_context=self.use_context
+                )
+            if self.logger.do_top_k(it):
+                metrics, figs, fig_names, summary = self.test_top_k(it)
+                self.logger.log_plots(
+                    figs, it, use_context=self.use_context, fig_names=fig_names
+                )
+                self.logger.log_metrics(metrics, use_context=self.use_context, step=it)
+                self.logger.log_summary(summary)
+
             t0_iter = time.time()
             data = []
             for j in range(self.sttr):
@@ -908,6 +929,101 @@ class GFlowNetAgent:
             fig_kde_pred = None
             fig_kde_true = None
         return l1, kl, jsd, [fig_reward_samples, fig_kde_pred, fig_kde_true]
+
+    @torch.no_grad()
+    def test_top_k(self, it, progress=False, gfn_states=None, random_states=None):
+        """
+        Sample from the current GFN and compute metrics and plots for the top k states
+        according to both the energy and the reward.
+
+        Args:
+            it (int): current iteration
+            progress (bool, optional): Print sampling progress. Defaults to False.
+            gfn_states (list, optional): Already sampled gfn states. Defaults to None.
+            random_states (list, optional): Already sampled random states.
+                Defaults to None.
+
+        Returns:
+            tuple[dict, list[plt.Figure], list[str], dict]: Computed dict of metrics,
+                and figures, their names and optionally (only once) summary metrics.
+        """
+        # only do random top k plots & metrics once
+        do_random = it // self.logger.test.top_k_period == 1
+        duration = None
+        summary = {}
+        prob = copy.deepcopy(self.random_action_prob)
+        print()
+        if not gfn_states:
+            # sample states from the current gfn
+            self.random_action_prob = 0
+            gfn_states = []
+            t = time.time()
+            print("Sampling from GFN...", end="\r")
+            for b in batch_with_rest(0, self.logger.test.n_top_k, self.batch_size):
+                gfn_states += self.sample_batch(
+                    self.env, len(b), train=False, progress=progress
+                )[0]
+            duration = time.time() - t
+
+        # compute metrics and get plots
+        print("[test_top_k] Making GFN plots...", end="\r")
+        metrics, figs, fig_names = self.env.top_k_metrics_and_plots(
+            gfn_states, self.logger.test.top_k, name="gflownet", step=it
+        )
+        if duration:
+            metrics["gflownet top k sampling duration"] = duration
+
+        if do_random:
+            # sample random states from uniform actions
+            if not random_states:
+                self.random_action_prob = 1.0
+                print("[test_top_k] Sampling at random...", end="\r")
+                random_states = []
+                for b in batch_with_rest(0, self.logger.test.n_top_k, self.batch_size):
+                    random_states += self.sample_batch(
+                        self.env, len(b), train=False, progress=progress
+                    )[0]
+            # compute metrics and get plots
+            print("[test_top_k] Making Random plots...", end="\r")
+            (
+                random_metrics,
+                random_figs,
+                random_fig_names,
+            ) = self.env.top_k_metrics_and_plots(
+                random_states, self.logger.test.top_k, name="random", step=None
+            )
+            # add to current metrics and plots
+            summary.update(random_metrics)
+            figs += random_figs
+            fig_names += random_fig_names
+            # compute training data metrics and get plots
+            print("[test_top_k] Making train plots...", end="\r")
+            (
+                train_metrics,
+                train_figs,
+                train_fig_names,
+            ) = self.env.top_k_metrics_and_plots(
+                None, self.logger.test.top_k, name="train", step=None
+            )
+            # add to current metrics and plots
+            summary.update(train_metrics)
+            figs += train_figs
+            fig_names += train_fig_names
+
+        self.random_action_prob = prob
+
+        print(" " * 100, end="\r")
+        print("test_top_k metrics:")
+        max_k = max([len(k) for k in (list(metrics.keys()) + list(summary.keys()))]) + 1
+        print(
+            "  •  "
+            + "\n  •  ".join(
+                f"{k:{max_k}}: {v:.4f}"
+                for k, v in (list(metrics.items()) + list(summary.items()))
+            )
+        )
+        print()
+        return metrics, figs, fig_names, summary
 
     def get_log_corr(self, times):
         data_logq = []
