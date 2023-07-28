@@ -58,7 +58,6 @@ class HybridTorus(GFlowNetEnv):
         assert n_dim > 0
         assert length_traj > 0
         assert n_comp > 0
-        self.continuous = True
         self.n_dim = n_dim
         self.length_traj = length_traj
         self.policy_encoding_dim_per_angle = policy_encoding_dim_per_angle
@@ -83,6 +82,7 @@ class HybridTorus(GFlowNetEnv):
             random_distribution=random_distribution,
             **kwargs,
         )
+        self.continuous = True
 
     def get_action_space(self):
         """

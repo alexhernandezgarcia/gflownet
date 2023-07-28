@@ -1,13 +1,14 @@
-from pathlib import Path
+import datetime
+import re
+import sys
+from argparse import ArgumentParser
+from copy import deepcopy
 from os import popen
 from os.path import expandvars
-from argparse import ArgumentParser
-import datetime
-from yaml import safe_load
-import re
+from pathlib import Path
 from textwrap import dedent
-import sys
-from copy import deepcopy
+
+from yaml import safe_load
 
 ROOT = Path(__file__).resolve().parent.parent
 
