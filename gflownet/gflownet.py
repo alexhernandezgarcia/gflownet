@@ -221,7 +221,7 @@ class GFlowNetAgent:
             A list of instances of the environment
 
         batch_forward : Batch
-            A batch from which obtain required variables (e.g. masks) to avoid
+            A batch from which to obtain required variables (e.g. masks) to avoid
             recomputing them.
 
         sampling_method : string
