@@ -265,7 +265,7 @@ class GFlowNetAgent:
             temperature = 1.0
             random_action_prob = 0.0
         else:
-            if temperature is not None:
+            if temperature is None:
                 temperature = self.temperature_logits
             if random_action_prob is not None:
                 random_action_prob = self.random_action_prob
