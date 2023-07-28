@@ -8,9 +8,6 @@ id: tree
 data_path: ${user.data.root}/haberman.csv
 # Max depth
 max_depth: 5
-# GFlowNet hyperparameters
-gflownet:
-  random_action_prob: 0.1
 # Policy parameters
 threshold_components: 1
 beta_params_min: 0.1
