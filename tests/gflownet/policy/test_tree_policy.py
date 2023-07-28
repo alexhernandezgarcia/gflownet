@@ -26,7 +26,7 @@ def tree(
     X = np.random.rand(n_observations, n_features)
     y = np.random.randint(2, size=n_observations)
 
-    _tree = Tree(X=X, y=y)
+    _tree = Tree(X_train=X, y_train=y)
 
     for _ in range(n_nodes):
         node = np.random.choice(list(Tree._find_leaves(_tree.state)))

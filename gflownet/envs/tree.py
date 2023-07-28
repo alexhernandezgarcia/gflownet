@@ -221,7 +221,7 @@ class Tree(GFlowNetEnv):
             )
         else:
             raise ValueError(
-                "A Tree must be initialised with a data set. X, y and data_path cannot "
+                "A Tree must be initialised with a data set. X_train, y_train and data_path cannot "
                 "be all None"
             )
         if scale_data:

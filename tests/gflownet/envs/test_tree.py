@@ -83,14 +83,14 @@ def test__node_tree__has_expected_node_attributes(tree):
 @pytest.fixture
 def tree_d2(X, y):
     return Tree(
-        X=np.array([[1, 2], [3, 4], [5, 6]]), y=np.array([0, 0, 1]), max_depth=2
+        X_train=np.array([[1, 2], [3, 4], [5, 6]]), y_train=np.array([0, 0, 1]), max_depth=2
     )
 
 
 @pytest.fixture
 def tree_d3(X, y):
     return Tree(
-        X=np.array([[1, 2], [3, 4], [5, 6]]), y=np.array([0, 0, 1]), max_depth=3
+        X_train=np.array([[1, 2], [3, 4], [5, 6]]), y_train=np.array([0, 0, 1]), max_depth=3
     )
 
 
