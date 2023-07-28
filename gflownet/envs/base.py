@@ -7,6 +7,7 @@ from copy import deepcopy
 from textwrap import dedent
 from typing import List, Optional, Tuple, Union
 
+import matplotlib.pyplot as plt
 import numpy as np
 import numpy.typing as npt
 import torch
@@ -93,6 +94,9 @@ class GFlowNetEnv:
         self.random_policy_output = self.get_policy_output(random_distribution)
         self.policy_output_dim = len(self.fixed_policy_output)
         self.policy_input_dim = len(self.state2policy())
+        if proxy is not None and self.proxy == self.oracle:
+            self.statebatch2proxy = self.statebatch2oracle
+            self.statetorch2proxy = self.statetorch2oracle
 
     @abstractmethod
     def get_action_space(self):
@@ -481,6 +485,7 @@ class GFlowNetEnv:
         logprobs = self.logsoftmax(logits)[ns_range, action_indices]
         return logprobs
 
+    # TODO: add seed
     def step_random(self, backward: bool = False):
         """
         Samples a random action and executes the step.
@@ -537,6 +542,56 @@ class GFlowNetEnv:
             if valid:
                 actions.append(action)
         return self.state, actions
+
+    def get_random_terminating_states(
+        self, n_states: int, unique: bool = True, max_attempts: int = 100000
+    ) -> List:
+        """
+        Samples n terminating states by using the random policy of the environment
+        (calling self.trajectory_random()).
+
+        Note that this method is general for all environments but it may be suboptimal
+        in terms of efficiency. In particular, 1) it samples full trajectories in order
+        to get terminating states, 2) if unique is True, it needs to compare each newly
+        sampled state with all the previously sampled states. If
+        get_uniform_terminating_states is available, it may be preferred, or for some
+        environments, a custom get_random_terminating_states may be straightforward to
+        implement in a much more efficient way.
+
+        Args
+        ----
+        n_states : int
+            The number of terminating states to sample.
+
+        unique : bool
+            Whether samples should be unique. True by default.
+
+        max_attempts : int
+            The maximum number of attempts, to prevent the method from getting stuck
+            trying to obtain n_states different samples if unique is True. 100000 by
+            default, therefore if more than 100000 are requested, max_attempts should
+            be increased accordingly.
+
+        Returns
+        -------
+        states : list
+            A list of randomly sampled terminating states.
+        """
+        if unique is False:
+            max_attempts = n_states + 1
+        states = []
+        count = 0
+        while len(states) < n_states and count < max_attempts:
+            add = True
+            self.reset()
+            state, _ = self.trajectory_random()
+            if unique is True:
+                if any([self.equal(state, s) for s in states]):
+                    add = False
+            if add is True:
+                states.append(state)
+            count += 1
+        return states
 
     def get_policy_output(self, params: Optional[dict] = None):
         """
@@ -671,9 +726,13 @@ class GFlowNetEnv:
         """
         if done is None:
             done = np.ones(len(states), dtype=bool)
-        states_proxy = self.statebatch2proxy(states)[list(done), :]
+        states_proxy = self.statebatch2proxy(states)
+        if isinstance(states_proxy, torch.Tensor):
+            states_proxy = states_proxy[list(done), :]
+        elif isinstance(states_proxy, list):
+            states_proxy = [states_proxy[i] for i in range(len(done)) if done[i]]
         rewards = np.zeros(len(done))
-        if states_proxy.shape[0] > 0:
+        if len(states_proxy) > 0:
             rewards[list(done)] = self.proxy2reward(self.proxy(states_proxy)).tolist()
         return rewards
 
@@ -704,7 +763,12 @@ class GFlowNetEnv:
         """
         if self.denorm_proxy:
             # TODO: do with torch
-            proxy_vals = proxy_vals * self.energies_stats[3] + self.energies_stats[2]
+            # TODO: review
+            proxy_vals = (
+                proxy_vals * (self.energies_stats[1] - self.energies_stats[0])
+                + self.energies_stats[0]
+            )
+            # proxy_vals = proxy_vals * self.energies_stats[3] + self.energies_stats[2]
         if self.reward_func == "power":
             return torch.clamp(
                 (self.proxy_factor * proxy_vals / self.reward_norm) ** self.reward_beta,
@@ -720,6 +784,12 @@ class GFlowNetEnv:
         elif self.reward_func == "identity":
             return torch.clamp(
                 self.proxy_factor * proxy_vals,
+                min=self.min_reward,
+                max=None,
+            )
+        elif self.reward_func == "shift":
+            return torch.clamp(
+                self.proxy_factor * proxy_vals + self.reward_beta,
                 min=self.min_reward,
                 max=None,
             )
@@ -743,6 +813,8 @@ class GFlowNetEnv:
             return self.proxy_factor * torch.log(reward) / self.reward_beta
         elif self.reward_func == "identity":
             return self.proxy_factor * reward
+        elif self.reward_func == "shift":
+            return self.proxy_factor * (reward - self.reward_beta)
         else:
             raise NotImplementedError
 
@@ -880,3 +952,34 @@ class GFlowNetEnv:
     def setup_proxy(self):
         if self.proxy:
             self.proxy.setup(self)
+
+    def plot_reward_distribution(
+        self, states=None, scores=None, ax=None, title=None, oracle=None, **kwargs
+    ):
+        if ax is None:
+            fig, ax = plt.subplots()
+            standalone = True
+        else:
+            standalone = False
+        if title == None:
+            title = "Scores of Sampled States"
+        if oracle is None:
+            oracle = self.oracle
+        if scores is None:
+            if isinstance(states[0], torch.Tensor):
+                states = torch.vstack(states).to(self.device, self.float)
+            if isinstance(states, torch.Tensor) == False:
+                states = torch.tensor(states, device=self.device, dtype=self.float)
+            oracle_states = self.statetorch2oracle(states)
+            scores = oracle(oracle_states)
+        if isinstance(scores, TensorType):
+            scores = scores.cpu().detach().numpy()
+        ax.hist(scores)
+        ax.set_title(title)
+        ax.set_ylabel("Number of Samples")
+        ax.set_xlabel("Energy")
+        plt.show()
+        if standalone == True:
+            plt.tight_layout()
+            plt.close()
+        return ax
