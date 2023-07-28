@@ -210,6 +210,14 @@ class SpaceGroup(GFlowNetEnv):
         """
         return torch.unsqueeze(states[:, self.sg_idx], dim=1)
 
+    def policy2state(
+        self, policy: Optional[TensorType["policy_input_dim"]] = None
+    ) -> None:
+        """
+        Returns None to signal that the conversion is not reversible.
+        """
+        return None
+
     def state2readable(self, state=None):
         """
         Transforms the state, represented as a list of property indices, into a
@@ -229,8 +237,7 @@ class SpaceGroup(GFlowNetEnv):
                 69 | orthorhombic (3) | rhombic-dipyramidal (8) | mmm |
                 centrosymmetric (2)
         """
-        if state is None:
-            state = self.state
+        state = self._get_state(state)
         crystal_system_idx = state[self.cs_idx]
         if crystal_system_idx != 0:
             crystal_system = self.crystal_systems[crystal_system_idx][0]

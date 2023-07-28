@@ -333,10 +333,11 @@ class Tetris(GFlowNetEnv):
         """
         return None
 
-    def state2readable(self, state):
+    def state2readable(self, state: Optional[TensorType["height", "width"]] = None):
         """
         Converts a state (board) into a human-friendly string.
         """
+        state = self._get_state(state)
         if isinstance(state, tuple):
             readable = str(np.stack(state))
         else:

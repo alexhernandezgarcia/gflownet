@@ -19,6 +19,7 @@ from torch.distributions import Bernoulli
 from tqdm import tqdm
 
 from gflownet.envs.base import GFlowNetEnv
+from gflownet.policy.base import Policy
 from gflownet.utils.batch import Batch
 from gflownet.utils.buffer import Buffer
 from gflownet.utils.common import (
@@ -206,7 +207,7 @@ class GFlowNetAgent:
     ) -> List[Tuple]:
         """
         Samples one action on each environment of the list envs, according to the
-        sampling method specify by sampling_method.
+        sampling method specified by sampling_method.
 
         With probability 1 - random_action_prob, actions will be sampled from the
         self.forward_policy or self.backward_policy, depending on backward. The rest
@@ -222,7 +223,7 @@ class GFlowNetAgent:
             A list of instances of the environment
 
         batch_forward : Batch
-            A batch from which obtain required variables (e.g. masks) to avoid
+            A batch from which to obtain required variables (e.g. masks) to avoid
             recomputing them.
 
         sampling_method : string
@@ -266,9 +267,9 @@ class GFlowNetAgent:
             temperature = 1.0
             random_action_prob = 0.0
         else:
-            if temperature is not None:
+            if temperature is None:
                 temperature = self.temperature_logits
-            if random_action_prob is not None:
+            if random_action_prob is None:
                 random_action_prob = self.random_action_prob
         if backward:
             # TODO: backward sampling with FM?
@@ -284,7 +285,7 @@ class GFlowNetAgent:
         states = [env.state for env in envs]
 
         # Retrieve masks from the batch (batch.get_item("mask_*") computes the mask if
-        # it is not available and stores it to the batch)
+        # it is not available and stores it in the batch)
         # TODO: make get_mask_ method with the ugly code below
         if self.mask_invalid_actions is True:
             if batch is not None:
@@ -386,7 +387,6 @@ class GFlowNetAgent:
             )
         return envs, actions, valids
 
-    # @profile
     @torch.no_grad()
     # TODO: extract code from while loop to avoid replication
     def sample_batch(
@@ -769,18 +769,19 @@ class GFlowNetAgent:
         for it in pbar:
             # Test
             if self.logger.do_test(it):
-                self.l1, self.kl, self.jsd, figs = self.test()
+                self.l1, self.kl, self.jsd, figs, env_metrics = self.test()
                 self.logger.log_test_metrics(
                     self.l1, self.kl, self.jsd, it, self.use_context
                 )
                 self.logger.log_plots(figs, it, self.use_context)
+                self.logger.log_metrics(env_metrics, it, self.use_context)
             t0_iter = time.time()
             batch = Batch(env=self.env, device=self.device, float_type=self.float)
             for j in range(self.sttr):
                 sub_batch, times = self.sample_batch(
                     n_forward=self.batch_size.forward,
-                    n_train=self.batch_size.train,
-                    n_replay=self.batch_size.replay,
+                    n_train=self.batch_size.backward_dataset,
+                    n_replay=self.batch_size.backward_replay,
                 )
                 batch.merge(sub_batch)
             for j in range(self.ttsr):
@@ -898,7 +899,7 @@ class GFlowNetAgent:
         Computes metrics by sampling trajectories from the forward policy.
         """
         if self.buffer.test_pkl is None:
-            return self.l1, self.kl, self.jsd, (None,)
+            return self.l1, self.kl, self.jsd, (None,), {}
         with open(self.buffer.test_pkl, "rb") as f:
             dict_tt = pickle.load(f)
             x_tt = dict_tt["x"]
@@ -961,6 +962,10 @@ class GFlowNetAgent:
             log_density_pred = scores_pred - logsumexp(scores_pred, axis=0)
             density_true = np.exp(log_density_true)
             density_pred = np.exp(log_density_pred)
+        elif self.buffer.test_type == "random":
+            # TODO: refactor
+            env_metrics = self.env.test(x_sampled)
+            return self.l1, self.kl, self.jsd, (None,), env_metrics
         else:
             raise NotImplementedError
         # L1 error
@@ -984,7 +989,7 @@ class GFlowNetAgent:
         else:
             fig_kde_pred = None
             fig_kde_true = None
-        return l1, kl, jsd, [fig_reward_samples, fig_kde_pred, fig_kde_true]
+        return l1, kl, jsd, [fig_reward_samples, fig_kde_pred, fig_kde_true], {}
 
     def get_log_corr(self, times):
         data_logq = []
@@ -1054,138 +1059,6 @@ class GFlowNetAgent:
                 step=it,
                 use_context=self.use_context,
             )
-
-
-class Policy:
-    def __init__(self, config, env, device, float_precision, base=None):
-        # If config is null, default to uniform
-        if config is None:
-            config = OmegaConf.create()
-            config.type = "uniform"
-        # Device and float precision
-        self.device = device
-        self.float = float_precision
-        # Input and output dimensions
-        self.state_dim = env.policy_input_dim
-        self.fixed_output = torch.tensor(env.fixed_policy_output).to(
-            dtype=self.float, device=self.device
-        )
-        self.random_output = torch.tensor(env.random_policy_output).to(
-            dtype=self.float, device=self.device
-        )
-        self.output_dim = len(self.fixed_output)
-        if "shared_weights" in config:
-            self.shared_weights = config.shared_weights
-        else:
-            self.shared_weights = False
-        self.base = base
-        if "n_hid" in config:
-            self.n_hid = config.n_hid
-        else:
-            self.n_hid = None
-        if "n_layers" in config:
-            self.n_layers = config.n_layers
-        else:
-            self.n_layers = None
-        if "tail" in config:
-            self.tail = config.tail
-        else:
-            self.tail = []
-        if "type" in config:
-            self.type = config.type
-        elif self.shared_weights:
-            self.type = self.base.type
-        else:
-            raise "Policy type must be defined if shared_weights is False"
-        # Instantiate policy
-        if self.type == "fixed":
-            self.model = self.fixed_distribution
-            self.is_model = False
-        elif self.type == "uniform":
-            self.model = self.uniform_distribution
-            self.is_model = False
-        elif self.type == "mlp":
-            self.model = self.make_mlp(nn.LeakyReLU())
-            self.is_model = True
-        else:
-            raise "Policy model type not defined"
-        if self.is_model:
-            self.model.to(self.device)
-
-    def __call__(self, states):
-        return self.model(states)
-
-    def make_mlp(self, activation):
-        """
-        Defines an MLP with no top layer activation
-        If share_weight == True,
-            baseModel (the model with which weights are to be shared) must be provided
-        Args
-        ----
-        layers_dim : list
-            Dimensionality of each layer
-        activation : Activation
-            Activation function
-        """
-        if self.shared_weights is True and self.base is not None:
-            mlp = nn.Sequential(
-                self.base.model[:-1],
-                nn.Linear(
-                    self.base.model[-1].in_features, self.base.model[-1].out_features
-                ),
-            )
-            return mlp
-        elif self.shared_weights is False:
-            layers_dim = (
-                [self.state_dim] + [self.n_hid] * self.n_layers + [(self.output_dim)]
-            )
-            mlp = nn.Sequential(
-                *(
-                    sum(
-                        [
-                            [nn.Linear(idim, odim)]
-                            + ([activation] if n < len(layers_dim) - 2 else [])
-                            for n, (idim, odim) in enumerate(
-                                zip(layers_dim, layers_dim[1:])
-                            )
-                        ],
-                        [],
-                    )
-                    + self.tail
-                )
-            )
-            return mlp
-        else:
-            raise ValueError(
-                "Base Model must be provided when shared_weights is set to True"
-            )
-
-    def fixed_distribution(self, states):
-        """
-        Returns the fixed distribution specified by the environment.
-        Args: states: tensor
-        """
-        return torch.tile(self.fixed_output, (len(states), 1)).to(
-            dtype=self.float, device=self.device
-        )
-
-    def random_distribution(self, states):
-        """
-        Returns the random distribution specified by the environment.
-        Args: states: tensor
-        """
-        return torch.tile(self.random_output, (len(states), 1)).to(
-            dtype=self.float, device=self.device
-        )
-
-    def uniform_distribution(self, states):
-        """
-        Return action logits (log probabilities) from a uniform distribution
-        Args: states: tensor
-        """
-        return torch.ones(
-            (len(states), self.output_dim), dtype=self.float, device=self.device
-        )
 
 
 def make_opt(params, logZ, config):

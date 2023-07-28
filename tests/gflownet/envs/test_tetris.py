@@ -517,18 +517,22 @@ def test__get_parents__contains_expected(
     assert any([a == parent_a_expected for a in parents_a])
 
 
-def test__all_env_common(env_1piece):
+def test__all_env_common__1piece(env_1piece):
+    print("\n\nCommon tests for 1 piece Tetris\n")
     return common.test__all_env_common(env_1piece)
 
 
-def test__all_env_common(env_mini):
+def test__all_env_common__mini(env_mini):
+    print("\n\nCommon tests for mini Tetris\n")
     return common.test__all_env_common(env_mini)
 
 
-def test__all_env_common(env):
+def test__all_env_common_standard(env):
+    print("\n\nCommon tests for standard Tetris\n")
     return common.test__all_env_common(env)
 
 
 @pytest.mark.skip(reason="Takes too long")
 def test__all_env_common(env_full):
+    print("\n\nCommon tests for full Tetris\n")
     return common.test__all_env_common(env_full)

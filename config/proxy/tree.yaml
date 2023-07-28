@@ -1,0 +1,3 @@
+_target_: gflownet.proxy.tree.TreeProxy
+
+use_prior: False
