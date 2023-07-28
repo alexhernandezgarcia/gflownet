@@ -9,6 +9,8 @@ import networkx as nx
 import numpy as np
 import numpy.typing as npt
 import pandas as pd
+from sklearn.metrics import accuracy_score, balanced_accuracy_score
+from sklearn.preprocessing import MinMaxScaler
 import torch
 import torch_geometric as pyg
 from networkx.drawing.nx_pydot import graphviz_layout
@@ -144,9 +146,12 @@ class Tree(GFlowNetEnv):
 
     def __init__(
         self,
-        X: Optional[npt.NDArray] = None,
-        y: Optional[npt.NDArray] = None,
+        X_train: Optional[npt.NDArray] = None,
+        y_train: Optional[npt.NDArray] = None,
+        X_test: Optional[npt.NDArray] = None,
+        y_test: Optional[npt.NDArray] = None,
         data_path: Optional[str] = None,
+        scale_data: bool = True,
         max_depth: int = 10,
         threshold_components: int = 1,
         beta_params_min: float = 0.1,
@@ -164,20 +169,36 @@ class Tree(GFlowNetEnv):
         """
         Attributes
         ----------
-        X : np.array
-            Input dataset, with dimensionality (n_observations, n_features). It may be
+        X_train : np.array
+            Train dataset, with dimensionality (n_observations, n_features). It may be
             None if a data set is provided via data_path.
 
-        y : np.array
-            Target labels, with dimensionality (n_observations,). It may be
+        y_train : np.array
+            Train labels, with dimensionality (n_observations,). It may be
             None if a data set is provided via data_path.
+
+        X_test : np.array
+            Test dataset, with dimensionality (n_observations, n_features). It may be
+            None if a data set is provided via data_path, or if you don't want to perform
+            test set evaluation.
+
+        y_train : np.array
+            Test labels, with dimensionality (n_observations,). It may be
+            None if a data set is provided via data_path, or if you don't want to perform
+            test set evaluation.
 
         data_path : str
             A path to a data set, with the following options:
-            - *.pkl: Pickled dict with X and y variables.
-            - *.csv: CSV with M columns where the first (M - 1) columns will be taken
-              to construct the input X, and column M-th will be the target y.
-            Ignored if X and y are not None.
+            - *.pkl: Pickled dict with X_train, y_train, and (optional) X_test and y_test
+              variables.
+            - *.csv: CSV containing an optional 'Split' column in the last place, containing
+              'train' and 'test' values, and M remaining columns, where the first (M - 1)
+              columns will be taken to construct the input X, and M-th column will be the
+              target y.
+            Ignored if X_train and y_train are not None.
+
+        scale_data : bool
+            Whether to perform min-max scaling on the provided data (to a [0; 1] range).
 
         max_depth : int
             Maximum depth of a tree.
@@ -186,18 +207,37 @@ class Tree(GFlowNetEnv):
             The number of mixture components that will be used for sampling
             the threshold.
         """
-        if X is not None and y is not None:
-            self.X = X
-            self.y = y
+        if X_train is not None and y_train is not None:
+            self.X_train = X_train
+            self.y_train = y_train
+            if X_test is not None and y_test is not None:
+                self.X_test = X_test
+                self.y_test = y_test
+            else:
+                self.X_test = None
+                self.y_test = None
         elif data_path is not None:
-            self.X, self.y = Tree._load_dataset(data_path)
+            self.X_train, self.y_train, self.X_test, self.y_test = Tree._load_dataset(
+                data_path
+            )
         else:
             raise ValueError(
-                "A Tree must be initialised with a data set. X, y and data_path cannot "
+                "A Tree must be initialised with a data set. X_train, y_train and data_path cannot "
                 "be all None"
             )
-        self.y = self.y.astype(int)
-        self.n_features = self.X.shape[1]
+        if scale_data:
+            self.scaler = MinMaxScaler().fit(self.X_train)
+            self.X_train = self.scaler.transform(self.X_train)
+            if self.X_test is not None:
+                self.X_test = self.scaler.transform(self.X_test)
+        self.y_train = self.y_train.astype(int)
+        if self.y_test is not None:
+            self.y_test = self.y_test.astype(int)
+        if not set(self.y_train).issubset({0, 1}):
+            raise ValueError(
+                f"Expected y_train to have values in {{0, 1}}, received {set(self.y_train)}."
+            )
+        self.n_features = self.X_train.shape[1]
         self.max_depth = max_depth
         # Parameters of the policy distribution
         self.components = threshold_components
@@ -214,7 +254,7 @@ class Tree(GFlowNetEnv):
         attributes_root[Attribute.TYPE] = NodeType.CLASSIFIER
         attributes_root[Attribute.FEATURE] = -1
         attributes_root[Attribute.THRESHOLD] = -1
-        attributes_root[Attribute.CLASS] = Counter(self.y).most_common()[0][0]
+        attributes_root[Attribute.CLASS] = Counter(self.y_train).most_common()[0][0]
         attributes_root[Attribute.ACTIVE] = Status.INACTIVE
 
         # End-of-sequence action.
@@ -224,7 +264,8 @@ class Tree(GFlowNetEnv):
         # TODO: add functionality to select conversion type depending on config
         self.state2policy = self.state2policy_mlp
         self.statetorch2policy = self.statetorch2policy_mlp
-        self.statetorch2proxy = self.statetorch2policy
+        # self.statetorch2proxy = self.statetorch2policy
+        self.statetorch2oracle = self.statetorch2policy
 
         super().__init__(
             fixed_distribution=fixed_distribution,
@@ -1013,25 +1054,41 @@ class Tree(GFlowNetEnv):
         data_path = Path(data_path)
         if data_path.suffix == ".csv":
             df = pd.read_csv(data_path)
-            X = df.iloc[:, 0:-1].values
-            y = df.iloc[:, -1].values
+            if df.columns[-1].lower() != "split":
+                X_train = df.iloc[:, 0:-1].values
+                y_train = df.iloc[:, -1].values
+                X_test = None
+                y_test = None
+            else:
+                if set(df.iloc[:, -1]) != {"train", "test"}:
+                    raise ValueError(
+                        f"Expected df['Split'] to have values in {{'train', 'test'}}, "
+                        f"received {set(df.iloc[:, -1])}."
+                    )
+                X_train = df[df.iloc[:, -1] == "train"].iloc[:, 0:-2].values
+                y_train = df[df.iloc[:, -1] == "train"].iloc[:, -2].values
+                X_test = df[df.iloc[:, -1] == "test"].iloc[:, 0:-2].values
+                y_test = df[df.iloc[:, -1] == "test"].iloc[:, -2].values
         elif data_path.suffix == ".pkl":
             with open(data_path, "rb") as f:
                 dct = pickle.load(f)
-                X = dct["X"]
-                y = dct["y"]
+                X_train = dct["X_train"]
+                y_train = dct["y_train"]
+                X_test = dct.get("X_test")
+                y_test = dct.get("y_test")
         else:
             raise ValueError(
                 "data_path must be a CSV (*.csv) or a pickled dict (*.pkl)."
             )
-        return X, y
+        return X_train, y_train, X_test, y_test
 
-    def predict(self, x: npt.NDArray, k: int = 0) -> int:
+    @staticmethod
+    def predict(state: torch.Tensor, x: npt.NDArray, k: int = 0) -> int:
         """
         Recursively predict output label given a feature vector x
         of a single observation.
         """
-        attributes = self.state[k]
+        attributes = state[k]
 
         if attributes[Attribute.TYPE] == NodeType.CLASSIFIER:
             return attributes[Attribute.CLASS]
@@ -1040,9 +1097,12 @@ class Tree(GFlowNetEnv):
             x[attributes[Attribute.FEATURE].long().item()]
             < attributes[Attribute.THRESHOLD]
         ):
-            return self.predict(x, k=Tree._get_left_child(k))
+            return Tree.predict(state, x, k=Tree._get_left_child(k))
         else:
-            return self.predict(x, k=Tree._get_right_child(k))
+            return Tree.predict(state, x, k=Tree._get_right_child(k))
+
+    def _predict(self, x: npt.NDArray, k: int = 0) -> int:
+        return Tree.predict(self.state, x, k)
 
     def plot(self) -> None:
         """
@@ -1070,3 +1130,40 @@ class Tree(GFlowNetEnv):
             node_size=800,
         )
         plt.show()
+
+    @staticmethod
+    def _compute_scores(states: torch.Tensor, X: npt.NDArray, y: npt.NDArray) -> dict:
+        scores = {}
+        metrics = {"acc": accuracy_score, "bac": balanced_accuracy_score}
+
+        predictions = np.empty((len(states), len(X)))
+        for i, state in enumerate(states):
+            for j, x in enumerate(X):
+                predictions[i, j] = Tree.predict(state, x)
+
+        for metric_name, metric_function in metrics.items():
+            scores[f"mean_tree_{metric_name}"] = np.mean(
+                [metric_function(y, y_pred) for y_pred in predictions]
+            )
+            scores[f"forest_{metric_name}"] = metric_function(
+                y, predictions.mean(axis=0).round()
+            )
+
+        return scores
+
+    def test(
+        self,
+        samples: Union[
+            TensorType["n_trajectories", "..."], npt.NDArray[np.float32], List
+        ],
+    ) -> dict:
+        result = {}
+
+        for k, v in Tree._compute_scores(samples, self.X_train, self.y_train).items():
+            result[f"train_{k}"] = v
+
+        if self.X_test is not None:
+            for k, v in Tree._compute_scores(samples, self.X_test, self.y_test).items():
+                result[f"test_{k}"] = v
+
+        return result

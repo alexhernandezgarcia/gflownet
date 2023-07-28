@@ -21,9 +21,12 @@ optimizer:
   sgd_momentum: 0.9
   # Number of trajectories of each kind
   batch_size:
+    # Forward on-policy (possibly tempered and/or with random actions)
     forward: 10
-    train: 0
-    replay: 0
+    # Backward from training set
+    backward_dataset: 0
+    # Backward from replay buffer
+    backward_replay: 0
   # Train to sample ratio
   train_to_sample_ratio: 1
   # Number of training iterations
