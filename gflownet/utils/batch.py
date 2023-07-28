@@ -168,7 +168,7 @@ class Batch:
 
         backward : bool
             A boolean value indicating whether the action was sampled backward (False
-            by dfefault). If True, the behavior is slightly different so as to match
+            by default). If True, the behavior is slightly different so as to match
             what is stored in forward sampling:
                 - If it is the first state in the trajectory (action from a done
                   state/env), then done is stored as True, instead of taking env.done
