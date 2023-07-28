@@ -129,7 +129,7 @@ class Batch:
 
     def set_env(self, env: GFlowNetEnv):
         """
-        Sets the generic environment passed as an argument an initializes the
+        Sets the generic environment passed as an argument and initializes the
         environment-dependent properties.
         """
         self.env = env.copy().reset()
