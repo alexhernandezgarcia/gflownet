@@ -184,6 +184,8 @@ class GFlowNetAgent:
         self.l1 = -1.0
         self.kl = -1.0
         self.jsd = -1.0
+        self.corr_logp_rewards = 0.0
+        self.nll_tt = 0.0
 
     def parameters(self):
         if self.backward_policy.is_model is False:
@@ -790,9 +792,23 @@ class GFlowNetAgent:
         for it in pbar:
             # Test
             if self.logger.do_test(it):
-                self.l1, self.kl, self.jsd, figs, env_metrics = self.test()
+                (
+                    self.l1,
+                    self.kl,
+                    self.jsd,
+                    self.corr_logp_rewards,
+                    self.nll_tt,
+                    figs,
+                    env_metrics,
+                ) = self.test()
                 self.logger.log_test_metrics(
-                    self.l1, self.kl, self.jsd, it, self.use_context
+                    self.l1,
+                    self.kl,
+                    self.jsd,
+                    self.corr_logp_rewards,
+                    self.nll_tt,
+                    it,
+                    self.use_context,
                 )
                 self.logger.log_plots(figs, it, self.use_context)
                 self.logger.log_metrics(env_metrics, it, self.use_context)
@@ -915,13 +931,31 @@ class GFlowNetAgent:
         Computes metrics by sampling trajectories from the forward policy.
         """
         if self.buffer.test_pkl is None:
-            return self.l1, self.kl, self.jsd, (None,), {}
+            return (
+                self.l1,
+                self.kl,
+                self.jsd,
+                self.corr_logp_rewards,
+                self.nll_tt,
+                (None,),
+                {},
+            )
         with open(self.buffer.test_pkl, "rb") as f:
             dict_tt = pickle.load(f)
             x_tt = dict_tt["x"]
+
+        # Compute correlation between the rewards of the test data and the log
+        # likelihood of the data according the the GFlowNet policy; and NLL.
+        # TODO: organise code for better efficiency and readability
+        logprobs_x_tt = self.estimate_logprobs_data(x_tt, n_trajectories=10)
+        rewards_x_tt = self.env.reward_batch(x_tt)
+        corr_logp_rewards = np.corrcoef(logprobs_x_tt.cpu().numpy(), rewards_x_tt)[0, 1]
+        nll_tt = -logprobs_x_tt.mean().item()
+
         batch, _ = self.sample_batch(n_forward=self.logger.test.n, train=False)
         assert batch.is_valid()
         x_sampled = batch.get_terminating_states()
+
         if self.buffer.test_type is not None and self.buffer.test_type == "all":
             if "density_true" in dict_tt:
                 density_true = dict_tt["density_true"]
@@ -981,7 +1015,15 @@ class GFlowNetAgent:
         elif self.buffer.test_type == "random":
             # TODO: refactor
             env_metrics = self.env.test(x_sampled)
-            return self.l1, self.kl, self.jsd, (None,), env_metrics
+            return (
+                self.l1,
+                self.kl,
+                self.jsd,
+                self.corr_logp_rewards,
+                self.nll_tt,
+                (None,),
+                env_metrics,
+            )
         else:
             raise NotImplementedError
         # L1 error
@@ -1005,7 +1047,15 @@ class GFlowNetAgent:
         else:
             fig_kde_pred = None
             fig_kde_true = None
-        return l1, kl, jsd, [fig_reward_samples, fig_kde_pred, fig_kde_true], {}
+        return (
+            l1,
+            kl,
+            jsd,
+            corr_logp_rewards,
+            nll_tt,
+            [fig_reward_samples, fig_kde_pred, fig_kde_true],
+            {},
+        )
 
     def get_log_corr(self, times):
         data_logq = []
@@ -1061,7 +1111,7 @@ class GFlowNetAgent:
         # TODO: integrate corr into test()
         if not self.logger.lightweight and self.buffer.test is not None:
             corr, data_logq, times = self.get_log_corr(times)
-            self.logger.log_sampler_test(corr, data_logq, it, self.use_context)
+            self.logger.log_sampler_test(rr, data_logq, it, self.use_context)
 
         # oracle metrics
         oracle_batch, oracle_times = self.sample_batch(
