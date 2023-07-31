@@ -304,8 +304,6 @@ class Logger:
         l1: float,
         kl: float,
         jsd: float,
-        corr_logp_rewards: float,
-        nll_tt: float,
         step: int,
         use_context: bool,
     ):
@@ -313,14 +311,8 @@ class Logger:
             return
         metrics = dict(
             zip(
-                [
-                    "L1 error",
-                    "KL Div.",
-                    "Jensen Shannon Div.",
-                    "Corr. (logp, rewards)",
-                    "NLL of test data",
-                ],
-                [l1, kl, jsd, corr_logp_rewards, nll_tt],
+                ["L1 error", "KL Div.", "Jensen Shannon Div."],
+                [l1, kl, jsd],
             )
         )
         self.log_metrics(
