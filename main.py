@@ -19,6 +19,7 @@ def main(config):
 
     # TODO: fix race condition in a more elegant way
     import random
+
     cwd += "/%08x" % random.getrandbits(32)
     os.mkdir(cwd)
     os.chdir(cwd)
