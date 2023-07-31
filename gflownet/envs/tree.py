@@ -833,7 +833,7 @@ class Tree(GFlowNetEnv):
         continuous action, that is the sampling of the threshold of a node classifier.
 
         The latter is modelled by a mixture of Beta distributions. Therefore, the
-        continuous part of of the policy output is vector of dimensionality c * 3,
+        continuous part of the policy output is vector of dimensionality c * 3,
         where c is the number of components in the mixture (self.components).
         The three parameters of each component are the following:
 
