@@ -180,7 +180,7 @@ class SpaceGroup(GFlowNetEnv):
                 point_symmetries = [
                     (self.ps_idx, idx, ref)
                     for idx in self.crystal_lattice_systems[cls_idx]["point_symmetries"]
-                    if self._is_ps_compatible(idx + 1)
+                    if self._is_ps_compatible(idx)
                 ]
         else:
             space_groups_cls = [
@@ -201,7 +201,7 @@ class SpaceGroup(GFlowNetEnv):
                 crystal_lattice_systems = [
                     (self.cls_idx, idx, ref)
                     for idx in self.point_symmetries[ps_idx]["crystal_lattice_systems"]
-                    if self._is_cls_compatible(idx + 1)
+                    if self._is_cls_compatible(idx)
                 ]
         else:
             space_groups_ps = [
