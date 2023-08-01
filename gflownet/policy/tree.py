@@ -4,8 +4,10 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 import torch_geometric
-from omegaconf import OmegaConf
 from torch_geometric.nn import global_mean_pool
+
+from gflownet.envs.tree import Stage, Tree
+from gflownet.policy.base import Policy
 
 
 class Backbone(torch.nn.Module):
@@ -147,8 +149,8 @@ class ThresholdSelectionHead(torch.nn.Module):
     def __init__(
         self,
         backbone: torch.nn.Module,
-        input_dim: int,
         output_dim: int,
+        input_dim: int = 128,
         n_layers: int = 2,
         hidden_dim: int = 64,
         activation: str = "LeakyReLU",
@@ -181,7 +183,7 @@ class OperatorSelectionHead(torch.nn.Module):
     def __init__(
         self,
         backbone: torch.nn.Module,
-        input_dim: int,
+        input_dim: int = 128,
         n_layers: int = 2,
         hidden_dim: int = 64,
         activation: str = "LeakyReLU",
@@ -228,40 +230,63 @@ class TreeModel(torch.nn.Module):
         else:
             self.backbone = backbone
 
-        self.leaf_head = LeafSelectionHead(backbone=backbone, **leaf_head_args)
-        self.feature_head = FeatureSelectionHead(backbone=backbone, **feature_head_args)
+        self.leaf_head = LeafSelectionHead(backbone=self.backbone, **leaf_head_args)
+        self.feature_head = FeatureSelectionHead(
+            backbone=self.backbone, **feature_head_args
+        )
         self.threshold_head = ThresholdSelectionHead(
-            backbone=backbone, **threshold_head_args
+            backbone=self.backbone, **threshold_head_args
         )
         self.operator_head = OperatorSelectionHead(
-            backbone=backbone, **operator_head_args
+            backbone=self.backbone, **operator_head_args
         )
 
     def forward(self, x):
-        pass
+        output = []
+
+        for state in x:
+            stage = Tree.get_stage(state)
+            graph = Tree.to_pyg(state)
+
+            if stage == Stage.COMPLETE:
+                output.append(self.leaf_head(graph))
+            elif stage == Stage.LEAF:
+                output.append(self.feature_head(graph, Tree._find_active(state)))
+            elif stage == Stage.FEATURE:
+                output.append(self.threshold_head(graph))
+            elif stage == Stage.THRESHOLD:
+                output.append(self.operator_head(graph))
+            else:
+                raise ValueError(f"Unrecognized stage = {stage}.")
+
+        raise NotImplementedError
 
 
-class TreePolicy:
+class TreePolicy(Policy):
     def __init__(self, config, env, device, float_precision, base=None):
-        # Device and float precision
-        self.device = device
-        self.float = float_precision
-        # Optional base model
-        self.base = base
+        self.backbone_args = {}
+        self.leaf_head_args = {}
+        self.feature_head_args = {"output_dim": env.X_train.shape[1]}
+        self.threshold_head_args = {"output_dim": env.components * 3}
+        self.operator_head_args = {}
 
-        self.parse_config(config)
-        self.instantiate()
+        super().__init__(
+            config=config,
+            env=env,
+            device=device,
+            float_precision=float_precision,
+            base=base,
+        )
+
         self.is_model = True
 
     def parse_config(self, config):
-        if config is None:
-            config = OmegaConf.create()
-
-        self.backbone_args = config.get("backbone_args", {})
-        self.leaf_head_args = config.get("leaf_head_args", {})
-        self.feature_head_args = config.get("feature_head_args", {})
-        self.threshold_head_args = config.get("threshold_head_args", {})
-        self.operator_head_args = config.get("operator_head_args", {})
+        if config is not None:
+            self.backbone_args.update(config.get("backbone_args", {}))
+            self.leaf_head_args.update(config.get("leaf_head_args", {}))
+            self.feature_head_args.update(config.get("feature_head_args", {}))
+            self.threshold_head_args.update(config.get("threshold_head_args", {}))
+            self.operator_head_args.update(config.get("operator_head_args", {}))
 
     def instantiate(self):
         self.model = TreeModel(
