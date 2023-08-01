@@ -641,7 +641,7 @@ class GFlowNetEnv:
 
     def state2oracle(self, state: List = None):
         """
-        Prepares a list of states in "GFlowNet format" for the oracle
+        Prepares a state in "GFlowNet format" for the oracle.
 
         Args
         ----
