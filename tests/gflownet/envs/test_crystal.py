@@ -1,8 +1,8 @@
+import common
 import pytest
 import torch
 from torch import Tensor
 
-import common
 from gflownet.envs.crystals.crystal import Crystal, Stage
 from gflownet.envs.crystals.lattice_parameters import TRICLINIC
 
@@ -11,6 +11,15 @@ from gflownet.envs.crystals.lattice_parameters import TRICLINIC
 def env():
     return Crystal(
         composition_kwargs={"elements": 4}, lattice_parameters_kwargs={"grid_size": 10}
+    )
+
+
+@pytest.fixture
+def env_with_stoichiometry_sg_check():
+    return Crystal(
+        composition_kwargs={"elements": 4},
+        lattice_parameters_kwargs={"grid_size": 10},
+        do_stoichiometry_sg_check=True,
     )
 
 
@@ -361,3 +370,7 @@ def test__get_mask_invalid_actions_forward__masks_all_actions_from_different_sta
 
 def test__all_env_common(env):
     return common.test__all_env_common(env)
+
+
+def test__all_env_common(env_with_stoichiometry_sg_check):
+    return common.test__all_env_common(env_with_stoichiometry_sg_check)

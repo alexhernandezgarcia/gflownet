@@ -1,18 +1,17 @@
+import common
 import pytest
-
 import torch
 
-import common
 from gflownet.envs.crystals.lattice_parameters import (
     CUBIC,
     HEXAGONAL,
     LATTICE_SYSTEMS,
-    LatticeParameters,
     MONOCLINIC,
     ORTHORHOMBIC,
     RHOMBOHEDRAL,
     TETRAGONAL,
     TRICLINIC,
+    LatticeParameters,
 )
 
 
