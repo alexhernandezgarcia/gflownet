@@ -373,10 +373,7 @@ class Composition(GFlowNetEnv):
         # If required, refine the masks by doing compatibility checks between
         # the space group and the number of atoms
         if self.do_spacegroup_check and isinstance(self.space_group, int):
-            (
-                mask_required_element,
-                mask_unrequired_element,
-            ) = self._refine_compatibility_check(
+            self._refine_compatibility_check(
                 state, mask_required_element, mask_unrequired_element
             )
 
