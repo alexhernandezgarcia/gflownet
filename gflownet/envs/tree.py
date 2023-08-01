@@ -582,7 +582,7 @@ class Tree(GFlowNetEnv):
         mask_cont = torch.logical_not(is_discrete_action)
         n_cont = mask_cont.sum()
         policy_outputs_cont = policy_outputs[
-            mask_cont, self._index_continuous_policy_output :
+            mask_cont, self.action_space_dim :
         ]
         if sampling_method == "uniform":
             distr_threshold = Uniform(
@@ -632,7 +632,7 @@ class Tree(GFlowNetEnv):
         is_discrete_action = mask_invalid_actions[:, self._action_index_pick_threshold]
         if torch.any(is_discrete_action):
             policy_outputs_discrete = policy_outputs[
-                is_discrete_action, : self._index_continuous_policy_output
+                is_discrete_action, : self.action_space_dim
             ]
             mask_discrete = mask_invalid_actions[
                 is_discrete_action, : self.action_space_dim
@@ -650,7 +650,7 @@ class Tree(GFlowNetEnv):
         # Continuous actions
         mask_cont = torch.logical_not(is_discrete_action)
         policy_outputs_cont = policy_outputs[
-            mask_cont, self._index_continuous_policy_output :
+            mask_cont, self.action_space_dim :
         ]
         mix_logits = policy_outputs_cont[:, 0::3]
         mix = Categorical(logits=mix_logits)
@@ -841,7 +841,6 @@ class Tree(GFlowNetEnv):
         policy_output_discrete = torch.ones(
             self.action_space_dim, device=self.device, dtype=self.float
         )
-        self._index_continuous_policy_output = len(policy_output_discrete)
         self._len_continuous_policy_output = self.components * 3
         policy_output_continuous = torch.ones(
             self._len_continuous_policy_output,
