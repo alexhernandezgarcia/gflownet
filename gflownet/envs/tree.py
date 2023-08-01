@@ -834,8 +834,10 @@ class Tree(GFlowNetEnv):
         is no such need here because either the continuous action is the only valid
         action or it is not valid.
         """
+        # The discrete part of the policy output has the dimensionality of the action
+        # space minus one (representative of continuous threshold action)
         policy_output_discrete = torch.ones(
-            self.action_space_dim, device=self.device, dtype=self.float
+            self.action_space_dim - 1, device=self.device, dtype=self.float
         )
         self._index_continuous_policy_output = len(policy_output_discrete)
         self._len_continuous_policy_output = self.components * 3
