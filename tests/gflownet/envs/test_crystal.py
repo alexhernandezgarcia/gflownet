@@ -243,7 +243,7 @@ def test__step__action_sequence_has_expected_result(
         _, _, valid = env.step(action)
 
     assert env.state == exp_result
-    assert env.stage == exp_stage
+    assert env._get_stage() == exp_stage
     assert valid == last_action_valid
 
 
@@ -335,14 +335,14 @@ def test__get_mask_invalid_actions_forward__masks_all_actions_from_different_sta
     for action in actions:
         env.step(action)
 
-    assert env.stage == exp_stage
+    assert env._get_stage() == exp_stage
 
     mask = env.get_mask_invalid_actions_forward()
 
-    if env.stage == Stage.COMPOSITION:
+    if env._get_stage() == Stage.COMPOSITION:
         assert not all(mask[: len(env.composition.action_space)])
         assert all(mask[len(env.composition.action_space) :])
-    if env.stage == Stage.SPACE_GROUP:
+    if env._get_stage() == Stage.SPACE_GROUP:
         assert not all(
             mask[
                 len(env.composition.action_space) : len(env.composition.action_space)
@@ -355,7 +355,7 @@ def test__get_mask_invalid_actions_forward__masks_all_actions_from_different_sta
                 len(env.composition.action_space) + len(env.space_group.action_space) :
             ]
         )
-    if env.stage == Stage.LATTICE_PARAMETERS:
+    if env._get_stage() == Stage.LATTICE_PARAMETERS:
         assert not all(
             mask[
                 len(env.composition.action_space) + len(env.space_group.action_space) :
