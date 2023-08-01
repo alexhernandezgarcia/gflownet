@@ -564,11 +564,11 @@ class Tree(GFlowNetEnv):
         is_discrete_action = mask_invalid_actions[:, self._action_index_pick_threshold]
         if torch.any(is_discrete_action):
             policy_outputs_discrete = policy_outputs[
-                is_discrete_action, : self._index_continuous_policy_output
+                is_discrete_action, : self.action_space_dim
             ]
-            mask_discrete = self._get_mask_discrete_actions(
-                mask_invalid_actions[is_discrete_action]
-            )
+            mask_discrete = mask_invalid_actions[
+                is_discrete_action, : self.action_space_dim
+            ]
             actions_discrete, logprobs_discrete = super().sample_actions(
                 policy_outputs_discrete,
                 sampling_method,
@@ -634,9 +634,9 @@ class Tree(GFlowNetEnv):
             policy_outputs_discrete = policy_outputs[
                 is_discrete_action, : self._index_continuous_policy_output
             ]
-            mask_discrete = self._get_mask_discrete_actions(
-                mask_invalid_actions[is_discrete_action]
-            )
+            mask_discrete = mask_invalid_actions[
+                is_discrete_action, : self.action_space_dim
+            ]
             logprobs_discrete = super().get_logprobs(
                 policy_outputs_discrete,
                 is_forward,
@@ -837,9 +837,9 @@ class Tree(GFlowNetEnv):
         action or it is not valid.
         """
         # The discrete part of the policy output has the dimensionality of the action
-        # space minus one (representative of continuous threshold action)
+        # space
         policy_output_discrete = torch.ones(
-            self.action_space_dim - 1, device=self.device, dtype=self.float
+            self.action_space_dim, device=self.device, dtype=self.float
         )
         self._index_continuous_policy_output = len(policy_output_discrete)
         self._len_continuous_policy_output = self.components * 3
@@ -920,31 +920,6 @@ class Tree(GFlowNetEnv):
             super().get_mask_invalid_actions_backward(state, done, parents_a)
             + [True] * self._len_continuous_policy_output
         )
-
-    def _get_mask_discrete_actions(
-        self, mask: Union[List[bool], TensorType["batch_size", "policy_output_dim"]]
-    ) -> List[bool]:
-        if torch.is_tensor(mask):
-            return torch.cat(
-                (
-                    mask[:, : self._action_index_pick_threshold],
-                    mask[
-                        :,
-                        self._action_index_pick_threshold + 1 : self.action_space_dim,
-                    ],
-                ),
-                dim=1,
-            )
-        elif isinstance(mask, list) and len(mask) == self.policy_output_dim:
-            return (
-                mask[: self._action_index_pick_threshold]
-                + mask[self._action_index_pick_threshold + 1 : self.action_space_dim]
-            )
-        else:
-            raise ValueError(
-                "The input must be a tensor or a list of length equal to the policy "
-                "output dimension"
-            )
 
     def get_parents(
         self,
