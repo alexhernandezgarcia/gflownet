@@ -74,7 +74,7 @@ class Crystal(GFlowNetEnv):
         # 0-th element of state encodes current stage: 0 for composition,
         # 1 for space group, 2 for lattice parameters
         self.source = (
-            [0]
+            [Stage.COMPOSITION.value]
             + self.composition.source
             + self.space_group.source
             + self.lattice_parameters.source
@@ -108,7 +108,6 @@ class Crystal(GFlowNetEnv):
             self.lattice_parameters.action_space
         )
 
-        self.stage = Stage.COMPOSITION
         self.composition_action_length = max(
             len(a) for a in self.composition.action_space
         )
@@ -216,11 +215,29 @@ class Crystal(GFlowNetEnv):
         self.lattice_parameters = LatticeParameters(
             lattice_system=TRICLINIC, **self.lattice_parameters_kwargs
         )
-        self.stage = Stage.COMPOSITION
 
         super().reset(env_id=env_id)
+        self._set_stage(Stage.COMPOSITION)
 
         return self
+
+    def _get_stage(self, state: Optional[List] = None) -> Stage:
+        """
+        Returns the stage of the current environment from self.state[0] or from the
+        state passed as an argument.
+        """
+        if state is None:
+            state = self.state
+        return Stage(state[0])
+
+    def _set_stage(self, stage: Stage, state: Optional[List] = None):
+        """
+        Sets the stage of the current environment (self.state) or of the state passed
+        as an argument by updating state[0].
+        """
+        if state is None:
+            state = self.state
+        state[0] = stage.value
 
     def _get_composition_state(self, state: Optional[List[int]] = None) -> List[int]:
         if state is None:
@@ -264,13 +281,9 @@ class Crystal(GFlowNetEnv):
     def get_mask_invalid_actions_forward(
         self, state: Optional[List[int]] = None, done: Optional[bool] = None
     ) -> List[bool]:
-        if state is None:
-            state = self.state.copy()
-            stage = self.stage
-        else:
-            stage = Stage(state[0])
-        if done is None:
-            done = self.done
+        state = self._get_state(state)
+        done = self._get_done(done)
+        stage = self._get_stage(state)
 
         if done:
             return [True] * self.action_space_dim
@@ -323,7 +336,7 @@ class Crystal(GFlowNetEnv):
         Updates current state based on the states of underlying environments.
         """
         self.state = (
-            [self.stage.value]
+            [self._get_stage(self.state).value]
             + self.composition.state
             + self.space_group.state
             + self.lattice_parameters.state
@@ -342,22 +355,23 @@ class Crystal(GFlowNetEnv):
             return self.state, action, False
         self.n_actions += 1
 
-        if self.stage == Stage.COMPOSITION:
+        stage = self._get_stage(self.state)
+        if stage == Stage.COMPOSITION:
             composition_action = self._depad_action(action, Stage.COMPOSITION)
             _, executed_action, valid = self.composition.step(composition_action)
             if valid and executed_action == self.composition.eos:
-                self.stage = Stage.SPACE_GROUP
+                self._set_stage(Stage.SPACE_GROUP)
                 if self.do_stoichiometry_sg_check:
                     self.space_group.set_n_atoms_compatibility_dict(
                         self.composition.state
                     )
-        elif self.stage == Stage.SPACE_GROUP:
+        elif stage == Stage.SPACE_GROUP:
             stage_group_action = self._depad_action(action, Stage.SPACE_GROUP)
             _, executed_action, valid = self.space_group.step(stage_group_action)
             if valid and executed_action == self.space_group.eos:
-                self.stage = Stage.LATTICE_PARAMETERS
+                self._set_stage(Stage.LATTICE_PARAMETERS)
                 self._set_lattice_parameters()
-        elif self.stage == Stage.LATTICE_PARAMETERS:
+        elif stage == Stage.LATTICE_PARAMETERS:
             lattice_parameters_action = self._depad_action(
                 action, Stage.LATTICE_PARAMETERS
             )
@@ -367,7 +381,7 @@ class Crystal(GFlowNetEnv):
             if valid and executed_action == self.lattice_parameters.eos:
                 self.done = True
         else:
-            raise ValueError(f"Unrecognized stage {self.stage}.")
+            raise ValueError(f"Unrecognized stage {stage}.")
 
         self._update_state()
 
@@ -402,13 +416,10 @@ class Crystal(GFlowNetEnv):
         done: Optional[bool] = None,
         action: Optional[Tuple] = None,
     ) -> Tuple[List, List]:
-        if state is None:
-            state = self.state.copy()
-            stage = self.stage
-        else:
-            stage = Crystal(state[0])
-        if done is None:
-            done = self.done
+        state = self._get_state(state)
+        done = self._get_done(done)
+        stage = self._get_stage(state)
+
         if done:
             return [state], [self.eos]
 
