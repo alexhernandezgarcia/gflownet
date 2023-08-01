@@ -11,7 +11,6 @@ from torch import Tensor
 from torchtyping import TensorType
 
 from gflownet.envs.base import GFlowNetEnv
-from gflownet.utils.common import tlong
 from gflownet.utils.crystals.constants import ELEMENT_NAMES, OXIDATION_STATES
 from gflownet.utils.crystals.pyxtal_cache import (
     get_space_group,
@@ -132,10 +131,6 @@ class Composition(GFlowNetEnv):
         self.source = [0 for _ in self.elements]
         # End-of-sequence action
         self.eos = (-1, -1)
-        # Conversions
-        self.state2proxy = self.state2oracle
-        self.statebatch2proxy = self.statebatch2oracle
-        self.statetorch2proxy = self.statetorch2oracle
         super().__init__(**kwargs)
 
     def get_action_space(self):
@@ -402,8 +397,7 @@ class Composition(GFlowNetEnv):
 
     def state2oracle(self, state: List = None) -> Tensor:
         """
-        Prepares a state in "GFlowNet format" for the oracle. In this case, it simply
-        converts the state into a torch tensor, with dtype torch.long.
+        Prepares a list of states in "GFlowNet format" for the oracle
 
         Args
         ----
@@ -418,7 +412,7 @@ class Composition(GFlowNetEnv):
         if state is None:
             state = self.state
 
-        return tlong(state, device=self.device)
+        return torch.Tensor(state)
 
     def statetorch2oracle(
         self, states: TensorType["batch", "state_dim"]
@@ -437,19 +431,6 @@ class Composition(GFlowNetEnv):
         oracle_states : Tensor
         """
         return states
-
-    def statebatch2oracle(
-        self, states: List[List]
-    ) -> TensorType["batch", "state_oracle_dim"]:
-        """
-        Prepares a batch of states in "GFlowNet format" for the oracles. In this case,
-        it simply converts the states into a torch tensor, with dtype torch.long.
-
-        Args
-        ----
-        state : list
-        """
-        return tlong(states, device=self.device)
 
     def state2readable(self, state=None):
         """
