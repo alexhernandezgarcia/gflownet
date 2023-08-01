@@ -561,24 +561,24 @@ class Tree(GFlowNetEnv):
         n_states = policy_outputs.shape[0]
         logprobs = torch.zeros(n_states, device=self.device, dtype=self.float)
         # Discrete actions
-        mask_discrete = mask_invalid_actions[:, self._action_index_pick_threshold]
-        if torch.any(mask_discrete):
+        is_discrete_action = mask_invalid_actions[:, self._action_index_pick_threshold]
+        if torch.any(is_discrete_action):
             policy_outputs_discrete = policy_outputs[
-                mask_discrete, : self._index_continuous_policy_output
+                is_discrete_action, : self._index_continuous_policy_output
             ]
             actions_discrete, logprobs_discrete = super().sample_actions(
                 policy_outputs_discrete,
                 sampling_method,
-                mask_invalid_actions[
-                    mask_discrete, : self._index_continuous_policy_output
-                ],
+                self._get_mask_discrete_actions(
+                    mask_invalid_actions[is_discrete_action]
+                ),
                 temperature_logits,
             )
-            logprobs[mask_discrete] = logprobs_discrete
-        if torch.all(mask_discrete):
+            logprobs[is_discrete_action] = logprobs_discrete
+        if torch.all(is_discrete_action):
             return actions_discrete, logprobs
         # Continuous actions
-        mask_cont = torch.logical_not(mask_discrete)
+        mask_cont = torch.logical_not(is_discrete_action)
         n_cont = mask_cont.sum()
         policy_outputs_cont = policy_outputs[
             mask_cont, self._index_continuous_policy_output :
@@ -603,7 +603,7 @@ class Tree(GFlowNetEnv):
         # Build actions
         actions_cont = [(ActionType.PICK_THRESHOLD, th.item()) for th in thresholds]
         actions = []
-        for is_discrete in mask_discrete:
+        for is_discrete in is_discrete_action:
             if is_discrete:
                 actions.append(actions_discrete.pop(0))
             else:
@@ -628,25 +628,25 @@ class Tree(GFlowNetEnv):
             )
         logprobs = torch.zeros(n_states, device=self.device, dtype=self.float)
         # Discrete actions
-        mask_discrete = mask_invalid_actions[:, self._action_index_pick_threshold]
-        if torch.any(mask_discrete):
+        is_discrete_action = mask_invalid_actions[:, self._action_index_pick_threshold]
+        if torch.any(is_discrete_action):
             policy_outputs_discrete = policy_outputs[
-                mask_discrete, : self._index_continuous_policy_output
+                is_discrete_action, : self._index_continuous_policy_output
             ]
             logprobs_discrete = super().get_logprobs(
                 policy_outputs_discrete,
                 is_forward,
-                actions[mask_discrete],
-                states_target[mask_discrete],
-                mask_invalid_actions[
-                    mask_discrete, : self._index_continuous_policy_output
-                ],
+                actions[is_discrete_action],
+                states_target[is_discrete_action],
+                self._get_mask_discrete_actions(
+                    mask_invalid_actions[is_discrete_action]
+                ),
             )
-            logprobs[mask_discrete] = logprobs_discrete
-        if torch.all(mask_discrete):
+            logprobs[is_discrete_action] = logprobs_discrete
+        if torch.all(is_discrete_action):
             return logprobs
         # Continuous actions
-        mask_cont = torch.logical_not(mask_discrete)
+        mask_cont = torch.logical_not(is_discrete_action)
         policy_outputs_cont = policy_outputs[
             mask_cont, self._index_continuous_policy_output :
         ]
@@ -909,6 +909,35 @@ class Tree(GFlowNetEnv):
             super().get_mask_invalid_actions_backward(state, done, parents_a)
             + [True] * self._len_continuous_policy_output
         )
+
+    def _get_mask_discrete_actions(
+        self, mask: Union[List[bool], TensorType["batch_size", "policy_output_dim"]]
+    ) -> List[bool]:
+        if torch.is_tensor(mask):
+            return torch.cat(
+                (
+                    mask[:, : self._action_index_pick_threshold],
+                    mask[
+                        :,
+                        self._action_index_pick_threshold
+                        + 1 : self._index_continuous_policy_output,
+                    ],
+                ),
+                dim=1,
+            )
+        elif isinstance(mask, list) and len(mask) == self.policy_output_dim:
+            return (
+                mask[: self._action_index_pick_threshold]
+                + mask[
+                    self._action_index_pick_threshold
+                    + 1 : self._index_continuous_policy_output
+                ]
+            )
+        else:
+            raise ValueError(
+                "The input must be a tensor or a list of length equal to the policy "
+                "output dimension"
+            )
 
     def get_parents(
         self,
