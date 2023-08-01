@@ -578,10 +578,8 @@ class SpaceGroup(GFlowNetEnv):
         if n_atoms is not None:
             n_atoms = [n for n in n_atoms if n > 0]
         # Get compatibility with stoichiometry
-        self.n_atoms_compatibility_dict = (
-            SpaceGroup.build_n_atoms_compatibility_dict(
-                n_atoms, self.space_groups.keys()
-            )
+        self.n_atoms_compatibility_dict = SpaceGroup.build_n_atoms_compatibility_dict(
+            n_atoms, self.space_groups.keys()
         )
 
     @staticmethod
