@@ -9,11 +9,11 @@ import networkx as nx
 import numpy as np
 import numpy.typing as npt
 import pandas as pd
-from sklearn.metrics import accuracy_score, balanced_accuracy_score
-from sklearn.preprocessing import MinMaxScaler
 import torch
 import torch_geometric as pyg
 from networkx.drawing.nx_pydot import graphviz_layout
+from sklearn.metrics import accuracy_score, balanced_accuracy_score
+from sklearn.preprocessing import MinMaxScaler
 from torch.distributions import Beta, Categorical, MixtureSameFamily, Uniform
 from torch_geometric.utils.convert import from_networkx
 from torchtyping import TensorType
@@ -566,12 +566,13 @@ class Tree(GFlowNetEnv):
             policy_outputs_discrete = policy_outputs[
                 is_discrete_action, : self._index_continuous_policy_output
             ]
+            mask_discrete = self._get_mask_discrete_actions(
+                mask_invalid_actions[is_discrete_action]
+            )
             actions_discrete, logprobs_discrete = super().sample_actions(
                 policy_outputs_discrete,
                 sampling_method,
-                self._get_mask_discrete_actions(
-                    mask_invalid_actions[is_discrete_action]
-                ),
+                mask_discrete,
                 temperature_logits,
             )
             logprobs[is_discrete_action] = logprobs_discrete
@@ -633,14 +634,15 @@ class Tree(GFlowNetEnv):
             policy_outputs_discrete = policy_outputs[
                 is_discrete_action, : self._index_continuous_policy_output
             ]
+            mask_discrete = self._get_mask_discrete_actions(
+                mask_invalid_actions[is_discrete_action]
+            )
             logprobs_discrete = super().get_logprobs(
                 policy_outputs_discrete,
                 is_forward,
                 actions[is_discrete_action],
                 states_target[is_discrete_action],
-                self._get_mask_discrete_actions(
-                    mask_invalid_actions[is_discrete_action]
-                ),
+                mask_discrete,
             )
             logprobs[is_discrete_action] = logprobs_discrete
         if torch.all(is_discrete_action):
@@ -853,17 +855,26 @@ class Tree(GFlowNetEnv):
     def get_mask_invalid_actions_forward(
         self, state: Optional[torch.Tensor] = None, done: Optional[bool] = None
     ) -> List[bool]:
+        """
+        The mask of invalid actions has the dimensionality of the action space, plus a
+        dummy part corresponding to the continuous part of the policy output so as to
+        match the dimensionality of the policy output.
+        """
         if state is None:
             state = self.state
         if done is None:
             done = self.done
 
         if done:
-            return [True] * self.policy_output_dim
+            return [True] * self.action_space_dim + [
+                True
+            ] * self._len_continuous_policy_output
 
         leaves = Tree._find_leaves(state)
         stage = self._get_stage(state)
-        mask = [True] * self.policy_output_dim
+        mask = [True] * self.action_space_dim + [
+            True
+        ] * self._len_continuous_policy_output
 
         if stage == Stage.COMPLETE:
             # In the "complete" stage (in which there are no ongoing micro steps)
@@ -919,8 +930,7 @@ class Tree(GFlowNetEnv):
                     mask[:, : self._action_index_pick_threshold],
                     mask[
                         :,
-                        self._action_index_pick_threshold
-                        + 1 : self._index_continuous_policy_output,
+                        self._action_index_pick_threshold + 1 : self.action_space_dim,
                     ],
                 ),
                 dim=1,
@@ -928,10 +938,7 @@ class Tree(GFlowNetEnv):
         elif isinstance(mask, list) and len(mask) == self.policy_output_dim:
             return (
                 mask[: self._action_index_pick_threshold]
-                + mask[
-                    self._action_index_pick_threshold
-                    + 1 : self._index_continuous_policy_output
-                ]
+                + mask[self._action_index_pick_threshold + 1 : self.action_space_dim]
             )
         else:
             raise ValueError(
