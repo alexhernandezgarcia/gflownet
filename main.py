@@ -18,8 +18,6 @@ def main(config):
     cwd = os.getcwd()
 
     # TODO: fix race condition in a more elegant way
-    import random
-
     cwd += "/%08x" % random.getrandbits(32)
     os.mkdir(cwd)
     os.chdir(cwd)
@@ -47,11 +45,38 @@ def main(config):
         device=config.device,
         float_precision=config.float_precision,
     )
+    # The policy is used to model the probability of a forward/backward action
+    forward_config = OmegaConf.create(config.policy)
+    forward_config["config"] = config.policy.forward
+    del forward_config.forward
+    del forward_config.backward
+
+    backward_config = OmegaConf.create(config.policy)
+    backward_config["config"] = config.policy.backward
+    del backward_config.forward
+    del backward_config.backward
+
+    forward_policy = hydra.utils.instantiate(
+        forward_config,
+        env=env,
+        device=config.device,
+        float_precision=config.float_precision,
+    )
+    backward_policy = hydra.utils.instantiate(
+        backward_config,
+        env=env,
+        device=config.device,
+        float_precision=config.float_precision,
+        base=forward_policy,
+    )
+
     gflownet = hydra.utils.instantiate(
         config.gflownet,
         device=config.device,
         float_precision=config.float_precision,
         env=env,
+        forward_policy=forward_policy,
+        backward_policy=backward_policy,
         buffer=config.env.buffer,
         logger=logger,
     )

@@ -1,0 +1,4 @@
+_target_: gflownet.policy.tree.TreePolicy
+
+forward: null
+backward: null

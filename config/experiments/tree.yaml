@@ -3,13 +3,14 @@
 defaults:
    - override /env: tree
    - override /gflownet: trajectorybalance
+   # - override /policy: tree
    - override /proxy: tree
    - override /logger: wandb
 
 # Environment
 env:
-  data_path: ${user.data.root}/toy2.csv
-  max_depth: 3
+  data_path: ${user.data.root}/toy1.csv
+  max_depth: 2
   reward_func: boltzmann
   reward_beta: 4
   test_args:
@@ -28,18 +29,20 @@ gflownet:
     lr_z_mult: 100
     n_train_steps: 40000
     lr_decay_period: 1000000
-  policy:
-    forward:
-      type: mlp
-      n_hid: 128
-      n_layers: 3
-      checkpoint: forward
-    backward:
-      type: mlp
-      n_hid: 128
-      n_layers: 3
-      shared_weights: False
-      checkpoint: backward
+
+# Policy
+policy:
+  forward:
+    type: mlp
+    n_hid: 256
+    n_layers: 3
+    checkpoint: forward
+  backward:
+    type: mlp
+    n_hid: 256
+    n_layers: 3
+    shared_weights: False
+    checkpoint: backward
 
 # WandB
 logger:
