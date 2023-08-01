@@ -1,0 +1,6 @@
+_target_: gflownet.proxy.aptamers.Aptamers
+
+oracle_id: "energy"
+norm: False
+cost: 4
+maximize: False
