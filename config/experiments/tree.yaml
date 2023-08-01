@@ -1,26 +1,16 @@
 # @package _global_
 
 defaults:
-   - override /env: ctorus
+   - override /env: tree
    - override /gflownet: trajectorybalance
-   - override /proxy: torus
+   - override /proxy: tree
    - override /logger: wandb
-   - override /user: alex
 
 # Environment
 env:
-  n_dim: 2
-  length_traj: 10
-  n_comp: 5
-  reward_func: identity
-  vonmises_min_concentration: 4
-  policy_encoding_dim_per_angle: 10
-
-# Proxy
-proxy:
-  normalize: False
-  alpha: 3.0
-  beta: 2.0
+  max_depth: 5
+  reward_func: boltzmann
+  reward_beta: 8
 
 # GFlowNet hyperparameters
 gflownet:
@@ -28,10 +18,13 @@ gflownet:
   optimizer:
     batch_size:
       forward: 100
+      backward_dataset: 0
+      backward_replay: 0
     lr: 0.00001
     z_dim: 16
     lr_z_mult: 1000
-    n_train_steps: 5000
+    n_train_steps: 40000
+    lr_decay_period: 1000000
   policy:
     forward:
       type: mlp
@@ -48,18 +41,16 @@ gflownet:
 # WandB
 logger:
   lightweight: True
-  project_name: "Continuous GFlowNet"
-  tags: 
+  project_name: "RF-GFN"
+  tags:
     - gflownet
-    - continuous
-    - ctorus
   test:
-    period: 25
-    n: 1000
+    period: 1000
+    n: 5000
   checkpoints:
-    period: 500
+    period: 1000
 
 # Hydra
 hydra:
   run:
-    dir: ${user.logdir.root}/icml23/ctorus/${now:%Y-%m-%d_%H-%M-%S}
+    dir: ${user.logdir.root}/rf-gfn/${now:%Y-%m-%d_%H-%M-%S}
