@@ -6,7 +6,9 @@ from gflownet.utils.common import set_device, set_float_precision
 
 
 class Policy:
-    def __init__(self, config, env, device, float_precision, base=None, checkpoint=None):
+    def __init__(
+        self, config, env, device, float_precision, base=None, checkpoint=None
+    ):
         # Device and float precision
         self.device = set_device(device)
         self.float = set_float_precision(float_precision)
