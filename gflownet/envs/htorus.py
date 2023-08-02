@@ -53,6 +53,7 @@ class HybridTorus(GFlowNetEnv):
             "vonmises_mean": 0.0,
             "vonmises_concentration": 0.001,
         },
+        reward_sampling_method = 'rejection',
         **kwargs,
     ):
         assert n_dim > 0
@@ -77,6 +78,7 @@ class HybridTorus(GFlowNetEnv):
         # TODO: assess if really needed
         self.state2oracle = self.state2proxy
         self.statebatch2oracle = self.statebatch2proxy
+        self.reward_sampling_method = reward_sampling_method
         # Base class init
         super().__init__(
             fixed_distribution=fixed_distribution,
@@ -531,7 +533,15 @@ class HybridTorus(GFlowNetEnv):
         return states
 
     # TODO: make generic for all environments
-    def sample_from_reward(
+    def sample_from_reward(self, n_samples: int, epsilon=1e-4, method='rejection_sampling'
+    ) -> TensorType["n_samples", "state_dim"]:
+        if self.reward_sampling_method == 'rejection':
+            return self.sample_from_reward_rejection(n_samples, epsilon)
+        elif self.reward_sampling_method == 'nested':
+            print("Warning: nested sampling ignores parameter n_samples and samples as many points as it wants (no idea why exactly, TBD)")
+            return self.sample_from_reward_nested()
+        
+    def sample_from_reward_rejection(
         self, n_samples: int, epsilon=1e-4
     ) -> TensorType["n_samples", "state_dim"]:
         """
@@ -576,6 +586,31 @@ class HybridTorus(GFlowNetEnv):
         aug_samples = np.concatenate(aug_samples)
         kde = KernelDensity(kernel=kernel, bandwidth=bandwidth).fit(aug_samples)
         return kde
+    
+    def sample_from_reward_nested(self):
+        import ultranest
+        def reward_func(angles):
+            angles = torch.tensor(angles)
+            rewards = self.reward_torchbatch(angles)
+            return np.log(rewards.cpu().detach().numpy())
+        
+        def prior_transform(cube):
+            params = cube.copy()
+
+            # transform location parameter: uniform prior
+            low = 0
+            high = 2*np.pi
+            for idx, elem in enumerate(cube):
+                params[idx] = elem * (high - low) + low
+            return params
+        
+        param_names = [f'theta_{i}' for i in range(self.n_dim)]
+        sampler = ultranest.ReactiveNestedSampler(param_names, reward_func, prior_transform, 
+                                                  vectorized=True, ndraw_min=1000)
+        result = sampler.run()
+
+        samples = result['samples']
+        return samples
 
     def plot_reward_samples(
         self,
