@@ -2,11 +2,10 @@ from typing import Optional
 
 import numpy as np
 import torch
-import torch.nn.functional as F
 import torch_geometric
 from torch_geometric.nn import global_mean_pool
 
-from gflownet.envs.tree import Stage, Tree
+from gflownet.envs.tree import Attribute, Stage, Tree
 from gflownet.policy.base import Policy
 
 
@@ -21,6 +20,8 @@ class Backbone(torch.nn.Module):
         dropout: float = 0.5,
     ):
         super().__init__()
+
+        self.hidden_dim = hidden_dim
 
         layer = getattr(torch_geometric.nn, layer)
         activation = getattr(torch.nn, activation)
@@ -84,7 +85,7 @@ class LeafSelectionHead(torch.nn.Module):
         x = x.squeeze(-1)
         x = x.masked_fill(mask, -np.inf)
 
-        return F.softmax(x, dim=0)
+        return x
 
 
 def _construct_node_head(
@@ -109,7 +110,6 @@ def _construct_node_head(
             layers.append(activation())
             if dropout > 0:
                 layers.append(torch.nn.Dropout(p=dropout))
-    layers.append(torch.nn.ReLU())
 
     return torch.nn.Sequential(*layers)
 
@@ -118,9 +118,9 @@ class FeatureSelectionHead(torch.nn.Module):
     def __init__(
         self,
         backbone: torch.nn.Module,
+        input_dim: int,
         output_dim: int,
         n_layers: int = 2,
-        input_dim: int = 128,
         hidden_dim: int = 64,
         activation: str = "LeakyReLU",
         dropout: float = 0.5,
@@ -149,8 +149,8 @@ class ThresholdSelectionHead(torch.nn.Module):
     def __init__(
         self,
         backbone: torch.nn.Module,
+        input_dim: int,
         output_dim: int,
-        input_dim: int = 128,
         n_layers: int = 2,
         hidden_dim: int = 64,
         activation: str = "LeakyReLU",
@@ -183,7 +183,7 @@ class OperatorSelectionHead(torch.nn.Module):
     def __init__(
         self,
         backbone: torch.nn.Module,
-        input_dim: int = 128,
+        input_dim: int,
         n_layers: int = 2,
         hidden_dim: int = 64,
         activation: str = "LeakyReLU",
@@ -216,7 +216,13 @@ class OperatorSelectionHead(torch.nn.Module):
 class TreeModel(torch.nn.Module):
     def __init__(
         self,
-        backbone: Optional[torch.nn.Module] = None,
+        policy_output_dim: int,
+        leaf_index: int,
+        feature_index: int,
+        threshold_index: int,
+        operator_index: int,
+        eos_index: int,
+        base: Optional["TreePolicy"] = None,
         backbone_args: Optional[dict] = None,
         leaf_head_args: Optional[dict] = None,
         feature_head_args: Optional[dict] = None,
@@ -225,41 +231,75 @@ class TreeModel(torch.nn.Module):
     ):
         super().__init__()
 
-        if backbone is None:
+        self.policy_output_dim = policy_output_dim
+        self.leaf_index = leaf_index
+        self.feature_index = feature_index
+        self.threshold_index = threshold_index
+        self.operator_index = operator_index
+        self.eos_index = eos_index
+
+        if base is None:
             self.backbone = Backbone(**backbone_args)
         else:
-            self.backbone = backbone
+            self.backbone = base.model.backbone
 
         self.leaf_head = LeafSelectionHead(backbone=self.backbone, **leaf_head_args)
         self.feature_head = FeatureSelectionHead(
-            backbone=self.backbone, **feature_head_args
+            backbone=self.backbone,
+            input_dim=(2 * self.backbone.hidden_dim),
+            **feature_head_args,
         )
         self.threshold_head = ThresholdSelectionHead(
-            backbone=self.backbone, **threshold_head_args
+            backbone=self.backbone,
+            input_dim=(2 * self.backbone.hidden_dim + 1),
+            **threshold_head_args,
         )
         self.operator_head = OperatorSelectionHead(
-            backbone=self.backbone, **operator_head_args
+            backbone=self.backbone,
+            input_dim=(2 * self.backbone.hidden_dim + 2),
+            **operator_head_args,
         )
 
     def forward(self, x):
-        output = []
+        logits = torch.full((x.shape[0], self.policy_output_dim), torch.nan)
 
-        for state in x:
+        for i, state in enumerate(x):
             stage = Tree.get_stage(state)
             graph = Tree.to_pyg(state)
 
             if stage == Stage.COMPLETE:
-                output.append(self.leaf_head(graph))
-            elif stage == Stage.LEAF:
-                output.append(self.feature_head(graph, Tree._find_active(state)))
-            elif stage == Stage.FEATURE:
-                output.append(self.threshold_head(graph))
-            elif stage == Stage.THRESHOLD:
-                output.append(self.operator_head(graph))
+                y = self.leaf_head(graph)
+                logits[i, self.leaf_index : len(y)] = y
+                logits[i, self.eos_index] = 1.0  # TODO: add EOS output
             else:
-                raise ValueError(f"Unrecognized stage = {stage}.")
+                k = Tree._find_active(state)
+                node_index = torch.Tensor([k]).long()
+                feature_index = state[k, Attribute.FEATURE].unsqueeze(0).unsqueeze(0)
+                threshold = state[k, Attribute.THRESHOLD].unsqueeze(0).unsqueeze(0)
 
-        raise NotImplementedError
+                if stage == Stage.LEAF:
+                    logits[
+                        i, self.feature_index : self.threshold_index
+                    ] = self.feature_head(graph, node_index)
+                elif stage == Stage.FEATURE:
+                    logits[i, (self.eos_index + 1) :] = self.threshold_head(
+                        graph,
+                        node_index,
+                        feature_index,
+                    )
+                elif stage == Stage.THRESHOLD:
+                    logits[
+                        i, self.operator_index : self.eos_index
+                    ] = self.operator_head(
+                        graph,
+                        node_index,
+                        feature_index,
+                        threshold,
+                    )
+                else:
+                    raise ValueError(f"Unrecognized stage = {stage}.")
+
+        return logits
 
 
 class TreePolicy(Policy):
@@ -269,6 +309,12 @@ class TreePolicy(Policy):
         self.feature_head_args = {"output_dim": env.X_train.shape[1]}
         self.threshold_head_args = {"output_dim": env.components * 3}
         self.operator_head_args = {}
+        self.policy_output_dim = env.policy_output_dim
+        self.leaf_index = env._action_index_pick_leaf
+        self.feature_index = env._action_index_pick_feature
+        self.threshold_index = env._action_index_pick_threshold
+        self.operator_index = env._action_index_pick_operator
+        self.eos_index = env._action_index_eos
 
         super().__init__(
             config=config,
@@ -290,7 +336,13 @@ class TreePolicy(Policy):
 
     def instantiate(self):
         self.model = TreeModel(
-            backbone=self.base,
+            policy_output_dim=self.policy_output_dim,
+            leaf_index=self.leaf_index,
+            feature_index=self.feature_index,
+            threshold_index=self.threshold_index,
+            operator_index=self.operator_index,
+            eos_index=self.eos_index,
+            base=self.base,
             backbone_args=self.backbone_args,
             leaf_head_args=self.leaf_head_args,
             feature_head_args=self.feature_head_args,
