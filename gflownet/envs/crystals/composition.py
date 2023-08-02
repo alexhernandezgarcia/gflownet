@@ -398,6 +398,10 @@ class Composition(GFlowNetEnv):
             else:
                 mask[action_start_idx:action_end_idx] = mask_unrequired_element
 
+        # If no other action is valid, ensure that the EOS action is available
+        if all(mask):
+            mask[-1] = False
+
         return mask
 
     def state2oracle(self, state: List = None) -> Tensor:
