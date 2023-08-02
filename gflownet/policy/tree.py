@@ -80,13 +80,11 @@ class LeafSelectionHead(torch.nn.Module):
 
     def forward(self, data: torch_geometric.data.Data) -> (torch.Tensor, torch.Tensor):
         x, edge_index, batch = data.x, data.edge_index, data.batch
-        mask = x[:, 0] == 0
         x = self.backbone(data)
         x = self.body(x, edge_index, batch)
 
         y_leaf = self.leaf_head_layer(x, edge_index, batch)
         y_leaf = y_leaf.squeeze(-1)
-        y_leaf = y_leaf.masked_fill(mask, -np.inf)
 
         x_pool = global_mean_pool(x, batch)
         y_eos = self.eos_head_layers(x_pool)[:, 0]
@@ -199,7 +197,7 @@ class OperatorSelectionHead(torch.nn.Module):
 
         self.backbone = backbone
         self.model = _construct_node_head(
-            input_dim, hidden_dim, 1, n_layers, activation, dropout
+            input_dim, hidden_dim, 2, n_layers, activation, dropout
         )
 
     def forward(
@@ -288,13 +286,13 @@ class ForwardTreeModel(TreeModel):
                 if stage == Stage.LEAF:
                     logits[
                         i, self.feature_index : self.threshold_index
-                    ] = self.feature_head(graph, node_index)
+                    ] = self.feature_head(graph, node_index)[0]
                 elif stage == Stage.FEATURE:
                     logits[i, (self.eos_index + 1) :] = self.threshold_head(
                         graph,
                         node_index,
                         feature_index,
-                    )
+                    )[0]
                 elif stage == Stage.THRESHOLD:
                     logits[
                         i, self.operator_index : self.eos_index
@@ -303,7 +301,7 @@ class ForwardTreeModel(TreeModel):
                         node_index,
                         feature_index,
                         threshold,
-                    )
+                    )[0]
                 else:
                     raise ValueError(f"Unrecognized stage = {stage}.")
 
