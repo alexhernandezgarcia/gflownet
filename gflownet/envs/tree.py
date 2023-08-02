@@ -966,7 +966,7 @@ class Tree(GFlowNetEnv):
                 attributes_left = parent[k_left]
                 attributes_right = parent[k_right]
 
-                # Set action operator as class of left child
+                # Set action operator as class of left child.
                 action = (
                     ActionType.PICK_OPERATOR,
                     int(attributes_left[Attribute.CLASS].item()),
