@@ -301,7 +301,9 @@ class ForwardTreeModel(TreeModel):
                         node_index,
                         feature_index,
                         threshold,
-                    )[0]
+                    )[
+                        0
+                    ]
                 else:
                     raise ValueError(f"Unrecognized stage = {stage}.")
 
