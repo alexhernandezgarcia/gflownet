@@ -61,31 +61,37 @@ class LeafSelectionHead(torch.nn.Module):
         layer = getattr(torch_geometric.nn, layer)
         activation = getattr(torch.nn, activation)
 
-        layers = []
-        for i in range(n_layers):
-            layers.append(
+        body_layers = []
+        for i in range(n_layers - 1):
+            body_layers.append(
                 (
-                    layer(hidden_dim, 1 if i == n_layers - 1 else hidden_dim),
+                    layer(backbone.hidden_dim if i == 0 else hidden_dim, hidden_dim),
                     "x, edge_index -> x",
                 )
             )
-            if i < n_layers - 1:
-                layers.append(activation())
-                if dropout > 0:
-                    layers.append(torch.nn.Dropout(p=dropout))
+            body_layers.append(activation())
+            if dropout > 0:
+                body_layers.append(torch.nn.Dropout(p=dropout))
 
         self.backbone = backbone
-        self.model = torch_geometric.nn.Sequential("x, edge_index, batch", layers)
+        self.body = torch_geometric.nn.Sequential("x, edge_index, batch", body_layers)
+        self.leaf_head_layer = layer(hidden_dim, 1)
+        self.eos_head_layers = torch.nn.Linear(hidden_dim, 1)
 
-    def forward(self, data: torch_geometric.data.Data) -> torch.Tensor:
+    def forward(self, data: torch_geometric.data.Data) -> (torch.Tensor, torch.Tensor):
         x, edge_index, batch = data.x, data.edge_index, data.batch
         mask = x[:, 0] == 0
         x = self.backbone(data)
-        x = self.model(x, edge_index, batch)
-        x = x.squeeze(-1)
-        x = x.masked_fill(mask, -np.inf)
+        x = self.body(x, edge_index, batch)
 
-        return x
+        y_leaf = self.leaf_head_layer(x, edge_index, batch)
+        y_leaf = y_leaf.squeeze(-1)
+        y_leaf = y_leaf.masked_fill(mask, -np.inf)
+
+        x_pool = global_mean_pool(x, batch)
+        y_eos = self.eos_head_layers(x_pool)[:, 0]
+
+        return y_leaf, y_eos
 
 
 def _construct_node_head(
@@ -260,6 +266,8 @@ class TreeModel(torch.nn.Module):
             **operator_head_args,
         )
 
+
+class ForwardTreeModel(TreeModel):
     def forward(self, x):
         logits = torch.full((x.shape[0], self.policy_output_dim), torch.nan)
 
@@ -268,9 +276,9 @@ class TreeModel(torch.nn.Module):
             graph = Tree.to_pyg(state)
 
             if stage == Stage.COMPLETE:
-                y = self.leaf_head(graph)
-                logits[i, self.leaf_index : len(y)] = y
-                logits[i, self.eos_index] = 1.0  # TODO: add EOS output
+                y_leaf, y_eos = self.leaf_head(graph)
+                logits[i, self.leaf_index : len(y_leaf)] = y_leaf
+                logits[i, self.eos_index] = y_eos
             else:
                 k = Tree._find_active(state)
                 node_index = torch.Tensor([k]).long()
@@ -298,6 +306,15 @@ class TreeModel(torch.nn.Module):
                     )
                 else:
                     raise ValueError(f"Unrecognized stage = {stage}.")
+
+        return logits
+
+
+class BackwardTreeModel(TreeModel):
+    def forward(self, x):
+        logits = torch.full(
+            (x.shape[0], self.policy_output_dim), 1.0
+        )  # TODO: implement actual forward
 
         return logits
 
@@ -335,7 +352,12 @@ class TreePolicy(Policy):
             self.operator_head_args.update(config.get("operator_head_args", {}))
 
     def instantiate(self):
-        self.model = TreeModel(
+        if self.base is None:
+            model_class = ForwardTreeModel
+        else:
+            model_class = BackwardTreeModel
+
+        self.model = model_class(
             policy_output_dim=self.policy_output_dim,
             leaf_index=self.leaf_index,
             feature_index=self.feature_index,
