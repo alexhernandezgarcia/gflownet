@@ -538,8 +538,8 @@ class HybridTorus(GFlowNetEnv):
         if self.reward_sampling_method == 'rejection':
             return self.sample_from_reward_rejection(n_samples, epsilon)
         elif self.reward_sampling_method == 'nested':
-            print("Warning: nested sampling ignores parameter n_samples and samples as many points as it wants (no idea why exactly, TBD)")
-            return self.sample_from_reward_nested()
+            # print("Warning: nested sampling ignores parameter n_samples and samples as many points as it wants (no idea why exactly, TBD)")
+            return self.sample_from_reward_nested(n_samples)
         
     def sample_from_reward_rejection(
         self, n_samples: int, epsilon=1e-4
@@ -587,7 +587,7 @@ class HybridTorus(GFlowNetEnv):
         kde = KernelDensity(kernel=kernel, bandwidth=bandwidth).fit(aug_samples)
         return kde
     
-    def sample_from_reward_nested(self):
+    def sample_from_reward_nested(self, n_samples):
         import ultranest
         def reward_func(angles):
             angles = torch.tensor(angles)
@@ -604,13 +604,20 @@ class HybridTorus(GFlowNetEnv):
                 params[idx] = elem * (high - low) + low
             return params
         
-        param_names = [f'theta_{i}' for i in range(self.n_dim)]
-        sampler = ultranest.ReactiveNestedSampler(param_names, reward_func, prior_transform, 
+        samples = []
+        n_sampled = 0
+        while n_sampled < n_samples:
+            param_names = [f'theta_{i}' for i in range(self.n_dim)]
+            sampler = ultranest.ReactiveNestedSampler(param_names, reward_func, prior_transform, 
                                                   vectorized=True, ndraw_min=1000)
-        result = sampler.run()
+            result = sampler.run()
 
-        samples = result['samples']
-        return samples
+            samples.append(result['samples'])
+            n_sampled += result['samples'].shape[0]
+            print(f"Total samples: {n_sampled}") 
+        samples = np.concatenate(samples, axis=0)
+        np.random.shuffle(samples)
+        return samples[:n_samples]
 
     def plot_reward_samples(
         self,
