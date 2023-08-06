@@ -1,4 +1,36 @@
 _target_: gflownet.policy.tree.TreePolicy
 
-forward: null
-backward: null
+forward:
+  backbone_args:
+    n_layers: 2
+    hidden_dim: 32
+    dropout: 0.0
+  leaf_head_args:
+    n_layers: 2
+    dropout: 0.0
+  feature_head_args:
+    n_layers: 2
+    dropout: 0.0
+  threshold_head_args:
+    n_layers: 2
+    dropout: 0.0
+  operator_head_args:
+    n_layers: 2
+    dropout: 0.0
+backward:
+  backbone_args:
+    n_layers: 2
+    hidden_dim: 32
+    dropout: 0.0
+  leaf_head_args:
+    n_layers: 2
+    dropout: 0.0
+  feature_head_args:
+    n_layers: 2
+    dropout: 0.0
+  threshold_head_args:
+    n_layers: 2
+    dropout: 0.0
+  operator_head_args:
+    n_layers: 2
+    dropout: 0.0
