@@ -219,6 +219,7 @@ class OperatorSelectionHead(torch.nn.Module):
 class TreeModel(torch.nn.Module):
     def __init__(
         self,
+        continuous: bool,
         policy_output_dim: int,
         leaf_index: int,
         feature_index: int,
@@ -234,6 +235,7 @@ class TreeModel(torch.nn.Module):
     ):
         super().__init__()
 
+        self.continuous = continuous
         self.policy_output_dim = policy_output_dim
         self.leaf_index = leaf_index
         self.feature_index = feature_index
@@ -287,11 +289,17 @@ class ForwardTreeModel(TreeModel):
                         i, self.feature_index : self.threshold_index
                     ] = self.feature_head(graph, node_index)[0]
                 elif stage == Stage.FEATURE:
-                    logits[i, (self.eos_index + 1) :] = self.threshold_head(
+                    head_output = self.threshold_head(
                         graph,
                         node_index,
                         feature_index,
                     )[0]
+                    if self.continuous:
+                        logits[
+                            i, self.threshold_index : self.operator_index
+                        ] = head_output
+                    else:
+                        logits[i, (self.eos_index + 1) :] = head_output
                 elif stage == Stage.THRESHOLD:
                     logits[
                         i, self.operator_index : self.eos_index
@@ -323,8 +331,12 @@ class TreePolicy(Policy):
         self.backbone_args = {}
         self.leaf_head_args = {}
         self.feature_head_args = {"output_dim": env.X_train.shape[1]}
-        self.threshold_head_args = {"output_dim": env.components * 3}
+        if env.continuous:
+            self.threshold_head_args = {"output_dim": env.components * 3}
+        else:
+            self.threshold_head_args = {"output_dim": len(env.thresholds)}
         self.operator_head_args = {}
+        self.continuous = env.continuous
         self.policy_output_dim = env.policy_output_dim
         self.leaf_index = env._action_index_pick_leaf
         self.feature_index = env._action_index_pick_feature
@@ -357,6 +369,7 @@ class TreePolicy(Policy):
             model_class = BackwardTreeModel
 
         self.model = model_class(
+            continuous=self.continuous,
             policy_output_dim=self.policy_output_dim,
             leaf_index=self.leaf_index,
             feature_index=self.feature_index,

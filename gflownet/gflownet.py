@@ -774,6 +774,10 @@ class GFlowNetAgent:
             density_pred = np.array([hist[tuple(x)] / z_pred for x in x_tt])
             log_density_true = np.log(density_true + 1e-8)
             log_density_pred = np.log(density_pred + 1e-8)
+        elif self.buffer.test_type == "random":
+            # TODO: refactor
+            env_metrics = self.env.test(x_sampled)
+            return self.l1, self.kl, self.jsd, (None,), env_metrics
         elif self.continuous:
             # TODO make it work with conditional env
             x_sampled = torch2np(self.env.statebatch2proxy(x_sampled))
@@ -813,10 +817,6 @@ class GFlowNetAgent:
             log_density_pred = scores_pred - logsumexp(scores_pred, axis=0)
             density_true = np.exp(log_density_true)
             density_pred = np.exp(log_density_pred)
-        elif self.buffer.test_type == "random":
-            # TODO: refactor
-            env_metrics = self.env.test(x_sampled)
-            return self.l1, self.kl, self.jsd, (None,), env_metrics
         else:
             raise NotImplementedError
         # L1 error

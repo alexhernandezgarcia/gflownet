@@ -11,6 +11,8 @@ defaults:
 env:
   data_path: ${user.data.root}/toy1.csv
   max_depth: 2
+  continuous: True
+  policy_type: mlp
   reward_func: boltzmann
   reward_beta: 4
   test_args:
