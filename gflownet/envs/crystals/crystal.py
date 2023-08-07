@@ -425,19 +425,22 @@ class Crystal(GFlowNetEnv):
 
         if stage == Stage.COMPOSITION or (
             stage == Stage.SPACE_GROUP
-            and self.space_group.state == self.space_group.source
+            and self._get_space_group_state(state) == self.space_group.source
         ):
+            composition_done = stage == Stage.SPACE_GROUP
             parents, actions = self.composition.get_parents(
-                state=self._get_composition_state(state)
+                state=self._get_composition_state(state), done=composition_done
             )
             parents = [self._build_state(p, Stage.COMPOSITION) for p in parents]
             actions = [self._pad_action(a, Stage.COMPOSITION) for a in actions]
         elif stage == Stage.SPACE_GROUP or (
             stage == Stage.LATTICE_PARAMETERS
-            and self.lattice_parameters.state == self.lattice_parameters.source
+            and self._get_lattice_parameters_state(state)
+            == self.lattice_parameters.source
         ):
+            space_group_done = stage == Stage.LATTICE_PARAMETERS
             parents, actions = self.space_group.get_parents(
-                state=self._get_space_group_state(state)
+                state=self._get_space_group_state(state), done=space_group_done
             )
             parents = [self._build_state(p, Stage.SPACE_GROUP) for p in parents]
             actions = [self._pad_action(a, Stage.SPACE_GROUP) for a in actions]
@@ -454,7 +457,7 @@ class Crystal(GFlowNetEnv):
             the result will be invalid.
             """
             parents, actions = self.lattice_parameters.get_parents(
-                state=self._get_lattice_parameters_state(state)
+                state=self._get_lattice_parameters_state(state), done=done
             )
             parents = [self._build_state(p, Stage.LATTICE_PARAMETERS) for p in parents]
             actions = [self._pad_action(a, Stage.LATTICE_PARAMETERS) for a in actions]
