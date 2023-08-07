@@ -783,7 +783,7 @@ class Tree(GFlowNetEnv):
         """
         if state is None:
             state = self.state.clone().detach()
-        state[state.isnan()] = -1
+        state[state.isnan()] = -2
         return state.flatten()
 
     def statetorch2policy_mlp(
@@ -793,7 +793,7 @@ class Tree(GFlowNetEnv):
         Prepares a batch of states in torch "GFlowNet format" for an MLP policy model.
         It simply replaces the NaNs by -1s.
         """
-        states[states.isnan()] = -1
+        states[states.isnan()] = -2
         return states.flatten(start_dim=1)
 
     def policy2state(
