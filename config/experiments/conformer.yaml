@@ -14,7 +14,7 @@ env:
   vonmises_min_concentration: 4
   reward_func: boltzmann
   reward_beta: 32
-  reward_sampling_method: rejection
+  reward_sampling_method: nested
 
 # GFlowNet hyperparameters
 gflownet:

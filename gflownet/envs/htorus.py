@@ -9,7 +9,6 @@ from typing import List, Tuple
 import matplotlib.pyplot as plt
 import numpy as np
 import numpy.typing as npt
-import pandas as pd
 import torch
 from sklearn.neighbors import KernelDensity
 from torch.distributions import Bernoulli, Categorical, Uniform, VonMises
@@ -53,7 +52,7 @@ class HybridTorus(GFlowNetEnv):
             "vonmises_mean": 0.0,
             "vonmises_concentration": 0.001,
         },
-        reward_sampling_method = 'rejection',
+        reward_sampling_method="rejection",
         **kwargs,
     ):
         assert n_dim > 0
@@ -533,14 +532,15 @@ class HybridTorus(GFlowNetEnv):
         return states
 
     # TODO: make generic for all environments
-    def sample_from_reward(self, n_samples: int, epsilon=1e-4, method='rejection_sampling'
+    def sample_from_reward(
+        self, n_samples: int, epsilon=1e-4, method="rejection_sampling"
     ) -> TensorType["n_samples", "state_dim"]:
-        if self.reward_sampling_method == 'rejection':
+        if self.reward_sampling_method == "rejection":
             return self.sample_from_reward_rejection(n_samples, epsilon)
-        elif self.reward_sampling_method == 'nested':
+        elif self.reward_sampling_method == "nested":
             # print("Warning: nested sampling ignores parameter n_samples and samples as many points as it wants (no idea why exactly, TBD)")
             return self.sample_from_reward_nested(n_samples)
-        
+
     def sample_from_reward_rejection(
         self, n_samples: int, epsilon=1e-4
     ) -> TensorType["n_samples", "state_dim"]:
@@ -586,38 +586,50 @@ class HybridTorus(GFlowNetEnv):
         aug_samples = np.concatenate(aug_samples)
         kde = KernelDensity(kernel=kernel, bandwidth=bandwidth).fit(aug_samples)
         return kde
-    
+
     def sample_from_reward_nested(self, n_samples):
         import ultranest
+        from wurlitzer import pipes
+
         def reward_func(angles):
             angles = torch.tensor(angles)
             rewards = self.reward_torchbatch(angles)
             return np.log(rewards.cpu().detach().numpy())
-        
+
         def prior_transform(cube):
             params = cube.copy()
-
             # transform location parameter: uniform prior
             low = 0
-            high = 2*np.pi
+            high = 2 * np.pi
             for idx, elem in enumerate(cube):
                 params[idx] = elem * (high - low) + low
             return params
-        
+
         samples = []
         n_sampled = 0
+        iteration = 0
+        print(f"Running nested sampling (until {n_samples} samples are obtained)...")
         while n_sampled < n_samples:
-            param_names = [f'theta_{i}' for i in range(self.n_dim)]
-            sampler = ultranest.ReactiveNestedSampler(param_names, reward_func, prior_transform, 
-                                                  vectorized=True, ndraw_min=1000)
-            result = sampler.run()
+            param_names = [f"theta_{i}" for i in range(self.n_dim)]
 
-            samples.append(result['samples'])
-            n_sampled += result['samples'].shape[0]
-            print(f"Total samples: {n_sampled}") 
+            with pipes():
+                sampler = ultranest.ReactiveNestedSampler(
+                    param_names,
+                    reward_func,
+                    prior_transform,
+                    vectorized=True,
+                    ndraw_min=1000,
+                )
+                result = sampler.run()
+
+            samples.append(result["samples"])
+            n_sampled += result["samples"].shape[0]
+            print(f"Total samples (iteration #{iteration}): {n_sampled}.")
+            iteration += 1
         samples = np.concatenate(samples, axis=0)
+        samples = np.concatenate([samples, np.ones((samples.shape[0], 1))], axis=1)
         np.random.shuffle(samples)
-        return samples[:n_samples]
+        return torch.Tensor(samples[:n_samples])
 
     def plot_reward_samples(
         self,

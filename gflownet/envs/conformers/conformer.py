@@ -1,5 +1,4 @@
 import copy
-import torch
 from typing import List, Optional, Tuple
 
 import numpy as np
@@ -95,11 +94,7 @@ class Conformer(ContinuousTorus):
     def statetorch2kde(
         self, states: TensorType["batch_size", "state_dim"]
     ) -> TensorType["batch_size", "state_proxy_dim"]:
-        if torch.is_tensor(states):
-            # why is this [:, :-1] needed?
-            return states.cpu().numpy()[:, :-1]
-        else:
-            return states
+        return states.cpu().numpy()[:, :-1]
 
     def __deepcopy__(self, memo):
         cls = self.__class__
