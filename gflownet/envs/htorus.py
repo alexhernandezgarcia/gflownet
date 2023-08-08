@@ -538,7 +538,6 @@ class HybridTorus(GFlowNetEnv):
         if self.reward_sampling_method == "rejection":
             return self.sample_from_reward_rejection(n_samples, epsilon)
         elif self.reward_sampling_method == "nested":
-            # print("Warning: nested sampling ignores parameter n_samples and samples as many points as it wants (no idea why exactly, TBD)")
             return self.sample_from_reward_nested(n_samples)
 
     def sample_from_reward_rejection(
@@ -588,6 +587,8 @@ class HybridTorus(GFlowNetEnv):
         return kde
 
     def sample_from_reward_nested(self, n_samples):
+        # TODO: nested sampling ignores parameter n_samples and samples
+        #  as many points as it wants (no idea why exactly, TBD)
         import ultranest
         from wurlitzer import pipes
 
