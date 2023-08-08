@@ -1,0 +1,34 @@
+name: code format check
+
+on: [push]
+
+jobs:
+  Continuous-Integration:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3           
+      - name: Set up Python
+        uses: actions/setup-python@v3
+        with: 
+          python-version: 3.8
+      - run: pip install --upgrade https://github.com/alexhernandezgarcia/gflownet/archive/main.zip --quiet
+      - run: pip install pytest
+      
+      # Run black on the main source code
+      - uses: psf/black@stable
+        with:
+          options: "--check --verbose"
+          src: "./gflownet/"
+          
+      # Run black on the unit tests
+      - uses: psf/black@stable
+        with:
+          options: "--check --verbose"
+          src: "./tests/"
+      
+      # Validate the imports      
+      - uses: isort/isort-action@master
+      
+      # Run the unit tests
+      # - run: pytest
