@@ -34,10 +34,10 @@ jobs:
         run: pip install pytest isort
 
       - name: Validate import format in main source code
-        run: isort ./gflownet/ --check-only
+        run: isort --profile black ./gflownet/ --check-only
 
       - name: Validate import format in unit test code
-        run: isort ./tests/ --check-only
+        run: isort --profile black ./tests/ --check-only
 
       - name: Run unit tests
         run: pytest
