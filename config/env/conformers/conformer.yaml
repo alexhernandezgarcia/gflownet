@@ -9,7 +9,7 @@ smiles: 'O=C(c1ccc2n1CCC2C(=O)O)c3ccccc3' # ketorolac
 # smiles: 'CCCCCC1=CC(=C(C(=C1)O)C2C=C(CCC2C(=C)C)C)O' # cannabidiol
 # smiles: 'CN1C2CCC1C(C(C2)OC(=O)C3=CC=CC=C3)C(=O)OC' # cocaine
 n_torsion_angles: 2
-reward_sampling_method: rejection
+reward_sampling_method: nested
 
 id: conformer
 policy_encoding_dim_per_angle: null
