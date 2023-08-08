@@ -1,4 +1,4 @@
-name: code format check
+name: Code Formatting and Tests
 
 on: [push]
 
@@ -31,4 +31,4 @@ jobs:
       - uses: isort/isort-action@master
       
       # Run the unit tests
-      # - run: pytest
+      - run: pytest
