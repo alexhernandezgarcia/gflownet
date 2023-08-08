@@ -9,7 +9,7 @@ data_path: ${user.data.root}/toy1.csv
 # Max depth
 max_depth: 2
 # Policy parameters
-threshold_components: 1
+threshold_components: 3
 beta_params_min: 0.1
 beta_params_max: 100.0
 fixed_distribution:

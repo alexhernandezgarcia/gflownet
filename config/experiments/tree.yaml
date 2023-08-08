@@ -9,12 +9,13 @@ defaults:
 
 # Environment
 env:
-  data_path: ${user.data.root}/toy1.csv
-  max_depth: 2
+  data_path: ${user.data.root}/toy2.csv
+  max_depth: 3
   continuous: True
   policy_type: mlp
+  threshold_components: 5
   reward_func: boltzmann
-  reward_beta: 4
+  reward_beta: 32
   test_args:
     top_n_trees: 100
 
@@ -36,12 +37,12 @@ gflownet:
 policy:
   forward:
     type: mlp
-    n_hid: 256
+    n_hid: 512
     n_layers: 3
     checkpoint: forward
   backward:
     type: mlp
-    n_hid: 256
+    n_hid: 512
     n_layers: 3
     shared_weights: False
     checkpoint: backward
