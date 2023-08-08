@@ -20,5 +20,9 @@ python -m pip install dgl-cu102 dglgo -f https://data.dgl.ai/wheels/repo.html
 python -m pip install numpy pandas hydra-core tqdm torchtyping six xtb scikit-learn torchani pytorch3d
 # Conditional requirements
 python -m pip install wandb matplotlib plotly pymatgen gdown
+# for nested sampling
+python -m pip install ultranest 
+# debugging
+python -m pip install ipdb
 # Dev packages
 # python -m pip install black flake8 isort pylint ipdb jupyter pytest pytest-repeat
