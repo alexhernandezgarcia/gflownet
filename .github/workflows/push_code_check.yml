@@ -30,11 +30,14 @@ jobs:
       - name: Install code dependencies
         run: pip install --upgrade https://github.com/alexhernandezgarcia/gflownet/archive/main.zip --quiet
 
-      - name: Install Pytest
-        run: pip install pytest
+      - name: Install Pytest and Isort
+        run: pip install pytest isort
 
-      - name: Validate import format
-        uses: isort/isort-action@master
+      - name: Validate import format in main source code
+        run: isort ./gflownet/ --check-only
+
+      - name: Validate import format in unit test code
+        run: isort ./tests/ --check-only
 
       - name: Run unit tests
         run: pytest
