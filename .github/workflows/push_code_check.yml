@@ -27,12 +27,6 @@ jobs:
         with:
           python-version: 3.8
 
-      - name: Install CUDA 11.7
-        uses: Jimver/cuda-toolkit@v0.2.11
-        id: cuda-toolkit
-        with:
-          cuda: '11.7.1'
-
       - name: Install code dependencies
         run: bash ./setup/continuous_integration.sh pip install --upgrade
 
