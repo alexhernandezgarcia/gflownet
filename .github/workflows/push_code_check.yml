@@ -7,28 +7,34 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v3           
-      - name: Set up Python
-        uses: actions/setup-python@v3
-        with: 
-          python-version: 3.8
-      - run: pip install --upgrade https://github.com/alexhernandezgarcia/gflownet/archive/main.zip --quiet
-      - run: pip install pytest
-      
-      # Run black on the main source code
-      - uses: psf/black@stable
+      - name: Checkout repo code
+        uses: actions/checkout@v3
+
+      - name: Run Black on main source code
+        uses: psf/black@stable
         with:
           options: "--check --verbose"
           src: "./gflownet/"
-          
-      # Run black on the unit tests
-      - uses: psf/black@stable
+
+      - name: Run Black on unit test code
+        uses: psf/black@stable
         with:
           options: "--check --verbose"
           src: "./tests/"
-      
-      # Validate the imports      
-      - uses: isort/isort-action@master
-      
-      # Run the unit tests
-      - run: pytest
+
+      - name: Set up Python
+        uses: actions/setup-python@v3
+        with:
+          python-version: 3.8
+
+      - name: Install code dependencies
+        run: pip install --upgrade https://github.com/alexhernandezgarcia/gflownet/archive/main.zip --quiet
+
+      - name: Install Pytest
+        run: pip install pytest
+
+      - name: Validate import format
+        uses: isort/isort-action@master
+
+      - name: Run unit tests
+        run: pytest
