@@ -758,7 +758,7 @@ class GFlowNetAgent:
                 log_density_true = dict_tt["log_density_true"]
                 kde_true = dict_tt["kde_true"]
             else:
-                # Sample from reward via rejection sampling
+                # Sample from reward via rejection or nested sampling
                 x_from_reward = self.env.sample_from_reward(
                     n_samples=self.logger.test.n
                 )
