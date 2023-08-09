@@ -23,7 +23,6 @@ def main(config):
     # Get current directory and set it as root log dir for Logger
     cwd = os.getcwd()
     # TODO: fix race condition in a more elegant way
-    import random
     cwd += "/%08x" % random.getrandbits(32)
     os.mkdir(cwd)
     os.chdir(cwd)
