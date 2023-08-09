@@ -73,8 +73,12 @@ class MoleculeEnergyBase(Proxy, ABC):
         return energies
 
     def setup(self, env=None):
-        states = env.statebatch2proxy(2 * np.pi * np.random.rand(self.n_samples, 3))
-        energies = self.compute_energy(states)
+        env_states = 2 * np.pi * np.random.rand(self.n_samples, env.n_dim)
+        env_states = np.concatenate(
+            [env_states, np.ones((env_states.shape[0], 1))], axis=1
+        )
+        proxy_states = env.statebatch2proxy(env_states)
+        energies = self.compute_energy(proxy_states)
 
         self.max_energy = max(energies)
         self.min_energy = min(energies)
