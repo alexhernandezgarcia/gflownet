@@ -12,7 +12,7 @@ class MoleculeEnergyBase(Proxy, ABC):
     def __init__(
         self,
         batch_size: Optional[int] = 128,
-        n_samples: int = 5000,
+        n_samples: int = 10000,
         normalize: bool = True,
         remove_outliers: bool = True,
         clamp: bool = True,
@@ -34,7 +34,7 @@ class MoleculeEnergyBase(Proxy, ABC):
 
         remove_outliers : bool
             Whether to adjust the min and max energy values estimated on the sample of
-            conformers to a +- 3 std range.
+            conformers by removing 0.01 quantiles.
 
         clamp : bool
             Whether to clamp the energies to the estimated min and max values.
@@ -84,8 +84,8 @@ class MoleculeEnergyBase(Proxy, ABC):
         self.min_energy = min(energies)
 
         if self.remove_outliers:
-            self.max_energy = min(self.max_energy, energies.mean() + 3 * energies.std())
-            self.min_energy = max(self.min_energy, energies.mean() - 3 * energies.std())
+            self.max_energy = np.quantile(energies, 0.99)
+            self.min_energy = np.quantile(energies, 0.01)
 
         if self.normalize:
             self.min = -1

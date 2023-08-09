@@ -60,7 +60,7 @@ class XTBMoleculeEnergy(MoleculeEnergyBase):
         self,
         method: str = "gfnff",
         batch_size=1024,
-        n_samples=5000,
+        n_samples=10000,
         normalize: bool = True,
         **kwargs,
     ):

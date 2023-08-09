@@ -32,7 +32,7 @@ class TBLiteMoleculeEnergy(MoleculeEnergyBase):
     def __init__(
         self,
         batch_size: int = 1024,
-        n_samples: int = 5000,
+        n_samples: int = 10000,
         normalize: bool = True,
         **kwargs
     ):

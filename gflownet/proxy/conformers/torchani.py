@@ -19,7 +19,7 @@ class TorchANIMoleculeEnergy(MoleculeEnergyBase):
         model: str = "ANI2x",
         use_ensemble: bool = True,
         batch_size: Optional[int] = 128,
-        n_samples: int = 5000,
+        n_samples: int = 10000,
         normalize: bool = True,
         **kwargs,
     ):
