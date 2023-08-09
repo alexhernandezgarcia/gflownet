@@ -797,11 +797,11 @@ class GFlowNetAgent:
 
         # Plots
 
-        if hasattr(self.env, "plot_reward_samples"):
+        if hasattr(self.env, "plot_reward_samples") and self.env.n_dim <= 2:
             fig_reward_samples = self.env.plot_reward_samples(x_sampled, **plot_kwargs)
         else:
             fig_reward_samples = None
-        if hasattr(self.env, "plot_kde"):
+        if hasattr(self.env, "plot_kde") and self.env.n_dim <= 2:
             fig_kde_pred = self.env.plot_kde(kde_pred, **plot_kwargs)
             fig_kde_true = self.env.plot_kde(kde_true, **plot_kwargs)
         else:

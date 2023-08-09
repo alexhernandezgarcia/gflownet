@@ -577,11 +577,8 @@ class HybridTorus(GFlowNetEnv):
 
     def fit_kde(self, samples, kernel="gaussian", bandwidth=0.1):
         aug_samples = []
-        for add_0 in [0, -2 * np.pi, 2 * np.pi]:
-            for add_1 in [0, -2 * np.pi, 2 * np.pi]:
-                aug_samples.append(
-                    np.stack([samples[:, 0] + add_0, samples[:, 1] + add_1], axis=1)
-                )
+        for offset in itertools.product([0, -2 * np.pi, 2 * np.pi], repeat=self.n_dim):
+            aug_samples.append(samples + offset)
         aug_samples = np.concatenate(aug_samples)
         kde = KernelDensity(kernel=kernel, bandwidth=bandwidth).fit(aug_samples)
         return kde
