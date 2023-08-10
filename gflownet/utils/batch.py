@@ -26,8 +26,8 @@ class Batch:
     Important note: one env should correspond to only one trajectory, all env_id should
     be unique.
 
-    Note: self.state_indices start by index 1 to indicate that index 0 would correspond
-    to the source state but the latter is not stored in the batch for each trajectory.
+    Note: self.state_indices start from index 1 to indicate that index 0 would correspond
+    to the source state, but the latter is not stored in the batch for each trajectory.
     This implies that one has to be careful when indexing the list of batch_indices in
     self.trajectories by using self.state_indices. For example, the batch index of
     state state_idx of trajectory traj_idx is self.trajectories[traj_idx][state_idx-1]
@@ -129,7 +129,7 @@ class Batch:
 
     def set_env(self, env: GFlowNetEnv):
         """
-        Sets the generic environment passed as an argument an initializes the
+        Sets the generic environment passed as an argument and initializes the
         environment-dependent properties.
         """
         self.env = env.copy().reset()
@@ -168,7 +168,7 @@ class Batch:
 
         backward : bool
             A boolean value indicating whether the action was sampled backward (False
-            by dfefault). If True, the behavior is slightly different so as to match
+            by default). If True, the behavior is slightly different so as to match
             what is stored in forward sampling:
                 - If it is the first state in the trajectory (action from a done
                   state/env), then done is stored as True, instead of taking env.done
@@ -927,7 +927,27 @@ class Batch:
         TensorType["n_states", "state_proxy_dims"], npt.NDArray[np.float32], List
     ]:
         """
-        TODO: docstring
+        Returns the states of the trajectory indicated by traj_idx. If states and
+        traj_indices are not None, then these will be the only states and trajectory
+        indices considered.
+
+        See: states2policy()
+        See: states2proxy()
+
+        Args
+        ----
+        traj_idx : int
+            Index of the trajectory from which to return the states.
+
+        states : tensor, array or list
+            States from the trajectory to consider.
+
+        traj_indices : tensor, array or list
+            Trajectory indices of the trajectory to consider.
+
+        Returns
+        -------
+        Tensor, array or list of states of the requested trajectory.
         """
         # TODO: re-implement using the batch indices in self.trajectories[traj_idx]
         # If either states or traj_indices are not None, both must be the same type and

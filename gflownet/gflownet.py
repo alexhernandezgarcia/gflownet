@@ -206,7 +206,7 @@ class GFlowNetAgent:
     ) -> List[Tuple]:
         """
         Samples one action on each environment of the list envs, according to the
-        sampling method specify by sampling_method.
+        sampling method specified by sampling_method.
 
         With probability 1 - random_action_prob, actions will be sampled from the
         self.forward_policy or self.backward_policy, depending on backward. The rest
@@ -222,7 +222,7 @@ class GFlowNetAgent:
             A list of instances of the environment
 
         batch_forward : Batch
-            A batch from which obtain required variables (e.g. masks) to avoid
+            A batch from which to obtain required variables (e.g. masks) to avoid
             recomputing them.
 
         sampling_method : string
@@ -386,7 +386,6 @@ class GFlowNetAgent:
             )
         return envs, actions, valids
 
-    # @profile
     @torch.no_grad()
     # TODO: extract code from while loop to avoid replication
     def sample_batch(
@@ -641,18 +640,19 @@ class GFlowNetAgent:
         for it in pbar:
             # Test
             if self.logger.do_test(it):
-                self.l1, self.kl, self.jsd, figs = self.test()
+                self.l1, self.kl, self.jsd, figs, env_metrics = self.test()
                 self.logger.log_test_metrics(
                     self.l1, self.kl, self.jsd, it, self.use_context
                 )
                 self.logger.log_plots(figs, it, self.use_context)
+                self.logger.log_metrics(env_metrics, it, self.use_context)
             t0_iter = time.time()
             batch = Batch(env=self.env, device=self.device, float_type=self.float)
             for j in range(self.sttr):
                 sub_batch, times = self.sample_batch(
                     n_forward=self.batch_size.forward,
-                    n_train=self.batch_size.train,
-                    n_replay=self.batch_size.replay,
+                    n_train=self.batch_size.backward_dataset,
+                    n_replay=self.batch_size.backward_replay,
                 )
                 batch.merge(sub_batch)
             for j in range(self.ttsr):
@@ -765,7 +765,7 @@ class GFlowNetAgent:
         Computes metrics by sampling trajectories from the forward policy.
         """
         if self.buffer.test_pkl is None:
-            return self.l1, self.kl, self.jsd, (None,)
+            return self.l1, self.kl, self.jsd, (None,), {}
         with open(self.buffer.test_pkl, "rb") as f:
             dict_tt = pickle.load(f)
             x_tt = dict_tt["x"]
@@ -828,6 +828,10 @@ class GFlowNetAgent:
             log_density_pred = scores_pred - logsumexp(scores_pred, axis=0)
             density_true = np.exp(log_density_true)
             density_pred = np.exp(log_density_pred)
+        elif self.buffer.test_type == "random":
+            # TODO: refactor
+            env_metrics = self.env.test(x_sampled)
+            return self.l1, self.kl, self.jsd, (None,), env_metrics
         else:
             raise NotImplementedError
         # L1 error
@@ -851,7 +855,7 @@ class GFlowNetAgent:
         else:
             fig_kde_pred = None
             fig_kde_true = None
-        return l1, kl, jsd, [fig_reward_samples, fig_kde_pred, fig_kde_true]
+        return l1, kl, jsd, [fig_reward_samples, fig_kde_pred, fig_kde_true], {}
 
     def get_log_corr(self, times):
         data_logq = []

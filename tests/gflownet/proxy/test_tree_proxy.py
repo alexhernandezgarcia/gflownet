@@ -21,17 +21,19 @@ def test__tree_proxy__returns_expected_energies(X, y):
     full_tree = Tree(X, y, max_depth=4)
     while True:
         splittable_leafs = [
-            l for l in full_tree.leafs if Tree._get_right_child(l) < full_tree.n_nodes
+            l
+            for l in Tree._find_leaves(full_tree.state)
+            if Tree._get_right_child(l) < full_tree.n_nodes
         ]
 
         if len(splittable_leafs) == 0:
             break
 
         def split_leaf(k: int):
-            full_tree.step((0, k, -1))
-            full_tree.step((1, k, np.random.randint(5)))
-            full_tree.step((2, k, np.random.rand()))
-            full_tree.step((3, k, np.random.randint(2)))
+            full_tree.step((0, k))
+            full_tree.step((1, np.random.randint(5)))
+            full_tree.step((2, np.random.rand()))
+            full_tree.step((3, np.random.randint(2)))
 
         split_leaf(np.random.choice(splittable_leafs))
 
