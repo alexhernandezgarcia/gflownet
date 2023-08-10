@@ -153,6 +153,8 @@ class Tree(GFlowNetEnv):
         data_path: Optional[str] = None,
         scale_data: bool = True,
         max_depth: int = 10,
+        continuous: bool = True,
+        n_thresholds: int = 9,
         threshold_components: int = 1,
         beta_params_min: float = 0.1,
         beta_params_max: float = 2.0,
@@ -164,6 +166,8 @@ class Tree(GFlowNetEnv):
             "beta_alpha": 1.0,
             "beta_beta": 1.0,
         },
+        proxy_type: str = "mlp",
+        test_args: dict = {"top_n_trees": 0},
         **kwargs,
     ):
         """
@@ -203,6 +207,19 @@ class Tree(GFlowNetEnv):
         max_depth : int
             Maximum depth of a tree.
 
+        continuous : bool
+            Whether the environment should operate in a continuous mode (in which distribution
+            parameters are predicted for the threshold) or the discrete mode (in which there
+            is a discrete set of possible thresholds to choose from).
+
+        n_thresholds : int
+            Number of uniformly distributed thresholds in a (0; 1) range that will be used
+            in the discrete mode.
+
+        proxy_type : str
+            Type of proxy that will be used with the environment, either 'mlp' or 'gnn'.
+            Influences which state2policy functions will be used.
+
         threshold_components : int
             The number of mixture components that will be used for sampling
             the threshold.
@@ -239,6 +256,9 @@ class Tree(GFlowNetEnv):
             )
         self.n_features = self.X_train.shape[1]
         self.max_depth = max_depth
+        self.continuous = continuous
+        self.thresholds = np.linspace(0, 1, n_thresholds + 2)[1:-1]
+        self.test_args = test_args
         # Parameters of the policy distribution
         self.components = threshold_components
         self.beta_params_min = beta_params_min
@@ -254,22 +274,27 @@ class Tree(GFlowNetEnv):
         attributes_root[Attribute.TYPE] = NodeType.CLASSIFIER
         attributes_root[Attribute.FEATURE] = -1
         attributes_root[Attribute.THRESHOLD] = -1
-        attributes_root[Attribute.CLASS] = Counter(self.y_train).most_common()[0][0]
+        self.default_class = Counter(self.y_train).most_common()[0][0]
+        attributes_root[Attribute.CLASS] = self.default_class
         attributes_root[Attribute.ACTIVE] = Status.INACTIVE
 
         # End-of-sequence action.
         self.eos = (-1, -1)
 
         # Conversions
-        # TODO: add functionality to select conversion type depending on config
-        self.state2policy = self.state2policy_mlp
-        self.statetorch2policy = self.statetorch2policy_mlp
-        # self.statetorch2proxy = self.statetorch2policy
+        if proxy_type == "mlp":
+            self.state2policy = self.state2policy_mlp
+            self.statetorch2policy = self.statetorch2policy_mlp
+        elif proxy_type != "gnn":
+            raise ValueError(
+                f"Unrecognized proxy_type = {proxy_type}, expected either 'mlp' or 'gnn'."
+            )
         self.statetorch2oracle = self.statetorch2policy
 
         super().__init__(
             fixed_distribution=fixed_distribution,
             random_distribution=random_distribution,
+            continuous=continuous,
             **kwargs,
         )
 
@@ -296,6 +321,25 @@ class Tree(GFlowNetEnv):
         """
         return 2 * k + 2
 
+    @staticmethod
+    def _get_sibling(k: int) -> Optional[int]:
+        """
+        Get node index of the sibling of k-th node.
+        """
+        parent = Tree._get_parent(k)
+        if parent is None:
+            return None
+        left = Tree._get_left_child(parent)
+        right = Tree._get_right_child(parent)
+        return left if k == right else right
+
+    @staticmethod
+    def get_stage(state: torch.Tensor) -> int:
+        """
+        Returns the current stage from the state passed as an argument.
+        """
+        return state[-1, 0]
+
     def _get_stage(self, state: Optional[torch.Tensor] = None) -> int:
         """
         Returns the stage of the current environment from self.state[-1, 0] or from the
@@ -303,7 +347,7 @@ class Tree(GFlowNetEnv):
         """
         if state is None:
             state = self.state
-        return state[-1, 0]
+        return Tree.get_stage(state)
 
     def _set_stage(
         self, stage: int, state: Optional[torch.Tensor] = None
@@ -461,11 +505,19 @@ class Tree(GFlowNetEnv):
         )
         # Pick threshold
         self._action_index_pick_threshold = len(actions)
-        actions.extend([(ActionType.PICK_THRESHOLD, -1)])
+        if self.continuous:
+            actions.extend([(ActionType.PICK_THRESHOLD, -1)])
+        else:
+            actions.extend(
+                [
+                    (ActionType.PICK_THRESHOLD, idx)
+                    for idx, thr in enumerate(self.thresholds)
+                ]
+            )
         # Pick operator
         self._action_index_pick_operator = len(actions)
         actions.extend(
-            [(ActionType.PICK_OPERATOR, idx) for idx in [Operator.LT, Operator.GTE]]
+            [(ActionType.PICK_OPERATOR, op) for op in [Operator.LT, Operator.GTE]]
         )
         # EOS
         self._action_index_eos = len(actions)
@@ -500,11 +552,16 @@ class Tree(GFlowNetEnv):
         valid : bool
             False, if the action is not allowed for the current state.
         """
-        # Replace the continuous value of threshold by -1 to allow checking it
-        action_to_check = self.action2representative(action)
-        do_step, self.state, action_to_check = self._pre_step(
-            action_to_check, skip_mask_check or self.skip_mask_check
-        )
+        if self.continuous:
+            # Replace the continuous value of threshold by -1 to allow checking it
+            action_to_check = self.action2representative(action)
+            do_step, self.state, action_to_check = self._pre_step(
+                action_to_check, skip_mask_check or self.skip_mask_check
+            )
+        else:
+            do_step, self.state, action_to_check = self._pre_step(
+                action, skip_mask_check or self.skip_mask_check
+            )
         if not do_step:
             return self.state, action, False
 
@@ -520,7 +577,10 @@ class Tree(GFlowNetEnv):
                 if action_type == ActionType.PICK_FEATURE:
                     self._pick_feature(active_node, action_value)
                 elif action_type == ActionType.PICK_THRESHOLD:
-                    self._pick_threshold(active_node, action_value)
+                    if self.continuous:
+                        self._pick_threshold(active_node, action_value)
+                    else:
+                        self._pick_threshold(active_node, self.thresholds[action_value])
                 elif action_type == ActionType.PICK_OPERATOR:
                     self._pick_operator(active_node, action_value)
                 else:
@@ -548,7 +608,7 @@ class Tree(GFlowNetEnv):
             )
         return super().set_state(state, done)
 
-    def sample_actions(
+    def sample_actions_continuous(
         self,
         policy_outputs: TensorType["n_states", "policy_output_dim"],
         sampling_method: str = "policy",
@@ -556,7 +616,7 @@ class Tree(GFlowNetEnv):
         temperature_logits: float = 1.0,
     ) -> Tuple[List[Tuple], TensorType["n_states"]]:
         """
-        Samples a batch of actions from a batch of policy outputs.
+        Samples a batch of actions from a batch of policy outputs in the continuous mode.
         """
         n_states = policy_outputs.shape[0]
         logprobs = torch.zeros(n_states, device=self.device, dtype=self.float)
@@ -610,7 +670,32 @@ class Tree(GFlowNetEnv):
                 actions.append(actions_cont.pop(0))
         return actions, logprobs
 
-    def get_logprobs(
+    def sample_actions(
+        self,
+        policy_outputs: TensorType["n_states", "policy_output_dim"],
+        sampling_method: str = "policy",
+        mask_invalid_actions: TensorType["n_states", "action_space_dim"] = None,
+        temperature_logits: float = 1.0,
+    ) -> Tuple[List[Tuple], TensorType["n_states"]]:
+        """
+        Samples a batch of actions from a batch of policy outputs.
+        """
+        if self.continuous:
+            return self.sample_actions_continuous(
+                policy_outputs=policy_outputs,
+                sampling_method=sampling_method,
+                mask_invalid_actions=mask_invalid_actions,
+                temperature_logits=temperature_logits,
+            )
+        else:
+            return super().sample_actions(
+                policy_outputs=policy_outputs,
+                sampling_method=sampling_method,
+                mask_invalid_actions=mask_invalid_actions,
+                temperature_logits=temperature_logits,
+            )
+
+    def get_logprobs_continuous(
         self,
         policy_outputs: TensorType["n_states", "policy_output_dim"],
         is_forward: bool,
@@ -662,6 +747,34 @@ class Tree(GFlowNetEnv):
         logprobs[mask_cont] = distr_threshold.log_prob(thresholds)
         return logprobs
 
+    def get_logprobs(
+        self,
+        policy_outputs: TensorType["n_states", "policy_output_dim"],
+        is_forward: bool,
+        actions: TensorType["n_states", "n_dim"],
+        states_target: TensorType["n_states", "policy_input_dim"],
+        mask_invalid_actions: TensorType["n_states", "1"] = None,
+    ) -> TensorType["batch_size"]:
+        """
+        Computes log probabilities of actions given policy outputs and actions.
+        """
+        if self.continuous:
+            return self.get_logprobs_continuous(
+                policy_outputs=policy_outputs,
+                is_forward=is_forward,
+                actions=actions,
+                states_target=states_target,
+                mask_invalid_actions=mask_invalid_actions,
+            )
+        else:
+            return super().get_logprobs(
+                policy_outputs=policy_outputs,
+                is_forward=is_forward,
+                actions=actions,
+                states_target=states_target,
+                mask_invalid_actions=mask_invalid_actions,
+            )
+
     def state2policy_mlp(
         self, state: Optional[TensorType["state_dim"]] = None
     ) -> TensorType["policy_input_dim"]:
@@ -670,7 +783,7 @@ class Tree(GFlowNetEnv):
         """
         if state is None:
             state = self.state.clone().detach()
-        state[state.isnan()] = -1
+        state[state.isnan()] = -2
         return state.flatten()
 
     def statetorch2policy_mlp(
@@ -680,7 +793,7 @@ class Tree(GFlowNetEnv):
         Prepares a batch of states in torch "GFlowNet format" for an MLP policy model.
         It simply replaces the NaNs by -1s.
         """
-        states[states.isnan()] = -1
+        states[states.isnan()] = -2
         return states.flatten(start_dim=1)
 
     def policy2state(
@@ -806,7 +919,9 @@ class Tree(GFlowNetEnv):
         assert len(active) == 1
         return active.item()
 
-    def get_policy_output(self, params: dict) -> TensorType["policy_output_dim"]:
+    def get_policy_output_continuous(
+        self, params: dict
+    ) -> TensorType["policy_output_dim"]:
         """
         Defines the structure of the output of the policy model, from which an
         action is to be determined or sampled. It initializes the output tensor
@@ -818,7 +933,7 @@ class Tree(GFlowNetEnv):
         continuous action, that is the sampling of the threshold of a node classifier.
 
         The latter is modelled by a mixture of Beta distributions. Therefore, the
-        continuous part of of the policy output is vector of dimensionality c * 3,
+        continuous part of the policy output is vector of dimensionality c * 3,
         where c is the number of components in the mixture (self.components).
         The three parameters of each component are the following:
 
@@ -847,6 +962,16 @@ class Tree(GFlowNetEnv):
         policy_output_continuous[1::3] = params["beta_alpha"]
         policy_output_continuous[2::3] = params["beta_beta"]
         return torch.cat([policy_output_discrete, policy_output_continuous])
+
+    def get_policy_output(self, params: dict) -> TensorType["policy_output_dim"]:
+        """
+        Defines the structure of the output of the policy model, from which an
+        action is to be determined or sampled.
+        """
+        if self.continuous:
+            return self.get_policy_output_continuous(params=params)
+        else:
+            return super().get_policy_output(params=params)
 
     def get_mask_invalid_actions_forward(
         self, state: Optional[torch.Tensor] = None, done: Optional[bool] = None
@@ -892,7 +1017,7 @@ class Tree(GFlowNetEnv):
 
         return mask
 
-    def get_mask_invalid_actions_backward(
+    def get_mask_invalid_actions_backward_continuous(
         self,
         state: Optional[torch.Tensor] = None,
         done: Optional[bool] = None,
@@ -907,6 +1032,21 @@ class Tree(GFlowNetEnv):
             super().get_mask_invalid_actions_backward(state, done, parents_a)
             + [True] * self._len_continuous_policy_output
         )
+
+    def get_mask_invalid_actions_backward(
+        self,
+        state: Optional[torch.Tensor] = None,
+        done: Optional[bool] = None,
+        parents_a: Optional[List] = None,
+    ) -> List:
+        if self.continuous:
+            return self.get_mask_invalid_actions_backward_continuous(
+                state=state, done=done, parents_a=parents_a
+            )
+        else:
+            return super().get_mask_invalid_actions_backward(
+                state=state, done=done, parents_a=parents_a
+            )
 
     def get_parents(
         self,
@@ -944,7 +1084,7 @@ class Tree(GFlowNetEnv):
                 attributes_left = parent[k_left]
                 attributes_right = parent[k_right]
 
-                # Set action operator as class of left child
+                # Set action operator as class of left child.
                 action = (
                     ActionType.PICK_OPERATOR,
                     int(attributes_left[Attribute.CLASS].item()),
@@ -969,7 +1109,16 @@ class Tree(GFlowNetEnv):
 
             if stage == Stage.LEAF:
                 # Reverse self._pick_leaf.
-                for output in [0, 1]:
+                if k == 0:
+                    outputs = [self.default_class]
+                else:
+                    attributes_sibling = state[Tree._get_sibling(k)]
+                    if attributes_sibling[Attribute.TYPE] == NodeType.CLASSIFIER:
+                        outputs = [0 if attributes_sibling[Attribute.CLASS] == 1 else 1]
+                    else:
+                        outputs = [0, 1]
+
+                for output in outputs:
                     parent = state.clone()
                     attributes = parent[k]
 
@@ -991,7 +1140,9 @@ class Tree(GFlowNetEnv):
                 attributes[Attribute.FEATURE] = -1
 
                 parents.append(parent)
-                actions.append((ActionType.PICK_FEATURE, self.state[k][1].item()))
+                actions.append(
+                    (ActionType.PICK_FEATURE, state[k][Attribute.FEATURE].item())
+                )
             elif stage == Stage.THRESHOLD:
                 # Reverse self._pick_threshold.
                 parent = state.clone()
@@ -1001,14 +1152,22 @@ class Tree(GFlowNetEnv):
                 attributes[Attribute.THRESHOLD] = -1
 
                 parents.append(parent)
-                actions.append((ActionType.PICK_THRESHOLD, -1))
+                if self.continuous:
+                    actions.append((ActionType.PICK_THRESHOLD, -1))
+                else:
+                    threshold_idx = np.where(
+                        np.isclose(
+                            self.thresholds, state[k][Attribute.THRESHOLD].item()
+                        )
+                    )[0].item()
+                    actions.append((ActionType.PICK_THRESHOLD, threshold_idx))
             else:
                 raise ValueError(f"Unrecognized stage {stage}.")
 
         return parents, actions
 
     @staticmethod
-    def action2representative(action: Tuple) -> Tuple:
+    def action2representative_continuous(action: Tuple) -> Tuple:
         """
         Replaces the continuous value of a PICK_THRESHOLD action by -1 so that it can
         be contrasted with the action space and masks.
@@ -1017,37 +1176,53 @@ class Tree(GFlowNetEnv):
             action = (ActionType.PICK_THRESHOLD, -1)
         return action
 
+    def action2representative(self, action: Tuple) -> Tuple:
+        if self.continuous:
+            return self.action2representative_continuous(action=action)
+        else:
+            return super().action2representative(action=action)
+
     def get_max_traj_length(self) -> int:
         return self.n_nodes * Attribute.N
 
-    def _get_graph(self, graph: Optional[nx.DiGraph] = None, k: int = 0) -> nx.DiGraph:
+    @staticmethod
+    def _get_graph(
+        state: torch.Tensor, graph: Optional[nx.DiGraph] = None, k: int = 0
+    ) -> nx.DiGraph:
         """
-        Recursively convert self.state into a networkx directional graph.
+        Recursively convert state into a networkx directional graph.
         """
         if graph is None:
             graph = nx.DiGraph()
 
-        attributes = self.state[k]
+        attributes = state[k]
         graph.add_node(k, x=attributes)
 
         if attributes[Attribute.TYPE] != NodeType.CLASSIFIER:
             k_left = Tree._get_left_child(k)
-            if not torch.any(torch.isnan(self.state[k_left])):
-                self._get_graph(graph, k=k_left)
+            if not torch.any(torch.isnan(state[k_left])):
+                Tree._get_graph(state, graph, k=k_left)
                 graph.add_edge(k, k_left)
 
             k_right = Tree._get_right_child(k)
-            if not torch.any(torch.isnan(self.state[k_right])):
-                self._get_graph(graph, k=k_right)
+            if not torch.any(torch.isnan(state[k_right])):
+                Tree._get_graph(state, graph, k=k_right)
                 graph.add_edge(k, k_right)
 
         return graph
+
+    @staticmethod
+    def to_pyg(state: torch.Tensor) -> pyg.data.Data:
+        """
+        Convert given state into a PyG graph.
+        """
+        return from_networkx(Tree._get_graph(state))
 
     def _to_pyg(self) -> pyg.data.Data:
         """
         Convert self.state into a PyG graph.
         """
-        return from_networkx(self._get_graph())
+        return Tree.to_pyg(self.state)
 
     @staticmethod
     def _load_dataset(data_path):
@@ -1104,11 +1279,12 @@ class Tree(GFlowNetEnv):
     def _predict(self, x: npt.NDArray, k: int = 0) -> int:
         return Tree.predict(self.state, x, k)
 
-    def plot(self) -> None:
+    @staticmethod
+    def plot(state, path: Optional[Union[Path, str]] = None) -> None:
         """
         Plot current state of the tree.
         """
-        graph = self._get_graph()
+        graph = Tree._get_graph(state)
 
         labels = {}
         node_color = []
@@ -1129,10 +1305,40 @@ class Tree(GFlowNetEnv):
             with_labels=True,
             node_size=800,
         )
-        plt.show()
+        if path is None:
+            plt.show()
+        else:
+            plt.savefig(path)
+            plt.close()
 
     @staticmethod
-    def _compute_scores(states: torch.Tensor, X: npt.NDArray, y: npt.NDArray) -> dict:
+    def _predict_samples(states: torch.Tensor, X: npt.NDArray) -> npt.NDArray:
+        """
+        Compute a matrix of predictions.
+
+        Args
+        ----
+        states : Tensor
+            Collection of sampled states with dimensionality (n_states, state_dim).
+
+        X : NDArray
+            Feature matrix with dimensionality (n_observations, n_features).
+
+        Returns
+        -------
+        Prediction matrix with dimensionality (n_states, n_observations).
+
+        """
+        predictions = np.empty((len(states), len(X)))
+        for i, state in enumerate(states):
+            for j, x in enumerate(X):
+                predictions[i, j] = Tree.predict(state, x)
+        return predictions
+
+    @staticmethod
+    def _compute_scores(
+        states: torch.Tensor, X: npt.NDArray, y: npt.NDArray
+    ) -> (dict, npt.NDArray):
         """
         Computes accuracy and balanced accuracy metrics for a given dataset (X, y)
         based on a tensor of sampled states representing individual trees.
@@ -1159,10 +1365,7 @@ class Tree(GFlowNetEnv):
         scores = {}
         metrics = {"acc": accuracy_score, "bac": balanced_accuracy_score}
 
-        predictions = np.empty((len(states), len(X)))
-        for i, state in enumerate(states):
-            for j, x in enumerate(X):
-                predictions[i, j] = Tree.predict(state, x)
+        predictions = Tree._predict_samples(states, X)
 
         for metric_name, metric_function in metrics.items():
             scores[f"mean_tree_{metric_name}"] = np.mean(
@@ -1174,6 +1377,51 @@ class Tree(GFlowNetEnv):
 
         return scores
 
+    @staticmethod
+    def _plot_trees(
+        states: torch.Tensor,
+        X: npt.NDArray,
+        y: npt.NDArray,
+        iteration: int,
+        n: int = -1,
+    ):
+        """
+        Plots top n decision trees present in the given collection of states (with
+        tree performance evaluated using the accuracy).
+
+        Args
+        ----
+        states : Tensor
+            Collection of sampled states with dimensionality (n_states, state_dim).
+
+        X : NDArray
+            Feature matrix with dimensionality (n_observations, n_features).
+
+        y : NDArray
+            Target vector with dimensionality (n_observations,).
+
+        iteration : int
+            Current iteration (will be used to name the folder with trees).
+
+        n : int
+            Number of top trees to be plotted.
+        """
+        if n == -1:
+            n = len(states)
+
+        predictions = Tree._predict_samples(states, X)
+        accuracies = np.array([accuracy_score(y, y_pred) for y_pred in predictions])
+
+        order = np.argsort(accuracies)[::-1]
+
+        path = Path(Path.cwd() / f"trees_{iteration}")
+        path.mkdir()
+
+        for i in range(n):
+            Tree.plot(
+                states[order[i]], path / f"tree_{i}_{accuracies[order[i]]:.4f}.png"
+            )
+
     def test(
         self,
         samples: Union[
@@ -1182,7 +1430,8 @@ class Tree(GFlowNetEnv):
     ) -> dict:
         """
         Computes a dictionary of metrics, as described in Tree._compute_scores, for
-        both training and, if available, test data.
+        both training and, if available, test data. If self.test_args['top_n_trees'] != 0,
+        also plots top n trees and saves them in the log directory.
 
         Args
         ----
@@ -1195,8 +1444,21 @@ class Tree(GFlowNetEnv):
         """
         result = {}
 
-        for k, v in Tree._compute_scores(samples, self.X_train, self.y_train).items():
+        scores = Tree._compute_scores(samples, self.X_train, self.y_train)
+        for k, v in scores.items():
             result[f"train_{k}"] = v
+
+        if self.test_args["top_n_trees"] != 0:
+            if not hasattr(self, "test_iteration"):
+                self.test_iteration = 0
+            Tree._plot_trees(
+                samples,
+                self.X_train,
+                self.y_train,
+                self.test_iteration,
+                self.test_args["top_n_trees"],
+            )
+            self.test_iteration += 1
 
         if self.X_test is not None:
             for k, v in Tree._compute_scores(samples, self.X_test, self.y_test).items():

@@ -12,13 +12,11 @@ from typing import List, Optional, Tuple
 import numpy as np
 import torch
 import torch.nn as nn
-from omegaconf import OmegaConf
 from scipy.special import logsumexp
 from torch.distributions import Bernoulli
 from tqdm import tqdm
 
 from gflownet.envs.base import GFlowNetEnv
-from gflownet.policy.base import Policy
 from gflownet.utils.batch import Batch
 from gflownet.utils.buffer import Buffer
 from gflownet.utils.common import (
@@ -39,7 +37,8 @@ class GFlowNetAgent:
         float_precision,
         optimizer,
         buffer,
-        policy,
+        forward_policy,
+        backward_policy,
         mask_invalid_actions,
         temperature_logits,
         random_action_prob,
@@ -47,9 +46,7 @@ class GFlowNetAgent:
         logger,
         num_empirical_loss,
         oracle,
-        proxy=None,
         active_learning=False,
-        data_path=None,
         sample_only=False,
         **kwargs,
     ):
@@ -120,9 +117,9 @@ class GFlowNetAgent:
             print(f"\tMin score: {self.buffer.test['energies'].min()}")
             print(f"\tMax score: {self.buffer.test['energies'].max()}")
         # Policy models
-        self.forward_policy = Policy(policy.forward, self.env, self.device, self.float)
-        if "checkpoint" in policy.forward and policy.forward.checkpoint:
-            self.logger.set_forward_policy_ckpt_path(policy.forward.checkpoint)
+        self.forward_policy = forward_policy
+        if self.forward_policy.checkpoint is not None:
+            self.logger.set_forward_policy_ckpt_path(self.forward_policy.checkpoint)
             # TODO: re-write the logic and conditions to reload a model
             if False:
                 self.forward_policy.load_state_dict(
@@ -131,19 +128,10 @@ class GFlowNetAgent:
                 print("Reloaded GFN forward policy model Checkpoint")
         else:
             self.logger.set_forward_policy_ckpt_path(None)
-        self.backward_policy = Policy(
-            policy.backward,
-            self.env,
-            self.device,
-            self.float,
-            base=self.forward_policy,
-        )
-        if (
-            policy.backward
-            and "checkpoint" in policy.backward
-            and policy.backward.checkpoint
-        ):
-            self.logger.set_backward_policy_ckpt_path(policy.backward.checkpoint)
+        self.backward_policy = backward_policy
+        self.logger.set_backward_policy_ckpt_path(None)
+        if self.backward_policy.checkpoint is not None:
+            self.logger.set_backward_policy_ckpt_path(self.backward_policy.checkpoint)
             # TODO: re-write the logic and conditions to reload a model
             if False:
                 self.backward_policy.load_state_dict(
@@ -152,9 +140,6 @@ class GFlowNetAgent:
                 print("Reloaded GFN backward policy model Checkpoint")
         else:
             self.logger.set_backward_policy_ckpt_path(None)
-        self.ckpt_period = policy.ckpt_period
-        if self.ckpt_period in [None, -1]:
-            self.ckpt_period = np.inf
         # Optimizer
         if self.forward_policy.is_model:
             self.target = copy.deepcopy(self.forward_policy.model)
@@ -789,6 +774,10 @@ class GFlowNetAgent:
             density_pred = np.array([hist[tuple(x)] / z_pred for x in x_tt])
             log_density_true = np.log(density_true + 1e-8)
             log_density_pred = np.log(density_pred + 1e-8)
+        elif self.buffer.test_type == "random":
+            # TODO: refactor
+            env_metrics = self.env.test(x_sampled)
+            return self.l1, self.kl, self.jsd, (None,), env_metrics
         elif self.continuous:
             # TODO make it work with conditional env
             x_sampled = torch2np(self.env.statebatch2kde(x_sampled))
@@ -828,10 +817,6 @@ class GFlowNetAgent:
             log_density_pred = scores_pred - logsumexp(scores_pred, axis=0)
             density_true = np.exp(log_density_true)
             density_pred = np.exp(log_density_pred)
-        elif self.buffer.test_type == "random":
-            # TODO: refactor
-            env_metrics = self.env.test(x_sampled)
-            return self.l1, self.kl, self.jsd, (None,), env_metrics
         else:
             raise NotImplementedError
         # L1 error

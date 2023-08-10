@@ -2,12 +2,18 @@ import torch
 from torch import nn
 from omegaconf import OmegaConf
 
+from gflownet.utils.common import set_device, set_float_precision
+
 
 class Policy:
-    def __init__(self, config, env, device, float_precision, base=None):
+    def __init__(
+        self, config, env, device, float_precision, base=None, checkpoint=None
+    ):
         # Device and float precision
-        self.device = device
-        self.float = float_precision
+        self.device = set_device(device)
+        self.float = set_float_precision(float_precision)
+        # Checkpoint
+        self.checkpoint = checkpoint
         # Input and output dimensions
         self.state_dim = env.policy_input_dim
         self.fixed_output = torch.tensor(env.fixed_policy_output).to(
