@@ -14,8 +14,12 @@ reward_norm: 1.0
 # If > 0, reward_norm = reward_norm_std_mult * std(energies)
 reward_norm_std_mult: 0.0
 proxy_state_format: oracle
+# Check if action valid with mask before step
+skip_mask_check: False
 # Whether the environment has conditioning variables
 conditional: False
+# Whether the environment is continuous
+continuous: False
 # Buffer
 buffer:
   replay_capacity: 10

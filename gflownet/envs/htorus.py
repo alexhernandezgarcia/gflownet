@@ -58,7 +58,6 @@ class HybridTorus(GFlowNetEnv):
         assert n_dim > 0
         assert length_traj > 0
         assert n_comp > 0
-        self.continuous = True
         self.n_dim = n_dim
         self.length_traj = length_traj
         self.policy_encoding_dim_per_angle = policy_encoding_dim_per_angle
@@ -84,6 +83,7 @@ class HybridTorus(GFlowNetEnv):
             random_distribution=random_distribution,
             **kwargs,
         )
+        self.continuous = True
 
     def get_action_space(self):
         """
@@ -345,7 +345,6 @@ class HybridTorus(GFlowNetEnv):
         sampling_method: str = "policy",
         mask_invalid_actions: TensorType["n_states", "n_dim"] = None,
         temperature_logits: float = 1.0,
-        loginf: float = 1000,
     ) -> Tuple[List[Tuple], TensorType["n_states"]]:
         """
         Samples a batch of actions from a batch of policy outputs.
@@ -360,7 +359,7 @@ class HybridTorus(GFlowNetEnv):
             logits_dims = policy_outputs[:, 0 :: self.n_params_per_dim]
             logits_dims /= temperature_logits
         if mask_invalid_actions is not None:
-            logits_dims[mask_invalid_actions] = -loginf
+            logits_dims[mask_invalid_actions] = -torch.inf
         dimensions = Categorical(logits=logits_dims).sample()
         logprobs_dim = self.logsoftmax(logits_dims)[ns_range, dimensions]
         # Sample angle increments
@@ -405,7 +404,6 @@ class HybridTorus(GFlowNetEnv):
         actions: TensorType["n_states", 2],
         states_target: TensorType["n_states", "policy_input_dim"],
         mask_invalid_actions: TensorType["batch_size", "policy_output_dim"] = None,
-        loginf: float = 1000,
     ) -> TensorType["batch_size"]:
         """
         Computes log probabilities of actions given policy outputs and actions.
@@ -419,7 +417,7 @@ class HybridTorus(GFlowNetEnv):
         # Dimensions
         logits_dims = policy_outputs[:, 0 :: self.n_params_per_dim]
         if mask_invalid_actions is not None:
-            logits_dims[mask_invalid_actions] = -loginf
+            logits_dims[mask_invalid_actions] = -torch.inf
         logprobs_dim = self.logsoftmax(logits_dims)[ns_range, dimensions]
         # Angle increments
         # Cases where p(angle) should be computed (nofix):
@@ -477,7 +475,7 @@ class HybridTorus(GFlowNetEnv):
         return logprobs
 
     def step(
-        self, action: Tuple[int, float]
+        self, action: Tuple[int, float], skip_mask_check: bool = False
     ) -> Tuple[List[float], Tuple[int, float], bool]:
         """
         Executes step given an action.
@@ -487,6 +485,9 @@ class HybridTorus(GFlowNetEnv):
         action : tuple
             Action to be executed. An action is a tuple with two values:
             (dimension, magnitude).
+
+        skip_mask_check : bool
+            Ignored.
 
         Returns
         -------

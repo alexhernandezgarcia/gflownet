@@ -36,6 +36,11 @@ class Buffer:
         self.replay.reward = pd.to_numeric(self.replay.reward)
         self.replay.energy = pd.to_numeric(self.replay.energy)
         self.replay.reward = [-1 for _ in range(self.replay_capacity)]
+        self.replay_states = {}
+        self.replay_trajs = {}
+        self.replay_pkl = "replay.pkl"
+        with open(self.replay_pkl, "wb") as f:
+            pickle.dump({"x": self.replay_states, "trajs": self.replay_trajs}, f)
         # Define train and test data sets
         if train is not None and "type" in train:
             self.train_type = train.type
@@ -143,22 +148,29 @@ class Buffer:
         rewards,
         energies,
         it,
+        allow_duplicate_states=False,
     ):
-        rewards_old = self.replay["reward"].values
-        rewards_new = rewards.copy()
-        while np.max(rewards_new) > np.min(rewards_old):
-            idx_new_max = np.argmax(rewards_new)
-            readable_state = self.env.state2readable(states[idx_new_max])
-            if not self.replay["state"].isin([readable_state]).any():
-                self.replay.iloc[self.replay.reward.argmin()] = {
-                    "state": self.env.state2readable(states[idx_new_max]),
-                    "traj": self.env.traj2readable(trajs[idx_new_max]),
-                    "reward": rewards[idx_new_max],
-                    "energy": energies[idx_new_max],
+        for idx, (state, traj, reward, energy) in enumerate(
+            zip(states, trajs, rewards, energies)
+        ):
+            if allow_duplicate_states is False and state in self.replay_states.values():
+                continue
+            if (
+                reward > self.replay.iloc[-1]["reward"]
+                and traj not in self.replay_trajs.values()
+            ):
+                self.replay.iloc[-1] = {
+                    "state": self.env.state2readable(state),
+                    "traj": self.env.traj2readable(traj),
+                    "reward": reward,
+                    "energy": energy,
                     "iter": it,
                 }
-                rewards_old = self.replay["reward"].values
-            rewards_new[idx_new_max] = -1
+                self.replay_states[(idx, it)] = state
+                self.replay_trajs[(idx, it)] = traj
+                self.replay.sort_values(by="reward", ascending=False, inplace=True)
+        with open(self.replay_pkl, "wb") as f:
+            pickle.dump({"x": self.replay_states, "trajs": self.replay_trajs}, f)
         return self.replay
 
     def make_data_set(self, config):
@@ -189,6 +201,12 @@ class Buffer:
             and hasattr(self.env, "get_uniform_terminating_states")
         ):
             samples = self.env.get_uniform_terminating_states(config.n, config.seed)
+        elif (
+            config.type == "random"
+            and "n" in config
+            and hasattr(self.env, "get_random_terminating_states")
+        ):
+            samples = self.env.get_random_terminating_states(config.n)
         else:
             return None, None
         energies = self.env.oracle(self.env.statebatch2oracle(samples)).tolist()

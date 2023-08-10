@@ -1,3 +1,5 @@
+import warnings
+
 import hydra
 import numpy as np
 import pytest
@@ -5,21 +7,26 @@ import torch
 import yaml
 from hydra import compose, initialize
 
+from gflownet.utils.common import copy
+
 
 def test__all_env_common(env):
+    test__init__state_is_source_no_parents(env)
+    test__reset__state_is_source_no_parents(env)
+    test__step__returns_same_state_action_and_invalid_if_done(env)
+    test__sample_actions__get_logprobs__return_valid_actions_and_logprobs(env)
+    test__step_random__does_not_sample_invalid_actions(env)
     test__get_parents_step_get_mask__are_compatible(env)
     test__sample_backwards_reaches_source(env)
-    test__state_conversions_are_reversible(env)
-    test__get_parents__returns_no_parents_in_initial_state(env)
-    test__sample_actions__get_logprobs__return_valid_actions_and_logprobs(env)
+    test__state2policy__is_reversible(env)
+    test__state2readable__is_reversible(env)
     test__get_parents__returns_same_state_and_eos_if_done(env)
-    test__step__returns_same_state_action_and_invalid_if_done(env)
     test__actions2indices__returns_expected_tensor(env)
     test__gflownet_minimal_runs(env)
 
 
 def test__continuous_env_common(env):
-    #     test__state_conversions_are_reversible(env)
+    test__reset__state_is_source(env)
     test__get_parents__returns_no_parents_in_initial_state(env)
     #     test__gflownet_minimal_runs(env)
     #     test__sample_actions__get_logprobs__return_valid_actions_and_logprobs(env)
@@ -29,22 +36,29 @@ def test__continuous_env_common(env):
 
 
 @pytest.mark.repeat(100)
+def test__step_random__does_not_sample_invalid_actions(env):
+    env = env.reset()
+    while not env.done:
+        state = copy(env.state)
+        mask = env.get_mask_invalid_actions_forward()
+        # Sample random action
+        state_next, action, valid = env.step_random()
+        if valid is False:
+            continue
+        assert mask[env.action2index(action)] is False
+        # If action is not EOS then state should change
+        if action != env.eos:
+            assert not env.equal(state, state_next)
+
+
+@pytest.mark.repeat(100)
 def test__get_parents_step_get_mask__are_compatible(env):
     env = env.reset()
     n_actions = 0
     while not env.done:
-        state = env.state
+        state = copy(env.state)
         # Sample random action
-        mask_invalid = torch.unsqueeze(
-            torch.BoolTensor(env.get_mask_invalid_actions_forward()), 0
-        )
-        random_policy = torch.unsqueeze(
-            torch.tensor(env.random_policy_output, dtype=env.float), 0
-        )
-        actions, _ = env.sample_actions(
-            policy_outputs=random_policy, mask_invalid_actions=mask_invalid
-        )
-        next_state, action, valid = env.step(actions[0])
+        state_next, action, valid = env.step_random()
         if valid is False:
             continue
         n_actions += 1
@@ -52,7 +66,7 @@ def test__get_parents_step_get_mask__are_compatible(env):
         assert env.n_actions == n_actions
         parents, parents_a = env.get_parents()
         if torch.is_tensor(state):
-            assert any([torch.equal(p, state) for p in parents])
+            assert any([env.equal(p, state) for p in parents])
         else:
             assert state in parents
         assert len(parents) == len(parents_a)
@@ -98,31 +112,23 @@ def test__sample_backwards_reaches_source(env, n=100):
 
 
 @pytest.mark.repeat(100)
-def test__state_conversions_are_reversible(env):
+def test__state2policy__is_reversible(env):
     env = env.reset()
     while not env.done:
-        state = env.state
-        if env.policy2state(env.state2policy(state)) is not None:
-            if torch.is_tensor(state):
-                assert torch.equal(state, env.policy2state(env.state2policy(state)))
-            else:
-                assert state == env.policy2state(env.state2policy(state))
-        for el1, el2 in zip(state, env.readable2state(env.state2readable(state))):
-            if torch.is_tensor(state):
-                assert torch.all(torch.isclose(el1, el2))
-            else:
-                assert np.isclose(el1, el2)
-        # Sample random action
-        mask_invalid = torch.unsqueeze(
-            torch.BoolTensor(env.get_mask_invalid_actions_forward()), 0
-        )
-        random_policy = torch.unsqueeze(
-            torch.tensor(env.random_policy_output, dtype=env.float), 0
-        )
-        actions, _ = env.sample_actions(
-            policy_outputs=random_policy, mask_invalid_actions=mask_invalid
-        )
-        env.step(actions[0])
+        state_recovered = env.policy2state(env.state2policy())
+        if state_recovered is not None:
+            assert env.equal(env.state, state_recovered)
+        env.step_random()
+
+
+@pytest.mark.repeat(100)
+def test__state2readable__is_reversible(env):
+    env = env.reset()
+    while not env.done:
+        state_recovered = env.readable2state(env.state2readable())
+        if state_recovered is not None:
+            assert env.isclose(env.state, state_recovered)
+        env.step_random()
 
 
 def test__get_parents__returns_no_parents_in_initial_state(env):
@@ -150,9 +156,11 @@ def test__gflownet_minimal_runs(env):
     )
     # Set proxy in env
     env.proxy = proxy
-    # No buffer
+    # No buffers
     config.env.buffer.train = None
     config.env.buffer.test = None
+    # No replay buffer
+    config.env.buffer.replay_capacity = 0
     # Set 1 training step
     config.gflownet.optimizer.n_train_steps = 1
     # GFlowNet agent
@@ -188,13 +196,31 @@ def test__sample_actions__get_logprobs__return_valid_actions_and_logprobs(env):
             mask_invalid_actions=masks_invalid_torch,
         )
         action = actions[0]
-        assert action in valid_actions
+        assert env.action2representative(action) in valid_actions
         assert torch.equal(logprobs_sa, logprobs_glp)
         env.step(action)
 
 
-def test__get_parents__returns_no_parents_in_initial_state(env):
+@pytest.mark.repeat(10)
+def test__init__state_is_source_no_parents(env):
+    assert env.equal(env.state, env.source)
+    parents, actions = env.get_parents()
+    assert len(parents) == 0
+    assert len(actions) == 0
+
+
+@pytest.mark.repeat(10)
+def test__reset__state_is_source(env):
+    env.step_random()
     env.reset()
+    assert env.equal(env.state, env.source)
+
+
+@pytest.mark.repeat(10)
+def test__reset__state_is_source_no_parents(env):
+    env.step_random()
+    env.reset()
+    assert env.equal(env.state, env.source)
     parents, actions = env.get_parents()
     assert len(parents) == 0
     assert len(actions) == 0
@@ -204,7 +230,7 @@ def test__get_parents__returns_same_state_and_eos_if_done(env):
     env.set_state(env.state, done=True)
     parents, actions = env.get_parents()
     if torch.is_tensor(env.state):
-        assert all([torch.equal(p, env.state) for p in parents])
+        assert all([env.equal(p, env.state) for p in parents])
     else:
         assert parents == [env.state]
     assert actions == [env.action_space[-1]]
@@ -212,21 +238,15 @@ def test__get_parents__returns_same_state_and_eos_if_done(env):
 
 @pytest.mark.repeat(10)
 def test__step__returns_same_state_action_and_invalid_if_done(env):
-    # Sample random action
-    mask_invalid = torch.unsqueeze(
-        torch.BoolTensor(env.get_mask_invalid_actions_forward()), 0
-    )
-    random_policy = torch.unsqueeze(
-        torch.tensor(env.random_policy_output, dtype=env.float), 0
-    )
-    actions, _ = env.sample_actions(
-        policy_outputs=random_policy, mask_invalid_actions=mask_invalid
-    )
-    action = actions[0]
-    env.set_state(env.state, done=True)
+    env.reset()
+    # Sample random trajectory
+    env.trajectory_random()
+    assert env.done
+    # Attempt another step
+    action = env.action_space[np.random.randint(low=0, high=env.action_space_dim)]
     next_state, action_step, valid = env.step(action)
     if torch.is_tensor(env.state):
-        assert torch.equal(next_state, env.state)
+        assert env.equal(next_state, env.state)
     else:
         assert next_state == env.state
     assert action_step == action

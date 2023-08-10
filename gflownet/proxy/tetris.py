@@ -23,9 +23,5 @@ class Tetris(Proxy):
 
     def __call__(self, states: TensorType["batch", "state_dim"]) -> TensorType["batch"]:
         if states.dim() == 2:
-            return torch.sum(states) / self.norm
-
-        elif states.dim() == 3:
-            return torch.sum(states, axis=(1, 2)) / self.norm
-        else:
-            raise ValueError
+            states = torch.unsqueeze(states, dim=0)
+        return torch.sum(states, axis=(1, 2)) / self.norm

@@ -1,14 +1,10 @@
 import torch
-import torch.nn as nn
+from torch import nn
 from omegaconf import OmegaConf
 
 
 class Policy:
     def __init__(self, config, env, device, float_precision, base=None):
-        # If config is null, default to uniform
-        if config is None:
-            config = OmegaConf.create()
-            config.type = "uniform"
         # Device and float precision
         self.device = device
         self.float = float_precision
@@ -21,12 +17,17 @@ class Policy:
             dtype=self.float, device=self.device
         )
         self.output_dim = len(self.fixed_output)
+        # Optional base model
         self.base = base
 
-        self._setup_config(config)
-        self._instantiate_policy()
+        self.parse_config(config)
+        self.instantiate()
 
-    def _setup_config(self, config):
+    def parse_config(self, config):
+        # If config is null, default to uniform
+        if config is None:
+            config = OmegaConf.create()
+            config.type = "uniform"
         if "shared_weights" in config:
             self.shared_weights = config.shared_weights
         else:
@@ -50,7 +51,7 @@ class Policy:
         else:
             raise "Policy type must be defined if shared_weights is False"
 
-    def _instantiate_policy(self):
+    def instantiate(self):
         if self.type == "fixed":
             self.model = self.fixed_distribution
             self.is_model = False
@@ -58,12 +59,10 @@ class Policy:
             self.model = self.uniform_distribution
             self.is_model = False
         elif self.type == "mlp":
-            self.model = self.make_mlp(nn.LeakyReLU())
+            self.model = self.make_mlp(nn.LeakyReLU()).to(self.device)
             self.is_model = True
         else:
             raise "Policy model type not defined"
-        if self.is_model:
-            self.model.to(self.device)
 
     def __call__(self, states):
         return self.model(states)
