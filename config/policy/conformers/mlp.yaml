@@ -1,0 +1,13 @@
+_target_: gflownet.policy.base.Policy
+
+forward:
+  type: mlp
+  n_hid: 512
+  n_layers: 5
+  checkpoint: forward
+backward:
+  type: mlp
+  n_hid: 512
+  n_layers: 5
+  shared_weights: False
+  checkpoint: backward

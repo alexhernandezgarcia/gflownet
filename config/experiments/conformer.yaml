@@ -3,6 +3,7 @@
 defaults:
    - override /env: conformers/conformer
    - override /gflownet: trajectorybalance
+   - override /policy: conformers/mlp
    - override /proxy: conformers/tblite
    - override /logger: wandb
 
@@ -10,6 +11,7 @@ defaults:
 env:
   length_traj: 10
   policy_encoding_dim_per_angle: 10
+  policy_type: mlp
   n_comp: 5
   vonmises_min_concentration: 4
   reward_func: boltzmann
@@ -29,20 +31,6 @@ gflownet:
     lr_z_mult: 1000
     n_train_steps: 40000
     lr_decay_period: 1000000
-
-# Policy
-policy:
-  forward:
-    type: mlp
-    n_hid: 512
-    n_layers: 5
-    checkpoint: forward
-  backward:
-    type: mlp
-    n_hid: 512
-    n_layers: 5
-    shared_weights: False
-    checkpoint: backward
 
 # WandB
 logger:
