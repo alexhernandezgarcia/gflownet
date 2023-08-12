@@ -591,7 +591,7 @@ class HybridTorus(GFlowNetEnv):
         from wurlitzer import pipes
 
         def reward_func(angles):
-            angles = torch.tensor(angles)
+            angles = torch.tensor(angles).to(self.device)
             rewards = self.reward_torchbatch(angles)
             return np.log(rewards.cpu().detach().numpy())
 
