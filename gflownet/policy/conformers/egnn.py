@@ -114,11 +114,11 @@ class EGNNPolicy(Policy):
     def __call__(self, states: torch.Tensor) -> torch.Tensor:
         graphs = []
         for state in states:
-            graph = deepcopy(self.graph)
+            graph = deepcopy(self.graph).to(self.device)
             graph.ndata["atom_features"] = torch.cat(
                 [
                     graph.ndata["atom_features"],
-                    torch.Tensor(state[:, -1]).unsqueeze(-1),
+                    state[:, -1].unsqueeze(-1),
                 ],
                 dim=1,
             )
