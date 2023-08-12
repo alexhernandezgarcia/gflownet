@@ -25,9 +25,9 @@ class EGNNModel(nn.Module):
     ):
         super().__init__()
 
-        self.egnn_layers = []
+        egnn_layers = []
         for i in range(n_gnn_layers):
-            self.egnn_layers.append(
+            egnn_layers.append(
                 EGNNConv(
                     node_feat_dim if i == 0 else egnn_hidden_dim,
                     egnn_hidden_dim,
@@ -35,6 +35,7 @@ class EGNNModel(nn.Module):
                     edge_feat_dim,
                 )
             )
+        self.egnn_layers = nn.ModuleList(egnn_layers)
 
         node_mlp_layers = []
         for i in range(n_node_mlp_layers):

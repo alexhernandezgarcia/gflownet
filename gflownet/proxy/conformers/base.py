@@ -78,7 +78,7 @@ class MoleculeEnergyBase(Proxy, ABC):
             [env_states, np.ones((env_states.shape[0], 1))], axis=1
         )
         proxy_states = env.statebatch2proxy(env_states)
-        energies = self.compute_energy(proxy_states)
+        energies = self.compute_energy(proxy_states).cpu().numpy()
 
         self.max_energy = max(energies)
         self.min_energy = min(energies)
