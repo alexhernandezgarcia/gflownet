@@ -50,6 +50,7 @@ class LeafSelectionHead(torch.nn.Module):
     def __init__(
         self,
         backbone: torch.nn.Module,
+        max_nodes: int,
         n_layers: int = 2,
         hidden_dim: int = 64,
         layer: str = "GCNConv",
@@ -57,6 +58,8 @@ class LeafSelectionHead(torch.nn.Module):
         dropout: float = 0.0,
     ):
         super().__init__()
+
+        self.max_nodes = max_nodes
 
         layer = getattr(torch_geometric.nn, layer)
         activation = getattr(torch.nn, activation)
@@ -79,15 +82,21 @@ class LeafSelectionHead(torch.nn.Module):
         self.eos_head_layers = torch.nn.Linear(hidden_dim, 1)
 
     def forward(self, data: torch_geometric.data.Data) -> (torch.Tensor, torch.Tensor):
-        x, edge_index, batch = data.x, data.edge_index, data.batch
+        x, edge_index, node_index, batch = (
+            data.x,
+            data.edge_index,
+            data.node_index,
+            data.batch,
+        )
         x = self.backbone(data)
         x = self.body(x, edge_index, batch)
 
-        y_leaf = self.leaf_head_layer(x, edge_index)
+        leaf_logits = self.leaf_head_layer(x, edge_index)[:, 0]
         if batch is None:
-            y_leaf = y_leaf.squeeze(-1)
+            y_leaf = torch.full((1, self.max_nodes), torch.nan)
+            y_leaf[0, node_index] = leaf_logits
         else:
-            y_leaf = torch.stack(unbatch(y_leaf, batch)).squeeze(-1)
+            raise NotImplementedError
 
         x_pool = global_mean_pool(x, batch)
         y_eos = self.eos_head_layers(x_pool)[:, 0]
@@ -283,7 +292,7 @@ class ForwardTreeModel(TreeModel):
 
             if stage == Stage.COMPLETE:
                 y_leaf, y_eos = self.leaf_head(graph)
-                logits[i, self.leaf_index : len(y_leaf)] = y_leaf
+                logits[i, self.leaf_index : self.feature_index] = y_leaf[0]
                 logits[i, self.eos_index] = y_eos
             else:
                 k = Tree._find_active(state)
@@ -336,7 +345,7 @@ class BackwardTreeModel(TreeModel):
 class TreePolicy(Policy):
     def __init__(self, config, env, device, float_precision, base=None):
         self.backbone_args = {}
-        self.leaf_head_args = {}
+        self.leaf_head_args = {"max_nodes": env.n_nodes}
         self.feature_head_args = {"output_dim": env.X_train.shape[1]}
         if env.continuous:
             self.threshold_head_args = {"output_dim": env.components * 3}
