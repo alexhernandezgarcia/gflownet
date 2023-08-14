@@ -295,11 +295,11 @@ class ForwardTreeModel(TreeModel):
                         feature_index,
                     )[0]
                     if self.continuous:
+                        logits[i, (self.eos_index + 1) :] = head_output
+                    else:
                         logits[
                             i, self.threshold_index : self.operator_index
                         ] = head_output
-                    else:
-                        logits[i, (self.eos_index + 1) :] = head_output
                 elif stage == Stage.THRESHOLD:
                     logits[
                         i, self.operator_index : self.eos_index
