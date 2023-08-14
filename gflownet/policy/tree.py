@@ -3,6 +3,7 @@ from typing import Optional
 import torch
 import torch_geometric
 from torch_geometric.nn import global_mean_pool
+from torch_geometric.utils import unbatch
 
 from gflownet.envs.tree import Attribute, Stage, Tree
 from gflownet.policy.base import Policy
@@ -16,7 +17,7 @@ class Backbone(torch.nn.Module):
         input_dim: int = 5,
         layer: str = "GCNConv",
         activation: str = "LeakyReLU",
-        dropout: float = 0.5,
+        dropout: float = 0.0,
     ):
         super().__init__()
 
@@ -53,7 +54,7 @@ class LeafSelectionHead(torch.nn.Module):
         hidden_dim: int = 64,
         layer: str = "GCNConv",
         activation: str = "LeakyReLU",
-        dropout: float = 0.5,
+        dropout: float = 0.0,
     ):
         super().__init__()
 
@@ -82,8 +83,11 @@ class LeafSelectionHead(torch.nn.Module):
         x = self.backbone(data)
         x = self.body(x, edge_index, batch)
 
-        y_leaf = self.leaf_head_layer(x, edge_index, batch)
-        y_leaf = y_leaf.squeeze(-1)
+        y_leaf = self.leaf_head_layer(x, edge_index)
+        if batch is None:
+            y_leaf = y_leaf.squeeze(-1)
+        else:
+            y_leaf = torch.stack(unbatch(y_leaf, batch)).squeeze(-1)
 
         x_pool = global_mean_pool(x, batch)
         y_eos = self.eos_head_layers(x_pool)[:, 0]
@@ -126,7 +130,7 @@ class FeatureSelectionHead(torch.nn.Module):
         n_layers: int = 2,
         hidden_dim: int = 64,
         activation: str = "LeakyReLU",
-        dropout: float = 0.5,
+        dropout: float = 0.0,
     ):
         super().__init__()
 
@@ -157,7 +161,7 @@ class ThresholdSelectionHead(torch.nn.Module):
         n_layers: int = 2,
         hidden_dim: int = 64,
         activation: str = "LeakyReLU",
-        dropout: float = 0.5,
+        dropout: float = 0.0,
     ):
         super().__init__()
 
@@ -176,7 +180,7 @@ class ThresholdSelectionHead(torch.nn.Module):
         x = self.backbone(data)
         x_pool = global_mean_pool(x, batch)
         x_node = x[node_index, :]
-        x = torch.cat([x_pool, x_node, feature_index], dim=1)
+        x = torch.cat([x_pool, x_node, feature_index.unsqueeze(-1)], dim=1)
         x = self.model(x)
 
         return x
@@ -190,7 +194,7 @@ class OperatorSelectionHead(torch.nn.Module):
         n_layers: int = 2,
         hidden_dim: int = 64,
         activation: str = "LeakyReLU",
-        dropout: float = 0.5,
+        dropout: float = 0.0,
     ):
         super().__init__()
 
@@ -210,7 +214,10 @@ class OperatorSelectionHead(torch.nn.Module):
         x = self.backbone(data)
         x_pool = global_mean_pool(x, batch)
         x_node = x[node_index, :]
-        x = torch.cat([x_pool, x_node, feature_index, threshold], dim=1)
+        x = torch.cat(
+            [x_pool, x_node, feature_index.unsqueeze(-1), threshold.unsqueeze(-1)],
+            dim=1,
+        )
         x = self.model(x)
 
         return x
@@ -281,8 +288,8 @@ class ForwardTreeModel(TreeModel):
             else:
                 k = Tree._find_active(state)
                 node_index = torch.Tensor([k]).long()
-                feature_index = state[k, Attribute.FEATURE].unsqueeze(0).unsqueeze(0)
-                threshold = state[k, Attribute.THRESHOLD].unsqueeze(0).unsqueeze(0)
+                feature_index = state[k, Attribute.FEATURE].unsqueeze(0)
+                threshold = state[k, Attribute.THRESHOLD].unsqueeze(0)
 
                 if stage == Stage.LEAF:
                     logits[
