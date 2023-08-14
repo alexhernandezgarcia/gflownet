@@ -166,7 +166,7 @@ class Tree(GFlowNetEnv):
             "beta_alpha": 1.0,
             "beta_beta": 1.0,
         },
-        proxy_type: str = "mlp",
+        policy_type: str = "mlp",
         test_args: dict = {"top_n_trees": 0},
         **kwargs,
     ):
@@ -216,8 +216,8 @@ class Tree(GFlowNetEnv):
             Number of uniformly distributed thresholds in a (0; 1) range that will be used
             in the discrete mode.
 
-        proxy_type : str
-            Type of proxy that will be used with the environment, either 'mlp' or 'gnn'.
+        policy_type : str
+            Type of policy that will be used with the environment, either 'mlp' or 'gnn'.
             Influences which state2policy functions will be used.
 
         threshold_components : int
@@ -282,12 +282,12 @@ class Tree(GFlowNetEnv):
         self.eos = (-1, -1)
 
         # Conversions
-        if proxy_type == "mlp":
+        if policy_type == "mlp":
             self.state2policy = self.state2policy_mlp
             self.statetorch2policy = self.statetorch2policy_mlp
-        elif proxy_type != "gnn":
+        elif policy_type != "gnn":
             raise ValueError(
-                f"Unrecognized proxy_type = {proxy_type}, expected either 'mlp' or 'gnn'."
+                f"Unrecognized policy_type = {policy_type}, expected either 'mlp' or 'gnn'."
             )
         self.statetorch2oracle = self.statetorch2policy
 
