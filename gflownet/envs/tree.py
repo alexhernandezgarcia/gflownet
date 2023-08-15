@@ -1187,7 +1187,11 @@ class Tree(GFlowNetEnv):
 
     @staticmethod
     def _get_graph(
-        state: torch.Tensor, graph: Optional[nx.DiGraph] = None, k: int = 0
+        state: torch.Tensor,
+        bidirectional: bool,
+        *,
+        graph: Optional[nx.DiGraph] = None,
+        k: int = 0,
     ) -> nx.DiGraph:
         """
         Recursively convert state into a networkx directional graph.
@@ -1201,28 +1205,32 @@ class Tree(GFlowNetEnv):
         if attributes[Attribute.TYPE] != NodeType.CLASSIFIER:
             k_left = Tree._get_left_child(k)
             if not torch.any(torch.isnan(state[k_left])):
-                Tree._get_graph(state, graph, k=k_left)
+                Tree._get_graph(state, bidirectional, graph=graph, k=k_left)
                 graph.add_edge(k, k_left)
+                if bidirectional:
+                    graph.add_edge(k_left, k)
 
             k_right = Tree._get_right_child(k)
             if not torch.any(torch.isnan(state[k_right])):
-                Tree._get_graph(state, graph, k=k_right)
+                Tree._get_graph(state, bidirectional, graph=graph, k=k_right)
                 graph.add_edge(k, k_right)
+                if bidirectional:
+                    graph.add_edge(k_right, k)
 
         return graph
 
     @staticmethod
-    def to_pyg(state: torch.Tensor) -> pyg.data.Data:
+    def to_pyg(state: torch.Tensor, bidirectional: bool = True) -> pyg.data.Data:
         """
         Convert given state into a PyG graph.
         """
-        return from_networkx(Tree._get_graph(state))
+        return from_networkx(Tree._get_graph(state, bidirectional))
 
-    def _to_pyg(self) -> pyg.data.Data:
+    def _to_pyg(self, bidirectional: bool = True) -> pyg.data.Data:
         """
         Convert self.state into a PyG graph.
         """
-        return Tree.to_pyg(self.state)
+        return Tree.to_pyg(self.state, bidirectional=bidirectional)
 
     @staticmethod
     def _load_dataset(data_path):
@@ -1284,7 +1292,7 @@ class Tree(GFlowNetEnv):
         """
         Plot current state of the tree.
         """
-        graph = Tree._get_graph(state)
+        graph = Tree._get_graph(state, bidirectional=False)
 
         labels = {}
         node_color = []
