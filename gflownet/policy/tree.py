@@ -96,7 +96,11 @@ class LeafSelectionHead(torch.nn.Module):
             y_leaf = torch.full((1, self.max_nodes), torch.nan)
             y_leaf[0, k] = leaf_logits
         else:
-            raise NotImplementedError
+            logits_batch = unbatch(leaf_logits, batch)
+            k_batch = unbatch(k, batch)
+            y_leaf = torch.full((len(logits_batch), self.max_nodes), torch.nan)
+            for i, (logits_i, k_i) in enumerate(zip(logits_batch, k_batch)):
+                y_leaf[i, k_i] = logits_i
 
         x_pool = global_mean_pool(x, batch)
         y_eos = self.eos_head_layers(x_pool)[:, 0]
