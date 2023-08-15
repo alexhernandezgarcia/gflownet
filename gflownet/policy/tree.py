@@ -296,7 +296,7 @@ class ForwardTreeModel(TreeModel):
                 logits[i, self.eos_index] = y_eos
             else:
                 k = Tree._find_active(state)
-                node_index = torch.Tensor([k]).long()
+                node_index = torch.where(graph.k == k)[0]
                 feature_index = state[k, Attribute.FEATURE].unsqueeze(0)
                 threshold = state[k, Attribute.THRESHOLD].unsqueeze(0)
 
