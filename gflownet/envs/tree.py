@@ -1196,7 +1196,7 @@ class Tree(GFlowNetEnv):
             graph = nx.DiGraph()
 
         attributes = state[k]
-        graph.add_node(k, x=attributes, node_index=k)
+        graph.add_node(k, x=attributes, k=k)
 
         if attributes[Attribute.TYPE] != NodeType.CLASSIFIER:
             k_left = Tree._get_left_child(k)

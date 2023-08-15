@@ -82,10 +82,10 @@ class LeafSelectionHead(torch.nn.Module):
         self.eos_head_layers = torch.nn.Linear(hidden_dim, 1)
 
     def forward(self, data: torch_geometric.data.Data) -> (torch.Tensor, torch.Tensor):
-        x, edge_index, node_index, batch = (
+        x, edge_index, k, batch = (
             data.x,
             data.edge_index,
-            data.node_index,
+            data.k,
             data.batch,
         )
         x = self.backbone(data)
@@ -94,7 +94,7 @@ class LeafSelectionHead(torch.nn.Module):
         leaf_logits = self.leaf_head_layer(x, edge_index)[:, 0]
         if batch is None:
             y_leaf = torch.full((1, self.max_nodes), torch.nan)
-            y_leaf[0, node_index] = leaf_logits
+            y_leaf[0, k] = leaf_logits
         else:
             raise NotImplementedError
 
