@@ -278,7 +278,7 @@ class Tree(GFlowNetEnv):
         attributes_root[Attribute.ACTIVE] = Status.INACTIVE
 
         # End-of-sequence action.
-        self.eos = (-1, -1)
+        self.eos = (-1, -1, -1)
 
         # Conversions
         if policy_type == "mlp":
@@ -479,7 +479,7 @@ class Tree(GFlowNetEnv):
         attributes[Attribute.CLASS] = output
         attributes[Attribute.ACTIVE] = Status.INACTIVE
 
-    def get_action_space(self) -> List[Tuple[int, int]]:
+    def get_action_space(self) -> List[Tuple[int, int, int]]:
         """
         Actions are a tuple containing:
             1) action type:
@@ -487,36 +487,41 @@ class Tree(GFlowNetEnv):
                 1 - pick feature,
                 2 - pick threshold,
                 3 - pick operator,
-            2) action value, depending on the action type:
-                pick leaf: leaf index
-                pick feature: feature index
-                pick threshold: threshold value
-                pick operator: operator index
+            2) node index,
+            3) action value, depending on the action type:
+                pick leaf: -1,
+                pick feature: feature index,
+                pick threshold: threshold value,
+                pick operator: operator index.
         """
         actions = []
         # Pick leaf
         self._action_index_pick_leaf = 0
-        actions.extend([(ActionType.PICK_LEAF, idx) for idx in range(self.n_nodes)])
+        actions.extend([(ActionType.PICK_LEAF, idx, -1) for idx in range(self.n_nodes)])
         # Pick feature
         self._action_index_pick_feature = len(actions)
         actions.extend(
-            [(ActionType.PICK_FEATURE, idx) for idx in range(self.n_features)]
+            [(ActionType.PICK_FEATURE, -1, idx) for idx in range(self.n_features)]
         )
         # Pick threshold
         self._action_index_pick_threshold = len(actions)
         if self.continuous:
-            actions.extend([(ActionType.PICK_THRESHOLD, -1)])
+            actions.extend([(ActionType.PICK_THRESHOLD, -1, -1)])
         else:
             actions.extend(
                 [
-                    (ActionType.PICK_THRESHOLD, idx)
+                    (ActionType.PICK_THRESHOLD, -1, idx)
                     for idx, thr in enumerate(self.thresholds)
                 ]
             )
         # Pick operator
         self._action_index_pick_operator = len(actions)
         actions.extend(
-            [(ActionType.PICK_OPERATOR, op) for op in [Operator.LT, Operator.GTE]]
+            [
+                (ActionType.PICK_OPERATOR, idx, op)
+                for op in [Operator.LT, Operator.GTE]
+                for idx in range(self.n_nodes)
+            ]
         )
         # EOS
         self._action_index_eos = len(actions)
@@ -525,8 +530,8 @@ class Tree(GFlowNetEnv):
         return actions
 
     def step(
-        self, action: Tuple[int, Union[int, float]], skip_mask_check: bool = False
-    ) -> Tuple[List[int], Tuple[int, Union[int, float]], bool]:
+        self, action: Tuple[int, int, Union[int, float]], skip_mask_check: bool = False
+    ) -> Tuple[List[int], Tuple[int, int, Union[int, float]], bool]:
         """
         Executes step given an action.
 
@@ -567,21 +572,23 @@ class Tree(GFlowNetEnv):
         self.n_actions += 1
 
         if action != self.eos:
-            action_type, action_value = action
+            action_type, k, action_value = action
 
             if action_type == ActionType.PICK_LEAF:
-                self._pick_leaf(action_value)
+                self._pick_leaf(k)
             else:
-                active_node = self._find_active(self.state)
+                if k == -1:
+                    k = self._find_active(self.state)
+
                 if action_type == ActionType.PICK_FEATURE:
-                    self._pick_feature(active_node, action_value)
+                    self._pick_feature(k, action_value)
                 elif action_type == ActionType.PICK_THRESHOLD:
                     if self.continuous:
-                        self._pick_threshold(active_node, action_value)
+                        self._pick_threshold(k, action_value)
                     else:
-                        self._pick_threshold(active_node, self.thresholds[action_value])
+                        self._pick_threshold(k, self.thresholds[action_value])
                 elif action_type == ActionType.PICK_OPERATOR:
-                    self._pick_operator(active_node, action_value)
+                    self._pick_operator(k, action_value)
                 else:
                     raise NotImplementedError(
                         f"Unrecognized action type: {action_type}."
@@ -660,7 +667,7 @@ class Tree(GFlowNetEnv):
         # Log probs
         logprobs[mask_cont] = distr_threshold.log_prob(thresholds)
         # Build actions
-        actions_cont = [(ActionType.PICK_THRESHOLD, th.item()) for th in thresholds]
+        actions_cont = [(ActionType.PICK_THRESHOLD, -1, th.item()) for th in thresholds]
         actions = []
         for is_discrete in mask_discrete:
             if is_discrete:
@@ -1009,8 +1016,10 @@ class Tree(GFlowNetEnv):
                 mask[idx] = False
         elif stage == Stage.THRESHOLD:
             # Threshold was picked, only picking the operator actions are valid.
+            k = self._find_active(state)
             for idx in range(self._action_index_pick_operator, self._action_index_eos):
-                mask[idx] = False
+                if self.action_space[idx][1] == k:
+                    mask[idx] = False
         else:
             raise ValueError(f"Unrecognized stage {stage}.")
 
@@ -1086,6 +1095,7 @@ class Tree(GFlowNetEnv):
                 # Set action operator as class of left child.
                 action = (
                     ActionType.PICK_OPERATOR,
+                    k_parent,
                     int(attributes_left[Attribute.CLASS].item()),
                 )
 
@@ -1129,7 +1139,7 @@ class Tree(GFlowNetEnv):
                     attributes[Attribute.ACTIVE] = Status.INACTIVE
 
                     parents.append(parent)
-                    actions.append((ActionType.PICK_LEAF, k))
+                    actions.append((ActionType.PICK_LEAF, k, -1))
             elif stage == Stage.FEATURE:
                 # Reverse self._pick_feature.
                 parent = state.clone()
@@ -1140,7 +1150,7 @@ class Tree(GFlowNetEnv):
 
                 parents.append(parent)
                 actions.append(
-                    (ActionType.PICK_FEATURE, state[k][Attribute.FEATURE].item())
+                    (ActionType.PICK_FEATURE, -1, state[k][Attribute.FEATURE].item())
                 )
             elif stage == Stage.THRESHOLD:
                 # Reverse self._pick_threshold.
@@ -1152,14 +1162,14 @@ class Tree(GFlowNetEnv):
 
                 parents.append(parent)
                 if self.continuous:
-                    actions.append((ActionType.PICK_THRESHOLD, -1))
+                    actions.append((ActionType.PICK_THRESHOLD, -1, -1))
                 else:
                     threshold_idx = np.where(
                         np.isclose(
                             self.thresholds, state[k][Attribute.THRESHOLD].item()
                         )
                     )[0].item()
-                    actions.append((ActionType.PICK_THRESHOLD, threshold_idx))
+                    actions.append((ActionType.PICK_THRESHOLD, -1, threshold_idx))
             else:
                 raise ValueError(f"Unrecognized stage {stage}.")
 
@@ -1172,7 +1182,7 @@ class Tree(GFlowNetEnv):
         be contrasted with the action space and masks.
         """
         if action[0] == ActionType.PICK_THRESHOLD:
-            action = (ActionType.PICK_THRESHOLD, -1)
+            action = (ActionType.PICK_THRESHOLD, -1, -1)
         return action
 
     def action2representative(self, action: Tuple) -> Tuple:
