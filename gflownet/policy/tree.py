@@ -2,7 +2,9 @@ from typing import Optional
 
 import torch
 import torch_geometric
+from torch_geometric.data import Batch
 from torch_geometric.nn import global_mean_pool
+from torch_geometric.transforms import AddSelfLoops, Compose, ToUndirected
 from torch_geometric.utils import unbatch
 
 from gflownet.envs.tree import Attribute, Stage, Tree
@@ -152,14 +154,10 @@ class FeatureSelectionHead(torch.nn.Module):
             input_dim, hidden_dim, output_dim, n_layers, activation, dropout
         )
 
-    def forward(
-        self, data: torch_geometric.data.Data, node_index: torch.Tensor
-    ) -> torch.Tensor:
+    def forward(self, data: torch_geometric.data.Data) -> torch.Tensor:
         x, edge_index, batch = (data.x, data.edge_index, data.batch)
         x = self.backbone(data)
-        x_pool = global_mean_pool(x, batch)
-        x_node = x[node_index, :]
-        x = torch.cat([x_pool, x_node], dim=1)
+        x = global_mean_pool(x, batch)
         x = self.model(x)
 
         return x
@@ -186,14 +184,12 @@ class ThresholdSelectionHead(torch.nn.Module):
     def forward(
         self,
         data: torch_geometric.data.Data,
-        node_index: torch.Tensor,
         feature_index: torch.Tensor,
     ) -> torch.Tensor:
         x, edge_index, batch = (data.x, data.edge_index, data.batch)
         x = self.backbone(data)
         x_pool = global_mean_pool(x, batch)
-        x_node = x[node_index, :]
-        x = torch.cat([x_pool, x_node, feature_index.unsqueeze(-1)], dim=1)
+        x = torch.cat([x_pool, feature_index.unsqueeze(-1)], dim=1)
         x = self.model(x)
 
         return x
@@ -219,16 +215,14 @@ class OperatorSelectionHead(torch.nn.Module):
     def forward(
         self,
         data: torch_geometric.data.Data,
-        node_index: torch.Tensor,
         feature_index: torch.Tensor,
         threshold: torch.Tensor,
     ) -> torch.Tensor:
         x, edge_index, batch = (data.x, data.edge_index, data.batch)
         x = self.backbone(data)
         x_pool = global_mean_pool(x, batch)
-        x_node = x[node_index, :]
         x = torch.cat(
-            [x_pool, x_node, feature_index.unsqueeze(-1), threshold.unsqueeze(-1)],
+            [x_pool, feature_index.unsqueeze(-1), threshold.unsqueeze(-1)],
             dim=1,
         )
         x = self.model(x)
@@ -271,66 +265,71 @@ class TreeModel(torch.nn.Module):
         self.leaf_head = LeafSelectionHead(backbone=self.backbone, **leaf_head_args)
         self.feature_head = FeatureSelectionHead(
             backbone=self.backbone,
-            input_dim=(2 * self.backbone.hidden_dim),
+            input_dim=self.backbone.hidden_dim,
             **feature_head_args,
         )
         self.threshold_head = ThresholdSelectionHead(
             backbone=self.backbone,
-            input_dim=(2 * self.backbone.hidden_dim + 1),
+            input_dim=(self.backbone.hidden_dim + 1),
             **threshold_head_args,
         )
         self.operator_head = OperatorSelectionHead(
             backbone=self.backbone,
-            input_dim=(2 * self.backbone.hidden_dim + 2),
+            input_dim=(self.backbone.hidden_dim + 2),
             **operator_head_args,
         )
+
+        self.transform = Compose([ToUndirected(), AddSelfLoops()])
 
 
 class ForwardTreeModel(TreeModel):
     def forward(self, x):
         logits = torch.full((x.shape[0], self.policy_output_dim), torch.nan)
+        stages = torch.stack([Tree.get_stage(state) for state in x])
 
-        for i, state in enumerate(x):
-            stage = Tree.get_stage(state)
-            graph = Tree.to_pyg(state)
+        for stage in stages.unique():
+            indices = stages == stage
+            states = x[indices]
+
+            batch = Batch.from_data_list([Tree.to_pyg(state) for state in states])
+            batch = self.transform(batch)
 
             if stage == Stage.COMPLETE:
-                y_leaf, y_eos = self.leaf_head(graph)
-                logits[i, self.leaf_index : self.feature_index] = y_leaf[0]
-                logits[i, self.eos_index] = y_eos
+                y_leaf, y_eos = self.leaf_head(batch)
+                logits[indices, self.leaf_index : self.feature_index] = y_leaf
+                logits[indices, self.eos_index] = y_eos
             else:
-                k = Tree._find_active(state)
-                node_index = torch.where(graph.k == k)[0]
-                feature_index = state[k, Attribute.FEATURE].unsqueeze(0)
-                threshold = state[k, Attribute.THRESHOLD].unsqueeze(0)
+                ks = [Tree._find_active(state) for state in states]
+                feature_index = torch.Tensor(
+                    [states[i, k_i, Attribute.FEATURE] for i, k_i in enumerate(ks)]
+                )
+                threshold = torch.Tensor(
+                    [states[i, k_i, Attribute.THRESHOLD] for i, k_i in enumerate(ks)]
+                )
 
                 if stage == Stage.LEAF:
                     logits[
-                        i, self.feature_index : self.threshold_index
-                    ] = self.feature_head(graph, node_index)[0]
+                        indices, self.feature_index : self.threshold_index
+                    ] = self.feature_head(batch)
                 elif stage == Stage.FEATURE:
                     head_output = self.threshold_head(
-                        graph,
-                        node_index,
+                        batch,
                         feature_index,
-                    )[0]
+                    )
                     if self.continuous:
-                        logits[i, (self.eos_index + 1) :] = head_output
+                        logits[indices, (self.eos_index + 1) :] = head_output
                     else:
                         logits[
-                            i, self.threshold_index : self.operator_index
+                            indices, self.threshold_index : self.operator_index
                         ] = head_output
                 elif stage == Stage.THRESHOLD:
                     logits[
-                        i, self.operator_index : self.eos_index
+                        indices, self.operator_index : self.eos_index
                     ] = self.operator_head(
-                        graph,
-                        node_index,
+                        batch,
                         feature_index,
                         threshold,
-                    )[
-                        0
-                    ]
+                    )
                 else:
                     raise ValueError(f"Unrecognized stage = {stage}.")
 
