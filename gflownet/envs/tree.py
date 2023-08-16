@@ -15,7 +15,6 @@ import torch
 import torch_geometric as pyg
 from networkx.drawing.nx_pydot import graphviz_layout
 from torch.distributions import Beta, Categorical, MixtureSameFamily, Uniform
-from torch_geometric.utils.convert import from_networkx
 from torchtyping import TensorType
 
 from gflownet.envs.base import GFlowNetEnv
