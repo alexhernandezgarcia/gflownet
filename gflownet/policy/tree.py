@@ -4,7 +4,6 @@ import torch
 import torch_geometric
 from torch_geometric.data import Batch
 from torch_geometric.nn import global_mean_pool
-from torch_geometric.transforms import AddSelfLoops, Compose, ToUndirected
 from torch_geometric.utils import unbatch
 
 from gflownet.envs.tree import Attribute, Stage, Tree
@@ -279,8 +278,6 @@ class TreeModel(torch.nn.Module):
             **operator_head_args,
         )
 
-        self.transform = Compose([ToUndirected(), AddSelfLoops()])
-
 
 class ForwardTreeModel(TreeModel):
     def forward(self, x):
@@ -292,7 +289,6 @@ class ForwardTreeModel(TreeModel):
             states = x[indices]
 
             batch = Batch.from_data_list([Tree.to_pyg(state) for state in states])
-            batch = self.transform(batch)
 
             if stage == Stage.COMPLETE:
                 y_leaf, y_eos = self.leaf_head(batch)

@@ -1220,17 +1220,33 @@ class Tree(GFlowNetEnv):
         return graph
 
     @staticmethod
-    def to_pyg(state: torch.Tensor, bidirectional: bool = True) -> pyg.data.Data:
+    def to_pyg(state: torch.Tensor) -> pyg.data.Data:
         """
         Convert given state into a PyG graph.
         """
-        return from_networkx(Tree._get_graph(state, bidirectional))
+        k = torch.nonzero(~state[:-1, Attribute.TYPE].isnan()).squeeze(-1)
+        x = state[k].clone().detach()
 
-    def _to_pyg(self, bidirectional: bool = True) -> pyg.data.Data:
+        k_array = k.detach().cpu().numpy()
+        k_mapping = {value: index for index, value in enumerate(k_array)}
+        k_set = set(k_array)
+        edges = []
+        for k_i in k_array:
+            edges.append([k_mapping[k_i], k_mapping[k_i]])
+            if k_i > 0:
+                k_parent = (k_i - 1) // 2
+                if k_parent in k_set:
+                    edges.append([k_mapping[k_parent], k_mapping[k_i]])
+                    edges.append([k_mapping[k_i], k_mapping[k_parent]])
+        edge_index = torch.Tensor(edges).T.long()
+
+        return pyg.data.Data(x=x, edge_index=edge_index, k=k)
+
+    def _to_pyg(self) -> pyg.data.Data:
         """
         Convert self.state into a PyG graph.
         """
-        return Tree.to_pyg(self.state, bidirectional=bidirectional)
+        return Tree.to_pyg(self.state)
 
     @staticmethod
     def _load_dataset(data_path):
