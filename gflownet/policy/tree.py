@@ -109,6 +109,68 @@ class LeafSelectionHead(torch.nn.Module):
         return y_leaf, y_eos
 
 
+class BackwardLeafSelectionHead(torch.nn.Module):
+    def __init__(
+        self,
+        backbone: torch.nn.Module,
+        max_nodes: int,
+        n_layers: int = 2,
+        hidden_dim: int = 64,
+        layer: str = "GCNConv",
+        activation: str = "LeakyReLU",
+        dropout: float = 0.0,
+    ):
+        super().__init__()
+
+        self.max_nodes = max_nodes
+
+        layer = getattr(torch_geometric.nn, layer)
+        activation = getattr(torch.nn, activation)
+
+        body_layers = []
+        for i in range(n_layers - 1):
+            body_layers.append(
+                (
+                    layer(backbone.hidden_dim if i == 0 else hidden_dim, hidden_dim),
+                    "x, edge_index -> x",
+                )
+            )
+            body_layers.append(activation())
+            if dropout > 0:
+                body_layers.append(torch.nn.Dropout(p=dropout))
+
+        self.backbone = backbone
+        self.body = torch_geometric.nn.Sequential("x, edge_index, batch", body_layers)
+        self.leaf_head_layer = layer(hidden_dim, 2)
+
+    def forward(self, data: torch_geometric.data.Data) -> (torch.Tensor, torch.Tensor):
+        x, edge_index, k, batch = (
+            data.x,
+            data.edge_index,
+            data.k,
+            data.batch,
+        )
+        x = self.backbone(data)
+        x = self.body(x, edge_index, batch)
+
+        leaf_logits = self.leaf_head_layer(x, edge_index)
+        if batch is None:
+            y_leaf = torch.full((1, self.max_nodes, 2), torch.nan)
+            y_leaf[0, k] = leaf_logits
+            # TODO: quadruple-check that flattening is done in a right order
+            y_leaf = y_leaf.flatten()
+        else:
+            logits_batch = unbatch(leaf_logits, batch)
+            k_batch = unbatch(k, batch)
+            y_leaf = torch.full((len(logits_batch), self.max_nodes, 2), torch.nan)
+            for i, (logits_i, k_i) in enumerate(zip(logits_batch, k_batch)):
+                y_leaf[i, k_i] = logits_i
+            # TODO: quadruple-check that flattening is done in a right order
+            y_leaf = y_leaf.reshape((len(logits_batch), -1))
+
+        return y_leaf
+
+
 def _construct_node_head(
     input_dim: int,
     hidden_dim: int,
@@ -229,7 +291,7 @@ class OperatorSelectionHead(torch.nn.Module):
         return x
 
 
-class TreeModel(torch.nn.Module):
+class ForwardTreeModel(torch.nn.Module):
     def __init__(
         self,
         continuous: bool,
@@ -278,8 +340,6 @@ class TreeModel(torch.nn.Module):
             **operator_head_args,
         )
 
-
-class ForwardTreeModel(TreeModel):
     def forward(self, x):
         logits = torch.full((x.shape[0], self.policy_output_dim), torch.nan)
         stages = x[:, -1, 0]
@@ -343,11 +403,56 @@ class ForwardTreeModel(TreeModel):
         return logits
 
 
-class BackwardTreeModel(TreeModel):
+class BackwardTreeModel(torch.nn.Module):
+    def __init__(
+        self,
+        continuous: bool,
+        policy_output_dim: int,
+        leaf_index: int,
+        feature_index: int,
+        threshold_index: int,
+        operator_index: int,
+        eos_index: int,
+        base: Optional["TreePolicy"] = None,
+        backbone_args: Optional[dict] = None,
+        leaf_head_args: Optional[dict] = None,
+    ):
+        super().__init__()
+
+        self.continuous = continuous
+        self.policy_output_dim = policy_output_dim
+        self.leaf_index = leaf_index
+        self.feature_index = feature_index
+        self.threshold_index = threshold_index
+        self.operator_index = operator_index
+        self.eos_index = eos_index
+
+        if base is None:
+            self.backbone = Backbone(**backbone_args)
+        else:
+            self.backbone = base.model.backbone
+
+        self.leaf_head = BackwardLeafSelectionHead(
+            backbone=self.backbone, **leaf_head_args
+        )
+
     def forward(self, x):
-        logits = torch.full(
-            (x.shape[0], self.policy_output_dim), 1.0
-        )  # TODO: implement actual forward
+        logits = torch.full((x.shape[0], self.policy_output_dim), torch.nan)
+        stages = x[:, -1, 0]
+
+        for stage in stages.unique():
+            indices = stages == stage
+            states = x[indices]
+
+            batch = Batch.from_data_list([Tree.to_pyg(state) for state in states])
+
+            if stage == Stage.COMPLETE:
+                logits[indices, self.operator_index : self.eos_index] = self.leaf_head(
+                    batch
+                )
+                logits[indices, self.eos_index] = 1.0
+            else:
+                logits[indices] = 1.0
 
         return logits
 
@@ -390,25 +495,34 @@ class TreePolicy(Policy):
 
     def instantiate(self):
         if self.base is None:
-            model_class = ForwardTreeModel
+            self.model = ForwardTreeModel(
+                continuous=self.continuous,
+                policy_output_dim=self.policy_output_dim,
+                leaf_index=self.leaf_index,
+                feature_index=self.feature_index,
+                threshold_index=self.threshold_index,
+                operator_index=self.operator_index,
+                eos_index=self.eos_index,
+                base=self.base,
+                backbone_args=self.backbone_args,
+                leaf_head_args=self.leaf_head_args,
+                feature_head_args=self.feature_head_args,
+                threshold_head_args=self.threshold_head_args,
+                operator_head_args=self.operator_head_args,
+            ).to(self.device)
         else:
-            model_class = BackwardTreeModel
-
-        self.model = model_class(
-            continuous=self.continuous,
-            policy_output_dim=self.policy_output_dim,
-            leaf_index=self.leaf_index,
-            feature_index=self.feature_index,
-            threshold_index=self.threshold_index,
-            operator_index=self.operator_index,
-            eos_index=self.eos_index,
-            base=self.base,
-            backbone_args=self.backbone_args,
-            leaf_head_args=self.leaf_head_args,
-            feature_head_args=self.feature_head_args,
-            threshold_head_args=self.threshold_head_args,
-            operator_head_args=self.operator_head_args,
-        ).to(self.device)
+            self.model = BackwardTreeModel(
+                continuous=self.continuous,
+                policy_output_dim=self.policy_output_dim,
+                leaf_index=self.leaf_index,
+                feature_index=self.feature_index,
+                threshold_index=self.threshold_index,
+                operator_index=self.operator_index,
+                eos_index=self.eos_index,
+                base=self.base,
+                backbone_args=self.backbone_args,
+                leaf_head_args=self.leaf_head_args,
+            ).to(self.device)
 
     def __call__(self, states):
         return self.model(states)

@@ -16,4 +16,10 @@ forward:
   operator_head_args:
     n_layers: 2
     hidden_dim: 128
-backward: null
+backward:
+  backbone_args:
+    n_layers: 2
+    hidden_dim: 128
+  leaf_head_args:
+    n_layers: 2
+    hidden_dim: 128
