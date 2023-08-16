@@ -519,8 +519,8 @@ class Tree(GFlowNetEnv):
         actions.extend(
             [
                 (ActionType.PICK_OPERATOR, idx, op)
-                for op in [Operator.LT, Operator.GTE]
                 for idx in range(self.n_nodes)
+                for op in [Operator.LT, Operator.GTE]
             ]
         )
         # EOS

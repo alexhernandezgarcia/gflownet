@@ -294,20 +294,17 @@ class ForwardTreeModel(TreeModel):
                 y_leaf, y_eos = self.leaf_head(batch)
                 logits[indices, self.leaf_index : self.feature_index] = y_leaf
                 logits[indices, self.eos_index] = y_eos
+            elif stage == Stage.LEAF:
+                logits[
+                    indices, self.feature_index : self.threshold_index
+                ] = self.feature_head(batch)
             else:
                 ks = [Tree._find_active(state) for state in states]
                 feature_index = torch.Tensor(
                     [states[i, k_i, Attribute.FEATURE] for i, k_i in enumerate(ks)]
                 )
-                threshold = torch.Tensor(
-                    [states[i, k_i, Attribute.THRESHOLD] for i, k_i in enumerate(ks)]
-                )
 
-                if stage == Stage.LEAF:
-                    logits[
-                        indices, self.feature_index : self.threshold_index
-                    ] = self.feature_head(batch)
-                elif stage == Stage.FEATURE:
+                if stage == Stage.FEATURE:
                     head_output = self.threshold_head(
                         batch,
                         feature_index,
@@ -319,13 +316,27 @@ class ForwardTreeModel(TreeModel):
                             indices, self.threshold_index : self.operator_index
                         ] = head_output
                 elif stage == Stage.THRESHOLD:
-                    logits[
-                        indices, self.operator_index : self.eos_index
-                    ] = self.operator_head(
+                    threshold = torch.Tensor(
+                        [
+                            states[i, k_i, Attribute.THRESHOLD]
+                            for i, k_i in enumerate(ks)
+                        ]
+                    )
+                    head_output = self.operator_head(
                         batch,
                         feature_index,
                         threshold,
                     )
+
+                    indices = torch.nonzero(indices).squeeze()
+
+                    for i, k_i in enumerate(ks):
+                        logits[
+                            indices[i],
+                            (self.operator_index + 2 * k_i) : (
+                                self.operator_index + 2 * (k_i + 1)
+                            ),
+                        ] = head_output[i]
                 else:
                     raise ValueError(f"Unrecognized stage = {stage}.")
 
