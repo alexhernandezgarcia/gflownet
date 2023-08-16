@@ -282,7 +282,7 @@ class TreeModel(torch.nn.Module):
 class ForwardTreeModel(TreeModel):
     def forward(self, x):
         logits = torch.full((x.shape[0], self.policy_output_dim), torch.nan)
-        stages = torch.stack([Tree.get_stage(state) for state in x])
+        stages = x[:, -1, 0]
 
         for stage in stages.unique():
             indices = stages == stage
