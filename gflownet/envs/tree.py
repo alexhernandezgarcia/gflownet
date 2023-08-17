@@ -489,7 +489,7 @@ class Tree(GFlowNetEnv):
                 3 - pick operator,
             2) node index,
             3) action value, depending on the action type:
-                pick leaf: -1,
+                pick leaf: current class output,
                 pick feature: feature index,
                 pick threshold: threshold value,
                 pick operator: operator index.
@@ -497,7 +497,13 @@ class Tree(GFlowNetEnv):
         actions = []
         # Pick leaf
         self._action_index_pick_leaf = 0
-        actions.extend([(ActionType.PICK_LEAF, idx, -1) for idx in range(self.n_nodes)])
+        actions.extend(
+            [
+                (ActionType.PICK_LEAF, idx, output)
+                for idx in range(self.n_nodes)
+                for output in [0, 1]
+            ]
+        )
         # Pick feature
         self._action_index_pick_feature = len(actions)
         actions.extend(
@@ -1000,7 +1006,8 @@ class Tree(GFlowNetEnv):
             for k in leaves:
                 # Check if splitting the node wouldn't exceed max depth.
                 if Tree._get_right_child(k) < self.n_nodes:
-                    mask[self._action_index_pick_leaf + k] = False
+                    current_class = state[k, Attribute.CLASS].long()
+                    mask[self._action_index_pick_leaf + 2 * k + current_class] = False
             mask[self._action_index_eos] = False
         elif stage == Stage.LEAF:
             # Leaf was picked, only picking the feature actions are valid.
@@ -1139,7 +1146,7 @@ class Tree(GFlowNetEnv):
                     attributes[Attribute.ACTIVE] = Status.INACTIVE
 
                     parents.append(parent)
-                    actions.append((ActionType.PICK_LEAF, k, -1))
+                    actions.append((ActionType.PICK_LEAF, k, output))
             elif stage == Stage.FEATURE:
                 # Reverse self._pick_feature.
                 parent = state.clone()
