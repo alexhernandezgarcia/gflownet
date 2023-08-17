@@ -9,11 +9,11 @@ import networkx as nx
 import numpy as np
 import numpy.typing as npt
 import pandas as pd
-from sklearn.metrics import accuracy_score, balanced_accuracy_score
-from sklearn.preprocessing import MinMaxScaler
 import torch
 import torch_geometric as pyg
 from networkx.drawing.nx_pydot import graphviz_layout
+from sklearn.metrics import accuracy_score, balanced_accuracy_score
+from sklearn.preprocessing import MinMaxScaler
 from torch.distributions import Beta, Categorical, MixtureSameFamily, Uniform
 from torchtyping import TensorType
 
