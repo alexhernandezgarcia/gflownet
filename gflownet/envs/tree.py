@@ -497,6 +497,8 @@ class Tree(GFlowNetEnv):
         actions = []
         # Pick leaf
         self._action_index_pick_leaf = 0
+        # For loops have to be done in this order to be compatible
+        # with flattening in the GNN-based policy.
         actions.extend(
             [
                 (ActionType.PICK_LEAF, idx, output)
@@ -522,6 +524,8 @@ class Tree(GFlowNetEnv):
             )
         # Pick operator
         self._action_index_pick_operator = len(actions)
+        # For loops have to be done in this order to be compatible
+        # with flattening in the GNN-based policy.
         actions.extend(
             [
                 (ActionType.PICK_OPERATOR, idx, op)

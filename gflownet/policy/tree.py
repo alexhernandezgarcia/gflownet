@@ -52,6 +52,7 @@ class LeafSelectionHead(torch.nn.Module):
         self,
         backbone: torch.nn.Module,
         max_nodes: int,
+        model_eos: bool = True,
         n_layers: int = 2,
         hidden_dim: int = 64,
         layer: str = "GCNConv",
@@ -61,68 +62,7 @@ class LeafSelectionHead(torch.nn.Module):
         super().__init__()
 
         self.max_nodes = max_nodes
-
-        layer = getattr(torch_geometric.nn, layer)
-        activation = getattr(torch.nn, activation)
-
-        body_layers = []
-        for i in range(n_layers - 1):
-            body_layers.append(
-                (
-                    layer(backbone.hidden_dim if i == 0 else hidden_dim, hidden_dim),
-                    "x, edge_index -> x",
-                )
-            )
-            body_layers.append(activation())
-            if dropout > 0:
-                body_layers.append(torch.nn.Dropout(p=dropout))
-
-        self.backbone = backbone
-        self.body = torch_geometric.nn.Sequential("x, edge_index, batch", body_layers)
-        self.leaf_head_layer = layer(hidden_dim, 1)
-        self.eos_head_layers = torch.nn.Linear(hidden_dim, 1)
-
-    def forward(self, data: torch_geometric.data.Data) -> (torch.Tensor, torch.Tensor):
-        x, edge_index, k, batch = (
-            data.x,
-            data.edge_index,
-            data.k,
-            data.batch,
-        )
-        x = self.backbone(data)
-        x = self.body(x, edge_index, batch)
-
-        leaf_logits = self.leaf_head_layer(x, edge_index)[:, 0]
-        if batch is None:
-            y_leaf = torch.full((1, self.max_nodes), torch.nan)
-            y_leaf[0, k] = leaf_logits
-        else:
-            logits_batch = unbatch(leaf_logits, batch)
-            k_batch = unbatch(k, batch)
-            y_leaf = torch.full((len(logits_batch), self.max_nodes), torch.nan)
-            for i, (logits_i, k_i) in enumerate(zip(logits_batch, k_batch)):
-                y_leaf[i, k_i] = logits_i
-
-        x_pool = global_mean_pool(x, batch)
-        y_eos = self.eos_head_layers(x_pool)[:, 0]
-
-        return y_leaf, y_eos
-
-
-class BackwardLeafSelectionHead(torch.nn.Module):
-    def __init__(
-        self,
-        backbone: torch.nn.Module,
-        max_nodes: int,
-        n_layers: int = 2,
-        hidden_dim: int = 64,
-        layer: str = "GCNConv",
-        activation: str = "LeakyReLU",
-        dropout: float = 0.0,
-    ):
-        super().__init__()
-
-        self.max_nodes = max_nodes
+        self.model_eos = model_eos
 
         layer = getattr(torch_geometric.nn, layer)
         activation = getattr(torch.nn, activation)
@@ -142,6 +82,9 @@ class BackwardLeafSelectionHead(torch.nn.Module):
         self.backbone = backbone
         self.body = torch_geometric.nn.Sequential("x, edge_index, batch", body_layers)
         self.leaf_head_layer = layer(hidden_dim, 2)
+
+        if model_eos:
+            self.eos_head_layers = torch.nn.Linear(hidden_dim, 1)
 
     def forward(self, data: torch_geometric.data.Data) -> (torch.Tensor, torch.Tensor):
         x, edge_index, k, batch = (
@@ -168,7 +111,13 @@ class BackwardLeafSelectionHead(torch.nn.Module):
             # TODO: quadruple-check that flattening is done in a right order
             y_leaf = y_leaf.reshape((len(logits_batch), -1))
 
-        return y_leaf
+        if not self.model_eos:
+            return y_leaf
+
+        x_pool = global_mean_pool(x, batch)
+        y_eos = self.eos_head_layers(x_pool)[:, 0]
+
+        return y_leaf, y_eos
 
 
 def _construct_node_head(
@@ -432,8 +381,11 @@ class BackwardTreeModel(torch.nn.Module):
         else:
             self.backbone = base.model.backbone
 
-        self.leaf_head = BackwardLeafSelectionHead(
-            backbone=self.backbone, **leaf_head_args
+        self.complete_stage_head = LeafSelectionHead(
+            backbone=self.backbone, model_eos=False, **leaf_head_args
+        )
+        self.leaf_stage_head = LeafSelectionHead(
+            backbone=self.backbone, model_eos=False, **leaf_head_args
         )
 
     def forward(self, x):
@@ -447,12 +399,23 @@ class BackwardTreeModel(torch.nn.Module):
             batch = Batch.from_data_list([Tree.to_pyg(state) for state in states])
 
             if stage == Stage.COMPLETE:
-                logits[indices, self.operator_index : self.eos_index] = self.leaf_head(
-                    batch
-                )
+                logits[
+                    indices, self.operator_index : self.eos_index
+                ] = self.complete_stage_head(batch)
                 logits[indices, self.eos_index] = 1.0
+            elif stage == Stage.LEAF:
+                logits[
+                    indices, self.leaf_index : self.feature_index
+                ] = self.leaf_stage_head(batch)
+            elif stage == Stage.FEATURE:
+                logits[indices, self.feature_index : self.threshold_index] = 1.0
+            elif stage == Stage.THRESHOLD:
+                if self.continuous:
+                    logits[indices, (self.eos_index + 1) :] = 1.0
+                else:
+                    logits[indices, self.threshold_index : self.operator_index] = 1.0
             else:
-                logits[indices] = 1.0
+                raise ValueError(f"Unrecognized stage = {stage}.")
 
         return logits
 
