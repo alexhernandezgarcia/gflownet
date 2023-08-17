@@ -337,7 +337,7 @@ class ForwardTreeModel(torch.nn.Module):
                         threshold,
                     )
 
-                    indices = torch.nonzero(indices).squeeze()
+                    indices = torch.nonzero(indices).squeeze(-1)
 
                     for i, k_i in enumerate(ks):
                         logits[
