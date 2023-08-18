@@ -5,6 +5,7 @@ import pickle
 
 import numpy as np
 import pandas as pd
+import torch
 
 
 class Buffer:
@@ -153,8 +154,17 @@ class Buffer:
         for idx, (state, traj, reward, energy) in enumerate(
             zip(states, trajs, rewards, energies)
         ):
-            if allow_duplicate_states is False and state in self.replay_states.values():
-                continue
+            if not allow_duplicate_states:
+                if isinstance(state, torch.Tensor):
+                    is_duplicate = False
+                    for replay_state in self.replay_states.values():
+                        if torch.allclose(state, replay_state, equal_nan=True):
+                            is_duplicate = True
+                            break
+                else:
+                    is_duplicate = state in self.replay_states.values()
+                if is_duplicate:
+                    continue
             if (
                 reward > self.replay.iloc[-1]["reward"]
                 and traj not in self.replay_trajs.values()
