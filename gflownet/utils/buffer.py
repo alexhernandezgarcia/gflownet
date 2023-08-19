@@ -39,9 +39,9 @@ class Buffer:
         self.replay.reward = [-1 for _ in range(self.replay_capacity)]
         self.replay_states = {}
         self.replay_trajs = {}
+        self.replay_rewards = {}
         self.replay_pkl = "replay.pkl"
-        with open(self.replay_pkl, "wb") as f:
-            pickle.dump({"x": self.replay_states, "trajs": self.replay_trajs}, f)
+        self.save_replay()
         # Define train and test data sets
         if train is not None and "type" in train:
             self.train_type = train.type
@@ -111,6 +111,17 @@ class Buffer:
                 self.test
             )
 
+    def save_replay(self):
+        with open(self.replay_pkl, "wb") as f:
+            pickle.dump(
+                {
+                    "x": self.replay_states,
+                    "trajs": self.replay_trajs,
+                    "rewards": self.replay_rewards,
+                },
+                f,
+            )
+
     def add(
         self,
         states,
@@ -178,9 +189,9 @@ class Buffer:
                 }
                 self.replay_states[(idx, it)] = state
                 self.replay_trajs[(idx, it)] = traj
+                self.replay_rewards[(idx, it)] = reward
                 self.replay.sort_values(by="reward", ascending=False, inplace=True)
-        with open(self.replay_pkl, "wb") as f:
-            pickle.dump({"x": self.replay_states, "trajs": self.replay_trajs}, f)
+        self.save_replay()
         return self.replay
 
     def make_data_set(self, config):
