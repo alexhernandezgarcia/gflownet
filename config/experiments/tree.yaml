@@ -33,7 +33,7 @@ gflownet:
     lr: 0.001
     z_dim: 16
     lr_z_mult: 100
-    n_train_steps: 40000
+    n_train_steps: 10000
     lr_decay_period: 1000000
 
 # WandB
