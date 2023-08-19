@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 import torch
 
-from gflownet.envs.tree import Tree
+from gflownet.envs.tree import ActionType, Attribute, Tree
 from gflownet.proxy.tree import TreeProxy
 
 
@@ -30,10 +30,11 @@ def test__tree_proxy__returns_expected_energies(X, y):
             break
 
         def split_leaf(k: int):
-            full_tree.step((0, k))
-            full_tree.step((1, np.random.randint(5)))
-            full_tree.step((2, np.random.rand()))
-            full_tree.step((3, np.random.randint(2)))
+            cls = full_tree.state[k, Attribute.CLASS].long().item()
+            full_tree.step((ActionType.PICK_LEAF, k, cls))
+            full_tree.step((ActionType.PICK_FEATURE, -1, np.random.randint(5)))
+            full_tree.step((ActionType.PICK_THRESHOLD, -1, np.random.rand()))
+            full_tree.step((ActionType.PICK_OPERATOR, k, np.random.randint(2)))
 
         split_leaf(np.random.choice(splittable_leafs))
 
