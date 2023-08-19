@@ -567,14 +567,15 @@ class Tree(GFlowNetEnv):
             False, if the action is not allowed for the current state.
         """
         if self.continuous:
-            # Replace the continuous value of threshold by -1 to allow checking it
+            # Replace the continuous value of threshold by -1 to allow checking it.
             action_to_check = self.action2representative(action)
             do_step, self.state, action_to_check = self._pre_step(
-                action_to_check, skip_mask_check or self.skip_mask_check
+                action_to_check,
+                skip_mask_check=(skip_mask_check or self.skip_mask_check),
             )
         else:
             do_step, self.state, action_to_check = self._pre_step(
-                action, skip_mask_check or self.skip_mask_check
+                action, skip_mask_check=(skip_mask_check or self.skip_mask_check)
             )
         if not do_step:
             return self.state, action, False
@@ -608,6 +609,49 @@ class Tree(GFlowNetEnv):
         else:
             self.done = True
             return self.state, action, True
+
+    def step_backwards(
+        self, action: Tuple[int], skip_mask_check: bool = False
+    ) -> Tuple[List[int], Tuple[int], bool]:
+        """
+        Executes a backward step given an action.
+
+        Args
+        ----
+        action : tuple
+            Action from the action space.
+
+        skip_mask_check : bool
+            If True, skip computing forward mask of invalid actions to check if the
+            action is valid.
+
+        Returns
+        -------
+        self.state : list
+            The sequence after executing the action
+
+        action : int
+            Action index
+
+        valid : bool
+            False, if the action is not allowed for the current state.
+        """
+        if self.continuous:
+            # Replace the continuous value of threshold by -1 to allow checking it.
+            action = self.action2representative(action)
+        do_step, self.state, action_to_check = self._pre_step(
+            action,
+            backward=True,
+            skip_mask_check=(skip_mask_check or self.skip_mask_check),
+        )
+        if not do_step:
+            return self.state, action, False
+        parents, parents_a = self.get_parents()
+        state_next = parents[parents_a.index(action)]
+        self.state = state_next
+        self.done = False
+        self.n_actions += 1
+        return self.state, action, True
 
     def set_state(self, state: List, done: Optional[bool] = False):
         """
