@@ -1284,7 +1284,7 @@ class Tree(GFlowNetEnv):
         return graph
 
     @staticmethod
-    def to_pyg(state: torch.Tensor) -> pyg.data.Data:
+    def to_pyg(state: torch.Tensor, add_self_loop: bool = False) -> pyg.data.Data:
         """
         Convert given state into a PyG graph.
         """
@@ -1295,16 +1295,25 @@ class Tree(GFlowNetEnv):
         k_mapping = {value: index for index, value in enumerate(k_array)}
         k_set = set(k_array)
         edges = []
+        edge_attrs = []
         for k_i in k_array:
-            edges.append([k_mapping[k_i], k_mapping[k_i]])
+            if add_self_loop:
+                edges.append([k_mapping[k_i], k_mapping[k_i]])
             if k_i > 0:
                 k_parent = (k_i - 1) // 2
                 if k_parent in k_set:
                     edges.append([k_mapping[k_parent], k_mapping[k_i]])
+                    edge_attrs.append([1.0, 0.0])
                     edges.append([k_mapping[k_i], k_mapping[k_parent]])
-        edge_index = torch.Tensor(edges).T.long()
+                    edge_attrs.append([0.0, 1.0])
+        if len(edges) == 0:
+            edge_index = torch.empty((2, 0)).long()
+            edge_attr = torch.empty((0, 2)).float()
+        else:
+            edge_index = torch.Tensor(edges).T.long()
+            edge_attr = torch.Tensor(edge_attrs)
 
-        return pyg.data.Data(x=x, edge_index=edge_index, k=k)
+        return pyg.data.Data(x=x, edge_index=edge_index, edge_attr=edge_attr, k=k)
 
     def _to_pyg(self) -> pyg.data.Data:
         """
