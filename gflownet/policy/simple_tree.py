@@ -12,9 +12,9 @@ from gflownet.policy.base import Policy
 class Backbone(torch.nn.Module):
     def __init__(
         self,
+        input_dim: int,
         n_layers: int = 3,
         hidden_dim: int = 128,
-        input_dim: int = 5,
         layer: str = "GINEConv",
         activation: str = "LeakyReLU",
     ):
@@ -101,6 +101,7 @@ class Head(torch.nn.Module):
 class SimpleTreeModel(torch.nn.Module):
     def __init__(
         self,
+        n_features: int,
         policy_output_dim: int,
         base: Optional["TreePolicy"] = None,
         backbone_args: Optional[dict] = None,
@@ -108,6 +109,7 @@ class SimpleTreeModel(torch.nn.Module):
     ):
         super().__init__()
 
+        self.n_features = n_features
         self.policy_output_dim = policy_output_dim
 
         if base is None:
@@ -120,14 +122,17 @@ class SimpleTreeModel(torch.nn.Module):
         )
 
     def forward(self, x):
-        batch = Batch.from_data_list([Tree.to_pyg(state) for state in x])
+        batch = Batch.from_data_list(
+            [Tree.to_pyg(state, self.n_features) for state in x]
+        )
         return self.model(batch)
 
 
 class SimpleTreePolicy(Policy):
     def __init__(self, config, env, device, float_precision, base=None):
-        self.backbone_args = {}
+        self.backbone_args = {"input_dim": env.get_pyg_input_dim()}
         self.head_args = {}
+        self.n_features = env.n_features
         self.policy_output_dim = env.policy_output_dim
 
         super().__init__(
@@ -147,6 +152,7 @@ class SimpleTreePolicy(Policy):
 
     def instantiate(self):
         self.model = SimpleTreeModel(
+            n_features=self.n_features,
             policy_output_dim=self.policy_output_dim,
             base=self.base,
             backbone_args=self.backbone_args,

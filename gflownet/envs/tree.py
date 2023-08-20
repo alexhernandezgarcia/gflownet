@@ -10,6 +10,7 @@ import numpy as np
 import numpy.typing as npt
 import pandas as pd
 import torch
+import torch.nn.functional as F
 import torch_geometric as pyg
 from networkx.drawing.nx_pydot import graphviz_layout
 from sklearn.metrics import accuracy_score, balanced_accuracy_score
@@ -1283,13 +1284,30 @@ class Tree(GFlowNetEnv):
 
         return graph
 
+    def get_pyg_input_dim(self) -> int:
+        return Tree.to_pyg(self.state, self.n_features).x.shape[1]
+
     @staticmethod
-    def to_pyg(state: torch.Tensor, add_self_loop: bool = False) -> pyg.data.Data:
+    def to_pyg(
+        state: torch.Tensor,
+        n_features: int,
+        one_hot: bool = True,
+        add_self_loop: bool = False,
+    ) -> pyg.data.Data:
         """
         Convert given state into a PyG graph.
         """
         k = torch.nonzero(~state[:-1, Attribute.TYPE].isnan()).squeeze(-1)
         x = state[k].clone().detach()
+        if one_hot:
+            x = torch.cat(
+                [
+                    x[:, [Attribute.TYPE, Attribute.THRESHOLD, Attribute.ACTIVE]],
+                    F.one_hot((x[:, Attribute.FEATURE] + 1).long(), n_features + 1),
+                    F.one_hot((x[:, Attribute.CLASS] + 1).long(), 3),
+                ],
+                dim=1,
+            )
 
         k_array = k.detach().cpu().numpy()
         k_mapping = {value: index for index, value in enumerate(k_array)}
