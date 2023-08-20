@@ -3,7 +3,7 @@ from typing import Optional
 import torch
 import torch_geometric
 from torch_geometric.data import Batch
-from torch_geometric.nn import global_mean_pool
+from torch_geometric.nn import global_add_pool
 from torch_geometric.utils import unbatch
 
 from gflownet.envs.tree import Attribute, Stage, Tree
@@ -114,7 +114,7 @@ class LeafSelectionHead(torch.nn.Module):
         if not self.model_eos:
             return y_leaf
 
-        x_pool = global_mean_pool(x, batch)
+        x_pool = global_add_pool(x, batch)
         y_eos = self.eos_head_layers(x_pool)[:, 0]
 
         return y_leaf, y_eos
@@ -167,7 +167,7 @@ class FeatureSelectionHead(torch.nn.Module):
     def forward(self, data: torch_geometric.data.Data) -> torch.Tensor:
         x, edge_index, batch = (data.x, data.edge_index, data.batch)
         x = self.backbone(data)
-        x = global_mean_pool(x, batch)
+        x = global_add_pool(x, batch)
         x = self.model(x)
 
         return x
@@ -198,7 +198,7 @@ class ThresholdSelectionHead(torch.nn.Module):
     ) -> torch.Tensor:
         x, edge_index, batch = (data.x, data.edge_index, data.batch)
         x = self.backbone(data)
-        x_pool = global_mean_pool(x, batch)
+        x_pool = global_add_pool(x, batch)
         x = torch.cat([x_pool, feature_index.unsqueeze(-1)], dim=1)
         x = self.model(x)
 
@@ -230,7 +230,7 @@ class OperatorSelectionHead(torch.nn.Module):
     ) -> torch.Tensor:
         x, edge_index, batch = (data.x, data.edge_index, data.batch)
         x = self.backbone(data)
-        x_pool = global_mean_pool(x, batch)
+        x_pool = global_add_pool(x, batch)
         x = torch.cat(
             [x_pool, feature_index.unsqueeze(-1), threshold.unsqueeze(-1)],
             dim=1,
