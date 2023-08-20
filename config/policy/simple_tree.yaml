@@ -1,4 +1,4 @@
-_target_: gflownet.policy.tree.SimpleTreePolicy
+_target_: gflownet.policy.simple_tree.SimpleTreePolicy
 
 forward:
   backbone_args:
