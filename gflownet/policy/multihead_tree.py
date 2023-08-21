@@ -18,7 +18,6 @@ class Backbone(torch.nn.Module):
         hidden_dim: int = 64,
         layer: str = "GCNConv",
         activation: str = "LeakyReLU",
-        dropout: float = 0.0,
     ):
         super().__init__()
 
@@ -36,8 +35,6 @@ class Backbone(torch.nn.Module):
                 )
             )
             layers.append(activation())
-            if dropout > 0:
-                layers.append(torch.nn.Dropout(p=dropout))
 
         self.model = torch_geometric.nn.Sequential("x, edge_index, batch", layers)
 
@@ -57,7 +54,6 @@ class LeafSelectionHead(torch.nn.Module):
         hidden_dim: int = 64,
         layer: str = "GCNConv",
         activation: str = "LeakyReLU",
-        dropout: float = 0.0,
     ):
         super().__init__()
 
@@ -76,8 +72,6 @@ class LeafSelectionHead(torch.nn.Module):
                 )
             )
             body_layers.append(activation())
-            if dropout > 0:
-                body_layers.append(torch.nn.Dropout(p=dropout))
 
         self.backbone = backbone
         self.body = torch_geometric.nn.Sequential("x, edge_index, batch", body_layers)
@@ -126,7 +120,6 @@ def _construct_node_head(
     output_dim: int,
     n_layers: int,
     activation: str,
-    dropout: float,
 ) -> torch.nn.Module:
     activation = getattr(torch.nn, activation)
 
@@ -140,8 +133,6 @@ def _construct_node_head(
         )
         if i < n_layers - 1:
             layers.append(activation())
-            if dropout > 0:
-                layers.append(torch.nn.Dropout(p=dropout))
 
     return torch.nn.Sequential(*layers)
 
@@ -155,13 +146,16 @@ class FeatureSelectionHead(torch.nn.Module):
         n_layers: int = 2,
         hidden_dim: int = 64,
         activation: str = "LeakyReLU",
-        dropout: float = 0.0,
     ):
         super().__init__()
 
         self.backbone = backbone
         self.model = _construct_node_head(
-            input_dim, hidden_dim, output_dim, n_layers, activation, dropout
+            input_dim,
+            hidden_dim,
+            output_dim,
+            n_layers,
+            activation,
         )
 
     def forward(self, data: torch_geometric.data.Data) -> torch.Tensor:
@@ -182,13 +176,16 @@ class ThresholdSelectionHead(torch.nn.Module):
         n_layers: int = 2,
         hidden_dim: int = 64,
         activation: str = "LeakyReLU",
-        dropout: float = 0.0,
     ):
         super().__init__()
 
         self.backbone = backbone
         self.model = _construct_node_head(
-            input_dim, hidden_dim, output_dim, n_layers, activation, dropout
+            input_dim,
+            hidden_dim,
+            output_dim,
+            n_layers,
+            activation,
         )
 
     def forward(
@@ -213,13 +210,16 @@ class OperatorSelectionHead(torch.nn.Module):
         n_layers: int = 2,
         hidden_dim: int = 64,
         activation: str = "LeakyReLU",
-        dropout: float = 0.0,
     ):
         super().__init__()
 
         self.backbone = backbone
         self.model = _construct_node_head(
-            input_dim, hidden_dim, 2, n_layers, activation, dropout
+            input_dim,
+            hidden_dim,
+            2,
+            n_layers,
+            activation,
         )
 
     def forward(
