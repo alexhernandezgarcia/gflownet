@@ -1337,7 +1337,7 @@ class Tree(GFlowNetEnv):
         """
         Convert self.state into a PyG graph.
         """
-        return Tree.to_pyg(self.state)
+        return Tree.to_pyg(self.state, self.n_features)
 
     @staticmethod
     def _load_dataset(data_path):
