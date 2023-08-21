@@ -3,7 +3,7 @@ import pytest
 import torch
 
 from gflownet.envs.tree import Operator, Tree
-from gflownet.policy.tree import (
+from gflownet.policy.multihead_tree import (
     Backbone,
     FeatureSelectionHead,
     LeafSelectionHead,

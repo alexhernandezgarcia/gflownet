@@ -1,4 +1,4 @@
-_target_: gflownet.policy.tree.TreePolicy
+_target_: gflownet.policy.multihead_tree.MultiheadTreePolicy
 
 forward:
   backbone_args:

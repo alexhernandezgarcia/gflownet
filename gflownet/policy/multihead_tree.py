@@ -13,9 +13,9 @@ from gflownet.policy.base import Policy
 class Backbone(torch.nn.Module):
     def __init__(
         self,
+        input_dim: int,
         n_layers: int = 3,
         hidden_dim: int = 64,
-        input_dim: int = 5,
         layer: str = "GCNConv",
         activation: str = "LeakyReLU",
         dropout: float = 0.0,
@@ -244,13 +244,14 @@ class ForwardTreeModel(torch.nn.Module):
     def __init__(
         self,
         continuous: bool,
+        n_features: int,
         policy_output_dim: int,
         leaf_index: int,
         feature_index: int,
         threshold_index: int,
         operator_index: int,
         eos_index: int,
-        base: Optional["TreePolicy"] = None,
+        base: Optional["MultiheadTreePolicy"] = None,
         backbone_args: Optional[dict] = None,
         leaf_head_args: Optional[dict] = None,
         feature_head_args: Optional[dict] = None,
@@ -260,6 +261,7 @@ class ForwardTreeModel(torch.nn.Module):
         super().__init__()
 
         self.continuous = continuous
+        self.n_features = n_features
         self.policy_output_dim = policy_output_dim
         self.leaf_index = leaf_index
         self.feature_index = feature_index
@@ -297,7 +299,9 @@ class ForwardTreeModel(torch.nn.Module):
             indices = stages == stage
             states = x[indices]
 
-            batch = Batch.from_data_list([Tree.to_pyg(state) for state in states])
+            batch = Batch.from_data_list(
+                [Tree.to_pyg(state, self.n_features) for state in states]
+            )
 
             if stage == Stage.COMPLETE:
                 y_leaf, y_eos = self.leaf_head(batch)
@@ -356,19 +360,21 @@ class BackwardTreeModel(torch.nn.Module):
     def __init__(
         self,
         continuous: bool,
+        n_features: int,
         policy_output_dim: int,
         leaf_index: int,
         feature_index: int,
         threshold_index: int,
         operator_index: int,
         eos_index: int,
-        base: Optional["TreePolicy"] = None,
+        base: Optional["MultiheadTreePolicy"] = None,
         backbone_args: Optional[dict] = None,
         leaf_head_args: Optional[dict] = None,
     ):
         super().__init__()
 
         self.continuous = continuous
+        self.n_features = n_features
         self.policy_output_dim = policy_output_dim
         self.leaf_index = leaf_index
         self.feature_index = feature_index
@@ -396,7 +402,9 @@ class BackwardTreeModel(torch.nn.Module):
             indices = stages == stage
             states = x[indices]
 
-            batch = Batch.from_data_list([Tree.to_pyg(state) for state in states])
+            batch = Batch.from_data_list(
+                [Tree.to_pyg(state, self.n_features) for state in states]
+            )
 
             if stage == Stage.COMPLETE:
                 logits[
@@ -420,9 +428,9 @@ class BackwardTreeModel(torch.nn.Module):
         return logits
 
 
-class TreePolicy(Policy):
+class MultiheadTreePolicy(Policy):
     def __init__(self, config, env, device, float_precision, base=None):
-        self.backbone_args = {}
+        self.backbone_args = {"input_dim": env.get_pyg_input_dim()}
         self.leaf_head_args = {"max_nodes": env.n_nodes}
         self.feature_head_args = {"output_dim": env.X_train.shape[1]}
         if env.continuous:
@@ -431,6 +439,7 @@ class TreePolicy(Policy):
             self.threshold_head_args = {"output_dim": len(env.thresholds)}
         self.operator_head_args = {}
         self.continuous = env.continuous
+        self.n_features = env.n_features
         self.policy_output_dim = env.policy_output_dim
         self.leaf_index = env._action_index_pick_leaf
         self.feature_index = env._action_index_pick_feature
@@ -460,6 +469,7 @@ class TreePolicy(Policy):
         if self.base is None:
             self.model = ForwardTreeModel(
                 continuous=self.continuous,
+                n_features=self.n_features,
                 policy_output_dim=self.policy_output_dim,
                 leaf_index=self.leaf_index,
                 feature_index=self.feature_index,
@@ -476,6 +486,7 @@ class TreePolicy(Policy):
         else:
             self.model = BackwardTreeModel(
                 continuous=self.continuous,
+                n_features=self.n_features,
                 policy_output_dim=self.policy_output_dim,
                 leaf_index=self.leaf_index,
                 feature_index=self.feature_index,

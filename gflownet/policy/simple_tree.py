@@ -103,7 +103,7 @@ class SimpleTreeModel(torch.nn.Module):
         self,
         n_features: int,
         policy_output_dim: int,
-        base: Optional["TreePolicy"] = None,
+        base: Optional["SimpleTreePolicy"] = None,
         backbone_args: Optional[dict] = None,
         head_args: Optional[dict] = None,
     ):
