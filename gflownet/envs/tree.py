@@ -9,11 +9,11 @@ import networkx as nx
 import numpy as np
 import numpy.typing as npt
 import pandas as pd
-from sklearn.metrics import accuracy_score, balanced_accuracy_score
-from sklearn.preprocessing import MinMaxScaler
 import torch
 import torch_geometric as pyg
 from networkx.drawing.nx_pydot import graphviz_layout
+from sklearn.metrics import accuracy_score, balanced_accuracy_score
+from sklearn.preprocessing import MinMaxScaler
 from torch.distributions import Beta, Categorical, MixtureSameFamily, Uniform
 from torch_geometric.utils.convert import from_networkx
 from torchtyping import TensorType
@@ -561,27 +561,28 @@ class Tree(GFlowNetEnv):
         n_states = policy_outputs.shape[0]
         logprobs = torch.zeros(n_states, device=self.device, dtype=self.float)
         # Discrete actions
-        mask_discrete = mask_invalid_actions[:, self._action_index_pick_threshold]
-        if torch.any(mask_discrete):
+        is_discrete_action = mask_invalid_actions[:, self._action_index_pick_threshold]
+        if torch.any(is_discrete_action):
             policy_outputs_discrete = policy_outputs[
-                mask_discrete, : self._index_continuous_policy_output
+                is_discrete_action, : self.action_space_dim
+            ]
+            mask_discrete = mask_invalid_actions[
+                is_discrete_action, : self.action_space_dim
             ]
             actions_discrete, logprobs_discrete = super().sample_actions(
                 policy_outputs_discrete,
                 sampling_method,
-                mask_invalid_actions[
-                    mask_discrete, : self._index_continuous_policy_output
-                ],
+                mask_discrete,
                 temperature_logits,
             )
-            logprobs[mask_discrete] = logprobs_discrete
-        if torch.all(mask_discrete):
+            logprobs[is_discrete_action] = logprobs_discrete
+        if torch.all(is_discrete_action):
             return actions_discrete, logprobs
         # Continuous actions
-        mask_cont = torch.logical_not(mask_discrete)
+        mask_cont = torch.logical_not(is_discrete_action)
         n_cont = mask_cont.sum()
         policy_outputs_cont = policy_outputs[
-            mask_cont, self._index_continuous_policy_output :
+            mask_cont, self.action_space_dim :
         ]
         if sampling_method == "uniform":
             distr_threshold = Uniform(
@@ -603,7 +604,7 @@ class Tree(GFlowNetEnv):
         # Build actions
         actions_cont = [(ActionType.PICK_THRESHOLD, th.item()) for th in thresholds]
         actions = []
-        for is_discrete in mask_discrete:
+        for is_discrete in is_discrete_action:
             if is_discrete:
                 actions.append(actions_discrete.pop(0))
             else:
@@ -628,27 +629,28 @@ class Tree(GFlowNetEnv):
             )
         logprobs = torch.zeros(n_states, device=self.device, dtype=self.float)
         # Discrete actions
-        mask_discrete = mask_invalid_actions[:, self._action_index_pick_threshold]
-        if torch.any(mask_discrete):
+        is_discrete_action = mask_invalid_actions[:, self._action_index_pick_threshold]
+        if torch.any(is_discrete_action):
             policy_outputs_discrete = policy_outputs[
-                mask_discrete, : self._index_continuous_policy_output
+                is_discrete_action, : self.action_space_dim
+            ]
+            mask_discrete = mask_invalid_actions[
+                is_discrete_action, : self.action_space_dim
             ]
             logprobs_discrete = super().get_logprobs(
                 policy_outputs_discrete,
                 is_forward,
-                actions[mask_discrete],
-                states_target[mask_discrete],
-                mask_invalid_actions[
-                    mask_discrete, : self._index_continuous_policy_output
-                ],
+                actions[is_discrete_action],
+                states_target[is_discrete_action],
+                mask_discrete,
             )
-            logprobs[mask_discrete] = logprobs_discrete
-        if torch.all(mask_discrete):
+            logprobs[is_discrete_action] = logprobs_discrete
+        if torch.all(is_discrete_action):
             return logprobs
         # Continuous actions
-        mask_cont = torch.logical_not(mask_discrete)
+        mask_cont = torch.logical_not(is_discrete_action)
         policy_outputs_cont = policy_outputs[
-            mask_cont, self._index_continuous_policy_output :
+            mask_cont, self.action_space_dim :
         ]
         mix_logits = policy_outputs_cont[:, 0::3]
         mix = Categorical(logits=mix_logits)
@@ -834,10 +836,11 @@ class Tree(GFlowNetEnv):
         is no such need here because either the continuous action is the only valid
         action or it is not valid.
         """
+        # The discrete part of the policy output has the dimensionality of the action
+        # space
         policy_output_discrete = torch.ones(
             self.action_space_dim, device=self.device, dtype=self.float
         )
-        self._index_continuous_policy_output = len(policy_output_discrete)
         self._len_continuous_policy_output = self.components * 3
         policy_output_continuous = torch.ones(
             self._len_continuous_policy_output,
@@ -851,17 +854,26 @@ class Tree(GFlowNetEnv):
     def get_mask_invalid_actions_forward(
         self, state: Optional[torch.Tensor] = None, done: Optional[bool] = None
     ) -> List[bool]:
+        """
+        The mask of invalid actions has the dimensionality of the action space, plus a
+        dummy part corresponding to the continuous part of the policy output so as to
+        match the dimensionality of the policy output.
+        """
         if state is None:
             state = self.state
         if done is None:
             done = self.done
 
         if done:
-            return [True] * self.policy_output_dim
+            return [True] * self.action_space_dim + [
+                True
+            ] * self._len_continuous_policy_output
 
         leaves = Tree._find_leaves(state)
         stage = self._get_stage(state)
-        mask = [True] * self.policy_output_dim
+        mask = [True] * self.action_space_dim + [
+            True
+        ] * self._len_continuous_policy_output
 
         if stage == Stage.COMPLETE:
             # In the "complete" stage (in which there are no ongoing micro steps)

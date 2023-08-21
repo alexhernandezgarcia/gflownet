@@ -266,9 +266,9 @@ class GFlowNetAgent:
             temperature = 1.0
             random_action_prob = 0.0
         else:
-            if temperature is not None:
+            if temperature is None:
                 temperature = self.temperature_logits
-            if random_action_prob is not None:
+            if random_action_prob is None:
                 random_action_prob = self.random_action_prob
         if backward:
             # TODO: backward sampling with FM?
@@ -284,7 +284,7 @@ class GFlowNetAgent:
         states = [env.state for env in envs]
 
         # Retrieve masks from the batch (batch.get_item("mask_*") computes the mask if
-        # it is not available and stores it to the batch)
+        # it is not available and stores it in the batch)
         # TODO: make get_mask_ method with the ugly code below
         if self.mask_invalid_actions is True:
             if batch is not None:
