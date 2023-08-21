@@ -573,7 +573,7 @@ def test__get_masks_backward__returns_expected(
     assert tree_d3.get_mask_invalid_actions_backward() == mask
 
 
-def test__all_env_common__standard__treedd3(tree_d3):
+def test__all_env_common__standard__tree_d3(tree_d3):
     print("\n\nCommon tests for standard Tree (depth=3)\n")
     return common.test__all_env_common(tree_d3)
 
