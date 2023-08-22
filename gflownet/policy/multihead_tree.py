@@ -11,6 +11,10 @@ from gflownet.policy.base import Policy
 
 
 class Backbone(torch.nn.Module):
+    """
+    GNN backbone: a stack of GNN layers that can be used for processing graphs.
+    """
+
     def __init__(
         self,
         input_dim: int,
@@ -45,6 +49,16 @@ class Backbone(torch.nn.Module):
 
 
 class LeafSelectionHead(torch.nn.Module):
+    """
+    Node-level prediction head. Consists of a stack of GNN layers, and if `model_eos`
+    is True, a separate linear layer for modeling the exit action.
+
+    Note that in the forward function a conversion from the node-level predictions
+    to an expected vector policy output is being done. Because of that, the output
+    is a regular tensor (with logits at correct positions, regardless of the graph
+    shape).
+    """
+
     def __init__(
         self,
         backbone: torch.nn.Module,
@@ -121,6 +135,9 @@ def _construct_node_head(
     n_layers: int,
     activation: str,
 ) -> torch.nn.Module:
+    """
+    A helper for constructing an MLP.
+    """
     activation = getattr(torch.nn, activation)
 
     layers = []
@@ -138,6 +155,14 @@ def _construct_node_head(
 
 
 class FeatureSelectionHead(torch.nn.Module):
+    """
+    A graph-level prediction head that pools the representations from the
+    backbone, and passes them through an MLP.
+
+    Expected to have the output dimensionality equal to the number of
+    available features.
+    """
+
     def __init__(
         self,
         backbone: torch.nn.Module,
@@ -168,6 +193,16 @@ class FeatureSelectionHead(torch.nn.Module):
 
 
 class ThresholdSelectionHead(torch.nn.Module):
+    """
+    A graph-level prediction head that pools the representations from the
+    backbone, and passes them through an MLP.
+
+    Expected to have output dimensionality equal to the number of available
+    features plus one, with the last element being the features that were
+    selected in the previous stage (which are concatenated with the pooled
+    graph representation).
+    """
+
     def __init__(
         self,
         backbone: torch.nn.Module,
@@ -203,6 +238,16 @@ class ThresholdSelectionHead(torch.nn.Module):
 
 
 class OperatorSelectionHead(torch.nn.Module):
+    """
+    A graph-level prediction head that pools the representations from the
+    backbone, and passes them through an MLP.
+
+    Expected to have output dimensionality equal to the number of available
+    features plus two, with the last two elements being the features and the
+    thresholds that were selected in the previous stage (which are
+    concatenated with the pooled graph representation).
+    """
+
     def __init__(
         self,
         backbone: torch.nn.Module,
@@ -241,6 +286,11 @@ class OperatorSelectionHead(torch.nn.Module):
 
 
 class ForwardTreeModel(torch.nn.Module):
+    """
+    A model that combines the backbone and several output heads, which
+    will be used depending on the current stage of the passed state.
+    """
+
     def __init__(
         self,
         continuous: bool,
@@ -357,6 +407,14 @@ class ForwardTreeModel(torch.nn.Module):
 
 
 class BackwardTreeModel(torch.nn.Module):
+    """
+    A model that combines the backbone and several output heads, which
+    will be used depending on the current stage of the passed state.
+
+    In contrast to the ForwardTreeModel has less output heads, as some
+    of the backward transitions are deterministic.
+    """
+
     def __init__(
         self,
         continuous: bool,
@@ -429,6 +487,10 @@ class BackwardTreeModel(torch.nn.Module):
 
 
 class MultiheadTreePolicy(Policy):
+    """
+    Policy wrapper using ForwardTreeModel and BackwardTreeModel as the policy models.
+    """
+
     def __init__(self, config, env, device, float_precision, base=None):
         self.backbone_args = {"input_dim": env.get_pyg_input_dim()}
         self.leaf_head_args = {"max_nodes": env.n_nodes}

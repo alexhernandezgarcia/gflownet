@@ -10,6 +10,10 @@ from gflownet.policy.base import Policy
 
 
 class Backbone(torch.nn.Module):
+    """
+    GNN backbone: a stack of GNN layers that can be used for processing graphs.
+    """
+
     def __init__(
         self,
         input_dim: int,
@@ -56,6 +60,16 @@ class Backbone(torch.nn.Module):
 
 
 class Head(torch.nn.Module):
+    """
+    GNN head: a combination of a pooling layer and a stack of linear layers,
+    that takes the input graphs processed by the provided backbone and outputs
+    `out_dim` values.
+
+    This is a naive variant of a Tree policy model, that in particular doesn't
+    do any node-level prediction, but instead predicts the whole policy output
+    all at once.
+    """
+
     def __init__(
         self,
         backbone: torch.nn.Module,
@@ -99,6 +113,11 @@ class Head(torch.nn.Module):
 
 
 class SimpleTreeModel(torch.nn.Module):
+    """
+    Combination of backbone and head models. In forward, it converts the states
+    to a batch of graphs, and passes them through both models.
+    """
+
     def __init__(
         self,
         n_features: int,
@@ -129,6 +148,10 @@ class SimpleTreeModel(torch.nn.Module):
 
 
 class SimpleTreePolicy(Policy):
+    """
+    Policy wrapper using SimpleTreeModel as the policy model.
+    """
+
     def __init__(self, config, env, device, float_precision, base=None):
         self.backbone_args = {"input_dim": env.get_pyg_input_dim()}
         self.head_args = {}
