@@ -44,7 +44,7 @@ def tree(
 
 @pytest.fixture()
 def data(tree):
-    return tree._to_pyg()
+    return tree._state2pyg()
 
 
 @pytest.fixture()
