@@ -467,9 +467,7 @@ class GFlowNetAgent:
                             x_replay[idx] for idx in self.rng.permutation(n_replay)
                         ]
                     elif self.replay_sampling == "weighted":
-                        x_rewards = np.array(
-                            [r for r in dict_replay["rewards"].values()]
-                        )
+                        x_rewards = np.fromiter(dict_replay["rewards"].values(), dtype=float)
                         x_indices = np.random.choice(
                             len(x_replay),
                             size=n_replay,
