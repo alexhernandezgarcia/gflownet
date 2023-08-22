@@ -461,7 +461,7 @@ class GFlowNetAgent:
                 n_replay = min(n_replay, len(dict_replay["x"]))
                 envs = [self.env.copy().reset(idx) for idx in range(n_replay)]
                 if n_replay > 0:
-                    x_replay = [x for x in dict_replay["x"].values()]
+                    x_replay = list(dict_replay["x"].values())
                     if self.replay_sampling == "permutation":
                         x_replay = [
                             x_replay[idx] for idx in self.rng.permutation(n_replay)
