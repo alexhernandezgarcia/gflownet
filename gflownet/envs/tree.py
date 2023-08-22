@@ -1285,10 +1285,10 @@ class Tree(GFlowNetEnv):
         return graph
 
     def get_pyg_input_dim(self) -> int:
-        return Tree.to_pyg(self.state, self.n_features).x.shape[1]
+        return Tree.state2pyg(self.state, self.n_features).x.shape[1]
 
     @staticmethod
-    def to_pyg(
+    def state2pyg(
         state: torch.Tensor,
         n_features: int,
         one_hot: bool = True,
@@ -1333,11 +1333,11 @@ class Tree(GFlowNetEnv):
 
         return pyg.data.Data(x=x, edge_index=edge_index, edge_attr=edge_attr, k=k)
 
-    def _to_pyg(self) -> pyg.data.Data:
+    def _state2pyg(self) -> pyg.data.Data:
         """
         Convert self.state into a PyG graph.
         """
-        return Tree.to_pyg(self.state, self.n_features)
+        return Tree.state2pyg(self.state, self.n_features)
 
     @staticmethod
     def _load_dataset(data_path):

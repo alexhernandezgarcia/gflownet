@@ -350,7 +350,7 @@ class ForwardTreeModel(torch.nn.Module):
             states = x[indices]
 
             batch = Batch.from_data_list(
-                [Tree.to_pyg(state, self.n_features) for state in states]
+                [Tree.state2pyg(state, self.n_features) for state in states]
             )
 
             if stage == Stage.COMPLETE:
@@ -461,7 +461,7 @@ class BackwardTreeModel(torch.nn.Module):
             states = x[indices]
 
             batch = Batch.from_data_list(
-                [Tree.to_pyg(state, self.n_features) for state in states]
+                [Tree.state2pyg(state, self.n_features) for state in states]
             )
 
             if stage == Stage.COMPLETE:

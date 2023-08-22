@@ -142,7 +142,7 @@ class SimpleTreeModel(torch.nn.Module):
 
     def forward(self, x):
         batch = Batch.from_data_list(
-            [Tree.to_pyg(state, self.n_features) for state in x]
+            [Tree.state2pyg(state, self.n_features) for state in x]
         )
         return self.model(batch)
 
