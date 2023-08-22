@@ -590,7 +590,7 @@ class Tree(GFlowNetEnv):
                 self._pick_leaf(k)
             else:
                 if k == -1:
-                    k = self._find_active(self.state)
+                    k = self.find_active(self.state)
 
                 if action_type == ActionType.PICK_FEATURE:
                     self._pick_feature(k, action_value)
@@ -971,7 +971,7 @@ class Tree(GFlowNetEnv):
         ].tolist()
 
     @staticmethod
-    def _find_active(state: torch.Tensor) -> int:
+    def find_active(state: torch.Tensor) -> int:
         """
         Get index of the (only) active node. Assumes that active node exists
         (that we are in the middle of a macro step).
@@ -1072,7 +1072,7 @@ class Tree(GFlowNetEnv):
                 mask[idx] = False
         elif stage == Stage.THRESHOLD:
             # Threshold was picked, only picking the operator actions are valid.
-            k = self._find_active(state)
+            k = self.find_active(state)
             for idx in range(self._action_index_pick_operator, self._action_index_eos):
                 if self.action_space[idx][1] == k:
                     mask[idx] = False
@@ -1170,7 +1170,7 @@ class Tree(GFlowNetEnv):
                 parents.append(parent)
                 actions.append(action)
         else:
-            k = Tree._find_active(state)
+            k = Tree.find_active(state)
 
             if stage == Stage.LEAF:
                 # Reverse self._pick_leaf.

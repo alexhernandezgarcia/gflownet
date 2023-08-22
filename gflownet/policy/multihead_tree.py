@@ -362,7 +362,7 @@ class ForwardTreeModel(torch.nn.Module):
                     indices, self.feature_index : self.threshold_index
                 ] = self.feature_head(batch)
             else:
-                ks = [Tree._find_active(state) for state in states]
+                ks = [Tree.find_active(state) for state in states]
                 feature_index = torch.Tensor(
                     [states[i, k_i, Attribute.FEATURE] for i, k_i in enumerate(ks)]
                 )
