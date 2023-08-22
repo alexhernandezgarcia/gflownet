@@ -3,6 +3,7 @@ import torch
 
 from gflownet.utils.molecule import constants
 from gflownet.utils.molecule.torsions import get_rotation_masks
+from gflownet.utils.molecule import rdkit_utils
 
 
 class MolDGLFeaturizer:
@@ -18,9 +19,18 @@ class MolDGLFeaturizer:
     def one_hot_encode(self, value, choices):
         """
         Creates a one-hot encoding vector.
-        :param value: The value for which the encoding should be one
-        :param choices: A list of possible values
-        :return: A one-hot encoding of the value as a 1d torch float tensor of length len(choices)
+        
+        Args
+        ----
+        value : Any
+            The value for which the encoding should be one
+        choices: A list of Any
+            All possible values
+        
+        Returns
+        -------
+        encoding: torch.Tensor
+            A one-hot encoding of the value of shape [len(choices),]
         """
         encoding = [0] * len(choices)
         index = choices.index(value)
@@ -41,9 +51,15 @@ class MolDGLFeaturizer:
             .IsAtomInRingOfSize(...) with various sizes, some other info about rings (see torsinal diff code)
             and maybe some others from Chenghao's code
 
-        :param mol: The rdkit.Chem.rdchem.Mol object
-        :returns: a torch.Tensor of node features of shape [number of atoms, node feature size]
-        (ordering of the nodes is gived by rdkit atoms order in mol)
+        Args
+        ----
+        mol : rdkit.Chem.rdchem.Mol
+            Input molecule 
+        
+        Returns
+        -------
+        features: torch.Tensor 
+            Node features of shape [number of atoms, node feature size] (nodes order is gived by rdkit atoms order in mol)
         """
         features = []
         for i, atom in enumerate(mol.GetAtoms()):
@@ -81,9 +97,10 @@ class MolDGLFeaturizer:
         
         Returns 
         -------
-        edges and edge_features, where
-            - edges is a tuple of two lists (source nodes and destination nodes) of length 2 * number of bonds in mol
-            - edge_features is a torch.Tensor of considered edge features (shape [2 * number of bonds, edge feature size])
+        edges : tuple of two lists 
+            Lists contain (source nodes and destination nodes) of length 2 * number of bonds in mol
+        edge_features : torch.Tensor 
+            Considered edge features (shape [2 * number of bonds, edge feature size])
         """
         sources = []
         destinations = []
@@ -113,8 +130,15 @@ class MolDGLFeaturizer:
         account chemical properties of atoms and bonds, without considering their 3D positions
         (conformers of the molecule are not used here)
 
-        :param mol: The rdkit.Chem.rdchem.Mol object
-        :returns: dgl.heterograph.DGLHeteroGraph with .ndata and .edata containing atom and bond features
+        Args
+        ----
+        mol : the rdkit.Chem.rdchem.Mol 
+            Input molecule to convert
+        
+        Returns
+        -------
+        graph: dgl.heterograph.DGLHeteroGraph 
+            Graph with .ndata and .edata containing atom and bond features
         """
         node_features = self.get_node_features(mol)
         edges, edge_features = self.get_edges_and_edge_features(mol)
@@ -127,6 +151,10 @@ class MolDGLFeaturizer:
         graph.edata[constants.rotation_affected_nodes_mask_name] = nodes_mask
         graph.edata[constants.rotation_signs_name] = rotation_signs
         return graph
+    
+    def smiles2dgl(self, smiles):
+        mol = rdkit_utils.get_rdkit_molecule(smiles)
+        return self.mol2dgl(mol)
 
 
 if __name__ == "__main__":

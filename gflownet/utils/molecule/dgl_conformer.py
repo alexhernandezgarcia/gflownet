@@ -1,8 +1,12 @@
 import torch
 from gflownet.utils.molecule import torsions, constants
+from gflownet.utils.molecule.featurizer import MolDGLFeaturizer
 
 class DGLConformer:
-    def __init__(self, atom_positions, smiles, torsion_indecies):
+    def __init__(self, atom_positions, smiles, torsion_indecies, atom_types=constants.ad_atom_types):
+        featuriser = MolDGLFeaturizer(atom_types)
+        dgl_graph = featuriser.smiles2dgl(smiles)
+        dgl_graph.ndata[constants.atom_position_name] = atom_positions
         self.graph = dgl_graph
 
     def apply_rotations(self, rotations):

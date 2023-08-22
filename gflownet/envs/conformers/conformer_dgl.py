@@ -10,11 +10,12 @@ from torchtyping import TensorType
 from gflownet.envs.ctorus import ContinuousTorus
 from gflownet.utils.molecule.constants import ad_atom_types
 from gflownet.utils.molecule.featurizer import MolDGLFeaturizer
-from gflownet.utils.molecule.rdkit_conformer import RDKitConformer
-from gflownet.utils.molecule.rotatable_bonds import find_rotor_from_smile
+from gflownet.utils.molecule.dgl_conformer import DGLConformer
+from gflownet.utils.molecule.rdkit_utils import get_rdkit_atom_positions
+# from gflownet.utils.molecule.rotatable_bonds import find_rotor_from_smile
 
 
-class ConformerEnv(ContinuousTorus):
+class ConformerDGLEnv(ContinuousTorus):
     """
     Extension of continuous torus to conformer generation. Based on AlanineDipeptide,
     but accepts any molecule (defined by SMILES and freely rotatable torsion angles).
@@ -36,8 +37,9 @@ class ConformerEnv(ContinuousTorus):
             else:
                 torsion_indices = list(range(n_torsion_angles))
 
-        atom_positions = ConformerEnv._get_positions(smiles)
-        torsion_angles = ConformerEnv._get_torsion_angles(smiles, torsion_indices)
+        # maybe change extra_opt to true
+        atom_positions = get_rdkit_atom_positions(smiles, extra_opt=False)
+        # torsion_angles = ConformerDGLEnv._get_torsion_angles(smiles, torsion_indices)
         self.conformer = RDKitConformer(atom_positions, smiles, torsion_angles)
 
         # Conversions

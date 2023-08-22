@@ -1,7 +1,7 @@
 defaults:
   - base
 
-_target_: gflownet.envs.conformers.conformer.Conformer
+_target_: gflownet.envs.conformers.conformer.ConformerEnv
 
 # smiles: 'CC(C(=O)NC)NC(=O)C' # alanine dipeptide
 # smiles: 'CC(C)Cc1ccc(cc1)[C@@H](C)C(=O)O' # ibuprofen
