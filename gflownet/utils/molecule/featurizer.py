@@ -6,6 +6,7 @@ from gflownet.utils.molecule.torsions import get_rotation_masks
 
 
 class MolDGLFeaturizer:
+    # TODO: review which atom features we consider
     """A class for converting RDKit molecule into DGL graph with featurizing chemical properties into node and edge features"""
 
     def __init__(self, atom_types):
@@ -65,12 +66,22 @@ class MolDGLFeaturizer:
 
     def get_edges_and_edge_features(self, mol):
         """
-        Simple edge extraction and featurisation, considered features:
-        - one-hot od the bound type
-        Edges are directional (because of the dgl framework), each bond in the mol gives rise to two directional edges,
-        which goes one after another in the output
-        :param mol: The rdkit.Chem.rdchem.Mol object
-        :returns: edges and edge_features, where
+        Simple edge extraction and featurisation. 
+        Considered features:
+        - one-hot of the bound type
+       
+        Edges are directed (because of the dgl framework), each bond in the molecule gives rise to the two directed edges, 
+        one is a reversed copy of another. These edges go one after another in the output tensor. We call first edge "forward edge" 
+        and second edge "backward edge". In the forward edge, the first node of the edge (edge begining) has 
+        a smaller index than the second node (edge end). In the backward edge, this order is reversed
+
+        Args
+        ----
+        - mol : the rdkit.Chem.rdchem.Mol object
+        
+        Returns 
+        -------
+        edges and edge_features, where
             - edges is a tuple of two lists (source nodes and destination nodes) of length 2 * number of bonds in mol
             - edge_features is a torch.Tensor of considered edge features (shape [2 * number of bonds, edge feature size])
         """
@@ -79,6 +90,9 @@ class MolDGLFeaturizer:
         edge_features = []
         for bond in mol.GetBonds():
             start, end = bond.GetBeginAtomIdx(), bond.GetEndAtomIdx()
+            # the node with a smaller index goes first
+            if start > end:
+                start, end = end, start
             # add both the edge and its reversed (revirsed after the forward edge, that's important for the adgent's code!)
             sources.extend([start, end])
             destinations.extend([end, start])
@@ -97,7 +111,7 @@ class MolDGLFeaturizer:
         """
         Converts rdkit.Chem.rdchem.Mol to dgl.heterograph.DGLHeteroGraph. Takes into
         account chemical properties of atoms and bonds, without considering their 3D positions
-        (conformers of the molecule are not used here
+        (conformers of the molecule are not used here)
 
         :param mol: The rdkit.Chem.rdchem.Mol object
         :returns: dgl.heterograph.DGLHeteroGraph with .ndata and .edata containing atom and bond features

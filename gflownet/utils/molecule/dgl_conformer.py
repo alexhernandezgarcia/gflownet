@@ -1,8 +1,8 @@
 import torch
-
+from gflownet.utils.molecule import torsions, constants
 
 class DGLConformer:
-    def __init__(self, dgl_graph):
+    def __init__(self, atom_positions, smiles, torsion_indecies):
         self.graph = dgl_graph
 
     def apply_rotations(self, rotations):
@@ -12,7 +12,9 @@ class DGLConformer:
         The order corresponds to the order of edges in self.graph, such that action[i] is
         an update for the torsion angle corresponding to the edge[2i]
         """
-        raise NotImplementedError
+        self.graph = torsions.apply_rotations(self.graph, rotations)
 
     def randomise_torsion_angles(self):
-        raise NotImplementedError
+        n_edges = self.graph.edges()[0].shape
+        rotations = torch.rand(n_edges // 2) * 2 * torch.pi
+        self.apply_rotations(rotations)
