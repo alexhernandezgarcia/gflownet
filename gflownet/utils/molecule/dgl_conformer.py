@@ -7,7 +7,9 @@ class DGLConformer:
         featuriser = MolDGLFeaturizer(atom_types)
         dgl_graph = featuriser.smiles2dgl(smiles)
         dgl_graph.ndata[constants.atom_position_name] = atom_positions
-        self.graph = dgl_graph
+        self.possibly_rotatable_bonds = torsions.get_rotatable_bonds(dgl_graph)
+        self.graph = torsions.mask_out_torsion_anlges(dgl_graph, torsion_indecies)
+        self.rotatable_bonds = torsions.get_rotatable_bonds(self.graph)
 
     def apply_rotations(self, rotations):
         """

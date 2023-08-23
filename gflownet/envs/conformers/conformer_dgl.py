@@ -32,6 +32,7 @@ class ConformerDGLEnv(ContinuousTorus):
         if torsion_indices is None:
             # We hard code default torsion indices for Alanine Dipeptide to preserve
             # backward compatibility.
+            # may need to change these indecies for dgl conformer
             if smiles == "CC(C(=O)NC)NC(=O)C" and n_torsion_angles == 2:
                 torsion_indices = [2, 1]
             else:
@@ -39,8 +40,7 @@ class ConformerDGLEnv(ContinuousTorus):
 
         # maybe change extra_opt to true
         atom_positions = get_rdkit_atom_positions(smiles, extra_opt=False)
-        # torsion_angles = ConformerDGLEnv._get_torsion_angles(smiles, torsion_indices)
-        self.conformer = RDKitConformer(atom_positions, smiles, torsion_angles)
+        self.conformer = DGLConformer(atom_positions, smiles, torsion_indices)
 
         # Conversions
         self.statebatch2oracle = self.statebatch2proxy

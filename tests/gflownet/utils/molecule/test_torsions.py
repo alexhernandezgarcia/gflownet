@@ -6,7 +6,7 @@ from rdkit import Chem
 from rdkit.Chem import AllChem
 from rdkit.Geometry.rdGeometry import Point3D
 
-from gflownet.utils.molecule.torsions import get_rotation_masks, apply_rotations
+from gflownet.utils.molecule.torsions import get_rotation_masks, apply_rotations, mask_out_torsion_anlges
 from gflownet.utils.molecule import constants
 from gflownet.utils.molecule.featurizer import MolDGLFeaturizer
 from gflownet.utils.molecule.rdkit_conformer import get_torsion_angles_values
@@ -205,3 +205,45 @@ def test_simple_double_bond():
     assert torch.all(graph.edata[constants.rotatable_edges_mask_name]) == False 
     assert torch.all(graph.edata[constants.rotation_affected_nodes_mask_name]) == False 
     assert torch.sum(graph.edata[constants.rotation_signs_name]) == 0 
+
+
+def test_simple_mask_out_torsion_angles():
+    from gflownet.utils.molecule.rdkit_utils import get_rdkit_molecule
+    from gflownet.utils.molecule.featurizer import MolDGLFeaturizer
+    mol = get_rdkit_molecule(constants.ad_smiles, add_hydrogens=False)
+    featurizer = MolDGLFeaturizer(constants.ad_atom_types)
+    graph = featurizer.mol2dgl(mol)
+
+    graph = mask_out_torsion_anlges(graph, [1,2])
+    exp_edges_mask = torch.tensor(
+       [False, False,  False,  False, False, False,  True,  True, False, False,
+         True,  True,  False,  False, False, False, False, False] 
+        )
+    exp_signs = torch.tensor(
+        [0., 0., 0., 0., 0., 0., 1., 1., 0., 0., 1., 1., 0., 0., 0., 0., 0., 0.]
+    )
+    exp_nodes_mask = torch.tensor(
+       [[False, False, False, False, False, False, False, False, False, False],
+        [False, False, False, False, False, False, False, False, False, False],
+        [False, False, False, False, False, False, False, False, False, False],
+        [False, False, False, False, False, False, False, False, False, False],
+        [False, False, False, False, False, False, False, False, False, False],
+        [False, False, False, False, False, False, False, False, False, False],
+        [False, False, False, False, False,  True, False, False, False, False],
+        [False, False, False, False, False,  True, False, False, False, False],
+        [False, False, False, False, False, False, False, False, False, False],
+        [False, False, False, False, False, False, False, False, False, False],
+        [False, False, False, False, False, False, False,  True,  True,  True],
+        [False, False, False, False, False, False, False,  True,  True,  True],
+        [False, False, False, False, False, False, False, False, False, False],
+        [False, False, False, False, False, False, False, False, False, False],
+        [False, False, False, False, False, False, False, False, False, False],
+        [False, False, False, False, False, False, False, False, False, False],
+        [False, False, False, False, False, False, False, False, False, False],
+        [False, False, False, False, False, False, False, False, False, False]] 
+
+    )
+    assert torch.all(graph.edata[constants.rotatable_edges_mask_name] == exp_edges_mask)
+    assert torch.all(graph.edata[constants.rotation_affected_nodes_mask_name] == exp_nodes_mask) 
+    assert torch.all(graph.edata[constants.rotation_signs_name] == exp_signs) 
+
