@@ -2,6 +2,7 @@ import torch
 import networkx as nx
 import numpy as np
 
+from rdkit import Chem
 from pytorch3d.transforms import axis_angle_to_matrix
 
 from gflownet.utils.molecule import constants
@@ -23,19 +24,26 @@ CONVENTIONS:
     For more details: https://en.wikipedia.org/wiki/Rotation_matrix#In_three_dimensions 
 """
 
-def get_rotation_masks(dgl_graph):
+def get_rotation_masks(dgl_graph, mol=None):
     """
     Creates masks to facilitate updates of the torsion angles in the molecular graph. 
-    :param dgl_graph: the dgl.Graph object corresponding to a single molecular graph 
-        with bidirected edges in the order: [e_1_fwd, e_1_bkw, e_2_fwd, e_2_bkw, ...]
     
-    Returns three masks:
-    - edges_mask: boolean torch.Tensor of shape [n_edges,], each of the two directed edges 
+    Args
+    ----
+    dgl_graph : dgl.Graph 
+        A single molecular graph with bidirected edges 
+        in the order: [e_1_fwd, e_1_bkw, e_2_fwd, e_2_bkw, ...]
+    mol (optional) : rdkit.Chem.rdchem.Mol 
+        A molecule in the RDKit formal, used for masking out non-single bounds
+    
+    Returns
+    -------
+    edges_mask : boolean torch.Tensor of shape [n_edges,], each of the two directed edges 
         makred as True if corresponding bond is rotatable (see convention above) and as False otherwise
-    - nodes_mask: boolean torch.Tensor of shape [n_edges, n_atoms] which is True for the atoms affected by the rotation. 
+    nodes_mask : boolean torch.Tensor of shape [n_edges, n_atoms] which is True for the atoms affected by the rotation. 
         For each rotatable bond we select the smallest part of the graph to be affected (it can be either "beginning side" 
         which contains begining of the forward edge or "end side" which contains the end of the forward edge) 
-    - rotation signs: float torch.Tensor of 0., 1., -1. defining the multiplicative factor 
+    rotation signs : float torch.Tensor of 0., 1., -1. defining the multiplicative factor 
         for applying rotational matrix to the atom positions. It is 
         - 0. if there's no rotation, 
         - 1. if rotation is applied to the end side
@@ -55,7 +63,11 @@ def get_rotation_masks(dgl_graph):
             smallest_component_nodes = sorted(
                 nx.connected_components(modified_graph), key=len
             )[0]
-            if len(smallest_component_nodes) > 1:
+            if mol is not None:
+                single_bond = mol.GetBondBetweenAtoms(int(bond[0]),int(bond[1])).GetBondType() == Chem.rdchem.BondType.SINGLE
+            else:
+                single_bond = True
+            if len(smallest_component_nodes) > 1 and single_bond:
                 bonds_mask[bond_idx] = True
                 rotation_signs[bond_idx] = (
                     -1 if bond[0] in smallest_component_nodes else 1

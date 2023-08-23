@@ -146,7 +146,7 @@ class MolDGLFeaturizer:
         graph.ndata[constants.atom_feature_name] = node_features
         graph.ndata[constants.atomic_numbers_name] = self.get_atomic_numbers(mol)
         graph.edata[constants.edge_feature_name] = edge_features
-        edges_mask, nodes_mask, rotation_signs = get_rotation_masks(graph)
+        edges_mask, nodes_mask, rotation_signs = get_rotation_masks(graph, mol)
         graph.edata[constants.rotatable_edges_mask_name] = edges_mask
         graph.edata[constants.rotation_affected_nodes_mask_name] = nodes_mask
         graph.edata[constants.rotation_signs_name] = rotation_signs

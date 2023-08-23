@@ -32,6 +32,8 @@ def test_four_nodes_chain():
     assert torch.all(rotation_signs == correct_rotation_signs)
 
 
+
+
 def test_choose_smallest_component():
     graph = dgl.graph(([0, 2, 1, 2, 2, 3, 3, 4], [2, 0, 2, 1, 3, 2, 4, 3]))
     edges_mask, nodes_mask, rotation_signs = get_rotation_masks(graph)
@@ -141,8 +143,7 @@ def test_apply_rotations_ignore_nonrotatable(angle, exp_result):
     result = apply_rotations(graph, rotations).ndata[constants.atom_position_name]
     assert torch.allclose(result, exp_result, atol=1e-6)
 
-
-def stress_test_apply_rotation_alanine_dipeptide():
+def test_stress_apply_rotation_alanine_dipeptide():
     from rdkit import Chem
     from rdkit.Chem import AllChem
     from rdkit.Geometry.rdGeometry import Point3D
@@ -192,3 +193,15 @@ def stress_test_apply_rotation_alanine_dipeptide():
             torch.isclose(diff, torch.zeros_like(diff), atol=1e-6),
             torch.isclose(diff, torch.ones_like(diff) * 2 * torch.pi, atol=1e-5),
         ).all()
+
+def test_simple_double_bond():
+    # double bound should not be rotatable, i.e. all masks are filled with False
+    from gflownet.utils.molecule.rdkit_utils import get_rdkit_molecule
+    from gflownet.utils.molecule.featurizer import MolDGLFeaturizer
+    smiles = 'C=C'
+    mol = get_rdkit_molecule(smiles, add_hydrogens=True)
+    featurizer = MolDGLFeaturizer(constants.ad_atom_types)
+    graph = featurizer.mol2dgl(mol)
+    assert torch.all(graph.edata[constants.rotatable_edges_mask_name]) == False 
+    assert torch.all(graph.edata[constants.rotation_affected_nodes_mask_name]) == False 
+    assert torch.sum(graph.edata[constants.rotation_signs_name]) == 0 
