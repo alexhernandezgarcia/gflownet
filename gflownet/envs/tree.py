@@ -1377,26 +1377,35 @@ class Tree(GFlowNetEnv):
         return X_train, y_train, X_test, y_test
 
     @staticmethod
-    def predict(state: torch.Tensor, x: npt.NDArray, k: int = 0) -> int:
+    def predict(
+        state: torch.Tensor, x: npt.NDArray, *, return_k: bool = False, k: int = 0
+    ) -> Union[int, Tuple[int, int]]:
         """
-        Recursively predict output label given a feature vector x
-        of a single observation.
+        Recursively predict output label given a feature vector x of a single
+        observation.
+
+        If return_k is True, will also return the index of the node in which
+        prediction was made.
         """
         attributes = state[k]
 
         if attributes[Attribute.TYPE] == NodeType.CLASSIFIER:
+            if return_k:
+                return attributes[Attribute.CLASS], k
             return attributes[Attribute.CLASS]
 
         if (
             x[attributes[Attribute.FEATURE].long().item()]
             < attributes[Attribute.THRESHOLD]
         ):
-            return Tree.predict(state, x, k=Tree._get_left_child(k))
+            return Tree.predict(state, x, return_k=return_k, k=Tree._get_left_child(k))
         else:
-            return Tree.predict(state, x, k=Tree._get_right_child(k))
+            return Tree.predict(state, x, return_k=return_k, k=Tree._get_right_child(k))
 
-    def _predict(self, x: npt.NDArray, k: int = 0) -> int:
-        return Tree.predict(self.state, x, k)
+    def _predict(
+        self, x: npt.NDArray, *, return_k: bool = False
+    ) -> Union[int, Tuple[int, int]]:
+        return Tree.predict(self.state, x, return_k=return_k)
 
     @staticmethod
     def plot(state, path: Optional[Union[Path, str]] = None) -> None:
