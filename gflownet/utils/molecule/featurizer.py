@@ -152,8 +152,8 @@ class MolDGLFeaturizer:
         graph.edata[constants.rotation_signs_name] = rotation_signs
         return graph
     
-    def smiles2dgl(self, smiles):
-        mol = rdkit_utils.get_rdkit_molecule(smiles)
+    def smiles2dgl(self, smiles, add_hydrogens=True):
+        mol = rdkit_utils.get_rdkit_molecule(smiles, add_hydrogens=add_hydrogens)
         return self.mol2dgl(mol)
 
 

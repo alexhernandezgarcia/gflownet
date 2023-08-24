@@ -125,28 +125,29 @@ def apply_rotations(graph, rotations):
     graph.ndata[constants.atom_position_name] = pos
     return graph
 
-def mask_out_torsion_anlges(graph, torsion_indecies):
+def mask_out_torsion_anlges(graph, torsion_indices):
     """
     Adjusts rotation masks in the graph, such that only angles with indecies 
-    torsion_indecies are kept rotatable.
+    torsion_indices are kept rotatable.
 
     Args
     ----
     graph : dgl.Graph
         A graph with rotation masks in graph.edata
-    torsion_indecies : list of ints
+    torsion_indices : list of ints
         Indecies of the rotatable bonds which will be kept rotatable. 
     """
     rotatable_edges_indecies = graph.edata[constants.rotatable_edges_mask_name].nonzero().flatten()
     meta_indecies = set(range(len(rotatable_edges_indecies)))
-    meta_indecies_to_keep =  set([item for x in torsion_indecies for item in (2 * x, 2* x + 1)])
+    meta_indecies_to_keep =  set([item for x in torsion_indices for item in (2 * x, 2* x + 1)])
     meta_indecies_to_fix = torch.tensor(sorted(meta_indecies - meta_indecies_to_keep))
-    indecies_to_fix = rotatable_edges_indecies[meta_indecies_to_fix] 
-    graph.edata[constants.rotatable_edges_mask_name][indecies_to_fix] = False
-    n_atoms = graph.edata[constants.rotation_affected_nodes_mask_name].shape[1]
-    graph.edata[constants.rotation_affected_nodes_mask_name][indecies_to_fix] = torch.zeros(n_atoms, 
+    if len(meta_indecies_to_fix) > 0:
+        indecies_to_fix = rotatable_edges_indecies[meta_indecies_to_fix] 
+        graph.edata[constants.rotatable_edges_mask_name][indecies_to_fix] = False
+        n_atoms = graph.edata[constants.rotation_affected_nodes_mask_name].shape[1]
+        graph.edata[constants.rotation_affected_nodes_mask_name][indecies_to_fix] = torch.zeros(n_atoms, 
                                                                                                  dtype=torch.bool)
-    graph.edata[constants.rotation_signs_name][indecies_to_fix] = 0 
+        graph.edata[constants.rotation_signs_name][indecies_to_fix] = 0 
     return graph
 
 def get_rotatable_bonds(graph):

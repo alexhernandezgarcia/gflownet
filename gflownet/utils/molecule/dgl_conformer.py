@@ -3,12 +3,12 @@ from gflownet.utils.molecule import torsions, constants
 from gflownet.utils.molecule.featurizer import MolDGLFeaturizer
 
 class DGLConformer:
-    def __init__(self, atom_positions, smiles, torsion_indecies, atom_types=constants.ad_atom_types):
+    def __init__(self, atom_positions, smiles, torsion_indices, atom_types=constants.ad_atom_types, add_hydrogens=True):
         featuriser = MolDGLFeaturizer(atom_types)
-        dgl_graph = featuriser.smiles2dgl(smiles)
-        dgl_graph.ndata[constants.atom_position_name] = atom_positions
+        dgl_graph = featuriser.smiles2dgl(smiles, add_hydrogens=add_hydrogens)
+        dgl_graph.ndata[constants.atom_position_name] = torch.tensor(atom_positions)
         self.possibly_rotatable_bonds = torsions.get_rotatable_bonds(dgl_graph)
-        self.graph = torsions.mask_out_torsion_anlges(dgl_graph, torsion_indecies)
+        self.graph = torsions.mask_out_torsion_anlges(dgl_graph, torsion_indices)
         self.rotatable_bonds = torsions.get_rotatable_bonds(self.graph)
 
     def apply_rotations(self, rotations):
