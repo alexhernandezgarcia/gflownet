@@ -903,7 +903,9 @@ class GFlowNetAgent:
             self.random_action_prob = 0
             t = time.time()
             print("Sampling from GFN...", end="\r")
-            for b in batch_with_rest(0, self.logger.test.n_top_k, self.batch_size_total):
+            for b in batch_with_rest(
+                0, self.logger.test.n_top_k, self.batch_size_total
+            ):
                 sub_batch, _ = self.sample_batch(n_forward=len(b), train=False)
                 batch.merge(sub_batch)
             duration = time.time() - t
@@ -923,7 +925,9 @@ class GFlowNetAgent:
                 batch = Batch(env=self.env, device=self.device, float_type=self.float)
                 self.random_action_prob = 1.0
                 print("[test_top_k] Sampling at random...", end="\r")
-                for b in batch_with_rest(0, self.logger.test.n_top_k, self.batch_size_total):
+                for b in batch_with_rest(
+                    0, self.logger.test.n_top_k, self.batch_size_total
+                ):
                     sub_batch, _ = self.sample_batch(n_forward=len(b), train=False)
                     batch.merge(sub_batch)
             # compute metrics and get plots
