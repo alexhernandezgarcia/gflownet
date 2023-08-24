@@ -4,9 +4,11 @@ Classes to represent a hyper-grid environments
 import itertools
 from typing import List, Optional, Tuple
 
+import matplotlib.pyplot as plt
 import numpy as np
 import numpy.typing as npt
 import torch
+from mpl_toolkits.axes_grid1 import make_axes_locatable
 from torchtyping import TensorType
 
 from gflownet.envs.base import GFlowNetEnv
@@ -179,7 +181,7 @@ class Grid(GFlowNetEnv):
             self.statetorch2policy(states).reshape(
                 (len(states), self.n_dim, self.length)
             )
-            * torch.tensor(self.cells[None, :]).to(states)
+            * torch.tensor(self.cells[None, :]).to(states.device, self.float)
         ).sum(axis=2)
 
     def state2policy(self, state: List = None) -> List:
@@ -252,13 +254,14 @@ class Grid(GFlowNetEnv):
         Converts a human-readable string representing a state into a state as a list of
         positions.
         """
-        return [int(el) for el in readable.strip("[]").split(" ")]
+        return [int(el) for el in readable.strip("[]").split(" ") if el != ""]
 
-    def state2readable(self, state, alphabet={}):
+    def state2readable(self, state: Optional[List] = None, alphabet={}):
         """
         Converts a state (a list of positions) into a human-readable string
         representing a state.
         """
+        state = self._get_state(state)
         return str(state).replace("(", "[").replace(")", "]").replace(",", "")
 
     def get_parents(
@@ -377,7 +380,50 @@ class Grid(GFlowNetEnv):
         )
         return all_x.tolist()
 
-    def get_uniform_terminating_states(self, n_states: int, seed: int) -> List[List]:
+    def get_uniform_terminating_states(
+        self, n_states: int, seed: int = None
+    ) -> List[List]:
         rng = np.random.default_rng(seed)
         states = rng.integers(low=0, high=self.length, size=(n_states, self.n_dim))
         return states.tolist()
+
+    # TODO: review
+    def plot_samples_frequency(self, samples, ax=None, title=None, rescale=1):
+        """
+        Plot 2D histogram of samples.
+        """
+        if self.n_dim > 2:
+            return None
+        if ax is None:
+            fig, ax = plt.subplots()
+            standalone = True
+        else:
+            standalone = False
+        # make a list of integers from 0 to n_dim
+        if rescale != 1:
+            step = int(self.length / rescale)
+        else:
+            step = 1
+        ax.set_xticks(np.arange(start=0, stop=self.length, step=step))
+        ax.set_yticks(np.arange(start=0, stop=self.length, step=step))
+        # check if samples is on GPU
+        if torch.is_tensor(samples) and samples.is_cuda:
+            samples = samples.detach().cpu()
+        states = np.array(samples).astype(int)
+        grid = np.zeros((self.length, self.length))
+        if title == None:
+            ax.set_title("Frequency of Coordinates Sampled")
+        else:
+            ax.set_title(title)
+        # TODO: optimize
+        for state in states:
+            grid[state[0], state[1]] += 1
+        im = ax.imshow(grid)
+        divider = make_axes_locatable(ax)
+        cax = divider.append_axes("right", size="5%", pad=0.05)
+        plt.colorbar(im, cax=cax)
+        plt.show()
+        if standalone == True:
+            plt.tight_layout()
+            plt.close()
+        return ax

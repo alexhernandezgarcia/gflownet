@@ -1,22 +1,34 @@
 import common
+import numpy as np
 import pytest
 import torch
 
-from gflownet.envs.crystals import Crystal
+from gflownet.envs.crystals.composition import Composition
 
 
 @pytest.fixture
 def env():
-    return Crystal(
+    return Composition(
         elements=4,
         alphabet={1: "H", 2: "He", 3: "Li", 4: "Be"},
         oxidation_states={1: [-1, 0, 1], 2: [0], 3: [0, 1], 4: [0, 1, 2]},
     )
 
 
+@pytest.fixture
+def env_with_spacegroup():
+    return Composition(
+        elements=4,
+        alphabet={1: "H", 2: "He", 3: "Li", 4: "Be"},
+        oxidation_states={1: [-1, 0, 1], 2: [0], 3: [0, 1], 4: [0, 1, 2]},
+        space_group=162,
+        do_spacegroup_check=True,
+    )
+
+
 @pytest.mark.parametrize("elements", [2, 5, 10, 84])
 def test__environment__initializes_properly(elements):
-    env = Crystal(elements=elements)
+    env = Composition(elements=elements)
 
     assert env.state == [0] * elements
 
@@ -26,15 +38,15 @@ def test__environment__initializes_properly(elements):
     [
         (
             [0, 0, 2, 0],
-            [2, 2, 0, 0, 1, 0],
+            [0, 0, 2, 0],
         ),
         (
             [3, 0, 0, 0],
-            [0, 3, 1, 0, 0, 0],
+            [3, 0, 0, 0],
         ),
         (
             [0, 1, 0, 1],
-            [0, 2, 0, 0.5, 0, 0.5],
+            [0, 1, 0, 1],
         ),
     ],
 )
@@ -86,7 +98,7 @@ def test__reset(env):
 def test__get_action_space__returns_correct_number_of_actions(
     elements, min_atom_i, max_atom_i
 ):
-    environment = Crystal(
+    environment = Composition(
         elements=elements, min_atom_i=min_atom_i, max_atom_i=max_atom_i
     )
     exp_n_actions = elements * (max_atom_i - min_atom_i + 1) + 1
@@ -99,7 +111,7 @@ def test__get_action_space__returns_correct_number_of_actions(
     [[1, 2, 3, 4], [1, 12, 84], [42]],
 )
 def test__get_action_space__returns_actions_for_each_element(elements):
-    environment = Crystal(elements=elements)
+    environment = Composition(elements=elements)
 
     elements_in_action_space = set(e for e, n in environment.get_action_space())
     exp_elements_with_eos = set(elements + [-1])
@@ -121,7 +133,7 @@ def test__get_action_space__returns_actions_for_each_element(elements):
 def test__get_action_space__returns_actions_for_each_step_size(
     elements, min_atom_i, max_atom_i
 ):
-    environment = Crystal(
+    environment = Composition(
         elements=elements, min_atom_i=min_atom_i, max_atom_i=max_atom_i
     )
 
@@ -133,17 +145,17 @@ def test__get_action_space__returns_actions_for_each_step_size(
     assert step_sizes_in_action_space == exp_step_sizes
 
 
-def test__get_mask_invalid_actions__all_false_but_eos_for_empty_state(env):
-    assert not any(env.get_mask_invalid_actions()[:-1])
-    assert env.get_mask_invalid_actions()[:-1]
+def test__get_mask_invalid_actions_forward__all_false_but_eos_for_empty_state(env):
+    assert not any(env.get_mask_invalid_actions_forward()[:-1])
+    assert env.get_mask_invalid_actions_forward()[:-1]
 
 
 @pytest.mark.parametrize(
     "state",
     [[0, 0, 0, 0], [0, 2, 0, 0], [0, 0, 0, 1], [1, 0, 1, 0]],
 )
-def test__get_mask_invalid_actions__already_set_elements_are_masked(env, state):
-    mask = env.get_mask_invalid_actions(state)[:-1]
+def test__get_mask_invalid_actions_forward__already_set_elements_are_masked(env, state):
+    mask = env.get_mask_invalid_actions_forward(state)[:-1]
     action_space = env.action_space[:-1]
 
     nonzero_indices = [i for i, s_i in enumerate(state) if s_i > 0]
@@ -213,7 +225,7 @@ def test__get_parents__returns_expected_parents_and_actions(
     parents, actions = env.get_parents()
 
     assert set(tuple(x) for x in parents) == set(tuple(x) for x in exp_parents)
-    assert set(env.action_space[x] for x in actions) == set(exp_actions)
+    assert set(actions) == set(exp_actions)
 
 
 @pytest.mark.parametrize(
@@ -286,9 +298,84 @@ def test__step__does_not_change_state_if_element_already_set(
     ],
 )
 def test__can_produce_neutral_charge__returns_expected_result(state, exp_result):
-    environment = Crystal(
+    environment = Composition(
         elements=4,
         oxidation_states={1: [-1, 0, 1], 2: [0], 3: [1], 4: [2, 3]},
     )
 
     assert environment._can_produce_neutral_charge(state) == exp_result
+
+
+def test__get_mask_invalid_actions_forward__accounts_for_required_elements():
+    required_elements = [1, 2, 4, 5]
+    env = Composition(
+        elements=6, required_elements=required_elements, max_atom_i=1, max_diff_elem=4
+    )
+    mask = env.get_mask_invalid_actions_forward()
+
+    for (element, n), masked in zip(env.action_space, mask):
+        if element in required_elements:
+            assert not masked
+        else:
+            assert masked
+
+
+@pytest.mark.repeat(25)
+def test__required_elements_does_not_cause_environment_to_get_stuck():
+    required_elements = [1, 2, 3, 4, 5]
+    env = Composition(
+        elements=89, max_diff_elem=10, required_elements=required_elements
+    )
+
+    while not env.done:
+        mask = env.get_mask_invalid_actions_forward()
+        actions = [action for action, m in zip(env.action_space, mask) if not m]
+        assert len(actions) > 0
+        action = actions[np.random.choice(len(actions))]
+        env.step(action)
+
+
+@pytest.mark.repeat(25)
+def test__required_atoms_does_not_cause_environment_to_get_stuck():
+    required_elements = []
+    env = Composition(
+        elements=10,
+        min_diff_elem=2,
+        max_diff_elem=2,
+        min_atoms=20,
+        max_atoms=20,
+    )
+
+    while not env.done:
+        mask = env.get_mask_invalid_actions_forward()
+        actions = [action for action, m in zip(env.action_space, mask) if not m]
+        assert len(actions) > 0
+        action = actions[np.random.choice(len(actions))]
+        env.step(action)
+
+
+@pytest.mark.repeat(25)
+def test__insufficient_elements_left_does_not_cause_environment_to_get_stuck():
+    env = Composition(
+        elements=10,
+        min_diff_elem=5,
+        max_diff_elem=5,
+        max_atoms=25,
+        min_atom_i=4,
+        max_atom_i=10,
+    )
+
+    while not env.done:
+        mask = env.get_mask_invalid_actions_forward()
+        actions = [action for action, m in zip(env.action_space, mask) if not m]
+        assert len(actions) > 0
+        action = actions[np.random.choice(len(actions))]
+        env.step(action)
+
+
+def test__all_env_common(env):
+    return common.test__all_env_common(env)
+
+
+def test__all_env_common__with_spacegroup_constraints(env_with_spacegroup):
+    return common.test__all_env_common(env_with_spacegroup)

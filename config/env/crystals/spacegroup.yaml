@@ -1,9 +1,11 @@
 defaults:
   - base
 
-_target_: gflownet.envs.spacegroup.SpaceGroup
+_target_: gflownet.envs.crystals.spacegroup.SpaceGroup
 
 id: spacegroup
+# Stoichiometry
+n_atoms: null
 
 # Buffer
 buffer:
@@ -11,6 +13,8 @@ buffer:
   train:
     type: all
     output_csv: spacegroup_train.csv
+    output_pkl: spacegroup_train.pkl
   test:
     type: all
     output_csv: spacegroup_test.csv
+    output_pkl: spacegroup_test.pkl

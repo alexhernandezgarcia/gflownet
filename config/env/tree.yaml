@@ -1,0 +1,29 @@
+defaults:
+  - base
+
+_target_: gflownet.envs.tree.Tree
+
+id: tree
+# Data set
+data_path: ${user.data.root}/haberman_balanced.csv
+# Max depth
+max_depth: 5
+# Policy parameters
+threshold_components: 1
+beta_params_min: 0.1
+beta_params_max: 2.0
+fixed_distribution:
+  beta_alpha: 2.0
+  beta_beta: 5.0
+random_distribution:
+  beta_alpha: 1.0
+  beta_beta: 1.0
+# Buffer
+buffer:
+  data_path: null
+  train: null
+  test:
+    type: random
+    n: 1000
+    output_csv: tree_test.csv
+    output_pkl: tree_test.pkl
