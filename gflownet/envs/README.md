@@ -38,4 +38,6 @@ buffer:
     output_pkl: grid_test.pkl
 ```
 
+### Replay buffer
 
+It is possible to store the best trajectories, according to the reward, in a buffer and potentially use them for backward sampling or simply for evaluation during or at the end of training. In order to enable the replay buffer, its capacity must be larger than zero (default), which can be set with the configuration variable `env.buffer.replay_capacity`.
