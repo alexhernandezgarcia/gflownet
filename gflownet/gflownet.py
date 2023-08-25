@@ -673,7 +673,8 @@ class GFlowNetAgent:
 
         $\log p_T(x) = \int_{x \in \tau} P_F(\tau)d\tau$
         $= \log \mathbb{E}_{P_B(\tau|x)} \frac{P_F(x)}{P_B(\tau|x)}$
-        $\approx \log \sum_{i=1}^{N} \frac{P_F(x_i)}{P_B(\tau|x_i)}, x_i \sim P_B(\tau|x_i)$
+        $\approx \log \frac{1}{N} \sum_{i=1}^{N} \frac{P_F(x_i)}{P_B(\tau|x_i)}$
+        $= \log \sum_{i=1}^{N} \frac{P_F(x_i)}{P_B(\tau|x_i)} - \log N$
 
         Note: torch.logsumexp is used to compute the log of the sum, in order to have
         numerical stability, since we have the log PF and log PB, instead of directly
@@ -759,6 +760,14 @@ class GFlowNetAgent:
             dtype=self.float,
             device=self.device,
         )
+        traj_indices_mat = torch.full(
+            (data_indices.max() + 1, traj_indices.max() + 1),
+            -1,
+            dtype=torch.long,
+            device=self.device,
+        )
+        traj_indices_mat[data_indices, traj_indices] = traj_indices
+        n_trajs_per_sample, _ = traj_indices_mat.max(dim=1)
         # Compute log probabilities of the trajectories
         logprobs_f[data_indices, traj_indices] = self.compute_logprobs_trajectories(
             batch, backward=False
@@ -767,7 +776,9 @@ class GFlowNetAgent:
             batch, backward=True
         )
         # Compute log of the average probabilities of the ratio PF / PB
-        logprobs_estimates = torch.logsumexp(logprobs_f - logprobs_b, dim=1)
+        logprobs_estimates = torch.logsumexp(
+            logprobs_f - logprobs_b, dim=1
+        ) - torch.log(n_trajs_per_sample)
         return logprobs_estimates
 
     def train(self):
