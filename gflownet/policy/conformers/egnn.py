@@ -85,7 +85,7 @@ class EGNNPolicy(Policy):
     def __init__(self, config, env, device, float_precision, base=None):
         self.model = None
         self.config = None
-        self.graph = env.graph
+        self.graph = EGNNPolicy.create_core_graph(env.graph)
         self.n_components = env.n_comp
         # We increase the node feature size by 1 to anticipate including current
         # timestamp as one of the features.
@@ -101,6 +101,15 @@ class EGNNPolicy(Policy):
             base=base,
         )
 
+    @staticmethod
+    def create_core_graph(graph: dgl.DGLGraph) -> dgl.DGLGraph:
+        output = dgl.graph(graph.edges())
+        output.ndata["atom_features"] = graph.ndata["atom_features"].clone().detach()
+        output.edata["edge_features"] = graph.edata["edge_features"].clone().detach()
+        output.edata["rotatable_edges"] = graph.edata["rotatable_edges"].clone().detach()
+
+        return output
+
     def parse_config(self, config):
         self.config = {} if config is None else config
 
@@ -112,7 +121,7 @@ class EGNNPolicy(Policy):
     def __call__(self, states: torch.Tensor) -> torch.Tensor:
         graphs = []
         for state in states:
-            graph = deepcopy(self.graph).to(self.device)
+            graph = deepcopy(self.graph)
             graph.ndata["atom_features"] = torch.cat(
                 [
                     graph.ndata["atom_features"],
@@ -122,6 +131,6 @@ class EGNNPolicy(Policy):
             )
             graph.ndata["coordinates"] = state[:, :-1]
             graphs.append(graph)
-        batch = dgl.batch(graphs)
+        batch = dgl.batch(graphs).to(self.device)
         output = self.model(batch)
         return output
