@@ -62,7 +62,7 @@ class Policy:
             self.model = self.make_mlp(nn.LeakyReLU()).to(self.device)
             self.is_model = True
         elif self.type == 'gnn':
-            self.model = self.make_gnn()
+            self.model = graph_conditioned_
         else:
             raise "Policy model type not defined"
 
@@ -113,9 +113,6 @@ class Policy:
             raise ValueError(
                 "Base Model must be provided when shared_weights is set to True"
             )
-
-    def make_gnn(self):
-
 
     def fixed_distribution(self, states):
         """

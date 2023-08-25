@@ -101,7 +101,7 @@ class Batch:
     def batch_idx_to_traj_state_idx(self, batch_idx: int):
         traj_idx = self.traj_indices[batch_idx]
         state_idx = self.state_indices[batch_idx]
-        return traj_idx, state_id
+        return traj_idx, state_idx
 
     def traj_idx_to_batch_indices(self, traj_idx: int):
         batch_indices = self.trajectories[traj_idx]
