@@ -4,13 +4,14 @@ defaults:
 _target_: gflownet.envs.htorus.HybridTorus
 
 id: ctorus
+reward_func: identity
 continuous: True
 func: sincos
 # Dimensions of hypertorus
 n_dim: 2
 policy_encoding_dim_per_angle: null
 # Fixed length of trajectories
-length_traj: 3
+length_traj: 20
 vonmises_min_concentration: 1e-3
 # Parameters of the fixed policy output distribution
 fixed_distribution:

@@ -1,0 +1,5 @@
+logdir:
+  root: /home/mkilgour/gflownet_data/logs
+data:
+  root: /home/mkilgour/gflownet_data/data
+  alanine_dipeptide: null  # /home/mila/a/alex.hernandez-garcia/gflownet/data/alanine_dipeptide_conformers_1.npy

@@ -6,9 +6,9 @@ optimizer:
   # Loss function
   loss: trajectorybalance
   # Learning rates
-  lr: 0.0001
-  lr_decay_period: 1000000
-  lr_decay_gamma: 0.5
+  lr: 0.001
+  lr_decay_period: 1000
+  lr_decay_gamma: 0.25
   method: adam
   # Threshold loss for early stopping
   early_stopping: 0.0
@@ -41,7 +41,7 @@ mask_invalid_actions: True
 # Temperature for the logits /= temperature_logits
 temperature_logits: 1.0
 # Percentage of random actions
-random_action_prob: 0.0
+random_action_prob: 0.1
 # Percentage of trajectories in a batch from an empirical distribution
 pct_offline: 0.0
 # Replay buffer
@@ -49,11 +49,16 @@ replay_capacity: 0
 policy:
   forward:
     type: mlp
-    n_hid: 128
-    n_layers: 2
+    n_hid: 512
+    n_layers: 4
     checkpoint: null
     reload_ckpt: False
-  backward: null
+  backward:
+    type: mlp
+    n_hid: 512
+    n_layers: 4
+    checkpoint: null
+    reload_ckpt: False
   ckpt_period: null
 num_empirical_loss: 200000
 oracle:

@@ -1,0 +1,34 @@
+defaults:
+  - base
+
+_target_: gflownet.envs.crystals.mol_crystal.MolCrystal
+
+# Composition parameters
+id: mol_crystal
+sg_kwargs:
+  generate_sgs: ['P21/c',"P-1"]
+lattice_parameters_kwargs:
+  min_length: 1.0
+  max_length: 5.0
+  min_angle: 30.0
+  max_angle: 150.0
+  grid_size: 10
+  min_position: 0.0 # fractional coordinates
+  max_position: 1.0
+  min_theta: 0.0
+  max_theta: 90.0
+  min_phi: -180.0
+  max_phi: 180.0
+  min_rotation: 0.0
+  max_rotation: 360.0
+
+
+# Buffer
+buffer:
+  data_path: null
+  train:
+    type: all
+    output_csv: mol_crystal_train.csv
+  test:
+    type: all
+    output_csv: mol_crystal_test.csv

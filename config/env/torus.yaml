@@ -5,6 +5,8 @@ _target_: gflownet.envs.torus.Torus
 
 id: torus
 func: sincos
+
+reward_func: identity
 # Dimensions of hypertorus
 n_dim: 2
 # Number of angles per dimension

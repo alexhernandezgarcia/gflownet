@@ -97,9 +97,9 @@ class GFlowNetEnv:
         self.random_policy_output = self.get_policy_output(random_distribution)
         self.policy_output_dim = len(self.fixed_policy_output)
         self.policy_input_dim = len(self.state2policy())
-        if proxy is not None and self.proxy == self.oracle:
-            self.statebatch2proxy = self.statebatch2oracle
-            self.statetorch2proxy = self.statetorch2oracle
+        # if proxy is not None and self.proxy == self.oracle:
+        #     self.statebatch2proxy = self.statebatch2oracle
+        #     self.statetorch2proxy = self.statetorch2oracle
 
     @abstractmethod
     def get_action_space(self):

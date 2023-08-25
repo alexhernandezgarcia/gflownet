@@ -3,14 +3,14 @@ defaults:
 
 optimizer:
   loss: trajectorybalance
-  lr: 0.0001
+  lr: 0.001
   lr_z_mult: 10
   z_dim: 16
-  lr_decay_period: 1000000
-  lr_decay_gamma: 0.5
+  lr_decay_period: 1000
+  lr_decay_gamma: 0.25
 
 policy:
   backward:
-    shared_weights: True
+    shared_weights: False
     checkpoint: null
     reload_ckpt: False

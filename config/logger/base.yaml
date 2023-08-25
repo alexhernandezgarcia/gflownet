@@ -12,8 +12,8 @@ train:
 # Test metrics
 test:
   first_it: True
-  period: 100
-  n: 100
+  period: 1000
+  n: 10000
   kde:
     bandwidth: 0.1
     kernel: gaussian

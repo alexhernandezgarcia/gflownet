@@ -1,10 +1,10 @@
 defaults:
   - _self_
-  - env: grid
-  - gflownet: flowmatch
-  - proxy: corners
+  - env: mol_crystal
+  - gflownet: trajectorybalance
+  - proxy: mol_crystal
   - logger: wandb
-  - user: alex
+  - user: mkilgour
 
 # Device
 device: cuda
