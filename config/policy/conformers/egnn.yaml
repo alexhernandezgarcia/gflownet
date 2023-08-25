@@ -2,11 +2,11 @@ _target_: gflownet.policy.conformers.egnn.EGNNPolicy
 
 forward:
   n_gnn_layers: 7
-  n_mlp_layers: 2
+  n_mlp_layers: 5
   egnn_hidden_dim: 128
-  mlp_hidden_dim: 128
+  mlp_hidden_dim: 512
 backward:
   n_gnn_layers: 7
-  n_mlp_layers: 2
+  n_mlp_layers: 5
   egnn_hidden_dim: 128
-  mlp_hidden_dim: 128
+  mlp_hidden_dim: 512
