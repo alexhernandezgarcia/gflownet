@@ -398,8 +398,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--template",
         type=str,
-        help="path to sbatch template."
-        + f" Defaults to {defaults['template']}",
+        help="path to sbatch template." + f" Defaults to {defaults['template']}",
     )
     parser.add_argument(
         "--code_dir",
