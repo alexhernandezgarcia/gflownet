@@ -71,14 +71,8 @@ class EGNNModel(nn.Module):
 
         g.apply_edges(EGNNModel.concat_message_function)
 
-        graphs = dgl.unbatch(g)
-        graphs = [dgl.edge_subgraph(g, g.edata["rotatable_edges"]) for g in graphs]
-        g = dgl.batch(graphs)
-
-        g.edata["edge_features"] = self.mlp(g.edata["edge_features"])
-        graphs = dgl.unbatch(g)
-
-        output = torch.stack([g.edata["edge_features"].flatten() for g in graphs])
+        output = self.mlp(g.edata["edge_features"][g.edata["rotatable_edges"]])
+        output = output.reshape(g.batch_size, -1)
 
         return output
 
