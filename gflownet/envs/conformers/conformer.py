@@ -55,6 +55,14 @@ class Conformer(ContinuousTorus):
         self.sync_conformer_with_state()
 
         self.graph = MolDGLFeaturizer(ad_atom_types).mol2dgl(self.conformer.rdk_mol)
+        # TODO: use DGL conformer instead
+        rotatable_edges = [ta[1:3] for ta in torsion_angles]
+        for i in range(self.graph.num_edges()):
+            if (
+                self.graph.edges()[0][i].item(),
+                self.graph.edges()[1][i].item(),
+            ) not in rotatable_edges:
+                self.graph.edata["rotatable_edges"][i] = False
 
     @staticmethod
     def _get_positions(smiles: str) -> npt.NDArray:

@@ -1,10 +1,8 @@
 from copy import deepcopy
-from typing import Optional
 
 import dgl
 import torch
 from dgl.nn.pytorch.conv import EGNNConv
-from dgl.nn.pytorch.glob import SumPooling
 from torch import nn
 
 from gflownet.policy.base import Policy
@@ -17,11 +15,9 @@ class EGNNModel(nn.Module):
         node_feat_dim: int,
         edge_feat_dim: int = 0,
         n_gnn_layers: int = 7,
-        n_node_mlp_layers: int = 2,
-        n_pool_mlp_layers: int = 2,
+        n_mlp_layers: int = 2,
         egnn_hidden_dim: int = 128,
-        node_mlp_hidden_dim: int = 128,
-        pool_mlp_hidden_dim: int = 128,
+        mlp_hidden_dim: int = 128,
     ):
         super().__init__()
 
@@ -37,51 +33,50 @@ class EGNNModel(nn.Module):
             )
         self.egnn_layers = nn.ModuleList(egnn_layers)
 
-        node_mlp_layers = []
-        for i in range(n_node_mlp_layers):
-            node_mlp_layers.append(
+        mlp_layers = []
+        for i in range(n_mlp_layers):
+            mlp_layers.append(
                 (
                     nn.Linear(
-                        egnn_hidden_dim if i == 0 else node_mlp_hidden_dim,
-                        node_mlp_hidden_dim,
+                        2 * egnn_hidden_dim if i == 0 else mlp_hidden_dim,
+                        mlp_hidden_dim if i < n_mlp_layers - 1 else out_dim,
                     )
                 )
             )
-            if i < n_node_mlp_layers - 1:
-                node_mlp_layers.append(nn.SiLU())
-        self.node_mlp = nn.Sequential(*node_mlp_layers)
+            if i < n_mlp_layers - 1:
+                mlp_layers.append(nn.SiLU())
+        self.mlp = nn.Sequential(*mlp_layers)
 
-        self.pool = SumPooling()
-
-        pool_mlp_layers = []
-        for i in range(n_pool_mlp_layers):
-            pool_mlp_layers.append(
-                (
-                    nn.Linear(
-                        node_mlp_hidden_dim if i == 0 else pool_mlp_hidden_dim,
-                        pool_mlp_hidden_dim if i < n_pool_mlp_layers - 1 else out_dim,
-                    )
-                )
+    @staticmethod
+    def concat_message_function(edges):
+        return {
+            "edge_features": torch.cat(
+                [edges.src["atom_features"], edges.dst["atom_features"]], dim=1
             )
-            if i < n_pool_mlp_layers - 1:
-                pool_mlp_layers.append(nn.SiLU())
-        self.pool_mlp = nn.Sequential(*pool_mlp_layers)
+        }
 
     def forward(
         self,
         g: dgl.DGLGraph,
-        node_feat: torch.Tensor,
-        coord_feat: torch.Tensor,
-        edge_feat: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
-        h, x = node_feat, coord_feat
         for egnn_layer in self.egnn_layers:
-            h, x = egnn_layer(g, h, x, edge_feat)
-        h = self.node_mlp(h)
-        h = self.pool(g, h)
-        h = self.pool_mlp(h)
+            g.ndata["atom_features"], g.ndata["coordinates"] = egnn_layer(
+                g,
+                g.ndata["atom_features"],
+                g.ndata["coordinates"],
+                g.edata["edge_features"],
+            )
 
-        return h
+        g.apply_edges(EGNNModel.concat_message_function)
+        # TODO: mask non-rotatable edges before before MLP
+        g.edata["edge_features"] = self.mlp(g.edata["edge_features"])
+
+        graphs = dgl.unbatch(g)
+        graphs = [dgl.edge_subgraph(g, g.edata["rotatable_edges"]) for g in graphs]
+
+        output = torch.stack([g.edata["edge_features"].flatten() for g in graphs])
+
+        return output
 
 
 class EGNNPolicy(Policy):
@@ -89,6 +84,7 @@ class EGNNPolicy(Policy):
         self.model = None
         self.config = None
         self.graph = env.graph
+        self.n_components = env.n_comp
         # We increase the node feature size by 1 to anticipate including current
         # timestamp as one of the features.
         self.node_feat_dim = env.graph.ndata["atom_features"].shape[1] + 1
@@ -108,7 +104,7 @@ class EGNNPolicy(Policy):
 
     def instantiate(self):
         self.model = EGNNModel(
-            self.output_dim, self.node_feat_dim, self.edge_feat_dim, **self.config
+            self.n_components * 3, self.node_feat_dim, self.edge_feat_dim, **self.config
         ).to(self.device)
 
     def __call__(self, states: torch.Tensor) -> torch.Tensor:
@@ -125,10 +121,5 @@ class EGNNPolicy(Policy):
             graph.ndata["coordinates"] = state[:, :-1]
             graphs.append(graph)
         batch = dgl.batch(graphs)
-        output = self.model(
-            batch,
-            batch.ndata["atom_features"],
-            batch.ndata["coordinates"],
-            batch.edata["edge_features"],
-        )
+        output = self.model(batch)
         return output
