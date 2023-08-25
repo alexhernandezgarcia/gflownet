@@ -4,6 +4,7 @@ import numpy as np
 
 from rdkit import Chem
 from pytorch3d.transforms import axis_angle_to_matrix
+from torch.nn.functional import normalize
 
 from gflownet.utils.molecule import constants
 
@@ -154,3 +155,32 @@ def get_rotatable_bonds(graph):
     rot_idx = graph.edata[constants.rotatable_edges_mask_name].nonzero().flatten()[::2]
     edges = torch.stack(graph.edges()).T
     return edges[rot_idx]
+
+def get_torsion_angles(graph):
+    def get_smallest_neighbour(node, neighbour_to_exclude):
+        neighbours = set(graph.predecessors(node).tolist()) - set([neighbour_to_exclude])
+        return min(neighbours)
+    edges = get_rotatable_bonds(graph)
+    torsion_angles = []
+    for edge in edges:
+        begin = edge[0].item()
+        end = edge[1].item()
+        torsion_angles.append((get_smallest_neighbour(begin, end), begin, end, get_smallest_neighbour(end, begin)))
+    return torch.tensor(torsion_angles)
+
+def compute_torsion_angles(graph, torsion_angles, epsilon=1e-9):
+    """
+    torsion_angle : tuple of 4 integers
+    """
+    #import ipdb; ipdb.set_trace()
+    pos = graph.ndata[constants.atom_position_name]
+    b_1 = pos[torsion_angles[:,1]] - pos[torsion_angles[:,0]]
+    b_2 = pos[torsion_angles[:,2]] - pos[torsion_angles[:,1]]
+    b_3 = pos[torsion_angles[:,3]] - pos[torsion_angles[:,2]]
+    n_1 = normalize(torch.cross(b_1, b_2, dim=1), dim=1)
+    n_2 = normalize(torch.cross(b_2, b_3, dim=1), dim=1)
+    m_1 = torch.cross(n_1, normalize(b_2, dim=1) , dim=1)
+    x = torch.sum(n_1 * n_2, axis=1)
+    y = torch.sum(m_1 * n_2, axis=1)
+    return -torch.atan2(y, x) 
+

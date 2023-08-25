@@ -10,6 +10,7 @@ class DGLConformer:
         self.possibly_rotatable_bonds = torsions.get_rotatable_bonds(dgl_graph)
         self.graph = torsions.mask_out_torsion_anlges(dgl_graph, torsion_indices)
         self.rotatable_bonds = torsions.get_rotatable_bonds(self.graph)
+        self.torsion_angles = torsions.get_torsion_angles(self.graph)
 
     def apply_rotations(self, rotations):
         """
@@ -24,3 +25,6 @@ class DGLConformer:
         n_edges = self.graph.edges()[0].shape
         rotations = torch.rand(n_edges // 2) * 2 * torch.pi
         self.apply_rotations(rotations)
+
+    def compute_torsion_angles(self):
+        return torsions.compute_torsion_angles(self.graph, self.torsion_angles)
