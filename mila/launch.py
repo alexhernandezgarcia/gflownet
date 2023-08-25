@@ -330,7 +330,7 @@ if __name__ == "__main__":
         "modules": "anaconda/3 cuda/11.3",
         "outdir": "$SCRATCH/gflownet/logs/slurm",
         "partition": "long",
-        "template": ROOT / "sbatch" / "template-conda.sh",
+        "template": ROOT / "mila" / "sbatch" / "template-conda.sh",
         "venv": None,
         "verbose": False,
     }
@@ -394,6 +394,12 @@ if __name__ == "__main__":
         type=str,
         help="path to venv (without bin/activate)."
         + f" Defaults to {defaults['venv']}",
+    )
+    parser.add_argument(
+        "--template",
+        type=str,
+        help="path to sbatch template."
+        + f" Defaults to {defaults['template']}",
     )
     parser.add_argument(
         "--code_dir",
