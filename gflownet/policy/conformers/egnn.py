@@ -68,11 +68,13 @@ class EGNNModel(nn.Module):
             )
 
         g.apply_edges(EGNNModel.concat_message_function)
-        # TODO: mask non-rotatable edges before before MLP
-        g.edata["edge_features"] = self.mlp(g.edata["edge_features"])
 
         graphs = dgl.unbatch(g)
         graphs = [dgl.edge_subgraph(g, g.edata["rotatable_edges"]) for g in graphs]
+        g = dgl.batch(graphs)
+
+        g.edata["edge_features"] = self.mlp(g.edata["edge_features"])
+        graphs = dgl.unbatch(g)
 
         output = torch.stack([g.edata["edge_features"].flatten() for g in graphs])
 
