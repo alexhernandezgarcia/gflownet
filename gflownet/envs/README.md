@@ -18,7 +18,8 @@ A train and a test set can be created at the beginning of training. The train se
 
 - `all`: all terminating states in the output space $\mathcal{X}$ will be added - Convenient but only feasible for small, synthetic environments like the hyper-grid.
 - `grid`: a grid of points in the output space $\mathcal{X}$ - Only available in certain environments where obtaining a grid of points is meaningful. This mode also requires specifying the number of points via `env.buffer.<train/test>.n`.
-- `uniform`: points sampled uniformly output space $\mathcal{X}$ - This mode also requires specifying the number of points via `env.buffer.<train/test>.n` and the random seed via `env.buffer.<train/test>.seed`.
+- `uniform`: points sampled uniformly in the output space $\mathcal{X}$ - This mode also requires specifying the number of points via `env.buffer.<train/test>.n` and the random seed via `env.buffer.<train/test>.seed`.
+- `random`: points sampled randomly (but not strictly uniformly) in the output space $\mathcal{X}$ - This mode also requires specifying the number of points via `env.buffer.<train/test>.n` and the random seed via `env.buffer.<train/test>.seed`.
 
 Furthermore, a requirement to make use of a train or test set is to specify the name of the output CSV and pickle files, via `env.buffer.<train/test>.output_csv` and `env.buffer.<train/test>.output_pkl`.
 
