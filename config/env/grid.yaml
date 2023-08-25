@@ -20,4 +20,7 @@ cell_max: 1
 buffer:
   data_path: null
   train: null
-  test: null
+  test:
+    type: all
+    output_csv: grid_test.csv
+    output_pkl: grid_test.pkl
