@@ -67,6 +67,7 @@ def main(config):
 
     # Print replay buffer
     if len(gflownet.buffer.replay) > 0:
+        print("\nReplay buffer:")
         print(gflownet.buffer.replay)
 
     # Close logger
