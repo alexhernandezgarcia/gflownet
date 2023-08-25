@@ -11,7 +11,7 @@ elements: 5
 min_atoms: 2
 max_atoms: 20
 min_atom_i: 1
-max_atom_i: 10
+max_atom_i: 16
 space_group: null
 do_charge_check: False
 do_spacegroup_check: True
