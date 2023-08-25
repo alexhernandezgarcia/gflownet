@@ -21,6 +21,8 @@ class EGNNModel(nn.Module):
     ):
         super().__init__()
 
+        self.out_dim = out_dim
+
         egnn_layers = []
         for i in range(n_gnn_layers):
             egnn_layers.append(
@@ -85,7 +87,7 @@ class EGNNPolicy(Policy):
     def __init__(self, config, env, device, float_precision, base=None):
         self.model = None
         self.config = None
-        self.graph = EGNNPolicy.create_core_graph(env.graph)
+        self.graph = EGNNPolicy.create_core_graph(env.graph).to(device)
         self.n_components = env.n_comp
         # We increase the node feature size by 1 to anticipate including current
         # timestamp as one of the features.
