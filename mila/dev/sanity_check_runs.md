@@ -1,6 +1,6 @@
 # Dev Sanity Check Runs
 
-Here is a list of commands to train GFlowNets on various on environments with different configurations that can be used as sanity checks during development of the repository. A number of such runs can be found in [alexhg's `gfn_sanity_checks` wandb project](https://wandb.ai/alexhg/gfn_sanity_checks).
+Here is a list of commands to train GFlowNets on various on environments with different configurations that can be used as sanity checks during development of the repository. A number of such runs can be found in [alexhg's `gfn_sanity_checks` wandb project](https://wandb.ai/alexhg/gfn_sanity_checks). Unless fundamental things about the training process change, it can be expected that the training curves of, for instance, the Loss, `mean_rewards`, logZ and Jensen Shannon Div (if available) are very similar if not identical across runs.
 
 ## Grid
 
