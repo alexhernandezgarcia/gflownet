@@ -10,7 +10,7 @@ defaults:
 # Environment
 env:
   smiles: CC(C(=O)NC)NC(=O)C
-  length_traj: 10
+  length_traj: 3
   policy_encoding_dim_per_angle: 10
   policy_type: gnn
   n_comp: 5
@@ -43,7 +43,7 @@ logger:
     - molecule
   test:
     period: 5000
-    n: 10000
+    n: 10
   checkpoints:
     period: 5000
 
