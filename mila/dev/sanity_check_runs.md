@@ -1,0 +1,101 @@
+# Dev Sanity Check Runs
+
+Here is a list of commands to train GFlowNets on various on environments with different configurations that can be used as sanity checks during development of the repository. A number of such runs can be found in [alexhg's `gfn_sanity_checks` wandb project](https://wandb.ai/alexhg/gfn_sanity_checks).
+
+## Grid
+
+- 2 dimensions
+- Length 10
+
+### Trajectory Balance loss
+
+`salloc`:
+```bash
+python main.py user=$USER env=grid env.length=10 gflownet=trajectorybalance device=cpu logger.project_name=gfn_sanity_checks logger.do.online=True
+```
+
+`sbatch` with `virtualenv`:
+```bash
+python mila/launch.py --venv=<path-to-env> --template=mila/sbatch/template-venv.sh user=$USER env=grid env.length=10 gflownet=trajectorybalance device=cpu logger.project_name=gfn_sanity_checks logger.do.online=True
+```
+
+`sbatch` with `conda`:
+```bash
+python mila/launch.py --venv=<path-to-env> user=$USER env=grid env.length=10 gflownet=trajectorybalance device=cpu logger.project_name=gfn_sanity_checks logger.do.online=True
+```
+
+### Flow Matching loss
+
+`salloc`:
+```bash
+python main.py user=$USER env=grid env.length=10 gflownet=flowmatch device=cpu logger.project_name=gfn_sanity_checks logger.do.online=True
+```
+
+`sbatch` with `virtualenv`:
+```bash
+python mila/launch.py --venv=<path-to-env> --template=mila/sbatch/template-venv.sh user=$USER env=grid env.length=10 gflownet=flowmatch device=cpu logger.project_name=gfn_sanity_checks logger.do.online=True
+```
+
+`sbatch` with `conda`:
+```bash
+python mila/launch.py --venv=<path-to-env> user=$USER env=grid env.length=10 gflownet=flowmatch device=cpu logger.project_name=gfn_sanity_checks logger.do.online=True
+```
+
+## Tetris
+
+- Width 5
+- Height 10
+
+### Trajectory Balance loss
+
+`salloc`:
+```bash
+python main.py user=$USER env=tetris proxy=tetris env.width=5 env.height=10 gflownet=trajectorybalance device=cpu logger.project_name=gfn_sanity_checks logger.do.online=True
+```
+
+`sbatch` with `virtualenv`:
+```bash
+python mila/launch.py --venv=<path-to-env> --template=mila/sbatch/template-venv.sh user=$USER env=tetris proxy=tetris env.width=5 env.height=10 gflownet=trajectorybalance device=cpu logger.project_name=gfn_sanity_checks logger.do.online=True
+```
+
+`sbatch` with `conda`:
+```bash
+python mila/launch.py --venv=<path-to-env> user=$USER env=tetris proxy=tetris env.width=5 env.height=10 gflownet=trajectorybalance device=cpu logger.project_name=gfn_sanity_checks logger.do.online=True
+```
+
+### Flow Matching loss
+
+`salloc`:
+```bash
+python main.py user=$USER env=tetris proxy=tetris env.width=5 env.height=10 gflownet=flowmatch device=cpu logger.project_name=gfn_sanity_checks logger.do.online=True
+```
+
+`sbatch` with `virtualenv`:
+```bash
+python mila/launch.py --venv=<path-to-env> --template=mila/sbatch/template-venv.sh user=$USER env=tetris proxy=tetris env.width=5 env.height=10 gflownet=flowmatch device=cpu logger.project_name=gfn_sanity_checks logger.do.online=True
+```
+
+`sbatch` with `conda`:
+```bash
+python mila/launch.py --venv=<path-to-env> user=$USER env=tetris proxy=tetris env.width=5 env.height=10 gflownet=flowmatch device=cpu logger.project_name=gfn_sanity_checks logger.do.online=True
+```
+
+## Continuous Torus as in Lahlou et al (ICML 2023)
+
+- [Paper](https://arxiv.org/abs/2301.12594)
+- config: `experiments=icml23/ctorus`
+
+`salloc`:
+```bash
+python main.py user=$USER +experiments=icml23/ctorus device=cpu logger.project_name=gfn_sanity_checks logger.do.online=True
+```
+
+`sbatch` with `virtualenv`:
+```bash
+python mila/launch.py --venv=<path-to-env> --template=mila/sbatch/template-venv.sh user=$USER +experiments=icml23/ctorus device=cpu logger.project_name=gfn_sanity_checks logger.do.online=True
+```
+
+`sbatch` with `conda`:
+```bash
+python mila/launch.py --venv=<path-to-env> user=$USER +experiments=icml23/ctorus device=cpu logger.project_name=gfn_sanity_checks logger.do.online=True
+```
