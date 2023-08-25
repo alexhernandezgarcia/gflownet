@@ -188,13 +188,22 @@ class GFlowNetAgent:
 
         if 'MolCrystal' in str(self.env.__class__):
             # todo load this in a more beautiful way
-            mcrygan_path = r'/home/mkilgour/mcrygan'
-            sys.path.append(mcrygan_path)
             from crystal_modeller import Modeller
+            import argparse
+            from common.config_processing import add_args, get_config, process_config
 
-            (standalone_proxy,
-             self.conditions_train_loader, self.conditions_test_loader,
-             mcry_config, mcry_dataDims, mcry_sym_info) = mcry_modeller.prep_standalone_modelling_tools(self.batch_size)
+            parser = argparse.ArgumentParser()
+            _, override_args = parser.parse_known_args()
+            parser, args2config = add_args(parser)
+            args = parser.parse_args()
+            args.yaml_config = '/home/mkilgour/mcrygan/configs/gflownet_dev.yaml'
+
+            config = get_config(args, override_args, args2config)
+            config = process_config(config)
+
+            mcry_modeller = Modeller(config, skip_new_workdir=True)
+            self.conditions_train_loader, self.conditions_test_loader = mcry_modeller.prep_standalone_modelling_tools(self.batch_size['forward'])
+            del mcry_modeller.prep_dataset # this should be done inside the above but we get a bug
 
     def parameters(self):
         if self.backward_policy.is_model is False:
@@ -677,7 +686,7 @@ class GFlowNetAgent:
                 self.logger.log_plots(
                     figs, it, fig_names=fig_names, use_context=self.use_context
                 )
-            if self.logger.do_top_k(it):
+            if False: #self.logger.do_top_k(it):  # todo still busted
                 metrics, figs, fig_names, summary = self.test_top_k(it)
                 self.logger.log_plots(
                     figs, it, use_context=self.use_context, fig_names=fig_names
@@ -924,7 +933,7 @@ class GFlowNetAgent:
             gfn_states = []
             t = time.time()
             print("Sampling from GFN...", end="\r")
-            for b in batch_with_rest(0, self.logger.test.n_top_k, self.batch_size):
+            for b in batch_with_rest(0, self.logger.test.n_top_k, self.batch_size['forward']):
                 gfn_states += self.sample_batch(
                     self.env, len(b), train=False, progress=progress
                 )[0]

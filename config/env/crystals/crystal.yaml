@@ -5,6 +5,8 @@ _target_: gflownet.envs.crystals.crystal.Crystal
 
 # Composition parameters
 id: crystal
+space_group_kwargs:
+  generate_sgs: 'all'
 composition_kwargs:
   elements: 89
 lattice_parameters_kwargs:

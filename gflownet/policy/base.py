@@ -2,6 +2,8 @@ import torch
 from torch import nn
 from omegaconf import OmegaConf
 
+from gflownet.policy.graph_conditioned_mlp import GraphConditionedPolicy
+
 
 class Policy:
     def __init__(self, config, env, device, float_precision, base=None):
@@ -51,6 +53,14 @@ class Policy:
         else:
             raise "Policy type must be defined if shared_weights is False"
 
+        if "n_node_feats" in config:  # if we have one of these, we must have all the others (for graph conditioning)
+            self.n_node_feats = config.n_node_feats
+            self.n_graph_feats = config.n_graph_feats
+            self.max_mol_radius = config.max_mol_radius
+            self.n_crystal_features = config.n_crystal_features
+        else:
+            self.n_node_feats, self.n_graph_feats, self.max_mol_radius, self.n_crystal_features = None, None, None, None
+
     def instantiate(self):
         if self.type == "fixed":
             self.model = self.fixed_distribution
@@ -62,7 +72,12 @@ class Policy:
             self.model = self.make_mlp(nn.LeakyReLU()).to(self.device)
             self.is_model = True
         elif self.type == 'gnn':
-            self.model = graph_conditioned_
+            self.model = GraphConditionedPolicy(self.device,
+                                                n_node_feats=self.n_node_feats,
+                                                n_graph_feats=self.n_graph_feats,
+                                                max_mol_radius=self.max_mol_radius,
+                                                output_dim=self.output_dim,
+                                                num_crystal_features=self.n_crystal_features).to(self.device)
         else:
             raise "Policy model type not defined"
 

@@ -1,8 +1,8 @@
 defaults:
   - _self_
-  - env: mol_crystal
+  - env: crystals/mol_crystal
   - gflownet: trajectorybalance
-  - proxy: mol_crystal
+  - proxy: MXtalNetD
   - logger: wandb
   - user: mkilgour
 

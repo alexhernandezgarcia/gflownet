@@ -6,6 +6,7 @@ _target_: gflownet.envs.crystals.spacegroup.SpaceGroup
 id: spacegroup
 # Stoichiometry
 n_atoms: null
+generate_sgs: ["P21/c","P-1"]  # space groups to consider (non-parallelpiped asymmetric units (few) will not work)
 
 # Buffer
 buffer:

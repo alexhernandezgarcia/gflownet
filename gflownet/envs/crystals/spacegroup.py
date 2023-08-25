@@ -83,6 +83,7 @@ class SpaceGroup(GFlowNetEnv):
             group constraints are ignored.
         """
         # Get dictionaries
+        self.sgs_to_consider = kwargs['generate_sgs']  # todo find a way to enforce this
         self.crystal_lattice_systems = _get_crystal_lattice_systems()
         self.point_symmetries = _get_point_symmetries()
         self.space_groups = _get_space_groups()

@@ -5,7 +5,7 @@ _target_: gflownet.envs.crystals.mol_crystal.MolCrystal
 
 # Composition parameters
 id: mol_crystal
-sg_kwargs:
+space_group_kwargs:
   generate_sgs: ['P21/c',"P-1"]
 lattice_parameters_kwargs:
   min_length: 1.0
