@@ -47,11 +47,14 @@ class MolCrystal(GFlowNetEnv):
 
     def __init__(
             self,
-            mol_data,  # crystaldata object containing conditioning information
             space_group_kwargs: Optional[Dict] = None,
             lattice_parameters_kwargs: Optional[Dict] = None,
             **kwargs,
     ):
+        self.conditional = True  # conditioned on the molecule we are trying to pack
+        self.conditions = None  # assign conditions when new envs are made
+        self.conditions_embedding = None  # todo at evaluation time set this once so that we can skip repeated calls to the conditioner
+
         self.space_group_kwargs = space_group_kwargs or {}
         self.lattice_parameters_kwargs = lattice_parameters_kwargs or {}
 
@@ -113,6 +116,12 @@ class MolCrystal(GFlowNetEnv):
         self.statetorch2proxy = self.statetorch2oracle
 
         super().__init__(**kwargs)
+
+    def set_condition(self, condition):
+        self.conditions = condition  # custom crystaldata object used by the Policy to generate conditions embedding
+
+    def set_conditions_embedding(self, conditions_embedding):
+        self.conditions_embedding = conditions_embedding
 
     def _set_lattice_parameters(self):
         """

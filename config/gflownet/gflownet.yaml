@@ -48,13 +48,13 @@ pct_offline: 0.0
 replay_capacity: 0
 policy:
   forward:
-    type: mlp
+    type: gnn
     n_hid: 512
     n_layers: 4
     checkpoint: null
     reload_ckpt: False
   backward:
-    type: mlp
+    type: gnn
     n_hid: 512
     n_layers: 4
     checkpoint: null

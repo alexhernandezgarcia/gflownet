@@ -34,26 +34,26 @@ from gflownet.utils.common import (
 
 class GFlowNetAgent:
     def __init__(
-        self,
-        env,
-        seed,
-        device,
-        float_precision,
-        optimizer,
-        buffer,
-        policy,
-        mask_invalid_actions,
-        temperature_logits,
-        random_action_prob,
-        pct_offline,
-        logger,
-        num_empirical_loss,
-        oracle,
-        proxy=None,
-        active_learning=False,
-        data_path=None,
-        sample_only=False,
-        **kwargs,
+            self,
+            env,
+            seed,
+            device,
+            float_precision,
+            optimizer,
+            buffer,
+            policy,
+            mask_invalid_actions,
+            temperature_logits,
+            random_action_prob,
+            pct_offline,
+            logger,
+            num_empirical_loss,
+            oracle,
+            proxy=None,
+            active_learning=False,
+            data_path=None,
+            sample_only=False,
+            **kwargs,
     ):
         # Seed
         self.rng = np.random.default_rng(seed)
@@ -141,9 +141,9 @@ class GFlowNetAgent:
             base=self.forward_policy,
         )
         if (
-            policy.backward
-            and "checkpoint" in policy.backward
-            and policy.backward.checkpoint
+                policy.backward
+                and "checkpoint" in policy.backward
+                and policy.backward.checkpoint
         ):
             self.logger.set_backward_policy_ckpt_path(policy.backward.checkpoint)
             # TODO: re-write the logic and conditions to reload a model
@@ -165,6 +165,7 @@ class GFlowNetAgent:
             )
         else:
             self.opt, self.lr_scheduler, self.target = None, None, None
+
         self.n_train_steps = optimizer.n_train_steps
         self.batch_size = optimizer.batch_size
         self.ttsr = max(int(optimizer.train_to_sample_ratio), 1)
@@ -185,6 +186,16 @@ class GFlowNetAgent:
         self.kl = -1.0
         self.jsd = -1.0
 
+        if 'MolCrystal' in str(self.env.__class__):
+            # todo load this in a more beautiful way
+            mcrygan_path = r'/home/mkilgour/mcrygan'
+            sys.path.append(mcrygan_path)
+            from crystal_modeller import Modeller
+
+            (standalone_proxy,
+             self.conditions_train_loader, self.conditions_test_loader,
+             mcry_config, mcry_dataDims, mcry_sym_info) = mcry_modeller.prep_standalone_modelling_tools(self.batch_size)
+
     def parameters(self):
         if self.backward_policy.is_model is False:
             return list(self.forward_policy.model.parameters())
@@ -196,15 +207,15 @@ class GFlowNetAgent:
             raise ValueError("Backward Policy cannot be a nn in flowmatch.")
 
     def sample_actions(
-        self,
-        envs: List[GFlowNetEnv],
-        batch: Optional[Batch] = None,
-        sampling_method: Optional[str] = "policy",
-        backward: Optional[bool] = False,
-        temperature: Optional[float] = 1.0,
-        random_action_prob: Optional[float] = 0.0,
-        no_random: Optional[bool] = True,
-        times: Optional[dict] = None,
+            self,
+            envs: List[GFlowNetEnv],
+            batch: Optional[Batch] = None,
+            sampling_method: Optional[str] = "policy",
+            backward: Optional[bool] = False,
+            temperature: Optional[float] = 1.0,
+            random_action_prob: Optional[float] = 0.0,
+            no_random: Optional[bool] = True,
+            times: Optional[dict] = None,
     ) -> List[Tuple]:
         """
         Samples one action on each environment of the list envs, according to the
@@ -260,7 +271,7 @@ class GFlowNetAgent:
         # Preliminaries
         if sampling_method == "random":
             assert (
-                no_random is False
+                    no_random is False
             ), "sampling_method random and no_random True is ambiguous"
             random_action_prob = 1.0
             temperature = 1.0
@@ -354,10 +365,10 @@ class GFlowNetAgent:
         return actions
 
     def step(
-        self,
-        envs: List[GFlowNetEnv],
-        actions: List[Tuple],
-        backward: bool = False,
+            self,
+            envs: List[GFlowNetEnv],
+            actions: List[Tuple],
+            backward: bool = False,
     ):
         """
         Executes the actions on the environments envs, one by one. This method simply
@@ -388,15 +399,26 @@ class GFlowNetAgent:
             )
         return envs, actions, valids
 
+
+    def get_envs(self, conditional, n_envs, train):
+        if conditional:
+            if train:
+                envs = [self.env.copy().reset(idx).set_condition(self.train_loader.dataset[idx]) for idx in range(n_envs)]
+            else:
+                envs = [self.env.copy().reset(idx).set_condition(self.test_loader.dataset[idx]) for idx in range(n_envs)]
+        else:
+            envs = [self.env.copy().reset(idx) for idx in range(n_envs)]
+        return envs
+
     @torch.no_grad()
     # TODO: extract code from while loop to avoid replication
     def sample_batch(
-        self,
-        n_forward: int = 0,
-        n_train: int = 0,
-        n_replay: int = 0,
-        train=True,
-        progress=False,
+            self,
+            n_forward: int = 0,
+            n_train: int = 0,
+            n_replay: int = 0,
+            train=True,
+            progress=False,
     ):
         """
         TODO: extend docstring.
@@ -415,7 +437,7 @@ class GFlowNetAgent:
 
         # ON-POLICY FORWARD trajectories
         t0_forward = time.time()
-        envs = [self.env.copy().reset(idx) for idx in range(n_forward)]
+        envs = self.get_envs(conditional=self.env.conditional, n_envs=n_forward, train=train)
         batch_forward = Batch(env=self.env, device=self.device, float_type=self.float)
         while envs:
             # Sample actions
@@ -437,7 +459,7 @@ class GFlowNetAgent:
 
         # TRAIN BACKWARD trajectories
         t0_train = time.time()
-        envs = [self.env.copy().reset(idx) for idx in range(n_train)]
+        envs = self.get_envs(conditional=self.env.conditional, n_envs=n_train, train=train)
         batch_train = Batch(env=self.env, device=self.device, float_type=self.float)
         if n_train > 0 and self.buffer.train_pkl is not None:
             with open(self.buffer.train_pkl, "rb") as f:
@@ -476,7 +498,7 @@ class GFlowNetAgent:
             with open(self.buffer.replay_pkl, "rb") as f:
                 dict_replay = pickle.load(f)
                 n_replay = min(n_replay, len(dict_replay["x"]))
-                envs = [self.env.copy().reset(idx) for idx in range(n_replay)]
+                envs = self.get_envs(conditional=self.env.conditional, n_envs=n_replay, train=train)
                 # TODO: implement other sampling options besides permutation
                 if n_replay > 0:
                     x_replay = [x for x in dict_replay["x"].values()]
@@ -749,16 +771,16 @@ class GFlowNetAgent:
             # Moving average of the loss for early stopping
             if loss_term_ema and loss_flow_ema:
                 loss_term_ema = (
-                    self.ema_alpha * losses[1].item()
-                    + (1.0 - self.ema_alpha) * loss_term_ema
+                        self.ema_alpha * losses[1].item()
+                        + (1.0 - self.ema_alpha) * loss_term_ema
                 )
                 loss_flow_ema = (
-                    self.ema_alpha * losses[2].item()
-                    + (1.0 - self.ema_alpha) * loss_flow_ema
+                        self.ema_alpha * losses[2].item()
+                        + (1.0 - self.ema_alpha) * loss_flow_ema
                 )
                 if (
-                    loss_term_ema < self.early_stopping
-                    and loss_flow_ema < self.early_stopping
+                        loss_term_ema < self.early_stopping
+                        and loss_flow_ema < self.early_stopping
                 ):
                     break
             else:
@@ -978,7 +1000,7 @@ class GFlowNetAgent:
         )
         # TODO: this could be done just once and store it
         for statestr, score in tqdm(
-            zip(self.buffer.test.samples, self.buffer.test["energies"]), disable=True
+                zip(self.buffer.test.samples, self.buffer.test["energies"]), disable=True
         ):
             t0_test_traj = time.time()
             traj_list, actions = self.env.get_trajectories(
@@ -998,17 +1020,17 @@ class GFlowNetAgent:
 
     # TODO: reorganize and remove
     def log_iter(
-        self,
-        pbar,
-        rewards,
-        proxy_vals,
-        states_term,
-        data,
-        it,
-        times,
-        losses,
-        all_losses,
-        all_visited,
+            self,
+            pbar,
+            rewards,
+            proxy_vals,
+            states_term,
+            data,
+            it,
+            times,
+            losses,
+            all_losses,
+            all_visited,
     ):
         # train metrics
         self.logger.log_sampler_train(
