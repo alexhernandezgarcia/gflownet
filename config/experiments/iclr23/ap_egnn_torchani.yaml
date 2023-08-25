@@ -43,7 +43,7 @@ logger:
     - molecule
   test:
     period: 5000
-    n: 10
+    n: 10000
   checkpoints:
     period: 5000
 
