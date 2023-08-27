@@ -118,6 +118,13 @@ HELP = dedent(
     1. The second job will have `partition: unkillable` instead of the default (`long`).
     2. They will all have `64G` of memory instead of the default (`32G`) because the `--mem=64G` command-line
         argument overrides everything.
+
+    ## Updating the launcher
+
+    When updating the launcher, you should:
+
+    1. Update this markdown text **in launch.py:HELP** (do not edit this `LAUNCH.md`)
+    2. Run `$ python mila/launch.py --help-md > LAUNCH.md` to update this `LAUNCH.md` from the new `launch.py:HELP` text, new flags etc.
     """.format(
         yaml_example="\n".join(
             [
@@ -298,6 +305,7 @@ def print_md_help(parser, defaults):
 
     print("# 🤝 Gflownet Launch tool help\n")
     print("## 💻 Command-line help\n")
+    print("In the following, `$root` refers to the root of the current repository.\n")
     print("```sh")
     print(parser.format_help())
     print("```\n")
@@ -317,7 +325,7 @@ def print_md_help(parser, defaults):
 
 if __name__ == "__main__":
     defaults = {
-        "code_dir": "$PWD",
+        "code_dir": "$root",
         "conda_env": "gflownet",
         "cpus_per_task": 2,
         "dry-run": False,
@@ -330,7 +338,7 @@ if __name__ == "__main__":
         "modules": "anaconda/3 cuda/11.3",
         "outdir": "$SCRATCH/gflownet/logs/slurm",
         "partition": "long",
-        "template": ROOT / "mila" / "sbatch" / "template-conda.sh",
+        "template": "$root/mila/sbatch/template-conda.sh",
         "venv": None,
         "verbose": False,
     }
