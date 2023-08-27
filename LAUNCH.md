@@ -2,6 +2,8 @@
 
 ## 💻 Command-line help
 
+In the following, `$root` refers to the root of the current repository.
+
 ```sh
 usage: launch.py [-h] [--help-md] [--job_name JOB_NAME] [--outdir OUTDIR]
                  [--cpus_per_task CPUS_PER_TASK] [--mem MEM] [--gres GRES]
@@ -32,7 +34,7 @@ optional arguments:
   --template TEMPLATE   path to sbatch template. Defaults to
                         $root/mila/sbatch/template-conda.sh
   --code_dir CODE_DIR   cd before running main.py (defaults to here). Defaults
-                        to $PWD
+                        to $root
   --jobs JOBS           run file name in external/jobs (with or without
                         .yaml). Defaults to None
   --dry-run             Don't run just, show what it would have run. Defaults
@@ -46,7 +48,7 @@ optional arguments:
 ## 🎛️ Default values
 
 ```yaml
-code_dir      : $PWD
+code_dir      : $root
 conda_env     : gflownet
 cpus_per_task : 2
 dry-run       : False
