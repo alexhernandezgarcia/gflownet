@@ -10,16 +10,19 @@ Here is a list of commands to train GFlowNets on various on environments with di
 ### Trajectory Balance loss
 
 `salloc`:
+
 ```bash
 python main.py user=$USER env=grid env.length=10 gflownet=trajectorybalance device=cpu logger.project_name=gfn_sanity_checks logger.do.online=True
 ```
 
 `sbatch` with `virtualenv`:
+
 ```bash
 python mila/launch.py --venv=<path-to-env> --template=mila/sbatch/template-venv.sh user=$USER env=grid env.length=10 gflownet=trajectorybalance device=cpu logger.project_name=gfn_sanity_checks logger.do.online=True
 ```
 
 `sbatch` with `conda`:
+
 ```bash
 python mila/launch.py --conda_env=<conda-env-name> user=$USER env=grid env.length=10 gflownet=trajectorybalance device=cpu logger.project_name=gfn_sanity_checks logger.do.online=True
 ```
@@ -27,16 +30,19 @@ python mila/launch.py --conda_env=<conda-env-name> user=$USER env=grid env.lengt
 ### Flow Matching loss
 
 `salloc`:
+
 ```bash
 python main.py user=$USER env=grid env.length=10 gflownet=flowmatch device=cpu logger.project_name=gfn_sanity_checks logger.do.online=True
 ```
 
 `sbatch` with `virtualenv`:
+
 ```bash
 python mila/launch.py --venv=<path-to-env> --template=mila/sbatch/template-venv.sh user=$USER env=grid env.length=10 gflownet=flowmatch device=cpu logger.project_name=gfn_sanity_checks logger.do.online=True
 ```
 
 `sbatch` with `conda`:
+
 ```bash
 python mila/launch.py --conda_env=<conda-env-name> user=$USER env=grid env.length=10 gflownet=flowmatch device=cpu logger.project_name=gfn_sanity_checks logger.do.online=True
 ```
@@ -49,16 +55,19 @@ python mila/launch.py --conda_env=<conda-env-name> user=$USER env=grid env.lengt
 ### Trajectory Balance loss
 
 `salloc`:
+
 ```bash
 python main.py user=$USER env=tetris proxy=tetris env.width=5 env.height=10 gflownet=trajectorybalance device=cpu logger.project_name=gfn_sanity_checks logger.do.online=True
 ```
 
 `sbatch` with `virtualenv`:
+
 ```bash
 python mila/launch.py --venv=<path-to-env> --template=mila/sbatch/template-venv.sh user=$USER env=tetris proxy=tetris env.width=5 env.height=10 gflownet=trajectorybalance device=cpu logger.project_name=gfn_sanity_checks logger.do.online=True
 ```
 
 `sbatch` with `conda`:
+
 ```bash
 python mila/launch.py --conda_env=<conda-env-name> user=$USER env=tetris proxy=tetris env.width=5 env.height=10 gflownet=trajectorybalance device=cpu logger.project_name=gfn_sanity_checks logger.do.online=True
 ```
@@ -66,16 +75,19 @@ python mila/launch.py --conda_env=<conda-env-name> user=$USER env=tetris proxy=t
 ### Flow Matching loss
 
 `salloc`:
+
 ```bash
 python main.py user=$USER env=tetris proxy=tetris env.width=5 env.height=10 gflownet=flowmatch device=cpu logger.project_name=gfn_sanity_checks logger.do.online=True
 ```
 
 `sbatch` with `virtualenv`:
+
 ```bash
 python mila/launch.py --venv=<path-to-env> --template=mila/sbatch/template-venv.sh user=$USER env=tetris proxy=tetris env.width=5 env.height=10 gflownet=flowmatch device=cpu logger.project_name=gfn_sanity_checks logger.do.online=True
 ```
 
 `sbatch` with `conda`:
+
 ```bash
 python mila/launch.py --conda_env=<conda-env-name> user=$USER env=tetris proxy=tetris env.width=5 env.height=10 gflownet=flowmatch device=cpu logger.project_name=gfn_sanity_checks logger.do.online=True
 ```
@@ -86,16 +98,19 @@ python mila/launch.py --conda_env=<conda-env-name> user=$USER env=tetris proxy=t
 - config: `experiments=icml23/ctorus`
 
 `salloc`:
+
 ```bash
 python main.py user=$USER +experiments=icml23/ctorus device=cpu logger.project_name=gfn_sanity_checks logger.do.online=True
 ```
 
 `sbatch` with `virtualenv`:
+
 ```bash
 python mila/launch.py --venv=<path-to-env> --template=mila/sbatch/template-venv.sh user=$USER +experiments=icml23/ctorus device=cpu logger.project_name=gfn_sanity_checks logger.do.online=True
 ```
 
 `sbatch` with `conda`:
+
 ```bash
 python mila/launch.py --conda_env=<conda-env-name> user=$USER +experiments=icml23/ctorus device=cpu logger.project_name=gfn_sanity_checks logger.do.online=True
 ```
