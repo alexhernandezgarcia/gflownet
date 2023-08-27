@@ -6,6 +6,8 @@ _target_: gflownet.envs.crystals.spacegroup.SpaceGroup
 id: spacegroup
 # Stoichiometry
 n_atoms: null
+# Policy format
+policy_format: onehot
 
 # Buffer
 buffer:

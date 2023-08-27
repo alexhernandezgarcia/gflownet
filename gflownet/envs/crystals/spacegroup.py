@@ -73,7 +73,12 @@ class SpaceGroup(GFlowNetEnv):
     properties.
     """
 
-    def __init__(self, n_atoms: Optional[List[int]] = None, **kwargs):
+    def __init__(
+        self,
+        n_atoms: Optional[List[int]] = None,
+        policy_format: Optional[str] = "onehot",
+        **kwargs,
+    ):
         """
         Args
         ----
@@ -101,6 +106,9 @@ class SpaceGroup(GFlowNetEnv):
         # system index, point symmetry index, space group)
         self.source = [0 for _ in range(3)]
         # Conversions
+        if policy_format.lower().startswith("onehot"):
+            self.state2policy = self.state2onehotenc
+            self.statetorch2policy = self.statetorch2onehotenc
         self.state2proxy = self.state2oracle
         self.statebatch2proxy = self.statebatch2oracle
         self.statetorch2proxy = self.statetorch2oracle
@@ -220,6 +228,72 @@ class SpaceGroup(GFlowNetEnv):
             False if action in actions_valid else True for action in self.action_space
         ]
         return mask
+
+    def state2onehotenc(self, state: List = None) -> List:
+        """
+        Transforms the state given as argument (or self.state if None) into a
+        one-hot encoding. The output is the concatenation of the one-hot encoding of
+          - crystal-lattice system
+          - point symemtry
+          - space group
+        """
+        if state is None:
+            state = self.state.copy()
+        state_policy = np.zeros(
+            self.n_crystal_lattice_systems
+            + self.n_point_symmetries
+            + self.n_space_groups,
+            dtype=np.float32,
+        )
+        if state[self.cls_idx] != 0:
+            state_policy[state[self.cls_idx] - 1] = 1
+        if state[self.ps_idx] != 0:
+            state_policy[self.n_crystal_lattice_systems + state[self.ps_idx] - 1] = 1
+        if state[self.sg_idx] != 0:
+            state_policy[
+                self.n_crystal_lattice_systems
+                + self.n_point_symmetries
+                + state[self.sg_idx]
+                - 1
+            ] = 1
+        return state_policy.tolist()
+
+    def statetorch2onehotenc(
+        self, states: TensorType["batch", "state_dim"]
+    ) -> TensorType["batch", "policy_output_dim"]:
+        """
+        Transforms a batch of states into a one-hot encoding.
+
+        See state2policy().
+        """
+        states_policy = torch.zeros(
+            (
+                states.shape[0],
+                self.n_crystal_lattice_systems
+                + self.n_point_symmetries
+                + self.n_space_groups,
+            ),
+            dtype=self.float,
+            device=self.device,
+        )
+        cls_nonzero = states[:, self.cls_idx] != 0
+        states_policy[cls_nonzero, states[cls_nonzero, self.cls_idx].to(int) - 1] = 1
+        ps_nonzero = states[:, self.ps_idx] != 0
+        states_policy[
+            ps_nonzero,
+            self.n_crystal_lattice_systems
+            + states[ps_nonzero, self.ps_idx].to(int)
+            - 1,
+        ] = 1
+        sg_nonzero = states[:, self.sg_idx] != 0
+        states_policy[
+            sg_nonzero,
+            self.n_crystal_lattice_systems
+            + self.n_point_symmetries
+            + states[sg_nonzero, self.sg_idx].to(int)
+            - 1,
+        ] = 1
+        return states_policy
 
     def state2oracle(self, state: List = None) -> Tensor:
         """
