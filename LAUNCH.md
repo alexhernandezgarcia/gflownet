@@ -6,8 +6,9 @@
 usage: launch.py [-h] [--help-md] [--job_name JOB_NAME] [--outdir OUTDIR]
                  [--cpus_per_task CPUS_PER_TASK] [--mem MEM] [--gres GRES]
                  [--partition PARTITION] [--modules MODULES]
-                 [--conda_env CONDA_ENV] [--venv VENV] [--code_dir CODE_DIR]
-                 [--jobs JOBS] [--dry-run] [--verbose] [--force]
+                 [--conda_env CONDA_ENV] [--venv VENV] [--template TEMPLATE]
+                 [--code_dir CODE_DIR] [--jobs JOBS] [--dry-run] [--verbose]
+                 [--force]
 
 optional arguments:
   -h, --help            show this help message and exit
@@ -28,6 +29,8 @@ optional arguments:
   --conda_env CONDA_ENV
                         conda environment name. Defaults to gflownet
   --venv VENV           path to venv (without bin/activate). Defaults to None
+  --template TEMPLATE   path to sbatch template. Defaults to
+                        $root/mila/sbatch/template-conda.sh
   --code_dir CODE_DIR   cd before running main.py (defaults to here). Defaults
                         to $PWD
   --jobs JOBS           run file name in external/jobs (with or without
@@ -56,7 +59,7 @@ mem           : 32G
 modules       : anaconda/3 cuda/11.3
 outdir        : $SCRATCH/gflownet/logs/slurm
 partition     : long
-template      : /Users/victor/Documents/Github/gflownet/sbatch/template-conda.sh
+template      : $root/mila/sbatch/template-conda.sh
 venv          : None
 verbose       : False
 ```
@@ -198,3 +201,10 @@ And their SLURM configuration will be similar as the `shared.slurm` params, with
 1. The second job will have `partition: unkillable` instead of the default (`long`).
 2. They will all have `64G` of memory instead of the default (`32G`) because the `--mem=64G` command-line
     argument overrides everything.
+
+## Updating the launcher
+
+When updating the launcher, you should:
+
+1. Update this markdown text **in launch.py:HELP** (do not edit this `LAUNCH.md`)
+2. Run `$ python mila/launch.py --help-md > LAUNCH.md` to update this `LAUNCH.md` from the new `launch.py:HELP` text, new flags etc.
