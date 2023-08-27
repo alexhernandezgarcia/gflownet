@@ -86,6 +86,12 @@ class SpaceGroup(GFlowNetEnv):
             A list with the number of atoms per element, used to compute constraints on
             the space group. 0's are removed from the list. If None, composition/space
             group constraints are ignored.
+
+        policy_format : str
+            The format of the state representation for the policy model inputs. Options
+            are:
+                - 'identity' or 'scalar(s)'
+                - 'onehot(-encoding)'
         """
         # Get dictionaries
         self.crystal_lattice_systems = _get_crystal_lattice_systems()
@@ -106,9 +112,18 @@ class SpaceGroup(GFlowNetEnv):
         # system index, point symmetry index, space group)
         self.source = [0 for _ in range(3)]
         # Conversions
-        if policy_format.lower().startswith("onehot"):
+        self.policy_format = policy_format.lower()
+        if self.policy_format.startswith("onehot") or self.policy_format.startswith(
+            "one-hot"
+        ):
             self.state2policy = self.state2onehotenc
             self.statetorch2policy = self.statetorch2onehotenc
+        elif self.policy_format == "identity" or self.policy_format.startswith(
+            "scalar"
+        ):
+            pass
+        else:
+            raise ValueError("Unknown policy_format {policy_format}.")
         self.state2proxy = self.state2oracle
         self.statebatch2proxy = self.statebatch2oracle
         self.statetorch2proxy = self.statetorch2oracle
