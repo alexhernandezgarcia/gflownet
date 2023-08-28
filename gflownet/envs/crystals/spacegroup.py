@@ -606,7 +606,9 @@ class SpaceGroup(GFlowNetEnv):
             # lattice system and the point symmetry is compatible with the composition.
             space_groups_cls = self.crystal_lattice_systems[cls_idx]["space_groups"]
             space_groups_ps = self.point_symmetries[ps_idx]["space_groups"]
-            space_groups = list(set(space_groups_cls).intersection(set(space_groups_ps)))
+            space_groups = list(
+                set(space_groups_cls).intersection(set(space_groups_ps))
+            )
 
         return any([self.n_atoms_compatibility_dict[sg] for sg in space_groups])
 
@@ -629,7 +631,9 @@ class SpaceGroup(GFlowNetEnv):
             # lattice system and the point symmetry is compatible with the composition.
             space_groups_cls = self.crystal_lattice_systems[cls_idx]["space_groups"]
             space_groups_ps = self.point_symmetries[ps_idx]["space_groups"]
-            space_groups = list(set(space_groups_cls).intersection(set(space_groups_ps)))
+            space_groups = list(
+                set(space_groups_cls).intersection(set(space_groups_ps))
+            )
 
         return any([self.n_atoms_compatibility_dict[sg] for sg in space_groups])
 
