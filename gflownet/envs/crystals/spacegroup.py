@@ -62,7 +62,7 @@ class SpaceGroup(GFlowNetEnv):
 
     The action space is the choice of property to update, the index within the property
     and the combination of properties (state type) already set in the originating state
-    type (e.g.  crystal-lattice system 2 from source, point symmetry 4 from
+    type (e.g. crystal-lattice system 2 from source, point symmetry 4 from
     crystal-lattice system, space group 69 from point symmetry, etc.). The state type
     is included in the action to differentiate actions that lead to same state from
     different states, as in GFlowNet the distribution is over states not over actions.
