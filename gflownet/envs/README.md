@@ -44,3 +44,7 @@ The generation of a train and/or test set can be disabled by sampling their conf
 ### Replay buffer
 
 It is possible to store the best trajectories, according to the reward, in a buffer and potentially use them for backward sampling or simply for evaluation during or at the end of training. In order to enable the replay buffer, its capacity must be larger than zero (default), which can be set with the configuration variable `env.buffer.replay_capacity`.
+
+To use the replay buffer (once enabled) for backward sampling, one can specify `gflownet.optimizer.batch_size.backward_replay`. Currently, backward sampling is supported in one of two modes (specified using `gflownet.replay_sampling`):
+- `permutation` (default): terminating states from the replay buffer are randomly permuted at each iteration, and first `gflownet.optimizer.batch_size.backward_replay` of them are used to sample trajectories,
+- `weighted`: terminating states are sampled with probability equal to their reward.
