@@ -180,7 +180,7 @@ class SpaceGroup(GFlowNetEnv):
                 point_symmetries = [
                     (self.ps_idx, idx, ref)
                     for idx in self.crystal_lattice_systems[cls_idx]["point_symmetries"]
-                    if self._is_ps_compatible(idx)
+                    if self._is_ps_compatible(idx, cls_idx=cls_idx)
                 ]
         else:
             space_groups_cls = [
@@ -201,7 +201,7 @@ class SpaceGroup(GFlowNetEnv):
                 crystal_lattice_systems = [
                     (self.cls_idx, idx, ref)
                     for idx in self.point_symmetries[ps_idx]["crystal_lattice_systems"]
-                    if self._is_cls_compatible(idx)
+                    if self._is_cls_compatible(idx, ps_idx=ps_idx)
                 ]
         else:
             space_groups_ps = [
@@ -587,31 +587,51 @@ class SpaceGroup(GFlowNetEnv):
             n_atoms, self.space_groups.keys()
         )
 
-    def _is_cls_compatible(self, cls_idx: int):
+    def _is_cls_compatible(self, cls_idx: int, ps_idx: Optional[int] = None):
         """
         Returns True it at least one of the space group in the crystal-lattice system
         passed as an argument is compatible with the composition, according to
-        self.n_atoms_compatibility_dict. False otherwise.
+        self.n_atoms_compatibility_dict, and with the point symmetry, if provided.
+        False otherwise.
         """
-        return any(
-            [
-                self.n_atoms_compatibility_dict[sg]
-                for sg in self.crystal_lattice_systems[cls_idx]["space_groups"]
-            ]
-        )
+        # Determine the list of candidate space groups
+        if ps_idx is None:
+            # No point symmetries has been provided so the crystal-latttice system is
+            # considered valid if any of the associated space groups is compatible
+            # with the composition
+            space_groups = self.crystal_lattice_systems[cls_idx]["space_groups"]
+        else:
+            # A point symmetry has been provided so the crystal-lattice system is only
+            # considered valid if a space group associated with both the crystal-
+            # lattice system and the point symmetry is compatible with the composition.
+            space_groups_cls = self.crystal_lattice_systems[cls_idx]["space_groups"]
+            space_groups_ps = self.point_symmetries[ps_idx]["space_groups"]
+            space_groups = list(set(space_groups_cls).intersection(set(space_groups_ps)))
 
-    def _is_ps_compatible(self, ps_idx: int):
+        return any([self.n_atoms_compatibility_dict[sg] for sg in space_groups])
+
+    def _is_ps_compatible(self, ps_idx: int, cls_idx: Optional[int] = None):
         """
         Returns True it at least one of the space group in the point symmetry passed as
         an argument is compatible with the composition, according to
-        self.n_atoms_compatibility_dict. False otherwise.
+        self.n_atoms_compatibility_dict, and with the crystal-lattice system, if
+        provided. False otherwise.
         """
-        return any(
-            [
-                self.n_atoms_compatibility_dict[sg]
-                for sg in self.point_symmetries[ps_idx]["space_groups"]
-            ]
-        )
+        # Determine the list of candidate space groups
+        if cls_idx is None:
+            # No crystal-lattice system has been provided so the point symmetry is
+            # considered valid if any of the associated space groups is compatible
+            # with the composition
+            space_groups = self.point_symmetries[ps_idx]["space_groups"]
+        else:
+            # A crystal-lattice system has been provided so the point symmetry is only
+            # considered valid if a space group associated with both the crystal-
+            # lattice system and the point symmetry is compatible with the composition.
+            space_groups_cls = self.crystal_lattice_systems[cls_idx]["space_groups"]
+            space_groups_ps = self.point_symmetries[ps_idx]["space_groups"]
+            space_groups = list(set(space_groups_cls).intersection(set(space_groups_ps)))
+
+        return any([self.n_atoms_compatibility_dict[sg] for sg in space_groups])
 
     @staticmethod
     def build_n_atoms_compatibility_dict(n_atoms: List[int], space_groups: List[int]):
