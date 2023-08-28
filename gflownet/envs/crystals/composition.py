@@ -325,7 +325,7 @@ class Composition(GFlowNetEnv):
         unrequired_element_allowed = (
             n_max_unrequired_elements_left > 0
             and min_atoms_per_required_element * n_unused_required_elements + min_atom_i
-            < nb_atoms_still_allowed
+            <= nb_atoms_still_allowed
         )
 
         # Compute the minimum and maximum number of atoms available for an unrequired

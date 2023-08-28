@@ -19,7 +19,7 @@ test:
     kernel: gaussian
   n_top_k: 5000
   top_k: 100
-  top_k_period: 2500
+  top_k_period: -1
 # Oracle metrics
 oracle:
   period: 100000
