@@ -202,7 +202,7 @@ class GFlowNetAgent:
         sampling_method: Optional[str] = "policy",
         backward: Optional[bool] = False,
         temperature: Optional[float] = 1.0,
-        random_action_prob: Optional[float] = 0.0,
+        random_action_prob: Optional[float] = None,
         no_random: Optional[bool] = True,
         times: Optional[dict] = None,
     ) -> List[Tuple]:
@@ -241,8 +241,9 @@ class GFlowNetAgent:
             self.temperature_logits is used.
 
         random_action_prob : float
-            Probability of sampling random actions. If None, self.random_action_prob is used.
-
+            Probability of sampling random actions. If None (default),
+            self.random_action_prob is used, unless its value is forced to either 0.0
+            or 1.0 by other arguments (sampling_method or no_random).
         no_random : bool
             If True, the samples will strictly be on-policy, that is
                 - temperature = 1.0
