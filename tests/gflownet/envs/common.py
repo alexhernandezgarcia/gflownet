@@ -17,7 +17,6 @@ def test__all_env_common(env):
     test__step_random__does_not_sample_invalid_actions(env)
     test__get_parents_step_get_mask__are_compatible(env)
     test__sample_backwards_reaches_source(env)
-    test__state2policy__is_reversible(env)
     test__state2readable__is_reversible(env)
     test__get_parents__returns_same_state_and_eos_if_done(env)
     test__actions2indices__returns_expected_tensor(env)

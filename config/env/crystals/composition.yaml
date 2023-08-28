@@ -1,0 +1,26 @@
+defaults:
+  - base
+
+_target_: gflownet.envs.crystals.composition.Composition
+
+# Composition parameters
+id: composition
+max_diff_elem: 4
+min_diff_elem: 2
+elements: 5
+min_atoms: 2
+max_atoms: 20
+min_atom_i: 1
+max_atom_i: 16
+space_group: null
+do_charge_check: False
+do_spacegroup_check: True
+# Buffer
+buffer:
+  data_path: null
+  train:
+    type: all
+    output_csv: composition_train.csv
+  test:
+    type: all
+    output_csv: composition_test.csv
