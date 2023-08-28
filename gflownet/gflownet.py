@@ -154,6 +154,7 @@ class GFlowNetAgent:
             self.opt, self.lr_scheduler, self.target = None, None, None
         self.n_train_steps = optimizer.n_train_steps
         self.batch_size = optimizer.batch_size
+        self.batch_size_total = sum(self.batch_size.values())
         self.ttsr = max(int(optimizer.train_to_sample_ratio), 1)
         self.sttr = max(int(1 / optimizer.train_to_sample_ratio), 1)
         self.clip_grad_norm = optimizer.clip_grad_norm
@@ -189,7 +190,7 @@ class GFlowNetAgent:
         sampling_method: Optional[str] = "policy",
         backward: Optional[bool] = False,
         temperature: Optional[float] = 1.0,
-        random_action_prob: Optional[float] = 0.0,
+        random_action_prob: Optional[float] = None,
         no_random: Optional[bool] = True,
         times: Optional[dict] = None,
     ) -> List[Tuple]:
@@ -228,8 +229,9 @@ class GFlowNetAgent:
             self.temperature_logits is used.
 
         random_action_prob : float
-            Probability of sampling random actions. If None, self.random_action_prob is used.
-
+            Probability of sampling random actions. If None (default),
+            self.random_action_prob is used, unless its value is forced to either 0.0
+            or 1.0 by other arguments (sampling_method or no_random).
         no_random : bool
             If True, the samples will strictly be on-policy, that is
                 - temperature = 1.0
@@ -898,15 +900,17 @@ class GFlowNetAgent:
         print()
         if not gfn_states:
             # sample states from the current gfn
+            batch = Batch(env=self.env, device=self.device, float_type=self.float)
             self.random_action_prob = 0
-            gfn_states = []
             t = time.time()
             print("Sampling from GFN...", end="\r")
-            for b in batch_with_rest(0, self.logger.test.n_top_k, self.batch_size):
-                gfn_states += self.sample_batch(
-                    self.env, len(b), train=False, progress=progress
-                )[0]
+            for b in batch_with_rest(
+                0, self.logger.test.n_top_k, self.batch_size_total
+            ):
+                sub_batch, _ = self.sample_batch(n_forward=len(b), train=False)
+                batch.merge(sub_batch)
             duration = time.time() - t
+            gfn_states = batch.get_terminating_states()
 
         # compute metrics and get plots
         print("[test_top_k] Making GFN plots...", end="\r")
@@ -919,14 +923,16 @@ class GFlowNetAgent:
         if do_random:
             # sample random states from uniform actions
             if not random_states:
+                batch = Batch(env=self.env, device=self.device, float_type=self.float)
                 self.random_action_prob = 1.0
                 print("[test_top_k] Sampling at random...", end="\r")
-                random_states = []
-                for b in batch_with_rest(0, self.logger.test.n_top_k, self.batch_size):
-                    random_states += self.sample_batch(
-                        self.env, len(b), train=False, progress=progress
-                    )[0]
+                for b in batch_with_rest(
+                    0, self.logger.test.n_top_k, self.batch_size_total
+                ):
+                    sub_batch, _ = self.sample_batch(n_forward=len(b), train=False)
+                    batch.merge(sub_batch)
             # compute metrics and get plots
+            random_states = batch.get_terminating_states()
             print("[test_top_k] Making Random plots...", end="\r")
             (
                 random_metrics,
