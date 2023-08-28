@@ -984,6 +984,13 @@ class Tree(GFlowNetEnv):
         assert len(active) == 1
         return active.item()
 
+    @staticmethod
+    def get_n_nodes(state: torch.Tensor) -> int:
+        """
+        Returns the number of nodes in a tree represented by the given state.
+        """
+        return (~torch.isnan(state[:-1, Attribute.TYPE])).sum()
+
     def get_policy_output_continuous(
         self, params: dict
     ) -> TensorType["policy_output_dim"]:
