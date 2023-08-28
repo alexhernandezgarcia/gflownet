@@ -1066,6 +1066,7 @@ class GFlowNetEnv:
             name = "train ground truth"
             reward = energy_reward
         elif energy is None and reward is None:
+            # TODO: fix this
             x = torch.stack([self.state2proxy(s) for s in states])
             energy = self.proxy(x.to(self.device)).cpu()
             reward = self.proxy2reward(energy)

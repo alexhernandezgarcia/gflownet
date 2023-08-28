@@ -66,7 +66,9 @@ def main(config):
         pickle.dump(dct, open("gfn_samples.pkl", "wb"))
 
     # Print replay buffer
-    print(gflownet.buffer.replay)
+    if len(gflownet.buffer.replay) > 0:
+        print("\nReplay buffer:")
+        print(gflownet.buffer.replay)
 
     # Close logger
     gflownet.logger.end()
