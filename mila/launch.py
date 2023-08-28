@@ -580,7 +580,7 @@ if __name__ == "__main__":
         new_conf_path.parent.mkdir(parents=True, exist_ok=True)
         conf += "\n# " + jobs_str + "\n"
         rel = new_conf_path.relative_to(Path.cwd())
-        if not dry_run or 1:
+        if not dry_run:
             new_conf_path.write_text(conf)
             print(f"   Created summary YAML in {rel}")
 
