@@ -61,16 +61,16 @@ class SpaceGroup(GFlowNetEnv):
         (230 options + none)
 
     The action space is the choice of property to update, the index within the property
-    and the combination of properties already set in the reference state (e.g.
-    crystal-lattice system 2 from source, point symmetry 4 from crystal-lattice system,
-    space group 69 from point symmetry, etc.). The reference state is included in the
-    action to differentiate actions that lead to same state from different states, as
-    in GFlowNet the distribution is over states not over actions. The selection of
-    crystal-lattice system restricts the possible point symmetries and space groups;
-    the selection of point symmetry restricts the possible crystal-lattice systems and
-    space groups. The selection of space groups determines a specific crystal-lattice
-    system and point symmetry. There is no restriction in the order of selection of
-    properties.
+    and the combination of properties (state type) already set in the originating state
+    type (e.g.  crystal-lattice system 2 from source, point symmetry 4 from
+    crystal-lattice system, space group 69 from point symmetry, etc.). The state type
+    is included in the action to differentiate actions that lead to same state from
+    different states, as in GFlowNet the distribution is over states not over actions.
+    The selection of crystal-lattice system restricts the possible point symmetries and
+    space groups; the selection of point symmetry restricts the possible
+    crystal-lattice systems and space groups. The selection of space groups determines
+    a specific crystal-lattice system and point symmetry. There is no restriction in
+    the order of selection of properties.
     """
 
     def __init__(self, n_atoms: Optional[List[int]] = None, **kwargs):
@@ -91,10 +91,11 @@ class SpaceGroup(GFlowNetEnv):
         self.n_space_groups = len(self.space_groups)
         # Set dictionary of compatibility with number of atoms
         self.set_n_atoms_compatibility_dict(n_atoms)
-        # Define indices
+        # Indices in the state representation: crystal-lattice system (cls), point
+        # symmetry (ps) and space group (sg)
         self.cls_idx, self.ps_idx, self.sg_idx = 0, 1, 2
-        self.ref_state_factors = [1, 2]
-        self.ref_state_indices = [0, 1, 2, 3]
+        # Indices of state types (see self.get_state_type)
+        self.state_type_indices = [0, 1, 2, 3]
         # End-of-sequence action
         self.eos = (-1, -1, -1)
         # Source state: index 0 (empty) for all three properties (crystal-lattice
@@ -109,9 +110,11 @@ class SpaceGroup(GFlowNetEnv):
 
     def get_action_space(self):
         """
-        Constructs list with all possible actions. An action is described by a
-        tuple (property, index), where property is (0: crystal-lattice system,
-        1: point symmetry, 2: space group).
+        Constructs list with all possible actions. An action is described by a tuple
+        (property, index, state_from_type), where property is (0: crystal-lattice
+        system, 1: point symmetry, 2: space group), index is the index of the property
+        set by the action and state_from_type is the state type of the originating
+        state (see self.state_type_indices).
         """
         actions = []
         for prop, n_idx in zip(
@@ -122,12 +125,12 @@ class SpaceGroup(GFlowNetEnv):
                 self.n_space_groups,
             ],
         ):
-            for ref_idx in self.ref_state_indices:
-                if prop == self.cls_idx and ref_idx in [1, 3]:
+            for s_from_type in self.state_type_indices:
+                if prop == self.cls_idx and s_from_type in [1, 3]:
                     continue
-                if prop == self.ps_idx and ref_idx in [2, 3]:
+                if prop == self.ps_idx and s_from_type in [2, 3]:
                     continue
-                actions_prop = [(prop, idx + 1, ref_idx) for idx in range(n_idx)]
+                actions_prop = [(prop, idx + 1, s_from_type) for idx in range(n_idx)]
                 actions += actions_prop
         actions += [self.eos]
         return actions
@@ -154,16 +157,16 @@ class SpaceGroup(GFlowNetEnv):
             mask = [True for _ in self.action_space]
             mask[-1] = False
             return mask
-        ref = self.get_ref_index(state)
+        state_type = self.get_state_type(state)
         # No constraints if neither crystal-lattice system nor point symmetry selected
         if cls_idx == 0 and ps_idx == 0:
             crystal_lattice_systems = [
-                (self.cls_idx, idx + 1, ref)
+                (self.cls_idx, idx + 1, state_type)
                 for idx in range(self.n_crystal_lattice_systems)
                 if self._is_cls_compatible(idx + 1)
             ]
             point_symmetries = [
-                (self.ps_idx, idx + 1, ref)
+                (self.ps_idx, idx + 1, state_type)
                 for idx in range(self.n_point_symmetries)
                 if self._is_ps_compatible(idx + 1)
             ]
@@ -171,20 +174,20 @@ class SpaceGroup(GFlowNetEnv):
         if cls_idx != 0:
             crystal_lattice_systems = []
             space_groups_cls = [
-                (self.sg_idx, sg, ref)
+                (self.sg_idx, sg, state_type)
                 for sg in self.crystal_lattice_systems[cls_idx]["space_groups"]
                 if self.n_atoms_compatibility_dict[sg]
             ]
             # If no point symmetry selected yet
             if ps_idx == 0:
                 point_symmetries = [
-                    (self.ps_idx, idx, ref)
+                    (self.ps_idx, idx, state_type)
                     for idx in self.crystal_lattice_systems[cls_idx]["point_symmetries"]
                     if self._is_ps_compatible(idx)
                 ]
         else:
             space_groups_cls = [
-                (self.sg_idx, idx + 1, ref)
+                (self.sg_idx, idx + 1, state_type)
                 for idx in range(self.n_space_groups)
                 if self.n_atoms_compatibility_dict[idx + 1]
             ]
@@ -192,20 +195,20 @@ class SpaceGroup(GFlowNetEnv):
         if ps_idx != 0:
             point_symmetries = []
             space_groups_ps = [
-                (self.sg_idx, sg, ref)
+                (self.sg_idx, sg, state_type)
                 for sg in self.point_symmetries[ps_idx]["space_groups"]
                 if self.n_atoms_compatibility_dict[sg]
             ]
             # If no crystal-lattice system selected yet
             if cls_idx == 0:
                 crystal_lattice_systems = [
-                    (self.cls_idx, idx, ref)
+                    (self.cls_idx, idx, state_type)
                     for idx in self.point_symmetries[ps_idx]["crystal_lattice_systems"]
                     if self._is_cls_compatible(idx)
                 ]
         else:
             space_groups_ps = [
-                (self.sg_idx, idx + 1, ref)
+                (self.sg_idx, idx + 1, state_type)
                 for idx in range(self.n_space_groups)
                 if self.n_atoms_compatibility_dict[idx + 1]
             ]
@@ -372,8 +375,8 @@ class SpaceGroup(GFlowNetEnv):
                     parent = state.copy()
                     parent[prop] = 0
                     parents.append(parent)
-                    ref = self.get_ref_index(parent)
-                    action = (self.sg_idx, sg, ref)
+                    parent_type = self.get_state_type(parent)
+                    action = (self.sg_idx, sg, parent_type)
                     actions.append(action)
             else:
                 # Catch other parents
@@ -382,8 +385,8 @@ class SpaceGroup(GFlowNetEnv):
                         parent = state.copy()
                         parent[prop] = 0
                         parents.append(parent)
-                        ref = self.get_ref_index(parent)
-                        action = (prop, idx, ref)
+                        parent_type = self.get_state_type(parent)
+                        action = (prop, idx, parent_type)
                         actions.append(action)
         return parents, actions
 
@@ -559,10 +562,18 @@ class SpaceGroup(GFlowNetEnv):
     def point_group(self) -> str:
         return self.get_point_group(self.state)
 
-    def get_ref_index(self, state: List[int] = None) -> int:
+    def get_state_type(self, state: List[int] = None) -> int:
+        """
+        Returns the index of the type of the state passed as an argument. The state
+        type is one of the following (self.state_type_indices):
+            0: both crystal-lattice system and point symmetry are unset (== 0)
+            1: crystal-lattice system is set (!= 0); point symmetry is unset
+            2: crystal-lattice system is unset; point symmetry is set
+            3: both crystal-lattice system and point symmetry are set
+        """
         if state is None:
             state = self.state
-        return sum([int(s > 0) * f for s, f in zip(state, self.ref_state_factors)])
+        return sum([int(s > 0) * f for s, f in zip(state, (1, 2))])
 
     def set_n_atoms_compatibility_dict(self, n_atoms: List):
         """
