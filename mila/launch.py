@@ -225,27 +225,41 @@ def load_jobs(yaml_path):
 
 
 def find_jobs_conf(args):
+    local_out_dir = ROOT / "external" / "launched_sbatch_scripts"
     if not args.get("jobs"):
-        return None
-    if args["jobs"].endswith(".yaml"):
-        args["jobs"] = args["jobs"][:-5]
-    if args["jobs"].endswith(".yml"):
-        args["jobs"] = args["jobs"][:-4]
-    if args["jobs"].startswith("external/"):
-        args["jobs"] = args["jobs"][9:]
-    if args["jobs"].startswith("jobs/"):
-        args["jobs"] = args["jobs"][5:]
-    yamls = [
-        str(y) for y in (ROOT / "external" / "jobs").glob(f"**/{args['jobs']}.y*ml")
-    ]
-    if len(yamls) == 0:
-        raise ValueError(f"Could not find {args['jobs']}.y(a)ml in ./external/jobs/")
-    if len(yamls) > 1:
-        print(">>> Warning: found multiple matches:\n  •" + "\n  •".join(yamls))
-    jobs_conf_path = Path(yamls[0])
-    print("🗂 Using jobs file: ./" + str(jobs_conf_path.relative_to(Path.cwd())))
+        return None, local_out_dir / "_other_"
+
+    if resolve(args["jobs"]).is_file():
+        assert args["jobs"].endswith(".yaml") or args["jobs"].endswith(
+            ".yml"
+        ), "jobs file must be a yaml file"
+        jobs_conf_path = resolve(args["jobs"])
+        local_out_dir = local_out_dir / jobs_conf_path.parent.name
+    else:
+        if args["jobs"].endswith(".yaml"):
+            args["jobs"] = args["jobs"][:-5]
+        if args["jobs"].endswith(".yml"):
+            args["jobs"] = args["jobs"][:-4]
+        if args["jobs"].startswith("external/"):
+            args["jobs"] = args["jobs"][9:]
+        if args["jobs"].startswith("jobs/"):
+            args["jobs"] = args["jobs"][5:]
+        yamls = [
+            str(y) for y in (ROOT / "external" / "jobs").glob(f"**/{args['jobs']}.y*ml")
+        ]
+        if len(yamls) == 0:
+            raise ValueError(
+                f"Could not find {args['jobs']}.y(a)ml in ./external/jobs/"
+            )
+        if len(yamls) > 1:
+            print(">>> Warning: found multiple matches:\n  •" + "\n  •".join(yamls))
+        jobs_conf_path = Path(yamls[0])
+        local_out_dir = local_out_dir / jobs_conf_path.parent.relative_to(
+            ROOT / "external" / "jobs"
+        )
+    print("🗂  Using jobs file: ./" + str(jobs_conf_path.relative_to(Path.cwd())))
     print()
-    return jobs_conf_path
+    return jobs_conf_path, local_out_dir
 
 
 def script_dict_to_main_args_str(script_dict, is_first=True, nested_key=""):
@@ -417,7 +431,8 @@ if __name__ == "__main__":
     parser.add_argument(
         "--jobs",
         type=str,
-        help="run file name in external/jobs (with or without .yaml)."
+        help="jobs (nested) file name in external/jobs (with or without .yaml)."
+        + " Or an absolute path to a yaml file anywhere"
         + f" Defaults to {defaults['jobs']}",
     )
     parser.add_argument(
@@ -468,7 +483,7 @@ if __name__ == "__main__":
         outdir.mkdir(parents=True, exist_ok=True)
 
     # find jobs config file in external/jobs as a yaml file
-    jobs_conf_path = find_jobs_conf(args)
+    jobs_conf_path, local_out_dir = find_jobs_conf(args)
     # load yaml file as list of dicts. May be empty if jobs_conf_path is None
     job_dicts = load_jobs(jobs_conf_path)
     # No run passed in the CLI args or in the associated yaml file so run the
@@ -487,14 +502,6 @@ if __name__ == "__main__":
             print("🛑 Aborted")
             sys.exit(0)
         print()
-
-    local_out_dir = ROOT / "external" / "launched_sbatch_scripts"
-    if jobs_conf_path is not None:
-        local_out_dir = local_out_dir / jobs_conf_path.parent.relative_to(
-            ROOT / "external" / "jobs"
-        )
-    else:
-        local_out_dir = local_out_dir / "_other_"
 
     for i, job_dict in enumerate(job_dicts):
         job_args = defaults.copy()
@@ -572,10 +579,10 @@ if __name__ == "__main__":
         new_conf_path = local_out_dir / f"{jobs_conf_path.stem}_{now}.yaml"
         new_conf_path.parent.mkdir(parents=True, exist_ok=True)
         conf += "\n# " + jobs_str + "\n"
-        new_conf_path.write_text(conf)
         rel = new_conf_path.relative_to(Path.cwd())
-        if not dry_run:
-            print(f"   Created summary YAML in ./{rel}")
+        if not dry_run or 1:
+            new_conf_path.write_text(conf)
+            print(f"   Created summary YAML in {rel}")
 
     if job_ids:
         print(f"   {jobs_str}\n")

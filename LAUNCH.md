@@ -35,8 +35,9 @@ optional arguments:
                         $root/mila/sbatch/template-conda.sh
   --code_dir CODE_DIR   cd before running main.py (defaults to here). Defaults
                         to $root
-  --jobs JOBS           run file name in external/jobs (with or without
-                        .yaml). Defaults to None
+  --jobs JOBS           jobs (nested) file name in external/jobs (with or
+                        without .yaml). Or an absolute path to a yaml file
+                        anywhere Defaults to None
   --dry-run             Don't run just, show what it would have run. Defaults
                         to False
   --verbose             print templated sbatch after running it. Defaults to
