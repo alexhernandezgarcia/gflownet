@@ -33,6 +33,7 @@ jobs:
         width: 5
         height: 10
       gflownet: flowmatch
+      proxy: tetris
   - slurm:
       job_name: sanity-tetris-tb
     script:
@@ -41,6 +42,7 @@ jobs:
         width: 5
         height: 10
       gflownet: trajectorybalance
+      proxy: tetris
   # Ctorus
   - slurm:
       job_name: sanity-ctorus

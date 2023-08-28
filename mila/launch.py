@@ -493,6 +493,7 @@ if __name__ == "__main__":
 
     # Save submitted jobs ids
     job_ids = []
+    job_out_files = []
 
     # A unique datetime identifier for the jobs about to be submitted
     now = now_str()
@@ -549,11 +550,14 @@ if __name__ == "__main__":
             job_ids.append(job_id)
             print("  ✅ " + out)
             # Write job ID & output file path in the sbatch file
+            job_output_file = str(outdir / f"{job_args['job_name']}-{job_id}.out")
+            job_out_files.append(job_output_file)
+            print("  📝  Job output file will be: " + job_output_file)
             templated += (
                 "\n# SLURM_JOB_ID: "
                 + job_id
                 + "\n# Output file: "
-                + str(outdir / f"{job_args['job_name']}-{job_id}.out")
+                + job_output_file
                 + "\n"
             )
             sbatch_path.write_text(templated)
@@ -579,6 +583,11 @@ if __name__ == "__main__":
         new_conf_path = local_out_dir / f"{jobs_conf_path.stem}_{now}.yaml"
         new_conf_path.parent.mkdir(parents=True, exist_ok=True)
         conf += "\n# " + jobs_str + "\n"
+        conf += (
+            "\n# Job Output files:\n#"
+            + "\n#".join([f"  • {f}" for f in job_out_files])
+            + "\n"
+        )
         rel = new_conf_path.relative_to(Path.cwd())
         if not dry_run:
             new_conf_path.write_text(conf)
