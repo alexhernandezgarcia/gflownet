@@ -1,0 +1,48 @@
+shared:
+  slurm: {}
+  script:
+    user: $USER
+    device: cpu
+    logger:
+      project_name: gfn_sanity_checks
+      do:
+        online: True
+
+jobs:
+  # Grid
+  - slurm:
+      job_name: sanity-grid-flowmatch
+    script:
+      env:
+        __value__: grid
+        length: 10
+      gflownet: flowmatch
+  - slurm:
+      job_name: sanity-grid-tb
+    script:
+      env:
+        __value__: grid
+        length: 10
+      gflownet: trajectorybalance
+  # Tetris
+  - slurm:
+      job_name: sanity-tetris-flowmatch
+    script:
+      env:
+        __value__: tetris
+        width: 5
+        height: 10
+      gflownet: flowmatch
+  - slurm:
+      job_name: sanity-tetris-tb
+    script:
+      env:
+        __value__: tetris
+        width: 5
+        height: 10
+      gflownet: trajectorybalance
+  # Ctorus
+  - slurm:
+      job_name: sanity-ctorus
+    script:
+      +experiments: icml23/ctorus

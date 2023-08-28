@@ -2,6 +2,22 @@
 
 Here is a list of commands to train GFlowNets on various on environments with different configurations that can be used as sanity checks during development of the repository. A number of such runs can be found in [alexhg's `gfn_sanity_checks` wandb project](https://wandb.ai/alexhg/gfn_sanity_checks). Unless fundamental things about the training process change, it can be expected that the training curves of, for instance, the Loss, `mean_rewards`, logZ and Jensen Shannon Div (if available) are very similar if not identical across runs.
 
+In order to launch all the sanity checks as individual jobs:
+
+`venv`:
+
+```bash
+python mila/launch.py --venv=<path-to-venv> --template=mila/sbatch/template-venv.sh --jobs=mila/dev/sanity_check_runs.yaml
+```
+
+`conda`:
+
+```bash
+python mila/launch.py --conda_env=<conda-env-name> --jobs=mila/dev/sanity_check_runs.yaml
+```
+
+**Note**: the default modules loaded are `cuda/11.3` and `anaconda/3`. Add `--modules='module1 module2 <etc.>'` to specify your own modules.
+
 ## Grid
 
 - 2 dimensions
