@@ -40,6 +40,12 @@ gflownet:
 policy:
   forward:
     n_hid: 256
+    n_layers: 3
+  backward:
+    type: mlp
+    n_hid: 256
+    n_layers: 3
+    shared_weights: False
 
 # WandB
 logger:
