@@ -51,6 +51,7 @@ class MolCryLatticeParameters(Grid):
             max_rotation: float = 360.0,
             grid_size: int = 10,
             max_increment: int = 1,
+            device='cpu',
             **kwargs,
     ):
         """
@@ -106,6 +107,7 @@ class MolCryLatticeParameters(Grid):
             length=grid_size,
             max_increment=max_increment,
             max_dim_per_action=3,
+            device=device,
             **kwargs,
         )
 
@@ -114,6 +116,7 @@ class MolCryLatticeParameters(Grid):
                 f"Expected one of the keys or values from {LATTICE_SYSTEMS}, received {lattice_system}."
             )
 
+        self.device = device
         self.lattice_system = lattice_system
         self.min_length = min_length
         self.max_length = max_length
@@ -152,12 +155,13 @@ class MolCryLatticeParameters(Grid):
         self.phi2cell = {v: k for k, v in self.cell2phi.items()}
         self.cell2rotation = {k: v for k, v in enumerate(rotations)}
         self.rotation2cell = {v: k for k, v in self.cell2rotation.items()}
-        self.angles_tensor = Tensor(angles)
-        self.lengths_tensor = Tensor(lengths)
-        self.positions_tensor = Tensor(positions)
-        self.thetas_tensor = Tensor(thetas)
-        self.phis_tensor = Tensor(phis)
-        self.rotations_tensor = Tensor(rotations)
+
+        self.angles_tensor = Tensor(angles).to(self.device)
+        self.lengths_tensor = Tensor(lengths).to(self.device)
+        self.positions_tensor = Tensor(positions).to(self.device)
+        self.thetas_tensor = Tensor(thetas).to(self.device)
+        self.phis_tensor = Tensor(phis).to(self.device)
+        self.rotations_tensor = Tensor(rotations).to(self.device)
 
         if (
                 90.0 not in self.cell2angle.values()
@@ -278,7 +282,7 @@ class MolCryLatticeParameters(Grid):
         xbar, ybar, zbar = [self.cell2position[s] for s in state[6:9]]
         theta, phi, rotation = [self.cell2theta[state[9]], self.cell2phi[state[10]], self.cell2rotation[state[11]]]
 
-        return (a, b, c), (alpha, beta, gamma), (xbar,ybar,zbar), (theta, phi, rotation)
+        return (a, b, c), (alpha, beta, gamma), (xbar, ybar, zbar), (theta, phi, rotation)
 
     def _are_intermediate_lengths_valid(
             self, state: Optional[List[int]] = None
@@ -449,14 +453,21 @@ class MolCryLatticeParameters(Grid):
         ----
         oracle_states : Tensor
         """
+        if states.device != self.lengths_tensor.device:  # todo make this device assignment more bautifully or preferably at init
+            self.lengths_tensor = self.lengths_tensor.cuda()
+            self.angles_tensor = self.angles_tensor.cuda()
+            self.positions_tensor = self.positions_tensor.cuda()
+            self.thetas_tensor = self.thetas_tensor.cuda()
+            self.phis_tensor = self.phis_tensor.cuda()
+            self.rotations_tensor = self.rotations_tensor.cuda()
         return torch.cat(
             [
                 self.lengths_tensor[states[:, :3].long()],
                 self.angles_tensor[states[:, 3:6].long()],
-                self.positions_tensor[states[: 6:9].long()],
-                self.thetas_tensor[states[:,9].long()],
-                self.phis_tensor[states[:,10].long()],
-                self.rotations_tensor[states[:,11].long()]
+                self.positions_tensor[states[:, 6:9].long()],
+                self.thetas_tensor[states[:, 9].long()][:, None],
+                self.phis_tensor[states[:, 10].long()][:, None],
+                self.rotations_tensor[states[:, 11].long()][:, None]
             ],
             dim=1,
         )

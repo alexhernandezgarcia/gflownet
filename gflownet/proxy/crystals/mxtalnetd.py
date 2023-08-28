@@ -14,7 +14,7 @@ class MXtalNetD(Proxy):
         super().__init__(**kwargs)
 
         self.rescaling_func = scaling_func
-        self.higher_is_better = True
+        self.higher_is_better = False
 
         print("Initializing MXtalNetD proxy:")
 

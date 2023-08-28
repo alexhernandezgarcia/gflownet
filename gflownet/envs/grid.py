@@ -51,19 +51,21 @@ class Grid(GFlowNetEnv):
     """
 
     def __init__(
-        self,
-        n_dim: int = 2,
-        length: int = 3,
-        max_increment: int = 1,
-        max_dim_per_action: int = 1,
-        cell_min: float = -1,
-        cell_max: float = 1,
-        **kwargs,
+            self,
+            n_dim: int = 2,
+            length: int = 3,
+            max_increment: int = 1,
+            max_dim_per_action: int = 1,
+            cell_min: float = -1,
+            cell_max: float = 1,
+            device='cpu',
+            **kwargs,
     ):
         assert n_dim > 0
         assert length > 1
         assert max_increment > 0
         assert max_dim_per_action == -1 or max_dim_per_action > 0
+        self.device = device
         self.n_dim = n_dim
         self.length = length
         self.max_increment = max_increment
@@ -76,7 +78,8 @@ class Grid(GFlowNetEnv):
         # End-of-sequence action
         self.eos = tuple([0 for _ in range(self.n_dim)])
         # Base class init
-        super().__init__(**kwargs)
+        super().__init__(device=self.device,
+                         **kwargs)
         # Proxy format
         # TODO: assess if really needed
         if self.proxy_state_format == "ohe":
@@ -95,17 +98,17 @@ class Grid(GFlowNetEnv):
         actions = []
         for action in itertools.product(increments, repeat=self.n_dim):
             if (
-                sum(action) != 0
-                and len([el for el in action if el > 0]) <= self.max_dim_per_action
+                    sum(action) != 0
+                    and len([el for el in action if el > 0]) <= self.max_dim_per_action
             ):
                 actions.append(tuple(action))
         actions.append(self.eos)
         return actions
 
     def get_mask_invalid_actions_forward(
-        self,
-        state: Optional[List] = None,
-        done: Optional[bool] = None,
+            self,
+            state: Optional[List] = None,
+            done: Optional[bool] = None,
     ) -> List:
         """
         Returns a list of length the action space with values:
@@ -143,15 +146,15 @@ class Grid(GFlowNetEnv):
             state = self.state.copy()
         return (
             (
-                np.array(self.state2policy(state)).reshape((self.n_dim, self.length))
-                * self.cells[None, :]
+                    np.array(self.state2policy(state)).reshape((self.n_dim, self.length))
+                    * self.cells[None, :]
             )
             .sum(axis=1)
             .tolist()
         )
 
     def statebatch2oracle(
-        self, states: List[List]
+            self, states: List[List]
     ) -> TensorType["batch", "state_oracle_dim"]:
         """
         Prepares a batch of states in "GFlowNet format" for the oracles: each state is
@@ -169,7 +172,7 @@ class Grid(GFlowNetEnv):
         )
 
     def statetorch2oracle(
-        self, states: TensorType["batch", "state_dim"]
+            self, states: TensorType["batch", "state_dim"]
     ) -> TensorType["batch", "state_oracle_dim"]:
         """
         Prepares a batch of states in "GFlowNet format" for the oracles: each state is
@@ -178,10 +181,10 @@ class Grid(GFlowNetEnv):
         See: statetorch2policy()
         """
         return (
-            self.statetorch2policy(states).reshape(
-                (len(states), self.n_dim, self.length)
-            )
-            * torch.tensor(self.cells[None, :]).to(states.device, self.float)
+                self.statetorch2policy(states).reshape(
+                    (len(states), self.n_dim, self.length)
+                )
+                * torch.tensor(self.cells[None, :]).to(states.device, self.float)
         ).sum(axis=2)
 
     def state2policy(self, state: List = None) -> List:
@@ -218,7 +221,7 @@ class Grid(GFlowNetEnv):
         return state_policy
 
     def statetorch2policy(
-        self, states: TensorType["batch", "state_dim"]
+            self, states: TensorType["batch", "state_dim"]
     ) -> TensorType["batch", "policy_output_dim"]:
         """
         Transforms a batch of states into a one-hot encoding. The output is a numpy
@@ -265,10 +268,10 @@ class Grid(GFlowNetEnv):
         return str(state).replace("(", "[").replace(")", "]").replace(",", "")
 
     def get_parents(
-        self,
-        state: Optional[List] = None,
-        done: Optional[bool] = None,
-        action: Optional[Tuple] = None,
+            self,
+            state: Optional[List] = None,
+            done: Optional[bool] = None,
+            action: Optional[Tuple] = None,
     ) -> Tuple[List, List]:
         """
         Determines all parents and actions that lead to state.
@@ -315,7 +318,7 @@ class Grid(GFlowNetEnv):
         return parents, actions
 
     def step(
-        self, action: Tuple[int], skip_mask_check: bool = False
+            self, action: Tuple[int], skip_mask_check: bool = False
     ) -> Tuple[List[int], Tuple[int], bool]:
         """
         Executes step given an action.
@@ -381,7 +384,7 @@ class Grid(GFlowNetEnv):
         return all_x.tolist()
 
     def get_uniform_terminating_states(
-        self, n_states: int, seed: int = None
+            self, n_states: int, seed: int = None
     ) -> List[List]:
         rng = np.random.default_rng(seed)
         states = rng.integers(low=0, high=self.length, size=(n_states, self.n_dim))

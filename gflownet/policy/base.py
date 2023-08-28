@@ -77,12 +77,16 @@ class Policy:
                                                 n_graph_feats=self.n_graph_feats,
                                                 max_mol_radius=self.max_mol_radius,
                                                 output_dim=self.output_dim,
-                                                num_crystal_features=self.n_crystal_features).to(self.device)
+                                                n_crystal_features=self.n_crystal_features).to(self.device)
+            self.is_model = True
         else:
             raise "Policy model type not defined"
 
-    def __call__(self, states):
-        return self.model(states)
+    def __call__(self, states, conditions=None):
+        if conditions is not None:
+            return self.model(states, conditions)
+        else:
+            return self.model(states)
 
     def make_mlp(self, activation):
         """

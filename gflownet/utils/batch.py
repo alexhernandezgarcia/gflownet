@@ -5,6 +5,7 @@ import numpy as np
 import numpy.typing as npt
 import torch
 from torchtyping import TensorType
+from torch_geometric.loader.dataloader import Collater
 
 from gflownet.envs.base import GFlowNetEnv
 from gflownet.utils.common import (
@@ -35,10 +36,10 @@ class Batch:
     """
 
     def __init__(
-        self,
-        env: Optional[GFlowNetEnv] = None,
-        device: Union[str, torch.device] = "cpu",
-        float_type: Union[int, torch.dtype] = 32,
+            self,
+            env: Optional[GFlowNetEnv] = None,
+            device: Union[str, torch.device] = "cpu",
+            float_type: Union[int, torch.dtype] = 32,
     ):
         """
         env : GFlowNetEnv
@@ -77,6 +78,8 @@ class Batch:
         # between forward and backward trajectories. We may want to remove it.
         self.state_indices = []
         self.states = []
+        self.conditions = []
+        self.conditions_embeddings = []
         self.actions = []
         self.done = []
         self.masks_invalid_actions_forward = []
@@ -112,7 +115,7 @@ class Batch:
         return batch_idx
 
     def traj_idx_action_idx_to_batch_idx(
-        self, traj_idx: int, action_idx: int, backward: bool
+            self, traj_idx: int, action_idx: int, backward: bool
     ):
         if traj_idx not in self.trajectories:
             return None
@@ -143,12 +146,12 @@ class Batch:
         self.continuous = self.env.continuous
 
     def add_to_batch(
-        self,
-        envs: List[GFlowNetEnv],
-        actions: List[Tuple],
-        valids: List[bool],
-        backward: Optional[bool] = False,
-        train: Optional[bool] = True,
+            self,
+            envs: List[GFlowNetEnv],
+            actions: List[Tuple],
+            valids: List[bool],
+            backward: Optional[bool] = False,
+            train: Optional[bool] = True,
     ):
         """
         Adds information from a list of environments and actions to the batch after
@@ -209,6 +212,10 @@ class Batch:
             # Add trajectory index and state index
             self.traj_indices.append(env.id)
             self.state_indices.append(env.n_actions)
+            # add conditions
+            if env.conditional:
+                self.conditions.append(env.conditions)
+                self.conditions_embeddings.append(env.conditions_embedding)
             # Add states, parents, actions, done and masks
             self.actions.append(action)
             if backward:
@@ -275,10 +282,10 @@ class Batch:
         return tlong(self.state_indices, device=self.device)
 
     def get_states(
-        self,
-        policy: Optional[bool] = False,
-        proxy: Optional[bool] = False,
-        force_recompute: Optional[bool] = False,
+            self,
+            policy: Optional[bool] = False,
+            proxy: Optional[bool] = False,
+            force_recompute: Optional[bool] = False,
     ) -> Union[TensorType["n_states", "..."], npt.NDArray[np.float32], List]:
         """
         Returns all the states in the batch.
@@ -320,9 +327,9 @@ class Batch:
         return self.states
 
     def states2policy(
-        self,
-        states: Optional[Union[List, TensorType["n_states", "..."]]] = None,
-        traj_indices: Optional[Union[List, TensorType["n_states"]]] = None,
+            self,
+            states: Optional[Union[List, TensorType["n_states", "..."]]] = None,
+            traj_indices: Optional[Union[List, TensorType["n_states"]]] = None,
     ) -> TensorType["n_states", "state_policy_dims"]:
         """
         Converts states from a list of states in GFlowNet format to a tensor of states
@@ -364,7 +371,7 @@ class Batch:
                     continue
                 states_policy[traj_indices_torch == traj_idx] = self.envs[
                     traj_idx
-                ].statebatchpolicy(
+                ].statebatch2policy(
                     self.get_states_of_trajectory(traj_idx, states, traj_indices)
                 )
             return states_policy
@@ -376,9 +383,9 @@ class Batch:
         )
 
     def states2proxy(
-        self,
-        states: Optional[Union[List, TensorType["n_states", "..."]]] = None,
-        traj_indices: Optional[Union[List, TensorType["n_states"]]] = None,
+            self,
+            states: Optional[Union[List, TensorType["n_states", "..."]]] = None,
+            traj_indices: Optional[Union[List, TensorType["n_states"]]] = None,
     ) -> Union[
         TensorType["n_states", "state_proxy_dims"], npt.NDArray[np.float32], List
     ]:
@@ -407,30 +414,32 @@ class Batch:
         # If traj_indices is not None and self.conditional is True, then both states
         # and traj_indices must be the same type and have the same length.
         if traj_indices is not None and self.conditional is True:
-            assert type(states) == type(traj_indices)
+            if not type(states) == type(traj_indices):
+                states = np.asarray(states)
+                traj_indices = np.asarray(traj_indices)
             assert len(states) == len(traj_indices)
         if states is None:
             states = self.states
             traj_indices = self.traj_indices
-        if self.conditional:
-            states_proxy = []
-            index = torch.arange(len(states), device=self.device)
-            perm_index = []
-            # TODO: rethink this
-            for traj_idx in self.trajectories:
-                if traj_idx not in traj_indices:
-                    continue
-                states_proxy.append(
-                    self.envs[traj_idx].statebatch2proxy(
-                        self.get_states_of_trajectory(traj_idx, states, traj_indices)
-                    )
-                )
-                perm_index.append(index[env_ids == env_id])
-            perm_index = torch.cat(perm_index)
-            # Reverse permutation to make it index the states_proxy array
-            index[perm_index] = index.clone()
-            states_proxy = concat_items(states_proxy, index)
-            return states_proxy
+        # if self.conditional:
+        #     states_proxy = []
+        #     index = torch.arange(len(states), device=self.device)
+        #     perm_index = []
+        #     # TODO: rethink this
+        #     for traj_idx in self.trajectories:
+        #         if traj_idx not in traj_indices:
+        #             continue
+        #         states_proxy.append(
+        #             self.envs[traj_idx].statebatch2proxy(
+        #                 self.get_states_of_trajectory(traj_idx, states, traj_indices)
+        #             )
+        #         )
+        #         perm_index.append(index[env_ids == env_id])
+        #     perm_index = torch.cat(perm_index)
+        #     # Reverse permutation to make it index the states_proxy array
+        #     index[perm_index] = index.clone()
+        #     states_proxy = concat_items(states_proxy, index)
+        #     return states_proxy
         return self.env.statebatch2proxy(states)
 
     def get_actions(self) -> TensorType["n_states, action_dim"]:
@@ -447,7 +456,7 @@ class Batch:
 
     # TODO: check availability one by one as in get_masks
     def get_parents(
-        self, policy: Optional[bool] = False, force_recompute: Optional[bool] = False
+            self, policy: Optional[bool] = False, force_recompute: Optional[bool] = False
     ) -> TensorType["n_states", "..."]:
         """
         Returns the parent (single parent for each state) of all states in the batch.
@@ -542,7 +551,7 @@ class Batch:
         self.parents_policy_available = True
 
     def get_parents_all(
-        self, policy: bool = False, force_recompute: bool = False
+            self, policy: bool = False, force_recompute: bool = False
     ) -> Tuple[
         Union[List, TensorType["n_parents", "..."]],
         TensorType["n_parents", "..."],
@@ -630,7 +639,7 @@ class Batch:
                 action=action,
             )
             assert (
-                self.env.action2representative(action) in parents_a
+                    self.env.action2representative(action) in parents_a
             ), f"""
             Sampled action is not in the list of valid actions from parents.
             \nState:\n{state}\nAction:\n{action}
@@ -660,9 +669,9 @@ class Batch:
 
     # TODO: opportunity to improve efficiency by caching.
     def get_masks_forward(
-        self,
-        of_parents: bool = False,
-        force_recompute: bool = False,
+            self,
+            of_parents: bool = False,
+            force_recompute: bool = False,
     ) -> TensorType["n_states", "action_space_dim"]:
         """
         Returns the forward mask of invalid actions of all states in the batch or of
@@ -712,7 +721,7 @@ class Batch:
             ]
             masks_invalid_actions_forward_parents[
                 parents_indices != -1
-            ] = masks_invalid_actions_forward[parents_indices[parents_indices != -1]]
+                ] = masks_invalid_actions_forward[parents_indices[parents_indices != -1]]
             return masks_invalid_actions_forward_parents
         return masks_invalid_actions_forward
 
@@ -738,8 +747,8 @@ class Batch:
     # env.get_masks_invalid_actions_backward() may be expensive because it calls
     # env.get_parents().
     def get_masks_backward(
-        self,
-        force_recompute: bool = False,
+            self,
+            force_recompute: bool = False,
     ) -> TensorType["n_states", "action_space_dim"]:
         """
         Returns the backward mask of invalid actions of all states in the batch. The
@@ -779,7 +788,7 @@ class Batch:
         self.masks_backward_available = True
 
     def get_rewards(
-        self, force_recompute: Optional[bool] = False
+            self, force_recompute: Optional[bool] = False
     ) -> TensorType["n_states"]:
         """
         Returns the rewards of all states in the batch (including not done).
@@ -807,16 +816,23 @@ class Batch:
         self.rewards = torch.zeros(len(self), dtype=self.float, device=self.device)
         done = self.get_done()
         if len(done) > 0:
-            self.rewards[done] = self.env.proxy2reward(
-                self.env.proxy(states_proxy_done)
-            )
+            if self.env.proxy.__class__.__name__ == 'MXtalNetD':  # graph model requires special conditions handling
+                collater = Collater(0, 0)  # todo add option to substitute with conditions embedding in eval mode
+                term_conditions = collater([self.conditions[ind] for ind in self.term_traj_indices])
+                self.rewards[done] = self.env.proxy2reward(
+                    self.env.proxy(states_proxy_done, mol_data=term_conditions)
+                )
+            else:
+                self.rewards[done] = self.env.proxy2reward(
+                    self.env.proxy(states_proxy_done)
+                )
         self.rewards_available = True
 
     def get_terminating_states(
-        self,
-        sort_by: str = "insertion",
-        policy: Optional[bool] = False,
-        proxy: Optional[bool] = False,
+            self,
+            sort_by: str = "insertion",
+            policy: Optional[bool] = False,
+            proxy: Optional[bool] = False,
     ) -> Union[TensorType["n_trajectories", "..."], npt.NDArray[np.float32], List]:
         """
         Returns the terminating states in the batch, that is all states with done =
@@ -869,6 +885,8 @@ class Batch:
                 assert len(traj_indices) == len(np.unique(traj_indices))
         else:
             raise NotImplementedError("self.states can only be list or torch.tensor")
+
+        self.term_traj_indices = traj_indices  # todo get this more elegantly
         if policy is True:
             return self.states2policy(states_term, traj_indices)
         elif proxy is True:
@@ -877,9 +895,9 @@ class Batch:
             return states_term
 
     def get_terminating_rewards(
-        self,
-        sort_by: str = "insertion",
-        force_recompute: Optional[bool] = False,
+            self,
+            sort_by: str = "insertion",
+            force_recompute: Optional[bool] = False,
     ) -> TensorType["n_trajectories"]:
         """
         Returns the reward of the terminating states in the batch, that is all states
@@ -917,12 +935,12 @@ class Batch:
         return actions_trajectories
 
     def get_states_of_trajectory(
-        self,
-        traj_idx: int,
-        states: Optional[
-            Union[TensorType["n_states", "..."], npt.NDArray[np.float32], List]
-        ] = None,
-        traj_indices: Optional[Union[List, TensorType["n_states"]]] = None,
+            self,
+            traj_idx: int,
+            states: Optional[
+                Union[TensorType["n_states", "..."], npt.NDArray[np.float32], List]
+            ] = None,
+            traj_indices: Optional[Union[List, TensorType["n_states"]]] = None,
     ) -> Union[
         TensorType["n_states", "state_proxy_dims"], npt.NDArray[np.float32], List
     ]:
@@ -997,6 +1015,9 @@ class Batch:
             self.traj_indices.extend(batch.traj_indices)
             self.state_indices.extend(batch.state_indices)
             self.states.extend(batch.states)
+            if self.env.conditional:
+                self.conditions.extend(batch.conditions)
+                self.conditions_embeddings.extend(batch.conditions_embeddings)
             self.actions.extend(batch.actions)
             self.done.extend(batch.done)
             self.masks_invalid_actions_forward = extend(
@@ -1087,12 +1108,12 @@ class Batch:
 
     # TODO: rewrite once cache is implemnted
     def get_item(
-        self,
-        item: str,
-        env: GFlowNetEnv = None,
-        traj_idx: int = None,
-        action_idx: int = None,
-        backward: bool = False,
+            self,
+            item: str,
+            env: GFlowNetEnv = None,
+            traj_idx: int = None,
+            action_idx: int = None,
+            backward: bool = False,
     ):
         """
         Returns the item specified by item of either:
@@ -1135,19 +1156,19 @@ class Batch:
         if env is not None:
             if traj_idx is not None:
                 assert (
-                    env.id == traj_idx
+                        env.id == traj_idx
                 ), "env.id {env.id} different to traj_idx {traj_idx}."
             else:
                 traj_idx = env.id
             if action_idx is not None:
                 assert (
-                    env.n_actions == action_idx
+                        env.n_actions == action_idx
                 ), "env.n_actions {env.n_actions} different to action_idx {action_idx}."
             else:
                 action_idx = env.n_actions
         else:
             assert (
-                traj_idx is not None and action_idx is not None
+                    traj_idx is not None and action_idx is not None
             ), "Either env or traj_idx AND action_idx must be provided"
         # Handle action_idx = 0 (source state)
         if action_idx == 0:

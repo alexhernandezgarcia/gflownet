@@ -3,6 +3,7 @@ from torch import nn
 
 from gflownet.policy.mol_crystals.MikesGraphNet import MikesGraphNet
 from gflownet.policy.mol_crystals.model_components import MLP
+from models.global_aggregation import global_aggregation
 
 
 class molecule_graph_model(nn.Module):

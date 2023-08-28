@@ -16,6 +16,7 @@ import torch.nn as nn
 from omegaconf import OmegaConf
 from scipy.special import logsumexp
 from torch.distributions import Bernoulli
+from torch_geometric.loader.dataloader import Collater
 from tqdm import tqdm
 
 from gflownet.envs.base import GFlowNetEnv
@@ -203,7 +204,7 @@ class GFlowNetAgent:
 
             mcry_modeller = Modeller(config, skip_new_workdir=True)
             self.conditions_train_loader, self.conditions_test_loader = mcry_modeller.prep_standalone_modelling_tools(self.batch_size['forward'])
-            del mcry_modeller.prep_dataset # this should be done inside the above but we get a bug
+            del mcry_modeller.prep_dataset  # this should be done inside the above but we get a bug
 
     def parameters(self):
         if self.backward_policy.is_model is False:
@@ -304,6 +305,14 @@ class GFlowNetAgent:
             envs = [envs]
         # Build states and masks
         states = [env.state for env in envs]
+        if self.env.conditional:
+            conditions = [env.conditions for env in envs]
+            if conditions[0].__class__.__name__ == 'CrystalData':
+                collater = Collater(0,0)
+                conditions = collater(conditions).to(self.device)  # collate conditions to crystaldata batch for efficient evaluation
+            # todo option for more general conditioning e.g., on a 1D tensor
+        else:
+            conditions = None
 
         # Retrieve masks from the batch (batch.get_item("mask_*") computes the mask if
         # it is not available and stores it in the batch)
@@ -358,7 +367,8 @@ class GFlowNetAgent:
                         ),
                         device=self.device,
                         float_type=self.float,
-                    )
+                    ),
+                    conditions=conditions
                 )
         else:
             raise NotImplementedError
@@ -408,13 +418,14 @@ class GFlowNetAgent:
             )
         return envs, actions, valids
 
-
     def get_envs(self, conditional, n_envs, train):
         if conditional:
             if train:
-                envs = [self.env.copy().reset(idx).set_condition(self.train_loader.dataset[idx]) for idx in range(n_envs)]
+                randoms = np.random.choice(np.arange(len(self.conditions_train_loader.dataset)), size=n_envs, replace=False)
+                envs = [self.env.copy().reset(idx, self.conditions_train_loader.dataset[randoms[idx]]) for idx in range(n_envs)]
             else:
-                envs = [self.env.copy().reset(idx).set_condition(self.test_loader.dataset[idx]) for idx in range(n_envs)]
+                randoms = np.random.choice(np.arange(len(self.conditions_test_loader.dataset)), size=n_envs, replace=False)
+                envs = [self.env.copy().reset(idx, self.conditions_test_loader.dataset[randoms[idx]]) for idx in range(n_envs)]
         else:
             envs = [self.env.copy().reset(idx) for idx in range(n_envs)]
         return envs
@@ -633,9 +644,17 @@ class GFlowNetAgent:
         masks_f = batch.get_masks_forward(of_parents=True)
         masks_b = batch.get_masks_backward()
         rewards = batch.get_terminating_rewards(sort_by="trajectory")
+        
+        if self.env.conditional:
+            if self.env.__class__.__name__ == 'MolCrystal':
+                collater = Collater(0,0)
+                conditions = collater(batch.conditions).to(self.device)  # collate conditions to crystaldata batch for efficient evaluation
+            # todo option for more general conditioning e.g., on a 1D tensor
+        else:
+            conditions = None
 
         # Forward trajectories
-        policy_output_f = self.forward_policy(parents)
+        policy_output_f = self.forward_policy(parents, conditions=conditions)
         logprobs_f = self.env.get_logprobs(
             policy_output_f, True, actions, states, masks_f
         )
@@ -645,7 +664,7 @@ class GFlowNetAgent:
             device=self.device,
         ).index_add_(0, traj_indices, logprobs_f)
         # Backward trajectories
-        policy_output_b = self.backward_policy(states)
+        policy_output_b = self.backward_policy(states, conditions=conditions)
         logprobs_b = self.env.get_logprobs(
             policy_output_b, False, actions, parents, masks_b
         )

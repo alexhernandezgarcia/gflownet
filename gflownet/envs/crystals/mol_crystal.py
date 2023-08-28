@@ -51,10 +51,11 @@ class MolCrystal(GFlowNetEnv):
             lattice_parameters_kwargs: Optional[Dict] = None,
             **kwargs,
     ):
+        self.device = kwargs['device']
         self.conditional = True  # conditioned on the molecule we are trying to pack
         self.conditions = None  # assign conditions when new envs are made
         self.conditions_embedding = None  # todo at evaluation time set this once so that we can skip repeated calls to the conditioner
-
+        self.state_dim = 12
         self.space_group_kwargs = space_group_kwargs or {}
         self.lattice_parameters_kwargs = lattice_parameters_kwargs or {}
 
@@ -64,6 +65,7 @@ class MolCrystal(GFlowNetEnv):
         # proper lattice system from space group once that is determined.
         # Triclinic was used because it doesn't force any initial starting angles.
         self.lattice_parameters = MolCryLatticeParameters(
+            device=self.device,
             lattice_system=TRICLINIC, **self.lattice_parameters_kwargs
         )
 
@@ -190,7 +192,7 @@ class MolCrystal(GFlowNetEnv):
                 + self.lattice_parameters.get_max_traj_length()
         )
 
-    def reset(self, env_id: Union[int, str] = None):
+    def reset(self, env_id: Union[int, str] = None, condition = None):
         self.space_group.reset()
         self.lattice_parameters = MolCryLatticeParameters(
             lattice_system=TRICLINIC, **self.lattice_parameters_kwargs
@@ -198,6 +200,9 @@ class MolCrystal(GFlowNetEnv):
 
         super().reset(env_id=env_id)
         self._set_stage(Stage.SPACE_GROUP)
+
+        if condition is not None:
+            self.set_condition(condition)
 
         return self
 

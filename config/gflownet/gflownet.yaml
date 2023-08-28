@@ -48,17 +48,21 @@ pct_offline: 0.0
 replay_capacity: 0
 policy:
   forward:
-    type: mlp
-    n_hid: 128
-    n_layers: 2
+    type: gnn
     checkpoint: null
     reload_ckpt: False
+    n_node_feats: null  # currently assigned in main for gnn
+    n_graph_feats: null
+    max_mol_radius: null
+    n_crystal_features: null
   backward:
-    type: mlp
-    n_hid: 128
-    n_layers: 2
+    type: gnn
     checkpoint: null
     reload_ckpt: False
+    n_node_feats: null  # currently assigned in main for gnn
+    n_graph_feats: null
+    max_mol_radius: null
+    n_crystal_features: null
   ckpt_period: null
 num_empirical_loss: 200000
 oracle:

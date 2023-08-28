@@ -19,28 +19,56 @@ POINT_SYMMETRIES = None
 SPACE_GROUPS = None
 
 
-def _get_crystal_lattice_systems():
+def list_intersection_bool(l1, l2):
+    return len(set(l1 + l2)) < (len(l1) + len(l2))
+
+
+def _get_crystal_lattice_systems(valid_sgs=None):
     global CRYSTAL_LATTICE_SYSTEMS
     if CRYSTAL_LATTICE_SYSTEMS is None:
         with open(Path(__file__).parent / "crystal_lattice_systems.yaml", "r") as f:
             CRYSTAL_LATTICE_SYSTEMS = yaml.safe_load(f)
+    if valid_sgs is not None:
+        restricted_CRYSTAL_LATTICE_SYSTEMS = {
+            key: CRYSTAL_LATTICE_SYSTEMS[key] for key in CRYSTAL_LATTICE_SYSTEMS.keys() if list_intersection_bool(CRYSTAL_LATTICE_SYSTEMS[key]['space_groups'], valid_sgs)
+        }
+        CRYSTAL_LATTICE_SYSTEMS = restricted_CRYSTAL_LATTICE_SYSTEMS
     return CRYSTAL_LATTICE_SYSTEMS
 
 
-def _get_point_symmetries():
+def _get_point_symmetries(valid_sgs=None):
     global POINT_SYMMETRIES
     if POINT_SYMMETRIES is None:
         with open(Path(__file__).parent / "point_symmetries.yaml", "r") as f:
             POINT_SYMMETRIES = yaml.safe_load(f)
+    if valid_sgs is not None:
+        restricted_POINT_SYMMETRIES = {
+            key: POINT_SYMMETRIES[key] for key in POINT_SYMMETRIES.keys() if list_intersection_bool(POINT_SYMMETRIES[key]['space_groups'], valid_sgs)
+        }
+        POINT_SYMMETRIES = restricted_POINT_SYMMETRIES
     return POINT_SYMMETRIES
 
 
-def _get_space_groups():
+def _get_space_groups(valid_sgs=None):
     global SPACE_GROUPS
     if SPACE_GROUPS is None:
         with open(Path(__file__).parent / "space_groups.yaml", "r") as f:
             SPACE_GROUPS = yaml.safe_load(f)
-    return SPACE_GROUPS
+    if valid_sgs is not None:  # limit to only selected space groups
+        if type(valid_sgs[0]) == str:
+            restricted_SPACE_GROUPS = {
+                key: SPACE_GROUPS[key] for key in SPACE_GROUPS.keys() if SPACE_GROUPS[key]['symbol'] in valid_sgs
+            }
+        elif type(valid_sgs[0]) == int:
+            restricted_SPACE_GROUPS = {
+                key: SPACE_GROUPS[key] for key in SPACE_GROUPS.keys() if key in valid_sgs
+            }
+        else:
+            print("Cannot parse space groups encoding. Should be list of strings or list of ints")
+            assert False
+        print(f"Modelling restricted to space groups {[restricted_SPACE_GROUPS[key]['symbol'] for key in restricted_SPACE_GROUPS.keys()]}")
+        SPACE_GROUPS = restricted_SPACE_GROUPS
+    return SPACE_GROUPS  # todo update test
 
 
 class SpaceGroup(GFlowNetEnv):
@@ -84,12 +112,19 @@ class SpaceGroup(GFlowNetEnv):
         """
         # Get dictionaries
         self.sgs_to_consider = kwargs['generate_sgs']  # todo find a way to enforce this
-        self.crystal_lattice_systems = _get_crystal_lattice_systems()
-        self.point_symmetries = _get_point_symmetries()
-        self.space_groups = _get_space_groups()
+        self.crystal_lattice_systems = _get_crystal_lattice_systems(valid_sgs=self.sgs_to_consider)
+        self.point_symmetries = _get_point_symmetries(valid_sgs=self.sgs_to_consider)
+        self.space_groups = _get_space_groups(valid_sgs=self.sgs_to_consider)
         self.n_crystal_lattice_systems = len(self.crystal_lattice_systems)
         self.n_point_symmetries = len(self.point_symmetries)
         self.n_space_groups = len(self.space_groups)
+        self.sg2stateind = {key: ind + 1 for ind, key in enumerate(self.space_groups)}
+        self.cls2stateind = {key: ind + 1 for ind, key in enumerate(self.crystal_lattice_systems)}
+        self.pg2stateind = {key: ind + 1 for ind, key in enumerate(self.point_symmetries)}
+        self.stateind2sg = {v: k for k, v in self.sg2stateind.items()}
+        self.stateind2cls = {v: k for k, v in self.cls2stateind.items()}
+        self.stateind2pg = {v: k for k, v in self.pg2stateind.items()}
+
         # Set dictionary of compatibility with number of atoms
         self.set_n_atoms_compatibility_dict(n_atoms)
         # Define indices
@@ -107,6 +142,10 @@ class SpaceGroup(GFlowNetEnv):
         self.statetorch2proxy = self.statetorch2oracle
         # Base class init
         super().__init__(**kwargs)
+        self.stateind2sg_tensor = torch.tensor(list(self.stateind2sg.values()), # for batch translation
+                                               device=self.device,
+                                               dtype=torch.long)
+
 
     def get_action_space(self):
         """
@@ -116,12 +155,12 @@ class SpaceGroup(GFlowNetEnv):
         """
         actions = []
         for prop, n_idx in zip(
-            [self.cls_idx, self.ps_idx, self.sg_idx],
-            [
-                self.n_crystal_lattice_systems,
-                self.n_point_symmetries,
-                self.n_space_groups,
-            ],
+                [self.cls_idx, self.ps_idx, self.sg_idx],
+                [
+                    self.n_crystal_lattice_systems,
+                    self.n_point_symmetries,
+                    self.n_space_groups,
+                ],
         ):
             for ref_idx in self.ref_state_indices:
                 if prop == self.cls_idx and ref_idx in [1, 3]:
@@ -134,9 +173,9 @@ class SpaceGroup(GFlowNetEnv):
         return actions
 
     def get_mask_invalid_actions_forward(
-        self,
-        state: Optional[List] = None,
-        done: Optional[bool] = None,
+            self,
+            state: Optional[List] = None,
+            done: Optional[bool] = None,
     ) -> List:
         """
         Returns a list of length the action space with values:
@@ -161,62 +200,68 @@ class SpaceGroup(GFlowNetEnv):
             crystal_lattice_systems = [
                 (self.cls_idx, idx + 1, ref)
                 for idx in range(self.n_crystal_lattice_systems)
-                if self._is_cls_compatible(idx + 1)
+                # if self._is_cls_compatible(idx + 1)  # todo toggle for this (always allowed for molecular crystals) - no composition effect
             ]
             point_symmetries = [
                 (self.ps_idx, idx + 1, ref)
                 for idx in range(self.n_point_symmetries)
-                if self._is_ps_compatible(idx + 1)
+                # if self._is_ps_compatible(idx + 1)  # todo toggle for this (always allowed for molecular crystals)
             ]
         # Constraints after having selected crystal-lattice system
         if cls_idx != 0:
             crystal_lattice_systems = []
             space_groups_cls = [
-                (self.sg_idx, sg, ref)
-                for sg in self.crystal_lattice_systems[cls_idx]["space_groups"]
-                if self.n_atoms_compatibility_dict[sg]
+                (self.sg_idx, self.sg2stateind[sg], ref)
+                for sg in self.crystal_lattice_systems[self.stateind2cls[cls_idx]]["space_groups"]
+                if sg in self.space_groups.keys()
+                #if self.n_atoms_compatibility_dict[sg]
             ]
             # If no point symmetry selected yet
             if ps_idx == 0:
                 point_symmetries = [
-                    (self.ps_idx, idx, ref)
-                    for idx in self.crystal_lattice_systems[cls_idx]["point_symmetries"]
-                    if self._is_ps_compatible(idx)
+                    (self.ps_idx, self.pg2stateind[idx], ref)
+                    for idx in self.crystal_lattice_systems[self.stateind2cls[cls_idx]]["point_symmetries"]
+                    if idx in self.point_symmetries.keys()
+                    #if self._is_ps_compatible(idx)
                 ]
         else:
             space_groups_cls = [
                 (self.sg_idx, idx + 1, ref)
                 for idx in range(self.n_space_groups)
-                if self.n_atoms_compatibility_dict[idx + 1]
+                #if self.n_atoms_compatibility_dict[idx + 1]
             ]
         # Constraints after having selected point symmetry
         if ps_idx != 0:
             point_symmetries = []
             space_groups_ps = [
-                (self.sg_idx, sg, ref)
-                for sg in self.point_symmetries[ps_idx]["space_groups"]
-                if self.n_atoms_compatibility_dict[sg]
+                (self.sg_idx, self.sg2stateind[sg], ref)
+                for sg in self.point_symmetries[self.stateind2pg[ps_idx]]["space_groups"]
+                if sg in self.space_groups.keys()
+                #if self.n_atoms_compatibility_dict[sg]
             ]
             # If no crystal-lattice system selected yet
             if cls_idx == 0:
                 crystal_lattice_systems = [
-                    (self.cls_idx, idx, ref)
-                    for idx in self.point_symmetries[ps_idx]["crystal_lattice_systems"]
-                    if self._is_cls_compatible(idx)
+                    (self.cls_idx, self.cls2stateind[idx], ref)
+                    for idx in self.point_symmetries[self.stateind2pg[ps_idx]]["crystal_lattice_systems"]
+                    if idx in self.crystal_lattice_systems.keys()
+                    #if self._is_cls_compatible(self.stateind2cls[idx])
                 ]
         else:
             space_groups_ps = [
                 (self.sg_idx, idx + 1, ref)
                 for idx in range(self.n_space_groups)
-                if self.n_atoms_compatibility_dict[idx + 1]
+                #if self.n_atoms_compatibility_dict[idx + 1]
             ]
         # Merge space_groups constraints and determine valid space group actions
         space_groups = list(set(space_groups_cls).intersection(set(space_groups_ps)))
         # Construct mask
         actions_valid = set.union(
             set(crystal_lattice_systems), set(point_symmetries), set(space_groups)
-        )
+        )  # todo add sg ind translations to all these lookups
         assert len(actions_valid) > 0
+        if ps_idx > 0:
+            aa = 1
         mask = [
             False if action in actions_valid else True for action in self.action_space
         ]
@@ -242,10 +287,11 @@ class SpaceGroup(GFlowNetEnv):
             raise ValueError(
                 "The space group must have been set in order to call the oracle"
             )
+
         return torch.tensor(state[self.sg_idx], device=self.device, dtype=torch.long)
 
     def statebatch2oracle(
-        self, states: List[List]
+            self, states: List[List]
     ) -> TensorType["batch", "state_oracle_dim"]:
         """
         Prepares a batch of states in "GFlowNet format" for the oracle. The input to the
@@ -260,12 +306,13 @@ class SpaceGroup(GFlowNetEnv):
         ----
         oracle_state : Tensor
         """
+
         return self.statetorch2oracle(
             torch.tensor(states, device=self.device, dtype=torch.long)
         )
 
     def statetorch2oracle(
-        self, states: TensorType["batch", "state_dim"]
+            self, states: TensorType["batch", "state_dim"]
     ) -> TensorType["batch", "state_oracle_dim"]:
         """
         Prepares a batch of states in "GFlowNet format" for the oracle. The input to the
@@ -280,7 +327,9 @@ class SpaceGroup(GFlowNetEnv):
         ----
         oracle_state : Tensor
         """
-        return torch.unsqueeze(states[:, self.sg_idx], dim=1).to(torch.long)
+        if self.stateind2sg_tensor.device != states.device:# todo obviate
+            self.stateind2sg_tensor = self.stateind2sg_tensor.to(states.device)
+        return torch.unsqueeze(self.stateind2sg_tensor[states[:, self.sg_idx] - 1], dim=1).to(torch.long)
 
     def state2readable(self, state=None):
         """
@@ -307,13 +356,13 @@ class SpaceGroup(GFlowNetEnv):
             state = self.state
         cls_idx, ps_idx, sg_idx = state
         crystal_lattice_system = self.get_crystal_lattice_system(state)
-        point_symmetry = self.get_point_symmetry(state)
+        point_symmetry = 'abc'  # self.get_point_symmetry(state)  # todo fix
         sg_symbol = self.get_space_group_symbol(state)
         crystal_class = self.get_crystal_class(state)
         point_group = self.get_point_group(state)
         readable = (
-            f"{sg_idx} | {sg_symbol} | {crystal_lattice_system} ({cls_idx}) | "
-            + f"{point_symmetry} ({ps_idx}) | {crystal_class} | {point_group}"
+                f"{sg_idx} | {sg_symbol} | {crystal_lattice_system} ({cls_idx}) | "
+                + f"{point_symmetry} ({ps_idx}) | {crystal_class} | {point_group}"
         )
         return readable
 
@@ -440,11 +489,11 @@ class SpaceGroup(GFlowNetEnv):
         cls_idx, ps_idx, sg_idx = state
         if sg_idx != 0:
             if cls_idx == 0:
-                state[self.cls_idx] = self.space_groups[state[self.sg_idx]][
+                state[self.cls_idx] = self.space_groups[self.stateind2sg[state[self.sg_idx]]][
                     "crystal_lattice_system_idx"
                 ]
             if ps_idx == 0:
-                state[self.ps_idx] = self.space_groups[state[self.sg_idx]][
+                state[self.ps_idx] = self.space_groups[self.stateind2sg[state[self.sg_idx]]][
                     "point_symmetry_idx"
                 ]
         return state
@@ -456,7 +505,7 @@ class SpaceGroup(GFlowNetEnv):
         if state is None:
             state = self.state
         if state[self.cls_idx] != 0:
-            return self.crystal_lattice_systems[state[self.cls_idx]]["crystal_system"]
+            return self.crystal_lattice_systems[self.stateind2cls[state[self.cls_idx]]]["crystal_system"]
         else:
             return "None"
 
@@ -471,7 +520,7 @@ class SpaceGroup(GFlowNetEnv):
         if state is None:
             state = self.state
         if state[self.cls_idx] != 0:
-            return self.crystal_lattice_systems[state[self.cls_idx]]["lattice_system"]
+            return self.crystal_lattice_systems[self.stateind2cls[state[self.cls_idx]]]["lattice_system"]
         else:
             return "None"
 
@@ -503,7 +552,7 @@ class SpaceGroup(GFlowNetEnv):
         if state is None:
             state = self.state
         if state[self.ps_idx] != 0:
-            return self.point_symmetries[state[self.ps_idx]]["point_symmetry"]
+            return self.point_symmetries[self.stateind2pg[state[self.ps_idx]]]["point_symmetry"]
         else:
             return "None"
 
@@ -518,7 +567,7 @@ class SpaceGroup(GFlowNetEnv):
         if state is None:
             state = self.state
         if state[self.sg_idx] != 0:
-            return self.space_groups[state[self.sg_idx]]["full_symbol"]
+            return self.space_groups[self.stateind2sg[state[self.sg_idx]]]["full_symbol"]
         else:
             return "None"
 
@@ -535,7 +584,7 @@ class SpaceGroup(GFlowNetEnv):
         if state is None:
             state = self.state
         if state[self.sg_idx] != 0:
-            return self.space_groups[state[self.sg_idx]]["crystal_class"]
+            return self.space_groups[self.stateind2sg[state[self.sg_idx]]]["crystal_class"]
         else:
             return "None"
 
@@ -552,7 +601,7 @@ class SpaceGroup(GFlowNetEnv):
         if state is None:
             state = self.state
         if state[self.sg_idx] != 0:
-            return self.space_groups[state[self.sg_idx]]["point_group"]
+            return self.space_groups[self.stateind2sg[state[self.sg_idx]]]["point_group"]
         else:
             return "None"
 
@@ -597,7 +646,7 @@ class SpaceGroup(GFlowNetEnv):
         return any(
             [
                 self.n_atoms_compatibility_dict[sg]
-                for sg in self.crystal_lattice_systems[cls_idx]["space_groups"]
+                for sg in self.crystal_lattice_systems[self.stateind2cls[cls_idx]]["space_groups"]
             ]
         )
 
@@ -610,7 +659,7 @@ class SpaceGroup(GFlowNetEnv):
         return any(
             [
                 self.n_atoms_compatibility_dict[sg]
-                for sg in self.point_symmetries[ps_idx]["space_groups"]
+                for sg in self.point_symmetries[self.stateind2pg[ps_idx]]["space_groups"]
             ]
         )
 
@@ -646,13 +695,13 @@ class SpaceGroup(GFlowNetEnv):
         return {sg: Group(sg).check_compatible(n_atoms)[0] for sg in space_groups}
 
     def get_all_terminating_states(
-        self, apply_stoichiometry_constraints: Optional[bool] = True
+            self, apply_stoichiometry_constraints: Optional[bool] = True
     ) -> List[List]:
         all_x = []
         for sg in range(1, self.n_space_groups + 1):
             if (
-                apply_stoichiometry_constraints
-                and self.n_atoms_compatibility_dict[sg] is False
+                    apply_stoichiometry_constraints
+                    and self.n_atoms_compatibility_dict[sg] is False
             ):
                 continue
             all_x.append(self._set_constrained_properties([0, 0, sg]))
