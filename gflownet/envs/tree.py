@@ -1472,11 +1472,11 @@ class Tree(GFlowNetEnv):
 
     @staticmethod
     def _compute_scores(
-        states: torch.Tensor, X: npt.NDArray, y: npt.NDArray
+        predictions: npt.NDArray, y: npt.NDArray
     ) -> (dict, npt.NDArray):
         """
-        Computes accuracy and balanced accuracy metrics for a given dataset (X, y)
-        based on a tensor of sampled states representing individual trees.
+        Computes accuracy and balanced accuracy metrics for given predictions and ground
+        truth labels.
 
         The metrics are computed in two modes: either as an average of scores calculated
         for individual trees (mean_tree_*), or as a single score calculated on a prediction
@@ -1484,11 +1484,8 @@ class Tree(GFlowNetEnv):
 
         Args
         ----
-        states : Tensor
-            Collection of sampled states representing the ensemble.
-
-        X : NDArray
-            Feature matrix with dimensionality (n_observations, n_features).
+        predictions: NDArray
+            Prediction matrix with dimensionality (n_states, n_observations).
 
         y : NDArray
             Target vector with dimensionality (n_observations,).
@@ -1499,8 +1496,6 @@ class Tree(GFlowNetEnv):
         """
         scores = {}
         metrics = {"acc": accuracy_score, "bac": balanced_accuracy_score}
-
-        predictions = Tree._predict_samples(states, X)
 
         for metric_name, metric_function in metrics.items():
             scores[f"mean_tree_{metric_name}"] = np.mean(
@@ -1514,48 +1509,29 @@ class Tree(GFlowNetEnv):
 
     @staticmethod
     def _plot_trees(
-        states: torch.Tensor,
-        X: npt.NDArray,
-        y: npt.NDArray,
+        states: List[torch.Tensor],
+        scores: npt.NDArray,
         iteration: int,
-        n: int = -1,
     ):
         """
-        Plots top n decision trees present in the given collection of states (with
-        tree performance evaluated using the accuracy).
+        Plots decision trees present in the given collection of states.
 
         Args
         ----
         states : Tensor
             Collection of sampled states with dimensionality (n_states, state_dim).
 
-        X : NDArray
-            Feature matrix with dimensionality (n_observations, n_features).
-
-        y : NDArray
-            Target vector with dimensionality (n_observations,).
+        scores : NDArray
+            Collection of scores computed for the given states.
 
         iteration : int
             Current iteration (will be used to name the folder with trees).
-
-        n : int
-            Number of top trees to be plotted.
         """
-        if n == -1:
-            n = len(states)
-
-        predictions = Tree._predict_samples(states, X)
-        accuracies = np.array([accuracy_score(y, y_pred) for y_pred in predictions])
-
-        order = np.argsort(accuracies)[::-1]
-
         path = Path(Path.cwd() / f"trees_{iteration}")
         path.mkdir()
 
-        for i in range(n):
-            Tree.plot(
-                states[order[i]], path / f"tree_{i}_{accuracies[order[i]]:.4f}.png"
-            )
+        for i, (state, score) in enumerate(zip(states, scores)):
+            Tree.plot(state, path / f"tree_{i}_{score:.4f}.png")
 
     def test(
         self,
@@ -1581,24 +1557,51 @@ class Tree(GFlowNetEnv):
 
         result["mean_n_nodes"] = np.mean([Tree.get_n_nodes(state) for state in samples])
 
-        scores = Tree._compute_scores(samples, self.X_train, self.y_train)
-        for k, v in scores.items():
+        train_predictions = Tree._predict_samples(samples, self.X_train)
+        train_scores = Tree._compute_scores(train_predictions, self.y_train)
+        for k, v in train_scores.items():
             result[f"train_{k}"] = v
+
+        top_k_indices = None
 
         if self.test_args["top_n_trees"] != 0:
             if not hasattr(self, "test_iteration"):
                 self.test_iteration = 0
-            Tree._plot_trees(
-                samples,
-                self.X_train,
-                self.y_train,
-                self.test_iteration,
-                self.test_args["top_n_trees"],
+
+            # Select top-k trees.
+            accuracies = np.array(
+                [accuracy_score(self.y_train, y_pred) for y_pred in train_predictions]
             )
+            order = np.argsort(accuracies)[::-1]
+            top_k_indices = order[: self.test_args["top_n_trees"]]
+
+            # Plot trees.
+            Tree._plot_trees(
+                [samples[i] for i in top_k_indices],
+                accuracies[top_k_indices],
+                self.test_iteration,
+            )
+
+            # Compute metrics for top-k trees.
+            top_k_scores = Tree._compute_scores(
+                train_predictions[top_k_indices], self.y_train
+            )
+            for k, v in top_k_scores.items():
+                result[f"train_top_k_{k}"] = v
+
             self.test_iteration += 1
 
         if self.X_test is not None:
-            for k, v in Tree._compute_scores(samples, self.X_test, self.y_test).items():
+            test_predictions = Tree._predict_samples(samples, self.X_test)
+            for k, v in Tree._compute_scores(test_predictions, self.y_test).items():
                 result[f"test_{k}"] = v
+
+            if top_k_indices is not None:
+                # Compute metrics for top-k trees.
+                top_k_scores = Tree._compute_scores(
+                    test_predictions[top_k_indices], self.y_test
+                )
+                for k, v in top_k_scores.items():
+                    result[f"test_top_k_{k}"] = v
 
         return result
