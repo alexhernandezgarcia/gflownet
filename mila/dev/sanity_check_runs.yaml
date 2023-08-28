@@ -11,7 +11,7 @@ shared:
 jobs:
   # Grid
   - slurm:
-      job_name: sanity-grid-flowmatch
+      job_name: sanity-grid-fm
     script:
       env:
         __value__: grid
@@ -26,7 +26,7 @@ jobs:
       gflownet: trajectorybalance
   # Tetris
   - slurm:
-      job_name: sanity-tetris-flowmatch
+      job_name: sanity-tetris-fm
     script:
       env:
         __value__: tetris
