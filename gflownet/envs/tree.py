@@ -1579,6 +1579,8 @@ class Tree(GFlowNetEnv):
         """
         result = {}
 
+        result["mean_n_nodes"] = np.mean([Tree.get_n_nodes(state) for state in samples])
+
         scores = Tree._compute_scores(samples, self.X_train, self.y_train)
         for k, v in scores.items():
             result[f"train_{k}"] = v
