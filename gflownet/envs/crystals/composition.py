@@ -34,7 +34,7 @@ class Composition(GFlowNetEnv):
         min_atoms: int = 2,
         max_atoms: int = 20,
         min_atom_i: int = 1,
-        max_atom_i: int = 10,
+        max_atom_i: int = 16,
         oxidation_states: Optional[Dict] = None,
         alphabet: Optional[Dict] = None,
         required_elements: Optional[Union[Tuple, List]] = (),
