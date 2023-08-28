@@ -154,7 +154,7 @@ class Tree(GFlowNetEnv):
         scale_data: bool = True,
         max_depth: int = 10,
         continuous: bool = True,
-        n_thresholds: int = 9,
+        n_thresholds: Optional[int] = 9,
         threshold_components: int = 1,
         beta_params_min: float = 0.1,
         beta_params_max: float = 2.0,
@@ -214,7 +214,7 @@ class Tree(GFlowNetEnv):
 
         n_thresholds : int
             Number of uniformly distributed thresholds in a (0; 1) range that will be used
-            in the discrete mode.
+            in the discrete mode. Ignored if continuous is True.
 
         policy_format : str
             Type of policy that will be used with the environment, either 'mlp' or 'gnn'.
@@ -257,7 +257,8 @@ class Tree(GFlowNetEnv):
         self.n_features = self.X_train.shape[1]
         self.max_depth = max_depth
         self.continuous = continuous
-        self.thresholds = np.linspace(0, 1, n_thresholds + 2)[1:-1]
+        if not continuous:
+            self.thresholds = np.linspace(0, 1, n_thresholds + 2)[1:-1]
         self.test_args = test_args
         # Parameters of the policy distribution
         self.components = threshold_components
