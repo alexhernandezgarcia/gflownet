@@ -154,7 +154,7 @@ class Tree(GFlowNetEnv):
         scale_data: bool = True,
         max_depth: int = 10,
         continuous: bool = True,
-        n_thresholds: int = 9,
+        n_thresholds: Optional[int] = 9,
         threshold_components: int = 1,
         beta_params_min: float = 0.1,
         beta_params_max: float = 2.0,
@@ -166,7 +166,7 @@ class Tree(GFlowNetEnv):
             "beta_alpha": 1.0,
             "beta_beta": 1.0,
         },
-        policy_type: str = "mlp",
+        policy_format: str = "mlp",
         test_args: dict = {"top_k_trees": 0},
         **kwargs,
     ):
@@ -214,9 +214,9 @@ class Tree(GFlowNetEnv):
 
         n_thresholds : int
             Number of uniformly distributed thresholds in a (0; 1) range that will be used
-            in the discrete mode.
+            in the discrete mode. Ignored if continuous is True.
 
-        policy_type : str
+        policy_format : str
             Type of policy that will be used with the environment, either 'mlp' or 'gnn'.
             Influences which state2policy functions will be used.
 
@@ -257,7 +257,8 @@ class Tree(GFlowNetEnv):
         self.n_features = self.X_train.shape[1]
         self.max_depth = max_depth
         self.continuous = continuous
-        self.thresholds = np.linspace(0, 1, n_thresholds + 2)[1:-1]
+        if not continuous:
+            self.thresholds = np.linspace(0, 1, n_thresholds + 2)[1:-1]
         self.test_args = test_args
         # Parameters of the policy distribution
         self.components = threshold_components
@@ -282,12 +283,13 @@ class Tree(GFlowNetEnv):
         self.eos = (-1, -1, -1)
 
         # Conversions
-        if policy_type == "mlp":
+        policy_format = policy_format.lower()
+        if policy_format == "mlp":
             self.state2policy = self.state2policy_mlp
             self.statetorch2policy = self.statetorch2policy_mlp
-        elif policy_type != "gnn":
+        elif policy_format != "gnn":
             raise ValueError(
-                f"Unrecognized policy_type = {policy_type}, expected either 'mlp' or 'gnn'."
+                f"Unrecognized policy_format = {policy_format}, expected either 'mlp' or 'gnn'."
             )
         self.statetorch2oracle = self.statetorch2policy
 
@@ -333,13 +335,6 @@ class Tree(GFlowNetEnv):
         right = Tree._get_right_child(parent)
         return left if k == right else right
 
-    @staticmethod
-    def get_stage(state: torch.Tensor) -> int:
-        """
-        Returns the current stage from the state passed as an argument.
-        """
-        return state[-1, 0]
-
     def _get_stage(self, state: Optional[torch.Tensor] = None) -> int:
         """
         Returns the stage of the current environment from self.state[-1, 0] or from the
@@ -347,7 +342,7 @@ class Tree(GFlowNetEnv):
         """
         if state is None:
             state = self.state
-        return Tree.get_stage(state)
+        return state[-1, 0]
 
     def _set_stage(
         self, stage: int, state: Optional[torch.Tensor] = None

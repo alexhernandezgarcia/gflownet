@@ -12,8 +12,7 @@ env:
   data_path: ${user.data.root}/toy2.csv
   max_depth: 5
   continuous: False
-  policy_type: mlp
-  n_thresholds: 19
+  policy_format: mlp
   threshold_components: 3
   reward_func: boltzmann
   reward_beta: 32
