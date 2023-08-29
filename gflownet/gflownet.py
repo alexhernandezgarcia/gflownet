@@ -673,10 +673,6 @@ class GFlowNetAgent:
                     n_replay=self.batch_size.backward_replay,
                 )
                 batch.merge(sub_batch)
-            ### DEBUG ###
-            batch._remove_trajectories_with_state([1, 0])
-            import ipdb; ipdb.set_trace()
-            ### DEBUG ###
             for j in range(self.ttsr):
                 if self.loss == "flowmatch":
                     losses = self.flowmatch_loss(
