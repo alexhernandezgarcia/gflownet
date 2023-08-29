@@ -11,6 +11,7 @@ from gflownet.utils.common import (
     concat_items,
     copy,
     extend,
+    remove,
     set_device,
     set_float_precision,
     tbool,
@@ -1023,6 +1024,11 @@ class Batch:
                 self.parents_policy = None
             if self.parents_all_available and batch.parents_all_available:
                 self.parents_all = extend(self.parents_all, batch.parents_all)
+                import ipdb
+
+                ipdb.set_trace()
+                # TODO: probable BUG: self.parents_actions_all and
+                # self.parents_all_indices need to be updated too
             else:
                 self.parents_all = None
             if self.rewards_available and batch.rewards_available:
@@ -1238,18 +1244,86 @@ class Batch:
                 traj_indices.append(self.traj_indices[idx])
         return set(traj_indices)
 
-    def _remove_trajectories_with_states(
+    def _remove_idx(self, idx: int):
+        """
+        Removes all the data in the batch stored at index idx. self.envs,
+        self.trajectories are self.traj_indices, which contain data about trajectories
+        are not updated.
+
+        IMPORTANT: this method should be used with care, because the batch will become
+        invalid after its call. It is only meant to be used as a helper method in
+        combination with other actions/methods.
+        """
+        # Remove main data
+        self.traj_indices = remove(self.traj_indices, idx)
+        self.state_indices = remove(self.state_indices, idx)
+        self.states = remove(self.states, idx)
+        self.actions = remove(self.actions, idx)
+        self.done = remove(self.done, idx)
+        self.masks_invalid_actions_forward = remove(
+            self.masks_invalid_actions_forward, idx
+        )
+        self.masks_invalid_actions_backward = remove(
+            self.masks_invalid_actions_backward, idx
+        )
+        # Remove "optional" data
+        if self.states_policy is not None:
+            self.states_policy = remove(self.states_policy, idx)
+        if self.parents_available:
+            self.parents = remove(self.parents, idx)
+        if self.parents_policy_available:
+            self.parents_policy = remove(self.parents_policy, idx)
+        if self.parents_all_available:
+            for idx_p in np.where(self.parents_all_indices == idx)[0]:
+                self.parents_all = remove(self.parents_all, idx)
+                self.parents_actions_all = remove(self.parents_actions_all, idx)
+        if self.rewards_available:
+            self.rewards = remove(self.rewards, idx)
+
+    def _remake_trajectories(self):
+        """
+        Remakes self.trajectories, which contains the batch indices of the states in
+        each trajectory, based on self.traj_indices. This is used primarily after the
+        removal of batch items, upon which the batch indices in self.trajectories
+        become invalid.
+        """
+        # Reset self.trajectories
+        for traj_idx in self.trajectories:
+            self.trajectories[traj_idx] = []
+        # Iterate over self.traj_indices to remake self.trajectories
+        for idx, traj_idx in enumerate(self.traj_indices):
+            self.trajectories[traj_idx].append(idx)
+
+    def remove_trajectories_with_states(
         self,
         states: Optional[Union[List, TensorType["n_states", "..."]]] = None,
     ):
+        # Build set of indices of trajectories that contain any of the states
         traj_indices_to_remove = set([])
         for state in states:
             traj_indices_to_remove = traj_indices_to_remove.union(
                 self._get_trajectories_with_state(state)
             )
-        traj_indices_to_keep = set(self.trajectories).difference(traj_indices_to_remove)
-        import ipdb
-
-        ipdb.set_trace()
+        # Build list of all batch indices corresponding to trajectories to remove
+        batch_indices_to_remove = sorted(
+            [
+                idx
+                for traj_idx in traj_indices_to_remove
+                for idx in self.trajectories[traj_idx]
+            ]
+        )
+        # Remove trajectory variables
         for traj_idx in traj_indices_to_remove:
-            pass
+            del self.trajectories[traj_idx]
+            del self.envs[traj_idx]
+            self.is_backward.pop(traj_idx, None)
+        # Remove batch items
+        for idx in batch_indices_to_remove[::-1]:
+            self._remove_idx(idx)
+        # Remake self.trajectories
+        self._remake_trajectories()
+        # Update size
+        self.size -= len(batch_indices_to_remove)
+        if not self.is_valid():
+            raise Exception("Batch is not valid after removing trajectories")
+        # TODO: update indices (as for logprobs)
