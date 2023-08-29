@@ -18,7 +18,7 @@ env:
   reward_func: boltzmann
   reward_beta: 32
   test_args:
-    top_n_trees: 100
+    top_k_trees: 100
   buffer:
     replay_capacity: 100
 

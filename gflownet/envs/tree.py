@@ -167,7 +167,7 @@ class Tree(GFlowNetEnv):
             "beta_beta": 1.0,
         },
         policy_type: str = "mlp",
-        test_args: dict = {"top_n_trees": 0},
+        test_args: dict = {"top_k_trees": 0},
         **kwargs,
     ):
         """
@@ -1541,7 +1541,7 @@ class Tree(GFlowNetEnv):
     ) -> dict:
         """
         Computes a dictionary of metrics, as described in Tree._compute_scores, for
-        both training and, if available, test data. If self.test_args['top_n_trees'] != 0,
+        both training and, if available, test data. If self.test_args['top_k_trees'] != 0,
         also plots top n trees and saves them in the log directory.
 
         Args
@@ -1564,7 +1564,7 @@ class Tree(GFlowNetEnv):
 
         top_k_indices = None
 
-        if self.test_args["top_n_trees"] != 0:
+        if self.test_args["top_k_trees"] != 0:
             if not hasattr(self, "test_iteration"):
                 self.test_iteration = 0
 
@@ -1573,7 +1573,7 @@ class Tree(GFlowNetEnv):
                 [accuracy_score(self.y_train, y_pred) for y_pred in train_predictions]
             )
             order = np.argsort(accuracies)[::-1]
-            top_k_indices = order[: self.test_args["top_n_trees"]]
+            top_k_indices = order[: self.test_args["top_k_trees"]]
 
             # Plot trees.
             Tree._plot_trees(
