@@ -223,13 +223,39 @@ def extend(
     assert type(orig) == type(new)
     if isinstance(orig, list):
         orig.extend(new)
-    elif torch.tensor(orig):
+    elif torch.is_tensor(orig):
         orig = torch.cat([orig, new])
     else:
         raise NotImplementedError(
             "Extension only supported for lists and torch tensors"
         )
     return orig
+
+
+def remove(
+    data: Union[List, TensorType["..."]], idx: int
+) -> Union[List, TensorType["..."]]:
+    """
+    Removes element idx from data, regardless of whether data is a list or a tensor. If
+    data is a tensor, it is assumed that idx refers to the first dimension.
+
+    Args
+    ----
+    data : list or tensor
+        The list or tensor on which to remove item or subtensor at index idx.
+
+    idx : int
+        The index of the element to remove.
+    """
+    if isinstance(data, list):
+        del data[idx]
+    elif torch.is_tensor(data):
+        data = torch.cat((data[:idx], data[idx + 1 :]))
+    else:
+        raise NotImplementedError(
+            "remove() is only supported for lists and torch tensors. Got {type(data)}."
+        )
+    return data
 
 
 def copy(x: Union[List, TensorType["..."]]):
