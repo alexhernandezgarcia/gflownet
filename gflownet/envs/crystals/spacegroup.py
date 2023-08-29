@@ -160,12 +160,12 @@ class SpaceGroup(GFlowNetEnv):
             crystal_lattice_systems = [
                 (self.cls_idx, idx + 1, ref)
                 for idx in range(self.n_crystal_lattice_systems)
-                if self._is_cls_compatible(idx + 1)
+                if self._is_compatible(cls_idx=idx + 1)
             ]
             point_symmetries = [
                 (self.ps_idx, idx + 1, ref)
                 for idx in range(self.n_point_symmetries)
-                if self._is_ps_compatible(idx + 1)
+                if self._is_compatible(ps_idx=idx + 1)
             ]
         # Constraints after having selected crystal-lattice system
         if cls_idx != 0:
@@ -180,7 +180,7 @@ class SpaceGroup(GFlowNetEnv):
                 point_symmetries = [
                     (self.ps_idx, idx, ref)
                     for idx in self.crystal_lattice_systems[cls_idx]["point_symmetries"]
-                    if self._is_ps_compatible(idx)
+                    if self._is_compatible(cls_idx=cls_idx, ps_idx=idx)
                 ]
         else:
             space_groups_cls = [
@@ -201,7 +201,7 @@ class SpaceGroup(GFlowNetEnv):
                 crystal_lattice_systems = [
                     (self.cls_idx, idx, ref)
                     for idx in self.point_symmetries[ps_idx]["crystal_lattice_systems"]
-                    if self._is_cls_compatible(idx)
+                    if self._is_compatible(cls_idx=idx, ps_idx=ps_idx)
                 ]
         else:
             space_groups_ps = [
@@ -587,31 +587,31 @@ class SpaceGroup(GFlowNetEnv):
             n_atoms, self.space_groups.keys()
         )
 
-    def _is_cls_compatible(self, cls_idx: int):
+    def _is_compatible(
+        self, cls_idx: Optional[int] = None, ps_idx: Optional[int] = None
+    ):
         """
-        Returns True it at least one of the space group in the crystal-lattice system
-        passed as an argument is compatible with the composition, according to
-        self.n_atoms_compatibility_dict. False otherwise.
+        Returns True if there is exists at least one space group compatible with the
+        atom composition (according to self.n_atoms_compatibility_dict), with the
+        crystal-lattice system (if provided), and with the point symmetry (if provided).
+        False otherwise.
         """
-        return any(
-            [
-                self.n_atoms_compatibility_dict[sg]
-                for sg in self.crystal_lattice_systems[cls_idx]["space_groups"]
-            ]
-        )
+        # Get list of space groups compatible with the composition
+        spacegroups = [self.n_atoms_compatibility_dict[sg] for sg in self.space_groups]
 
-    def _is_ps_compatible(self, ps_idx: int):
-        """
-        Returns True it at least one of the space group in the point symmetry passed as
-        an argument is compatible with the composition, according to
-        self.n_atoms_compatibility_dict. False otherwise.
-        """
-        return any(
-            [
-                self.n_atoms_compatibility_dict[sg]
-                for sg in self.point_symmetries[ps_idx]["space_groups"]
-            ]
-        )
+        # Prune the list of space groups to those compatible with the provided crystal-
+        # lattice system
+        if cls_idx is not None:
+            space_groups_cls = self.crystal_lattice_systems[cls_idx]["space_groups"]
+            space_groups = list(set(spacegroups).intersection(set(space_groups_cls)))
+
+        # Prune the list of space groups to those compatible with the provided point
+        # symmetry
+        if ps_idx is not None:
+            space_groups_ps = self.point_symmetries[ps_idx]["space_groups"]
+            space_groups = list(set(spacegroups).intersection(set(space_groups_ps)))
+
+        return len(space_groups) > 0
 
     @staticmethod
     def build_n_atoms_compatibility_dict(n_atoms: List[int], space_groups: List[int]):
