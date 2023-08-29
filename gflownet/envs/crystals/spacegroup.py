@@ -5,7 +5,10 @@ import itertools
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Union
 
+import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
+import seaborn as sns
 import torch
 import yaml
 from pyxtal.symmetry import Group
@@ -756,3 +759,27 @@ class SpaceGroup(GFlowNetEnv):
                 continue
             all_x.append(self._set_constrained_properties([0, 0, sg]))
         return all_x
+
+    def plot_reward_samples(
+        self,
+        samples,
+        alpha=0.5,
+        dpi=150,
+        max_samples=500,
+        **kwargs,
+    ):
+        """
+        Plots a histogram of counts of space groups in samples.
+        """
+        # Obtain counts of each space group in samples and make data frame
+        space_groups, counts = np.unique(np.array(samples)[:, -1], return_counts=True)
+        df = pd.DataFrame.from_dict({"Space Group": space_groups, "Counts": counts})
+        # Init figure
+        fig, ax = plt.subplots(figsize=(40, 6), dpi=dpi)
+        # Plot histogram
+        sns.barplot(ax=ax, data=df, x="Space Group", y="Counts")
+        ax.set_xticklabels(ax.get_xticklabels(), rotation=90)
+        ax.set_ylabel("Number of samples in Space Group")
+        ax.set_xlabel("Space group")
+        plt.tight_layout()
+        return fig
