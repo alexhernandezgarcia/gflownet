@@ -562,17 +562,12 @@ class Tree(GFlowNetEnv):
         valid : bool
             False, if the action is not allowed for the current state.
         """
-        if self.continuous:
-            # Replace the continuous value of threshold by -1 to allow checking it.
-            action_to_check = self.action2representative(action)
-            do_step, self.state, action_to_check = self._pre_step(
-                action_to_check,
-                skip_mask_check=(skip_mask_check or self.skip_mask_check),
-            )
-        else:
-            do_step, self.state, action_to_check = self._pre_step(
-                action, skip_mask_check=(skip_mask_check or self.skip_mask_check)
-            )
+        # Replace the continuous value of threshold by -1 to allow checking it.
+        action_to_check = self.action2representative(action)
+        do_step, self.state, action_to_check = self._pre_step(
+            action_to_check,
+            skip_mask_check=(skip_mask_check or self.skip_mask_check),
+        )
         if not do_step:
             return self.state, action, False
 
