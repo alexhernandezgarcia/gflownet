@@ -333,13 +333,6 @@ class Tree(GFlowNetEnv):
         right = Tree._get_right_child(parent)
         return left if k == right else right
 
-    @staticmethod
-    def get_stage(state: torch.Tensor) -> int:
-        """
-        Returns the current stage from the state passed as an argument.
-        """
-        return state[-1, 0]
-
     def _get_stage(self, state: Optional[torch.Tensor] = None) -> int:
         """
         Returns the stage of the current environment from self.state[-1, 0] or from the
@@ -347,7 +340,7 @@ class Tree(GFlowNetEnv):
         """
         if state is None:
             state = self.state
-        return Tree.get_stage(state)
+        return state[-1, 0]
 
     def _set_stage(
         self, stage: int, state: Optional[torch.Tensor] = None
