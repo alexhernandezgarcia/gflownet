@@ -8,6 +8,16 @@ id: tree
 data_path: ${user.data.root}/toy1.csv
 # Max depth
 max_depth: 2
+# Continuous
+continuous: True
+# Number of threshold values for discrete case (ignored if continuous)
+n_thresholds: 9
+# Policy format
+policy_format: mlp
+# Test arguments
+test_args:
+  top_n_trees: 0
+
 # Policy parameters
 threshold_components: 3
 beta_params_min: 0.1
