@@ -629,7 +629,9 @@ class Tree(GFlowNetEnv):
         """
         # Replace the continuous value of threshold by -1 to allow checking it.
         action_to_check = self.action2representative(action)
-        _, _, valid = super().step_backwards(action_to_check, skip_mask_check=skip_mask_check)
+        _, _, valid = super().step_backwards(
+            action_to_check, skip_mask_check=skip_mask_check
+        )
         return self.state, action, valid
 
     def set_state(self, state: List, done: Optional[bool] = False):
