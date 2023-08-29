@@ -1,5 +1,5 @@
 from collections import OrderedDict
-from typing import List, Optional, Tuple, Union
+from typing import List, Optional, Set, Tuple, Union
 
 import numpy as np
 import numpy.typing as npt
@@ -26,12 +26,13 @@ class Batch:
     Important note: one env should correspond to only one trajectory, all env_id should
     be unique.
 
-    Note: self.state_indices start from index 1 to indicate that index 0 would correspond
-    to the source state, but the latter is not stored in the batch for each trajectory.
-    This implies that one has to be careful when indexing the list of batch_indices in
-    self.trajectories by using self.state_indices. For example, the batch index of
-    state state_idx of trajectory traj_idx is self.trajectories[traj_idx][state_idx-1]
-    (not self.trajectories[traj_idx][state_idx]).
+    Note: self.state_indices start from index 1 to indicate that index 0 would
+    correspond to the source state, but the latter is not stored in the batch for each
+    trajectory. This implies that one has to be careful when indexing the list of
+    batch_indices in self.trajectories by using self.state_indices. For example, the
+    batch index of state state_idx of trajectory traj_idx is
+    self.trajectories[traj_idx][state_idx-1] (not
+    self.trajectories[traj_idx][state_idx]).
     """
 
     def __init__(
@@ -1220,3 +1221,35 @@ class Batch:
                 "item must be one of: state, parent, action, done, mask_f[orward] or "
                 "mask_b[ackward]"
             )
+
+    def _get_trajectories_with_state(
+        self, state: Union[TensorType["state_dim"], npt.NDArray[np.float32], List]
+    ) -> Set:
+        """
+        Returns the set of indices of the trajectories in the batch that contain the
+        state passed as an argument.
+
+        state : tensor, np.array, list
+            The state to be searched in the batch.
+        """
+        traj_indices = []
+        for idx, s in enumerate(self.states):
+            if self.env.equal(s, state):
+                traj_indices.append(self.traj_indices[idx])
+        return set(traj_indices)
+
+    def _remove_trajectories_with_states(
+        self,
+        states: Optional[Union[List, TensorType["n_states", "..."]]] = None,
+    ):
+        traj_indices_to_remove = set([])
+        for state in states:
+            traj_indices_to_remove = traj_indices_to_remove.union(
+                self._get_trajectories_with_state(state)
+            )
+        traj_indices_to_keep = set(self.trajectories).difference(traj_indices_to_remove)
+        import ipdb
+
+        ipdb.set_trace()
+        for traj_idx in traj_indices_to_remove:
+            pass
