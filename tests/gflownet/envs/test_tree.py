@@ -5,7 +5,15 @@ import numpy as np
 import pytest
 import torch
 
-from gflownet.envs.tree import ActionType, NodeType, Operator, Stage, Status, Tree
+from gflownet.envs.tree import (
+    ActionType,
+    Attribute,
+    NodeType,
+    Operator,
+    Stage,
+    Status,
+    Tree,
+)
 from gflownet.utils.common import tfloat
 
 NAN = float("NaN")
@@ -34,22 +42,22 @@ def tree(X, y):
     _tree = Tree(X, y)
 
     # split node k = 0 (root) on feature = 0, with threshold = 0.5 and < operator
-    _tree.step((0, 0))
-    _tree.step((1, 0))
-    _tree.step((2, 0.5))
-    _tree.step((3, Operator.LT))
+    _tree.step((0, 0, _tree.default_class))
+    _tree.step((1, -1, 0))
+    _tree.step((2, -1, 0.5))
+    _tree.step((3, 0, Operator.LT))
 
     # split node k = 2 (right child of root) on feature = 1, with threshold = 0.3 and >= operator
-    _tree.step((0, 2))
-    _tree.step((1, 1))
-    _tree.step((2, 0.3))
-    _tree.step((3, Operator.GTE))
+    _tree.step((0, 2, _tree.state[2, Attribute.CLASS]))
+    _tree.step((1, -1, 1))
+    _tree.step((2, -1, 0.3))
+    _tree.step((3, 2, Operator.GTE))
 
     # split node k = 6 (right child of right child of root) on feature = 2, with threshold = 0.7 and < operator
-    _tree.step((0, 6))
-    _tree.step((1, 2))
-    _tree.step((2, 0.7))
-    _tree.step((3, Operator.LT))
+    _tree.step((0, 6, _tree.state[6, Attribute.CLASS]))
+    _tree.step((1, -1, 2))
+    _tree.step((2, -1, 0.7))
+    _tree.step((3, 6, Operator.LT))
 
     return _tree
 
@@ -125,35 +133,35 @@ def state_action_are_in_parents(env, state, action):
                 [NAN, NAN, NAN, NAN, NAN],
                 [Stage.COMPLETE, NAN, NAN, NAN, NAN],
             ],
-            (ActionType.PICK_LEAF, 0),
+            (ActionType.PICK_LEAF, 0, 0),
             [
                 [NodeType.CONDITION, -1, -1, -1, Status.ACTIVE],
                 [NAN, NAN, NAN, NAN, NAN],
                 [NAN, NAN, NAN, NAN, NAN],
                 [Stage.LEAF, NAN, NAN, NAN, NAN],
             ],
-            (ActionType.PICK_FEATURE, 1),
+            (ActionType.PICK_FEATURE, -1, 1),
             [
                 [NodeType.CONDITION, 1, -1, -1, Status.ACTIVE],
                 [NAN, NAN, NAN, NAN, NAN],
                 [NAN, NAN, NAN, NAN, NAN],
                 [Stage.FEATURE, NAN, NAN, NAN, NAN],
             ],
-            (ActionType.PICK_THRESHOLD, 0.2),
+            (ActionType.PICK_THRESHOLD, -1, 0.2),
             [
                 [NodeType.CONDITION, 1, 0.2, -1, Status.ACTIVE],
                 [NAN, NAN, NAN, NAN, NAN],
                 [NAN, NAN, NAN, NAN, NAN],
                 [Stage.THRESHOLD, NAN, NAN, NAN, NAN],
             ],
-            (ActionType.PICK_OPERATOR, Operator.LT),
+            (ActionType.PICK_OPERATOR, 0, Operator.LT),
             [
                 [NodeType.CONDITION, 1, 0.2, -1, Status.INACTIVE],
                 [NodeType.CLASSIFIER, -1, -1, 0, Status.INACTIVE],
                 [NodeType.CLASSIFIER, -1, -1, 1, Status.INACTIVE],
                 [Stage.COMPLETE, NAN, NAN, NAN, NAN],
             ],
-            (-1, -1),
+            (-1, -1, -1),
             [
                 [NodeType.CONDITION, 1, 0.2, -1, Status.INACTIVE],
                 [NodeType.CLASSIFIER, -1, -1, 0, Status.INACTIVE],
@@ -163,7 +171,7 @@ def state_action_are_in_parents(env, state, action):
         ),
     ],
 )
-def test__steps__behaves_as_expected(
+def test__steps__behaves_as_expected_d2(
     tree_d2, source, a0, s1, a1, s2, a2, s3, a3, s4, a4, s5
 ):
     source = tfloat(source, float_type=tree_d2.float, device=tree_d2.device)
@@ -200,7 +208,7 @@ def test__steps__behaves_as_expected(
                 [NAN, NAN, NAN, NAN, NAN],
                 [Stage.COMPLETE, NAN, NAN, NAN, NAN],
             ],
-            (ActionType.PICK_LEAF, 0),
+            (ActionType.PICK_LEAF, 0, 0),
             [
                 [NodeType.CONDITION, -1, -1, -1, Status.ACTIVE],
                 [NAN, NAN, NAN, NAN, NAN],
@@ -211,7 +219,7 @@ def test__steps__behaves_as_expected(
                 [NAN, NAN, NAN, NAN, NAN],
                 [Stage.LEAF, NAN, NAN, NAN, NAN],
             ],
-            (ActionType.PICK_FEATURE, 1),
+            (ActionType.PICK_FEATURE, -1, 1),
             [
                 [NodeType.CONDITION, 1, -1, -1, Status.ACTIVE],
                 [NAN, NAN, NAN, NAN, NAN],
@@ -222,7 +230,7 @@ def test__steps__behaves_as_expected(
                 [NAN, NAN, NAN, NAN, NAN],
                 [Stage.FEATURE, NAN, NAN, NAN, NAN],
             ],
-            (ActionType.PICK_THRESHOLD, 0.2),
+            (ActionType.PICK_THRESHOLD, -1, 0.2),
             [
                 [NodeType.CONDITION, 1, 0.2, -1, Status.ACTIVE],
                 [NAN, NAN, NAN, NAN, NAN],
@@ -233,7 +241,7 @@ def test__steps__behaves_as_expected(
                 [NAN, NAN, NAN, NAN, NAN],
                 [Stage.THRESHOLD, NAN, NAN, NAN, NAN],
             ],
-            (ActionType.PICK_OPERATOR, Operator.LT),
+            (ActionType.PICK_OPERATOR, 0, Operator.LT),
             [
                 [NodeType.CONDITION, 1, 0.2, -1, Status.INACTIVE],
                 [NodeType.CLASSIFIER, -1, -1, 0, Status.INACTIVE],
@@ -244,7 +252,7 @@ def test__steps__behaves_as_expected(
                 [NAN, NAN, NAN, NAN, NAN],
                 [Stage.COMPLETE, NAN, NAN, NAN, NAN],
             ],
-            (0, 2),
+            (0, 2, 1),
             [
                 [NodeType.CONDITION, 1, 0.2, -1, Status.INACTIVE],
                 [NodeType.CLASSIFIER, -1, -1, 0, Status.INACTIVE],
@@ -258,7 +266,7 @@ def test__steps__behaves_as_expected(
         ),
     ],
 )
-def test__steps__behaves_as_expected(
+def test__steps__behaves_as_expected_d3(
     tree_d3, source, a0, s1, a1, s2, a2, s3, a3, s4, a4, s5
 ):
     source = tfloat(source, float_type=tree_d3.float, device=tree_d3.device)
