@@ -1,6 +1,6 @@
 import torch
-from torch import nn
 from omegaconf import OmegaConf
+from torch import nn
 
 from gflownet.utils.common import set_device, set_float_precision
 

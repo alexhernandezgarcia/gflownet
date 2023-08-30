@@ -76,6 +76,7 @@ class HybridTorus(GFlowNetEnv):
         # TODO: assess if really needed
         self.state2oracle = self.state2proxy
         self.statebatch2oracle = self.statebatch2proxy
+        self.statetorch2oracle = self.statetorch2proxy
         self.reward_sampling_method = reward_sampling_method
         # Base class init
         super().__init__(
