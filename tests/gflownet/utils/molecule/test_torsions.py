@@ -1,15 +1,9 @@
+import dgl
 import pytest
 import torch
-import dgl
 
-from rdkit import Chem
-from rdkit.Chem import AllChem
-from rdkit.Geometry.rdGeometry import Point3D
-
-from gflownet.utils.molecule.torsions import get_rotation_masks, apply_rotations
 from gflownet.utils.molecule import constants
-from gflownet.utils.molecule.featurizer import MolDGLFeaturizer
-from gflownet.utils.molecule.rdkit_conformer import get_torsion_angles_values
+from gflownet.utils.molecule.torsions import apply_rotations, get_rotation_masks
 
 
 def test_four_nodes_chain():
@@ -146,6 +140,7 @@ def stress_test_apply_rotation_alanine_dipeptide():
     from rdkit import Chem
     from rdkit.Chem import AllChem
     from rdkit.Geometry.rdGeometry import Point3D
+
     from gflownet.utils.molecule.featurizer import MolDGLFeaturizer
     from gflownet.utils.molecule.rdkit_conformer import get_torsion_angles_values
 
