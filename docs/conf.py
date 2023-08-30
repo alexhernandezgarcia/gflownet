@@ -75,6 +75,12 @@ html_css_files = [
 # -----  Plugins configs  -----
 # -----------------------------
 
+# Furo theme
+# https://pradyunsg.me/furo/customisation/
+html_theme_options = {
+    "top_of_page_button": None,
+}
+
 # sphinx.ext.intersphinx
 intersphinx_mapping = {
     "torch": ("https://pytorch.org/docs/stable", None),
