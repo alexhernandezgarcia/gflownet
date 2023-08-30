@@ -8,7 +8,10 @@ from gflownet.utils.molecule.rdkit_conformer import get_dummy_ad_rdkconf
 
 @pytest.fixture()
 def proxy():
-    return TorchANIMoleculeEnergy(use_ensemble=False, device="cpu", float_precision=32)
+    _proxy = TorchANIMoleculeEnergy(use_ensemble=False, device="cpu", float_precision=32)
+    _proxy.min_energy = -1.0
+    _proxy.max_energy = 0.0
+    return _proxy
 
 
 def test__torchani_molecule_energy__predicts_energy_for_a_single_numpy_conformer(proxy):
