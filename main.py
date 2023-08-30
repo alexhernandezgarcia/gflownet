@@ -18,17 +18,16 @@ import hydra
 import pandas as pd
 from omegaconf import OmegaConf
 
+from gflownet.utils.common import chdir_random_subdir
+
 
 @hydra.main(config_path="./config", config_name="main", version_base="1.1")
 def main(config):
+    # TODO: fix race condition in a more elegant way
+    chdir_random_subdir()
+
     # Get current directory and set it as root log dir for Logger
     cwd = os.getcwd()
-
-    # TODO: fix race condition in a more elegant way
-    cwd += "/%08x" % random.getrandbits(32)
-    os.mkdir(cwd)
-    os.chdir(cwd)
-
     config.logger.logdir.root = cwd
     print(f"\nLogging directory of this run:  {cwd}\n")
 
