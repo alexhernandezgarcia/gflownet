@@ -102,7 +102,9 @@ class EGNNPolicy(Policy):
         output = dgl.graph(graph.edges())
         output.ndata["atom_features"] = graph.ndata["atom_features"].clone().detach()
         output.edata["edge_features"] = graph.edata["edge_features"].clone().detach()
-        output.edata["rotatable_edges"] = graph.edata["rotatable_edges"].clone().detach()
+        output.edata["rotatable_edges"] = (
+            graph.edata["rotatable_edges"].clone().detach()
+        )
 
         return output
 
