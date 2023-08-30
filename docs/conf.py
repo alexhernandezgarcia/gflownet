@@ -22,9 +22,9 @@ sys.path.insert(0, str(ROOT))
 
 # -- Project information -----------------------------------------------------
 
-project = 'gflownet'
-copyright = '2023, Alex Hernandez-Garcia'
-author = 'Alex Hernandez-Garcia'
+project = "gflownet"
+copyright = "2023, Alex Hernandez-Garcia"
+author = "Alex Hernandez-Garcia, Michał Koziarski, Nikita Saxena, Victor Schmidt, Alexandra Volokhova, Michael Kilgour, Pierre Luc Carrier and others"
 
 
 # -- General configuration ---------------------------------------------------
@@ -45,13 +45,13 @@ extensions = [
 ]
 
 # Add any paths that contain templates here, relative to this directory.
-templates_path = ['_templates']
+templates_path = ["_templates"]
 exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
 
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
 # This pattern also affects html_static_path and html_extra_path.
-exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
+exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
 
 
 # -- Options for HTML output -------------------------------------------------
@@ -59,12 +59,12 @@ exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
 #
-html_theme = 'furo'
+html_theme = "furo"
 
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
-html_static_path = ['_static']
+html_static_path = ["_static"]
 
 # -----------------------------
 # -----  Plugins configs  -----
@@ -76,10 +76,10 @@ intersphinx_mapping = {
 }
 
 # sphinx.ext.autodoc & autoapi.extension
-
+# https://autoapi.readthedocs.io/
 autodoc_typehints = "description"
 autoapi_type = "python"
-autoapi_dirs = ["../gflownet/"]
+autoapi_dirs = [str(ROOT / "gflownet")]
 autoapi_member_order = "alphabetical"
 autoapi_template_dir = "_autoapi_templates"
 autoapi_python_class_content = "init"
@@ -94,9 +94,7 @@ autoapi_options = [
 autoapi_keep_files = False
 
 # sphinx_math_dollar
-mathjax_path = (
-    "https://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML"
-)
+mathjax_path = "https://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS_CHTML"
 mathjax3_config = {
     "tex": {
         "inlineMath": [
@@ -105,6 +103,7 @@ mathjax3_config = {
         ],
         "processEscapes": True,
     },
+    "jax": ["input/TeX", "output/CommonHTML", "output/HTML-CSS"],
 }
 
 # sphinx_autodoc_typehints
