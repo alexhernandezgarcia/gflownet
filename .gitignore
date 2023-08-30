@@ -12,3 +12,4 @@ sh/
 external/
 !requirements.txt
 .DS_Store
+docs/_build/
