@@ -75,6 +75,11 @@ html_css_files = [
 # -----  Plugins configs  -----
 # -----------------------------
 
+# todo extension
+# https://www.sphinx-doc.org/en/master/usage/extensions/todo.html#directive-todo
+todo_include_todos = True
+
+
 # Furo theme
 # https://pradyunsg.me/furo/customisation/
 html_theme_options = {
@@ -105,6 +110,7 @@ autoapi_options = [
 autoapi_keep_files = False
 
 # sphinx_math_dollar
+# Note: CHTML is the only output format that works with \mathcal{}
 mathjax_path = "https://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS_CHTML"
 mathjax3_config = {
     "tex": {
