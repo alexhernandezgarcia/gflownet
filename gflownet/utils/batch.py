@@ -1071,7 +1071,7 @@ class Batch:
         Returns True if the trajectory indices start from 0 and are consecutive; False
         otherwise.
         """
-        return set(self.trajectories) == set(np.arange(self.get_n_trajectories()))
+        return list(self.trajectories) == list(np.arange(self.get_n_trajectories()))
 
     def make_indices_consecutive(self):
         """
