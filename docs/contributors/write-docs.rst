@@ -69,4 +69,4 @@ An actual tutorial on ``.rst``: `ReStructured Text for those who know Markdown <
 
 .. todo::
 
-    Improving the documentation: `Recommendations for Sphinx plugins <https://pradyunsg.me/furo/recommendations/>`
+    Improving the documentation: `Recommendations for Sphinx plugins <https://pradyunsg.me/furo/recommendations/>`_.
