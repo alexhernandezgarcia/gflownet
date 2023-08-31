@@ -681,6 +681,11 @@ class GFlowNetAgent:
         numerical stability, since we have the log PF and log PB, instead of directly
         PF and PB.
 
+        Note: the correct indexing of data points and trajectories is ensured by the
+        fact that the indices of the environments are set in a consistent way with the
+        indexing when storing the log probabilities, as well as the call to
+        Batch.make_indices_consecutive() in compute_logprobs_trajectories().
+
         Args
         ----
         data : list or string
