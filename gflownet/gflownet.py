@@ -744,9 +744,9 @@ class GFlowNetAgent:
             )
             # Update environments with sampled actions
             envs, actions, valids = self.step(envs, actions, backward=True)
+            assert all(valids)
             # Add to batch
             batch.add_to_batch(envs, actions, valids, backward=True, train=True)
-            assert all(valids)
             # Filter out finished trajectories
             envs = [env for env in envs if not env.equal(env.state, env.source)]
         # Prepare data structures to compute log probabilities
