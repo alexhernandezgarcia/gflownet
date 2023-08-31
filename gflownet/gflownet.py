@@ -750,7 +750,7 @@ class GFlowNetAgent:
             # Filter out finished trajectories
             envs = [env for env in envs if not env.equal(env.state, env.source)]
         # Prepare data structures to compute log probabilities
-        traj_ids = np.array(list(batch.trajectories.keys())
+        traj_ids = np.array(list(batch.trajectories.keys()))
         data_indices = tlong(traj_ids // max_data_size, device=self.device)
         traj_indices = tlong(traj_ids % max_data_size, device=self.device)
         logprobs_f = torch.full(
