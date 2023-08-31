@@ -5,8 +5,10 @@ forward:
   n_mlp_layers: 2
   egnn_hidden_dim: 128
   mlp_hidden_dim: 256
+  separate_mlp: False
 backward:
   n_gnn_layers: 7
   n_mlp_layers: 2
   egnn_hidden_dim: 128
   mlp_hidden_dim: 256
+  separate_mlp: False

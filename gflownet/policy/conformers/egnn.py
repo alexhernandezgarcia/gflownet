@@ -8,6 +8,24 @@ from torch import nn
 from gflownet.policy.base import Policy
 
 
+def _build_mlp(
+    input_dim: int, hidden_dim: int, output_dim: int, n_layers: int
+) -> nn.Module:
+    mlp_layers = []
+    for i in range(n_layers):
+        mlp_layers.append(
+            (
+                nn.Linear(
+                    input_dim if i == 0 else hidden_dim,
+                    hidden_dim if i < n_layers - 1 else output_dim,
+                )
+            )
+        )
+        if i < n_layers - 1:
+            mlp_layers.append(nn.SiLU())
+    return nn.Sequential(*mlp_layers)
+
+
 class EGNNModel(nn.Module):
     def __init__(
         self,
@@ -18,6 +36,8 @@ class EGNNModel(nn.Module):
         n_mlp_layers: int = 2,
         egnn_hidden_dim: int = 128,
         mlp_hidden_dim: int = 128,
+        n_torsion_angles: int = 2,
+        separate_mlp: bool = False,
     ):
         super().__init__()
 
@@ -35,19 +55,19 @@ class EGNNModel(nn.Module):
             )
         self.egnn_layers = nn.ModuleList(egnn_layers)
 
-        mlp_layers = []
-        for i in range(n_mlp_layers):
-            mlp_layers.append(
-                (
-                    nn.Linear(
-                        2 * egnn_hidden_dim if i == 0 else mlp_hidden_dim,
-                        mlp_hidden_dim if i < n_mlp_layers - 1 else out_dim,
+        if separate_mlp:
+            self.mlp = nn.ModuleList(
+                [
+                    _build_mlp(
+                        2 * egnn_hidden_dim, mlp_hidden_dim, out_dim, n_mlp_layers
                     )
-                )
+                    for _ in range(n_torsion_angles)
+                ]
             )
-            if i < n_mlp_layers - 1:
-                mlp_layers.append(nn.SiLU())
-        self.mlp = nn.Sequential(*mlp_layers)
+        else:
+            self.mlp = _build_mlp(
+                2 * egnn_hidden_dim, mlp_hidden_dim, out_dim, n_mlp_layers
+            )
 
     @staticmethod
     def concat_message_function(edges):
@@ -70,9 +90,18 @@ class EGNNModel(nn.Module):
             )
 
         g.apply_edges(EGNNModel.concat_message_function)
+        edge_features = g.edata["edge_features"][g.edata["rotatable_edges"]]
 
-        output = self.mlp(g.edata["edge_features"][g.edata["rotatable_edges"]])
-        output = output.reshape(g.batch_size, -1)
+        if isinstance(self.mlp, nn.ModuleList):
+            edge_features = edge_features.reshape(
+                g.batch_size, len(self.mlp), -1
+            ).permute(1, 0, 2)
+            output = torch.hstack(
+                [mlp(edge_features[i]) for i, mlp in enumerate(self.mlp)]
+            )
+        else:
+            output = self.mlp(edge_features)
+            output = output.reshape(g.batch_size, -1)
 
         return output
 
@@ -82,6 +111,7 @@ class EGNNPolicy(Policy):
         self.model = None
         self.config = None
         self.graph = EGNNPolicy.create_core_graph(env.graph).to(device)
+        self.n_torsion_angles = env.n_dim
         self.n_components = env.n_comp
         # We increase the node feature size by 1 to anticipate including current
         # timestamp as one of the features.
@@ -113,7 +143,11 @@ class EGNNPolicy(Policy):
 
     def instantiate(self):
         self.model = EGNNModel(
-            self.n_components * 3, self.node_feat_dim, self.edge_feat_dim, **self.config
+            self.n_components * 3,
+            self.node_feat_dim,
+            self.edge_feat_dim,
+            n_torsion_angles=self.n_torsion_angles,
+            **self.config
         ).to(self.device)
 
     def __call__(self, states: torch.Tensor) -> torch.Tensor:
