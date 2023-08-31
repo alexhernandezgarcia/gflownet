@@ -723,6 +723,7 @@ class GFlowNetAgent:
         assert (
             len(states_term) < max_data_size
         ), "The size of the test data is larger than max_data_size ({max_data_size})."
+        # Create an environment for each data point and trajectory and set the state
         envs = []
         for state_idx, x in enumerate(states_term):
             for traj_idx in range(n_trajectories):
@@ -731,10 +732,7 @@ class GFlowNetAgent:
                 env.set_state(x, done=True)
                 envs.append(env)
         # Sample trajectories
-        actions = []
-        valids = []
         max_iters = n_trajectories * max_iters_per_traj
-        iters = 0
         while envs:
             # Sample backward actions
             actions = self.sample_actions(
