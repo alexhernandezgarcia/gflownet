@@ -37,7 +37,7 @@ class EGNNModel(nn.Module):
         egnn_hidden_dim: int = 128,
         mlp_hidden_dim: int = 128,
         n_torsion_angles: int = 2,
-        separate_mlp: bool = False,
+        separate_mlp_per_torsion: bool = False,
     ):
         super().__init__()
 
@@ -55,7 +55,7 @@ class EGNNModel(nn.Module):
             )
         self.egnn_layers = nn.ModuleList(egnn_layers)
 
-        if separate_mlp:
+        if separate_mlp_per_torsion:
             self.mlp = nn.ModuleList(
                 [
                     _build_mlp(
