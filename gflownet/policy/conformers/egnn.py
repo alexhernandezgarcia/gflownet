@@ -110,13 +110,17 @@ class EGNNPolicy(Policy):
     def __init__(self, config, env, device, float_precision, base=None):
         self.model = None
         self.config = None
+        self.use_fake_edges = None
+        self.fake_edge_radius = None
         self.graph = EGNNPolicy.create_core_graph(env.graph).to(device)
         self.n_torsion_angles = env.n_dim
         self.n_components = env.n_comp
         # We increase the node feature size by 1 to anticipate including current
         # timestamp as one of the features.
         self.node_feat_dim = env.graph.ndata["atom_features"].shape[1] + 1
-        self.edge_feat_dim = env.graph.edata["edge_features"].shape[1]
+        # We increase the edge feature size by 1 to anticipate including one-hot
+        # encoding for fake edges.
+        self.edge_feat_dim = env.graph.edata["edge_features"].shape[1] + 1
         self.is_model = True
 
         super().__init__(
@@ -131,15 +135,54 @@ class EGNNPolicy(Policy):
     def create_core_graph(graph: dgl.DGLGraph) -> dgl.DGLGraph:
         output = dgl.graph(graph.edges())
         output.ndata["atom_features"] = graph.ndata["atom_features"].clone().detach()
-        output.edata["edge_features"] = graph.edata["edge_features"].clone().detach()
+        output.edata["edge_features"] = torch.cat(
+            [
+                graph.edata["edge_features"].clone().detach(),
+                torch.zeros(graph.num_edges(), 1),
+            ],
+            dim=1,
+        )
         output.edata["rotatable_edges"] = (
             graph.edata["rotatable_edges"].clone().detach()
         )
 
         return output
 
+    def add_fake_edges(self, graph: dgl.DGLGraph) -> dgl.DGLGraph:
+        in_proximity = (
+            torch.cdist(graph.ndata["coordinates"], graph.ndata["coordinates"])
+            <= self.fake_edge_radius
+        )
+        adjacent = graph.adj().to_dense().bool()
+        new_edges = torch.nonzero(
+            in_proximity
+            & ~adjacent.to(self.device)
+            & ~torch.eye(graph.num_nodes(), device=self.device).bool()
+        )
+        edge_features = torch.zeros(
+            (new_edges.shape[0], graph.edata["edge_features"].shape[1]),
+            device=self.device,
+        )
+        edge_features[:, -1] = 1
+        graph = dgl.add_edges(
+            graph,
+            new_edges[:, 0],
+            new_edges[:, 1],
+            {
+                "edge_features": edge_features,
+                "rotatable_edges": torch.zeros(
+                    new_edges.shape[0], dtype=torch.bool, device=self.device
+                ),
+            },
+        )
+
+        return graph
+
     def parse_config(self, config):
         self.config = {} if config is None else config
+
+        self.use_fake_edges = self.config.pop("use_fake_edges", False)
+        self.fake_edge_radius = self.config.pop("fake_edge_radius", 2.0)
 
     def instantiate(self):
         self.model = EGNNModel(
@@ -162,6 +205,8 @@ class EGNNPolicy(Policy):
                 dim=1,
             )
             graph.ndata["coordinates"] = state[:, :-1]
+            if self.use_fake_edges:
+                graph = self.add_fake_edges(graph)
             graphs.append(graph)
         batch = dgl.batch(graphs).to(self.device)
         output = self.model(batch)
