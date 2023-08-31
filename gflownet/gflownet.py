@@ -765,14 +765,6 @@ class GFlowNetAgent:
             dtype=self.float,
             device=self.device,
         )
-        traj_indices_mat = torch.full(
-            (data_indices.max() + 1, traj_indices.max() + 1),
-            -1,
-            dtype=torch.long,
-            device=self.device,
-        )
-        traj_indices_mat[data_indices, traj_indices] = traj_indices
-        n_trajs_per_sample, _ = traj_indices_mat.max(dim=1)
         # Compute log probabilities of the trajectories
         logprobs_f[data_indices, traj_indices] = self.compute_logprobs_trajectories(
             batch, backward=False
@@ -783,7 +775,7 @@ class GFlowNetAgent:
         # Compute log of the average probabilities of the ratio PF / PB
         logprobs_estimates = torch.logsumexp(
             logprobs_f - logprobs_b, dim=1
-        ) - torch.log(n_trajs_per_sample)
+        ) - torch.log(torch.tensor(n_trajectories, device=self.device))
         return logprobs_estimates
 
     def train(self):
