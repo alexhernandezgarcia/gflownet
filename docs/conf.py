@@ -43,6 +43,8 @@ extensions = [
     "sphinx.ext.napoleon",
     "sphinx_autodoc_typehints",
     "sphinx.ext.todo",
+    "sphinx_tippy",
+    "sphinx_design",
 ]
 
 # Add any paths that contain templates here, relative to this directory.
@@ -69,6 +71,7 @@ html_static_path = ["_static"]
 
 html_css_files = [
     "css/custom.css",
+    "css/tippy.css",
 ]
 
 # -----------------------------
@@ -129,3 +132,20 @@ typehints_fully_qualified = False
 always_document_param_types = True
 typehints_document_rtype = True
 typehints_defaults = "comma"
+
+# MyST
+# https://myst-parser.readthedocs.io/en/latest/intro.html
+myst_enable_extensions = ["colon_fence"]
+
+# Tippy
+# https://sphinx-tippy.readthedocs.io/en/latest/
+tippy_props = {
+    "placement": "auto-start",
+    "maxWidth": 500,
+    "interactive": True,
+}
+tippy_skip_anchor_classes = (
+    "headerlink",
+    "sd-stretched-link",
+)
+tippy_anchor_parent_selector = "div.content"

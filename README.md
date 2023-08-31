@@ -37,3 +37,7 @@ Hydra configuration is hierarchical. For instance, a handy variable to change wh
 ## Logging to wandb
 
 The repository supports logging of train and evaluation metrics to [wandb.ai](https://wandb.ai), but it is disabled by default. In order to enable it, set the configuration variable `logger.do.online` to `True`.
+
+:::{tip}
+Let's give readers a helpful hint!
+:::

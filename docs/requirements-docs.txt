@@ -5,3 +5,5 @@ sphinx-copybutton
 sphinx-autodoc-typehints
 sphinx-autoapi==2.1.0
 sphinx-math-dollar
+sphinx-tippy
+sphinx-design
