@@ -955,7 +955,9 @@ class GFlowNetAgent:
         # likelihood of the data according the the GFlowNet policy; and NLL.
         # TODO: organise code for better efficiency and readability
         logprobs_x_tt = self.estimate_logprobs_data(
-            x_tt, n_trajectories=10, max_data_size=self.logger.test.max_data_logprobs
+            x_tt,
+            n_trajectories=self.logger.test.n_trajs_logprobs,
+            max_data_size=self.logger.test.max_data_logprobs,
         )
         rewards_x_tt = self.env.reward_batch(x_tt)
         corr_logp_rewards = np.corrcoef(logprobs_x_tt.cpu().numpy(), rewards_x_tt)[0, 1]
