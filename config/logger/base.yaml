@@ -17,6 +17,8 @@ test:
   kde:
     bandwidth: 0.1
     kernel: gaussian
+  # Maximum number of test data points to compute log likelihood probs.
+  max_data_logprobs: 1e5
 # Oracle metrics
 oracle:
   period: 100000

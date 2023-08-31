@@ -663,6 +663,7 @@ class GFlowNetAgent:
         data: Union[List, str],
         n_trajectories: int = 1,
         max_iters_per_traj: int = 10,
+        max_data_size: int = 1e5,
     ):
         """
         Estimates the probability of sampling with current GFlowNet policy
@@ -695,13 +696,17 @@ class GFlowNetAgent:
             The maximum number of attempts to sample a distinct trajectory, to avoid
             getting trapped in an infinite loop.
 
+        max_data_size : int
+            Maximum number of data points in the data set to avoid an accidental
+            situation of having to sample too many backward trajectories. If necessary,
+            the user should change this argument manually.
+
         Returns
         -------
         logprobs_estimates: torch.tensor
             The logarithm of the average ratio PF/PB over n trajectories sampled for
             each data point.
         """
-        max_data = 1e5
         batch = Batch(env=self.env, device=self.device, float_type=self.float)
         times = {}
         # Determine terminating states
@@ -715,11 +720,13 @@ class GFlowNetAgent:
             raise NotImplementedError(
                 "data must be either a list of states or a path to a .pkl file."
             )
-        assert len(states_term) < max_data
+        assert (
+            len(states_term) < max_data_size
+        ), "The size of the test data is larger than max_data_size ({max_data_size})."
         envs = []
         for state_idx, x in enumerate(states_term):
             for traj_idx in range(n_trajectories):
-                idx = int(max_data * state_idx + traj_idx)
+                idx = int(max_data_size * state_idx + traj_idx)
                 env = self.env.copy().reset(idx)
                 env.set_state(x, done=True)
                 envs.append(env)
@@ -746,8 +753,8 @@ class GFlowNetAgent:
             envs = [env for env in envs if not env.equal(env.state, env.source)]
         # Prepare data structures to compute log probabilities
         traj_ids = np.array([k for k in batch.trajectories])
-        data_indices = tlong(traj_ids // max_data, device=self.device)
-        traj_indices = tlong(traj_ids % max_data, device=self.device)
+        data_indices = tlong(traj_ids // max_data_size, device=self.device)
+        traj_indices = tlong(traj_ids % max_data_size, device=self.device)
         logprobs_f = torch.full(
             (data_indices.max() + 1, traj_indices.max() + 1),
             -torch.inf,
@@ -947,7 +954,9 @@ class GFlowNetAgent:
         # Compute correlation between the rewards of the test data and the log
         # likelihood of the data according the the GFlowNet policy; and NLL.
         # TODO: organise code for better efficiency and readability
-        logprobs_x_tt = self.estimate_logprobs_data(x_tt, n_trajectories=10)
+        logprobs_x_tt = self.estimate_logprobs_data(
+            x_tt, n_trajectories=10, max_data_size=self.logger.test.max_data_logprobs
+        )
         rewards_x_tt = self.env.reward_batch(x_tt)
         corr_logp_rewards = np.corrcoef(logprobs_x_tt.cpu().numpy(), rewards_x_tt)[0, 1]
         nll_tt = -logprobs_x_tt.mean().item()
