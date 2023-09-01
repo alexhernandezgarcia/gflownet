@@ -535,12 +535,11 @@ class GFlowNetAgent:
         """
         assert batch.is_valid()
         # Make indices of batch consecutive since they are used for indexing here
-        batch.make_indices_consecutive()
         # Get necessary tensors from batch
         states = batch.get_states(policy=True)
         actions = batch.get_actions()
         parents = batch.get_parents(policy=True)
-        traj_indices = batch.get_trajectory_indices()
+        traj_indices = batch.get_trajectory_indices(consecutive=True)
         if backward:
             # Backward trajectories
             masks_b = batch.get_masks_backward()
