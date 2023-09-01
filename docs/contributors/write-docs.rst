@@ -6,7 +6,38 @@ In this document you will learn how to write good, informative, pretty and actio
 
 It's not hard !
 
-First, let's look at an example:
+Overview
+--------
+
+There are two major types of documentation:
+
+1. **docstrings**: your code's docstrings will be automatically parsed by the documentation sofware (`Sphinx <https://www.sphinx-doc.org>`_, more in `generating the documentation`_).
+2. **Manual** documentation such as this document.
+
+**Both** are written in `ReStructured Text <https://www.sphinx-doc.org/en/master/usage/restructuredtext/basics.html>`_ (``.rst``) format.
+
+Some of the great features of using Sphinx is to be able to automatically generate documentation from your code's docstrings, and to be able to link to other parts of the documentation.
+
+For instance: :meth:`~gflownet.gflownet.GFlowNetAgent.trajectorybalance_loss` or to an external function :func:`torch.cuda.synchronize()`.
+
+Learn by example
+^^^^^^^^^^^^^^^^
+
+The next section will introduce many of the cool features of ``.rst`` + Sphinx + plugins.
+
+Click on "*Code for the example*" to look at the ``.rst`` code that generated what you are reading.
+
+.. tab-set::
+
+    .. tab-item:: Full-fleshed ``.rst`` example
+
+        .. include:: example.rst
+
+    .. tab-item:: Code for the example
+
+        .. literalinclude:: example.rst
+            :language: rst
+
 
 
 ``.rst`` Example
