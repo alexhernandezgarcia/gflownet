@@ -31,7 +31,7 @@ jobs:
         run: bash ./setup/continuous_integration.sh pip install --upgrade
 
       - name: Install GFlowNet repo
-        run: pip install https://github.com/alexhernandezgarcia/gflownet/archive/main.zip --quiet
+        run: pip install -e . --quiet
 
       - name: Install Pytest and Isort
         run: pip install pytest isort
