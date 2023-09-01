@@ -682,8 +682,7 @@ class GFlowNetAgent:
 
         Note: the correct indexing of data points and trajectories is ensured by the
         fact that the indices of the environments are set in a consistent way with the
-        indexing when storing the log probabilities, as well as the call to
-        Batch.make_indices_consecutive() in compute_logprobs_trajectories().
+        indexing when storing the log probabilities.
 
         Args
         ----
@@ -724,14 +723,16 @@ class GFlowNetAgent:
             raise NotImplementedError(
                 "data must be either a list of states or a path to a .pkl file."
             )
+        n_states = len(states_term)
         assert (
-            len(states_term) < max_data_size
+            n_states < max_data_size
         ), "The size of the test data is larger than max_data_size ({max_data_size})."
         # Create an environment for each data point and trajectory and set the state
         envs = []
+        mult_indices = max(n_states, n_trajectories)
         for state_idx, x in enumerate(states_term):
             for traj_idx in range(n_trajectories):
-                idx = int(max_data_size * state_idx + traj_idx)
+                idx = int(mult_indices * state_idx + traj_idx)
                 env = self.env.copy().reset(idx)
                 env.set_state(x, done=True)
                 envs.append(env)
@@ -754,17 +755,19 @@ class GFlowNetAgent:
             # Filter out finished trajectories
             envs = [env for env in envs if not env.equal(env.state, env.source)]
         # Prepare data structures to compute log probabilities
-        traj_ids = np.array(list(batch.trajectories.keys()))
-        data_indices = tlong(traj_ids // max_data_size, device=self.device)
-        traj_indices = tlong(traj_ids % max_data_size, device=self.device)
+        traj_indices_batch = tlong(
+            batch.get_unique_trajectory_indices(), device=self.device
+        )
+        data_indices = traj_indices_batch // mult_indices
+        traj_indices = traj_indices_batch % mult_indices
         logprobs_f = torch.full(
-            (data_indices.max() + 1, traj_indices.max() + 1),
+            (n_states, n_trajectories),
             -torch.inf,
             dtype=self.float,
             device=self.device,
         )
         logprobs_b = torch.full(
-            (data_indices.max() + 1, traj_indices.max() + 1),
+            (n_states, n_trajectories),
             -torch.inf,
             dtype=self.float,
             device=self.device,
