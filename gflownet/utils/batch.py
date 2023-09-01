@@ -250,6 +250,13 @@ class Batch:
         """
         return len(self.trajectories)
 
+    def get_unique_trajectory_indices(self) -> List:
+        """
+        Returns the unique trajectory indices as the keys of self.trajectories, which
+        is an OrderedDict, as a list.
+        """
+        return list(self.trajectories.keys())
+
     def get_trajectory_indices(
         self, consecutive: bool = False, return_mapping_dict: bool = False
     ) -> TensorType["n_states", int]:
@@ -1129,7 +1136,7 @@ class Batch:
         """
         if self.traj_indices_are_consecutive():
             return
-        self.traj_indices = self.get_trajectory_indices(consecutive=True)
+        self.traj_indices = self.get_trajectory_indices(consecutive=True).tolist()
         self.trajectories = OrderedDict(
             zip(range(self.get_n_trajectories()), self.trajectories.values())
         )
