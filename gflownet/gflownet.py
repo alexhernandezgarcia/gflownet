@@ -184,7 +184,7 @@ class GFlowNetAgent:
         self.l1 = -1.0
         self.kl = -1.0
         self.jsd = -1.0
-        self.corr_logp_rewards = 0.0
+        self.corr_prob_traj_rewards = 0.0
         self.nll_tt = 0.0
 
     def parameters(self):
@@ -797,7 +797,7 @@ class GFlowNetAgent:
                     self.l1,
                     self.kl,
                     self.jsd,
-                    self.corr_logp_rewards,
+                    self.corr_prob_traj_rewards,
                     self.nll_tt,
                     figs,
                     env_metrics,
@@ -806,7 +806,7 @@ class GFlowNetAgent:
                     self.l1,
                     self.kl,
                     self.jsd,
-                    self.corr_logp_rewards,
+                    self.corr_prob_traj_rewards,
                     self.nll_tt,
                     it,
                     self.use_context,
@@ -936,7 +936,7 @@ class GFlowNetAgent:
                 self.l1,
                 self.kl,
                 self.jsd,
-                self.corr_logp_rewards,
+                self.corr_prob_traj_rewards,
                 self.nll_tt,
                 (None,),
                 {},
@@ -954,7 +954,9 @@ class GFlowNetAgent:
             max_data_size=self.logger.test.max_data_logprobs,
         )
         rewards_x_tt = self.env.reward_batch(x_tt)
-        corr_logp_rewards = np.corrcoef(logprobs_x_tt.cpu().numpy(), rewards_x_tt)[0, 1]
+        corr_prob_traj_rewards = np.corrcoef(
+            np.exp(logprobs_x_tt.cpu().numpy()), rewards_x_tt
+        )[0, 1]
         nll_tt = -logprobs_x_tt.mean().item()
 
         batch, _ = self.sample_batch(n_forward=self.logger.test.n, train=False)
@@ -1024,7 +1026,7 @@ class GFlowNetAgent:
                 self.l1,
                 self.kl,
                 self.jsd,
-                self.corr_logp_rewards,
+                self.corr_prob_traj_rewards,
                 self.nll_tt,
                 (None,),
                 env_metrics,
@@ -1056,7 +1058,7 @@ class GFlowNetAgent:
             l1,
             kl,
             jsd,
-            corr_logp_rewards,
+            corr_prob_traj_rewards,
             nll_tt,
             [fig_reward_samples, fig_kde_pred, fig_kde_true],
             {},
