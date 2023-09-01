@@ -5,6 +5,7 @@ from typing import Dict, List, Optional, Tuple, Union
 import torch
 from torch import Tensor
 from torchtyping import TensorType
+from scipy.spatial.transform import Rotation
 
 from gflownet.envs.base import GFlowNetEnv
 from gflownet.envs.crystals.mcry_lattice_parameters import MolCryLatticeParameters
@@ -59,7 +60,7 @@ class MolCrystal(GFlowNetEnv):
         self.space_group_kwargs = space_group_kwargs or {}
         self.lattice_parameters_kwargs = lattice_parameters_kwargs or {}
 
-        self.space_group = SpaceGroup(**self.space_group_kwargs)
+        self.space_group = SpaceGroup(n_atoms = None, **self.space_group_kwargs)
         # We initialize lattice parameters here with triclinic lattice system to access
         # all the methods of that environment, but it will have to be reinitialized using
         # proper lattice system from space group once that is determined.
@@ -120,6 +121,16 @@ class MolCrystal(GFlowNetEnv):
         super().__init__(**kwargs)
 
     def set_condition(self, condition):
+        '''
+        todo write test - compute distance matrix pre and post transform they should be identical
+        :param condition:
+        :return:
+        '''
+        condition=condition.clone()
+        # copy graph data and randomize the overall orientation
+        centred_coords = condition.pos - condition.pos.mean(0)
+        rotation_matrix = torch.tensor(Rotation.random(num=1).as_matrix(),dtype=centred_coords.dtype, device = centred_coords.device)[0]
+        condition.pos = torch.einsum('ji, mj->mi', (rotation_matrix, centred_coords))
         self.conditions = condition  # custom crystaldata object used by the Policy to generate conditions embedding
 
     def set_conditions_embedding(self, conditions_embedding):
@@ -357,7 +368,7 @@ class MolCrystal(GFlowNetEnv):
             )  # hard-code MolCryLatticeParameters` source, since it can change with other lattice system # todo have a look at this
         elif stage == Stage.LATTICE_PARAMETERS:
             output = (
-                    [2]
+                    [1]
                     + self.space_group.state
                     + substate
             )

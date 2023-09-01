@@ -47,7 +47,7 @@ class MolCryLatticeParameters(Grid):
             max_theta: float = 90.0,
             min_phi: float = -180.0,
             max_phi: float = 180.0,
-            min_roration: float = 0.0,
+            min_rotation: float = 0.0,
             max_rotation: float = 360.0,
             grid_size: int = 10,
             max_increment: int = 1,
@@ -90,7 +90,7 @@ class MolCryLatticeParameters(Grid):
         max_phi:
             Maximum pose angle in the xy plane, 
         
-        min_roration:
+        min_rotation:
             Minimum rotation angle about the unit vector (theta, phi), 
             
         max_rotation: 
@@ -129,7 +129,7 @@ class MolCryLatticeParameters(Grid):
         self.max_theta = max_theta
         self.min_phi = min_phi
         self.max_phi = max_phi
-        self.min_rotation = min_roration
+        self.min_rotation = min_rotation
         self.max_rotation = max_rotation
 
         # we ensure that 90 and 120 degrees angle are present in the search space,
@@ -141,7 +141,7 @@ class MolCryLatticeParameters(Grid):
         positions = np.linspace(min_position, max_position, grid_size + 1)
         thetas = np.linspace(min_theta, max_theta, grid_size + 1)
         phis = np.linspace(min_phi, max_phi, grid_size + 1)
-        rotations = np.linspace(min_roration, max_rotation, grid_size + 1)  # TODO this results in a significantly finer grid in this direction than for phi
+        rotations = np.linspace(min_rotation, max_rotation, grid_size + 1)  # TODO this results in a significantly finer grid in this direction than for phi
 
         self.cell2angle = {k: v for k, v in enumerate(angles)}
         self.angle2cell = {v: k for k, v in self.cell2angle.items()}

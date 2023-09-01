@@ -73,6 +73,9 @@ class Policy:
             self.is_model = True
         elif self.type == 'gnn':
             self.model = GraphConditionedPolicy(self.device,
+                                                hidden_depth = self.n_hid,
+                                                n_layers = self.n_layers,
+                                                state_dim=self.state_dim,
                                                 n_node_feats=self.n_node_feats,
                                                 n_graph_feats=self.n_graph_feats,
                                                 max_mol_radius=self.max_mol_radius,

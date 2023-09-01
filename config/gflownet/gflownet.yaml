@@ -30,7 +30,7 @@ optimizer:
   # Train to sample ratio
   train_to_sample_ratio: 1
   # Number of training iterations
-  n_train_steps: 5000
+  n_train_steps: 10000
   # From original implementation
   bootstrap_tau: 0.0
   clip_grad_norm: 0.0
@@ -49,14 +49,18 @@ replay_capacity: 0
 policy:
   forward:
     type: gnn
+    n_layers: 4
+    n_hid: 256
     checkpoint: null
     reload_ckpt: False
-    n_node_feats: null  # currently assigned in main for gnn
+    n_node_feats: null
     n_graph_feats: null
     max_mol_radius: null
     n_crystal_features: null
   backward:
     type: gnn
+    n_layers: 4
+    n_hid: 256
     checkpoint: null
     reload_ckpt: False
     n_node_feats: null  # currently assigned in main for gnn

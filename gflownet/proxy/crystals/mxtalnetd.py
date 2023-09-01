@@ -14,18 +14,18 @@ class MXtalNetD(Proxy):
         super().__init__(**kwargs)
 
         self.rescaling_func = scaling_func
-        self.higher_is_better = False
+        self.higher_is_better = True
 
         print("Initializing MXtalNetD proxy:")
 
         self.model = StandaloneDiscriminator(self.device, self.rescaling_func)
 
     @torch.no_grad()
-    def __call__(self, cell_params, mol_data):
+    def __call__(self, cell_params, mol_data, return_analysis=False):
         """
         input cell params and molecule conditioning data
         model automatically builds and scores supercells
 
         cell params (sg_num, (a,b,c), (alpha,beta,gamma), (xbar,ybar,zbar), (theta,phi,r))
         """
-        return self.model(cell_params, mol_data)
+        return self.model(cell_params, mol_data, return_analysis=return_analysis)

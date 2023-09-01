@@ -45,11 +45,11 @@ def main(config):
     )
     if 'MolCrystal' in str(env.__class__):
         dataDims = env.proxy.model.dataDims
-        config.gflownet['policy']['forward']['n_node_feats'] = dataDims['num atom features'] + env.state_dim
+        config.gflownet['policy']['forward']['n_node_feats'] = dataDims['num atom features']
         config.gflownet['policy']['forward']['n_graph_feats'] = dataDims['num mol features'] - dataDims['num crystal generation features']
         config.gflownet['policy']['forward']['max_mol_radius'] = 5  # todo de-hard-code
         config.gflownet['policy']['forward']['n_crystal_features'] = dataDims['num crystal generation features']
-        config.gflownet['policy']['backward']['n_node_feats'] = dataDims['num atom features'] + env.state_dim
+        config.gflownet['policy']['backward']['n_node_feats'] = dataDims['num atom features']
         config.gflownet['policy']['backward']['n_graph_feats'] = dataDims['num mol features'] - dataDims['num crystal generation features']
         config.gflownet['policy']['backward']['max_mol_radius'] = 5  # todo de-hard-code
         config.gflownet['policy']['backward']['n_crystal_features'] = dataDims['num crystal generation features']

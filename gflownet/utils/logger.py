@@ -7,6 +7,12 @@ import torch
 from numpy import array
 from omegaconf import OmegaConf
 import os
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
+import plotly.express as px
+from _plotly_utils.colors import n_colors
+from scipy.stats import gaussian_kde, linregress
+
 
 
 class Logger:
@@ -197,6 +203,140 @@ class Logger:
             return
         for key, value in metrics.items():
             self.log_metric(key, value, step=step, use_context=use_context)
+
+    def log_molcrystal(self, timestep, metrics):
+        if not hasattr(self, 'test_metrics_log'):
+            self.test_metrics_log = {timestep:metrics}
+        else:
+            self.test_metrics_log[timestep] = metrics
+
+        import plotly.io as pio
+        pio.renderers.default = 'browser'
+        import webbrowser
+        webbrowser.register('chrome', None, webbrowser.BackgroundBrowser('/mnt/c/Windows/explorer.exe'))
+
+        fig_dict = {}
+        past_timesteps = list(self.test_metrics_log.keys())
+        n_past_to_plot = min(len(past_timesteps), 5)
+
+        """plot cell parameters distribution"""
+        colors = n_colors('rgb(250,50,5)', 'rgb(5,120,200)', n_past_to_plot + 1, colortype='rgb')
+
+        fig = make_subplots(rows=4, cols=3, subplot_titles=['a','b','c','alpha','beta','gamma','xbar','ybar','zbar','theta','phi','r'], horizontal_spacing = 0.05, vertical_spacing=0.05)
+        for i in range(12):
+            for tt in range(n_past_to_plot):
+                time_ind = past_timesteps[len(past_timesteps) - tt - 1]
+                values = self.test_metrics_log[time_ind]['canonical_cell_params'][:, i]
+                bandwidth = np.ptp(values) / 100
+                col = i % 3 + 1
+                row = i // 3 + 1
+                fig.add_trace(go.Violin(
+                    x=values,
+                    bandwidth=bandwidth,
+                    name=time_ind,
+                    showlegend=False,
+                    line_color=colors[tt],
+                    side='positive',
+                    orientation='h',
+                    width=2,
+                ), row=row, col=col)
+
+        fig_dict['canonical cell parameters'] = fig
+
+
+        fig = make_subplots(rows=4, cols=3, subplot_titles=['a','b','c','alpha','beta','gamma','xbar','ybar','zbar','theta','phi','r'], horizontal_spacing = 0.05, vertical_spacing=0.05)
+        for i in range(12):
+            for tt in range(n_past_to_plot):
+                time_ind = past_timesteps[len(past_timesteps) - tt - 1]
+                values = self.test_metrics_log[time_ind]['generated_cell_params'][:, i]
+                bandwidth = np.ptp(values) / 100
+                col = i % 3 + 1
+                row = i // 3 + 1
+                fig.add_trace(go.Violin(
+                    x=values,
+                    bandwidth=bandwidth,
+                    name=time_ind,
+                    showlegend=False,
+                    line_color=colors[tt],
+                    side='positive',
+                    orientation='h',
+                    width=2,
+                ), row=row, col=col)
+
+        fig_dict['raw cell parameters'] = fig
+
+        """plot reward distributions"""
+        score_keys = ['reward','packing_loss','vdw_loss','vdw_score']
+        fig = make_subplots(rows=1,cols=4,subplot_titles=score_keys)
+        for i, key in enumerate(score_keys):
+            for tt in range(n_past_to_plot):
+                time_ind = past_timesteps[len(past_timesteps) - tt - 1]
+                values = self.test_metrics_log[time_ind][key]
+                if 'loss' in key:
+                    values = np.log10(values.clip(min=1e-3))
+                bandwidth = np.ptp(values) / 100
+                col = i + 1
+                fig.add_trace(go.Violin(
+                    x=values,
+                    bandwidth=bandwidth,
+                    name=time_ind,
+                    showlegend=False,
+                    line_color=colors[tt],
+                    side='positive',
+                    orientation='h',
+                    width=2,
+                ), row=1, col=col)
+
+        fig_dict['scores distributions'] = fig
+
+        """record loss metrics"""
+        mean_metrics = {key:np.mean(metrics[key]) for key in score_keys}
+        self.wandb.log(mean_metrics)
+
+        """space group distribution"""
+        fig = go.Figure()
+        for tt in range(n_past_to_plot):
+            time_ind = past_timesteps[len(past_timesteps) - tt - 1]
+            values = self.test_metrics_log[time_ind]['space_groups']
+            fig.add_trace(go.Violin(
+                x=values,
+                name=time_ind,
+                bandwidth=0.1,
+                showlegend=False,
+                line_color=colors[tt],
+                side='positive',
+                orientation='h',
+                width=2,
+            ))
+        fig_dict['sg distribution'] = fig
+
+        """ plot density distribution"""
+        x = metrics['csd_packing_target']
+        y = metrics['packing_prediction']
+
+        xy = np.vstack([x, y])
+        try:
+            z = gaussian_kde(xy)(xy)
+        except:
+            z = np.ones_like(x)
+
+        xline = np.asarray([np.amin(x), np.amax(x)])
+        linreg_result = linregress(x, y)
+        yline = xline * linreg_result.slope + linreg_result.intercept
+
+        fig = go.Figure()
+        fig.add_trace(go.Scattergl(x=x, y=y, showlegend=False,
+                                   mode='markers', marker=dict(color=z), opacity=1))
+
+        fig.add_trace(
+            go.Scattergl(x=xline, y=yline, name=f' R={linreg_result.rvalue:.3f}, m={linreg_result.slope:.3f}'))
+
+        fig.add_trace(go.Scattergl(x=xline, y=xline, marker_color='rgba(0,0,0,1)', showlegend=False))
+        fig.update_layout(xaxis_title='packing target', yaxis_title='packing prediction')
+
+        fig_dict['Cell Packing Accuracy'] = fig
+
+        self.wandb.log(fig_dict)
 
     def log_summary(self, summary: dict):
         if not self.do.online:

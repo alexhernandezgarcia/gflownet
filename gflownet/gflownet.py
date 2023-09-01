@@ -594,7 +594,7 @@ class GFlowNetAgent:
             dtype=self.float,
             device=self.device,
         )
-        inflow_logits[parents_state_idx, parents_a_idx] = self.forward_policy(parents)[
+        inflow_logits[parents_state_idx, parents_a_idx] = self.forward_policy(parents)[  # todo implement conditioning
             torch.arange(parents.shape[0]), parents_a_idx
         ]
         inflow = torch.logsumexp(inflow_logits, dim=1)
@@ -690,63 +690,81 @@ class GFlowNetAgent:
         # Train loop
         pbar = tqdm(range(1, self.n_train_steps + 1), disable=not self.logger.progress)
         for it in pbar:
-            # Test
-            fig_names = [
-                "True reward and GFlowNet samples",
-                "GFlowNet KDE Policy",
-                "Reward KDE",
-            ]
-            if self.logger.do_test(it):
-                self.l1, self.kl, self.jsd, figs, env_metrics = self.test()
-                self.logger.log_test_metrics(
-                    self.l1, self.kl, self.jsd, it, self.use_context
-                )
-                self.logger.log_metrics(env_metrics, it, use_context=self.use_context)
-                self.logger.log_plots(
-                    figs, it, fig_names=fig_names, use_context=self.use_context
-                )
-            if False: #self.logger.do_top_k(it):  # todo still busted
-                metrics, figs, fig_names, summary = self.test_top_k(it)
-                self.logger.log_plots(
-                    figs, it, use_context=self.use_context, fig_names=fig_names
-                )
-                self.logger.log_metrics(metrics, use_context=self.use_context, step=it)
-                self.logger.log_summary(summary)
-            t0_iter = time.time()
-            batch = Batch(env=self.env, device=self.device, float_type=self.float)
-            for j in range(self.sttr):
-                sub_batch, times = self.sample_batch(
-                    n_forward=self.batch_size.forward,
-                    n_train=self.batch_size.backward_dataset,
-                    n_replay=self.batch_size.backward_replay,
-                )
-                batch.merge(sub_batch)
-            for j in range(self.ttsr):
-                if self.loss == "flowmatch":
-                    losses = self.flowmatch_loss(
-                        it * self.ttsr + j, batch
-                    )  # returns (opt loss, *metrics)
-                elif self.loss == "trajectorybalance":
-                    losses = self.trajectorybalance_loss(
-                        it * self.ttsr + j, batch
-                    )  # returns (opt loss, *metrics)
+            try:
+                # Test
+                fig_names = [
+                    "True reward and GFlowNet samples",
+                    "GFlowNet KDE Policy",
+                    "Reward KDE",
+                ]
+                if self.logger.do_test(it):
+                    self.l1, self.kl, self.jsd, figs, env_metrics = self.test()
+                    self.logger.log_test_metrics(
+                        self.l1, self.kl, self.jsd, it, self.use_context
+                    )
+                    if self.env.__class__.__name__ == 'MolCrystal':
+                        self.logger.log_molcrystal(it, env_metrics)
+                    else:
+                        self.logger.log_metrics(env_metrics, it, use_context=self.use_context)
+                    self.logger.log_plots(
+                        figs, it, fig_names=fig_names, use_context=self.use_context
+                    )
+                if False: #self.logger.do_top_k(it):  # todo still busted
+                    metrics, figs, fig_names, summary = self.test_top_k(it)
+                    self.logger.log_plots(
+                        figs, it, use_context=self.use_context, fig_names=fig_names
+                    )
+                    self.logger.log_metrics(metrics, use_context=self.use_context, step=it)
+                    self.logger.log_summary(summary)
+                t0_iter = time.time()
+                batch = Batch(env=self.env, device=self.device, float_type=self.float)
+                for j in range(self.sttr):
+                    sub_batch, times = self.sample_batch(
+                        n_forward=self.batch_size.forward,
+                        n_train=self.batch_size.backward_dataset,
+                        n_replay=self.batch_size.backward_replay,
+                    )
+                    batch.merge(sub_batch)
+                for j in range(self.ttsr):
+                    if self.loss == "flowmatch":
+                        losses = self.flowmatch_loss(
+                            it * self.ttsr + j, batch
+                        )  # returns (opt loss, *metrics)
+                    elif self.loss == "trajectorybalance":
+                        losses = self.trajectorybalance_loss(
+                            it * self.ttsr + j, batch
+                        )  # returns (opt loss, *metrics)
+                    else:
+                        print("Unknown loss!")
+                    if not all([torch.isfinite(loss) for loss in losses]):
+                        if self.logger.debug:
+                            print("Loss is not finite - skipping iteration")
+                        if len(all_losses) > 0:
+                            all_losses.append([loss for loss in all_losses[-1]])
+                    else:
+                        losses[0].backward()
+                        if self.clip_grad_norm > 0:
+                            torch.nn.utils.clip_grad_norm_(
+                                self.parameters(), self.clip_grad_norm
+                            )
+                        self.opt.step()
+                        self.lr_scheduler.step()
+                        self.opt.zero_grad()
+                        all_losses.append([i.item() for i in losses])
+
+                if it % 5 == 0:  # boost batch size
+                    for key in self.batch_size.keys():
+                        if self.batch_size[key] > 0:
+                            increment = max(1,int(self.batch_size[key] * .05))
+                            self.batch_size[key] = max(1, self.batch_size[key] + increment)
+            except RuntimeError as e:
+                if "CUDA out of memory" in str(e):
+                    for key in self.batch_size.keys():
+                        if self.batch_size[key] > 0: # reduce batch size
+                            increment = max(1, int(self.batch_size[key] * .05))
+                            self.batch_size[key] = max(1, int(self.batch_size[key] - increment))
                 else:
-                    print("Unknown loss!")
-                if not all([torch.isfinite(loss) for loss in losses]):
-                    if self.logger.debug:
-                        print("Loss is not finite - skipping iteration")
-                    if len(all_losses) > 0:
-                        all_losses.append([loss for loss in all_losses[-1]])
-                else:
-                    losses[0].backward()
-                    if self.clip_grad_norm > 0:
-                        torch.nn.utils.clip_grad_norm_(
-                            self.parameters(), self.clip_grad_norm
-                        )
-                    self.opt.step()
-                    self.lr_scheduler.step()
-                    self.opt.zero_grad()
-                    all_losses.append([i.item() for i in losses])
+                    raise e
             # Buffer
             t0_buffer = time.time()
             states_term = batch.get_terminating_states(sort_by="trajectory")
@@ -830,84 +848,102 @@ class GFlowNetAgent:
         """
         Computes metrics by sampling trajectories from the forward policy.
         """
-        if self.buffer.test_pkl is None:
-            return self.l1, self.kl, self.jsd, (None,), {}
-        with open(self.buffer.test_pkl, "rb") as f:
-            dict_tt = pickle.load(f)
-            x_tt = dict_tt["x"]
-        batch, _ = self.sample_batch(n_forward=self.logger.test.n, train=False)
-        assert batch.is_valid()
-        x_sampled = batch.get_terminating_states()
-        if self.buffer.test_type is not None and self.buffer.test_type == "all":
-            if "density_true" in dict_tt:
-                density_true = dict_tt["density_true"]
-            else:
-                rewards = self.env.reward_batch(x_tt)
-                z_true = rewards.sum()
-                density_true = rewards / z_true
-                with open(self.buffer.test_pkl, "wb") as f:
-                    dict_tt["density_true"] = density_true
-                    pickle.dump(dict_tt, f)
-            hist = defaultdict(int)
-            for x in x_sampled:
-                hist[tuple(x)] += 1
-            z_pred = sum([hist[tuple(x)] for x in x_tt]) + 1e-9
-            density_pred = np.array([hist[tuple(x)] / z_pred for x in x_tt])
-            log_density_true = np.log(density_true + 1e-8)
-            log_density_pred = np.log(density_pred + 1e-8)
-        elif self.continuous:
-            # TODO make it work with conditional env
-            x_sampled = torch2np(self.env.statebatch2proxy(x_sampled))
-            x_tt = torch2np(self.env.statebatch2proxy(x_tt))
-            kde_pred = self.env.fit_kde(
-                x_sampled,
-                kernel=self.logger.test.kde.kernel,
-                bandwidth=self.logger.test.kde.bandwidth,
-            )
-            if "log_density_true" in dict_tt and "kde_true" in dict_tt:
-                log_density_true = dict_tt["log_density_true"]
-                kde_true = dict_tt["kde_true"]
-            else:
-                # Sample from reward via rejection sampling
-                x_from_reward = self.env.sample_from_reward(
-                    n_samples=self.logger.test.n
-                )
-                x_from_reward = torch2np(self.env.statetorch2proxy(x_from_reward))
-                # Fit KDE with samples from reward
-                kde_true = self.env.fit_kde(
-                    x_from_reward,
+        if self.env.__class__.__name__ != 'MolCrystal':
+            if self.buffer.test_pkl is None:
+                return self.l1, self.kl, self.jsd, (None,), {}
+            with open(self.buffer.test_pkl, "rb") as f:
+                dict_tt = pickle.load(f)
+                x_tt = dict_tt["x"]
+            batch, _ = self.sample_batch(n_forward=self.logger.test.n, train=False)
+            assert batch.is_valid()
+            x_sampled = batch.get_terminating_states()
+            if self.buffer.test_type is not None and self.buffer.test_type == "all":
+                if "density_true" in dict_tt:
+                    density_true = dict_tt["density_true"]
+                else:
+                    rewards = self.env.reward_batch(x_tt)
+                    z_true = rewards.sum()
+                    density_true = rewards / z_true
+                    with open(self.buffer.test_pkl, "wb") as f:
+                        dict_tt["density_true"] = density_true
+                        pickle.dump(dict_tt, f)
+                hist = defaultdict(int)
+                for x in x_sampled:
+                    hist[tuple(x)] += 1
+                z_pred = sum([hist[tuple(x)] for x in x_tt]) + 1e-9
+                density_pred = np.array([hist[tuple(x)] / z_pred for x in x_tt])
+                log_density_true = np.log(density_true + 1e-8)
+                log_density_pred = np.log(density_pred + 1e-8)
+            elif self.continuous:
+                # TODO make it work with conditional env
+                x_sampled = torch2np(self.env.statebatch2proxy(x_sampled))
+                x_tt = torch2np(self.env.statebatch2proxy(x_tt))
+                kde_pred = self.env.fit_kde(
+                    x_sampled,
                     kernel=self.logger.test.kde.kernel,
                     bandwidth=self.logger.test.kde.bandwidth,
                 )
-                # Estimate true log density using test samples
+                if "log_density_true" in dict_tt and "kde_true" in dict_tt:
+                    log_density_true = dict_tt["log_density_true"]
+                    kde_true = dict_tt["kde_true"]
+                else:
+                    # Sample from reward via rejection sampling
+                    x_from_reward = self.env.sample_from_reward(
+                        n_samples=self.logger.test.n
+                    )
+                    x_from_reward = torch2np(self.env.statetorch2proxy(x_from_reward))
+                    # Fit KDE with samples from reward
+                    kde_true = self.env.fit_kde(
+                        x_from_reward,
+                        kernel=self.logger.test.kde.kernel,
+                        bandwidth=self.logger.test.kde.bandwidth,
+                    )
+                    # Estimate true log density using test samples
+                    # TODO: this may be specific-ish for the torus or not
+                    scores_true = kde_true.score_samples(x_tt)
+                    log_density_true = scores_true - logsumexp(scores_true, axis=0)
+                    # Add log_density_true and kde_true to pickled test dict
+                    with open(self.buffer.test_pkl, "wb") as f:
+                        dict_tt["log_density_true"] = log_density_true
+                        dict_tt["kde_true"] = kde_true
+                        pickle.dump(dict_tt, f)
+                # Estimate pred log density using test samples
                 # TODO: this may be specific-ish for the torus or not
-                scores_true = kde_true.score_samples(x_tt)
-                log_density_true = scores_true - logsumexp(scores_true, axis=0)
-                # Add log_density_true and kde_true to pickled test dict
-                with open(self.buffer.test_pkl, "wb") as f:
-                    dict_tt["log_density_true"] = log_density_true
-                    dict_tt["kde_true"] = kde_true
-                    pickle.dump(dict_tt, f)
-            # Estimate pred log density using test samples
-            # TODO: this may be specific-ish for the torus or not
-            scores_pred = kde_pred.score_samples(x_tt)
-            log_density_pred = scores_pred - logsumexp(scores_pred, axis=0)
-            density_true = np.exp(log_density_true)
-            density_pred = np.exp(log_density_pred)
-        elif self.buffer.test_type == "random":
-            # TODO: refactor
-            env_metrics = self.env.test(x_sampled)
-            return self.l1, self.kl, self.jsd, (None,), env_metrics
+                scores_pred = kde_pred.score_samples(x_tt)
+                log_density_pred = scores_pred - logsumexp(scores_pred, axis=0)
+                density_true = np.exp(log_density_true)
+                density_pred = np.exp(log_density_pred)
+            elif self.buffer.test_type == "random":
+                # TODO: refactor
+                env_metrics = self.env.test(x_sampled)
+                return self.l1, self.kl, self.jsd, (None,), env_metrics
+            else:
+                raise NotImplementedError
+            # L1 error
+            l1 = np.abs(density_pred - density_true).mean()
+            # KL divergence
+            kl = (density_true * (log_density_true - log_density_pred)).mean()
+            # Jensen-Shannon divergence
+            log_mean_dens = np.logaddexp(log_density_true, log_density_pred) + np.log(0.5)
+            jsd = 0.5 * np.sum(density_true * (log_density_true - log_mean_dens))
+            jsd += 0.5 * np.sum(density_pred * (log_density_pred - log_mean_dens))
         else:
-            raise NotImplementedError
-        # L1 error
-        l1 = np.abs(density_pred - density_true).mean()
-        # KL divergence
-        kl = (density_true * (log_density_true - log_density_pred)).mean()
-        # Jensen-Shannon divergence
-        log_mean_dens = np.logaddexp(log_density_true, log_density_pred) + np.log(0.5)
-        jsd = 0.5 * np.sum(density_true * (log_density_true - log_mean_dens))
-        jsd += 0.5 * np.sum(density_pred * (log_density_pred - log_mean_dens))
+            n_batches = self.logger.test.n // self.batch_size['forward']
+            analysis_dict = []
+            for n in range(n_batches):
+                batch, _ = self.sample_batch(n_forward=self.batch_size['forward'], train=False)  # todo integrate into regular methods
+                assert batch.is_valid()
+                x_sampled = batch.get_terminating_states(proxy=True)
+                collater = Collater(0, 0)
+                term_conditions = collater([batch.conditions[ind] for ind in batch.term_traj_indices])
+                rewards, analysis_dict_i = batch.env.proxy(x_sampled, mol_data=term_conditions, return_analysis=True)
+                if n == 0:
+                    analysis_dict = analysis_dict_i
+                else:
+                    for key in analysis_dict.keys():
+                        analysis_dict[key] = np.concatenate((analysis_dict[key], analysis_dict_i[key]),axis=0)
+
+            return self.l1, self.kl, self.jsd, (None,), analysis_dict
 
         # Plots
 

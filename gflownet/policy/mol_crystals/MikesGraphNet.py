@@ -11,8 +11,6 @@ from gflownet.policy.mol_crystals.asymmetric_radius_graph import asymmetric_radi
 from gflownet.policy.mol_crystals.model_components import MLP, Normalization, Activation
 from gflownet.policy.mol_crystals.basis_functions import TorsionalEmbedding, SphericalBasisLayer, GaussianEmbedding, BesselBasisLayer
 
-
-
 class MikesGraphNet(torch.nn.Module):
     def __init__(self, hidden_channels: int,
                  graph_convolution_filters: int,

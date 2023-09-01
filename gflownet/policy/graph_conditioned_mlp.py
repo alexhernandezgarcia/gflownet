@@ -6,7 +6,7 @@ from gflownet.policy.mol_crystals.molecule_graph_model import molecule_graph_mod
 
 
 class GraphConditionedPolicy(nn.Module):
-    def __init__(self, device, n_node_feats, n_graph_feats, max_mol_radius, output_dim, n_crystal_features, seed=0):
+    def __init__(self, device, hidden_depth, n_layers, state_dim, n_node_feats, n_graph_feats, max_mol_radius, output_dim, n_crystal_features, seed=0):
         super(GraphConditionedPolicy, self).__init__()
 
         self.device = device
@@ -16,30 +16,31 @@ class GraphConditionedPolicy(nn.Module):
         self.n_node_features = n_node_feats
         self.n_graph_features = n_graph_feats
         self.n_crystal_features = n_crystal_features
-        self.model = molecule_graph_model(
+        graph_dimension = 256
+        self.conditioner = molecule_graph_model(
             dataDims=None,
             atom_embedding_dims=5,
             seed=seed,
             num_atom_feats=n_node_feats + 3 - n_crystal_features,  # we will add directly the normed coordinates to the node features
             num_mol_feats=n_graph_feats,
-            output_dimension=output_dim,
+            output_dimension=graph_dimension,
             activation='gelu',
-            num_fc_layers=2,
-            fc_depth=64,
+            num_fc_layers=0,
+            fc_depth=0,
             fc_dropout_probability=0,
             fc_norm_mode=None,
-            graph_filters=64,
+            graph_filters=graph_dimension // 2,
             graph_convolutional_layers=2,
             concat_mol_to_atom_features=True,
             pooling='max',
-            graph_norm='graph layer',
+            graph_norm=None,
             num_spherical=6,
-            num_radial=12,
+            num_radial=32,
             graph_convolution='TransformerConv',
             num_attention_heads=1,
             add_spherical_basis=False,
             add_torsional_basis=False,
-            graph_embedding_size=64,
+            graph_embedding_size=graph_dimension,
             radial_function='gaussian',
             max_num_neighbors=100,
             convolution_cutoff=6,
@@ -48,9 +49,19 @@ class GraphConditionedPolicy(nn.Module):
             crystal_mode=False,
             crystal_convolution_type=None,
         )
+        self.model = MLP(
+            input_dim=state_dim,
+            conditioning_dim = graph_dimension + 1,
+            layers=n_layers,
+            filters=hidden_depth,
+            output_dim = output_dim,
+            norm=None,
+            dropout=0,
+            activation='gelu'
+        )
 
     def forward(self, states, conditions):  # combine state & conditions for input
-        '''
+        """
         :param states:
         :param conditions:
         :return:
@@ -58,12 +69,11 @@ class GraphConditionedPolicy(nn.Module):
         convolutions are done with radial basis functions
         graph convolution is TransformerConv conditioned on edge embeddings
         graph -> gnn -> mlp -> output
-        '''
+        """
         conditions = conditions.clone()  # avoid contaminating the source data
         normed_coords = conditions.pos / self.max_mol_radius  # norm coords by maximum molecule radius
-        repeated_states = torch.cat([states[i][None,:].repeat((int(conditions.mol_size[i]),1)) for i in range(conditions.num_graphs)])
-        conditions.x = torch.cat((repeated_states, conditions.x[:, :-self.n_crystal_features], normed_coords), dim=-1)  # concatenate states and coordinates to input features, leaving out crystal info
+        conditions.x = torch.cat((conditions.x[:, :-self.n_crystal_features], normed_coords,), dim=-1)  # concatenate states and coordinates to input features, leaving out crystal info
 
-        return self.model(conditions)
+        return self.model(states, conditions=torch.cat((conditions.y[:,None].float(),self.conditioner(conditions)),dim=-1))
 
 

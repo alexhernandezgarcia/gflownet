@@ -200,12 +200,12 @@ class SpaceGroup(GFlowNetEnv):
             crystal_lattice_systems = [
                 (self.cls_idx, idx + 1, ref)
                 for idx in range(self.n_crystal_lattice_systems)
-                # if self._is_cls_compatible(idx + 1)  # todo toggle for this (always allowed for molecular crystals) - no composition effect
+                if self._is_cls_compatible(idx + 1)
             ]
             point_symmetries = [
                 (self.ps_idx, idx + 1, ref)
                 for idx in range(self.n_point_symmetries)
-                # if self._is_ps_compatible(idx + 1)  # todo toggle for this (always allowed for molecular crystals)
+                if self._is_ps_compatible(idx + 1)
             ]
         # Constraints after having selected crystal-lattice system
         if cls_idx != 0:
@@ -214,7 +214,7 @@ class SpaceGroup(GFlowNetEnv):
                 (self.sg_idx, self.sg2stateind[sg], ref)
                 for sg in self.crystal_lattice_systems[self.stateind2cls[cls_idx]]["space_groups"]
                 if sg in self.space_groups.keys()
-                #if self.n_atoms_compatibility_dict[sg]
+                if self.n_atoms_compatibility_dict[sg]
             ]
             # If no point symmetry selected yet
             if ps_idx == 0:
@@ -228,7 +228,7 @@ class SpaceGroup(GFlowNetEnv):
             space_groups_cls = [
                 (self.sg_idx, idx + 1, ref)
                 for idx in range(self.n_space_groups)
-                #if self.n_atoms_compatibility_dict[idx + 1]
+                if self.n_atoms_compatibility_dict[idx + 1]
             ]
         # Constraints after having selected point symmetry
         if ps_idx != 0:
@@ -237,7 +237,7 @@ class SpaceGroup(GFlowNetEnv):
                 (self.sg_idx, self.sg2stateind[sg], ref)
                 for sg in self.point_symmetries[self.stateind2pg[ps_idx]]["space_groups"]
                 if sg in self.space_groups.keys()
-                #if self.n_atoms_compatibility_dict[sg]
+                if self.n_atoms_compatibility_dict[sg]
             ]
             # If no crystal-lattice system selected yet
             if cls_idx == 0:
@@ -245,23 +245,22 @@ class SpaceGroup(GFlowNetEnv):
                     (self.cls_idx, self.cls2stateind[idx], ref)
                     for idx in self.point_symmetries[self.stateind2pg[ps_idx]]["crystal_lattice_systems"]
                     if idx in self.crystal_lattice_systems.keys()
-                    #if self._is_cls_compatible(self.stateind2cls[idx])
+                    if self._is_cls_compatible(self.stateind2cls[idx])
                 ]
         else:
             space_groups_ps = [
                 (self.sg_idx, idx + 1, ref)
                 for idx in range(self.n_space_groups)
-                #if self.n_atoms_compatibility_dict[idx + 1]
+                if self.n_atoms_compatibility_dict[idx + 1]
             ]
         # Merge space_groups constraints and determine valid space group actions
         space_groups = list(set(space_groups_cls).intersection(set(space_groups_ps)))
         # Construct mask
         actions_valid = set.union(
             set(crystal_lattice_systems), set(point_symmetries), set(space_groups)
-        )  # todo add sg ind translations to all these lookups
+        )
         assert len(actions_valid) > 0
-        if ps_idx > 0:
-            aa = 1
+
         mask = [
             False if action in actions_valid else True for action in self.action_space
         ]
@@ -287,8 +286,9 @@ class SpaceGroup(GFlowNetEnv):
             raise ValueError(
                 "The space group must have been set in order to call the oracle"
             )
-
-        return torch.tensor(state[self.sg_idx], device=self.device, dtype=torch.long)
+        if self.stateind2sg_tensor.device != state.device:# todo obviate by ensuring correct device from the start
+            self.stateind2sg_tensor = self.stateind2sg_tensor.to(state.device)
+        return torch.tensor(self.stateind2sg_tensor[state[self.sg_idx]], device=self.device, dtype=torch.long)
 
     def statebatch2oracle(
             self, states: List[List]
@@ -306,9 +306,10 @@ class SpaceGroup(GFlowNetEnv):
         ----
         oracle_state : Tensor
         """
-
+        if self.stateind2sg_tensor.device != states.device:# todo obviate by ensuring correct device from the start
+            self.stateind2sg_tensor = self.stateind2sg_tensor.to(states.device)
         return self.statetorch2oracle(
-            torch.tensor(states, device=self.device, dtype=torch.long)
+            torch.tensor(self.stateind2sg_tensor[states], device=self.device, dtype=torch.long)
         )
 
     def statetorch2oracle(
@@ -327,7 +328,7 @@ class SpaceGroup(GFlowNetEnv):
         ----
         oracle_state : Tensor
         """
-        if self.stateind2sg_tensor.device != states.device:# todo obviate
+        if self.stateind2sg_tensor.device != states.device:# todo obviate by ensuring correct device from the start
             self.stateind2sg_tensor = self.stateind2sg_tensor.to(states.device)
         return torch.unsqueeze(self.stateind2sg_tensor[states[:, self.sg_idx] - 1], dim=1).to(torch.long)
 
@@ -356,7 +357,7 @@ class SpaceGroup(GFlowNetEnv):
             state = self.state
         cls_idx, ps_idx, sg_idx = state
         crystal_lattice_system = self.get_crystal_lattice_system(state)
-        point_symmetry = 'abc'  # self.get_point_symmetry(state)  # todo fix
+        point_symmetry = self.get_point_symmetry(state)
         sg_symbol = self.get_space_group_symbol(state)
         crystal_class = self.get_crystal_class(state)
         point_group = self.get_point_group(state)
@@ -489,13 +490,13 @@ class SpaceGroup(GFlowNetEnv):
         cls_idx, ps_idx, sg_idx = state
         if sg_idx != 0:
             if cls_idx == 0:
-                state[self.cls_idx] = self.space_groups[self.stateind2sg[state[self.sg_idx]]][
+                state[self.cls_idx] = self.cls2stateind[self.space_groups[self.stateind2sg[state[self.sg_idx]]][
                     "crystal_lattice_system_idx"
-                ]
+                ]]
             if ps_idx == 0:
-                state[self.ps_idx] = self.space_groups[self.stateind2sg[state[self.sg_idx]]][
+                state[self.ps_idx] = self.pg2stateind[self.space_groups[self.stateind2sg[state[self.sg_idx]]][
                     "point_symmetry_idx"
-                ]
+                ]]
         return state
 
     def get_crystal_system(self, state: List[int] = None) -> str:
@@ -634,7 +635,7 @@ class SpaceGroup(GFlowNetEnv):
             n_atoms = [n for n in n_atoms if n > 0]
         # Get compatibility with stoichiometry
         self.n_atoms_compatibility_dict = SpaceGroup.build_n_atoms_compatibility_dict(
-            n_atoms, self.space_groups.keys()
+            n_atoms, np.arange(1,231)
         )
 
     def _is_cls_compatible(self, cls_idx: int):
