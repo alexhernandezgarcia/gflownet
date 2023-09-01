@@ -7,7 +7,7 @@ from rdkit.Chem import AllChem
 from rdkit.Geometry.rdGeometry import Point3D
 
 from gflownet.utils.molecule.torsions import get_rotation_masks, apply_rotations, mask_out_torsion_anlges
-from gflownet.utils.molecule.torsions import get_torsion_angles, compute_torsion_angles 
+from gflownet.utils.molecule.torsions import get_rotatable_torsion_angles_names, compute_torsion_angles 
 from gflownet.utils.molecule import constants
 from gflownet.utils.molecule.featurizer import MolDGLFeaturizer
 from gflownet.utils.molecule.rdkit_conformer import get_torsion_angles_values
@@ -258,7 +258,7 @@ def test_compute_torsion_angles():
 
     atom_positions = get_rdkit_atom_positions(constants.ad_smiles, extra_opt=False)
     graph.ndata[constants.atom_position_name] = torch.tensor(atom_positions)
-    torsion_angles_ids = get_torsion_angles(graph)
+    torsion_angles_ids = get_rotatable_torsion_angles_names(graph)
     
     rdkit_conf = RDKitConformer(atom_positions, constants.ad_smiles, torsion_angles_ids.tolist())
 

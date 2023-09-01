@@ -25,13 +25,13 @@ CONVENTIONS:
     For more details: https://en.wikipedia.org/wiki/Rotation_matrix#In_three_dimensions 
 """
 
-def get_rotation_masks(dgl_graph, mol=None):
+def get_rotation_masks(graph, mol=None):
     """
     Creates masks to facilitate updates of the torsion angles in the molecular graph. 
     
     Args
     ----
-    dgl_graph : dgl.Graph 
+    graph : dgl.Graph 
         A single molecular graph with bidirected edges 
         in the order: [e_1_fwd, e_1_bkw, e_2_fwd, e_2_bkw, ...]
     mol (optional) : rdkit.Chem.rdchem.Mol 
@@ -50,11 +50,11 @@ def get_rotation_masks(dgl_graph, mol=None):
         - 1. if rotation is applied to the end side
         - -1. if rotation is applied to the beginning side 
     """
-    nx_graph = nx.DiGraph(dgl_graph.to_networkx())
+    nx_graph = nx.DiGraph(graph.to_networkx())
     # bonds are undirected edges
-    bonds = torch.stack(dgl_graph.edges()).numpy().T[::2]
+    bonds = torch.stack(graph.edges()).numpy().T[::2]
     bonds_mask = np.zeros(bonds.shape[0], dtype=bool)
-    nodes_mask = np.zeros((bonds.shape[0], dgl_graph.num_nodes()), dtype=bool)
+    nodes_mask = np.zeros((bonds.shape[0], graph.num_nodes()), dtype=bool)
     rotation_signs = np.zeros(bonds.shape[0], dtype=float)
     # fill in masks for bonds
     for bond_idx, bond in enumerate(bonds):
@@ -91,14 +91,19 @@ def apply_rotations(graph, rotations):
 
     Args
     ----
-    dgl_graph : bidirectional dgl.Graph
-    rotations : a sequence of torsion angle updates of length = number of bonds in the molecule. 
+    graph : dgl.Graph
+        Bidirectional graph with rotation masks indicating which bonds are rotatable
+    rotations : 1D torch tensor
+        A sequence of torsion angle updates of length = number of bonds in the molecule. 
         The order corresponds to the order of edges in the graph, such that action[i] is
-        an update for the torsion angle corresponding to the edge[2i]
+        an update for the torsion angle corresponding to the edge[2i]. 
+        Note that only rotatable torsion angles (according to the masks in the graph) will be updated, 
+        other rotations will be ignored
 
     Returns
-    -------
-    updated dgl graph
+    -------    
+    graph : dgl.Graph 
+        input graph with updated rotational torsion angles. Non-rotatable torsion angles are not updated
     """
     pos = graph.ndata[constants.atom_position_name]
     edge_mask = graph.edata[constants.rotatable_edges_mask_name]
@@ -136,7 +141,12 @@ def mask_out_torsion_anlges(graph, torsion_indices):
     graph : dgl.Graph
         A graph with rotation masks in graph.edata
     torsion_indices : list of ints
-        Indecies of the rotatable bonds which will be kept rotatable. 
+        Indecies of the rotatable bonds which will be kept rotatable.
+
+    Returns
+    -------
+    graph : dgl.Graph 
+        input graph with updated rotation masks 
     """
     rotatable_edges_indecies = graph.edata[constants.rotatable_edges_mask_name].nonzero().flatten()
     meta_indecies = set(range(len(rotatable_edges_indecies)))
@@ -152,11 +162,40 @@ def mask_out_torsion_anlges(graph, torsion_indices):
     return graph
 
 def get_rotatable_bonds(graph):
+    """
+    Get the rotatable bonds in a molecular graph.
+
+    Args
+    ----
+    graph : dgl.Graph
+        The input molecular graph.
+
+    Returns
+    -------
+    edges : 2D torch.tensor [n_rotatable_bonds, 2] 
+        A tensor containing the forward edges representing the rotatable bonds.
+    """ 
     rot_idx = graph.edata[constants.rotatable_edges_mask_name].nonzero().flatten()[::2]
     edges = torch.stack(graph.edges()).T
     return edges[rot_idx]
 
-def get_torsion_angles(graph):
+def get_rotatable_torsion_angles_names(graph):
+    """
+    Get the quadruples of atom indices defining rotatable torsion angles in a molecular graph. In each quadruple, 
+    the second and third atoms define the rotatable bond, with the third atom always being greater in index to follow 
+    the forward edge convention. The first and fourth atoms are the smallest (in index) neighboring atoms to the bond atoms, 
+    excluding the bond atoms themselves
+
+    Args
+    ----
+    graph : dgl.Graph
+        The input molecular graph.
+
+    Returns
+    -------
+    angles : 2D torch.Tensor [n_rotatable_bonds, 4] 
+        A tensor containing the atom indices defining the rotatable torsion angles.
+    """
     def get_smallest_neighbour(node, neighbour_to_exclude):
         neighbours = set(graph.predecessors(node).tolist()) - set([neighbour_to_exclude])
         return min(neighbours)
@@ -170,7 +209,19 @@ def get_torsion_angles(graph):
 
 def compute_torsion_angles(graph, torsion_angles, epsilon=1e-9):
     """
-    torsion_angle : tuple of 4 integers
+    Compute torsion angles in a molecular graph.
+
+    Args
+    ----
+    graph : dgl.Graph
+        The input molecular graph.
+    torsion_angles : torch.Tensor 
+        A 2D tensor with shape [batch_size, 4], where each row contains quadruple of the atoms indecies 
+        defining a torsion angle.
+    
+    Returns
+    -------
+    torch.Tensor : A tensor containing the computed torsion angles in radians.
     """
     #import ipdb; ipdb.set_trace()
     pos = graph.ndata[constants.atom_position_name]
