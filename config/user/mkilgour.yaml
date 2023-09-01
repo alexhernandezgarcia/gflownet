@@ -2,3 +2,8 @@ logdir:
   root: /home/mkilgour/gflownet_data/logs
 data:
   root: /home/mkilgour/gflownet_data/data
+
+#logdir:
+#  root: /scratch/mk8347/gflownet_data/logs
+#data:
+#  root: /scratch/mk8347/gflownet_data/data
