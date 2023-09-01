@@ -1123,6 +1123,9 @@ class Batch:
 
         - Original indices: 1, 5, 3
         - New indices: 0, 1, 2
+
+        Note: this method is unsued as of September 1st 2023, but is left here for
+        potential future use.
         """
         if self.traj_indices_are_consecutive():
             return
