@@ -1238,7 +1238,7 @@ class GFlowNetAgent:
         # TODO: integrate corr into test()
         if not self.logger.lightweight and self.buffer.test is not None:
             corr, data_logq, times = self.get_log_corr(times)
-            self.logger.log_sampler_test(rr, data_logq, it, self.use_context)
+            self.logger.log_sampler_test(corr, data_logq, it, self.use_context)
 
         # oracle metrics
         oracle_batch, oracle_times = self.sample_batch(
