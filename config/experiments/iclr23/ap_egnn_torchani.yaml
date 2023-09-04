@@ -10,6 +10,7 @@ defaults:
 # Environment
 env:
   smiles: CC(C(=O)NC)NC(=O)C
+  remove_hs: True
   length_traj: 5
   policy_encoding_dim_per_angle: 10
   policy_type: gnn
