@@ -51,6 +51,8 @@ class GFlowNetEnv:
         self.conditional = conditional
         # Flag whether env is continuous
         self.continuous = continuous
+        # Flag whether originating states are needed to sample actions
+        self.sample_actions_requires_states = False
         # Call reset() to set initial state, done, n_actions
         self.reset()
         # Device
@@ -411,18 +413,60 @@ class GFlowNetEnv:
         self.n_actions += 1
         return self.state, action, True
 
-    def sample_actions(
+    # TODO: do not apply temperature here but before calling this method.
+    # TODO: rethink whether sampling_method should be here.
+    def sample_actions_batch(
         self,
         policy_outputs: TensorType["n_states", "policy_output_dim"],
-        sampling_method: str = "policy",
-        mask_invalid_actions: TensorType["n_states", "policy_output_dim"] = None,
-        temperature_logits: float = 1.0,
-        max_sampling_attempts: int = 10,
+        mask: Optional[TensorType["n_states", "policy_output_dim"]] = None,
+        states_from: Optional[TensorType["n_states", "policy_input_dim"]] = None,
+        is_backward: Optional[bool] = False,
+        sampling_method: Optional[str] = "policy",
+        temperature_logits: Optional[float] = 1.0,
+        max_sampling_attempts: Optional[int] = 10,
     ) -> Tuple[List[Tuple], TensorType["n_states"]]:
         """
-        Samples a batch of actions from a batch of policy outputs. This implementation
-        is generally valid for all discrete environments but continuous environments
-        will likely have to implement its own.
+        Samples a batch of actions from a batch of policy outputs.
+
+        This implementation is generally valid for all discrete environments but
+        continuous or mixed environments need to reimplement this method.
+
+        The method is valid for both forward and backward actions in the case of
+        discrete environments. Some continuous environments may also be agnostic to the
+        difference between forward and backward actions since the necessary information
+        can be contained in the mask. However, some continuous environments do need to
+        know whether the actions are forward of backward, which is why this can be
+        specified by the argument is_backward.
+
+        Most environments do not need to know the states from which the actions are to
+        be sampled since the necessary information is in both the policy outputs and
+        the mask. However, some continuous environments do need to know the originating
+        states in order to construct the actions, which is why one of the arguments is
+        states_from.
+
+        Args
+        ----
+        policy_outputs : tensor
+            The output of the GFlowNet policy model.
+
+        mask : tensor
+            The mask of invalid actions. For continuous or mixed environments, the mask
+            may be tensor with an arbitrary length contaning information about special
+            states, as defined elsewhere in the environment.
+
+        states_from : tensor
+            The states originating the actions, in policy format. Ignored in discrete
+            environments and only required in certain continuous environments.
+
+        is_backward : bool
+            True if the actions are backward, False if the actions are forward
+            (default). Ignored in discrete environments and only required in certain
+            continuous environments.
+
+        max_sampling_attempts : int
+            Maximum of number of attempts to sample actions that are not invalid
+            according to the mask before throwing an error, in order to ensure that
+            non-invalid actions are returned without getting stuck.
         """
         device = policy_outputs.device
         ns_range = torch.arange(policy_outputs.shape[0], device=device)
@@ -431,21 +475,19 @@ class GFlowNetEnv:
         elif sampling_method == "policy":
             logits = policy_outputs
             logits /= temperature_logits
-        if mask_invalid_actions is not None:
-            assert not torch.all(mask_invalid_actions), dedent(
+        if mask is not None:
+            assert not torch.all(mask), dedent(
                 """
             All actions in the mask are invalid.
             """
             )
-            logits[mask_invalid_actions] = -torch.inf
+            logits[mask] = -torch.inf
         else:
-            mask_invalid_actions = torch.zeros(
-                policy_outputs.shape, dtype=torch.bool, device=device
-            )
+            mask = torch.zeros(policy_outputs.shape, dtype=torch.bool, device=device)
         # Make sure that a valid action is sampled, otherwise throw an error.
         for _ in range(max_sampling_attempts):
             action_indices = Categorical(logits=logits).sample()
-            if not torch.any(mask_invalid_actions[ns_range, action_indices]):
+            if not torch.any(mask[ns_range, action_indices]):
                 break
         else:
             raise ValueError(
@@ -518,8 +560,15 @@ class GFlowNetEnv:
             ),
             0,
         )
-        actions, _ = self.sample_actions(
-            policy_outputs=random_policy, mask_invalid_actions=mask_invalid
+        if self.sample_actions_requires_states:
+            state_from = self.statebatch2policy([self.state])
+        else:
+            state_from = None
+        actions, _ = self.sample_actions_batch(
+            random_policy,
+            mask_invalid,
+            state_from,
+            backward,
         )
         action = actions[0]
         if backward:

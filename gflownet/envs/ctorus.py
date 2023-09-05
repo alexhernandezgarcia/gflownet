@@ -153,15 +153,56 @@ class ContinuousTorus(HybridTorus):
         """
         return self.representative_action
 
-    def sample_actions(
+    def sample_actions_batch(
         self,
         policy_outputs: TensorType["n_states", "policy_output_dim"],
-        sampling_method: str = "policy",
-        mask_invalid_actions: TensorType["n_states", "1"] = None,
-        temperature_logits: float = 1.0,
+        mask: Optional[TensorType["n_states", "policy_output_dim"]] = None,
+        states_from: Optional[TensorType["n_states", "policy_input_dim"]] = None,
+        is_backward: Optional[bool] = False,
+        sampling_method: Optional[str] = "policy",
+        temperature_logits: Optional[float] = 1.0,
+        max_sampling_attempts: Optional[int] = 10,
     ) -> Tuple[List[Tuple], TensorType["n_states"]]:
         """
-        Samples a batch of actions from a batch of policy outputs.
+        Samples a batch of actions from a batch of policy outputs. The angle increments
+        that form the actions are sampled from a mixture of Von Mises distributions.
+
+        A distinction between forward and backward actions is made and specified by the
+        argument is_backward, in order to account for the following special cases:
+
+        Forward:
+
+        - If the number of steps is equal to the maximum, then the only valid action is
+          EOS.
+
+        Backward:
+
+        - If the number of steps is equal to 1, then the only valid action is to return
+          to the source. The specific action depends on the current state.
+
+        Args
+        ----
+        policy_outputs : tensor
+            The output of the GFlowNet policy model.
+
+        mask : tensor
+            The mask of invalid actions. For continuous or mixed environments, the mask
+            may be tensor with an arbitrary length contaning information about special
+            states, as defined elsewhere in the environment.
+
+        states_from : tensor
+            The states originating the actions, in policy format. Ignored in discrete
+            environments and only required in certain continuous environments.
+
+        is_backward : bool
+            True if the actions are backward, False if the actions are forward
+            (default). Ignored in discrete environments and only required in certain
+            continuous environments.
+
+        max_sampling_attempts : int
+            Maximum of number of attempts to sample actions that are not invalid
+            according to the mask before throwing an error, in order to ensure that
+            non-invalid actions are returned without getting stuck.
         """
         device = policy_outputs.device
         mask_states_sample = ~mask_invalid_actions.flatten()

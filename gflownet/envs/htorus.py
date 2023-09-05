@@ -84,6 +84,7 @@ class HybridTorus(GFlowNetEnv):
             **kwargs,
         )
         self.continuous = True
+        self.sample_actions_requires_states = True
 
     def get_action_space(self):
         """
@@ -339,12 +340,15 @@ class HybridTorus(GFlowNetEnv):
             parents = [state]
             return parents, [action]
 
-    def sample_actions(
+    def sample_actions_batch(
         self,
         policy_outputs: TensorType["n_states", "policy_output_dim"],
-        sampling_method: str = "policy",
-        mask_invalid_actions: TensorType["n_states", "n_dim"] = None,
-        temperature_logits: float = 1.0,
+        mask: Optional[TensorType["n_states", "policy_output_dim"]] = None,
+        states_from: Optional[TensorType["n_states", "policy_input_dim"]] = None,
+        is_backward: Optional[bool] = False,
+        sampling_method: Optional[str] = "policy",
+        temperature_logits: Optional[float] = 1.0,
+        max_sampling_attempts: Optional[int] = 10,
     ) -> Tuple[List[Tuple], TensorType["n_states"]]:
         """
         Samples a batch of actions from a batch of policy outputs.
@@ -358,8 +362,8 @@ class HybridTorus(GFlowNetEnv):
         elif sampling_method == "policy":
             logits_dims = policy_outputs[:, 0 :: self.n_params_per_dim]
             logits_dims /= temperature_logits
-        if mask_invalid_actions is not None:
-            logits_dims[mask_invalid_actions] = -torch.inf
+        if mask is not None:
+            logits_dims[mask] = -torch.inf
         dimensions = Categorical(logits=logits_dims).sample()
         logprobs_dim = self.logsoftmax(logits_dims)[ns_range, dimensions]
         # Sample angle increments

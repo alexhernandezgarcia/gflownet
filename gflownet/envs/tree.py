@@ -548,12 +548,15 @@ class Tree(GFlowNetEnv):
             )
         return super().set_state(state, done)
 
-    def sample_actions(
+    def sample_actions_batch(
         self,
         policy_outputs: TensorType["n_states", "policy_output_dim"],
-        sampling_method: str = "policy",
-        mask_invalid_actions: TensorType["n_states", "action_space_dim"] = None,
-        temperature_logits: float = 1.0,
+        mask: Optional[TensorType["n_states", "policy_output_dim"]] = None,
+        states_from: Optional[TensorType["n_states", "policy_input_dim"]] = None,
+        is_backward: Optional[bool] = False,
+        sampling_method: Optional[str] = "policy",
+        temperature_logits: Optional[float] = 1.0,
+        max_sampling_attempts: Optional[int] = 10,
     ) -> Tuple[List[Tuple], TensorType["n_states"]]:
         """
         Samples a batch of actions from a batch of policy outputs.
@@ -561,27 +564,28 @@ class Tree(GFlowNetEnv):
         n_states = policy_outputs.shape[0]
         logprobs = torch.zeros(n_states, device=self.device, dtype=self.float)
         # Discrete actions
-        mask_discrete = mask_invalid_actions[:, self._action_index_pick_threshold]
-        if torch.any(mask_discrete):
+        is_discrete = mask[:, self._action_index_pick_threshold]
+        if torch.any(is_discrete):
             policy_outputs_discrete = policy_outputs[
-                mask_discrete, : self._index_continuous_policy_output
+                is_discrete, : self._index_continuous_policy_output
             ]
-            actions_discrete, logprobs_discrete = super().sample_actions(
+            actions_discrete, logprobs_discrete = super().sample_actions_batch(
                 policy_outputs_discrete,
+                mask[is_discrete, : self._index_continuous_policy_output],
+                states_from,
+                is_backward,
                 sampling_method,
-                mask_invalid_actions[
-                    mask_discrete, : self._index_continuous_policy_output
-                ],
                 temperature_logits,
+                max_sampling_attempts,
             )
-            logprobs[mask_discrete] = logprobs_discrete
-        if torch.all(mask_discrete):
+            logprobs[is_discrete] = logprobs_discrete
+        if torch.all(is_discrete):
             return actions_discrete, logprobs
         # Continuous actions
-        mask_cont = torch.logical_not(mask_discrete)
-        n_cont = mask_cont.sum()
+        is_continuous = torch.logical_not(is_discrete)
+        n_cont = is_continuous.sum()
         policy_outputs_cont = policy_outputs[
-            mask_cont, self._index_continuous_policy_output :
+            is_continuous, self._index_continuous_policy_output :
         ]
         if sampling_method == "uniform":
             distr_threshold = Uniform(
@@ -599,11 +603,11 @@ class Tree(GFlowNetEnv):
             distr_threshold = MixtureSameFamily(mix, beta_distr)
         thresholds = distr_threshold.sample()
         # Log probs
-        logprobs[mask_cont] = distr_threshold.log_prob(thresholds)
+        logprobs[is_continuous] = distr_threshold.log_prob(thresholds)
         # Build actions
         actions_cont = [(ActionType.PICK_THRESHOLD, th.item()) for th in thresholds]
         actions = []
-        for is_discrete in mask_discrete:
+        for is_discrete in is_discrete:
             if is_discrete:
                 actions.append(actions_discrete.pop(0))
             else:

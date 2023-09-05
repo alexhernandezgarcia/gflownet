@@ -552,29 +552,3 @@ class Tetris(GFlowNetEnv):
             return max_relevant_piece_idx + incr
         else:
             return min_idx
-
-    def get_uniform_terminating_states(
-        self, n_states: int, seed: int = None, n_factor_max: int = 10
-    ) -> List[List]:
-        rng = np.random.default_rng(seed)
-        n_iter_max = n_states * n_factor_max
-        states = []
-        for it in range(int(n_iter_max)):
-            self.reset()
-            while not self.done:
-                # Sample random action
-                mask_invalid = torch.unsqueeze(
-                    torch.BoolTensor(self.get_mask_invalid_actions_forward()), 0
-                )
-                random_policy = torch.unsqueeze(
-                    torch.tensor(self.random_policy_output, dtype=self.float), 0
-                )
-                actions, _ = self.sample_actions(
-                    policy_outputs=random_policy, mask_invalid_actions=mask_invalid
-                )
-                _, _, _ = self.step(actions[0])
-            if not any([torch.equal(self.state, s) for s in states]):
-                states.append(self.state)
-            if len(states) == n_states:
-                break
-        return states
