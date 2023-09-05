@@ -143,6 +143,15 @@ class ContinuousTorus(HybridTorus):
             parents = [state]
             return parents, [action]
 
+    def action2representative(action: Tuple) -> Tuple:
+        """
+        Replaces the continuous values of non-EOS action by 0.0 so that the action can
+        be contrasted with the action space and masks. EOS action is left as is.
+        """
+        if np.inf not in action:
+            action = tuple([0.0 for _ in range(self.n_dim)])
+        return action
+
     def sample_actions(
         self,
         policy_outputs: TensorType["n_states", "policy_output_dim"],
