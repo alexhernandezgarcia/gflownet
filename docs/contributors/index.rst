@@ -12,3 +12,5 @@ To learn how to use the package itself, see the :doc:`/tutorial` or :doc:`/autoa
     write-documentation
     write-docstrings
     github
+    sanity-checks
+    mila/index
