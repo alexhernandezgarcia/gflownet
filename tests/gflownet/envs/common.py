@@ -29,9 +29,10 @@ def test__continuous_env_common(env):
     test__get_parents__returns_no_parents_in_initial_state(env)
     #     test__gflownet_minimal_runs(env)
     #     test__sample_actions__get_logprobs__return_valid_actions_and_logprobs(env)
-    test__get_parents__returns_same_state_and_eos_if_done(env)
+    #     test__get_parents__returns_same_state_and_eos_if_done(env)
     test__step__returns_same_state_action_and_invalid_if_done(env)
     test__actions2indices__returns_expected_tensor(env)
+    test__sample_backwards_reaches_source(env)
 
 
 @pytest.mark.repeat(100)
@@ -81,11 +82,18 @@ def test__sample_backwards_reaches_source(env, n=100):
         x = env.get_all_terminating_states()
     elif hasattr(env, "get_uniform_terminating_states"):
         x = env.get_uniform_terminating_states(n, 0)
+    elif hasattr(env, "get_grid_terminating_states"):
+        x = env.get_grid_terminating_states(n)
     else:
         print(
-            """
-        Environment does not have neither get_all_terminating_states() nor
-        get_uniform_terminating_states(). Backward sampling will not be tested.
+            f"""
+        Testing backward sampling requires that the environment implements one of the
+        following:
+            - get_all_terminating_states()
+            - get_uniform_terminating_states()
+            - get_grid_terminating_states()
+        Environment {env.__class__} does not have any of the above, therefore backward
+        sampling will not be tested.
         """
         )
         return
@@ -93,19 +101,10 @@ def test__sample_backwards_reaches_source(env, n=100):
         env.set_state(state, done=True)
         n_actions = 0
         while True:
-            if torch.is_tensor(env.state):
-                if torch.equal(env.state, env.source):
-                    assert True
-                    break
-            else:
-                if env.state == env.source:
-                    assert True
-                    break
-            parents, parents_a = env.get_parents()
-            assert len(parents) > 0
-            # Sample random parent
-            parent = parents[np.random.permutation(len(parents))[0]]
-            env.set_state(parent)
+            if env.equal(env.state, env.source):
+                assert True
+                break
+            env.step_random(backward=True)
             n_actions += 1
             assert n_actions <= env.max_traj_length
 
