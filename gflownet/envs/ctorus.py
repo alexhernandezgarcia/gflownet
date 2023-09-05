@@ -40,11 +40,14 @@ class ContinuousTorus(HybridTorus):
         The actions are tuples of length n_dim, where the value at position d indicates
         the increment of dimension d. EOS is indicated by increments of np.inf for all
         dimensions.
+
+        This method defines self.eos and the returned action space is
+        simply a representative (arbitrary) action with an increment of 0.0 in all
+        dimensions.
         """
-        self.eos = tuple([np.inf for _ in range(self.n_dim)])
-        generic_action = tuple([0.0 for _ in range(self.n_dim)])
-        actions = [generic_action, self.eos]
-        return actions
+        self.eos = tuple([np.inf] * self.n_dim)
+        self.representative_action = tuple([0.0] * self.n_dim)
+        return [self.representative_action]
 
     def get_policy_output(self, params: dict):
         """
@@ -143,14 +146,12 @@ class ContinuousTorus(HybridTorus):
             parents = [state]
             return parents, [action]
 
-    def action2representative(action: Tuple) -> Tuple:
+    def action2representative(self, action: Tuple) -> Tuple:
         """
-        Replaces the continuous values of non-EOS action by 0.0 so that the action can
-        be contrasted with the action space and masks. EOS action is left as is.
+        Returns the arbirary, representative action in the action space, so that the
+        action can be contrasted with the action space and masks.
         """
-        if np.inf not in action:
-            action = tuple([0.0 for _ in range(self.n_dim)])
-        return action
+        return self.representative_action
 
     def sample_actions(
         self,
@@ -240,11 +241,64 @@ class ContinuousTorus(HybridTorus):
         logprobs = torch.sum(logprobs, axis=1)
         return logprobs
 
+    def _step(
+        self,
+        action: Tuple[float],
+        backward: bool,
+        skip_mask_check: bool = False,
+    ) -> Tuple[List[float], Tuple[int, float], bool]:
+        """
+        Executes step given an action. This method is called by both step() and
+        step_backwards(), with the corresponding value of argument backward.
+
+        Forward steps:
+            - Add action increments to state angles.
+            - Increment n_actions value of state.
+        Backward steps:
+            - Subtract action increments from state angles.
+            - Decrement n_actions value of state.
+
+        Args
+        ----
+        action : tuple
+            Action to be executed. An action is a vector where the value at position d
+            indicates the increment in the angle at dimension d.
+
+        backward : bool
+            If True, perform backward step. Otherwise (default), perform forward step.
+
+        Returns
+        -------
+        self.state : list
+            The sequence after executing the action
+
+        action : int
+            Action executed
+
+        valid : bool
+            False, if the action is not allowed for the current state, e.g. stop at the
+            root state
+        """
+        self.n_actions += 1
+        for dim, angle in enumerate(action):
+            if backward:
+                self.state[int(dim)] -= angle
+            else:
+                self.state[int(dim)] += angle
+            self.state[int(dim)] = self.state[int(dim)] % (2 * np.pi)
+        if backward:
+            self.state[-1] -= 1
+        else:
+            self.state[-1] += 1
+        return self.state, action, True
+
     def step(
         self, action: Tuple[float], skip_mask_check: bool = False
     ) -> Tuple[List[float], Tuple[int, float], bool]:
         """
-        Executes step given an action.
+        Executes forward step given an action.
+
+        See: _step().
 
         Args
         ----
@@ -253,7 +307,8 @@ class ContinuousTorus(HybridTorus):
             indicates the increment in the angle at dimension d.
 
         skip_mask_check : bool
-            Ignored.
+            Ignored because the action space space is fully continuous, therefore there
+            is nothing to check.
 
         Returns
         -------
@@ -269,20 +324,72 @@ class ContinuousTorus(HybridTorus):
         """
         if self.done:
             return self.state, action, False
-        # If only possible action is eos, then force eos
-        # If the number of actions is equal to maximum trajectory length
+        # If only possible action is EOS (number of actions is equal to maximum
+        # trajectory length), then force EOS.
         elif self.n_actions == self.length_traj:
             self.done = True
             self.n_actions += 1
             return self.state, self.eos, True
-        # If action is eos, then it is invalid
+        # If anyway action is EOS, then it is invalid
         elif action == self.eos:
+            # [DEBUG] this point should never be reached. Consider removing this elif.
+            print(
+                "An EOS action has been sampled forward even though it is not allowed"
+            )
+            breakpoint()
             return self.state, action, False
         # Otherwise perform action
         else:
+            return self._step(action, backward=False)
+
+    def step_backwards(
+        self, action: Tuple[float], skip_mask_check: bool = False
+    ) -> Tuple[List[float], Tuple[int, float], bool]:
+        """
+        Executes backward step given an action.
+
+        See: _step().
+
+        Args
+        ----
+        action : tuple
+            Action to be executed. An action is a vector where the value at position d
+            indicates the increment in the angle at dimension d.
+
+        skip_mask_check : bool
+            Ignored because the action space space is fully continuous, therefore there
+            is nothing to check.
+
+        Returns
+        -------
+        self.state : list
+            The sequence after executing the action
+
+        action : int
+            Action executed
+
+        valid : bool
+            False, if the action is not allowed for the current state, e.g. stop at the
+            root state
+        """
+        # If self.done is True, set done to False, increment n_actions and return same
+        # state
+        if self.done:
+            assert action == self.eos
+            self.done = False
             self.n_actions += 1
-            for dim, angle in enumerate(action):
-                self.state[int(dim)] += angle
-                self.state[int(dim)] = self.state[int(dim)] % (2 * np.pi)
-                self.state[-1] = self.n_actions
             return self.state, action, True
+        # If the number of actions is equal to the maximum, step should not proceed.
+        elif self.n_actions == self.length_traj:
+            return self.state, self.eos, False
+        # If anyway action is EOS, then it is invalid
+        elif action == self.eos:
+            # [DEBUG] this point should never be reached. Consider removing this elif.
+            print(
+                "An EOS action has been sampled backward even though it is not allowed"
+            )
+            breakpoint()
+            return self.state, action, False
+        # Otherwise perform action
+        else:
+            return self._step(action, backward=True)
