@@ -112,7 +112,7 @@ autodoc_typehints = "description"
 autoapi_type = "python"
 autoapi_dirs = [str(ROOT / "gflownet")]
 autoapi_member_order = "alphabetical"
-autoapi_template_dir = "_autoapi_templates"
+autoapi_template_dir = "_templates/autoapi"
 autoapi_python_class_content = "init"
 autoapi_options = [
     "members",
