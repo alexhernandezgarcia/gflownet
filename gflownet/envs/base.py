@@ -940,7 +940,7 @@ class GFlowNetEnv:
             return state_x == state_y
 
     @staticmethod
-    def isclose(state_x, state_y):
+    def isclose(state_x, state_y, atol=1e-8):
         if torch.is_tensor(state_x) and torch.is_tensor(state_y):
             # Check for nans because (torch.nan == torch.nan) == False
             x_nan = torch.isnan(state_x)
@@ -948,10 +948,10 @@ class GFlowNetEnv:
                 y_nan = torch.isnan(state_y)
                 if not torch.equal(x_nan, y_nan):
                     return False
-                return torch.all(torch.isclose(state_x[~x_nan], state_y[~y_nan]))
+                return torch.all(torch.isclose(state_x[~x_nan], state_y[~y_nan], atol))
             return torch.equal(state_x, state_y)
         else:
-            return np.all(np.isclose(state_x, state_y))
+            return np.all(np.isclose(state_x, state_y, atol))
 
     def set_energies_stats(self, energies_stats):
         self.energies_stats = energies_stats
