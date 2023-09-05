@@ -197,6 +197,10 @@ class ContinuousTorus(HybridTorus):
             )
         logprobs = torch.sum(logprobs, axis=1)
         # Build actions
+        # TODO: the line below assumes forward sampling only (EOS action if mask is
+        # True) - if mask_states_sample is False.
+        # TODO: we need to know the states in order to sample the back to source
+        # backward action.
         actions_tensor = torch.inf * torch.ones(
             angles.shape, dtype=self.float, device=device
         )
