@@ -186,23 +186,14 @@ class ContinuousTorus(HybridTorus):
             The output of the GFlowNet policy model.
 
         mask : tensor
-            The mask of invalid actions. For continuous or mixed environments, the mask
-            may be tensor with an arbitrary length contaning information about special
-            states, as defined elsewhere in the environment.
+            The mask containing information about special cases.
 
         states_from : tensor
-            The states originating the actions, in policy format. Ignored in discrete
-            environments and only required in certain continuous environments.
+            The states originating the actions, in policy format.
 
         is_backward : bool
             True if the actions are backward, False if the actions are forward
-            (default). Ignored in discrete environments and only required in certain
-            continuous environments.
-
-        max_sampling_attempts : int
-            Maximum of number of attempts to sample actions that are not invalid
-            according to the mask before throwing an error, in order to ensure that
-            non-invalid actions are returned without getting stuck.
+            (default). 
         """
         device = policy_outputs.device
         mask_states_sample = ~mask_invalid_actions.flatten()
