@@ -8,5 +8,7 @@ To learn how to use the package itself, see the :doc:`/tutorial` or :doc:`/autoa
 
 .. toctree::
 
-    write-docs
+    conventions
+    write-documentation
+    write-docstrings
     github
