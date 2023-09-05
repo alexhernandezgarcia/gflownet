@@ -4,7 +4,7 @@ Classes to represent hyper-torus environments
 import itertools
 import re
 from copy import deepcopy
-from typing import List, Tuple
+from typing import List, Optional, Tuple
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -16,7 +16,7 @@ from torch.distributions import Bernoulli, Categorical, Uniform, VonMises
 from torchtyping import TensorType
 
 from gflownet.envs.base import GFlowNetEnv
-from gflownet.utils.common import torch2np
+from gflownet.utils.common import tfloat, torch2np
 
 
 class HybridTorus(GFlowNetEnv):
@@ -214,7 +214,8 @@ class HybridTorus(GFlowNetEnv):
         """
         Prepares a batch of states in torch "GFlowNet format" for the policy.
 
-        See: statebatch2policy()
+        If policy_encoding_dim_per_angle >= 2, then the state (angles) is encoded using
+        trigonometric components.
         """
         if (
             self.policy_encoding_dim_per_angle is not None
@@ -237,27 +238,16 @@ class HybridTorus(GFlowNetEnv):
             )
         return states
 
-    def statebatch2policy(self, states: List[List]) -> npt.NDArray[np.float32]:
+    def statebatch2policy(
+        self, states: List[List]
+    ) -> TensorType["batch_size", "policy_input_dim"]:
         """
-        Converts a batch of states into a format suitable for a machine learning model.
-        If policy_encoding_dim_per_angle >= 2, then the state (angles) is encoded using
-        trigonometric components.
+        Prepares a batch of states in "GFlowNet format" for the policy.
+
+        See: statetorch2policy()
         """
-        states = np.array(states)
-        if (
-            self.policy_encoding_dim_per_angle is not None
-            and self.policy_encoding_dim_per_angle >= 2
-        ):
-            step = states[:, -1]
-            code_half_size = self.policy_encoding_dim_per_angle // 2
-            int_coeff = np.tile(np.arange(1, code_half_size + 1), states.shape[-1] - 1)
-            encoding = (
-                np.repeat(states[:, :-1], repeats=code_half_size, axis=1) * int_coeff
-            )
-            states = np.concatenate(
-                [np.cos(encoding), np.sin(encoding), step[:, np.newaxis]], axis=1
-            )
-        return states
+        states = tfloat(states, float_type=self.float, device=self.device)
+        return self.statetorch2policy(states)
 
     def policy2state(self, state_policy: List) -> List:
         """
