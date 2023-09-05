@@ -2,7 +2,7 @@
 Classes to represent hyper-torus environments
 """
 import itertools
-from typing import List, Tuple
+from typing import List, Optional, Tuple
 
 import numpy as np
 import numpy.typing as npt
@@ -12,6 +12,7 @@ from torch.distributions import Categorical, MixtureSameFamily, Uniform, VonMise
 from torchtyping import TensorType
 
 from gflownet.envs.htorus import HybridTorus
+from gflownet.utils.common import tfloat
 
 
 class ContinuousTorus(HybridTorus):
@@ -221,26 +222,32 @@ class ContinuousTorus(HybridTorus):
             (default).
         """
         device = policy_outputs.device
-        mask_states_sample = ~mask_invalid_actions.flatten()
+        do_sample = torch.all(~mask, dim=1)
         n_states = policy_outputs.shape[0]
+        logprobs = torch.zeros(
+            (n_states, self.n_dim), dtype=self.float, device=self.device
+        )
+        # Initialize actions tensor with EOS actions (inf) since these will be the
+        # actions for several special cases in both forward and backward actions.
+        actions_tensor = torch.full(
+            (n_states, self.n_dim), torch.inf, dtype=self.float, device=device
+        )
         # Sample angle increments
-        angles = torch.zeros(n_states, self.n_dim).to(device)
-        logprobs = torch.zeros(n_states, self.n_dim).to(device)
-        if torch.any(mask_states_sample):
+        if torch.any(do_sample):
             if sampling_method == "uniform":
                 distr_angles = Uniform(
                     torch.zeros(len(ns_range_noeos)),
                     2 * torch.pi * torch.ones(len(ns_range_noeos)),
                 )
             elif sampling_method == "policy":
-                mix_logits = policy_outputs[mask_states_sample, 0::3].reshape(
+                mix_logits = policy_outputs[do_sample, 0::3].reshape(
                     -1, self.n_dim, self.n_comp
                 )
                 mix = Categorical(logits=mix_logits)
-                locations = policy_outputs[mask_states_sample, 1::3].reshape(
+                locations = policy_outputs[do_sample, 1::3].reshape(
                     -1, self.n_dim, self.n_comp
                 )
-                concentrations = policy_outputs[mask_states_sample, 2::3].reshape(
+                concentrations = policy_outputs[do_sample, 2::3].reshape(
                     -1, self.n_dim, self.n_comp
                 )
                 vonmises = VonMises(
@@ -248,20 +255,22 @@ class ContinuousTorus(HybridTorus):
                     torch.exp(concentrations) + self.vonmises_min_concentration,
                 )
                 distr_angles = MixtureSameFamily(mix, vonmises)
-            angles[mask_states_sample] = distr_angles.sample()
-            logprobs[mask_states_sample] = distr_angles.log_prob(
-                angles[mask_states_sample]
-            )
+            angles_sampled = distr_angles.sample()
+            actions_tensor[do_sample] = angles_sampled
+            logprobs[do_sample] = distr_angles.log_prob(angles_sampled)
         logprobs = torch.sum(logprobs, axis=1)
-        # Build actions
-        # TODO: the line below assumes forward sampling only (EOS action if mask is
-        # True) - if mask_states_sample is False.
-        # TODO: we need to know the states in order to sample the back to source
-        # backward action.
-        actions_tensor = torch.inf * torch.ones(
-            angles.shape, dtype=self.float, device=device
-        )
-        actions_tensor[mask_states_sample, :] = angles[mask_states_sample]
+        # Catch special case for backwards return-to-source actions
+        if is_backward:
+            do_return_to_source = mask[:, 0]
+            if torch.any(do_return_to_source):
+                source_angles = tfloat(
+                    self.source[: self.n_dim], float_type=self.float, device=self.device
+                )
+                actions_return_to_source = (
+                    states_from[do_return_to_source, : self.n_dim] - source_angles
+                )
+                actions_tensor[do_return_to_source] = actions_return_to_source
+        # TODO: is this too inefficient because of the multiple data transfers?
         actions = [tuple(a.tolist()) for a in actions_tensor]
         return actions, logprobs
 
@@ -351,6 +360,9 @@ class ContinuousTorus(HybridTorus):
             self.state[-1] -= 1
         else:
             self.state[-1] += 1
+        # If n_steps is equal to 0, set source to avoid escaping comparison to source.
+        if self.state[-1] == 0:
+            self.state = self.source
         return self.state, action, True
 
     def step(
