@@ -9,11 +9,11 @@ Where to learn
 
 If you are new to ``git`` or Github, here are some resources to get you started:
 
-- [Git tutorial](https://www.atlassian.com/git)
-- [Github help](https://help.github.com/)
-- [Github tutorial](https://docs.github.com/en/get-started/quickstart/hello-world)
-- [How to contribute to Open Source](https://opensource.guide/how-to-contribute/)
-- [A successful branching mode](https://nvie.com/posts/a-successful-git-branching-model/)
+- `Git tutorial <https://www.atlassian.com/git>`_
+- `Github help <https://help.github.com/>`_
+- `Github tutorial <https://docs.github.com/en/get-started/quickstart/hello-world>`_
+- `How to contribute to Open Source <https://opensource.guide/how-to-contribute/>`_
+- `A successful branching mode <https://nvie.com/posts/a-successful-git-branching-model/>`_
 
 Typical workflow
 ----------------

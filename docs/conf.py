@@ -46,6 +46,7 @@ extensions = [
     "hoverxref.extension",
     "sphinx_design",
     "sphinx_copybutton",
+    "sphinxext.opengraph",
 ]
 
 # Add any paths that contain templates here, relative to this directory.
@@ -153,3 +154,11 @@ myst_enable_extensions = ["colon_fence"]
 # https://sphinx-hoverxref.readthedocs.io/en/latest/index.html
 hoverxref_auto_ref = True
 hoverxref_mathjax = True
+
+# Open Graph
+
+ogp_site_url = "https://gflownet.readthedocs.io/en/make-docs/"
+ogp_social_cards = {
+    "enable": True,
+    "image": "https://pbs.twimg.com/media/FEfjdnJUUAMj2Ik.jpg",
+}
