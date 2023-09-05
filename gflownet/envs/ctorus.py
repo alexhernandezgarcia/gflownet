@@ -37,17 +37,20 @@ class ContinuousTorus(HybridTorus):
 
     def get_action_space(self):
         """
-        The actions are tuples of length n_dim, where the value at position d indicates
-        the increment of dimension d. EOS is indicated by increments of np.inf for all
-        dimensions.
+        The action space is continuous, thus not defined as such here.
 
-        This method defines self.eos and the returned action space is
-        simply a representative (arbitrary) action with an increment of 0.0 in all
-        dimensions.
+        The actions are tuples of length n_dim, where the value at position d indicates
+        the increment of dimension d.
+
+        EOS is indicated by np.inf for all dimensions.
+
+        This method defines self.eos and the returned action space is simply a
+        representative (arbitrary) action with an increment of 0.0 in all dimensions,
+        and EOS.
         """
         self.eos = tuple([np.inf] * self.n_dim)
         self.representative_action = tuple([0.0] * self.n_dim)
-        return [self.representative_action]
+        return [self.representative_action, self.eos]
 
     def get_policy_output(self, params: dict):
         """
@@ -75,34 +78,56 @@ class ContinuousTorus(HybridTorus):
 
     def get_mask_invalid_actions_forward(self, state=None, done=None):
         """
-        Returns [True] if the only possible action is eos, [False] otherwise.
+        The action is space is continuous, thus the mask is not of invalid actions as
+        in discrete environments, but an indicator of "special cases", for example
+        states from which only certain actions are possible.
+
+        The "mask" has 2 elements - to match the mask of backward actions - but only
+        one is needed for forward actions, thus both elements take the same value,
+        according to the following:
+
+        - If done is True, then the mask is True.
+        - If the number of actions (state[-1]) is equal to the (fixed) trajectory
+          length, then only EOS is valid and the mask is True.
+        - Otherwise, any continuous action is valid (except EOS) and the mask is False.
         """
         if state is None:
             state = self.state.copy()
         if done is None:
             done = self.done
         if done:
-            return [True]
+            return [True] * 2
         elif state[-1] >= self.length_traj:
-            return [True]
+            return [True] * 2
         else:
-            return [False]
+            return [False] * 2
 
     def get_mask_invalid_actions_backward(self, state=None, done=None, parents_a=None):
         """
-        Returns [True] if the only possible action is returning to source, [False]
-        otherwise.
+        The action is space is continuous, thus the mask is not of invalid actions as
+        in discrete environments, but an indicator of "special cases", for example
+        states from which only certain actions are possible.
+
+        The "mask" has 2 elements to capture the 2 special in backward actions. The
+        possible values of the mask are the following:
+
+        - mask[0]:
+            - True, if only the "return-to-source" action is valid.
+            - False otherwise.
+        - mask[1]:
+            - True, if only the EOS action is valid, that is if done is True.
+            - False otherwise.
         """
         if state is None:
             state = self.state.copy()
         if done is None:
             done = self.done
         if done:
-            return [True]
+            return [False, True]
         elif state[-1] == 1:
-            return [True]
+            return [True, False]
         else:
-            return [False]
+            return [False, False]
 
     def get_parents(
         self, state: List = None, done: bool = None, action: Tuple[int, float] = None
@@ -193,7 +218,7 @@ class ContinuousTorus(HybridTorus):
 
         is_backward : bool
             True if the actions are backward, False if the actions are forward
-            (default). 
+            (default).
         """
         device = policy_outputs.device
         mask_states_sample = ~mask_invalid_actions.flatten()
