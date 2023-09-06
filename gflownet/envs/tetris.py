@@ -3,6 +3,7 @@ An environment inspired by the game of Tetris.
 """
 import itertools
 import re
+import warnings
 from typing import List, Optional, Tuple
 
 import numpy as np
@@ -468,6 +469,29 @@ class Tetris(GFlowNetEnv):
     # TODO
     def get_max_traj_length(self):
         return int(1e9)
+
+    def set_state(
+        self, state: TensorType["height", "width"], done: Optional[bool] = False
+    ):
+        """
+        Sets the state and done. If done is True but incompatible with state (done is
+        True, allow_eos_before_full is False and state is not full), then force done
+        False and print warning. Also, make sure state is tensor.
+        """
+        if not torch.is_tensor(state):
+            state = torch.tensor(state, dtype=torch.int16)
+        if done is True and not self.allow_eos_before_full:
+            mask = self.get_mask_invalid_actions_forward(state, done=False)
+            if not all(mask[:-1]):
+                done = False
+                warnings.warn(
+                    f"Attempted to set state\n\n{self.state2readable(state)}\n\n"
+                    "with done = True, which is not compatible with "
+                    "allow_eos_before_full = False. Forcing done = False."
+                )
+        self.state = state
+        self.done = done
+        return self
 
     def _piece_can_be_lifted(self, board, piece_idx):
         """
