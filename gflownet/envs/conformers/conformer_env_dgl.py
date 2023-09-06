@@ -1,13 +1,18 @@
 import copy
-from typing import List, Optional, Tuple
-
+import pickle
+import os
 import numpy as np
 import numpy.typing as npt
+
+from datetime import datetime
+from pathlib import Path
+from typing import List, Optional, Tuple
 from rdkit import Chem
 from rdkit.Chem import AllChem
 from torchtyping import TensorType
 
 from gflownet.envs.ctorus import ContinuousTorus
+from gflownet.utils.common import tfloat
 from gflownet.utils.molecule.constants import ad_atom_types
 from gflownet.utils.molecule.featurizer import MolDGLFeaturizer
 from gflownet.utils.molecule.dgl_conformer import DGLConformer
@@ -16,30 +21,22 @@ from gflownet.utils.molecule.rdkit_utils import get_rdkit_atom_positions
 
 
 class ConformerDGLEnv(ContinuousTorus):
-    """
-    Extension of continuous torus to conformer generation. Based on AlanineDipeptide,
-    but accepts any molecule (defined by SMILES and freely rotatable torsion angles).
-    """
-
     def __init__(
         self,
         smiles: str,
-        n_torsion_angles: Optional[int] = 2,
         torsion_indices: Optional[List[int]] = None,
         policy_type: str = "mlp",
+        extra_opt: bool = False,
+        save_init_pos = False,
         **kwargs,
     ):
-        if torsion_indices is None:
-            # We hard code default torsion indices for Alanine Dipeptide to preserve
-            # backward compatibility.
-            # may need to change these indecies for dgl conformer
-            if smiles == "CC(C(=O)NC)NC(=O)C" and n_torsion_angles == 2:
-                torsion_indices = [2, 1]
-            else:
-                torsion_indices = list(range(n_torsion_angles))
+        # changed previous default: 
+        # if torsion_indices is None it means we take all rotatable torsion angles 
+        # any other desirable behaviour should be specified with a list of torsion_indices
 
         # maybe change extra_opt to true
-        atom_positions = get_rdkit_atom_positions(smiles, extra_opt=False)
+        # test saving initial conformer file to the disci
+        atom_positions = get_rdkit_atom_positions(smiles, extra_opt=extra_opt)
         self.conformer = DGLConformer(atom_positions, smiles, torsion_indices)
 
         # Conversions
@@ -52,31 +49,29 @@ class ConformerDGLEnv(ContinuousTorus):
                 f"Unrecognized policy_type = {policy_type}, expected either 'mlp' or 'gnn'."
             )
 
-        super().__init__(n_dim=len(self.conformer.freely_rotatable_tas), **kwargs)
+        super().__init__(n_dim=self.conformer.n_rotatable_bonds, **kwargs)
+        if save_init_pos:
+            self.save_initial_positions(atom_positions)
 
-        self.sync_conformer_with_state()
+    def save_initial_positions(self, positions):
+        cwd = Path(os.getcwd())
+        now = datetime.now()
+        time_format = now.strftime("%Y%m%d_%H%M%S")
+        file_name = f"initial_pos_env_id_{self.id}_time_{time_format}.pkl"
+        file_path = cwd / file_name
+        with open(file_path, 'wb') as file:
+            pickle.dump(positions, file)
+        print(f'Saved initial atom positions at {file_path}')
+        return file_path
 
-        self.graph = MolDGLFeaturizer(ad_atom_types).mol2dgl(self.conformer.rdk_mol)
-
-    @staticmethod
-    def _get_positions(smiles: str) -> npt.NDArray:
-        mol = Chem.MolFromSmiles(smiles)
-        mol = Chem.AddHs(mol)
-        AllChem.EmbedMolecule(mol, randomSeed=0)
-        return mol.GetConformer().GetPositions()
-
-    @staticmethod
-    def _get_torsion_angles(smiles: str, indices: List[int]) -> List[Tuple[int]]:
-        torsion_angles = find_rotor_from_smile(smiles)
-        torsion_angles = [torsion_angles[i] for i in indices]
-        return torsion_angles
-
-    def sync_conformer_with_state(self, state: List = None):
+    def get_conformer_synced_with_state(self, state: List = None):
         if state is None:
             state = self.state
-        for idx, ta in enumerate(self.conformer.freely_rotatable_tas):
-            self.conformer.set_torsion_angle(ta, state[idx])
-        return self.conformer
+        # cut off step, convert to tensor
+        angles = tfloat(state[:-1], device=self.device, float_type=self.float)
+        self.conformer.set_rotatable_torsion_angles(angles)
+        # deepcopy maybe slow, figure out a better way
+        return copy.deepcopy(self.conformer)
 
     def statebatch2proxy(self, states: List[List]) -> npt.NDArray:
         """
@@ -86,12 +81,12 @@ class ConformerDGLEnv(ContinuousTorus):
         """
         states_proxy = []
         for st in states:
-            conf = self.sync_conformer_with_state(st)
+            conf = self.get_conformer_synced_with_state(st)
             states_proxy.append(
                 np.concatenate(
                     [
-                        conf.get_atomic_numbers()[..., np.newaxis],
-                        conf.get_atom_positions(),
+                        self._tonp(conf.get_atomic_numbers())[..., np.newaxis],
+                        self._tonp(conf.get_atom_positions()),
                     ],
                     axis=1,
                 )
@@ -99,7 +94,7 @@ class ConformerDGLEnv(ContinuousTorus):
         return np.array(states_proxy)
 
     def statetorch2proxy(self, states: TensorType["batch", "state_dim"]) -> npt.NDArray:
-        return self.statebatch2proxy(states.cpu().numpy())
+        return self.statebatch2proxy(self._tonp(states))
 
     def statebatch2policy_gnn(self, states: List[List]) -> npt.NDArray[np.float32]:
         """
@@ -109,7 +104,7 @@ class ConformerDGLEnv(ContinuousTorus):
         """
         policy_input = []
         for state in states:
-            conformer = self.sync_conformer_with_state(state)
+            conformer = self.get_conformer_synced_with_state(state)
             positions = conformer.get_atom_positions()
             policy_input.append(
                 np.concatenate(
@@ -118,6 +113,9 @@ class ConformerDGLEnv(ContinuousTorus):
                 )
             )
         return np.array(policy_input)
+    
+    def _tonp(tensor):
+        return np.array(tensor.tolist())
 
     def statebatch2kde(self, states: List[List]) -> npt.NDArray[np.float32]:
         return np.array(states)[:, :-1]

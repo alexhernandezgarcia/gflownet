@@ -65,9 +65,19 @@ class DGLConformer:
         values : 1D torch float tensor
             Values in radians to assign to the rotatable torsion angles
         """
+        assert values.shape[-1] == self.n_rotatable_bonds
         current_values = self.compute_rotatable_torsion_angles()
         update = values - current_values
         self.apply_rotations(update)
     
     def get_atom_positions(self):
+        """
+        returns torch tensor!
+        """
         return self.graph.ndata[constants.atom_position_name]
+    
+    def get_atomic_numbers(self):
+        """
+        returns torch tensor!
+        """
+        return self.graph.ndata[constants.atomic_numbers_name]
