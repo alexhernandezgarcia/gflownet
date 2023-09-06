@@ -489,9 +489,7 @@ class Tetris(GFlowNetEnv):
                     "with done = True, which is not compatible with "
                     "allow_eos_before_full = False. Forcing done = False."
                 )
-        self.state = state
-        self.done = done
-        return self
+        return super().set_state(state, done)
 
     def _piece_can_be_lifted(self, board, piece_idx):
         """
