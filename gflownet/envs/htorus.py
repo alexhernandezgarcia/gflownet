@@ -84,7 +84,6 @@ class HybridTorus(GFlowNetEnv):
             **kwargs,
         )
         self.continuous = True
-        self.sample_actions_requires_states = True
 
     def get_action_space(self):
         """
@@ -334,7 +333,7 @@ class HybridTorus(GFlowNetEnv):
         self,
         policy_outputs: TensorType["n_states", "policy_output_dim"],
         mask: Optional[TensorType["n_states", "policy_output_dim"]] = None,
-        states_from: Optional[TensorType["n_states", "policy_input_dim"]] = None,
+        states_from: Optional[List] = None,
         is_backward: Optional[bool] = False,
         sampling_method: Optional[str] = "policy",
         temperature_logits: Optional[float] = 1.0,

@@ -51,8 +51,6 @@ class GFlowNetEnv:
         self.conditional = conditional
         # Flag whether env is continuous
         self.continuous = continuous
-        # Flag whether originating states are needed to sample actions
-        self.sample_actions_requires_states = False
         # Call reset() to set initial state, done, n_actions
         self.reset()
         # Device
@@ -419,7 +417,7 @@ class GFlowNetEnv:
         self,
         policy_outputs: TensorType["n_states", "policy_output_dim"],
         mask: Optional[TensorType["n_states", "policy_output_dim"]] = None,
-        states_from: Optional[TensorType["n_states", "policy_input_dim"]] = None,
+        states_from: Optional[List] = None,
         is_backward: Optional[bool] = False,
         sampling_method: Optional[str] = "policy",
         temperature_logits: Optional[float] = 1.0,
@@ -455,7 +453,7 @@ class GFlowNetEnv:
             states, as defined elsewhere in the environment.
 
         states_from : tensor
-            The states originating the actions, in policy format. Ignored in discrete
+            The states originating the actions, in GFlowNet format. Ignored in discrete
             environments and only required in certain continuous environments.
 
         is_backward : bool
@@ -560,14 +558,10 @@ class GFlowNetEnv:
             ),
             0,
         )
-        if self.sample_actions_requires_states:
-            state_from = self.statebatch2policy([self.state])
-        else:
-            state_from = None
         actions, _ = self.sample_actions_batch(
             random_policy,
             mask_invalid,
-            state_from,
+            [self.state],
             backward,
         )
         action = actions[0]

@@ -353,7 +353,7 @@ class GFlowNetAgent:
         actions, logprobs = self.env.sample_actions_batch(
             policy_outputs,
             mask_invalid_actions,
-            states_policy,
+            states,
             backward,
             sampling_method,
             temperature,

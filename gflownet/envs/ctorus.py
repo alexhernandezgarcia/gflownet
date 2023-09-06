@@ -2,6 +2,7 @@
 Classes to represent hyper-torus environments
 """
 import itertools
+import warnings
 from typing import List, Optional, Tuple
 
 import numpy as np
@@ -12,7 +13,7 @@ from torch.distributions import Categorical, MixtureSameFamily, Uniform, VonMise
 from torchtyping import TensorType
 
 from gflownet.envs.htorus import HybridTorus
-from gflownet.utils.common import tfloat
+from gflownet.utils.common import copy, tfloat
 
 
 class ContinuousTorus(HybridTorus):
@@ -183,7 +184,7 @@ class ContinuousTorus(HybridTorus):
         self,
         policy_outputs: TensorType["n_states", "policy_output_dim"],
         mask: Optional[TensorType["n_states", "policy_output_dim"]] = None,
-        states_from: Optional[TensorType["n_states", "policy_input_dim"]] = None,
+        states_from: Optional[List] = None,
         is_backward: Optional[bool] = False,
         sampling_method: Optional[str] = "policy",
         temperature_logits: Optional[float] = 1.0,
@@ -215,7 +216,7 @@ class ContinuousTorus(HybridTorus):
             The mask containing information about special cases.
 
         states_from : tensor
-            The states originating the actions, in policy format.
+            The states originating the actions, in GFlowNet format.
 
         is_backward : bool
             True if the actions are backward, False if the actions are forward
@@ -263,11 +264,12 @@ class ContinuousTorus(HybridTorus):
         if is_backward:
             do_return_to_source = mask[:, 0]
             if torch.any(do_return_to_source):
-                source_angles = tfloat(
-                    self.source[: self.n_dim], float_type=self.float, device=self.device
-                )
-                actions_return_to_source = (
-                    states_from[do_return_to_source, : self.n_dim] - source_angles
+                source_angles = np.array(self.source[: self.n_dim])
+                states_from_angles = np.array(states_from)[:, : self.n_dim]
+                actions_return_to_source = tfloat(
+                    states_from_angles - source_angles,
+                    float_type=self.float,
+                    device=self.device,
                 )
                 actions_tensor[do_return_to_source] = actions_return_to_source
         # TODO: is this too inefficient because of the multiple data transfers?
@@ -357,12 +359,20 @@ class ContinuousTorus(HybridTorus):
                 self.state[int(dim)] += angle
             self.state[int(dim)] = self.state[int(dim)] % (2 * np.pi)
         if backward:
+            if self.state[-1] - 1 < 0:
+                # [DEBUG] this point should never be reached. Consider removing this elif.
+                print("self.state[-1] will become smaller than 0.")
+                breakpoint()
             self.state[-1] -= 1
+            if self.state[-1] < 0:
+                # [DEBUG] this point should never be reached. Consider removing this elif.
+                print("self.state[-1] became smaller than 0.")
+                breakpoint()
         else:
             self.state[-1] += 1
         # If n_steps is equal to 0, set source to avoid escaping comparison to source.
         if self.state[-1] == 0:
-            self.state = self.source
+            self.state = copy(self.source)
         return self.state, action, True
 
     def step(
@@ -454,6 +464,11 @@ class ContinuousTorus(HybridTorus):
             return self.state, action, True
         # If the number of actions is equal to the maximum, step should not proceed.
         elif self.n_actions == self.length_traj:
+            # [DEBUG] this point should never be reached. Consider removing this elif.
+            print(
+                "Number of actions is equal to trajectory length but done is not True."
+            )
+            breakpoint()
             return self.state, self.eos, False
         # If anyway action is EOS, then it is invalid
         elif action == self.eos:
@@ -466,3 +481,6 @@ class ContinuousTorus(HybridTorus):
         # Otherwise perform action
         else:
             return self._step(action, backward=True)
+
+    def get_max_traj_length(self):
+        return int(self.length_traj)

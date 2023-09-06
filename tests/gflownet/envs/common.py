@@ -182,12 +182,8 @@ def test__sample_actions__get_logprobs__return_valid_actions_and_logprobs(env):
         mask_invalid = env.get_mask_invalid_actions_forward()
         valid_actions = [a for a, m in zip(env.action_space, mask_invalid) if not m]
         masks_invalid_torch = torch.unsqueeze(torch.BoolTensor(mask_invalid), 0)
-        if env.sample_actions_requires_states:
-            state_from = env.statebatch2policy([env.state])
-        else:
-            state_from = None
         actions, logprobs_sab = env.sample_actions_batch(
-            policy_outputs, masks_invalid_torch, state_from, is_backward=False
+            policy_outputs, masks_invalid_torch, [env.state], is_backward=False
         )
         actions_torch = torch.tensor(actions)
         logprobs_glp = env.get_logprobs(

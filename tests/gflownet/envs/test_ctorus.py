@@ -57,11 +57,10 @@ def test__sample_actions_batch__special_cases(
         tfloat(env.random_policy_output, float_type=env.float, device=env.device),
         0,
     )
-    state_from = env.statebatch2policy([env.state])
     action_sampled = env.sample_actions_batch(
         random_policy,
         mask,
-        state_from,
+        [state],
         is_backward,
     )[0][0]
     assert all(np.isclose(action_sampled, action_expected))
@@ -101,11 +100,10 @@ def test__sample_actions_batch__not_special_cases(
         tfloat(env.random_policy_output, float_type=env.float, device=env.device),
         0,
     )
-    state_from = env.statebatch2policy([env.state])
     action_sampled = env.sample_actions_batch(
         random_policy,
         mask,
-        state_from,
+        [state],
         is_backward,
     )[0][0]
     assert action_sampled != action_special
