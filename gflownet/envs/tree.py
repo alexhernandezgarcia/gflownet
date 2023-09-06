@@ -167,7 +167,7 @@ class Tree(GFlowNetEnv):
             "beta_beta": 1.0,
         },
         policy_format: str = "mlp",
-        test_args: dict = {"top_n_trees": 0},
+        test_args: dict = {"top_k_trees": 0},
         **kwargs,
     ):
         """
@@ -824,17 +824,21 @@ class Tree(GFlowNetEnv):
         """
         if state is None:
             state = self.state.clone().detach()
-        state[state.isnan()] = -2
-        return state.flatten()
+        return self.statetorch2policy_mlp(state.unsqueeze(0))[0]
 
     def statetorch2policy_mlp(
         self, states: TensorType["batch_size", "state_dim"]
     ) -> TensorType["batch_size", "policy_input_dim"]:
         """
         Prepares a batch of states in torch "GFlowNet format" for an MLP policy model.
-        It simply replaces the NaNs by -1s.
+        It replaces the NaNs by -2s, removes the activity attribute, and explicitly
+        appends the attribute vector of the active node (if present).
         """
+        rows, cols = torch.where(states[:, :-1, Attribute.ACTIVE] == Status.ACTIVE)
+        active_features = torch.full((states.shape[0], 1, 4), -2.0)
+        active_features[rows] = states[rows, cols, : Attribute.ACTIVE].unsqueeze(1)
         states[states.isnan()] = -2
+        states = torch.cat([states[:, :, : Attribute.ACTIVE], active_features], dim=1)
         return states.flatten(start_dim=1)
 
     def policy2state(
@@ -959,6 +963,13 @@ class Tree(GFlowNetEnv):
         active = torch.where(state[:-1, Attribute.ACTIVE] == Status.ACTIVE)[0]
         assert len(active) == 1
         return active.item()
+
+    @staticmethod
+    def get_n_nodes(state: torch.Tensor) -> int:
+        """
+        Returns the number of nodes in a tree represented by the given state.
+        """
+        return (~torch.isnan(state[:-1, Attribute.TYPE])).sum()
 
     def get_policy_output_continuous(
         self, params: dict
@@ -1353,26 +1364,35 @@ class Tree(GFlowNetEnv):
         return X_train, y_train, X_test, y_test
 
     @staticmethod
-    def predict(state: torch.Tensor, x: npt.NDArray, k: int = 0) -> int:
+    def predict(
+        state: torch.Tensor, x: npt.NDArray, *, return_k: bool = False, k: int = 0
+    ) -> Union[int, Tuple[int, int]]:
         """
-        Recursively predict output label given a feature vector x
-        of a single observation.
+        Recursively predict output label given a feature vector x of a single
+        observation.
+
+        If return_k is True, will also return the index of the node in which
+        prediction was made.
         """
         attributes = state[k]
 
         if attributes[Attribute.TYPE] == NodeType.CLASSIFIER:
+            if return_k:
+                return attributes[Attribute.CLASS], k
             return attributes[Attribute.CLASS]
 
         if (
             x[attributes[Attribute.FEATURE].long().item()]
             < attributes[Attribute.THRESHOLD]
         ):
-            return Tree.predict(state, x, k=Tree._get_left_child(k))
+            return Tree.predict(state, x, return_k=return_k, k=Tree._get_left_child(k))
         else:
-            return Tree.predict(state, x, k=Tree._get_right_child(k))
+            return Tree.predict(state, x, return_k=return_k, k=Tree._get_right_child(k))
 
-    def _predict(self, x: npt.NDArray, k: int = 0) -> int:
-        return Tree.predict(self.state, x, k)
+    def _predict(
+        self, x: npt.NDArray, *, return_k: bool = False
+    ) -> Union[int, Tuple[int, int]]:
+        return Tree.predict(self.state, x, return_k=return_k)
 
     @staticmethod
     def plot(state, path: Optional[Union[Path, str]] = None) -> None:
@@ -1432,11 +1452,11 @@ class Tree(GFlowNetEnv):
 
     @staticmethod
     def _compute_scores(
-        states: torch.Tensor, X: npt.NDArray, y: npt.NDArray
+        predictions: npt.NDArray, y: npt.NDArray
     ) -> (dict, npt.NDArray):
         """
-        Computes accuracy and balanced accuracy metrics for a given dataset (X, y)
-        based on a tensor of sampled states representing individual trees.
+        Computes accuracy and balanced accuracy metrics for given predictions and ground
+        truth labels.
 
         The metrics are computed in two modes: either as an average of scores calculated
         for individual trees (mean_tree_*), or as a single score calculated on a prediction
@@ -1444,11 +1464,8 @@ class Tree(GFlowNetEnv):
 
         Args
         ----
-        states : Tensor
-            Collection of sampled states representing the ensemble.
-
-        X : NDArray
-            Feature matrix with dimensionality (n_observations, n_features).
+        predictions: NDArray
+            Prediction matrix with dimensionality (n_states, n_observations).
 
         y : NDArray
             Target vector with dimensionality (n_observations,).
@@ -1459,8 +1476,6 @@ class Tree(GFlowNetEnv):
         """
         scores = {}
         metrics = {"acc": accuracy_score, "bac": balanced_accuracy_score}
-
-        predictions = Tree._predict_samples(states, X)
 
         for metric_name, metric_function in metrics.items():
             scores[f"mean_tree_{metric_name}"] = np.mean(
@@ -1474,48 +1489,29 @@ class Tree(GFlowNetEnv):
 
     @staticmethod
     def _plot_trees(
-        states: torch.Tensor,
-        X: npt.NDArray,
-        y: npt.NDArray,
+        states: List[torch.Tensor],
+        scores: npt.NDArray,
         iteration: int,
-        n: int = -1,
     ):
         """
-        Plots top n decision trees present in the given collection of states (with
-        tree performance evaluated using the accuracy).
+        Plots decision trees present in the given collection of states.
 
         Args
         ----
         states : Tensor
             Collection of sampled states with dimensionality (n_states, state_dim).
 
-        X : NDArray
-            Feature matrix with dimensionality (n_observations, n_features).
-
-        y : NDArray
-            Target vector with dimensionality (n_observations,).
+        scores : NDArray
+            Collection of scores computed for the given states.
 
         iteration : int
             Current iteration (will be used to name the folder with trees).
-
-        n : int
-            Number of top trees to be plotted.
         """
-        if n == -1:
-            n = len(states)
-
-        predictions = Tree._predict_samples(states, X)
-        accuracies = np.array([accuracy_score(y, y_pred) for y_pred in predictions])
-
-        order = np.argsort(accuracies)[::-1]
-
         path = Path(Path.cwd() / f"trees_{iteration}")
         path.mkdir()
 
-        for i in range(n):
-            Tree.plot(
-                states[order[i]], path / f"tree_{i}_{accuracies[order[i]]:.4f}.png"
-            )
+        for i, (state, score) in enumerate(zip(states, scores)):
+            Tree.plot(state, path / f"tree_{i}_{score:.4f}.png")
 
     def test(
         self,
@@ -1525,7 +1521,7 @@ class Tree(GFlowNetEnv):
     ) -> dict:
         """
         Computes a dictionary of metrics, as described in Tree._compute_scores, for
-        both training and, if available, test data. If self.test_args['top_n_trees'] != 0,
+        both training and, if available, test data. If self.test_args['top_k_trees'] != 0,
         also plots top n trees and saves them in the log directory.
 
         Args
@@ -1539,24 +1535,53 @@ class Tree(GFlowNetEnv):
         """
         result = {}
 
-        scores = Tree._compute_scores(samples, self.X_train, self.y_train)
-        for k, v in scores.items():
+        result["mean_n_nodes"] = np.mean([Tree.get_n_nodes(state) for state in samples])
+
+        train_predictions = Tree._predict_samples(samples, self.X_train)
+        train_scores = Tree._compute_scores(train_predictions, self.y_train)
+        for k, v in train_scores.items():
             result[f"train_{k}"] = v
 
-        if self.test_args["top_n_trees"] != 0:
+        top_k_indices = None
+
+        if self.test_args["top_k_trees"] != 0:
             if not hasattr(self, "test_iteration"):
                 self.test_iteration = 0
-            Tree._plot_trees(
-                samples,
-                self.X_train,
-                self.y_train,
-                self.test_iteration,
-                self.test_args["top_n_trees"],
+
+            # Select top-k trees.
+            accuracies = np.array(
+                [accuracy_score(self.y_train, y_pred) for y_pred in train_predictions]
             )
+            order = np.argsort(accuracies)[::-1]
+            top_k_indices = order[: self.test_args["top_k_trees"]]
+
+            # Plot trees.
+            Tree._plot_trees(
+                [samples[i] for i in top_k_indices],
+                accuracies[top_k_indices],
+                self.test_iteration,
+            )
+
+            # Compute metrics for top-k trees.
+            top_k_scores = Tree._compute_scores(
+                train_predictions[top_k_indices], self.y_train
+            )
+            for k, v in top_k_scores.items():
+                result[f"train_top_k_{k}"] = v
+
             self.test_iteration += 1
 
         if self.X_test is not None:
-            for k, v in Tree._compute_scores(samples, self.X_test, self.y_test).items():
+            test_predictions = Tree._predict_samples(samples, self.X_test)
+            for k, v in Tree._compute_scores(test_predictions, self.y_test).items():
                 result[f"test_{k}"] = v
+
+            if top_k_indices is not None:
+                # Compute metrics for top-k trees.
+                top_k_scores = Tree._compute_scores(
+                    test_predictions[top_k_indices], self.y_test
+                )
+                for k, v in top_k_scores.items():
+                    result[f"test_top_k_{k}"] = v
 
         return result
