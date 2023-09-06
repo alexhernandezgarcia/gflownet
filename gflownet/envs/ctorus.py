@@ -264,13 +264,13 @@ class ContinuousTorus(HybridTorus):
         if is_backward:
             do_return_to_source = mask[:, 0]
             if torch.any(do_return_to_source):
-                source_angles = np.array(self.source[: self.n_dim])
-                states_from_angles = np.array(states_from)[:, : self.n_dim]
-                actions_return_to_source = tfloat(
-                    states_from_angles - source_angles,
-                    float_type=self.float,
-                    device=self.device,
+                source_angles = tfloat(
+                    self.source[: self.n_dim], float_type=self.float, device=self.device
                 )
+                states_from_angles = tfloat(
+                    states_from, float_type=self.float, device=self.device
+                )[do_return_to_source, : self.n_dim]
+                actions_return_to_source = states_from_angles - source_angles
                 actions_tensor[do_return_to_source] = actions_return_to_source
         # TODO: is this too inefficient because of the multiple data transfers?
         actions = [tuple(a.tolist()) for a in actions_tensor]
@@ -317,7 +317,6 @@ class ContinuousTorus(HybridTorus):
         self,
         action: Tuple[float],
         backward: bool,
-        skip_mask_check: bool = False,
     ) -> Tuple[List[float], Tuple[int, float], bool]:
         """
         Executes step given an action. This method is called by both step() and
@@ -352,28 +351,26 @@ class ContinuousTorus(HybridTorus):
             root state
         """
         self.n_actions += 1
+        state_next = copy(self.state)
         for dim, angle in enumerate(action):
             if backward:
-                self.state[int(dim)] -= angle
+                state_next[int(dim)] -= angle
             else:
-                self.state[int(dim)] += angle
-            self.state[int(dim)] = self.state[int(dim)] % (2 * np.pi)
+                state_next[int(dim)] += angle
+            state_next[int(dim)] = state_next[int(dim)] % (2 * np.pi)
         if backward:
-            if self.state[-1] - 1 < 0:
-                # [DEBUG] this point should never be reached. Consider removing this elif.
-                print("self.state[-1] will become smaller than 0.")
-                breakpoint()
-            self.state[-1] -= 1
+            state_next[-1] -= 1
             if self.state[-1] < 0:
                 # [DEBUG] this point should never be reached. Consider removing this elif.
                 print("self.state[-1] became smaller than 0.")
                 breakpoint()
         else:
-            self.state[-1] += 1
+            state_next[-1] += 1
         # If n_steps is equal to 0, set source to avoid escaping comparison to source.
-        if self.state[-1] == 0:
+        if state_next[-1] == 0:
             self.state = copy(self.source)
-        return self.state, action, True
+        else:
+            self.state = state_next
 
     def step(
         self, action: Tuple[float], skip_mask_check: bool = False
@@ -462,15 +459,7 @@ class ContinuousTorus(HybridTorus):
             self.done = False
             self.n_actions += 1
             return self.state, action, True
-        # If the number of actions is equal to the maximum, step should not proceed.
-        elif self.n_actions == self.length_traj:
-            # [DEBUG] this point should never be reached. Consider removing this elif.
-            print(
-                "Number of actions is equal to trajectory length but done is not True."
-            )
-            breakpoint()
-            return self.state, self.eos, False
-        # If anyway action is EOS, then it is invalid
+        # If done is not True but action is EOS, then it is invalid
         elif action == self.eos:
             # [DEBUG] this point should never be reached. Consider removing this elif.
             print(
@@ -480,7 +469,8 @@ class ContinuousTorus(HybridTorus):
             return self.state, action, False
         # Otherwise perform action
         else:
-            return self._step(action, backward=True)
+            self._step(action, backward=True)
+            return self.state, action, True
 
     def get_max_traj_length(self):
         return int(self.length_traj)
