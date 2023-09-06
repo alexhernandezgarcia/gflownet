@@ -158,7 +158,8 @@ class SpaceGroup(GFlowNetEnv):
             mask[-1] = False
             return mask
         state_type = self.get_state_type(state)
-        # No constraints if neither crystal-lattice system nor point symmetry selected
+        # If neither crystal-lattice system nor point symmetry selected, apply only
+        # composition-compatibility constraints
         if cls_idx == 0 and ps_idx == 0:
             crystal_lattice_systems = [
                 (self.cls_idx, idx + 1, state_type)
