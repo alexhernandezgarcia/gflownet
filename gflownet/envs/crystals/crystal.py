@@ -54,12 +54,14 @@ class Crystal(GFlowNetEnv):
         space_group_kwargs: Optional[Dict] = None,
         lattice_parameters_kwargs: Optional[Dict] = None,
         do_stoichiometry_sg_check: bool = False,
+        do_sg_before_composition: bool = False,
         **kwargs,
     ):
         self.composition_kwargs = composition_kwargs or {}
         self.space_group_kwargs = space_group_kwargs or {}
         self.lattice_parameters_kwargs = lattice_parameters_kwargs or {}
         self.do_stoichiometry_sg_check = do_stoichiometry_sg_check
+        self.do_sg_before_composition = do_sg_before_composition
 
         self.composition = Composition(**self.composition_kwargs)
         self.space_group = SpaceGroup(**self.space_group_kwargs)
@@ -73,8 +75,9 @@ class Crystal(GFlowNetEnv):
 
         # 0-th element of state encodes current stage: 0 for composition,
         # 1 for space group, 2 for lattice parameters
+        initial_stage = self._get_next_stage(None)
         self.source = (
-            [Stage.COMPOSITION.value]
+            [initial_stage.value]
             + self.composition.source
             + self.space_group.source
             + self.lattice_parameters.source
@@ -217,7 +220,8 @@ class Crystal(GFlowNetEnv):
         )
 
         super().reset(env_id=env_id)
-        self._set_stage(Stage.COMPOSITION)
+        initial_stage = self._get_next_stage()
+        self._set_stage(initial_stage)
 
         return self
 
@@ -277,6 +281,104 @@ class Crystal(GFlowNetEnv):
         return states[
             :, self.lattice_parameters_state_start : self.lattice_parameters_state_end
         ]
+
+    def _is_source_state(self, state) -> bool:
+        """Determines if the provided state is a source state.
+
+        This method returns True if the provided state corresponds to the initial state
+        of any of the sub-environments. Returns False otherwise.
+        """
+        stage = self._get_stage(state)
+        if stage == Stage.COMPOSITION:
+            return self._get_composition_state(state) == self.composition.source
+        elif stage == Stage.SPACE_GROUP:
+            return self._get_space_group_state(state) == self.space_group.source
+        elif stage == Stage.LATTICE_PARAMETERS:
+            return self._get_lattice_parameters_state(state) == self.lattice_parameters.source
+        else:
+            raise ValueError(f"Unrecognized stage {stage}.")
+
+    def _get_previous_stage(self, stage: Stage) -> Stage:
+        """Return the stage that preceeds the provided stage.
+
+        There are two possible stage ordering depending on
+        self.do_sg_before_composition. Either :
+        Composition -> SpaceGroup -> LatticeParameter
+        or
+        SpaceGroup -> Composition -> LatticeParameter
+        """
+        if self.do_sg_before_composition:
+            if stage == Stage.SPACE_GROUP:
+                # Space group is the initial stage. No previous stage.
+                return None
+
+            elif stage == Stage.COMPOSITION:
+                return Stage.SPACE_GROUP
+
+            elif stage == Stage.LATTICE_PARAMETERS:
+                return Stage.COMPOSITION
+
+            else:
+                raise ValueError(f"Unrecognized stage {stage}.")
+
+        else:
+            if stage == Stage.COMPOSITION:
+                # Space group is the initial stage. No previous stage.
+                return None
+
+            elif stage == Stage.SPACE_GROUP:
+                return Stage.COMPOSITION
+
+            elif stage == Stage.LATTICE_PARAMETERS:
+                return Stage.SPACE_GROUP
+
+            else:
+                raise ValueError(f"Unrecognized stage {stage}.")
+
+    def _get_next_stage(self, stage: Stage = None) -> Stage:
+        """Returns the stage that follows the provided stage.
+
+        If no stage is provided, this function will return the initial stage. There are
+        two possible stage ordering depending on self.do_sg_before_composition. Either :
+        Composition -> SpaceGroup -> LatticeParameter
+        or
+        SpaceGroup -> Composition -> LatticeParameter
+        """
+        if self.do_sg_before_composition:
+            if stage is None:
+                # In the event of a environment reset, return the initial stage
+                return Stage.SPACE_GROUP
+
+            elif stage == Stage.SPACE_GROUP:
+                return Stage.COMPOSITION
+
+            elif stage == Stage.COMPOSITION:
+                return Stage.LATTICE_PARAMETERS
+
+            elif stage == Stage.LATTICE_PARAMETERS:
+                # Lattice parameters is the last stage. No next stage.
+                return None
+
+            else:
+                raise ValueError(f"Unrecognized stage {stage}.")
+
+        else:
+            if stage is None:
+                # In the event of a environment reset, return the initial stage
+                return Stage.COMPOSITION
+
+            elif stage == Stage.COMPOSITION:
+                return Stage.SPACE_GROUP
+
+            elif stage == Stage.SPACE_GROUP:
+                return Stage.LATTICE_PARAMETERS
+
+            elif stage == Stage.LATTICE_PARAMETERS:
+                # Lattice parameters is the last stage. No next stage.
+                return None
+
+            else:
+                raise ValueError(f"Unrecognized stage {stage}.")
 
     def get_mask_invalid_actions_forward(
         self, state: Optional[List[int]] = None, done: Optional[bool] = None
@@ -360,8 +462,10 @@ class Crystal(GFlowNetEnv):
             composition_action = self._depad_action(action, Stage.COMPOSITION)
             _, executed_action, valid = self.composition.step(composition_action)
             if valid and executed_action == self.composition.eos:
-                self._set_stage(Stage.SPACE_GROUP)
-                if self.do_stoichiometry_sg_check:
+                # Composition stage is done. Set up the next stage.
+                next_stage = self._get_next_stage(Stage.COMPOSITION)
+                self._set_stage(next_stage)
+                if next_stage == Stage.SPACE_GROUP and self.do_stoichiometry_sg_check:
                     self.space_group.set_n_atoms_compatibility_dict(
                         self.composition.state
                     )
@@ -369,7 +473,21 @@ class Crystal(GFlowNetEnv):
             stage_group_action = self._depad_action(action, Stage.SPACE_GROUP)
             _, executed_action, valid = self.space_group.step(stage_group_action)
             if valid and executed_action == self.space_group.eos:
-                self._set_stage(Stage.LATTICE_PARAMETERS)
+                # Space group stage is done. Set up the next stage.
+                next_stage = self._get_next_stage(Stage.SPACE_GROUP)
+                self._set_stage(next_stage)
+
+                # If composition is the next stage, set up the composition checks, if
+                # needed.
+                """
+                self.space_group = space_group
+               self.do_charge_check = do_charge_check
+                self.do_spacegroup_check = do_spacegroup_check
+                """
+
+                # The lattice parameter stage needs to be set up but only depending on
+                # the selected space group (not the composition) so we set it up now
+                # whether or not it is the next stage.
                 self._set_lattice_parameters()
         elif stage == Stage.LATTICE_PARAMETERS:
             lattice_parameters_action = self._depad_action(
@@ -396,7 +514,7 @@ class Crystal(GFlowNetEnv):
             output = (
                 [0]
                 + substate
-                + self.space_group.source
+                + self.space_group.state
                 + self.lattice_parameters.source
             )
         elif stage == Stage.SPACE_GROUP:
@@ -423,27 +541,47 @@ class Crystal(GFlowNetEnv):
         if done:
             return [state], [self.eos]
 
-        if stage == Stage.COMPOSITION or (
-            stage == Stage.SPACE_GROUP
-            and self._get_space_group_state(state) == self.space_group.source
+        previous_stage = self._get_previous_stage(stage)
+        is_source_state = self._is_source_state(state)
+
+        # If :
+        # - The current stage is composition and the environment has NOT only just
+        #   landed in that stage from a previous stage (which we can determine if
+        #   the env is not in the composition initial state and/or if composition is
+        #   the first stage) OR
+        # - The environment has only just entered the stage after composition and is
+        #   still in that environment's initial state
+        if (
+            (stage == Stage.COMPOSITION and not is_source_state) or
+            (stage == Stage.COMPOSITION and previous_stage is None) or
+            (is_source_state and previous_stage == Stage.COMPOSITION)
         ):
-            composition_done = stage == Stage.SPACE_GROUP
+            composition_done = previous_stage == Stage.COMPOSITION
             parents, actions = self.composition.get_parents(
                 state=self._get_composition_state(state), done=composition_done
             )
             parents = [self._build_state(p, Stage.COMPOSITION) for p in parents]
             actions = [self._pad_action(a, Stage.COMPOSITION) for a in actions]
-        elif stage == Stage.SPACE_GROUP or (
-            stage == Stage.LATTICE_PARAMETERS
-            and self._get_lattice_parameters_state(state)
-            == self.lattice_parameters.source
+
+        # If :
+        # - The current stage is space group and the environment has NOT only just
+        #   landed in that stage from a previous stage (which we can determine if
+        #   the env is not in the space group initial state and/or if space group is
+        #   the first stage) OR
+        # - The environment has only just entered the stage after space group and is
+        #   still in that environment's initial state
+        elif (
+            (stage == Stage.SPACE_GROUP and not is_source_state) or
+            (stage == Stage.SPACE_GROUP and previous_stage is None) or
+            (is_source_state and previous_stage == Stage.SPACE_GROUP)
         ):
-            space_group_done = stage == Stage.LATTICE_PARAMETERS
+            space_group_done = previous_stage == Stage.SPACE_GROUP
             parents, actions = self.space_group.get_parents(
                 state=self._get_space_group_state(state), done=space_group_done
             )
             parents = [self._build_state(p, Stage.SPACE_GROUP) for p in parents]
             actions = [self._pad_action(a, Stage.SPACE_GROUP) for a in actions]
+
         elif stage == Stage.LATTICE_PARAMETERS:
             """
             TODO: to be stateless (meaning, operating as a function, not a method with
