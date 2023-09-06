@@ -459,7 +459,7 @@ def test__backward_sampling_multiple_envs_all_as_expected(env, proxy, batch, req
     batch.set_env(env_ref)
 
     # Sample terminating states and build list of envs
-    x_batch = env_ref.get_uniform_terminating_states(n_states=batch_size)
+    x_batch = env_ref.get_random_terminating_states(n_states=batch_size)
     envs = []
     for idx, x in enumerate(x_batch):
         env_aux = env_ref.copy().reset(idx)
@@ -713,7 +713,7 @@ def test__mixed_sampling_multiple_envs_all_as_expected(env, proxy, batch, reques
 
     # Sample terminating states and build list of envs
     batch_size_backward = 10
-    x_batch = env_ref.get_uniform_terminating_states(n_states=batch_size_backward)
+    x_batch = env_ref.get_random_terminating_states(n_states=batch_size_backward)
     envs = []
     for idx, x in enumerate(x_batch):
         env_aux = env_ref.copy().reset(idx + batch_size_forward)
@@ -957,7 +957,7 @@ def test__mixed_sampling_merged_all_as_expected(env, proxy, request):
 
     # Sample terminating states and build list of envs
     batch_size_backward = 10
-    x_batch = env_ref.get_uniform_terminating_states(n_states=batch_size_backward)
+    x_batch = env_ref.get_random_terminating_states(n_states=batch_size_backward)
     envs = []
     for idx, x in enumerate(x_batch):
         env_aux = env_ref.copy().reset(idx)

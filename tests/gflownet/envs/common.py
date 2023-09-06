@@ -80,18 +80,21 @@ def test__get_parents_step_get_mask__are_compatible(env):
 def test__sample_backwards_reaches_source(env, n=100):
     if hasattr(env, "get_all_terminating_states"):
         x = env.get_all_terminating_states()
-    elif hasattr(env, "get_uniform_terminating_states"):
-        x = env.get_uniform_terminating_states(n, 0)
     elif hasattr(env, "get_grid_terminating_states"):
         x = env.get_grid_terminating_states(n)
+    elif hasattr(env, "get_uniform_terminating_states"):
+        x = env.get_uniform_terminating_states(n, 0)
+    elif hasattr(env, "get_random_terminating_states"):
+        x = env.get_random_terminating_states(n, 0)
     else:
         print(
             f"""
         Testing backward sampling requires that the environment implements one of the
         following:
             - get_all_terminating_states()
-            - get_uniform_terminating_states()
             - get_grid_terminating_states()
+            - get_uniform_terminating_states()
+            - get_random_terminating_states()
         Environment {env.__class__} does not have any of the above, therefore backward
         sampling will not be tested.
         """
