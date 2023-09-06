@@ -78,13 +78,23 @@ def test__get_parents_step_get_mask__are_compatible(env):
 def test__sample_backwards_reaches_source(env, n=100):
     if hasattr(env, "get_all_terminating_states"):
         x = env.get_all_terminating_states()
+    elif hasattr(env, "get_grid_terminating_states"):
+        x = env.get_grid_terminating_states(n)
     elif hasattr(env, "get_uniform_terminating_states"):
         x = env.get_uniform_terminating_states(n, 0)
+    elif hasattr(env, "get_random_terminating_states"):
+        x = env.get_random_terminating_states(n, 0)
     else:
         print(
-            """
-        Environment does not have neither get_all_terminating_states() nor
-        get_uniform_terminating_states(). Backward sampling will not be tested.
+            f"""
+        Testing backward sampling requires that the environment implements one of the
+        following:
+            - get_all_terminating_states()
+            - get_grid_terminating_states()
+            - get_uniform_terminating_states()
+            - get_random_terminating_states()
+        Environment {env.__class__} does not have any of the above, therefore backward
+        sampling will not be tested.
         """
         )
         return
@@ -92,19 +102,10 @@ def test__sample_backwards_reaches_source(env, n=100):
         env.set_state(state, done=True)
         n_actions = 0
         while True:
-            if torch.is_tensor(env.state):
-                if torch.equal(env.state, env.source):
-                    assert True
-                    break
-            else:
-                if env.state == env.source:
-                    assert True
-                    break
-            parents, parents_a = env.get_parents()
-            assert len(parents) > 0
-            # Sample random parent
-            parent = parents[np.random.permutation(len(parents))[0]]
-            env.set_state(parent)
+            if env.equal(env.state, env.source):
+                assert True
+                break
+            env.step_random(backward=True)
             n_actions += 1
             assert n_actions <= env.max_traj_length
 
