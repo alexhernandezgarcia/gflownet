@@ -472,4 +472,4 @@ class ContinuousTorus(HybridTorus):
             return self.state, action, True
 
     def get_max_traj_length(self):
-        return int(self.length_traj)
+        return int(self.length_traj) + 1

@@ -109,7 +109,7 @@ def test__sample_backwards_reaches_source(env, n=100):
                 break
             env.step_random(backward=True)
             n_actions += 1
-            assert n_actions <= env.max_traj_length + 1
+            assert n_actions <= env.max_traj_length
 
 
 @pytest.mark.repeat(100)
