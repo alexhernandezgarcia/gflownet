@@ -288,18 +288,18 @@ class ContinuousTorus(HybridTorus):
         Computes log probabilities of actions given policy outputs and actions.
         """
         device = policy_outputs.device
-        mask_states_sample = ~mask_invalid_actions.flatten()
+        do_sample = torch.all(~mask_invalid_actions, dim=1)
         n_states = policy_outputs.shape[0]
         logprobs = torch.zeros(n_states, self.n_dim).to(device)
-        if torch.any(mask_states_sample):
-            mix_logits = policy_outputs[mask_states_sample, 0::3].reshape(
+        if torch.any(do_sample):
+            mix_logits = policy_outputs[do_sample, 0::3].reshape(
                 -1, self.n_dim, self.n_comp
             )
             mix = Categorical(logits=mix_logits)
-            locations = policy_outputs[mask_states_sample, 1::3].reshape(
+            locations = policy_outputs[do_sample, 1::3].reshape(
                 -1, self.n_dim, self.n_comp
             )
-            concentrations = policy_outputs[mask_states_sample, 2::3].reshape(
+            concentrations = policy_outputs[do_sample, 2::3].reshape(
                 -1, self.n_dim, self.n_comp
             )
             vonmises = VonMises(
@@ -307,9 +307,7 @@ class ContinuousTorus(HybridTorus):
                 torch.exp(concentrations) + self.vonmises_min_concentration,
             )
             distr_angles = MixtureSameFamily(mix, vonmises)
-            logprobs[mask_states_sample] = distr_angles.log_prob(
-                actions[mask_states_sample]
-            )
+            logprobs[do_sample] = distr_angles.log_prob(actions[do_sample])
         logprobs = torch.sum(logprobs, axis=1)
         return logprobs
 
