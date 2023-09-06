@@ -708,8 +708,8 @@ class Tree(GFlowNetEnv):
         # Build actions
         actions_cont = [(ActionType.PICK_THRESHOLD, -1, th.item()) for th in thresholds]
         actions = []
-        for is_discrete in is_discrete:
-            if is_discrete:
+        for is_discrete_i in is_discrete:
+            if is_discrete_i:
                 actions.append(actions_discrete.pop(0))
             else:
                 actions.append(actions_cont.pop(0))
