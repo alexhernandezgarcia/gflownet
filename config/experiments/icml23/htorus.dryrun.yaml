@@ -28,15 +28,17 @@ gflownet:
     z_dim: 25
     lr_z_mult: 50
     n_train_steps: 250
-  policy:
-    forward:
-      type: mlp
-      n_hid: 256
-      n_layers: 3
-      checkpoint: forward
-    backward:
-      shared_weights: True
-      checkpoint: backward
+
+# Policy
+policy:
+  forward:
+    type: mlp
+    n_hid: 256
+    n_layers: 3
+    checkpoint: forward
+  backward:
+    shared_weights: True
+    checkpoint: backward
 
 # WandB
 logger:

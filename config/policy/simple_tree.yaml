@@ -1,0 +1,13 @@
+_target_: gflownet.policy.simple_tree.SimpleTreePolicy
+
+forward:
+  backbone_args:
+    n_layers: 3
+    hidden_dim: 128
+  leaf_head_args:
+    n_layers: 2
+    hidden_dim: 256
+backward:
+  leaf_head_args:
+    n_layers: 2
+    hidden_dim: 256
