@@ -8,18 +8,17 @@ import os
 import pickle
 import time
 from collections import defaultdict
-from typing import List, Optional, Tuple
+from pathlib import Path
+from typing import List, Optional, Tuple, Union
 
 import numpy as np
 import torch
 import torch.nn as nn
-from omegaconf import OmegaConf
 from scipy.special import logsumexp
 from torch.distributions import Bernoulli
 from tqdm import tqdm
 
 from gflownet.envs.base import GFlowNetEnv
-from gflownet.policy.base import Policy
 from gflownet.utils.batch import Batch
 from gflownet.utils.buffer import Buffer
 from gflownet.utils.common import (
@@ -28,6 +27,7 @@ from gflownet.utils.common import (
     set_float_precision,
     tbool,
     tfloat,
+    tlong,
     torch2np,
 )
 
@@ -41,7 +41,8 @@ class GFlowNetAgent:
         float_precision,
         optimizer,
         buffer,
-        policy,
+        forward_policy,
+        backward_policy,
         mask_invalid_actions,
         temperature_logits,
         random_action_prob,
@@ -49,10 +50,9 @@ class GFlowNetAgent:
         logger,
         num_empirical_loss,
         oracle,
-        proxy=None,
         active_learning=False,
-        data_path=None,
         sample_only=False,
+        replay_sampling="permutation",
         **kwargs,
     ):
         # Seed
@@ -91,6 +91,7 @@ class GFlowNetAgent:
         self.logger = logger
         self.oracle_n = oracle.n
         # Buffers
+        self.replay_sampling = replay_sampling
         self.buffer = Buffer(
             **buffer, env=self.env, make_train_test=not sample_only, logger=logger
         )
@@ -122,9 +123,9 @@ class GFlowNetAgent:
             print(f"\tMin score: {self.buffer.test['energies'].min()}")
             print(f"\tMax score: {self.buffer.test['energies'].max()}")
         # Policy models
-        self.forward_policy = Policy(policy.forward, self.env, self.device, self.float)
-        if "checkpoint" in policy.forward and policy.forward.checkpoint:
-            self.logger.set_forward_policy_ckpt_path(policy.forward.checkpoint)
+        self.forward_policy = forward_policy
+        if self.forward_policy.checkpoint is not None:
+            self.logger.set_forward_policy_ckpt_path(self.forward_policy.checkpoint)
             # TODO: re-write the logic and conditions to reload a model
             if False:
                 self.forward_policy.load_state_dict(
@@ -133,19 +134,10 @@ class GFlowNetAgent:
                 print("Reloaded GFN forward policy model Checkpoint")
         else:
             self.logger.set_forward_policy_ckpt_path(None)
-        self.backward_policy = Policy(
-            policy.backward,
-            self.env,
-            self.device,
-            self.float,
-            base=self.forward_policy,
-        )
-        if (
-            policy.backward
-            and "checkpoint" in policy.backward
-            and policy.backward.checkpoint
-        ):
-            self.logger.set_backward_policy_ckpt_path(policy.backward.checkpoint)
+        self.backward_policy = backward_policy
+        self.logger.set_backward_policy_ckpt_path(None)
+        if self.backward_policy.checkpoint is not None:
+            self.logger.set_backward_policy_ckpt_path(self.backward_policy.checkpoint)
             # TODO: re-write the logic and conditions to reload a model
             if False:
                 self.backward_policy.load_state_dict(
@@ -154,9 +146,6 @@ class GFlowNetAgent:
                 print("Reloaded GFN backward policy model Checkpoint")
         else:
             self.logger.set_backward_policy_ckpt_path(None)
-        self.ckpt_period = policy.ckpt_period
-        if self.ckpt_period in [None, -1]:
-            self.ckpt_period = np.inf
         # Optimizer
         if self.forward_policy.is_model:
             self.target = copy.deepcopy(self.forward_policy.model)
@@ -185,6 +174,8 @@ class GFlowNetAgent:
         self.l1 = -1.0
         self.kl = -1.0
         self.jsd = -1.0
+        self.corr_prob_traj_rewards = 0.0
+        self.nll_tt = 0.0
 
     def parameters(self):
         if self.backward_policy.is_model is False:
@@ -447,8 +438,6 @@ class GFlowNetAgent:
                 # TODO: implement other sampling options besides permutation
                 # TODO: this converts to numpy
                 x_tr = self.rng.permutation(dict_tr["x"])
-            actions = []
-            valids = []
             for idx, env in enumerate(envs):
                 env.set_state(x_tr[idx], done=True)
         while envs:
@@ -479,12 +468,27 @@ class GFlowNetAgent:
                 dict_replay = pickle.load(f)
                 n_replay = min(n_replay, len(dict_replay["x"]))
                 envs = [self.env.copy().reset(idx) for idx in range(n_replay)]
-                # TODO: implement other sampling options besides permutation
                 if n_replay > 0:
-                    x_replay = [x for x in dict_replay["x"].values()]
-                    x_replay = [x_replay[idx] for idx in self.rng.permutation(n_replay)]
-            actions = []
-            valids = []
+                    x_replay = list(dict_replay["x"].values())
+                    if self.replay_sampling == "permutation":
+                        x_replay = [
+                            x_replay[idx] for idx in self.rng.permutation(n_replay)
+                        ]
+                    elif self.replay_sampling == "weighted":
+                        x_rewards = np.fromiter(
+                            dict_replay["rewards"].values(), dtype=float
+                        )
+                        x_indices = np.random.choice(
+                            len(x_replay),
+                            size=n_replay,
+                            replace=False,
+                            p=x_rewards / x_rewards.sum(),
+                        )
+                        x_replay = [x_replay[idx] for idx in x_indices]
+                    else:
+                        raise ValueError(
+                            f"Unrecognized replay_sampling = {self.replay_sampling}."
+                        )
             for idx, env in enumerate(envs):
                 env.set_state(x_replay[idx], done=True)
         while envs:
@@ -513,6 +517,54 @@ class GFlowNetAgent:
         times["all"] = time.time() - t0_all
 
         return batch, times
+
+    def compute_logprobs_trajectories(self, batch: Batch, backward: bool = False):
+        """
+        Computes the forward or backward log probabilities of the trajectories in a
+        batch.
+
+        Args
+        ----
+        batch : Batch
+            A batch of data, containing all the states in the trajectories.
+
+        backward : bool
+            False: log probabilities of forward trajectories.
+            True: log probabilities of backward trajectories.
+
+        Returns
+        -------
+        logprobs : torch.tensor
+            The log probabilities of the trajectories.
+        """
+        assert batch.is_valid()
+        # Make indices of batch consecutive since they are used for indexing here
+        # Get necessary tensors from batch
+        states = batch.get_states(policy=True)
+        actions = batch.get_actions()
+        parents = batch.get_parents(policy=True)
+        traj_indices = batch.get_trajectory_indices(consecutive=True)
+        if backward:
+            # Backward trajectories
+            masks_b = batch.get_masks_backward()
+            policy_output_b = self.backward_policy(states)
+            logprobs_states = self.env.get_logprobs(
+                policy_output_b, False, actions, parents, masks_b
+            )
+        else:
+            # Forward trajectories
+            masks_f = batch.get_masks_forward(of_parents=True)
+            policy_output_f = self.forward_policy(parents)
+            logprobs_states = self.env.get_logprobs(
+                policy_output_f, True, actions, states, masks_f
+            )
+        # Sum log probabilities of all transitions in each trajectory
+        logprobs = torch.zeros(
+            batch.get_n_trajectories(),
+            dtype=self.float,
+            device=self.device,
+        ).index_add_(0, traj_indices, logprobs_states)
+        return logprobs
 
     def flowmatch_loss(self, it, batch):
         """
@@ -574,16 +626,15 @@ class GFlowNetAgent:
 
     def trajectorybalance_loss(self, it, batch):
         """
-        Computes the trajectory balance loss of a batch
+        Computes the trajectory balance loss of a batch.
 
         Args
         ----
         it : int
             Iteration
 
-        batch : ndarray
-            A batch of data: every row is a state (list), corresponding to all states
-            visited in each state in the batch.
+        batch : Batch
+            A batch of data, containing all the states in the trajectories.
 
         Returns
         -------
@@ -595,43 +646,148 @@ class GFlowNetAgent:
         flow_loss : float
             Loss of the intermediate nodes only
         """
-        assert batch.is_valid()
-        # Get necessary tensors from batch
-        states = batch.get_states(policy=True)
-        actions = batch.get_actions()
-        parents = batch.get_parents(policy=True)
-        traj_indices = batch.get_trajectory_indices()
-        masks_f = batch.get_masks_forward(of_parents=True)
-        masks_b = batch.get_masks_backward()
+        # Get logprobs of forward and backward transitions
+        logprobs_f = self.compute_logprobs_trajectories(batch, backward=False)
+        logprobs_b = self.compute_logprobs_trajectories(batch, backward=True)
+        # Get rewards from batch
         rewards = batch.get_terminating_rewards(sort_by="trajectory")
 
-        # Forward trajectories
-        policy_output_f = self.forward_policy(parents)
-        logprobs_f = self.env.get_logprobs(
-            policy_output_f, True, actions, states, masks_f
-        )
-        sumlogprobs_f = torch.zeros(
-            batch.get_n_trajectories(),
-            dtype=self.float,
-            device=self.device,
-        ).index_add_(0, traj_indices, logprobs_f)
-        # Backward trajectories
-        policy_output_b = self.backward_policy(states)
-        logprobs_b = self.env.get_logprobs(
-            policy_output_b, False, actions, parents, masks_b
-        )
-        sumlogprobs_b = torch.zeros(
-            batch.get_n_trajectories(),
-            dtype=self.float,
-            device=self.device,
-        ).index_add_(0, traj_indices, logprobs_b)
         # Trajectory balance loss
         loss = (
-            (self.logZ.sum() + sumlogprobs_f - sumlogprobs_b - torch.log(rewards))
+            (self.logZ.sum() + logprobs_f - logprobs_b - torch.log(rewards))
             .pow(2)
             .mean()
         )
         return loss, loss, loss
+
+    @torch.no_grad()
+    def estimate_logprobs_data(
+        self,
+        data: Union[List, str],
+        n_trajectories: int = 1,
+        max_iters_per_traj: int = 10,
+        max_data_size: int = 1e5,
+    ):
+        """
+        Estimates the probability of sampling with current GFlowNet policy
+        (self.forward_policy) the objects in a data set given by the argument data. The
+        (log) probabilities are estimated by sampling a number of backward trajectories
+        (n_trajectories) through importance sampling and calculating the forward
+        probabilities of the trajectories.
+
+        $\log p_T(x) = \int_{x \in \tau} P_F(\tau)d\tau$
+        $= \log \mathbb{E}_{P_B(\tau|x)} \frac{P_F(x)}{P_B(\tau|x)}$
+        $\approx \log \frac{1}{N} \sum_{i=1}^{N} \frac{P_F(x_i)}{P_B(\tau|x_i)}$
+        $= \log \sum_{i=1}^{N} \frac{P_F(x_i)}{P_B(\tau|x_i)} - \log N$
+
+        Note: torch.logsumexp is used to compute the log of the sum, in order to have
+        numerical stability, since we have the log PF and log PB, instead of directly
+        PF and PB.
+
+        Note: the correct indexing of data points and trajectories is ensured by the
+        fact that the indices of the environments are set in a consistent way with the
+        indexing when storing the log probabilities.
+
+        Args
+        ----
+        data : list or string
+            A data set of terminating states. The data set may be passed directly as a
+            list of states, or it may be a string defining the path to a pickled data
+            set where the terminating states are stored in key "x".
+
+        n_trajectories : int
+            The number of trajectories per object to sample for estimating the log
+            probabilities.
+
+        max_iters_per_traj : int
+            The maximum number of attempts to sample a distinct trajectory, to avoid
+            getting trapped in an infinite loop.
+
+        max_data_size : int
+            Maximum number of data points in the data set to avoid an accidental
+            situation of having to sample too many backward trajectories. If necessary,
+            the user should change this argument manually.
+
+        Returns
+        -------
+        logprobs_estimates: torch.tensor
+            The logarithm of the average ratio PF/PB over n trajectories sampled for
+            each data point.
+        """
+        batch = Batch(env=self.env, device=self.device, float_type=self.float)
+        times = {}
+        # Determine terminating states
+        if isinstance(data, list):
+            states_term = data
+        elif isinstance(data, str) and Path(data).suffix == ".pkl":
+            with open(data, "rb") as f:
+                data_dict = pickle.load(f)
+                states_term = data_dict["x"]
+        else:
+            raise NotImplementedError(
+                "data must be either a list of states or a path to a .pkl file."
+            )
+        n_states = len(states_term)
+        assert (
+            n_states < max_data_size
+        ), "The size of the test data is larger than max_data_size ({max_data_size})."
+        # Create an environment for each data point and trajectory and set the state
+        envs = []
+        mult_indices = max(n_states, n_trajectories)
+        for state_idx, x in enumerate(states_term):
+            for traj_idx in range(n_trajectories):
+                idx = int(mult_indices * state_idx + traj_idx)
+                env = self.env.copy().reset(idx)
+                env.set_state(x, done=True)
+                envs.append(env)
+        # Sample trajectories
+        max_iters = n_trajectories * max_iters_per_traj
+        while envs:
+            # Sample backward actions
+            actions = self.sample_actions(
+                envs,
+                batch,
+                backward=True,
+                no_random=True,
+                times=times,
+            )
+            # Update environments with sampled actions
+            envs, actions, valids = self.step(envs, actions, backward=True)
+            assert all(valids)
+            # Add to batch
+            batch.add_to_batch(envs, actions, valids, backward=True, train=True)
+            # Filter out finished trajectories
+            envs = [env for env in envs if not env.equal(env.state, env.source)]
+        # Prepare data structures to compute log probabilities
+        traj_indices_batch = tlong(
+            batch.get_unique_trajectory_indices(), device=self.device
+        )
+        data_indices = traj_indices_batch // mult_indices
+        traj_indices = traj_indices_batch % mult_indices
+        logprobs_f = torch.full(
+            (n_states, n_trajectories),
+            -torch.inf,
+            dtype=self.float,
+            device=self.device,
+        )
+        logprobs_b = torch.full(
+            (n_states, n_trajectories),
+            -torch.inf,
+            dtype=self.float,
+            device=self.device,
+        )
+        # Compute log probabilities of the trajectories
+        logprobs_f[data_indices, traj_indices] = self.compute_logprobs_trajectories(
+            batch, backward=False
+        )
+        logprobs_b[data_indices, traj_indices] = self.compute_logprobs_trajectories(
+            batch, backward=True
+        )
+        # Compute log of the average probabilities of the ratio PF / PB
+        logprobs_estimates = torch.logsumexp(
+            logprobs_f - logprobs_b, dim=1
+        ) - torch.log(torch.tensor(n_trajectories, device=self.device))
+        return logprobs_estimates
 
     def train(self):
         # Metrics
@@ -649,9 +805,23 @@ class GFlowNetAgent:
                 "Reward KDE",
             ]
             if self.logger.do_test(it):
-                self.l1, self.kl, self.jsd, figs, env_metrics = self.test()
+                (
+                    self.l1,
+                    self.kl,
+                    self.jsd,
+                    self.corr_prob_traj_rewards,
+                    self.nll_tt,
+                    figs,
+                    env_metrics,
+                ) = self.test()
                 self.logger.log_test_metrics(
-                    self.l1, self.kl, self.jsd, it, self.use_context
+                    self.l1,
+                    self.kl,
+                    self.jsd,
+                    self.corr_prob_traj_rewards,
+                    self.nll_tt,
+                    it,
+                    self.use_context,
                 )
                 self.logger.log_metrics(env_metrics, it, use_context=self.use_context)
                 self.logger.log_plots(
@@ -783,13 +953,37 @@ class GFlowNetAgent:
         Computes metrics by sampling trajectories from the forward policy.
         """
         if self.buffer.test_pkl is None:
-            return self.l1, self.kl, self.jsd, (None,), {}
+            return (
+                self.l1,
+                self.kl,
+                self.jsd,
+                self.corr_prob_traj_rewards,
+                self.nll_tt,
+                (None,),
+                {},
+            )
         with open(self.buffer.test_pkl, "rb") as f:
             dict_tt = pickle.load(f)
             x_tt = dict_tt["x"]
+
+        # Compute correlation between the rewards of the test data and the log
+        # likelihood of the data according the the GFlowNet policy; and NLL.
+        # TODO: organise code for better efficiency and readability
+        logprobs_x_tt = self.estimate_logprobs_data(
+            x_tt,
+            n_trajectories=self.logger.test.n_trajs_logprobs,
+            max_data_size=self.logger.test.max_data_logprobs,
+        )
+        rewards_x_tt = self.env.reward_batch(x_tt)
+        corr_prob_traj_rewards = np.corrcoef(
+            np.exp(logprobs_x_tt.cpu().numpy()), rewards_x_tt
+        )[0, 1]
+        nll_tt = -logprobs_x_tt.mean().item()
+
         batch, _ = self.sample_batch(n_forward=self.logger.test.n, train=False)
         assert batch.is_valid()
         x_sampled = batch.get_terminating_states()
+
         if self.buffer.test_type is not None and self.buffer.test_type == "all":
             if "density_true" in dict_tt:
                 density_true = dict_tt["density_true"]
@@ -807,6 +1001,18 @@ class GFlowNetAgent:
             density_pred = np.array([hist[tuple(x)] / z_pred for x in x_tt])
             log_density_true = np.log(density_true + 1e-8)
             log_density_pred = np.log(density_pred + 1e-8)
+        elif self.buffer.test_type == "random":
+            # TODO: refactor
+            env_metrics = self.env.test(x_sampled)
+            return (
+                self.l1,
+                self.kl,
+                self.jsd,
+                self.corr_prob_traj_rewards,
+                self.nll_tt,
+                (None,),
+                env_metrics,
+            )
         elif self.continuous:
             # TODO make it work with conditional env
             x_sampled = torch2np(self.env.statebatch2proxy(x_sampled))
@@ -846,10 +1052,6 @@ class GFlowNetAgent:
             log_density_pred = scores_pred - logsumexp(scores_pred, axis=0)
             density_true = np.exp(log_density_true)
             density_pred = np.exp(log_density_pred)
-        elif self.buffer.test_type == "random":
-            # TODO: refactor
-            env_metrics = self.env.test(x_sampled)
-            return self.l1, self.kl, self.jsd, (None,), env_metrics
         else:
             raise NotImplementedError
         # L1 error
@@ -873,7 +1075,15 @@ class GFlowNetAgent:
         else:
             fig_kde_pred = None
             fig_kde_true = None
-        return l1, kl, jsd, [fig_reward_samples, fig_kde_pred, fig_kde_true], {}
+        return (
+            l1,
+            kl,
+            jsd,
+            corr_prob_traj_rewards,
+            nll_tt,
+            [fig_reward_samples, fig_kde_pred, fig_kde_true],
+            {},
+        )
 
     @torch.no_grad()
     def test_top_k(self, it, progress=False, gfn_states=None, random_states=None):

@@ -250,17 +250,57 @@ class Batch:
         """
         return len(self.trajectories)
 
-    def get_trajectory_indices(self) -> TensorType["n_states", int]:
+    def get_unique_trajectory_indices(self) -> List:
+        """
+        Returns the unique trajectory indices as the keys of self.trajectories, which
+        is an OrderedDict, as a list.
+        """
+        return list(self.trajectories.keys())
+
+    def get_trajectory_indices(
+        self, consecutive: bool = False, return_mapping_dict: bool = False
+    ) -> TensorType["n_states", int]:
         """
         Returns the trajectory index of all elements in the batch as a long int torch
         tensor.
+
+        Args
+        ----
+        consecutive : bool
+            If True, the trajectory indices are mapped to consecutive indices starting
+            from 0, in the order of the OrderedDict self.trajectory.keys(). If False
+            (default), the trajectory indices are returned as they are.
+
+        return_mapping_dict : bool
+            If True, the dictionary mapping actual_index: consecutive_index is returned
+            as a second argument. Ignored if consecutive is False.
 
         Returns
         -------
         traj_indices : torch.tensor
             self.traj_indices as a long int torch tensor.
+
+        traj_index_to_consecutive_dict : dict
+            A dictionary mapping the actual trajectory indices in the Batch to the
+            consecutive indices. Ommited if return_mapping_dict is False (default).
         """
-        return tlong(self.traj_indices, device=self.device)
+        if consecutive:
+            traj_index_to_consecutive_dict = {
+                traj_idx: consecutive
+                for consecutive, traj_idx in enumerate(self.trajectories)
+            }
+            traj_indices = list(
+                map(lambda x: traj_index_to_consecutive_dict[x], self.traj_indices)
+            )
+        else:
+            traj_indices = self.traj_indices
+        if return_mapping_dict and consecutive:
+            return (
+                tlong(traj_indices, device=self.device),
+                traj_index_to_consecutive_dict,
+            )
+        else:
+            return tlong(traj_indices, device=self.device)
 
     def get_state_indices(self) -> TensorType["n_states", int]:
         """
@@ -911,6 +951,10 @@ class Batch:
         return self.rewards[indices][done]
 
     def get_actions_trajectories(self) -> List[List[Tuple]]:
+        """
+        Returns the actions corresponding to all trajectories in the batch, sorted by
+        trajectory index (the order in the ordered dict self.trajectories).
+        """
         actions_trajectories = []
         for batch_indices in self.trajectories.values():
             actions_trajectories.append([self.actions[idx] for idx in batch_indices])
@@ -1061,6 +1105,46 @@ class Batch:
         if len(np.unique(batch_indices)) != len(batch_indices):
             return False
         return True
+
+    def traj_indices_are_consecutive(self) -> bool:
+        """
+        Returns True if the trajectory indices start from 0 and are consecutive; False
+        otherwise.
+        """
+        trajectories_consecutive = list(self.trajectories) == list(
+            np.arange(self.get_n_trajectories())
+        )
+        envs_consecutive = list(self.envs) == list(np.arange(self.get_n_trajectories()))
+        return trajectories_consecutive and envs_consecutive
+
+    def make_indices_consecutive(self):
+        """
+        Updates the trajectory indices as well as the env ids such that they start from
+        0 and are consecutive. Note that only the trajectory indices are changed, but
+        importantly the order of the main data in the batch is preserved.
+
+        Examples:
+
+        - Original indices: 0, 10, 20
+        - New indices: 0, 1, 2
+
+        - Original indices: 1, 5, 3
+        - New indices: 0, 1, 2
+
+        Note: this method is unsued as of September 1st 2023, but is left here for
+        potential future use.
+        """
+        if self.traj_indices_are_consecutive():
+            return
+        self.traj_indices = self.get_trajectory_indices(consecutive=True).tolist()
+        self.trajectories = OrderedDict(
+            zip(range(self.get_n_trajectories()), self.trajectories.values())
+        )
+        self.envs = OrderedDict(
+            {idx: env.set_id(idx) for idx, env in enumerate(self.envs.values())}
+        )
+        assert self.traj_indices_are_consecutive()
+        assert self.is_valid()
 
     def _shift_indices(self, traj_shift: int, batch_shift: int):
         """

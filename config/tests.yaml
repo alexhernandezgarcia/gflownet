@@ -1,8 +1,9 @@
 defaults:
   - _self_
   - env: grid
-  - gflownet: flowmatch
+  - gflownet: trajectorybalance
   - proxy: uniform
+  - policy: mlp
   - logger: base
   - user: alex
 
@@ -24,4 +25,3 @@ hydra:
     # See: https://hydra.cc/docs/upgrades/1.1_to_1.2/changes_to_job_working_dir/
     # See: https://hydra.cc/docs/tutorials/basic/running_your_app/working_directory/#disable-changing-current-working-dir-to-jobs-output-dir
     chdir: True
-
