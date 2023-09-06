@@ -21,6 +21,9 @@ test:
   n_trajs_logprobs: 10
   # Maximum number of test data points to compute log likelihood probs.
   max_data_logprobs: 1e5
+  n_top_k: 5000
+  top_k: 100
+  top_k_period: -1
 # Oracle metrics
 oracle:
   period: 100000
@@ -37,7 +40,7 @@ logdir:
   root: ./logs
   ckpts: ckpts
   overwrite: True
-debug: False 
-lightweight: False 
+debug: False
+lightweight: False
 progress: True
 context: "0"

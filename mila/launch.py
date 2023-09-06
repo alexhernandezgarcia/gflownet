@@ -118,6 +118,13 @@ HELP = dedent(
     1. The second job will have `partition: unkillable` instead of the default (`long`).
     2. They will all have `64G` of memory instead of the default (`32G`) because the `--mem=64G` command-line
         argument overrides everything.
+
+    ## Updating the launcher
+
+    When updating the launcher, you should:
+
+    1. Update this markdown text **in launch.py:HELP** (do not edit this `LAUNCH.md`)
+    2. Run `$ python mila/launch.py --help-md > LAUNCH.md` to update this `LAUNCH.md` from the new `launch.py:HELP` text, new flags etc.
     """.format(
         yaml_example="\n".join(
             [
@@ -218,27 +225,41 @@ def load_jobs(yaml_path):
 
 
 def find_jobs_conf(args):
+    local_out_dir = ROOT / "external" / "launched_sbatch_scripts"
     if not args.get("jobs"):
-        return None
-    if args["jobs"].endswith(".yaml"):
-        args["jobs"] = args["jobs"][:-5]
-    if args["jobs"].endswith(".yml"):
-        args["jobs"] = args["jobs"][:-4]
-    if args["jobs"].startswith("external/"):
-        args["jobs"] = args["jobs"][9:]
-    if args["jobs"].startswith("jobs/"):
-        args["jobs"] = args["jobs"][5:]
-    yamls = [
-        str(y) for y in (ROOT / "external" / "jobs").glob(f"**/{args['jobs']}.y*ml")
-    ]
-    if len(yamls) == 0:
-        raise ValueError(f"Could not find {args['jobs']}.y(a)ml in ./external/jobs/")
-    if len(yamls) > 1:
-        print(">>> Warning: found multiple matches:\n  •" + "\n  •".join(yamls))
-    jobs_conf_path = Path(yamls[0])
-    print("🗂 Using jobs file: ./" + str(jobs_conf_path.relative_to(Path.cwd())))
+        return None, local_out_dir / "_other_"
+
+    if resolve(args["jobs"]).is_file():
+        assert args["jobs"].endswith(".yaml") or args["jobs"].endswith(
+            ".yml"
+        ), "jobs file must be a yaml file"
+        jobs_conf_path = resolve(args["jobs"])
+        local_out_dir = local_out_dir / jobs_conf_path.parent.name
+    else:
+        if args["jobs"].endswith(".yaml"):
+            args["jobs"] = args["jobs"][:-5]
+        if args["jobs"].endswith(".yml"):
+            args["jobs"] = args["jobs"][:-4]
+        if args["jobs"].startswith("external/"):
+            args["jobs"] = args["jobs"][9:]
+        if args["jobs"].startswith("jobs/"):
+            args["jobs"] = args["jobs"][5:]
+        yamls = [
+            str(y) for y in (ROOT / "external" / "jobs").glob(f"**/{args['jobs']}.y*ml")
+        ]
+        if len(yamls) == 0:
+            raise ValueError(
+                f"Could not find {args['jobs']}.y(a)ml in ./external/jobs/"
+            )
+        if len(yamls) > 1:
+            print(">>> Warning: found multiple matches:\n  •" + "\n  •".join(yamls))
+        jobs_conf_path = Path(yamls[0])
+        local_out_dir = local_out_dir / jobs_conf_path.parent.relative_to(
+            ROOT / "external" / "jobs"
+        )
+    print("🗂  Using jobs file: ./" + str(jobs_conf_path.relative_to(Path.cwd())))
     print()
-    return jobs_conf_path
+    return jobs_conf_path, local_out_dir
 
 
 def script_dict_to_main_args_str(script_dict, is_first=True, nested_key=""):
@@ -298,6 +319,7 @@ def print_md_help(parser, defaults):
 
     print("# 🤝 Gflownet Launch tool help\n")
     print("## 💻 Command-line help\n")
+    print("In the following, `$root` refers to the root of the current repository.\n")
     print("```sh")
     print(parser.format_help())
     print("```\n")
@@ -317,7 +339,7 @@ def print_md_help(parser, defaults):
 
 if __name__ == "__main__":
     defaults = {
-        "code_dir": "$PWD",
+        "code_dir": "$root",
         "conda_env": "gflownet",
         "cpus_per_task": 2,
         "dry-run": False,
@@ -330,7 +352,7 @@ if __name__ == "__main__":
         "modules": "anaconda/3 cuda/11.3",
         "outdir": "$SCRATCH/gflownet/logs/slurm",
         "partition": "long",
-        "template": ROOT / "sbatch" / "template-conda.sh",
+        "template": "$root/mila/sbatch/template-conda.sh",
         "venv": None,
         "verbose": False,
     }
@@ -396,6 +418,11 @@ if __name__ == "__main__":
         + f" Defaults to {defaults['venv']}",
     )
     parser.add_argument(
+        "--template",
+        type=str,
+        help="path to sbatch template." + f" Defaults to {defaults['template']}",
+    )
+    parser.add_argument(
         "--code_dir",
         type=str,
         help="cd before running main.py (defaults to here)."
@@ -404,7 +431,8 @@ if __name__ == "__main__":
     parser.add_argument(
         "--jobs",
         type=str,
-        help="run file name in external/jobs (with or without .yaml)."
+        help="jobs (nested) file name in external/jobs (with or without .yaml)."
+        + " Or an absolute path to a yaml file anywhere"
         + f" Defaults to {defaults['jobs']}",
     )
     parser.add_argument(
@@ -455,7 +483,7 @@ if __name__ == "__main__":
         outdir.mkdir(parents=True, exist_ok=True)
 
     # find jobs config file in external/jobs as a yaml file
-    jobs_conf_path = find_jobs_conf(args)
+    jobs_conf_path, local_out_dir = find_jobs_conf(args)
     # load yaml file as list of dicts. May be empty if jobs_conf_path is None
     job_dicts = load_jobs(jobs_conf_path)
     # No run passed in the CLI args or in the associated yaml file so run the
@@ -465,6 +493,7 @@ if __name__ == "__main__":
 
     # Save submitted jobs ids
     job_ids = []
+    job_out_files = []
 
     # A unique datetime identifier for the jobs about to be submitted
     now = now_str()
@@ -474,14 +503,6 @@ if __name__ == "__main__":
             print("🛑 Aborted")
             sys.exit(0)
         print()
-
-    local_out_dir = ROOT / "external" / "launched_sbatch_scripts"
-    if jobs_conf_path is not None:
-        local_out_dir = local_out_dir / jobs_conf_path.parent.relative_to(
-            ROOT / "external" / "jobs"
-        )
-    else:
-        local_out_dir = local_out_dir / "_other_"
 
     for i, job_dict in enumerate(job_dicts):
         job_args = defaults.copy()
@@ -529,11 +550,14 @@ if __name__ == "__main__":
             job_ids.append(job_id)
             print("  ✅ " + out)
             # Write job ID & output file path in the sbatch file
+            job_output_file = str(outdir / f"{job_args['job_name']}-{job_id}.out")
+            job_out_files.append(job_output_file)
+            print("  📝  Job output file will be: " + job_output_file)
             templated += (
                 "\n# SLURM_JOB_ID: "
                 + job_id
                 + "\n# Output file: "
-                + str(outdir / f"{job_args['job_name']}-{job_id}.out")
+                + job_output_file
                 + "\n"
             )
             sbatch_path.write_text(templated)
@@ -559,10 +583,15 @@ if __name__ == "__main__":
         new_conf_path = local_out_dir / f"{jobs_conf_path.stem}_{now}.yaml"
         new_conf_path.parent.mkdir(parents=True, exist_ok=True)
         conf += "\n# " + jobs_str + "\n"
-        new_conf_path.write_text(conf)
+        conf += (
+            "\n# Job Output files:\n#"
+            + "\n#".join([f"  • {f}" for f in job_out_files])
+            + "\n"
+        )
         rel = new_conf_path.relative_to(Path.cwd())
         if not dry_run:
-            print(f"   Created summary YAML in ./{rel}")
+            new_conf_path.write_text(conf)
+            print(f"   Created summary YAML in {rel}")
 
     if job_ids:
         print(f"   {jobs_str}\n")
