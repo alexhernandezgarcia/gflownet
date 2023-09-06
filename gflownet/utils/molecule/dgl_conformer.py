@@ -21,6 +21,7 @@ class DGLConformer:
         self.n_nodes = len(self.graph.nodes())
         self.rotatable_bonds = torsions.get_rotatable_bonds(self.graph)
         self.rotatable_torsion_angles = torsions.get_rotatable_torsion_angles_names(self.graph)
+        self.n_rotatable_bonds = self.rotatable_bonds.shape[0]
 
     def apply_rotations(self, rotations):
         """
@@ -41,7 +42,7 @@ class DGLConformer:
         """
         Randomizes rotatable torsion angles such that they are sampled from uniform distribution over torus
         """
-        rotations = torch.rand(len(self.rotatable_bonds), dtype=self.float_type, device=self.device) * 2 * torch.pi
+        rotations = torch.rand(self.n_rotatable_bonds, dtype=self.float_type, device=self.device) * 2 * torch.pi
         self.apply_rotations(rotations)
 
     def compute_rotatable_torsion_angles(self):

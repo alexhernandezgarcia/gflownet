@@ -76,7 +76,6 @@ def test_simple_compute_ta(float_type, device):
     positions = rdk_conf.GetPositions()
     conformer = DGLConformer(positions, constants.ad_smiles, torsion_indices=None, add_hydrogens=True, 
                              float_type=float_type, device=device)
-    #import ipdb; ipdb.set_trace()
     ta_values = conformer.compute_rotatable_torsion_angles()
     ta_names = conformer.rotatable_torsion_angles.tolist()
     expected = torch.tensor(get_rdkit_torsion_angles_values(rdk_conf, ta_names), 
@@ -119,5 +118,35 @@ def test_stress_compute_ta(float_type, device):
         new_pos = conformer.get_atom_positions()
         rdk_conf = set_rdkit_atom_positions(rdk_conf, np.array(new_pos.tolist()))
 
+@pytest.mark.parametrize(
+        "float_type, device",
+        [
+            (
+                torch.float32, 
+                torch.device("cpu")
+            ),
+            (
+                torch.float64,
+                torch.device("cpu")
+            ),
+            (
+                torch.float32, 
+                torch.device("cuda:0")
+            ),
+            (
+                torch.float64,
+                torch.device("cuda:0")
+            ),
+        ]
+)
+def test_stress_set_ta(float_type, device):
+    rdk_conf = get_rdkit_conformer(constants.ad_smiles, add_hydrogens=True)
+    positions = rdk_conf.GetPositions()
+    conformer = DGLConformer(positions, constants.ad_smiles, torsion_indices=None, add_hydrogens=True, 
+                             float_type=float_type, device=device)
 
-    
+    for _ in range(100):
+        expected = torch.rand(conformer.n_rotatable_bonds, dtype=float_type, device=device) * 2 * torch.pi - torch.pi 
+        conformer.set_rotatable_torsion_angles(expected)
+        ta_values = conformer.compute_rotatable_torsion_angles()
+        assert torch.all(torch.isclose(ta_values, expected, atol=1e-6))
