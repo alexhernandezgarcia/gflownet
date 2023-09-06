@@ -418,7 +418,8 @@ class ContinuousTorus(HybridTorus):
             return self.state, action, False
         # Otherwise perform action
         else:
-            return self._step(action, backward=False)
+            self._step(action, backward=False)
+            return self.state, action, True
 
     def step_backwards(
         self, action: Tuple[float], skip_mask_check: bool = False
