@@ -317,8 +317,8 @@ class ContinuousTorus(HybridTorus):
         backward: bool,
     ) -> Tuple[List[float], Tuple[int, float], bool]:
         """
-        Executes step given an action. This method is called by both step() and
-        step_backwards(), with the corresponding value of argument backward.
+        Updates self.state given a non-EOS action. This method is called by both step()
+        and step_backwards(), with the corresponding value of argument backward.
 
         Forward steps:
             - Add action increments to state angles.
@@ -348,27 +348,20 @@ class ContinuousTorus(HybridTorus):
             False, if the action is not allowed for the current state, e.g. stop at the
             root state
         """
-        self.n_actions += 1
-        state_next = copy(self.state)
         for dim, angle in enumerate(action):
             if backward:
-                state_next[int(dim)] -= angle
+                self.state[int(dim)] -= angle
             else:
-                state_next[int(dim)] += angle
-            state_next[int(dim)] = state_next[int(dim)] % (2 * np.pi)
+                self.state[int(dim)] += angle
+            self.state[int(dim)] = self.state[int(dim)] % (2 * np.pi)
         if backward:
-            state_next[-1] -= 1
-            if self.state[-1] < 0:
-                # [DEBUG] this point should never be reached. Consider removing this elif.
-                print("self.state[-1] became smaller than 0.")
-                breakpoint()
+            self.state[-1] -= 1
         else:
-            state_next[-1] += 1
+            self.state[-1] += 1
+        assert self.state[-1] >= 0 and self.state[-1] <= self.length_traj
         # If n_steps is equal to 0, set source to avoid escaping comparison to source.
-        if state_next[-1] == 0:
+        if self.state[-1] == 0:
             self.state = copy(self.source)
-        else:
-            self.state = state_next
 
     def step(
         self, action: Tuple[float], skip_mask_check: bool = False
@@ -400,24 +393,19 @@ class ContinuousTorus(HybridTorus):
             False, if the action is not allowed for the current state, e.g. stop at the
             root state
         """
+        # If done is True, return invalid
         if self.done:
             return self.state, action, False
-        # If only possible action is EOS (number of actions is equal to maximum
-        # trajectory length), then force EOS.
-        elif self.n_actions == self.length_traj:
+        # If action is EOS, check that the number of steps is equal to the trajectory
+        # length, set done to True, increment n_actions and return same state
+        elif action == self.eos:
+            assert self.state[-1] == self.length_traj
             self.done = True
             self.n_actions += 1
             return self.state, self.eos, True
-        # If anyway action is EOS, then it is invalid
-        elif action == self.eos:
-            # [DEBUG] this point should never be reached. Consider removing this elif.
-            print(
-                "An EOS action has been sampled forward even though it is not allowed"
-            )
-            breakpoint()
-            return self.state, action, False
         # Otherwise perform action
         else:
+            self.n_actions += 1
             self._step(action, backward=False)
             return self.state, action, True
 
@@ -451,23 +439,16 @@ class ContinuousTorus(HybridTorus):
             False, if the action is not allowed for the current state, e.g. stop at the
             root state
         """
-        # If self.done is True, set done to False, increment n_actions and return same
-        # state
+        # If done is True, set done to False, increment n_actions and return same state
         if self.done:
             assert action == self.eos
             self.done = False
             self.n_actions += 1
             return self.state, action, True
-        # If done is not True but action is EOS, then it is invalid
-        elif action == self.eos:
-            # [DEBUG] this point should never be reached. Consider removing this elif.
-            print(
-                "An EOS action has been sampled backward even though it is not allowed"
-            )
-            breakpoint()
-            return self.state, action, False
         # Otherwise perform action
         else:
+            assert action != self.eos
+            self.n_actions += 1
             self._step(action, backward=True)
             return self.state, action, True
 
