@@ -80,7 +80,7 @@ class ContinuousTorus(HybridTorus):
 
     def get_mask_invalid_actions_forward(self, state=None, done=None):
         """
-        The action is space is continuous, thus the mask is not of invalid actions as
+        The action space is continuous, thus the mask is not of invalid actions as
         in discrete environments, but an indicator of "special cases", for example
         states from which only certain actions are possible.
 
