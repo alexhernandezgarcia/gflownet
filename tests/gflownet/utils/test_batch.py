@@ -1,3 +1,4 @@
+import numpy as np
 import pytest
 import torch
 
@@ -1118,4 +1119,196 @@ def test__mixed_sampling_merged_all_as_expected(env, proxy, request):
             device=batch.device,
             float_type=batch.float,
         ),
+    )
+
+
+@pytest.mark.repeat(10)
+@pytest.mark.parametrize("env", ["grid2d", "tetris6x4", "ctorus2d5l"])
+# @pytest.mark.skip(reason="skip while developping other tests")
+def test__make_indices_consecutive__shuffled_indices_become_consecutive(
+    env, batch, request
+):
+    batch_size = 10
+    env_ref = request.getfixturevalue(env)
+    batch.set_env(env_ref)
+
+    # Make list of envs
+    envs = []
+    shuffled2consecutive_dict = {}
+    for consecutive_idx, shuffled_idx in enumerate(np.random.permutation(batch_size)):
+        shuffled2consecutive_dict[shuffled_idx] = consecutive_idx
+        env_aux = env_ref.copy().reset(shuffled_idx)
+        envs.append(env_aux)
+
+    # Initialize empty lists for checks
+    traj_indices_shuffled = []
+    traj_indices_consecutive = []
+
+    # Iterate until envs is empty
+    while envs:
+        actions_iter = []
+        valids_iter = []
+        # Make step env by env (different to GFN Agent) to have full control
+        for env in envs:
+            parent = copy(env.state)
+            # Sample random action
+            state, action, valid = env.step_random()
+            if valid:
+                # Add to iter lists
+                actions_iter.append(action)
+                valids_iter.append(valid)
+                # Add to checking lists
+                traj_indices_shuffled.append(env.id)
+                traj_indices_consecutive.append(shuffled2consecutive_dict[env.id])
+        # Add all envs, actions and valids to batch
+        batch.add_to_batch(envs, actions_iter, valids_iter)
+        # Remove done envs
+        envs = [env for env in envs if not env.done]
+
+    # Check trajectory indices before making consecutive
+    traj_indices_batch = batch.get_trajectory_indices()
+    assert torch.equal(
+        traj_indices_batch, tlong(traj_indices_shuffled, device=batch.device)
+    )
+
+    # Make consecutive
+    batch.make_indices_consecutive()
+
+    # Naively check that batch.trajectories and batch.envs keys are consecutive
+    for idx, (traj_idx, env_idx) in enumerate(zip(batch.trajectories, batch.envs)):
+        assert idx == traj_idx
+        assert idx == env_idx
+    # Check trajectory indices after making consecutive
+    traj_indices_batch = batch.get_trajectory_indices()
+    assert torch.equal(
+        traj_indices_batch, tlong(traj_indices_consecutive, device=batch.device)
+    )
+
+
+@pytest.mark.repeat(10)
+@pytest.mark.parametrize("env", ["grid2d", "tetris6x4", "ctorus2d5l"])
+# @pytest.mark.skip(reason="skip while developping other tests")
+def test__make_indices_consecutive__random_indices_become_consecutive(
+    env, batch, request
+):
+    batch_size = 10
+    env_ref = request.getfixturevalue(env)
+    batch.set_env(env_ref)
+
+    # Make list of envs
+    envs = []
+    random2consecutive_dict = {}
+    for consecutive_idx, random_idx in enumerate(
+        np.random.permutation(batch_size * 10)[:batch_size]
+    ):
+        random2consecutive_dict[random_idx] = consecutive_idx
+        env_aux = env_ref.copy().reset(random_idx)
+        envs.append(env_aux)
+
+    # Initialize empty lists for checks
+    traj_indices_random = []
+    traj_indices_consecutive = []
+
+    # Iterate until envs is empty
+    while envs:
+        actions_iter = []
+        valids_iter = []
+        # Make step env by env (different to GFN Agent) to have full control
+        for env in envs:
+            parent = copy(env.state)
+            # Sample random action
+            state, action, valid = env.step_random()
+            if valid:
+                # Add to iter lists
+                actions_iter.append(action)
+                valids_iter.append(valid)
+                # Add to checking lists
+                traj_indices_random.append(env.id)
+                traj_indices_consecutive.append(random2consecutive_dict[env.id])
+        # Add all envs, actions and valids to batch
+        batch.add_to_batch(envs, actions_iter, valids_iter)
+        # Remove done envs
+        envs = [env for env in envs if not env.done]
+
+    # Check trajectory indices before making consecutive
+    traj_indices_batch = batch.get_trajectory_indices()
+    assert torch.equal(
+        traj_indices_batch, tlong(traj_indices_random, device=batch.device)
+    )
+
+    # Make consecutive
+    batch.make_indices_consecutive()
+
+    # Naively check that batch.trajectories and batch.envs keys are consecutive
+    for idx, (traj_idx, env_idx) in enumerate(zip(batch.trajectories, batch.envs)):
+        assert idx == traj_idx
+        assert idx == env_idx
+    # Check trajectory indices after making consecutive
+    traj_indices_batch = batch.get_trajectory_indices()
+    assert torch.equal(
+        traj_indices_batch, tlong(traj_indices_consecutive, device=batch.device)
+    )
+
+
+@pytest.mark.repeat(10)
+@pytest.mark.parametrize("env", ["grid2d", "tetris6x4", "ctorus2d5l"])
+# @pytest.mark.skip(reason="skip while developping other tests")
+def test__make_indices_consecutive__multiplied_indices_become_consecutive(
+    env, batch, request
+):
+    batch_size = 10
+    env_ref = request.getfixturevalue(env)
+    batch.set_env(env_ref)
+
+    # Make list of envs
+    envs = []
+    multiplied2consecutive_dict = {}
+    for consecutive_idx in range(batch_size):
+        multiplied_idx = consecutive_idx * 10
+        multiplied2consecutive_dict[multiplied_idx] = consecutive_idx
+        env_aux = env_ref.copy().reset(multiplied_idx)
+        envs.append(env_aux)
+
+    # Initialize empty lists for checks
+    traj_indices_multiplied = []
+    traj_indices_consecutive = []
+
+    # Iterate until envs is empty
+    while envs:
+        actions_iter = []
+        valids_iter = []
+        # Make step env by env (different to GFN Agent) to have full control
+        for env in envs:
+            parent = copy(env.state)
+            # Sample random action
+            state, action, valid = env.step_random()
+            if valid:
+                # Add to iter lists
+                actions_iter.append(action)
+                valids_iter.append(valid)
+                # Add to checking lists
+                traj_indices_multiplied.append(env.id)
+                traj_indices_consecutive.append(multiplied2consecutive_dict[env.id])
+        # Add all envs, actions and valids to batch
+        batch.add_to_batch(envs, actions_iter, valids_iter)
+        # Remove done envs
+        envs = [env for env in envs if not env.done]
+
+    # Check trajectory indices before making consecutive
+    traj_indices_batch = batch.get_trajectory_indices()
+    assert torch.equal(
+        traj_indices_batch, tlong(traj_indices_multiplied, device=batch.device)
+    )
+
+    # Make consecutive
+    batch.make_indices_consecutive()
+
+    # Naively check that batch.trajectories and batch.envs keys are consecutive
+    for idx, (traj_idx, env_idx) in enumerate(zip(batch.trajectories, batch.envs)):
+        assert idx == traj_idx
+        assert idx == env_idx
+    # Check trajectory indices after making consecutive
+    traj_indices_batch = batch.get_trajectory_indices()
+    assert torch.equal(
+        traj_indices_batch, tlong(traj_indices_consecutive, device=batch.device)
     )
