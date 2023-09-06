@@ -8,12 +8,16 @@ import sys
 
 import hydra
 import pandas as pd
-import yaml
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import OmegaConf
+
+from gflownet.utils.common import chdir_random_subdir
 
 
 @hydra.main(config_path="./config", config_name="main", version_base="1.1")
 def main(config):
+    # TODO: fix race condition in a more elegant way
+    chdir_random_subdir()
+
     # Get current directory and set it as root log dir for Logger
     cwd = os.getcwd()
     config.logger.logdir.root = cwd
@@ -39,11 +43,38 @@ def main(config):
         device=config.device,
         float_precision=config.float_precision,
     )
+    # The policy is used to model the probability of a forward/backward action
+    forward_config = OmegaConf.create(config.policy)
+    forward_config["config"] = config.policy.forward
+    del forward_config.forward
+    del forward_config.backward
+
+    backward_config = OmegaConf.create(config.policy)
+    backward_config["config"] = config.policy.backward
+    del backward_config.forward
+    del backward_config.backward
+
+    forward_policy = hydra.utils.instantiate(
+        forward_config,
+        env=env,
+        device=config.device,
+        float_precision=config.float_precision,
+    )
+    backward_policy = hydra.utils.instantiate(
+        backward_config,
+        env=env,
+        device=config.device,
+        float_precision=config.float_precision,
+        base=forward_policy,
+    )
+
     gflownet = hydra.utils.instantiate(
         config.gflownet,
         device=config.device,
         float_precision=config.float_precision,
         env=env,
+        forward_policy=forward_policy,
+        backward_policy=backward_policy,
         buffer=config.env.buffer,
         logger=logger,
     )

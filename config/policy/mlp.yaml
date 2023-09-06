@@ -1,0 +1,10 @@
+_target_: gflownet.policy.base.Policy
+
+forward:
+  type: mlp
+  n_hid: 128
+  n_layers: 2
+  checkpoint: null
+  reload_ckpt: False
+
+backward: null
