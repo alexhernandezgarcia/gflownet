@@ -23,6 +23,25 @@ def env_with_stoichiometry_sg_check():
     )
 
 
+@pytest.fixture
+def env_with_space_group_stage_first():
+    return Crystal(
+        composition_kwargs={"elements": 4},
+        lattice_parameters_kwargs={"grid_size": 10},
+        do_sg_before_composition=True,
+    )
+
+
+@pytest.fixture
+def env_with_space_group_stage_first_sg_check():
+    return Crystal(
+        composition_kwargs={"elements": 4},
+        lattice_parameters_kwargs={"grid_size": 10},
+        do_stoichiometry_sg_check=True,
+        do_sg_before_composition=True,
+    )
+
+
 def test__environment__initializes_properly(env):
     pass
 
@@ -372,5 +391,13 @@ def test__all_env_common(env):
     return common.test__all_env_common(env)
 
 
-def test__all_env_common(env_with_stoichiometry_sg_check):
+def test__all_env_common_sg_check(env_with_stoichiometry_sg_check):
     return common.test__all_env_common(env_with_stoichiometry_sg_check)
+
+
+def test_all_env_common_space_group(env_with_space_group_stage_first):
+    return common.test__all_env_common(env_with_space_group_stage_first)
+
+
+def test_all_env_common_space_group_sg_check(env_with_space_group_stage_first_sg_check):
+    return common.test__all_env_common(env_with_space_group_stage_first_sg_check)
