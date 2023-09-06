@@ -1,0 +1,22 @@
+_target_: gflownet.policy.multihead_tree.MultiheadTreePolicy
+
+forward:
+  backbone_args:
+    n_layers: 2
+    hidden_dim: 128
+  leaf_head_args:
+    n_layers: 2
+    hidden_dim: 128
+  feature_head_args:
+    n_layers: 2
+    hidden_dim: 128
+  threshold_head_args:
+    n_layers: 2
+    hidden_dim: 128
+  operator_head_args:
+    n_layers: 2
+    hidden_dim: 128
+backward:
+  leaf_head_args:
+    n_layers: 2
+    hidden_dim: 128
