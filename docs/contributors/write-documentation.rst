@@ -80,7 +80,7 @@ FAQ
 
     You can similarly document a **module** by adding a docstring at the top of the file
 
-.. dropdown:: How do I document a module varaible?
+.. dropdown:: How do I document a module variable?
 
     Add a docstring **below** the variable to document like
 
