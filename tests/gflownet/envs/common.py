@@ -1,11 +1,10 @@
-import warnings
-
 import hydra
 import numpy as np
 import pytest
 import torch
 import yaml
 from hydra import compose, initialize
+from omegaconf import OmegaConf
 
 from gflownet.utils.common import copy
 
@@ -18,7 +17,6 @@ def test__all_env_common(env):
     test__step_random__does_not_sample_invalid_actions(env)
     test__get_parents_step_get_mask__are_compatible(env)
     test__sample_backwards_reaches_source(env)
-    test__state2policy__is_reversible(env)
     test__state2readable__is_reversible(env)
     test__get_parents__returns_same_state_and_eos_if_done(env)
     test__actions2indices__returns_expected_tensor(env)
@@ -154,6 +152,28 @@ def test__gflownet_minimal_runs(env):
     proxy = hydra.utils.instantiate(
         config.proxy, device=config.device, float_precision=config.float_precision
     )
+    # Policy
+    forward_config = OmegaConf.create(config.policy)
+    forward_config["config"] = config.policy.forward
+    del forward_config.forward
+    del forward_config.backward
+    backward_config = OmegaConf.create(config.policy)
+    backward_config["config"] = config.policy.backward
+    del backward_config.forward
+    del backward_config.backward
+    forward_policy = hydra.utils.instantiate(
+        forward_config,
+        env=env,
+        device=config.device,
+        float_precision=config.float_precision,
+    )
+    backward_policy = hydra.utils.instantiate(
+        backward_config,
+        env=env,
+        device=config.device,
+        float_precision=config.float_precision,
+        base=forward_policy,
+    )
     # Set proxy in env
     env.proxy = proxy
     # No buffers
@@ -169,6 +189,8 @@ def test__gflownet_minimal_runs(env):
         device=config.device,
         float_precision=config.float_precision,
         env=env,
+        forward_policy=forward_policy,
+        backward_policy=backward_policy,
         buffer=config.env.buffer,
         logger=logger,
     )

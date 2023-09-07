@@ -1,8 +1,9 @@
 import numpy as np
 import pytest
 import torch
+from sklearn.metrics import accuracy_score
 
-from gflownet.envs.tree import Tree
+from gflownet.envs.tree import ActionType, Attribute, Tree
 from gflownet.proxy.tree import TreeProxy
 
 
@@ -17,8 +18,8 @@ def y():
 
 
 def test__tree_proxy__returns_expected_energies(X, y):
-    empty_tree = Tree(X, y, max_depth=4)
-    full_tree = Tree(X, y, max_depth=4)
+    empty_tree = Tree(X, y, max_depth=4, scale_data=False)
+    full_tree = Tree(X, y, max_depth=4, scale_data=False)
     while True:
         splittable_leafs = [
             l
@@ -30,17 +31,21 @@ def test__tree_proxy__returns_expected_energies(X, y):
             break
 
         def split_leaf(k: int):
-            full_tree.step((0, k))
-            full_tree.step((1, np.random.randint(5)))
-            full_tree.step((2, np.random.rand()))
-            full_tree.step((3, np.random.randint(2)))
+            cls = full_tree.state[k, Attribute.CLASS].long().item()
+            full_tree.step((ActionType.PICK_LEAF, k, cls))
+            full_tree.step((ActionType.PICK_FEATURE, -1, np.random.randint(5)))
+            full_tree.step((ActionType.PICK_THRESHOLD, -1, np.random.rand()))
+            full_tree.step((ActionType.PICK_OPERATOR, k, np.random.randint(2)))
 
         split_leaf(np.random.choice(splittable_leafs))
 
-    proxy = TreeProxy(device="cpu", float_precision=32)
+    proxy = TreeProxy(use_prior=False, device="cpu", float_precision=32)
     proxy.setup(empty_tree)
+
+    predictions = [Tree.predict(full_tree.state, x) for x in X]
+    accuracy = accuracy_score(y, predictions)
 
     states = torch.stack([empty_tree.state, full_tree.state])
     energies = proxy(states)
 
-    assert torch.equal(energies, torch.Tensor([-1.0, 0.0]))
+    assert torch.equal(energies, torch.Tensor([-1.0, -accuracy]))

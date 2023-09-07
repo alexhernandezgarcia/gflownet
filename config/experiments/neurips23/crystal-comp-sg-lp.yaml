@@ -1,0 +1,59 @@
+# @package _global_
+
+defaults:
+  - override /env: crystals/crystal
+  - override /gflownet: trajectorybalance
+  - override /proxy: dave
+  - override /logger: wandb
+
+# Environment
+env:
+  lattice_parameters_kwargs:
+    min_length: 1.0
+    max_length: 5.0
+    min_angle: 30.0
+    max_angle: 150.0
+    grid_size: 10
+  composition_kwargs:
+    elements: 89
+  reward_func: boltzmann
+  reward_beta: 1
+
+# GFlowNet hyperparameters
+gflownet:
+  random_action_prob: 0.1
+  optimizer:
+    batch_size: 100
+    lr: 0.00001
+    z_dim: 16
+    lr_z_mult: 1000
+    n_train_steps: 40000
+    lr_decay_period: 1000000
+  policy:
+    forward:
+      type: mlp
+      n_hid: 512
+      n_layers: 5
+      checkpoint: forward
+    backward:
+      type: mlp
+      n_hid: 512
+      n_layers: 5
+      shared_weights: False
+      checkpoint: backward
+
+# WandB
+logger:
+  lightweight: True
+  project_name: "crystal-gfn"
+  tags:
+    - gflownet
+    - comp-only
+    - crystals
+  checkpoints:
+    period: 500
+
+# Hydra
+hydra:
+  run:
+    dir: ${user.logdir.root}/neurips23/composition/${now:%Y-%m-%d_%H-%M-%S}

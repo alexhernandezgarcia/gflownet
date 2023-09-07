@@ -1,3 +1,4 @@
+import os
 from datetime import datetime
 from pathlib import Path
 
@@ -39,14 +40,16 @@ class Logger:
         self.test = test
         self.oracle = oracle
         self.checkpoints = checkpoints
+        slurm_job_id = os.environ.get("SLURM_JOB_ID")
+
         if run_name is None:
             date_time = datetime.today().strftime("%d/%m-%H:%M:%S")
             run_name = "{}".format(
                 date_time,
             )
-        else:
-            # TODO: remove
-            run_name = run_name.replace("_", " ")
+            if slurm_job_id is not None:
+                run_name = slurm_job_id + " - " + run_name
+
         if self.do.online:
             import wandb
 
@@ -54,6 +57,8 @@ class Logger:
             wandb_config = OmegaConf.to_container(
                 config, resolve=True, throw_on_missing=True
             )
+            if slurm_job_id:
+                wandb_config["slurm_job_id"] = slurm_job_id
             self.run = self.wandb.init(
                 config=wandb_config, project=project_name, name=run_name
             )
@@ -90,6 +95,15 @@ class Logger:
             return True
         else:
             return not step % self.test.period
+
+    def do_top_k(self, step):
+        if self.test.top_k is None or self.test.top_k < 0:
+            return False
+
+        if self.test.top_k_period is None or self.test.top_k_period < 0:
+            return False
+
+        return step == 2 or step % self.test.top_k_period == 0
 
     def do_oracle(self, step):
         if self.oracle.period is None or self.oracle.period < 0:
@@ -160,18 +174,18 @@ class Logger:
         fig = self.wandb.Image(fig)
         self.wandb.log({key: fig}, step)
 
-    def log_plots(self, figs: list, step, use_context=True):
+    def log_plots(self, figs: list, step, fig_names=None, use_context=True):
         if not self.do.online:
             self.close_figs(figs)
             return
-        keys = ["True reward and GFlowNet samples", "GFlowNet KDE Policy", "Reward KDE"]
+        keys = fig_names or [f"Figure {i} at step {step}" for i in range(len(figs))]
         for key, fig in zip(keys, figs):
-            if use_context:
+            if use_context:  # fixme
                 context = self.context + "/" + key
             if fig is not None:
                 figimg = self.wandb.Image(fig)
                 self.wandb.log({key: figimg}, step)
-                plt.close(fig)
+        self.close_figs(figs)
 
     def close_figs(self, figs: list):
         for fig in figs:
@@ -181,8 +195,13 @@ class Logger:
     def log_metrics(self, metrics: dict, step: int, use_context: bool = True):
         if not self.do.online:
             return
-        for key, _ in metrics.items():
-            self.log_metric(key, metrics[key], step=step, use_context=use_context)
+        for key, value in metrics.items():
+            self.log_metric(key, value, step=step, use_context=use_context)
+
+    def log_summary(self, summary: dict):
+        if not self.do.online:
+            return
+        self.run.summary.update(summary)
 
     def log_train(
         self,
@@ -217,6 +236,7 @@ class Logger:
                     "logZ",
                     "lr",
                     "lr_logZ",
+                    "step",
                 ],
                 [
                     np.mean(rewards),
@@ -229,6 +249,7 @@ class Logger:
                     logz,
                     learning_rates[0],
                     learning_rates[1],
+                    step,
                 ],
             )
         )
@@ -307,6 +328,8 @@ class Logger:
         l1: float,
         kl: float,
         jsd: float,
+        corr_prob_traj_rewards: float,
+        nll_tt: float,
         step: int,
         use_context: bool,
     ):
@@ -314,8 +337,14 @@ class Logger:
             return
         metrics = dict(
             zip(
-                ["L1 error", "KL Div.", "Jensen Shannon Div."],
-                [l1, kl, jsd],
+                [
+                    "L1 error",
+                    "KL Div.",
+                    "Jensen Shannon Div.",
+                    "Corr. (test probs., rewards)",
+                    "NLL of test data",
+                ],
+                [l1, kl, jsd, corr_prob_traj_rewards, nll_tt],
             )
         )
         self.log_metrics(
