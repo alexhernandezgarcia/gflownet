@@ -35,3 +35,12 @@ class Proxy(ABC):
             Oracle etc)
         """
         pass
+
+    def infer_on_train_set(self):
+        """
+        Implement this method in specific proxies.
+        It should return the ground-truth and proxy values on the proxy's training set.
+        """
+        raise NotImplementedError(
+            f"{self.__class__.__name__} does not implement `infer_on_train_set`."
+        )

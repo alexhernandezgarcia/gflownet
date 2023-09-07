@@ -94,9 +94,11 @@ def test__get_action_space__returns_expected(
     assert set(action_space) == set(env_extended_action_space_2d.action_space)
 
 
-def test__all_env_common(env):
-    return common.test__all_env_common(env)
-
-
-def test__all_env_common(env_extended_action_space_3d):
+def test__all_env_common__standard(env_extended_action_space_3d):
+    print("\n\nCommon tests for 5x5 Grid with extended action space\n")
     return common.test__all_env_common(env_extended_action_space_3d)
+
+
+def test__all_env_common__extended(env):
+    print("\n\nCommon tests for 5x5 Grid with standard action space\n")
+    return common.test__all_env_common(env)
