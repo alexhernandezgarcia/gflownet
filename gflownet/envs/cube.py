@@ -685,7 +685,10 @@ class ContinuousCube(Cube):
         """
         Defines the structure of the output of the policy model, from which an
         action is to be determined or sampled, by returning a vector with a fixed
-        random policy.
+        random policy. The environment consists of both continuous and discrete
+        actions.
+
+        Continuous actions
 
         For each dimension d of the hyper-cube and component c of the mixture, the
         output of the policy should return
@@ -693,10 +696,12 @@ class ContinuousCube(Cube):
           2) the logit(alpha) parameter of the Beta distribution to sample the increment
           3) the logit(beta) parameter of the Beta distribution to sample the increment
 
-        Additionally, the policy output contains one logit (pos [-1]) of a Bernoulli
-        distribution to model the (discrete) forward probability of selecting the EOS
-        action and another logit (pos [-2]) for the (discrete) backward probability of
-        returning to the source node.
+        Discrete actions
+
+        Additionally, the policy output contains one logit of a Bernoulli distribution
+        to model the (discrete) forward probability of selecting the EOS action and
+        another logit for the (discrete) backward probability of returning to the
+        source node.
 
         Finally, the backward distribution requires a discrete probability distribution
         (Bernoulli) for each dimension, to model the probability of sampling an
