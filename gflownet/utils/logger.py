@@ -49,9 +49,6 @@ class Logger:
             )
             if slurm_job_id is not None:
                 run_name = slurm_job_id + " - " + run_name
-        else:
-            # TODO: remove
-            run_name = run_name.replace("_", " ")
 
         if self.do.online:
             import wandb
