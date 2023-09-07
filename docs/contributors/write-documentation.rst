@@ -6,7 +6,7 @@ How to write documentation
 
 In this document you will learn how to write good, informative, pretty and actionable documentation.
 
-It's not hard !
+It's not hard!
 
 Overview
 --------
