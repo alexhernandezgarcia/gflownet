@@ -411,18 +411,60 @@ class GFlowNetEnv:
         self.n_actions += 1
         return self.state, action, True
 
-    def sample_actions(
+    # TODO: do not apply temperature here but before calling this method.
+    # TODO: rethink whether sampling_method should be here.
+    def sample_actions_batch(
         self,
         policy_outputs: TensorType["n_states", "policy_output_dim"],
-        sampling_method: str = "policy",
-        mask_invalid_actions: TensorType["n_states", "policy_output_dim"] = None,
-        temperature_logits: float = 1.0,
-        max_sampling_attempts: int = 10,
+        mask: Optional[TensorType["n_states", "policy_output_dim"]] = None,
+        states_from: Optional[List] = None,
+        is_backward: Optional[bool] = False,
+        sampling_method: Optional[str] = "policy",
+        temperature_logits: Optional[float] = 1.0,
+        max_sampling_attempts: Optional[int] = 10,
     ) -> Tuple[List[Tuple], TensorType["n_states"]]:
         """
-        Samples a batch of actions from a batch of policy outputs. This implementation
-        is generally valid for all discrete environments but continuous environments
-        will likely have to implement its own.
+        Samples a batch of actions from a batch of policy outputs.
+
+        This implementation is generally valid for all discrete environments but
+        continuous or mixed environments need to reimplement this method.
+
+        The method is valid for both forward and backward actions in the case of
+        discrete environments. Some continuous environments may also be agnostic to the
+        difference between forward and backward actions since the necessary information
+        can be contained in the mask. However, some continuous environments do need to
+        know whether the actions are forward of backward, which is why this can be
+        specified by the argument is_backward.
+
+        Most environments do not need to know the states from which the actions are to
+        be sampled since the necessary information is in both the policy outputs and
+        the mask. However, some continuous environments do need to know the originating
+        states in order to construct the actions, which is why one of the arguments is
+        states_from.
+
+        Args
+        ----
+        policy_outputs : tensor
+            The output of the GFlowNet policy model.
+
+        mask : tensor
+            The mask of invalid actions. For continuous or mixed environments, the mask
+            may be tensor with an arbitrary length contaning information about special
+            states, as defined elsewhere in the environment.
+
+        states_from : tensor
+            The states originating the actions, in GFlowNet format. Ignored in discrete
+            environments and only required in certain continuous environments.
+
+        is_backward : bool
+            True if the actions are backward, False if the actions are forward
+            (default). Ignored in discrete environments and only required in certain
+            continuous environments.
+
+        max_sampling_attempts : int
+            Maximum of number of attempts to sample actions that are not invalid
+            according to the mask before throwing an error, in order to ensure that
+            non-invalid actions are returned without getting stuck.
         """
         device = policy_outputs.device
         ns_range = torch.arange(policy_outputs.shape[0], device=device)
@@ -431,21 +473,19 @@ class GFlowNetEnv:
         elif sampling_method == "policy":
             logits = policy_outputs
             logits /= temperature_logits
-        if mask_invalid_actions is not None:
-            assert not torch.all(mask_invalid_actions), dedent(
+        if mask is not None:
+            assert not torch.all(mask), dedent(
                 """
             All actions in the mask are invalid.
             """
             )
-            logits[mask_invalid_actions] = -torch.inf
+            logits[mask] = -torch.inf
         else:
-            mask_invalid_actions = torch.zeros(
-                policy_outputs.shape, dtype=torch.bool, device=device
-            )
+            mask = torch.zeros(policy_outputs.shape, dtype=torch.bool, device=device)
         # Make sure that a valid action is sampled, otherwise throw an error.
         for _ in range(max_sampling_attempts):
             action_indices = Categorical(logits=logits).sample()
-            if not torch.any(mask_invalid_actions[ns_range, action_indices]):
+            if not torch.any(mask[ns_range, action_indices]):
                 break
         else:
             raise ValueError(
@@ -518,8 +558,11 @@ class GFlowNetEnv:
             ),
             0,
         )
-        actions, _ = self.sample_actions(
-            policy_outputs=random_policy, mask_invalid_actions=mask_invalid
+        actions, _ = self.sample_actions_batch(
+            random_policy,
+            mask_invalid,
+            [self.state],
+            backward,
         )
         action = actions[0]
         if backward:
@@ -888,7 +931,7 @@ class GFlowNetEnv:
         at all states (intermediate states are not fully constructed objects) should
         overwrite this method and check for validity.
         """
-        self.state = state
+        self.state = copy(state)
         self.done = done
         return self
 
@@ -911,7 +954,7 @@ class GFlowNetEnv:
             return state_x == state_y
 
     @staticmethod
-    def isclose(state_x, state_y):
+    def isclose(state_x, state_y, atol=1e-8):
         if torch.is_tensor(state_x) and torch.is_tensor(state_y):
             # Check for nans because (torch.nan == torch.nan) == False
             x_nan = torch.isnan(state_x)
@@ -919,10 +962,10 @@ class GFlowNetEnv:
                 y_nan = torch.isnan(state_y)
                 if not torch.equal(x_nan, y_nan):
                     return False
-                return torch.all(torch.isclose(state_x[~x_nan], state_y[~y_nan]))
+                return torch.all(torch.isclose(state_x[~x_nan], state_y[~y_nan], atol))
             return torch.equal(state_x, state_y)
         else:
-            return np.all(np.isclose(state_x, state_y))
+            return np.all(np.isclose(state_x, state_y, atol))
 
     def set_energies_stats(self, energies_stats):
         self.energies_stats = energies_stats
