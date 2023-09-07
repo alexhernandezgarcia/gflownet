@@ -160,5 +160,5 @@ hoverxref_mathjax = True
 ogp_site_url = "https://gflownet.readthedocs.io/en/make-docs/"
 ogp_social_cards = {
     "enable": True,
-    "image": "https://pbs.twimg.com/media/FEfjdnJUUAMj2Ik.jpg",
+    "image": "./_static/images/gflownet-logo.png",
 }
