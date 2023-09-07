@@ -953,7 +953,13 @@ class GFlowNetAgent:
         Computes metrics by sampling trajectories from the forward policy.
         """
         if self.buffer.test_pkl is None:
-            l1, kl, jsd, corr_prob_traj_rewards, nll_tt = self.l1, self.kl, self.jsd, self.corr_prob_traj_rewards, self.nll_tt,
+            l1, kl, jsd, corr_prob_traj_rewards, nll_tt = (
+                self.l1,
+                self.kl,
+                self.jsd,
+                self.corr_prob_traj_rewards,
+                self.nll_tt,
+            )
             # TODO: Improve conditions where x_sampled is obtained
             x_sampled = None
         else:
@@ -1020,8 +1026,8 @@ class GFlowNetAgent:
                     # Fit KDE with samples from reward
                     kde_true = self.env.fit_kde(
                         x_from_reward,
-                    kernel=self.logger.test.kde.kernel,
-                    bandwidth=self.logger.test.kde.bandwidth,
+                        kernel=self.logger.test.kde.kernel,
+                        bandwidth=self.logger.test.kde.bandwidth,
                     )
                     # Estimate true log density using test samples
                     # TODO: this may be specific-ish for the torus or not
