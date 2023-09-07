@@ -74,6 +74,7 @@ FAQ
         And refer to its members: :meth:`~gflownet.proxy.crystals.crystal.Stage`
 
         .. note::
+
             This is a note admonition.
 
         """
