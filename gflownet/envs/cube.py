@@ -634,10 +634,10 @@ class ContinuousCube(Cube):
     action space consists of the increment of each dimension d, modelled by a mixture
     of Beta distributions. The states space is the value of each dimension. In order to
     ensure that all trajectories are of finite length, actions have a minimum increment
-    for all dimensions determined by min_incr.  If the value of any dimension is larger
-    than 1 - min_incr, then the trajectory is ended (the only next valid action is
-    EOS). In order to ensure the coverage of the state space, the first action (from
-    the source state) is not constrained by the minimum increment.
+    for all dimensions determined by min_incr. If the value of any dimension is larger
+    than 1 - min_incr, then that dimension can be further incremented. In order to
+    ensure the coverage of the state space, the first action (from the source state) is
+    not constrained by the minimum increment.
 
     Actions do not represent absolute increments but rather the relative increment with
     respect to the distance to the edges of the hyper-cube, from the minimum increment.
@@ -656,7 +656,7 @@ class ContinuousCube(Cube):
 
     min_incr : float
         Minimum increment in the actions, expressed as the fraction of max_val. This is
-        necessary to ensure coverage of the state space.
+        necessary to ensure that trajectories have finite length.
     """
 
     def __init__(self, **kwargs):
