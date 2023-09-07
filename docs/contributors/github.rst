@@ -24,11 +24,10 @@ Typical workflow
     2. Try to commit in a granular way, not too many changes at once.
 3. As soon as you have a couple commits, push your branch to Github.
 4. As soon as you have pushed, create a **draft** pull request.
-
-   a. The PR's title should be self-evident
-   b. As long as the PR is a draft, you can also add ``[WIP]`` to the title (yes it's redundant, but it's also more visible).
-   c. The *draft* / *WIP* status means everyone knows this is work in progress, they won't expect it to work or to be finished. But it means **they can see what you're working on**.
-
+    1. The PR's title should be self-evident
+    2. As long as the PR is a draft, you can also add ``[WIP]`` to the title (yes it's redundant, but it's also more visible).
+    3. The *draft* / *WIP* status means everyone knows this is work in progress, they won't expect it to work or to be finished. But it means **they can see what you're working on**.
+4. Try to make a coherent and ideally small PR in order to ease the review process. If the PR is to large or it has too diverse changes, consider breaking it into multiple PRs. You may find ``git cherry-pick`` and ``git rebase -i`` helpful for spinning off certain commits into a new branch/PR.
 5. Make sure that you have written all the :doc:`appropriate docstrings </contributors/write-docstrings>`.
 6. Make sure the PR's comment is complete. Emphasize major changes, especially breaking ones like new dependencies and provide examples of how to use a new feature.
 7. Before you are done, run ``black``, ``isort`` and ``flake8`` on your code (see our :doc:`conventions </contributors/conventions>`).
