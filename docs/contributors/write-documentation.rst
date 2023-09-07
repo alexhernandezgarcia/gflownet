@@ -26,7 +26,7 @@ For instance: :meth:`~gflownet.gflownet.GFlowNetAgent.trajectorybalance_loss` or
 
     This page is about learning the syntax of ``.rst`` and Sphinx. It is not about learning how to write good, informative docstrings.
     Refer to `Google's docstring guide <https://google.github.io/styleguide/pyguide.html#38-comments-and-docstrings>`_ for that, or
-    checkout full-fleshed examples in `Numpy style <https://www.sphinx-doc.org/en/master/usage/extensions/example_numpy.html#example-numpy>`_ or `Google style <https://www.sphinx-doc.org/en/master/usage/extensions/example_google.html#example-google>`_. We also have a short intro in the :doc:`next section </contributors/write-docstrings>`.
+    checkout full-fledged examples in `Numpy style <https://www.sphinx-doc.org/en/master/usage/extensions/example_numpy.html#example-numpy>`_ or `Google style <https://www.sphinx-doc.org/en/master/usage/extensions/example_google.html#example-google>`_. We also have a short intro in the :doc:`next section </contributors/write-docstrings>`.
 
 Learn by example
 ^^^^^^^^^^^^^^^^
@@ -37,7 +37,7 @@ Click on "*Code for the example*" to look at the ``.rst`` code that generated wh
 
 .. tab-set::
 
-    .. tab-item:: Full-fleshed ``.rst`` example
+    .. tab-item:: Full-fledged ``.rst`` example
 
         .. include:: example.rst
 
