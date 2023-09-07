@@ -98,7 +98,7 @@ FAQ
 
     Currently, ``autoapi`` is setup to consider the documention of a class to be the same as the documentation for the ``__init__`` method of the class.
 
-    This can be changed by changing the ``autoapi_python_class_content = "init"`` configuration variable in ``docs/conf.py``. See `AutoAPI <https://sphinx-autoapi.readthedocs.io/en/latest/reference/config.html#confval-autoapi_python_class_content>`_ for more details.
+    This can be modified by changing the ``autoapi_python_class_content = "init"`` configuration variable in ``docs/conf.py``. See `AutoAPI <https://sphinx-autoapi.readthedocs.io/en/latest/reference/config.html#confval-autoapi_python_class_content>`_ for more details.
 
 .. dropdown:: (:octicon:`alert` advanced) How do I modify the main API Reference page?
 
