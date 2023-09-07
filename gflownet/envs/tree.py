@@ -834,9 +834,9 @@ class Tree(GFlowNetEnv):
         It replaces the NaNs by -2s, removes the activity attribute, and explicitly
         appends the attribute vector of the active node (if present).
         """
-        m, n = torch.where(states[:, :-1, Attribute.ACTIVE] == Status.ACTIVE)
+        rows, cols = torch.where(states[:, :-1, Attribute.ACTIVE] == Status.ACTIVE)
         active_features = torch.full((states.shape[0], 1, 4), -2.0)
-        active_features[m] = states[m, n, : Attribute.ACTIVE].unsqueeze(1)
+        active_features[rows] = states[rows, cols, : Attribute.ACTIVE].unsqueeze(1)
         states[states.isnan()] = -2
         states = torch.cat([states[:, :, : Attribute.ACTIVE], active_features], dim=1)
         return states.flatten(start_dim=1)

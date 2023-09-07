@@ -7,7 +7,4 @@ forward:
   checkpoint: null
   reload_ckpt: False
 
-backward:
-  shared_weights: True
-  checkpoint: null
-  reload_ckpt: False
+backward: null

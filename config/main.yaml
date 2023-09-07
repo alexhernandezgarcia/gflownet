@@ -2,7 +2,7 @@ defaults:
   - _self_
   - env: grid
   - gflownet: flowmatch
-  - policy: mlp
+  - policy: mlp_${gflownet}
   - proxy: corners
   - logger: wandb
   - user: alex

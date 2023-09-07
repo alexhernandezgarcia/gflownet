@@ -15,6 +15,17 @@ class TreeProxy(Proxy):
     """
 
     def __init__(self, use_prior: bool = True, beta: float = 1.0, **kwargs):
+        """
+        Parameters
+        ----------
+        use_prior : bool
+            Whether to use -likelihood * prior for energy computation or just the
+            -likelihood.
+        beta : float
+            Beta coefficient in `prior = np.exp(-self.beta * n_nodes)`. Note that
+            this is temporary prior implementation that was used for debugging,
+            in combination with reward_func="boltzmann" it doesn't make much sense.
+        """
         super().__init__(**kwargs)
 
         self.use_prior = use_prior
