@@ -48,14 +48,20 @@ class Cube(GFlowNetEnv, ABC):
         beta_params_min: float = 0.1,
         beta_params_max: float = 2.0,
         fixed_distr_params: dict = {
+            "beta_weights": 1.0,
             "beta_alpha": 2.0,
             "beta_beta": 5.0,
-            "bernoulli_logit": -2.3,
+            "bernoulli_bw_zero_incr_logits": 1.0,
+            "bernoulli_source_logit": 1.0,
+            "bernoulli_eos_logit": 1.0,
         },
         random_distr_params: dict = {
+            "beta_weights": 1.0,
             "beta_alpha": 1.0,
             "beta_beta": 1.0,
-            "bernoulli_logit": -0.693,
+            "bernoulli_bw_zero_incr_logits": 1.0,
+            "bernoulli_source_logit": 1.0,
+            "bernoulli_eos_logit": 1.0,
         },
         **kwargs,
     ):
@@ -696,32 +702,126 @@ class ContinuousCube(Cube):
           2) the logit(alpha) parameter of the Beta distribution to sample the increment
           3) the logit(beta) parameter of the Beta distribution to sample the increment
 
+        These parameters are the first n_dim * n_comp * 3 of the policy output such
+        that the first 3 x C elements correspond to the first dimension, and so on.
+
         Discrete actions
 
-        Additionally, the policy output contains one logit of a Bernoulli distribution
-        to model the (discrete) forward probability of selecting the EOS action and
-        another logit for the (discrete) backward probability of returning to the
-        source node.
+        Additionally, the policy output contains one logit (pos -1) of a Bernoulli
+        distribution to model the (discrete) forward probability of selecting the EOS
+        action and another logit (pos -2) for the (discrete) backward probability of
+        returning to the source node.
 
         Finally, the backward distribution requires a discrete probability distribution
         (Bernoulli) for each dimension, to model the probability of sampling an
         increment equal to zero when the value at the dimension is larger than
-        1 - min_incr. These are stored at [0:n_dim].
+        1 - min_incr. These are stored after the continuous part.
 
         Therefore, the output of the policy model has dimensionality D x C x 3 + 2,
         where D is the number of dimensions (self.n_dim) and C is the number of
         components (self.n_comp).
         """
-        policy_output = torch.ones(
-            self.n_dim + self.n_dim * self.n_comp * 3 + 2,
-            device=self.device,
+        # Parameters for continuous actions
+        self._len_policy_output_cont = self.n_dim * self.n_comp * 3
+        policy_output_cont = torch.empty(
+            self._len_policy_output_cont,
             dtype=self.float,
+            device=self.device,
         )
-        policy_output[self.n_dim + 1 : -2 : 3] = params["beta_alpha"]
-        policy_output[self.n_dim + 2 : -2 : 3] = params["beta_beta"]
-        policy_output[-2] = params["bernoulli_logit"]
-        policy_output[-1] = params["bernoulli_logit"]
+        policy_output_cont[0::3] = params["beta_weights"]
+        policy_output_cont[1::3] = params["beta_alpha"]
+        policy_output_cont[2::3] = params["beta_beta"]
+        # Logits for Bernouilli distributions to model backward zero increments
+        policy_output_bw_zero_incrs = torch.full(
+            self.n_dim,
+            params["bernoulli_bw_zero_incr_logits"],
+            dtype=self.float,
+            device=self.device,
+        )
+        # Logit for Bernoulli distribution to model EOS action
+        policy_output_eos = torch.tensor(
+            [params["bernoulli_eos_logit"]], dtype=self.float, device=self.device
+        )
+        # Logit for Bernoulli distribution to model back-to-source action
+        policy_output_source = torch.tensor(
+            [params["bernoulli_source_logit"]], dtype=self.float, device=self.device
+        )
+        # Concatenate all outputs
+        policy_output = torch.cat(
+            policy_output_cont,
+            policy_output_bw_zero_incrs,
+            policy_output_source,
+            policy_output_eos,
+        )
         return policy_output
+
+    def _get_policy_betas_weights(
+        self, policy_output: TensorType["n_states", "policy_output_dim"]
+    ) -> TensorType["n_states", "n_dim * n_comp"]:
+        """
+        Reduces a given policy output to the part corresponding to the weights of the
+        mixture of Beta distributions.
+
+        See: get_policy_output()
+        """
+        return policy_output[0 : self._len_policy_output_cont : 3]
+
+    def _get_policy_betas_alpha(
+        self, policy_output: TensorType["n_states", "policy_output_dim"]
+    ) -> TensorType["n_states", "n_dim * n_comp"]:
+        """
+        Reduces a given policy output to the part corresponding to the alphas of the
+        mixture of Beta distributions.
+
+        See: get_policy_output()
+        """
+        return policy_output[1 : self._len_policy_output_cont : 3]
+
+    def _get_policy_betas_beta(
+        self, policy_output: TensorType["n_states", "policy_output_dim"]
+    ) -> TensorType["n_states", "n_dim * n_comp"]:
+        """
+        Reduces a given policy output to the part corresponding to the betas of the
+        mixture of Beta distributions.
+
+        See: get_policy_output()
+        """
+        return policy_output[2 : self._len_policy_output_cont : 3]
+
+    def _get_policy_bw_zero_increment_logits(
+        self, policy_output: TensorType["n_states", "policy_output_dim"]
+    ) -> TensorType["n_states", "n_dim"]:
+        """
+        Reduces a given policy output to the part corresponding to the logits of the
+        Bernoulli distributions to model the backward zero increments of each dimension.
+
+        See: get_policy_output()
+        """
+        return policy_output[
+            self._len_policy_output_cont : self._len_policy_output_cont + self.n_dim
+        ]
+
+    def _get_policy_eos_logit(
+        self, policy_output: TensorType["n_states", "policy_output_dim"]
+    ) -> TensorType["n_states", "1"]:
+        """
+        Reduces a given policy output to the part corresponding to the logit of the
+        Bernoulli distribution to model the EOS action.
+
+        See: get_policy_output()
+        """
+        return policy_output[-1]
+
+    def _get_policy_source_logit(
+        self, policy_output: TensorType["n_states", "policy_output_dim"]
+    ) -> TensorType["n_states", "1"]:
+        """
+        Reduces a given policy output to the part corresponding to the logit of the
+        Bernoulli distribution to model the back-to-source action.
+
+        See: get_policy_output()
+        """
+        return policy_output[-2]
 
     def get_mask_invalid_actions_forward(
         self,

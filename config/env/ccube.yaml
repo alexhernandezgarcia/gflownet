@@ -14,13 +14,19 @@ beta_params_max: 2.0
 min_incr: 0.1
 n_comp: 1
 fixed_distribution:
+  beta_weights: 1.0
   beta_alpha: 2.0
   beta_beta: 5.0
-  bernoulli_logit: -2.3
+  bernoulli_bw_zero_incr_logits: 1.0
+  bernoulli_source_logit: 1.0
+  bernoulli_eos_logit: 1.0
 random_distribution:
+  beta_weights: 1.0
   beta_alpha: 1.0
   beta_beta: 1.0
-  bernoulli_logit: -0.693
+  bernoulli_bw_zero_incr_logits: 1.0
+  bernoulli_source_logit: 1.0
+  bernoulli_eos_logit: 1.0
 # Buffer
 buffer:
   data_path: null
