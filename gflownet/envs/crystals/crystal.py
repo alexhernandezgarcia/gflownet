@@ -523,19 +523,17 @@ class Crystal(GFlowNetEnv):
         )
 
     def set_state(self, state: List, done: Optional[bool] = False):
-        if not done:
-            # Currently, set_state is only used in the replay buffer, and done is always
-            # True. Also, it's not straightforward to determine which of the sub-envs
-            # should be done given a state. Because of that, for now we just assume
-            # that done will be True, and raise an error otherwise.
-            raise NotImplementedError
+        super().set_state(state, done)
 
-        super().set_state(state, True)
+        stage = self._get_stage(state)
+        composition_done = stage in [Stage.SPACE_GROUP, Stage.LATTICE_PARAMETERS]
+        space_group_done = stage == Stage.LATTICE_PARAMETERS
+        lattice_parameters_done = done
 
-        self.composition.set_state(self._get_composition_state(state), True)
-        self.space_group.set_state(self._get_space_group_state(state), True)
+        self.composition.set_state(self._get_composition_state(state), composition_done)
+        self.space_group.set_state(self._get_space_group_state(state), space_group_done)
         self.lattice_parameters.set_state(
-            self._get_lattice_parameters_state(state), True
+            self._get_lattice_parameters_state(state), lattice_parameters_done
         )
 
     def state2readable(self, state: Optional[List[int]] = None) -> str:
