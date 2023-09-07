@@ -708,36 +708,45 @@ class Tree(GFlowNetEnv):
         # Build actions
         actions_cont = [(ActionType.PICK_THRESHOLD, -1, th.item()) for th in thresholds]
         actions = []
-        for is_discrete in is_discrete:
-            if is_discrete:
+        for is_discrete_i in is_discrete:
+            if is_discrete_i:
                 actions.append(actions_discrete.pop(0))
             else:
                 actions.append(actions_cont.pop(0))
         return actions, logprobs
 
-    def sample_actions(
+    def sample_actions_batch(
         self,
         policy_outputs: TensorType["n_states", "policy_output_dim"],
-        sampling_method: str = "policy",
-        mask_invalid_actions: TensorType["n_states", "action_space_dim"] = None,
-        temperature_logits: float = 1.0,
+        mask: Optional[TensorType["n_states", "policy_output_dim"]] = None,
+        states_from: Optional[List] = None,
+        is_backward: Optional[bool] = False,
+        sampling_method: Optional[str] = "policy",
+        temperature_logits: Optional[float] = 1.0,
+        max_sampling_attempts: Optional[int] = 10,
     ) -> Tuple[List[Tuple], TensorType["n_states"]]:
         """
         Samples a batch of actions from a batch of policy outputs.
         """
         if self.continuous:
-            return self.sample_actions_continuous(
+            return self.sample_actions_batch_continuous(
                 policy_outputs=policy_outputs,
+                mask=mask,
+                states_from=states_from,
+                is_backward=is_backward,
                 sampling_method=sampling_method,
-                mask_invalid_actions=mask_invalid_actions,
                 temperature_logits=temperature_logits,
+                max_sampling_attempts=max_sampling_attempts,
             )
         else:
-            return super().sample_actions(
+            return super().sample_actions_batch(
                 policy_outputs=policy_outputs,
+                mask=mask,
+                states_from=states_from,
+                is_backward=is_backward,
                 sampling_method=sampling_method,
-                mask_invalid_actions=mask_invalid_actions,
                 temperature_logits=temperature_logits,
+                max_sampling_attempts=max_sampling_attempts,
             )
 
     def get_logprobs_continuous(
