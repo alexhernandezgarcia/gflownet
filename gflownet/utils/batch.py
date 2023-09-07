@@ -361,7 +361,7 @@ class Batch:
 
     def states2policy(
         self,
-        states: Optional[Union[List, TensorType["n_states", "..."]]] = None,
+        states: Optional[Union[List[List], List[TensorType["n_states", "..."]]]] = None,
         traj_indices: Optional[Union[List, TensorType["n_states"]]] = None,
     ) -> TensorType["n_states", "state_policy_dims"]:
         """
@@ -370,8 +370,8 @@ class Batch:
 
         Args
         ----
-        states: list or torch.tensor
-            States in GFlowNet format.
+        states: list
+            List of states in GFlowNet format.
 
         traj_indices: list or torch.tensor
             Ids indicating which env corresponds to each state in states. It is only
@@ -417,7 +417,7 @@ class Batch:
 
     def states2proxy(
         self,
-        states: Optional[Union[List, TensorType["n_states", "..."]]] = None,
+        states: Optional[Union[List[List], List[TensorType["n_states", "..."]]]] = None,
         traj_indices: Optional[Union[List, TensorType["n_states"]]] = None,
     ) -> Union[
         TensorType["n_states", "state_proxy_dims"], npt.NDArray[np.float32], List
@@ -431,8 +431,8 @@ class Batch:
 
         Args
         ----
-        states: list or torch.tensor
-            States in GFlowNet format.
+        states: list
+            List of states in GFlowNet format.
 
         traj_indices: list or torch.tensor
             Ids indicating which env corresponds to each state in states. It is only

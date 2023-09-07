@@ -522,6 +522,20 @@ class Crystal(GFlowNetEnv):
             dim=1,
         )
 
+    def set_state(self, state: List, done: Optional[bool] = False):
+        super().set_state(state, done)
+
+        stage = self._get_stage(state)
+        composition_done = stage in [Stage.SPACE_GROUP, Stage.LATTICE_PARAMETERS]
+        space_group_done = stage == Stage.LATTICE_PARAMETERS
+        lattice_parameters_done = done
+
+        self.composition.set_state(self._get_composition_state(state), composition_done)
+        self.space_group.set_state(self._get_space_group_state(state), space_group_done)
+        self.lattice_parameters.set_state(
+            self._get_lattice_parameters_state(state), lattice_parameters_done
+        )
+
     def state2readable(self, state: Optional[List[int]] = None) -> str:
         if state is None:
             state = self.state

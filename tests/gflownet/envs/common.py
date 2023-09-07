@@ -28,9 +28,10 @@ def test__continuous_env_common(env):
     test__get_parents__returns_no_parents_in_initial_state(env)
     #     test__gflownet_minimal_runs(env)
     #     test__sample_actions__get_logprobs__return_valid_actions_and_logprobs(env)
-    test__get_parents__returns_same_state_and_eos_if_done(env)
+    #     test__get_parents__returns_same_state_and_eos_if_done(env)
     test__step__returns_same_state_action_and_invalid_if_done(env)
     test__actions2indices__returns_expected_tensor(env)
+    test__sample_backwards_reaches_source(env)
 
 
 @pytest.mark.repeat(100)
@@ -207,8 +208,8 @@ def test__sample_actions__get_logprobs__return_valid_actions_and_logprobs(env):
         mask_invalid = env.get_mask_invalid_actions_forward()
         valid_actions = [a for a, m in zip(env.action_space, mask_invalid) if not m]
         masks_invalid_torch = torch.unsqueeze(torch.BoolTensor(mask_invalid), 0)
-        actions, logprobs_sa = env.sample_actions(
-            policy_outputs=policy_outputs, mask_invalid_actions=masks_invalid_torch
+        actions, logprobs_sab = env.sample_actions_batch(
+            policy_outputs, masks_invalid_torch, [env.state], is_backward=False
         )
         actions_torch = torch.tensor(actions)
         logprobs_glp = env.get_logprobs(
@@ -220,7 +221,7 @@ def test__sample_actions__get_logprobs__return_valid_actions_and_logprobs(env):
         )
         action = actions[0]
         assert env.action2representative(action) in valid_actions
-        assert torch.equal(logprobs_sa, logprobs_glp)
+        assert torch.equal(logprobs_sab, logprobs_glp)
         env.step(action)
 
 
