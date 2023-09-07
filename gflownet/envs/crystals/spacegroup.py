@@ -609,19 +609,19 @@ class SpaceGroup(GFlowNetEnv):
         False otherwise.
         """
         # Get list of space groups compatible with the composition
-        spacegroups = [self.n_atoms_compatibility_dict[sg] for sg in self.space_groups]
+        space_groups = [self.n_atoms_compatibility_dict[sg] for sg in self.space_groups]
 
         # Prune the list of space groups to those compatible with the provided crystal-
         # lattice system
         if cls_idx is not None:
             space_groups_cls = self.crystal_lattice_systems[cls_idx]["space_groups"]
-            space_groups = list(set(spacegroups).intersection(set(space_groups_cls)))
+            space_groups = list(set(space_groups).intersection(set(space_groups_cls)))
 
         # Prune the list of space groups to those compatible with the provided point
         # symmetry
         if ps_idx is not None:
             space_groups_ps = self.point_symmetries[ps_idx]["space_groups"]
-            space_groups = list(set(spacegroups).intersection(set(space_groups_ps)))
+            space_groups = list(set(space_groups).intersection(set(space_groups_ps)))
 
         return len(space_groups) > 0
 

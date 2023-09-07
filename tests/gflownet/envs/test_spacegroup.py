@@ -283,6 +283,5 @@ def test__special_cases_composition_compatibility(n_atoms, cls_idx, ps_idx):
     assert valid is False
 
 
-@pytest.mark.skip(reason="skip while developping other tests")
 def test__all_env_common(env):
     return common.test__all_env_common(env)
