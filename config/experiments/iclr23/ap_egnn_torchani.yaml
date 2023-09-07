@@ -19,6 +19,8 @@ env:
   reward_func: boltzmann
   reward_beta: 32
   reward_sampling_method: nested
+  buffer:
+    replay_capacity: 1000
 
 # GFlowNet hyperparameters
 gflownet:
