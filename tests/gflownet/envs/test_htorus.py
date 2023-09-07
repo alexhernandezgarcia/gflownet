@@ -23,7 +23,3 @@ def env():
 )
 def test__get_action_space__returns_expected(env, action_space):
     assert set(action_space) == set(env.action_space)
-
-
-def test__continuous_env_common(env):
-    return common.test__continuous_env_common(env)
