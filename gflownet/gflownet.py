@@ -953,119 +953,117 @@ class GFlowNetAgent:
         Computes metrics by sampling trajectories from the forward policy.
         """
         if self.buffer.test_pkl is None:
-            return (
+            l1, kl, jsd, corr_prob_traj_rewards, nll_tt = (
                 self.l1,
                 self.kl,
                 self.jsd,
                 self.corr_prob_traj_rewards,
                 self.nll_tt,
-                (None,),
-                {},
             )
-        with open(self.buffer.test_pkl, "rb") as f:
-            dict_tt = pickle.load(f)
-            x_tt = dict_tt["x"]
-
-        # Compute correlation between the rewards of the test data and the log
-        # likelihood of the data according the the GFlowNet policy; and NLL.
-        # TODO: organise code for better efficiency and readability
-        logprobs_x_tt = self.estimate_logprobs_data(
-            x_tt,
-            n_trajectories=self.logger.test.n_trajs_logprobs,
-            max_data_size=self.logger.test.max_data_logprobs,
-        )
-        rewards_x_tt = self.env.reward_batch(x_tt)
-        corr_prob_traj_rewards = np.corrcoef(
-            np.exp(logprobs_x_tt.cpu().numpy()), rewards_x_tt
-        )[0, 1]
-        nll_tt = -logprobs_x_tt.mean().item()
-
-        batch, _ = self.sample_batch(n_forward=self.logger.test.n, train=False)
-        assert batch.is_valid()
-        x_sampled = batch.get_terminating_states()
-
-        if self.buffer.test_type is not None and self.buffer.test_type == "all":
-            if "density_true" in dict_tt:
-                density_true = dict_tt["density_true"]
-            else:
-                rewards = self.env.reward_batch(x_tt)
-                z_true = rewards.sum()
-                density_true = rewards / z_true
-                with open(self.buffer.test_pkl, "wb") as f:
-                    dict_tt["density_true"] = density_true
-                    pickle.dump(dict_tt, f)
-            hist = defaultdict(int)
-            for x in x_sampled:
-                hist[tuple(x)] += 1
-            z_pred = sum([hist[tuple(x)] for x in x_tt]) + 1e-9
-            density_pred = np.array([hist[tuple(x)] / z_pred for x in x_tt])
-            log_density_true = np.log(density_true + 1e-8)
-            log_density_pred = np.log(density_pred + 1e-8)
-        elif self.buffer.test_type == "random":
-            # TODO: refactor
-            env_metrics = self.env.test(x_sampled)
-            return (
-                self.l1,
-                self.kl,
-                self.jsd,
-                self.corr_prob_traj_rewards,
-                self.nll_tt,
-                (None,),
-                env_metrics,
+            # TODO: Improve conditions where x_sampled is obtained
+            x_sampled = None
+        else:
+            with open(self.buffer.test_pkl, "rb") as f:
+                dict_tt = pickle.load(f)
+                x_tt = dict_tt["x"]
+            # Compute correlation between the rewards of the test data and the log
+            # likelihood of the data according the the GFlowNet policy; and NLL.
+            # TODO: organise code for better efficiency and readability
+            logprobs_x_tt = self.estimate_logprobs_data(
+                x_tt,
+                n_trajectories=self.logger.test.n_trajs_logprobs,
+                max_data_size=self.logger.test.max_data_logprobs,
             )
-        elif self.continuous:
-            # TODO make it work with conditional env
-            x_sampled = torch2np(self.env.statebatch2proxy(x_sampled))
-            x_tt = torch2np(self.env.statebatch2proxy(x_tt))
-            kde_pred = self.env.fit_kde(
-                x_sampled,
-                kernel=self.logger.test.kde.kernel,
-                bandwidth=self.logger.test.kde.bandwidth,
-            )
-            if "log_density_true" in dict_tt and "kde_true" in dict_tt:
-                log_density_true = dict_tt["log_density_true"]
-                kde_true = dict_tt["kde_true"]
-            else:
-                # Sample from reward via rejection sampling
-                x_from_reward = self.env.sample_from_reward(
-                    n_samples=self.logger.test.n
-                )
-                x_from_reward = torch2np(self.env.statetorch2proxy(x_from_reward))
-                # Fit KDE with samples from reward
-                kde_true = self.env.fit_kde(
-                    x_from_reward,
+            rewards_x_tt = self.env.reward_batch(x_tt)
+            corr_prob_traj_rewards = np.corrcoef(
+                np.exp(logprobs_x_tt.cpu().numpy()), rewards_x_tt
+            )[0, 1]
+            nll_tt = -logprobs_x_tt.mean().item()
+
+            batch, _ = self.sample_batch(n_forward=self.logger.test.n, train=False)
+            assert batch.is_valid()
+            x_sampled = batch.get_terminating_states()
+
+            if self.buffer.test_type is not None and self.buffer.test_type == "all":
+                if "density_true" in dict_tt:
+                    density_true = dict_tt["density_true"]
+                else:
+                    rewards = self.env.reward_batch(x_tt)
+                    z_true = rewards.sum()
+                    density_true = rewards / z_true
+                    with open(self.buffer.test_pkl, "wb") as f:
+                        dict_tt["density_true"] = density_true
+                        pickle.dump(dict_tt, f)
+                hist = defaultdict(int)
+                for x in x_sampled:
+                    hist[tuple(x)] += 1
+                z_pred = sum([hist[tuple(x)] for x in x_tt]) + 1e-9
+                density_pred = np.array([hist[tuple(x)] / z_pred for x in x_tt])
+                log_density_true = np.log(density_true + 1e-8)
+                log_density_pred = np.log(density_pred + 1e-8)
+            elif self.buffer.test_type == "random":
+                # TODO: refactor
+                env_metrics = self.env.test(x_sampled)
+                return l1, kl, jsd, corr_prob_traj_rewards, nll_tt, (None,), env_metrics
+            elif self.continuous:
+                # TODO make it work with conditional env
+                x_sampled = torch2np(self.env.statebatch2proxy(x_sampled))
+                x_tt = torch2np(self.env.statebatch2proxy(x_tt))
+                kde_pred = self.env.fit_kde(
+                    x_sampled,
                     kernel=self.logger.test.kde.kernel,
                     bandwidth=self.logger.test.kde.bandwidth,
                 )
-                # Estimate true log density using test samples
+                if "log_density_true" in dict_tt and "kde_true" in dict_tt:
+                    log_density_true = dict_tt["log_density_true"]
+                    kde_true = dict_tt["kde_true"]
+                else:
+                    # Sample from reward via rejection sampling
+                    x_from_reward = self.env.sample_from_reward(
+                        n_samples=self.logger.test.n
+                    )
+                    x_from_reward = torch2np(self.env.statetorch2proxy(x_from_reward))
+                    # Fit KDE with samples from reward
+                    kde_true = self.env.fit_kde(
+                        x_from_reward,
+                        kernel=self.logger.test.kde.kernel,
+                        bandwidth=self.logger.test.kde.bandwidth,
+                    )
+                    # Estimate true log density using test samples
+                    # TODO: this may be specific-ish for the torus or not
+                    scores_true = kde_true.score_samples(x_tt)
+                    log_density_true = scores_true - logsumexp(scores_true, axis=0)
+                    # Add log_density_true and kde_true to pickled test dict
+                    with open(self.buffer.test_pkl, "wb") as f:
+                        dict_tt["log_density_true"] = log_density_true
+                        dict_tt["kde_true"] = kde_true
+                        pickle.dump(dict_tt, f)
+                # Estimate pred log density using test samples
                 # TODO: this may be specific-ish for the torus or not
-                scores_true = kde_true.score_samples(x_tt)
-                log_density_true = scores_true - logsumexp(scores_true, axis=0)
-                # Add log_density_true and kde_true to pickled test dict
-                with open(self.buffer.test_pkl, "wb") as f:
-                    dict_tt["log_density_true"] = log_density_true
-                    dict_tt["kde_true"] = kde_true
-                    pickle.dump(dict_tt, f)
-            # Estimate pred log density using test samples
-            # TODO: this may be specific-ish for the torus or not
-            scores_pred = kde_pred.score_samples(x_tt)
-            log_density_pred = scores_pred - logsumexp(scores_pred, axis=0)
-            density_true = np.exp(log_density_true)
-            density_pred = np.exp(log_density_pred)
-        else:
-            raise NotImplementedError
-        # L1 error
-        l1 = np.abs(density_pred - density_true).mean()
-        # KL divergence
-        kl = (density_true * (log_density_true - log_density_pred)).mean()
-        # Jensen-Shannon divergence
-        log_mean_dens = np.logaddexp(log_density_true, log_density_pred) + np.log(0.5)
-        jsd = 0.5 * np.sum(density_true * (log_density_true - log_mean_dens))
-        jsd += 0.5 * np.sum(density_pred * (log_density_pred - log_mean_dens))
+                scores_pred = kde_pred.score_samples(x_tt)
+                log_density_pred = scores_pred - logsumexp(scores_pred, axis=0)
+                density_true = np.exp(log_density_true)
+                density_pred = np.exp(log_density_pred)
+            else:
+                raise NotImplementedError
+            # L1 error
+            l1 = np.abs(density_pred - density_true).mean()
+            # KL divergence
+            kl = (density_true * (log_density_true - log_density_pred)).mean()
+            # Jensen-Shannon divergence
+            log_mean_dens = np.logaddexp(log_density_true, log_density_pred) + np.log(
+                0.5
+            )
+            jsd = 0.5 * np.sum(density_true * (log_density_true - log_mean_dens))
+            jsd += 0.5 * np.sum(density_pred * (log_density_pred - log_mean_dens))
 
         # Plots
-
         if hasattr(self.env, "plot_reward_samples"):
+            if x_sampled is None:
+                batch, _ = self.sample_batch(n_forward=self.logger.test.n, train=False)
+                assert batch.is_valid()
+                x_sampled = batch.get_terminating_states()
+                x_sampled = torch2np(self.env.statebatch2proxy(x_sampled))
             fig_reward_samples = self.env.plot_reward_samples(x_sampled, **plot_kwargs)
         else:
             fig_reward_samples = None

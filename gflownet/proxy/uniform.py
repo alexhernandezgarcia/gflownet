@@ -13,4 +13,6 @@ class Uniform(Proxy):
 
     @property
     def min(self):
-        return -1.0
+        if not hasattr(self, "_min"):
+            self._min = torch.tensor(-1.0, device=self.device, dtype=self.float)
+        return self._min

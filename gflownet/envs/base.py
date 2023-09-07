@@ -40,9 +40,9 @@ class GFlowNetEnv:
         proxy=None,
         oracle=None,
         proxy_state_format: str = "oracle",
+        fixed_distr_params: Optional[dict] = None,
+        random_distr_params: Optional[dict] = None,
         skip_mask_check: bool = False,
-        fixed_distribution: Optional[dict] = None,
-        random_distribution: Optional[dict] = None,
         conditional: bool = False,
         continuous: bool = False,
         **kwargs,
@@ -93,8 +93,10 @@ class GFlowNetEnv:
         # Max trajectory length
         self.max_traj_length = self.get_max_traj_length()
         # Policy outputs
-        self.fixed_policy_output = self.get_policy_output(fixed_distribution)
-        self.random_policy_output = self.get_policy_output(random_distribution)
+        self.fixed_distr_params = fixed_distr_params
+        self.random_distr_params = random_distr_params
+        self.fixed_policy_output = self.get_policy_output(self.fixed_distr_params)
+        self.random_policy_output = self.get_policy_output(self.random_distr_params)
         self.policy_output_dim = len(self.fixed_policy_output)
         self.policy_input_dim = len(self.state2policy())
         if proxy is not None and self.proxy == self.oracle:
@@ -465,7 +467,8 @@ class GFlowNetEnv:
         policy_outputs: TensorType["n_states", "policy_output_dim"],
         is_forward: bool,
         actions: TensorType["n_states", "actions_dim"],
-        states_target: TensorType["n_states", "policy_input_dim"],
+        states_from: TensorType["n_states", "policy_input_dim"],
+        states_to: TensorType["n_states", "policy_input_dim"],
         mask_invalid_actions: TensorType["batch_size", "policy_output_dim"] = None,
     ) -> TensorType["batch_size"]:
         """
@@ -487,6 +490,20 @@ class GFlowNetEnv:
         )
         logprobs = self.logsoftmax(logits)[ns_range, action_indices]
         return logprobs
+
+    def get_jacobian_diag(
+        self,
+        states: TensorType["batch_size", "state_dim"],
+        is_forward: bool,
+        **kwargs,
+    ):
+        """
+        Computes the logarithm of the determinant of the Jacobian of the sampled
+        actions with respect to the states. In general, the determinant is equal to 1.
+        Environments where this is not the case must implement the computation of the
+        Jacobian for forward and backward transitions.
+        """
+        return torch.ones(states.shape, device=states.device, dtype=self.float)
 
     # TODO: add seed
     def step_random(self, backward: bool = False):
