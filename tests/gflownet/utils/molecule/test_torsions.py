@@ -6,7 +6,8 @@ from rdkit import Chem
 from rdkit.Chem import AllChem
 from rdkit.Geometry.rdGeometry import Point3D
 
-from gflownet.utils.molecule.torsions import get_rotation_masks, apply_rotations
+from gflownet.utils.molecule.torsions import get_rotation_masks, apply_rotations, mask_out_torsion_anlges
+from gflownet.utils.molecule.torsions import get_rotatable_torsion_angles_names, compute_torsion_angles 
 from gflownet.utils.molecule import constants
 from gflownet.utils.molecule.featurizer import MolDGLFeaturizer
 from gflownet.utils.molecule.rdkit_conformer import get_torsion_angles_values
@@ -30,6 +31,8 @@ def test_four_nodes_chain():
     assert torch.all(edges_mask == correct_edges_mask)
     assert torch.all(nodes_mask == correct_nodes_mask)
     assert torch.all(rotation_signs == correct_rotation_signs)
+
+
 
 
 def test_choose_smallest_component():
@@ -141,8 +144,7 @@ def test_apply_rotations_ignore_nonrotatable(angle, exp_result):
     result = apply_rotations(graph, rotations).ndata[constants.atom_position_name]
     assert torch.allclose(result, exp_result, atol=1e-6)
 
-
-def stress_test_apply_rotation_alanine_dipeptide():
+def test_stress_apply_rotation_alanine_dipeptide():
     from rdkit import Chem
     from rdkit.Chem import AllChem
     from rdkit.Geometry.rdGeometry import Point3D
@@ -192,3 +194,74 @@ def stress_test_apply_rotation_alanine_dipeptide():
             torch.isclose(diff, torch.zeros_like(diff), atol=1e-6),
             torch.isclose(diff, torch.ones_like(diff) * 2 * torch.pi, atol=1e-5),
         ).all()
+
+def test_simple_double_bond():
+    # double bound should not be rotatable, i.e. all masks are filled with False
+    from gflownet.utils.molecule.rdkit_utils import get_rdkit_molecule
+    from gflownet.utils.molecule.featurizer import MolDGLFeaturizer
+    smiles = 'C=C'
+    mol = get_rdkit_molecule(smiles, add_hydrogens=True)
+    featurizer = MolDGLFeaturizer(constants.ad_atom_types)
+    graph = featurizer.mol2dgl(mol)
+    assert torch.all(graph.edata[constants.rotatable_edges_mask_name]) == False 
+    assert torch.all(graph.edata[constants.rotation_affected_nodes_mask_name]) == False 
+    assert torch.sum(graph.edata[constants.rotation_signs_name]) == 0 
+
+
+def test_simple_mask_out_torsion_angles():
+    from gflownet.utils.molecule.rdkit_utils import get_rdkit_molecule
+    from gflownet.utils.molecule.featurizer import MolDGLFeaturizer
+    mol = get_rdkit_molecule(constants.ad_smiles, add_hydrogens=False)
+    featurizer = MolDGLFeaturizer(constants.ad_atom_types)
+    graph = featurizer.mol2dgl(mol)
+
+    graph = mask_out_torsion_anlges(graph, [1,2])
+    exp_edges_mask = torch.tensor(
+       [False, False,  False,  False, False, False,  True,  True, False, False,
+         True,  True,  False,  False, False, False, False, False] 
+        )
+    exp_signs = torch.tensor(
+        [0., 0., 0., 0., 0., 0., 1., 1., 0., 0., 1., 1., 0., 0., 0., 0., 0., 0.]
+    )
+    exp_nodes_mask = torch.tensor(
+       [[False, False, False, False, False, False, False, False, False, False],
+        [False, False, False, False, False, False, False, False, False, False],
+        [False, False, False, False, False, False, False, False, False, False],
+        [False, False, False, False, False, False, False, False, False, False],
+        [False, False, False, False, False, False, False, False, False, False],
+        [False, False, False, False, False, False, False, False, False, False],
+        [False, False, False, False, False,  True, False, False, False, False],
+        [False, False, False, False, False,  True, False, False, False, False],
+        [False, False, False, False, False, False, False, False, False, False],
+        [False, False, False, False, False, False, False, False, False, False],
+        [False, False, False, False, False, False, False,  True,  True,  True],
+        [False, False, False, False, False, False, False,  True,  True,  True],
+        [False, False, False, False, False, False, False, False, False, False],
+        [False, False, False, False, False, False, False, False, False, False],
+        [False, False, False, False, False, False, False, False, False, False],
+        [False, False, False, False, False, False, False, False, False, False],
+        [False, False, False, False, False, False, False, False, False, False],
+        [False, False, False, False, False, False, False, False, False, False]] 
+
+    )
+    assert torch.all(graph.edata[constants.rotatable_edges_mask_name] == exp_edges_mask)
+    assert torch.all(graph.edata[constants.rotation_affected_nodes_mask_name] == exp_nodes_mask) 
+    assert torch.all(graph.edata[constants.rotation_signs_name] == exp_signs) 
+
+def test_compute_torsion_angles():
+    from gflownet.utils.molecule.rdkit_utils import get_rdkit_molecule, get_rdkit_atom_positions
+    from gflownet.utils.molecule.featurizer import MolDGLFeaturizer
+    from gflownet.utils.molecule.rdkit_conformer import RDKitConformer 
+    mol = get_rdkit_molecule(constants.ad_smiles, add_hydrogens=True)
+    featurizer = MolDGLFeaturizer(constants.ad_atom_types)
+    graph = featurizer.mol2dgl(mol)
+
+    atom_positions = get_rdkit_atom_positions(constants.ad_smiles, extra_opt=False)
+    graph.ndata[constants.atom_position_name] = torch.tensor(atom_positions)
+    torsion_angles_ids = get_rotatable_torsion_angles_names(graph)
+    
+    rdkit_conf = RDKitConformer(atom_positions, constants.ad_smiles, torsion_angles_ids.tolist())
+
+    rdkit_ta_values = rdkit_conf.get_freely_rotatable_tas_values()
+    ta_values = compute_torsion_angles(graph, torsion_angles_ids)
+    assert torch.isclose(ta_values, torch.tensor(rdkit_ta_values, dtype=ta_values.dtype), atol=1e-9).all()

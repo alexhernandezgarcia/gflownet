@@ -200,6 +200,33 @@ def tbool(x, device):
     else:
         return torch.tensor(x, dtype=torch.bool, device=device)
 
+def tfloat_graph(graph, device, float_type):
+    """
+    Convert floating-point data in the node and edge features of a DGLGraph to a specified float 
+    type and move the graph to a given device.
+
+    Args
+    ----
+    graph : dgl.Graph 
+        The input graph with node features to be converted.
+    device : torch.device 
+        The target device to move the graph to.
+    float_type : torch.dtype 
+        The target float type to convert the features to.
+
+    Returns
+    -------
+    dgl.Graph : 
+        The input graph with features converted to the specified float type and placed on the given device.
+    """
+    for name in graph.ndata.keys():
+        if torch.is_floating_point(graph.ndata[name]):
+            graph.ndata[name] = graph.ndata[name].type(float_type)
+    for name in graph.edata.keys():
+        if torch.is_floating_point(graph.edata[name]):
+            graph.edata[name] = graph.edata[name].type(float_type)
+    return graph.to(device) 
+
 
 def concat_items(list_of_items, index=None):
     if isinstance(list_of_items[0], np.ndarray):
