@@ -52,7 +52,6 @@ class Cube(GFlowNetEnv, ABC):
             "beta_weights": 1.0,
             "beta_alpha": 2.0,
             "beta_beta": 5.0,
-            "bernoulli_bw_zero_incr_logits": 1.0,
             "bernoulli_source_logit": 1.0,
             "bernoulli_eos_logit": 1.0,
         },
@@ -60,7 +59,6 @@ class Cube(GFlowNetEnv, ABC):
             "beta_weights": 1.0,
             "beta_alpha": 1.0,
             "beta_beta": 1.0,
-            "bernoulli_bw_zero_incr_logits": 1.0,
             "bernoulli_source_logit": 1.0,
             "bernoulli_eos_logit": 1.0,
         },
@@ -714,12 +712,7 @@ class ContinuousCube(Cube):
         action and another logit (pos -2) for the (discrete) backward probability of
         returning to the source node.
 
-        Finally, the backward distribution requires a discrete probability distribution
-        (Bernoulli) for each dimension, to model the probability of sampling an
-        increment (decrement, since backwards) equal to zero when the value at the
-        dimension is larger than 1 - min_incr. These are stored after the continuous
-        part.
-
+        * TODO: review count
         Therefore, the output of the policy model has dimensionality D x C x 3 + 2,
         where D is the number of dimensions (self.n_dim) and C is the number of
         components (self.n_comp).
@@ -734,13 +727,6 @@ class ContinuousCube(Cube):
         policy_output_cont[0::3] = params["beta_weights"]
         policy_output_cont[1::3] = params["beta_alpha"]
         policy_output_cont[2::3] = params["beta_beta"]
-        # Logits for Bernouilli distributions to model backward zero increments
-        policy_output_bw_zero_incrs = torch.full(
-            (self.n_dim,),
-            params["bernoulli_bw_zero_incr_logits"],
-            dtype=self.float,
-            device=self.device,
-        )
         # Logit for Bernoulli distribution to model EOS action
         policy_output_eos = torch.tensor(
             [params["bernoulli_eos_logit"]], dtype=self.float, device=self.device
@@ -753,7 +739,6 @@ class ContinuousCube(Cube):
         policy_output = torch.cat(
             (
                 policy_output_cont,
-                policy_output_bw_zero_incrs,
                 policy_output_source,
                 policy_output_eos,
             )
@@ -792,19 +777,6 @@ class ContinuousCube(Cube):
         See: get_policy_output()
         """
         return policy_output[:, 2 : self._len_policy_output_cont : 3]
-
-    def _get_policy_bw_zero_increment_logits(
-        self, policy_output: TensorType["n_states", "policy_output_dim"]
-    ) -> TensorType["n_states", "n_dim"]:
-        """
-        Reduces a given policy output to the part corresponding to the logits of the
-        Bernoulli distributions to model the backward zero increments of each dimension.
-
-        See: get_policy_output()
-        """
-        return policy_output[
-            :, self._len_policy_output_cont : self._len_policy_output_cont + self.n_dim
-        ]
 
     def _get_policy_eos_logit(
         self, policy_output: TensorType["n_states", "policy_output_dim"]
@@ -849,17 +821,16 @@ class ContinuousCube(Cube):
 
         The forward mask has the following structure:
 
-        - 0:n_dim : whether the dimension cannot be further incremented (increment is
-          invalid). True if the value at the dimension is larger than 1 - min_incr,
-          False otherwise.
-        - -2 : special case when the state is the source state. False when the state is
+        - 0 : whether a continuous action is invalid. True if the value at any
+          dimension is larger than 1 - min_incr, or if done is True.  False otherwise.
+        - 1 : special case when the state is the source state. False when the state is
           the source state, True otherwise.
-        - -1 : whether EOS action is invalid. EOS is valid from any state, except the
+        - 2 : whether EOS action is invalid. EOS is valid from any state, except the
           source state or if done is True.
         """
         state = self._get_state(state)
         done = self._get_done(done)
-        mask_dim = self.n_dim + 2
+        mask_dim = 3
         # If done, the entire mask is True (all actions are "invalid" and no special
         # cases)
         if done:
@@ -867,17 +838,17 @@ class ContinuousCube(Cube):
         mask = [False] * mask_dim
         # If the state is not the source state, EOS is invalid
         if state == self.source:
-            mask[-1] = True
+            mask[2] = True
         # If the state is not the source, indicate not special case (True)
         else:
-            mask[-2] = True
-        # Dimensions whose value is greater than 1 - min_incr cannot be further
-        # incremented (special case, thus False)
-        for dim, s in enumerate(state):
-            if s > 1 - self.min_incr:
-                mask[dim] = True
+            mask[1] = True
+        # If the value of any dimension is greater than 1 - min_incr, then continuous
+        # actions are invalid (True).
+        if any([s > 1 - self.min_incr for s in state]):
+            mask[0] = True
         return mask
 
+    # TODO: re-do
     def get_mask_invalid_actions_backward(self, state=None, done=None, parents_a=None):
         """
         The action space is continuous, thus the mask is not only of invalid actions as
@@ -1156,19 +1127,18 @@ class ContinuousCube(Cube):
         - The originating state is the source state: in this case, the minimum
           increment is 0.0 instead of self.min_incr. This is to ensure that the entire
           state space can be reached. This is indicated by mask[-2] being False.
-        - The value at a dimension is at a distance from the cube edge smaller than the
-          minimum increment (x > 1 - m). In this case, absolute increment must be 0.0.
-          This is indicated by mask[d] being True.
+        - The value at any dimension is at a distance from the cube edge smaller than the
+          minimum increment (x > 1 - m). In this case, only EOS is valid.
+          This is indicated by mask[0] being True (continuous actions are invalid).
         """
         # Initialize variables
         n_states = policy_outputs.shape[0]
         is_eos = torch.zeros(n_states, dtype=torch.bool, device=self.device)
         # Determine source states
-        is_source = ~mask[:, -2]
-        # EOS is the only possible action if no dimension can be sampled (mask of all
-        # dimensions is "invalid" i.e. True)
-        is_near_edge = mask[:, : self.n_dim]
-        is_eos_forced = torch.all(is_near_edge, dim=1)
+        is_source = ~mask[:, 1]
+        # EOS is the only possible action continuous actions are invalid (mask[0] is
+        # True)
+        is_eos_forced = mask[:, 0]
         is_eos[is_eos_forced] = True
         # Ensure that is_eos_forced does not include any source state
         assert not torch.any(torch.logical_and(is_source, is_eos_forced))
@@ -1218,8 +1188,6 @@ class ContinuousCube(Cube):
         increments_abs = self.relative_to_absolute_increments(
             states_from_do_increments, increments_rel, min_increments, self.max_val
         )
-        # Set 0 increments in near edge dimensions that cannot be further incremented
-        increments_abs[is_near_edge[do_increments]] = 0.0
         # Build actions
         actions_tensor = torch.full(
             (n_states, self.n_dim), torch.inf, dtype=self.float, device=self.device
