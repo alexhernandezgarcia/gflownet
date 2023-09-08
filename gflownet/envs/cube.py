@@ -714,8 +714,9 @@ class ContinuousCube(Cube):
 
         Finally, the backward distribution requires a discrete probability distribution
         (Bernoulli) for each dimension, to model the probability of sampling an
-        increment equal to zero when the value at the dimension is larger than
-        1 - min_incr. These are stored after the continuous part.
+        increment (decrement, since backwards) equal to zero when the value at the
+        dimension is larger than 1 - min_incr. These are stored after the continuous
+        part.
 
         Therefore, the output of the policy model has dimensionality D x C x 3 + 2,
         where D is the number of dimensions (self.n_dim) and C is the number of
@@ -733,7 +734,7 @@ class ContinuousCube(Cube):
         policy_output_cont[2::3] = params["beta_beta"]
         # Logits for Bernouilli distributions to model backward zero increments
         policy_output_bw_zero_incrs = torch.full(
-            self.n_dim,
+            (self.n_dim,),
             params["bernoulli_bw_zero_incr_logits"],
             dtype=self.float,
             device=self.device,
@@ -748,10 +749,12 @@ class ContinuousCube(Cube):
         )
         # Concatenate all outputs
         policy_output = torch.cat(
-            policy_output_cont,
-            policy_output_bw_zero_incrs,
-            policy_output_source,
-            policy_output_eos,
+            (
+                policy_output_cont,
+                policy_output_bw_zero_incrs,
+                policy_output_source,
+                policy_output_eos,
+            )
         )
         return policy_output
 
@@ -829,77 +832,93 @@ class ContinuousCube(Cube):
         done: Optional[bool] = None,
     ) -> List:
         """
-        Returns a vector indicating which backward actions are invalid.
+        The action space is continuous, thus the mask is not only of invalid actions as
+        in discrete environments, but also an indicator of "special cases", for example
+        states from which only certain actions are possible.
+
+        In order to approximately stick to the semantics in discrete environments,
+        where the mask is of "invalid" actions, that is the value is True if an action
+        is invalid, the mask values of special cases are True if the special cases they
+        refer to are "invalid". In other words, the values are False if the state has
+        the special case.
 
         The forward mask has the following structure:
 
-        - 0:n_dim : whether sampling each dimension is invalid. Invalid (True) if the
-          value at the dimension is larger than 1 - min_incr.
-        - n_dim : whether sampling from source is invalid. Invalid (True) except when
-          when the state is the source state.
-        - n_dim + 1 : whether sampling EOS is invalid. EOS is valid from any state
-          (including the source state), hence always False.
+        - 0:n_dim : special case when a dimension cannot be further incremented. False
+          if the value at the dimension is larger than 1 - min_incr, True otherwise.
+        - -2 : special case when the state is the source state. False when the state is
+          the source state, True otherwise.
+        - -1 : whether EOS action is invalid. EOS is valid from any state, except the
+          source state or if done is True.
         """
-        if state is None:
-            state = self.state.copy()
-        if done is None:
-            done = self.done
+        state = self._get_state(state)
+        done = self._get_done(done)
         mask_dim = self.n_dim + 2
-        # If done, no action is valid
+        mask = [True] * mask_dim
+        # If done, the entire mask is True (all actions are "invalid" and no special
+        # cases)
         if done:
-            return [True for _ in range(mask_dim)]
-        mask = [False for _ in range(mask_dim)]
-        # If state is source, EOS is invalid
+            return mask
+        # If the state is the source state, indicate special case source (False)
         if state == self.source:
-            mask[-1] = True
-        # If state is not source, sampling from source is invalid.
-        if state != self.source:
-            mask[-2] = True
+            mask[-2] = False
+        # If the state is not the source state, EOS is not invalid
+        else:
+            mask[-1] = False
         # Dimensions whose value is greater than 1 - min_incr cannot be further
-        # incremented
+        # incremented (special case, thus False)
         for dim, s in enumerate(state):
             if s > 1 - self.min_incr:
-                mask[dim] = True
+                mask[dim] = False
         return mask
 
     def get_mask_invalid_actions_backward(self, state=None, done=None, parents_a=None):
         """
-        Returns a vector indicating which backward actions are invalid.
+        The action space is continuous, thus the mask is not only of invalid actions as
+        in discrete environments, but also an indicator of "special cases", for example
+        states from which only certain actions are possible.
+
+        In order to approximately stick to the semantics in discrete environments,
+        where the mask is of "invalid" actions, that is the value is True if an action
+        is invalid, the mask values of special cases are True if the special cases they
+        refer to are "invalid". In other words, the values are False if the state has
+        the special case.
 
         The backward mask has the following structure:
 
-        - 0:n_dim : whether keeping a dimension as is, that is sampling a decrement of
-          0, can have zero probability. True if the value at the dimension is smaller
-          than or equal to 1 - min_incr.
-        - n_dim : whether other actions except back-to-source are invalid. False if any
-          dimension is smaller than min_incr.
-        - n_dim + 1 : whether sampling EOS is invalid. Only valid if done.
+        - 0:n_dim : special case when a dimension can remain as is, that is sampling a
+          decrement of exactly 0 is possible. False if the value at the dimension is
+          larger than 1 - min_incr, True otherwise. If the cube is 1D, then this
+          special case never occurs, hence the value is always True.
+        - -2 : special case when back-to-source action is the only possible action.
+          False if any dimension is smaller than min_incr, True otherwise.
+        - -1 : whether EOS action is invalid. False only if done is True, True
+          (invalid) otherwise.
         """
-        if state is None:
-            state = self.state.copy()
-        if done is None:
-            done = self.done
+        state = self._get_state(state)
+        done = self._get_done(done)
         mask_dim = self.n_dim + 2
+        mask = [True] * mask_dim
+        # If state is source, all actions are invalid and no special cases.
+        if state == self.source:
+            return mask
         # If done, only valid action is EOS.
         if done:
-            mask = [True for _ in range(mask_dim)]
             mask[-1] = False
             return mask
-        # If state is source, all actions are invalid.
-        if state == self.source:
-            return [True for _ in range(mask_dim)]
-        # If any dimension is smaller than m, then back-to-source is the only valid
-        # action
+        # If any dimension is smaller than m, then back-to-source action is not invalid
+        # (False)
         if any([s < self.min_incr for s in state]):
-            mask = [True for _ in range(mask_dim)]
             mask[-2] = False
             return mask
-        mask = [True for _ in range(mask_dim)]
-        # Dimensions whose value is greater than 1 - min_incr must have non-zero
-        # probability of sampling a decrement of exactly zero.
+        # Dimensions whose value is greater than 1 - min_incr can remain as are
+        # (special case, thus False)
+        if self.n_dim == 1:
+            return mask
         for dim, s in enumerate(state):
             if s > 1 - self.min_incr:
                 mask[dim] = False
+        # TODO: if all dims are special cases, at least one should decrease.
         return mask
 
     def get_parents(
