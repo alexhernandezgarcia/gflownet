@@ -2,8 +2,10 @@ import common
 import numpy as np
 import pytest
 import torch
+from torch.distributions import Bernoulli, Beta
 
 from gflownet.envs.cube import ContinuousCube
+from gflownet.utils.common import tbool, tfloat
 
 
 @pytest.fixture
@@ -34,34 +36,36 @@ def test__get_action_space__returns_expected(env, action_space):
 @pytest.mark.parametrize("env", ["cube1d", "cube2d"])
 def test__get_policy_output__fixed_as_expected(env, request):
     env = request.getfixturevalue(env)
-    policy_output = env.fixed_policy_output
+    policy_outputs = torch.unsqueeze(env.fixed_policy_output, 0)
     params = env.fixed_distr_params
-    policy_output__as_expected(env, policy_output, params)
+    policy_output__as_expected(env, policy_outputs, params)
 
 
 @pytest.mark.parametrize("env", ["cube1d", "cube2d"])
 def test__get_policy_output__random_as_expected(env, request):
     env = request.getfixturevalue(env)
-    policy_output = env.random_policy_output
+    policy_outputs = torch.unsqueeze(env.random_policy_output, 0)
     params = env.random_distr_params
-    policy_output__as_expected(env, policy_output, params)
+    policy_output__as_expected(env, policy_outputs, params)
 
 
-def policy_output__as_expected(env, policy_output, params):
+def policy_output__as_expected(env, policy_outputs, params):
     assert torch.all(
-        env._get_policy_betas_weights(policy_output) == params["beta_weights"]
+        env._get_policy_betas_weights(policy_outputs) == params["beta_weights"]
     )
-    assert torch.all(env._get_policy_betas_alpha(policy_output) == params["beta_alpha"])
-    assert torch.all(env._get_policy_betas_beta(policy_output) == params["beta_beta"])
     assert torch.all(
-        env._get_policy_bw_zero_increment_logits(policy_output)
+        env._get_policy_betas_alpha(policy_outputs) == params["beta_alpha"]
+    )
+    assert torch.all(env._get_policy_betas_beta(policy_outputs) == params["beta_beta"])
+    assert torch.all(
+        env._get_policy_bw_zero_increment_logits(policy_outputs)
         == params["bernoulli_bw_zero_incr_logits"]
     )
     assert torch.all(
-        env._get_policy_eos_logit(policy_output) == params["bernoulli_eos_logit"]
+        env._get_policy_eos_logit(policy_outputs) == params["bernoulli_eos_logit"]
     )
     assert torch.all(
-        env._get_policy_source_logit(policy_output) == params["bernoulli_source_logit"]
+        env._get_policy_source_logit(policy_outputs) == params["bernoulli_source_logit"]
     )
 
 
@@ -95,19 +99,19 @@ def test__mask_backward__returns_all_true_except_eos_if_done(env, request):
     [
         (
             [0.0],
-            [True, False, True],
+            [False, False, True],
         ),
         (
             [0.5],
-            [True, True, False],
+            [False, True, False],
         ),
         (
             [0.90],
-            [True, True, False],
+            [False, True, False],
         ),
         (
             [0.95],
-            [False, True, False],
+            [True, True, False],
         ),
     ],
 )
@@ -122,27 +126,27 @@ def test__mask_forward__1d__returns_expected(cube1d, state, mask_expected):
     [
         (
             [0.0, 0.0],
-            [True, True, False, True],
+            [False, False, False, True],
         ),
         (
             [0.5, 0.5],
-            [True, True, True, False],
+            [False, False, True, False],
         ),
         (
             [0.90, 0.5],
-            [True, True, True, False],
+            [False, False, True, False],
         ),
         (
             [0.95, 0.5],
-            [False, True, True, False],
+            [True, False, True, False],
         ),
         (
             [0.5, 0.90],
-            [True, True, True, False],
+            [False, False, True, False],
         ),
         (
             [0.5, 0.95],
-            [True, False, True, False],
+            [False, True, True, False],
         ),
     ],
 )
@@ -236,6 +240,243 @@ def test__mask_backward__2d__returns_expected(cube2d, state, mask_expected):
     env = cube2d
     mask = env.get_mask_invalid_actions_backward(state)
     assert mask == mask_expected
+
+
+@pytest.mark.parametrize(
+    "state, increments_rel, min_increments, state_expected",
+    [
+        (
+            [0.0, 0.0],
+            [0.5, 0.5],
+            [0.0, 0.0],
+            [0.5, 0.5],
+        ),
+        (
+            [0.0, 0.0],
+            [0.0, 0.0],
+            [0.0, 0.0],
+            [0.0, 0.0],
+        ),
+        (
+            [0.0, 0.0],
+            [0.1794, 0.9589],
+            [0.0, 0.0],
+            [0.1794, 0.9589],
+        ),
+        (
+            [0.3, 0.5],
+            [0.0, 0.0],
+            [0.1, 0.1],
+            [0.4, 0.6],
+        ),
+        (
+            [0.3, 0.5],
+            [1.0, 1.0],
+            [0.1, 0.1],
+            [1.0, 1.0],
+        ),
+        (
+            [0.3, 0.5],
+            [0.5, 0.5],
+            [0.1, 0.1],
+            [0.7, 0.8],
+        ),
+        (
+            [0.27, 0.85],
+            [0.12, 0.76],
+            [0.1, 0.1],
+            [0.4456, 0.988],
+        ),
+        (
+            [0.27, 0.95],
+            [0.12, 0.0],
+            [0.1, 0.0],
+            [0.4456, 0.95],
+        ),
+        (
+            [0.95, 0.27],
+            [0.0, 0.12],
+            [0.0, 0.1],
+            [0.95, 0.4456],
+        ),
+    ],
+)
+def test__relative_to_absolute_increments__2d__returns_expected(
+    cube2d, state, increments_rel, min_increments, state_expected
+):
+    env = cube2d
+    # Convert to tensors
+    states = tfloat([state], float_type=env.float, device=env.device)
+    increments_rel = tfloat([increments_rel], float_type=env.float, device=env.device)
+    min_increments = tfloat([min_increments], float_type=env.float, device=env.device)
+    states_expected = tfloat([state_expected], float_type=env.float, device=env.device)
+    # Get absolute increments
+    increments_abs = env.relative_to_absolute_increments(
+        states, increments_rel, min_increments, env.max_val
+    )
+    states_next = states + increments_abs
+    assert torch.all(torch.isclose(states_next, states_expected))
+
+
+@pytest.mark.parametrize(
+    "state, action, state_expected",
+    [
+        (
+            [0.0, 0.0],
+            (0.5, 0.5),
+            [0.5, 0.5],
+        ),
+        (
+            [0.0, 0.0],
+            (0.0, 0.0),
+            [0.0, 0.0],
+        ),
+        (
+            [0.0, 0.0],
+            (0.1794, 0.9589),
+            [0.1794, 0.9589],
+        ),
+        (
+            [0.3, 0.5],
+            (0.1, 0.1),
+            [0.4, 0.6],
+        ),
+        (
+            [0.3, 0.5],
+            (0.7, 0.5),
+            [1.0, 1.0],
+        ),
+        (
+            [0.3, 0.5],
+            (0.4, 0.3),
+            [0.7, 0.8],
+        ),
+        (
+            [0.27, 0.85],
+            (0.1756, 0.138),
+            [0.4456, 0.988],
+        ),
+        (
+            [0.27, 0.95],
+            (0.1756, 0.0),
+            [0.4456, 0.95],
+        ),
+        (
+            [0.95, 0.27],
+            (0.0, 0.1756),
+            [0.95, 0.4456],
+        ),
+    ],
+)
+def test__step_forward__2d__returns_expected(cube2d, state, action, state_expected):
+    env = cube2d
+    env.set_state(state)
+    state_new, action, valid = env.step(action)
+    assert env.isclose(state_new, state_expected)
+
+
+@pytest.mark.parametrize(
+    "states, force_eos",
+    [
+        (
+            [[0.0, 0.0], [0.0, 0.0], [0.3, 0.5], [0.27, 0.85], [0.56, 0.23]],
+            [False, False, False, False, False],
+        ),
+        (
+            [[0.12, 0.17], [0.56, 0.23], [0.9, 0.9], [0.0, 0.0], [0.16, 0.93]],
+            [False, False, False, False, False],
+        ),
+        (
+            [[0.05, 0.97], [0.56, 0.23], [0.95, 0.3], [0.2, 0.95], [0.01, 0.01]],
+            [False, False, False, False, False],
+        ),
+        (
+            [[0.0, 0.0], [0.0, 0.0], [0.3, 0.5], [0.27, 0.85], [0.56, 0.23]],
+            [False, False, False, True, False],
+        ),
+        (
+            [[0.12, 0.17], [0.56, 0.23], [0.9, 0.9], [0.0, 0.0], [0.16, 0.93]],
+            [False, True, True, False, False],
+        ),
+        (
+            [[0.05, 0.97], [0.56, 0.23], [0.95, 0.98], [0.92, 0.95], [0.01, 0.01]],
+            [False, False, False, True, True],
+        ),
+    ],
+)
+def test__sample_actions_forward__2d__returns_expected(cube2d, states, force_eos):
+    env = cube2d
+    n_states = len(states)
+    force_eos = tbool(force_eos, device=env.device)
+    # Get masks
+    masks = tbool(
+        [env.get_mask_invalid_actions_forward(s) for s in states], device=env.device
+    )
+    # Define Beta distribution with low variance and get confident range
+    n_samples = 10000
+    beta_params_min = 0.0
+    beta_params_max = 10000
+    alpha = 10
+    alphas_presigmoid = alpha * torch.ones(n_samples)
+    alphas = beta_params_max * torch.sigmoid(alphas_presigmoid) + beta_params_min
+    beta = 1.0
+    betas_presigmoid = beta * torch.ones(n_samples)
+    betas = beta_params_max * torch.sigmoid(betas_presigmoid) + beta_params_min
+    beta_distr = Beta(alphas, betas)
+    samples = beta_distr.sample()
+    mean_incr_rel = 0.9 * samples.mean()
+    min_incr_rel = 0.9 * samples.min()
+    max_incr_rel = 1.1 * samples.max()
+    # Define Bernoulli parameters for EOS with deterministic probability
+    logit_force_eos = torch.inf
+    logit_force_noeos = -torch.inf
+    # Estimate confident intervals of absolute actions
+    states_torch = tfloat(states, float_type=env.float, device=env.device)
+    is_source = torch.all(states_torch == 0.0, dim=1)
+    is_near_edge = states_torch > 1.0 - env.min_incr
+    min_increments = torch.full_like(
+        states_torch, env.min_incr, dtype=env.float, device=env.device
+    )
+    min_increments[is_source, :] = 0.0
+    min_increments[is_near_edge] = 0.0
+    increments_rel_min = torch.full_like(
+        states_torch, min_incr_rel, dtype=env.float, device=env.device
+    )
+    increments_rel_min[is_near_edge] = 0.0
+    increments_rel_max = torch.full_like(
+        states_torch, max_incr_rel, dtype=env.float, device=env.device
+    )
+    increments_abs_min = env.relative_to_absolute_increments(
+        states_torch, increments_rel_min, min_increments, env.max_val
+    )
+    increments_abs_max = env.relative_to_absolute_increments(
+        states_torch, increments_rel_max, min_increments, env.max_val
+    )
+    # Get EOS actions
+    is_eos_forced = torch.all(is_near_edge, dim=1)
+    is_eos = torch.logical_or(is_eos_forced, force_eos)
+    increments_abs_min[is_eos] = torch.inf
+    increments_abs_max[is_eos] = torch.inf
+    # Reconfigure environment
+    env.n_comp = 1
+    env.beta_params_min = 0.0
+    env.beta_params_max = beta_params_max
+    # Build policy outputs
+    params = env.fixed_distr_params
+    params["beta_alpha"] = alpha
+    params["beta_beta"] = beta
+    params["bernoulli_eos_logit"] = logit_force_noeos
+    policy_outputs = torch.tile(env.get_policy_output(params), dims=(n_states, 1))
+    policy_outputs[force_eos, -1] = logit_force_eos
+    # Sample actions
+    actions, _ = env.sample_actions_batch(
+        policy_outputs, masks, states, is_backward=False
+    )
+    actions_tensor = tfloat(actions, float_type=env.float, device=env.device)
+    actions_eos = torch.all(actions_tensor == torch.inf, dim=1)
+    assert torch.all(actions_eos == is_eos)
+    assert torch.all(actions_tensor >= increments_abs_min)
+    assert torch.all(actions_tensor <= increments_abs_max)
 
 
 @pytest.mark.parametrize(

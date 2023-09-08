@@ -15,6 +15,7 @@ from torch.distributions import Bernoulli, Beta, Categorical, MixtureSameFamily,
 from torchtyping import TensorType
 
 from gflownet.envs.base import GFlowNetEnv
+from gflownet.utils.common import tbool, tfloat
 
 
 class Cube(GFlowNetEnv, ABC):
@@ -668,6 +669,7 @@ class ContinuousCube(Cube):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
+    # TODO: rewrite docstring
     def get_action_space(self):
         """
         The actions are tuples of length n_dim + 1, where the value at position d indicates
@@ -767,7 +769,7 @@ class ContinuousCube(Cube):
 
         See: get_policy_output()
         """
-        return policy_output[0 : self._len_policy_output_cont : 3]
+        return policy_output[:, 0 : self._len_policy_output_cont : 3]
 
     def _get_policy_betas_alpha(
         self, policy_output: TensorType["n_states", "policy_output_dim"]
@@ -778,7 +780,7 @@ class ContinuousCube(Cube):
 
         See: get_policy_output()
         """
-        return policy_output[1 : self._len_policy_output_cont : 3]
+        return policy_output[:, 1 : self._len_policy_output_cont : 3]
 
     def _get_policy_betas_beta(
         self, policy_output: TensorType["n_states", "policy_output_dim"]
@@ -789,7 +791,7 @@ class ContinuousCube(Cube):
 
         See: get_policy_output()
         """
-        return policy_output[2 : self._len_policy_output_cont : 3]
+        return policy_output[:, 2 : self._len_policy_output_cont : 3]
 
     def _get_policy_bw_zero_increment_logits(
         self, policy_output: TensorType["n_states", "policy_output_dim"]
@@ -801,7 +803,7 @@ class ContinuousCube(Cube):
         See: get_policy_output()
         """
         return policy_output[
-            self._len_policy_output_cont : self._len_policy_output_cont + self.n_dim
+            :, self._len_policy_output_cont : self._len_policy_output_cont + self.n_dim
         ]
 
     def _get_policy_eos_logit(
@@ -813,7 +815,7 @@ class ContinuousCube(Cube):
 
         See: get_policy_output()
         """
-        return policy_output[-1]
+        return policy_output[:, -1]
 
     def _get_policy_source_logit(
         self, policy_output: TensorType["n_states", "policy_output_dim"]
@@ -824,7 +826,7 @@ class ContinuousCube(Cube):
 
         See: get_policy_output()
         """
-        return policy_output[-2]
+        return policy_output[:, -2]
 
     def get_mask_invalid_actions_forward(
         self,
@@ -836,16 +838,20 @@ class ContinuousCube(Cube):
         in discrete environments, but also an indicator of "special cases", for example
         states from which only certain actions are possible.
 
-        In order to approximately stick to the semantics in discrete environments,
-        where the mask is of "invalid" actions, that is the value is True if an action
-        is invalid, the mask values of special cases are True if the special cases they
+        The values of True/False intend to approximately stick to the semantics in
+        discrete environments, where the mask is of "invalid" actions, but it is
+        important to note that a direct interpretation in this sense does not always
+        apply.
+
+        For example, the mask values of special cases are True if the special cases they
         refer to are "invalid". In other words, the values are False if the state has
         the special case.
 
         The forward mask has the following structure:
 
-        - 0:n_dim : special case when a dimension cannot be further incremented. False
-          if the value at the dimension is larger than 1 - min_incr, True otherwise.
+        - 0:n_dim : whether the dimension cannot be further incremented (increment is
+          invalid). True if the value at the dimension is larger than 1 - min_incr,
+          False otherwise.
         - -2 : special case when the state is the source state. False when the state is
           the source state, True otherwise.
         - -1 : whether EOS action is invalid. EOS is valid from any state, except the
@@ -854,22 +860,22 @@ class ContinuousCube(Cube):
         state = self._get_state(state)
         done = self._get_done(done)
         mask_dim = self.n_dim + 2
-        mask = [True] * mask_dim
         # If done, the entire mask is True (all actions are "invalid" and no special
         # cases)
         if done:
-            return mask
-        # If the state is the source state, indicate special case source (False)
+            return [True] * mask_dim
+        mask = [False] * mask_dim
+        # If the state is not the source state, EOS is invalid
         if state == self.source:
-            mask[-2] = False
-        # If the state is not the source state, EOS is not invalid
+            mask[-1] = True
+        # If the state is not the source, indicate not special case (True)
         else:
-            mask[-1] = False
+            mask[-2] = True
         # Dimensions whose value is greater than 1 - min_incr cannot be further
         # incremented (special case, thus False)
         for dim, s in enumerate(state):
             if s > 1 - self.min_incr:
-                mask[dim] = False
+                mask[dim] = True
         return mask
 
     def get_mask_invalid_actions_backward(self, state=None, done=None, parents_a=None):
@@ -921,6 +927,7 @@ class ContinuousCube(Cube):
         # TODO: if all dims are special cases, at least one should decrease.
         return mask
 
+    # TODO: remove all together?
     def get_parents(
         self, state: List = None, done: bool = None, action: Tuple[int, float] = None
     ) -> Tuple[List[List], List[Tuple[int, float]]]:
@@ -975,6 +982,28 @@ class ContinuousCube(Cube):
             \nState:\n{state}\nAction:\n{action}\nIncrement: {incr}
             """
             return [state], [action]
+
+    @staticmethod
+    def relative_to_absolute_increments(
+        states: TensorType["n_states", "n_dim"],
+        increments_rel: TensorType["n_states", "n_dim"],
+        min_increments: TensorType["n_states", "n_dim"],
+        max_val: float,
+    ):
+        """
+        Returns a batch of absolute increments (actions) given a batch of states,
+        relative increments and minimum_increments.
+
+        Given a dimension value x, a relative increment r, a minimum increment m and a
+        maximum value 1, the absolute increment a is given by:
+
+        a = m + r * (1 - x - m)
+        """
+        max_val = torch.full_like(states, max_val)
+        increments_abs = min_increments + increments_rel * (
+            max_val - states - min_increments
+        )
+        return increments_abs
 
     def sample_actions(
         self,
@@ -1068,6 +1097,136 @@ class ContinuousCube(Cube):
         ]
         # TODO: implement logprobs here too
         return actions, logprobs
+
+    def sample_actions_batch(
+        self,
+        policy_outputs: TensorType["n_states", "policy_output_dim"],
+        mask: Optional[TensorType["n_states", "policy_output_dim"]] = None,
+        states_from: Optional[List] = None,
+        is_backward: Optional[bool] = False,
+        sampling_method: Optional[str] = "policy",
+        temperature_logits: Optional[float] = 1.0,
+        max_sampling_attempts: Optional[int] = 10,
+    ) -> Tuple[List[Tuple], TensorType["n_states"]]:
+        """
+        Samples a batch of actions from a batch of policy outputs.
+        """
+        if not is_backward:
+            return self._sample_actions_batch_forward(
+                policy_outputs, mask, states_from, sampling_method, temperature_logits
+            )
+
+    def _sample_actions_batch_forward(
+        self,
+        policy_outputs: TensorType["n_states", "policy_output_dim"],
+        mask: Optional[TensorType["n_states", "policy_output_dim"]] = None,
+        states_from: Optional[List] = None,
+        sampling_method: Optional[str] = "policy",
+        temperature_logits: Optional[float] = 1.0,
+        max_sampling_attempts: Optional[int] = 10,
+    ) -> Tuple[List[Tuple], TensorType["n_states"]]:
+        """
+        Samples a a batch of forward actions from a batch of policy outputs.
+
+        An action indicates, for each dimension, the absolute increment of the
+        dimension value. However, in order to ensure that trajectories have finite
+        length, increments must have a minumum increment (self.min_incr) except if the
+        originating state is the source state (special case, see
+        get_mask_invalid_actions_forward()). Furthermore, absolute increments must also
+        be smaller than the distance from the dimension value to the edge of the cube
+        (self.max_val). In order to accomodate these constraints, first relative
+        increments (in [0, 1]) are sampled from a (mixture of) Beta distribution(s),
+        where 0.0 indicates an absolute increment of min_incr and 1.0 indicates an
+        absolute increment of 1 - x + min_incr (going to the edge).
+
+        Therefore, given a dimension value x, a relative increment r, a minimum
+        increment m and a maximum value 1, the absolute increment a is given by:
+
+        a = m + r * (1 - x - m)
+
+        The continuous distribution to sample the continuous action described above
+        must be mixed with the discrete distribution to model the sampling of the EOS
+        action. The EOS action can be sampled from any state except from the source
+        state or whether the trajectory is done. That the EOS action is invalid is
+        indicated by mask[-1] being False.
+
+        Finally, regarding the constraints on the increments, the following special
+        cases are taken into account:
+
+        - The originating state is the source state: in this case, the minimum
+          increment is 0.0 instead of self.min_incr. This is to ensure that the entire
+          state space can be reached. This is indicated by mask[-2] being False.
+        - The value at a dimension is at a distance from the cube edge smaller than the
+          minimum increment (x > 1 - m). In this case, absolute increment must be 0.0.
+          This is indicated by mask[d] being True.
+        """
+        # Initialize variables
+        n_states = policy_outputs.shape[0]
+        is_eos = torch.zeros(n_states, dtype=torch.bool, device=self.device)
+        # Determine source states
+        is_source = ~mask[:, -2]
+        # EOS is the only possible action if no dimension can be sampled (mask of all
+        # dimensions is "invalid" i.e. True)
+        is_near_edge = mask[:, : self.n_dim]
+        is_eos_forced = torch.all(is_near_edge, dim=1)
+        is_eos[is_eos_forced] = True
+        # Ensure that is_eos_forced does not include any source state
+        assert not torch.any(torch.logical_and(is_source, is_eos_forced))
+        # Sample EOS from Bernoulli distribution
+        do_eos = torch.logical_and(~is_source, ~is_eos_forced)
+        if torch.any(do_eos):
+            is_eos_sampled = torch.zeros_like(do_eos)
+            logits_eos = self._get_policy_eos_logit(policy_outputs)[do_eos]
+            distr_eos = Bernoulli(logits=logits_eos)
+            is_eos_sampled[do_eos] = tbool(distr_eos.sample(), device=self.device)
+            is_eos[is_eos_sampled] = True
+        # Sample relative increments if EOS is not the sampled or forced action
+        do_increments = ~is_eos
+        if torch.any(do_increments):
+            if sampling_method == "uniform":
+                raise NotImplementedError()
+            elif sampling_method == "policy":
+                mix_logits = self._get_policy_betas_weights(policy_outputs)[
+                    do_increments
+                ].reshape(-1, self.n_dim, self.n_comp)
+                mix = Categorical(logits=mix_logits)
+                alphas = self._get_policy_betas_alpha(policy_outputs)[
+                    do_increments
+                ].reshape(-1, self.n_dim, self.n_comp)
+                alphas = (
+                    self.beta_params_max * torch.sigmoid(alphas) + self.beta_params_min
+                )
+                betas = self._get_policy_betas_beta(policy_outputs)[
+                    do_increments
+                ].reshape(-1, self.n_dim, self.n_comp)
+                betas = (
+                    self.beta_params_max * torch.sigmoid(betas) + self.beta_params_min
+                )
+                beta_distr = Beta(alphas, betas)
+                distr_increments = MixtureSameFamily(mix, beta_distr)
+            # Shape of increments_rel: [n_do_increments, n_dim]
+            increments_rel = distr_increments.sample()
+        # Get minimum increments
+        min_increments = torch.full_like(
+            increments_rel, self.min_incr, dtype=self.float, device=self.device
+        )
+        min_increments[is_source[do_increments]] = 0.0
+        # Compute absolute increments
+        states_from_do_increments = tfloat(
+            states_from, float_type=self.float, device=self.device
+        )[do_increments]
+        increments_abs = self.relative_to_absolute_increments(
+            states_from_do_increments, increments_rel, min_increments, self.max_val
+        )
+        # Set 0 increments in near edge dimensions that cannot be further incremented
+        increments_abs[is_near_edge[do_increments]] = 0.0
+        # Build actions
+        actions_tensor = torch.full(
+            (n_states, self.n_dim), torch.inf, dtype=self.float, device=self.device
+        )
+        actions_tensor[do_increments] = increments_abs
+        actions = [tuple(a.tolist()) for a in actions_tensor]
+        return actions, None
 
     def get_logprobs(
         self,
@@ -1310,13 +1469,15 @@ class ContinuousCube(Cube):
         self, action: Tuple[int, float]
     ) -> Tuple[List[float], Tuple[int, float], bool]:
         """
-        Executes step given an action.
+        Executes step given an action. An action is the absolute increment of each
+        dimension.
 
         Args
         ----
         action : tuple
-            Action to be executed. An action is a tuple with two values:
-            (dimension, increment).
+            Action to be executed. An action is a tuple of length n_dim + 1, with the
+            relative increment for each dimension, and the minumum increment at the
+            last entry of the tuple.
 
         Returns
         -------
@@ -1332,39 +1493,29 @@ class ContinuousCube(Cube):
         """
         if self.done:
             return self.state, action, False
-        # TODO: remove condition
-        # If action is eos or any dimension is beyond max_val, then force eos
-        elif action == self.eos or any([s > (1 - self.min_incr) for s in self.state]):
+        if action == self.eos:
+            assert self.state != self.source
             self.done = True
             self.n_actions += 1
             return self.state, self.eos, True
-        # If action is not eos, then perform action
-        else:
-            epsilon = 1e-9
-            min_incr = action[-1]
-            for dim, incr_rel in enumerate(action[:-1]):
-                incr = min_incr + incr_rel * (1.0 - self.state[dim] - min_incr)
-                assert incr >= (
-                    min_incr - epsilon
-                ), f"""
-                Increment {incr} at dim {dim} smaller than minimum increment ({min_incr}).
-                \nState:\n{self.state}\nAction:\n{action}
-                """
-                self.state[dim] += incr
-            assert all(
-                [s <= (self.max_val + epsilon) for s in self.state]
-            ), f"""
-            State is out of cube bounds.
-            \nState:\n{self.state}\nAction:\n{action}\nIncrement: {incr}
-            """
-            assert all(
-                [s >= (0.0 - epsilon) for s in self.state]
-            ), f"""
-            State is out of cube bounds.
-            \nState:\n{self.state}\nAction:\n{action}\nIncrement: {incr}
-            """
-            self.n_actions += 1
-            return self.state, action, True
+        # Generic action
+        epsilon = 1e-9
+        for dim, incr in enumerate(action):
+            self.state[dim] += incr
+        assert all(
+            [s <= (self.max_val + epsilon) for s in self.state]
+        ), f"""
+        State is out of cube bounds.
+        \nState:\n{self.state}\nAction:\n{action}\nIncrement: {incr}
+        """
+        assert all(
+            [s >= (0.0 - epsilon) for s in self.state]
+        ), f"""
+        State is out of cube bounds.
+        \nState:\n{self.state}\nAction:\n{action}\nIncrement: {incr}
+        """
+        self.n_actions += 1
+        return self.state, action, True
 
     def get_grid_terminating_states(self, n_states: int) -> List[List]:
         n_per_dim = int(np.ceil(n_states ** (1 / self.n_dim)))
