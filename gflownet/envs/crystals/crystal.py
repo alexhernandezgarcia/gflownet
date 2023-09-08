@@ -526,6 +526,7 @@ class Crystal(GFlowNetEnv):
         super().set_state(state, done)
 
         stage = self._get_stage(state)
+
         composition_done = stage in [Stage.SPACE_GROUP, Stage.LATTICE_PARAMETERS]
         space_group_done = stage == Stage.LATTICE_PARAMETERS
         lattice_parameters_done = done
@@ -535,6 +536,26 @@ class Crystal(GFlowNetEnv):
         self.lattice_parameters.set_state(
             self._get_lattice_parameters_state(state), lattice_parameters_done
         )
+
+        """
+        We synchronize LatticeParameter's lattice system with the one of SpaceGroup
+        (if it was set) or reset it to the default triclinic otherwise. Why this is 
+        needed:
+        1) the first case is necessary for backward sampling, where we start from
+           an arbitrary terminal state, and need to synchronize the LatticeParameter's
+           lattice system to what that state indicates,
+        2) the second case is also necessary in backward sampling, but when we 
+           transition from Stage.LATTICE_PARAMETERS to Stage.SPACE_GROUP. We then need
+           to reset the lattice system to the default triclinic, such that its
+           source is back to the original one, and corresponds to the source of the
+           general Crystal environment.
+        """
+        lattice_system = self.space_group.lattice_system
+        if lattice_system != "None":
+            self.lattice_parameters.lattice_system = lattice_system
+        else:
+            self.lattice_parameters.lattice_system = TRICLINIC
+        self.lattice_parameters._set_source()
 
     def state2readable(self, state: Optional[List[int]] = None) -> str:
         if state is None:
