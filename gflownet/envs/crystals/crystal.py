@@ -548,7 +548,7 @@ class Crystal(GFlowNetEnv):
            transition from Stage.LATTICE_PARAMETERS to Stage.SPACE_GROUP. We then need
            to reset the lattice system to the default triclinic, such that it's
            source is back to the original one, and corresponds to the source of the
-           whole Crystal environment.
+           general Crystal environment.
         """
         lattice_system = self.space_group.lattice_system
         if lattice_system != "None":
