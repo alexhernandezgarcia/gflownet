@@ -1,12 +1,40 @@
 import torch
+import numpy.typing as npt
 
 from gflownet.utils.common import tfloat, tfloat_graph
 from gflownet.utils.molecule import torsions, constants
 from gflownet.utils.molecule.featurizer import MolDGLFeaturizer
 
 class DGLConformer:
-    def __init__(self, atom_positions, smiles, torsion_indices=None, atom_types=constants.ad_atom_types, 
-                 add_hydrogens=True, float_type=torch.float32, device=torch.device('cpu')):
+    def __init__(self, 
+                 atom_positions: npt.NDArray, 
+                 smiles: str, 
+                 torsion_indices: list = None, 
+                 atom_types: list = constants.ad_atom_types, 
+                 add_hydrogens: bool = True, 
+                 float_type: torch.dtype = torch.float32, 
+                 device: torch.device = torch.device('cpu')):
+        """
+        Initialize a DGLConformer object.
+
+        Args
+        ----
+            atom_positions : npt.NDArray
+                A tensor of shape (n_atoms, 3) containing the atom positions.
+            smiles : str
+                The SMILES representation of the molecule.
+            torsion_indices : list or None
+                A list of torsion indices to restrict the conformer to.
+                If None, all torsion angles are considered.
+            atom_types : list
+                A list of atom types for the molecule.
+            add_hydrogens : bool
+                Whether to add hydrogen atoms to the molecule.
+            float_type : torch.dtype
+                The data type for floating-point numbers.
+            device : torch.device
+                The device to store the data on.
+        """
         self.float_type = float_type
         self.device = device
         featuriser = MolDGLFeaturizer(atom_types)
@@ -23,7 +51,7 @@ class DGLConformer:
         self.rotatable_torsion_angles = torsions.get_rotatable_torsion_angles_names(self.graph)
         self.n_rotatable_bonds = self.rotatable_bonds.shape[0]
 
-    def apply_rotations(self, rotations):
+    def apply_rotations(self, rotations: torch.Tensor):
         """
         Applies rotations (torsion angles updates) to the rotatable torsion angles
 
@@ -45,7 +73,7 @@ class DGLConformer:
         rotations = torch.rand(self.n_rotatable_bonds, dtype=self.float_type, device=self.device) * 2 * torch.pi
         self.apply_rotations(rotations)
 
-    def compute_rotatable_torsion_angles(self):
+    def compute_rotatable_torsion_angles(self) -> torch.Tensor:
         """
         Computes rotatable torsion angles, values are in [-pi, pi]
 
@@ -56,7 +84,7 @@ class DGLConformer:
         return tfloat(torsions.compute_torsion_angles(self.graph, self.rotatable_torsion_angles), 
                       device=self.device, float_type=self.float_type)
     
-    def set_rotatable_torsion_angles(self, values):
+    def set_rotatable_torsion_angles(self, values: torch.Tensor):
         """
         Sets rotatable torsion angles to the specified values
 
@@ -70,14 +98,18 @@ class DGLConformer:
         update = values - current_values
         self.apply_rotations(update)
     
-    def get_atom_positions(self):
+    def get_atom_positions(self) -> torch.Tensor:
         """
-        returns torch tensor!
+        Returns
+        -------
+            torch.Tensor: A 2D tensor containing the atom positions, shape [n_atoms, 3].
         """
         return self.graph.ndata[constants.atom_position_name]
     
-    def get_atomic_numbers(self):
+    def get_atomic_numbers(self) -> torch.Tensor:
         """
-        returns torch tensor!
+        Returns
+        -------
+            torch.Tensor: A 1D tensor containing the atomic numbers, shape [n_atoms,].
         """
         return self.graph.ndata[constants.atomic_numbers_name]
