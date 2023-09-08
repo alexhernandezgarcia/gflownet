@@ -546,7 +546,7 @@ class Crystal(GFlowNetEnv):
            lattice system to what that state indicates,
         2) the second case is also necessary in backward sampling, but when we 
            transition from Stage.LATTICE_PARAMETERS to Stage.SPACE_GROUP. We then need
-           to reset the lattice system to the default triclinic, such that it's
+           to reset the lattice system to the default triclinic, such that its
            source is back to the original one, and corresponds to the source of the
            general Crystal environment.
         """
