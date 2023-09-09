@@ -318,7 +318,7 @@ class ContinuousTorus(HybridTorus):
         self,
         action: Tuple[float],
         backward: bool,
-    ) -> Tuple[List[float], Tuple[int, float], bool]:
+    ) -> Tuple[List[float], Tuple[float], bool]:
         """
         Updates self.state given a non-EOS action. This method is called by both step()
         and step_backwards(), with the corresponding value of argument backward.
@@ -368,7 +368,7 @@ class ContinuousTorus(HybridTorus):
 
     def step(
         self, action: Tuple[float], skip_mask_check: bool = False
-    ) -> Tuple[List[float], Tuple[int, float], bool]:
+    ) -> Tuple[List[float], Tuple[float], bool]:
         """
         Executes forward step given an action.
 
@@ -414,7 +414,7 @@ class ContinuousTorus(HybridTorus):
 
     def step_backwards(
         self, action: Tuple[float], skip_mask_check: bool = False
-    ) -> Tuple[List[float], Tuple[int, float], bool]:
+    ) -> Tuple[List[float], Tuple[float], bool]:
         """
         Executes backward step given an action.
 
