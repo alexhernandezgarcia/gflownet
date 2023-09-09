@@ -59,6 +59,7 @@ class MolCrystal(GFlowNetEnv):
         self.state_dim = 12
         self.space_group_kwargs = space_group_kwargs or {}
         self.lattice_parameters_kwargs = lattice_parameters_kwargs or {}
+        self.randomize_orientation = kwargs['randomize_orientation']
 
         self.space_group = SpaceGroup(n_atoms = None, **self.space_group_kwargs)
         # We initialize lattice parameters here with triclinic lattice system to access
@@ -120,17 +121,19 @@ class MolCrystal(GFlowNetEnv):
 
         super().__init__(**kwargs)
 
-    def set_condition(self, condition):
+    def set_condition(self, condition, randomize_orientation = False):
         '''
         todo write test - compute distance matrix pre and post transform they should be identical
+        :param randomize_orientation: randomize molecule orientation
         :param condition:
         :return:
         '''
-        condition=condition.clone()
-        # copy graph data and randomize the overall orientation
-        centred_coords = condition.pos - condition.pos.mean(0)
-        rotation_matrix = torch.tensor(Rotation.random(num=1).as_matrix(),dtype=centred_coords.dtype, device = centred_coords.device)[0]
-        condition.pos = torch.einsum('ji, mj->mi', (rotation_matrix, centred_coords))
+        condition = condition.clone()
+        if randomize_orientation:
+            # copy graph data and randomize the overall orientation
+            centred_coords = condition.pos - condition.pos.mean(0)
+            rotation_matrix = torch.tensor(Rotation.random(num=1).as_matrix(),dtype=centred_coords.dtype, device = centred_coords.device)[0]
+            condition.pos = torch.einsum('ji, mj->mi', (rotation_matrix, centred_coords))
         self.conditions = condition  # custom crystaldata object used by the Policy to generate conditions embedding
 
     def set_conditions_embedding(self, conditions_embedding):
@@ -213,7 +216,7 @@ class MolCrystal(GFlowNetEnv):
         self._set_stage(Stage.SPACE_GROUP)
 
         if condition is not None:
-            self.set_condition(condition)
+            self.set_condition(condition, randomize_orientation=self.randomize_orientation)
 
         return self
 

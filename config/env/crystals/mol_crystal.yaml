@@ -6,16 +6,21 @@ _target_: gflownet.envs.crystals.mol_crystal.MolCrystal
 # Composition parameters
 id: mol_crystal
 conditional: True
+randomize_orientation: False
 space_group_kwargs:
-  generate_sgs: [2] # P-1 and P21/c - 'null' will generate in all space groups
+  generate_sgs: [1] # P-1 and P21/c - 'null' will generate in all space groups
 lattice_parameters_kwargs:
+  grid_size: 20
+
   min_length: 0.25
   max_length: 3.0
+
   min_angle: 60.0
   max_angle: 120.0
-  grid_size: 24
+
   min_position: 0.0 # fractional coordinates
   max_position: 1.0  # ideally grid should include at least exactly [0, .125, .25, .5]
+
   min_theta: 1.0
   max_theta: 89.0
   min_phi: -179.0

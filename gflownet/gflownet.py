@@ -54,8 +54,10 @@ class GFlowNetAgent:
             active_learning=False,
             data_path=None,
             sample_only=False,
+            machine='local',
             **kwargs,
     ):
+        self.machine=machine
         # Seed
         self.rng = np.random.default_rng(seed)
         # Device
@@ -197,13 +199,19 @@ class GFlowNetAgent:
             _, override_args = parser.parse_known_args()
             parser, args2config = add_args(parser)
             args = parser.parse_args()
-            args.yaml_config = '/home/mkilgour/mcrygan/configs/gflownet_dev.yaml'
-
+            if self.machine == 'local':
+                args.yaml_config = '/home/mkilgour/mcrygan/configs/gflownet_dev.yaml'
+            elif self.machine == 'cluster':
+                args.yaml_config = '/scratch/mk8347/mcrygan/configs/gflownet_dev.yaml'
             config = get_config(args, override_args, args2config)
+            config.machine = self.machine
+            if self.machine == 'cluster':
+                config.test_mode = False
+                config.dataset_length = 1000000
             config = process_config(config)
 
             mcry_modeller = Modeller(config, skip_new_workdir=True)
-            self.conditions_train_loader, self.conditions_test_loader = mcry_modeller.prep_standalone_modelling_tools(self.batch_size['forward'])
+            self.conditions_train_loader, self.conditions_test_loader = mcry_modeller.prep_standalone_modelling_tools(self.batch_size['forward'], machine = self.machine)
             del mcry_modeller.prep_dataset  # this should be done inside the above but we get a bug
 
     def parameters(self):

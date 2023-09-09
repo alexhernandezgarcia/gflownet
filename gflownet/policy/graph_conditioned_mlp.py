@@ -51,7 +51,7 @@ class GraphConditionedPolicy(nn.Module):
         )
         self.model = MLP(
             input_dim=state_dim,
-            conditioning_dim = graph_dimension + 1,
+            conditioning_dim = 0, #graph_dimension + 1,
             layers=n_layers,
             filters=hidden_depth,
             output_dim = output_dim,
@@ -70,10 +70,11 @@ class GraphConditionedPolicy(nn.Module):
         graph convolution is TransformerConv conditioned on edge embeddings
         graph -> gnn -> mlp -> output
         """
-        conditions = conditions.clone()  # avoid contaminating the source data
-        normed_coords = conditions.pos / self.max_mol_radius  # norm coords by maximum molecule radius
-        conditions.x = torch.cat((conditions.x[:, :-self.n_crystal_features], normed_coords,), dim=-1)  # concatenate states and coordinates to input features, leaving out crystal info
+        # conditions = conditions.clone()  # avoid contaminating the source data
+        # normed_coords = conditions.pos / self.max_mol_radius  # norm coords by maximum molecule radius
+        # conditions.x = torch.cat((conditions.x[:, :-self.n_crystal_features], normed_coords,), dim=-1)  # concatenate states and coordinates to input features, leaving out crystal info
 
-        return self.model(states, conditions=torch.cat((conditions.y[:,None].float(),self.conditioner(conditions)),dim=-1))
+        #return self.model(states, conditions=torch.cat((conditions.y[:,None].float(),self.conditioner(conditions)),dim=-1))  # conditional generation
 
+        return self.model(states)  # unconditional generation
 

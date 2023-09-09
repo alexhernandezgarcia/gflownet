@@ -61,6 +61,7 @@ def main(config):
         env=env,
         buffer=config.env.buffer,
         logger=logger,
+        machine = config.machine,
     )
     gflownet.train()
 
