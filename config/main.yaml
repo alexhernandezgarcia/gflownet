@@ -8,7 +8,7 @@ defaults:
 
 # Device
 device: cuda
-machine: cluster
+machine: local
 # Float precision
 float_precision: 32
 # Number of objects to sample at the end of training

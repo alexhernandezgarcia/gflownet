@@ -30,7 +30,7 @@ optimizer:
   # Train to sample ratio
   train_to_sample_ratio: 1
   # Number of training iterations
-  n_train_steps: 10000
+  n_train_steps: 1000
   # From original implementation
   bootstrap_tau: 0.0
   clip_grad_norm: 0.0
@@ -41,7 +41,7 @@ mask_invalid_actions: True
 # Temperature for the logits /= temperature_logits
 temperature_logits: 1.0
 # Percentage of random actions
-random_action_prob: 0.1
+random_action_prob: 0.05
 # Percentage of trajectories in a batch from an empirical distribution
 pct_offline: 0.0
 # Replay buffer

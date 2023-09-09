@@ -10,7 +10,7 @@ randomize_orientation: False
 space_group_kwargs:
   generate_sgs: [1] # P-1 and P21/c - 'null' will generate in all space groups
 lattice_parameters_kwargs:
-  grid_size: 20
+  grid_size: 10
 
   min_length: 0.25
   max_length: 3.0

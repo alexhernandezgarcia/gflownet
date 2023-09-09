@@ -13,7 +13,7 @@ train:
 test:
   first_it: False
   period: 100
-  n: 100
+  n: 1000
   kde:
     bandwidth: 0.1
     kernel: gaussian
