@@ -161,7 +161,7 @@ def test__mask_forward__2d__returns_expected(cube2d, state, mask_expected):
     [
         (
             [0.0],
-            [True, True, True],
+            [True, False, True],
         ),
         (
             [0.1],
@@ -196,7 +196,7 @@ def test__mask_backward__1d__returns_expected(cube1d, state, mask_expected):
     [
         (
             [0.0, 0.0],
-            [True, True, True],
+            [True, False, True],
         ),
         (
             [0.5, 0.5],
@@ -712,6 +712,5 @@ def test__continuous_env_common__cube1d(cube1d):
     return common.test__continuous_env_common(cube1d)
 
 
-@pytest.mark.skip(reason="skip while developping other tests")
 def test__continuous_env_common__cube2d(cube2d):
     return common.test__continuous_env_common(cube2d)

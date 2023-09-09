@@ -28,16 +28,16 @@ def test__all_env_common(env):
 def test__continuous_env_common(env):
     test__reset__state_is_source(env)
     test__set_state__creates_new_copy_of_state(env)
+    test__sampling_forwards_reaches_done_in_finite_steps(env)
+    test__sample_actions__backward__returns_eos_if_done(env)
+    test__step__returns_same_state_action_and_invalid_if_done(env)
+    test__sample_backwards_reaches_source(env)
 
 
-#     test__sampling_forwards_reaches_done_in_finite_steps(env)
-#     test__sample_actions__backward__returns_eos_if_done(env)
 #     test__gflownet_minimal_runs(env)
 #     test__sample_actions__get_logprobs__return_valid_actions_and_logprobs(env)
 #     test__get_parents__returns_same_state_and_eos_if_done(env)
-#     test__step__returns_same_state_action_and_invalid_if_done(env)
 #     test__actions2indices__returns_expected_tensor(env)
-#     test__sample_backwards_reaches_source(env)
 
 
 def _get_terminating_states(env, n):
