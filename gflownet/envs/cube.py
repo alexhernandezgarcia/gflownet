@@ -1251,8 +1251,8 @@ class ContinuousCube(Cube):
         # Initialize variables
         n_states = policy_outputs.shape[0]
         is_bts = torch.zeros(n_states, dtype=torch.bool, device=self.device)
-        # EOS is the only possible action only if the entire mask is True
-        is_eos = torch.all(mask, dim=1)
+        # EOS is the only possible action only if done is True (mask[2] is False)
+        is_eos = ~mask[:, 2]
         # Back-to-source (BTS) is the only possible action if mask[1] is False
         is_bts_forced = ~mask[:, 1]
         is_bts[is_bts_forced] = True
@@ -1558,9 +1558,57 @@ class ContinuousCube(Cube):
         else:
             return 1.0 / ((states - min_increments) + epsilon)
 
-    def step(
-        self, action: Tuple[int, float]
-    ) -> Tuple[List[float], Tuple[int, float], bool]:
+    def _step(
+        self,
+        action: Tuple[float],
+        backward: bool,
+    ) -> Tuple[List[float], Tuple[float], bool]:
+        """
+        Updates self.state given a non-EOS action. This method is called by both step()
+        and step_backwards(), with the corresponding value of argument backward.
+
+        Args
+        ----
+        action : tuple
+            Action to be executed. An action is a tuple of length n_dim, with the
+            absolute increment for each dimension.
+
+        backward : bool
+            If True, perform backward step. Otherwise (default), perform forward step.
+
+        Returns
+        -------
+        self.state : list
+            The sequence after executing the action
+
+        action : int
+            Action executed
+
+        valid : bool
+            False, if the action is not allowed for the current state, e.g. stop at the
+            root state
+        """
+        epsilon = 1e-9
+        for dim, incr in enumerate(action):
+            if backward:
+                self.state[dim] -= incr
+            else:
+                self.state[dim] += incr
+        assert all(
+            [s <= (self.max_val + epsilon) for s in self.state]
+        ), f"""
+        State is out of cube bounds.
+        \nState:\n{self.state}\nAction:\n{action}\nIncrement: {incr}
+        """
+        assert all(
+            [s >= (0.0 - epsilon) for s in self.state]
+        ), f"""
+        State is out of cube bounds.
+        \nState:\n{self.state}\nAction:\n{action}\nIncrement: {incr}
+        """
+        return self.state, action, True
+
+    def step(self, action: Tuple[float]) -> Tuple[List[float], Tuple[int, float], bool]:
         """
         Executes step given an action. An action is the absolute increment of each
         dimension.
@@ -1568,9 +1616,8 @@ class ContinuousCube(Cube):
         Args
         ----
         action : tuple
-            Action to be executed. An action is a tuple of length n_dim + 1, with the
-            relative increment for each dimension, and the minumum increment at the
-            last entry of the tuple.
+            Action to be executed. An action is a tuple of length n_dim, with the
+            absolute increment for each dimension.
 
         Returns
         -------
@@ -1591,24 +1638,49 @@ class ContinuousCube(Cube):
             self.done = True
             self.n_actions += 1
             return self.state, self.eos, True
-        # Generic action
-        epsilon = 1e-9
-        for dim, incr in enumerate(action):
-            self.state[dim] += incr
-        assert all(
-            [s <= (self.max_val + epsilon) for s in self.state]
-        ), f"""
-        State is out of cube bounds.
-        \nState:\n{self.state}\nAction:\n{action}\nIncrement: {incr}
+        # Otherwise perform action
+        else:
+            self.n_actions += 1
+            self._step(action, backward=False)
+            return self.state, action, True
+
+    def step_backwards(
+        self, action: Tuple[int, float]
+    ) -> Tuple[List[float], Tuple[int, float], bool]:
         """
-        assert all(
-            [s >= (0.0 - epsilon) for s in self.state]
-        ), f"""
-        State is out of cube bounds.
-        \nState:\n{self.state}\nAction:\n{action}\nIncrement: {incr}
+        Executes backward step given an action. An action is the absolute decrement of
+        each dimension.
+
+        Args
+        ----
+        action : tuple
+            Action to be executed. An action is a tuple of length n_dim, with the
+            absolute decrement for each dimension.
+
+        Returns
+        -------
+        self.state : list
+            The sequence after executing the action
+
+        action : int
+            Action executed
+
+        valid : bool
+            False, if the action is not allowed for the current state, e.g. stop at the
+            root state
         """
-        self.n_actions += 1
-        return self.state, action, True
+        # If done is True, set done to False, increment n_actions and return same state
+        if self.done:
+            assert action == self.eos
+            self.done = False
+            self.n_actions += 1
+            return self.state, action, True
+        # Otherwise perform action
+        else:
+            assert action != self.eos
+            self.n_actions += 1
+            self._step(action, backward=True)
+            return self.state, action, True
 
     def get_grid_terminating_states(self, n_states: int) -> List[List]:
         n_per_dim = int(np.ceil(n_states ** (1 / self.n_dim)))

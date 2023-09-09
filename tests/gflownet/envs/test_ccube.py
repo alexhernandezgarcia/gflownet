@@ -708,5 +708,10 @@ def test__get_mask_invalid_actions_forward__returns_expected(env, state, expecte
 
 
 @pytest.mark.skip(reason="skip while developping other tests")
-def test__continuous_env_common(env):
-    return common.test__continuous_env_common(env)
+def test__continuous_env_common__cube1d(cube1d):
+    return common.test__continuous_env_common(cube1d)
+
+
+@pytest.mark.skip(reason="skip while developping other tests")
+def test__continuous_env_common__cube2d(cube2d):
+    return common.test__continuous_env_common(cube2d)
