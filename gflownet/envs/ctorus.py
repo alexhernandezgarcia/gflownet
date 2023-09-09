@@ -262,18 +262,18 @@ class ContinuousTorus(HybridTorus):
             actions_tensor[do_sample] = angles_sampled
             logprobs[do_sample] = distr_angles.log_prob(angles_sampled)
         logprobs = torch.sum(logprobs, axis=1)
-        # Catch special case for backwards return-to-source actions
+        # Catch special case for backwards backt-to-source (BTS) actions
         if is_backward:
-            do_return_to_source = mask[:, 0]
-            if torch.any(do_return_to_source):
+            do_bts = mask[:, 0]
+            if torch.any(do_bts):
                 source_angles = tfloat(
                     self.source[: self.n_dim], float_type=self.float, device=self.device
                 )
                 states_from_angles = tfloat(
                     states_from, float_type=self.float, device=self.device
-                )[do_return_to_source, : self.n_dim]
-                actions_return_to_source = states_from_angles - source_angles
-                actions_tensor[do_return_to_source] = actions_return_to_source
+                )[do_bts, : self.n_dim]
+                actions_bts = states_from_angles - source_angles
+                actions_tensor[do_bts] = actions_bts
         # TODO: is this too inefficient because of the multiple data transfers?
         actions = [tuple(a.tolist()) for a in actions_tensor]
         return actions, logprobs
