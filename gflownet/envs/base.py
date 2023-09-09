@@ -959,10 +959,12 @@ class GFlowNetEnv:
                 y_nan = torch.isnan(state_y)
                 if not torch.equal(x_nan, y_nan):
                     return False
-                return torch.all(torch.isclose(state_x[~x_nan], state_y[~y_nan], atol))
+                return torch.all(
+                    torch.isclose(state_x[~x_nan], state_y[~y_nan], atol=atol)
+                )
             return torch.equal(state_x, state_y)
         else:
-            return np.all(np.isclose(state_x, state_y, atol))
+            return np.all(np.isclose(state_x, state_y, atol=atol))
 
     def set_energies_stats(self, energies_stats):
         self.energies_stats = energies_stats
