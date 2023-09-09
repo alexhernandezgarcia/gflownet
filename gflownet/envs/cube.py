@@ -15,7 +15,7 @@ from torch.distributions import Bernoulli, Beta, Categorical, MixtureSameFamily,
 from torchtyping import TensorType
 
 from gflownet.envs.base import GFlowNetEnv
-from gflownet.utils.common import tbool, tfloat
+from gflownet.utils.common import copy, tbool, tfloat
 
 
 class Cube(GFlowNetEnv, ABC):
@@ -667,25 +667,22 @@ class ContinuousCube(Cube):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
 
-    # TODO: rewrite docstring
     def get_action_space(self):
         """
-        The actions are tuples of length n_dim + 1, where the value at position d indicates
-        the (positive, relative) increment of dimension d. The value at the last
-        position indicates the minimum increment: 0.0 if the transition is from the
-        source state, min_incr otherwise.
+        The action space is continuous, thus not defined as such here.
 
-        Additionally, there are two special discrete actions:
-            - EOS action. Indicated by np.inf for all dimensions. Only valid forwards.
-            - Back-to-source action. Indicated by -1 for all dimensions. Only valid
-              backwards.
+        The actions are tuples of length n_dim, where the value at position d indicates
+        the increment of dimension d.
+
+        EOS is indicated by np.inf for all dimensions.
+
+        This method defines self.eos and the returned action space is simply a
+        representative (arbitrary) action with an increment of 0.0 in all dimensions,
+        and EOS.
         """
-        generic_action = tuple([0.0 for _ in range(self.n_dim)] + [self.min_incr])
-        from_source = tuple([0.0 for _ in range(self.n_dim)] + [0.0])
-        to_source = tuple([-1.0 for _ in range(self.n_dim + 1)])
-        self.eos = tuple([np.inf for _ in range(self.n_dim + 1)])
-        actions = [generic_action, from_source, to_source, self.eos]
-        return actions
+        self.eos = tuple([np.inf] * self.n_dim)
+        self.representative_action = tuple([0.0] * self.n_dim)
+        return [self.representative_action, self.eos]
 
     def get_policy_output(self, params: dict) -> TensorType["policy_output_dim"]:
         """
@@ -874,9 +871,6 @@ class ContinuousCube(Cube):
         done = self._get_done(done)
         mask_dim = 3
         mask = [True] * mask_dim
-        # If state is source, all actions are invalid and no special cases.
-        if state == self.source:
-            return mask
         # If done, only valid action is EOS.
         if done:
             mask[2] = False
@@ -1594,12 +1588,24 @@ class ContinuousCube(Cube):
                 self.state[dim] -= incr
             else:
                 self.state[dim] += incr
+        # If state is close enough to source, set source to avoid escaping comparison
+        # to source.
+        if self.isclose(self.state, self.source, atol=1e-6):
+            self.state = copy(self.source)
+        if not all([s <= (self.max_val + epsilon) for s in self.state]):
+            import ipdb
+
+            ipdb.set_trace()
         assert all(
             [s <= (self.max_val + epsilon) for s in self.state]
         ), f"""
         State is out of cube bounds.
         \nState:\n{self.state}\nAction:\n{action}\nIncrement: {incr}
         """
+        if not all([s >= (0.0 - epsilon) for s in self.state]):
+            import ipdb
+
+            ipdb.set_trace()
         assert all(
             [s >= (0.0 - epsilon) for s in self.state]
         ), f"""
