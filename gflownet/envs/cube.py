@@ -822,7 +822,7 @@ class ContinuousCube(Cube):
         The forward mask has the following structure:
 
         - 0 : whether a continuous action is invalid. True if the value at any
-          dimension is larger than 1 - min_incr, or if done is True.  False otherwise.
+          dimension is larger than 1 - min_incr, or if done is True. False otherwise.
         - 1 : special case when the state is the source state. False when the state is
           the source state, True otherwise.
         - 2 : whether EOS action is invalid. EOS is valid from any state, except the
@@ -848,7 +848,7 @@ class ContinuousCube(Cube):
             mask[0] = True
         return mask
 
-    # TODO: re-do
+    # TODO: can we simplify to 2 values?
     def get_mask_invalid_actions_backward(self, state=None, done=None, parents_a=None):
         """
         The action space is continuous, thus the mask is not only of invalid actions as
@@ -863,39 +863,31 @@ class ContinuousCube(Cube):
 
         The backward mask has the following structure:
 
-        - 0:n_dim : special case when a dimension can remain as is, that is sampling a
-          decrement of exactly 0 is possible. False if the value at the dimension is
-          larger than 1 - min_incr, True otherwise. If the cube is 1D, then this
-          special case never occurs, hence the value is always True.
-        - -2 : special case when back-to-source action is the only possible action.
+        - 0 : whether a continuous action is invalid. True if the value at any
+          dimension is smaller than min_incr, or if done is True. False otherwise.
+        - 1 : special case when back-to-source action is the only possible action.
           False if any dimension is smaller than min_incr, True otherwise.
-        - -1 : whether EOS action is invalid. False only if done is True, True
+        - 2 : whether EOS action is invalid. False only if done is True, True
           (invalid) otherwise.
         """
         state = self._get_state(state)
         done = self._get_done(done)
-        mask_dim = self.n_dim + 2
+        mask_dim = 3
         mask = [True] * mask_dim
         # If state is source, all actions are invalid and no special cases.
         if state == self.source:
             return mask
         # If done, only valid action is EOS.
         if done:
-            mask[-1] = False
+            mask[2] = False
             return mask
-        # If any dimension is smaller than m, then back-to-source action is not invalid
-        # (False)
+        # If any dimension is smaller than m, then back-to-source action is the only
+        # possible actiona.
         if any([s < self.min_incr for s in state]):
-            mask[-2] = False
+            mask[1] = False
             return mask
-        # Dimensions whose value is greater than 1 - min_incr can remain as are
-        # (special case, thus False)
-        if self.n_dim == 1:
-            return mask
-        for dim, s in enumerate(state):
-            if s > 1 - self.min_incr:
-                mask[dim] = False
-        # TODO: if all dims are special cases, at least one should decrease.
+        # Otherwise, continuous actions are valid
+        mask[0] = False
         return mask
 
     # TODO: remove all together?
@@ -960,6 +952,7 @@ class ContinuousCube(Cube):
         increments_rel: TensorType["n_states", "n_dim"],
         min_increments: TensorType["n_states", "n_dim"],
         max_val: float,
+        is_backward: bool,
     ):
         """
         Returns a batch of absolute increments (actions) given a batch of states,
@@ -971,9 +964,12 @@ class ContinuousCube(Cube):
         a = m + r * (1 - x - m)
         """
         max_val = torch.full_like(states, max_val)
-        increments_abs = min_increments + increments_rel * (
-            max_val - states - min_increments
-        )
+        if is_backward:
+            increments_abs = min_increments + increments_rel * (states - min_increments)
+        else:
+            increments_abs = min_increments + increments_rel * (
+                max_val - states - min_increments
+            )
         return increments_abs
 
     def sample_actions(
@@ -1086,6 +1082,10 @@ class ContinuousCube(Cube):
             return self._sample_actions_batch_forward(
                 policy_outputs, mask, states_from, sampling_method, temperature_logits
             )
+        else:
+            return self._sample_actions_batch_backward(
+                policy_outputs, mask, states_from, sampling_method, temperature_logits
+            )
 
     def _sample_actions_batch_forward(
         self,
@@ -1176,23 +1176,148 @@ class ContinuousCube(Cube):
                 distr_increments = MixtureSameFamily(mix, beta_distr)
             # Shape of increments_rel: [n_do_increments, n_dim]
             increments_rel = distr_increments.sample()
-        # Get minimum increments
-        min_increments = torch.full_like(
-            increments_rel, self.min_incr, dtype=self.float, device=self.device
-        )
-        min_increments[is_source[do_increments]] = 0.0
-        # Compute absolute increments
-        states_from_do_increments = tfloat(
-            states_from, float_type=self.float, device=self.device
-        )[do_increments]
-        increments_abs = self.relative_to_absolute_increments(
-            states_from_do_increments, increments_rel, min_increments, self.max_val
-        )
+            # Get minimum increments
+            min_increments = torch.full_like(
+                increments_rel, self.min_incr, dtype=self.float, device=self.device
+            )
+            min_increments[is_source[do_increments]] = 0.0
+            # Compute absolute increments
+            states_from_do_increments = tfloat(
+                states_from, float_type=self.float, device=self.device
+            )[do_increments]
+            increments_abs = self.relative_to_absolute_increments(
+                states_from_do_increments,
+                increments_rel,
+                min_increments,
+                self.max_val,
+                is_backward=False,
+            )
         # Build actions
         actions_tensor = torch.full(
             (n_states, self.n_dim), torch.inf, dtype=self.float, device=self.device
         )
-        actions_tensor[do_increments] = increments_abs
+        if torch.any(do_increments):
+            actions_tensor[do_increments] = increments_abs
+        actions = [tuple(a.tolist()) for a in actions_tensor]
+        return actions, None
+
+    # TODO: Rewrite docstring
+    # TODO: Write function common to forward and backward
+    # TODO: Catch source states?
+    def _sample_actions_batch_backward(
+        self,
+        policy_outputs: TensorType["n_states", "policy_output_dim"],
+        mask: Optional[TensorType["n_states", "policy_output_dim"]] = None,
+        states_from: Optional[List] = None,
+        sampling_method: Optional[str] = "policy",
+        temperature_logits: Optional[float] = 1.0,
+        max_sampling_attempts: Optional[int] = 10,
+    ) -> Tuple[List[Tuple], TensorType["n_states"]]:
+        """
+        Samples a a batch of backward actions from a batch of policy outputs.
+
+        An action indicates, for each dimension, the absolute increment of the
+        dimension value. However, in order to ensure that trajectories have finite
+        length, increments must have a minumum increment (self.min_incr) except if the
+        originating state is the source state (special case, see
+        get_mask_invalid_actions_backward()). Furthermore, absolute increments must also
+        be smaller than the distance from the dimension value to the edge of the cube
+        (self.max_val). In order to accomodate these constraints, first relative
+        increments (in [0, 1]) are sampled from a (mixture of) Beta distribution(s),
+        where 0.0 indicates an absolute increment of min_incr and 1.0 indicates an
+        absolute increment of 1 - x + min_incr (going to the edge).
+
+        Therefore, given a dimension value x, a relative increment r, a minimum
+        increment m and a maximum value 1, the absolute increment a is given by:
+
+        a = m + r * (1 - x - m)
+
+        The continuous distribution to sample the continuous action described above
+        must be mixed with the discrete distribution to model the sampling of the EOS
+        action. The EOS action can be sampled from any state except from the source
+        state or whether the trajectory is done. That the EOS action is invalid is
+        indicated by mask[-1] being False.
+
+        Finally, regarding the constraints on the increments, the following special
+        cases are taken into account:
+
+        - The originating state is the source state: in this case, the minimum
+          increment is 0.0 instead of self.min_incr. This is to ensure that the entire
+          state space can be reached. This is indicated by mask[-2] being False.
+        - The value at any dimension is at a distance from the cube edge smaller than the
+          minimum increment (x > 1 - m). In this case, only EOS is valid.
+          This is indicated by mask[0] being True (continuous actions are invalid).
+        """
+        # Initialize variables
+        n_states = policy_outputs.shape[0]
+        is_bts = torch.zeros(n_states, dtype=torch.bool, device=self.device)
+        # EOS is the only possible action only if the entire mask is True
+        is_eos = torch.all(mask, dim=1)
+        # Back-to-source (BTS) is the only possible action if mask[1] is False
+        is_bts_forced = ~mask[:, 1]
+        is_bts[is_bts_forced] = True
+        # Sample BTS from Bernoulli distribution
+        do_bts = torch.logical_and(~is_bts_forced, ~is_eos)
+        if torch.any(do_bts):
+            is_bts_sampled = torch.zeros_like(do_bts)
+            logits_bts = self._get_policy_source_logit(policy_outputs)[do_bts]
+            distr_bts = Bernoulli(logits=logits_bts)
+            is_bts_sampled[do_bts] = tbool(distr_bts.sample(), device=self.device)
+            is_bts[is_bts_sampled] = True
+        # Sample relative increments if actions are neither BTS nor EOS
+        do_increments = torch.logical_and(~is_bts, ~is_eos)
+        if torch.any(do_increments):
+            if sampling_method == "uniform":
+                raise NotImplementedError()
+            elif sampling_method == "policy":
+                mix_logits = self._get_policy_betas_weights(policy_outputs)[
+                    do_increments
+                ].reshape(-1, self.n_dim, self.n_comp)
+                mix = Categorical(logits=mix_logits)
+                alphas = self._get_policy_betas_alpha(policy_outputs)[
+                    do_increments
+                ].reshape(-1, self.n_dim, self.n_comp)
+                alphas = (
+                    self.beta_params_max * torch.sigmoid(alphas) + self.beta_params_min
+                )
+                betas = self._get_policy_betas_beta(policy_outputs)[
+                    do_increments
+                ].reshape(-1, self.n_dim, self.n_comp)
+                betas = (
+                    self.beta_params_max * torch.sigmoid(betas) + self.beta_params_min
+                )
+                beta_distr = Beta(alphas, betas)
+                distr_increments = MixtureSameFamily(mix, beta_distr)
+            # Shape of increments_rel: [n_do_increments, n_dim]
+            increments_rel = distr_increments.sample()
+            # Set minimum increments
+            min_increments = torch.full_like(
+                increments_rel, self.min_incr, dtype=self.float, device=self.device
+            )
+            # Compute absolute increments
+            states_from_do_increments = tfloat(
+                states_from, float_type=self.float, device=self.device
+            )[do_increments]
+            increments_abs = self.relative_to_absolute_increments(
+                states_from_do_increments,
+                increments_rel,
+                min_increments,
+                self.max_val,
+                is_backward=True,
+            )
+        # Build actions
+        actions_tensor = torch.zeros(
+            (n_states, self.n_dim), dtype=self.float, device=self.device
+        )
+        actions_tensor[is_eos] = torch.inf
+        if torch.any(do_increments):
+            actions_tensor[do_increments] = increments_abs
+        if torch.any(is_bts):
+            # BTS actions are equal to the originating states
+            actions_bts = tfloat(
+                states_from, float_type=self.float, device=self.device
+            )[is_bts]
+            actions_tensor[is_bts] = actions_bts
         actions = [tuple(a.tolist()) for a in actions_tensor]
         return actions, None
 
