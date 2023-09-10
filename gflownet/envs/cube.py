@@ -1081,6 +1081,25 @@ class ContinuousCube(Cube):
                 policy_outputs, mask, states_from, sampling_method, temperature_logits
             )
 
+    def _make_increments_distribution(
+        self,
+        policy_outputs: TensorType["n_states", "policy_output_dim"],
+    ) -> MixtureSameFamily:
+        mix_logits = self._get_policy_betas_weights(policy_outputs).reshape(
+            -1, self.n_dim, self.n_comp
+        )
+        mix = Categorical(logits=mix_logits)
+        alphas = self._get_policy_betas_alpha(policy_outputs).reshape(
+            -1, self.n_dim, self.n_comp
+        )
+        alphas = self.beta_params_max * torch.sigmoid(alphas) + self.beta_params_min
+        betas = self._get_policy_betas_beta(policy_outputs).reshape(
+            -1, self.n_dim, self.n_comp
+        )
+        betas = self.beta_params_max * torch.sigmoid(betas) + self.beta_params_min
+        beta_distr = Beta(alphas, betas)
+        return MixtureSameFamily(mix, beta_distr)
+
     def _sample_actions_batch_forward(
         self,
         policy_outputs: TensorType["n_states", "policy_output_dim"],
@@ -1150,24 +1169,9 @@ class ContinuousCube(Cube):
             if sampling_method == "uniform":
                 raise NotImplementedError()
             elif sampling_method == "policy":
-                mix_logits = self._get_policy_betas_weights(policy_outputs)[
-                    do_increments
-                ].reshape(-1, self.n_dim, self.n_comp)
-                mix = Categorical(logits=mix_logits)
-                alphas = self._get_policy_betas_alpha(policy_outputs)[
-                    do_increments
-                ].reshape(-1, self.n_dim, self.n_comp)
-                alphas = (
-                    self.beta_params_max * torch.sigmoid(alphas) + self.beta_params_min
+                distr_increments = self._make_increments_distribution(
+                    policy_outputs[do_increments]
                 )
-                betas = self._get_policy_betas_beta(policy_outputs)[
-                    do_increments
-                ].reshape(-1, self.n_dim, self.n_comp)
-                betas = (
-                    self.beta_params_max * torch.sigmoid(betas) + self.beta_params_min
-                )
-                beta_distr = Beta(alphas, betas)
-                distr_increments = MixtureSameFamily(mix, beta_distr)
             # Shape of increments_rel: [n_do_increments, n_dim]
             increments_rel = distr_increments.sample()
             # Get minimum increments
@@ -1264,24 +1268,9 @@ class ContinuousCube(Cube):
             if sampling_method == "uniform":
                 raise NotImplementedError()
             elif sampling_method == "policy":
-                mix_logits = self._get_policy_betas_weights(policy_outputs)[
-                    do_increments
-                ].reshape(-1, self.n_dim, self.n_comp)
-                mix = Categorical(logits=mix_logits)
-                alphas = self._get_policy_betas_alpha(policy_outputs)[
-                    do_increments
-                ].reshape(-1, self.n_dim, self.n_comp)
-                alphas = (
-                    self.beta_params_max * torch.sigmoid(alphas) + self.beta_params_min
+                distr_increments = self._make_increments_distribution(
+                    policy_outputs[do_increments]
                 )
-                betas = self._get_policy_betas_beta(policy_outputs)[
-                    do_increments
-                ].reshape(-1, self.n_dim, self.n_comp)
-                betas = (
-                    self.beta_params_max * torch.sigmoid(betas) + self.beta_params_min
-                )
-                beta_distr = Beta(alphas, betas)
-                distr_increments = MixtureSameFamily(mix, beta_distr)
             # Shape of increments_rel: [n_do_increments, n_dim]
             increments_rel = distr_increments.sample()
             # Set minimum increments
@@ -1614,6 +1603,7 @@ class ContinuousCube(Cube):
         """
         return self.state, action, True
 
+    # TODO: make generic for continuous environments
     def step(self, action: Tuple[float]) -> Tuple[List[float], Tuple[int, float], bool]:
         """
         Executes step given an action. An action is the absolute increment of each
@@ -1650,6 +1640,7 @@ class ContinuousCube(Cube):
             self._step(action, backward=False)
             return self.state, action, True
 
+    # TODO: make generic for continuous environments
     def step_backwards(
         self, action: Tuple[int, float]
     ) -> Tuple[List[float], Tuple[int, float], bool]:
