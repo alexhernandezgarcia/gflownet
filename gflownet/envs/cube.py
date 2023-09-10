@@ -1149,7 +1149,7 @@ class ContinuousCube(Cube):
         is_eos = torch.zeros(n_states, dtype=torch.bool, device=self.device)
         # Determine source states
         is_source = ~mask[:, 1]
-        # EOS is the only possible action continuous actions are invalid (mask[0] is
+        # EOS is the only possible action if continuous actions are invalid (mask[0] is
         # True)
         is_eos_forced = mask[:, 0]
         is_eos[is_eos_forced] = True
@@ -1304,7 +1304,100 @@ class ContinuousCube(Cube):
         actions = [tuple(a.tolist()) for a in actions_tensor]
         return actions, None
 
+    # TODO: Remove need for states_to?
     def get_logprobs(
+        self,
+        policy_outputs: TensorType["n_states", "policy_output_dim"],
+        is_forward: bool,
+        actions: TensorType["n_states", "n_dim"],
+        states_from: TensorType["n_states", "policy_input_dim"],
+        states_to: TensorType["n_states", "policy_input_dim"],
+        mask_invalid_actions: TensorType["n_states", "3"] = None,
+    ) -> TensorType["batch_size"]:
+        """
+        Computes log probabilities of actions given policy outputs and actions.
+        """
+        if is_forward:
+            return self._get_logprobs_forward(
+                policy_outputs, actions, states_from, states_to, mask
+            )
+        else:
+            raise NotImplementedError()
+
+    # TODO: Unify sample_actions and get_logprobs
+    def _get_logprobs_forward(
+        self,
+        policy_outputs: TensorType["n_states", "policy_output_dim"],
+        actions: TensorType["n_states", "n_dim"],
+        states_from: TensorType["n_states", "policy_input_dim"],
+        states_to: TensorType["n_states", "policy_input_dim"],
+        mask: TensorType["n_states", "3"] = None,
+    ) -> TensorType["batch_size"]:
+        """
+        Computes log probabilities of actions.
+        """
+        # Initialize variables
+        n_states = policy_outputs.shape[0]
+        is_eos = torch.zeros(n_states, dtype=torch.bool, device=self.device)
+        logprobs_eos = torch.zeros(n_states, dtype=torch.bool, device=self.device)
+        logprobs_increments_rel = torch.zeros(
+            n_states, dtype=torch.bool, device=self.device
+        )
+        jacobian_diag = torch.ones(
+            (n_states, self.n_dim), device=self.device, dtype=self.float
+        )
+        eos_tensor = tfloat(self.eos, float_type=self.float, device=self.device)
+        # Determine source states
+        is_source = ~mask[:, 1]
+        # EOS is the only possible action if continuous actions are invalid (mask[0] is
+        # True)
+        is_eos_forced = mask[:, 0]
+        is_eos[is_eos_forced] = True
+        # Ensure that is_eos_forced does not include any source state
+        assert not torch.any(torch.logical_and(is_source, is_eos_forced))
+        # Get sampled EOS actions and get log probs from Bernoulli distribution
+        do_eos = torch.logical_and(~is_source, ~is_eos_forced)
+        if torch.any(do_eos):
+            is_eos_sampled = torch.all(actions[do_eos] == eos_tensor, dim=1)
+            is_eos[is_eos_sampled] = True
+            logits_eos = self._get_policy_eos_logit(policy_outputs)[do_eos]
+            distr_eos = Bernoulli(logits=logits_eos)
+            logprobs_eos[do_eos] = distr_eos.log_prob(is_eos_sampled.to(self.float))
+        # Get log probs of relative increments if EOS was not the sampled or forced
+        # action
+        do_increments = ~is_eos
+        if torch.any(do_increments):
+            # Shape of increments_rel: [n_do_increments, n_dim]
+            increments_rel = actions[do_increments]
+            distr_increments = self._make_increments_distribution(
+                policy_outputs[do_increments]
+            )
+            logprobs_increments_rel[do_increments] = distr_increments.log_prob(
+                increments_rel
+            )
+            # Get minimum increments
+            min_increments = torch.full_like(
+                increments_rel, self.min_incr, dtype=self.float, device=self.device
+            )
+            min_increments[is_source[do_increments]] = 0.0
+            # Compute diagonal of the Jacobian (see _get_jacobian_diag())
+            states_from_do_increments = tfloat(
+                states_from, float_type=self.float, device=self.device
+            )[do_increments]
+            jacobian_diag[do_sample] = self._get_jacobian_diag(
+                states_from_do_increments,
+                min_increments,
+                self.max_val,
+                is_backward=False,
+            )
+        # Get log determinant of the Jacobian
+        log_det_jacobian = torch.sum(torch.log(jacobian_diag), dim=1)
+        # Compute combined probabilities
+        sumlogprobs_increments = logprobs_increments_rel.sum(axis=1)
+        logprobs = logprobs_eos + sumlogprobs_increments + log_det_jacobian
+        return logprobs
+
+    def get_logprobs_old(
         self,
         policy_outputs: TensorType["n_states", "policy_output_dim"],
         is_forward: bool,
@@ -1498,7 +1591,7 @@ class ContinuousCube(Cube):
         return logprobs
 
     # TODO: min_incr is zero from source!
-    def get_jacobian_diag(
+    def get_jacobian_diag_old(
         self,
         states: TensorType["batch_size", "state_dim"],
         is_forward: bool,
@@ -1540,6 +1633,51 @@ class ContinuousCube(Cube):
             return 1.0 / ((1 - states - min_increments) + epsilon)
         else:
             return 1.0 / ((states - min_increments) + epsilon)
+
+    # TODO: min_incr is zero from source!
+    @staticmethod
+    def _get_jacobian_diag(
+        states_from: TensorType["n_states", "n_dim"],
+        min_increments: TensorType["n_states", "n_dim"],
+        max_val: float,
+        is_backward: bool,
+    ):
+        """
+        Computes the diagonal of the Jacobian of the sampled actions with respect to
+        the target states.
+
+        Forward: the sampled variables are the relative increments r_f and the state
+        updates (s -> s') are (assuming max_val = 1):
+
+        s' = s + m + r_f(1 - s - m)
+        r_f = (s' - s - m) / (1 - s - m)
+
+        Therefore, the derivative of r_f wrt to s' is
+
+        dr_f/ds' = 1 / (1 - s - m)
+
+        Backward: the sampled variables are the relative decrements r_b and the state
+        updates (s' -> s) are:
+
+        s = s' - m - r_b(s' - m)
+        r_b = (s' - s - m) / (s' - m)
+
+        Therefore, the derivative of r_b wrt to s is
+
+        dr_b/ds = -1 / (s' - m)
+
+        We take the absolute value of the derivative (Jacobian).
+
+        The derivatives of the components of r with respect to dimensions of s or s'
+        other than itself are zero. Therefore, the Jacobian is diagonal and the
+        determinant is the product of the diagonal.
+        """
+        epsilon = 1e-9
+        max_val = torch.full_like(states_from, max_val)
+        if is_backward:
+            return 1.0 / ((states_from - min_increments) + epsilon)
+        else:
+            return 1.0 / ((max_val - states_from - min_increments) + epsilon)
 
     def _step(
         self,
