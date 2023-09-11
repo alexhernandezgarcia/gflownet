@@ -9,7 +9,7 @@ defaults:
 
 # Environment
 env:
-  smiles: CC(C(=O)NC)NC(=O)C
+  smiles: O=C(c1ccc2n1CCC2C(=O)O)c3ccccc3
   remove_hs: True
   length_traj: 5
   policy_encoding_dim_per_angle: 10
