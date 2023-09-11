@@ -349,6 +349,7 @@ def test__forward_actions_have_nonzero_backward_prob(env):
             states_from=states_torch,
             mask_invalid_actions=masks,
         )
+        assert torch.isfinite(logprobs_bw)
         assert logprobs_bw > -1e6
 
 
@@ -381,6 +382,7 @@ def test__backward_actions_have_nonzero_forward_prob(env, n=1000):
                 states_from=states_torch,
                 mask_invalid_actions=masks,
             )
+            assert torch.isfinite(logprobs_fw)
             assert logprobs_fw > -1e6
 
 
