@@ -18,6 +18,8 @@ def test__all_env_common(env):
     test__sample_actions__backward__returns_eos_if_done(env)
     test__get_logprobs__backward__returns_zero_if_done(env)
     test__step_random__does_not_sample_invalid_actions(env)
+    test__forward_actions_have_nonzero_backward_prob(env)
+    test__backward_actions_have_nonzero_forward_prob(env)
     test__get_parents_step_get_mask__are_compatible(env)
     test__sample_backwards_reaches_source(env)
     test__state2readable__is_reversible(env)
@@ -32,6 +34,8 @@ def test__continuous_env_common(env):
     test__sampling_forwards_reaches_done_in_finite_steps(env)
     test__sample_actions__backward__returns_eos_if_done(env)
     test__get_logprobs__backward__returns_zero_if_done(env)
+    test__forward_actions_have_nonzero_backward_prob(env)
+    test__backward_actions_have_nonzero_forward_prob(env)
     test__step__returns_same_state_action_and_invalid_if_done(env)
     test__sample_backwards_reaches_source(env)
 
@@ -317,6 +321,70 @@ def test__sample_actions__get_logprobs__return_valid_actions_and_logprobs(env):
         assert env.action2representative(action) in valid_actions
         assert torch.equal(logprobs_sab, logprobs_glp)
         env.step(action)
+
+
+@pytest.mark.repeat(1000)
+def test__forward_actions_have_nonzero_backward_prob(env):
+    env = env.reset()
+    policy_random = torch.unsqueeze(
+        tfloat(env.random_policy_output, float_type=env.float, device=env.device), 0
+    )
+    while not env.done:
+        state_new, action, valid = env.step_random(backward=False)
+        if not valid:
+            continue
+        # Get backward logprobs
+        mask_bw = env.get_mask_invalid_actions_backward()
+        masks = torch.unsqueeze(tbool(mask_bw, device=env.device), 0)
+        actions_torch = torch.unsqueeze(
+            tfloat(action, float_type=env.float, device=env.device), 0
+        )
+        states_torch = torch.unsqueeze(
+            tfloat(env.state, float_type=env.float, device=env.device), 0
+        )
+        policy_outputs = policy_random.clone().detach()
+        logprobs_bw = env.get_logprobs(
+            policy_outputs=policy_outputs,
+            is_forward=False,
+            actions=actions_torch,
+            states_from=states_torch,
+            states_to=None,
+            mask_invalid_actions=masks,
+        )
+        assert torch.exp(logprobs_bw) > 0.0
+
+
+def test__backward_actions_have_nonzero_forward_prob(env, n=1000):
+    states = _get_terminating_states(env, n)
+    policy_random = torch.unsqueeze(
+        tfloat(env.random_policy_output, float_type=env.float, device=env.device), 0
+    )
+    for state in states:
+        env.set_state(state, done=True)
+        while True:
+            if env.equal(env.state, env.source):
+                break
+            state_new, action, valid = env.step_random(backward=True)
+            assert valid
+            # Get forward logprobs
+            mask_fw = env.get_mask_invalid_actions_forward()
+            masks = torch.unsqueeze(tbool(mask_fw, device=env.device), 0)
+            actions_torch = torch.unsqueeze(
+                tfloat(action, float_type=env.float, device=env.device), 0
+            )
+            states_torch = torch.unsqueeze(
+                tfloat(env.state, float_type=env.float, device=env.device), 0
+            )
+            policy_outputs = policy_random.clone().detach()
+            logprobs_fw = env.get_logprobs(
+                policy_outputs=policy_outputs,
+                is_forward=True,
+                actions=actions_torch,
+                states_from=states_torch,
+                states_to=None,
+                mask_invalid_actions=masks,
+            )
+            assert torch.exp(logprobs_fw) > 0.0
 
 
 @pytest.mark.repeat(10)
