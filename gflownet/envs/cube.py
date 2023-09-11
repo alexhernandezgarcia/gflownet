@@ -987,7 +987,13 @@ class ContinuousCube(Cube):
         Given a dimension value x, a relative increment r, a minimum increment m and a
         maximum value 1, the absolute increment a is given by:
 
+        Forward:
+
         a = m + r * (1 - x - m)
+
+        Backward:
+
+        a = m + r * (x - m)
         """
         max_val = torch.full_like(states, max_val)
         if is_backward:
@@ -997,6 +1003,40 @@ class ContinuousCube(Cube):
                 max_val - states - min_increments
             )
         return increments_abs
+
+    @staticmethod
+    def absolute_to_relative_increments(
+        states: TensorType["n_states", "n_dim"],
+        increments_abs: TensorType["n_states", "n_dim"],
+        min_increments: TensorType["n_states", "n_dim"],
+        max_val: float,
+        is_backward: bool,
+    ):
+        """
+        Returns a batch of relative increments (as sampled by the Beta distributions)
+        given a batch of states, absolute increments (actions) and minimum_increments.
+
+        Given a dimension value x, an absolute increment a, a minimum increment m and a
+        maximum value 1, the relative increment r is given by:
+
+        Forward:
+
+        r = (a - m) / (1 - x - m)
+
+        Backward:
+
+        r = (a - m) / (x - m)
+        """
+        max_val = torch.full_like(states, max_val)
+        if is_backward:
+            increments_rel = (increments_abs - min_increments) / (
+                states - min_increments
+            )
+        else:
+            increments_rel = (increments_abs - min_increments) / (
+                max_val - states - min_increments
+            )
+        return increments_rel
 
     def sample_actions_batch(
         self,
@@ -1314,8 +1354,22 @@ class ContinuousCube(Cube):
         # action
         do_increments = ~is_eos
         if torch.any(do_increments):
-            # Shape of increments_rel: [n_do_increments, n_dim]
-            increments_rel = actions[do_increments]
+            # Get absolute increments
+            increments_abs = actions[do_increments]
+            # Get minimum increments
+            min_increments = torch.full_like(
+                increments_abs, self.min_incr, dtype=self.float, device=self.device
+            )
+            min_increments[is_source[do_increments]] = 0.0
+            # Get relative increments
+            increments_rel = self.absolute_to_relative_increments(
+                states_from_tensor[do_increments],
+                increments_abs,
+                min_increments,
+                self.max_val,
+                is_backward=False,
+            )
+            # Get logprobs
             distr_increments = self._make_increments_distribution(
                 policy_outputs[do_increments]
             )
@@ -1323,11 +1377,6 @@ class ContinuousCube(Cube):
             logprobs_increments_rel[do_increments] = distr_increments.log_prob(
                 torch.clamp(increments_rel, min=1e-6, max=(1 - 1e-6))
             )
-            # Get minimum increments
-            min_increments = torch.full_like(
-                increments_rel, self.min_incr, dtype=self.float, device=self.device
-            )
-            min_increments[is_source[do_increments]] = 0.0
             # Compute diagonal of the Jacobian (see _get_jacobian_diag())
             jacobian_diag[do_increments] = self._get_jacobian_diag(
                 states_from_tensor[do_increments],
@@ -1388,18 +1437,26 @@ class ContinuousCube(Cube):
         # Get log probs of relative increments if actions were neither BTS nor EOS
         do_increments = torch.logical_and(~is_bts, ~is_eos)
         if torch.any(do_increments):
-            # Shape of increments_rel: [n_do_increments, n_dim]
-            increments_rel = actions[do_increments]
+            # Get absolute increments
+            increments_abs = actions[do_increments]
+            min_increments = torch.full_like(
+                increments_abs, self.min_incr, dtype=self.float, device=self.device
+            )
+            # Get relative increments
+            increments_rel = self.absolute_to_relative_increments(
+                states_from_tensor[do_increments],
+                increments_abs,
+                min_increments,
+                self.max_val,
+                is_backward=True,
+            )
+            # Get logprobs
             distr_increments = self._make_increments_distribution(
                 policy_outputs[do_increments]
             )
             # Clamp because increments of 0.0 or 1.0 would yield nan
             logprobs_increments_rel[do_increments] = distr_increments.log_prob(
                 torch.clamp(increments_rel, min=1e-6, max=(1 - 1e-6))
-            )
-            # Set minimum increments
-            min_increments = torch.full_like(
-                increments_rel, self.min_incr, dtype=self.float, device=self.device
             )
             # Compute diagonal of the Jacobian (see _get_jacobian_diag())
             jacobian_diag[do_increments] = self._get_jacobian_diag(
