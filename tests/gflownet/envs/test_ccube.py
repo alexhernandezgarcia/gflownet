@@ -720,6 +720,7 @@ def test__get_logprobs_forward__2d__eos_actions_return_expected(
     [
         [[0.1, 0.2], [0.3, 0.5], [0.5, 0.95]],
         [[0.999, 0.999], [0.0001, 0.0001], [0.5, 0.5]],
+        [[0.0, 0.0], [1.0, 1.0]],
     ],
 )
 def test__get_logprobs_forward__2d__all_actions_from_source_uniform_policy_prob1(
@@ -770,6 +771,10 @@ def test__get_logprobs_forward__2d__all_actions_from_source_uniform_policy_prob1
             [[0.02, 0.01], [0.01, 0.2], [0.3, 0.01]],
             [[0.02, 0.01], [0.01, 0.2], [0.3, 0.01]],
         ),
+        (
+            [[0.0, 0.0], [0.0, 0.2], [0.3, 0.0]],
+            [[0.0, 0.0], [0.0, 0.2], [0.3, 0.0]],
+        ),
     ],
 )
 def test__get_logprobs_backward__2d__nearedge_returns_prob1(cube2d, states, actions):
@@ -807,6 +812,10 @@ def test__get_logprobs_backward__2d__nearedge_returns_prob1(cube2d, states, acti
         (
             [[0.99, 0.99], [0.01, 0.01], [0.001, 0.1]],
             [[0.99, 0.99], [0.01, 0.01], [0.001, 0.1]],
+        ),
+        (
+            [[1.0, 1.0], [0.0, 0.0]],
+            [[1.0, 1.0], [0.0, 0.0]],
         ),
     ],
 )
