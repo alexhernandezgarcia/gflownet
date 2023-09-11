@@ -1,0 +1,83 @@
+# @package _global_
+defaults:
+  - override /env: crystals/mol_crystal
+  - override /gflownet: trajectorybalance
+  - override /proxy: MXtalNetD
+  - override /logger: wandb
+  - override /user: mkilgour
+
+device: cuda
+machine: local
+
+# WandB
+logger:
+  run_name: m4
+  test:
+    first_it: False
+    period: 100
+    n: 1000
+  checkpoints:
+    period: 500
+
+# Environment
+env:
+  conditional: True
+  randomize_orientation: False
+  space_group_kwargs:
+    generate_sgs: [1] # P-1 and P21/c - 'null' will generate in all space groups
+  lattice_parameters_kwargs:
+    grid_size: 20
+
+    min_length: 0.25
+    max_length: 3.0
+
+    min_angle: 60.0
+    max_angle: 120.0
+
+    min_position: 0.0 # fractional coordinates
+    max_position: 1.0  # ideally grid should include at least exactly [0, .125, .25, .5]
+
+    min_theta: 1.0
+    max_theta: 89.0
+    min_phi: -179.0
+    max_phi: 180.0
+    min_rotation: 1.0
+    max_rotation: 359.0
+
+# GFlowNet hyperparameters
+gflownet:
+  random_action_prob: 0.05
+  optimizer:
+    lr: 0.001
+    lr_decay_period: 1000
+    lr_decay_gamma: 0.25
+    method: adam
+    lr_z_mult: 10
+    n_train_steps: 10000
+    batch_size:
+      forward: 10
+      backward_dataset: 0
+      backward_replay: 0
+  policy:
+    forward:
+      type: gnn
+      n_layers: 2
+      n_hid: 256
+      checkpoint: null
+      reload_ckpt: False
+      n_node_feats: null
+      n_graph_feats: null
+      max_mol_radius: null
+      n_crystal_features: null
+    backward:
+      type: gnn
+      n_layers: 2
+      n_hid: 256
+      checkpoint: null
+      reload_ckpt: False
+      n_node_feats: null  # currently assigned in main for gnn
+      n_graph_feats: null
+      max_mol_radius: null
+      n_crystal_features: null
+    ckpt_period: null
+

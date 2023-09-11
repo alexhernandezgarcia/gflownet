@@ -12,7 +12,7 @@ train:
 # Test metrics
 test:
   first_it: False
-  period: 100
+  period: 2
   n: 1000
   kde:
     bandwidth: 0.1

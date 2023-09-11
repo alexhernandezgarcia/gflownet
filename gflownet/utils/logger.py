@@ -334,7 +334,7 @@ class Logger:
         except ValueError:  # if x are all the same, linregress will fail
             pass
 
-        fig.add_trace(go.Scattergl(x=[.65,85], y=[.65,.85], marker_color='rgba(0,0,0,1)', showlegend=False))
+        fig.add_trace(go.Scattergl(x=[.65,.85], y=[.65,.85], marker_color='rgba(0,0,0,1)', showlegend=False))
         fig.update_layout(xaxis_title='packing target', yaxis_title='packing prediction')
 
         fig_dict['Cell Packing Accuracy'] = fig
