@@ -7,7 +7,7 @@ defaults:
   - override /user: mkilgour
 
 device: cuda
-machine: local
+machine: cluster
 
 # WandB
 logger:
