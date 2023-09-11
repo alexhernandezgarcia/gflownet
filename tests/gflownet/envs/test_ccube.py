@@ -698,7 +698,7 @@ def test__get_logprobs_forward__2d__eos_actions_return_expected(
     # Get EOS forced
     is_near_edge = states_torch > 1.0 - env.min_incr
     is_eos_forced = torch.any(is_near_edge, dim=1)
-    # Define Bernoulli parameter for EOS with deterministic probability (force EOS)
+    # Define Bernoulli parameter for EOS
     # If Bernouilli has logit torch.inf, the logprobs are nan
     logit_eos = 1
     distr_eos = Bernoulli(logits=logit_eos)
@@ -761,6 +761,88 @@ def test__get_logprobs_forward__2d__all_actions_from_source_uniform_policy_prob1
         policy_outputs, True, actions, states_torch, None, masks
     )
     assert torch.all(logprobs == 0.0)
+
+
+@pytest.mark.parametrize(
+    "states, actions",
+    [
+        (
+            [[0.02, 0.01], [0.01, 0.2], [0.3, 0.01]],
+            [[0.02, 0.01], [0.01, 0.2], [0.3, 0.01]],
+        ),
+    ],
+)
+def test__get_logprobs_backward__2d__nearedge_returns_prob1(cube2d, states, actions):
+    """
+    The only valid backward action from 'near-edge' states is BTS, thus the the log
+    probability should be zero.
+    """
+    env = cube2d
+    n_states = len(states)
+    states_torch = tfloat(states, float_type=env.float, device=env.device)
+    actions = tfloat(actions, float_type=env.float, device=env.device)
+    # Get masks
+    masks = tbool(
+        [env.get_mask_invalid_actions_backward(s) for s in states], device=env.device
+    )
+    # Build policy outputs
+    params = env.fixed_distr_params
+    policy_outputs = torch.tile(env.get_policy_output(params), dims=(n_states, 1))
+    # Add noise to policy outputs
+    policy_outputs += torch.randn(policy_outputs.shape)
+    # Get log probs
+    logprobs = env.get_logprobs(
+        policy_outputs, False, actions, states_torch, None, masks
+    )
+    assert torch.all(logprobs == 0.0)
+
+
+@pytest.mark.parametrize(
+    "states, actions",
+    [
+        (
+            [[0.1, 0.2], [0.3, 0.5], [0.5, 0.95]],
+            [[0.1, 0.2], [0.3, 0.5], [0.5, 0.95]],
+        ),
+        (
+            [[0.99, 0.99], [0.01, 0.01], [0.001, 0.1]],
+            [[0.99, 0.99], [0.01, 0.01], [0.001, 0.1]],
+        ),
+    ],
+)
+def test__get_logprobs_backward__2d__bts_actions_return_expected(
+    cube2d, states, actions
+):
+    """
+    The only valid action from 'near-edge' states is EOS, thus the the log probability
+    should be zero, regardless of the action and the policy outputs
+    """
+    env = cube2d
+    n_states = len(states)
+    states_torch = tfloat(states, float_type=env.float, device=env.device)
+    actions = tfloat(actions, float_type=env.float, device=env.device)
+    # Get masks
+    masks = tbool(
+        [env.get_mask_invalid_actions_backward(s) for s in states], device=env.device
+    )
+    # Get BTS forced
+    is_near_edge = states_torch < env.min_incr
+    is_bts_forced = torch.any(is_near_edge, dim=1)
+    # Define Bernoulli parameter for BTS
+    # If Bernouilli has logit torch.inf, the logprobs are nan
+    logit_bts = 1
+    distr_bts = Bernoulli(logits=logit_bts)
+    logprob_bts = distr_bts.log_prob(torch.tensor(1.0))
+    # Build policy outputs
+    params = env.fixed_distr_params
+    params["bernoulli_source_logit"] = logit_bts
+    policy_outputs = torch.tile(env.get_policy_output(params), dims=(n_states, 1))
+    # Get log probs
+    logprobs = env.get_logprobs(
+        policy_outputs, False, actions, states_torch, None, masks
+    )
+    assert torch.all(logprobs[is_bts_forced] == 0.0)
+    assert torch.all(torch.isclose(logprobs[~is_bts_forced], logprob_bts, atol=1e-6))
 
 
 @pytest.mark.parametrize(
