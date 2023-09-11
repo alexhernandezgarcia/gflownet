@@ -462,7 +462,6 @@ class ContinuousCube(Cube):
             mask[0] = True
         return mask
 
-    # TODO: can we simplify to 2 values?
     def get_mask_invalid_actions_backward(self, state=None, done=None, parents_a=None):
         """
         The action space is continuous, thus the mask is not only of invalid actions as
@@ -501,61 +500,14 @@ class ContinuousCube(Cube):
         mask[0] = False
         return mask
 
-    # TODO: remove all together?
     def get_parents(
         self, state: List = None, done: bool = None, action: Tuple[int, float] = None
     ) -> Tuple[List[List], List[Tuple[int, float]]]:
         """
-        Determines all parents and actions that lead to state.
-
-        Args
-        ----
-        state : list
-            Representation of a state
-
-        done : bool
-            Whether the trajectory is done. If None, done is taken from instance.
-
-        action : int
-            Last action performed
-
-        Returns
-        -------
-        parents : list
-            List of parents in state format
-
-        actions : list
-            List of actions that lead to state for each parent in parents
+        Defined only because it is required. A ContinuousEnv should be created to avoid
+        this issue.
         """
-        if state is None:
-            state = self.state.copy()
-        if done is None:
-            done = self.done
-        if done:
-            return [state], [self.eos]
-        # If source state
-        if all([s == ss for s, ss in zip(state, self.source)]):
-            return [], []
-        else:
-            min_incr = action[-1]
-            for dim, incr_rel_f in enumerate(action[:-1]):
-                state[dim] = (state[dim] - min_incr - incr_rel_f * (1.0 - min_incr)) / (
-                    1.0 - incr_rel_f
-                )
-            epsilon = 1e-9
-            assert all(
-                [s <= (self.max_val + epsilon) for s in state]
-            ), f"""
-            State is out of cube bounds.
-            \nState:\n{state}\nAction:\n{action}\nIncrement: {incr}
-            """
-            assert all(
-                [s >= (0.0 - epsilon) for s in state]
-            ), f"""
-            State is out of cube bounds.
-            \nState:\n{state}\nAction:\n{action}\nIncrement: {incr}
-            """
-            return [state], [action]
+        pass
 
     @staticmethod
     def relative_to_absolute_increments(
@@ -623,6 +575,26 @@ class ContinuousCube(Cube):
             )
         return increments_rel
 
+    # TODO: consider using relu and clamp instead sigmoid
+    def _make_increments_distribution(
+        self,
+        policy_outputs: TensorType["n_states", "policy_output_dim"],
+    ) -> MixtureSameFamily:
+        mix_logits = self._get_policy_betas_weights(policy_outputs).reshape(
+            -1, self.n_dim, self.n_comp
+        )
+        mix = Categorical(logits=mix_logits)
+        alphas = self._get_policy_betas_alpha(policy_outputs).reshape(
+            -1, self.n_dim, self.n_comp
+        )
+        alphas = self.beta_params_max * torch.sigmoid(alphas) + self.beta_params_min
+        betas = self._get_policy_betas_beta(policy_outputs).reshape(
+            -1, self.n_dim, self.n_comp
+        )
+        betas = self.beta_params_max * torch.sigmoid(betas) + self.beta_params_min
+        beta_distr = Beta(alphas, betas)
+        return MixtureSameFamily(mix, beta_distr)
+
     def sample_actions_batch(
         self,
         policy_outputs: TensorType["n_states", "policy_output_dim"],
@@ -644,26 +616,6 @@ class ContinuousCube(Cube):
             return self._sample_actions_batch_backward(
                 policy_outputs, mask, states_from, sampling_method, temperature_logits
             )
-
-    # TODO: consider using relu and clamp instead sigmoid
-    def _make_increments_distribution(
-        self,
-        policy_outputs: TensorType["n_states", "policy_output_dim"],
-    ) -> MixtureSameFamily:
-        mix_logits = self._get_policy_betas_weights(policy_outputs).reshape(
-            -1, self.n_dim, self.n_comp
-        )
-        mix = Categorical(logits=mix_logits)
-        alphas = self._get_policy_betas_alpha(policy_outputs).reshape(
-            -1, self.n_dim, self.n_comp
-        )
-        alphas = self.beta_params_max * torch.sigmoid(alphas) + self.beta_params_min
-        betas = self._get_policy_betas_beta(policy_outputs).reshape(
-            -1, self.n_dim, self.n_comp
-        )
-        betas = self.beta_params_max * torch.sigmoid(betas) + self.beta_params_min
-        beta_distr = Beta(alphas, betas)
-        return MixtureSameFamily(mix, beta_distr)
 
     def _sample_actions_batch_forward(
         self,
@@ -781,35 +733,27 @@ class ContinuousCube(Cube):
 
         An action indicates, for each dimension, the absolute increment of the
         dimension value. However, in order to ensure that trajectories have finite
-        length, increments must have a minumum increment (self.min_incr) except if the
-        originating state is the source state (special case, see
-        get_mask_invalid_actions_backward()). Furthermore, absolute increments must also
-        be smaller than the distance from the dimension value to the edge of the cube
-        (self.max_val). In order to accomodate these constraints, first relative
-        increments (in [0, 1]) are sampled from a (mixture of) Beta distribution(s),
-        where 0.0 indicates an absolute increment of min_incr and 1.0 indicates an
-        absolute increment of 1 - x + min_incr (going to the edge).
+        length, increments must have a minumum increment (self.min_incr). Furthermore,
+        absolute increments must also be smaller than the distance from the dimension
+        value to the edge of the cube. In order to accomodate these constraints, first
+        relative increments (in [0, 1]) are sampled from a (mixture of) Beta
+        distribution(s), where 0.0 indicates an absolute increment of min_incr and 1.0
+        indicates an absolute increment of x (going back to the source).
 
         Therefore, given a dimension value x, a relative increment r, a minimum
         increment m and a maximum value 1, the absolute increment a is given by:
 
-        a = m + r * (1 - x - m)
+        a = m + r * (x - m)
 
         The continuous distribution to sample the continuous action described above
-        must be mixed with the discrete distribution to model the sampling of the EOS
-        action. The EOS action can be sampled from any state except from the source
-        state or whether the trajectory is done. That the EOS action is invalid is
-        indicated by mask[-1] being False.
+        must be mixed with the discrete distribution to model the sampling of the back
+        to source (BST) action. While the BST action is also a continuous action, it
+        needs to be modelled with a (discrete) Bernoulli distribution in order to
+        ensure that this action has positive likelihood.
 
-        Finally, regarding the constraints on the increments, the following special
-        cases are taken into account:
-
-        - The originating state is the source state: in this case, the minimum
-          increment is 0.0 instead of self.min_incr. This is to ensure that the entire
-          state space can be reached. This is indicated by mask[-2] being False.
-        - The value at any dimension is at a distance from the cube edge smaller than the
-          minimum increment (x > 1 - m). In this case, only EOS is valid.
-          This is indicated by mask[0] being True (continuous actions are invalid).
+        Finally, regarding the constraints on the increments, the special case where
+        the trajectory is done and the only possible action is EOS, is also taken into
+        account.
         """
         # Initialize variables
         n_states = policy_outputs.shape[0]
