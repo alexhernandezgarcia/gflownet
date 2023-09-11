@@ -1381,9 +1381,9 @@ class ContinuousCube(Cube):
             distr_increments = self._make_increments_distribution(
                 policy_outputs[do_increments]
             )
-            # TODO: deal with increments of 0.0 or 1.0 which will yield nan
+            # Clamp because increments of 0.0 or 1.0 would yield nan
             logprobs_increments_rel[do_increments] = distr_increments.log_prob(
-                increments_rel
+                torch.clamp(increments_rel, min=1e-6, max=(1 - 1e-6))
             )
             # Get minimum increments
             min_increments = torch.full_like(
@@ -1456,9 +1456,9 @@ class ContinuousCube(Cube):
             distr_increments = self._make_increments_distribution(
                 policy_outputs[do_increments]
             )
-            # TODO: deal with increments of 0.0 or 1.0 which will yield nan
+            # Clamp because increments of 0.0 or 1.0 would yield nan
             logprobs_increments_rel[do_increments] = distr_increments.log_prob(
-                increments_rel
+                torch.clamp(increments_rel, min=1e-6, max=(1 - 1e-6))
             )
             # Set minimum increments
             min_increments = torch.full_like(
