@@ -541,23 +541,25 @@ class GFlowNetAgent:
         assert batch.is_valid()
         # Make indices of batch consecutive since they are used for indexing here
         # Get necessary tensors from batch
-        states = batch.get_states(policy=True)
+        states_policy = batch.get_states(policy=True)
+        states = batch.get_states(policy=False)
         actions = batch.get_actions()
-        parents = batch.get_parents(policy=True)
+        parents_policy = batch.get_parents(policy=True)
+        parents = batch.get_parents(policy=False)
         traj_indices = batch.get_trajectory_indices(consecutive=True)
         if backward:
             # Backward trajectories
             masks_b = batch.get_masks_backward()
-            policy_output_b = self.backward_policy(states)
+            policy_output_b = self.backward_policy(states_policy)
             logprobs_states = self.env.get_logprobs(
-                policy_output_b, False, actions, parents, masks_b
+                policy_output_b, False, actions, states, masks_b
             )
         else:
             # Forward trajectories
             masks_f = batch.get_masks_forward(of_parents=True)
-            policy_output_f = self.forward_policy(parents)
+            policy_output_f = self.forward_policy(parents_policy)
             logprobs_states = self.env.get_logprobs(
-                policy_output_f, True, actions, states, masks_f
+                policy_output_f, True, actions, parents, masks_f
             )
         # Sum log probabilities of all transitions in each trajectory
         logprobs = torch.zeros(

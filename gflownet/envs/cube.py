@@ -1002,7 +1002,7 @@ class ContinuousCube(Cube):
         self,
         policy_outputs: TensorType["n_states", "policy_output_dim"],
         mask: Optional[TensorType["n_states", "policy_output_dim"]] = None,
-        states_from: Optional[List] = None,
+        states_from: List = None,
         is_backward: Optional[bool] = False,
         sampling_method: Optional[str] = "policy",
         temperature_logits: Optional[float] = 1.0,
@@ -1043,7 +1043,7 @@ class ContinuousCube(Cube):
         self,
         policy_outputs: TensorType["n_states", "policy_output_dim"],
         mask: Optional[TensorType["n_states", "policy_output_dim"]] = None,
-        states_from: Optional[List] = None,
+        states_from: List = None,
         sampling_method: Optional[str] = "policy",
         temperature_logits: Optional[float] = 1.0,
         max_sampling_attempts: Optional[int] = 10,
@@ -1145,7 +1145,7 @@ class ContinuousCube(Cube):
         self,
         policy_outputs: TensorType["n_states", "policy_output_dim"],
         mask: Optional[TensorType["n_states", "policy_output_dim"]] = None,
-        states_from: Optional[List] = None,
+        states_from: List = None,
         sampling_method: Optional[str] = "policy",
         temperature_logits: Optional[float] = 1.0,
         max_sampling_attempts: Optional[int] = 10,
@@ -1245,13 +1245,13 @@ class ContinuousCube(Cube):
 
     # TODO: reorganise args
     # TODO: mask_invalid_actions -> mask
-    # TODO: states_from must be tensor or could be list?
+    # TODO: Add docstring
     def get_logprobs(
         self,
         policy_outputs: TensorType["n_states", "policy_output_dim"],
         is_forward: bool,
         actions: TensorType["n_states", "n_dim"],
-        states_from: TensorType["n_states", "policy_input_dim"],
+        states_from: List,
         mask_invalid_actions: TensorType["n_states", "3"] = None,
     ) -> TensorType["batch_size"]:
         """
@@ -1271,7 +1271,7 @@ class ContinuousCube(Cube):
         self,
         policy_outputs: TensorType["n_states", "policy_output_dim"],
         actions: TensorType["n_states", "n_dim"],
-        states_from: TensorType["n_states", "policy_input_dim"],
+        states_from: List,
         mask: TensorType["n_states", "3"] = None,
     ) -> TensorType["batch_size"]:
         """
@@ -1279,6 +1279,9 @@ class ContinuousCube(Cube):
         """
         # Initialize variables
         n_states = policy_outputs.shape[0]
+        states_from_tensor = tfloat(
+            states_from, float_type=self.float, device=self.device
+        )
         is_eos = torch.zeros(n_states, dtype=torch.bool, device=self.device)
         logprobs_eos = torch.zeros(n_states, dtype=self.float, device=self.device)
         logprobs_increments_rel = torch.zeros(
@@ -1326,11 +1329,8 @@ class ContinuousCube(Cube):
             )
             min_increments[is_source[do_increments]] = 0.0
             # Compute diagonal of the Jacobian (see _get_jacobian_diag())
-            states_from_do_increments = tfloat(
-                states_from, float_type=self.float, device=self.device
-            )[do_increments]
             jacobian_diag[do_increments] = self._get_jacobian_diag(
-                states_from_do_increments,
+                states_from_tensor[do_increments],
                 min_increments,
                 self.max_val,
                 is_backward=False,
@@ -1347,7 +1347,7 @@ class ContinuousCube(Cube):
         self,
         policy_outputs: TensorType["n_states", "policy_output_dim"],
         actions: TensorType["n_states", "n_dim"],
-        states_from: TensorType["n_states", "policy_input_dim"],
+        states_from: List,
         mask: TensorType["n_states", "3"] = None,
     ) -> TensorType["batch_size"]:
         """
@@ -1355,6 +1355,9 @@ class ContinuousCube(Cube):
         """
         # Initialize variables
         n_states = policy_outputs.shape[0]
+        states_from_tensor = tfloat(
+            states_from, float_type=self.float, device=self.device
+        )
         is_bts = torch.zeros(n_states, dtype=torch.bool, device=self.device)
         logprobs_bts = torch.zeros(n_states, dtype=self.float, device=self.device)
         logprobs_increments_rel = torch.zeros(
@@ -1374,7 +1377,7 @@ class ContinuousCube(Cube):
             # BTS actions are equal to the originating states
             is_bts_sampled = torch.zeros_like(do_bts)
             is_bts_sampled[do_bts] = torch.all(
-                actions[do_bts] == states_from[do_bts], dim=1
+                actions[do_bts] == states_from_tensor[do_bts], dim=1
             )
             is_bts[is_bts_sampled] = True
             logits_bts = self._get_policy_source_logit(policy_outputs)[do_bts]
@@ -1399,11 +1402,8 @@ class ContinuousCube(Cube):
                 increments_rel, self.min_incr, dtype=self.float, device=self.device
             )
             # Compute diagonal of the Jacobian (see _get_jacobian_diag())
-            states_from_do_increments = tfloat(
-                states_from, float_type=self.float, device=self.device
-            )[do_increments]
             jacobian_diag[do_increments] = self._get_jacobian_diag(
-                states_from_do_increments,
+                states_from_tensor[do_increments],
                 min_increments,
                 self.max_val,
                 is_backward=False,

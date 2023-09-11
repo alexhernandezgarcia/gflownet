@@ -754,13 +754,14 @@ class Tree(GFlowNetEnv):
         policy_outputs: TensorType["n_states", "policy_output_dim"],
         is_forward: bool,
         actions: TensorType["n_states", "n_dim"],
-        states_from: TensorType["n_states", "policy_input_dim"],
+        states_from: Optional[List] = None,
         mask_invalid_actions: TensorType["n_states", "1"] = None,
     ) -> TensorType["batch_size"]:
         """
         Computes log probabilities of actions given policy outputs and actions.
         """
         n_states = policy_outputs.shape[0]
+        # TODO: make nicer
         if states_from is None:
             states_from = torch.empty(
                 (n_states, self.policy_input_dim), device=self.device
@@ -806,7 +807,7 @@ class Tree(GFlowNetEnv):
         policy_outputs: TensorType["n_states", "policy_output_dim"],
         is_forward: bool,
         actions: TensorType["n_states", "n_dim"],
-        states_from: TensorType["n_states", "policy_input_dim"],
+        states_from: Optional[List] = None,
         mask_invalid_actions: TensorType["n_states", "1"] = None,
     ) -> TensorType["batch_size"]:
         """
