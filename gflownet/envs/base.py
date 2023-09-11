@@ -406,8 +406,7 @@ class GFlowNetEnv:
             return self.state, action, False
         parents, parents_a = self.get_parents()
         state_next = parents[parents_a.index(action)]
-        self.state = state_next
-        self.done = False
+        self.set_state(state_next, done=False)
         self.n_actions += 1
         return self.state, action, True
 
