@@ -326,7 +326,6 @@ class ContinuousCube(Cube):
         action and another logit (pos -2) for the (discrete) backward probability of
         returning to the source node.
 
-        * TODO: review count
         Therefore, the output of the policy model has dimensionality D x C x 3 + 2,
         where D is the number of dimensions (self.n_dim) and C is the number of
         components (self.n_comp).
