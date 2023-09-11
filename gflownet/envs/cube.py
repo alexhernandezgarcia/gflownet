@@ -1326,7 +1326,9 @@ class ContinuousCube(Cube):
                 policy_outputs, actions, states_from, states_to, mask_invalid_actions
             )
         else:
-            raise NotImplementedError()
+            return self._get_logprobs_backward(
+                policy_outputs, actions, states_from, states_to, mask_invalid_actions
+            )
 
     # TODO: Unify sample_actions and get_logprobs
     def _get_logprobs_forward(
@@ -1338,7 +1340,7 @@ class ContinuousCube(Cube):
         mask: TensorType["n_states", "3"] = None,
     ) -> TensorType["batch_size"]:
         """
-        Computes log probabilities of actions.
+        Computes log probabilities of forward actions.
         """
         # Initialize variables
         n_states = policy_outputs.shape[0]
@@ -1403,6 +1405,83 @@ class ContinuousCube(Cube):
         # Compute combined probabilities
         sumlogprobs_increments = logprobs_increments_rel.sum(axis=1)
         logprobs = logprobs_eos + sumlogprobs_increments + log_det_jacobian
+        return logprobs
+
+    # TODO: Unify sample_actions and get_logprobs
+    def _get_logprobs_backward(
+        self,
+        policy_outputs: TensorType["n_states", "policy_output_dim"],
+        actions: TensorType["n_states", "n_dim"],
+        states_from: TensorType["n_states", "policy_input_dim"],
+        states_to: TensorType["n_states", "policy_input_dim"],
+        mask: TensorType["n_states", "3"] = None,
+    ) -> TensorType["batch_size"]:
+        """
+        Computes log probabilities of backward actions.
+        """
+        # Initialize variables
+        n_states = policy_outputs.shape[0]
+        is_bts = torch.zeros(n_states, dtype=torch.bool, device=self.device)
+        logprobs_bts = torch.zeros(n_states, dtype=self.float, device=self.device)
+        logprobs_increments_rel = torch.zeros(
+            (n_states, self.n_dim), dtype=self.float, device=self.device
+        )
+        jacobian_diag = torch.ones(
+            (n_states, self.n_dim), device=self.device, dtype=self.float
+        )
+        # EOS is the only possible action only if done is True (mask[2] is False)
+        is_eos = ~mask[:, 2]
+        # Back-to-source (BTS) is the only possible action if mask[1] is False
+        is_bts_forced = ~mask[:, 1]
+        is_bts[is_bts_forced] = True
+        # Get sampled BTS actions and get log probs from Bernoulli distribution
+        do_bts = torch.logical_and(~is_bts_forced, ~is_eos)
+        if torch.any(do_bts):
+            # BTS actions are equal to the originating states
+            is_bts_sampled = torch.zeros_like(do_bts)
+            is_bts_sampled[do_bts] = torch.all(
+                actions[do_bts] == states_from[do_bts], dim=1
+            )
+            is_bts[is_bts_sampled] = True
+            logits_bts = self._get_policy_source_logit(policy_outputs)[do_bts]
+            distr_bts = Bernoulli(logits=logits_bts)
+            logprobs_bts[do_bts] = distr_bts.log_prob(
+                is_bts_sampled[do_bts].to(self.float)
+            )
+        # Get log probs of relative increments if actions were neither BTS nor EOS
+        do_increments = torch.logical_and(~is_bts, ~is_eos)
+        if torch.any(do_increments):
+            # Shape of increments_rel: [n_do_increments, n_dim]
+            increments_rel = actions[do_increments]
+            distr_increments = self._make_increments_distribution(
+                policy_outputs[do_increments]
+            )
+            # TODO: deal with increments of 0.0 or 1.0 which will yield nan
+            logprobs_increments_rel[do_increments] = distr_increments.log_prob(
+                increments_rel
+            )
+            # Set minimum increments
+            min_increments = torch.full_like(
+                increments_rel, self.min_incr, dtype=self.float, device=self.device
+            )
+            # Compute diagonal of the Jacobian (see _get_jacobian_diag())
+            states_from_do_increments = tfloat(
+                states_from, float_type=self.float, device=self.device
+            )[do_increments]
+            jacobian_diag[do_increments] = self._get_jacobian_diag(
+                states_from_do_increments,
+                min_increments,
+                self.max_val,
+                is_backward=False,
+            )
+        # Get log determinant of the Jacobian
+        log_det_jacobian = torch.sum(torch.log(jacobian_diag), dim=1)
+        # Compute combined probabilities
+        sumlogprobs_increments = logprobs_increments_rel.sum(axis=1)
+        logprobs = logprobs_bst + sumlogprobs_increments + log_det_jacobian
+        # Logprobs of forced EOS are 0
+        # TODO: is there any avoidable computation of is_eos actions?
+        logprobs[is_eos] = 0.0
         return logprobs
 
     def get_logprobs_old(
