@@ -215,7 +215,6 @@ class Cube(GFlowNetEnv, ABC):
         policy_outputs: TensorType["n_states", "policy_output_dim"],
         is_forward: bool,
         actions: TensorType["n_states", 2],
-        states_to: TensorType["n_states", "policy_input_dim"],
         mask_invalid_actions: TensorType["batch_size", "policy_output_dim"] = None,
         loginf: float = 1000,
     ) -> TensorType["batch_size"]:
@@ -548,7 +547,6 @@ class HybridCube(Cube):
         policy_outputs: TensorType["n_states", "policy_output_dim"],
         is_forward: bool,
         actions: TensorType["n_states", 2],
-        states_to: TensorType["n_states", "policy_input_dim"],
         mask_invalid_actions: TensorType["batch_size", "policy_output_dim"] = None,
         loginf: float = 1000,
     ) -> TensorType["batch_size"]:
@@ -1212,7 +1210,6 @@ class ContinuousCube(Cube):
         actions = [tuple(a.tolist()) for a in actions_tensor]
         return actions, None
 
-    # TODO: Remove need for states_to?
     # TODO: reorganise args
     # TODO: mask_invalid_actions -> mask
     # TODO: states_from must be tensor or could be list?
@@ -1222,7 +1219,6 @@ class ContinuousCube(Cube):
         is_forward: bool,
         actions: TensorType["n_states", "n_dim"],
         states_from: TensorType["n_states", "policy_input_dim"],
-        states_to: TensorType["n_states", "policy_input_dim"],
         mask_invalid_actions: TensorType["n_states", "3"] = None,
     ) -> TensorType["batch_size"]:
         """
@@ -1230,11 +1226,11 @@ class ContinuousCube(Cube):
         """
         if is_forward:
             return self._get_logprobs_forward(
-                policy_outputs, actions, states_from, states_to, mask_invalid_actions
+                policy_outputs, actions, states_from, mask_invalid_actions
             )
         else:
             return self._get_logprobs_backward(
-                policy_outputs, actions, states_from, states_to, mask_invalid_actions
+                policy_outputs, actions, states_from, mask_invalid_actions
             )
 
     # TODO: Unify sample_actions and get_logprobs
@@ -1243,7 +1239,6 @@ class ContinuousCube(Cube):
         policy_outputs: TensorType["n_states", "policy_output_dim"],
         actions: TensorType["n_states", "n_dim"],
         states_from: TensorType["n_states", "policy_input_dim"],
-        states_to: TensorType["n_states", "policy_input_dim"],
         mask: TensorType["n_states", "3"] = None,
     ) -> TensorType["batch_size"]:
         """
@@ -1320,7 +1315,6 @@ class ContinuousCube(Cube):
         policy_outputs: TensorType["n_states", "policy_output_dim"],
         actions: TensorType["n_states", "n_dim"],
         states_from: TensorType["n_states", "policy_input_dim"],
-        states_to: TensorType["n_states", "policy_input_dim"],
         mask: TensorType["n_states", "3"] = None,
     ) -> TensorType["batch_size"]:
         """

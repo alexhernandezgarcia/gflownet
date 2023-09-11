@@ -754,15 +754,15 @@ class Tree(GFlowNetEnv):
         policy_outputs: TensorType["n_states", "policy_output_dim"],
         is_forward: bool,
         actions: TensorType["n_states", "n_dim"],
-        states_target: TensorType["n_states", "policy_input_dim"],
+        states_from: TensorType["n_states", "policy_input_dim"],
         mask_invalid_actions: TensorType["n_states", "1"] = None,
     ) -> TensorType["batch_size"]:
         """
         Computes log probabilities of actions given policy outputs and actions.
         """
         n_states = policy_outputs.shape[0]
-        if states_target is None:
-            states_target = torch.empty(
+        if states_from is None:
+            states_from = torch.empty(
                 (n_states, self.policy_input_dim), device=self.device
             )
         logprobs = torch.zeros(n_states, device=self.device, dtype=self.float)
@@ -776,7 +776,7 @@ class Tree(GFlowNetEnv):
                 policy_outputs_discrete,
                 is_forward,
                 actions[mask_discrete],
-                states_target[mask_discrete],
+                states_from[mask_discrete],
                 mask_invalid_actions[
                     mask_discrete, : self._index_continuous_policy_output
                 ],
@@ -806,7 +806,7 @@ class Tree(GFlowNetEnv):
         policy_outputs: TensorType["n_states", "policy_output_dim"],
         is_forward: bool,
         actions: TensorType["n_states", "n_dim"],
-        states_target: TensorType["n_states", "policy_input_dim"],
+        states_from: TensorType["n_states", "policy_input_dim"],
         mask_invalid_actions: TensorType["n_states", "1"] = None,
     ) -> TensorType["batch_size"]:
         """
@@ -817,7 +817,7 @@ class Tree(GFlowNetEnv):
                 policy_outputs=policy_outputs,
                 is_forward=is_forward,
                 actions=actions,
-                states_target=states_target,
+                states_from=states_from,
                 mask_invalid_actions=mask_invalid_actions,
             )
         else:
@@ -825,7 +825,7 @@ class Tree(GFlowNetEnv):
                 policy_outputs=policy_outputs,
                 is_forward=is_forward,
                 actions=actions,
-                states_target=states_target,
+                states_from=states_from,
                 mask_invalid_actions=mask_invalid_actions,
             )
 
