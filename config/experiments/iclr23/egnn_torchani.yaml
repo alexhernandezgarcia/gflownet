@@ -9,7 +9,7 @@ defaults:
 
 # Environment
 env:
-  smiles: O=C(c1ccc2n1CCC2C(=O)O)c3ccccc3
+  smiles: CC(C)Cc1ccc(cc1)[C@@H](C)C(=O)O
   remove_hs: True
   length_traj: 5
   policy_encoding_dim_per_angle: 10
