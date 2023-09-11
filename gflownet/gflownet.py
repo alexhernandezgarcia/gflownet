@@ -855,6 +855,7 @@ class GFlowNetAgent:
                     )  # returns (opt loss, *metrics)
                 else:
                     print("Unknown loss!")
+                # TODO: deal with this in a better way
                 if not all([torch.isfinite(loss) for loss in losses]):
                     if self.logger.debug:
                         print("Loss is not finite - skipping iteration")
