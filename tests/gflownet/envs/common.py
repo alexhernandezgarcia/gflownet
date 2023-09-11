@@ -187,7 +187,7 @@ def test__get_logprobs__backward__returns_zero_if_done(env, n=5):
     # Add noise to policy outputs
     policy_outputs += torch.randn(policy_outputs.shape)
     masks = tbool(masks, device=env.device)
-    logprobs = env.get_logprobs(policy_outputs, False, actions_eos, states, None, masks)
+    logprobs = env.get_logprobs(policy_outputs, False, actions_eos, states, masks)
     assert torch.all(logprobs == 0.0)
 
 
@@ -314,7 +314,6 @@ def test__sample_actions__get_logprobs__return_valid_actions_and_logprobs(env):
             is_forward=True,
             actions=actions_torch,
             states_from=None,
-            states_to=None,
             mask_invalid_actions=masks_invalid_torch,
         )
         action = actions[0]
@@ -348,7 +347,6 @@ def test__forward_actions_have_nonzero_backward_prob(env):
             is_forward=False,
             actions=actions_torch,
             states_from=states_torch,
-            states_to=None,
             mask_invalid_actions=masks,
         )
         assert torch.exp(logprobs_bw) > 0.0
@@ -381,7 +379,6 @@ def test__backward_actions_have_nonzero_forward_prob(env, n=1000):
                 is_forward=True,
                 actions=actions_torch,
                 states_from=states_torch,
-                states_to=None,
                 mask_invalid_actions=masks,
             )
             assert torch.exp(logprobs_fw) > 0.0
