@@ -294,7 +294,10 @@ class Crystal(GFlowNetEnv):
         elif stage == Stage.SPACE_GROUP:
             return self._get_space_group_state(state) == self.space_group.source
         elif stage == Stage.LATTICE_PARAMETERS:
-            return self._get_lattice_parameters_state(state) == self.lattice_parameters.source
+            return (
+                self._get_lattice_parameters_state(state)
+                == self.lattice_parameters.source
+            )
         else:
             raise ValueError(f"Unrecognized stage {stage}.")
 
@@ -512,10 +515,7 @@ class Crystal(GFlowNetEnv):
         """
         if stage == Stage.COMPOSITION:
             output = (
-                [0]
-                + substate
-                + self.space_group.state
-                + self.lattice_parameters.source
+                [0] + substate + self.space_group.state + self.lattice_parameters.source
             )
         elif stage == Stage.SPACE_GROUP:
             output = (
@@ -552,9 +552,9 @@ class Crystal(GFlowNetEnv):
         # - The environment has only just entered the stage after composition and is
         #   still in that environment's initial state
         if (
-            (stage == Stage.COMPOSITION and not is_source_state) or
-            (stage == Stage.COMPOSITION and previous_stage is None) or
-            (is_source_state and previous_stage == Stage.COMPOSITION)
+            (stage == Stage.COMPOSITION and not is_source_state)
+            or (stage == Stage.COMPOSITION and previous_stage is None)
+            or (is_source_state and previous_stage == Stage.COMPOSITION)
         ):
             composition_done = previous_stage == Stage.COMPOSITION
             parents, actions = self.composition.get_parents(
@@ -571,9 +571,9 @@ class Crystal(GFlowNetEnv):
         # - The environment has only just entered the stage after space group and is
         #   still in that environment's initial state
         elif (
-            (stage == Stage.SPACE_GROUP and not is_source_state) or
-            (stage == Stage.SPACE_GROUP and previous_stage is None) or
-            (is_source_state and previous_stage == Stage.SPACE_GROUP)
+            (stage == Stage.SPACE_GROUP and not is_source_state)
+            or (stage == Stage.SPACE_GROUP and previous_stage is None)
+            or (is_source_state and previous_stage == Stage.SPACE_GROUP)
         ):
             space_group_done = previous_stage == Stage.SPACE_GROUP
             parents, actions = self.space_group.get_parents(
