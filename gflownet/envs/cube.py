@@ -1060,6 +1060,7 @@ class ContinuousCube(Cube):
                 policy_outputs, mask, states_from, sampling_method, temperature_logits
             )
 
+    # TODO: consider using relu and clamp instead sigmoid
     def _make_increments_distribution(
         self,
         policy_outputs: TensorType["n_states", "policy_output_dim"],
