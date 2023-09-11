@@ -196,21 +196,20 @@ class GFlowNetAgent:
             from common.config_processing import add_args, get_config, process_config
 
             parser = argparse.ArgumentParser()
-            _, override_args = parser.parse_known_args()
-            parser, args2config = add_args(parser)
-            args = parser.parse_args()
+            parser, args2config = add_args(parser) # avoid cmd line args here
+            args, _ = parser.parse_known_args()
             if self.machine == 'local':
                 args.yaml_config = '/home/mkilgour/mcrygan/configs/gflownet_dev.yaml'
             elif self.machine == 'cluster':
                 args.yaml_config = '/scratch/mk8347/mcrygan/configs/gflownet_dev.yaml'
-            config = get_config(args, override_args, args2config)
-            config.machine = self.machine
+            mcry_config = get_config(args, [], args2config)
+            mcry_config.machine = self.machine
             if self.machine == 'cluster':
-                config.test_mode = False
-                config.dataset_length = 1000000
-            config = process_config(config)
+                mcry_config.test_mode = False
+                mcry_config.dataset_length = 1000000
+            mcry_config = process_config(mcry_config)
 
-            mcry_modeller = Modeller(config, skip_new_workdir=True)
+            mcry_modeller = Modeller(mcry_config, skip_new_workdir=True)
             self.conditions_train_loader, self.conditions_test_loader = mcry_modeller.prep_standalone_modelling_tools(self.batch_size['forward'], machine = self.machine)
             del mcry_modeller.prep_dataset  # this should be done inside the above but we get a bug
 

@@ -24,6 +24,8 @@ def main(config):
     print(f"\nLogging directory of this run:  {cwd}\n")
     if config.machine == 'cluster':
         sys.path.append('/scratch/mk8347/mcrygan')
+    elif config.machine == 'local':
+        sys.path.append('/home/mkilgour/mcrygan')
 
     # Reset seed for job-name generation in multirun jobs
     random.seed(None)
