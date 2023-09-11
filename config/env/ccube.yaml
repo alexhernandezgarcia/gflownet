@@ -10,23 +10,23 @@ func: corners
 n_dim: 2
 max_val: 1.0
 # Policy
-beta_params_min: 0.1
+beta_params_min: 0.01
 beta_params_max: 1000.0
 min_incr: 0.1
 n_comp: 1
 fixed_distribution:
   beta_weights: 1.0
-  beta_alpha: 2.0
-  beta_beta: 5.0
-  bernoulli_source_logit: 1.0
-  bernoulli_eos_logit: 1.0
+  beta_alpha: 0.01
+  beta_beta: 0.01
+  bernoulli_source_logit: 0.0
+  bernoulli_eos_logit: 0.0
 random_distribution:
   beta_weights: 1.0
   # IMPORTANT: adjust because of sigmoid!
-  beta_alpha: $beta_params_max
+  beta_alpha: 0.01
   beta_beta: $beta_params_max
-  bernoulli_source_logit: 1.0
-  bernoulli_eos_logit: 1.0
+  bernoulli_source_logit: 0.0
+  bernoulli_eos_logit: 0.0
 # Buffer
 buffer:
   data_path: null
