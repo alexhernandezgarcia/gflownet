@@ -22,6 +22,7 @@ def main(config):
     cwd = os.getcwd()
     config.logger.logdir.root = cwd
     print(f"\nLogging directory of this run:  {cwd}\n")
+    sys.path.append('../mcrygan')
 
     # Reset seed for job-name generation in multirun jobs
     random.seed(None)
