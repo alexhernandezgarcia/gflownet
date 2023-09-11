@@ -675,7 +675,7 @@ def test__get_logprobs_forward__2d__nearedge_returns_prob1(cube2d, states, actio
             [[np.inf, np.inf], [np.inf, np.inf], [np.inf, np.inf]],
         ),
         (
-            [[0.5, 0.97], [0.01, 0.01], [1.0, 1.0]],
+            [[1.0, 1.0], [0.01, 0.01], [0.001, 0.1]],
             [[np.inf, np.inf], [np.inf, np.inf], [np.inf, np.inf]],
         ),
     ],
@@ -695,20 +695,24 @@ def test__get_logprobs_forward__2d__eos_actions_return_expected(
     masks = tbool(
         [env.get_mask_invalid_actions_forward(s) for s in states], device=env.device
     )
+    # Get EOS forced
+    is_near_edge = states_torch > 1.0 - env.min_incr
+    is_eos_forced = torch.any(is_near_edge, dim=1)
     # Define Bernoulli parameter for EOS with deterministic probability (force EOS)
     # If Bernouilli has logit torch.inf, the logprobs are nan
-    logit_force_eos = 1000
+    logit_eos = 1
+    distr_eos = Bernoulli(logits=logit_eos)
+    logprob_eos = distr_eos.log_prob(torch.tensor(1.0))
     # Build policy outputs
     params = env.fixed_distr_params
-    params["bernoulli_eos_logit"] = logit_force_eos
+    params["bernoulli_eos_logit"] = logit_eos
     policy_outputs = torch.tile(env.get_policy_output(params), dims=(n_states, 1))
-    # Add noise to policy outputs
-    policy_outputs += torch.randn(policy_outputs.shape)
     # Get log probs
     logprobs = env.get_logprobs(
         policy_outputs, True, actions, states_torch, None, masks
     )
-    assert torch.all(logprobs == 0.0)
+    assert torch.all(logprobs[is_eos_forced] == 0.0)
+    assert torch.all(torch.isclose(logprobs[~is_eos_forced], logprob_eos, atol=1e-6))
 
 
 @pytest.mark.parametrize(
