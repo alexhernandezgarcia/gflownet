@@ -1463,7 +1463,7 @@ class ContinuousCube(Cube):
                 states_from_tensor[do_increments],
                 min_increments,
                 self.max_val,
-                is_backward=False,
+                is_backward=True,
             )
         # Get log determinant of the Jacobian
         log_det_jacobian = torch.sum(torch.log(jacobian_diag), dim=1)
