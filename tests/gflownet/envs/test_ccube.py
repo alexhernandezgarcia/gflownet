@@ -509,7 +509,7 @@ def test__sample_actions_forward__2d__returns_expected(cube2d, states, force_eos
     increments_abs_max[is_eos] = torch.inf
     # Reconfigure environment
     env.n_comp = 1
-    env.beta_params_min = 0.0
+    env.beta_params_min = beta_params_min
     env.beta_params_max = beta_params_max
     # Build policy outputs
     params = env.fixed_distr_params
@@ -609,7 +609,7 @@ def test__sample_actions_backward__2d__returns_expected(cube2d, states, force_bs
     increments_abs_max[is_bst] = states_torch[is_bst]
     # Reconfigure environment
     env.n_comp = 1
-    env.beta_params_min = 0.0
+    env.beta_params_min = beta_params_min
     env.beta_params_max = beta_params_max
     # Build policy outputs
     params = env.fixed_distr_params
@@ -713,6 +713,54 @@ def test__get_logprobs_forward__2d__eos_actions_return_expected(
     )
     assert torch.all(logprobs[is_eos_forced] == 0.0)
     assert torch.all(torch.isclose(logprobs[~is_eos_forced], logprob_eos, atol=1e-6))
+
+
+@pytest.mark.parametrize(
+    "actions",
+    [
+        [[0.1, 0.2], [0.3, 0.5], [0.5, 0.95]],
+        [[0.999, 0.999], [0.0001, 0.0001], [0.5, 0.5]],
+    ],
+)
+def test__get_logprobs_forward__2d__all_actions_from_source_uniform_policy_prob1(
+    cube2d, actions
+):
+    """
+    With Uniform increment policy, all the actions from the source must have the same
+    probability.
+    """
+    env = cube2d
+    n_states = len(actions)
+    states = [env.source for _ in range(n_states)]
+    states_torch = tfloat(states, float_type=env.float, device=env.device)
+    actions = tfloat(actions, float_type=env.float, device=env.device)
+    # Get masks
+    masks = tbool(
+        [env.get_mask_invalid_actions_forward(s) for s in states], device=env.device
+    )
+    # Define Uniform Beta distribution (large values of alpha and beta and max of 1.0)
+    beta_params_min = 0.0
+    beta_params_max = 1.0
+    alpha_presigmoid = 1000.0
+    betas_presigmoid = 1000.0
+    # Define Bernoulli parameter for impossible EOS
+    # If Bernouilli has logit -torch.inf, the logprobs are nan
+    logit_force_noeos = -1000
+    # Reconfigure environment
+    env.n_comp = 1
+    env.beta_params_min = beta_params_min
+    env.beta_params_max = beta_params_max
+    # Build policy outputs
+    params = env.fixed_distr_params
+    params["beta_alpha"] = alpha_presigmoid
+    params["beta_beta"] = betas_presigmoid
+    params["bernoulli_eos_logit"] = logit_force_noeos
+    policy_outputs = torch.tile(env.get_policy_output(params), dims=(n_states, 1))
+    # Get log probs
+    logprobs = env.get_logprobs(
+        policy_outputs, True, actions, states_torch, None, masks
+    )
+    assert torch.all(logprobs == 0.0)
 
 
 @pytest.mark.parametrize(

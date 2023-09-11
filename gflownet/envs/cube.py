@@ -1308,6 +1308,7 @@ class ContinuousCube(Cube):
     # TODO: Remove need for states_to?
     # TODO: reorganise args
     # TODO: mask_invalid_actions -> mask
+    # TODO: states_from must be tensor or could be list?
     def get_logprobs(
         self,
         policy_outputs: TensorType["n_states", "policy_output_dim"],
@@ -1378,6 +1379,7 @@ class ContinuousCube(Cube):
             distr_increments = self._make_increments_distribution(
                 policy_outputs[do_increments]
             )
+            # TODO: deal with increments of 0.0 or 1.0 which will yield nan
             logprobs_increments_rel[do_increments] = distr_increments.log_prob(
                 increments_rel
             )
@@ -1390,7 +1392,7 @@ class ContinuousCube(Cube):
             states_from_do_increments = tfloat(
                 states_from, float_type=self.float, device=self.device
             )[do_increments]
-            jacobian_diag[do_sample] = self._get_jacobian_diag(
+            jacobian_diag[do_increments] = self._get_jacobian_diag(
                 states_from_do_increments,
                 min_increments,
                 self.max_val,

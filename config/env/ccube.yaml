@@ -21,6 +21,7 @@ fixed_distribution:
   bernoulli_eos_logit: 1.0
 random_distribution:
   beta_weights: 1.0
+  # IMPORTANT: adjust because of sigmoid!
   beta_alpha: 1.0
   beta_beta: 1.0
   bernoulli_source_logit: 1.0
