@@ -1478,7 +1478,7 @@ class ContinuousCube(Cube):
         log_det_jacobian = torch.sum(torch.log(jacobian_diag), dim=1)
         # Compute combined probabilities
         sumlogprobs_increments = logprobs_increments_rel.sum(axis=1)
-        logprobs = logprobs_bst + sumlogprobs_increments + log_det_jacobian
+        logprobs = logprobs_bts + sumlogprobs_increments + log_det_jacobian
         # Logprobs of forced EOS are 0
         # TODO: is there any avoidable computation of is_eos actions?
         logprobs[is_eos] = 0.0
