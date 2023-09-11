@@ -82,7 +82,11 @@ class Cube(GFlowNetEnv, ABC):
         self.action_source = (self.n_dim, 0)
         # End-of-sequence action: (n_dim + 1, 0)
         self.eos = (self.n_dim + 1, 0)
-        # Conversions
+        # Conversions: only conversions to policy are implemented and the rest are the
+        # same
+        self.state2proxy = self.state2policy
+        self.statebatch2proxy = self.statebatch2policy
+        self.statetorch2proxy = self.statetorch2policy
         self.state2oracle = self.state2proxy
         self.statebatch2oracle = self.statebatch2proxy
         self.statetorch2oracle = self.statetorch2proxy
@@ -114,7 +118,7 @@ class Cube(GFlowNetEnv, ABC):
     def get_mask_invalid_actions_backward(self, state=None, done=None, parents_a=None):
         pass
 
-    def statetorch2proxy(
+    def statetorch2policy(
         self, states: TensorType["batch", "state_dim"] = None
     ) -> TensorType["batch", "policy_input_dim"]:
         """
@@ -127,7 +131,7 @@ class Cube(GFlowNetEnv, ABC):
         """
         return 2.0 * torch.clip(states, min=0.0, max=self.max_val) - 1.0
 
-    def statebatch2proxy(
+    def statebatch2policy(
         self, states: List[List]
     ) -> TensorType["batch", "state_proxy_dim"]:
         """
@@ -138,54 +142,17 @@ class Cube(GFlowNetEnv, ABC):
         state : list
             State
         """
-        return self.statetorch2proxy(
-            tfloat(states, device=self.device, float_type=self.float)
+        return self.statetorch2policy(
+            torch.tensor(states, device=self.device, dtype=self.float)
         )
 
-    def state2proxy(self, state: List = None) -> List:
+    def state2policy(self, state: List = None) -> List:
         """
         Clips the state into [0, max_val] and maps it to [-1.0, 1.0]
         """
         if state is None:
             state = self.state.copy()
         return [2.0 * min(max(0.0, s), self.max_val) - 1.0 for s in state]
-
-    # TODO: Check issue with get_logprobs using states_from in policy format.
-    def statetorch2policy(
-        self, states: TensorType["batch", "state_dim"] = None
-    ) -> TensorType["batch", "policy_input_dim"]:
-        """
-        Clips the states into [0, max_val]
-
-        Args
-        ----
-        state : list
-            State
-        """
-        return torch.clip(states, min=0.0, max=self.max_val)
-
-    def statebatch2policy(
-        self, states: List[List]
-    ) -> TensorType["batch", "state_proxy_dim"]:
-        """
-        Clips the states into [0, max_val]
-
-        Args
-        ----
-        state : list
-            State
-        """
-        return self.statetorch2policy(
-            tfloat(states, device=self.device, float_type=self.float)
-        )
-
-    def state2policy(self, state: List = None) -> List:
-        """
-        Clips the state into [0, max_val]
-        """
-        if state is None:
-            state = self.state.copy()
-        return [min(max(0.0, s), self.max_val) for s in state]
 
     def state2readable(self, state: List) -> str:
         """
