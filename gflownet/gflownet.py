@@ -552,14 +552,14 @@ class GFlowNetAgent:
             masks_b = batch.get_masks_backward()
             policy_output_b = self.backward_policy(states_policy)
             logprobs_states = self.env.get_logprobs(
-                policy_output_b, False, actions, states, masks_b
+                policy_output_b, actions, masks_b, states, backward
             )
         else:
             # Forward trajectories
             masks_f = batch.get_masks_forward(of_parents=True)
             policy_output_f = self.forward_policy(parents_policy)
             logprobs_states = self.env.get_logprobs(
-                policy_output_f, True, actions, parents, masks_f
+                policy_output_f, actions, masks_f, parents, backward
             )
         # Sum log probabilities of all transitions in each trajectory
         logprobs = torch.zeros(

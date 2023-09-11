@@ -752,10 +752,10 @@ class Tree(GFlowNetEnv):
     def get_logprobs_continuous(
         self,
         policy_outputs: TensorType["n_states", "policy_output_dim"],
-        is_forward: bool,
         actions: TensorType["n_states", "n_dim"],
-        states_from: Optional[List] = None,
         mask_invalid_actions: TensorType["n_states", "1"] = None,
+        states_from: Optional[List] = None,
+        is_backward: bool = False,
     ) -> TensorType["batch_size"]:
         """
         Computes log probabilities of actions given policy outputs and actions.
@@ -775,7 +775,7 @@ class Tree(GFlowNetEnv):
             ]
             logprobs_discrete = super().get_logprobs(
                 policy_outputs_discrete,
-                is_forward,
+                is_backward,
                 actions[mask_discrete],
                 states_from[mask_discrete],
                 mask_invalid_actions[
@@ -805,10 +805,10 @@ class Tree(GFlowNetEnv):
     def get_logprobs(
         self,
         policy_outputs: TensorType["n_states", "policy_output_dim"],
-        is_forward: bool,
         actions: TensorType["n_states", "n_dim"],
-        states_from: Optional[List] = None,
         mask_invalid_actions: TensorType["n_states", "1"] = None,
+        states_from: Optional[List] = None,
+        is_backward: bool = False,
     ) -> TensorType["batch_size"]:
         """
         Computes log probabilities of actions given policy outputs and actions.
@@ -816,15 +816,15 @@ class Tree(GFlowNetEnv):
         if self.continuous:
             return self.get_logprobs_continuous(
                 policy_outputs=policy_outputs,
-                is_forward=is_forward,
                 actions=actions,
-                states_from=states_from,
                 mask_invalid_actions=mask_invalid_actions,
+                states_from=states_from,
+                is_backward=is_backward,
             )
         else:
             return super().get_logprobs(
                 policy_outputs=policy_outputs,
-                is_forward=is_forward,
+                is_backward=is_backward,
                 actions=actions,
                 states_from=states_from,
                 mask_invalid_actions=mask_invalid_actions,

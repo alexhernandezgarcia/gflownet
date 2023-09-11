@@ -413,7 +413,6 @@ class ContinuousCube(Cube):
         """
         return policy_output[:, -2]
 
-    # TODO: EOS must be valid from source too
     def get_mask_invalid_actions_forward(
         self,
         state: Optional[List] = None,
@@ -575,7 +574,6 @@ class ContinuousCube(Cube):
             )
         return increments_rel
 
-    # TODO: consider using relu and clamp instead sigmoid
     def _make_increments_distribution(
         self,
         policy_outputs: TensorType["n_states", "policy_output_dim"],
@@ -716,9 +714,6 @@ class ContinuousCube(Cube):
         actions = [tuple(a.tolist()) for a in actions_tensor]
         return actions, None
 
-    # TODO: Rewrite docstring
-    # TODO: Write function common to forward and backward
-    # TODO: Catch source states?
     def _sample_actions_batch_backward(
         self,
         policy_outputs: TensorType["n_states", "policy_output_dim"],
@@ -813,36 +808,53 @@ class ContinuousCube(Cube):
         actions = [tuple(a.tolist()) for a in actions_tensor]
         return actions, None
 
-    # TODO: reorganise args
-    # TODO: mask_invalid_actions -> mask
-    # TODO: Add docstring
     def get_logprobs(
         self,
         policy_outputs: TensorType["n_states", "policy_output_dim"],
-        is_forward: bool,
         actions: TensorType["n_states", "n_dim"],
+        mask: TensorType["n_states", "3"],
         states_from: List,
-        mask_invalid_actions: TensorType["n_states", "3"] = None,
+        is_backward: bool,
     ) -> TensorType["batch_size"]:
         """
         Computes log probabilities of actions given policy outputs and actions.
+
+        Args
+        ----
+        policy_outputs : tensor
+            The output of the GFlowNet policy model.
+
+        mask : tensor
+            The mask containing information invalid actions and special cases.
+
+        actions : tensor
+            The actions (absolute increments) from each state in the batch for which to
+            compute the log probability.
+
+        states_from : tensor
+            The states originating the actions, in GFlowNet format. They are required
+            so as to compute the relative increments and the Jacobian.
+
+        is_backward : bool
+            True if the actions are backward, False if the actions are forward
+            (default). Required, since the computation for forward and backward actions
+            is different.
         """
-        if is_forward:
-            return self._get_logprobs_forward(
-                policy_outputs, actions, states_from, mask_invalid_actions
+        if is_backward:
+            return self._get_logprobs_backward(
+                policy_outputs, actions, mask, states_from
             )
         else:
-            return self._get_logprobs_backward(
-                policy_outputs, actions, states_from, mask_invalid_actions
+            return self._get_logprobs_forward(
+                policy_outputs, actions, mask, states_from
             )
 
-    # TODO: Unify sample_actions and get_logprobs
     def _get_logprobs_forward(
         self,
         policy_outputs: TensorType["n_states", "policy_output_dim"],
         actions: TensorType["n_states", "n_dim"],
+        mask: TensorType["n_states", "3"],
         states_from: List,
-        mask: TensorType["n_states", "3"] = None,
     ) -> TensorType["batch_size"]:
         """
         Computes log probabilities of forward actions.
@@ -921,13 +933,12 @@ class ContinuousCube(Cube):
         logprobs = logprobs_eos + sumlogprobs_increments + log_det_jacobian
         return logprobs
 
-    # TODO: Unify sample_actions and get_logprobs
     def _get_logprobs_backward(
         self,
         policy_outputs: TensorType["n_states", "policy_output_dim"],
         actions: TensorType["n_states", "n_dim"],
+        mask: TensorType["n_states", "3"],
         states_from: List,
-        mask: TensorType["n_states", "3"] = None,
     ) -> TensorType["batch_size"]:
         """
         Computes log probabilities of backward actions.
@@ -1000,8 +1011,7 @@ class ContinuousCube(Cube):
         # Compute combined probabilities
         sumlogprobs_increments = logprobs_increments_rel.sum(axis=1)
         logprobs = logprobs_bts + sumlogprobs_increments + log_det_jacobian
-        # Logprobs of forced EOS are 0
-        # TODO: is there any avoidable computation of is_eos actions?
+        # Ensure that logprobs of forced EOS are 0
         logprobs[is_eos] = 0.0
         return logprobs
 

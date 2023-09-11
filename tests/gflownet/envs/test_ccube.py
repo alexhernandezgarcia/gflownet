@@ -661,7 +661,9 @@ def test__get_logprobs_forward__2d__nearedge_returns_prob1(cube2d, states, actio
     # Add noise to policy outputs
     policy_outputs += torch.randn(policy_outputs.shape)
     # Get log probs
-    logprobs = env.get_logprobs(policy_outputs, True, actions, states_torch, masks)
+    logprobs = env.get_logprobs(
+        policy_outputs, actions, masks, states_torch, is_backward=False
+    )
     assert torch.all(logprobs == 0.0)
 
 
@@ -706,7 +708,9 @@ def test__get_logprobs_forward__2d__eos_actions_return_expected(
     params["bernoulli_eos_logit"] = logit_eos
     policy_outputs = torch.tile(env.get_policy_output(params), dims=(n_states, 1))
     # Get log probs
-    logprobs = env.get_logprobs(policy_outputs, True, actions, states_torch, masks)
+    logprobs = env.get_logprobs(
+        policy_outputs, actions, masks, states_torch, is_backward=False
+    )
     assert torch.all(logprobs[is_eos_forced] == 0.0)
     assert torch.all(torch.isclose(logprobs[~is_eos_forced], logprob_eos, atol=1e-6))
 
@@ -754,7 +758,9 @@ def test__get_logprobs_forward__2d__all_actions_from_source_uniform_policy_prob1
     params["bernoulli_eos_logit"] = logit_force_noeos
     policy_outputs = torch.tile(env.get_policy_output(params), dims=(n_states, 1))
     # Get log probs
-    logprobs = env.get_logprobs(policy_outputs, True, actions, states_torch, masks)
+    logprobs = env.get_logprobs(
+        policy_outputs, actions, masks, states_torch, is_backward=False
+    )
     assert torch.all(logprobs == 0.0)
 
 
@@ -797,7 +803,9 @@ def test__get_logprobs_forward__2d__notnan(cube2d, states, actions):
     params["bernoulli_eos_logit"] = logit_eos
     policy_outputs = torch.tile(env.get_policy_output(params), dims=(n_states, 1))
     # Get log probs
-    logprobs = env.get_logprobs(policy_outputs, True, actions, states_torch, masks)
+    logprobs = env.get_logprobs(
+        policy_outputs, actions, masks, states_torch, is_backward=False
+    )
     assert torch.all(logprobs[is_eos_forced] == 0.0)
     assert torch.all(torch.isfinite(logprobs))
 
@@ -834,7 +842,9 @@ def test__get_logprobs_backward__2d__nearedge_returns_prob1(cube2d, states, acti
     # Add noise to policy outputs
     policy_outputs += torch.randn(policy_outputs.shape)
     # Get log probs
-    logprobs = env.get_logprobs(policy_outputs, False, actions, states_torch, masks)
+    logprobs = env.get_logprobs(
+        policy_outputs, actions, masks, states_torch, is_backward=True
+    )
     assert torch.all(logprobs == 0.0)
 
 
@@ -883,7 +893,9 @@ def test__get_logprobs_backward__2d__bts_actions_return_expected(
     params["bernoulli_source_logit"] = logit_bts
     policy_outputs = torch.tile(env.get_policy_output(params), dims=(n_states, 1))
     # Get log probs
-    logprobs = env.get_logprobs(policy_outputs, False, actions, states_torch, masks)
+    logprobs = env.get_logprobs(
+        policy_outputs, actions, masks, states_torch, is_backward=True
+    )
     assert torch.all(logprobs[is_bts_forced] == 0.0)
     assert torch.all(torch.isclose(logprobs[~is_bts_forced], logprob_bts, atol=1e-6))
 
@@ -927,7 +939,9 @@ def test__get_logprobs_backward__2d__notnan(cube2d, states, actions):
     params["bernoulli_source_logit"] = logit_bts
     policy_outputs = torch.tile(env.get_policy_output(params), dims=(n_states, 1))
     # Get log probs
-    logprobs = env.get_logprobs(policy_outputs, False, actions, states_torch, masks)
+    logprobs = env.get_logprobs(
+        policy_outputs, actions, masks, states_torch, is_backward=True
+    )
     assert torch.all(logprobs[is_bts_forced] == 0.0)
     assert torch.all(torch.isfinite(logprobs))
 

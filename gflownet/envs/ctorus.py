@@ -281,13 +281,31 @@ class ContinuousTorus(HybridTorus):
     def get_logprobs(
         self,
         policy_outputs: TensorType["n_states", "policy_output_dim"],
-        is_forward: bool,
         actions: TensorType["n_states", "n_dim"],
+        mask_invalid_actions: TensorType["n_states", "1"],
         states_from: Optional[List] = None,
-        mask_invalid_actions: TensorType["n_states", "1"] = None,
+        is_backward: bool = False,
     ) -> TensorType["batch_size"]:
         """
         Computes log probabilities of actions given policy outputs and actions.
+
+        Args
+        ----
+        policy_outputs : tensor
+            The output of the GFlowNet policy model.
+
+        mask : tensor
+            The mask containing information special cases.
+
+        actions : tensor
+            The actions (angle increments) from each state in the batch for which to
+            compute the log probability.
+
+        states_from : tensor
+            Ignored.
+
+        is_backward : bool
+            Ignored.
         """
         device = policy_outputs.device
         do_sample = torch.all(~mask_invalid_actions, dim=1)

@@ -187,7 +187,9 @@ def test__get_logprobs__backward__returns_zero_if_done(env, n=5):
     # Add noise to policy outputs
     policy_outputs += torch.randn(policy_outputs.shape)
     masks = tbool(masks, device=env.device)
-    logprobs = env.get_logprobs(policy_outputs, False, actions_eos, states, masks)
+    logprobs = env.get_logprobs(
+        policy_outputs, actions_eos, masks, states, is_backward=True
+    )
     assert torch.all(logprobs == 0.0)
 
 
@@ -311,10 +313,10 @@ def test__sample_actions__get_logprobs__return_valid_actions_and_logprobs(env):
         actions_torch = torch.tensor(actions)
         logprobs_glp = env.get_logprobs(
             policy_outputs=policy_outputs,
-            is_forward=True,
             actions=actions_torch,
-            states_from=None,
             mask_invalid_actions=masks_invalid_torch,
+            states_from=None,
+            is_backward=False,
         )
         action = actions[0]
         assert env.action2representative(action) in valid_actions
@@ -344,10 +346,10 @@ def test__forward_actions_have_nonzero_backward_prob(env):
         policy_outputs = policy_random.clone().detach()
         logprobs_bw = env.get_logprobs(
             policy_outputs=policy_outputs,
-            is_forward=False,
             actions=actions_torch,
-            states_from=states_torch,
             mask_invalid_actions=masks,
+            states_from=states_torch,
+            is_backward=True,
         )
         assert torch.isfinite(logprobs_bw)
         assert logprobs_bw > -1e6
@@ -377,10 +379,10 @@ def test__backward_actions_have_nonzero_forward_prob(env, n=1000):
             policy_outputs = policy_random.clone().detach()
             logprobs_fw = env.get_logprobs(
                 policy_outputs=policy_outputs,
-                is_forward=True,
                 actions=actions_torch,
-                states_from=states_torch,
                 mask_invalid_actions=masks,
+                states_from=states_torch,
+                is_backward=False,
             )
             assert torch.isfinite(logprobs_fw)
             assert logprobs_fw > -1e6

@@ -502,25 +502,47 @@ class GFlowNetEnv:
         actions = [self.action_space[idx] for idx in action_indices]
         return actions, logprobs
 
-    # TODO: Extend docstring
     def get_logprobs(
         self,
         policy_outputs: TensorType["n_states", "policy_output_dim"],
-        is_forward: bool,
         actions: TensorType["n_states", "actions_dim"],
+        mask: TensorType["batch_size", "policy_output_dim"] = None,
         states_from: Optional[List] = None,
-        mask_invalid_actions: TensorType["batch_size", "policy_output_dim"] = None,
+        is_backward: bool = False,
     ) -> TensorType["batch_size"]:
         """
         Computes log probabilities of actions given policy outputs and actions. This
         implementation is generally valid for all discrete environments but continuous
         environments will likely have to implement its own.
+
+        Args
+        ----
+        policy_outputs : tensor
+            The output of the GFlowNet policy model.
+
+        mask : tensor
+            The mask of invalid actions. For continuous or mixed environments, the mask
+            may be tensor with an arbitrary length contaning information about special
+            states, as defined elsewhere in the environment.
+
+        actions : tensor
+            The actions from each state in the batch for which to compute the log
+            probability.
+
+        states_from : tensor
+            The states originating the actions, in GFlowNet format. Ignored in discrete
+            environments and only required in certain continuous environments.
+
+        is_backward : bool
+            True if the actions are backward, False if the actions are forward
+            (default). Ignored in discrete environments and only required in certain
+            continuous environments.
         """
         device = policy_outputs.device
         ns_range = torch.arange(policy_outputs.shape[0]).to(device)
         logits = policy_outputs
-        if mask_invalid_actions is not None:
-            logits[mask_invalid_actions] = -torch.inf
+        if mask is not None:
+            logits[mask] = -torch.inf
         action_indices = (
             torch.tensor(
                 [self.action_space.index(tuple(action.tolist())) for action in actions]
@@ -534,7 +556,7 @@ class GFlowNetEnv:
     def get_jacobian_diag(
         self,
         states: TensorType["batch_size", "state_dim"],
-        is_forward: bool,
+        is_backward: bool = False,
         **kwargs,
     ):
         """
