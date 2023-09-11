@@ -68,7 +68,6 @@ class Cube(GFlowNetEnv, ABC):
         assert max_val > 0.0
         assert n_comp > 0
         # Main properties
-        self.continuous = True
         self.n_dim = n_dim
         self.eos = self.n_dim
         self.max_val = max_val
@@ -97,6 +96,7 @@ class Cube(GFlowNetEnv, ABC):
             random_distr_params=random_distr_params,
             **kwargs,
         )
+        self.continuous = True
 
     @abstractmethod
     def get_action_space(self):
