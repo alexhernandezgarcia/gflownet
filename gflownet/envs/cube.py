@@ -197,7 +197,7 @@ class Cube(GFlowNetEnv, ABC):
         pass
 
     @abstractmethod
-    def sample_actions(
+    def sample_actions_batch(
         self,
         policy_outputs: TensorType["n_states", "policy_output_dim"],
         sampling_method: str = "policy",
@@ -481,7 +481,7 @@ class HybridCube(Cube):
             parents = [state]
             return parents, [action]
 
-    def sample_actions(
+    def sample_actions_batch(
         self,
         policy_outputs: TensorType["n_states", "policy_output_dim"],
         sampling_method: str = "policy",
