@@ -16,6 +16,7 @@ def test__all_env_common(env):
     test__step__returns_same_state_action_and_invalid_if_done(env)
     test__sample_actions__get_logprobs__return_valid_actions_and_logprobs(env)
     test__sample_actions__backward__returns_eos_if_done(env)
+    test__get_logprobs__backward__returns_zero_if_done(env)
     test__step_random__does_not_sample_invalid_actions(env)
     test__get_parents_step_get_mask__are_compatible(env)
     test__sample_backwards_reaches_source(env)
@@ -30,6 +31,7 @@ def test__continuous_env_common(env):
     test__set_state__creates_new_copy_of_state(env)
     test__sampling_forwards_reaches_done_in_finite_steps(env)
     test__sample_actions__backward__returns_eos_if_done(env)
+    test__get_logprobs__backward__returns_zero_if_done(env)
     test__step__returns_same_state_action_and_invalid_if_done(env)
     test__sample_backwards_reaches_source(env)
 
@@ -156,6 +158,33 @@ def test__sample_actions__backward__returns_eos_if_done(env, n=5):
         policy_outputs, masks, states, is_backward=True
     )
     assert all([action == env.eos for action in actions])
+
+
+@pytest.mark.repeat(5)
+def test__get_logprobs__backward__returns_zero_if_done(env, n=5):
+    states = _get_terminating_states(env, n)
+    if states is None:
+        return
+    # Set states, done and get masks
+    masks = []
+    for state in states:
+        env.set_state(state, done=True)
+        masks.append(env.get_mask_invalid_actions_backward())
+    # EOS actions
+    actions_eos = torch.tile(
+        tfloat(env.eos, float_type=env.float, device=env.device),
+        (len(states), 1),
+    )
+    # Build random policy outputs and tensor masks
+    policy_outputs = torch.tile(
+        tfloat(env.random_policy_output, float_type=env.float, device=env.device),
+        (len(states), 1),
+    )
+    # Add noise to policy outputs
+    policy_outputs += torch.randn(policy_outputs.shape)
+    masks = tbool(masks, device=env.device)
+    logprobs = env.get_logprobs(policy_outputs, False, actions_eos, states, None, masks)
+    assert torch.all(logprobs == 0.0)
 
 
 @pytest.mark.repeat(100)
