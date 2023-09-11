@@ -661,9 +661,7 @@ def test__get_logprobs_forward__2d__nearedge_returns_prob1(cube2d, states, actio
     # Add noise to policy outputs
     policy_outputs += torch.randn(policy_outputs.shape)
     # Get log probs
-    logprobs = env.get_logprobs(
-        policy_outputs, True, actions, states_torch, masks
-    )
+    logprobs = env.get_logprobs(policy_outputs, True, actions, states_torch, masks)
     assert torch.all(logprobs == 0.0)
 
 
@@ -708,9 +706,7 @@ def test__get_logprobs_forward__2d__eos_actions_return_expected(
     params["bernoulli_eos_logit"] = logit_eos
     policy_outputs = torch.tile(env.get_policy_output(params), dims=(n_states, 1))
     # Get log probs
-    logprobs = env.get_logprobs(
-        policy_outputs, True, actions, states_torch, masks
-    )
+    logprobs = env.get_logprobs(policy_outputs, True, actions, states_torch, masks)
     assert torch.all(logprobs[is_eos_forced] == 0.0)
     assert torch.all(torch.isclose(logprobs[~is_eos_forced], logprob_eos, atol=1e-6))
 
@@ -758,10 +754,52 @@ def test__get_logprobs_forward__2d__all_actions_from_source_uniform_policy_prob1
     params["bernoulli_eos_logit"] = logit_force_noeos
     policy_outputs = torch.tile(env.get_policy_output(params), dims=(n_states, 1))
     # Get log probs
-    logprobs = env.get_logprobs(
-        policy_outputs, True, actions, states_torch, masks
-    )
+    logprobs = env.get_logprobs(policy_outputs, True, actions, states_torch, masks)
     assert torch.all(logprobs == 0.0)
+
+
+@pytest.mark.parametrize(
+    "states, actions",
+    [
+        (
+            [[0.0, 0.0], [0.0, 0.0], [0.0, 0.0]],
+            [[0.1, 0.2], [0.001, 0.001], [0.5, 0.5]],
+        ),
+        (
+            [[0.2, 0.2], [0.5, 0.5], [0.7, 0.7]],
+            [[0.1, 0.1], [0.1, 0.1], [0.1, 0.1]],
+        ),
+        (
+            [[0.6384, 0.4577], [0.5, 0.5], [0.7, 0.7]],
+            [[0.2988, 0.3585], [0.1, 0.1], [0.1, 0.1]],
+        ),
+    ],
+)
+def test__get_logprobs_forward__2d__notnan(cube2d, states, actions):
+    env = cube2d
+    n_states = len(states)
+    states_torch = tfloat(states, float_type=env.float, device=env.device)
+    actions = tfloat(actions, float_type=env.float, device=env.device)
+    # Get masks
+    masks = tbool(
+        [env.get_mask_invalid_actions_forward(s) for s in states], device=env.device
+    )
+    # Get EOS forced
+    is_near_edge = states_torch > 1.0 - env.min_incr
+    is_eos_forced = torch.any(is_near_edge, dim=1)
+    # Define Bernoulli parameter for EOS
+    # If Bernouilli has logit torch.inf, the logprobs are nan
+    logit_eos = 1
+    distr_eos = Bernoulli(logits=logit_eos)
+    logprob_eos = distr_eos.log_prob(torch.tensor(1.0))
+    # Build policy outputs
+    params = env.fixed_distr_params
+    params["bernoulli_eos_logit"] = logit_eos
+    policy_outputs = torch.tile(env.get_policy_output(params), dims=(n_states, 1))
+    # Get log probs
+    logprobs = env.get_logprobs(policy_outputs, True, actions, states_torch, masks)
+    assert torch.all(logprobs[is_eos_forced] == 0.0)
+    assert torch.all(torch.isfinite(logprobs))
 
 
 @pytest.mark.parametrize(
@@ -796,9 +834,7 @@ def test__get_logprobs_backward__2d__nearedge_returns_prob1(cube2d, states, acti
     # Add noise to policy outputs
     policy_outputs += torch.randn(policy_outputs.shape)
     # Get log probs
-    logprobs = env.get_logprobs(
-        policy_outputs, False, actions, states_torch, masks
-    )
+    logprobs = env.get_logprobs(policy_outputs, False, actions, states_torch, masks)
     assert torch.all(logprobs == 0.0)
 
 
@@ -847,9 +883,7 @@ def test__get_logprobs_backward__2d__bts_actions_return_expected(
     params["bernoulli_source_logit"] = logit_bts
     policy_outputs = torch.tile(env.get_policy_output(params), dims=(n_states, 1))
     # Get log probs
-    logprobs = env.get_logprobs(
-        policy_outputs, False, actions, states_torch, masks
-    )
+    logprobs = env.get_logprobs(policy_outputs, False, actions, states_torch, masks)
     assert torch.all(logprobs[is_bts_forced] == 0.0)
     assert torch.all(torch.isclose(logprobs[~is_bts_forced], logprob_bts, atol=1e-6))
 
