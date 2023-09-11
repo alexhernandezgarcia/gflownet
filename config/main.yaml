@@ -5,7 +5,7 @@ defaults:
   - proxy: MXtalNetD
   - logger: wandb
   - user: mkilgour
-  - experiments: 'mol_crystal_dev/m1.yaml'
+  #- experiments: 'mol_crystal_dev/m1.yaml'
 
 
 
