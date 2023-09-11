@@ -889,6 +889,50 @@ def test__get_logprobs_backward__2d__bts_actions_return_expected(
 
 
 @pytest.mark.parametrize(
+    "states, actions",
+    [
+        (
+            [[0.3, 0.3], [0.5, 0.5], [0.8, 0.8]],
+            [[0.2, 0.2], [0.2, 0.2], [0.2, 0.2]],
+        ),
+        (
+            [[1.0, 1.0], [1.0, 1.0], [1.0, 1.0]],
+            [[0.2, 0.2], [0.2, 0.2], [0.2, 0.2]],
+        ),
+        (
+            [[1.0, 1.0], [0.5, 0.5], [0.3, 0.3]],
+            [[0.1, 0.1], [0.1, 0.1], [0.1, 0.1]],
+        ),
+    ],
+)
+def test__get_logprobs_backward__2d__notnan(cube2d, states, actions):
+    env = cube2d
+    n_states = len(states)
+    states_torch = tfloat(states, float_type=env.float, device=env.device)
+    actions = tfloat(actions, float_type=env.float, device=env.device)
+    # Get masks
+    masks = tbool(
+        [env.get_mask_invalid_actions_backward(s) for s in states], device=env.device
+    )
+    # Get BTS forced
+    is_near_edge = states_torch < env.min_incr
+    is_bts_forced = torch.any(is_near_edge, dim=1)
+    # Define Bernoulli parameter for BTS
+    # If Bernouilli has logit torch.inf, the logprobs are nan
+    logit_bts = 1
+    distr_bts = Bernoulli(logits=logit_bts)
+    logprob_bts = distr_bts.log_prob(torch.tensor(1.0))
+    # Build policy outputs
+    params = env.fixed_distr_params
+    params["bernoulli_source_logit"] = logit_bts
+    policy_outputs = torch.tile(env.get_policy_output(params), dims=(n_states, 1))
+    # Get log probs
+    logprobs = env.get_logprobs(policy_outputs, False, actions, states_torch, masks)
+    assert torch.all(logprobs[is_bts_forced] == 0.0)
+    assert torch.all(torch.isfinite(logprobs))
+
+
+@pytest.mark.parametrize(
     "state, expected",
     [
         (
