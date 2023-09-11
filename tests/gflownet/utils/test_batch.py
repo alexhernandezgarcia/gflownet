@@ -33,26 +33,32 @@ def batch():
 
 @pytest.fixture
 def grid2d():
+    """
+    During development, consider testing with a larger environment too, for example:
+
+    Grid(n_dim=5, length=10, cell_min=-1.0, cell_max=1.0)
+    """
     return Grid(n_dim=2, length=3, cell_min=-1.0, cell_max=1.0)
-
-
-#     return Grid(n_dim=5, length=10, cell_min=-1.0, cell_max=1.0)
 
 
 @pytest.fixture
 def tetris6x4():
+    """
+    During development, consider testing with a larger environment too, for example:
+
+    Tetris(width=10, height=20, device="cpu")
+    """
     return Tetris(width=6, height=4, device="cpu")
-
-
-#     return Tetris(width=10, height=20)
 
 
 @pytest.fixture
 def ctorus2d5l():
+    """
+    During development, consider testing with a larger environment too, for example:
+
+    ContinuousTorus(n_dim=5, length_traj=10, n_comp=2)
+    """
     return ContinuousTorus(n_dim=2, length_traj=10, n_comp=2)
-
-
-#     return ContinuousTorus(n_dim=5, length_traj=10, n_comp=2)
 
 
 @pytest.fixture()
