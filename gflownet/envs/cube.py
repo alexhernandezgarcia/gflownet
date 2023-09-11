@@ -1713,6 +1713,8 @@ class ContinuousCube(Cube):
         max_samples=500,
         **kwargs,
     ):
+        if self.n_dim != 2:
+            return None
         # Sample a grid of points in the state space and obtain the rewards
         x = np.linspace(cell_min, cell_max, 201)
         y = np.linspace(cell_min, cell_max, 201)
@@ -1751,6 +1753,8 @@ class ContinuousCube(Cube):
         colorbar=True,
         **kwargs,
     ):
+        if self.n_dim != 2:
+            return None
         # Sample a grid of points in the state space and score them with the KDE
         x = np.linspace(cell_min, cell_max, 201)
         y = np.linspace(cell_min, cell_max, 201)
