@@ -47,7 +47,7 @@ class Cube(GFlowNetEnv, ABC):
         min_incr: float = 0.1,
         n_comp: int = 1,
         beta_params_min: float = 0.1,
-        beta_params_max: float = 2.0,
+        beta_params_max: float = 1000.0,
         fixed_distr_params: dict = {
             "beta_weights": 1.0,
             "beta_alpha": 2.0,
@@ -57,8 +57,8 @@ class Cube(GFlowNetEnv, ABC):
         },
         random_distr_params: dict = {
             "beta_weights": 1.0,
-            "beta_alpha": 1.0,
-            "beta_beta": 1.0,
+            "beta_alpha": 1000.0,
+            "beta_beta": 1000.0,
             "bernoulli_source_logit": 1.0,
             "bernoulli_eos_logit": 1.0,
         },
