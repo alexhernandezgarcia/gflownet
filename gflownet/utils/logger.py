@@ -320,16 +320,18 @@ class Logger:
         except:
             z = np.ones_like(x)
 
-        xline = np.asarray([np.amin(x), np.amax(x)])
-        linreg_result = linregress(x, y)
-        yline = xline * linreg_result.slope + linreg_result.intercept
 
         fig = go.Figure()
         fig.add_trace(go.Scattergl(x=x, y=y, showlegend=False,
                                    mode='markers', marker=dict(color=z), opacity=1))
-
-        fig.add_trace(
-            go.Scattergl(x=xline, y=yline, name=f' R={linreg_result.rvalue:.3f}, m={linreg_result.slope:.3f}'))
+        try:
+            xline = np.asarray([np.amin(x), np.amax(x)])
+            linreg_result = linregress(x, y)
+            yline = xline * linreg_result.slope + linreg_result.intercept
+            fig.add_trace(
+                go.Scattergl(x=xline, y=yline, name=f' R={linreg_result.rvalue:.3f}, m={linreg_result.slope:.3f}'))
+        except ValueError:  # if x are all the same, linregress will fail
+            pass
 
         fig.add_trace(go.Scattergl(x=xline, y=xline, marker_color='rgba(0,0,0,1)', showlegend=False))
         fig.update_layout(xaxis_title='packing target', yaxis_title='packing prediction')
