@@ -797,6 +797,7 @@ class ContinuousCube(Cube):
         """
         return policy_output[:, -2]
 
+    # TODO: EOS must be valid from source too
     def get_mask_invalid_actions_forward(
         self,
         state: Optional[List] = None,
@@ -1305,6 +1306,8 @@ class ContinuousCube(Cube):
         return actions, None
 
     # TODO: Remove need for states_to?
+    # TODO: reorganise args
+    # TODO: mask_invalid_actions -> mask
     def get_logprobs(
         self,
         policy_outputs: TensorType["n_states", "policy_output_dim"],
@@ -1319,7 +1322,7 @@ class ContinuousCube(Cube):
         """
         if is_forward:
             return self._get_logprobs_forward(
-                policy_outputs, actions, states_from, states_to, mask
+                policy_outputs, actions, states_from, states_to, mask_invalid_actions
             )
         else:
             raise NotImplementedError()
@@ -1339,9 +1342,9 @@ class ContinuousCube(Cube):
         # Initialize variables
         n_states = policy_outputs.shape[0]
         is_eos = torch.zeros(n_states, dtype=torch.bool, device=self.device)
-        logprobs_eos = torch.zeros(n_states, dtype=torch.bool, device=self.device)
+        logprobs_eos = torch.zeros(n_states, dtype=self.float, device=self.device)
         logprobs_increments_rel = torch.zeros(
-            n_states, dtype=torch.bool, device=self.device
+            (n_states, self.n_dim), dtype=self.float, device=self.device
         )
         jacobian_diag = torch.ones(
             (n_states, self.n_dim), device=self.device, dtype=self.float
@@ -1358,11 +1361,14 @@ class ContinuousCube(Cube):
         # Get sampled EOS actions and get log probs from Bernoulli distribution
         do_eos = torch.logical_and(~is_source, ~is_eos_forced)
         if torch.any(do_eos):
-            is_eos_sampled = torch.all(actions[do_eos] == eos_tensor, dim=1)
+            is_eos_sampled = torch.zeros_like(do_eos)
+            is_eos_sampled[do_eos] = torch.all(actions[do_eos] == eos_tensor, dim=1)
             is_eos[is_eos_sampled] = True
             logits_eos = self._get_policy_eos_logit(policy_outputs)[do_eos]
             distr_eos = Bernoulli(logits=logits_eos)
-            logprobs_eos[do_eos] = distr_eos.log_prob(is_eos_sampled.to(self.float))
+            logprobs_eos[do_eos] = distr_eos.log_prob(
+                is_eos_sampled[do_eos].to(self.float)
+            )
         # Get log probs of relative increments if EOS was not the sampled or forced
         # action
         do_increments = ~is_eos

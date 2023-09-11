@@ -630,6 +630,88 @@ def test__sample_actions_backward__2d__returns_expected(cube2d, states, force_bs
 
 
 @pytest.mark.parametrize(
+    "states, actions",
+    [
+        (
+            [[0.95, 0.97], [0.96, 0.5], [0.5, 0.96]],
+            [[0.02, 0.01], [0.01, 0.2], [0.3, 0.01]],
+        ),
+        (
+            [[0.95, 0.97], [0.901, 0.5], [1.0, 1.0]],
+            [[np.inf, np.inf], [0.01, 0.2], [0.3, 0.01]],
+        ),
+    ],
+)
+def test__get_logprobs_forward__2d__nearedge_returns_prob1(cube2d, states, actions):
+    """
+    The only valid action from 'near-edge' states is EOS, thus the the log probability
+    should be zero, regardless of the action and the policy outputs
+    """
+    env = cube2d
+    n_states = len(states)
+    states_torch = tfloat(states, float_type=env.float, device=env.device)
+    actions = tfloat(actions, float_type=env.float, device=env.device)
+    # Get masks
+    masks = tbool(
+        [env.get_mask_invalid_actions_forward(s) for s in states], device=env.device
+    )
+    # Build policy outputs
+    params = env.fixed_distr_params
+    policy_outputs = torch.tile(env.get_policy_output(params), dims=(n_states, 1))
+    # Add noise to policy outputs
+    policy_outputs += torch.randn(policy_outputs.shape)
+    # Get log probs
+    logprobs = env.get_logprobs(
+        policy_outputs, True, actions, states_torch, None, masks
+    )
+    assert torch.all(logprobs == 0.0)
+
+
+@pytest.mark.parametrize(
+    "states, actions",
+    [
+        (
+            [[0.1, 0.2], [0.3, 0.5], [0.5, 0.95]],
+            [[np.inf, np.inf], [np.inf, np.inf], [np.inf, np.inf]],
+        ),
+        (
+            [[0.5, 0.97], [0.01, 0.01], [1.0, 1.0]],
+            [[np.inf, np.inf], [np.inf, np.inf], [np.inf, np.inf]],
+        ),
+    ],
+)
+def test__get_logprobs_forward__2d__eos_actions_return_expected(
+    cube2d, states, actions
+):
+    """
+    The only valid action from 'near-edge' states is EOS, thus the the log probability
+    should be zero, regardless of the action and the policy outputs
+    """
+    env = cube2d
+    n_states = len(states)
+    states_torch = tfloat(states, float_type=env.float, device=env.device)
+    actions = tfloat(actions, float_type=env.float, device=env.device)
+    # Get masks
+    masks = tbool(
+        [env.get_mask_invalid_actions_forward(s) for s in states], device=env.device
+    )
+    # Define Bernoulli parameter for EOS with deterministic probability (force EOS)
+    # If Bernouilli has logit torch.inf, the logprobs are nan
+    logit_force_eos = 1000
+    # Build policy outputs
+    params = env.fixed_distr_params
+    params["bernoulli_eos_logit"] = logit_force_eos
+    policy_outputs = torch.tile(env.get_policy_output(params), dims=(n_states, 1))
+    # Add noise to policy outputs
+    policy_outputs += torch.randn(policy_outputs.shape)
+    # Get log probs
+    logprobs = env.get_logprobs(
+        policy_outputs, True, actions, states_torch, None, masks
+    )
+    assert torch.all(logprobs == 0.0)
+
+
+@pytest.mark.parametrize(
     "state, expected",
     [
         (
