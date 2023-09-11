@@ -205,7 +205,6 @@ def test__state2readable2state(env, state):
     )
 
 
-@pytest.mark.skip(reason="skip while developping other tests")
 def test__env_with_composition__compatibility_dict_as_in_pyxtal(env_with_composition):
     for (
         sg,
@@ -215,7 +214,6 @@ def test__env_with_composition__compatibility_dict_as_in_pyxtal(env_with_composi
         assert sg_pyxtal.check_compatible(N_ATOMS)[0] == is_compatible
 
 
-@pytest.mark.skip(reason="skip while developping other tests")
 def test__get_mask_invalid_actions_forward__incompatible_sg_are_invalid(
     env_with_composition,
 ):
@@ -241,7 +239,6 @@ def test__get_mask_invalid_actions_forward__incompatible_sg_are_invalid(
                 assert mask_f[env_with_composition.action_space.index(action)] is True
 
 
-@pytest.mark.skip(reason="skip while developping other tests")
 def test__states_are_compatible_with_pymatgen(env):
     for idx in range(env.n_space_groups):
         env = env.reset()
