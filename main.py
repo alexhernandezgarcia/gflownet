@@ -58,7 +58,9 @@ def main(config):
     del forward_config.backward
 
     backward_config = OmegaConf.create(config.policy)
-    backward_config["config"] = config.policy.backward
+    # TODO: implement sharing config between forward and backward
+    # BELOW IS A QUICK HOTFIX, IT'S BAD AND I SHOULD FEEL BAD
+    backward_config["config"] = config.policy.forward
     del backward_config.forward
     del backward_config.backward
 
