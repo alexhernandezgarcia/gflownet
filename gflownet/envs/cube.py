@@ -143,7 +143,7 @@ class Cube(GFlowNetEnv, ABC):
             State
         """
         return self.statetorch2policy(
-            torch.tensor(states, device=self.device, dtype=self.float)
+            tfloat(states, device=self.device, float_type=self.float)
         )
 
     def state2policy(self, state: List = None) -> List:
