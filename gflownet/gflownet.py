@@ -382,20 +382,55 @@ class GFlowNetAgent:
             )
         return envs, actions, valids
 
+    @torch.no_grad()
     def sample_trajectories(
-        n_trajs: Optional[int] = None,
+        n_forward: Optional[int] = None,
         states_term: Optional[Union[List, TensorType["n_states", "state_dim"]]] = None,
+        random_action_prob: Optional[float] = None,
     ) -> Batch:
         """
         Samples and returns a batch of trajectories.
 
-        If n_trajs is specified and states_term is None (default), then n_trajs forward
+        If n_forward is specified and states_term is None (default), then n_trajs forward
         trajectories will be sampled.
 
         If states_term is a batch of terminating states, then one backward trajectory
-        will be sampled per state in states_term.
+        will be sampled per state in states_term and n_forward will be ignored.
+
+        Args
+        ----
+        n_forward : int
+            Number of forward trajectories to sample. Ignored if states_term is not
+            None.
+        states_term : list or tensor
+            Set of terminating states from which to sample backwards.
+
+        Returns
+        -------
+        Batch
+            A batch with the sampled trajectories.
         """
-        pass
+        if isinstance(n_forward, int):
+            envs = [self.env.copy().reset(idx) for idx in range(n_trajs)]
+            batch = Batch(env=self.env, device=self.device, float_type=self.float)
+            while envs:
+                # Sample actions
+                actions = self.sample_actions(
+                    envs,
+                    batch,
+                    random_action_prob=random_action_prob,
+                )
+                # Update environments with sampled actions
+                envs, actions, valids = self.step(envs, actions)
+                # Add to batch
+                batch_forward.add_to_batch(envs, actions, valids, train=False)
+                # Filter out finished trajectories
+                envs = [env for env in envs if not env.done]
+        else:
+            raise NotImplementedError(
+                "Backward sampling is not yet implemented for this method."
+            )
+        return batch
 
     @torch.no_grad()
     # TODO: extract code from while loop to avoid replication
