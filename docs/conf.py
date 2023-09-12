@@ -158,7 +158,7 @@ hoverxref_mathjax = True
 
 # Open Graph
 
-ogp_site_url = "https://gflownet.readthedocs.io/en/make-docs/"
+ogp_site_url = "https://gflownet.readthedocs.io/en/latest/"
 ogp_social_cards = {
     "enable": True,
     "image": "./_static/images/gflownet-logo.png",
