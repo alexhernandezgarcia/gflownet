@@ -45,14 +45,18 @@ def main(config):
     )
     # The policy is used to model the probability of a forward/backward action
     forward_config = OmegaConf.create(config.policy)
-    forward_config["config"] = config.policy.forward
+    forward_config["config"] = config.policy.shared or {}
+    forward_config["config"].update(config.policy.forward or {})
     del forward_config.forward
     del forward_config.backward
+    del forward_config.shared
 
     backward_config = OmegaConf.create(config.policy)
-    backward_config["config"] = config.policy.backward
+    backward_config["config"] = config.policy.shared or {}
+    backward_config["config"].update(config.policy.backward or {})
     del backward_config.forward
     del backward_config.backward
+    del backward_config.shared
 
     forward_policy = hydra.utils.instantiate(
         forward_config,
