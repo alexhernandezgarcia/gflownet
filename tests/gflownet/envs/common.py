@@ -314,7 +314,7 @@ def test__sample_actions__get_logprobs__return_valid_actions_and_logprobs(env):
         logprobs_glp = env.get_logprobs(
             policy_outputs=policy_outputs,
             actions=actions_torch,
-            mask_invalid_actions=masks_invalid_torch,
+            mask=masks_invalid_torch,
             states_from=None,
             is_backward=False,
         )
@@ -347,7 +347,7 @@ def test__forward_actions_have_nonzero_backward_prob(env):
         logprobs_bw = env.get_logprobs(
             policy_outputs=policy_outputs,
             actions=actions_torch,
-            mask_invalid_actions=masks,
+            mask=masks,
             states_from=states_torch,
             is_backward=True,
         )
@@ -380,7 +380,7 @@ def test__backward_actions_have_nonzero_forward_prob(env, n=1000):
             logprobs_fw = env.get_logprobs(
                 policy_outputs=policy_outputs,
                 actions=actions_torch,
-                mask_invalid_actions=masks,
+                mask=masks,
                 states_from=states_torch,
                 is_backward=False,
             )
