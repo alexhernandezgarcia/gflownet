@@ -548,18 +548,29 @@ class HybridTorus(GFlowNetEnv):
         Returns a tensor in GFloNet (state) format.
         """
         samples_final = []
-        max_reward = self.proxy2reward(self.proxy.min)
+        max_reward = self.proxy2reward(torch.tensor([self.proxy.min])).to(self.device)
         while len(samples_final) < n_samples:
-            samples_uniform = self.statebatch2proxy(
-                self.get_uniform_terminating_states(n_samples)
+            angles_uniform = (
+                torch.rand(
+                    (n_samples, self.n_dim), dtype=self.float, device=self.device
+                )
+                * 2
+                * np.pi
             )
-            rewards = self.proxy2reward(self.proxy(samples_uniform))
+            samples = torch.cat(
+                (
+                    angles_uniform,
+                    torch.ones((angles_uniform.shape[0], 1)).to(angles_uniform),
+                ),
+                axis=1,
+            )
+            rewards = self.reward_torchbatch(samples)
             mask = (
                 torch.rand(n_samples, dtype=self.float, device=self.device)
                 * (max_reward + epsilon)
                 < rewards
             )
-            samples_accepted = samples_uniform[mask]
+            samples_accepted = samples[mask, :]
             samples_final.extend(samples_accepted[-(n_samples - len(samples_final)) :])
         return torch.vstack(samples_final)
 
