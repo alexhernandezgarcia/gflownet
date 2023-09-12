@@ -762,7 +762,7 @@ class GFlowNetAgent:
                 if True: #it % 5 == 0:  # boost batch size
                     self.max_batch_size = 20000 / self.env.max_traj_length # set a hard cap at 20k for now # todo figure out the real OOM issue here
                     for key in self.batch_size.keys():
-                        if (self.batch_size[key] > 0) and (self.batch_size[key] < self.batch_size):
+                        if (self.batch_size[key] > 0) and (self.batch_size[key] < self.max_batch_size):
                             increment = max(1,int(self.batch_size[key] * .05))
                             self.batch_size[key] = max(1, self.batch_size[key] + increment)
             except RuntimeError as e:
