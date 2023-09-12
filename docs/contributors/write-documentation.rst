@@ -14,11 +14,11 @@ Overview
 There are two major types of documentation:
 
 1. **docstrings**: your code's docstrings will be automatically parsed by the documentation sofware (`Sphinx <https://www.sphinx-doc.org>`_, more in `about shpinx`_).
-2. **Manual** documentation such as this document.
+2. **Manual** documentation such as this document. This can be for instance a detailed installation procedure, a tutorial, a FAQ, a contributor's guide etc. you name it!
 
 **Both** are written in `ReStructured Text <https://www.sphinx-doc.org/en/master/usage/restructuredtext/basics.html>`_ (``.rst``) format.
 
-In this tutorial, we'll go over the basics of ``.rst`` and Sphinx, and then we'll look at some of the cool features that are available. To learn about docstrings specifically (what are the conventions, how to write good docstrings etc.), check out the :doc:`next section </contributors/write-docstrings>`.
+In this tutorial, we'll go over the basics of ``.rst`` and Sphinx, and then we'll look at some of the cool features that are available. To learn about docstrings specifically (what the conventions are, how to write good docstrings etc.), check out the :doc:`next section </contributors/write-docstrings>`.
 
 Some of the great features of using Sphinx is to be able to automatically generate documentation from your code's docstrings, and to be able to link to other parts of the documentation.
 
