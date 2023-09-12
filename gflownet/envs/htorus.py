@@ -399,7 +399,7 @@ class HybridTorus(GFlowNetEnv):
         self,
         policy_outputs: TensorType["n_states", "policy_output_dim"],
         actions: TensorType["n_states", 2],
-        mask_invalid_actions: TensorType["batch_size", "policy_output_dim"] = None,
+        mask: TensorType["batch_size", "policy_output_dim"] = None,
         states_from: Optional[List] = None,
         is_backward: bool = False,
     ) -> TensorType["batch_size"]:
@@ -414,8 +414,8 @@ class HybridTorus(GFlowNetEnv):
         ns_range = torch.arange(n_states).to(device)
         # Dimensions
         logits_dims = policy_outputs[:, 0 :: self.n_params_per_dim]
-        if mask_invalid_actions is not None:
-            logits_dims[mask_invalid_actions] = -torch.inf
+        if mask is not None:
+            logits_dims[mask] = -torch.inf
         logprobs_dim = self.logsoftmax(logits_dims)[ns_range, dimensions]
         # Angle increments
         # Cases where p(angle) should be computed (nofix):

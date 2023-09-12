@@ -753,7 +753,7 @@ class Tree(GFlowNetEnv):
         self,
         policy_outputs: TensorType["n_states", "policy_output_dim"],
         actions: TensorType["n_states", "n_dim"],
-        mask_invalid_actions: TensorType["n_states", "1"] = None,
+        mask: TensorType["n_states", "1"] = None,
         states_from: Optional[List] = None,
         is_backward: bool = False,
     ) -> TensorType["batch_size"]:
@@ -768,7 +768,7 @@ class Tree(GFlowNetEnv):
             )
         logprobs = torch.zeros(n_states, device=self.device, dtype=self.float)
         # Discrete actions
-        mask_discrete = mask_invalid_actions[:, self._action_index_pick_threshold]
+        mask_discrete = mask[:, self._action_index_pick_threshold]
         if torch.any(mask_discrete):
             policy_outputs_discrete = policy_outputs[
                 mask_discrete, : self._index_continuous_policy_output
@@ -778,9 +778,7 @@ class Tree(GFlowNetEnv):
                 is_backward,
                 actions[mask_discrete],
                 states_from[mask_discrete],
-                mask_invalid_actions[
-                    mask_discrete, : self._index_continuous_policy_output
-                ],
+                mask[mask_discrete, : self._index_continuous_policy_output],
             )
             logprobs[mask_discrete] = logprobs_discrete
         if torch.all(mask_discrete):
@@ -806,7 +804,7 @@ class Tree(GFlowNetEnv):
         self,
         policy_outputs: TensorType["n_states", "policy_output_dim"],
         actions: TensorType["n_states", "n_dim"],
-        mask_invalid_actions: TensorType["n_states", "1"] = None,
+        mask: TensorType["n_states", "1"] = None,
         states_from: Optional[List] = None,
         is_backward: bool = False,
     ) -> TensorType["batch_size"]:
@@ -815,19 +813,19 @@ class Tree(GFlowNetEnv):
         """
         if self.continuous:
             return self.get_logprobs_continuous(
-                policy_outputs=policy_outputs,
-                actions=actions,
-                mask_invalid_actions=mask_invalid_actions,
-                states_from=states_from,
-                is_backward=is_backward,
+                policy_outputs,
+                actions,
+                mask,
+                states_from,
+                is_backward,
             )
         else:
             return super().get_logprobs(
-                policy_outputs=policy_outputs,
-                is_backward=is_backward,
-                actions=actions,
-                states_from=states_from,
-                mask_invalid_actions=mask_invalid_actions,
+                policy_outputs,
+                actions,
+                mask,
+                states_from,
+                is_backward,
             )
 
     def state2policy_mlp(

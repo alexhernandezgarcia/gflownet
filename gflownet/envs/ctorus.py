@@ -282,7 +282,7 @@ class ContinuousTorus(HybridTorus):
         self,
         policy_outputs: TensorType["n_states", "policy_output_dim"],
         actions: TensorType["n_states", "n_dim"],
-        mask_invalid_actions: TensorType["n_states", "1"],
+        mask: TensorType["n_states", "1"],
         states_from: Optional[List] = None,
         is_backward: bool = False,
     ) -> TensorType["batch_size"]:
@@ -308,7 +308,7 @@ class ContinuousTorus(HybridTorus):
             Ignored.
         """
         device = policy_outputs.device
-        do_sample = torch.all(~mask_invalid_actions, dim=1)
+        do_sample = torch.all(~mask, dim=1)
         n_states = policy_outputs.shape[0]
         logprobs = torch.zeros(n_states, self.n_dim).to(device)
         if torch.any(do_sample):
