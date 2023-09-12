@@ -8,6 +8,8 @@ _target_: gflownet.envs.conformers.conformer.Conformer
 smiles: 'O=C(c1ccc2n1CCC2C(=O)O)c3ccccc3' # ketorolac
 # smiles: 'CCCCCC1=CC(=C(C(=C1)O)C2C=C(CCC2C(=C)C)C)O' # cannabidiol
 # smiles: 'CN1C2CCC1C(C(C2)OC(=O)C3=CC=CC=C3)C(=O)OC' # cocaine
+# smiles: 'Cc1ccc(cc1Nc2nccc(n2)c3cccnc3)NC(=O)c4ccc(cc4)CN5CCN(CC5)C' # imatinib
+# smiles: 'CC(C)c4nc(CN(C)C(=O)N[C@@H](C(C)C)C(=O)N[C@@H](Cc1ccccc1)C[C@H](O)[C@H](Cc2ccccc2)NC(=O)OCc3cncs3)cs4' # ritonavir
 n_torsion_angles: 2
 reward_sampling_method: nested
 
