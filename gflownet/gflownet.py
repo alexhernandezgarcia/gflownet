@@ -382,6 +382,21 @@ class GFlowNetAgent:
             )
         return envs, actions, valids
 
+    def sample_trajectories(
+        n_trajs: Optional[int] = None,
+        states_term: Optional[Union[List, TensorType["n_states", "state_dim"]]] = None,
+    ) -> Batch:
+        """
+        Samples and returns a batch of trajectories.
+
+        If n_trajs is specified and states_term is None (default), then n_trajs forward
+        trajectories will be sampled.
+
+        If states_term is a batch of terminating states, then one backward trajectory
+        will be sampled per state in states_term.
+        """
+        pass
+
     @torch.no_grad()
     # TODO: extract code from while loop to avoid replication
     def sample_batch(
@@ -792,6 +807,71 @@ class GFlowNetAgent:
         ) - torch.log(torch.tensor(n_trajectories, device=self.device))
         return logprobs_estimates
 
+    @torch.no_grad()
+    def sample_from_reward(self, n_samples: int, epsilon=1e-4) -> List:
+        """
+        Obtains n_samples from the reward distribution via rejection sampling.
+
+        If self.get_uniform_terminating_states() is implemented, then this method is
+        used to draw samples from the proposal distribution (uniform). Otherwise,
+        self.get_random_terminating_states() is used, which samples from the random
+        GFlowNet policy and is available for all environments.
+
+        The standard rejection sampling algorithm used here goes as follows:
+            1. Draw n samples from the proposal distribution: samples_proposal
+            2. Evaluate the samples with the target distribution: rewards
+            3. Draw n points from a Uniform distribution in [0, 1): noise_uniform
+            4. Accept samples if noise_uniform < rewards / (M * density_proposal)
+
+        As M, we use the maximum known value of the reward function.
+
+        Samples are returned in GFlowNet format.
+
+        Args
+        ----
+        n_samples : int
+            The number of objects to sample from the reward distribution.
+        """
+        samples = []
+        max_reward = self.env.proxy2reward(self.proxy.min)
+        # TODO: need to draw n_samples each time?
+        while len(samples) < n_samples:
+            if hasattr(self, "get_uniform_terminating_states"):
+                samples_proposal = self.env.get_uniform_terminating_states(n_samples)
+            elif hasattr(self, "get_random_terminating_states"):
+                batch = Batch(env=self.env, device=self.device, float_type=self.float)
+                while envs:
+                    # Sample backward actions
+                    actions = self.sample_actions(
+                        envs,
+                        batch,
+                        backward=True,
+                        no_random=True,
+                        times=times,
+                    )
+                    # Update environments with sampled actions
+                    envs, actions, valids = self.step(envs, actions, backward=True)
+                    assert all(valids)
+                    # Add to batch
+                    batch.add_to_batch(envs, actions, valids, backward=True, train=True)
+                    # Filter out finished trajectories
+                    envs = [env for env in envs if not env.equal(env.state, env.source)]
+                # TODO: need to compute logprobs!
+                samples_proposal = env.get_random_terminating_states(n_samples)
+            else:
+                raise NotImplementedError(
+                    "A proposal fistribution for rejection sampling is not available "
+                    "for this environment"
+                )
+            samples_proposal_proxy = self.statebatch2proxy(samples_proposal)
+            rewards = self.proxy2reward(self.proxy(samples_proposal_proxy))
+            noise_uniform = torch.rand(n_samples, dtype=self.float, device=self.device)
+            indices_accepted = torch.where(
+                noise_uniform < rewards / max_reward + epsilon
+            )[0].tolist()
+            samples.extend([samples_proposal[idx] for idx in indices_accepted])
+        return samples[:n_samples]
+
     def train(self):
         # Metrics
         all_losses = []
@@ -1034,7 +1114,6 @@ class GFlowNetAgent:
                 x_from_reward = self.env.sample_from_reward(
                     n_samples=self.logger.test.n
                 )
-                x_from_reward = torch2np(self.env.statetorch2proxy(x_from_reward))
                 # Fit KDE with samples from reward
                 kde_true = self.env.fit_kde(
                     x_from_reward,

@@ -538,52 +538,17 @@ class HybridTorus(GFlowNetEnv):
         states = np.concatenate((angles, np.ones((n_states, 1))), axis=1)
         return states.tolist()
 
-    # TODO: make generic for all environments
-    def sample_from_reward(
-        self, n_samples: int, epsilon=1e-4
-    ) -> TensorType["n_samples", "state_dim"]:
-        """
-        Rejection sampling  with proposal the uniform distribution in [0, 2pi]]^n_dim.
-
-        Returns a tensor in GFloNet (state) format.
-        """
-        samples_final = []
-        max_reward = self.proxy2reward(torch.tensor([self.proxy.min])).to(self.device)
-        while len(samples_final) < n_samples:
-            angles_uniform = (
-                torch.rand(
-                    (n_samples, self.n_dim), dtype=self.float, device=self.device
-                )
-                * 2
-                * np.pi
-            )
-            samples = torch.cat(
-                (
-                    angles_uniform,
-                    torch.ones((angles_uniform.shape[0], 1)).to(angles_uniform),
-                ),
-                axis=1,
-            )
-            rewards = self.reward_torchbatch(samples)
-            mask = (
-                torch.rand(n_samples, dtype=self.float, device=self.device)
-                * (max_reward + epsilon)
-                < rewards
-            )
-            samples_accepted = samples[mask, :]
-            samples_final.extend(samples_accepted[-(n_samples - len(samples_final)) :])
-        return torch.vstack(samples_final)
-
-    def fit_kde(self, samples, kernel="gaussian", bandwidth=0.1):
-        aug_samples = []
-        for add_0 in [0, -2 * np.pi, 2 * np.pi]:
-            for add_1 in [0, -2 * np.pi, 2 * np.pi]:
-                aug_samples.append(
-                    np.stack([samples[:, 0] + add_0, samples[:, 1] + add_1], axis=1)
-                )
-        aug_samples = np.concatenate(aug_samples)
-        kde = KernelDensity(kernel=kernel, bandwidth=bandwidth).fit(aug_samples)
-        return kde
+#     def fit_kde(self, samples, kernel="gaussian", bandwidth=0.1):
+#         samples = np.array(samples)
+#         aug_samples = []
+#         for add_0 in [0, -2 * np.pi, 2 * np.pi]:
+#             for add_1 in [0, -2 * np.pi, 2 * np.pi]:
+#                 aug_samples.append(
+#                     np.stack([samples[:, 0] + add_0, samples[:, 1] + add_1], axis=1)
+#                 )
+#         aug_samples = np.concatenate(aug_samples)
+#         kde = KernelDensity(kernel=kernel, bandwidth=bandwidth).fit(aug_samples)
+#         return kde
 
     def plot_reward_samples(
         self,

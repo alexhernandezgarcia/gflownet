@@ -11,6 +11,7 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
 import numpy.typing as npt
+from sklearn.neighbors import KernelDensity
 import torch
 from torch.distributions import Categorical
 from torchtyping import TensorType
@@ -1039,6 +1040,10 @@ class GFlowNetEnv:
     def setup_proxy(self):
         if self.proxy:
             self.proxy.setup(self)
+
+    @staticmethod
+    def fit_kde(samples, kernel="gaussian", bandwidth=0.1):
+        return KernelDensity(kernel=kernel, bandwidth=bandwidth).fit(samples)
 
     @torch.no_grad()
     def compute_train_energy_proxy_and_rewards(self):

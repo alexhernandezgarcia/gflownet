@@ -1212,32 +1212,6 @@ class ContinuousCube(Cube):
         states = rng.uniform(low=0.0, high=self.max_val, size=(n_states, self.n_dim))
         return states.tolist()
 
-    #     # TODO: make generic for all environments
-    def sample_from_reward(
-        self, n_samples: int, epsilon=1e-4
-    ) -> TensorType["n_samples", "state_dim"]:
-        """
-        Rejection sampling  with proposal the uniform distribution in
-        [0, max_val]]^n_dim.
-
-        Returns a tensor in GFloNet (state) format.
-        """
-        samples_final = []
-        max_reward = self.proxy2reward(self.proxy.min)
-        while len(samples_final) < n_samples:
-            samples_uniform = self.statebatch2proxy(
-                self.get_uniform_terminating_states(n_samples)
-            )
-            rewards = self.proxy2reward(self.proxy(samples_uniform))
-            mask = (
-                torch.rand(n_samples, dtype=self.float, device=self.device)
-                * (max_reward + epsilon)
-                < rewards
-            )
-            samples_accepted = samples_uniform[mask]
-            samples_final.extend(samples_accepted[-(n_samples - len(samples_final)) :])
-        return torch.vstack(samples_final)
-
     # TODO: make generic for all envs
     def fit_kde(self, samples, kernel="gaussian", bandwidth=0.1):
         return KernelDensity(kernel=kernel, bandwidth=bandwidth).fit(samples)
