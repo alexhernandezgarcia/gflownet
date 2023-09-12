@@ -18,15 +18,12 @@ There are two major types of documentation:
 
 **Both** are written in `ReStructured Text <https://www.sphinx-doc.org/en/master/usage/restructuredtext/basics.html>`_ (``.rst``) format.
 
+In this tutorial, we'll go over the basics of ``.rst`` and Sphinx, and then we'll look at some of the cool features that are available. To learn about docstrings specifically (what are the conventions, how to write good docstrings etc.), check out the :doc:`next section </contributors/write-docstrings>`.
+
 Some of the great features of using Sphinx is to be able to automatically generate documentation from your code's docstrings, and to be able to link to other parts of the documentation.
 
 For instance: :meth:`~gflownet.gflownet.GFlowNetAgent.trajectorybalance_loss` or to an external function :func:`torch.cuda.synchronize()`.
 
-.. caution::
-
-    This page is about learning the syntax of ``.rst`` and Sphinx. It is not about learning how to write good, informative docstrings.
-    Refer to `Google's docstring guide <https://google.github.io/styleguide/pyguide.html#38-comments-and-docstrings>`_ for that, or
-    checkout full-fledged examples in `Numpy style <https://www.sphinx-doc.org/en/master/usage/extensions/example_numpy.html#example-numpy>`_ or `Google style <https://www.sphinx-doc.org/en/master/usage/extensions/example_google.html#example-google>`_. We also have a short intro in the :doc:`next section </contributors/write-docstrings>`.
 
 Learn by example
 ^^^^^^^^^^^^^^^^
