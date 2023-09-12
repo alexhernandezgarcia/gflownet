@@ -43,6 +43,23 @@ Click on "*Code for the example*" to look at the ``.rst`` code that generated wh
         .. literalinclude:: example.rst
             :language: rst
 
+.. note::
+
+    The above tabulation with "Full-fledged ``.rst`` example" and Code for the example was generated using the following code:
+
+    .. code-block:: rst
+
+        .. tab-set::
+
+            .. tab-item:: Full-fledged ``.rst`` example
+
+                .. include:: example.rst
+
+            .. tab-item:: Code for the example
+
+                .. literalinclude:: example.rst
+                    :language: rst
+
 FAQ
 ---
 
