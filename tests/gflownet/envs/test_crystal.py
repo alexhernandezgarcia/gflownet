@@ -533,6 +533,38 @@ def test__get_mask_invalid_actions_forward__masks_all_actions_from_different_sta
         )
 
 
+def test__composition_constraints(env_with_space_group_stage_first_sg_check):
+    env = env_with_space_group_stage_first_sg_check
+
+    # Pick space group 227 for which the most specific wyckoff position has
+    # multiplicity 8
+    env.step((2, 227, 0, -3, -3, -3))
+    env.step((-1, -1, -1, -3, -3, -3))
+
+    # Validate that the composition constraints are active by trying to add a number of
+    # atoms incompatible with the space group
+    for i in range(1, 8):
+        _, _, valid = env.step((1, i, -2, -2, -2, -2))
+        assert not valid
+    for i in range(9, 16):
+        _, _, valid = env.step((1, i, -2, -2, -2, -2))
+        assert not valid
+
+    # Validate that we can add a compatible number of atoms
+    _, _, valid = env.step((1, 8, -2, -2, -2, -2))
+    assert valid
+
+    # Reset and pick space group 1 which has no constraint on composition
+    env.reset()
+    env.step((2, 1, 0, -3, -3, -3))
+    env.step((-1, -1, -1, -3, -3, -3))
+
+    # Validate that the composition constraints have been updated for the new
+    # space group by adding a number of atoms incompatible with space group 227.
+    _, _, valid = env.step((1, 1, -2, -2, -2, -2))
+    assert valid
+
+
 @pytest.mark.parametrize(
     "environment",
     [
