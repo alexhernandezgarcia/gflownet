@@ -60,3 +60,4 @@ oracle:
     n: 500
 sample_only: False
 active_learning: False
+do_exclude_states_from_training: False

@@ -53,6 +53,7 @@ class GFlowNetAgent:
         active_learning=False,
         data_path=None,
         sample_only=False,
+        do_exclude_states_from_training: bool = False,
         **kwargs,
     ):
         # Seed
@@ -185,6 +186,8 @@ class GFlowNetAgent:
         self.l1 = -1.0
         self.kl = -1.0
         self.jsd = -1.0
+        # Exclude states from training
+        self.do_exclude_states_from_training = do_exclude_states_from_training
 
     def parameters(self):
         if self.backward_policy.is_model is False:
@@ -673,6 +676,12 @@ class GFlowNetAgent:
                     n_replay=self.batch_size.backward_replay,
                 )
                 batch.merge(sub_batch)
+            # Remove trajectories with excluded states from training batch
+            if self.do_exclude_states_from_training:
+                batch.remove_trajectories_with_states(
+                    self.env.get_states_excluded_from_training()
+                )
+            # Compute loss
             for j in range(self.ttsr):
                 if self.loss == "flowmatch":
                     losses = self.flowmatch_loss(
