@@ -57,7 +57,9 @@ class Crystal(GFlowNetEnv):
         do_sg_before_composition: bool = False,
         **kwargs,
     ):
-        self.composition_kwargs = composition_kwargs or {}
+        self.composition_kwargs = dict(
+            composition_kwargs or {}, do_spacegroup_check=do_stoichiometry_sg_check
+        )
         self.space_group_kwargs = space_group_kwargs or {}
         self.lattice_parameters_kwargs = lattice_parameters_kwargs or {}
         self.do_stoichiometry_sg_check = do_stoichiometry_sg_check
@@ -480,13 +482,9 @@ class Crystal(GFlowNetEnv):
                 next_stage = self._get_next_stage(Stage.SPACE_GROUP)
                 self._set_stage(next_stage)
 
-                # If composition is the next stage, set up the composition checks, if
-                # needed.
-                """
-                self.space_group = space_group
-               self.do_charge_check = do_charge_check
-                self.do_spacegroup_check = do_spacegroup_check
-                """
+                # If composition is the next stage, set up the composition checks.
+                if next_stage == Stage.COMPOSITION and self.do_stoichiometry_sg_check:
+                    self.composition.space_group = self.space_group.space_group
 
                 # The lattice parameter stage needs to be set up but only depending on
                 # the selected space group (not the composition) so we set it up now
