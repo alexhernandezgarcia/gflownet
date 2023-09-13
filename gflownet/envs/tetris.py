@@ -3,6 +3,7 @@ An environment inspired by the game of Tetris.
 """
 import itertools
 import re
+import warnings
 from typing import List, Optional, Tuple
 
 import numpy as np
@@ -469,6 +470,27 @@ class Tetris(GFlowNetEnv):
     def get_max_traj_length(self):
         return int(1e9)
 
+    def set_state(
+        self, state: TensorType["height", "width"], done: Optional[bool] = False
+    ):
+        """
+        Sets the state and done. If done is True but incompatible with state (done is
+        True, allow_eos_before_full is False and state is not full), then force done
+        False and print warning. Also, make sure state is tensor.
+        """
+        if not torch.is_tensor(state):
+            state = torch.tensor(state, dtype=torch.int16)
+        if done is True and not self.allow_eos_before_full:
+            mask = self.get_mask_invalid_actions_forward(state, done=False)
+            if not all(mask[:-1]):
+                done = False
+                warnings.warn(
+                    f"Attempted to set state\n\n{self.state2readable(state)}\n\n"
+                    "with done = True, which is not compatible with "
+                    "allow_eos_before_full = False. Forcing done = False."
+                )
+        return super().set_state(state, done)
+
     def _piece_can_be_lifted(self, board, piece_idx):
         """
         Returns True if the piece with index piece_idx could be lifted, that is all
@@ -528,29 +550,3 @@ class Tetris(GFlowNetEnv):
             return max_relevant_piece_idx + incr
         else:
             return min_idx
-
-    def get_uniform_terminating_states(
-        self, n_states: int, seed: int = None, n_factor_max: int = 10
-    ) -> List[List]:
-        rng = np.random.default_rng(seed)
-        n_iter_max = n_states * n_factor_max
-        states = []
-        for it in range(int(n_iter_max)):
-            self.reset()
-            while not self.done:
-                # Sample random action
-                mask_invalid = torch.unsqueeze(
-                    torch.BoolTensor(self.get_mask_invalid_actions_forward()), 0
-                )
-                random_policy = torch.unsqueeze(
-                    torch.tensor(self.random_policy_output, dtype=self.float), 0
-                )
-                actions, _ = self.sample_actions(
-                    policy_outputs=random_policy, mask_invalid_actions=mask_invalid
-                )
-                _, _, _ = self.step(actions[0])
-            if not any([torch.equal(self.state, s) for s in states]):
-                states.append(self.state)
-            if len(states) == n_states:
-                break
-        return states

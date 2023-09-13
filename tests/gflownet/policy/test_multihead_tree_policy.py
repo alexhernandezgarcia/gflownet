@@ -1,9 +1,10 @@
 import numpy as np
 import pytest
 import torch
+from torch_geometric.data import Batch
 
-from gflownet.envs.tree import Operator, Tree
-from gflownet.policy.tree import (
+from gflownet.envs.tree import Attribute, Operator, Tree
+from gflownet.policy.multihead_tree import (
     Backbone,
     FeatureSelectionHead,
     LeafSelectionHead,
@@ -34,39 +35,54 @@ def tree(
         feature = np.random.randint(n_features)
         threshold = np.random.rand()
 
-        _tree.step((0, node))
-        _tree.step((1, feature))
-        _tree.step((2, threshold))
-        _tree.step((3, operator))
+        _tree.step((0, node, _tree.state[node, Attribute.CLASS]))
+        _tree.step((1, -1, feature))
+        _tree.step((2, -1, threshold))
+        _tree.step((3, node, operator))
 
     return _tree
 
 
 @pytest.fixture()
 def data(tree):
-    return tree._to_pyg()
+    return tree._state2pyg()
 
 
 @pytest.fixture()
-def backbone():
-    return Backbone(hidden_dim=BACKBONE_HIDDEN_DIM)
+def batch(data):
+    return Batch.from_data_list([data, data])
+
+
+@pytest.fixture()
+def backbone(tree):
+    return Backbone(input_dim=tree.get_pyg_input_dim(), hidden_dim=BACKBONE_HIDDEN_DIM)
 
 
 def test__backbone__output_has_correct_shape(data, backbone):
     assert backbone(data).shape == (data.x.shape[0], BACKBONE_HIDDEN_DIM)
 
 
-def test__leaf_selection__output_has_correct_shape(data, backbone):
-    head = LeafSelectionHead(backbone)
-    output = head(data)
+def test__leaf_selection__output_has_correct_shape_for_graph(tree, data, backbone):
+    head = LeafSelectionHead(backbone=backbone, max_nodes=tree.n_nodes)
+    node_output, eos_output = head(data)
 
-    assert len(output.shape) == 1
-    assert output.shape[0] == data.x.shape[0]
+    assert node_output.shape == (tree.n_nodes * 2,)
+    assert eos_output.shape == (1,)
+
+
+def test__leaf_selection__output_has_correct_shape_for_batch(tree, batch, backbone):
+    head = LeafSelectionHead(backbone=backbone, max_nodes=tree.n_nodes)
+    node_output, eos_output = head(batch)
+
+    assert node_output.shape == (2, tree.n_nodes * 2)
+    assert eos_output.shape == (2,)
 
 
 def test__feature_selection__output_has_correct_shape(data, backbone):
-    head = FeatureSelectionHead(backbone, output_dim=N_FEATURES)
-    output = head.forward(data, node_index=torch.Tensor([0]).long())
+    head = FeatureSelectionHead(
+        backbone, input_dim=BACKBONE_HIDDEN_DIM, output_dim=N_FEATURES
+    )
+    output = head.forward(data)
 
     assert len(output.shape) == 2
     assert output.shape[0] == 1
@@ -74,12 +90,10 @@ def test__feature_selection__output_has_correct_shape(data, backbone):
 
 
 def test__threshold_selection__output_has_correct_shape(data, backbone):
-    input_dim = BACKBONE_HIDDEN_DIM * 2 + 1
+    input_dim = BACKBONE_HIDDEN_DIM + 1
     output_dim = 4
     head = ThresholdSelectionHead(backbone, input_dim=input_dim, output_dim=output_dim)
-    output = head.forward(
-        data, node_index=torch.Tensor([0]).long(), feature_index=torch.Tensor([[0]])
-    )
+    output = head.forward(data, feature_index=torch.Tensor([0]))
 
     assert len(output.shape) == 2
     assert output.shape[0] == 1
@@ -87,15 +101,14 @@ def test__threshold_selection__output_has_correct_shape(data, backbone):
 
 
 def test__operator_selection__output_has_correct_shape(data, backbone):
-    input_dim = BACKBONE_HIDDEN_DIM * 2 + 2
+    input_dim = BACKBONE_HIDDEN_DIM + 2
     head = OperatorSelectionHead(backbone, input_dim=input_dim)
     output = head.forward(
         data,
-        node_index=torch.Tensor([0]).long(),
-        feature_index=torch.Tensor([[0]]),
-        threshold=torch.Tensor([[0.5]]),
+        feature_index=torch.Tensor([0]),
+        threshold=torch.Tensor([0.5]),
     )
 
     assert len(output.shape) == 2
     assert output.shape[0] == 1
-    assert output.shape[1] == 1
+    assert output.shape[1] == 2

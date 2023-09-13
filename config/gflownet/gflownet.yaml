@@ -44,16 +44,9 @@ temperature_logits: 1.0
 random_action_prob: 0.0
 # Percentage of trajectories in a batch from an empirical distribution
 pct_offline: 0.0
-  # Policy
-policy:
-  forward:
-    type: mlp
-    n_hid: 128
-    n_layers: 2
-    checkpoint: null
-    reload_ckpt: False
-  backward: null
-  ckpt_period: null
+# Replay buffer
+replay_capacity: 0
+replay_sampling: permutation
 num_empirical_loss: 200000
 oracle:
     # Number of samples for oracle metrics
