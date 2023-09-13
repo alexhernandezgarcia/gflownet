@@ -387,6 +387,22 @@ class Grid(GFlowNetEnv):
         states = rng.integers(low=0, high=self.length, size=(n_states, self.n_dim))
         return states.tolist()
 
+    def get_states_excluded_from_training(self):
+        """
+        Returns a list of states to be excluded from the training batch.
+
+        Currently, the excluded states are hard coded in this method and they
+        correspond to the states in the corner of length ceil(self.length / 2) that is
+        farthest from the source state.
+        """
+        if hasattr(self, "_states_excluded_from_training"):
+            return self._states_excluded_from_training
+        min_cell = int(np.ceil(self.length / 2))
+        self._states_excluded_from_training = np.int32(
+            list(itertools.product(*[list(range(min_cell, self.length))] * self.n_dim))
+        ).tolist()
+        return self._states_excluded_from_training
+
     # TODO: review
     def plot_samples_frequency(self, samples, ax=None, title=None, rescale=1):
         """
