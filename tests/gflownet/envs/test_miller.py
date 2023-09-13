@@ -1,6 +1,5 @@
 import common
 import pytest
-import torch
 
 from gflownet.envs.crystals.miller import MillerIndices
 

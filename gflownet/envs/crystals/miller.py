@@ -1,16 +1,6 @@
 """
 Class to represent an environment to sample Miller indices (hkl).
 """
-import itertools
-from typing import List, Optional, Tuple
-
-import matplotlib.pyplot as plt
-import numpy as np
-import numpy.typing as npt
-import torch
-from mpl_toolkits.axes_grid1 import make_axes_locatable
-from torchtyping import TensorType
-
 from gflownet.envs.grid import Grid
 
 
