@@ -852,6 +852,12 @@ class GFlowNetAgent:
                 batch.remove_trajectories_with_states(
                     self.env.get_states_excluded_from_training()
                 )
+                while len(batch) < self.batch_size_total:
+                    n_missing = self.batch_size_total - len(batch)
+                    sub_batch, _ = self.sample_batch(
+                        n_forward=n_missing,
+                    )
+                    batch.merge(sub_batch)
             # Compute loss
             for j in range(self.ttsr):
                 if self.loss == "flowmatch":
