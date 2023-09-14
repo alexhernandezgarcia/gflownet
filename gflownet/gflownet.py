@@ -175,6 +175,7 @@ class GFlowNetAgent:
         self.kl = -1.0
         self.jsd = -1.0
         self.corr_prob_traj_rewards = 0.0
+        self.var_logrewards_logp = -1.0
         self.nll_tt = 0.0
 
     def parameters(self):
@@ -811,6 +812,7 @@ class GFlowNetAgent:
                     self.kl,
                     self.jsd,
                     self.corr_prob_traj_rewards,
+                    self.var_logrewards_logp,
                     self.nll_tt,
                     figs,
                     env_metrics,
@@ -820,6 +822,7 @@ class GFlowNetAgent:
                     self.kl,
                     self.jsd,
                     self.corr_prob_traj_rewards,
+                    self.var_logrewards_logp,
                     self.nll_tt,
                     it,
                     self.use_context,
@@ -959,6 +962,7 @@ class GFlowNetAgent:
                 self.kl,
                 self.jsd,
                 self.corr_prob_traj_rewards,
+                self.var_logrewards_logp,
                 self.nll_tt,
                 (None,),
                 {},
@@ -979,6 +983,10 @@ class GFlowNetAgent:
         corr_prob_traj_rewards = np.corrcoef(
             np.exp(logprobs_x_tt.cpu().numpy()), rewards_x_tt
         )[0, 1]
+        var_logrewards_logp = torch.var(
+            torch.log(tfloat(rewards_x_tt, float_type=self.float, device=self.device))
+            - logprobs_x_tt
+        ).item()
         nll_tt = -logprobs_x_tt.mean().item()
 
         batch, _ = self.sample_batch(n_forward=self.logger.test.n, train=False)
@@ -1010,6 +1018,7 @@ class GFlowNetAgent:
                 self.kl,
                 self.jsd,
                 self.corr_prob_traj_rewards,
+                self.var_logrewards_logp,
                 self.nll_tt,
                 (None,),
                 env_metrics,
@@ -1081,6 +1090,7 @@ class GFlowNetAgent:
             kl,
             jsd,
             corr_prob_traj_rewards,
+            var_logrewards_logp,
             nll_tt,
             [fig_reward_samples, fig_kde_pred, fig_kde_true],
             {},
