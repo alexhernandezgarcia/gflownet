@@ -47,16 +47,17 @@ class DAVE(Proxy):
         try:
             dave_version = version("dave")
         except PackageNotFoundError:
-            print("  `dave` cannot be imported.")
-            print(f"  Install with: `pip install git+{pip_url}`\n")
+            print("  💥 `dave` cannot be imported.")
+            print("    Install with:")
+            print(f"    $ pip install git+{pip_url}\n")
 
             raise PackageNotFoundError("DAVE not found")
 
         if dave_version != release:
-            print("  💥 DAVE version mismatch: ")
+            print("  💥 `dave` version mismatch: ")
             print(f"    current ({dave_version}) != requested ({release})")
             print(f"    Install the requested version with:")
-            print(f"    `pip install --upgrade git+{pip_url}`\n")
+            print(f"    $ pip install --upgrade git+{pip_url}\n")
             raise ImportError("Wrong DAVE version")
 
         print("  Found version:", dave_version)
