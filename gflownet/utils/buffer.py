@@ -5,6 +5,7 @@ import pickle
 
 import numpy as np
 import pandas as pd
+import torch
 
 
 class Buffer:
@@ -38,9 +39,9 @@ class Buffer:
         self.replay.reward = [-1 for _ in range(self.replay_capacity)]
         self.replay_states = {}
         self.replay_trajs = {}
+        self.replay_rewards = {}
         self.replay_pkl = "replay.pkl"
-        with open(self.replay_pkl, "wb") as f:
-            pickle.dump({"x": self.replay_states, "trajs": self.replay_trajs}, f)
+        self.save_replay()
         # Define train and test data sets
         if train is not None and "type" in train:
             self.train_type = train.type
@@ -110,6 +111,17 @@ class Buffer:
                 self.test
             )
 
+    def save_replay(self):
+        with open(self.replay_pkl, "wb") as f:
+            pickle.dump(
+                {
+                    "x": self.replay_states,
+                    "trajs": self.replay_trajs,
+                    "rewards": self.replay_rewards,
+                },
+                f,
+            )
+
     def add(
         self,
         states,
@@ -153,8 +165,17 @@ class Buffer:
         for idx, (state, traj, reward, energy) in enumerate(
             zip(states, trajs, rewards, energies)
         ):
-            if allow_duplicate_states is False and state in self.replay_states.values():
-                continue
+            if not allow_duplicate_states:
+                if isinstance(state, torch.Tensor):
+                    is_duplicate = False
+                    for replay_state in self.replay_states.values():
+                        if torch.allclose(state, replay_state, equal_nan=True):
+                            is_duplicate = True
+                            break
+                else:
+                    is_duplicate = state in self.replay_states.values()
+                if is_duplicate:
+                    continue
             if (
                 reward > self.replay.iloc[-1]["reward"]
                 and traj not in self.replay_trajs.values()
@@ -168,9 +189,9 @@ class Buffer:
                 }
                 self.replay_states[(idx, it)] = state
                 self.replay_trajs[(idx, it)] = traj
+                self.replay_rewards[(idx, it)] = reward
                 self.replay.sort_values(by="reward", ascending=False, inplace=True)
-        with open(self.replay_pkl, "wb") as f:
-            pickle.dump({"x": self.replay_states, "trajs": self.replay_trajs}, f)
+        self.save_replay()
         return self.replay
 
     def make_data_set(self, config):

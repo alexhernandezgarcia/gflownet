@@ -6,15 +6,15 @@ defaults:
   - override /logger: wandb
   - override /user: mkilgour
 
-device: cuda
+device: cpu
 machine: local
 
 # WandB
 logger:
   run_name: mc_dev
   test:
-    first_it: False
-    period: 100
+    first_it: True
+    period: 20
     n: 1000
   checkpoints:
     period: 500
@@ -26,7 +26,7 @@ env:
   space_group_kwargs:
     generate_sgs: [1] # P-1 and P21/c - 'null' will generate in all space groups
   lattice_parameters_kwargs:
-    grid_size: 10
+    grid_size: 11
 
     min_length: 0.25
     max_length: 3.0
@@ -46,7 +46,7 @@ env:
 
 # GFlowNet hyperparameters
 gflownet:
-  random_action_prob: 0.05
+  random_action_prob: 0.2
   optimizer:
     lr: 0.001
     lr_decay_period: 1000
@@ -62,7 +62,7 @@ gflownet:
     forward:
       type: gnn
       n_layers: 2
-      n_hid: 256
+      n_hid: 64
       checkpoint: null
       reload_ckpt: False
       n_node_feats: null
@@ -72,7 +72,7 @@ gflownet:
     backward:
       type: gnn
       n_layers: 2
-      n_hid: 256
+      n_hid: 64
       checkpoint: null
       reload_ckpt: False
       n_node_feats: null  # currently assigned in main for gnn

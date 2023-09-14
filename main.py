@@ -8,8 +8,9 @@ import sys
 
 import hydra
 import pandas as pd
-import yaml
-from omegaconf import DictConfig, OmegaConf
+from omegaconf import OmegaConf
+
+from gflownet.utils.common import chdir_random_subdir
 
 import warnings
 
@@ -18,6 +19,9 @@ warnings.simplefilter(action='ignore', category=pd.errors.PerformanceWarning)
 
 @hydra.main(config_path="./config", config_name="main", version_base="1.1")
 def main(config):
+    # TODO: fix race condition in a more elegant way
+    chdir_random_subdir()
+
     # Get current directory and set it as root log dir for Logger
     cwd = os.getcwd()
     config.logger.logdir.root = cwd
@@ -86,7 +90,9 @@ def main(config):
         pickle.dump(dct, open("gfn_samples.pkl", "wb"))
 
     # Print replay buffer
-    print(gflownet.buffer.replay)
+    if len(gflownet.buffer.replay) > 0:
+        print("\nReplay buffer:")
+        print(gflownet.buffer.replay)
 
     # Close logger
     gflownet.logger.end()

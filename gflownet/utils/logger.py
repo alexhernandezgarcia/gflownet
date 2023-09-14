@@ -1,3 +1,4 @@
+import os
 from datetime import datetime
 from pathlib import Path
 
@@ -6,7 +7,6 @@ import numpy as np
 import torch
 from numpy import array
 from omegaconf import OmegaConf
-import os
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import plotly.express as px
@@ -243,7 +243,6 @@ class Logger:
 
         fig_dict['canonical cell parameters'] = fig
 
-
         fig = make_subplots(rows=4, cols=3, subplot_titles=['a','b','c','alpha','beta','gamma','xbar','ybar','zbar','theta','phi','r'], horizontal_spacing = 0.05, vertical_spacing=0.05)
         for i in range(12):
             for tt in range(n_past_to_plot):
@@ -291,6 +290,7 @@ class Logger:
 
         """record loss metrics"""
         mean_metrics = {key:np.mean(metrics[key]) for key in score_keys}
+        mean_metrics['parameter_variation'] = np.mean(np.var(metrics['generated_cell_params'],axis=-1))
         self.wandb.log(mean_metrics)
 
         """space group distribution"""
@@ -471,6 +471,8 @@ class Logger:
         l1: float,
         kl: float,
         jsd: float,
+        corr_prob_traj_rewards: float,
+        nll_tt: float,
         step: int,
         use_context: bool,
     ):
@@ -478,8 +480,14 @@ class Logger:
             return
         metrics = dict(
             zip(
-                ["L1 error", "KL Div.", "Jensen Shannon Div."],
-                [l1, kl, jsd],
+                [
+                    "L1 error",
+                    "KL Div.",
+                    "Jensen Shannon Div.",
+                    "Corr. (test probs., rewards)",
+                    "NLL of test data",
+                ],
+                [l1, kl, jsd, corr_prob_traj_rewards, nll_tt],
             )
         )
         self.log_metrics(

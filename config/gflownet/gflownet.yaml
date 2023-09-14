@@ -22,7 +22,7 @@ optimizer:
   # Number of trajectories of each kind
   batch_size:
     # Forward on-policy (possibly tempered and/or with random actions)
-    forward: 50
+    forward: 10
     # Backward from training set
     backward_dataset: 0
     # Backward from replay buffer
@@ -34,8 +34,6 @@ optimizer:
   # From original implementation
   bootstrap_tau: 0.0
   clip_grad_norm: 0.0
-# If True, compute rewards in batches
-batch_reward: True
 # Force zero probability of sampling invalid actions
 mask_invalid_actions: True
 # Temperature for the logits /= temperature_logits
@@ -45,7 +43,7 @@ random_action_prob: 0.05
 # Percentage of trajectories in a batch from an empirical distribution
 pct_offline: 0.0
 # Replay buffer
-replay_capacity: 0
+replay_sampling: permutation
 policy:
   forward:
     type: gnn

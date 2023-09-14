@@ -4,7 +4,7 @@ Classes to represent hyper-torus environments
 import itertools
 import re
 from copy import deepcopy
-from typing import List, Tuple
+from typing import List, Optional, Tuple
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -16,7 +16,7 @@ from torch.distributions import Bernoulli, Categorical, Uniform, VonMises
 from torchtyping import TensorType
 
 from gflownet.envs.base import GFlowNetEnv
-from gflownet.utils.common import torch2np
+from gflownet.utils.common import tfloat, torch2np
 
 
 class HybridTorus(GFlowNetEnv):
@@ -76,6 +76,7 @@ class HybridTorus(GFlowNetEnv):
         # TODO: assess if really needed
         self.state2oracle = self.state2proxy
         self.statebatch2oracle = self.statebatch2proxy
+        self.statetorch2oracle = self.statetorch2proxy
         # Base class init
         super().__init__(
             fixed_distribution=fixed_distribution,
@@ -212,7 +213,8 @@ class HybridTorus(GFlowNetEnv):
         """
         Prepares a batch of states in torch "GFlowNet format" for the policy.
 
-        See: statebatch2policy()
+        If policy_encoding_dim_per_angle >= 2, then the state (angles) is encoded using
+        trigonometric components.
         """
         if (
             self.policy_encoding_dim_per_angle is not None
@@ -235,27 +237,16 @@ class HybridTorus(GFlowNetEnv):
             )
         return states
 
-    def statebatch2policy(self, states: List[List]) -> npt.NDArray[np.float32]:
+    def statebatch2policy(
+        self, states: List[List]
+    ) -> TensorType["batch_size", "policy_input_dim"]:
         """
-        Converts a batch of states into a format suitable for a machine learning model.
-        If policy_encoding_dim_per_angle >= 2, then the state (angles) is encoded using
-        trigonometric components.
+        Prepares a batch of states in "GFlowNet format" for the policy.
+
+        See: statetorch2policy()
         """
-        states = np.array(states)
-        if (
-            self.policy_encoding_dim_per_angle is not None
-            and self.policy_encoding_dim_per_angle >= 2
-        ):
-            step = states[:, -1]
-            code_half_size = self.policy_encoding_dim_per_angle // 2
-            int_coeff = np.tile(np.arange(1, code_half_size + 1), states.shape[-1] - 1)
-            encoding = (
-                np.repeat(states[:, :-1], repeats=code_half_size, axis=1) * int_coeff
-            )
-            states = np.concatenate(
-                [np.cos(encoding), np.sin(encoding), step[:, np.newaxis]], axis=1
-            )
-        return states
+        states = tfloat(states, float_type=self.float, device=self.device)
+        return self.statetorch2policy(states)
 
     def policy2state(self, state_policy: List) -> List:
         """
@@ -338,12 +329,15 @@ class HybridTorus(GFlowNetEnv):
             parents = [state]
             return parents, [action]
 
-    def sample_actions(
+    def sample_actions_batch(
         self,
         policy_outputs: TensorType["n_states", "policy_output_dim"],
-        sampling_method: str = "policy",
-        mask_invalid_actions: TensorType["n_states", "n_dim"] = None,
-        temperature_logits: float = 1.0,
+        mask: Optional[TensorType["n_states", "policy_output_dim"]] = None,
+        states_from: Optional[List] = None,
+        is_backward: Optional[bool] = False,
+        sampling_method: Optional[str] = "policy",
+        temperature_logits: Optional[float] = 1.0,
+        max_sampling_attempts: Optional[int] = 10,
     ) -> Tuple[List[Tuple], TensorType["n_states"]]:
         """
         Samples a batch of actions from a batch of policy outputs.
@@ -357,8 +351,8 @@ class HybridTorus(GFlowNetEnv):
         elif sampling_method == "policy":
             logits_dims = policy_outputs[:, 0 :: self.n_params_per_dim]
             logits_dims /= temperature_logits
-        if mask_invalid_actions is not None:
-            logits_dims[mask_invalid_actions] = -torch.inf
+        if mask is not None:
+            logits_dims[mask] = -torch.inf
         dimensions = Categorical(logits=logits_dims).sample()
         logprobs_dim = self.logsoftmax(logits_dims)[ns_range, dimensions]
         # Sample angle increments

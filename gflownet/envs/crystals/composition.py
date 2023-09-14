@@ -34,7 +34,7 @@ class Composition(GFlowNetEnv):
         min_atoms: int = 2,
         max_atoms: int = 20,
         min_atom_i: int = 1,
-        max_atom_i: int = 10,
+        max_atom_i: int = 16,
         oxidation_states: Optional[Dict] = None,
         alphabet: Optional[Dict] = None,
         required_elements: Optional[Union[Tuple, List]] = (),
@@ -325,7 +325,7 @@ class Composition(GFlowNetEnv):
         unrequired_element_allowed = (
             n_max_unrequired_elements_left > 0
             and min_atoms_per_required_element * n_unused_required_elements + min_atom_i
-            < nb_atoms_still_allowed
+            <= nb_atoms_still_allowed
         )
 
         # Compute the minimum and maximum number of atoms available for an unrequired

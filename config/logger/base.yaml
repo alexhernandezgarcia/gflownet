@@ -1,7 +1,7 @@
 _target_: gflownet.utils.logger.Logger
 
 do:
-  online: False
+  online: True
   times: False
 
 project_name: "GFlowNet"
@@ -12,14 +12,18 @@ train:
 # Test metrics
 test:
   first_it: False
-  period: 2
+  period: 100
   n: 1000
   kde:
     bandwidth: 0.1
     kernel: gaussian
   n_top_k: 5000
   top_k: 100
-  top_k_period: 2500
+  top_k_period: -1
+  # Number of backward trajectories to estimate the log likelihood of each test data point
+  n_trajs_logprobs: 10
+  # Maximum number of test data points to compute log likelihood probs.
+  max_data_logprobs: 1e5
 # Oracle metrics
 oracle:
   period: 100000

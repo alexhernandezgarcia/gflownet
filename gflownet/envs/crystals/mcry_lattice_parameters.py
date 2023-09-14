@@ -255,13 +255,13 @@ class MolCryLatticeParameters(Grid):
                 action[dim] = r
                 actions.append(tuple(action))
             actions.append((0, 0, 0, r, r, r) + tuple([0 for _ in range(6)]))
-
-        # positions & pose angles
-        for r in valid_steplens:
-            for dim in [6, 7, 8, 9, 10, 11]:
-                action = [0 for _ in range(12)]
-                action[dim] = r
-                actions.append(tuple(action))
+        #
+        # # positions & pose angles
+        # for r in valid_steplens:
+        #     for dim in [6, 7, 8, 9, 10, 11]:
+        #         action = [0 for _ in range(12)]
+        #         action[dim] = r
+        #         actions.append(tuple(action))
 
         actions.append(self.eos)
 
@@ -316,7 +316,7 @@ class MolCryLatticeParameters(Grid):
         elif self.lattice_system in [HEXAGONAL, TETRAGONAL]:
             return a == b != c
         elif self.lattice_system in [MONOCLINIC, ORTHORHOMBIC, TRICLINIC]:
-            return a != b and a != c and b != c
+            return a != b and a != c and b != c  # todo not really necessary
         else:
             raise NotImplementedError
 

@@ -8,9 +8,3 @@ optimizer:
   z_dim: 16
   lr_decay_period: 1000
   lr_decay_gamma: 0.25
-
-policy:
-  backward:
-    shared_weights: False
-    checkpoint: null
-    reload_ckpt: False

@@ -1,26 +1,27 @@
+import pickle
 import sys
 from argparse import ArgumentParser
+from copy import deepcopy
 from pathlib import Path
-import pickle
-import matplotlib.pyplot as plt
+
 import matplotlib as mpl
+import matplotlib.pyplot as plt
 import numpy as np
 import torch
+from Levenshtein import distance as levenshtein_distance
 from tqdm import tqdm
 from yaml import safe_load
-from copy import deepcopy
-from Levenshtein import distance as levenshtein_distance
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.append(str(ROOT))
 sys.path.append(str(ROOT / "external" / "repos" / "ActiveLearningMaterials"))
 CMAP = mpl.colormaps["cividis"]
 
+from collections import Counter
+
 from external.repos.ActiveLearningMaterials.dave.utils.loaders import make_loaders
 from gflownet.proxy.crystals.dave import DAVE
 from gflownet.utils.common import load_gflow_net_from_run_path, resolve_path
-
-from collections import Counter
 
 
 def make_str(v):
