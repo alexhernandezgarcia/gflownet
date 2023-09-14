@@ -17,9 +17,9 @@ python -m pip install torch-scatter torch-geometric -f https://data.pyg.org/whl/
 # Requirements to run
 python -m pip install numpy pandas hydra-core tqdm torchtyping scikit-learn
 # Conditional requirements to run
-python -m pip install wandb matplotlib plotly pymatgen
-# PhAST
-python -m pip install phast
+python -m pip install wandb matplotlib plotly pymatgen pyxtal
+# PhAST and FAENet
+python -m pip install phast faenet
 # Dev packages
 # python -m pip install black flake8 isort pylint ipython ipdb jupyter pytest pytest-repeat
 # Ammends
