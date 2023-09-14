@@ -53,10 +53,10 @@ class DAVE(Proxy):
             raise PackageNotFoundError("DAVE not found")
 
         if dave_version != release:
-            print("\n  DAVE version mismatch: ")
-            print(f"  current ({dave_version}) != requested ({release})")
-            print(f"  Install the requested version with:")
-            print(f"  `pip install --upgrade git+{pip_url}`\n")
+            print("  💥 DAVE version mismatch: ")
+            print(f"    current ({dave_version}) != requested ({release})")
+            print(f"    Install the requested version with:")
+            print(f"    `pip install --upgrade git+{pip_url}`\n")
             raise ImportError("Wrong DAVE version")
 
         print("  Found version:", dave_version)
