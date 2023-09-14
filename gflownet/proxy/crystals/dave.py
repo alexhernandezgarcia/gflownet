@@ -40,7 +40,7 @@ class DAVE(Proxy):
 
         from importlib.metadata import version, PackageNotFoundError
 
-        pip_url = f"https://github.com/django/django.git@{release}"
+        pip_url = f"https://github.com/sh-divya/ActiveLearningMaterials.git@{release}"
 
         try:
             dave_version = version("dave")
