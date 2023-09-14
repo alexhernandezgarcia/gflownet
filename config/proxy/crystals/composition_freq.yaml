@@ -1,0 +1,3 @@
+_target_: gflownet.proxy.crystals.composition.CompositionMPFrequency
+
+normalize: True
