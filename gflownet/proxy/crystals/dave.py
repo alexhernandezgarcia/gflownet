@@ -1,48 +1,8 @@
-import os
-import re
-import sys
 from copy import deepcopy
-from pathlib import Path
-
-import git
 import torch
 from torchtyping import TensorType
 
 from gflownet.proxy.base import Proxy
-
-# gflownet/ repo root
-ROOT = Path(__file__).resolve().parent.parent.parent.parent
-# where to clone / find the external code
-REPO_PATH = ROOT / "external" / "repos" / "ActiveLearningMaterials"
-# remote repo url to clone from
-REPO_URL = "https://github.com/sh-divya/ActiveLearningMaterials.git"
-
-
-def checkout_tag(tag):
-    """
-    Changes the proxy's repo state to the specified tag.
-
-    Args:
-        tag (str): Tag/release to checkout
-    """
-    repo = git.Repo(REPO_PATH)
-    major_revison = re.findall(r"v(\d+)", tag)[0]
-    if int(major_revison) < 2:
-        raise ValueError("Version is too old. Please use Dave v2.0.0 or later.")
-    if repo.git.describe("--tags") == tag:
-        return
-    for remote in repo.remotes:
-        remote.fetch()
-    if tag not in repo.tags:
-        raise ValueError(
-            f"Tag {tag} not found in repo {str(REPO_PATH)}. Available tags: {repo.tags}"
-            + "\nVerify the `release` config."
-        )
-    repo.git.checkout(repo.tags[tag].path)
-
-
-def resolve(path: str) -> Path:
-    return Path(os.path.expandvars(str(path))).expanduser().resolve()
 
 
 class DAVE(Proxy):
@@ -76,19 +36,27 @@ class DAVE(Proxy):
         self.scaled = False
 
         print("Initializing DAVE proxy:")
-        print("  Fetching proxy Github code...")
-        if not REPO_PATH.exists():
-            # creatre $root/external/repos
-            REPO_PATH.parent.mkdir(exist_ok=True, parents=True)
-            # clone remote proxy code
-            git.Repo.clone_from(REPO_URL, str(REPO_PATH))
-        # at this point the repo must exist
-        assert REPO_PATH.exists()
-        # checkout the appropriate tag/release
-        checkout_tag(release)
+        print("  Checking out release:", release)
 
-        # import the proxu build funcion
-        sys.path.append(str(REPO_PATH))
+        from importlib.metadata import version, PackageNotFoundError
+
+        pip_url = f"https://github.com/django/django.git@{release}"
+
+        try:
+            dave_version = version("dave")
+        except PackageNotFoundError:
+            print("\nDAVE not installed! Current config release requested:", release)
+            print("Install with:")
+            print(f"pip install git+{pip_url}\n")
+
+            raise PackageNotFoundError("DAVE not installed!")
+
+        assert dave_version == release, (
+            f"\nDAVE version mismatch! current: {dave_version}, requested: {release}\n"
+            + f"  Install the requested version with:\n"
+            + f"pip install --upgrade git+{pip_url}\n"
+        )
+
         from dave import prepare_for_gfn
 
         self.model, self.proxy_loaders, self.scales = prepare_for_gfn(
