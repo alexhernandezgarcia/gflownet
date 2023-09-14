@@ -1,4 +1,6 @@
 from copy import deepcopy
+from pathlib import Path
+
 import torch
 from torchtyping import TensorType
 
@@ -38,24 +40,26 @@ class DAVE(Proxy):
         print("Initializing DAVE proxy:")
         print("  Checking out release:", release)
 
-        from importlib.metadata import version, PackageNotFoundError
+        from importlib.metadata import PackageNotFoundError, version
 
         pip_url = f"https://github.com/sh-divya/ActiveLearningMaterials.git@{release}"
 
         try:
             dave_version = version("dave")
         except PackageNotFoundError:
-            print("\nDAVE not installed! Current config release requested:", release)
-            print("Install with:")
-            print(f"pip install git+{pip_url}\n")
+            print("  `dave` cannot be imported.")
+            print(f"  Install with: `pip install git+{pip_url}`\n")
 
-            raise PackageNotFoundError("DAVE not installed!")
+            raise PackageNotFoundError("DAVE not found")
 
         assert dave_version == release, (
             f"\nDAVE version mismatch! current: {dave_version}, requested: {release}\n"
             + f"  Install the requested version with:\n"
             + f"pip install --upgrade git+{pip_url}\n"
         )
+
+        print("  Found version:", dave_version)
+        print("  Loading model from:", str(Path(ckpt_path) / release))
 
         from dave import prepare_for_gfn
 
