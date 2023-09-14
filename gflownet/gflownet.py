@@ -14,13 +14,11 @@ from typing import List, Optional, Tuple, Union
 import numpy as np
 import torch
 import torch.nn as nn
-from omegaconf import OmegaConf
 from scipy.special import logsumexp
 from torch.distributions import Bernoulli
 from tqdm import tqdm
 
 from gflownet.envs.base import GFlowNetEnv
-from gflownet.policy.base import Policy
 from gflownet.utils.batch import Batch
 from gflownet.utils.buffer import Buffer
 from gflownet.utils.common import (
@@ -43,7 +41,8 @@ class GFlowNetAgent:
         float_precision,
         optimizer,
         buffer,
-        policy,
+        forward_policy,
+        backward_policy,
         mask_invalid_actions,
         temperature_logits,
         random_action_prob,
@@ -51,10 +50,9 @@ class GFlowNetAgent:
         logger,
         num_empirical_loss,
         oracle,
-        proxy=None,
         active_learning=False,
-        data_path=None,
         sample_only=False,
+        replay_sampling="permutation",
         **kwargs,
     ):
         # Seed
@@ -93,6 +91,7 @@ class GFlowNetAgent:
         self.logger = logger
         self.oracle_n = oracle.n
         # Buffers
+        self.replay_sampling = replay_sampling
         self.buffer = Buffer(
             **buffer, env=self.env, make_train_test=not sample_only, logger=logger
         )
@@ -124,9 +123,9 @@ class GFlowNetAgent:
             print(f"\tMin score: {self.buffer.test['energies'].min()}")
             print(f"\tMax score: {self.buffer.test['energies'].max()}")
         # Policy models
-        self.forward_policy = Policy(policy.forward, self.env, self.device, self.float)
-        if "checkpoint" in policy.forward and policy.forward.checkpoint:
-            self.logger.set_forward_policy_ckpt_path(policy.forward.checkpoint)
+        self.forward_policy = forward_policy
+        if self.forward_policy.checkpoint is not None:
+            self.logger.set_forward_policy_ckpt_path(self.forward_policy.checkpoint)
             # TODO: re-write the logic and conditions to reload a model
             if False:
                 self.forward_policy.load_state_dict(
@@ -135,19 +134,10 @@ class GFlowNetAgent:
                 print("Reloaded GFN forward policy model Checkpoint")
         else:
             self.logger.set_forward_policy_ckpt_path(None)
-        self.backward_policy = Policy(
-            policy.backward,
-            self.env,
-            self.device,
-            self.float,
-            base=self.forward_policy,
-        )
-        if (
-            policy.backward
-            and "checkpoint" in policy.backward
-            and policy.backward.checkpoint
-        ):
-            self.logger.set_backward_policy_ckpt_path(policy.backward.checkpoint)
+        self.backward_policy = backward_policy
+        self.logger.set_backward_policy_ckpt_path(None)
+        if self.backward_policy.checkpoint is not None:
+            self.logger.set_backward_policy_ckpt_path(self.backward_policy.checkpoint)
             # TODO: re-write the logic and conditions to reload a model
             if False:
                 self.backward_policy.load_state_dict(
@@ -156,9 +146,6 @@ class GFlowNetAgent:
                 print("Reloaded GFN backward policy model Checkpoint")
         else:
             self.logger.set_backward_policy_ckpt_path(None)
-        self.ckpt_period = policy.ckpt_period
-        if self.ckpt_period in [None, -1]:
-            self.ckpt_period = np.inf
         # Optimizer
         if self.forward_policy.is_model:
             self.target = copy.deepcopy(self.forward_policy.model)
@@ -187,7 +174,7 @@ class GFlowNetAgent:
         self.l1 = -1.0
         self.kl = -1.0
         self.jsd = -1.0
-        self.corr_logp_rewards = 0.0
+        self.corr_prob_traj_rewards = 0.0
         self.nll_tt = 0.0
 
     def parameters(self):
@@ -337,24 +324,25 @@ class GFlowNetAgent:
         if sampling_method == "policy":
             # Check for at least one non-random action
             if idx_norandom.sum() > 0:
-                policy_outputs[idx_norandom, :] = model(
-                    tfloat(
-                        self.env.statebatch2policy(
-                            [s for s, do in zip(states, idx_norandom) if do]
-                        ),
-                        device=self.device,
-                        float_type=self.float,
-                    )
+                states_policy = tfloat(
+                    self.env.statebatch2policy(
+                        [s for s, do in zip(states, idx_norandom) if do]
+                    ),
+                    device=self.device,
+                    float_type=self.float,
                 )
+                policy_outputs[idx_norandom, :] = model(states_policy)
         else:
             raise NotImplementedError
 
         # Sample actions from policy outputs
         # TODO: consider adding logprobs to batch
-        actions, logprobs = self.env.sample_actions(
+        actions, logprobs = self.env.sample_actions_batch(
             policy_outputs,
-            sampling_method,
             mask_invalid_actions,
+            states,
+            backward,
+            sampling_method,
             temperature,
         )
         return actions
@@ -451,8 +439,6 @@ class GFlowNetAgent:
                 # TODO: implement other sampling options besides permutation
                 # TODO: this converts to numpy
                 x_tr = self.rng.permutation(dict_tr["x"])
-            actions = []
-            valids = []
             for idx, env in enumerate(envs):
                 env.set_state(x_tr[idx], done=True)
         while envs:
@@ -483,12 +469,27 @@ class GFlowNetAgent:
                 dict_replay = pickle.load(f)
                 n_replay = min(n_replay, len(dict_replay["x"]))
                 envs = [self.env.copy().reset(idx) for idx in range(n_replay)]
-                # TODO: implement other sampling options besides permutation
                 if n_replay > 0:
-                    x_replay = [x for x in dict_replay["x"].values()]
-                    x_replay = [x_replay[idx] for idx in self.rng.permutation(n_replay)]
-            actions = []
-            valids = []
+                    x_replay = list(dict_replay["x"].values())
+                    if self.replay_sampling == "permutation":
+                        x_replay = [
+                            x_replay[idx] for idx in self.rng.permutation(n_replay)
+                        ]
+                    elif self.replay_sampling == "weighted":
+                        x_rewards = np.fromiter(
+                            dict_replay["rewards"].values(), dtype=float
+                        )
+                        x_indices = np.random.choice(
+                            len(x_replay),
+                            size=n_replay,
+                            replace=False,
+                            p=x_rewards / x_rewards.sum(),
+                        )
+                        x_replay = [x_replay[idx] for idx in x_indices]
+                    else:
+                        raise ValueError(
+                            f"Unrecognized replay_sampling = {self.replay_sampling}."
+                        )
             for idx, env in enumerate(envs):
                 env.set_state(x_replay[idx], done=True)
         while envs:
@@ -539,12 +540,11 @@ class GFlowNetAgent:
         """
         assert batch.is_valid()
         # Make indices of batch consecutive since they are used for indexing here
-        batch.make_indices_consecutive()
         # Get necessary tensors from batch
         states = batch.get_states(policy=True)
         actions = batch.get_actions()
         parents = batch.get_parents(policy=True)
-        traj_indices = batch.get_trajectory_indices()
+        traj_indices = batch.get_trajectory_indices(consecutive=True)
         if backward:
             # Backward trajectories
             masks_b = batch.get_masks_backward()
@@ -667,6 +667,7 @@ class GFlowNetAgent:
         data: Union[List, str],
         n_trajectories: int = 1,
         max_iters_per_traj: int = 10,
+        max_data_size: int = 1e5,
     ):
         """
         Estimates the probability of sampling with current GFlowNet policy
@@ -684,6 +685,10 @@ class GFlowNetAgent:
         numerical stability, since we have the log PF and log PB, instead of directly
         PF and PB.
 
+        Note: the correct indexing of data points and trajectories is ensured by the
+        fact that the indices of the environments are set in a consistent way with the
+        indexing when storing the log probabilities.
+
         Args
         ----
         data : list or string
@@ -699,13 +704,17 @@ class GFlowNetAgent:
             The maximum number of attempts to sample a distinct trajectory, to avoid
             getting trapped in an infinite loop.
 
+        max_data_size : int
+            Maximum number of data points in the data set to avoid an accidental
+            situation of having to sample too many backward trajectories. If necessary,
+            the user should change this argument manually.
+
         Returns
         -------
         logprobs_estimates: torch.tensor
             The logarithm of the average ratio PF/PB over n trajectories sampled for
             each data point.
         """
-        max_data = 1e5
         batch = Batch(env=self.env, device=self.device, float_type=self.float)
         times = {}
         # Determine terminating states
@@ -719,19 +728,21 @@ class GFlowNetAgent:
             raise NotImplementedError(
                 "data must be either a list of states or a path to a .pkl file."
             )
-        assert len(states_term) < max_data
+        n_states = len(states_term)
+        assert (
+            n_states < max_data_size
+        ), "The size of the test data is larger than max_data_size ({max_data_size})."
+        # Create an environment for each data point and trajectory and set the state
         envs = []
+        mult_indices = max(n_states, n_trajectories)
         for state_idx, x in enumerate(states_term):
             for traj_idx in range(n_trajectories):
-                idx = int(max_data * state_idx + traj_idx)
+                idx = int(mult_indices * state_idx + traj_idx)
                 env = self.env.copy().reset(idx)
                 env.set_state(x, done=True)
                 envs.append(env)
         # Sample trajectories
-        actions = []
-        valids = []
         max_iters = n_trajectories * max_iters_per_traj
-        iters = 0
         while envs:
             # Sample backward actions
             actions = self.sample_actions(
@@ -743,35 +754,29 @@ class GFlowNetAgent:
             )
             # Update environments with sampled actions
             envs, actions, valids = self.step(envs, actions, backward=True)
+            assert all(valids)
             # Add to batch
             batch.add_to_batch(envs, actions, valids, backward=True, train=True)
-            assert all(valids)
             # Filter out finished trajectories
             envs = [env for env in envs if not env.equal(env.state, env.source)]
         # Prepare data structures to compute log probabilities
-        traj_ids = np.array([k for k in batch.trajectories])
-        data_indices = tlong(traj_ids // max_data, device=self.device)
-        traj_indices = tlong(traj_ids % max_data, device=self.device)
+        traj_indices_batch = tlong(
+            batch.get_unique_trajectory_indices(), device=self.device
+        )
+        data_indices = traj_indices_batch // mult_indices
+        traj_indices = traj_indices_batch % mult_indices
         logprobs_f = torch.full(
-            (data_indices.max() + 1, traj_indices.max() + 1),
+            (n_states, n_trajectories),
             -torch.inf,
             dtype=self.float,
             device=self.device,
         )
         logprobs_b = torch.full(
-            (data_indices.max() + 1, traj_indices.max() + 1),
+            (n_states, n_trajectories),
             -torch.inf,
             dtype=self.float,
             device=self.device,
         )
-        traj_indices_mat = torch.full(
-            (data_indices.max() + 1, traj_indices.max() + 1),
-            -1,
-            dtype=torch.long,
-            device=self.device,
-        )
-        traj_indices_mat[data_indices, traj_indices] = traj_indices
-        n_trajs_per_sample, _ = traj_indices_mat.max(dim=1)
         # Compute log probabilities of the trajectories
         logprobs_f[data_indices, traj_indices] = self.compute_logprobs_trajectories(
             batch, backward=False
@@ -782,7 +787,7 @@ class GFlowNetAgent:
         # Compute log of the average probabilities of the ratio PF / PB
         logprobs_estimates = torch.logsumexp(
             logprobs_f - logprobs_b, dim=1
-        ) - torch.log(n_trajs_per_sample)
+        ) - torch.log(torch.tensor(n_trajectories, device=self.device))
         return logprobs_estimates
 
     def train(self):
@@ -805,7 +810,7 @@ class GFlowNetAgent:
                     self.l1,
                     self.kl,
                     self.jsd,
-                    self.corr_logp_rewards,
+                    self.corr_prob_traj_rewards,
                     self.nll_tt,
                     figs,
                     env_metrics,
@@ -814,7 +819,7 @@ class GFlowNetAgent:
                     self.l1,
                     self.kl,
                     self.jsd,
-                    self.corr_logp_rewards,
+                    self.corr_prob_traj_rewards,
                     self.nll_tt,
                     it,
                     self.use_context,
@@ -953,7 +958,7 @@ class GFlowNetAgent:
                 self.l1,
                 self.kl,
                 self.jsd,
-                self.corr_logp_rewards,
+                self.corr_prob_traj_rewards,
                 self.nll_tt,
                 (None,),
                 {},
@@ -965,9 +970,15 @@ class GFlowNetAgent:
         # Compute correlation between the rewards of the test data and the log
         # likelihood of the data according the the GFlowNet policy; and NLL.
         # TODO: organise code for better efficiency and readability
-        logprobs_x_tt = self.estimate_logprobs_data(x_tt, n_trajectories=10)
+        logprobs_x_tt = self.estimate_logprobs_data(
+            x_tt,
+            n_trajectories=self.logger.test.n_trajs_logprobs,
+            max_data_size=self.logger.test.max_data_logprobs,
+        )
         rewards_x_tt = self.env.reward_batch(x_tt)
-        corr_logp_rewards = np.corrcoef(logprobs_x_tt.cpu().numpy(), rewards_x_tt)[0, 1]
+        corr_prob_traj_rewards = np.corrcoef(
+            np.exp(logprobs_x_tt.cpu().numpy()), rewards_x_tt
+        )[0, 1]
         nll_tt = -logprobs_x_tt.mean().item()
 
         batch, _ = self.sample_batch(n_forward=self.logger.test.n, train=False)
@@ -991,6 +1002,18 @@ class GFlowNetAgent:
             density_pred = np.array([hist[tuple(x)] / z_pred for x in x_tt])
             log_density_true = np.log(density_true + 1e-8)
             log_density_pred = np.log(density_pred + 1e-8)
+        elif self.buffer.test_type == "random":
+            # TODO: refactor
+            env_metrics = self.env.test(x_sampled)
+            return (
+                self.l1,
+                self.kl,
+                self.jsd,
+                self.corr_prob_traj_rewards,
+                self.nll_tt,
+                (None,),
+                env_metrics,
+            )
         elif self.continuous:
             # TODO make it work with conditional env
             x_sampled = torch2np(self.env.statebatch2proxy(x_sampled))
@@ -1030,18 +1053,6 @@ class GFlowNetAgent:
             log_density_pred = scores_pred - logsumexp(scores_pred, axis=0)
             density_true = np.exp(log_density_true)
             density_pred = np.exp(log_density_pred)
-        elif self.buffer.test_type == "random":
-            # TODO: refactor
-            env_metrics = self.env.test(x_sampled)
-            return (
-                self.l1,
-                self.kl,
-                self.jsd,
-                self.corr_logp_rewards,
-                self.nll_tt,
-                (None,),
-                env_metrics,
-            )
         else:
             raise NotImplementedError
         # L1 error
@@ -1069,7 +1080,7 @@ class GFlowNetAgent:
             l1,
             kl,
             jsd,
-            corr_logp_rewards,
+            corr_prob_traj_rewards,
             nll_tt,
             [fig_reward_samples, fig_kde_pred, fig_kde_true],
             {},
@@ -1228,7 +1239,7 @@ class GFlowNetAgent:
         # TODO: integrate corr into test()
         if not self.logger.lightweight and self.buffer.test is not None:
             corr, data_logq, times = self.get_log_corr(times)
-            self.logger.log_sampler_test(rr, data_logq, it, self.use_context)
+            self.logger.log_sampler_test(corr, data_logq, it, self.use_context)
 
         # oracle metrics
         oracle_batch, oracle_times = self.sample_batch(

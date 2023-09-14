@@ -2,7 +2,8 @@
 Classes to represent hyper-torus environments
 """
 import itertools
-from typing import List, Tuple
+import warnings
+from typing import List, Optional, Tuple
 
 import numpy as np
 import numpy.typing as npt
@@ -12,6 +13,7 @@ from torch.distributions import Categorical, MixtureSameFamily, Uniform, VonMise
 from torchtyping import TensorType
 
 from gflownet.envs.htorus import HybridTorus
+from gflownet.utils.common import copy, tfloat
 
 
 class ContinuousTorus(HybridTorus):
@@ -37,14 +39,20 @@ class ContinuousTorus(HybridTorus):
 
     def get_action_space(self):
         """
+        The action space is continuous, thus not defined as such here.
+
         The actions are tuples of length n_dim, where the value at position d indicates
-        the increment of dimension d. EOS is indicated by increments of np.inf for all
-        dimensions.
+        the increment of dimension d.
+
+        EOS is indicated by np.inf for all dimensions.
+
+        This method defines self.eos and the returned action space is simply a
+        representative (arbitrary) action with an increment of 0.0 in all dimensions,
+        and EOS.
         """
-        self.eos = tuple([np.inf for _ in range(self.n_dim)])
-        generic_action = tuple([0.0 for _ in range(self.n_dim)])
-        actions = [generic_action, self.eos]
-        return actions
+        self.eos = tuple([np.inf] * self.n_dim)
+        self.representative_action = tuple([0.0] * self.n_dim)
+        return [self.representative_action, self.eos]
 
     def get_policy_output(self, params: dict):
         """
@@ -72,34 +80,56 @@ class ContinuousTorus(HybridTorus):
 
     def get_mask_invalid_actions_forward(self, state=None, done=None):
         """
-        Returns [True] if the only possible action is eos, [False] otherwise.
+        The action space is continuous, thus the mask is not of invalid actions as
+        in discrete environments, but an indicator of "special cases", for example
+        states from which only certain actions are possible.
+
+        The "mask" has 2 elements - to match the mask of backward actions - but only
+        one is needed for forward actions, thus both elements take the same value,
+        according to the following:
+
+        - If done is True, then the mask is True.
+        - If the number of actions (state[-1]) is equal to the (fixed) trajectory
+          length, then only EOS is valid and the mask is True.
+        - Otherwise, any continuous action is valid (except EOS) and the mask is False.
         """
         if state is None:
             state = self.state.copy()
         if done is None:
             done = self.done
         if done:
-            return [True]
+            return [True] * 2
         elif state[-1] >= self.length_traj:
-            return [True]
+            return [True] * 2
         else:
-            return [False]
+            return [False] * 2
 
     def get_mask_invalid_actions_backward(self, state=None, done=None, parents_a=None):
         """
-        Returns [True] if the only possible action is returning to source, [False]
-        otherwise.
+        The action is space is continuous, thus the mask is not of invalid actions as
+        in discrete environments, but an indicator of "special cases", for example
+        states from which only certain actions are possible.
+
+        The "mask" has 2 elements to capture the 2 special in backward actions. The
+        possible values of the mask are the following:
+
+        - mask[0]:
+            - True, if only the "return-to-source" action is valid.
+            - False otherwise.
+        - mask[1]:
+            - True, if only the EOS action is valid, that is if done is True.
+            - False otherwise.
         """
         if state is None:
             state = self.state.copy()
         if done is None:
             done = self.done
         if done:
-            return [True]
+            return [False, True]
         elif state[-1] == 1:
-            return [True]
+            return [True, False]
         else:
-            return [False]
+            return [False, False]
 
     def get_parents(
         self, state: List = None, done: bool = None, action: Tuple[int, float] = None
@@ -143,37 +173,82 @@ class ContinuousTorus(HybridTorus):
             parents = [state]
             return parents, [action]
 
-    def sample_actions(
+    def action2representative(self, action: Tuple) -> Tuple:
+        """
+        Returns the arbirary, representative action in the action space, so that the
+        action can be contrasted with the action space and masks.
+        """
+        return self.representative_action
+
+    def sample_actions_batch(
         self,
         policy_outputs: TensorType["n_states", "policy_output_dim"],
-        sampling_method: str = "policy",
-        mask_invalid_actions: TensorType["n_states", "1"] = None,
-        temperature_logits: float = 1.0,
+        mask: Optional[TensorType["n_states", "policy_output_dim"]] = None,
+        states_from: Optional[List] = None,
+        is_backward: Optional[bool] = False,
+        sampling_method: Optional[str] = "policy",
+        temperature_logits: Optional[float] = 1.0,
+        max_sampling_attempts: Optional[int] = 10,
     ) -> Tuple[List[Tuple], TensorType["n_states"]]:
         """
-        Samples a batch of actions from a batch of policy outputs.
+        Samples a batch of actions from a batch of policy outputs. The angle increments
+        that form the actions are sampled from a mixture of Von Mises distributions.
+
+        A distinction between forward and backward actions is made and specified by the
+        argument is_backward, in order to account for the following special cases:
+
+        Forward:
+
+        - If the number of steps is equal to the maximum, then the only valid action is
+          EOS.
+
+        Backward:
+
+        - If the number of steps is equal to 1, then the only valid action is to return
+          to the source. The specific action depends on the current state.
+
+        Args
+        ----
+        policy_outputs : tensor
+            The output of the GFlowNet policy model.
+
+        mask : tensor
+            The mask containing information about special cases.
+
+        states_from : tensor
+            The states originating the actions, in GFlowNet format.
+
+        is_backward : bool
+            True if the actions are backward, False if the actions are forward
+            (default).
         """
         device = policy_outputs.device
-        mask_states_sample = ~mask_invalid_actions.flatten()
+        do_sample = torch.all(~mask, dim=1)
         n_states = policy_outputs.shape[0]
+        logprobs = torch.zeros(
+            (n_states, self.n_dim), dtype=self.float, device=self.device
+        )
+        # Initialize actions tensor with EOS actions (inf) since these will be the
+        # actions for several special cases in both forward and backward actions.
+        actions_tensor = torch.full(
+            (n_states, self.n_dim), torch.inf, dtype=self.float, device=device
+        )
         # Sample angle increments
-        angles = torch.zeros(n_states, self.n_dim).to(device)
-        logprobs = torch.zeros(n_states, self.n_dim).to(device)
-        if torch.any(mask_states_sample):
+        if torch.any(do_sample):
             if sampling_method == "uniform":
                 distr_angles = Uniform(
                     torch.zeros(len(ns_range_noeos)),
                     2 * torch.pi * torch.ones(len(ns_range_noeos)),
                 )
             elif sampling_method == "policy":
-                mix_logits = policy_outputs[mask_states_sample, 0::3].reshape(
+                mix_logits = policy_outputs[do_sample, 0::3].reshape(
                     -1, self.n_dim, self.n_comp
                 )
                 mix = Categorical(logits=mix_logits)
-                locations = policy_outputs[mask_states_sample, 1::3].reshape(
+                locations = policy_outputs[do_sample, 1::3].reshape(
                     -1, self.n_dim, self.n_comp
                 )
-                concentrations = policy_outputs[mask_states_sample, 2::3].reshape(
+                concentrations = policy_outputs[do_sample, 2::3].reshape(
                     -1, self.n_dim, self.n_comp
                 )
                 vonmises = VonMises(
@@ -181,16 +256,23 @@ class ContinuousTorus(HybridTorus):
                     torch.exp(concentrations) + self.vonmises_min_concentration,
                 )
                 distr_angles = MixtureSameFamily(mix, vonmises)
-            angles[mask_states_sample] = distr_angles.sample()
-            logprobs[mask_states_sample] = distr_angles.log_prob(
-                angles[mask_states_sample]
-            )
+            angles_sampled = distr_angles.sample()
+            actions_tensor[do_sample] = angles_sampled
+            logprobs[do_sample] = distr_angles.log_prob(angles_sampled)
         logprobs = torch.sum(logprobs, axis=1)
-        # Build actions
-        actions_tensor = torch.inf * torch.ones(
-            angles.shape, dtype=self.float, device=device
-        )
-        actions_tensor[mask_states_sample, :] = angles[mask_states_sample]
+        # Catch special case for backwards return-to-source actions
+        if is_backward:
+            do_return_to_source = mask[:, 0]
+            if torch.any(do_return_to_source):
+                source_angles = tfloat(
+                    self.source[: self.n_dim], float_type=self.float, device=self.device
+                )
+                states_from_angles = tfloat(
+                    states_from, float_type=self.float, device=self.device
+                )[do_return_to_source, : self.n_dim]
+                actions_return_to_source = states_from_angles - source_angles
+                actions_tensor[do_return_to_source] = actions_return_to_source
+        # TODO: is this too inefficient because of the multiple data transfers?
         actions = [tuple(a.tolist()) for a in actions_tensor]
         return actions, logprobs
 
@@ -206,18 +288,18 @@ class ContinuousTorus(HybridTorus):
         Computes log probabilities of actions given policy outputs and actions.
         """
         device = policy_outputs.device
-        mask_states_sample = ~mask_invalid_actions.flatten()
+        do_sample = torch.all(~mask_invalid_actions, dim=1)
         n_states = policy_outputs.shape[0]
         logprobs = torch.zeros(n_states, self.n_dim).to(device)
-        if torch.any(mask_states_sample):
-            mix_logits = policy_outputs[mask_states_sample, 0::3].reshape(
+        if torch.any(do_sample):
+            mix_logits = policy_outputs[do_sample, 0::3].reshape(
                 -1, self.n_dim, self.n_comp
             )
             mix = Categorical(logits=mix_logits)
-            locations = policy_outputs[mask_states_sample, 1::3].reshape(
+            locations = policy_outputs[do_sample, 1::3].reshape(
                 -1, self.n_dim, self.n_comp
             )
-            concentrations = policy_outputs[mask_states_sample, 2::3].reshape(
+            concentrations = policy_outputs[do_sample, 2::3].reshape(
                 -1, self.n_dim, self.n_comp
             )
             vonmises = VonMises(
@@ -225,17 +307,25 @@ class ContinuousTorus(HybridTorus):
                 torch.exp(concentrations) + self.vonmises_min_concentration,
             )
             distr_angles = MixtureSameFamily(mix, vonmises)
-            logprobs[mask_states_sample] = distr_angles.log_prob(
-                actions[mask_states_sample]
-            )
+            logprobs[do_sample] = distr_angles.log_prob(actions[do_sample])
         logprobs = torch.sum(logprobs, axis=1)
         return logprobs
 
-    def step(
-        self, action: Tuple[float], skip_mask_check: bool = False
+    def _step(
+        self,
+        action: Tuple[float],
+        backward: bool,
     ) -> Tuple[List[float], Tuple[int, float], bool]:
         """
-        Executes step given an action.
+        Updates self.state given a non-EOS action. This method is called by both step()
+        and step_backwards(), with the corresponding value of argument backward.
+
+        Forward steps:
+            - Add action increments to state angles.
+            - Increment n_actions value of state.
+        Backward steps:
+            - Subtract action increments from state angles.
+            - Decrement n_actions value of state.
 
         Args
         ----
@@ -243,8 +333,8 @@ class ContinuousTorus(HybridTorus):
             Action to be executed. An action is a vector where the value at position d
             indicates the increment in the angle at dimension d.
 
-        skip_mask_check : bool
-            Ignored.
+        backward : bool
+            If True, perform backward step. Otherwise (default), perform forward step.
 
         Returns
         -------
@@ -258,22 +348,109 @@ class ContinuousTorus(HybridTorus):
             False, if the action is not allowed for the current state, e.g. stop at the
             root state
         """
+        for dim, angle in enumerate(action):
+            if backward:
+                self.state[int(dim)] -= angle
+            else:
+                self.state[int(dim)] += angle
+            self.state[int(dim)] = self.state[int(dim)] % (2 * np.pi)
+        if backward:
+            self.state[-1] -= 1
+        else:
+            self.state[-1] += 1
+        assert self.state[-1] >= 0 and self.state[-1] <= self.length_traj
+        # If n_steps is equal to 0, set source to avoid escaping comparison to source.
+        if self.state[-1] == 0:
+            self.state = copy(self.source)
+
+    def step(
+        self, action: Tuple[float], skip_mask_check: bool = False
+    ) -> Tuple[List[float], Tuple[int, float], bool]:
+        """
+        Executes forward step given an action.
+
+        See: _step().
+
+        Args
+        ----
+        action : tuple
+            Action to be executed. An action is a vector where the value at position d
+            indicates the increment in the angle at dimension d.
+
+        skip_mask_check : bool
+            Ignored because the action space space is fully continuous, therefore there
+            is nothing to check.
+
+        Returns
+        -------
+        self.state : list
+            The sequence after executing the action
+
+        action : int
+            Action executed
+
+        valid : bool
+            False, if the action is not allowed for the current state, e.g. stop at the
+            root state
+        """
+        # If done is True, return invalid
         if self.done:
             return self.state, action, False
-        # If only possible action is eos, then force eos
-        # If the number of actions is equal to maximum trajectory length
-        elif self.n_actions == self.length_traj:
+        # If action is EOS, check that the number of steps is equal to the trajectory
+        # length, set done to True, increment n_actions and return same state
+        elif action == self.eos:
+            assert self.state[-1] == self.length_traj
             self.done = True
             self.n_actions += 1
             return self.state, self.eos, True
-        # If action is eos, then it is invalid
-        elif action == self.eos:
-            return self.state, action, False
         # Otherwise perform action
         else:
             self.n_actions += 1
-            for dim, angle in enumerate(action):
-                self.state[int(dim)] += angle
-                self.state[int(dim)] = self.state[int(dim)] % (2 * np.pi)
-                self.state[-1] = self.n_actions
+            self._step(action, backward=False)
             return self.state, action, True
+
+    def step_backwards(
+        self, action: Tuple[float], skip_mask_check: bool = False
+    ) -> Tuple[List[float], Tuple[int, float], bool]:
+        """
+        Executes backward step given an action.
+
+        See: _step().
+
+        Args
+        ----
+        action : tuple
+            Action to be executed. An action is a vector where the value at position d
+            indicates the increment in the angle at dimension d.
+
+        skip_mask_check : bool
+            Ignored because the action space space is fully continuous, therefore there
+            is nothing to check.
+
+        Returns
+        -------
+        self.state : list
+            The sequence after executing the action
+
+        action : int
+            Action executed
+
+        valid : bool
+            False, if the action is not allowed for the current state, e.g. stop at the
+            root state
+        """
+        # If done is True, set done to False, increment n_actions and return same state
+        if self.done:
+            assert action == self.eos
+            self.done = False
+            self.n_actions += 1
+            return self.state, action, True
+        # Otherwise perform action
+        else:
+            assert action != self.eos
+            self.n_actions += 1
+            self._step(action, backward=True)
+            return self.state, action, True
+
+    def get_max_traj_length(self):
+        return int(self.length_traj) + 1

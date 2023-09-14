@@ -328,7 +328,7 @@ class Logger:
         l1: float,
         kl: float,
         jsd: float,
-        corr_logp_rewards: float,
+        corr_prob_traj_rewards: float,
         nll_tt: float,
         step: int,
         use_context: bool,
@@ -341,10 +341,10 @@ class Logger:
                     "L1 error",
                     "KL Div.",
                     "Jensen Shannon Div.",
-                    "Corr. (logp, rewards)",
+                    "Corr. (test probs., rewards)",
                     "NLL of test data",
                 ],
-                [l1, kl, jsd, corr_logp_rewards, nll_tt],
+                [l1, kl, jsd, corr_prob_traj_rewards, nll_tt],
             )
         )
         self.log_metrics(

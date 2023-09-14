@@ -230,11 +230,11 @@ def test__get_mask_invalid_actions_forward__incompatible_sg_are_invalid(
         state[env_with_composition.sg_idx] = 0
         env_with_composition.set_state(state=state, done=False)
         mask_f = env_with_composition.get_mask_invalid_actions_forward()
-        ref = env_with_composition.get_ref_index(state)
+        state_type = env_with_composition.get_state_type(state)
         for sg in range(1, env_with_composition.n_space_groups + 1):
             sg_pyxtal = Group(sg)
             is_compatible = sg_pyxtal.check_compatible(N_ATOMS)[0]
-            action = (env_with_composition.sg_idx, sg, ref)
+            action = (env_with_composition.sg_idx, sg, state_type)
             if not is_compatible:
                 assert mask_f[env_with_composition.action_space.index(action)] is True
 
@@ -249,6 +249,35 @@ def test__states_are_compatible_with_pymatgen(env):
         assert sg.crystal_system == env.crystal_system
         assert sg.symbol == env.space_group_symbol
         assert sg.point_group == env.point_group
+
+
+@pytest.mark.parametrize(
+    "n_atoms, cls_idx, ps_idx",
+    [
+        [[1], 5, 1],
+        [[17], 5, 1],
+        [[1, 13], 5, 1],
+    ],
+)
+def test__special_cases_composition_compatibility(n_atoms, cls_idx, ps_idx):
+    env = SpaceGroup(n_atoms=n_atoms)
+    # Crystal lattice system space groups must not compatible with composition
+    # constraints
+    assert env._is_compatible(cls_idx=cls_idx) is False
+    # Setting crystal lattice system should fail
+    action_cls_5_from_0 = (0, 5, 0)
+    state_new, action, valid = env.step(action_cls_5_from_0)
+    assert valid is False
+    # Point symmetry space groups must be compatible with composition constraints
+    assert env._is_compatible(ps_idx=ps_idx) is True
+    # Setting point symmetry should be valid
+    action_ps_1_from_0 = (1, 1, 0)
+    state_new, action, valid = env.step(action_ps_1_from_0)
+    assert valid is True
+    # Setting crystal lattice system should still fail
+    action_cls_5_from_2 = (0, 5, 2)
+    state_new, action, valid = env.step(action_cls_5_from_2)
+    assert valid is False
 
 
 def test__all_env_common(env):
