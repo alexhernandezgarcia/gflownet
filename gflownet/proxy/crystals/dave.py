@@ -60,7 +60,7 @@ class DAVE(Proxy):
             raise ImportError("Wrong DAVE version")
 
         print("  Found version:", dave_version)
-        print("  Loading model from:", str(Path(ckpt_path) / release))
+        print("  Loading model weights...")
 
         from dave import prepare_for_gfn
 
@@ -69,6 +69,7 @@ class DAVE(Proxy):
         )
 
         self.model.to(self.device)
+        print("  Proxy ready!\n")
 
     def _set_scales(self):
         if self.scaled:
