@@ -69,7 +69,6 @@ class DAVE(Proxy):
         )
 
         self.model.to(self.device)
-        print("  Proxy ready!\n")
 
     def _set_scales(self):
         if self.scaled:
