@@ -52,11 +52,12 @@ class DAVE(Proxy):
 
             raise PackageNotFoundError("DAVE not found")
 
-        assert dave_version == release, (
-            f"\nDAVE version mismatch! current: {dave_version}, requested: {release}\n"
-            + f"  Install the requested version with:\n"
-            + f"pip install --upgrade git+{pip_url}\n"
-        )
+        if dave_version != release:
+            print("\n  DAVE version mismatch: ")
+            print(f"  current ({dave_version}) != requested ({release})")
+            print(f"  Install the requested version with:")
+            print(f"  `pip install --upgrade git+{pip_url}`\n")
+            raise ImportError("Wrong DAVE version")
 
         print("  Found version:", dave_version)
         print("  Loading model from:", str(Path(ckpt_path) / release))
