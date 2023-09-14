@@ -1,7 +1,7 @@
 _target_: gflownet.proxy.crystals.dave.DAVE
 
-release: v2-graph-phys
+release: v3.1-physmlp-mbform
 ckpt_path:
-  mila: /network/scratch/s/schmidtv/Public/crystals/proxy-ckpts
+  mila: /network/scratch/s/schmidtv/crystals-proxys/proxy-ckpts/
   victor: ~/Documents/Github/ActiveLearningMaterials/checkpoints/980065c0/checkpoints-3ff648a2
 rescale_outputs: true
