@@ -11,6 +11,7 @@ class Policy:
     def __init__(
         self, config, env, device, float_precision, base=None, checkpoint=None
     ):
+        self.seed = config.seed
         # Device and float precision
         self.device = set_device(device)
         self.float = set_float_precision(float_precision)
@@ -64,6 +65,8 @@ class Policy:
             self.n_graph_feats = config.n_graph_feats
             self.max_mol_radius = config.max_mol_radius
             self.n_crystal_features = config.n_crystal_features
+            self.norm_type = config.norm_type
+            self.dropout = config.dropout
         else:
             self.n_node_feats, self.n_graph_feats, self.max_mol_radius, self.n_crystal_features = None, None, None, None
 
@@ -86,7 +89,11 @@ class Policy:
                                                 n_graph_feats=self.n_graph_feats,
                                                 max_mol_radius=self.max_mol_radius,
                                                 output_dim=self.output_dim,
-                                                n_crystal_features=self.n_crystal_features).to(self.device)
+                                                n_crystal_features=self.n_crystal_features,
+                                                norm_type = self.norm_type,
+                                                dropout = self.dropout,
+                                                seed=self.seed,
+                                                ).to(self.device)
             self.is_model = True
         else:
             raise "Policy model type not defined"

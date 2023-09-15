@@ -6,7 +6,10 @@ from gflownet.policy.mol_crystals.molecule_graph_model import molecule_graph_mod
 
 
 class GraphConditionedPolicy(nn.Module):
-    def __init__(self, device, hidden_depth, n_layers, state_dim, n_node_feats, n_graph_feats, max_mol_radius, output_dim, n_crystal_features, seed=0):
+    def __init__(self, device, hidden_depth, n_layers,
+                 state_dim, n_node_feats, n_graph_feats,
+                 max_mol_radius, output_dim, n_crystal_features,
+                 norm_type, dropout, seed=0):
         super(GraphConditionedPolicy, self).__init__()
 
         self.device = device
@@ -55,8 +58,8 @@ class GraphConditionedPolicy(nn.Module):
             layers=n_layers,
             filters=hidden_depth,
             output_dim = output_dim,
-            norm=None,
-            dropout=0,
+            norm=norm_type,
+            dropout=dropout,
             activation='gelu'
         )
 

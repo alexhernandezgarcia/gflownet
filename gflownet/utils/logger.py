@@ -235,6 +235,7 @@ class Logger:
                     bandwidth=bandwidth,
                     name=time_ind,
                     showlegend=False,
+                    meanline_visible=True,
                     line_color=colors[tt],
                     side='positive',
                     orientation='h',
@@ -256,6 +257,7 @@ class Logger:
                     bandwidth=bandwidth,
                     name=time_ind,
                     showlegend=False,
+                    meanline_visible=True,
                     line_color=colors[tt],
                     side='positive',
                     orientation='h',
@@ -280,6 +282,7 @@ class Logger:
                     bandwidth=bandwidth,
                     name=time_ind,
                     showlegend=False,
+                    meanline_visible=True,
                     line_color=colors[tt],
                     side='positive',
                     orientation='h',
@@ -290,7 +293,7 @@ class Logger:
 
         """record loss metrics"""
         mean_metrics = {key:np.mean(metrics[key]) for key in score_keys}
-        mean_metrics['parameter_variation'] = np.mean(np.var(metrics['generated_cell_params'],axis=-1))
+        mean_metrics['parameter_variation'] = np.mean(np.var(metrics['generated_cell_params'],axis=0))
         self.wandb.log(mean_metrics)
 
         """space group distribution"""

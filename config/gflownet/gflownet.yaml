@@ -46,9 +46,12 @@ pct_offline: 0.0
 replay_sampling: permutation
 policy:
   forward:
+    seed: 0
     type: gnn
     n_layers: 2
     n_hid: 128
+    norm_type: null
+    dropout: 0
     checkpoint: null
     reload_ckpt: False
     n_node_feats: null
@@ -56,9 +59,12 @@ policy:
     max_mol_radius: null
     n_crystal_features: null
   backward:
+    seed: 0
     type: gnn
     n_layers: 2
     n_hid: 128
+    norm_type: null
+    dropout: 0
     checkpoint: null
     reload_ckpt: False
     n_node_feats: null  # currently assigned in main for gnn

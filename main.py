@@ -31,6 +31,10 @@ def main(config):
     elif config.machine == 'local':
         sys.path.append('/home/mkilgour/mcrygan')
 
+    config.gflownet.seed = config.seed
+    config.gflownet.policy.forward.seed = config.seed
+    config.gflownet.policy.backward.seed = config.seed
+
     # Reset seed for job-name generation in multirun jobs
     random.seed(None)
     # Set other random seeds

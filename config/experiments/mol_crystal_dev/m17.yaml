@@ -7,15 +7,14 @@ defaults:
   - override /user: mkilgour
 
 device: cpu
-machine: local
-seed: 0
+machine: cluster
 
 # WandB
 logger:
-  run_name: mc_dev
+  run_name: m17
   test:
     first_it: True
-    period: 20
+    period: 200
     n: 1000
   checkpoints:
     period: 500
@@ -27,7 +26,7 @@ env:
   space_group_kwargs:
     generate_sgs: [1] # P-1 and P21/c - 'null' will generate in all space groups
   lattice_parameters_kwargs:
-    grid_size: 11
+    grid_size: 10
 
     min_length: 0.25
     max_length: 3.0
@@ -62,10 +61,10 @@ gflownet:
   policy:
     forward:
       type: gnn
-      n_layers: 2
-      n_hid: 64
+      n_layers: 8
+      n_hid: 128
       norm_type: layer
-      dropout: 0.25
+      dropout: 0
       checkpoint: null
       reload_ckpt: False
       n_node_feats: null
@@ -74,10 +73,10 @@ gflownet:
       n_crystal_features: null
     backward:
       type: gnn
-      n_layers: 2
-      n_hid: 64
+      n_layers: 8
+      n_hid: 128
       norm_type: layer
-      dropout: 0.25
+      dropout: 0
       checkpoint: null
       reload_ckpt: False
       n_node_feats: null  # currently assigned in main for gnn
