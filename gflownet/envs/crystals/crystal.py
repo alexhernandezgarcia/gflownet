@@ -663,9 +663,31 @@ class Crystal(GFlowNetEnv):
 
         stage = self._get_stage(state)
 
-        composition_done = stage in [Stage.SPACE_GROUP, Stage.LATTICE_PARAMETERS]
-        space_group_done = stage == Stage.LATTICE_PARAMETERS
+        composition_state = self._get_composition_state(state)
+        space_group_state = self._get_space_group_state(state)
+        lattice_parameters_state = self._get_lattice_parameters_state(state)
+
+        # Obtain completion of each stage. Since composition and space group could have
+        # happened in any order, we consider them done as soon as a) they have changed
+        # from the source and b) the stage has changed since.
+        composition_changed = composition_state != self.composition.source
+        space_group_changed = space_group_state != self.space_group.source
+
+        composition_done = composition_changed and stage != Stage.COMPOSITION
+        space_group_done = space_group_changed and stage != Stage.SPACE_GROUP
         lattice_parameters_done = done
+
+        # Ensure that the incoming state is possible given the value of
+        # self.do_sg_before_composition
+        if self.do_sg_before_composition:
+            if composition_changed and not space_group_done:
+                # The environment expects state with space group before composition
+                raise ValueError("Incoming state is incompatible with this environment")
+
+        else:
+            if space_group_changed and not composition_done:
+                # The environment expects state with composition before space_group
+                raise ValueError("Incoming state is incompatible with this environment")
 
         self.composition.set_state(self._get_composition_state(state), composition_done)
         self.space_group.set_state(self._get_space_group_state(state), space_group_done)
@@ -673,14 +695,39 @@ class Crystal(GFlowNetEnv):
             self._get_lattice_parameters_state(state), lattice_parameters_done
         )
 
+        # Setup the composition/space-group checks, if needed
+        if self.do_stoichiometry_sg_check:
+            if self.do_sg_before_composition and space_group_done:
+                self.composition.space_group = self.space_group.space_group
+            elif not self.do_sg_before_composition and composition_done:
+                self.space_group.set_n_atoms_compatibility_dict(self.composition.state)
+
+            # There is a risk, here, that we need to handle. It is possible that a
+            # user/process might try to set a state from an environment that doesn't
+            # perform composition-spacegroup compatibility checks to an environment
+            # that does. This could make the second environment land in a state which
+            # it could never have reached on its own and that it might not be able to
+            # exit. To validate that this isn't the case, we make sure that there is a
+            # parent state that could have led to this state.
+            valid_parent = False
+            parents, parents_a = self.get_parents()
+            for p, p_a in zip(parents, parents_a):
+                mask = self.get_mask_invalid_actions_forward(p, False)
+                if p_a in self.action_space and not mask[self.action_space.index(p_a)]:
+                    valid_parent = True
+                    break
+
+            if not valid_parent:
+                raise ValueError("Incoming state is incompatible with this environment")
+
         """
         We synchronize LatticeParameter's lattice system with the one of SpaceGroup
-        (if it was set) or reset it to the default triclinic otherwise. Why this is 
+        (if it was set) or reset it to the default triclinic otherwise. Why this is
         needed:
         1) the first case is necessary for backward sampling, where we start from
            an arbitrary terminal state, and need to synchronize the LatticeParameter's
            lattice system to what that state indicates,
-        2) the second case is also necessary in backward sampling, but when we 
+        2) the second case is also necessary in backward sampling, but when we
            transition from Stage.LATTICE_PARAMETERS to Stage.SPACE_GROUP. We then need
            to reset the lattice system to the default triclinic, such that its
            source is back to the original one, and corresponds to the source of the
