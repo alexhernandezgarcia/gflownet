@@ -565,6 +565,138 @@ def test__composition_constraints(env_with_space_group_stage_first_sg_check):
     assert valid
 
 
+def test__set_state(
+    env,
+    env_with_stoichiometry_sg_check,
+    env_with_space_group_stage_first,
+    env_with_space_group_stage_first_sg_check,
+):
+    def reset_all_envs():
+        env.reset()
+        env_with_stoichiometry_sg_check.reset()
+        env_with_space_group_stage_first.reset()
+        env_with_space_group_stage_first_sg_check.reset()
+
+    def set_state_and_validate(source_env, destination_env):
+        destination_env.set_state(source_env.state, source_env.done)
+        assert source_env.state == destination_env.state
+        assert source_env.done == destination_env.done
+
+    actions_composition = [
+        (1, 2, -2, -2, -2, -2),
+        (3, 4, -2, -2, -2, -2),
+        (-1, -1, -2, -2, -2, -2),
+    ]
+    actions_spacegroup = [
+        (2, 105, 0, -3, -3, -3),
+        (-1, -1, -1, -3, -3, -3),
+    ]
+    actions_lattice_parameters = [
+        (1, 1, 1, 0, 0, 0),
+        (1, 1, 0, 0, 0, 0),
+        (0, 0, 0, 0, 0, 0),
+    ]
+
+    # Validate state transfer during environment during composition, space group and
+    # lattice parameter phases
+    actions = actions_composition + actions_spacegroup + actions_lattice_parameters
+    for a in actions:
+        env.step(a)
+        set_state_and_validate(env, env_with_stoichiometry_sg_check)
+
+    reset_all_envs()
+
+    # Validate that an error is raised if trying to transfer a state from a
+    # composition-first environment to a space-group-first environment during the
+    # composition or the space group stage. However, validate that is does work
+    # during the lattice parameter stage
+    for a in actions_composition + actions_spacegroup[:-1]:
+        env.step(a)
+        try:
+            with pytest.raises(ValueError):
+                set_state_and_validate(env, env_with_space_group_stage_first)
+        except:
+            import pdb
+
+            pdb.set_trace()
+
+    env.step(actions_spacegroup[-1])
+    for a in actions_lattice_parameters:
+        env.step(a)
+        set_state_and_validate(env, env_with_space_group_stage_first)
+
+    reset_all_envs()
+
+    # Validate that an error is raised if trying to transfer a state from a
+    # space-group-first environment to a composition-first environment during the
+    # composition or the space group stage. However, validate that is does work
+    # during the lattice parameter stage
+    for a in actions_spacegroup + actions_composition[:-1]:
+        env_with_space_group_stage_first.step(a)
+        with pytest.raises(ValueError):
+            set_state_and_validate(env_with_space_group_stage_first, env)
+
+    env_with_space_group_stage_first.step(actions_composition[-1])
+    for a in actions_lattice_parameters:
+        env_with_space_group_stage_first.step(a)
+        set_state_and_validate(env_with_space_group_stage_first, env)
+
+    reset_all_envs()
+
+    # Validate that moving a state from a composition-first environment without
+    # space-group checks to an environment with space-group checks will correctly
+    # activate those. With numbers of atoms [2, 4], if the space-group checks are
+    # active, the environment should refuse space group 230 but accept space group
+    # 105.
+    for a in actions_composition:
+        env.step(a)
+    set_state_and_validate(env, env_with_stoichiometry_sg_check)
+
+    _, _, valid = env_with_stoichiometry_sg_check.step((2, 230, 0, -3, -3, -3))
+    assert not valid
+    _, _, valid = env_with_stoichiometry_sg_check.step((2, 105, 0, -3, -3, -3))
+    assert valid
+
+    # Before reseting the environment, validate that selecting the space group
+    # 230 (which is incompatible with the composition so far) on the environment
+    # without space group checks and then trying to transfer the state to the
+    # environment *with* the space group checks will be recognized as invalid.
+    _, _, valid = env.step((2, 230, 0, -3, -3, -3))
+    assert valid
+    with pytest.raises(ValueError):
+        set_state_and_validate(env, env_with_stoichiometry_sg_check)
+
+    reset_all_envs()
+
+    # Validate that moving a state from a space-group-first environment without
+    # composition checks to an environment with composition checks will correctly
+    # activate those. With space group 105, if the composition checks are
+    # active, the environment should refuse adding 1 atom but accept adding 2.
+    for a in actions_spacegroup:
+        env_with_space_group_stage_first.step(a)
+    set_state_and_validate(
+        env_with_space_group_stage_first, env_with_space_group_stage_first_sg_check
+    )
+
+    _, _, valid = env_with_space_group_stage_first_sg_check.step((1, 1, -2, -2, -2, -2))
+    assert not valid
+    _, _, valid = env_with_space_group_stage_first_sg_check.step((1, 2, -2, -2, -2, -2))
+    assert valid
+
+    # Before reseting the environment, validate that adding a single atom
+    # (which is incompatible with the space group so far) on the environment
+    # without composition checks and then trying to transfer the state to the
+    # environment *with* the composition checks will be recognized as invalid.
+    _, _, valid = env_with_space_group_stage_first.step((1, 1, -2, -2, -2, -2))
+    assert valid
+    with pytest.raises(ValueError):
+        set_state_and_validate(
+            env_with_space_group_stage_first, env_with_space_group_stage_first_sg_check
+        )
+
+    reset_all_envs()
+
+
 @pytest.mark.parametrize(
     "environment",
     [
