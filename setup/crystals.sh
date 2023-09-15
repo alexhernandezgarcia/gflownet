@@ -20,6 +20,12 @@ python -m pip install numpy pandas hydra-core tqdm torchtyping scikit-learn
 python -m pip install wandb matplotlib plotly pymatgen pyxtal
 # PhAST and FAENet
 python -m pip install phast faenet
+# DAVE proxy: release version is read from the current config file.
+# You will need to update manually this package if the release in the config file changes.
+dave_config_path=config/proxy/crystals/dave.yaml
+dave_release=$((grep -s 'release:' "$dave_config_path" "../$dave_config_path") | awk '{ print $2}')
+pip install "git+https://github.com/sh-divya/ActiveLearningMaterials.git@${dave_release}"
+
 # Dev packages
 # python -m pip install black flake8 isort pylint ipython ipdb jupyter pytest pytest-repeat
 # Ammends
