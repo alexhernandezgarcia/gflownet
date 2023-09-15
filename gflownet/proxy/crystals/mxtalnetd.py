@@ -7,7 +7,7 @@ from gflownet.proxy.base import Proxy
 from standalone.crystal_discriminator import StandaloneDiscriminator
 
 class MXtalNetD(Proxy):
-    def __init__(self, scaling_func='score', **kwargs):
+    def __init__(self, scaling_func='score', temperature = 0.05, **kwargs):
         """
         Wrapper class around the standalone Molecular Crystal stability proxy.
         """
@@ -18,7 +18,7 @@ class MXtalNetD(Proxy):
 
         print("Initializing MXtalNetD proxy:")
 
-        self.model = StandaloneDiscriminator(self.device, self.rescaling_func)
+        self.model = StandaloneDiscriminator(self.device, self.rescaling_func, temperature)
 
     @torch.no_grad()
     def __call__(self, cell_params, mol_data, return_analysis=False):

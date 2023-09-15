@@ -55,6 +55,7 @@ class GFlowNetAgent:
         sample_only=False,
         machine='local',
         replay_sampling="permutation",
+        max_batch = 10000,
     ):
         self.machine=machine
         # Seed
@@ -65,6 +66,7 @@ class GFlowNetAgent:
         self.float = set_float_precision(float_precision)
         # Environment
         self.env = env
+        self.max_batch_size = int(max_batch / self.env.max_traj_length)  # set a hard cap at 20k for now # todo figure out the real OOM issue here
         # Continuous environments
         self.continuous = hasattr(self.env, "continuous") and self.env.continuous
         if self.continuous and optimizer.loss in ["flowmatch", "flowmatching"]:
@@ -943,7 +945,7 @@ class GFlowNetAgent:
 
                 if it % 5 == 0:  # boost batch size
                     for key in self.batch_size.keys():
-                        if self.batch_size[key] > 0:
+                        if (self.batch_size[key] > 0) or (self.batch_size['forward'] > self.max_batch_size):
                             increment = max(1,int(self.batch_size[key] * .01))
                             self.batch_size[key] = max(1, self.batch_size[key] + increment)
             except RuntimeError as e:

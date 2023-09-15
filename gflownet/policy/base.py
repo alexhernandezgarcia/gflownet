@@ -12,6 +12,8 @@ class Policy:
         self, config, env, device, float_precision, base=None, checkpoint=None
     ):
         self.seed = config.seed
+        torch.manual_seed(self.seed)
+
         # Device and float precision
         self.device = set_device(device)
         self.float = set_float_precision(float_precision)

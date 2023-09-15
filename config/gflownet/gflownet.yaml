@@ -44,6 +44,7 @@ random_action_prob: 0.05
 pct_offline: 0.0
 # Replay buffer
 replay_sampling: permutation
+max_batch: 10000
 policy:
   forward:
     seed: 0

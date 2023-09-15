@@ -20,6 +20,10 @@ logger:
   checkpoints:
     period: 500
 
+# proxy
+proxy:
+  temperature: 0.1
+
 # Environment
 env:
   conditional: True
@@ -47,6 +51,7 @@ env:
 
 # GFlowNet hyperparameters
 gflownet:
+  max_batch: 10000
   random_action_prob: 0.1
   optimizer:
     lr: 0.001
