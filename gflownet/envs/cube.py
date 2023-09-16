@@ -498,7 +498,7 @@ class ContinuousCube(Cube):
         if done:
             mask[2] = False
             return mask
-        mask[-self.n_dim] = False
+        mask[-self.n_dim :] = False
         # If any dimension is smaller than m, then back-to-source action is the only
         # possible actiona.
         if any([s < self.min_incr for s in state]):
