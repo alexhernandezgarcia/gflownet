@@ -219,6 +219,20 @@ class Logger:
         past_timesteps = list(self.test_metrics_log.keys())
         n_past_to_plot = min(len(past_timesteps), 5)
 
+        """plot angle and length components of cell volume"""
+        cell_params = self.test_metrics_log[past_timesteps[-1]]['generated_cell_params']
+        loss = self.test_metrics_log[past_timesteps[-1]]['packing_loss']
+        lengths = cell_params[:, 0:3]
+        cube_vol = np.prod(lengths, axis=-1)
+        cos_a = np.cos(cell_params[:, 3:6])  # in natural units
+        angle_correction = np.sqrt(np.abs(1.0 - cos_a[:, 0] ** 2 - cos_a[:, 1] ** 2 - cos_a[:, 2] ** 2 + 2.0 * cos_a[:, 0] * cos_a[:, 1] * cos_a[:, 2]))
+        volumes = cube_vol * angle_correction
+        fig = go.Figure()
+        fig.add_trace(go.Histogram2d(x=cube_vol, y=angle_correction, nbinsx=50, nbinsy=50))
+        fig.add_trace(go.Scattergl(x=cube_vol, y=angle_correction, mode='markers', marker=dict(color=-loss, colorscale='viridis'), opacity=0.5))
+        fig.update_layout(xaxis_title='a x b x c', yaxis_title='Angle correction')
+        fig_dict['Cell Volume Components Distribution'] = fig
+
         """plot cell parameters distribution"""
         colors = n_colors('rgb(250,50,5)', 'rgb(5,120,200)', n_past_to_plot + 1, colortype='rgb')
 

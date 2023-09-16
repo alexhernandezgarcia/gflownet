@@ -7,16 +7,16 @@ defaults:
   - override /user: mkilgour
 
 device: cpu
-machine: local
+machine: cluster
 seed: 0
 
 # WandB
 logger:
-  run_name: mc_dev
-  tags: ['dev']
+  run_name: m20
+  tags: ['density_test','battery_1']
   test:
     first_it: True
-    period: 20
+    period: 50
     n: 1000
   checkpoints:
     period: 500
@@ -69,7 +69,7 @@ gflownet:
     forward:
       type: gnn
       n_layers: 2
-      n_hid: 64
+      n_hid: 512
       norm_type: null
       dropout: 0
       checkpoint: null
@@ -81,7 +81,7 @@ gflownet:
     backward:
       type: gnn
       n_layers: 2
-      n_hid: 64
+      n_hid: 512
       norm_type: null
       dropout: 0
       checkpoint: null
