@@ -86,8 +86,8 @@ def test__mask_backward__returns_all_true_except_eos_if_done(env, request):
     for state in states:
         env.set_state(state, done=True)
         mask = env.get_mask_invalid_actions_backward()
-        assert all(mask[:-1])
-        assert mask[-1] is False
+        assert all(mask[:2])
+        assert mask[2] is False
 
 
 @pytest.mark.parametrize(
