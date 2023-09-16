@@ -1,7 +1,7 @@
 # @package _global_
 
 defaults:
-   - override /env: ccube
+   - override /env: crystals/clattice_parameters
    - override /gflownet: trajectorybalance
    - override /proxy: corners
    - override /logger: wandb
