@@ -204,3 +204,11 @@ def test__readable2state__returns_initial_state_for_rhombohedral_and_triclinic(
     env, lattice_system, readable
 ):
     assert env.readable2state(readable) == env.state
+
+
+@pytest.mark.parametrize(
+    "lattice_system",
+    [CUBIC, HEXAGONAL, MONOCLINIC, ORTHORHOMBIC, RHOMBOHEDRAL, TETRAGONAL, TRICLINIC],
+)
+def test__continuous_env_common(env, lattice_system):
+    return common.test__continuous_env_common(env)
