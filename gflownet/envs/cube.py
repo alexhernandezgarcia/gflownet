@@ -1,42 +1,42 @@
 """
-Classes to represent hyper-cube environments
+classes to represent hyper-cube environments
 """
 import itertools
-from abc import ABC, abstractmethod
-from typing import List, Optional, Tuple
+from abc import abc, abstractmethod
+from typing import list, optional, tuple
 
 import matplotlib.pyplot as plt
 import numpy as np
 import numpy.typing as npt
 import pandas as pd
 import torch
-from sklearn.neighbors import KernelDensity
-from torch.distributions import Bernoulli, Beta, Categorical, MixtureSameFamily, Uniform
-from torchtyping import TensorType
+from sklearn.neighbors import kerneldensity
+from torch.distributions import bernoulli, beta, categorical, mixturesamefamily, uniform
+from torchtyping import tensortype
 
-from gflownet.envs.base import GFlowNetEnv
+from gflownet.envs.base import gflownetenv
 from gflownet.utils.common import copy, tbool, tfloat
 
 
-class Cube(GFlowNetEnv, ABC):
+class cube(gflownetenv, abc):
     """
-    Continuous (hybrid: discrete and continuous) hyper-cube environment (continuous
+    continuous (hybrid: discrete and continuous) hyper-cube environment (continuous
     version of a hyper-grid) in which the action space consists of the increment of
     dimension d, modelled by a beta distribution.
 
-    The states space is the value of each dimension. If the value of a dimension gets
+    the states space is the value of each dimension. if the value of a dimension gets
     larger than max_val, then the trajectory is ended.
 
-    Attributes
+    attributes
     ----------
     n_dim : int
-        Dimensionality of the hyper-cube.
+        dimensionality of the hyper-cube.
 
     max_val : float
-        Max length of the hyper-cube.
+        max length of the hyper-cube.
 
     min_incr : float
-        Minimum increment in the actions, expressed as the fraction of max_val. This is
+        minimum increment in the actions, expressed as the fraction of max_val. this is
         necessary to ensure coverage of the state space.
     """
 
@@ -67,22 +67,22 @@ class Cube(GFlowNetEnv, ABC):
         assert n_dim > 0
         assert max_val > 0.0
         assert n_comp > 0
-        # Main properties
+        # main properties
         self.n_dim = n_dim
         self.eos = self.n_dim
         self.max_val = max_val
         self.min_incr = min_incr * self.max_val
-        # Parameters of the policy distribution
+        # parameters of the policy distribution
         self.n_comp = n_comp
         self.beta_params_min = beta_params_min
         self.beta_params_max = beta_params_max
-        # Source state: position 0 at all dimensions
+        # source state: position 0 at all dimensions
         self.source = [0.0 for _ in range(self.n_dim)]
-        # Action from source: (n_dim, 0)
+        # action from source: (n_dim, 0)
         self.action_source = (self.n_dim, 0)
-        # End-of-sequence action: (n_dim + 1, 0)
+        # end-of-sequence action: (n_dim + 1, 0)
         self.eos = (self.n_dim + 1, 0)
-        # Conversions: only conversions to policy are implemented and the rest are the
+        # conversions: only conversions to policy are implemented and the rest are the
         # same
         self.state2proxy = self.state2policy
         self.statebatch2proxy = self.statebatch2policy
@@ -90,194 +90,194 @@ class Cube(GFlowNetEnv, ABC):
         self.state2oracle = self.state2proxy
         self.statebatch2oracle = self.statebatch2proxy
         self.statetorch2oracle = self.statetorch2proxy
-        # Base class init
+        # base class init
         super().__init__(
             fixed_distr_params=fixed_distr_params,
             random_distr_params=random_distr_params,
             **kwargs,
         )
-        self.continuous = True
+        self.continuous = true
 
     @abstractmethod
     def get_action_space(self):
         pass
 
     @abstractmethod
-    def get_policy_output(self, params: dict) -> TensorType["policy_output_dim"]:
+    def get_policy_output(self, params: dict) -> tensortype["policy_output_dim"]:
         pass
 
     @abstractmethod
     def get_mask_invalid_actions_forward(
         self,
-        state: Optional[List] = None,
-        done: Optional[bool] = None,
-    ) -> List:
+        state: optional[list] = none,
+        done: optional[bool] = none,
+    ) -> list:
         pass
 
     @abstractmethod
-    def get_mask_invalid_actions_backward(self, state=None, done=None, parents_a=None):
+    def get_mask_invalid_actions_backward(self, state=none, done=none, parents_a=none):
         pass
 
     def statetorch2policy(
-        self, states: TensorType["batch", "state_dim"] = None
-    ) -> TensorType["batch", "policy_input_dim"]:
+        self, states: tensortype["batch", "state_dim"] = none
+    ) -> tensortype["batch", "policy_input_dim"]:
         """
-        Clips the states into [0, max_val] and maps them to [-1.0, 1.0]
+        clips the states into [0, max_val] and maps them to [-1.0, 1.0]
 
-        Args
+        args
         ----
         state : list
-            State
+            state
         """
         return 2.0 * torch.clip(states, min=0.0, max=self.max_val) - 1.0
 
     def statebatch2policy(
-        self, states: List[List]
-    ) -> TensorType["batch", "state_proxy_dim"]:
+        self, states: list[list]
+    ) -> tensortype["batch", "state_proxy_dim"]:
         """
-        Clips the states into [0, max_val] and maps them to [-1.0, 1.0]
+        clips the states into [0, max_val] and maps them to [-1.0, 1.0]
 
-        Args
+        args
         ----
         state : list
-            State
+            state
         """
         return self.statetorch2policy(
             tfloat(states, device=self.device, float_type=self.float)
         )
 
-    def state2policy(self, state: List = None) -> List:
+    def state2policy(self, state: list = none) -> list:
         """
-        Clips the state into [0, max_val] and maps it to [-1.0, 1.0]
+        clips the state into [0, max_val] and maps it to [-1.0, 1.0]
         """
-        if state is None:
+        if state is none:
             state = self.state.copy()
         return [2.0 * min(max(0.0, s), self.max_val) - 1.0 for s in state]
 
-    def state2readable(self, state: List) -> str:
+    def state2readable(self, state: list) -> str:
         """
-        Converts a state (a list of positions) into a human-readable string
+        converts a state (a list of positions) into a human-readable string
         representing a state.
         """
         return str(state).replace("(", "[").replace(")", "]").replace(",", "")
 
-    def readable2state(self, readable: str) -> List:
+    def readable2state(self, readable: str) -> list:
         """
-        Converts a human-readable string representing a state into a state as a list of
+        converts a human-readable string representing a state into a state as a list of
         positions.
         """
         return [el for el in readable.strip("[]").split(" ")]
 
     @abstractmethod
     def get_parents(
-        self, state: List = None, done: bool = None, action: Tuple[int, float] = None
-    ) -> Tuple[List[List], List[Tuple[int, float]]]:
+        self, state: list = none, done: bool = none, action: tuple[int, float] = none
+    ) -> tuple[list[list], list[tuple[int, float]]]:
         """
-        Determines all parents and actions that lead to state.
+        determines all parents and actions that lead to state.
 
-        Args
+        args
         ----
         state : list
-            Representation of a state
+            representation of a state
 
         done : bool
-            Whether the trajectory is done. If None, done is taken from instance.
+            whether the trajectory is done. if none, done is taken from instance.
 
         action : int
-            Last action performed
+            last action performed
 
-        Returns
+        returns
         -------
         parents : list
-            List of parents in state format
+            list of parents in state format
 
         actions : list
-            List of actions that lead to state for each parent in parents
+            list of actions that lead to state for each parent in parents
         """
         pass
 
     @abstractmethod
     def sample_actions_batch(
         self,
-        policy_outputs: TensorType["n_states", "policy_output_dim"],
+        policy_outputs: tensortype["n_states", "policy_output_dim"],
         sampling_method: str = "policy",
-        mask_invalid_actions: TensorType["n_states", "1"] = None,
+        mask_invalid_actions: tensortype["n_states", "1"] = none,
         temperature_logits: float = 1.0,
         loginf: float = 1000,
-    ) -> Tuple[List[Tuple], TensorType["n_states"]]:
+    ) -> tuple[list[tuple], tensortype["n_states"]]:
         """
-        Samples a batch of actions from a batch of policy outputs.
+        samples a batch of actions from a batch of policy outputs.
         """
         pass
 
     def get_logprobs(
         self,
-        policy_outputs: TensorType["n_states", "policy_output_dim"],
+        policy_outputs: tensortype["n_states", "policy_output_dim"],
         is_forward: bool,
-        actions: TensorType["n_states", 2],
-        mask_invalid_actions: TensorType["batch_size", "policy_output_dim"] = None,
+        actions: tensortype["n_states", 2],
+        mask_invalid_actions: tensortype["batch_size", "policy_output_dim"] = none,
         loginf: float = 1000,
-    ) -> TensorType["batch_size"]:
+    ) -> tensortype["batch_size"]:
         """
-        Computes log probabilities of actions given policy outputs and actions.
+        computes log probabilities of actions given policy outputs and actions.
         """
         pass
 
     def step(
-        self, action: Tuple[int, float]
-    ) -> Tuple[List[float], Tuple[int, float], bool]:
+        self, action: tuple[int, float]
+    ) -> tuple[list[float], tuple[int, float], bool]:
         """
-        Executes step given an action.
+        executes step given an action.
 
-        Args
+        args
         ----
         action : tuple
-            Action to be executed. An action is a tuple with two values:
+            action to be executed. an action is a tuple with two values:
             (dimension, increment).
 
-        Returns
+        returns
         -------
         self.state : list
-            The sequence after executing the action
+            the sequence after executing the action
 
         action : int
-            Action executed
+            action executed
 
         valid : bool
-            False, if the action is not allowed for the current state, e.g. stop at the
+            false, if the action is not allowed for the current state, e.g. stop at the
             root state
         """
         pass
 
 
-class ContinuousCube(Cube):
+class continuouscube(cube):
     """
-    Continuous hyper-cube environment (continuous version of a hyper-grid) in which the
+    continuous hyper-cube environment (continuous version of a hyper-grid) in which the
     action space consists of the increment of each dimension d, modelled by a mixture
-    of Beta distributions. The states space is the value of each dimension. In order to
+    of beta distributions. the states space is the value of each dimension. in order to
     ensure that all trajectories are of finite length, actions have a minimum increment
-    for all dimensions determined by min_incr. If the value of any dimension is larger
-    than 1 - min_incr, then that dimension can be further incremented. In order to
+    for all dimensions determined by min_incr. if the value of any dimension is larger
+    than 1 - min_incr, then that dimension can be further incremented. in order to
     ensure the coverage of the state space, the first action (from the source state) is
     not constrained by the minimum increment.
 
-    Actions do not represent absolute increments but rather the relative increment with
+    actions do not represent absolute increments but rather the relative increment with
     respect to the distance to the edges of the hyper-cube, from the minimum increment.
-    That is, if dimension d of a state has value 0.3, the minimum increment (min_incr)
+    that is, if dimension d of a state has value 0.3, the minimum increment (min_incr)
     is 0.1 and the maximum value (max_val) is 1.0, an action of 0.5 will increment the
-    value of the dimension in 0.5 * (1.0 - 0.3 - 0.1) = 0.5 * 0.6 = 0.3. Therefore, the
+    value of the dimension in 0.5 * (1.0 - 0.3 - 0.1) = 0.5 * 0.6 = 0.3. therefore, the
     value of d in the next state will be 0.3 + 0.3 = 0.6.
 
-    Attributes
+    attributes
     ----------
     n_dim : int
-        Dimensionality of the hyper-cube.
+        dimensionality of the hyper-cube.
 
     max_val : float
-        Max length of the hyper-cube.
+        max length of the hyper-cube.
 
     min_incr : float
-        Minimum increment in the actions, expressed as the fraction of max_val. This is
+        minimum increment in the actions, expressed as the fraction of max_val. this is
         necessary to ensure that trajectories have finite length.
     """
 
@@ -286,51 +286,51 @@ class ContinuousCube(Cube):
 
     def get_action_space(self):
         """
-        The action space is continuous, thus not defined as such here.
+        the action space is continuous, thus not defined as such here.
 
-        The actions are tuples of length n_dim, where the value at position d indicates
+        the actions are tuples of length n_dim, where the value at position d indicates
         the increment of dimension d.
 
-        EOS is indicated by np.inf for all dimensions.
+        eos is indicated by np.inf for all dimensions.
 
-        This method defines self.eos and the returned action space is simply a
+        this method defines self.eos and the returned action space is simply a
         representative (arbitrary) action with an increment of 0.0 in all dimensions,
-        and EOS.
+        and eos.
         """
         self.eos = tuple([np.inf] * self.n_dim)
         self.representative_action = tuple([0.0] * self.n_dim)
         return [self.representative_action, self.eos]
 
-    def get_policy_output(self, params: dict) -> TensorType["policy_output_dim"]:
+    def get_policy_output(self, params: dict) -> tensortype["policy_output_dim"]:
         """
-        Defines the structure of the output of the policy model, from which an
+        defines the structure of the output of the policy model, from which an
         action is to be determined or sampled, by returning a vector with a fixed
-        random policy. The environment consists of both continuous and discrete
+        random policy. the environment consists of both continuous and discrete
         actions.
 
-        Continuous actions
+        continuous actions
 
-        For each dimension d of the hyper-cube and component c of the mixture, the
+        for each dimension d of the hyper-cube and component c of the mixture, the
         output of the policy should return
           1) the weight of the component in the mixture
-          2) the logit(alpha) parameter of the Beta distribution to sample the increment
-          3) the logit(beta) parameter of the Beta distribution to sample the increment
+          2) the logit(alpha) parameter of the beta distribution to sample the increment
+          3) the logit(beta) parameter of the beta distribution to sample the increment
 
-        These parameters are the first n_dim * n_comp * 3 of the policy output such
-        that the first 3 x C elements correspond to the first dimension, and so on.
+        these parameters are the first n_dim * n_comp * 3 of the policy output such
+        that the first 3 x c elements correspond to the first dimension, and so on.
 
-        Discrete actions
+        discrete actions
 
-        Additionally, the policy output contains one logit (pos -1) of a Bernoulli
-        distribution to model the (discrete) forward probability of selecting the EOS
+        additionally, the policy output contains one logit (pos -1) of a bernoulli
+        distribution to model the (discrete) forward probability of selecting the eos
         action and another logit (pos -2) for the (discrete) backward probability of
         returning to the source node.
 
-        Therefore, the output of the policy model has dimensionality D x C x 3 + 2,
-        where D is the number of dimensions (self.n_dim) and C is the number of
+        therefore, the output of the policy model has dimensionality d x c x 3 + 2,
+        where d is the number of dimensions (self.n_dim) and c is the number of
         components (self.n_comp).
         """
-        # Parameters for continuous actions
+        # parameters for continuous actions
         self._len_policy_output_cont = self.n_dim * self.n_comp * 3
         policy_output_cont = torch.empty(
             self._len_policy_output_cont,
@@ -340,15 +340,15 @@ class ContinuousCube(Cube):
         policy_output_cont[0::3] = params["beta_weights"]
         policy_output_cont[1::3] = params["beta_alpha"]
         policy_output_cont[2::3] = params["beta_beta"]
-        # Logit for Bernoulli distribution to model EOS action
+        # logit for bernoulli distribution to model eos action
         policy_output_eos = torch.tensor(
             [params["bernoulli_eos_logit"]], dtype=self.float, device=self.device
         )
-        # Logit for Bernoulli distribution to model back-to-source action
+        # logit for bernoulli distribution to model back-to-source action
         policy_output_source = torch.tensor(
             [params["bernoulli_source_logit"]], dtype=self.float, device=self.device
         )
-        # Concatenate all outputs
+        # concatenate all outputs
         policy_output = torch.cat(
             (
                 policy_output_cont,
@@ -359,91 +359,95 @@ class ContinuousCube(Cube):
         return policy_output
 
     def _get_policy_betas_weights(
-        self, policy_output: TensorType["n_states", "policy_output_dim"]
-    ) -> TensorType["n_states", "n_dim * n_comp"]:
+        self, policy_output: tensortype["n_states", "policy_output_dim"]
+    ) -> tensortype["n_states", "n_dim * n_comp"]:
         """
-        Reduces a given policy output to the part corresponding to the weights of the
-        mixture of Beta distributions.
+        reduces a given policy output to the part corresponding to the weights of the
+        mixture of beta distributions.
 
-        See: get_policy_output()
+        see: get_policy_output()
         """
         return policy_output[:, 0 : self._len_policy_output_cont : 3]
 
     def _get_policy_betas_alpha(
-        self, policy_output: TensorType["n_states", "policy_output_dim"]
-    ) -> TensorType["n_states", "n_dim * n_comp"]:
+        self, policy_output: tensortype["n_states", "policy_output_dim"]
+    ) -> tensortype["n_states", "n_dim * n_comp"]:
         """
-        Reduces a given policy output to the part corresponding to the alphas of the
-        mixture of Beta distributions.
+        reduces a given policy output to the part corresponding to the alphas of the
+        mixture of beta distributions.
 
-        See: get_policy_output()
+        see: get_policy_output()
         """
         return policy_output[:, 1 : self._len_policy_output_cont : 3]
 
     def _get_policy_betas_beta(
-        self, policy_output: TensorType["n_states", "policy_output_dim"]
-    ) -> TensorType["n_states", "n_dim * n_comp"]:
+        self, policy_output: tensortype["n_states", "policy_output_dim"]
+    ) -> tensortype["n_states", "n_dim * n_comp"]:
         """
-        Reduces a given policy output to the part corresponding to the betas of the
-        mixture of Beta distributions.
+        reduces a given policy output to the part corresponding to the betas of the
+        mixture of beta distributions.
 
-        See: get_policy_output()
+        see: get_policy_output()
         """
         return policy_output[:, 2 : self._len_policy_output_cont : 3]
 
     def _get_policy_eos_logit(
-        self, policy_output: TensorType["n_states", "policy_output_dim"]
-    ) -> TensorType["n_states", "1"]:
+        self, policy_output: tensortype["n_states", "policy_output_dim"]
+    ) -> tensortype["n_states", "1"]:
         """
-        Reduces a given policy output to the part corresponding to the logit of the
-        Bernoulli distribution to model the EOS action.
+        reduces a given policy output to the part corresponding to the logit of the
+        bernoulli distribution to model the eos action.
 
-        See: get_policy_output()
+        see: get_policy_output()
         """
         return policy_output[:, -1]
 
     def _get_policy_source_logit(
-        self, policy_output: TensorType["n_states", "policy_output_dim"]
-    ) -> TensorType["n_states", "1"]:
+        self, policy_output: tensortype["n_states", "policy_output_dim"]
+    ) -> tensortype["n_states", "1"]:
         """
-        Reduces a given policy output to the part corresponding to the logit of the
-        Bernoulli distribution to model the back-to-source action.
+        reduces a given policy output to the part corresponding to the logit of the
+        bernoulli distribution to model the back-to-source action.
 
-        See: get_policy_output()
+        see: get_policy_output()
         """
         return policy_output[:, -2]
 
     def get_mask_invalid_actions_forward(
         self,
-        state: Optional[List] = None,
-        done: Optional[bool] = None,
-    ) -> List:
+        state: optional[list] = none,
+        done: optional[bool] = none,
+    ) -> list:
         """
-        The action space is continuous, thus the mask is not only of invalid actions as
+        the action space is continuous, thus the mask is not only of invalid actions as
         in discrete environments, but also an indicator of "special cases", for example
         states from which only certain actions are possible.
 
-        The values of True/False intend to approximately stick to the semantics in
+        the values of true/false intend to approximately stick to the semantics in
         discrete environments, where the mask is of "invalid" actions, but it is
         important to note that a direct interpretation in this sense does not always
         apply.
 
-        For example, the mask values of special cases are True if the special cases they
-        refer to are "invalid". In other words, the values are False if the state has
+        for example, the mask values of special cases are true if the special cases they
+        refer to are "invalid". in other words, the values are false if the state has
         the special case.
 
-        The forward mask has the following structure:
+        the forward mask has the following structure:
 
-        - 0 : whether a continuous action is invalid. True if the value at any
-          dimension is larger than 1 - min_incr, or if done is True. False otherwise.
-        - 1 : special case when the state is the source state. False when the state is
-          the source state, True otherwise.
-        - 2 : whether EOS action is invalid. EOS is valid from any state, except the
-          source state or if done is True.
+        - 0 : whether a continuous action is invalid. true if the value at any
+          dimension is larger than 1 - min_incr, or if done is true. false otherwise.
+        - 1 : special case when the state is the source state. false when the state is
+          the source state, true otherwise.
+        - 2 : whether eos action is invalid. eos is valid from any state, except the
+          source state or if done is true.
+        - -n_dim: : dimensions that should be ignored when sampling actions or
+          computing logprobs. this can be used for trajectories that may have
+          multiple dimensions coupled or fixed. for each dimension, true if ignored,
+          false, otherwise. By default, no dimension is ignored.
         """
         state = self._get_state(state)
         done = self._get_done(done)
-        mask_dim = 3
+        mask_dim = 3 + self.n_dim
         # If done, the entire mask is True (all actions are "invalid" and no special
         # cases)
         if done:
@@ -481,15 +485,20 @@ class ContinuousCube(Cube):
           False if any dimension is smaller than min_incr, True otherwise.
         - 2 : whether EOS action is invalid. False only if done is True, True
           (invalid) otherwise.
+        - -n_dim: : dimensions that should be ignored when sampling actions or
+          computing logprobs. this can be used for trajectories that may have
+          multiple dimensions coupled or fixed. for each dimension, true if ignored,
+          false, otherwise. By default, no dimension is ignored.
         """
         state = self._get_state(state)
         done = self._get_done(done)
-        mask_dim = 3
+        mask_dim = 3 + self.n_dim
         mask = [True] * mask_dim
         # If done, only valid action is EOS.
         if done:
             mask[2] = False
             return mask
+        mask[-self.n_dim] = False
         # If any dimension is smaller than m, then back-to-source action is the only
         # possible actiona.
         if any([s < self.min_incr for s in state]):
