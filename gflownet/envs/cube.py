@@ -586,6 +586,7 @@ class continuouscube(cube):
     def _make_increments_distribution(
         self,
         policy_outputs: TensorType["n_states", "policy_output_dim"],
+        is_effective_dim: TensorType["n_states", "n_dim"],
     ) -> MixtureSameFamily:
         mix_logits = self._get_policy_betas_weights(policy_outputs).reshape(
             -1, self.n_dim, self.n_comp
@@ -671,6 +672,8 @@ class continuouscube(cube):
         # Initialize variables
         n_states = policy_outputs.shape[0]
         is_eos = torch.zeros(n_states, dtype=torch.bool, device=self.device)
+        # Mask of effective dimensions
+        is_effective_dim = ~mask[-self.n_dim :]
         # Determine source states
         is_source = ~mask[:, 1]
         # EOS is the only possible action if continuous actions are invalid (mask[0] is
@@ -694,7 +697,7 @@ class continuouscube(cube):
                 raise NotImplementedError()
             elif sampling_method == "policy":
                 distr_increments = self._make_increments_distribution(
-                    policy_outputs[do_increments]
+                    policy_outputs[do_increments], is_effective_dim
                 )
             # Shape of increments_rel: [n_do_increments, n_dim]
             increments_rel = distr_increments.sample()
@@ -782,7 +785,7 @@ class continuouscube(cube):
                 raise NotImplementedError()
             elif sampling_method == "policy":
                 distr_increments = self._make_increments_distribution(
-                    policy_outputs[do_increments]
+                    policy_outputs[do_increments], is_effective_dim
                 )
             # Shape of increments_rel: [n_do_increments, n_dim]
             increments_rel = distr_increments.sample()
@@ -922,7 +925,7 @@ class continuouscube(cube):
             )
             # Get logprobs
             distr_increments = self._make_increments_distribution(
-                policy_outputs[do_increments]
+                policy_outputs[do_increments], is_effective_dim
             )
             # Clamp because increments of 0.0 or 1.0 would yield nan
             logprobs_increments_rel[do_increments] = distr_increments.log_prob(
@@ -1002,7 +1005,7 @@ class continuouscube(cube):
             )
             # Get logprobs
             distr_increments = self._make_increments_distribution(
-                policy_outputs[do_increments]
+                policy_outputs[do_increments], is_effective_dim
             )
             # Clamp because increments of 0.0 or 1.0 would yield nan
             logprobs_increments_rel[do_increments] = distr_increments.log_prob(
