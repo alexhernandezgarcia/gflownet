@@ -1,0 +1,28 @@
+defaults:
+  - base
+
+_target_: gflownet.envs.crystals.lattice_parameters.LatticeParameters
+
+id: lattice_parameters
+
+lattice_system: triclinic
+min_length: 1.0
+max_length: 5.0
+min_angle: 30.0
+max_angle: 150.0
+grid_size: 10
+max_increment: 1
+
+# Buffer
+buffer:
+  data_path: null
+  train:
+    type: random
+    n: 2000
+    output_csv: lattice_parameters_train.csv
+    output_pkl: lattice_parameters_train.pkl
+  test:
+    type: random
+    n: 2000
+    output_csv: lattice_parameters_test.csv
+    output_pkl: lattice_parameters_test.pkl
