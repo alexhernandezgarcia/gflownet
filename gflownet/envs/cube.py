@@ -586,7 +586,6 @@ class ContinuousCube(Cube):
     def _make_increments_distribution(
         self,
         policy_outputs: TensorType["n_states", "policy_output_dim"],
-        is_effective_dim: TensorType["n_states", "n_dim"],
     ) -> MixtureSameFamily:
         mix_logits = self._get_policy_betas_weights(policy_outputs).reshape(
             -1, self.n_dim, self.n_comp
@@ -602,6 +601,34 @@ class ContinuousCube(Cube):
         betas = self.beta_params_max * torch.sigmoid(betas) + self.beta_params_min
         beta_distr = Beta(alphas, betas)
         return MixtureSameFamily(mix, beta_distr)
+
+    def _mask_ignored_dimensions(
+        self,
+        mask: TensorType["n_states", "policy_outputs_dim"],
+        tensor_to_mask: TensorType["n_states", "n_dim"],
+    ) -> MixtureSameFamily:
+        """
+        Makes the actions, logprobs or log jacobian entries of ignored dimensions zero.
+
+        Since the shape of all the tensor of actions, the logprobs of increments and
+        the log of the diagonal of the Jacobian must be the same, this method makes no
+        distiction between for simplicity.
+
+        Args
+        ----
+        mask : tensor
+            Boolean mask indicating (True) which dimensions should be set to zero.
+
+        tensor_to_mask : tensor
+            Tensor to be modified. It may be a tensor of actions, of logprobs of
+            increments or the log of the diagonal of the Jacobian.
+        """
+        is_ignored_dim = mask[:, -self.n_dim :]
+        if torch.any(is_ignored_dim):
+            shape_orig = tensor_to_mask.shape
+            tensor_to_mask[is_ignored_dim] = 0.0
+            tensor_to_mask = tensor_to_mask.reshape(shape_orig)
+        return tensor_to_mask
 
     def sample_actions_batch(
         self,
@@ -672,8 +699,6 @@ class ContinuousCube(Cube):
         # Initialize variables
         n_states = policy_outputs.shape[0]
         is_eos = torch.zeros(n_states, dtype=torch.bool, device=self.device)
-        # Mask of effective dimensions
-        is_effective_dim = ~mask[-self.n_dim :]
         # Determine source states
         is_source = ~mask[:, 1]
         # EOS is the only possible action if continuous actions are invalid (mask[0] is
@@ -697,7 +722,7 @@ class ContinuousCube(Cube):
                 raise NotImplementedError()
             elif sampling_method == "policy":
                 distr_increments = self._make_increments_distribution(
-                    policy_outputs[do_increments], is_effective_dim
+                    policy_outputs[do_increments]
                 )
             # Shape of increments_rel: [n_do_increments, n_dim]
             increments_rel = distr_increments.sample()
@@ -723,6 +748,8 @@ class ContinuousCube(Cube):
         )
         if torch.any(do_increments):
             actions_tensor[do_increments] = increments_abs
+            # Make ignored dimensions zero
+            actions_tensor = self._mask_ignored_dimensions(mask, actions_tensor)
         actions = [tuple(a.tolist()) for a in actions_tensor]
         return actions, None
 
@@ -766,7 +793,7 @@ class ContinuousCube(Cube):
         n_states = policy_outputs.shape[0]
         is_bts = torch.zeros(n_states, dtype=torch.bool, device=self.device)
         # Mask of effective dimensions
-        is_effective_dim = ~mask[-self.n_dim :]
+        is_effective_dim = ~mask[:, -self.n_dim :]
         # EOS is the only possible action only if done is True (mask[2] is False)
         is_eos = ~mask[:, 2]
         # Back-to-source (BTS) is the only possible action if mask[1] is False
@@ -787,7 +814,7 @@ class ContinuousCube(Cube):
                 raise NotImplementedError()
             elif sampling_method == "policy":
                 distr_increments = self._make_increments_distribution(
-                    policy_outputs[do_increments], is_effective_dim
+                    policy_outputs[do_increments]
                 )
             # Shape of increments_rel: [n_do_increments, n_dim]
             increments_rel = distr_increments.sample()
@@ -813,6 +840,8 @@ class ContinuousCube(Cube):
         actions_tensor[is_eos] = torch.inf
         if torch.any(do_increments):
             actions_tensor[do_increments] = increments_abs
+            # Make ignored dimensions zero
+            actions_tensor = self._mask_ignored_dimensions(mask, actions_tensor)
         if torch.any(is_bts):
             # BTS actions are equal to the originating states
             actions_bts = tfloat(
@@ -883,12 +912,12 @@ class ContinuousCube(Cube):
         logprobs_increments_rel = torch.zeros(
             (n_states, self.n_dim), dtype=self.float, device=self.device
         )
-        jacobian_diag = torch.ones(
+        log_jacobian_diag = torch.zeros(
             (n_states, self.n_dim), device=self.device, dtype=self.float
         )
         eos_tensor = tfloat(self.eos, float_type=self.float, device=self.device)
         # Mask of effective dimensions
-        is_effective_dim = ~mask[-self.n_dim :]
+        is_effective_dim = ~mask[:, -self.n_dim :]
         # Determine source states
         is_source = ~mask[:, 1]
         # EOS is the only possible action if continuous actions are invalid (mask[0] is
@@ -929,21 +958,29 @@ class ContinuousCube(Cube):
             )
             # Get logprobs
             distr_increments = self._make_increments_distribution(
-                policy_outputs[do_increments], is_effective_dim
+                policy_outputs[do_increments]
             )
             # Clamp because increments of 0.0 or 1.0 would yield nan
             logprobs_increments_rel[do_increments] = distr_increments.log_prob(
                 torch.clamp(increments_rel, min=1e-6, max=(1 - 1e-6))
             )
-            # Compute diagonal of the Jacobian (see _get_jacobian_diag())
-            jacobian_diag[do_increments] = self._get_jacobian_diag(
-                states_from_tensor[do_increments],
-                min_increments,
-                self.max_val,
-                is_backward=False,
+            # Make ignored dimensions zero
+            logprobs_increments_rel = self._mask_ignored_dimensions(
+                mask, logprobs_increments_rel
             )
-        # Get log determinant of the Jacobian
-        log_det_jacobian = torch.sum(torch.log(jacobian_diag), dim=1)
+            # Compute log of the diagonal of the Jacobian (see _get_jacobian_diag())
+            log_jacobian_diag[do_increments] = torch.log(
+                self._get_jacobian_diag(
+                    states_from_tensor[do_increments],
+                    min_increments,
+                    self.max_val,
+                    is_backward=False,
+                )
+            )
+            # Make ignored dimensions zero
+            log_jacobian_diag = self._mask_ignored_dimensions(mask, log_jacobian_diag)
+        # Sum log Jacobian across dimensions
+        log_det_jacobian = torch.sum(log_jacobian_diag, dim=1)
         # Compute combined probabilities
         sumlogprobs_increments = logprobs_increments_rel.sum(axis=1)
         logprobs = logprobs_eos + sumlogprobs_increments + log_det_jacobian
@@ -969,11 +1006,11 @@ class ContinuousCube(Cube):
         logprobs_increments_rel = torch.zeros(
             (n_states, self.n_dim), dtype=self.float, device=self.device
         )
-        jacobian_diag = torch.ones(
+        log_jacobian_diag = torch.zeros(
             (n_states, self.n_dim), device=self.device, dtype=self.float
         )
         # Mask of effective dimensions
-        is_effective_dim = ~mask[-self.n_dim :]
+        is_effective_dim = ~mask[:, -self.n_dim :]
         # EOS is the only possible action only if done is True (mask[2] is False)
         is_eos = ~mask[:, 2]
         # Back-to-source (BTS) is the only possible action if mask[1] is False
@@ -1011,21 +1048,29 @@ class ContinuousCube(Cube):
             )
             # Get logprobs
             distr_increments = self._make_increments_distribution(
-                policy_outputs[do_increments], is_effective_dim
+                policy_outputs[do_increments]
             )
             # Clamp because increments of 0.0 or 1.0 would yield nan
             logprobs_increments_rel[do_increments] = distr_increments.log_prob(
                 torch.clamp(increments_rel, min=1e-6, max=(1 - 1e-6))
             )
-            # Compute diagonal of the Jacobian (see _get_jacobian_diag())
-            jacobian_diag[do_increments] = self._get_jacobian_diag(
-                states_from_tensor[do_increments],
-                min_increments,
-                self.max_val,
-                is_backward=True,
+            # Make ignored dimensions zero
+            logprobs_increments_rel = self._mask_ignored_dimensions(
+                mask, logprobs_increments_rel
             )
-        # Get log determinant of the Jacobian
-        log_det_jacobian = torch.sum(torch.log(jacobian_diag), dim=1)
+            # Compute log of the diagonal of the Jacobian (see _get_jacobian_diag())
+            log_jacobian_diag[do_increments] = torch.log(
+                self._get_jacobian_diag(
+                    states_from_tensor[do_increments],
+                    min_increments,
+                    self.max_val,
+                    is_backward=True,
+                )
+            )
+            # Make ignored dimensions zero
+            log_jacobian_diag = self._mask_ignored_dimensions(mask, log_jacobian_diag)
+        # Sum log Jacobian across dimensions
+        log_det_jacobian = torch.sum(log_jacobian_diag, dim=1)
         # Compute combined probabilities
         sumlogprobs_increments = logprobs_increments_rel.sum(axis=1)
         logprobs = logprobs_bts + sumlogprobs_increments + log_det_jacobian
