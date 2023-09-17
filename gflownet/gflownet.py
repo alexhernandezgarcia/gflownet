@@ -1009,8 +1009,8 @@ class GFlowNetAgent:
                 self.l1,
                 self.kl,
                 self.jsd,
-                self.corr_prob_traj_rewards,
-                self.nll_tt,
+                corr_prob_traj_rewards,
+                nll_tt,
                 (None,),
                 env_metrics,
             )
