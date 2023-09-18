@@ -20,9 +20,9 @@ from gflownet.utils.common import copy, tbool, tfloat
 
 class Cube(GFlowNetEnv, ABC):
     """
-    Continuous (hybrid: discrete and continuous) hyper-cube environment (continuous
-    version of a hyper-grid) in which the action space consists of the increment of
-    dimension d, modelled by a beta distribution.
+    Base class for hyper-cube environments, continuous or hybrid versions of the
+    hyper-grid in which the continuous increments are modelled by a (mixture of) Beta
+    distribution(s).
 
     The states space is the value of each dimension. If the value of a dimension gets
     larger than max_val, then the trajectory is ended.
