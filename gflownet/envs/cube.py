@@ -1217,7 +1217,7 @@ class ContinuousCube(Cube):
         self, n_samples: int, epsilon=1e-4
     ) -> TensorType["n_samples", "state_dim"]:
         """
-        Rejection sampling  with proposal the uniform distribution in
+        Rejection sampling with proposal the uniform distribution in
         [0, max_val]]^n_dim.
 
         Returns a tensor in GFloNet (state) format.
