@@ -38,6 +38,11 @@ class Cube(GFlowNetEnv, ABC):
     min_incr : float
         Minimum increment in the actions, expressed as the fraction of max_val. This is
         necessary to ensure coverage of the state space.
+
+    ignored_dims : list
+        Boolean mask of ignored dimensions. This can be used for trajectories that may
+        have multiple dimensions coupled or fixed. For each dimension, True if ignored,
+        False, otherwise. If None, no dimension is ignored.
     """
 
     def __init__(
@@ -46,6 +51,7 @@ class Cube(GFlowNetEnv, ABC):
         max_val: float = 1.0,
         min_incr: float = 0.1,
         n_comp: int = 1,
+        ignored_dims: Optional[List[bool]] = None,
         beta_params_min: float = 0.1,
         beta_params_max: float = 1000.0,
         fixed_distr_params: dict = {
@@ -72,6 +78,10 @@ class Cube(GFlowNetEnv, ABC):
         self.eos = self.n_dim
         self.max_val = max_val
         self.min_incr = min_incr * self.max_val
+        if ignored_dims:
+            self.ignored_dims = ignored_dims
+        else:
+            self.ignored_dims = [False] * self.n_dim
         # Parameters of the policy distribution
         self.n_comp = n_comp
         self.beta_params_min = beta_params_min
@@ -248,6 +258,10 @@ class Cube(GFlowNetEnv, ABC):
             root state
         """
         pass
+
+    def _get_effective_dims(self, state: Optional[List] = None) -> List:
+        state = self._get_state(state)
+        return [s for s, ign_dim in zip(state, self.ignored_dims) if not ign_dim]
 
 
 class ContinuousCube(Cube):
@@ -441,27 +455,28 @@ class ContinuousCube(Cube):
         - 2 : whether EOS action is invalid. EOS is valid from any state, except the
           source state or if done is True.
         - -n_dim: : dimensions that should be ignored when sampling actions or
-          computing logprobs. this can be used for trajectories that may have
-          multiple dimensions coupled or fixed. for each dimension, true if ignored,
-          false, otherwise. By default, no dimension is ignored.
+          computing logprobs. This can be used for trajectories that may have
+          multiple dimensions coupled or fixed. For each dimension, True if ignored,
+          False, otherwise.
         """
         state = self._get_state(state)
         done = self._get_done(done)
-        mask_dim = 3 + self.n_dim
+        mask_dim_base = 3
+        mask_dim = mask_dim_base + self.n_dim
         # If done, the entire mask is True (all actions are "invalid" and no special
         # cases)
         if done:
             return [True] * mask_dim
-        mask = [False] * mask_dim
-        # If the state is not the source state, EOS is invalid
-        if state == self.source:
+        mask = [False] * mask_dim_base + self.ignored_dims
+        # If the state is the source state, EOS is invalid
+        if self._get_effective_dims(state) == self._get_effective_dims(self.source):
             mask[2] = True
         # If the state is not the source, indicate not special case (True)
         else:
             mask[1] = True
         # If the value of any dimension is greater than 1 - min_incr, then continuous
         # actions are invalid (True).
-        if any([s > 1 - self.min_incr for s in state]):
+        if any([s > 1 - self.min_incr for s in self._get_effective_dims(state)]):
             mask[0] = True
         return mask
 
@@ -492,16 +507,15 @@ class ContinuousCube(Cube):
         """
         state = self._get_state(state)
         done = self._get_done(done)
-        mask_dim = 3 + self.n_dim
-        mask = [True] * mask_dim
+        mask_dim_base = 3
+        mask = [True] * mask_dim_base + self.ignored_dims
         # If done, only valid action is EOS.
         if done:
             mask[2] = False
             return mask
-        mask = [True] * 3 + [False] * self.n_dim
         # If any dimension is smaller than m, then back-to-source action is the only
         # possible actiona.
-        if any([s < self.min_incr for s in state]):
+        if any([s < self.min_incr for s in self._get_effective_dims(state)]):
             mask[1] = False
             return mask
         # Otherwise, continuous actions are valid
@@ -749,7 +763,9 @@ class ContinuousCube(Cube):
         if torch.any(do_increments):
             actions_tensor[do_increments] = increments_abs
             # Make ignored dimensions zero
-            actions_tensor = self._mask_ignored_dimensions(mask, actions_tensor)
+            actions_tensor[do_increments] = self._mask_ignored_dimensions(
+                mask[do_increments], actions_tensor[do_increments]
+            )
         actions = [tuple(a.tolist()) for a in actions_tensor]
         return actions, None
 
@@ -841,13 +857,19 @@ class ContinuousCube(Cube):
         if torch.any(do_increments):
             actions_tensor[do_increments] = increments_abs
             # Make ignored dimensions zero
-            actions_tensor = self._mask_ignored_dimensions(mask, actions_tensor)
+            actions_tensor[do_increments] = self._mask_ignored_dimensions(
+                mask[do_increments], actions_tensor[do_increments]
+            )
         if torch.any(is_bts):
             # BTS actions are equal to the originating states
             actions_bts = tfloat(
                 states_from, float_type=self.float, device=self.device
             )[is_bts]
             actions_tensor[is_bts] = actions_bts
+            # Make ignored dimensions zero
+            actions_tensor[is_bts] = self._mask_ignored_dimensions(
+                mask[is_bts], actions_tensor[is_bts]
+            )
         actions = [tuple(a.tolist()) for a in actions_tensor]
         return actions, None
 
@@ -1159,8 +1181,12 @@ class ContinuousCube(Cube):
             else:
                 self.state[dim] += incr
         # If state is close enough to source, set source to avoid escaping comparison
-        # to source.
-        if self.isclose(self.state, self.source, atol=1e-6):
+        # to source. Only effective dimensions (not ignored) are considered.
+        if self.isclose(
+            self._get_effective_dims(self.state),
+            self._get_effective_dims(self.source),
+            atol=1e-6,
+        ):
             self.state = copy(self.source)
         if not all([s <= (self.max_val + epsilon) for s in self.state]):
             import ipdb
@@ -1211,7 +1237,9 @@ class ContinuousCube(Cube):
         if self.done:
             return self.state, action, False
         if action == self.eos:
-            assert self.state != self.source
+            assert self._get_effective_dims(self.state) != self._get_effective_dims(
+                self.source
+            )
             self.done = True
             self.n_actions += 1
             return self.state, self.eos, True
