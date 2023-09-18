@@ -10,9 +10,9 @@ defaults:
 # Environment
 env:
   reward_func: boltzmann
-  reward_beta: 0.1
+  reward_beta: 0.3
   buffer:
-    replay_capacity: 100
+    replay_capacity: 1000
 
 # GFlowNet hyperparameters
 gflownet:
@@ -33,8 +33,8 @@ gflownet:
 policy:
   shared:
     type: mlp
-    n_hid: 256
-    n_layers: 3
+    n_hid: 512
+    n_layers: 5
   forward: null
   backward:
     shared_weights: False
