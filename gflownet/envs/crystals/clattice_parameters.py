@@ -389,7 +389,7 @@ class CLatticeParametersEffectiveDim(ContinuousCube):
         Returns
         -------
         n_dim : int
-            The number of effective dimensions that can be be udpated in the
+            The number of effective dimensions that can be be updated in the
             environment, given the constraints set by the lattice system.
         """
         # Lengths: a, b, c
