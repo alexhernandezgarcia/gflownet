@@ -4,7 +4,6 @@ defaults:
 _target_: gflownet.envs.crystals.clattice_parameters.CLatticeParameters
 
 id: clattice_parameters
-continuous: True
 
 # Lattice system
 lattice_system: triclinic

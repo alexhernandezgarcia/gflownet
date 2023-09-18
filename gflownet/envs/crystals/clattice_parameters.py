@@ -75,6 +75,7 @@ class CLatticeParameters(ContinuousCube):
         max_angle : float
             Maximum value of the angles.
         """
+        self.continuous = True
         self.lattice_system = lattice_system
         self.min_length = min_length
         self.max_length = max_length
