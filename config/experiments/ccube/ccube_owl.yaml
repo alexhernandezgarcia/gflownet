@@ -14,7 +14,7 @@ env:
   beta_params_min: 0.01
   beta_params_max: 100.0
   min_incr: 0.1
-  fixed_distribution:
+  fixed_distr_params:
     beta_weights: 1.0
     beta_alpha: 0.01
     beta_beta: 0.01

@@ -12,7 +12,7 @@ length_traj: 10
 vonmises_min_concentration: 1e-3
 # Parameters of the fixed policy output distribution
 n_comp: 3
-fixed_distribution:
+fixed_distr_params:
   vonmises_mean: 0.0
   vonmises_concentration: 0.5
 # Parameters of the random policy output distribution

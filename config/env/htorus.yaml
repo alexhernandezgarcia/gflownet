@@ -13,7 +13,7 @@ policy_encoding_dim_per_angle: null
 length_traj: 3
 vonmises_min_concentration: 1e-3
 # Parameters of the fixed policy output distribution
-fixed_distribution:
+fixed_distr_params:
   vonmises_mean: 0.0
   vonmises_concentration: 0.5
 # Parameters of the random policy output distribution
