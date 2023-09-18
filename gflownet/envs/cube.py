@@ -1212,7 +1212,7 @@ class ContinuousCube(Cube):
         states = rng.uniform(low=0.0, high=self.max_val, size=(n_states, self.n_dim))
         return states.tolist()
 
-    #     # TODO: make generic for all environments
+    # TODO: make generic for all environments
     def sample_from_reward(
         self, n_samples: int, epsilon=1e-4
     ) -> TensorType["n_samples", "state_dim"]:
