@@ -1,7 +1,6 @@
-import torch
 import networkx as nx
 import numpy as np
-
+import torch
 from pytorch3d.transforms import axis_angle_to_matrix
 
 from gflownet.utils.molecule import constants
