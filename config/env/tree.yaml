@@ -25,7 +25,7 @@ beta_params_max: 100.0
 fixed_distribution:
   beta_alpha: 2.0
   beta_beta: 5.0
-random_distribution:
+random_distr_params:
   beta_alpha: 1.0
   beta_beta: 1.0
 # Buffer
