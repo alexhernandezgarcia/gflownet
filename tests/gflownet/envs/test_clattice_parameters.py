@@ -164,9 +164,11 @@ def test__tetragonal__constraints_remain_after_random_actions(env, lattice_syste
 def test__triclinic__constraints_remain_after_random_actions(env, lattice_system):
     env = env.reset()
     while not env.done:
-        # TODO: Test not equality constraints
         env.step_random()
         (a, b, c), (alpha, beta, gamma) = env._unpack_lengths_angles()
+        assert a != b
+        assert a != c
+        assert b != c
         assert len({alpha, beta, gamma, 90.0}) == 4
 
 
