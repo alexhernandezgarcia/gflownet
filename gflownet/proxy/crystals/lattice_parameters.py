@@ -6,6 +6,7 @@ import numpy as np
 from torch import Tensor
 
 from gflownet.proxy.base import Proxy
+from gflownet.utils.common import tfloat
 
 PICKLE_PATH = Path(__file__).parents[3] / "data" / "crystals" / "lattice_proxy.pkl"
 
