@@ -484,6 +484,9 @@ class ContinuousCube(CubeBase):
         done = self._get_done(done)
         mask_dim = 3
         mask = [True] * mask_dim
+        # If the state is the source state, entire mask is True
+        if state == self.source:
+            return mask
         # If done, only valid action is EOS.
         if done:
             mask[2] = False
@@ -506,9 +509,8 @@ class ContinuousCube(CubeBase):
         """
         pass
 
-    # TODO: rethink if not necessary from source
-    @staticmethod
     def relative_to_absolute_increments(
+        self,
         states: TensorType["n_states", "n_dim"],
         increments_rel: TensorType["n_states", "n_dim"],
         is_backward: bool,
@@ -536,9 +538,8 @@ class ContinuousCube(CubeBase):
         else:
             return min_increments + increments_rel * (1.0 - states - min_increments)
 
-    # TODO: rethink if not necessary from source
-    @staticmethod
     def absolute_to_relative_increments(
+        self,
         states: TensorType["n_states", "n_dim"],
         increments_abs: TensorType["n_states", "n_dim"],
         is_backward: bool,
@@ -992,8 +993,8 @@ class ContinuousCube(CubeBase):
         logprobs[is_eos] = 0.0
         return logprobs
 
-    @staticmethod
     def _get_jacobian_diag(
+        self,
         states_from: TensorType["n_states", "n_dim"],
         is_backward: bool,
     ):
