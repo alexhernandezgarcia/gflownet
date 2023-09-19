@@ -297,7 +297,7 @@ class ContinuousCube(CubeBase):
         self.eos = tuple([np.inf] * self.n_dim)
         self.bts = tuple([-1] * self.n_dim)
         self.representative_action = tuple([0.0] * self.n_dim)
-        return [self.representative_action, self.eos]
+        return [self.representative_action, self.bts, self.eos]
 
     def get_policy_output(self, params: dict) -> TensorType["policy_output_dim"]:
         """
