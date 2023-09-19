@@ -22,7 +22,7 @@ class LatticeParameters(Proxy):
         scores = np.clip(scores, self.min_value, np.inf)
         scores = self.min_value - scores
 
-        return Tensor(scores)
+        return tfloat(scores, float_type=self.float, device=self.device)
 
     def setup(self, env=None):
         if not PICKLE_PATH.exists():
