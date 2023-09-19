@@ -25,8 +25,8 @@ class CubeBase(GFlowNetEnv, ABC):
     distribution(s).
 
     The states space is the value of each dimension, defined in the closed set [0, 1].
-    If the value of a dimension gets larger than max_val, then the trajectory is ended
-    (the only possible action is EOS).
+    If the value of a dimension gets larger than 1 - min_incr, then the trajectory is
+    ended (the only possible action is EOS).
 
     Attributes
     ----------
@@ -117,20 +117,20 @@ class CubeBase(GFlowNetEnv, ABC):
         self, states: TensorType["batch", "state_dim"] = None
     ) -> TensorType["batch", "policy_input_dim"]:
         """
-        Clips the states into [0, max_val] and maps them to [-1.0, 1.0]
+        Clips the states into [0, 1] and maps them to [-1.0, 1.0]
 
         Args
         ----
         state : list
             State
         """
-        return 2.0 * torch.clip(states, min=0.0, max=self.max_val) - 1.0
+        return 2.0 * torch.clip(states, min=0.0, max=1.0) - 1.0
 
     def statebatch2policy(
         self, states: List[List]
     ) -> TensorType["batch", "state_proxy_dim"]:
         """
-        Clips the states into [0, max_val] and maps them to [-1.0, 1.0]
+        Clips the states into [0, 1] and maps them to [-1.0, 1.0]
 
         Args
         ----
@@ -143,11 +143,11 @@ class CubeBase(GFlowNetEnv, ABC):
 
     def state2policy(self, state: List = None) -> List:
         """
-        Clips the state into [0, max_val] and maps it to [-1.0, 1.0]
+        Clips the state into [0, 1] and maps it to [-1.0, 1.0]
         """
         if state is None:
             state = self.state.copy()
-        return [2.0 * min(max(0.0, s), self.max_val) - 1.0 for s in state]
+        return [2.0 * min(max(0.0, s), 1.0) - 1.0 for s in state]
 
     def state2readable(self, state: List) -> str:
         """
@@ -259,7 +259,7 @@ class ContinuousCube(CubeBase):
     Actions do not represent absolute increments but rather the relative increment with
     respect to the distance to the edges of the hyper-cube, from the minimum increment.
     That is, if dimension d of a state has value 0.3, the minimum increment (min_incr)
-    is 0.1 and the maximum value (max_val) is 1.0, an action of 0.5 will increment the
+    is 0.1 and the maximum value is 1.0, an action of 0.5 will increment the
     value of the dimension in 0.5 * (1.0 - 0.3 - 0.1) = 0.5 * 0.6 = 0.3. Therefore, the
     value of d in the next state will be 0.3 + 0.3 = 0.6.
 
@@ -625,7 +625,7 @@ class ContinuousCube(CubeBase):
         originating state is the source state (special case, see
         get_mask_invalid_actions_forward()). Furthermore, absolute increments must also
         be smaller than the distance from the dimension value to the edge of the cube
-        (self.max_val). In order to accomodate these constraints, first relative
+        (1.0). In order to accomodate these constraints, first relative
         increments (in [0, 1]) are sampled from a (mixture of) Beta distribution(s),
         where 0.0 indicates an absolute increment of min_incr and 1.0 indicates an
         absolute increment of 1 - x + min_incr (going to the edge).
@@ -995,7 +995,6 @@ class ContinuousCube(CubeBase):
     @staticmethod
     def _get_jacobian_diag(
         states_from: TensorType["n_states", "n_dim"],
-        max_val: float,
         is_backward: bool,
     ):
         """
@@ -1003,7 +1002,7 @@ class ContinuousCube(CubeBase):
         the target states.
 
         Forward: the sampled variables are the relative increments r_f and the state
-        updates (s -> s') are (assuming max_val = 1):
+        updates (s -> s') are:
 
         s' = s + m + r_f(1 - s - m)
         r_f = (s' - s - m) / (1 - s - m)
@@ -1076,12 +1075,12 @@ class ContinuousCube(CubeBase):
         # to source.
         if self.isclose(self.state, self.source, atol=1e-6):
             self.state = copy(self.source)
-        if not all([s <= (self.max_val + epsilon) for s in self.state]):
+        if not all([s <= (1.0 + epsilon) for s in self.state]):
             import ipdb
 
             ipdb.set_trace()
         assert all(
-            [s <= (self.max_val + epsilon) for s in self.state]
+            [s <= (1.0 + epsilon) for s in self.state]
         ), f"""
         State is out of cube bounds.
         \nState:\n{self.state}\nAction:\n{action}\nIncrement: {incr}
@@ -1176,7 +1175,7 @@ class ContinuousCube(CubeBase):
 
     def get_grid_terminating_states(self, n_states: int) -> List[List]:
         n_per_dim = int(np.ceil(n_states ** (1 / self.n_dim)))
-        linspaces = [np.linspace(0, self.max_val, n_per_dim) for _ in range(self.n_dim)]
+        linspaces = [np.linspace(0.0, 1.0, n_per_dim) for _ in range(self.n_dim)]
         states = list(itertools.product(*linspaces))
         # TODO: check if necessary
         states = [list(el) for el in states]
@@ -1186,7 +1185,7 @@ class ContinuousCube(CubeBase):
         self, n_states: int, seed: int = None
     ) -> List[List]:
         rng = np.random.default_rng(seed)
-        states = rng.uniform(low=0.0, high=self.max_val, size=(n_states, self.n_dim))
+        states = rng.uniform(low=0.0, high=1.0, size=(n_states, self.n_dim))
         return states.tolist()
 
     # TODO: make generic for all environments
@@ -1194,8 +1193,7 @@ class ContinuousCube(CubeBase):
         self, n_samples: int, epsilon=1e-4
     ) -> TensorType["n_samples", "state_dim"]:
         """
-        Rejection sampling with proposal the uniform distribution in
-        [0, max_val]]^n_dim.
+        Rejection sampling with proposal the uniform distribution in [0, 1]^n_dim.
 
         Returns a tensor in GFloNet (state) format.
         """
