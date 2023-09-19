@@ -444,7 +444,7 @@ class ContinuousCube(CubeBase):
         if done:
             return [True] * mask_dim
         mask = [False] * mask_dim
-        # If the state is not the source state, EOS is invalid
+        # If the state is the source state, EOS is invalid
         if state == self.source:
             mask[2] = True
         # If the state is not the source, indicate not special case (True)
@@ -503,20 +503,20 @@ class ContinuousCube(CubeBase):
         """
         pass
 
+    # TODO: rethink if not necessary from source
     @staticmethod
     def relative_to_absolute_increments(
         states: TensorType["n_states", "n_dim"],
         increments_rel: TensorType["n_states", "n_dim"],
         min_increments: TensorType["n_states", "n_dim"],
-        max_val: float,
         is_backward: bool,
     ):
         """
         Returns a batch of absolute increments (actions) given a batch of states,
         relative increments and minimum_increments.
 
-        Given a dimension value x, a relative increment r, a minimum increment m and a
-        maximum value 1, the absolute increment a is given by:
+        Given a dimension value x, a relative increment r, and a minimum increment m,
+        then the absolute increment a is given by:
 
         Forward:
 
@@ -531,24 +531,24 @@ class ContinuousCube(CubeBase):
             increments_abs = min_increments + increments_rel * (states - min_increments)
         else:
             increments_abs = min_increments + increments_rel * (
-                max_val - states - min_increments
+                1.0 - states - min_increments
             )
         return increments_abs
 
+    # TODO: rethink if not necessary from source
     @staticmethod
     def absolute_to_relative_increments(
         states: TensorType["n_states", "n_dim"],
         increments_abs: TensorType["n_states", "n_dim"],
         min_increments: TensorType["n_states", "n_dim"],
-        max_val: float,
         is_backward: bool,
     ):
         """
         Returns a batch of relative increments (as sampled by the Beta distributions)
         given a batch of states, absolute increments (actions) and minimum_increments.
 
-        Given a dimension value x, an absolute increment a, a minimum increment m and a
-        maximum value 1, the relative increment r is given by:
+        Given a dimension value x, an absolute increment a, and a minimum increment m,
+        then the relative increment r is given by:
 
         Forward:
 
@@ -565,7 +565,7 @@ class ContinuousCube(CubeBase):
             )
         else:
             increments_rel = (increments_abs - min_increments) / (
-                max_val - states - min_increments
+                1.0 - states - min_increments
             )
         return increments_rel
 
@@ -673,7 +673,7 @@ class ContinuousCube(CubeBase):
             distr_eos = Bernoulli(logits=logits_eos)
             is_eos_sampled[do_eos] = tbool(distr_eos.sample(), device=self.device)
             is_eos[is_eos_sampled] = True
-        # Sample relative increments if EOS is not the sampled or forced action
+        # Sample (relative) increments if EOS is not the (sampled or forced) action
         do_increments = ~is_eos
         if torch.any(do_increments):
             if sampling_method == "uniform":
@@ -682,22 +682,24 @@ class ContinuousCube(CubeBase):
                 distr_increments = self._make_increments_distribution(
                     policy_outputs[do_increments]
                 )
-            # Shape of increments_rel: [n_do_increments, n_dim]
-            increments_rel = distr_increments.sample()
-            # Get minimum increments
+            # Shape of increments: [n_do_increments, n_dim]
+            increments = distr_increments.sample()
+            # Compute absolute increments from sampled relative increments if state is
+            # not source
+            is_relative = ~is_source[do_increments]
             min_increments = torch.full_like(
-                increments_rel, self.min_incr, dtype=self.float, device=self.device
+                increments[is_relative],
+                self.min_incr,
+                dtype=self.float,
+                device=self.device,
             )
-            min_increments[is_source[do_increments]] = 0.0
-            # Compute absolute increments
-            states_from_do_increments = tfloat(
+            states_from_rel = tfloat(
                 states_from, float_type=self.float, device=self.device
-            )[do_increments]
-            increments_abs = self.relative_to_absolute_increments(
-                states_from_do_increments,
-                increments_rel,
+            )[is_relative]
+            increments[is_relative] = self.relative_to_absolute_increments(
+                states_from_rel,
+                increments[is_relative],
                 min_increments,
-                self.max_val,
                 is_backward=False,
             )
         # Build actions
@@ -705,7 +707,7 @@ class ContinuousCube(CubeBase):
             (n_states, self.n_dim), torch.inf, dtype=self.float, device=self.device
         )
         if torch.any(do_increments):
-            actions_tensor[do_increments] = increments_abs
+            actions_tensor[do_increments] = increments
         actions = [tuple(a.tolist()) for a in actions_tensor]
         return actions, None
 
@@ -771,20 +773,18 @@ class ContinuousCube(CubeBase):
                     policy_outputs[do_increments]
                 )
             # Shape of increments_rel: [n_do_increments, n_dim]
-            increments_rel = distr_increments.sample()
-            # Set minimum increments
+            increments = distr_increments.sample()
+            # Compute absolute increments from all sampled relative increments
             min_increments = torch.full_like(
-                increments_rel, self.min_incr, dtype=self.float, device=self.device
+                increments, self.min_incr, dtype=self.float, device=self.device
             )
-            # Compute absolute increments
-            states_from_do_increments = tfloat(
+            states_from_rel = tfloat(
                 states_from, float_type=self.float, device=self.device
             )[do_increments]
-            increments_abs = self.relative_to_absolute_increments(
-                states_from_do_increments,
-                increments_rel,
+            increments = self.relative_to_absolute_increments(
+                states_from_rel,
+                increments,
                 min_increments,
-                self.max_val,
                 is_backward=True,
             )
         # Build actions
@@ -793,7 +793,8 @@ class ContinuousCube(CubeBase):
         )
         actions_tensor[is_eos] = torch.inf
         if torch.any(do_increments):
-            actions_tensor[do_increments] = increments_abs
+            actions_tensor[do_increments] = increments
+        # TODO: Should BTS actions be special?
         if torch.any(is_bts):
             # BTS actions are equal to the originating states
             actions_bts = tfloat(
