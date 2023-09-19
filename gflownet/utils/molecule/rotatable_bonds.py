@@ -58,9 +58,7 @@ def get_rotatable_ta_list(mol):
     """
     torsion_pattern = "[*]~[!$(*#*)&!D1]-&!@[!$(*#*)&!D1]~[*]"
     substructures = Chem.MolFromSmarts(torsion_pattern)
-    torsion_angles = remove_duplicate_tas(
-        list(mol.GetSubstructMatches(substructures))
-    )
+    torsion_angles = remove_duplicate_tas(list(mol.GetSubstructMatches(substructures)))
     return torsion_angles
 
 
