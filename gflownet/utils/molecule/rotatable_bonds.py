@@ -26,6 +26,10 @@ def remove_duplicate_tas(tas_list):
         end = row[2]
         if not (begin, end) in considered and begin < end:
             duplicates = tas[np.logical_and(tas[:, 1] == begin, tas[:, 2] == end)]
+            duplicates_reversed = tas[np.logical_and(tas[:, 2] == begin, tas[:, 1] == end)]
+            duplicates_reversed = np.flip(duplicates_reversed, axis=1)
+            duplicates = np.concatenate([duplicates, duplicates_reversed], axis=0)
+            assert duplicates.shape[-1] == 4
             duplicates = duplicates[
                 np.where(duplicates[:, 0] == duplicates[:, 0].min())[0]
             ]
@@ -83,3 +87,20 @@ def find_rotor_from_smiles(smiles):
     mol = Chem.MolFromSmiles(smiles)
     mol = Chem.AddHs(mol)
     return get_rotatable_ta_list(mol)
+
+def is_hydrogen_ta(mol, ta):
+    """
+    Simple check whether the given torsion angle is 'hydrogen torsion angle', i.e.
+    it effectively influences only positions of some hydrogens in the molecule
+    """
+    def is_connected_to_three_hydrogens(mol, atom_id, except_id):
+        atom = mol.GetAtomWithIdx(atom_id)
+        neigh_numbers = []
+        for n in atom.GetNeighbors():
+            if n.GetIdx() != except_id:
+                neigh_numbers.append(n.GetAtomicNum())
+        neigh_numbers = np.array(neigh_numbers)
+        return np.all(neigh_numbers == 1)
+    first = is_connected_to_three_hydrogens(mol, ta[1], ta[2])
+    second = is_connected_to_three_hydrogens(mol, ta[2], ta[1])
+    return first or second
