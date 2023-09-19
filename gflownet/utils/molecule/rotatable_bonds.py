@@ -43,7 +43,6 @@ def get_rotatable_ta_list(mol):
 
     Torsion angle is considered rotatable if:
     - the bond (atom2, atom3) is a single bond,
-    - atom1 and atom4 are not hydrogens (ignore hydrogen torsion angles),
     - none of atom2 and atom3 are adjacent to a triple bond (as the bonds near the triple bonds must be fixed),
     - atom2 and atom3 are not in the same ring.
 
@@ -71,7 +70,6 @@ def find_rotor_from_smiles(smiles):
 
     Torsion angle is considered rotatable if:
     - the bond (atom2, atom3) is a single bond,
-    - atom1 and atom4 are not hydrogens (ignore hydrogen torsion angles),
     - none of atom2 and atom3 are adjacent to a triple bond (as the bonds near the triple bonds must be fixed),
     - atom2 and atom3 are not in the same ring.
 
@@ -83,4 +81,5 @@ def find_rotor_from_smiles(smiles):
     list of tuples: A list of unique torsion angle tuples corresponding to rotatable bonds in the molecule.
     """
     mol = Chem.MolFromSmiles(smiles)
+    mol = Chem.AddHs(mol)
     return get_rotatable_ta_list(mol)
