@@ -16,9 +16,9 @@ import sys
 
 import hydra
 import pandas as pd
-from omegaconf import OmegaConf
 
 from gflownet.utils.common import chdir_random_subdir
+from gflownet.utils.policy import parse_policy_config
 
 
 @hydra.main(config_path="./config", config_name="main", version_base="1.1")
@@ -52,15 +52,8 @@ def main(config):
         float_precision=config.float_precision,
     )
     # The policy is used to model the probability of a forward/backward action
-    forward_config = OmegaConf.create(config.policy)
-    forward_config["config"] = config.policy.forward
-    del forward_config.forward
-    del forward_config.backward
-
-    backward_config = OmegaConf.create(config.policy)
-    backward_config["config"] = config.policy.backward
-    del backward_config.forward
-    del backward_config.backward
+    forward_config = parse_policy_config(config, kind="forward")
+    backward_config = parse_policy_config(config, kind="backward")
 
     forward_policy = hydra.utils.instantiate(
         forward_config,
