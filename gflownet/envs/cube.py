@@ -18,7 +18,7 @@ from gflownet.envs.base import GFlowNetEnv
 from gflownet.utils.common import copy, tbool, tfloat
 
 
-class Cube(GFlowNetEnv, ABC):
+class CubeAbstract(GFlowNetEnv, ABC):
     """
     Base class for hyper-cube environments, continuous or hybrid versions of the
     hyper-grid in which the continuous increments are modelled by a (mixture of) Beta
@@ -250,7 +250,7 @@ class Cube(GFlowNetEnv, ABC):
         pass
 
 
-class ContinuousCube(Cube):
+class ContinuousCube(CubeAbstract):
     """
     Continuous hyper-cube environment (continuous version of a hyper-grid) in which the
     action space consists of the increment of each dimension d, modelled by a mixture
