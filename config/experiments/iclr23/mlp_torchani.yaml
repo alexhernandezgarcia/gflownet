@@ -28,9 +28,9 @@ gflownet:
   replay_sampling: weighted
   optimizer:
     batch_size:
-      forward: 90
+      forward: 80
       backward_dataset: 0
-      backward_replay: 10
+      backward_replay: 20
     lr: 0.0001
     z_dim: 16
     lr_z_mult: 1000
