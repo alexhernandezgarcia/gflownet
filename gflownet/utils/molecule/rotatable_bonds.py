@@ -1,23 +1,22 @@
-# inspired by https://pyxtal.readthedocs.io/en/latest/_modules/pyxtal/molecule.html.
-
-from operator import itemgetter
+# Inspired by https://pyxtal.readthedocs.io/en/latest/_modules/pyxtal/molecule.html.
 
 import numpy as np
 from rdkit import Chem
 
 
-def remove_duplicative_tas(tas_list):
+def remove_duplicate_tas(tas_list):
     """
-    Remove duplicative torsion angles from a list of torsion angle tuples.
+    Remove duplicate torsion angles from a list of torsion angle tuples.
 
     Args
     ----
-    tas_list (list of tuples): A list of torsion angle tuples, each containing four values:
-                               (atom1, atom2, atom3, atom4)
+    tas_list : list of tuples
+        A list of torsion angle tuples, each containing four values:
+        (atom1, atom2, atom3, atom4).
 
     Returns
     -------
-    list of tuples: A list of unique torsion angle tuples, where duplicative angles have been removed.
+    list of tuples: A list of unique torsion angle tuples, where duplicate angles have been removed.
     """
     tas = np.array(tas_list)
     clean_tas = []
@@ -38,19 +37,20 @@ def remove_duplicative_tas(tas_list):
 def get_rotatable_ta_list(mol):
     """
     Find unique rotatable torsion angles of a molecule. Torsion angle is given by a tuple of adjacent atoms'
-    indecies (atom1, atom2, atom3, atom4), where
-    - atom2 < atom3
-    - atom1 and atom4 are minimal among neighbours of atom2 and atom3 correspondingly
+    indices (atom1, atom2, atom3, atom4), where:
+    - atom2 < atom3,
+    - atom1 and atom4 are minimal among neighbours of atom2 and atom3 correspondingly.
 
     Torsion angle is considered rotatable if:
-    - the bond (atom2, atom3) is a single bond
-    - atom1 and atom4 are not hydrogens (ignore hydrogen torsion angles)
-    - none of atom2 and atom3 are adjacent to a triple bond (as the bonds near the triple bonds must be fixed)
-    - atom2 and atom3 are not in the same ring
+    - the bond (atom2, atom3) is a single bond,
+    - atom1 and atom4 are not hydrogens (ignore hydrogen torsion angles),
+    - none of atom2 and atom3 are adjacent to a triple bond (as the bonds near the triple bonds must be fixed),
+    - atom2 and atom3 are not in the same ring.
 
     Args
     ----
-    mol (RDKit Mol object): A molecule for which torsion angles need to be detected.
+    mol : RDKit Mol object
+        A molecule for which torsion angles need to be detected.
 
     Returns
     -------
@@ -58,30 +58,29 @@ def get_rotatable_ta_list(mol):
     """
     torsion_pattern = "[*]~[!$(*#*)&!D1]-&!@[!$(*#*)&!D1]~[*]"
     substructures = Chem.MolFromSmarts(torsion_pattern)
-    torsion_angles = remove_duplicative_tas(
-        list(mol.GetSubstructMatches(substructures))
-    )
+    torsion_angles = remove_duplicate_tas(list(mol.GetSubstructMatches(substructures)))
     return torsion_angles
 
 
-def find_rotor_from_smile(smile):
+def find_rotor_from_smiles(smiles):
     """
     Find unique rotatable torsion angles of a molecule. Torsion angle is given by a tuple of adjacent atoms'
-    indecies (atom1, atom2, atom3, atom4), where
-    - atom2 < atom3
-    - atom1 and atom4 are minimal among neighbours of atom2 and atom3 correspondingly
+    indices (atom1, atom2, atom3, atom4), where:
+    - atom2 < atom3,
+    - atom1 and atom4 are minimal among neighbours of atom2 and atom3 correspondingly.
 
     Torsion angle is considered rotatable if:
-    - the bond (atom2, atom3) is a single bond
-    - atom1 and atom4 are not hydrogens (ignore hydrogen torsion angles)
-    - none of atom2 and atom3 are adjacent to a triple bond (as the bonds near the triple bonds must be fixed)
-    - atom2 and atom3 are not in the same ring
+    - the bond (atom2, atom3) is a single bond,
+    - atom1 and atom4 are not hydrogens (ignore hydrogen torsion angles),
+    - none of atom2 and atom3 are adjacent to a triple bond (as the bonds near the triple bonds must be fixed),
+    - atom2 and atom3 are not in the same ring.
 
     Parameters:
-    smile (str): The SMILES string representing a molecule.
+    smiles : str
+        The SMILES string representing a molecule.
 
     Returns:
     list of tuples: A list of unique torsion angle tuples corresponding to rotatable bonds in the molecule.
     """
-    mol = Chem.MolFromSmiles(smile)
+    mol = Chem.MolFromSmiles(smiles)
     return get_rotatable_ta_list(mol)
