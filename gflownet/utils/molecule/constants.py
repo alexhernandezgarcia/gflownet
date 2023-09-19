@@ -18,6 +18,7 @@ bond_types = tuple(
     [
         Chem.rdchem.BondType.SINGLE,
         Chem.rdchem.BondType.DOUBLE,
+        Chem.rdchem.BondType.TRIPLE,
         Chem.rdchem.BondType.AROMATIC,
     ]
 )
