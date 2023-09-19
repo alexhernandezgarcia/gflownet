@@ -11,7 +11,7 @@ from gflownet.envs.ctorus import ContinuousTorus
 from gflownet.utils.molecule.constants import ad_atom_types
 from gflownet.utils.molecule.featurizer import MolDGLFeaturizer
 from gflownet.utils.molecule.rdkit_conformer import RDKitConformer
-from gflownet.utils.molecule.rotatable_bonds import find_rotor_from_smile
+from gflownet.utils.molecule.rotatable_bonds import find_rotor_from_smiles
 
 
 class Conformer(ContinuousTorus):
@@ -65,7 +65,7 @@ class Conformer(ContinuousTorus):
 
     @staticmethod
     def _get_torsion_angles(smiles: str, indices: List[int]) -> List[Tuple[int]]:
-        torsion_angles = find_rotor_from_smile(smiles)
+        torsion_angles = find_rotor_from_smiles(smiles)
         torsion_angles = [torsion_angles[i] for i in indices]
         return torsion_angles
 
