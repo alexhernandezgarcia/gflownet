@@ -257,7 +257,7 @@ class ContinuousCube(Cube):
     of Beta distributions. The state space is the value of each dimension. In order to
     ensure that all trajectories are of finite length, actions have a minimum increment
     for all dimensions determined by min_incr. If the value of any dimension is larger
-    than 1 - min_incr, then that dimension can be further incremented. In order to
+    than 1 - min_incr, then that dimension can't be further incremented. In order to
     ensure the coverage of the state space, the first action (from the source state) is
     not constrained by the minimum increment.
 
