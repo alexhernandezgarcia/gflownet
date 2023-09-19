@@ -6,6 +6,7 @@ import numpy as np
 from torch import Tensor
 
 from gflownet.proxy.base import Proxy
+from gflownet.utils.common import tfloat
 
 PICKLE_PATH = Path(__file__).parents[3] / "data" / "crystals" / "lattice_proxy.pkl"
 
@@ -22,7 +23,7 @@ class LatticeParameters(Proxy):
         scores = np.clip(scores, self.min_value, np.inf)
         scores = self.min_value - scores
 
-        return Tensor(scores)
+        return tfloat(scores, float_type=self.float, device=self.device)
 
     def setup(self, env=None):
         if not PICKLE_PATH.exists():
