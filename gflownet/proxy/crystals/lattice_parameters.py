@@ -7,7 +7,7 @@ from torch import Tensor
 
 from gflownet.proxy.base import Proxy
 
-PICKLE_PATH = Path(__file__).parents[3] / "data" / "crystals" / "lattice_proxy.pickle"
+PICKLE_PATH = Path(__file__).parents[3] / "data" / "crystals" / "lattice_proxy.pkl"
 
 
 class LatticeParameters(Proxy):
