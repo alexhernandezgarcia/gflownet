@@ -36,6 +36,8 @@ class Conformer(ContinuousTorus):
             # backward compatibility.
             if smiles == "CC(C(=O)NC)NC(=O)C" and n_torsion_angles == 2:
                 torsion_indices = [2, 1]
+            elif n_torsion_angles == -1:
+                torsion_indices = None
             else:
                 torsion_indices = list(range(n_torsion_angles))
 
@@ -82,9 +84,12 @@ class Conformer(ContinuousTorus):
         return mol.GetConformer().GetPositions()
 
     @staticmethod
-    def _get_torsion_angles(smiles: str, indices: List[int]) -> List[Tuple[int]]:
+    def _get_torsion_angles(
+        smiles: str, indices: Optional[List[int]]
+    ) -> List[Tuple[int]]:
         torsion_angles = find_rotor_from_smile(smiles)
-        torsion_angles = [torsion_angles[i] for i in indices]
+        if indices is not None:
+            torsion_angles = [torsion_angles[i] for i in indices]
         return torsion_angles
 
     def sync_conformer_with_state(self, state: List = None):
