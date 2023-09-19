@@ -18,32 +18,32 @@ from gflownet.envs.base import GFlowNetEnv
 from gflownet.utils.common import copy, tbool, tfloat
 
 
-class CubeAbstract(GFlowNetEnv, ABC):
+class CubeBase(GFlowNetEnv, ABC):
     """
     Base class for hyper-cube environments, continuous or hybrid versions of the
     hyper-grid in which the continuous increments are modelled by a (mixture of) Beta
     distribution(s).
 
-    The states space is the value of each dimension. If the value of a dimension gets
-    larger than max_val, then the trajectory is ended.
+    The states space is the value of each dimension, defined in the closed set [0, 1].
+    If the value of a dimension gets larger than max_val, then the trajectory is ended
+    (the only possible action is EOS).
 
     Attributes
     ----------
     n_dim : int
         Dimensionality of the hyper-cube.
 
-    max_val : float
-        Max length of the hyper-cube.
-
     min_incr : float
-        Minimum increment in the actions, expressed as the fraction of max_val. This is
-        necessary to ensure coverage of the state space.
+        Minimum increment in the actions, in (0, 1). This is necessary to ensure
+        that all trajectories have finite length.
+
+    n_comp : int
+        Number of components in the mixture of Beta distributions.
     """
 
     def __init__(
         self,
         n_dim: int = 2,
-        max_val: float = 1.0,
         min_incr: float = 0.1,
         n_comp: int = 1,
         beta_params_min: float = 0.1,
@@ -65,23 +65,18 @@ class CubeAbstract(GFlowNetEnv, ABC):
         **kwargs,
     ):
         assert n_dim > 0
-        assert max_val > 0.0
+        assert min_incr > 0.0
+        assert min_incr < 1.0
         assert n_comp > 0
         # Main properties
         self.n_dim = n_dim
-        self.eos = self.n_dim
-        self.max_val = max_val
-        self.min_incr = min_incr * self.max_val
+        self.min_incr = min_incr
         # Parameters of the policy distribution
         self.n_comp = n_comp
         self.beta_params_min = beta_params_min
         self.beta_params_max = beta_params_max
-        # Source state: position 0 at all dimensions
-        self.source = [0.0 for _ in range(self.n_dim)]
-        # Action from source: (n_dim, 0)
-        self.action_source = (self.n_dim, 0)
-        # End-of-sequence action: (n_dim + 1, 0)
-        self.eos = (self.n_dim + 1, 0)
+        # Source state is abstract - not included in the cube: -1 for all dimensions.
+        self.source = [-1 for _ in range(self.n_dim)]
         # Conversions: only conversions to policy are implemented and the rest are the
         # same
         self.state2proxy = self.state2policy
@@ -250,7 +245,7 @@ class CubeAbstract(GFlowNetEnv, ABC):
         pass
 
 
-class ContinuousCube(CubeAbstract):
+class ContinuousCube(CubeBase):
     """
     Continuous hyper-cube environment (continuous version of a hyper-grid) in which the
     action space consists of the increment of each dimension d, modelled by a mixture
@@ -273,12 +268,12 @@ class ContinuousCube(CubeAbstract):
     n_dim : int
         Dimensionality of the hyper-cube.
 
-    max_val : float
-        Max length of the hyper-cube.
-
     min_incr : float
-        Minimum increment in the actions, expressed as the fraction of max_val. This is
-        necessary to ensure that trajectories have finite length.
+        Minimum increment in the actions, in (0, 1). This is necessary to ensure
+        that all trajectories have finite length.
+
+    n_comp : int
+        Number of components in the mixture of Beta distributions.
     """
 
     def __init__(self, **kwargs):
