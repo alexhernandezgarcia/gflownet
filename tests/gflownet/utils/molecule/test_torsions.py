@@ -1,8 +1,13 @@
 import dgl
 import pytest
 import torch
+from rdkit import Chem
+from rdkit.Chem import AllChem
+from rdkit.Geometry.rdGeometry import Point3D
 
 from gflownet.utils.molecule import constants
+from gflownet.utils.molecule.featurizer import MolDGLFeaturizer
+from gflownet.utils.molecule.rdkit_conformer import get_torsion_angles_values
 from gflownet.utils.molecule.torsions import apply_rotations, get_rotation_masks
 
 
