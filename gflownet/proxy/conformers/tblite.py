@@ -1,10 +1,11 @@
 # This needs to be imported first due to conda/pip package conflicts.
+from tblite.interface import Calculator  # isort: skip
+
 import os
 from typing import List
 
 import torch
 from joblib import Parallel, delayed
-from tblite.interface import Calculator
 from torch import Tensor
 from wurlitzer import pipes
 
