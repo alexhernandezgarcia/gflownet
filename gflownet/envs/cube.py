@@ -288,11 +288,14 @@ class ContinuousCube(CubeBase):
 
         EOS is indicated by np.inf for all dimensions.
 
-        This method defines self.eos and the returned action space is simply a
-        representative (arbitrary) action with an increment of 0.0 in all dimensions,
-        and EOS.
+        BTS (back to source) is indicated by -1 for all dimensions.
+
+        This method defines self.eos, self.bts and the returned action space is simply
+        a representative (arbitrary) action with an increment of 0.0 in all dimensions,
+        EOS and BTS.
         """
         self.eos = tuple([np.inf] * self.n_dim)
+        self.bts = tuple([-1] * self.n_dim)
         self.representative_action = tuple([0.0] * self.n_dim)
         return [self.representative_action, self.eos]
 
@@ -508,7 +511,6 @@ class ContinuousCube(CubeBase):
     def relative_to_absolute_increments(
         states: TensorType["n_states", "n_dim"],
         increments_rel: TensorType["n_states", "n_dim"],
-        min_increments: TensorType["n_states", "n_dim"],
         is_backward: bool,
     ):
         """
@@ -526,21 +528,19 @@ class ContinuousCube(CubeBase):
 
         a = m + r * (x - m)
         """
-        max_val = torch.full_like(states, max_val)
+        min_increments = torch.full_like(
+            increments_rel, self.min_incr, dtype=self.float, device=self.device
+        )
         if is_backward:
-            increments_abs = min_increments + increments_rel * (states - min_increments)
+            return min_increments + increments_rel * (states - min_increments)
         else:
-            increments_abs = min_increments + increments_rel * (
-                1.0 - states - min_increments
-            )
-        return increments_abs
+            return min_increments + increments_rel * (1.0 - states - min_increments)
 
     # TODO: rethink if not necessary from source
     @staticmethod
     def absolute_to_relative_increments(
         states: TensorType["n_states", "n_dim"],
         increments_abs: TensorType["n_states", "n_dim"],
-        min_increments: TensorType["n_states", "n_dim"],
         is_backward: bool,
     ):
         """
@@ -558,16 +558,13 @@ class ContinuousCube(CubeBase):
 
         r = (a - m) / (x - m)
         """
-        max_val = torch.full_like(states, max_val)
+        min_increments = torch.full_like(
+            increments_abs, self.min_incr, dtype=self.float, device=self.device
+        )
         if is_backward:
-            increments_rel = (increments_abs - min_increments) / (
-                states - min_increments
-            )
+            return (increments_abs - min_increments) / (states - min_increments)
         else:
-            increments_rel = (increments_abs - min_increments) / (
-                1.0 - states - min_increments
-            )
-        return increments_rel
+            return (increments_abs - min_increments) / (1.0 - states - min_increments)
 
     def _make_increments_distribution(
         self,
@@ -656,6 +653,9 @@ class ContinuousCube(CubeBase):
         """
         # Initialize variables
         n_states = policy_outputs.shape[0]
+        states_from_tensor = tfloat(
+            states_from, float_type=self.float, device=self.device
+        )
         is_eos = torch.zeros(n_states, dtype=torch.bool, device=self.device)
         # Determine source states
         is_source = ~mask[:, 1]
@@ -687,19 +687,14 @@ class ContinuousCube(CubeBase):
             # Compute absolute increments from sampled relative increments if state is
             # not source
             is_relative = ~is_source[do_increments]
-            min_increments = torch.full_like(
-                increments[is_relative],
-                self.min_incr,
-                dtype=self.float,
-                device=self.device,
-            )
             states_from_rel = tfloat(
-                states_from, float_type=self.float, device=self.device
+                states_from_tensor[do_increments],
+                float_type=self.float,
+                device=self.device,
             )[is_relative]
             increments[is_relative] = self.relative_to_absolute_increments(
                 states_from_rel,
                 increments[is_relative],
-                min_increments,
                 is_backward=False,
             )
         # Build actions
@@ -775,32 +770,27 @@ class ContinuousCube(CubeBase):
             # Shape of increments_rel: [n_do_increments, n_dim]
             increments = distr_increments.sample()
             # Compute absolute increments from all sampled relative increments
-            min_increments = torch.full_like(
-                increments, self.min_incr, dtype=self.float, device=self.device
-            )
             states_from_rel = tfloat(
                 states_from, float_type=self.float, device=self.device
             )[do_increments]
             increments = self.relative_to_absolute_increments(
                 states_from_rel,
                 increments,
-                min_increments,
                 is_backward=True,
             )
         # Build actions
         actions_tensor = torch.zeros(
             (n_states, self.n_dim), dtype=self.float, device=self.device
         )
-        actions_tensor[is_eos] = torch.inf
+        actions_tensor[is_eos] = tfloat(
+            self.eos, float_type=self.float, device=self.device
+        )
         if torch.any(do_increments):
             actions_tensor[do_increments] = increments
-        # TODO: Should BTS actions be special?
         if torch.any(is_bts):
-            # BTS actions are equal to the originating states
-            actions_bts = tfloat(
-                states_from, float_type=self.float, device=self.device
-            )[is_bts]
-            actions_tensor[is_bts] = actions_bts
+            actions_tensor[is_bts] = tfloat(
+                self.bts, float_type=self.float, device=self.device
+            )
         actions = [tuple(a.tolist()) for a in actions_tensor]
         return actions, None
 
@@ -893,18 +883,25 @@ class ContinuousCube(CubeBase):
         do_increments = ~is_eos
         if torch.any(do_increments):
             # Get absolute increments
-            increments_abs = actions[do_increments]
-            # Get minimum increments
-            min_increments = torch.full_like(
-                increments_abs, self.min_incr, dtype=self.float, device=self.device
-            )
-            min_increments[is_source[do_increments]] = 0.0
-            # Get relative increments
-            increments_rel = self.absolute_to_relative_increments(
+            increments = actions[do_increments]
+            # Compute relative increments from absolute increments if state is not
+            # source
+            is_relative = ~is_source[do_increments]
+            states_from_rel = tfloat(
                 states_from_tensor[do_increments],
-                increments_abs,
-                min_increments,
-                self.max_val,
+                float_type=self.float,
+                device=self.device,
+            )[is_relative]
+            increments[is_relative] = self.absolute_to_relative_increments(
+                states_from_rel,
+                increments,
+                is_backward=False,
+            )
+            # Compute diagonal of the Jacobian (see _get_jacobian_diag()) if state is
+            # not source
+            is_relative = torch.logical_and(do_increments, ~is_source)
+            jacobian_diag[is_relative] = self._get_jacobian_diag(
+                states_from_rel,
                 is_backward=False,
             )
             # Get logprobs
@@ -913,14 +910,7 @@ class ContinuousCube(CubeBase):
             )
             # Clamp because increments of 0.0 or 1.0 would yield nan
             logprobs_increments_rel[do_increments] = distr_increments.log_prob(
-                torch.clamp(increments_rel, min=1e-6, max=(1 - 1e-6))
-            )
-            # Compute diagonal of the Jacobian (see _get_jacobian_diag())
-            jacobian_diag[do_increments] = self._get_jacobian_diag(
-                states_from_tensor[do_increments],
-                min_increments,
-                self.max_val,
-                is_backward=False,
+                torch.clamp(increments, min=1e-6, max=(1 - 1e-6))
             )
         # Get log determinant of the Jacobian
         log_det_jacobian = torch.sum(torch.log(jacobian_diag), dim=1)
@@ -952,6 +942,7 @@ class ContinuousCube(CubeBase):
         jacobian_diag = torch.ones(
             (n_states, self.n_dim), device=self.device, dtype=self.float
         )
+        bts_tensor = tfloat(self.bts, float_type=self.float, device=self.device)
         # EOS is the only possible action only if done is True (mask[2] is False)
         is_eos = ~mask[:, 2]
         # Back-to-source (BTS) is the only possible action if mask[1] is False
@@ -960,11 +951,8 @@ class ContinuousCube(CubeBase):
         # Get sampled BTS actions and get log probs from Bernoulli distribution
         do_bts = torch.logical_and(~is_bts_forced, ~is_eos)
         if torch.any(do_bts):
-            # BTS actions are equal to the originating states
             is_bts_sampled = torch.zeros_like(do_bts)
-            is_bts_sampled[do_bts] = torch.all(
-                actions[do_bts] == states_from_tensor[do_bts], dim=1
-            )
+            is_bts_sampled[do_bts] = torch.all(actions[do_bts] == bts_tensor)
             is_bts[is_bts_sampled] = True
             logits_bts = self._get_policy_source_logit(policy_outputs)[do_bts]
             distr_bts = Bernoulli(logits=logits_bts)
@@ -975,16 +963,16 @@ class ContinuousCube(CubeBase):
         do_increments = torch.logical_and(~is_bts, ~is_eos)
         if torch.any(do_increments):
             # Get absolute increments
-            increments_abs = actions[do_increments]
-            min_increments = torch.full_like(
-                increments_abs, self.min_incr, dtype=self.float, device=self.device
-            )
-            # Get relative increments
-            increments_rel = self.absolute_to_relative_increments(
+            increments = actions[do_increments]
+            # Compute absolute increments from all sampled relative increments
+            increments = self.absolute_to_relative_increments(
                 states_from_tensor[do_increments],
-                increments_abs,
-                min_increments,
-                self.max_val,
+                increments,
+                is_backward=True,
+            )
+            # Compute diagonal of the Jacobian (see _get_jacobian_diag())
+            jacobian_diag[do_increments] = self._get_jacobian_diag(
+                states_from_tensor[do_increments],
                 is_backward=True,
             )
             # Get logprobs
@@ -993,14 +981,7 @@ class ContinuousCube(CubeBase):
             )
             # Clamp because increments of 0.0 or 1.0 would yield nan
             logprobs_increments_rel[do_increments] = distr_increments.log_prob(
-                torch.clamp(increments_rel, min=1e-6, max=(1 - 1e-6))
-            )
-            # Compute diagonal of the Jacobian (see _get_jacobian_diag())
-            jacobian_diag[do_increments] = self._get_jacobian_diag(
-                states_from_tensor[do_increments],
-                min_increments,
-                self.max_val,
-                is_backward=True,
+                torch.clamp(increments, min=1e-6, max=(1 - 1e-6))
             )
         # Get log determinant of the Jacobian
         log_det_jacobian = torch.sum(torch.log(jacobian_diag), dim=1)
@@ -1014,7 +995,6 @@ class ContinuousCube(CubeBase):
     @staticmethod
     def _get_jacobian_diag(
         states_from: TensorType["n_states", "n_dim"],
-        min_increments: TensorType["n_states", "n_dim"],
         max_val: float,
         is_backward: bool,
     ):
@@ -1048,12 +1028,13 @@ class ContinuousCube(CubeBase):
         other than itself are zero. Therefore, the Jacobian is diagonal and the
         determinant is the product of the diagonal.
         """
-        epsilon = 1e-9
-        max_val = torch.full_like(states_from, max_val)
+        min_increments = torch.full_like(
+            states_from, self.min_incr, dtype=self.float, device=self.device
+        )
         if is_backward:
-            return 1.0 / ((states_from - min_increments) + epsilon)
+            return 1.0 / ((states_from - min_increments))
         else:
-            return 1.0 / ((max_val - states_from - min_increments) + epsilon)
+            return 1.0 / ((1.0 - states_from - min_increments))
 
     def _step(
         self,
