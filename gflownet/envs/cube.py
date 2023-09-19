@@ -254,7 +254,7 @@ class ContinuousCube(Cube):
     """
     Continuous hyper-cube environment (continuous version of a hyper-grid) in which the
     action space consists of the increment of each dimension d, modelled by a mixture
-    of Beta distributions. The states space is the value of each dimension. In order to
+    of Beta distributions. The state space is the value of each dimension. In order to
     ensure that all trajectories are of finite length, actions have a minimum increment
     for all dimensions determined by min_incr. If the value of any dimension is larger
     than 1 - min_incr, then that dimension can be further incremented. In order to
