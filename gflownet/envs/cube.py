@@ -1071,11 +1071,9 @@ class ContinuousCube(CubeBase):
             if backward:
                 self.state[dim] -= incr
             else:
+                if self.state == self.source:
+                    self.state = [0.0 for _ in range(self.n_dim)]
                 self.state[dim] += incr
-        # If state is close enough to source, set source to avoid escaping comparison
-        # to source.
-        if self.isclose(self.state, self.source, atol=1e-6):
-            self.state = copy(self.source)
         if not all([s <= (1.0 + epsilon) for s in self.state]):
             import ipdb
 
@@ -1167,12 +1165,15 @@ class ContinuousCube(CubeBase):
             self.done = False
             self.n_actions += 1
             return self.state, action, True
-        # Otherwise perform action
-        else:
-            assert action != self.eos
+        if action == self.bts:
+            self.state = self.source
             self.n_actions += 1
-            self._step(action, backward=True)
             return self.state, action, True
+        # Otherwise perform action
+        assert action != self.eos
+        self.n_actions += 1
+        self._step(action, backward=True)
+        return self.state, action, True
 
     def get_grid_terminating_states(self, n_states: int) -> List[List]:
         n_per_dim = int(np.ceil(n_states ** (1 / self.n_dim)))
