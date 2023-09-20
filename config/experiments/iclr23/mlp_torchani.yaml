@@ -1,0 +1,57 @@
+# @package _global_
+
+defaults:
+   - override /env: conformers/conformer
+   - override /gflownet: trajectorybalance
+   - override /policy: conformers/mlp
+   - override /proxy: conformers/torchani
+   - override /logger: wandb
+
+# Environment
+env:
+  smiles: Cc1ccc(cc1Nc2nccc(n2)c3cccnc3)NC(=O)c4ccc(cc4)CN5CCN(CC5)C
+  n_torsion_angles: 5
+  length_traj: 5
+  policy_encoding_dim_per_angle: 10
+  policy_type: mlp
+  n_comp: 5
+  vonmises_min_concentration: 4
+  reward_func: boltzmann
+  reward_beta: 32
+  reward_sampling_method: nested
+  buffer:
+    replay_capacity: 1000
+
+# GFlowNet hyperparameters
+gflownet:
+  random_action_prob: 0.1
+  replay_sampling: weighted
+  optimizer:
+    batch_size:
+      forward: 80
+      backward_dataset: 0
+      backward_replay: 20
+    lr: 0.0001
+    z_dim: 16
+    lr_z_mult: 1000
+    n_train_steps: 40000
+    lr_decay_period: 1000000
+
+# WandB
+logger:
+  lightweight: True
+  project_name: "gflownet"
+  tags:
+    - gflownet
+    - continuous
+    - molecule
+  test:
+    period: 2000
+    n: 10000
+  checkpoints:
+    period: 2000
+
+# Hydra
+hydra:
+  run:
+    dir: ${user.logdir.root}/molecule/${now:%Y-%m-%d_%H-%M-%S}

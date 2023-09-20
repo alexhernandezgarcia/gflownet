@@ -13,14 +13,13 @@ from typing import Iterable
 import numpy as np
 import numpy.typing as npt
 import torch
-from joblib import delayed, Parallel
+from joblib import Parallel, delayed
 from torch import Tensor
 from wurlitzer import pipes
 
 from gflownet.proxy.conformers.base import MoleculeEnergyBase
 from gflownet.proxy.conformers.tblite import _chunks
 from gflownet.utils.molecule.xtb_cli import run_gfn_xtb
-
 
 METHODS = {"gfn2": "gfn 2", "gfnff": "gfnff"}
 

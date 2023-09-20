@@ -1,8 +1,10 @@
 import copy
 from typing import List, Optional, Tuple
 
+import dgl
 import numpy as np
 import numpy.typing as npt
+import torch
 from rdkit import Chem
 from rdkit.Chem import AllChem
 from torchtyping import TensorType
@@ -11,7 +13,7 @@ from gflownet.envs.ctorus import ContinuousTorus
 from gflownet.utils.molecule.constants import ad_atom_types
 from gflownet.utils.molecule.featurizer import MolDGLFeaturizer
 from gflownet.utils.molecule.rdkit_conformer import RDKitConformer
-from gflownet.utils.molecule.rotatable_bonds import find_rotor_from_smile
+from gflownet.utils.molecule.rotatable_bonds import find_rotor_from_smiles
 
 
 class Conformer(ContinuousTorus):
@@ -26,6 +28,7 @@ class Conformer(ContinuousTorus):
         n_torsion_angles: Optional[int] = 2,
         torsion_indices: Optional[List[int]] = None,
         policy_type: str = "mlp",
+        remove_hs: bool = True,
         **kwargs,
     ):
         if torsion_indices is None:
@@ -33,6 +36,8 @@ class Conformer(ContinuousTorus):
             # backward compatibility.
             if smiles == "CC(C(=O)NC)NC(=O)C" and n_torsion_angles == 2:
                 torsion_indices = [2, 1]
+            elif n_torsion_angles == -1:
+                torsion_indices = None
             else:
                 torsion_indices = list(range(n_torsion_angles))
 
@@ -50,11 +55,26 @@ class Conformer(ContinuousTorus):
                 f"Unrecognized policy_type = {policy_type}, expected either 'mlp' or 'gnn'."
             )
 
+        self.graph = MolDGLFeaturizer(ad_atom_types).mol2dgl(self.conformer.rdk_mol)
+        # TODO: use DGL conformer instead
+        rotatable_edges = [ta[1:3] for ta in torsion_angles]
+        for i in range(self.graph.num_edges()):
+            if (
+                self.graph.edges()[0][i].item(),
+                self.graph.edges()[1][i].item(),
+            ) not in rotatable_edges:
+                self.graph.edata["rotatable_edges"][i] = False
+
+        # Hydrogen removal
+        self.remove_hs = remove_hs
+        self.hs = torch.where(self.graph.ndata["atom_features"][:, 0] == 1)[0]
+        self.non_hs = torch.where(self.graph.ndata["atom_features"][:, 0] != 1)[0]
+        if remove_hs:
+            self.graph = dgl.remove_nodes(self.graph, self.hs)
+
         super().__init__(n_dim=len(self.conformer.freely_rotatable_tas), **kwargs)
 
         self.sync_conformer_with_state()
-
-        self.graph = MolDGLFeaturizer(ad_atom_types).mol2dgl(self.conformer.rdk_mol)
 
     @staticmethod
     def _get_positions(smiles: str) -> npt.NDArray:
@@ -64,9 +84,12 @@ class Conformer(ContinuousTorus):
         return mol.GetConformer().GetPositions()
 
     @staticmethod
-    def _get_torsion_angles(smiles: str, indices: List[int]) -> List[Tuple[int]]:
-        torsion_angles = find_rotor_from_smile(smiles)
-        torsion_angles = [torsion_angles[i] for i in indices]
+    def _get_torsion_angles(
+        smiles: str, indices: Optional[List[int]]
+    ) -> List[Tuple[int]]:
+        torsion_angles = find_rotor_from_smiles(smiles)
+        if indices is not None:
+            torsion_angles = [torsion_angles[i] for i in indices]
         return torsion_angles
 
     def sync_conformer_with_state(self, state: List = None):
@@ -109,6 +132,8 @@ class Conformer(ContinuousTorus):
         for state in states:
             conformer = self.sync_conformer_with_state(state)
             positions = conformer.get_atom_positions()
+            if self.remove_hs:
+                positions = positions[self.non_hs]
             policy_input.append(
                 np.concatenate(
                     [positions, np.full((positions.shape[0], 1), state[-1])],

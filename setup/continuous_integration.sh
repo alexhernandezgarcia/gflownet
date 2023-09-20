@@ -8,5 +8,6 @@ python -m pip install torch-scatter torch-geometric -f https://data.pyg.org/whl/
 python -m pip install numpy pandas hydra-core tqdm torchtyping scikit-learn
 # Conditional requirements to run
 python -m pip install wandb matplotlib plotly pymatgen pyxtal torchani rdkit
+python -m pip install dgl -f https://data.dgl.ai/wheels/cu117/repo.html
 # Test and code formatting packages
 python -m pip install black isort pytest pytest-repeat

@@ -1,65 +1,86 @@
-# Taken from https://pyxtal.readthedocs.io/en/latest/_modules/pyxtal/molecule.html.
+# Inspired by https://pyxtal.readthedocs.io/en/latest/_modules/pyxtal/molecule.html.
 
-from operator import itemgetter
+import numpy as np
+from rdkit import Chem
 
 
-def find_rotor_from_smile(smile):
+def remove_duplicate_tas(tas_list):
     """
-    Find the positions of rotatable bonds in the molecule.
+    Remove duplicate torsion angles from a list of torsion angle tuples.
+
+    Args
+    ----
+    tas_list : list of tuples
+        A list of torsion angle tuples, each containing four values:
+        (atom1, atom2, atom3, atom4).
+
+    Returns
+    -------
+    list of tuples: A list of unique torsion angle tuples, where duplicate angles have been removed.
     """
+    tas = np.array(tas_list)
+    clean_tas = []
+    considered = []
+    for row in tas:
+        begin = row[1]
+        end = row[2]
+        if not (begin, end) in considered and begin < end:
+            duplicates = tas[np.logical_and(tas[:, 1] == begin, tas[:, 2] == end)]
+            duplicates = duplicates[
+                np.where(duplicates[:, 0] == duplicates[:, 0].min())[0]
+            ]
+            clean_tas.append(duplicates[np.argmin(duplicates[:, 3])].tolist())
+            considered.append((begin, end))
+    return clean_tas
 
-    def cleaner(list_to_clean, neighbors):
-        """
-        Remove duplicate torsion from a list of atom index tuples.
-        """
 
-        for_remove = []
-        for x in reversed(range(len(list_to_clean))):
-            ix0 = itemgetter(0)(list_to_clean[x])
-            ix3 = itemgetter(3)(list_to_clean[x])
-            # for i-j-k-l, we don't want i, l are the ending members
-            # here C-C-S=O is not a good choice since O is only 1-coordinated
-            if neighbors[ix0] > 1 and neighbors[ix3] > 1:
-                for y in reversed(range(x)):
-                    ix1 = itemgetter(1)(list_to_clean[x])
-                    ix2 = itemgetter(2)(list_to_clean[x])
-                    iy1 = itemgetter(1)(list_to_clean[y])
-                    iy2 = itemgetter(2)(list_to_clean[y])
-                    if [ix1, ix2] == [iy1, iy2] or [ix1, ix2] == [iy2, iy1]:
-                        for_remove.append(y)
-            else:
-                for_remove.append(x)
-        clean_list = []
-        for i, v in enumerate(list_to_clean):
-            if i not in set(for_remove):
-                clean_list.append(v)
-        return clean_list
+def get_rotatable_ta_list(mol):
+    """
+    Find unique rotatable torsion angles of a molecule. Torsion angle is given by a tuple of adjacent atoms'
+    indices (atom1, atom2, atom3, atom4), where:
+    - atom2 < atom3,
+    - atom1 and atom4 are minimal among neighbours of atom2 and atom3 correspondingly.
 
-    if smile in ["Cl-", "F-", "Br-", "I-", "Li+", "Na+"]:
-        return []
-    else:
-        from rdkit import Chem
+    Torsion angle is considered rotatable if:
+    - the bond (atom2, atom3) is a single bond,
+    - atom1 and atom4 are not hydrogens (ignore hydrogen torsion angles),
+    - none of atom2 and atom3 are adjacent to a triple bond (as the bonds near the triple bonds must be fixed),
+    - atom2 and atom3 are not in the same ring.
 
-        smarts_torsion1 = "[*]~[!$(*#*)&!D1]-&!@[!$(*#*)&!D1]~[*]"
-        smarts_torsion2 = "[*]~[^2]=[^2]~[*]"  # C=C bonds
-        # smarts_torsion2="[*]~[^1]#[^1]~[*]" # C-C triples bonds, to be fixed
+    Args
+    ----
+    mol : RDKit Mol object
+        A molecule for which torsion angles need to be detected.
 
-        mol = Chem.MolFromSmiles(smile)
-        N_atom = mol.GetNumAtoms()
-        neighbors = [len(a.GetNeighbors()) for a in mol.GetAtoms()]
-        # make sure that the ending members will be counted
-        neighbors[0] += 1
-        neighbors[-1] += 1
-        patn_tor1 = Chem.MolFromSmarts(smarts_torsion1)
-        torsion1 = cleaner(list(mol.GetSubstructMatches(patn_tor1)), neighbors)
-        patn_tor2 = Chem.MolFromSmarts(smarts_torsion2)
-        torsion2 = cleaner(list(mol.GetSubstructMatches(patn_tor2)), neighbors)
-        tmp = cleaner(torsion1 + torsion2, neighbors)
-        torsions = []
-        for t in tmp:
-            (i, j, k, l) = t
-            b = mol.GetBondBetweenAtoms(j, k)
-            if not b.IsInRing():
-                torsions.append(t)
-        # if len(torsions) > 6: torsions[1] = (4, 7, 10, 15)
-        return torsions
+    Returns
+    -------
+    list of tuples: A list of unique torsion angle tuples corresponding to rotatable bonds in the molecule.
+    """
+    torsion_pattern = "[*]~[!$(*#*)&!D1]-&!@[!$(*#*)&!D1]~[*]"
+    substructures = Chem.MolFromSmarts(torsion_pattern)
+    torsion_angles = remove_duplicate_tas(list(mol.GetSubstructMatches(substructures)))
+    return torsion_angles
+
+
+def find_rotor_from_smiles(smiles):
+    """
+    Find unique rotatable torsion angles of a molecule. Torsion angle is given by a tuple of adjacent atoms'
+    indices (atom1, atom2, atom3, atom4), where:
+    - atom2 < atom3,
+    - atom1 and atom4 are minimal among neighbours of atom2 and atom3 correspondingly.
+
+    Torsion angle is considered rotatable if:
+    - the bond (atom2, atom3) is a single bond,
+    - atom1 and atom4 are not hydrogens (ignore hydrogen torsion angles),
+    - none of atom2 and atom3 are adjacent to a triple bond (as the bonds near the triple bonds must be fixed),
+    - atom2 and atom3 are not in the same ring.
+
+    Parameters:
+    smiles : str
+        The SMILES string representing a molecule.
+
+    Returns:
+    list of tuples: A list of unique torsion angle tuples corresponding to rotatable bonds in the molecule.
+    """
+    mol = Chem.MolFromSmiles(smiles)
+    return get_rotatable_ta_list(mol)
