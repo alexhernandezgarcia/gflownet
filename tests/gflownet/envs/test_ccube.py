@@ -899,17 +899,14 @@ def test__get_logprobs_backward__2d__as_expected(cube2d, states, actions):
     masks = tbool(
         [env.get_mask_invalid_actions_backward(s) for s in states], device=env.device
     )
-    # Get EOS forced
-    is_near_edge = states_torch > 1.0 - env.min_incr
-    is_eos_forced = torch.any(is_near_edge, dim=1)
-    # Define Bernoulli parameter for EOS
+    # Define Bernoulli parameter for BTS
     # If Bernouilli has logit torch.inf, the logprobs are nan
-    logit_eos = 1
-    distr_eos = Bernoulli(logits=logit_eos)
-    logprob_eos = distr_eos.log_prob(torch.tensor(1.0))
+    logit_bts = 1
+    distr_bts = Bernoulli(logits=logit_bts)
+    logprob_bts = distr_bts.log_prob(torch.tensor(1.0))
     # Build policy outputs
     params = env.fixed_distr_params
-    params["bernoulli_eos_logit"] = logit_eos
+    params["bernoulli_source_logit"] = logit_bts
     policy_outputs = torch.tile(env.get_policy_output(params), dims=(n_states, 1))
     # Get log probs
     logprobs = env.get_logprobs(
