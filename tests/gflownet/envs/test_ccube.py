@@ -848,6 +848,43 @@ def test__get_logprobs_forward__2d__finite(cube2d, states, actions):
     "states, actions",
     [
         (
+            [[0.2, 0.2], [0.5, 0.5], [0.7, 0.7]],
+            [[0.5, 0.5], [0.5, 0.5], [0.5, 0.5]],
+        ),
+    ],
+)
+def test__get_logprobs_forward__2d__as_expected(cube2d, states, actions):
+    env = cube2d
+    n_states = len(states)
+    states_torch = tfloat(states, float_type=env.float, device=env.device)
+    actions = tfloat(actions, float_type=env.float, device=env.device)
+    # Get masks
+    masks = tbool(
+        [env.get_mask_invalid_actions_forward(s) for s in states], device=env.device
+    )
+    # Get EOS forced
+    is_near_edge = states_torch > 1.0 - env.min_incr
+    is_eos_forced = torch.any(is_near_edge, dim=1)
+    # Define Bernoulli parameter for EOS
+    # If Bernouilli has logit torch.inf, the logprobs are nan
+    logit_eos = 1
+    distr_eos = Bernoulli(logits=logit_eos)
+    logprob_eos = distr_eos.log_prob(torch.tensor(1.0))
+    # Build policy outputs
+    params = env.fixed_distr_params
+    params["bernoulli_eos_logit"] = logit_eos
+    policy_outputs = torch.tile(env.get_policy_output(params), dims=(n_states, 1))
+    # Get log probs
+    logprobs = env.get_logprobs(
+        policy_outputs, actions, masks, states_torch, is_backward=False
+    )
+    assert True
+
+
+@pytest.mark.parametrize(
+    "states, actions",
+    [
+        (
             [[0.02, 0.01], [0.01, 0.2], [0.3, 0.01]],
             [[-1, -1], [-1, -1], [-1, -1]],
         ),
