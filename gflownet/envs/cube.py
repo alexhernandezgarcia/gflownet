@@ -1236,18 +1236,47 @@ class ContinuousCube(CubeBase):
     def get_grid_terminating_states(
         self, n_states: int, epsilon: float = 1e-3
     ) -> List[List]:
+        """
+        Constructs a grid of terminating states within the range of the hyper-cube.
+
+        Args
+        ----
+        n_states : int
+            Requested number of states. The actual number of states will be rounded up
+            such that all dimensions have the same number of states.
+
+        epsilon : float
+            Small constant indicating the distance to the theoretical limits of the
+            cube [0, 1], in order to avoid innacuracies in the computation of the log
+            probabilities due to clamping. The grid will thus be in [epsilon, 1 -
+            epsilon]
+        """
         n_per_dim = int(np.ceil(n_states ** (1 / self.n_dim)))
         linspaces = [
             np.linspace(epsilon, 1.0 - epsilon, n_per_dim) for _ in range(self.n_dim)
         ]
         states = list(itertools.product(*linspaces))
-        # TODO: check if necessary
         states = [list(el) for el in states]
         return states
 
     def get_uniform_terminating_states(
         self, n_states: int, seed: int = None, epsilon: float = 1e-3
     ) -> List[List]:
+        """
+        Constructs a set of terminating states sampled uniformly within the range of
+        the hyper-cube.
+
+        Args
+        ----
+        n_states : int
+            Number of states in the returned list.
+
+        epsilon : float
+            Small constant indicating the distance to the theoretical limits of the
+            cube [0, 1], in order to avoid innacuracies in the computation of the log
+            probabilities due to clamping. The states will thus be uniformly sampled in
+            [epsilon, 1 - epsilon]
+        """
         rng = np.random.default_rng(seed)
         states = rng.uniform(
             low=epsilon, high=1.0 - epsilon, size=(n_states, self.n_dim)
