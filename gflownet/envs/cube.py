@@ -77,6 +77,8 @@ class CubeBase(GFlowNetEnv, ABC):
         self.beta_params_max = beta_params_max
         # Source state is abstract - not included in the cube: -1 for all dimensions.
         self.source = [-1 for _ in range(self.n_dim)]
+        # Small constant to clamp the inputs to the beta distribution
+        self.epsilon = 1e-6
         # Conversions: only conversions to policy are implemented and the rest are the
         # same
         self.state2proxy = self.state2policy
@@ -567,6 +569,43 @@ class ContinuousCube(CubeBase):
         else:
             return (increments_abs - min_increments) / (1.0 - states - min_increments)
 
+    @staticmethod
+    def _get_beta_params_from_mean_variance(
+        mean: TensorType["n_states", "n_dim_x_n_comp"],
+        variance: TensorType["n_states", "n_dim_x_n_comp"],
+    ) -> Tuple[
+        TensorType["n_states", "n_dim_x_n_comp"],
+        TensorType["n_states", "n_dim_x_n_comp"],
+    ]:
+        """
+        Calculates the alpha and beta parameters of a Beta distribution from the mean
+        and variance.
+
+        The method operates on tensors containing a batch of means and variances.
+
+        Args
+        ----
+        mean : tensor
+            A batch of means.
+
+        variance : tensor
+            A batch of variances.
+
+        Returns
+        -------
+        alpha : tensor
+            The alpha parameters for the Beta distributions as a function of the mean
+            and variances.
+
+        beta : tensor
+            The beta parameters for the Beta distributions as a function of the mean
+            and variances.
+        """
+        one_minus_mean = 1.0 - mean
+        beta = one_minus_mean * (mean * one_minus_mean - variance) / variance
+        alpha = (mean * beta) / one_minus_mean
+        return alpha, beta
+
     def _make_increments_distribution(
         self,
         policy_outputs: TensorType["n_states", "policy_output_dim"],
@@ -888,30 +927,32 @@ class ContinuousCube(CubeBase):
             # Compute relative increments from absolute increments if state is not
             # source
             is_relative = ~is_source[do_increments]
-            states_from_rel = tfloat(
-                states_from_tensor[do_increments],
-                float_type=self.float,
-                device=self.device,
-            )[is_relative]
-            increments[is_relative] = self.absolute_to_relative_increments(
-                states_from_rel,
-                increments,
-                is_backward=False,
-            )
+            if torch.any(is_relative):
+                states_from_rel = tfloat(
+                    states_from_tensor[do_increments],
+                    float_type=self.float,
+                    device=self.device,
+                )[is_relative]
+                increments[is_relative] = self.absolute_to_relative_increments(
+                    states_from_rel,
+                    increments[is_relative],
+                    is_backward=False,
+                )
             # Compute diagonal of the Jacobian (see _get_jacobian_diag()) if state is
             # not source
             is_relative = torch.logical_and(do_increments, ~is_source)
-            jacobian_diag[is_relative] = self._get_jacobian_diag(
-                states_from_rel,
-                is_backward=False,
-            )
+            if torch.any(is_relative):
+                jacobian_diag[is_relative] = self._get_jacobian_diag(
+                    states_from_rel,
+                    is_backward=False,
+                )
             # Get logprobs
             distr_increments = self._make_increments_distribution(
                 policy_outputs[do_increments]
             )
             # Clamp because increments of 0.0 or 1.0 would yield nan
             logprobs_increments_rel[do_increments] = distr_increments.log_prob(
-                torch.clamp(increments, min=1e-6, max=(1 - 1e-6))
+                torch.clamp(increments, min=self.epsilon, max=(1 - self.epsilon))
             )
         # Get log determinant of the Jacobian
         log_det_jacobian = torch.sum(torch.log(jacobian_diag), dim=1)
@@ -953,7 +994,7 @@ class ContinuousCube(CubeBase):
         do_bts = torch.logical_and(~is_bts_forced, ~is_eos)
         if torch.any(do_bts):
             is_bts_sampled = torch.zeros_like(do_bts)
-            is_bts_sampled[do_bts] = torch.all(actions[do_bts] == bts_tensor)
+            is_bts_sampled[do_bts] = torch.all(actions[do_bts] == bts_tensor, dim=1)
             is_bts[is_bts_sampled] = True
             logits_bts = self._get_policy_source_logit(policy_outputs)[do_bts]
             distr_bts = Bernoulli(logits=logits_bts)
@@ -982,7 +1023,7 @@ class ContinuousCube(CubeBase):
             )
             # Clamp because increments of 0.0 or 1.0 would yield nan
             logprobs_increments_rel[do_increments] = distr_increments.log_prob(
-                torch.clamp(increments, min=1e-6, max=(1 - 1e-6))
+                torch.clamp(increments, min=self.epsilon, max=(1 - self.epsilon))
             )
         # Get log determinant of the Jacobian
         log_det_jacobian = torch.sum(torch.log(jacobian_diag), dim=1)
