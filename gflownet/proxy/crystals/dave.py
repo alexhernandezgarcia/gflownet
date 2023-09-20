@@ -6,6 +6,13 @@ from torchtyping import TensorType
 
 from gflownet.proxy.base import Proxy
 
+REPO_URL = "https://github.com/sh-divya/ActiveLearningMaterials.git"
+"""
+URL to the proxy's code repository. It is used to provide a link to the
+appropriate release link in case of version mismatch between requested
+and installed ``dave`` release.
+"""
+
 
 class DAVE(Proxy):
     def __init__(self, ckpt_path=None, release=None, rescale_outputs=True, **kwargs):
@@ -40,7 +47,7 @@ class DAVE(Proxy):
         print("Initializing DAVE proxy:")
         print("  Checking out release:", release)
 
-        pip_url = f"https://github.com/sh-divya/ActiveLearningMaterials.git@{release}"
+        pip_url = f"${REPO_URL}@{release}"
 
         try:
             dave_version = version("dave")
