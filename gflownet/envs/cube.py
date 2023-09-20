@@ -1120,7 +1120,6 @@ class ContinuousCube(CubeBase):
             False, if the action is not allowed for the current state, e.g. stop at the
             root state
         """
-        epsilon = 1e-9
         # If forward action is from source, initialize state to all zeros.
         if not backward and action[-1] == 1:
             self.state = [0.0 for _ in range(self.n_dim)]
@@ -1134,31 +1133,23 @@ class ContinuousCube(CubeBase):
         if backward and action[-1] == 1:
             self.state = self.source
 
-        # TODO: remove when always correct
+        # Check that state is within bounds
         if self.state != self.source:
-            if not all([s <= (1.0 + epsilon) for s in self.state]):
-                import ipdb
-
-                ipdb.set_trace()
             assert all(
-                [s <= (1.0 + epsilon) for s in self.state]
+                [s <= 1.0 for s in self.state]
             ), f"""
             State is out of cube bounds.
             \nState:\n{self.state}\nAction:\n{action}\nIncrement: {incr}
             """
-            if not all([s >= (0.0 - epsilon) for s in self.state]):
-                import ipdb
-
-                ipdb.set_trace()
             assert all(
-                [s >= (0.0 - epsilon) for s in self.state]
+                [s >= 0.0 for s in self.state]
             ), f"""
             State is out of cube bounds.
             \nState:\n{self.state}\nAction:\n{action}\nIncrement: {incr}
             """
         return self.state, action, True
 
-    # TODO: make generic for continuous environments
+    # TODO: make generic for continuous environments?
     def step(self, action: Tuple[float]) -> Tuple[List[float], Tuple[int, float], bool]:
         """
         Executes step given an action. An action is the absolute increment of each
@@ -1195,7 +1186,7 @@ class ContinuousCube(CubeBase):
             self._step(action, backward=False)
             return self.state, action, True
 
-    # TODO: make generic for continuous environments
+    # TODO: make generic for continuous environments?
     def step_backwards(
         self, action: Tuple[int, float]
     ) -> Tuple[List[float], Tuple[int, float], bool]:

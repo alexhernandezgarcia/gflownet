@@ -853,7 +853,6 @@ def test__get_logprobs_forward__2d__finite(cube2d, states, actions):
     assert torch.all(torch.isfinite(logprobs))
 
 
-# TODO: improve or remove
 @pytest.mark.parametrize(
     "states, actions",
     [
@@ -869,7 +868,7 @@ def test__get_logprobs_forward__2d__finite(cube2d, states, actions):
         ),
     ],
 )
-def test__get_logprobs_forward__2d__as_expected(cube2d, states, actions):
+def test__get_logprobs_forward__2d__is_finite(cube2d, states, actions):
     env = cube2d
     n_states = len(states)
     states_torch = tfloat(states, float_type=env.float, device=env.device)
@@ -894,10 +893,8 @@ def test__get_logprobs_forward__2d__as_expected(cube2d, states, actions):
     logprobs = env.get_logprobs(
         policy_outputs, actions, masks, states_torch, is_backward=False
     )
-    assert True
+    assert torch.all(torch.isfinite(logprobs))
 
-
-# TODO: improve or remove
 @pytest.mark.parametrize(
     "states, actions",
     [
@@ -913,7 +910,7 @@ def test__get_logprobs_forward__2d__as_expected(cube2d, states, actions):
         ),
     ],
 )
-def test__get_logprobs_backward__2d__as_expected(cube2d, states, actions):
+def test__get_logprobs_backward__2d__is_finite(cube2d, states, actions):
     env = cube2d
     n_states = len(states)
     states_torch = tfloat(states, float_type=env.float, device=env.device)
@@ -935,7 +932,7 @@ def test__get_logprobs_backward__2d__as_expected(cube2d, states, actions):
     logprobs = env.get_logprobs(
         policy_outputs, actions, masks, states_torch, is_backward=True
     )
-    assert True
+    assert torch.all(torch.isfinite(logprobs))
 
 
 @pytest.mark.parametrize(
