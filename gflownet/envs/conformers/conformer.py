@@ -41,9 +41,13 @@ class Conformer(ContinuousTorus):
             else:
                 torsion_indices = list(range(n_torsion_angles))
 
-        atom_positions = Conformer._get_positions(smiles)
-        torsion_angles = Conformer._get_torsion_angles(smiles, torsion_indices)
-        self.conformer = RDKitConformer(atom_positions, smiles, torsion_angles)
+        self.smiles = smiles
+        self.torsion_indices = torsion_indices
+        self.atom_positions = Conformer._get_positions(self.smiles)
+        self.torsion_angles = Conformer._get_torsion_angles(
+            self.smiles, self.torsion_indices
+        )
+        self.set_conformer()
 
         # Conversions
         self.statebatch2oracle = self.statebatch2proxy
@@ -57,7 +61,7 @@ class Conformer(ContinuousTorus):
 
         self.graph = MolDGLFeaturizer(ad_atom_types).mol2dgl(self.conformer.rdk_mol)
         # TODO: use DGL conformer instead
-        rotatable_edges = [ta[1:3] for ta in torsion_angles]
+        rotatable_edges = [ta[1:3] for ta in self.torsion_angles]
         for i in range(self.graph.num_edges()):
             if (
                 self.graph.edges()[0][i].item(),
@@ -75,6 +79,16 @@ class Conformer(ContinuousTorus):
         super().__init__(n_dim=len(self.conformer.freely_rotatable_tas), **kwargs)
 
         self.sync_conformer_with_state()
+
+    def set_conformer(self, state: Optional[List] = None) -> RDKitConformer:
+        self.conformer = RDKitConformer(
+            self.atom_positions, self.smiles, self.torsion_angles
+        )
+
+        if state is not None:
+            self.sync_conformer_with_state(state)
+
+        return self.conformer
 
     @staticmethod
     def _get_positions(smiles: str) -> npt.NDArray:
