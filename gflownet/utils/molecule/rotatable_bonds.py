@@ -24,7 +24,9 @@ def remove_duplicate_tas(tas_list):
     for row in tas:
         begin = row[1]
         end = row[2]
-        if not (begin, end) in considered and begin < end:
+        if not (begin, end) in considered and not (end, begin) in considered:
+            if begin > end:
+                begin, end = end, begin
             duplicates = tas[np.logical_and(tas[:, 1] == begin, tas[:, 2] == end)]
             duplicates_reversed = tas[np.logical_and(tas[:, 2] == begin, tas[:, 1] == end)]
             duplicates_reversed = np.flip(duplicates_reversed, axis=1)
