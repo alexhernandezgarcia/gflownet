@@ -848,8 +848,8 @@ def test__get_logprobs_forward__2d__finite(cube2d, states, actions):
     "states, actions",
     [
         (
-            [[0.2, 0.2], [0.5, 0.5], [0.7, 0.7]],
-            [[0.5, 0.5], [0.5, 0.5], [0.5, 0.5]],
+            [[0.2, 0.2], [0.5, 0.5], [0.7, 0.7], [-1.0, -1.0], [-1.0, -1.0]],
+            [[0.5, 0.5], [0.5, 0.5], [0.5, 0.5], [0.3, 0.3], [0.5, 0.5]],
         ),
     ],
 )
@@ -878,6 +878,7 @@ def test__get_logprobs_forward__2d__as_expected(cube2d, states, actions):
     logprobs = env.get_logprobs(
         policy_outputs, actions, masks, states_torch, is_backward=False
     )
+    import ipdb; ipdb.set_trace()
     assert True
 
 
@@ -885,8 +886,8 @@ def test__get_logprobs_forward__2d__as_expected(cube2d, states, actions):
     "states, actions",
     [
         (
-            [[0.3, 0.3], [0.5, 0.5], [0.7, 0.7]],
-            [[0.2, 0.2], [0.2, 0.2], [0.2, 0.2]],
+            [[0.3, 0.3], [0.5, 0.5], [0.7, 0.7], [0.05, 0.2], [0.05, 0.05]],
+            [[0.2, 0.2], [0.2, 0.2], [0.2, 0.2], [-1, -1], [-1, -1]],
         ),
     ],
 )
@@ -912,6 +913,7 @@ def test__get_logprobs_backward__2d__as_expected(cube2d, states, actions):
     logprobs = env.get_logprobs(
         policy_outputs, actions, masks, states_torch, is_backward=True
     )
+    import ipdb; ipdb.set_trace()
     assert True
 
 
