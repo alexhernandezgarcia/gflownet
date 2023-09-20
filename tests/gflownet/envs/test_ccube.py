@@ -23,7 +23,6 @@ def cube2d():
     [
         [
             (0.0, 0.0),
-            (-1.0, -1.0),
             (np.inf, np.inf),
         ],
     ],
@@ -445,12 +444,12 @@ def test__step_forward__2d__returns_expected(cube2d, state, action, state_expect
         ),
         (
             [0.1, 0.2],
-            (-1.0, -1.0),
+            (0.1, 0.2),
             [-1.0, -1.0],
         ),
         (
             [0.95, 0.0],
-            (-1.0, -1.0),
+            (0.95, 0.0),
             [-1.0, -1.0],
         ),
     ],
@@ -561,7 +560,7 @@ def test__sample_actions_forward__2d__returns_expected(cube2d, states, force_eos
 
 
 @pytest.mark.parametrize(
-    "states, force_bst",
+    "states, force_bts",
     [
         (
             [[1.0, 1.0], [1.0, 1.0], [0.3, 0.5], [0.27, 0.85], [0.56, 0.23]],
@@ -589,10 +588,10 @@ def test__sample_actions_forward__2d__returns_expected(cube2d, states, force_eos
         ),
     ],
 )
-def test__sample_actions_backward__2d__returns_expected(cube2d, states, force_bst):
+def test__sample_actions_backward__2d__returns_expected(cube2d, states, force_bts):
     env = cube2d
     n_states = len(states)
-    force_bst = tbool(force_bst, device=env.device)
+    force_bts = tbool(force_bts, device=env.device)
     # Get masks
     masks = tbool(
         [env.get_mask_invalid_actions_backward(s) for s in states], device=env.device
@@ -613,26 +612,28 @@ def test__sample_actions_backward__2d__returns_expected(cube2d, states, force_bs
     mean_incr_rel = 0.9 * samples.mean()
     min_incr_rel = 0.9 * samples.min()
     max_incr_rel = 1.1 * samples.max()
-    # Define Bernoulli parameters for BST with deterministic probability
-    logit_force_bst = torch.inf
-    logit_force_nobst = -torch.inf
-    # Get BST actions
-    is_near_edge = states_torch < env.min_incr
-    is_bst_forced = torch.any(is_near_edge, dim=1)
-    is_bst = torch.logical_or(is_bst_forced, force_bst)
+    # Define Bernoulli parameters for BTS with deterministic probability
+    logit_force_bts = torch.inf
+    logit_force_nobts = -torch.inf
     # Estimate confident intervals of absolute actions
     increments_min = torch.full_like(
-        states_torch[~is_bst], min_incr_rel, dtype=env.float, device=env.device
+        states_torch, min_incr_rel, dtype=env.float, device=env.device
     )
     increments_max = torch.full_like(
-        states_torch[~is_bst], max_incr_rel, dtype=env.float, device=env.device
+        states_torch, max_incr_rel, dtype=env.float, device=env.device
     )
     increments_min = env.relative_to_absolute_increments(
-        states_torch[~is_bst], increments_min, is_backward=True
+        states_torch, increments_min, is_backward=True
     )
     increments_max = env.relative_to_absolute_increments(
-        states_torch[~is_bst], increments_max, is_backward=True
+        states_torch, increments_max, is_backward=True
     )
+    # Get BTS actions
+    is_near_edge = states_torch < env.min_incr
+    is_bts_forced = torch.any(is_near_edge, dim=1)
+    is_bts = torch.logical_or(is_bts_forced, force_bts)
+    increments_min[is_bts] = states_torch[is_bts]
+    increments_max[is_bts] = states_torch[is_bts]
     # Reconfigure environment
     env.n_comp = 1
     env.beta_params_min = beta_params_min
@@ -641,18 +642,18 @@ def test__sample_actions_backward__2d__returns_expected(cube2d, states, force_bs
     params = env.fixed_distr_params
     params["beta_alpha"] = alpha
     params["beta_beta"] = beta
-    params["bernoulli_source_logit"] = logit_force_nobst
+    params["bernoulli_source_logit"] = logit_force_nobts
     policy_outputs = torch.tile(env.get_policy_output(params), dims=(n_states, 1))
-    policy_outputs[force_bst, -2] = logit_force_bst
+    policy_outputs[force_bts, -2] = logit_force_bts
     # Sample actions
     actions, _ = env.sample_actions_batch(
         policy_outputs, masks, states, is_backward=True
     )
     actions_tensor = tfloat(actions, float_type=env.float, device=env.device)
-    actions_bst = torch.all(actions_tensor == -1, dim=1)
-    assert torch.all(actions_bst == is_bst)
-    assert torch.all(actions_tensor[~is_bst] >= increments_min)
-    assert torch.all(actions_tensor[~is_bst] <= increments_max)
+    actions_bts = torch.all(actions_tensor == states_torch, dim=1)
+    assert torch.all(actions_bts == is_bts)
+    assert torch.all(actions_tensor >= increments_min)
+    assert torch.all(actions_tensor <= increments_max)
 
 
 @pytest.mark.parametrize(
@@ -844,6 +845,7 @@ def test__get_logprobs_forward__2d__finite(cube2d, states, actions):
     assert torch.all(torch.isfinite(logprobs))
 
 
+# TODO: improve or remove
 @pytest.mark.parametrize(
     "states, actions",
     [
@@ -878,16 +880,16 @@ def test__get_logprobs_forward__2d__as_expected(cube2d, states, actions):
     logprobs = env.get_logprobs(
         policy_outputs, actions, masks, states_torch, is_backward=False
     )
-    import ipdb; ipdb.set_trace()
     assert True
 
 
+# TODO: improve or remove
 @pytest.mark.parametrize(
     "states, actions",
     [
         (
             [[0.3, 0.3], [0.5, 0.5], [1.0, 1.0], [0.05, 0.2], [0.05, 0.05]],
-            [[0.2, 0.2], [0.2, 0.2], [0.5, 0.5], [-1, -1], [-1, -1]],
+            [[0.2, 0.2], [0.2, 0.2], [0.5, 0.5], [0.05, 0.2], [0.05, 0.05]],
         ),
     ],
 )
@@ -913,7 +915,6 @@ def test__get_logprobs_backward__2d__as_expected(cube2d, states, actions):
     logprobs = env.get_logprobs(
         policy_outputs, actions, masks, states_torch, is_backward=True
     )
-    import ipdb; ipdb.set_trace()
     assert True
 
 
@@ -922,11 +923,11 @@ def test__get_logprobs_backward__2d__as_expected(cube2d, states, actions):
     [
         (
             [[0.02, 0.01], [0.01, 0.2], [0.3, 0.01]],
-            [[-1, -1], [-1, -1], [-1, -1]],
+            [[0.02, 0.01], [0.01, 0.2], [0.3, 0.01]],
         ),
         (
             [[0.0, 0.0], [0.0, 0.2], [0.3, 0.0]],
-            [[-1, -1], [-1, -1], [-1, -1]],
+            [[0.0, 0.0], [0.0, 0.2], [0.3, 0.0]],
         ),
     ],
 )
@@ -960,15 +961,15 @@ def test__get_logprobs_backward__2d__nearedge_returns_prob1(cube2d, states, acti
     [
         (
             [[0.1, 0.2], [0.3, 0.5], [0.5, 0.95]],
-            [[-1, -1], [-1, -1], [-1, -1]],
+            [[0.1, 0.2], [0.3, 0.5], [0.5, 0.95]],
         ),
         (
             [[0.99, 0.99], [0.01, 0.01], [0.001, 0.1]],
-            [[-1, -1], [-1, -1], [-1, -1]],
+            [[0.99, 0.99], [0.01, 0.01], [0.001, 0.1]],
         ),
         (
             [[1.0, 1.0], [0.0, 0.0]],
-            [[-1, -1], [-1, -1]],
+            [[1.0, 1.0], [0.0, 0.0]],
         ),
     ],
 )

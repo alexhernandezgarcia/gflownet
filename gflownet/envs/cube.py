@@ -290,16 +290,13 @@ class ContinuousCube(CubeBase):
 
         EOS is indicated by np.inf for all dimensions.
 
-        BTS (back to source) is indicated by -1 for all dimensions.
-
-        This method defines self.eos, self.bts and the returned action space is simply
+        This method defines self.eos and the returned action space is simply
         a representative (arbitrary) action with an increment of 0.0 in all dimensions,
-        EOS and BTS.
+        and EOS.
         """
         self.eos = tuple([np.inf] * self.n_dim)
-        self.bts = tuple([-1] * self.n_dim)
         self.representative_action = tuple([0.0] * self.n_dim)
-        return [self.representative_action, self.bts, self.eos]
+        return [self.representative_action, self.eos]
 
     def get_policy_output(self, params: dict) -> TensorType["policy_output_dim"]:
         """
@@ -774,7 +771,7 @@ class ContinuousCube(CubeBase):
 
         The continuous distribution to sample the continuous action described above
         must be mixed with the discrete distribution to model the sampling of the back
-        to source (BST) action. While the BST action is also a continuous action, it
+        to source (BTS) action. While the BTS action is also a continuous action, it
         needs to be modelled with a (discrete) Bernoulli distribution in order to
         ensure that this action has positive likelihood.
 
@@ -828,9 +825,11 @@ class ContinuousCube(CubeBase):
         if torch.any(do_increments):
             actions_tensor[do_increments] = increments
         if torch.any(is_bts):
-            actions_tensor[is_bts] = tfloat(
-                self.bts, float_type=self.float, device=self.device
-            )
+            # BTS actions are equal to the originating states
+            actions_bts = tfloat(
+                states_from, float_type=self.float, device=self.device
+            )[is_bts]
+            actions_tensor[is_bts] = actions_bts
         actions = [tuple(a.tolist()) for a in actions_tensor]
         return actions, None
 
@@ -984,7 +983,6 @@ class ContinuousCube(CubeBase):
         jacobian_diag = torch.ones(
             (n_states, self.n_dim), device=self.device, dtype=self.float
         )
-        bts_tensor = tfloat(self.bts, float_type=self.float, device=self.device)
         # EOS is the only possible action only if done is True (mask[2] is False)
         is_eos = ~mask[:, 2]
         # Back-to-source (BTS) is the only possible action if mask[1] is False
@@ -993,8 +991,11 @@ class ContinuousCube(CubeBase):
         # Get sampled BTS actions and get log probs from Bernoulli distribution
         do_bts = torch.logical_and(~is_bts_forced, ~is_eos)
         if torch.any(do_bts):
+            # BTS actions are equal to the originating states
             is_bts_sampled = torch.zeros_like(do_bts)
-            is_bts_sampled[do_bts] = torch.all(actions[do_bts] == bts_tensor, dim=1)
+            is_bts_sampled[do_bts] = torch.all(
+                actions[do_bts] == states_from_tensor[do_bts], dim=1
+            )
             is_bts[is_bts_sampled] = True
             logits_bts = self._get_policy_source_logit(policy_outputs)[do_bts]
             distr_bts = Bernoulli(logits=logits_bts)
@@ -1111,30 +1112,37 @@ class ContinuousCube(CubeBase):
         for dim, incr in enumerate(action):
             if backward:
                 self.state[dim] -= incr
+                # Add extra dimension in action to mark BTS.
+                if self.isclose(
+                    self.state, [0.0 for _ in range(self.n_dim)], atol=self.epsilon
+                ):
+                    self.state = self.source
             else:
                 if self.state == self.source:
                     self.state = [0.0 for _ in range(self.n_dim)]
                 self.state[dim] += incr
-        if not all([s <= (1.0 + epsilon) for s in self.state]):
-            import ipdb
+        # TODO: remove when always correct
+        if self.state != self.source:
+            if not all([s <= (1.0 + epsilon) for s in self.state]):
+                import ipdb
 
-            ipdb.set_trace()
-        assert all(
-            [s <= (1.0 + epsilon) for s in self.state]
-        ), f"""
-        State is out of cube bounds.
-        \nState:\n{self.state}\nAction:\n{action}\nIncrement: {incr}
-        """
-        if not all([s >= (0.0 - epsilon) for s in self.state]):
-            import ipdb
+                ipdb.set_trace()
+            assert all(
+                [s <= (1.0 + epsilon) for s in self.state]
+            ), f"""
+            State is out of cube bounds.
+            \nState:\n{self.state}\nAction:\n{action}\nIncrement: {incr}
+            """
+            if not all([s >= (0.0 - epsilon) for s in self.state]):
+                import ipdb
 
-            ipdb.set_trace()
-        assert all(
-            [s >= (0.0 - epsilon) for s in self.state]
-        ), f"""
-        State is out of cube bounds.
-        \nState:\n{self.state}\nAction:\n{action}\nIncrement: {incr}
-        """
+                ipdb.set_trace()
+            assert all(
+                [s >= (0.0 - epsilon) for s in self.state]
+            ), f"""
+            State is out of cube bounds.
+            \nState:\n{self.state}\nAction:\n{action}\nIncrement: {incr}
+            """
         return self.state, action, True
 
     # TODO: make generic for continuous environments
@@ -1204,10 +1212,6 @@ class ContinuousCube(CubeBase):
         if self.done:
             assert action == self.eos
             self.done = False
-            self.n_actions += 1
-            return self.state, action, True
-        if action == self.bts:
-            self.state = self.source
             self.n_actions += 1
             return self.state, action, True
         # Otherwise perform action
