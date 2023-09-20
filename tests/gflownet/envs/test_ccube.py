@@ -362,57 +362,57 @@ def test__relative_to_absolute_increments__2d_backward__returns_expected(
     [
         (
             [-1.0, -1.0],
-            (0.5, 0.5),
+            (0.5, 0.5, 1.0),
             [0.5, 0.5],
         ),
         (
             [-1.0, -1.0],
-            (0.0, 0.0),
+            (0.0, 0.0, 1.0),
             [0.0, 0.0],
         ),
         (
             [-1.0, -1.0],
-            (0.1794, 0.9589),
+            (0.1794, 0.9589, 1.0),
             [0.1794, 0.9589],
         ),
         (
             [0.0, 0.0],
-            (0.1, 0.1),
+            (0.1, 0.1, 0.0),
             [0.1, 0.1],
         ),
         (
             [0.0, 0.0],
-            (0.1794, 0.9589),
+            (0.1794, 0.9589, 0.0),
             [0.1794, 0.9589],
         ),
         (
             [0.3, 0.5],
-            (0.1, 0.1),
+            (0.1, 0.1, 0.0),
             [0.4, 0.6],
         ),
         (
             [0.3, 0.5],
-            (0.7, 0.5),
+            (0.7, 0.5, 0.0),
             [1.0, 1.0],
         ),
         (
             [0.3, 0.5],
-            (0.4, 0.3),
+            (0.4, 0.3, 0.0),
             [0.7, 0.8],
         ),
         (
             [0.27, 0.85],
-            (0.1756, 0.138),
+            (0.1756, 0.138, 0.0),
             [0.4456, 0.988],
         ),
         (
             [0.45, 0.27],
-            (np.inf, np.inf),
+            (np.inf, np.inf, np.inf),
             [0.45, 0.27],
         ),
         (
             [0.0, 0.0],
-            (np.inf, np.inf),
+            (np.inf, np.inf, np.inf),
             [0.0, 0.0],
         ),
     ],
@@ -429,27 +429,27 @@ def test__step_forward__2d__returns_expected(cube2d, state, action, state_expect
     [
         (
             [0.5, 0.9],
-            (0.3, 0.2),
+            (0.3, 0.2, 0.0),
             [0.2, 0.7],
         ),
         (
             [0.95, 0.4456],
-            (0.1, 0.27),
+            (0.1, 0.27, 0.0),
             [0.85, 0.1756],
         ),
         (
             [0.1, 0.2],
-            (0.1, 0.1),
+            (0.1, 0.1, 0.0),
             [0.0, 0.1],
         ),
         (
             [0.1, 0.2],
-            (0.1, 0.2),
+            (0.1, 0.2, 1.0),
             [-1.0, -1.0],
         ),
         (
             [0.95, 0.0],
-            (0.95, 0.0),
+            (0.95, 0.0, 1.0),
             [-1.0, -1.0],
         ),
     ],
@@ -555,8 +555,8 @@ def test__sample_actions_forward__2d__returns_expected(cube2d, states, force_eos
     actions_tensor = tfloat(actions, float_type=env.float, device=env.device)
     actions_eos = torch.all(actions_tensor == torch.inf, dim=1)
     assert torch.all(actions_eos == is_eos)
-    assert torch.all(actions_tensor >= increments_min)
-    assert torch.all(actions_tensor <= increments_max)
+    assert torch.all(actions_tensor[:, :-1] >= increments_min)
+    assert torch.all(actions_tensor[:, :-1] <= increments_max)
 
 
 @pytest.mark.parametrize(
@@ -650,10 +650,10 @@ def test__sample_actions_backward__2d__returns_expected(cube2d, states, force_bt
         policy_outputs, masks, states, is_backward=True
     )
     actions_tensor = tfloat(actions, float_type=env.float, device=env.device)
-    actions_bts = torch.all(actions_tensor == states_torch, dim=1)
+    actions_bts = torch.all(actions_tensor[:, :-1] == states_torch, dim=1)
     assert torch.all(actions_bts == is_bts)
-    assert torch.all(actions_tensor >= increments_min)
-    assert torch.all(actions_tensor <= increments_max)
+    assert torch.all(actions_tensor[:, :-1] >= increments_min)
+    assert torch.all(actions_tensor[:, :-1] <= increments_max)
 
 
 @pytest.mark.parametrize(
@@ -661,11 +661,11 @@ def test__sample_actions_backward__2d__returns_expected(cube2d, states, force_bt
     [
         (
             [[0.95, 0.97], [0.96, 0.5], [0.5, 0.96]],
-            [[0.02, 0.01], [0.01, 0.2], [0.3, 0.01]],
+            [[0.02, 0.01, 0.0], [0.01, 0.2, 0.0], [0.3, 0.01, 0.0]],
         ),
         (
             [[0.95, 0.97], [0.901, 0.5], [1.0, 1.0]],
-            [[np.inf, np.inf], [0.01, 0.2], [0.3, 0.01]],
+            [[np.inf, np.inf, np.inf], [0.01, 0.2, 0.0], [0.3, 0.01, 0.0]],
         ),
     ],
 )
@@ -699,11 +699,19 @@ def test__get_logprobs_forward__2d__nearedge_returns_prob1(cube2d, states, actio
     [
         (
             [[0.1, 0.2], [0.3, 0.5], [0.5, 0.95]],
-            [[np.inf, np.inf], [np.inf, np.inf], [np.inf, np.inf]],
+            [
+                [np.inf, np.inf, np.inf],
+                [np.inf, np.inf, np.inf],
+                [np.inf, np.inf, np.inf],
+            ],
         ),
         (
             [[1.0, 1.0], [0.01, 0.01], [0.001, 0.1]],
-            [[np.inf, np.inf], [np.inf, np.inf], [np.inf, np.inf]],
+            [
+                [np.inf, np.inf, np.inf],
+                [np.inf, np.inf, np.inf],
+                [np.inf, np.inf, np.inf],
+            ],
         ),
     ],
 )
@@ -745,9 +753,9 @@ def test__get_logprobs_forward__2d__eos_actions_return_expected(
 @pytest.mark.parametrize(
     "actions",
     [
-        [[0.1, 0.2], [0.3, 0.5], [0.5, 0.95]],
-        [[0.999, 0.999], [0.0001, 0.0001], [0.5, 0.5]],
-        [[0.0, 0.0], [1.0, 1.0]],
+        [[0.1, 0.2, 1.0], [0.3, 0.5, 1.0], [0.5, 0.95, 1.0]],
+        [[0.999, 0.999, 1.0], [0.0001, 0.0001, 1.0], [0.5, 0.5, 1.0]],
+        [[0.0, 0.0, 1.0], [1.0, 1.0, 1.0]],
     ],
 )
 def test__get_logprobs_forward__2d__all_actions_from_source_uniform_policy_prob1(
@@ -796,23 +804,23 @@ def test__get_logprobs_forward__2d__all_actions_from_source_uniform_policy_prob1
     [
         (
             [[0.2, 0.2], [0.5, 0.5], [0.7, 0.7]],
-            [[0.1, 0.1], [0.1, 0.1], [0.1, 0.1]],
+            [[0.1, 0.1, 0.0], [0.1, 0.1, 0.0], [0.1, 0.1, 0.0]],
         ),
         (
             [[0.6384, 0.4577], [0.5, 0.5], [0.7, 0.7]],
-            [[0.2988, 0.3585], [0.2, 0.3], [0.11, 0.1001]],
+            [[0.2988, 0.3585, 0.0], [0.2, 0.3, 0.0], [0.11, 0.1001, 0.0]],
         ),
         (
             [[-1.0, -1.0], [-1.0, -1.0], [-1.0, -1.0]],
-            [[0.2988, 0.3585], [0.2, 0.3], [0.11, 0.1001]],
+            [[0.2988, 0.3585, 1.0], [0.2, 0.3, 1.0], [0.11, 0.1001, 1.0]],
         ),
         (
             [[0.6384, 0.4577], [0.5, 0.5], [0.7, 0.7]],
-            [[0.2988, 0.3585], [0.1, 0.1], [0.1, 0.1]],
+            [[0.2988, 0.3585, 0.0], [0.1, 0.1, 0.0], [0.1, 0.1, 0.0]],
         ),
         (
             [[0.0, 0.0], [-1.0, -1.0], [0.0, 0.0]],
-            [[0.1, 0.2], [0.001, 0.001], [0.5, 0.5]],
+            [[0.1, 0.2, 0.0], [0.001, 0.001, 1.0], [0.5, 0.5, 0.0]],
         ),
     ],
 )
@@ -851,7 +859,13 @@ def test__get_logprobs_forward__2d__finite(cube2d, states, actions):
     [
         (
             [[0.2, 0.2], [0.5, 0.5], [-1.0, -1.0], [-1.0, -1.0], [0.95, 0.95]],
-            [[0.5, 0.5], [0.3, 0.3], [0.3, 0.3], [0.5, 0.5], [np.inf, np.inf]],
+            [
+                [0.5, 0.5, 0.0],
+                [0.3, 0.3, 0.0],
+                [0.3, 0.3, 1.0],
+                [0.5, 0.5, 1.0],
+                [np.inf, np.inf, np.inf],
+            ],
         ),
     ],
 )
@@ -889,7 +903,13 @@ def test__get_logprobs_forward__2d__as_expected(cube2d, states, actions):
     [
         (
             [[0.3, 0.3], [0.5, 0.5], [1.0, 1.0], [0.05, 0.2], [0.05, 0.05]],
-            [[0.2, 0.2], [0.2, 0.2], [0.5, 0.5], [0.05, 0.2], [0.05, 0.05]],
+            [
+                [0.2, 0.2, 0.0],
+                [0.2, 0.2, 0.0],
+                [0.5, 0.5, 0.0],
+                [0.05, 0.2, 1.0],
+                [0.05, 0.05, 1.0],
+            ],
         ),
     ],
 )
@@ -923,11 +943,11 @@ def test__get_logprobs_backward__2d__as_expected(cube2d, states, actions):
     [
         (
             [[0.02, 0.01], [0.01, 0.2], [0.3, 0.01]],
-            [[0.02, 0.01], [0.01, 0.2], [0.3, 0.01]],
+            [[0.02, 0.01, 1.0], [0.01, 0.2, 1.0], [0.3, 0.01, 1.0]],
         ),
         (
             [[0.0, 0.0], [0.0, 0.2], [0.3, 0.0]],
-            [[0.0, 0.0], [0.0, 0.2], [0.3, 0.0]],
+            [[0.0, 0.0, 1.0], [0.0, 0.2, 1.0], [0.3, 0.0, 1.0]],
         ),
     ],
 )
@@ -961,15 +981,15 @@ def test__get_logprobs_backward__2d__nearedge_returns_prob1(cube2d, states, acti
     [
         (
             [[0.1, 0.2], [0.3, 0.5], [0.5, 0.95]],
-            [[0.1, 0.2], [0.3, 0.5], [0.5, 0.95]],
+            [[0.1, 0.2, 1.0], [0.3, 0.5, 1.0], [0.5, 0.95, 1.0]],
         ),
         (
             [[0.99, 0.99], [0.01, 0.01], [0.001, 0.1]],
-            [[0.99, 0.99], [0.01, 0.01], [0.001, 0.1]],
+            [[0.99, 0.99, 1.0], [0.01, 0.01, 1.0], [0.001, 0.1, 1.0]],
         ),
         (
             [[1.0, 1.0], [0.0, 0.0]],
-            [[1.0, 1.0], [0.0, 0.0]],
+            [[1.0, 1.0, 1.0], [0.0, 0.0, 1.0]],
         ),
     ],
 )
@@ -1013,15 +1033,15 @@ def test__get_logprobs_backward__2d__bts_actions_return_expected(
     [
         (
             [[0.3, 0.3], [0.5, 0.5], [0.8, 0.8]],
-            [[0.2, 0.2], [0.2, 0.2], [0.2, 0.2]],
+            [[0.2, 0.2, 0.0], [0.2, 0.2, 0.0], [0.2, 0.2, 0.0]],
         ),
         (
             [[1.0, 1.0], [1.0, 1.0], [1.0, 1.0]],
-            [[0.2, 0.2], [0.2, 0.2], [0.2, 0.2]],
+            [[0.2, 0.2, 0.0], [0.2, 0.2, 0.0], [0.2, 0.2, 0.0]],
         ),
         (
             [[1.0, 1.0], [0.5, 0.5], [0.3, 0.3]],
-            [[0.1, 0.1], [0.1, 0.1], [0.1, 0.1]],
+            [[0.1, 0.1, 0.0], [0.1, 0.1, 0.0], [0.1, 0.1, 0.0]],
         ),
     ],
 )
