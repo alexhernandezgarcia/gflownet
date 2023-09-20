@@ -25,20 +25,22 @@ class DAVE(Proxy):
         * load the checkpoint from ``ckpt_path`` and build the proxy model
 
         The checkpoint path is resolved as follows:
-        * if ``ckpt_path`` is a dict, it is assumed to be a mapping from cluster
-            or $USER to path (e.g. {mila: /path/ckpt.ckpt, victor: /path/ckpt.ckpt})
+        * if ``ckpt_path`` is a dict, it is assumed to be a mapping from cluster or
+             ``$USER`` to path (e.g.
+             ``{mila: /path/ckpt.ckpt, victor: /path/ckpt.ckpt}``)
         * on the cluster, the path to the ckpt is public so everyone resolves to
-            "mila". For local dev you need to specify a path in dave.yaml that maps
-            to your local $USER.
-        * if the resulting path is a dir, it must contain exactly one .ckpt file
-        * if the resulting path is a file, it must be a .ckpt file
+            ``"mila"``. For local dev you need to specify a path in ``dave.yaml`` that
+            maps to your local ``$USER``.
+        * if the resulting path is a dir, it must contain exactly one ``.ckpt`` file
+        * if the resulting path is a file, it must be a ``.ckpt`` file
 
         Args:
             ckpt_path (dict, optional): Mapping from cluster / ``$USER`` to checkpoint.
-                Defaults to None.
-            release (str, optional): Tag to checkout in the DAVE repo. Defaults to None.
+                Defaults to ``None``.
+            release (str, optional): Tag to checkout in the DAVE repo.
+                Defaults to ``None``.
             rescale_outputs (bool, optional): Whether to rescale the proxy outputs
-                using its training mean and std. Defaults to True.
+                using its training mean and std. Defaults to ``True``.
         """
         super().__init__(**kwargs)
         self.rescale_outputs = rescale_outputs
@@ -61,7 +63,7 @@ class DAVE(Proxy):
         if dave_version != release:
             print("  💥 `dave` version mismatch: ")
             print(f"    current ({dave_version}) != requested ({release})")
-            print(f"    Install the requested version with:")
+            print("    Install the requested version with:")
             print(f"    $ pip install --upgrade git+{pip_url}\n")
             raise ImportError("Wrong DAVE version")
 
@@ -77,6 +79,9 @@ class DAVE(Proxy):
         self.model.to(self.device)
 
     def _set_scales(self):
+        """
+        Sets the scales to the device and converts them to float if needed.
+        """
         if self.scaled:
             return
         if self.rescale_outputs:
@@ -94,6 +99,16 @@ class DAVE(Proxy):
 
     @torch.no_grad()
     def __call__(self, states: TensorType["batch", "96"]) -> TensorType["batch"]:
+        """
+        Forward pass of the proxy.
+
+        Args:
+            states (torch.Tensor): States to infer on. Shape:
+                ``(batch, [6 + 1 + n_elements])``.
+
+        Returns:
+            torch.Tensor: Proxy energies. Shape: ``(batch,)``.
+        """
         self._set_scales()
 
         comp = states[:, :-7]
@@ -127,11 +142,8 @@ class DAVE(Proxy):
         Infer on the training set and return the ground-truth and proxy values.
 
         Returns:
-        --------
-        energy: torch.Tensor
-            Ground-truth energies in the proxy's training set.
-        proxy: torch.Tensor
-            Proxy inference on its training set.
+            tuple: ``(energy, proxy)`` representing 1/ ground-truth energies and 2/
+                proxy inference on the proxy's training set.
         """
         rso = deepcopy(self.rescale_outputs)
         self.rescale_outputs = False
