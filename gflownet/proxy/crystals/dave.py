@@ -1,5 +1,5 @@
 from copy import deepcopy
-from pathlib import Path
+from importlib.metadata import PackageNotFoundError, version
 
 import torch
 from torchtyping import TensorType
@@ -39,8 +39,6 @@ class DAVE(Proxy):
 
         print("Initializing DAVE proxy:")
         print("  Checking out release:", release)
-
-        from importlib.metadata import PackageNotFoundError, version
 
         pip_url = f"https://github.com/sh-divya/ActiveLearningMaterials.git@{release}"
 
