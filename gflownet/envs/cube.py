@@ -1234,7 +1234,7 @@ class ContinuousCube(CubeBase):
         return self.state, action, True
 
     def get_grid_terminating_states(
-        self, n_states: int, epsilon: float = 1e-6
+        self, n_states: int, epsilon: float = 1e-3
     ) -> List[List]:
         n_per_dim = int(np.ceil(n_states ** (1 / self.n_dim)))
         linspaces = [
@@ -1246,7 +1246,7 @@ class ContinuousCube(CubeBase):
         return states
 
     def get_uniform_terminating_states(
-        self, n_states: int, seed: int = None, epsilon: float = 1e-6
+        self, n_states: int, seed: int = None, epsilon: float = 1e-3
     ) -> List[List]:
         rng = np.random.default_rng(seed)
         states = rng.uniform(
