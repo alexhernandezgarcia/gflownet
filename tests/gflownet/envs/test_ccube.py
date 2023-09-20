@@ -22,8 +22,8 @@ def cube2d():
     "action_space",
     [
         [
-            (0.0, 0.0),
-            (np.inf, np.inf),
+            (0.0, 0.0, 0.0),
+            (np.inf, np.inf, np.inf),
         ],
     ],
 )

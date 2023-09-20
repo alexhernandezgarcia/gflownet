@@ -285,8 +285,9 @@ class ContinuousCube(CubeBase):
         """
         The action space is continuous, thus not defined as such here.
 
-        The actions are tuples of length n_dim, where the value at position d indicates
-        the increment of dimension d.
+        The actions are tuples of length n_dim + 1, where the value at position d
+        indicates the increment of dimension d, and the value at position -1 indicates
+        whether the action is from or to source (1), or 0 otherwise.
 
         EOS is indicated by np.inf for all dimensions.
 
@@ -294,8 +295,9 @@ class ContinuousCube(CubeBase):
         a representative (arbitrary) action with an increment of 0.0 in all dimensions,
         and EOS.
         """
-        self.eos = tuple([np.inf] * self.n_dim)
-        self.representative_action = tuple([0.0] * self.n_dim)
+        actions_dim = self.n_dim + 1
+        self.eos = tuple([np.inf] * actions_dim)
+        self.representative_action = tuple([0.0] * actions_dim)
         return [self.representative_action, self.eos]
 
     def get_policy_output(self, params: dict) -> TensorType["policy_output_dim"]:
@@ -736,10 +738,14 @@ class ContinuousCube(CubeBase):
             )
         # Build actions
         actions_tensor = torch.full(
-            (n_states, self.n_dim), torch.inf, dtype=self.float, device=self.device
+            (n_states, self.n_dim + 1), torch.inf, dtype=self.float, device=self.device
         )
         if torch.any(do_increments):
+            increments = torch.cat(
+                (increments, torch.zeros((increments.shape[0], 1))), dim=1
+            )
             actions_tensor[do_increments] = increments
+        actions_tensor[is_source, -1] = 1
         actions = [tuple(a.tolist()) for a in actions_tensor]
         return actions, None
 
@@ -817,18 +823,24 @@ class ContinuousCube(CubeBase):
             )
         # Build actions
         actions_tensor = torch.zeros(
-            (n_states, self.n_dim), dtype=self.float, device=self.device
+            (n_states, self.n_dim + 1), dtype=self.float, device=self.device
         )
         actions_tensor[is_eos] = tfloat(
             self.eos, float_type=self.float, device=self.device
         )
         if torch.any(do_increments):
+            increments = torch.cat(
+                (increments, torch.zeros((increments.shape[0], 1))), dim=1
+            )
             actions_tensor[do_increments] = increments
         if torch.any(is_bts):
             # BTS actions are equal to the originating states
             actions_bts = tfloat(
                 states_from, float_type=self.float, device=self.device
             )[is_bts]
+            actions_bts = torch.cat(
+                (actions_bts, torch.ones((actions_bts.shape[0], 1))), dim=1
+            )
             actions_tensor[is_bts] = actions_bts
         actions = [tuple(a.tolist()) for a in actions_tensor]
         return actions, None
@@ -836,7 +848,7 @@ class ContinuousCube(CubeBase):
     def get_logprobs(
         self,
         policy_outputs: TensorType["n_states", "policy_output_dim"],
-        actions: TensorType["n_states", "n_dim"],
+        actions: TensorType["n_states", "actions_dim"],
         mask: TensorType["n_states", "3"],
         states_from: List,
         is_backward: bool,
@@ -877,7 +889,7 @@ class ContinuousCube(CubeBase):
     def _get_logprobs_forward(
         self,
         policy_outputs: TensorType["n_states", "policy_output_dim"],
-        actions: TensorType["n_states", "n_dim"],
+        actions: TensorType["n_states", "actions_dim"],
         mask: TensorType["n_states", "3"],
         states_from: List,
     ) -> TensorType["batch_size"]:
@@ -922,7 +934,7 @@ class ContinuousCube(CubeBase):
         do_increments = ~is_eos
         if torch.any(do_increments):
             # Get absolute increments
-            increments = actions[do_increments]
+            increments = actions[do_increments, :-1]
             # Compute relative increments from absolute increments if state is not
             # source
             is_relative = ~is_source[do_increments]
@@ -963,7 +975,7 @@ class ContinuousCube(CubeBase):
     def _get_logprobs_backward(
         self,
         policy_outputs: TensorType["n_states", "policy_output_dim"],
-        actions: TensorType["n_states", "n_dim"],
+        actions: TensorType["n_states", "actions_dim"],
         mask: TensorType["n_states", "3"],
         states_from: List,
     ) -> TensorType["batch_size"]:
@@ -994,7 +1006,7 @@ class ContinuousCube(CubeBase):
             # BTS actions are equal to the originating states
             is_bts_sampled = torch.zeros_like(do_bts)
             is_bts_sampled[do_bts] = torch.all(
-                actions[do_bts] == states_from_tensor[do_bts], dim=1
+                actions[do_bts, :-1] == states_from_tensor[do_bts], dim=1
             )
             is_bts[is_bts_sampled] = True
             logits_bts = self._get_policy_source_logit(policy_outputs)[do_bts]
@@ -1006,7 +1018,7 @@ class ContinuousCube(CubeBase):
         do_increments = torch.logical_and(~is_bts, ~is_eos)
         if torch.any(do_increments):
             # Get absolute increments
-            increments = actions[do_increments]
+            increments = actions[do_increments, :-1]
             # Compute absolute increments from all sampled relative increments
             increments = self.absolute_to_relative_increments(
                 states_from_tensor[do_increments],
@@ -1109,18 +1121,19 @@ class ContinuousCube(CubeBase):
             root state
         """
         epsilon = 1e-9
-        for dim, incr in enumerate(action):
+        # If forward action is from source, initialize state to all zeros.
+        if not backward and action[-1] == 1:
+            self.state = [0.0 for _ in range(self.n_dim)]
+        # Increment dimensions
+        for dim, incr in enumerate(action[:-1]):
             if backward:
                 self.state[dim] -= incr
-                # Add extra dimension in action to mark BTS.
-                if self.isclose(
-                    self.state, [0.0 for _ in range(self.n_dim)], atol=self.epsilon
-                ):
-                    self.state = self.source
             else:
-                if self.state == self.source:
-                    self.state = [0.0 for _ in range(self.n_dim)]
                 self.state[dim] += incr
+        # If backward action is to source, set state to source
+        if backward and action[-1] == 1:
+            self.state = self.source
+
         # TODO: remove when always correct
         if self.state != self.source:
             if not all([s <= (1.0 + epsilon) for s in self.state]):
