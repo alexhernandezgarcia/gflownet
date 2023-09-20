@@ -1233,19 +1233,25 @@ class ContinuousCube(CubeBase):
         self._step(action, backward=True)
         return self.state, action, True
 
-    def get_grid_terminating_states(self, n_states: int) -> List[List]:
+    def get_grid_terminating_states(
+        self, n_states: int, epsilon: float = 1e-6
+    ) -> List[List]:
         n_per_dim = int(np.ceil(n_states ** (1 / self.n_dim)))
-        linspaces = [np.linspace(0.0, 1.0, n_per_dim) for _ in range(self.n_dim)]
+        linspaces = [
+            np.linspace(epsilon, 1.0 - epsilon, n_per_dim) for _ in range(self.n_dim)
+        ]
         states = list(itertools.product(*linspaces))
         # TODO: check if necessary
         states = [list(el) for el in states]
         return states
 
     def get_uniform_terminating_states(
-        self, n_states: int, seed: int = None
+        self, n_states: int, seed: int = None, epsilon: float = 1e-6
     ) -> List[List]:
         rng = np.random.default_rng(seed)
-        states = rng.uniform(low=0.0, high=1.0, size=(n_states, self.n_dim))
+        states = rng.uniform(
+            low=epsilon, high=1.0 - epsilon, size=(n_states, self.n_dim)
+        )
         return states.tolist()
 
     # TODO: make generic for all environments
