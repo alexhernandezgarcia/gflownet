@@ -46,21 +46,23 @@ class CubeBase(GFlowNetEnv, ABC):
         n_dim: int = 2,
         min_incr: float = 0.1,
         n_comp: int = 1,
-        beta_params_min: float = 0.1,
-        beta_params_max: float = 1000.0,
         fixed_distr_params: dict = {
+            "beta_params_min": 0.1,
+            "beta_params_max": 1000.0,
             "beta_weights": 1.0,
             "beta_alpha": 2.0,
             "beta_beta": 5.0,
-            "bernoulli_source_logit": 1.0,
-            "bernoulli_eos_logit": 1.0,
+            "bernoulli_bts_prob": 1.0,
+            "bernoulli_eos_prob": 1.0,
         },
         random_distr_params: dict = {
+            "beta_params_min": 0.1,
+            "beta_params_max": 1000.0,
             "beta_weights": 1.0,
             "beta_alpha": 1000.0,
             "beta_beta": 1000.0,
-            "bernoulli_source_logit": 1.0,
-            "bernoulli_eos_logit": 1.0,
+            "bernoulli_bts_prob": 1.0,
+            "bernoulli_eos_prob": 1.0,
         },
         **kwargs,
     ):
@@ -73,8 +75,8 @@ class CubeBase(GFlowNetEnv, ABC):
         self.min_incr = min_incr
         # Parameters of the policy distribution
         self.n_comp = n_comp
-        self.beta_params_min = beta_params_min
-        self.beta_params_max = beta_params_max
+        self.beta_params_min = fixed_distr_params["beta_params_min"]
+        self.beta_params_max = fixed_distr_params["beta_params_max"]
         # Source state is abstract - not included in the cube: -1 for all dimensions.
         self.source = [-1 for _ in range(self.n_dim)]
         # Small constant to clamp the inputs to the beta distribution
@@ -246,6 +248,31 @@ class CubeBase(GFlowNetEnv, ABC):
         """
         pass
 
+    def _beta_params_to_policy_outputs(self, param: str, params_dict: dict):
+        """
+        Maps the values of alpha and beta given in the configuration to new values such
+        that when passed to _make_increments_distribution, the actual alpha and beta
+        passed to the Beta distribution(s) are the ones from the configuration.
+
+        Args
+        ----
+        param : str
+            Name of the parameter to transform: alpha or beta
+
+        params_dict : dict
+            Dictionary with the complete set of parameters of the distribution.
+
+        See
+        ---
+        _make_increments_distribution()
+        """
+        param_min = params_dict["beta_params_min"]
+        param_max = params_dict["beta_params_max"]
+        param_value = tfloat(
+            params_dict[f"beta_{param}"], float_type=self.float, device=self.device
+        )
+        return torch.logit((param_value - param_min) / param_max)
+
 
 class ContinuousCube(CubeBase):
     """
@@ -337,22 +364,30 @@ class ContinuousCube(CubeBase):
             device=self.device,
         )
         policy_output_cont[0::3] = params["beta_weights"]
-        policy_output_cont[1::3] = params["beta_alpha"]
-        policy_output_cont[2::3] = params["beta_beta"]
+        policy_output_cont[1::3] = self._beta_params_to_policy_outputs("alpha", params)
+        policy_output_cont[2::3] = self._beta_params_to_policy_outputs("beta", params)
         # Logit for Bernoulli distribution to model EOS action
-        policy_output_eos = torch.tensor(
-            [params["bernoulli_eos_logit"]], dtype=self.float, device=self.device
+        policy_output_eos_logit = torch.logit(
+            tfloat(
+                [params["bernoulli_eos_prob"]],
+                float_type=self.float,
+                device=self.device,
+            )
         )
         # Logit for Bernoulli distribution to model back-to-source action
-        policy_output_source = torch.tensor(
-            [params["bernoulli_source_logit"]], dtype=self.float, device=self.device
+        policy_output_bts_logit = torch.logit(
+            tfloat(
+                [params["bernoulli_bts_prob"]],
+                float_type=self.float,
+                device=self.device,
+            )
         )
         # Concatenate all outputs
         policy_output = torch.cat(
             (
                 policy_output_cont,
-                policy_output_source,
-                policy_output_eos,
+                policy_output_bts_logit,
+                policy_output_eos_logit,
             )
         )
         return policy_output
