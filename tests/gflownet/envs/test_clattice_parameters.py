@@ -14,7 +14,7 @@ from gflownet.envs.crystals.clattice_parameters import (
     CLatticeParameters,
 )
 
-N_REPETITIONS = 100
+N_REPETITIONS = 1000
 
 
 @pytest.fixture()
@@ -66,12 +66,8 @@ def test__cubic__constraints_remain_after_random_actions(env, lattice_system):
     env = env.reset()
     while not env.done:
         (a, b, c), (alpha, beta, gamma) = env._unpack_lengths_angles()
-        assert a == b
-        assert b == c
-        assert a == c
-        assert alpha == 90.0
-        assert beta == 90.0
-        assert gamma == 90.0
+        assert len({a, b, c}) == 1
+        assert len({alpha, beta, gamma, 90.0}) == 1
         env.step_random()
 
 
@@ -83,12 +79,12 @@ def test__cubic__constraints_remain_after_random_actions(env, lattice_system):
 def test__hexagonal__constraints_remain_after_random_actions(env, lattice_system):
     env = env.reset()
     while not env.done:
+        env.step_random()
         (a, b, c), (alpha, beta, gamma) = env._unpack_lengths_angles()
         assert a == b
-        assert alpha == 90.0
-        assert beta == 90.0
+        assert len({a, b, c}) == 2
+        assert len({alpha, beta, 90.0}) == 1
         assert gamma == 120.0
-        env.step_random()
 
 
 @pytest.mark.parametrize(
@@ -99,11 +95,11 @@ def test__hexagonal__constraints_remain_after_random_actions(env, lattice_system
 def test__monoclinic__constraints_remain_after_random_actions(env, lattice_system):
     env = env.reset()
     while not env.done:
-        (a, b, c), (alpha, beta, gamma) = env._unpack_lengths_angles()
-        assert alpha == 90.0
-        assert beta != 90.0
-        assert gamma == 90.0
         env.step_random()
+        (a, b, c), (alpha, beta, gamma) = env._unpack_lengths_angles()
+        assert len({a, b, c}) == 3
+        assert len({alpha, gamma, 90.0}) == 1
+        assert beta != 90.0
 
 
 @pytest.mark.parametrize(
@@ -114,11 +110,10 @@ def test__monoclinic__constraints_remain_after_random_actions(env, lattice_syste
 def test__orthorhombic__constraints_remain_after_random_actions(env, lattice_system):
     env = env.reset()
     while not env.done:
-        (a, b, c), (alpha, beta, gamma) = env._unpack_lengths_angles()
-        assert alpha == 90.0
-        assert beta == 90.0
-        assert gamma == 90.0
         env.step_random()
+        (a, b, c), (alpha, beta, gamma) = env._unpack_lengths_angles()
+        assert len({a, b, c}) == 3
+        assert len({alpha, beta, gamma, 90.0}) == 1
 
 
 @pytest.mark.parametrize(
@@ -129,15 +124,11 @@ def test__orthorhombic__constraints_remain_after_random_actions(env, lattice_sys
 def test__rhombohedral__constraints_remain_after_random_actions(env, lattice_system):
     env = env.reset()
     while not env.done:
-        (a, b, c), (alpha, beta, gamma) = env._unpack_lengths_angles()
-        assert a == b
-        assert b == c
-        assert a == c
-        assert alpha == beta
-        assert beta == gamma
-        assert alpha == gamma
-        assert alpha != 90.0
         env.step_random()
+        (a, b, c), (alpha, beta, gamma) = env._unpack_lengths_angles()
+        assert len({a, b, c}) == 1
+        assert len({alpha, beta, gamma}) == 1
+        assert len({alpha, beta, gamma, 90.0}) == 2
 
 
 @pytest.mark.parametrize(
@@ -148,12 +139,11 @@ def test__rhombohedral__constraints_remain_after_random_actions(env, lattice_sys
 def test__tetragonal__constraints_remain_after_random_actions(env, lattice_system):
     env = env.reset()
     while not env.done:
+        env.step_random()
         (a, b, c), (alpha, beta, gamma) = env._unpack_lengths_angles()
         assert a == b
-        assert alpha == 90.0
-        assert beta == 90.0
-        assert gamma == 90.0
-        env.step_random()
+        assert len({a, b, c}) == 2
+        assert len({alpha, beta, gamma, 90.0}) == 1
 
 
 @pytest.mark.parametrize(
@@ -166,9 +156,7 @@ def test__triclinic__constraints_remain_after_random_actions(env, lattice_system
     while not env.done:
         env.step_random()
         (a, b, c), (alpha, beta, gamma) = env._unpack_lengths_angles()
-        assert a != b
-        assert a != c
-        assert b != c
+        assert len({a, b, c}) == 3
         assert len({alpha, beta, gamma, 90.0}) == 4
 
 
