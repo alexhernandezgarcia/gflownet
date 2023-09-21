@@ -1,5 +1,5 @@
 import copy
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, Union
 
 import dgl
 import numpy as np
@@ -16,6 +16,45 @@ from gflownet.utils.molecule.rdkit_conformer import RDKitConformer
 from gflownet.utils.molecule.rotatable_bonds import find_rotor_from_smiles
 
 
+PREDEFINED_SMILES = [
+    "Cc1cc(=S)c2cccc(C)c2[nH]1",
+    "Cc1nc2ccccn2c1-c1ccnc(=S)[nH]1",
+    "c1ccc(-c2ccc(-c3nccc4ccccc34)[nH]2)cc1",
+    "O[C@H]1COC[C@H]1O",
+    "CCC1=Nc2ccccc2[NH2+]C2=C1C(=O)CCC2",
+    "CCn1c(-c2ccco2)n[nH]c1=S",
+    "Cc1ccccc1-n1c(C)n[nH]c1=S",
+    "Cc1cc(-c2nn3c(-c4ccccc4)nnc3s2)c2ccccc2n1",
+    "Cc1cccc(-n2c(-c3ccccc3)nc3ccccc3c2=O)n1",
+    "c1ccc(C2=NC(c3ccccc3)N=C(c3ccccc3)N2)cc1",
+    "Cc1cc(-c2ccccc2)[nH]c(=O)c1S(=O)(=O)c1ccccc1",
+    "COc1cc(C)c2c(=O)c(-c3ccccc3)coc2c1",
+    "Nc1c(-c2ccccc2Cl)cnn1-c1cccc([N+](=O)[O-])c1",
+    "Cc1cccc(C(=O)O/N=C2\\CCCc3ccccc32)c1",
+    "O=C(Nc1cccc(-c2cn3ccccc3n2)c1)C1CC1",
+    "CCn1c(=O)c(C(C)=O)c(O)c2ccccc21",
+    "COc1ccc2c(c1)[n+](=O)c(C(C)=O)c(C)n2[O-]",
+    "O=C(COc1cccc(Cl)c1)Nc1ccc2c(c1)CCC2",
+    "Cc1ccn(CCC(=O)O)n1",
+    "Cc1ccccc1-c1cnn(-c2cccc([N+](=O)[O-])c2)c1N",
+    "C#CCN1C(=O)S/C(=C/C=C/c2ccc(N(C)C)cc2)C1=O",
+    "C/C(=C\\C(=O)C(F)(F)F)Nc1ccc(C)cc1",
+    "C#CCn1cccc(C(=O)Nc2ccc(OC)cc2)c1=O",
+    "C/C(=C\\C(=O)C(F)(F)F)Nc1ccc(C(F)(F)F)cc1",
+    "C#CCn1cc[n+](CC(=O)N(C)C)c1",
+    "CC(=O)c1ccc(Oc2cc(C(F)(F)F)cnc2C(N)=O)cc1",
+    "COc1ccc2c(c1)C(=O)N(c1ccccc1OC)C(=O)C2(C)C",
+    "COc1ccc(C(=O)Nc2nccs2)cc1OC",
+    "COc1ccc(C(=O)/C=C/Nc2cccc(O)c2)cc1",
+    "CN(C)c1cccc(C(=O)Nc2ccc(N3CCOCC3)cc2)c1",
+    "COc1ccc(-c2ccc(C)cc2)cc1[C@H]1[C@@H]2C=CCC[C@@]2(C)C(=O)N1Cc1ccccc1",
+    "COc1ccc(N(C(=O)c2ccncc2)S(=O)(=O)c2ccc3c4c(cccc24)C(=O)N3C)cc1",
+    "COC(=O)c1ccccc1S(=O)(=O)Nc1ccc(OC)nc1",
+    "COc1ccc(CNC(=O)c2ccc(N3CCOCC3)c([N+](=O)[O-])c2)cc1",
+    "Cc1ccc(OCCNC(=O)c2ccc(C)cc2)cc1",
+]
+
+
 class Conformer(ContinuousTorus):
     """
     Extension of continuous torus to conformer generation. Based on AlanineDipeptide,
@@ -24,7 +63,7 @@ class Conformer(ContinuousTorus):
 
     def __init__(
         self,
-        smiles: str,
+        smiles: Union[str, int],
         n_torsion_angles: Optional[int] = 2,
         torsion_indices: Optional[List[int]] = None,
         policy_type: str = "mlp",
@@ -40,6 +79,9 @@ class Conformer(ContinuousTorus):
                 torsion_indices = None
             else:
                 torsion_indices = list(range(n_torsion_angles))
+
+        if isinstance(smiles, int):
+            smiles = PREDEFINED_SMILES[smiles]
 
         self.smiles = smiles
         self.torsion_indices = torsion_indices
