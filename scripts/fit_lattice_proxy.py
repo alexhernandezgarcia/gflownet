@@ -1,5 +1,5 @@
 """
-Script for fitting KDE on a dataset of bond lengths and angles of materials with
+Script for fitting KDE on a dataset of edge lengths and angles of materials with
 triclinic lattice system. Used for the dummy lattice parameter proxy.
 """
 
