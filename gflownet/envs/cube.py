@@ -262,7 +262,7 @@ class CubeBase(GFlowNetEnv, ABC):
         """
         pass
 
-    def _beta_params_to_policy_outputs(self, param: str, params_dict: dict):
+    def _beta_params_to_policy_outputs(self, param_name: str, params_dict: dict):
         """
         Maps the values of alpha and beta given in the configuration to new values such
         that when passed to _make_increments_distribution, the actual alpha and beta
@@ -270,7 +270,7 @@ class CubeBase(GFlowNetEnv, ABC):
 
         Args
         ----
-        param : str
+        param_name : str
             Name of the parameter to transform: alpha or beta
 
         params_dict : dict
@@ -283,7 +283,7 @@ class CubeBase(GFlowNetEnv, ABC):
         param_min = params_dict["beta_params_min"]
         param_max = params_dict["beta_params_max"]
         param_value = tfloat(
-            params_dict[f"beta_{param}"], float_type=self.float, device=self.device
+            params_dict[f"beta_{param_name}"], float_type=self.float, device=self.device
         )
         return torch.logit((param_value - param_min) / param_max)
 
