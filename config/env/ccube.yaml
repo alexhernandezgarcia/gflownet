@@ -11,6 +11,7 @@ n_dim: 2
 # Policy
 min_incr: 0.1
 n_comp: 1
+epsilon: 1e-6
 beta_params_min: 0.01
 beta_params_max: 1000.0
 fixed_distr_params:

@@ -39,6 +39,11 @@ class CubeBase(GFlowNetEnv, ABC):
 
     n_comp : int
         Number of components in the mixture of Beta distributions.
+
+    epsilon : float
+        Small constant to control the clamping interval of the inputs to the
+        calculation of log probabilities. Clamping interval will be [epsilon, 1 -
+        epsilon].
     """
 
     def __init__(
@@ -46,6 +51,7 @@ class CubeBase(GFlowNetEnv, ABC):
         n_dim: int = 2,
         min_incr: float = 0.1,
         n_comp: int = 1,
+        epsilon: float: 1e-6
         fixed_distr_params: dict = {
             "beta_params_min": 0.1,
             "beta_params_max": 1000.0,
@@ -80,7 +86,7 @@ class CubeBase(GFlowNetEnv, ABC):
         # Source state is abstract - not included in the cube: -1 for all dimensions.
         self.source = [-1 for _ in range(self.n_dim)]
         # Small constant to clamp the inputs to the beta distribution
-        self.epsilon = 1e-6
+        self.epsilon = epsilon
         # Conversions: only conversions to policy are implemented and the rest are the
         # same
         self.state2proxy = self.state2policy
