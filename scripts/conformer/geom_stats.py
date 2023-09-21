@@ -114,8 +114,8 @@ if __name__ == '__main__':
     'n_confs': unique_confs,
     'n_heavy_atoms': n_heavy_atoms,
     'n_atoms': n_atoms,
-}
-df = pd.DataFrame(data)
-df.to_csv(os.path.join(args.output_dir, 'geom_stats.csv'))
+    }
+    df = pd.DataFrame(data)
+    df.to_csv(os.path.join(args.output_dir, 'geom_stats.csv'))
 
 
