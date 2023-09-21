@@ -43,7 +43,12 @@ class CubeBase(GFlowNetEnv, ABC):
     epsilon : float
         Small constant to control the clamping interval of the inputs to the
         calculation of log probabilities. Clamping interval will be [epsilon, 1 -
-        epsilon].
+        epsilon]. Default: 1e-6.
+
+    kappa : float
+        Small constant to control the intervals of the generated sets of states (in a
+        grid or uniformly). States will be in the interval [kappa, 1 - kappa]. Default:
+        1e-3.
     """
 
     def __init__(
@@ -51,7 +56,8 @@ class CubeBase(GFlowNetEnv, ABC):
         n_dim: int = 2,
         min_incr: float = 0.1,
         n_comp: int = 1,
-        epsilon: float: 1e-6
+        epsilon: float = 1e-6,
+        kappa: float = 1e-3,
         fixed_distr_params: dict = {
             "beta_params_min": 0.1,
             "beta_params_max": 1000.0,
@@ -87,6 +93,8 @@ class CubeBase(GFlowNetEnv, ABC):
         self.source = [-1 for _ in range(self.n_dim)]
         # Small constant to clamp the inputs to the beta distribution
         self.epsilon = epsilon
+        # Small constant to restrict the interval of (test) sets
+        self.kappa = kappa
         # Conversions: only conversions to policy are implemented and the rest are the
         # same
         self.state2proxy = self.state2policy
@@ -1266,7 +1274,7 @@ class ContinuousCube(CubeBase):
         return self.state, action, True
 
     def get_grid_terminating_states(
-        self, n_states: int, epsilon: float = 1e-3
+        self, n_states: int, kappa: Optional[float] = None
     ) -> List[List]:
         """
         Constructs a grid of terminating states within the range of the hyper-cube.
@@ -1277,22 +1285,24 @@ class ContinuousCube(CubeBase):
             Requested number of states. The actual number of states will be rounded up
             such that all dimensions have the same number of states.
 
-        epsilon : float
+        kappa : float
             Small constant indicating the distance to the theoretical limits of the
             cube [0, 1], in order to avoid innacuracies in the computation of the log
-            probabilities due to clamping. The grid will thus be in [epsilon, 1 -
-            epsilon]
+            probabilities due to clamping. The grid will thus be in [kappa, 1 -
+            kappa]. If None, self.kappa will be used.
         """
+        if kappa is None:
+            kappa = self.kappa
         n_per_dim = int(np.ceil(n_states ** (1 / self.n_dim)))
         linspaces = [
-            np.linspace(epsilon, 1.0 - epsilon, n_per_dim) for _ in range(self.n_dim)
+            np.linspace(kappa, 1.0 - kappa, n_per_dim) for _ in range(self.n_dim)
         ]
         states = list(itertools.product(*linspaces))
         states = [list(el) for el in states]
         return states
 
     def get_uniform_terminating_states(
-        self, n_states: int, seed: int = None, epsilon: float = 1e-3
+        self, n_states: int, seed: int = None, kappa: Optional[float] = None
     ) -> List[List]:
         """
         Constructs a set of terminating states sampled uniformly within the range of
@@ -1303,16 +1313,16 @@ class ContinuousCube(CubeBase):
         n_states : int
             Number of states in the returned list.
 
-        epsilon : float
+        kappa : float
             Small constant indicating the distance to the theoretical limits of the
             cube [0, 1], in order to avoid innacuracies in the computation of the log
             probabilities due to clamping. The states will thus be uniformly sampled in
-            [epsilon, 1 - epsilon]
+            [kappa, 1 - kappa]. If None, self.kappa will be used.
         """
+        if kappa is None:
+            kappa = self.kappa
         rng = np.random.default_rng(seed)
-        states = rng.uniform(
-            low=epsilon, high=1.0 - epsilon, size=(n_states, self.n_dim)
-        )
+        states = rng.uniform(low=kappa, high=1.0 - kappa, size=(n_states, self.n_dim))
         return states.tolist()
 
     # TODO: make generic for all environments
