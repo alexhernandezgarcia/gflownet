@@ -190,7 +190,7 @@ def test__state2readable__gives_expected_results_for_initial_states(
         (TRICLINIC, "(1.0, 1.0, 1.0), (30.0, 30.0, 30.0)"),
     ],
 )
-def test__readable2state__returns_initial_state_for_rhombohedral_and_triclinic(
+def test__readable2state__gives_expected_results_for_initial_states(
     env, lattice_system, readable
 ):
     assert env.readable2state(readable) == env.state
