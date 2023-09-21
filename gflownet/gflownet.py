@@ -66,13 +66,12 @@ class GFlowNetAgent:
         # Continuous environments
         self.continuous = hasattr(self.env, "continuous") and self.env.continuous
         if self.continuous and optimizer.loss in ["flowmatch", "flowmatching"]:
-            print(
+            raise Exception(
                 """
             Flow matching loss is not available for continuous environments.
-            Trajectory balance will be used instead
+            You may use trajectory balance (gflownet=trajectorybalance) instead.
             """
             )
-            optimizer.loss = "tb"
         # Loss
         if optimizer.loss in ["flowmatch", "flowmatching"]:
             self.loss = "flowmatch"
