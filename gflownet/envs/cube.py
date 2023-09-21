@@ -984,6 +984,8 @@ class ContinuousCube(CubeBase):
         if torch.any(do_increments):
             # Get absolute increments
             increments = actions[do_increments, :-1]
+            # Make sure increments are finite
+            assert torch.any(torch.isfinite(increments))
             # Compute relative increments from absolute increments if state is not
             # source
             is_relative = ~is_source[do_increments]
@@ -1068,6 +1070,8 @@ class ContinuousCube(CubeBase):
         if torch.any(do_increments):
             # Get absolute increments
             increments = actions[do_increments, :-1]
+            # Make sure increments are finite
+            assert torch.any(torch.isfinite(increments))
             # Compute absolute increments from all sampled relative increments
             increments = self.absolute_to_relative_increments(
                 states_from_tensor[do_increments],
