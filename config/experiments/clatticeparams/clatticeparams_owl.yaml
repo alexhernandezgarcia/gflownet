@@ -1,0 +1,78 @@
+# @package _global_
+
+defaults:
+   - override /env: crystals/clattice_parameters
+   - override /gflownet: trajectorybalance
+   - override /proxy: corners
+   - override /logger: wandb
+   - override /user: alex
+
+# Environment
+env:
+  # Lattice system
+  lattice_system: cubic
+  # Allowed ranges of size and angles
+  min_length: 1.0
+  max_length: 5.0
+  min_angle: 30.0
+  max_angle: 150.0
+  # Cube
+  n_comp: 5
+  beta_params_min: 0.01
+  beta_params_max: 100.0
+  min_incr: 0.1
+  fixed_distribution:
+    beta_weights: 1.0
+    beta_alpha: 0.01
+    beta_beta: 0.01
+    bernoulli_source_logit: 1.0
+    bernoulli_eos_logit: 1.0
+  random_distribution:
+    beta_weights: 1.0
+    beta_alpha: 0.01
+    beta_beta: 0.01
+    bernoulli_source_logit: 1.0
+    bernoulli_eos_logit: 1.0
+  reward_func: identity
+
+# GFlowNet hyperparameters
+gflownet:
+  random_action_prob: 0.1
+  optimizer:
+    batch_size:
+      forward: 100
+    lr: 0.0001
+    z_dim: 16
+    lr_z_mult: 100
+    n_train_steps: 10000
+  policy:
+    forward:
+      type: mlp
+      n_hid: 512
+      n_layers: 5
+      checkpoint: forward
+    backward:
+      type: mlp
+      n_hid: 512
+      n_layers: 5
+      shared_weights: False
+      checkpoint: backward
+
+# WandB
+logger:
+  lightweight: True
+  project_name: "GFlowNet Cube"
+  tags: 
+    - gflownet
+    - continuous
+    - ccube
+  test:
+    period: 500
+    n: 1000
+  checkpoints:
+    period: 500
+
+# Hydra
+hydra:
+  run:
+    dir: ${user.logdir.root}/debug/ccube/${now:%Y-%m-%d_%H-%M-%S}

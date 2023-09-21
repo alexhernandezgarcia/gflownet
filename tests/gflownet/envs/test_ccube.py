@@ -85,8 +85,8 @@ def test__mask_backward__returns_all_true_except_eos_if_done(env, request):
     for state in states:
         env.set_state(state, done=True)
         mask = env.get_mask_invalid_actions_backward()
-        assert all(mask[:-1])
-        assert mask[-1] is False
+        assert all(mask[:2])
+        assert mask[2] is False
 
 
 @pytest.mark.parametrize(
@@ -94,23 +94,23 @@ def test__mask_backward__returns_all_true_except_eos_if_done(env, request):
     [
         (
             [-1.0],
-            [False, False, True],
+            [False, False, True, False],
         ),
         (
             [0.0],
-            [False, True, False],
+            [False, True, False, False],
         ),
         (
             [0.5],
-            [False, True, False],
+            [False, True, False, False],
         ),
         (
             [0.90],
-            [False, True, False],
+            [False, True, False, False],
         ),
         (
             [0.95],
-            [True, True, False],
+            [True, True, False, False],
         ),
     ],
 )
@@ -125,7 +125,7 @@ def test__mask_forward__1d__returns_expected(cube1d, state, mask_expected):
     [
         (
             [-1.0, -1.0],
-            [False, False, True],
+            [False, False, True, False, False],
         ),
         (
             [0.0, 0.0],
@@ -141,27 +141,27 @@ def test__mask_forward__1d__returns_expected(cube1d, state, mask_expected):
         ),
         (
             [0.5, 0.5],
-            [False, True, False],
+            [False, True, False, False, False],
         ),
         (
             [0.90, 0.5],
-            [False, True, False],
+            [False, True, False, False, False],
         ),
         (
             [0.95, 0.5],
-            [True, True, False],
+            [True, True, False, False, False],
         ),
         (
             [0.5, 0.90],
-            [False, True, False],
+            [False, True, False, False, False],
         ),
         (
             [0.5, 0.95],
-            [True, True, False],
+            [True, True, False, False, False],
         ),
         (
             [0.95, 0.95],
-            [True, True, False],
+            [True, True, False, False, False],
         ),
     ],
 )
@@ -176,15 +176,15 @@ def test__mask_forward__2d__returns_expected(cube2d, state, mask_expected):
     [
         (
             [-1.0],
-            [True, True, True],
+            [True, False, True, False],
         ),
         (
             [0.0],
-            [True, False, True],
+            [True, False, True, False],
         ),
         (
             [0.05],
-            [True, False, True],
+            [True, False, True, False],
         ),
         (
             [0.1],
@@ -192,15 +192,15 @@ def test__mask_forward__2d__returns_expected(cube2d, state, mask_expected):
         ),
         (
             [0.5],
-            [False, True, True],
+            [False, True, True, False],
         ),
         (
             [0.90],
-            [False, True, True],
+            [False, True, True, False],
         ),
         (
             [0.95],
-            [False, True, True],
+            [False, True, True, False],
         ),
     ],
 )
@@ -219,43 +219,43 @@ def test__mask_backward__1d__returns_expected(cube1d, state, mask_expected):
         ),
         (
             [0.0, 0.0],
-            [True, False, True],
+            [True, False, True, False, False],
         ),
         (
             [0.5, 0.5],
-            [False, True, True],
+            [False, True, True, False, False],
         ),
         (
             [0.05, 0.5],
-            [True, False, True],
+            [True, False, True, False, False],
         ),
         (
             [0.5, 0.05],
-            [True, False, True],
+            [True, False, True, False, False],
         ),
         (
             [0.05, 0.05],
-            [True, False, True],
+            [True, False, True, False, False],
         ),
         (
             [0.90, 0.5],
-            [False, True, True],
+            [False, True, True, False, False],
         ),
         (
             [0.5, 0.90],
-            [False, True, True],
+            [False, True, True, False, False],
         ),
         (
             [0.95, 0.5],
-            [False, True, True],
+            [False, True, True, False, False],
         ),
         (
             [0.5, 0.95],
-            [False, True, True],
+            [False, True, True, False, False],
         ),
         (
             [0.95, 0.95],
-            [False, True, True],
+            [False, True, True, False, False],
         ),
     ],
 )
@@ -894,6 +894,7 @@ def test__get_logprobs_forward__2d__is_finite(cube2d, states, actions):
         policy_outputs, actions, masks, states_torch, is_backward=False
     )
     assert torch.all(torch.isfinite(logprobs))
+
 
 @pytest.mark.parametrize(
     "states, actions",

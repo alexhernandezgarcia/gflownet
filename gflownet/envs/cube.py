@@ -49,6 +49,11 @@ class CubeBase(GFlowNetEnv, ABC):
         Small constant to control the intervals of the generated sets of states (in a
         grid or uniformly). States will be in the interval [kappa, 1 - kappa]. Default:
         1e-3.
+
+    ignored_dims : list
+        Boolean mask of ignored dimensions. This can be used for trajectories that may
+        have multiple dimensions coupled or fixed. For each dimension, True if ignored,
+        False, otherwise. If None, no dimension is ignored.
     """
 
     def __init__(
@@ -58,6 +63,9 @@ class CubeBase(GFlowNetEnv, ABC):
         n_comp: int = 1,
         epsilon: float = 1e-6,
         kappa: float = 1e-3,
+        ignored_dims: Optional[List[bool]] = None,
+        beta_params_min: float = 0.1,
+        beta_params_max: float = 1000.0,
         fixed_distr_params: dict = {
             "beta_params_min": 0.1,
             "beta_params_max": 1000.0,
@@ -85,6 +93,10 @@ class CubeBase(GFlowNetEnv, ABC):
         # Main properties
         self.n_dim = n_dim
         self.min_incr = min_incr
+        if ignored_dims:
+            self.ignored_dims = ignored_dims
+        else:
+            self.ignored_dims = [False] * self.n_dim
         # Parameters of the policy distribution
         self.n_comp = n_comp
         self.beta_params_min = fixed_distr_params["beta_params_min"]
@@ -287,6 +299,10 @@ class CubeBase(GFlowNetEnv, ABC):
         )
         return torch.logit((param_value - param_min) / param_max)
 
+    def _get_effective_dims(self, state: Optional[List] = None) -> List:
+        state = self._get_state(state)
+        return [s for s, ign_dim in zip(state, self.ignored_dims) if not ign_dim]
+
 
 class ContinuousCube(CubeBase):
     """
@@ -488,24 +504,29 @@ class ContinuousCube(CubeBase):
           the source state, True otherwise.
         - 2 : whether EOS action is invalid. EOS is valid from any state, except the
           source state or if done is True.
+        - -n_dim: : dimensions that should be ignored when sampling actions or
+          computing logprobs. This can be used for trajectories that may have
+          multiple dimensions coupled or fixed. For each dimension, True if ignored,
+          False, otherwise.
         """
         state = self._get_state(state)
         done = self._get_done(done)
-        mask_dim = 3
+        mask_dim_base = 3
+        mask_dim = mask_dim_base + self.n_dim
         # If done, the entire mask is True (all actions are "invalid" and no special
         # cases)
         if done:
             return [True] * mask_dim
-        mask = [False] * mask_dim
+        mask = [False] * mask_dim_base + self.ignored_dims
         # If the state is the source state, EOS is invalid
-        if state == self.source:
+        if self._get_effective_dims(state) == self._get_effective_dims(self.source):
             mask[2] = True
         # If the state is not the source, indicate not special case (True)
         else:
             mask[1] = True
         # If the value of any dimension is greater than 1 - min_incr, then continuous
         # actions are invalid (True).
-        if any([s > 1 - self.min_incr for s in state]):
+        if any([s > 1 - self.min_incr for s in self._get_effective_dims(state)]):
             mask[0] = True
         return mask
 
@@ -529,11 +550,15 @@ class ContinuousCube(CubeBase):
           False if any dimension is smaller than min_incr, True otherwise.
         - 2 : whether EOS action is invalid. False only if done is True, True
           (invalid) otherwise.
+        - -n_dim: : dimensions that should be ignored when sampling actions or
+          computing logprobs. this can be used for trajectories that may have
+          multiple dimensions coupled or fixed. for each dimension, true if ignored,
+          false, otherwise. By default, no dimension is ignored.
         """
         state = self._get_state(state)
         done = self._get_done(done)
-        mask_dim = 3
-        mask = [True] * mask_dim
+        mask_dim_base = 3
+        mask = [True] * mask_dim_base + self.ignored_dims
         # If the state is the source state, entire mask is True
         if state == self.source:
             return mask
@@ -543,7 +568,7 @@ class ContinuousCube(CubeBase):
             return mask
         # If any dimension is smaller than m, then back-to-source action is the only
         # possible actiona.
-        if any([s < self.min_incr for s in state]):
+        if any([s < self.min_incr for s in self._get_effective_dims(state)]):
             mask[1] = False
             return mask
         # Otherwise, continuous actions are valid
@@ -673,6 +698,34 @@ class ContinuousCube(CubeBase):
         beta_distr = Beta(alphas, betas)
         return MixtureSameFamily(mix, beta_distr)
 
+    def _mask_ignored_dimensions(
+        self,
+        mask: TensorType["n_states", "policy_outputs_dim"],
+        tensor_to_mask: TensorType["n_states", "n_dim"],
+    ) -> MixtureSameFamily:
+        """
+        Makes the actions, logprobs or log jacobian entries of ignored dimensions zero.
+
+        Since the shape of all the tensor of actions, the logprobs of increments and
+        the log of the diagonal of the Jacobian must be the same, this method makes no
+        distiction between for simplicity.
+
+        Args
+        ----
+        mask : tensor
+            Boolean mask indicating (True) which dimensions should be set to zero.
+
+        tensor_to_mask : tensor
+            Tensor to be modified. It may be a tensor of actions, of logprobs of
+            increments or the log of the diagonal of the Jacobian.
+        """
+        is_ignored_dim = mask[:, -self.n_dim :]
+        if torch.any(is_ignored_dim):
+            shape_orig = tensor_to_mask.shape
+            tensor_to_mask[is_ignored_dim] = 0.0
+            tensor_to_mask = tensor_to_mask.reshape(shape_orig)
+        return tensor_to_mask
+
     def sample_actions_batch(
         self,
         policy_outputs: TensorType["n_states", "policy_output_dim"],
@@ -790,10 +843,12 @@ class ContinuousCube(CubeBase):
             (n_states, self.n_dim + 1), torch.inf, dtype=self.float, device=self.device
         )
         if torch.any(do_increments):
-            increments = torch.cat(
+            # Make increments of ignored dimensions zero
+            increments = self._mask_ignored_dimensions(mask[do_increments], increments)
+            # Add dimension is_source and add to actions tensor
+            actions_tensor[do_increments] = torch.cat(
                 (increments, torch.zeros((increments.shape[0], 1))), dim=1
             )
-            actions_tensor[do_increments] = increments
         actions_tensor[is_source, -1] = 1
         actions = [tuple(a.tolist()) for a in actions_tensor]
         return actions, None
@@ -878,10 +933,12 @@ class ContinuousCube(CubeBase):
             self.eos, float_type=self.float, device=self.device
         )
         if torch.any(do_increments):
-            increments = torch.cat(
+            # Make increments of ignored dimensions zero
+            increments = self._mask_ignored_dimensions(mask[do_increments], increments)
+            # Add dimension is_source and add to actions tensor
+            actions_tensor[do_increments] = torch.cat(
                 (increments, torch.zeros((increments.shape[0], 1))), dim=1
             )
-            actions_tensor[do_increments] = increments
         if torch.any(is_bts):
             # BTS actions are equal to the originating states
             actions_bts = tfloat(
@@ -891,6 +948,10 @@ class ContinuousCube(CubeBase):
                 (actions_bts, torch.ones((actions_bts.shape[0], 1))), dim=1
             )
             actions_tensor[is_bts] = actions_bts
+            # Make ignored dimensions zero
+            actions_tensor[is_bts] = self._mask_ignored_dimensions(
+                mask[is_bts], actions_tensor[is_bts]
+            )
         actions = [tuple(a.tolist()) for a in actions_tensor]
         return actions, None
 
@@ -955,7 +1016,7 @@ class ContinuousCube(CubeBase):
         logprobs_increments_rel = torch.zeros(
             (n_states, self.n_dim), dtype=self.float, device=self.device
         )
-        jacobian_diag = torch.ones(
+        log_jacobian_diag = torch.zeros(
             (n_states, self.n_dim), device=self.device, dtype=self.float
         )
         eos_tensor = tfloat(self.eos, float_type=self.float, device=self.device)
@@ -1016,8 +1077,23 @@ class ContinuousCube(CubeBase):
             logprobs_increments_rel[do_increments] = distr_increments.log_prob(
                 torch.clamp(increments, min=self.epsilon, max=(1 - self.epsilon))
             )
-        # Get log determinant of the Jacobian
-        log_det_jacobian = torch.sum(torch.log(jacobian_diag), dim=1)
+            # Make ignored dimensions zero
+            logprobs_increments_rel = self._mask_ignored_dimensions(
+                mask, logprobs_increments_rel
+            )
+            # Compute log of the diagonal of the Jacobian (see _get_jacobian_diag())
+            log_jacobian_diag[do_increments] = torch.log(
+                self._get_jacobian_diag(
+                    states_from_tensor[do_increments],
+                    min_increments,
+                    self.max_val,
+                    is_backward=False,
+                )
+            )
+            # Make ignored dimensions zero
+            log_jacobian_diag = self._mask_ignored_dimensions(mask, log_jacobian_diag)
+        # Sum log Jacobian across dimensions
+        log_det_jacobian = torch.sum(log_jacobian_diag, dim=1)
         # Compute combined probabilities
         sumlogprobs_increments = logprobs_increments_rel.sum(axis=1)
         logprobs = logprobs_eos + sumlogprobs_increments + log_det_jacobian
@@ -1043,7 +1119,7 @@ class ContinuousCube(CubeBase):
         logprobs_increments_rel = torch.zeros(
             (n_states, self.n_dim), dtype=self.float, device=self.device
         )
-        jacobian_diag = torch.ones(
+        log_jacobian_diag = torch.zeros(
             (n_states, self.n_dim), device=self.device, dtype=self.float
         )
         # EOS is the only possible action only if done is True (mask[2] is False)
@@ -1091,8 +1167,23 @@ class ContinuousCube(CubeBase):
             logprobs_increments_rel[do_increments] = distr_increments.log_prob(
                 torch.clamp(increments, min=self.epsilon, max=(1 - self.epsilon))
             )
-        # Get log determinant of the Jacobian
-        log_det_jacobian = torch.sum(torch.log(jacobian_diag), dim=1)
+            # Make ignored dimensions zero
+            logprobs_increments_rel = self._mask_ignored_dimensions(
+                mask, logprobs_increments_rel
+            )
+            # Compute log of the diagonal of the Jacobian (see _get_jacobian_diag())
+            log_jacobian_diag[do_increments] = torch.log(
+                self._get_jacobian_diag(
+                    states_from_tensor[do_increments],
+                    min_increments,
+                    self.max_val,
+                    is_backward=True,
+                )
+            )
+            # Make ignored dimensions zero
+            log_jacobian_diag = self._mask_ignored_dimensions(mask, log_jacobian_diag)
+        # Sum log Jacobian across dimensions
+        log_det_jacobian = torch.sum(log_jacobian_diag, dim=1)
         # Compute combined probabilities
         sumlogprobs_increments = logprobs_increments_rel.sum(axis=1)
         logprobs = logprobs_bts + sumlogprobs_increments + log_det_jacobian
@@ -1229,7 +1320,9 @@ class ContinuousCube(CubeBase):
         if self.done:
             return self.state, action, False
         if action == self.eos:
-            assert self.state != self.source
+            assert self._get_effective_dims(self.state) != self._get_effective_dims(
+                self.source
+            )
             self.done = True
             self.n_actions += 1
             return self.state, self.eos, True
