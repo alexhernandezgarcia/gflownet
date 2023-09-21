@@ -22,9 +22,9 @@ from gflownet.utils.crystals.constants import (
     TRICLINIC,
 )
 
-LENGTHS = ("a", "b", "c")
-ANGLES = ("alpha", "beta", "gamma")
-PARAMETERS = LENGTHS + ANGLES
+LENGTH_PARAMETER_NAMES = ("a", "b", "c")
+ANGLE_PARAMETER_NAMES = ("alpha", "beta", "gamma")
+PARAMETER_NAMES = LENGTH_PARAMETER_NAMES + ANGLE_PARAMETER_NAMES
 
 
 # TODO: figure out a way to inherit the (discrete) LatticeParameters env or create a
@@ -102,11 +102,11 @@ class CLatticeParameters(ContinuousCube):
         if hasattr(self, param):
             return getattr(self, param)
         else:
-            if param in LENGTHS:
+            if param in LENGTH_PARAMETER_NAMES:
                 return self._statevalue2length(
                     self.state[self._get_index_of_param(param)]
                 )
-            elif param in ANGLES:
+            elif param in ANGLE_PARAMETER_NAMES:
                 return self._statevalue2angle(
                     self.state[self._get_index_of_param(param)]
                 )
@@ -116,9 +116,9 @@ class CLatticeParameters(ContinuousCube):
     def _set_param(self, state, param, value):
         param_idx = self._get_index_of_param(param)
         if param_idx is not None:
-            if param in LENGTHS:
+            if param in LENGTH_PARAMETER_NAMES:
                 state[param_idx] = self._length2statevalue(value)
-            elif param in ANGLES:
+            elif param in ANGLE_PARAMETER_NAMES:
                 state[param_idx] = self._angle2statevalue(value)
             else:
                 raise ValueError(f"{param} is not a valid lattice parameter")
@@ -218,7 +218,9 @@ class CLatticeParameters(ContinuousCube):
         after a call to the Cube's _step().
         """
         state, action, valid = super()._step(action, backward)
-        for idx, (param, is_ignored) in enumerate(zip(PARAMETERS, self.ignored_dims)):
+        for idx, (param, is_ignored) in enumerate(
+            zip(PARAMETER_NAMES, self.ignored_dims)
+        ):
             if not is_ignored:
                 continue
             param_idx = self._get_index_of_param(param)
@@ -239,7 +241,7 @@ class CLatticeParameters(ContinuousCube):
         """
         state = self._get_state(state)
 
-        a, b, c, alpha, beta, gamma = [self._get_param(p) for p in PARAMETERS]
+        a, b, c, alpha, beta, gamma = [self._get_param(p) for p in PARAMETER_NAMES]
         return (a, b, c), (alpha, beta, gamma)
 
     def state2readable(self, state: Optional[List[int]] = None) -> str:
@@ -263,7 +265,7 @@ class CLatticeParameters(ContinuousCube):
         values = readable.split(",")
         values = [float(value) for value in values]
 
-        for param, value in zip(PARAMETERS, values):
+        for param, value in zip(PARAMETER_NAMES, values):
             state = self._set_param(state, param, value)
         return state
 
@@ -347,11 +349,11 @@ class CLatticeParametersEffectiveDim(ContinuousCube):
         if hasattr(self, param):
             return getattr(self, param)
         else:
-            if param in LENGTHS:
+            if param in LENGTH_PARAMETER_NAMES:
                 return self._statevalue2length(
                     self.state[self._get_index_of_param(param)]
                 )
-            elif param in ANGLES:
+            elif param in ANGLE_PARAMETER_NAMES:
                 return self._statevalue2angle(
                     self.state[self._get_index_of_param(param)]
                 )
@@ -366,9 +368,9 @@ class CLatticeParametersEffectiveDim(ContinuousCube):
         """
         param_idx = self._get_index_of_param(param)
         if param_idx:
-            if param in LENGTHS:
+            if param in LENGTH_PARAMETER_NAMES:
                 state[param_idx] = self._length2statevalue(value)
-            elif param in ANGLES:
+            elif param in ANGLE_PARAMETER_NAMES:
                 state[param_idx] = self._angle2statevalue(value)
             else:
                 raise ValueError(f"{param} is not a valid lattice parameter")
@@ -465,7 +467,7 @@ class CLatticeParametersEffectiveDim(ContinuousCube):
         """
         state = self._get_state(state)
 
-        a, b, c, alpha, beta, gamma = [self._get_param(p) for p in PARAMETERS]
+        a, b, c, alpha, beta, gamma = [self._get_param(p) for p in PARAMETER_NAMES]
         return (a, b, c), (alpha, beta, gamma)
 
     def state2readable(self, state: Optional[List[int]] = None) -> str:
@@ -489,6 +491,6 @@ class CLatticeParametersEffectiveDim(ContinuousCube):
         values = readable.split(",")
         values = [float(value) for value in values]
 
-        for param, value in zip(PARAMETERS, values):
+        for param, value in zip(PARAMETER_NAMES, values):
             state = self._set_param(state, param, value)
         return state
