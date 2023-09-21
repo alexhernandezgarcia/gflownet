@@ -808,8 +808,6 @@ class ContinuousCube(Cube):
         # Initialize variables
         n_states = policy_outputs.shape[0]
         is_bts = torch.zeros(n_states, dtype=torch.bool, device=self.device)
-        # Mask of effective dimensions
-        is_effective_dim = ~mask[:, -self.n_dim :]
         # EOS is the only possible action only if done is True (mask[2] is False)
         is_eos = ~mask[:, 2]
         # Back-to-source (BTS) is the only possible action if mask[1] is False
@@ -938,8 +936,6 @@ class ContinuousCube(Cube):
             (n_states, self.n_dim), device=self.device, dtype=self.float
         )
         eos_tensor = tfloat(self.eos, float_type=self.float, device=self.device)
-        # Mask of effective dimensions
-        is_effective_dim = ~mask[:, -self.n_dim :]
         # Determine source states
         is_source = ~mask[:, 1]
         # EOS is the only possible action if continuous actions are invalid (mask[0] is
@@ -1031,8 +1027,6 @@ class ContinuousCube(Cube):
         log_jacobian_diag = torch.zeros(
             (n_states, self.n_dim), device=self.device, dtype=self.float
         )
-        # Mask of effective dimensions
-        is_effective_dim = ~mask[:, -self.n_dim :]
         # EOS is the only possible action only if done is True (mask[2] is False)
         is_eos = ~mask[:, 2]
         # Back-to-source (BTS) is the only possible action if mask[1] is False
