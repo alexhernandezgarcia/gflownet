@@ -9,8 +9,8 @@ defaults:
 
 # Environment
 env:
-  smiles: Cc1ccc(cc1Nc2nccc(n2)c3cccnc3)NC(=O)c4ccc(cc4)CN5CCN(CC5)C
-  n_torsion_angles: 5
+  smiles: CC(C)Cc1ccc(cc1)[C@@H](C)C(=O)O
+  n_torsion_angles: -1
   length_traj: 5
   policy_encoding_dim_per_angle: 10
   policy_type: mlp
