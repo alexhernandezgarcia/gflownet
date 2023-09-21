@@ -11,6 +11,11 @@ from tqdm import tqdm
 
 from gflownet.utils.molecule.rotatable_bonds import get_rotatable_ta_list, is_hydrogen_ta
 
+"""
+Here we use rdkit_folder format of the GEOM dataset 
+Tutorial and downloading links are here: https://github.com/learningmatter-mit/geom/tree/master
+"""
+
 def get_conf_geom(base_path, smiles, conf_idx=0, summary_file=None):
     if summary_file is None:
         drugs_file = base_path / 'rdkit_folder/summary_drugs.json'
