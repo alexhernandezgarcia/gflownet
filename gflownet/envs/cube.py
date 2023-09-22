@@ -64,8 +64,6 @@ class CubeBase(GFlowNetEnv, ABC):
         epsilon: float = 1e-6,
         kappa: float = 1e-3,
         ignored_dims: Optional[List[bool]] = None,
-        beta_params_min: float = 0.1,
-        beta_params_max: float = 1000.0,
         fixed_distr_params: dict = {
             "beta_params_min": 0.1,
             "beta_params_max": 1000.0,
@@ -1065,10 +1063,14 @@ class ContinuousCube(CubeBase):
             # not source
             is_relative = torch.logical_and(do_increments, ~is_source)
             if torch.any(is_relative):
-                jacobian_diag[is_relative] = self._get_jacobian_diag(
-                    states_from_rel,
-                    is_backward=False,
+                log_jacobian_diag[is_relative] = torch.log(
+                    self._get_jacobian_diag(
+                        states_from_rel,
+                        is_backward=False,
+                    )
                 )
+            # Make ignored dimensions zero
+            log_jacobian_diag = self._mask_ignored_dimensions(mask, log_jacobian_diag)
             # Get logprobs
             distr_increments = self._make_increments_distribution(
                 policy_outputs[do_increments]
@@ -1081,17 +1083,6 @@ class ContinuousCube(CubeBase):
             logprobs_increments_rel = self._mask_ignored_dimensions(
                 mask, logprobs_increments_rel
             )
-            # Compute log of the diagonal of the Jacobian (see _get_jacobian_diag())
-            log_jacobian_diag[do_increments] = torch.log(
-                self._get_jacobian_diag(
-                    states_from_tensor[do_increments],
-                    min_increments,
-                    self.max_val,
-                    is_backward=False,
-                )
-            )
-            # Make ignored dimensions zero
-            log_jacobian_diag = self._mask_ignored_dimensions(mask, log_jacobian_diag)
         # Sum log Jacobian across dimensions
         log_det_jacobian = torch.sum(log_jacobian_diag, dim=1)
         # Compute combined probabilities
@@ -1155,10 +1146,14 @@ class ContinuousCube(CubeBase):
                 is_backward=True,
             )
             # Compute diagonal of the Jacobian (see _get_jacobian_diag())
-            jacobian_diag[do_increments] = self._get_jacobian_diag(
-                states_from_tensor[do_increments],
-                is_backward=True,
+            log_jacobian_diag[do_increments] = torch.log(
+                self._get_jacobian_diag(
+                    states_from_tensor[do_increments],
+                    is_backward=True,
+                )
             )
+            # Make ignored dimensions zero
+            log_jacobian_diag = self._mask_ignored_dimensions(mask, log_jacobian_diag)
             # Get logprobs
             distr_increments = self._make_increments_distribution(
                 policy_outputs[do_increments]
@@ -1171,17 +1166,6 @@ class ContinuousCube(CubeBase):
             logprobs_increments_rel = self._mask_ignored_dimensions(
                 mask, logprobs_increments_rel
             )
-            # Compute log of the diagonal of the Jacobian (see _get_jacobian_diag())
-            log_jacobian_diag[do_increments] = torch.log(
-                self._get_jacobian_diag(
-                    states_from_tensor[do_increments],
-                    min_increments,
-                    self.max_val,
-                    is_backward=True,
-                )
-            )
-            # Make ignored dimensions zero
-            log_jacobian_diag = self._mask_ignored_dimensions(mask, log_jacobian_diag)
         # Sum log Jacobian across dimensions
         log_det_jacobian = torch.sum(log_jacobian_diag, dim=1)
         # Compute combined probabilities
