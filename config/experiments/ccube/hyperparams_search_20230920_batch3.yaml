@@ -65,9 +65,8 @@ jobs:
       env:
         __value__: ccube
         n_comp: 2
-        fixed_distr_params:
-          beta_params_min: 0.01
-          beta_params_max: 100.0
+        beta_params_min: 0.01
+        beta_params_max: 100.0
         random_distr_params:
           beta_weights: 1.0
           beta_alpha: 100.0
@@ -80,9 +79,8 @@ jobs:
       env:
         __value__: ccube
         n_comp: 2
-        fixed_distr_params:
-          beta_params_min: 0.1
-          beta_params_max: 100.0
+        beta_params_min: 0.1
+        beta_params_max: 100.0
         random_distr_params:
           beta_weights: 1.0
           beta_alpha: 100.0
@@ -95,9 +93,8 @@ jobs:
       env:
         __value__: ccube
         n_comp: 2
-        fixed_distr_params:
-          beta_params_min: 1
-          beta_params_max: 100.0
+        beta_params_min: 1
+        beta_params_max: 100.0
         random_distr_params:
           beta_weights: 1.0
           beta_alpha: 100.0
@@ -110,9 +107,8 @@ jobs:
       env:
         __value__: ccube
         n_comp: 2
-        fixed_distr_params:
-          beta_params_min: 0.01
-          beta_params_max: 1000.0
+        beta_params_min: 0.01
+        beta_params_max: 1000.0
         random_distr_params:
           beta_weights: 1.0
           beta_alpha: 100.0
@@ -125,9 +121,8 @@ jobs:
       env:
         __value__: ccube
         n_comp: 2
-        fixed_distr_params:
-          beta_params_min: 0.1
-          beta_params_max: 1000.0
+        beta_params_min: 0.1
+        beta_params_max: 1000.0
         random_distr_params:
           beta_weights: 1.0
           beta_alpha: 100.0
@@ -140,9 +135,8 @@ jobs:
       env:
         __value__: ccube
         n_comp: 2
-        fixed_distr_params:
-          beta_params_min: 1
-          beta_params_max: 1000.0
+        beta_params_min: 1
+        beta_params_max: 1000.0
         random_distr_params:
           beta_weights: 1.0
           beta_alpha: 100.0
