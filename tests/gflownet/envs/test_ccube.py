@@ -182,7 +182,7 @@ def test__mask_forward__2d__returns_expected(cube2d, state, mask_expected):
     [
         (
             [-1.0],
-            [True, False, True, False],
+            [True, True, True, False],
         ),
         (
             [0.0],
@@ -221,7 +221,7 @@ def test__mask_backward__1d__returns_expected(cube1d, state, mask_expected):
     [
         (
             [-1.0, -1.0],
-            [True, False, True, False, False],
+            [True, True, True, False, False],
         ),
         (
             [0.0, 0.0],

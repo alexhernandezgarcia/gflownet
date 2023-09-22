@@ -554,7 +554,7 @@ class ContinuousCube(CubeBase):
         mask_dim_base = 3
         mask = [True] * mask_dim_base + self.ignored_dims
         # If the state is the source state, entire mask is True
-        if state == self.source:
+        if self._get_effective_dims(state) == self._get_effective_dims(self.source):
             return mask
         # If done, only valid action is EOS.
         if done:
