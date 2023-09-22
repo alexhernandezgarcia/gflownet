@@ -71,10 +71,13 @@ class Conformer(ContinuousTorus):
         **kwargs,
     ):
         if torsion_indices is None:
-            # We hard code default torsion indices for Alanine Dipeptide to preserve
-            # backward compatibility.
+            # We hard code default torsion indices to preserve backward compatibility.
             if smiles == "CC(C(=O)NC)NC(=O)C" and n_torsion_angles == 2:
-                torsion_indices = [2, 1]
+                torsion_indices = [0, 1]
+            elif smiles == "CC(C)Cc1ccc(cc1)[C@@H](C)C(=O)O" and n_torsion_angles == 2:
+                torsion_indices = [1, 2]
+            elif smiles == "O=C(c1ccc2n1CCC2C(=O)O)c3ccccc3" and n_torsion_angles == 2:
+                torsion_indices = [0, 1]
             elif n_torsion_angles == -1:
                 torsion_indices = None
             else:
