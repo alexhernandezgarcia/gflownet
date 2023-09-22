@@ -56,11 +56,11 @@ class CubeBase(GFlowNetEnv, ABC):
         n_dim: int = 2,
         min_incr: float = 0.1,
         n_comp: int = 1,
+        beta_params_min: float = 0.1,
+        beta_params_max: float = 100.0,
         epsilon: float = 1e-6,
         kappa: float = 1e-3,
         fixed_distr_params: dict = {
-            "beta_params_min": 0.1,
-            "beta_params_max": 100.0,
             "beta_weights": 1.0,
             "beta_alpha": 10.0,
             "beta_beta": 10.0,
@@ -68,8 +68,6 @@ class CubeBase(GFlowNetEnv, ABC):
             "bernoulli_eos_prob": 0.1,
         },
         random_distr_params: dict = {
-            "beta_params_min": 0.1,
-            "beta_params_max": 100.0,
             "beta_weights": 1.0,
             "beta_alpha": 10.0,
             "beta_beta": 10.0,
@@ -87,8 +85,8 @@ class CubeBase(GFlowNetEnv, ABC):
         self.min_incr = min_incr
         # Parameters of the policy distribution
         self.n_comp = n_comp
-        self.beta_params_min = fixed_distr_params["beta_params_min"]
-        self.beta_params_max = fixed_distr_params["beta_params_max"]
+        self.beta_params_min = beta_params_min
+        self.beta_params_max = beta_params_max
         # Source state is abstract - not included in the cube: -1 for all dimensions.
         self.source = [-1 for _ in range(self.n_dim)]
         # Small constant to clamp the inputs to the beta distribution
@@ -280,12 +278,10 @@ class CubeBase(GFlowNetEnv, ABC):
         ---
         _make_increments_distribution()
         """
-        param_min = params_dict["beta_params_min"]
-        param_max = params_dict["beta_params_max"]
         param_value = tfloat(
             params_dict[f"beta_{param_name}"], float_type=self.float, device=self.device
         )
-        return torch.logit((param_value - param_min) / param_max)
+        return torch.logit((param_value - self.beta_params_min) / self.beta_params_max)
 
 
 class ContinuousCube(CubeBase):

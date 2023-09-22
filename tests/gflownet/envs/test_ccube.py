@@ -506,8 +506,6 @@ def test__sample_actions_forward__2d__returns_expected(cube2d, states, force_eos
     )
     # Define Beta distribution with low variance and get confident range
     n_samples = 10000
-    beta_params_min = 0.0
-    beta_params_max = 10000
     alpha = 10.0
     alphas = alpha * torch.ones(n_samples)
     beta = 1.0
@@ -543,8 +541,6 @@ def test__sample_actions_forward__2d__returns_expected(cube2d, states, force_eos
     increments_max[is_eos] = torch.inf
     # Reconfigure environment
     env.n_comp = 1
-    env.beta_params_min = beta_params_min
-    env.beta_params_max = beta_params_max
     # Build policy outputs
     params = env.fixed_distr_params
     params["beta_alpha"] = alpha
@@ -603,8 +599,6 @@ def test__sample_actions_backward__2d__returns_expected(cube2d, states, force_bt
     states_torch = tfloat(states, float_type=env.float, device=env.device)
     # Define Beta distribution with low variance and get confident range
     n_samples = 10000
-    beta_params_min = 0.0
-    beta_params_max = 10000
     alpha = 10
     alphas = alpha * torch.ones(n_samples)
     beta = 1.0
@@ -638,8 +632,6 @@ def test__sample_actions_backward__2d__returns_expected(cube2d, states, force_bt
     increments_max[is_bts] = states_torch[is_bts]
     # Reconfigure environment
     env.n_comp = 1
-    env.beta_params_min = beta_params_min
-    env.beta_params_max = beta_params_max
     # Build policy outputs
     params = env.fixed_distr_params
     params["beta_alpha"] = alpha
@@ -776,8 +768,6 @@ def test__get_logprobs_forward__2d__all_actions_from_source_uniform_policy_prob1
         [env.get_mask_invalid_actions_forward(s) for s in states], device=env.device
     )
     # Define Uniform Beta distribution (alpha and beta equal to 1.0)
-    beta_params_min = 0.1
-    beta_params_max = 100.0
     alpha = 1.0
     beta = 1.0
     # Define Bernoulli parameter for impossible EOS
@@ -785,12 +775,8 @@ def test__get_logprobs_forward__2d__all_actions_from_source_uniform_policy_prob1
     prob_force_noeos = 0.0
     # Reconfigure environment
     env.n_comp = 1
-    env.beta_params_min = beta_params_min
-    env.beta_params_max = beta_params_max
     # Build policy outputs
     params = env.fixed_distr_params
-    params["beta_params_min"] = beta_params_min
-    params["beta_params_max"] = beta_params_max
     params["beta_alpha"] = alpha
     params["beta_beta"] = beta
     params["bernoulli_eos_prob"] = prob_force_noeos
