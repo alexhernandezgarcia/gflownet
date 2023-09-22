@@ -47,7 +47,7 @@ class Crystal(GFlowNetEnv):
     """
     A combination of Composition, SpaceGroup and CLatticeParameters into a single
     environment. Works sequentially, by first filling in the Composition, then
-    SpaceGroup, and finally LatticeParameters.
+    SpaceGroup, and finally CLatticeParameters.
     """
 
     def __init__(
@@ -307,14 +307,14 @@ class Crystal(GFlowNetEnv):
         elif stage == Stage.LATTICE_PARAMETERS:
             """
             TODO: to be stateless (meaning, operating as a function, not a method with
-            current object context) this needs to set lattice system based on the passed
-            state only. Right now it uses the current LatticeParameter environment, in
-            particular the lattice system that it was set to, and that changes the invalid
-            actions mask.
+            current object context) this needs to set lattice system based on the
+            passed state only. Right now it uses the current LatticeParameter
+            environment, in particular the lattice system that it was set to, and that
+            changes the invalid actions mask.
 
             If for some reason a state will be passed to this method that describes an
-            object with different lattice system than what self.lattice_system contains,
-            the result will be invalid.
+            object with different lattice system than what self.lattice_system
+            contains, the result will be invalid.
             """
             lattice_parameters_state = self._get_lattice_parameters_state(state)
             lattice_parameters_mask = (
@@ -400,8 +400,8 @@ class Crystal(GFlowNetEnv):
             )
         elif stage == Stage.SPACE_GROUP:
             output = (
-                [1] + self.composition.state + substate + [0] * 6
-            )  # hard-code LatticeParameters` source, since it can change with other lattice system
+                [1] + self.composition.state + substate + self.lattice_parameters.source
+            )
         elif stage == Stage.LATTICE_PARAMETERS:
             output = [2] + self.composition.state + self.space_group.state + substate
         else:
@@ -446,10 +446,10 @@ class Crystal(GFlowNetEnv):
         elif stage == Stage.LATTICE_PARAMETERS:
             """
             TODO: to be stateless (meaning, operating as a function, not a method with
-            current object context) this needs to set lattice system based on the passed
-            state only. Right now it uses the current LatticeParameter environment, in
-            particular the lattice system that it was set to, and that changes the invalid
-            actions mask.
+            current object context) this needs to set lattice system based on the
+            passed state only. Right now it uses the current LatticeParameter
+            environment, in particular the lattice system that it was set to, and that
+            changes the invalid actions mask.
 
             If for some reason a state will be passed to this method that describes an
             object with different lattice system than what self.lattice_system contains,
@@ -539,22 +539,15 @@ class Crystal(GFlowNetEnv):
         """
         We synchronize LatticeParameter's lattice system with the one of SpaceGroup
         (if it was set) or reset it to the default triclinic otherwise. Why this is 
-        needed:
-        1) the first case is necessary for backward sampling, where we start from
-           an arbitrary terminal state, and need to synchronize the LatticeParameter's
-           lattice system to what that state indicates,
-        2) the second case is also necessary in backward sampling, but when we 
-           transition from Stage.LATTICE_PARAMETERS to Stage.SPACE_GROUP. We then need
-           to reset the lattice system to the default triclinic, such that its
-           source is back to the original one, and corresponds to the source of the
-           general Crystal environment.
+        needed: for backward sampling, where we start from an arbitrary terminal state,
+        and need to synchronize the LatticeParameter's lattice system to what that
+        state indicates,
         """
         lattice_system = self.space_group.lattice_system
         if lattice_system != "None":
             self.lattice_parameters.lattice_system = lattice_system
         else:
             self.lattice_parameters.lattice_system = TRICLINIC
-        self.lattice_parameters._set_source()
 
     def state2readable(self, state: Optional[List[int]] = None) -> str:
         if state is None:
