@@ -1,5 +1,7 @@
 _target_: gflownet.policy.base.Policy
 
+shared: null
+
 forward:
   type: mlp
   n_hid: 128
