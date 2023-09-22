@@ -52,8 +52,8 @@ class CLatticeParameters(ContinuousCube):
         self,
         lattice_system: str,
         min_length: float = 1.0,
-        max_length: float = 5.0,
-        min_angle: float = 30.0,
+        max_length: float = 350.0,
+        min_angle: float = 50.0,
         max_angle: float = 150.0,
         **kwargs,
     ):

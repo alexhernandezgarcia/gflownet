@@ -12,7 +12,7 @@ n_dim: 2
 kappa: 1e-3
 # Policy
 min_incr: 0.1
-n_comp: 1
+n_comp: 2
 epsilon: 1e-6
 beta_params_min: 0.1
 beta_params_max: 100.0
