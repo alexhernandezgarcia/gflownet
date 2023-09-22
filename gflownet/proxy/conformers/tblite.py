@@ -14,10 +14,13 @@ from gflownet.proxy.conformers.base import MoleculeEnergyBase
 
 def get_energy(numbers, positions):
     with pipes():
-        # The positions are converted from Angstrom to Bohr.
-        calc = Calculator("GFN2-xTB", numbers, positions * 1.8897259886)
-        res = calc.singlepoint()
-        energy = res.get("energy").item()
+        try:
+            # The positions are converted from Angstrom to Bohr.
+            calc = Calculator("GFN2-xTB", numbers, positions * 1.8897259886)
+            res = calc.singlepoint()
+            energy = res.get("energy").item()
+        except RuntimeError:
+            energy = 0.0
 
     return energy
 
