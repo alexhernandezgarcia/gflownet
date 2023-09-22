@@ -10,7 +10,7 @@ from torchtyping import TensorType
 
 from gflownet.envs.crystals.lattice_parameters import LatticeParameters
 from gflownet.envs.cube import ContinuousCube
-from gflownet.utils.common import copy
+from gflownet.utils.common import copy, tfloat
 from gflownet.utils.crystals.constants import (
     CUBIC,
     HEXAGONAL,
@@ -268,3 +268,15 @@ class CLatticeParameters(ContinuousCube):
         for param, value in zip(PARAMETER_NAMES, values):
             state = self._set_param(state, param, value)
         return state
+
+    def statebatch2proxy(
+        self, states: List[List]
+    ) -> TensorType["batch", "state_proxy_dim"]:
+        """
+        Prepares a batch of states in "GFlowNet format" for the proxy: a tensor where
+        lengths and angles are converted into the target units (angstroms and degrees,
+        respectively).
+        """
+        return self.statetorch2proxy(
+            tfloat(states, float_type=self.float, device=self.device)
+        )
