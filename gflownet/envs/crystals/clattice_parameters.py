@@ -51,17 +51,18 @@ class CLatticeParameters(ContinuousCube):
     def __init__(
         self,
         lattice_system: str,
-        min_length: float = 1.0,
-        max_length: float = 350.0,
-        min_angle: float = 50.0,
-        max_angle: float = 150.0,
+        min_length: Optional[float] = 1.0,
+        max_length: Optional[float] = 350.0,
+        min_angle: Optional[float] = 50.0,
+        max_angle: Optional[float] = 150.0,
         **kwargs,
     ):
         """
         Args
         ----
         lattice_system : str
-            One of the seven lattice systems.
+            One of the seven lattice systems. By default, the triclinic lattice system
+            is used, which has no constraints.
 
         min_length : float
             Minimum value of the lengths.
