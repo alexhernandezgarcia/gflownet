@@ -10,12 +10,12 @@ from gflownet.utils.common import tbool, tfloat
 
 @pytest.fixture
 def cube1d():
-    return ContinuousCube(n_dim=1, n_comp=3, min_incr=0.1, max_val=1.0)
+    return ContinuousCube(n_dim=1, n_comp=3, min_incr=0.1)
 
 
 @pytest.fixture
 def cube2d():
-    return ContinuousCube(n_dim=2, n_comp=3, min_incr=0.1, max_val=1.0)
+    return ContinuousCube(n_dim=2, n_comp=3, min_incr=0.1)
 
 
 @pytest.mark.parametrize(
@@ -508,20 +508,18 @@ def test__sample_actions_forward__2d__returns_expected(cube2d, states, force_eos
     n_samples = 10000
     beta_params_min = 0.0
     beta_params_max = 10000
-    alpha = 10
-    alphas_presigmoid = alpha * torch.ones(n_samples)
-    alphas = beta_params_max * torch.sigmoid(alphas_presigmoid) + beta_params_min
+    alpha = 10.0
+    alphas = alpha * torch.ones(n_samples)
     beta = 1.0
-    betas_presigmoid = beta * torch.ones(n_samples)
-    betas = beta_params_max * torch.sigmoid(betas_presigmoid) + beta_params_min
+    betas = beta * torch.ones(n_samples)
     beta_distr = Beta(alphas, betas)
     samples = beta_distr.sample()
     mean_incr_rel = 0.9 * samples.mean()
     min_incr_rel = 0.9 * samples.min()
     max_incr_rel = 1.1 * samples.max()
     # Define Bernoulli parameters for EOS with deterministic probability
-    logit_force_eos = torch.inf
-    logit_force_noeos = -torch.inf
+    prob_force_eos = 1.0
+    prob_force_noeos = 0.0
     # Estimate confident intervals of absolute actions
     states_torch = tfloat(states, float_type=env.float, device=env.device)
     is_source = torch.all(states_torch == -1.0, dim=1)
@@ -551,9 +549,9 @@ def test__sample_actions_forward__2d__returns_expected(cube2d, states, force_eos
     params = env.fixed_distr_params
     params["beta_alpha"] = alpha
     params["beta_beta"] = beta
-    params["bernoulli_eos_logit"] = logit_force_noeos
+    params["bernoulli_eos_prob"] = prob_force_noeos
     policy_outputs = torch.tile(env.get_policy_output(params), dims=(n_states, 1))
-    policy_outputs[force_eos, -1] = logit_force_eos
+    policy_outputs[force_eos, -1] = torch.logit(torch.tensor(prob_force_eos))
     # Sample actions
     actions, _ = env.sample_actions_batch(
         policy_outputs, masks, states, is_backward=False
@@ -608,19 +606,17 @@ def test__sample_actions_backward__2d__returns_expected(cube2d, states, force_bt
     beta_params_min = 0.0
     beta_params_max = 10000
     alpha = 10
-    alphas_presigmoid = alpha * torch.ones(n_samples)
-    alphas = beta_params_max * torch.sigmoid(alphas_presigmoid) + beta_params_min
+    alphas = alpha * torch.ones(n_samples)
     beta = 1.0
-    betas_presigmoid = beta * torch.ones(n_samples)
-    betas = beta_params_max * torch.sigmoid(betas_presigmoid) + beta_params_min
+    betas = beta * torch.ones(n_samples)
     beta_distr = Beta(alphas, betas)
     samples = beta_distr.sample()
     mean_incr_rel = 0.9 * samples.mean()
     min_incr_rel = 0.9 * samples.min()
     max_incr_rel = 1.1 * samples.max()
     # Define Bernoulli parameters for BTS with deterministic probability
-    logit_force_bts = torch.inf
-    logit_force_nobts = -torch.inf
+    prob_force_bts = 1.0
+    prob_force_nobts = 0.0
     # Estimate confident intervals of absolute actions
     increments_min = torch.full_like(
         states_torch, min_incr_rel, dtype=env.float, device=env.device
@@ -648,9 +644,9 @@ def test__sample_actions_backward__2d__returns_expected(cube2d, states, force_bt
     params = env.fixed_distr_params
     params["beta_alpha"] = alpha
     params["beta_beta"] = beta
-    params["bernoulli_source_logit"] = logit_force_nobts
+    params["bernoulli_bts_prob"] = prob_force_nobts
     policy_outputs = torch.tile(env.get_policy_output(params), dims=(n_states, 1))
-    policy_outputs[force_bts, -2] = logit_force_bts
+    policy_outputs[force_bts, -2] = torch.logit(torch.tensor(prob_force_bts))
     # Sample actions
     actions, _ = env.sample_actions_batch(
         policy_outputs, masks, states, is_backward=True
@@ -740,13 +736,12 @@ def test__get_logprobs_forward__2d__eos_actions_return_expected(
     is_near_edge = states_torch > 1.0 - env.min_incr
     is_eos_forced = torch.any(is_near_edge, dim=1)
     # Define Bernoulli parameter for EOS
-    # If Bernouilli has logit torch.inf, the logprobs are nan
-    logit_eos = 1
-    distr_eos = Bernoulli(logits=logit_eos)
+    prob_eos = 0.5
+    distr_eos = Bernoulli(probs=prob_eos)
     logprob_eos = distr_eos.log_prob(torch.tensor(1.0))
     # Build policy outputs
     params = env.fixed_distr_params
-    params["bernoulli_eos_logit"] = logit_eos
+    params["bernoulli_eos_prob"] = prob_eos
     policy_outputs = torch.tile(env.get_policy_output(params), dims=(n_states, 1))
     # Get log probs
     logprobs = env.get_logprobs(
@@ -780,23 +775,25 @@ def test__get_logprobs_forward__2d__all_actions_from_source_uniform_policy_prob1
     masks = tbool(
         [env.get_mask_invalid_actions_forward(s) for s in states], device=env.device
     )
-    # Define Uniform Beta distribution (large values of alpha and beta and max of 1.0)
-    beta_params_min = 0.0
-    beta_params_max = 1.0
-    alpha_presigmoid = 1000.0
-    betas_presigmoid = 1000.0
+    # Define Uniform Beta distribution (alpha and beta equal to 1.0)
+    beta_params_min = 0.1
+    beta_params_max = 100.0
+    alpha = 1.0
+    beta = 1.0
     # Define Bernoulli parameter for impossible EOS
-    # If Bernouilli has logit -torch.inf, the logprobs are nan
-    logit_force_noeos = -1000
+    # If Bernouilli has probability exactly 0, the logit is -inf.
+    prob_force_noeos = 0.0
     # Reconfigure environment
     env.n_comp = 1
     env.beta_params_min = beta_params_min
     env.beta_params_max = beta_params_max
     # Build policy outputs
     params = env.fixed_distr_params
-    params["beta_alpha"] = alpha_presigmoid
-    params["beta_beta"] = betas_presigmoid
-    params["bernoulli_eos_logit"] = logit_force_noeos
+    params["beta_params_min"] = beta_params_min
+    params["beta_params_max"] = beta_params_max
+    params["beta_alpha"] = alpha
+    params["beta_beta"] = beta
+    params["bernoulli_eos_prob"] = prob_force_noeos
     policy_outputs = torch.tile(env.get_policy_output(params), dims=(n_states, 1))
     # Get log probs
     logprobs = env.get_logprobs(
@@ -844,12 +841,12 @@ def test__get_logprobs_forward__2d__finite(cube2d, states, actions):
     is_eos_forced = torch.any(is_near_edge, dim=1)
     # Define Bernoulli parameter for EOS
     # If Bernouilli has logit torch.inf, the logprobs are nan
-    logit_eos = 1
-    distr_eos = Bernoulli(logits=logit_eos)
+    prob_eos = 0.5
+    distr_eos = Bernoulli(probs=prob_eos)
     logprob_eos = distr_eos.log_prob(torch.tensor(1.0))
     # Build policy outputs
     params = env.fixed_distr_params
-    params["bernoulli_eos_logit"] = logit_eos
+    params["bernoulli_eos_prob"] = prob_eos
     policy_outputs = torch.tile(env.get_policy_output(params), dims=(n_states, 1))
     # Get log probs
     logprobs = env.get_logprobs(
@@ -887,13 +884,12 @@ def test__get_logprobs_forward__2d__is_finite(cube2d, states, actions):
     is_near_edge = states_torch > 1.0 - env.min_incr
     is_eos_forced = torch.any(is_near_edge, dim=1)
     # Define Bernoulli parameter for EOS
-    # If Bernouilli has logit torch.inf, the logprobs are nan
-    logit_eos = 1
-    distr_eos = Bernoulli(logits=logit_eos)
+    prob_eos = 0.5
+    distr_eos = Bernoulli(probs=prob_eos)
     logprob_eos = distr_eos.log_prob(torch.tensor(1.0))
     # Build policy outputs
     params = env.fixed_distr_params
-    params["bernoulli_eos_logit"] = logit_eos
+    params["bernoulli_eos_prob"] = prob_eos
     policy_outputs = torch.tile(env.get_policy_output(params), dims=(n_states, 1))
     # Get log probs
     logprobs = env.get_logprobs(
@@ -927,13 +923,12 @@ def test__get_logprobs_backward__2d__is_finite(cube2d, states, actions):
         [env.get_mask_invalid_actions_backward(s) for s in states], device=env.device
     )
     # Define Bernoulli parameter for BTS
-    # If Bernouilli has logit torch.inf, the logprobs are nan
-    logit_bts = 1
-    distr_bts = Bernoulli(logits=logit_bts)
+    prob_bts = 0.5
+    distr_bts = Bernoulli(probs=prob_bts)
     logprob_bts = distr_bts.log_prob(torch.tensor(1.0))
     # Build policy outputs
     params = env.fixed_distr_params
-    params["bernoulli_source_logit"] = logit_bts
+    params["bernoulli_bts_prob"] = prob_bts
     policy_outputs = torch.tile(env.get_policy_output(params), dims=(n_states, 1))
     # Get log probs
     logprobs = env.get_logprobs(
@@ -1016,13 +1011,12 @@ def test__get_logprobs_backward__2d__bts_actions_return_expected(
     is_near_edge = states_torch < env.min_incr
     is_bts_forced = torch.any(is_near_edge, dim=1)
     # Define Bernoulli parameter for BTS
-    # If Bernouilli has logit torch.inf, the logprobs are nan
-    logit_bts = 1
-    distr_bts = Bernoulli(logits=logit_bts)
+    prob_bts = 0.5
+    distr_bts = Bernoulli(probs=prob_bts)
     logprob_bts = distr_bts.log_prob(torch.tensor(1.0))
     # Build policy outputs
     params = env.fixed_distr_params
-    params["bernoulli_source_logit"] = logit_bts
+    params["bernoulli_bts_prob"] = prob_bts
     policy_outputs = torch.tile(env.get_policy_output(params), dims=(n_states, 1))
     # Get log probs
     logprobs = env.get_logprobs(
@@ -1062,13 +1056,12 @@ def test__get_logprobs_backward__2d__notnan(cube2d, states, actions):
     is_near_edge = states_torch < env.min_incr
     is_bts_forced = torch.any(is_near_edge, dim=1)
     # Define Bernoulli parameter for BTS
-    # If Bernouilli has logit torch.inf, the logprobs are nan
-    logit_bts = 1
-    distr_bts = Bernoulli(logits=logit_bts)
+    prob_bts = 0.5
+    distr_bts = Bernoulli(probs=prob_bts)
     logprob_bts = distr_bts.log_prob(torch.tensor(1.0))
     # Build policy outputs
     params = env.fixed_distr_params
-    params["bernoulli_source_logit"] = logit_bts
+    params["bernoulli_bts_prob"] = prob_bts
     policy_outputs = torch.tile(env.get_policy_output(params), dims=(n_states, 1))
     # Get log probs
     logprobs = env.get_logprobs(
