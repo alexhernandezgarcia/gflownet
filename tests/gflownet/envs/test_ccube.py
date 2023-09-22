@@ -53,14 +53,20 @@ def policy_output__as_expected(env, policy_outputs, params):
         env._get_policy_betas_weights(policy_outputs) == params["beta_weights"]
     )
     assert torch.all(
-        env._get_policy_betas_alpha(policy_outputs) == params["beta_alpha"]
-    )
-    assert torch.all(env._get_policy_betas_beta(policy_outputs) == params["beta_beta"])
-    assert torch.all(
-        env._get_policy_eos_logit(policy_outputs) == params["bernoulli_eos_logit"]
+        env._get_policy_betas_alpha(policy_outputs)
+        == env._beta_params_to_policy_outputs("alpha", params)
     )
     assert torch.all(
-        env._get_policy_source_logit(policy_outputs) == params["bernoulli_source_logit"]
+        env._get_policy_betas_beta(policy_outputs)
+        == env._beta_params_to_policy_outputs("beta", params)
+    )
+    assert torch.all(
+        env._get_policy_eos_logit(policy_outputs)
+        == torch.logit(torch.tensor(params["bernoulli_eos_prob"]))
+    )
+    assert torch.all(
+        env._get_policy_source_logit(policy_outputs)
+        == torch.logit(torch.tensor(params["bernoulli_bts_prob"]))
     )
 
 
@@ -894,6 +900,7 @@ def test__get_logprobs_forward__2d__is_finite(cube2d, states, actions):
         policy_outputs, actions, masks, states_torch, is_backward=False
     )
     assert torch.all(torch.isfinite(logprobs))
+
 
 @pytest.mark.parametrize(
     "states, actions",
