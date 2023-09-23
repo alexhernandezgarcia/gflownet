@@ -46,10 +46,10 @@ logger:
     - continuous
     - molecule
   test:
-    period: 2000
+    period: 10000
     n: 10000
   checkpoints:
-    period: 2000
+    period: 10000
 
 # Hydra
 hydra:
