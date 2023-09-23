@@ -2,6 +2,7 @@
 Classes to represent hyper-cube environments
 """
 import itertools
+import warnings
 from abc import ABC, abstractmethod
 from typing import List, Optional, Tuple
 
@@ -350,6 +351,9 @@ class ContinuousCube(CubeBase):
         self.eos = tuple([np.inf] * actions_dim)
         self.representative_action = tuple([0.0] * actions_dim)
         return [self.representative_action, self.eos]
+
+    def get_max_traj_length(self):
+        return np.ceil(1.0 / self.min_incr) + 2
 
     def get_policy_output(self, params: dict) -> TensorType["policy_output_dim"]:
         """
@@ -1245,32 +1249,30 @@ class ContinuousCube(CubeBase):
             root state
         """
         # If forward action is from source, initialize state to all zeros.
-        if not backward and action[-1] == 1:
-            self.state = [0.0 for _ in range(self.n_dim)]
+        if not backward and action[-1] == 1 and self.state == self.source:
+            state = [0.0 for _ in range(self.n_dim)]
+        else:
+            state = copy(self.state)
         # Increment dimensions
         for dim, incr in enumerate(action[:-1]):
             if backward:
-                self.state[dim] -= incr
+                state[dim] -= incr
             else:
-                self.state[dim] += incr
-        # If backward action is to source, set state to source
-        if backward and action[-1] == 1:
-            self.state = self.source
+                state[dim] += incr
 
-        # Check that state is within bounds
-        if self.state != self.source:
-            assert all(
-                [s <= 1.0 for s in self.state]
-            ), f"""
-            State is out of cube bounds.
-            \nState:\n{self.state}\nAction:\n{action}\nIncrement: {incr}
-            """
-            assert all(
-                [s >= 0.0 for s in self.state]
-            ), f"""
-            State is out of cube bounds.
-            \nState:\n{self.state}\nAction:\n{action}\nIncrement: {incr}
-            """
+        # If state is out of bounds, return invalid
+        if any([s > 1.0 for s in state]) or any([s < 0.0 for s in state]):
+            warnings.warn(
+                f"""
+                State is out of cube bounds.
+                \nCurrent state:\n{self.state}\nAction:\n{action}\nNext state: {state}
+                """
+            )
+            return self.state, action, False
+
+        # Otherwise, set self.state as the udpated state and return valid.
+        self.n_actions += 1
+        self.state = state
         return self.state, action, True
 
     # TODO: make generic for continuous environments?
@@ -1308,11 +1310,8 @@ class ContinuousCube(CubeBase):
             return self.state, self.eos, True
         # Otherwise perform action
         else:
-            self.n_actions += 1
-            self._step(action, backward=False)
-            return self.state, action, True
+            return self._step(action, backward=False)
 
-    # TODO: make generic for continuous environments?
     def step_backwards(
         self, action: Tuple[int, float]
     ) -> Tuple[List[float], Tuple[int, float], bool]:
@@ -1344,11 +1343,14 @@ class ContinuousCube(CubeBase):
             self.done = False
             self.n_actions += 1
             return self.state, action, True
-        # Otherwise perform action
         assert action != self.eos
-        self.n_actions += 1
-        self._step(action, backward=True)
-        return self.state, action, True
+        # If action is BTS, set source state
+        if action[-1] == 1 and self.state != self.source:
+            self.n_actions += 1
+            self.state = self.source
+            return self.state, action, True
+        # Otherwise perform action
+        return self._step(action, backward=True)
 
     def action2representative(self, action: Tuple) -> Tuple:
         """
