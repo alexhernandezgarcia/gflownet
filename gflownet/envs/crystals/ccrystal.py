@@ -10,6 +10,7 @@ from gflownet.envs.base import GFlowNetEnv
 from gflownet.envs.crystals.clattice_parameters import CLatticeParameters
 from gflownet.envs.crystals.composition import Composition
 from gflownet.envs.crystals.spacegroup import SpaceGroup
+from gflownet.utils.common import copy, tbool, tfloat, tlong
 from gflownet.utils.crystals.constants import TRICLINIC
 
 
@@ -72,6 +73,11 @@ class CCrystal(GFlowNetEnv):
         self.lattice_parameters = CLatticeParameters(
             lattice_system=TRICLINIC, **self.lattice_parameters_kwargs
         )
+        self.subenvs = {
+            Stage.COMPOSITION: self.composition,
+            Stage.SPACE_GROUP: self.space_group,
+            Stage.LATTICE_PARAMETERS: self.lattice_parameters,
+        }
 
         # 0-th element of state encodes current stage: 0 for composition,
         # 1 for space group, 2 for lattice parameters
@@ -423,6 +429,53 @@ class CCrystal(GFlowNetEnv):
             raise ValueError(f"Unrecognized stage {stage}.")
 
         return output
+
+    def sample_actions_batch(
+        self,
+        policy_outputs: TensorType["n_states", "policy_output_dim"],
+        mask: Optional[TensorType["n_states", "policy_output_dim"]] = None,
+        states_from: List = None,
+        is_backward: Optional[bool] = False,
+        sampling_method: Optional[str] = "policy",
+        temperature_logits: Optional[float] = 1.0,
+        max_sampling_attempts: Optional[int] = 10,
+    ) -> Tuple[List[Tuple], TensorType["n_states"]]:
+        """
+        Samples a batch of actions from a batch of policy outputs.
+
+        This method calls the sample_actions_batch() method of the sub-environment
+        corresponding to each state in the batch. For composition and space_group it
+        will be the method from the base discrete environment; for the lattice
+        parameters, it will be the method from the cube environment.
+        """
+        states_dict = {stage: [] for stage in Stage}
+        stages = []
+        for s in states_from:
+            stage = self.get_stage(s)
+            states_dict[stage].append(s)
+            stages.append(stage)
+        stages_tensor = tlong(stages, device=self.device)
+        is_subenv_dict = {stage: stages_tensor == stage for stage in Stage}
+
+        # Sample actions from each sub-environment
+        actions_logprobs_dict = {
+            stage: subenv.sample_actions_batch(
+                policy_outputs[is_subenv_dict[stage]],
+                mask[is_subenv_dict[stage]],
+                states_dict[stage].values,
+                sampling_method,
+                temperature_logits,
+                max_sampling_attempts,
+            )
+            for stage, subenv in self.subenvs
+            if torch.any(is_subenv_dict[stage])
+        }
+
+        # Stitch all actions in the right order
+        actions = []
+        for stage in stages:
+            actions.append(actions_logprobs_dict[stage][0].pop(0))
+        return actions, _
 
     # TODO: Consider removing altogether
     def get_parents(
