@@ -43,7 +43,7 @@ class Stage(Enum):
         return Stage(-pad_value - 2)
 
 
-class Crystal(GFlowNetEnv):
+class CCrystal(GFlowNetEnv):
     """
     A combination of Composition, SpaceGroup and CLatticeParameters into a single
     environment. Works sequentially, by first filling in the Composition, then
@@ -68,7 +68,7 @@ class Crystal(GFlowNetEnv):
         # We initialize lattice parameters with triclinic lattice system as it is the
         # most general one, but it will have to be reinitialized using proper lattice
         # system from space group once that is determined.
-        self.lattice_parameters = LatticeParameters(
+        self.lattice_parameters = CLatticeParameters(
             lattice_system=TRICLINIC, **self.lattice_parameters_kwargs
         )
 
@@ -216,7 +216,7 @@ class Crystal(GFlowNetEnv):
     def reset(self, env_id: Union[int, str] = None):
         self.composition.reset()
         self.space_group.reset()
-        self.lattice_parameters = LatticeParameters(
+        self.lattice_parameters = CLatticeParameters(
             lattice_system=TRICLINIC, **self.lattice_parameters_kwargs
         )
 
@@ -230,7 +230,8 @@ class Crystal(GFlowNetEnv):
         Returns the stage of the current environment from self.state[0] or from the
         state passed as an argument.
         """
-        state = self._get_state(state)
+        if state is None:
+            state = self.state
         return Stage(state[0])
 
     def _set_stage(self, stage: Stage, state: Optional[List] = None):
@@ -238,7 +239,8 @@ class Crystal(GFlowNetEnv):
         Sets the stage of the current environment (self.state) or of the state passed
         as an argument by updating state[0].
         """
-        state = self._get_state(state)
+        if state is None:
+            state = self.state
         state[0] = stage.value
 
     def _get_composition_state(self, state: Optional[List[int]] = None) -> List[int]:
