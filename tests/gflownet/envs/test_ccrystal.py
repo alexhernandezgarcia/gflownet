@@ -394,8 +394,7 @@ def test__get_mask_invalid_actions_forward__masks_all_actions_from_different_sta
         )
 
 
-@pytest.mark.skip(reason="skip until updated")
-def test__all_env_common(env):
+def test__continuous_env_common(env):
     return common.test__all_env_common(env)
 
 
