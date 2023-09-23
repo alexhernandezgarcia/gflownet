@@ -37,6 +37,13 @@ gflownet:
     n_train_steps: 40000
     lr_decay_period: 1000000
 
+# Policy
+policy:
+  forward:
+    checkpoint: forward.ckpt
+  backward:
+    checkpoint: forward.ckpt
+
 # WandB
 logger:
   lightweight: True
