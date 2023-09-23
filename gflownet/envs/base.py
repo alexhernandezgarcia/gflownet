@@ -474,6 +474,12 @@ class GFlowNetEnv:
         elif sampling_method == "policy":
             logits = policy_outputs
             logits /= temperature_logits
+        else:
+            raise NotImplementedError(
+                f"Sampling method {sampling_method} is invalid. "
+                "Options are: policy, uniform."
+            )
+
         if mask is not None:
             assert not torch.all(mask), dedent(
                 """
@@ -677,7 +683,9 @@ class GFlowNetEnv:
             count += 1
         return states
 
-    def get_policy_output(self, params: Optional[dict] = None):
+    def get_policy_output(
+        self, params: Optional[dict] = None
+    ) -> TensorType["policy_output_dim"]:
         """
         Defines the structure of the output of the policy model, from which an
         action is to be determined or sampled, by returning a vector with a fixed
@@ -686,7 +694,7 @@ class GFlowNetEnv:
 
         Continuous environments will generally have to overwrite this method.
         """
-        return np.ones(self.action_space_dim)
+        return torch.ones(self.action_space_dim, dtype=self.float, device=self.device)
 
     def state2proxy(self, state: List = None):
         """
