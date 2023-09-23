@@ -451,31 +451,34 @@ class CCrystal(GFlowNetEnv):
         states_dict = {stage: [] for stage in Stage}
         stages = []
         for s in states_from:
-            stage = self.get_stage(s)
+            stage = self._get_stage(s)
             states_dict[stage].append(s)
             stages.append(stage)
-        stages_tensor = tlong(stages, device=self.device)
-        is_subenv_dict = {stage: stages_tensor == stage for stage in Stage}
+        stages_tensor = tlong([stage.value for stage in stages], device=self.device)
+        is_subenv_dict = {stage: stages_tensor == stage.value for stage in Stage}
 
         # Sample actions from each sub-environment
         actions_logprobs_dict = {
             stage: subenv.sample_actions_batch(
                 policy_outputs[is_subenv_dict[stage]],
                 mask[is_subenv_dict[stage]],
-                states_dict[stage].values,
+                states_dict[stage],
+                is_backward,
                 sampling_method,
                 temperature_logits,
                 max_sampling_attempts,
             )
-            for stage, subenv in self.subenvs
+            for stage, subenv in self.subenvs.items()
             if torch.any(is_subenv_dict[stage])
         }
 
-        # Stitch all actions in the right order
+        # Stitch all actions in the right order, with the right padding
         actions = []
         for stage in stages:
-            actions.append(actions_logprobs_dict[stage][0].pop(0))
-        return actions, _
+            actions.append(
+                self._pad_action(actions_logprobs_dict[stage][0].pop(0), stage)
+            )
+        return actions, None
 
     # TODO: Consider removing altogether
     def get_parents(
