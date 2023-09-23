@@ -1252,6 +1252,7 @@ class ContinuousCube(CubeBase):
         if not backward and action[-1] == 1 and self.state == self.source:
             state = [0.0 for _ in range(self.n_dim)]
         else:
+            assert action[-1] == 0
             state = copy(self.state)
         # Increment dimensions
         for dim, incr in enumerate(action[:-1]):
@@ -1358,9 +1359,7 @@ class ContinuousCube(CubeBase):
         "representative" action in the first position of the action space), so that
         they can be compared against the action space or a mask.
         """
-        if action != self.eos:
-            return self.action_space[0]
-        return action
+        return self.action_space[0]
 
     def get_grid_terminating_states(
         self, n_states: int, kappa: Optional[float] = None
