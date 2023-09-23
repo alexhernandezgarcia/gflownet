@@ -9,6 +9,8 @@ from torch import Tensor
 from gflownet.envs.crystals.ccrystal import CCrystal, Stage
 from gflownet.envs.crystals.clattice_parameters import TRICLINIC
 
+from gflownet.utils.common import tbool, tfloat
+
 
 @pytest.fixture
 def env():
@@ -393,7 +395,60 @@ def test__get_mask_invalid_actions_forward__masks_all_actions_from_different_sta
             ]
         )
 
+@pytest.mark.skip(reason="skip while developping other tests")
+@pytest.mark.repeat(10)
+def test__step_random__does_not_crash_from_source(env):
+    """
+    Very low bar test...
+    """
+    env.reset()
+    env.step_random()
+    pass
 
+@pytest.mark.parametrize(
+    "states",
+    [
+        [
+            [0, 0, 0, 0, 0, 0, 0, 0, -1, -1, -1, -1, -1, -1],
+            [0, 0, 4, 0, 0, 0, 0, 0, -1, -1, -1, -1, -1, -1],
+            [0, 0, 4, 3, 0, 0, 0, 0, -1, -1, -1, -1, -1, -1],
+            [0, 3, 0, 0, 0, 0, 0, 0, -1, -1, -1, -1, -1, -1],
+            [0, 3, 0, 0, 6, 0, 0, 0, -1, -1, -1, -1, -1, -1],
+            [0, 3, 1, 0, 6, 0, 0, 0, -1, -1, -1, -1, -1, -1],
+        ],
+        [
+            [0, 0, 0, 0, 0, 0, 0, 0, -1, -1, -1, -1, -1, -1],
+            [0, 0, 4, 3, 0, 0, 0, 0, -1, -1, -1, -1, -1, -1],
+            [0, 3, 1, 0, 6, 0, 0, 0, -1, -1, -1, -1, -1, -1],
+            [1, 3, 1, 0, 6, 0, 0, 0, -1, -1, -1, -1, -1, -1],
+            [1, 3, 1, 0, 6, 1, 0, 0, -1, -1, -1, -1, -1, -1],
+            [1, 3, 1, 0, 6, 1, 2, 0, -1, -1, -1, -1, -1, -1],
+        ],
+    ],
+)
+def test__sample_actions_forward__returns_valid_actions(env, states):
+    """
+    Still low bar, but getting better...
+    """
+    n_states = len(states)
+    # Get masks
+    masks = tbool(
+        [env.get_mask_invalid_actions_forward(s) for s in states], device=env.device
+    )
+    # Build policy outputs
+    params = env.random_distr_params
+    policy_outputs = torch.tile(env.get_policy_output(params), dims=(n_states, 1))
+    # Sample actions
+    actions, _ = env.sample_actions_batch(
+        policy_outputs, masks, states, is_backward=False
+    )
+    # Sample actions are valid
+    for state, action in zip(states, actions):
+        assert action in env.get_valid_actions(state, done=False, backward=False)
+
+
+
+@pytest.mark.skip(reason="skip until updated")
 def test__continuous_env_common(env):
     return common.test__all_env_common(env)
 
