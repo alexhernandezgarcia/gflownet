@@ -989,6 +989,19 @@ class GFlowNetAgent:
         ).item()
         nll_tt = -logprobs_x_tt.mean().item()
 
+        # TODO: refactor / remove
+        if self.env.n_dim > 2:
+            return (
+                self.l1,
+                self.kl,
+                self.jsd,
+                corr_prob_traj_rewards,
+                var_logrewards_logp,
+                nll_tt,
+                (None,),
+                {},
+            )
+
         batch, _ = self.sample_batch(n_forward=self.logger.test.n, train=False)
         assert batch.is_valid()
         x_sampled = batch.get_terminating_states()
