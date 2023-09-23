@@ -11,7 +11,7 @@ defaults:
 env:
   smiles: CC(C)Cc1ccc(cc1)[C@@H](C)C(=O)O
   n_torsion_angles: -1
-  length_traj: 5
+  length_traj: 10
   policy_encoding_dim_per_angle: 10
   policy_type: mlp
   n_comp: 5
@@ -31,7 +31,7 @@ gflownet:
       forward: 80
       backward_dataset: 0
       backward_replay: 20
-    lr: 0.0001
+    lr: 0.00001
     z_dim: 16
     lr_z_mult: 1000
     n_train_steps: 40000
