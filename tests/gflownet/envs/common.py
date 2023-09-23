@@ -22,6 +22,7 @@ def test__all_env_common(env):
     test__step_random__does_not_sample_invalid_actions(env)
     test__forward_actions_have_nonzero_backward_prob(env)
     test__backward_actions_have_nonzero_forward_prob(env)
+    test__trajectories_are_reversible(env)
     test__get_parents_step_get_mask__are_compatible(env)
     test__sample_backwards_reaches_source(env)
     test__state2readable__is_reversible(env)
@@ -40,6 +41,7 @@ def test__continuous_env_common(env):
     test__backward_actions_have_nonzero_forward_prob(env)
     test__step__returns_same_state_action_and_invalid_if_done(env)
     test__sample_backwards_reaches_source(env)
+    test__trajectories_are_reversible(env)
 
 
 #     test__gflownet_minimal_runs(env)
@@ -355,6 +357,40 @@ def test__forward_actions_have_nonzero_backward_prob(env):
         )
         assert torch.isfinite(logprobs_bw)
         assert logprobs_bw > -1e6
+
+
+@pytest.mark.repeat(1000)
+def test__trajectories_are_reversible(env):
+    env = env.reset()
+
+    # Sample random forward trajectory
+    states_trajectory_fw = []
+    actions_trajectory_fw = []
+    while not env.done:
+        state, action, valid = env.step_random(backward=False)
+        if valid:
+            states_trajectory_fw.append(state)
+            actions_trajectory_fw.append(action)
+
+    # Sample backward trajectory with actions in forward trajectory
+    states_trajectory_bw = []
+    actions_trajectory_bw = []
+    actions_trajectory_fw_copy = actions_trajectory_fw.copy()
+    while not env.equal(env.state, env.source) or env.done:
+        state, action, valid = env.step_backwards(actions_trajectory_fw_copy.pop())
+        if valid:
+            states_trajectory_bw.append(state)
+            actions_trajectory_bw.append(action)
+
+    assert all(
+        [
+            env.equal(s_fw, s_bw)
+            for s_fw, s_bw in zip(
+                states_trajectory_fw[:-1], states_trajectory_bw[-2::-1]
+            )
+        ]
+    )
+    assert actions_trajectory_fw == actions_trajectory_bw[::-1]
 
 
 def test__backward_actions_have_nonzero_forward_prob(env, n=1000):
