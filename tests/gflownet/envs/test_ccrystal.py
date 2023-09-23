@@ -270,11 +270,6 @@ def test__step__action_sequence_has_expected_result(
     assert valid == last_action_valid
 
 
-# TODO: continue from here
-def test__get_parents__returns_no_parents_in_initial_state(env):
-    return common.test__get_parents__returns_no_parents_in_initial_state(env)
-
-
 @pytest.mark.skip(reason="skip until updated")
 @pytest.mark.parametrize(
     "actions",
