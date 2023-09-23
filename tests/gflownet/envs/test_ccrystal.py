@@ -1,8 +1,9 @@
+import warnings
+
 import common
+import numpy as np
 import pytest
 import torch
-import warnings
-import numpy as np
 from torch import Tensor
 
 from gflownet.envs.crystals.ccrystal import CCrystal, Stage
@@ -11,9 +12,7 @@ from gflownet.envs.crystals.clattice_parameters import TRICLINIC
 
 @pytest.fixture
 def env():
-    return CCrystal(
-        composition_kwargs={"elements": 4}
-    )
+    return CCrystal(composition_kwargs={"elements": 4})
 
 
 @pytest.fixture
@@ -124,7 +123,9 @@ def test__statebatch2proxy__returns_expected_value(env, batch, expected):
     assert torch.allclose(env.statebatch2proxy(batch), expected, atol=1e-4)
 
 
-@pytest.mark.parametrize("action", [(1, 1, -2, -2, -2, -2, -2), (3, 4, -2, -2, -2, -2, -2)])
+@pytest.mark.parametrize(
+    "action", [(1, 1, -2, -2, -2, -2, -2), (3, 4, -2, -2, -2, -2, -2)]
+)
 def test__step__single_action_works(env, action):
     env.step(action)
 
@@ -147,7 +148,11 @@ def test__step__single_action_works(env, action):
             False,
         ],
         [
-            [(1, 1, -2, -2, -2, -2, -2), (3, 4, -2, -2, -2, -2, -2), (-1, -1, -2, -2, -2, -2, -2)],
+            [
+                (1, 1, -2, -2, -2, -2, -2),
+                (3, 4, -2, -2, -2, -2, -2),
+                (-1, -1, -2, -2, -2, -2, -2),
+            ],
             [1, 1, 0, 4, 0, 0, 0, 0, -1, -1, -1, -1, -1, -1],
             Stage.SPACE_GROUP,
             True,
@@ -270,20 +275,17 @@ def test__step__action_sequence_has_expected_result(
     assert valid == last_action_valid
 
 
-@pytest.mark.skip(reason="skip until updated")
+# TODO: Remove if get_parents is removed
 @pytest.mark.parametrize(
     "actions",
     [
-        [(1, 1, -2, -2, -2, -2), (3, 4, -2, -2, -2, -2)],
+        [(1, 1, -2, -2, -2, -2, -2), (3, 4, -2, -2, -2, -2, -2)],
         [
-            (1, 1, -2, -2, -2, -2),
-            (3, 4, -2, -2, -2, -2),
-            (-1, -1, -2, -2, -2, -2),
-            (2, 105, 0, -3, -3, -3),
-            (-1, -1, -1, -3, -3, -3),
-            (1, 1, 1, 0, 0, 0),
-            (1, 1, 0, 0, 0, 0),
-            (0, 0, 0, 0, 0, 0),
+            (1, 1, -2, -2, -2, -2, -2),
+            (3, 4, -2, -2, -2, -2, -2),
+            (-1, -1, -2, -2, -2, -2, -2),
+            (2, 105, 0, -3, -3, -3, -3),
+            (-1, -1, -1, -3, -3, -3, -3),
         ],
     ],
 )
@@ -294,19 +296,18 @@ def test__get_parents__contains_previous_action_after_a_step(env, actions):
         assert action in parent_actions
 
 
-@pytest.mark.skip(reason="skip until updated")
 @pytest.mark.parametrize(
     "actions",
     [
         [
-            (1, 1, -2, -2, -2, -2),
-            (3, 4, -2, -2, -2, -2),
-            (-1, -1, -2, -2, -2, -2),
-            (2, 105, 0, -3, -3, -3),
-            (-1, -1, -1, -3, -3, -3),
-            (1, 1, 1, 0, 0, 0),
-            (1, 1, 0, 0, 0, 0),
-            (0, 0, 0, 0, 0, 0),
+            (1, 1, -2, -2, -2, -2, -2),
+            (3, 4, -2, -2, -2, -2, -2),
+            (-1, -1, -2, -2, -2, -2, -2),
+            (2, 105, 0, -3, -3, -3, -3),
+            (-1, -1, -1, -3, -3, -3, -3),
+            (0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 1),
+            (0.66, 0.55, 0.44, 0.33, 0.22, 0.11, 0),
+            (np.inf, np.inf, np.inf, np.inf, np.inf, np.inf, np.inf),
         ]
     ],
 )
@@ -327,7 +328,6 @@ def test__reset(env, actions):
     assert env.lattice_parameters.lattice_system == TRICLINIC
 
 
-@pytest.mark.skip(reason="skip until updated")
 @pytest.mark.parametrize(
     "actions, exp_stage",
     [
@@ -336,16 +336,20 @@ def test__reset(env, actions):
             Stage.COMPOSITION,
         ],
         [
-            [(1, 1, -2, -2, -2, -2), (3, 4, -2, -2, -2, -2), (-1, -1, -2, -2, -2, -2)],
+            [
+                (1, 1, -2, -2, -2, -2, -2),
+                (3, 4, -2, -2, -2, -2, -2),
+                (-1, -1, -2, -2, -2, -2, -2),
+            ],
             Stage.SPACE_GROUP,
         ],
         [
             [
-                (1, 1, -2, -2, -2, -2),
-                (3, 4, -2, -2, -2, -2),
-                (-1, -1, -2, -2, -2, -2),
-                (2, 105, 0, -3, -3, -3),
-                (-1, -1, -1, -3, -3, -3),
+                (1, 1, -2, -2, -2, -2, -2),
+                (3, 4, -2, -2, -2, -2, -2),
+                (-1, -1, -2, -2, -2, -2, -2),
+                (2, 105, 0, -3, -3, -3, -3),
+                (-1, -1, -1, -3, -3, -3, -3),
             ],
             Stage.LATTICE_PARAMETERS,
         ],
