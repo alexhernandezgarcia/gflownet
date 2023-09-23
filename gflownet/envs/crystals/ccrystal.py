@@ -58,6 +58,7 @@ class CCrystal(GFlowNetEnv):
         do_stoichiometry_sg_check: bool = False,
         **kwargs,
     ):
+        self.continuous = True
         self.composition_kwargs = composition_kwargs or {}
         self.space_group_kwargs = space_group_kwargs or {}
         self.lattice_parameters_kwargs = lattice_parameters_kwargs or {}
@@ -423,6 +424,7 @@ class CCrystal(GFlowNetEnv):
 
         return output
 
+    # TODO: Consider removing altogether
     def get_parents(
         self,
         state: Optional[List] = None,
@@ -459,21 +461,11 @@ class CCrystal(GFlowNetEnv):
             actions = [self._pad_action(a, Stage.SPACE_GROUP) for a in actions]
         elif stage == Stage.LATTICE_PARAMETERS:
             """
-            TODO: to be stateless (meaning, operating as a function, not a method with
-            current object context) this needs to set lattice system based on the
-            passed state only. Right now it uses the current LatticeParameter
-            environment, in particular the lattice system that it was set to, and that
-            changes the invalid actions mask.
-
-            If for some reason a state will be passed to this method that describes an
-            object with different lattice system than what self.lattice_system contains,
-            the result will be invalid.
+            get_parents() is not well defined for continuous environment. Here we
+            simply return the same state and the representative action.
             """
-            parents, actions = self.lattice_parameters.get_parents(
-                state=self._get_lattice_parameters_state(state), done=done
-            )
-            parents = [self._build_state(p, Stage.LATTICE_PARAMETERS) for p in parents]
-            actions = [self._pad_action(a, Stage.LATTICE_PARAMETERS) for a in actions]
+            parents = [state]
+            actions = [self.action2representative(action)]
         else:
             raise ValueError(f"Unrecognized stage {stage}.")
 
