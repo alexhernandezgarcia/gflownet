@@ -7,8 +7,8 @@ from torch import Tensor
 from torchtyping import TensorType
 
 from gflownet.envs.base import GFlowNetEnv
-from gflownet.envs.crystals.composition import Composition
 from gflownet.envs.crystals.clattice_parameters import CLatticeParameters
+from gflownet.envs.crystals.composition import Composition
 from gflownet.envs.crystals.spacegroup import SpaceGroup
 from gflownet.utils.crystals.constants import TRICLINIC
 
@@ -206,6 +206,18 @@ class CCrystal(GFlowNetEnv):
 
         return action_space
 
+    def action2representative(self, action: Tuple) -> Tuple:
+        """
+        Replaces the continuous values of lattice parameters actions by the
+        representative action of the environment so that it can be compared against the
+        action space.
+        """
+        if self._get_stage() == Stage.LATTICE_PARAMETERS:
+            return self.lattice_parameters.action2representative(
+                self._depad_action(action, Stage.LATTICE_PARAMETERS)
+            )
+        return action
+
     def get_max_traj_length(self) -> int:
         return (
             self.composition.get_max_traj_length()
@@ -343,19 +355,19 @@ class CCrystal(GFlowNetEnv):
             + self.lattice_parameters.state
         )
 
-    def step(self, action: Tuple[int]) -> Tuple[List[int], Tuple[int], bool]:
-        # If action not found in action space raise an error
-        if action not in self.action_space:
-            raise ValueError(
-                f"Tried to execute action {action} not present in action space."
-            )
-        else:
-            action_idx = self.action_space.index(action)
-        # If action is in invalid mask, exit immediately
-        if self.get_mask_invalid_actions_forward()[action_idx]:
+    def step(
+        self, action: Tuple[int], skip_mask_check: bool = False
+    ) -> Tuple[List[int], Tuple[int], bool]:
+        # Replace action by its representative to check against the mask.
+        action_to_check = self.action2representative(action)
+        do_step, self.state, action_to_check = self._pre_step(
+            action_to_check,
+            skip_mask_check=(skip_mask_check or self.skip_mask_check),
+        )
+        if not do_step:
             return self.state, action, False
-        self.n_actions += 1
 
+        self.n_actions += 1
         stage = self._get_stage(self.state)
         if stage == Stage.COMPOSITION:
             composition_action = self._depad_action(action, Stage.COMPOSITION)

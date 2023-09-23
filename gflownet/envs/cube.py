@@ -1350,6 +1350,16 @@ class ContinuousCube(CubeBase):
         self._step(action, backward=True)
         return self.state, action, True
 
+    def action2representative(self, action: Tuple) -> Tuple:
+        """
+        Replaces the continuous values of an action by 0s (the "generic" or
+        "representative" action in the first position of the action space), so that
+        they can be compared against the action space or a mask.
+        """
+        if action != self.eos:
+            return self.action_space[0]
+        return action
+
     def get_grid_terminating_states(
         self, n_states: int, kappa: Optional[float] = None
     ) -> List[List]:
