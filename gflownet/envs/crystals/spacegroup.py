@@ -609,8 +609,6 @@ class SpaceGroup(GFlowNetEnv):
             removed from the list since they do not count towards the compatibility
             with a space group.
         """
-        if n_atoms is not None:
-            n_atoms = [n for n in n_atoms if n > 0]
         # Get compatibility with stoichiometry
         self.n_atoms_compatibility_dict = SpaceGroup.build_n_atoms_compatibility_dict(
             n_atoms, self.space_groups.keys()
@@ -642,8 +640,11 @@ class SpaceGroup(GFlowNetEnv):
 
         return len(space_groups) > 0
 
+    # TODO: this method is quite slow, consider improving efficiency.
     @staticmethod
-    def build_n_atoms_compatibility_dict(n_atoms: List[int], space_groups: List[int]):
+    def build_n_atoms_compatibility_dict(
+        n_atoms: List[int], space_groups: Iterable[int]
+    ):
         """
         Obtains which space groups are compatible with the stoichiometry given as
         argument (n_atoms). It relies on pyxtal's
@@ -655,8 +656,9 @@ class SpaceGroup(GFlowNetEnv):
         Args
         ----
         n_atoms : list of int
-            A list of positive number of atoms for each element in a stoichiometry. If
-            None, all space groups will be marked as compatible.
+            A list of number of atoms for each element in a stoichiometry. 0s will be
+            removed from the list since they do not count towards the compatibility
+            with a space group. If None, all space groups will be marked as compatible.
 
         space_groups : list of int
             A list of space group international numbers, in [1, 230]
@@ -669,6 +671,7 @@ class SpaceGroup(GFlowNetEnv):
         """
         if n_atoms is None:
             return {sg: True for sg in space_groups}
+        n_atoms = [n for n in n_atoms if n > 0]
         assert all([n > 0 for n in n_atoms])
         assert all([sg > 0 and sg <= 230 for sg in space_groups])
         return {sg: Group(sg).check_compatible(n_atoms)[0] for sg in space_groups}
