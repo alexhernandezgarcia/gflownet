@@ -36,10 +36,10 @@ class Stage(Enum):
 
     def prev(self) -> "Stage":
         """
-        Returns the previous Stage in the enumeration or None if at the first stage.
+        Returns the previous Stage in the enumeration or DONE if from the first stage.
         """
         if self.value - 1 < 0:
-            return None
+            return Stage.DONE
         return Stage(self.value - 1)
 
     def to_pad(self) -> int:
@@ -606,6 +606,9 @@ class CCrystal(GFlowNetEnv):
         # If next state is source of subenv, decrease stage.
         if state_next == self.subenvs[stage].source:
             stage = Stage.prev(stage)
+            # If stage is DONE, return the global source
+            if stage is Stage.DONE:
+                return self.source, action, True
 
         self.state = self._update_state(stage)
         return self.state, action, valid
