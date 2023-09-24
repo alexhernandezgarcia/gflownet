@@ -973,7 +973,7 @@ class ContinuousCube(CubeBase):
             The output of the GFlowNet policy model.
 
         mask : tensor
-            The mask containing information invalid actions and special cases.
+            The mask containing information about invalid actions and special cases.
 
         actions : tensor
             The actions (absolute increments) from each state in the batch for which to
