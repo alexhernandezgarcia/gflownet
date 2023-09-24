@@ -115,13 +115,6 @@ class DAVE(Proxy):
         sg = states[:, -7] - 1
         lat_params = states[:, -6:]
 
-        n_env = comp.shape[-1]
-        if n_env != self.model.n_elements:
-            missing = torch.zeros(
-                (len(comp), self.model.n_elements - n_env), device=comp.device
-            )
-            comp = torch.cat([comp, missing], dim=-1)
-
         if self.rescale_outputs:
             lat_params = (lat_params - self.scales["x"]["mean"]) / self.scales["x"][
                 "std"
