@@ -468,6 +468,30 @@ class CCrystal(GFlowNetEnv):
     def step(
         self, action: Tuple[int], skip_mask_check: bool = False
     ) -> Tuple[List[int], Tuple[int], bool]:
+        """
+        Executes forward step given an action. 
+
+        The action is performed by the corresponding sub-environment and then the
+        global state is updated accordingly. If the action is the EOS of the
+        sub-environment, the stage is advanced and constraints are set on the
+        subsequent sub-environment.
+
+        Args
+        ----
+        action : tuple
+            Action to be executed. The input action is global, that is padded.
+
+        Returns
+        -------
+        self.state : list
+            The state after executing the action.
+
+        action : int
+            Action executed.
+
+        valid : bool
+            False, if the action is not allowed for the current state. True otherwise.
+        """
         stage = self._get_stage(self.state)
         # Skip mask check if stage is lattice parameters (continuous actions)
         if stage == Stage.LATTICE_PARAMETERS:
