@@ -177,6 +177,7 @@ class CCrystal(GFlowNetEnv):
             lattice_system=self.space_group.lattice_system,
             **self.lattice_parameters_kwargs,
         )
+        self.subenvs[Stage.LATTICE_PARAMETERS] = self.lattice_parameters
 
     def _pad_action(self, action: Tuple[int], stage: Stage) -> Tuple[int]:
         """
@@ -480,39 +481,35 @@ class CCrystal(GFlowNetEnv):
         if not do_step:
             return self.state, action, False
 
-        if stage == Stage.COMPOSITION:
-            action_composition = self._depad_action(action, Stage.COMPOSITION)
-            _, action_composition, valid = self.composition.step(action_composition)
-            if valid and action_composition == self.composition.eos:
-                self._set_stage(Stage.SPACE_GROUP)
+        # Call step of current subenvironment
+        action_subenv = self._depad_action(action, stage)
+        _, action_subenv, valid = self.subenvs[stage].step(action_subenv)
+
+        # If action is invalid, exit immediately. Otherwise increment actions and go on
+        if not valid:
+            return self.state, action, False
+        self.n_actions += 1
+
+        # If action is EOS of subenv, advance stage and set constraints or exit
+        if action_subenv == self.subenvs[stage].eos:
+            stage = Stage.next(stage)
+            if stage == Stage.SPACE_GROUP:
                 if self.do_stoichiometry_sg_check:
                     self.space_group.set_n_atoms_compatibility_dict(
                         self.composition.state
                     )
-        elif stage == Stage.SPACE_GROUP:
-            action_space_group = self._depad_action(action, Stage.SPACE_GROUP)
-            _, action_space_group, valid = self.space_group.step(action_space_group)
-            if valid and action_space_group == self.space_group.eos:
-                self._set_stage(Stage.LATTICE_PARAMETERS)
+            elif stage == Stage.LATTICE_PARAMETERS:
                 self._set_lattice_parameters()
-        elif stage == Stage.LATTICE_PARAMETERS:
-            action_lattice_parameters = self._depad_action(
-                action, Stage.LATTICE_PARAMETERS
-            )
-            _, action_lattice_parameters, valid = self.lattice_parameters.step(
-                action_lattice_parameters
-            )
-            if valid and action_lattice_parameters == self.lattice_parameters.eos:
+            elif stage == Stage.DONE:
                 self.n_actions += 1
                 self.done = True
                 return self.state, self.eos, True
-        else:
-            raise ValueError(f"Unrecognized stage {stage}.")
+            else:
+                raise ValueError(f"Unrecognized stage {stage}.")
 
         if valid:
-            self.n_actions += 1
             self.state = (
-                [self._get_stage(self.state).value]
+                [stage.value]
                 + self.composition.state
                 + self.space_group.state
                 + self.lattice_parameters.state
