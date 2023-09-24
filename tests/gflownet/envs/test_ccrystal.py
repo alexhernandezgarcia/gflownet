@@ -35,7 +35,7 @@ def test__stage_next__returns_expected():
 
 
 def test__stage_prev__returns_expected():
-    assert Stage.prev(Stage.COMPOSITION) == None
+    assert Stage.prev(Stage.COMPOSITION) == Stage.DONE
     assert Stage.prev(Stage.SPACE_GROUP) == Stage.COMPOSITION
     assert Stage.prev(Stage.LATTICE_PARAMETERS) == Stage.SPACE_GROUP
     assert Stage.prev(Stage.DONE) == Stage.LATTICE_PARAMETERS
@@ -77,6 +77,145 @@ def test__pad_depad_action(env):
             assert len(padded) == env.max_action_length
             depadded = env._depad_action(padded, stage)
             assert depadded == action
+
+
+@pytest.mark.parametrize(
+    "env_input, state, dones, has_lattice_parameters, has_composition_constraints",
+    [
+        (
+            "env",
+            [0, 0, 4, 0, 0, 0, 0, 0, -1, -1, -1, -1, -1, -1],
+            [False, False, False],
+            False,
+            False,
+        ),
+        (
+            "env",
+            [0, 0, 4, 3, 0, 0, 0, 0, -1, -1, -1, -1, -1, -1],
+            [False, False, False],
+            False,
+            False,
+        ),
+        (
+            "env",
+            [1, 3, 1, 0, 6, 1, 2, 0, -1, -1, -1, -1, -1, -1],
+            [True, False, False],
+            True,
+            False,
+        ),
+        (
+            "env",
+            [2, 1, 0, 4, 0, 4, 3, 105, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6],
+            [True, True, False],
+            True,
+            False,
+        ),
+        (
+            "env_with_stoichiometry_sg_check",
+            [2, 1, 0, 4, 0, 4, 3, 105, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6],
+            [True, True, False],
+            True,
+            True,
+        ),
+    ],
+)
+def test__set_state__sets_state_subenvs_dones_and_constraints(
+    env_input,
+    state,
+    dones,
+    has_lattice_parameters,
+    has_composition_constraints,
+    request,
+):
+    env = request.getfixturevalue(env_input)
+    env.set_state(state)
+    # Check global state
+    assert env.state == state
+
+    # Check states of subenvs
+    for stage, subenv in env.subenvs.items():
+        assert subenv.state == env._get_state_of_subenv(state, stage)
+
+    # Check dones
+    for subenv, done in zip(env.subenvs.values(), dones):
+        assert subenv.done == done
+
+    # Check lattice parameters
+    if env.space_group.lattice_system != "None":
+        assert has_lattice_parameters
+        assert env.space_group.lattice_system == env.lattice_parameters.lattice_system
+    else:
+        assert not has_lattice_parameters
+
+    # Check composition constraints
+    if has_composition_constraints:
+        n_atoms_compatibility_dict = env.space_group.build_n_atoms_compatibility_dict(
+            env.composition.state, env.space_group.space_groups.keys()
+        )
+        assert n_atoms_compatibility_dict == env.space_group.n_atoms_compatibility_dict
+
+
+@pytest.mark.parametrize(
+    "state",
+    [
+        [0, 0, 4, 0, 0, 0, 0, 0, -1, -1, -1, -1, -1, -1],
+        [0, 3, 0, 0, 0, 0, 0, 0, -1, -1, -1, -1, -1, -1],
+        [0, 3, 0, 0, 6, 0, 0, 0, -1, -1, -1, -1, -1, -1],
+        [0, 3, 1, 0, 6, 0, 0, 0, -1, -1, -1, -1, -1, -1],
+        [1, 3, 1, 0, 6, 1, 0, 0, -1, -1, -1, -1, -1, -1],
+        [1, 3, 1, 0, 6, 1, 1, 0, -1, -1, -1, -1, -1, -1],
+        [1, 3, 1, 0, 6, 1, 2, 0, -1, -1, -1, -1, -1, -1],
+        [1, 3, 1, 0, 6, 1, 2, 2, -1, -1, -1, -1, -1, -1],
+        [2, 1, 0, 4, 0, 4, 3, 105, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6],
+        [2, 1, 0, 4, 0, 4, 3, 105, 0.12, 0.23, 0.34, 0.45, 0.56, 0.67],
+        [2, 1, 0, 4, 0, 4, 3, 105, 0.76, 0.75, 0.74, 0.73, 0.72, 0.71],
+    ],
+)
+def test__get_mask_invald_actions_backward__returns_expected_general_case(env, state):
+    stage = env._get_stage(state)
+    mask = env.get_mask_invalid_actions_backward(state, done=False)
+    for stg, subenv in env.subenvs.items():
+        if stg == stage:
+            # Mask of state if stage is current stage in state
+            mask_subenv_expected = subenv.get_mask_invalid_actions_backward(
+                env._get_state_of_subenv(state, stg)
+            )
+        else:
+            # Mask of source if stage is other than current stage in state
+            mask_subenv_expected = subenv.get_mask_invalid_actions_backward(
+                subenv.source
+            )
+        mask_subenv = env._get_mask_of_subenv(mask, stg)
+        assert mask_subenv == mask_subenv_expected
+
+
+@pytest.mark.parametrize(
+    "state",
+    [
+        [0, 0, 0, 0, 0, 0, 0, 0, -1, -1, -1, -1, -1, -1],
+        [1, 3, 0, 0, 6, 0, 0, 0, -1, -1, -1, -1, -1, -1],
+        [1, 3, 1, 0, 6, 0, 0, 0, -1, -1, -1, -1, -1, -1],
+        [2, 3, 1, 0, 6, 1, 2, 2, -1, -1, -1, -1, -1, -1],
+        [2, 3, 1, 0, 6, 2, 1, 3, -1, -1, -1, -1, -1, -1],
+    ],
+)
+def test__get_mask_invald_actions_backward__returns_expected_stage_transition(env, state):
+    stage = env._get_stage(state)
+    mask = env.get_mask_invalid_actions_backward(state, done=False)
+    for stg, subenv in env.subenvs.items():
+        if stg == Stage.prev(stage) and stage != Stage(0):
+            # Mask of done (EOS only) if stage is previous stage in state
+            mask_subenv_expected = subenv.get_mask_invalid_actions_backward(
+                env._get_state_of_subenv(state, stg), done=True
+            )
+        else:
+            mask_subenv_expected = subenv.get_mask_invalid_actions_backward(
+                subenv.source
+            )
+            if stg == stage:
+                assert env._get_state_of_subenv(state, stg) == subenv.source
+        mask_subenv = env._get_mask_of_subenv(mask, stg)
+        assert mask_subenv == mask_subenv_expected
 
 
 @pytest.mark.skip(reason="skip until updated")
@@ -289,6 +428,144 @@ def test__step__action_sequence_has_expected_result(
     assert valid == last_action_valid
 
 
+@pytest.mark.skip(reason="skip until updated")
+@pytest.mark.parametrize(
+    "state_init, state_end, stage_init, stage_end, actions, last_action_valid",
+    [
+        [
+            [0, 1, 0, 4, 0, 0, 0, 0, -1, -1, -1, -1, -1, -1],
+            [0, 0, 0, 0, 0, 0, 0, 0, -1, -1, -1, -1, -1, -1],
+            Stage.COMPOSITION,
+            Stage.COMPOSITION,
+            [(3, 4, -2, -2, -2, -2, -2), (1, 1, -2, -2, -2, -2, -2)],
+            True,
+        ],
+        [
+            [0, 0, 0, 0, 0, 0, 0, 0, -1, -1, -1, -1, -1, -1],
+            [0, 0, 0, 0, 0, 0, 0, 0, -1, -1, -1, -1, -1, -1],
+            Stage.COMPOSITION,
+            Stage.COMPOSITION,
+            [(2, 105, 3, -3, -3, -3, -3)],
+            False,
+        ],
+        [
+            [1, 1, 0, 4, 0, 0, 0, 0, -1, -1, -1, -1, -1, -1],
+            [0, 0, 0, 0, 0, 0, 0, 0, -1, -1, -1, -1, -1, -1],
+            Stage.SPACE_GROUP,
+            Stage.COMPOSITION,
+            [
+                (-1, -1, -2, -2, -2, -2, -2),
+                (3, 4, -2, -2, -2, -2, -2),
+                (1, 1, -2, -2, -2, -2, -2),
+            ],
+            True,
+        ],
+        [
+            [1, 1, 0, 4, 0, 4, 3, 105, -1, -1, -1, -1, -1, -1],
+            [0, 0, 0, 0, 0, 0, 0, 0, -1, -1, -1, -1, -1, -1],
+            Stage.SPACE_GROUP,
+            Stage.COMPOSITION,
+            [
+                (2, 105, 0, -3, -3, -3, -3),
+                (-1, -1, -2, -2, -2, -2, -2),
+                (3, 4, -2, -2, -2, -2, -2),
+                (1, 1, -2, -2, -2, -2, -2),
+            ],
+            True,
+        ],
+        [
+            [2, 1, 0, 4, 0, 4, 3, 105, -1, -1, -1, -1, -1, -1],
+            [0, 0, 0, 0, 0, 0, 0, 0, -1, -1, -1, -1, -1, -1],
+            Stage.LATTICE_PARAMETERS,
+            Stage.COMPOSITION,
+            [
+                (-1, -1, -1, -3, -3, -3, -3),
+                (2, 105, 0, -3, -3, -3, -3),
+                (-1, -1, -2, -2, -2, -2, -2),
+                (3, 4, -2, -2, -2, -2, -2),
+                (1, 1, -2, -2, -2, -2, -2),
+            ],
+            True,
+        ],
+        [
+            [2, 1, 0, 4, 0, 4, 3, 105, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6],
+            [2, 1, 0, 4, 0, 4, 3, 105, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6],
+            Stage.LATTICE_PARAMETERS,
+            Stage.LATTICE_PARAMETERS,
+            [
+                (1.5, 0, 0, 0, 0, 0, 0),
+            ],
+            False,
+        ],
+        [
+            [2, 1, 0, 4, 0, 4, 3, 105, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6],
+            [0, 0, 0, 0, 0, 0, 0, 0, -1, -1, -1, -1, -1, -1],
+            Stage.LATTICE_PARAMETERS,
+            Stage.COMPOSITION,
+            [
+                (0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 1),
+                (-1, -1, -1, -3, -3, -3, -3),
+                (2, 105, 0, -3, -3, -3, -3),
+                (-1, -1, -2, -2, -2, -2, -2),
+                (3, 4, -2, -2, -2, -2, -2),
+                (1, 1, -2, -2, -2, -2, -2),
+            ],
+            True,
+        ],
+        [
+            [2, 1, 0, 4, 0, 4, 3, 105, 0.76, 0.75, 0.74, 0.73, 0.72, 0.71],
+            [0, 0, 0, 0, 0, 0, 0, 0, -1, -1, -1, -1, -1, -1],
+            Stage.LATTICE_PARAMETERS,
+            Stage.COMPOSITION,
+            [
+                (0.66, 0.55, 0.44, 0.33, 0.22, 0.11, 0),
+                (0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 1),
+                (-1, -1, -1, -3, -3, -3, -3),
+                (2, 105, 0, -3, -3, -3, -3),
+                (-1, -1, -2, -2, -2, -2, -2),
+                (3, 4, -2, -2, -2, -2, -2),
+                (1, 1, -2, -2, -2, -2, -2),
+            ],
+            True,
+        ],
+        [
+            [2, 1, 0, 4, 0, 4, 3, 105, 0.76, 0.75, 0.74, 0.73, 0.72, 0.71],
+            [0, 0, 0, 0, 0, 0, 0, 0, -1, -1, -1, -1, -1, -1],
+            Stage.LATTICE_PARAMETERS,
+            Stage.COMPOSITION,
+            [
+                (np.inf, np.inf, np.inf, np.inf, np.inf, np.inf, np.inf),
+                (0.66, 0.55, 0.44, 0.33, 0.22, 0.11, 0),
+                (0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 1),
+                (-1, -1, -1, -3, -3, -3, -3),
+                (2, 105, 0, -3, -3, -3, -3),
+                (-1, -1, -2, -2, -2, -2, -2),
+                (3, 4, -2, -2, -2, -2, -2),
+                (1, 1, -2, -2, -2, -2, -2),
+            ],
+            True,
+        ],
+    ],
+)
+def test__step_backwards__action_sequence_has_expected_result(
+    env, state_init, state_end, stage_init, stage_end, actions, last_action_valid
+):
+    # Hacky way to also test if first action global EOS
+    if actions[0] == env.eos:
+        env.set_state(state_init, done=True)
+    else:
+        env.set_state(state_init, done=False)
+    assert env.state == state_init
+    assert env._get_stage() == stage_init
+    for action in actions:
+        warnings.filterwarnings("ignore")
+        _, _, valid = env.step_backwards(action)
+
+    assert env.state == state_end
+    assert env._get_stage() == stage_end
+    assert valid == last_action_valid
+
+
 # TODO: Remove if get_parents is removed
 @pytest.mark.parametrize(
     "actions",
@@ -342,6 +619,7 @@ def test__reset(env, actions):
     assert env.lattice_parameters.lattice_system == TRICLINIC
 
 
+# TODO: write new test of masks, both fw and bw
 @pytest.mark.skip(reason="skip while developping other tests")
 @pytest.mark.parametrize(
     "actions, exp_stage",
