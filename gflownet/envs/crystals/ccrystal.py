@@ -216,6 +216,26 @@ class CCrystal(GFlowNetEnv):
 
         return action[:dim]
 
+    # TODO: consider removing if unused because too simple
+    def _get_actions_of_subenv(
+        self, actions: TensorType["n_states", "action_dim"], stage: Stage
+    ):
+        """
+        Returns the columns of a tensor of actions that correspond to the
+        sub-environment indicated by stage.
+
+        Args
+        actions
+        mask : tensor
+            A tensor containing a batch of actions. It is assumed that all the rows in
+            the this tensor correspond to the same stage.
+
+        stage : Stage
+            Identifier of the sub-environment of which the corresponding columns of the
+            actions are to be extracted.
+        """
+        return actions[:, len(self.subenvs[stage].eos)]
+
     def get_action_space(self) -> List[Tuple[int]]:
         composition_action_space = self._pad_action_space(
             self.composition.action_space, Stage.COMPOSITION
@@ -696,6 +716,68 @@ class CCrystal(GFlowNetEnv):
                 self._pad_action(actions_logprobs_dict[stage][0].pop(0), stage)
             )
         return actions, None
+
+    def sample_actions_batch(
+        self,
+        policy_outputs: TensorType["n_states", "policy_output_dim"],
+        actions: TensorType["n_states", "actions_dim"],
+        mask: TensorType["n_states", "mask_dim"],
+        states_from: List,
+        is_backward: bool,
+    ) -> TensorType["batch_size"]:
+        """
+        Computes log probabilities of actions given policy outputs and actions.
+
+        Args
+        ----
+        policy_outputs : tensor
+            The output of the GFlowNet policy model.
+
+        mask : tensor
+            The mask containing information about invalid actions and special cases.
+
+        actions : tensor
+            The actions (global) from each state in the batch for which to compute the
+            log probability.
+
+        states_from : tensor
+            The states originating the actions, in GFlowNet format.
+
+        is_backward : bool
+            True if the actions are backward, False if the actions are forward
+            (default).
+        """
+        states_dict = {stage: [] for stage in Stage}
+        """
+        A dictionary with keys equal to Stage and the values are the list of states in
+        the stage of the key. The states are only the part corresponding to the
+        sub-environment.
+        """
+        stages = []
+        for s in states_from:
+            stage = self._get_stage(s)
+            states_dict[stage].append(self._get_state_of_subenv(s, stage))
+            stages.append(stage)
+        stages_tensor = tlong([stage.value for stage in stages], device=self.device)
+        is_subenv_dict = {stage: stages_tensor == stage.value for stage in Stage}
+
+        # Compute logprobs from each sub-environment
+        logprobs = torch.empty(
+            policy_input_dim.shape[0], dtype=self.float, device=self.device
+        )
+        for stage, subenv in self.subenvs.items():
+            if not torch.any(is_subenv_dict[stage]):
+                continue
+            logprobs[is_subenv_dict[stage]] = subenv.get_logprobs(
+                self._get_policy_outputs_of_subenv(
+                    policy_outputs[is_subenv_dict[stage]], stage
+                ),
+                actions[is_subenv_dict[stage], : len(subenv.eos)],
+                self._get_mask_of_subenv(mask[is_subenv_dict[stage]], stage),
+                states_dict[stage],
+                is_backward,
+            )
+        return logprobs
 
     # TODO: Consider removing altogether
     def get_parents(
