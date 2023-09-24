@@ -628,7 +628,7 @@ class GFlowNetEnv:
             The list of actions (tuples) in the trajectory.
         """
         actions = []
-        while self.done is not True:
+        while not self.done:
             _, action, valid = self.step_random()
             if valid:
                 actions.append(action)
