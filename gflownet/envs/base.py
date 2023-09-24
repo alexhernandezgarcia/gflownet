@@ -90,6 +90,7 @@ class GFlowNetEnv:
             self.action_space, device=self.device, dtype=self.float
         )
         self.action_space_dim = len(self.action_space)
+        self.mask_dim = self.action_space_dim
         # Max trajectory length
         self.max_traj_length = self.get_max_traj_length()
         # Policy outputs

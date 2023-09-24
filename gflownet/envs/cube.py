@@ -332,6 +332,9 @@ class ContinuousCube(CubeBase):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
+        # Mask dimensionality: 3 + number of dimensions
+        self.mask_dim_base = 3
+        self.mask_dim = self.mask_dim_base + self.n_dim
 
     def get_action_space(self):
         """
@@ -357,10 +360,13 @@ class ContinuousCube(CubeBase):
 
     def get_policy_output(self, params: dict) -> TensorType["policy_output_dim"]:
         """
-        Defines the structure of the output of the policy model, from which an
-        action is to be determined or sampled, by returning a vector with a fixed
-        random policy. The environment consists of both continuous and discrete
-        actions.
+        Defines the structure of the output of the policy model.
+
+        The policy output will be used to initialize a distribution, from which an
+        action is to be determined or sampled. This method returns a vector with a
+        fixed policy defined by params.
+
+        The environment consists of both continuous and discrete actions.
 
         Continuous actions
 
@@ -509,13 +515,11 @@ class ContinuousCube(CubeBase):
         """
         state = self._get_state(state)
         done = self._get_done(done)
-        mask_dim_base = 3
-        mask_dim = mask_dim_base + self.n_dim
         # If done, the entire mask is True (all actions are "invalid" and no special
         # cases)
         if done:
-            return [True] * mask_dim
-        mask = [False] * mask_dim_base + self.ignored_dims
+            return [True] * self.mask_dim
+        mask = [False] * self.mask_dim_base + self.ignored_dims
         # If the state is the source state, EOS is invalid
         if self._get_effective_dims(state) == self._get_effective_dims(self.source):
             mask[2] = True
@@ -555,8 +559,7 @@ class ContinuousCube(CubeBase):
         """
         state = self._get_state(state)
         done = self._get_done(done)
-        mask_dim_base = 3
-        mask = [True] * mask_dim_base + self.ignored_dims
+        mask = [True] * self.mask_dim_base + self.ignored_dims
         # If the state is the source state, entire mask is True
         if self._get_effective_dims(state) == self._get_effective_dims(self.source):
             return mask
@@ -727,7 +730,7 @@ class ContinuousCube(CubeBase):
     def sample_actions_batch(
         self,
         policy_outputs: TensorType["n_states", "policy_output_dim"],
-        mask: Optional[TensorType["n_states", "policy_output_dim"]] = None,
+        mask: Optional[TensorType["n_states", "mask_dim"]] = None,
         states_from: List = None,
         is_backward: Optional[bool] = False,
         sampling_method: Optional[str] = "policy",
@@ -749,7 +752,7 @@ class ContinuousCube(CubeBase):
     def _sample_actions_batch_forward(
         self,
         policy_outputs: TensorType["n_states", "policy_output_dim"],
-        mask: Optional[TensorType["n_states", "policy_output_dim"]] = None,
+        mask: Optional[TensorType["n_states", "mask_dim"]] = None,
         states_from: List = None,
         sampling_method: Optional[str] = "policy",
         temperature_logits: Optional[float] = 1.0,
@@ -854,7 +857,7 @@ class ContinuousCube(CubeBase):
     def _sample_actions_batch_backward(
         self,
         policy_outputs: TensorType["n_states", "policy_output_dim"],
-        mask: Optional[TensorType["n_states", "policy_output_dim"]] = None,
+        mask: Optional[TensorType["n_states", "mask_dim"]] = None,
         states_from: List = None,
         sampling_method: Optional[str] = "policy",
         temperature_logits: Optional[float] = 1.0,
@@ -957,7 +960,7 @@ class ContinuousCube(CubeBase):
         self,
         policy_outputs: TensorType["n_states", "policy_output_dim"],
         actions: TensorType["n_states", "actions_dim"],
-        mask: TensorType["n_states", "3"],
+        mask: TensorType["n_states", "mask_dim"],
         states_from: List,
         is_backward: bool,
     ) -> TensorType["batch_size"]:

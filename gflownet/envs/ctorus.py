@@ -35,6 +35,8 @@ class ContinuousTorus(HybridTorus):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
+        # Mask dimensionality:
+        self.mask_dim = 2
 
     def get_action_space(self):
         """
