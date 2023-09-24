@@ -666,8 +666,7 @@ def test__sample_actions_forward__returns_valid_actions(env, states):
         assert action in env.get_valid_actions(state, done=False, backward=False)
 
 
-@pytest.mark.skip(reason="gets stuck")
-@pytest.mark.repeat(10)
+@pytest.mark.repeat(100)
 def test__trajectory_random__does_not_crash_from_source(env):
     """
     Raising the bar...
