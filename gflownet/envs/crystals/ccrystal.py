@@ -24,6 +24,7 @@ class Stage(Enum):
     COMPOSITION = 0
     SPACE_GROUP = 1
     LATTICE_PARAMETERS = 2
+    DONE = 3
 
     def to_pad(self) -> int:
         """

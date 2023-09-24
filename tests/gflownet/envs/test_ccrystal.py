@@ -57,11 +57,7 @@ def test__environment__has_expected_action_space(env):
 
 
 def test__pad_depad_action(env):
-    for subenv, stage in [
-        (env.composition, Stage.COMPOSITION),
-        (env.space_group, Stage.SPACE_GROUP),
-        (env.lattice_parameters, Stage.LATTICE_PARAMETERS),
-    ]:
+    for stage, subenv in env.subenvs.items():
         for action in subenv.action_space:
             padded = env._pad_action(action, stage)
             assert len(padded) == env.max_action_length
@@ -533,7 +529,7 @@ def test___get_policy_outputs_of_subenv__returns_correct_output(env):
 def test__state_of_subenv__returns_expected(
     env, state, state_composition, state_space_group, state_lattice_parameters
 ):
-    for stage in Stage:
+    for stage in env.subenvs:
         state_subenv = env._get_state_of_subenv(state, stage)
         if stage == Stage.COMPOSITION:
             assert state_subenv == state_composition
