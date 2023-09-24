@@ -12,7 +12,10 @@ def _get_energy(file):
     with open(file) as f:
         for l in f:
             if "TOTAL ENERGY" in l:
-                energy = float(re.search(r"[+-]?(?:\d*\.)?\d+", l).group())
+                try:
+                    energy = float(re.search(r"[+-]?(?:\d*\.)?\d+", l).group())
+                except:
+                    return np.nan
             if "normal termination of xtb" in l:
                 normal_termination = True
     if normal_termination:
