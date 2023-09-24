@@ -885,17 +885,14 @@ class CCrystal(GFlowNetEnv):
     def set_state(self, state: List, done: Optional[bool] = False):
         super().set_state(state, done)
 
-        stage = self._get_stage(state)
+        stage_idx = self._get_stage(state).value
 
-        composition_done = stage in [Stage.SPACE_GROUP, Stage.LATTICE_PARAMETERS]
-        space_group_done = stage == Stage.LATTICE_PARAMETERS
-        lattice_parameters_done = done
-
-        self.composition.set_state(self._get_composition_state(state), composition_done)
-        self.space_group.set_state(self._get_space_group_state(state), space_group_done)
-        self.lattice_parameters.set_state(
-            self._get_lattice_parameters_state(state), lattice_parameters_done
-        )
+        # Determine which subenvs are done based on stage and done
+        done_subenvs = [True] * stage_idx + [False] * (len(self.subenvs) - stage_idx)
+        done_subenvs[-1] = done
+        # Set state and done of each sub-environment
+        for (stage, subenv), subenv_done in zip(self.subenvs.items(), done_subenvs):
+            subenv.set_state(self._get_state_of_subenv(state, stage), subenv_done)
 
         """
         We synchronize LatticeParameter's lattice system with the one of SpaceGroup
