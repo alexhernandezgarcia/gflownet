@@ -11,7 +11,7 @@ defaults:
 env:
   smiles: CC(C)Cc1ccc(cc1)[C@@H](C)C(=O)O
   n_torsion_angles: -1
-  length_traj: 10
+  length_traj: 5
   policy_encoding_dim_per_angle: 10
   policy_type: mlp
   n_comp: 5
