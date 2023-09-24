@@ -26,6 +26,14 @@ class Stage(Enum):
     LATTICE_PARAMETERS = 2
     DONE = 3
 
+    def next(self) -> "Stage":
+        """
+        Returns the next Stage in the enumeration or None if at the last stage.
+        """
+        if self.value + 1 == len(Stage):
+            return None
+        return Stage(self.value + 1)
+
     def to_pad(self) -> int:
         """
         Maps stage value to a padding. The following mapping is used:

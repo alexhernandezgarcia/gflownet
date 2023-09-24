@@ -27,6 +27,13 @@ def env_with_stoichiometry_sg_check():
     )
 
 
+def test__stage_next__returns_expected():
+    assert Stage.next(Stage.COMPOSITION) == Stage.SPACE_GROUP
+    assert Stage.next(Stage.SPACE_GROUP) == Stage.LATTICE_PARAMETERS
+    assert Stage.next(Stage.LATTICE_PARAMETERS) == Stage.DONE
+    assert Stage.next(Stage.DONE) == None
+
+
 def test__environment__initializes_properly(env):
     pass
 
