@@ -1,4 +1,5 @@
 import json
+from collections import OrderedDict
 from enum import Enum
 from typing import Dict, List, Optional, Tuple, Union
 
@@ -89,11 +90,13 @@ class CCrystal(GFlowNetEnv):
         self.lattice_parameters = CLatticeParameters(
             lattice_system=TRICLINIC, **self.lattice_parameters_kwargs
         )
-        self.subenvs = {
-            Stage.COMPOSITION: self.composition,
-            Stage.SPACE_GROUP: self.space_group,
-            Stage.LATTICE_PARAMETERS: self.lattice_parameters,
-        }
+        self.subenvs = OrderedDict(
+            {
+                Stage.COMPOSITION: self.composition,
+                Stage.SPACE_GROUP: self.space_group,
+                Stage.LATTICE_PARAMETERS: self.lattice_parameters,
+            }
+        )
 
         # 0-th element of state encodes current stage: 0 for composition,
         # 1 for space group, 2 for lattice parameters
@@ -316,7 +319,7 @@ class CCrystal(GFlowNetEnv):
             init_col = end_col
 
     def _get_mask_of_subenv(
-        self, mask: TensorType["n_states", "mask_dim"], stage: Stage
+        self, mask: Union[List, TensorType["n_states", "mask_dim"]], stage: Stage
     ):
         """
         Returns the columns of a tensor of masks that correspond to the sub-environment
@@ -324,9 +327,10 @@ class CCrystal(GFlowNetEnv):
 
         Args
         ----
-        mask : tensor
-            A tensor containing a batch of masks. It is assumed that all the rows in
-            the this tensor correspond to the same stage.
+        mask : list or tensor
+            A mask of a single state as a list or a tensor containing a batch of masks.
+            It is assumed that all the rows in the this tensor correspond to the same
+            stage.
 
         stage : Stage
             Identifier of the sub-environment of which the corresponding columns of the
@@ -336,7 +340,10 @@ class CCrystal(GFlowNetEnv):
         for stg, subenv in self.subenvs.items():
             end_col = init_col + subenv.mask_dim
             if stg == stage:
-                return mask[:, init_col:end_col]
+                if isinstance(mask, list):
+                    return mask[init_col:end_col]
+                else:
+                    return mask[:, init_col:end_col]
             init_col = end_col
 
     def reset(self, env_id: Union[int, str] = None):
@@ -449,6 +456,7 @@ class CCrystal(GFlowNetEnv):
             :, self.lattice_parameters_state_start : self.lattice_parameters_state_end
         ]
 
+    # TODO: set mask of done state if stage is not the current one for correctness.
     def get_mask_invalid_actions_forward(
         self, state: Optional[List[int]] = None, done: Optional[bool] = None
     ) -> List[bool]:
@@ -471,27 +479,64 @@ class CCrystal(GFlowNetEnv):
             )
         return mask
 
+    # TODO: this piece of code looks awful
     def get_mask_invalid_actions_backward(
         self, state: Optional[List[int]] = None, done: Optional[bool] = None
     ) -> List[bool]:
         """
         Computes the backward actions mask of the state.
 
-        The mask of the parent crystal is simply the concatenation of the masks of the
-        three sub-environments. This assumes that the methods that will use the mask
+        The mask of the parent crystal is, in general, simply the concatenation of the
+        masks of the three sub-environments. Only the mask of the state of the current
+        sub-environment is computed; for the other sub-environments, the mask of the
+        source is used. Note that this assumes that the methods that will use the mask
         will extract the part corresponding to the relevant stage and ignore the rest.
+
+        Nonetheless, in order to enable backward transitions between stages, the EOS
+        action of the preceding stage has to be the only valid action when the state of
+        a sub-environment is the source. Additionally, sample_batch_actions will have
+        to also detect the source states and change the stage.
+
+        Note that the sub-environments are iterated in reversed order so as to save
+        unnecessary computations and simplify the code.
         """
         state = self._get_state(state)
         done = self._get_done(done)
+        stage = self._get_stage(state)
 
         mask = []
-        for stage, subenv in self.subenvs.items():
-            mask.extend(
-                subenv.get_mask_invalid_actions_backward(
-                    self._get_state_of_subenv(state, stage), done
+        do_eos_only = False
+        # Iterate stages in reverse order
+        for stg, subenv in reversed(self.subenvs.items()):
+            state_subenv = self._get_state_of_subenv(state, stg)
+            # Set mask of done state because state of next subenv is source
+            if do_eos_only:
+                mask_subenv = subenv.get_mask_invalid_actions_backward(
+                    state_subenv, done=True
                 )
-            )
-        return mask
+                do_eos_only = False
+            # General case
+            else:
+                # stg is the current stage
+                if stg == stage:
+                    # state of subenv is the source state
+                    if stg != Stage(0) and state_subenv == subenv.source:
+                        do_eos_only = True
+                        mask_subenv = subenv.get_mask_invalid_actions_backward(
+                            subenv.source
+                        )
+                    # General case
+                    else:
+                        mask_subenv = subenv.get_mask_invalid_actions_backward(
+                            state_subenv, done
+                        )
+                # stg is not current stage, so set mask of source
+                else:
+                    mask_subenv = subenv.get_mask_invalid_actions_backward(
+                        subenv.source
+                    )
+            mask.extend(mask_subenv[::-1])
+        return mask[::-1]
 
     def _update_state(self, stage: Stage):
         """
@@ -614,6 +659,14 @@ class CCrystal(GFlowNetEnv):
         if not do_step:
             return self.state, action, False
 
+        # If state of subenv is source of subenv, decrease stage
+        if self._get_state_of_subenv(self.state, stage) == self.subenvs[stage].source:
+            stage = Stage.prev(stage)
+            # If stage is DONE, set global source and return
+            if stage == Stage.DONE:
+                self.state = self.source
+                return self.state, action, True
+
         # Call step of current subenvironment
         action_subenv = self._depad_action(action, stage)
         state_next, _, valid = self.subenvs[stage].step_backwards(action_subenv)
@@ -622,13 +675,6 @@ class CCrystal(GFlowNetEnv):
         if not valid:
             return self.state, action, False
         self.n_actions += 1
-
-        # If next state is source of subenv, decrease stage.
-        if state_next == self.subenvs[stage].source:
-            stage = Stage.prev(stage)
-            # If stage is DONE, return the global source
-            if stage is Stage.DONE:
-                return self.source, action, True
 
         self.state = self._update_state(stage)
         return self.state, action, valid
@@ -687,7 +733,16 @@ class CCrystal(GFlowNetEnv):
         stages = []
         for s in states_from:
             stage = self._get_stage(s)
-            states_dict[stage].append(self._get_state_of_subenv(s, stage))
+            state_subenv = self._get_state_of_subenv(s, stage)
+            # If the actions are backwards and state is source of subenv, decrease
+            # stage so that EOS of preceding stage is sampled.
+            if (
+                is_backward
+                and stage != Stage(0)
+                and state_subenv == self.subenvs[stage].source
+            ):
+                stage = Stage.prev(stage)
+            states_dict[stage].append(state_subenv)
             stages.append(stage)
         stages_tensor = tlong([stage.value for stage in stages], device=self.device)
         is_subenv_dict = {stage: stages_tensor == stage.value for stage in Stage}
@@ -717,7 +772,7 @@ class CCrystal(GFlowNetEnv):
             )
         return actions, None
 
-    def sample_actions_batch(
+    def get_logprobs(
         self,
         policy_outputs: TensorType["n_states", "policy_output_dim"],
         actions: TensorType["n_states", "actions_dim"],
@@ -756,7 +811,16 @@ class CCrystal(GFlowNetEnv):
         stages = []
         for s in states_from:
             stage = self._get_stage(s)
-            states_dict[stage].append(self._get_state_of_subenv(s, stage))
+            state_subenv = self._get_state_of_subenv(s, stage)
+            # If the actions are backwards and state is source of subenv, decrease
+            # stage so that EOS of preceding stage is sampled.
+            if (
+                is_backward
+                and stage != Stage(0)
+                and state_subenv == self.subenvs[stage].source
+            ):
+                stage = Stage.prev(stage)
+            states_dict[stage].append(state_subenv)
             stages.append(stage)
         stages_tensor = tlong([stage.value for stage in stages], device=self.device)
         is_subenv_dict = {stage: stages_tensor == stage.value for stage in Stage}
@@ -901,11 +965,15 @@ class CCrystal(GFlowNetEnv):
         and need to synchronize the LatticeParameter's lattice system to what that
         state indicates,
         """
-        lattice_system = self.space_group.lattice_system
-        if lattice_system != "None":
-            self.lattice_parameters.lattice_system = lattice_system
-        else:
-            self.lattice_parameters.lattice_system = TRICLINIC
+        if self.space_group.done:
+            lattice_system = self.space_group.lattice_system
+            if lattice_system != "None":
+                self._set_lattice_parameters()
+            else:
+                self.lattice_parameters.lattice_system = TRICLINIC
+        # Set stoichiometry constraints in space group sub-environment
+        if self.do_stoichiometry_sg_check and self.composition.done:
+            self.space_group.set_n_atoms_compatibility_dict(self.composition.state)
 
     def state2readable(self, state: Optional[List[int]] = None) -> str:
         if state is None:
