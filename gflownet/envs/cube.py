@@ -1265,7 +1265,10 @@ class ContinuousCube(CubeBase):
                 state[dim] += incr
 
         # If state is out of bounds, return invalid
-        if any([s > 1.0 for s in state]) or any([s < 0.0 for s in state]):
+        effective_dims = self._get_effective_dims(state)
+        if any([s > 1.0 for s in effective_dims]) or any(
+            [s < 0.0 for s in effective_dims]
+        ):
             warnings.warn(
                 f"""
                 State is out of cube bounds.
