@@ -59,7 +59,6 @@ class CCrystal(GFlowNetEnv):
         do_stoichiometry_sg_check: bool = False,
         **kwargs,
     ):
-        self.continuous = True
         self.composition_kwargs = composition_kwargs or {}
         self.space_group_kwargs = space_group_kwargs or {}
         self.lattice_parameters_kwargs = lattice_parameters_kwargs or {}
@@ -136,12 +135,23 @@ class CCrystal(GFlowNetEnv):
             self.lattice_parameters.eos, Stage.LATTICE_PARAMETERS
         )
 
+        # Mask dimensionality
+        self.mask_dim = sum([subenv.mask_dim for subenv in self.subenvs.values()])
+
         # Conversions
         self.state2proxy = self.state2oracle
         self.statebatch2proxy = self.statebatch2oracle
         self.statetorch2proxy = self.statetorch2oracle
 
-        super().__init__(**kwargs)
+        # Base class init
+        # Since only the lattice parameters subenv has distribution parameters, only
+        # these are pased to the base init.
+        super().__init__(
+            fixed_distr_params=self.lattice_parameters.fixed_distr_params,
+            random_distr_params=self.lattice_parameters.random_distr_params,
+            **kwargs,
+        )
+        self.continuous = True
 
     def _set_lattice_parameters(self):
         """
@@ -232,6 +242,65 @@ class CCrystal(GFlowNetEnv):
             + self.lattice_parameters.get_max_traj_length()
         )
 
+    def get_policy_output(self, params: dict) -> TensorType["policy_output_dim"]:
+        """
+        Defines the structure of the output of the policy model.
+
+        The policy output is in this case the concatenation of the policy outputs of
+        the three sub-environments.
+        """
+        return torch.cat(
+            [subenv.get_policy_output(params) for subenv in self.subenvs.values()]
+        )
+
+    def _get_policy_outputs_of_subenv(
+        self, policy_outputs: TensorType["n_states", "policy_output_dim"], stage: Stage
+    ):
+        """
+        Returns the columns of the policy outputs that correspond to the
+        sub-environment indicated by stage.
+
+        Args
+        ----
+        policy_outputs : tensor
+            A tensor containing a batch of policy outputs. It is assumed that all the
+            rows in the this tensor correspond to the same stage.
+
+        stage : Stage
+            Identifier of the sub-environment of which the corresponding columns of the
+            policy outputs are to be extracted.
+        """
+        init_col = 0
+        for stg, subenv in self.subenvs.items():
+            end_col = init_col + subenv.policy_output_dim
+            if stg == stage:
+                return policy_outputs[:, init_col:end_col]
+            init_col = end_col
+
+    def _get_mask_of_subenv(
+        self, mask: TensorType["n_states", "mask_dim"], stage: Stage
+    ):
+        """
+        Returns the columns of a tensor of masks that correspond to the sub-environment
+        indicated by stage.
+
+        Args
+        ----
+        mask : tensor
+            A tensor containing a batch of masks. It is assumed that all the rows in
+            the this tensor correspond to the same stage.
+
+        stage : Stage
+            Identifier of the sub-environment of which the corresponding columns of the
+            masks are to be extracted.
+        """
+        init_col = 0
+        for stg, subenv in self.subenvs.items():
+            end_col = init_col + subenv.mask_dim
+            if stg == stage:
+                return mask[:, init_col:end_col]
+            init_col = end_col
+
     def reset(self, env_id: Union[int, str] = None):
         self.composition.reset()
         self.space_group.reset()
@@ -261,6 +330,50 @@ class CCrystal(GFlowNetEnv):
         if state is None:
             state = self.state
         state[0] = stage.value
+
+    def _get_policy_states_of_subenv(
+        self, state: TensorType["n_states", "state_dim"], stage: Stage
+    ):
+        """
+        Returns the part of the states corresponding to the subenv indicated by stage.
+
+        Args
+        ----
+        states : tensor
+            A tensor containing a batch of states in policy format.
+
+        stage : Stage
+            Identifier of the sub-environment of which the corresponding columns of the
+            batch of states are to be extracted.
+        """
+        init_col = 0
+        for stg, subenv in self.subenvs.items():
+            end_col = init_col + subenv.policy_input_dim
+            if stg == stage:
+                return states[:, init_col:end_col]
+            init_col = end_col
+
+    def _get_state_of_subenv(self, state: List, stage: Optional[Stage] = None):
+        """
+        Returns the part of the state corresponding to the subenv indicated by stage.
+
+        Args
+        ----
+        state : list
+            A state of the parent Crystal environment.
+
+        stage : Stage
+            Identifier of the sub-environment of which the corresponding part of the
+            state is to be extracted. If None, it is inferred from the state.
+        """
+        if stage is None:
+            stage = self._get_stage(state)
+        init_col = 1
+        for stg, subenv in self.subenvs.items():
+            end_col = init_col + len(subenv.source)
+            if stg == stage:
+                return state[init_col:end_col]
+            init_col = end_col
 
     def _get_composition_state(self, state: Optional[List[int]] = None) -> List[int]:
         state = self._get_state(state)
@@ -301,54 +414,45 @@ class CCrystal(GFlowNetEnv):
     def get_mask_invalid_actions_forward(
         self, state: Optional[List[int]] = None, done: Optional[bool] = None
     ) -> List[bool]:
+        """
+        Computes the forward actions mask of the state.
+
+        The mask of the parent crystal is simply the concatenation of the masks of the
+        three sub-environments. This assumes that the methods that will use the mask
+        will extract the part corresponding to the relevant stage and ignore the rest.
+        """
         state = self._get_state(state)
         done = self._get_done(done)
-        stage = self._get_stage(state)
 
-        if done:
-            return [True] * self.action_space_dim
-
-        mask = [True] * self.action_space_dim
-
-        if stage == Stage.COMPOSITION:
-            composition_mask = self.composition.get_mask_invalid_actions_forward(
-                state=self._get_composition_state(state), done=False
-            )
-            mask[
-                self.composition_mask_start : self.composition_mask_end
-            ] = composition_mask
-        elif stage == Stage.SPACE_GROUP:
-            space_group_state = self._get_space_group_state(state)
-            space_group_mask = self.space_group.get_mask_invalid_actions_forward(
-                state=space_group_state, done=False
-            )
-            mask[
-                self.space_group_mask_start : self.space_group_mask_end
-            ] = space_group_mask
-        elif stage == Stage.LATTICE_PARAMETERS:
-            """
-            TODO: to be stateless (meaning, operating as a function, not a method with
-            current object context) this needs to set lattice system based on the
-            passed state only. Right now it uses the current LatticeParameter
-            environment, in particular the lattice system that it was set to, and that
-            changes the invalid actions mask.
-
-            If for some reason a state will be passed to this method that describes an
-            object with different lattice system than what self.lattice_system
-            contains, the result will be invalid.
-            """
-            lattice_parameters_state = self._get_lattice_parameters_state(state)
-            lattice_parameters_mask = (
-                self.lattice_parameters.get_mask_invalid_actions_forward(
-                    state=lattice_parameters_state, done=False
+        mask = []
+        for stage, subenv in self.subenvs.items():
+            mask.extend(
+                subenv.get_mask_invalid_actions_forward(
+                    self._get_state_of_subenv(state, stage), done
                 )
             )
-            mask[
-                self.lattice_parameters_mask_start : self.lattice_parameters_mask_end
-            ] = lattice_parameters_mask
-        else:
-            raise ValueError(f"Unrecognized stage {stage}.")
+        return mask
 
+    def get_mask_invalid_actions_backward(
+        self, state: Optional[List[int]] = None, done: Optional[bool] = None
+    ) -> List[bool]:
+        """
+        Computes the backward actions mask of the state.
+
+        The mask of the parent crystal is simply the concatenation of the masks of the
+        three sub-environments. This assumes that the methods that will use the mask
+        will extract the part corresponding to the relevant stage and ignore the rest.
+        """
+        state = self._get_state(state)
+        done = self._get_done(done)
+
+        mask = []
+        for stage, subenv in self.subenvs.items():
+            mask.extend(
+                subenv.get_mask_invalid_actions_backward(
+                    self._get_state_of_subenv(state, stage), done
+                )
+            )
         return mask
 
     def _update_state(self):
@@ -447,12 +551,21 @@ class CCrystal(GFlowNetEnv):
         corresponding to each state in the batch. For composition and space_group it
         will be the method from the base discrete environment; for the lattice
         parameters, it will be the method from the cube environment.
+
+        Note that in order to call sample_actions_batch() of the sub-environments, we
+        need to first extract the part of the policy outputs, the masks and the states
+        that correspond to the sub-environment.
         """
         states_dict = {stage: [] for stage in Stage}
+        """
+        A dictionary with keys equal to Stage and the values are the list of states in
+        the stage of the key. The states are only the part corresponding to the
+        sub-environment.
+        """
         stages = []
         for s in states_from:
             stage = self._get_stage(s)
-            states_dict[stage].append(s)
+            states_dict[stage].append(self._get_state_of_subenv(s, stage))
             stages.append(stage)
         stages_tensor = tlong([stage.value for stage in stages], device=self.device)
         is_subenv_dict = {stage: stages_tensor == stage.value for stage in Stage}
@@ -460,8 +573,10 @@ class CCrystal(GFlowNetEnv):
         # Sample actions from each sub-environment
         actions_logprobs_dict = {
             stage: subenv.sample_actions_batch(
-                policy_outputs[is_subenv_dict[stage]],
-                mask[is_subenv_dict[stage]],
+                self._get_policy_outputs_of_subenv(
+                    policy_outputs[is_subenv_dict[stage]], stage
+                ),
+                self._get_mask_of_subenv(mask[is_subenv_dict[stage]], stage),
                 states_dict[stage],
                 is_backward,
                 sampling_method,

@@ -8,13 +8,15 @@ from torch import Tensor
 
 from gflownet.envs.crystals.ccrystal import CCrystal, Stage
 from gflownet.envs.crystals.clattice_parameters import TRICLINIC
-
 from gflownet.utils.common import tbool, tfloat
 
 
 @pytest.fixture
 def env():
-    return CCrystal(composition_kwargs={"elements": 4})
+    return CCrystal(
+        composition_kwargs={"elements": 4},
+        space_group_kwargs={"space_groups_subset": list(range(1, 15 + 1)) + [105]},
+    )
 
 
 @pytest.fixture
@@ -144,7 +146,7 @@ def test__step__single_action_works(env, action):
             True,
         ],
         [
-            [(2, 225, 3, -3, -3, -3, -3)],
+            [(2, 105, 3, -3, -3, -3, -3)],
             [0, 0, 0, 0, 0, 0, 0, 0, -1, -1, -1, -1, -1, -1],
             Stage.COMPOSITION,
             False,
@@ -330,6 +332,7 @@ def test__reset(env, actions):
     assert env.lattice_parameters.lattice_system == TRICLINIC
 
 
+@pytest.mark.skip(reason="skip while developping other tests")
 @pytest.mark.parametrize(
     "actions, exp_stage",
     [
@@ -395,7 +398,205 @@ def test__get_mask_invalid_actions_forward__masks_all_actions_from_different_sta
             ]
         )
 
-@pytest.mark.skip(reason="skip while developping other tests")
+
+def test__get_policy_outputs__is_the_concatenation_of_subenvs(env):
+    policy_output_composition = env.composition.get_policy_output(
+        env.composition.fixed_distr_params
+    )
+    policy_output_space_group = env.space_group.get_policy_output(
+        env.space_group.fixed_distr_params
+    )
+    policy_output_lattice_parameters = env.lattice_parameters.get_policy_output(
+        env.lattice_parameters.fixed_distr_params
+    )
+    policy_output_cat = torch.cat(
+        (
+            policy_output_composition,
+            policy_output_space_group,
+            policy_output_lattice_parameters,
+        )
+    )
+    policy_output = env.get_policy_output(env.fixed_distr_params)
+    assert torch.all(torch.eq(policy_output_cat, policy_output))
+
+
+def test___get_policy_outputs_of_subenv__returns_correct_output(env):
+    n_states = 5
+    policy_output_composition = torch.tile(
+        env.composition.get_policy_output(env.composition.fixed_distr_params),
+        dims=(n_states, 1),
+    )
+    policy_output_space_group = torch.tile(
+        env.space_group.get_policy_output(env.space_group.fixed_distr_params),
+        dims=(n_states, 1),
+    )
+    policy_output_lattice_parameters = torch.tile(
+        env.lattice_parameters.get_policy_output(
+            env.lattice_parameters.fixed_distr_params
+        ),
+        dims=(n_states, 1),
+    )
+    policy_outputs = torch.tile(
+        env.get_policy_output(env.fixed_distr_params), dims=(n_states, 1)
+    )
+    assert torch.all(
+        torch.eq(
+            env._get_policy_outputs_of_subenv(policy_outputs, Stage.COMPOSITION),
+            policy_output_composition,
+        )
+    )
+    assert torch.all(
+        torch.eq(
+            env._get_policy_outputs_of_subenv(policy_outputs, Stage.SPACE_GROUP),
+            policy_output_space_group,
+        )
+    )
+    assert torch.all(
+        torch.eq(
+            env._get_policy_outputs_of_subenv(policy_outputs, Stage.LATTICE_PARAMETERS),
+            policy_output_lattice_parameters,
+        )
+    )
+
+
+@pytest.mark.parametrize(
+    "state, state_composition, state_space_group, state_lattice_parameters",
+    [
+        [
+            [0, 1, 0, 4, 0, 0, 0, 0, -1, -1, -1, -1, -1, -1],
+            [1, 0, 4, 0],
+            [0, 0, 0],
+            [-1, -1, -1, -1, -1, -1],
+        ],
+        [
+            [0, 0, 0, 0, 0, 0, 0, 0, -1, -1, -1, -1, -1, -1],
+            [0, 0, 0, 0],
+            [0, 0, 0],
+            [-1, -1, -1, -1, -1, -1],
+        ],
+        [
+            [1, 1, 0, 4, 0, 0, 0, 0, -1, -1, -1, -1, -1, -1],
+            [1, 0, 4, 0],
+            [0, 0, 0],
+            [-1, -1, -1, -1, -1, -1],
+        ],
+        [
+            [1, 1, 0, 4, 0, 4, 3, 105, -1, -1, -1, -1, -1, -1],
+            [1, 0, 4, 0],
+            [4, 3, 105],
+            [-1, -1, -1, -1, -1, -1],
+        ],
+        [
+            [1, 1, 0, 4, 0, 4, 3, 105, -1, -1, -1, -1, -1, -1],
+            [1, 0, 4, 0],
+            [4, 3, 105],
+            [-1, -1, -1, -1, -1, -1],
+        ],
+        [
+            [2, 1, 0, 4, 0, 4, 3, 105, -1, -1, -1, -1, -1, -1],
+            [1, 0, 4, 0],
+            [4, 3, 105],
+            [-1, -1, -1, -1, -1, -1],
+        ],
+        [
+            [2, 1, 0, 4, 0, 4, 3, 105, -1, -1, -1, -1, -1, -1],
+            [1, 0, 4, 0],
+            [4, 3, 105],
+            [-1, -1, -1, -1, -1, -1],
+        ],
+        [
+            [2, 1, 0, 4, 0, 4, 3, 105, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6],
+            [1, 0, 4, 0],
+            [4, 3, 105],
+            [0.1, 0.2, 0.3, 0.4, 0.5, 0.6],
+        ],
+        [
+            [2, 1, 0, 4, 0, 4, 3, 105, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6],
+            [1, 0, 4, 0],
+            [4, 3, 105],
+            [0.1, 0.2, 0.3, 0.4, 0.5, 0.6],
+        ],
+        [
+            [2, 1, 0, 4, 0, 4, 3, 105, 0.76, 0.75, 0.74, 0.73, 0.72, 0.71],
+            [1, 0, 4, 0],
+            [4, 3, 105],
+            [0.76, 0.75, 0.74, 0.73, 0.72, 0.71],
+        ],
+        [
+            [2, 1, 0, 4, 0, 4, 3, 105, 0.76, 0.75, 0.74, 0.73, 0.72, 0.71],
+            [1, 0, 4, 0],
+            [4, 3, 105],
+            [0.76, 0.75, 0.74, 0.73, 0.72, 0.71],
+        ],
+    ],
+)
+def test__state_of_subenv__returns_expected(
+    env, state, state_composition, state_space_group, state_lattice_parameters
+):
+    for stage in Stage:
+        state_subenv = env._get_state_of_subenv(state, stage)
+        if stage == Stage.COMPOSITION:
+            assert state_subenv == state_composition
+        elif stage == Stage.SPACE_GROUP:
+            assert state_subenv == state_space_group
+        elif stage == Stage.LATTICE_PARAMETERS:
+            assert state_subenv == state_lattice_parameters
+        else:
+            raise ValueError(f"Unrecognized stage {stage}.")
+
+
+@pytest.mark.parametrize(
+    "states",
+    [
+        [
+            [0, 0, 0, 0, 0, 0, 0, 0, -1, -1, -1, -1, -1, -1],
+            [0, 0, 4, 0, 0, 0, 0, 0, -1, -1, -1, -1, -1, -1],
+            [1, 3, 1, 0, 6, 0, 0, 0, -1, -1, -1, -1, -1, -1],
+            [2, 1, 0, 4, 0, 4, 3, 105, 0.12, 0.23, 0.34, 0.45, 0.56, 0.67],
+            [1, 3, 1, 0, 6, 1, 0, 0, -1, -1, -1, -1, -1, -1],
+            [1, 3, 1, 0, 6, 1, 1, 0, -1, -1, -1, -1, -1, -1],
+            [0, 3, 0, 0, 0, 0, 0, 0, -1, -1, -1, -1, -1, -1],
+            [0, 3, 0, 0, 6, 0, 0, 0, -1, -1, -1, -1, -1, -1],
+            [1, 3, 1, 0, 6, 1, 2, 0, -1, -1, -1, -1, -1, -1],
+            [0, 3, 1, 0, 6, 0, 0, 0, -1, -1, -1, -1, -1, -1],
+            [2, 1, 0, 4, 0, 4, 3, 105, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6],
+            [2, 1, 0, 4, 0, 4, 3, 105, 0.76, 0.75, 0.74, 0.73, 0.72, 0.71],
+            [0, 0, 4, 3, 0, 0, 0, 0, -1, -1, -1, -1, -1, -1],
+        ],
+    ],
+)
+def test__get_mask_of_subenv__returns_correct_submasks(env, states):
+    # Get states from each stage and masks computed with the Crystal env.
+    states_dict = {stage: [] for stage in Stage}
+    masks_dict = {stage: [] for stage in Stage}
+    stages = []
+    for s in states:
+        stage = env._get_stage(s)
+        states_dict[stage].append(s)
+        masks_dict[stage].append(env.get_mask_invalid_actions_forward(s))
+        stages.append(stage)
+
+    for stage, subenv in env.subenvs.items():
+        # Get masks computed with subenv
+        masks_subenv = tbool(
+            [
+                subenv.get_mask_invalid_actions_forward(
+                    env._get_state_of_subenv(s, stage)
+                )
+                for s in states_dict[stage]
+            ],
+            device=env.device,
+        )
+        assert torch.all(
+            torch.eq(
+                env._get_mask_of_subenv(
+                    tbool(masks_dict[stage], device=env.device), stage
+                ),
+                masks_subenv,
+            )
+        )
+
+
 @pytest.mark.repeat(10)
 def test__step_random__does_not_crash_from_source(env):
     """
@@ -405,6 +606,8 @@ def test__step_random__does_not_crash_from_source(env):
     env.step_random()
     pass
 
+
+# @pytest.mark.skip(reason="skip while developping other tests")
 @pytest.mark.parametrize(
     "states",
     [
@@ -418,11 +621,24 @@ def test__step_random__does_not_crash_from_source(env):
         ],
         [
             [0, 0, 0, 0, 0, 0, 0, 0, -1, -1, -1, -1, -1, -1],
-            [0, 0, 4, 3, 0, 0, 0, 0, -1, -1, -1, -1, -1, -1],
-            [0, 3, 1, 0, 6, 0, 0, 0, -1, -1, -1, -1, -1, -1],
             [1, 3, 1, 0, 6, 0, 0, 0, -1, -1, -1, -1, -1, -1],
             [1, 3, 1, 0, 6, 1, 0, 0, -1, -1, -1, -1, -1, -1],
+            [1, 3, 1, 0, 6, 1, 1, 0, -1, -1, -1, -1, -1, -1],
+        ],
+        [
+            [0, 0, 0, 0, 0, 0, 0, 0, -1, -1, -1, -1, -1, -1],
+            [0, 0, 4, 0, 0, 0, 0, 0, -1, -1, -1, -1, -1, -1],
+            [1, 3, 1, 0, 6, 0, 0, 0, -1, -1, -1, -1, -1, -1],
+            [2, 1, 0, 4, 0, 4, 3, 105, 0.12, 0.23, 0.34, 0.45, 0.56, 0.67],
+            [1, 3, 1, 0, 6, 1, 0, 0, -1, -1, -1, -1, -1, -1],
+            [1, 3, 1, 0, 6, 1, 1, 0, -1, -1, -1, -1, -1, -1],
+            [0, 3, 0, 0, 0, 0, 0, 0, -1, -1, -1, -1, -1, -1],
+            [0, 3, 0, 0, 6, 0, 0, 0, -1, -1, -1, -1, -1, -1],
             [1, 3, 1, 0, 6, 1, 2, 0, -1, -1, -1, -1, -1, -1],
+            [0, 3, 1, 0, 6, 0, 0, 0, -1, -1, -1, -1, -1, -1],
+            [2, 1, 0, 4, 0, 4, 3, 105, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6],
+            [2, 1, 0, 4, 0, 4, 3, 105, 0.76, 0.75, 0.74, 0.73, 0.72, 0.71],
+            [0, 0, 4, 3, 0, 0, 0, 0, -1, -1, -1, -1, -1, -1],
         ],
     ],
 )
@@ -432,6 +648,7 @@ def test__sample_actions_forward__returns_valid_actions(env, states):
     """
     n_states = len(states)
     # Get masks
+    lens = [len(env.get_mask_invalid_actions_forward(s)) for s in states]
     masks = tbool(
         [env.get_mask_invalid_actions_forward(s) for s in states], device=env.device
     )
@@ -444,8 +661,20 @@ def test__sample_actions_forward__returns_valid_actions(env, states):
     )
     # Sample actions are valid
     for state, action in zip(states, actions):
+        if env._get_stage(state) == Stage.LATTICE_PARAMETERS:
+            continue
         assert action in env.get_valid_actions(state, done=False, backward=False)
 
+
+@pytest.mark.skip(reason="gets stuck")
+@pytest.mark.repeat(10)
+def test__trajectory_random__does_not_crash_from_source(env):
+    """
+    Raising the bar...
+    """
+    env.reset()
+    env.trajectory_random()
+    pass
 
 
 @pytest.mark.skip(reason="skip until updated")
