@@ -34,6 +34,13 @@ def test__stage_next__returns_expected():
     assert Stage.next(Stage.DONE) == None
 
 
+def test__stage_prev__returns_expected():
+    assert Stage.prev(Stage.COMPOSITION) == None
+    assert Stage.prev(Stage.SPACE_GROUP) == Stage.COMPOSITION
+    assert Stage.prev(Stage.LATTICE_PARAMETERS) == Stage.SPACE_GROUP
+    assert Stage.prev(Stage.DONE) == Stage.LATTICE_PARAMETERS
+
+
 def test__environment__initializes_properly(env):
     pass
 

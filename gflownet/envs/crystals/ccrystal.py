@@ -34,6 +34,14 @@ class Stage(Enum):
             return None
         return Stage(self.value + 1)
 
+    def prev(self) -> "Stage":
+        """
+        Returns the previous Stage in the enumeration or None if at the first stage.
+        """
+        if self.value - 1 < 0:
+            return None
+        return Stage(self.value - 1)
+
     def to_pad(self) -> int:
         """
         Maps stage value to a padding. The following mapping is used:
@@ -465,11 +473,23 @@ class CCrystal(GFlowNetEnv):
             )
         return mask
 
+    def _update_state(self, stage: Stage):
+        """
+        Updates the global state based on the states of the sub-environments and the
+        stage passed as an argument.
+        """
+        return (
+            [stage.value]
+            + self.composition.state
+            + self.space_group.state
+            + self.lattice_parameters.state
+        )
+
     def step(
         self, action: Tuple[int], skip_mask_check: bool = False
     ) -> Tuple[List[int], Tuple[int], bool]:
         """
-        Executes forward step given an action. 
+        Executes forward step given an action.
 
         The action is performed by the corresponding sub-environment and then the
         global state is updated accordingly. If the action is the EOS of the
@@ -531,13 +551,63 @@ class CCrystal(GFlowNetEnv):
             else:
                 raise ValueError(f"Unrecognized stage {stage}.")
 
-        if valid:
-            self.state = (
-                [stage.value]
-                + self.composition.state
-                + self.space_group.state
-                + self.lattice_parameters.state
-            )
+        self.state = self._update_state(stage)
+        return self.state, action, valid
+
+    def step_backwards(
+        self, action: Tuple[int], skip_mask_check: bool = False
+    ) -> Tuple[List[int], Tuple[int], bool]:
+        """
+        Executes backward step given an action.
+
+        The action is performed by the corresponding sub-environment and then the
+        global state is updated accordingly. If the updated state of the
+        sub-environment becomes its source, the stage is decreased.
+
+        Args
+        ----
+        action : tuple
+            Action to be executed. The input action is global, that is padded.
+
+        Returns
+        -------
+        self.state : list
+            The state after executing the action.
+
+        action : int
+            Action executed.
+
+        valid : bool
+            False, if the action is not allowed for the current state. True otherwise.
+        """
+        stage = self._get_stage(self.state)
+        # Skip mask check if stage is lattice parameters (continuous actions)
+        if stage == Stage.LATTICE_PARAMETERS:
+            skip_mask_check = True
+        # Replace action by its representative to check against the mask.
+        action_to_check = self.action2representative(action)
+        do_step, self.state, action_to_check = self._pre_step(
+            action_to_check,
+            backward=True,
+            skip_mask_check=(skip_mask_check or self.skip_mask_check),
+        )
+        if not do_step:
+            return self.state, action, False
+
+        # Call step of current subenvironment
+        action_subenv = self._depad_action(action, stage)
+        state_next, _, valid = self.subenvs[stage].step_backwards(action_subenv)
+
+        # If action is invalid, exit immediately. Otherwise continue,
+        if not valid:
+            return self.state, action, False
+        self.n_actions += 1
+
+        # If next state is source of subenv, decrease stage.
+        if state_next == self.subenvs[stage].source:
+            stage = Stage.prev(stage)
+
+        self.state = self._update_state(stage)
         return self.state, action, valid
 
     def _build_state(self, substate: List, stage: Stage) -> List:
