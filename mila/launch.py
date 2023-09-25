@@ -13,7 +13,7 @@ from yaml import safe_load
 
 ROOT = Path(__file__).resolve().parent.parent
 
-DIRTY_REPO_OK = False
+GIT_WARNING = False
 
 HELP = dedent(
     """
@@ -341,31 +341,26 @@ def print_md_help(parser, defaults):
 
 
 def code_dir_for_slurm_tmp_dir_checkout(git_checkout):
-    global DIRTY_REPO_OK
+    global GIT_WARNING
 
     repo = Repo(ROOT)
     if git_checkout is None:
         git_checkout = repo.active_branch.name
-        if not DIRTY_REPO_OK:
+        if not GIT_WARNING:
             print("💥 Git warnings:")
             print(
                 f"  • `git_checkout` not provided. Using current branch: {git_checkout}"
             )
         # warn for uncommitted changes
-        if repo.is_dirty() and not DIRTY_REPO_OK:
+        if repo.is_dirty() and not GIT_WARNING:
             print(
                 "  • Your repo contains uncommitted changes. "
                 + "They will *not* be available when cloning happens within the job."
             )
-            if (
-                "y"
-                not in input(
-                    "Continue anyway, ignoring current changes? [y/N] "
-                ).lower()
-            ):
-                print("🛑 Aborted")
-                sys.exit(0)
-            DIRTY_REPO_OK = True
+        if "y" not in input("Continue anyway? [y/N] ").lower():
+            print("🛑 Aborted")
+            sys.exit(0)
+        GIT_WARNING = True
 
     return dedent(
         """\
