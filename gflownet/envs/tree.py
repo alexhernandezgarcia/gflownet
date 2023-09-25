@@ -670,11 +670,11 @@ class Tree(GFlowNetEnv):
             policy_outputs_discrete = policy_outputs[
                 is_discrete, : self._index_continuous_policy_output
             ]
-            # TODO: mask must be applied to states_from too!
+            # states_from can be None because it will be ignored
             actions_discrete, logprobs_discrete = super().sample_actions_batch(
                 policy_outputs_discrete,
                 mask[is_discrete, : self._index_continuous_policy_output],
-                states_from,
+                None,
                 is_backward,
                 sampling_method,
                 temperature_logits,
@@ -774,12 +774,12 @@ class Tree(GFlowNetEnv):
             policy_outputs_discrete = policy_outputs[
                 mask_discrete, : self._index_continuous_policy_output
             ]
-            # TODO: mask must be applied to states_from too!
+            # states_from can be None because it will be ignored
             logprobs_discrete = super().get_logprobs(
                 policy_outputs_discrete,
                 actions[mask_discrete],
                 mask[mask_discrete, : self._index_continuous_policy_output],
-                states_from,
+                None,
                 is_backward,
             )
             logprobs[mask_discrete] = logprobs_discrete
