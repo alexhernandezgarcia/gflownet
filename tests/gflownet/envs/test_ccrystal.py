@@ -1114,7 +1114,7 @@ def test__get_logprobs_forward__returns_valid_actions(env, states, actions):
     assert torch.all(torch.isfinite(logprobs))
 
 
-# Set lattice system
+# TODO: Set lattice system
 @pytest.mark.parametrize(
     "states, actions",
     [
@@ -1198,9 +1198,8 @@ def test__get_logprobs_backward__returns_valid_actions(env, states, actions):
     assert torch.all(torch.isfinite(logprobs))
 
 
-@pytest.mark.skip(reason="skip until updated")
 def test__continuous_env_common(env):
-    return common.test__all_env_common(env)
+    return common.test__continuous_env_common(env)
 
 
 # @pytest.mark.skip(reason="skip until updated")
