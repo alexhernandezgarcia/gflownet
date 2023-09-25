@@ -3,6 +3,7 @@ Classes to represent continuous lattice parameters environments.
 """
 from typing import List, Optional, Tuple
 
+from torch import Tensor
 from torchtyping import TensorType
 
 from gflownet.envs.cube import ContinuousCube
@@ -274,4 +275,50 @@ class CLatticeParameters(ContinuousCube):
         """
         return self.statetorch2proxy(
             tfloat(states, float_type=self.float, device=self.device)
+        )
+
+    def state2oracle(self, state: Optional[List[int]] = None) -> Tensor:
+        """
+        Prepares a list of states in "GFlowNet format" for the oracle.
+
+        Args
+        ----
+        state : list
+            A state.
+
+        Returns
+        ----
+        oracle_state : Tensor
+            Tensor containing lengths and angles converted from the Grid format.
+        """
+        if state is None:
+            state = self.state.copy()
+
+        return Tensor(
+            [self.cell2length[s] for s in state[:3]]
+            + [self.cell2angle[s] for s in state[3:]]
+        )
+
+    def statetorch2oracle(
+        self, states: TensorType["batch", "state_dim"]
+    ) -> TensorType["batch", "state_oracle_dim"]:
+        """
+        Prepares a batch of states in "GFlowNet format" for the oracle. The input to the
+        oracle is the lengths and angles.
+
+        Args
+        ----
+        states : Tensor
+            A state
+
+        Returns
+        ----
+        oracle_states : Tensor
+        """
+        return torch.cat(
+            [
+                self.lengths_tensor[states[:, :3].long()],
+                self.angles_tensor[states[:, 3:].long()],
+            ],
+            dim=1,
         )
