@@ -364,7 +364,7 @@ def test__forward_actions_have_nonzero_backward_prob(env):
 @pytest.mark.repeat(1000)
 def test__trajectories_are_reversible(env):
     # Skip for certain environments until fixed:
-    skip_envs = ["Crystal, LatticeParameters, Tree"]
+    skip_envs = ["Crystal", "LatticeParameters", "Tree"]
     if env.__class__.__name__ in skip_envs:
         warnings.warn("Skipping test for this specific environment.")
         return
@@ -402,7 +402,7 @@ def test__trajectories_are_reversible(env):
 
 def test__backward_actions_have_nonzero_forward_prob(env, n=1000):
     # Skip for certain environments until fixed:
-    skip_envs = ["Crystal, LatticeParameters"]
+    skip_envs = ["Crystal", "LatticeParameters"]
     if env.__class__.__name__ in skip_envs:
         warnings.warn("Skipping test for this specific environment.")
         return
