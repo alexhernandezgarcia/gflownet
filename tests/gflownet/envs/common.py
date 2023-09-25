@@ -131,6 +131,7 @@ def test__sampling_forwards_reaches_done_in_finite_steps(env):
 def test__set_state__creates_new_copy_of_state(env):
     states = _get_terminating_states(env, 5)
     if states is None:
+        warnings.warn("Skipping test because states are None.")
         return
     envs = []
     for state in states:
@@ -146,6 +147,7 @@ def test__set_state__creates_new_copy_of_state(env):
 def test__sample_actions__backward__returns_eos_if_done(env, n=5):
     states = _get_terminating_states(env, n)
     if states is None:
+        warnings.warn("Skipping test because states are None.")
         return
     # Set states, done and get masks
     masks = []
@@ -170,6 +172,7 @@ def test__sample_actions__backward__returns_eos_if_done(env, n=5):
 def test__get_logprobs__backward__returns_zero_if_done(env, n=5):
     states = _get_terminating_states(env, n)
     if states is None:
+        warnings.warn("Skipping test because states are None.")
         return
     # Set states, done and get masks
     masks = []
@@ -199,6 +202,7 @@ def test__get_logprobs__backward__returns_zero_if_done(env, n=5):
 def test__sample_backwards_reaches_source(env, n=100):
     states = _get_terminating_states(env, n)
     if states is None:
+        warnings.warn("Skipping test because states are None.")
         return
     for state in states:
         env.set_state(state, done=True)
@@ -360,6 +364,7 @@ def test__forward_actions_have_nonzero_backward_prob(env):
 def test__backward_actions_have_nonzero_forward_prob(env, n=1000):
     states = _get_terminating_states(env, n)
     if states is None:
+        warnings.warn("Skipping test because states are None.")
         return
     policy_random = torch.unsqueeze(
         tfloat(env.random_policy_output, float_type=env.float, device=env.device), 0
