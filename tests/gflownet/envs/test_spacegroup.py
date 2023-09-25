@@ -8,6 +8,7 @@ from pyxtal.symmetry import Group
 from gflownet.envs.crystals.spacegroup import SpaceGroup
 
 N_ATOMS = [3, 7, 9]
+N_ATOMS_B = [5, 0, 14, 1]
 SG_SUBSET = [1, 17, 39, 123, 230]
 
 
@@ -19,6 +20,11 @@ def env():
 @pytest.fixture
 def env_with_composition():
     return SpaceGroup(n_atoms=N_ATOMS)
+
+
+@pytest.fixture
+def env_with_composition_b():
+    return SpaceGroup(n_atoms=N_ATOMS_B)
 
 
 @pytest.fixture
@@ -50,6 +56,11 @@ def test__environment__space_groups_subset__initializes_properly():
 def test__environment__action_space_has_eos():
     env = SpaceGroup()
     assert env.eos in env.action_space
+
+
+def test__env_with_composition_b__debug(env_with_composition_b):
+    env = env_with_composition_b
+    pass
 
 
 @pytest.mark.parametrize(
