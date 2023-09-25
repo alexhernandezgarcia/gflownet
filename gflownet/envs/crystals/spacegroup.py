@@ -179,12 +179,12 @@ class SpaceGroup(GFlowNetEnv):
         # composition-compatibility constraints
         if cls_idx == 0 and ps_idx == 0:
             crystal_lattice_systems = [
-                (self.cls_idx, idx, state_type)
+                (Prop.CLS.value, idx, state_type)
                 for idx in self.crystal_lattice_systems
                 if self._is_compatible(cls_idx=idx)
             ]
             point_symmetries = [
-                (self.ps_idx, idx, state_type)
+                (Prop.PS.value, idx, state_type)
                 for idx in self.point_symmetries
                 if self._is_compatible(ps_idx=idx)
             ]
@@ -192,20 +192,20 @@ class SpaceGroup(GFlowNetEnv):
         if cls_idx != 0:
             crystal_lattice_systems = []
             space_groups_cls = [
-                (self.sg_idx, sg, state_type)
+                (Prop.SG.value, sg, state_type)
                 for sg in self.crystal_lattice_systems[cls_idx]["space_groups"]
                 if self.n_atoms_compatibility_dict[sg]
             ]
             # If no point symmetry selected yet
             if ps_idx == 0:
                 point_symmetries = [
-                    (self.ps_idx, idx, state_type)
+                    (Prop.PS.value, idx, state_type)
                     for idx in self.crystal_lattice_systems[cls_idx]["point_symmetries"]
                     if self._is_compatible(cls_idx=cls_idx, ps_idx=idx)
                 ]
         else:
             space_groups_cls = [
-                (self.sg_idx, idx, state_type)
+                (Prop.SG.value, idx, state_type)
                 for idx in self.space_groups
                 if self.n_atoms_compatibility_dict[idx]
             ]
@@ -213,20 +213,20 @@ class SpaceGroup(GFlowNetEnv):
         if ps_idx != 0:
             point_symmetries = []
             space_groups_ps = [
-                (self.sg_idx, sg, state_type)
+                (Prop.SG.value, sg, state_type)
                 for sg in self.point_symmetries[ps_idx]["space_groups"]
                 if self.n_atoms_compatibility_dict[sg]
             ]
             # If no crystal-lattice system selected yet
             if cls_idx == 0:
                 crystal_lattice_systems = [
-                    (self.cls_idx, idx, state_type)
+                    (Prop.CLS.value, idx, state_type)
                     for idx in self.point_symmetries[ps_idx]["crystal_lattice_systems"]
                     if self._is_compatible(cls_idx=idx, ps_idx=ps_idx)
                 ]
         else:
             space_groups_ps = [
-                (self.sg_idx, idx, state_type)
+                (Prop.SG.value, idx, state_type)
                 for idx in self.space_groups
                 if self.n_atoms_compatibility_dict[idx]
             ]
@@ -258,11 +258,11 @@ class SpaceGroup(GFlowNetEnv):
         """
         if state is None:
             state = self.state
-        if state[self.sg_idx] == 0:
+        if state[Prop.SG.value] == 0:
             raise ValueError(
                 "The space group must have been set in order to call the oracle"
             )
-        return torch.tensor(state[self.sg_idx], device=self.device, dtype=torch.long)
+        return torch.tensor(state[Prop.SG.value], device=self.device, dtype=torch.long)
 
     def statebatch2oracle(
         self, states: List[List]
@@ -300,7 +300,7 @@ class SpaceGroup(GFlowNetEnv):
         ----
         oracle_state : Tensor
         """
-        return torch.unsqueeze(states[:, self.sg_idx], dim=1).to(torch.long)
+        return torch.unsqueeze(states[:, Prop.SG.value], dim=1).to(torch.long)
 
     def state2readable(self, state=None):
         """
@@ -381,24 +381,24 @@ class SpaceGroup(GFlowNetEnv):
             parents = []
             actions = []
             # Catch cases where space group has been selected
-            if state[self.sg_idx] != 0:
-                sg = state[self.sg_idx]
+            if state[Prop.SG.value] != 0:
+                sg = state[Prop.SG.value]
                 # Add parent: source
                 parents.append(self.source)
-                action = (self.sg_idx, sg, 0)
+                action = (Prop.SG.value, sg, 0)
                 actions.append(action)
                 # Add parents: states before setting space group
-                state[self.sg_idx] = 0
+                state[Prop.SG.value] = 0
                 for prop in range(len(state)):
                     parent = state.copy()
                     parent[prop] = 0
                     parents.append(parent)
                     parent_type = self.get_state_type(parent)
-                    action = (self.sg_idx, sg, parent_type)
+                    action = (Prop.SG.value, sg, parent_type)
                     actions.append(action)
             else:
                 # Catch other parents
-                for prop, idx in enumerate(state[: self.sg_idx]):
+                for prop, idx in enumerate(state[: Prop.SG.value]):
                     if idx != 0:
                         parent = state.copy()
                         parent[prop] = 0
@@ -460,11 +460,11 @@ class SpaceGroup(GFlowNetEnv):
         cls_idx, ps_idx, sg_idx = state
         if sg_idx != 0:
             if cls_idx == 0:
-                state[self.cls_idx] = self.space_groups[state[self.sg_idx]][
+                state[Prop.CLS.value] = self.space_groups[state[Prop.SG.value]][
                     "crystal_lattice_system_idx"
                 ]
             if ps_idx == 0:
-                state[self.ps_idx] = self.space_groups[state[self.sg_idx]][
+                state[Prop.PS.value] = self.space_groups[state[Prop.SG.value]][
                     "point_symmetry_idx"
                 ]
         return state
@@ -475,8 +475,8 @@ class SpaceGroup(GFlowNetEnv):
         """
         if state is None:
             state = self.state
-        if state[self.cls_idx] != 0:
-            return self.crystal_lattice_systems[state[self.cls_idx]]["crystal_system"]
+        if state[Prop.CLS.value] != 0:
+            return self.crystal_lattice_systems[state[Prop.CLS.value]]["crystal_system"]
         else:
             return "None"
 
@@ -490,8 +490,8 @@ class SpaceGroup(GFlowNetEnv):
         """
         if state is None:
             state = self.state
-        if state[self.cls_idx] != 0:
-            return self.crystal_lattice_systems[state[self.cls_idx]]["lattice_system"]
+        if state[Prop.CLS.value] != 0:
+            return self.crystal_lattice_systems[state[Prop.CLS.value]]["lattice_system"]
         else:
             return "None"
 
@@ -522,8 +522,8 @@ class SpaceGroup(GFlowNetEnv):
         """
         if state is None:
             state = self.state
-        if state[self.ps_idx] != 0:
-            return self.point_symmetries[state[self.ps_idx]]["point_symmetry"]
+        if state[Prop.PS.value] != 0:
+            return self.point_symmetries[state[Prop.PS.value]]["point_symmetry"]
         else:
             return "None"
 
@@ -537,8 +537,8 @@ class SpaceGroup(GFlowNetEnv):
         """
         if state is None:
             state = self.state
-        if state[self.sg_idx] != 0:
-            return self.space_groups[state[self.sg_idx]]["full_symbol"]
+        if state[Prop.SG.value] != 0:
+            return self.space_groups[state[Prop.SG.value]]["full_symbol"]
         else:
             return "None"
 
@@ -554,8 +554,8 @@ class SpaceGroup(GFlowNetEnv):
         """
         if state is None:
             state = self.state
-        if state[self.sg_idx] != 0:
-            return self.space_groups[state[self.sg_idx]]["crystal_class"]
+        if state[Prop.SG.value] != 0:
+            return self.space_groups[state[Prop.SG.value]]["crystal_class"]
         else:
             return "None"
 
@@ -571,8 +571,8 @@ class SpaceGroup(GFlowNetEnv):
         """
         if state is None:
             state = self.state
-        if state[self.sg_idx] != 0:
-            return self.space_groups[state[self.sg_idx]]["point_group"]
+        if state[Prop.SG.value] != 0:
+            return self.space_groups[state[Prop.SG.value]]["point_group"]
         else:
             return "None"
 
