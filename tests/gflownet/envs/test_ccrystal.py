@@ -56,14 +56,16 @@ def test__environment__has_expected_initial_state(env):
 
 
 def test__environment__has_expected_action_space(env):
-    assert len(env.action_space) == len(env.composition.action_space) + len(
-        env.space_group.action_space
-    ) + len(env.lattice_parameters.action_space)
+    assert len(env.action_space) == len(
+        env.subenvs[Stage.COMPOSITION].action_space
+    ) + len(env.subenvs[Stage.SPACE_GROUP].action_space) + len(
+        env.subenvs[Stage.LATTICE_PARAMETERS].action_space
+    )
 
     underlying_action_space = (
-        env.composition.action_space
-        + env.space_group.action_space
-        + env.lattice_parameters.action_space
+        env.subenvs[Stage.COMPOSITION].action_space
+        + env.subenvs[Stage.SPACE_GROUP].action_space
+        + env.subenvs[Stage.LATTICE_PARAMETERS].action_space
     )
 
     for action, underlying_action in zip(env.action_space, underlying_action_space):
@@ -77,6 +79,92 @@ def test__pad_depad_action(env):
             assert len(padded) == env.max_action_length
             depadded = env._depad_action(padded, stage)
             assert depadded == action
+
+
+@pytest.mark.parametrize(
+    "state, state_composition, state_space_group, state_lattice_parameters",
+    [
+        [
+            [0, 1, 0, 4, 0, 0, 0, 0, -1, -1, -1, -1, -1, -1],
+            [1, 0, 4, 0],
+            [0, 0, 0],
+            [-1, -1, -1, -1, -1, -1],
+        ],
+        [
+            [0, 0, 0, 0, 0, 0, 0, 0, -1, -1, -1, -1, -1, -1],
+            [0, 0, 0, 0],
+            [0, 0, 0],
+            [-1, -1, -1, -1, -1, -1],
+        ],
+        [
+            [1, 1, 0, 4, 0, 0, 0, 0, -1, -1, -1, -1, -1, -1],
+            [1, 0, 4, 0],
+            [0, 0, 0],
+            [-1, -1, -1, -1, -1, -1],
+        ],
+        [
+            [1, 1, 0, 4, 0, 4, 3, 105, -1, -1, -1, -1, -1, -1],
+            [1, 0, 4, 0],
+            [4, 3, 105],
+            [-1, -1, -1, -1, -1, -1],
+        ],
+        [
+            [1, 1, 0, 4, 0, 4, 3, 105, -1, -1, -1, -1, -1, -1],
+            [1, 0, 4, 0],
+            [4, 3, 105],
+            [-1, -1, -1, -1, -1, -1],
+        ],
+        [
+            [2, 1, 0, 4, 0, 4, 3, 105, -1, -1, -1, -1, -1, -1],
+            [1, 0, 4, 0],
+            [4, 3, 105],
+            [-1, -1, -1, -1, -1, -1],
+        ],
+        [
+            [2, 1, 0, 4, 0, 4, 3, 105, -1, -1, -1, -1, -1, -1],
+            [1, 0, 4, 0],
+            [4, 3, 105],
+            [-1, -1, -1, -1, -1, -1],
+        ],
+        [
+            [2, 1, 0, 4, 0, 4, 3, 105, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6],
+            [1, 0, 4, 0],
+            [4, 3, 105],
+            [0.1, 0.2, 0.3, 0.4, 0.5, 0.6],
+        ],
+        [
+            [2, 1, 0, 4, 0, 4, 3, 105, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6],
+            [1, 0, 4, 0],
+            [4, 3, 105],
+            [0.1, 0.2, 0.3, 0.4, 0.5, 0.6],
+        ],
+        [
+            [2, 1, 0, 4, 0, 4, 3, 105, 0.76, 0.75, 0.74, 0.73, 0.72, 0.71],
+            [1, 0, 4, 0],
+            [4, 3, 105],
+            [0.76, 0.75, 0.74, 0.73, 0.72, 0.71],
+        ],
+        [
+            [2, 1, 0, 4, 0, 4, 3, 105, 0.76, 0.75, 0.74, 0.73, 0.72, 0.71],
+            [1, 0, 4, 0],
+            [4, 3, 105],
+            [0.76, 0.75, 0.74, 0.73, 0.72, 0.71],
+        ],
+    ],
+)
+def test__state_of_subenv__returns_expected(
+    env, state, state_composition, state_space_group, state_lattice_parameters
+):
+    for stage in env.subenvs:
+        state_subenv = env._get_state_of_subenv(state, stage)
+        if stage == Stage.COMPOSITION:
+            assert state_subenv == state_composition
+        elif stage == Stage.SPACE_GROUP:
+            assert state_subenv == state_space_group
+        elif stage == Stage.LATTICE_PARAMETERS:
+            assert state_subenv == state_lattice_parameters
+        else:
+            raise ValueError(f"Unrecognized stage {stage}.")
 
 
 @pytest.mark.parametrize(
@@ -141,18 +229,27 @@ def test__set_state__sets_state_subenvs_dones_and_constraints(
         assert subenv.done == done
 
     # Check lattice parameters
-    if env.space_group.lattice_system != "None":
+    if env.subenvs[Stage.SPACE_GROUP].lattice_system != "None":
         assert has_lattice_parameters
-        assert env.space_group.lattice_system == env.lattice_parameters.lattice_system
+        assert (
+            env.subenvs[Stage.SPACE_GROUP].lattice_system
+            == env.subenvs[Stage.LATTICE_PARAMETERS].lattice_system
+        )
     else:
         assert not has_lattice_parameters
 
     # Check composition constraints
     if has_composition_constraints:
-        n_atoms_compatibility_dict = env.space_group.build_n_atoms_compatibility_dict(
-            env.composition.state, env.space_group.space_groups.keys()
+        n_atoms_compatibility_dict = env.subenvs[
+            Stage.SPACE_GROUP
+        ].build_n_atoms_compatibility_dict(
+            env.subenvs[Stage.COMPOSITION].state,
+            env.subenvs[Stage.SPACE_GROUP].space_groups.keys(),
         )
-        assert n_atoms_compatibility_dict == env.space_group.n_atoms_compatibility_dict
+        assert (
+            n_atoms_compatibility_dict
+            == env.subenvs[Stage.SPACE_GROUP].n_atoms_compatibility_dict
+        )
 
 
 @pytest.mark.parametrize(
@@ -171,7 +268,7 @@ def test__set_state__sets_state_subenvs_dones_and_constraints(
         [2, 1, 0, 4, 0, 4, 3, 105, 0.76, 0.75, 0.74, 0.73, 0.72, 0.71],
     ],
 )
-def test__get_mask_invald_actions_backward__returns_expected_general_case(env, state):
+def test__get_mask_invalid_actions_backward__returns_expected_general_case(env, state):
     stage = env._get_stage(state)
     mask = env.get_mask_invalid_actions_backward(state, done=False)
     for stg, subenv in env.subenvs.items():
@@ -199,7 +296,9 @@ def test__get_mask_invald_actions_backward__returns_expected_general_case(env, s
         [2, 3, 1, 0, 6, 2, 1, 3, -1, -1, -1, -1, -1, -1],
     ],
 )
-def test__get_mask_invald_actions_backward__returns_expected_stage_transition(env, state):
+def test__get_mask_invald_actions_backward__returns_expected_stage_transition(
+    env, state
+):
     stage = env._get_stage(state)
     mask = env.get_mask_invalid_actions_backward(state, done=False)
     for stg, subenv in env.subenvs.items():
@@ -367,7 +466,7 @@ def test__step__single_action_works(env, action):
                 (-1, -1, -1, -3, -3, -3, -3),
                 (0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 1),
             ],
-            [2, 1, 0, 4, 0, 4, 3, 105, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6],
+            [2, 1, 0, 4, 0, 4, 3, 105, 0.1, 0.1, 0.3, 0.4, 0.4, 0.4],
             Stage.LATTICE_PARAMETERS,
             True,
         ],
@@ -379,9 +478,9 @@ def test__step__single_action_works(env, action):
                 (2, 105, 0, -3, -3, -3, -3),
                 (-1, -1, -1, -3, -3, -3, -3),
                 (0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 1),
-                (0.6, 0.5, 0.4, 0.3, 0.2, 0.6, 0),
+                (0.6, 0.5, 0.8, 0.3, 0.2, 0.6, 0),
             ],
-            [2, 1, 0, 4, 0, 4, 3, 105, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6],
+            [2, 1, 0, 4, 0, 4, 3, 105, 0.1, 0.1, 0.3, 0.4, 0.4, 0.4],
             Stage.LATTICE_PARAMETERS,
             False,
         ],
@@ -392,10 +491,10 @@ def test__step__single_action_works(env, action):
                 (-1, -1, -2, -2, -2, -2, -2),
                 (2, 105, 0, -3, -3, -3, -3),
                 (-1, -1, -1, -3, -3, -3, -3),
-                (0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 1),
-                (0.66, 0.55, 0.44, 0.33, 0.22, 0.11, 0),
+                (0.1, 0.1, 0.3, 0.0, 0.0, 0.0, 1),
+                (0.66, 0.0, 0.44, 0.0, 0.0, 0.0, 0),
             ],
-            [2, 1, 0, 4, 0, 4, 3, 105, 0.76, 0.75, 0.74, 0.73, 0.72, 0.71],
+            [2, 1, 0, 4, 0, 4, 3, 105, 0.76, 0.76, 0.74, 0.4, 0.4, 0.4],
             Stage.LATTICE_PARAMETERS,
             True,
         ],
@@ -406,11 +505,11 @@ def test__step__single_action_works(env, action):
                 (-1, -1, -2, -2, -2, -2, -2),
                 (2, 105, 0, -3, -3, -3, -3),
                 (-1, -1, -1, -3, -3, -3, -3),
-                (0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 1),
-                (0.66, 0.55, 0.44, 0.33, 0.22, 0.11, 0),
+                (0.1, 0.1, 0.3, 0.0, 0.0, 0.0, 1),
+                (0.66, 0.66, 0.44, 0.0, 0.0, 0.0, 0),
                 (np.inf, np.inf, np.inf, np.inf, np.inf, np.inf, np.inf),
             ],
-            [2, 1, 0, 4, 0, 4, 3, 105, 0.76, 0.75, 0.74, 0.73, 0.72, 0.71],
+            [2, 1, 0, 4, 0, 4, 3, 105, 0.76, 0.76, 0.74, 0.4, 0.4, 0.4],
             Stage.LATTICE_PARAMETERS,
             True,
         ],
@@ -428,7 +527,6 @@ def test__step__action_sequence_has_expected_result(
     assert valid == last_action_valid
 
 
-@pytest.mark.skip(reason="skip until updated")
 @pytest.mark.parametrize(
     "state_init, state_end, stage_init, stage_end, actions, last_action_valid",
     [
@@ -488,8 +586,8 @@ def test__step__action_sequence_has_expected_result(
             True,
         ],
         [
-            [2, 1, 0, 4, 0, 4, 3, 105, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6],
-            [2, 1, 0, 4, 0, 4, 3, 105, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6],
+            [2, 1, 0, 4, 0, 4, 3, 105, 0.1, 0.1, 0.3, 0.4, 0.4, 0.4],
+            [2, 1, 0, 4, 0, 4, 3, 105, 0.1, 0.1, 0.3, 0.4, 0.4, 0.4],
             Stage.LATTICE_PARAMETERS,
             Stage.LATTICE_PARAMETERS,
             [
@@ -498,12 +596,12 @@ def test__step__action_sequence_has_expected_result(
             False,
         ],
         [
-            [2, 1, 0, 4, 0, 4, 3, 105, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6],
+            [2, 1, 0, 4, 0, 4, 3, 105, 0.1, 0.1, 0.3, 0.4, 0.4, 0.4],
             [0, 0, 0, 0, 0, 0, 0, 0, -1, -1, -1, -1, -1, -1],
             Stage.LATTICE_PARAMETERS,
             Stage.COMPOSITION,
             [
-                (0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 1),
+                (0.1, 0.1, 0.3, 0.0, 0.0, 0.0, 1),
                 (-1, -1, -1, -3, -3, -3, -3),
                 (2, 105, 0, -3, -3, -3, -3),
                 (-1, -1, -2, -2, -2, -2, -2),
@@ -513,13 +611,13 @@ def test__step__action_sequence_has_expected_result(
             True,
         ],
         [
-            [2, 1, 0, 4, 0, 4, 3, 105, 0.76, 0.75, 0.74, 0.73, 0.72, 0.71],
+            [2, 1, 0, 4, 0, 4, 3, 105, 0.76, 0.76, 0.74, 0.4, 0.4, 0.4],
             [0, 0, 0, 0, 0, 0, 0, 0, -1, -1, -1, -1, -1, -1],
             Stage.LATTICE_PARAMETERS,
             Stage.COMPOSITION,
             [
-                (0.66, 0.55, 0.44, 0.33, 0.22, 0.11, 0),
-                (0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 1),
+                (0.66, 0.0, 0.44, 0.0, 0.0, 0.0, 0),
+                (0.1, 0.1, 0.3, 0.0, 0.0, 0.0, 1),
                 (-1, -1, -1, -3, -3, -3, -3),
                 (2, 105, 0, -3, -3, -3, -3),
                 (-1, -1, -2, -2, -2, -2, -2),
@@ -529,14 +627,14 @@ def test__step__action_sequence_has_expected_result(
             True,
         ],
         [
-            [2, 1, 0, 4, 0, 4, 3, 105, 0.76, 0.75, 0.74, 0.73, 0.72, 0.71],
+            [2, 1, 0, 4, 0, 4, 3, 105, 0.76, 0.76, 0.74, 0.4, 0.4, 0.4],
             [0, 0, 0, 0, 0, 0, 0, 0, -1, -1, -1, -1, -1, -1],
             Stage.LATTICE_PARAMETERS,
             Stage.COMPOSITION,
             [
                 (np.inf, np.inf, np.inf, np.inf, np.inf, np.inf, np.inf),
-                (0.66, 0.55, 0.44, 0.33, 0.22, 0.11, 0),
-                (0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 1),
+                (0.66, 0.0, 0.44, 0.0, 0.0, 0.0, 0),
+                (0.1, 0.1, 0.3, 0.0, 0.0, 0.0, 1),
                 (-1, -1, -1, -3, -3, -3, -3),
                 (2, 105, 0, -3, -3, -3, -3),
                 (-1, -1, -2, -2, -2, -2, -2),
@@ -566,27 +664,6 @@ def test__step_backwards__action_sequence_has_expected_result(
     assert valid == last_action_valid
 
 
-# TODO: Remove if get_parents is removed
-@pytest.mark.parametrize(
-    "actions",
-    [
-        [(1, 1, -2, -2, -2, -2, -2), (3, 4, -2, -2, -2, -2, -2)],
-        [
-            (1, 1, -2, -2, -2, -2, -2),
-            (3, 4, -2, -2, -2, -2, -2),
-            (-1, -1, -2, -2, -2, -2, -2),
-            (2, 105, 0, -3, -3, -3, -3),
-            (-1, -1, -1, -3, -3, -3, -3),
-        ],
-    ],
-)
-def test__get_parents__contains_previous_action_after_a_step(env, actions):
-    for action in actions:
-        env.step(action)
-        parents, parent_actions = env.get_parents()
-        assert action in parent_actions
-
-
 @pytest.mark.parametrize(
     "actions",
     [
@@ -607,16 +684,24 @@ def test__reset(env, actions):
         env.step(action)
 
     assert env.state != env.source
-    for subenv in [env.composition, env.space_group, env.lattice_parameters]:
+    for subenv in [
+        env.subenvs[Stage.COMPOSITION],
+        env.subenvs[Stage.SPACE_GROUP],
+        env.subenvs[Stage.LATTICE_PARAMETERS],
+    ]:
         assert subenv.state != subenv.source
-    assert env.lattice_parameters.lattice_system != TRICLINIC
+    assert env.subenvs[Stage.LATTICE_PARAMETERS].lattice_system != TRICLINIC
 
     env.reset()
 
     assert env.state == env.source
-    for subenv in [env.composition, env.space_group, env.lattice_parameters]:
+    for subenv in [
+        env.subenvs[Stage.COMPOSITION],
+        env.subenvs[Stage.SPACE_GROUP],
+        env.subenvs[Stage.LATTICE_PARAMETERS],
+    ]:
         assert subenv.state == subenv.source
-    assert env.lattice_parameters.lattice_system == TRICLINIC
+    assert env.subenvs[Stage.LATTICE_PARAMETERS].lattice_system == TRICLINIC
 
 
 # TODO: write new test of masks, both fw and bw
@@ -659,44 +744,50 @@ def test__get_mask_invalid_actions_forward__masks_all_actions_from_different_sta
     mask = env.get_mask_invalid_actions_forward()
 
     if env._get_stage() == Stage.COMPOSITION:
-        assert not all(mask[: len(env.composition.action_space)])
-        assert all(mask[len(env.composition.action_space) :])
+        assert not all(mask[: len(env.subenvs[Stage.COMPOSITION].action_space)])
+        assert all(mask[len(env.subenvs[Stage.COMPOSITION].action_space) :])
     if env._get_stage() == Stage.SPACE_GROUP:
         assert not all(
             mask[
-                len(env.composition.action_space) : len(env.composition.action_space)
-                + len(env.space_group.action_space)
+                len(env.subenvs[Stage.COMPOSITION].action_space) : len(
+                    env.subenvs[Stage.COMPOSITION].action_space
+                )
+                + len(env.subenvs[Stage.SPACE_GROUP].action_space)
             ]
         )
-        assert all(mask[: len(env.composition.action_space)])
+        assert all(mask[: len(env.subenvs[Stage.COMPOSITION].action_space)])
         assert all(
             mask[
-                len(env.composition.action_space) + len(env.space_group.action_space) :
+                len(env.subenvs[Stage.COMPOSITION].action_space)
+                + len(env.subenvs[Stage.SPACE_GROUP].action_space) :
             ]
         )
     if env._get_stage() == Stage.LATTICE_PARAMETERS:
         assert not all(
             mask[
-                len(env.composition.action_space) + len(env.space_group.action_space) :
+                len(env.subenvs[Stage.COMPOSITION].action_space)
+                + len(env.subenvs[Stage.SPACE_GROUP].action_space) :
             ]
         )
         assert all(
             mask[
-                : len(env.composition.action_space) + len(env.space_group.action_space)
+                : len(env.subenvs[Stage.COMPOSITION].action_space)
+                + len(env.subenvs[Stage.SPACE_GROUP].action_space)
             ]
         )
 
 
+@pytest.mark.skip(reason="skip while developping other tests")
 def test__get_policy_outputs__is_the_concatenation_of_subenvs(env):
-    policy_output_composition = env.composition.get_policy_output(
-        env.composition.fixed_distr_params
+    policy_output_composition = env.subenvs[Stage.COMPOSITION].get_policy_output(
+        env.subenvs[Stage.COMPOSITION].fixed_distr_params
     )
-    policy_output_space_group = env.space_group.get_policy_output(
-        env.space_group.fixed_distr_params
+    policy_output_space_group = env.subenvs[Stage.SPACE_GROUP].get_policy_output(
+        env.subenvs[Stage.SPACE_GROUP].fixed_distr_params
     )
-    policy_output_lattice_parameters = env.lattice_parameters.get_policy_output(
-        env.lattice_parameters.fixed_distr_params
-    )
+    policy_output_lattice_parameters = env.subenvs[
+        Stage.LATTICE_PARAMETERS
+    ].get_policy_output(env.subenvs[Stage.LATTICE_PARAMETERS].fixed_distr_params)
     policy_output_cat = torch.cat(
         (
             policy_output_composition,
@@ -711,16 +802,20 @@ def test__get_policy_outputs__is_the_concatenation_of_subenvs(env):
 def test___get_policy_outputs_of_subenv__returns_correct_output(env):
     n_states = 5
     policy_output_composition = torch.tile(
-        env.composition.get_policy_output(env.composition.fixed_distr_params),
+        env.subenvs[Stage.COMPOSITION].get_policy_output(
+            env.subenvs[Stage.COMPOSITION].fixed_distr_params
+        ),
         dims=(n_states, 1),
     )
     policy_output_space_group = torch.tile(
-        env.space_group.get_policy_output(env.space_group.fixed_distr_params),
+        env.subenvs[Stage.SPACE_GROUP].get_policy_output(
+            env.subenvs[Stage.SPACE_GROUP].fixed_distr_params
+        ),
         dims=(n_states, 1),
     )
     policy_output_lattice_parameters = torch.tile(
-        env.lattice_parameters.get_policy_output(
-            env.lattice_parameters.fixed_distr_params
+        env.subenvs[Stage.LATTICE_PARAMETERS].get_policy_output(
+            env.subenvs[Stage.LATTICE_PARAMETERS].fixed_distr_params
         ),
         dims=(n_states, 1),
     )
@@ -745,92 +840,6 @@ def test___get_policy_outputs_of_subenv__returns_correct_output(env):
             policy_output_lattice_parameters,
         )
     )
-
-
-@pytest.mark.parametrize(
-    "state, state_composition, state_space_group, state_lattice_parameters",
-    [
-        [
-            [0, 1, 0, 4, 0, 0, 0, 0, -1, -1, -1, -1, -1, -1],
-            [1, 0, 4, 0],
-            [0, 0, 0],
-            [-1, -1, -1, -1, -1, -1],
-        ],
-        [
-            [0, 0, 0, 0, 0, 0, 0, 0, -1, -1, -1, -1, -1, -1],
-            [0, 0, 0, 0],
-            [0, 0, 0],
-            [-1, -1, -1, -1, -1, -1],
-        ],
-        [
-            [1, 1, 0, 4, 0, 0, 0, 0, -1, -1, -1, -1, -1, -1],
-            [1, 0, 4, 0],
-            [0, 0, 0],
-            [-1, -1, -1, -1, -1, -1],
-        ],
-        [
-            [1, 1, 0, 4, 0, 4, 3, 105, -1, -1, -1, -1, -1, -1],
-            [1, 0, 4, 0],
-            [4, 3, 105],
-            [-1, -1, -1, -1, -1, -1],
-        ],
-        [
-            [1, 1, 0, 4, 0, 4, 3, 105, -1, -1, -1, -1, -1, -1],
-            [1, 0, 4, 0],
-            [4, 3, 105],
-            [-1, -1, -1, -1, -1, -1],
-        ],
-        [
-            [2, 1, 0, 4, 0, 4, 3, 105, -1, -1, -1, -1, -1, -1],
-            [1, 0, 4, 0],
-            [4, 3, 105],
-            [-1, -1, -1, -1, -1, -1],
-        ],
-        [
-            [2, 1, 0, 4, 0, 4, 3, 105, -1, -1, -1, -1, -1, -1],
-            [1, 0, 4, 0],
-            [4, 3, 105],
-            [-1, -1, -1, -1, -1, -1],
-        ],
-        [
-            [2, 1, 0, 4, 0, 4, 3, 105, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6],
-            [1, 0, 4, 0],
-            [4, 3, 105],
-            [0.1, 0.2, 0.3, 0.4, 0.5, 0.6],
-        ],
-        [
-            [2, 1, 0, 4, 0, 4, 3, 105, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6],
-            [1, 0, 4, 0],
-            [4, 3, 105],
-            [0.1, 0.2, 0.3, 0.4, 0.5, 0.6],
-        ],
-        [
-            [2, 1, 0, 4, 0, 4, 3, 105, 0.76, 0.75, 0.74, 0.73, 0.72, 0.71],
-            [1, 0, 4, 0],
-            [4, 3, 105],
-            [0.76, 0.75, 0.74, 0.73, 0.72, 0.71],
-        ],
-        [
-            [2, 1, 0, 4, 0, 4, 3, 105, 0.76, 0.75, 0.74, 0.73, 0.72, 0.71],
-            [1, 0, 4, 0],
-            [4, 3, 105],
-            [0.76, 0.75, 0.74, 0.73, 0.72, 0.71],
-        ],
-    ],
-)
-def test__state_of_subenv__returns_expected(
-    env, state, state_composition, state_space_group, state_lattice_parameters
-):
-    for stage in env.subenvs:
-        state_subenv = env._get_state_of_subenv(state, stage)
-        if stage == Stage.COMPOSITION:
-            assert state_subenv == state_composition
-        elif stage == Stage.SPACE_GROUP:
-            assert state_subenv == state_space_group
-        elif stage == Stage.LATTICE_PARAMETERS:
-            assert state_subenv == state_lattice_parameters
-        else:
-            raise ValueError(f"Unrecognized stage {stage}.")
 
 
 @pytest.mark.parametrize(
@@ -895,7 +904,6 @@ def test__step_random__does_not_crash_from_source(env):
     pass
 
 
-# @pytest.mark.skip(reason="skip while developping other tests")
 @pytest.mark.parametrize(
     "states",
     [
@@ -917,15 +925,15 @@ def test__step_random__does_not_crash_from_source(env):
             [0, 0, 0, 0, 0, 0, 0, 0, -1, -1, -1, -1, -1, -1],
             [0, 0, 4, 0, 0, 0, 0, 0, -1, -1, -1, -1, -1, -1],
             [1, 3, 1, 0, 6, 0, 0, 0, -1, -1, -1, -1, -1, -1],
-            [2, 1, 0, 4, 0, 4, 3, 105, 0.12, 0.23, 0.34, 0.45, 0.56, 0.67],
+            [2, 1, 0, 4, 0, 4, 3, 105, 0.1, 0.1, 0.3, 0.4, 0.4, 0.4],
             [1, 3, 1, 0, 6, 1, 0, 0, -1, -1, -1, -1, -1, -1],
             [1, 3, 1, 0, 6, 1, 1, 0, -1, -1, -1, -1, -1, -1],
             [0, 3, 0, 0, 0, 0, 0, 0, -1, -1, -1, -1, -1, -1],
             [0, 3, 0, 0, 6, 0, 0, 0, -1, -1, -1, -1, -1, -1],
             [1, 3, 1, 0, 6, 1, 2, 0, -1, -1, -1, -1, -1, -1],
             [0, 3, 1, 0, 6, 0, 0, 0, -1, -1, -1, -1, -1, -1],
-            [2, 1, 0, 4, 0, 4, 3, 105, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6],
-            [2, 1, 0, 4, 0, 4, 3, 105, 0.76, 0.75, 0.74, 0.73, 0.72, 0.71],
+            [2, 1, 0, 4, 0, 4, 3, 105, 0.5, 0.5, 0.3, 0.4, 0.4, 0.4],
+            [2, 1, 0, 4, 0, 4, 3, 105, 0.45, 0.45, 0.33, 0.4, 0.4, 0.4],
             [0, 0, 4, 3, 0, 0, 0, 0, -1, -1, -1, -1, -1, -1],
         ],
     ],
@@ -936,7 +944,6 @@ def test__sample_actions_forward__returns_valid_actions(env, states):
     """
     n_states = len(states)
     # Get masks
-    lens = [len(env.get_mask_invalid_actions_forward(s)) for s in states]
     masks = tbool(
         [env.get_mask_invalid_actions_forward(s) for s in states], device=env.device
     )
@@ -954,6 +961,60 @@ def test__sample_actions_forward__returns_valid_actions(env, states):
         assert action in env.get_valid_actions(state, done=False, backward=False)
 
 
+@pytest.mark.parametrize(
+    "states",
+    [
+        [
+            [0, 0, 4, 0, 0, 0, 0, 0, -1, -1, -1, -1, -1, -1],
+            [0, 0, 4, 3, 0, 0, 0, 0, -1, -1, -1, -1, -1, -1],
+            [0, 3, 0, 0, 0, 0, 0, 0, -1, -1, -1, -1, -1, -1],
+            [0, 3, 0, 0, 6, 0, 0, 0, -1, -1, -1, -1, -1, -1],
+            [0, 3, 1, 0, 6, 0, 0, 0, -1, -1, -1, -1, -1, -1],
+        ],
+        [
+            [1, 3, 1, 0, 6, 0, 0, 0, -1, -1, -1, -1, -1, -1],
+            [1, 3, 1, 0, 6, 1, 0, 0, -1, -1, -1, -1, -1, -1],
+            [1, 3, 1, 0, 6, 1, 1, 0, -1, -1, -1, -1, -1, -1],
+        ],
+        [
+            [0, 0, 4, 0, 0, 0, 0, 0, -1, -1, -1, -1, -1, -1],
+            [1, 3, 1, 0, 6, 0, 0, 0, -1, -1, -1, -1, -1, -1],
+            [2, 1, 0, 4, 0, 4, 3, 105, 0.1, 0.1, 0.3, 0.4, 0.4, 0.4],
+            [1, 3, 1, 0, 6, 1, 0, 0, -1, -1, -1, -1, -1, -1],
+            [1, 3, 1, 0, 6, 1, 1, 0, -1, -1, -1, -1, -1, -1],
+            [0, 3, 0, 0, 0, 0, 0, 0, -1, -1, -1, -1, -1, -1],
+            [0, 3, 0, 0, 6, 0, 0, 0, -1, -1, -1, -1, -1, -1],
+            [1, 3, 1, 0, 6, 1, 2, 0, -1, -1, -1, -1, -1, -1],
+            [0, 3, 1, 0, 6, 0, 0, 0, -1, -1, -1, -1, -1, -1],
+            [2, 1, 0, 4, 0, 4, 3, 105, 0.5, 0.5, 0.3, 0.4, 0.4, 0.4],
+            [2, 1, 0, 4, 0, 4, 3, 105, 0.45, 0.45, 0.33, 0.4, 0.4, 0.4],
+            [0, 0, 4, 3, 0, 0, 0, 0, -1, -1, -1, -1, -1, -1],
+        ],
+    ],
+)
+def test__sample_actions_backward__returns_valid_actions(env, states):
+    """
+    Just a little higher...
+    """
+    n_states = len(states)
+    # Get masks
+    masks = tbool(
+        [env.get_mask_invalid_actions_backward(s) for s in states], device=env.device
+    )
+    # Build policy outputs
+    params = env.random_distr_params
+    policy_outputs = torch.tile(env.get_policy_output(params), dims=(n_states, 1))
+    # Sample actions
+    actions, _ = env.sample_actions_batch(
+        policy_outputs, masks, states, is_backward=True
+    )
+    # Sample actions are valid
+    for state, action in zip(states, actions):
+        if env._get_stage(state) == Stage.LATTICE_PARAMETERS:
+            continue
+        assert action in env.get_valid_actions(state, done=False, backward=True)
+
+
 @pytest.mark.repeat(100)
 def test__trajectory_random__does_not_crash_from_source(env):
     """
@@ -964,11 +1025,184 @@ def test__trajectory_random__does_not_crash_from_source(env):
     pass
 
 
+@pytest.mark.parametrize(
+    "states, actions",
+    [
+        [
+            [
+                [0, 0, 0, 0, 0, 0, 0, 0, -1, -1, -1, -1, -1, -1],
+                [0, 0, 4, 0, 0, 0, 0, 0, -1, -1, -1, -1, -1, -1],
+                [0, 0, 4, 3, 0, 0, 0, 0, -1, -1, -1, -1, -1, -1],
+                [0, 3, 0, 0, 0, 0, 0, 0, -1, -1, -1, -1, -1, -1],
+                [0, 3, 0, 0, 6, 0, 0, 0, -1, -1, -1, -1, -1, -1],
+                [0, 3, 1, 0, 6, 0, 0, 0, -1, -1, -1, -1, -1, -1],
+            ],
+            [
+                (1, 7, -2, -2, -2, -2, -2),
+                (3, 16, -2, -2, -2, -2, -2),
+                (1, 6, -2, -2, -2, -2, -2),
+                (3, 8, -2, -2, -2, -2, -2),
+                (2, 11, -2, -2, -2, -2, -2),
+                (3, 9, -2, -2, -2, -2, -2),
+            ],
+        ],
+        [
+            [
+                [0, 0, 0, 0, 0, 0, 0, 0, -1, -1, -1, -1, -1, -1],
+                [1, 3, 1, 0, 6, 0, 0, 0, -1, -1, -1, -1, -1, -1],
+                [1, 3, 1, 0, 6, 1, 0, 0, -1, -1, -1, -1, -1, -1],
+                [1, 3, 1, 0, 6, 1, 1, 0, -1, -1, -1, -1, -1, -1],
+            ],
+            [
+                (1, 6, -2, -2, -2, -2, -2),
+                (2, 14, 0, -3, -3, -3, -3),
+                (2, 2, 1, -3, -3, -3, -3),
+                (2, 1, 3, -3, -3, -3, -3),
+            ],
+        ],
+        [
+            [
+                [0, 0, 0, 0, 0, 0, 0, 0, -1, -1, -1, -1, -1, -1],
+                [0, 0, 4, 0, 0, 0, 0, 0, -1, -1, -1, -1, -1, -1],
+                [1, 3, 1, 0, 6, 0, 0, 0, -1, -1, -1, -1, -1, -1],
+                [2, 1, 0, 4, 0, 4, 3, 105, 0.1, 0.1, 0.3, 0.4, 0.4, 0.4],
+                [1, 3, 1, 0, 6, 1, 0, 0, -1, -1, -1, -1, -1, -1],
+                [1, 3, 1, 0, 6, 1, 1, 0, -1, -1, -1, -1, -1, -1],
+                [0, 3, 0, 0, 0, 0, 0, 0, -1, -1, -1, -1, -1, -1],
+                [0, 3, 0, 0, 6, 0, 0, 0, -1, -1, -1, -1, -1, -1],
+                [1, 3, 1, 0, 6, 1, 2, 0, -1, -1, -1, -1, -1, -1],
+                [0, 3, 1, 0, 6, 0, 0, 0, -1, -1, -1, -1, -1, -1],
+                [2, 1, 0, 4, 0, 4, 3, 105, 0.5, 0.5, 0.3, 0.4, 0.4, 0.4],
+                [2, 1, 0, 4, 0, 4, 3, 105, 0.45, 0.45, 0.33, 0.4, 0.4, 0.4],
+                [0, 0, 4, 3, 0, 0, 0, 0, -1, -1, -1, -1, -1, -1],
+            ],
+            [
+                (1, 15, -2, -2, -2, -2, -2),
+                (1, 2, -2, -2, -2, -2, -2),
+                (2, 7, 0, -3, -3, -3, -3),
+                (0.49, 0.40, 0.40, 0.37, 0.35, 0.36, 0.0),
+                (2, 1, 1, -3, -3, -3, -3),
+                (2, 1, 3, -3, -3, -3, -3),
+                (2, 11, -2, -2, -2, -2, -2),
+                (3, 9, -2, -2, -2, -2, -2),
+                (2, 2, 3, -3, -3, -3, -3),
+                (3, 2, -2, -2, -2, -2, -2),
+                (0.27, 0.28, 0.30, 0.39, 0.37, 0.29, 0.0),
+                (0.32, 0.30, 0.45, 0.33, 0.42, 0.39, 0.0),
+                (4, 4, -2, -2, -2, -2, -2),
+            ],
+        ],
+    ],
+)
+def test__get_logprobs_forward__returns_valid_actions(env, states, actions):
+    """
+    This would already be not too bad!
+    """
+    n_states = len(states)
+    actions = tfloat(actions, float_type=env.float, device=env.device)
+    # Get masks
+    masks = tbool(
+        [env.get_mask_invalid_actions_forward(s) for s in states], device=env.device
+    )
+    # Build policy outputs
+    params = env.random_distr_params
+    policy_outputs = torch.tile(env.get_policy_output(params), dims=(n_states, 1))
+    # Get log probs
+    logprobs = env.get_logprobs(
+        policy_outputs, actions, masks, states, is_backward=False
+    )
+    assert torch.all(torch.isfinite(logprobs))
+
+
+# Set lattice system
+@pytest.mark.parametrize(
+    "states, actions",
+    [
+        [
+            [
+                [0, 0, 4, 0, 0, 0, 0, 0, -1, -1, -1, -1, -1, -1],
+                [0, 0, 4, 3, 0, 0, 0, 0, -1, -1, -1, -1, -1, -1],
+                [0, 3, 0, 0, 0, 0, 0, 0, -1, -1, -1, -1, -1, -1],
+                [0, 3, 0, 0, 6, 0, 0, 0, -1, -1, -1, -1, -1, -1],
+                [0, 3, 1, 0, 6, 0, 0, 0, -1, -1, -1, -1, -1, -1],
+            ],
+            [
+                (2, 4, -2, -2, -2, -2, -2),
+                (2, 4, -2, -2, -2, -2, -2),
+                (1, 3, -2, -2, -2, -2, -2),
+                (1, 3, -2, -2, -2, -2, -2),
+                (4, 6, -2, -2, -2, -2, -2),
+            ],
+        ],
+        [
+            [
+                [1, 3, 1, 0, 6, 0, 0, 0, -1, -1, -1, -1, -1, -1],
+                [1, 3, 1, 0, 6, 1, 0, 0, -1, -1, -1, -1, -1, -1],
+                [1, 3, 1, 0, 6, 1, 1, 0, -1, -1, -1, -1, -1, -1],
+            ],
+            [
+                (-1, -1, -2, -2, -2, -2, -2),
+                (0, 1, 0, -3, -3, -3, -3),
+                (1, 1, 1, -3, -3, -3, -3),
+            ],
+        ],
+        [
+            [
+                [0, 0, 4, 0, 0, 0, 0, 0, -1, -1, -1, -1, -1, -1],
+                [1, 3, 1, 0, 6, 0, 0, 0, -1, -1, -1, -1, -1, -1],
+                #                 [2, 1, 0, 4, 0, 4, 3, 105, 0.1, 0.1, 0.3, 0.4, 0.4, 0.4],
+                [1, 3, 1, 0, 6, 1, 0, 0, -1, -1, -1, -1, -1, -1],
+                [1, 3, 1, 0, 6, 1, 1, 0, -1, -1, -1, -1, -1, -1],
+                [0, 3, 0, 0, 0, 0, 0, 0, -1, -1, -1, -1, -1, -1],
+                [0, 3, 0, 0, 6, 0, 0, 0, -1, -1, -1, -1, -1, -1],
+                [1, 3, 1, 0, 6, 1, 2, 0, -1, -1, -1, -1, -1, -1],
+                [0, 3, 1, 0, 6, 0, 0, 0, -1, -1, -1, -1, -1, -1],
+                #                 [2, 1, 0, 4, 0, 4, 3, 105, 0.5, 0.5, 0.3, 0.4, 0.4, 0.4],
+                #                 [2, 1, 0, 4, 0, 4, 3, 105, 0.45, 0.45, 0.33, 0.4, 0.4, 0.4],
+                [0, 0, 4, 3, 0, 0, 0, 0, -1, -1, -1, -1, -1, -1],
+            ],
+            [
+                (2, 4, -2, -2, -2, -2, -2),
+                (-1, -1, -2, -2, -2, -2, -2),
+                #                 (0.10, 0.10, 0.17, 0.0, 0.0, 0.0, 0.0),
+                (0, 1, 0, -3, -3, -3, -3),
+                (1, 1, 1, -3, -3, -3, -3),
+                (1, 3, -2, -2, -2, -2, -2),
+                (1, 3, -2, -2, -2, -2, -2),
+                (1, 2, 1, -3, -3, -3, -3),
+                (2, 1, -2, -2, -2, -2, -2),
+                #                 (0.37, 0.37, 0.23, 0.0, 0.0, 0.0, 0.0),
+                #                 (0.23, 0.23, 0.11, 0.0, 0.0, 0.0, 0.0),
+                (3, 3, -2, -2, -2, -2, -2),
+            ],
+        ],
+    ],
+)
+def test__get_logprobs_backward__returns_valid_actions(env, states, actions):
+    """
+    And backwards?
+    """
+    n_states = len(states)
+    actions = tfloat(actions, float_type=env.float, device=env.device)
+    # Get masks
+    masks = tbool(
+        [env.get_mask_invalid_actions_backward(s) for s in states], device=env.device
+    )
+    # Build policy outputs
+    params = env.random_distr_params
+    policy_outputs = torch.tile(env.get_policy_output(params), dims=(n_states, 1))
+    # Get log probs
+    logprobs = env.get_logprobs(
+        policy_outputs, actions, masks, states, is_backward=True
+    )
+    assert torch.all(torch.isfinite(logprobs))
+
+
 @pytest.mark.skip(reason="skip until updated")
 def test__continuous_env_common(env):
     return common.test__all_env_common(env)
 
 
-@pytest.mark.skip(reason="skip until updated")
-def test__all_env_common(env_with_stoichiometry_sg_check):
-    return common.test__all_env_common(env_with_stoichiometry_sg_check)
+# @pytest.mark.skip(reason="skip until updated")
+# def test__all_env_common(env_with_stoichiometry_sg_check):
+#     return common.test__all_env_common(env_with_stoichiometry_sg_check)

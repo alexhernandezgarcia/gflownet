@@ -82,77 +82,37 @@ class CCrystal(GFlowNetEnv):
         self.lattice_parameters_kwargs = lattice_parameters_kwargs or {}
         self.do_stoichiometry_sg_check = do_stoichiometry_sg_check
 
-        self.composition = Composition(**self.composition_kwargs)
-        self.space_group = SpaceGroup(**self.space_group_kwargs)
+        composition = Composition(**self.composition_kwargs)
+        space_group = SpaceGroup(**self.space_group_kwargs)
         # We initialize lattice parameters with triclinic lattice system as it is the
         # most general one, but it will have to be reinitialized using proper lattice
         # system from space group once that is determined.
-        self.lattice_parameters = CLatticeParameters(
+        lattice_parameters = CLatticeParameters(
             lattice_system=TRICLINIC, **self.lattice_parameters_kwargs
         )
         self.subenvs = OrderedDict(
             {
-                Stage.COMPOSITION: self.composition,
-                Stage.SPACE_GROUP: self.space_group,
-                Stage.LATTICE_PARAMETERS: self.lattice_parameters,
+                Stage.COMPOSITION: composition,
+                Stage.SPACE_GROUP: space_group,
+                Stage.LATTICE_PARAMETERS: lattice_parameters,
             }
         )
 
         # 0-th element of state encodes current stage: 0 for composition,
         # 1 for space group, 2 for lattice parameters
-        self.source = (
-            [Stage.COMPOSITION.value]
-            + self.composition.source
-            + self.space_group.source
-            + self.lattice_parameters.source
-        )
+        self.source = [Stage.COMPOSITION.value]
+        for subenv in self.subenvs.values():
+            self.source.extend(subenv.source)
 
-        # start and end indices of individual substates
-        self.composition_state_start = 1
-        self.composition_state_end = self.composition_state_start + len(
-            self.composition.source
-        )
-        self.space_group_state_start = self.composition_state_end
-        self.space_group_state_end = self.space_group_state_start + len(
-            self.space_group.source
-        )
-        self.lattice_parameters_state_start = self.space_group_state_end
-        self.lattice_parameters_state_end = self.lattice_parameters_state_start + len(
-            self.lattice_parameters.source
-        )
-
-        # start and end indices of individual submasks
-        self.composition_mask_start = 0
-        self.composition_mask_end = self.composition_mask_start + len(
-            self.composition.action_space
-        )
-        self.space_group_mask_start = self.composition_mask_end
-        self.space_group_mask_end = self.space_group_mask_start + len(
-            self.space_group.action_space
-        )
-        self.lattice_parameters_mask_start = self.space_group_mask_end
-        self.lattice_parameters_mask_end = self.lattice_parameters_mask_start + len(
-            self.lattice_parameters.action_space
-        )
-
-        self.composition_action_length = max(
-            len(a) for a in self.composition.action_space
-        )
-        self.space_group_action_length = max(
-            len(a) for a in self.space_group.action_space
-        )
-        self.lattice_parameters_action_length = max(
-            len(a) for a in self.lattice_parameters.action_space
-        )
+        # Get action dimensionality by computing the maximum action length among all
+        # sub-environments.
         self.max_action_length = max(
-            self.composition_action_length,
-            self.space_group_action_length,
-            self.lattice_parameters_action_length,
+            [len(subenv.eos) for subenv in self.subenvs.values()]
         )
 
-        # EOS is EOS of LatticeParameters because it is the last stage
+        # EOS is EOS of the last stage (lattice parameters)
         self.eos = self._pad_action(
-            self.lattice_parameters.eos, Stage.LATTICE_PARAMETERS
+            self.subenvs[Stage.LATTICE_PARAMETERS].eos, Stage.LATTICE_PARAMETERS
         )
 
         # Mask dimensionality
@@ -167,28 +127,31 @@ class CCrystal(GFlowNetEnv):
         # Since only the lattice parameters subenv has distribution parameters, only
         # these are pased to the base init.
         super().__init__(
-            fixed_distr_params=self.lattice_parameters.fixed_distr_params,
-            random_distr_params=self.lattice_parameters.random_distr_params,
+            fixed_distr_params=self.subenvs[
+                Stage.LATTICE_PARAMETERS
+            ].fixed_distr_params,
+            random_distr_params=self.subenvs[
+                Stage.LATTICE_PARAMETERS
+            ].random_distr_params,
             **kwargs,
         )
         self.continuous = True
 
+    # TODO: remove or redo
     def _set_lattice_parameters(self):
         """
         Sets CLatticeParameters conditioned on the lattice system derived from the
         SpaceGroup.
         """
-        if self.space_group.lattice_system == "None":
+        if self.subenvs[Stage.SPACE_GROUP].lattice_system == "None":
             raise ValueError(
                 "Cannot set lattice parameters without lattice system determined in "
                 "the space group."
             )
-
-        self.lattice_parameters = CLatticeParameters(
-            lattice_system=self.space_group.lattice_system,
+        self.subenvs[Stage.LATTICE_PARAMETERS] = CLatticeParameters(
+            lattice_system=self.subenvs[Stage.SPACE_GROUP].lattice_system,
             **self.lattice_parameters_kwargs,
         )
-        self.subenvs[Stage.LATTICE_PARAMETERS] = self.lattice_parameters
 
     def _pad_action(self, action: Tuple[int], stage: Stage) -> Tuple[int]:
         """
@@ -208,16 +171,7 @@ class CCrystal(GFlowNetEnv):
         Reverses padding operation, such that the resulting action can be passed to the
         underlying environment.
         """
-        if stage == Stage.COMPOSITION:
-            dim = self.composition_action_length
-        elif stage == Stage.SPACE_GROUP:
-            dim = self.space_group_action_length
-        elif stage == Stage.LATTICE_PARAMETERS:
-            dim = self.lattice_parameters_action_length
-        else:
-            raise ValueError(f"Unrecognized stage {stage}.")
-
-        return action[:dim]
+        return action[: len(self.subenvs[stage].eos)]
 
     # TODO: consider removing if unused because too simple
     def _get_actions_of_subenv(
@@ -240,21 +194,9 @@ class CCrystal(GFlowNetEnv):
         return actions[:, len(self.subenvs[stage].eos)]
 
     def get_action_space(self) -> List[Tuple[int]]:
-        composition_action_space = self._pad_action_space(
-            self.composition.action_space, Stage.COMPOSITION
-        )
-        space_group_action_space = self._pad_action_space(
-            self.space_group.action_space, Stage.SPACE_GROUP
-        )
-        lattice_parameters_action_space = self._pad_action_space(
-            self.lattice_parameters.action_space, Stage.LATTICE_PARAMETERS
-        )
-
-        action_space = (
-            composition_action_space
-            + space_group_action_space
-            + lattice_parameters_action_space
-        )
+        action_space = []
+        for stage, subenv in self.subenvs.items():
+            action_space.extend(self._pad_action_space(subenv.action_space, stage))
 
         if len(action_space) != len(set(action_space)):
             raise ValueError(
@@ -271,17 +213,13 @@ class CCrystal(GFlowNetEnv):
         action space.
         """
         if self._get_stage() == Stage.LATTICE_PARAMETERS:
-            return self.lattice_parameters.action2representative(
+            return self.subenvs[Stage.LATTICE_PARAMETERS].action2representative(
                 self._depad_action(action, Stage.LATTICE_PARAMETERS)
             )
         return action
 
     def get_max_traj_length(self) -> int:
-        return (
-            self.composition.get_max_traj_length()
-            + self.space_group.get_max_traj_length()
-            + self.lattice_parameters.get_max_traj_length()
-        )
+        return sum([subenv.get_max_traj_length() for subenv in self.subenvs.values()])
 
     def get_policy_output(self, params: dict) -> TensorType["policy_output_dim"]:
         """
@@ -347,9 +285,9 @@ class CCrystal(GFlowNetEnv):
             init_col = end_col
 
     def reset(self, env_id: Union[int, str] = None):
-        self.composition.reset()
-        self.space_group.reset()
-        self.lattice_parameters = CLatticeParameters(
+        self.subenvs[Stage.COMPOSITION].reset()
+        self.subenvs[Stage.SPACE_GROUP].reset()
+        self.subenvs[Stage.LATTICE_PARAMETERS] = CLatticeParameters(
             lattice_system=TRICLINIC, **self.lattice_parameters_kwargs
         )
 
@@ -420,41 +358,28 @@ class CCrystal(GFlowNetEnv):
                 return state[init_col:end_col]
             init_col = end_col
 
-    def _get_composition_state(self, state: Optional[List[int]] = None) -> List[int]:
-        state = self._get_state(state)
+    def _get_states_of_subenv(
+        self, states: TensorType["n_states", "state_dim"], stage: Stage
+    ):
+        """
+        Returns the part of the batch of states corresponding to the subenv indicated
+        by stage.
 
-        return state[self.composition_state_start : self.composition_state_end]
+        Args
+        ----
+        states : tensor
+            A batch of states of the parent Crystal environment.
 
-    def _get_composition_tensor_states(
-        self, states: TensorType["batch", "state_dim"]
-    ) -> TensorType["batch", "state_oracle_dim"]:
-        return states[:, self.composition_state_start : self.composition_state_end]
-
-    def _get_space_group_state(self, state: Optional[List[int]] = None) -> List[int]:
-        state = self._get_state(state)
-
-        return state[self.space_group_state_start : self.space_group_state_end]
-
-    def _get_space_group_tensor_states(
-        self, states: TensorType["batch", "state_dim"]
-    ) -> TensorType["batch", "state_oracle_dim"]:
-        return states[:, self.space_group_state_start : self.space_group_state_end]
-
-    def _get_lattice_parameters_state(
-        self, state: Optional[List[int]] = None
-    ) -> List[int]:
-        state = self._get_state(state)
-
-        return state[
-            self.lattice_parameters_state_start : self.lattice_parameters_state_end
-        ]
-
-    def _get_lattice_parameters_tensor_states(
-        self, states: TensorType["batch", "state_dim"]
-    ) -> TensorType["batch", "state_oracle_dim"]:
-        return states[
-            :, self.lattice_parameters_state_start : self.lattice_parameters_state_end
-        ]
+        stage : Stage
+            Identifier of the sub-environment of which the corresponding part of the
+            states is to be extracted. If None, it is inferred from the states.
+        """
+        init_col = 1
+        for stg, subenv in self.subenvs.items():
+            end_col = init_col + len(subenv.source)
+            if stg == stage:
+                return states[:, init_col:end_col]
+            init_col = end_col
 
     # TODO: set mask of done state if stage is not the current one for correctness.
     def get_mask_invalid_actions_forward(
@@ -543,12 +468,10 @@ class CCrystal(GFlowNetEnv):
         Updates the global state based on the states of the sub-environments and the
         stage passed as an argument.
         """
-        return (
-            [stage.value]
-            + self.composition.state
-            + self.space_group.state
-            + self.lattice_parameters.state
-        )
+        state = [stage.value]
+        for subenv in self.subenvs.values():
+            state.extend(subenv.state)
+        return state
 
     def step(
         self, action: Tuple[int], skip_mask_check: bool = False
@@ -604,11 +527,14 @@ class CCrystal(GFlowNetEnv):
             stage = Stage.next(stage)
             if stage == Stage.SPACE_GROUP:
                 if self.do_stoichiometry_sg_check:
-                    self.space_group.set_n_atoms_compatibility_dict(
-                        self.composition.state
+                    self.subenvs[Stage.SPACE_GROUP].set_n_atoms_compatibility_dict(
+                        self.subenvs[Stage.COMPOSITION].state
                     )
             elif stage == Stage.LATTICE_PARAMETERS:
-                self._set_lattice_parameters()
+                lattice_system = self.subenvs[Stage.SPACE_GROUP].lattice_system
+                self.subenvs[Stage.LATTICE_PARAMETERS].set_lattice_system(
+                    lattice_system
+                )
             elif stage == Stage.DONE:
                 self.n_actions += 1
                 self.done = True
@@ -676,31 +602,13 @@ class CCrystal(GFlowNetEnv):
             return self.state, action, False
         self.n_actions += 1
 
+        # If action from done, set done False
+        if self.done:
+            assert action == self.eos
+            self.done = False
+
         self.state = self._update_state(stage)
         return self.state, action, valid
-
-    def _build_state(self, substate: List, stage: Stage) -> List:
-        """
-        Converts the state coming from one of the subenvironments into a combined state
-        format used by the Crystal environment.
-        """
-        if stage == Stage.COMPOSITION:
-            output = (
-                [0]
-                + substate
-                + self.space_group.source
-                + self.lattice_parameters.source
-            )
-        elif stage == Stage.SPACE_GROUP:
-            output = (
-                [1] + self.composition.state + substate + self.lattice_parameters.source
-            )
-        elif stage == Stage.LATTICE_PARAMETERS:
-            output = [2] + self.composition.state + self.space_group.state + substate
-        else:
-            raise ValueError(f"Unrecognized stage {stage}.")
-
-        return output
 
     def sample_actions_batch(
         self,
@@ -802,6 +710,7 @@ class CCrystal(GFlowNetEnv):
             True if the actions are backward, False if the actions are forward
             (default).
         """
+        n_states = policy_outputs.shape[0]
         states_dict = {stage: [] for stage in Stage}
         """
         A dictionary with keys equal to Stage and the values are the list of states in
@@ -826,9 +735,7 @@ class CCrystal(GFlowNetEnv):
         is_subenv_dict = {stage: stages_tensor == stage.value for stage in Stage}
 
         # Compute logprobs from each sub-environment
-        logprobs = torch.empty(
-            policy_input_dim.shape[0], dtype=self.float, device=self.device
-        )
+        logprobs = torch.empty(n_states, dtype=self.float, device=self.device)
         for stage, subenv in self.subenvs.items():
             if not torch.any(is_subenv_dict[stage]):
                 continue
@@ -843,79 +750,19 @@ class CCrystal(GFlowNetEnv):
             )
         return logprobs
 
-    # TODO: Consider removing altogether
-    def get_parents(
-        self,
-        state: Optional[List] = None,
-        done: Optional[bool] = None,
-        action: Optional[Tuple] = None,
-    ) -> Tuple[List, List]:
-        state = self._get_state(state)
-        done = self._get_done(done)
-        stage = self._get_stage(state)
-
-        if done:
-            return [state], [self.eos]
-
-        if stage == Stage.COMPOSITION or (
-            stage == Stage.SPACE_GROUP
-            and self._get_space_group_state(state) == self.space_group.source
-        ):
-            composition_done = stage == Stage.SPACE_GROUP
-            parents, actions = self.composition.get_parents(
-                state=self._get_composition_state(state), done=composition_done
-            )
-            parents = [self._build_state(p, Stage.COMPOSITION) for p in parents]
-            actions = [self._pad_action(a, Stage.COMPOSITION) for a in actions]
-        elif stage == Stage.SPACE_GROUP or (
-            stage == Stage.LATTICE_PARAMETERS
-            and self._get_lattice_parameters_state(state)
-            == self.lattice_parameters.source
-        ):
-            space_group_done = stage == Stage.LATTICE_PARAMETERS
-            parents, actions = self.space_group.get_parents(
-                state=self._get_space_group_state(state), done=space_group_done
-            )
-            parents = [self._build_state(p, Stage.SPACE_GROUP) for p in parents]
-            actions = [self._pad_action(a, Stage.SPACE_GROUP) for a in actions]
-        elif stage == Stage.LATTICE_PARAMETERS:
-            """
-            get_parents() is not well defined for continuous environment. Here we
-            simply return the same state and the representative action.
-            """
-            parents = [state]
-            actions = [self.action2representative(action)]
-        else:
-            raise ValueError(f"Unrecognized stage {stage}.")
-
-        return parents, actions
-
     def state2oracle(self, state: Optional[List[int]] = None) -> Tensor:
         """
         Prepares a list of states in "GFlowNet format" for the oracle. Simply
         a concatenation of all crystal components.
         """
-        if state is None:
-            state = self.state.copy()
+        state = self._get_state(state)
 
-        composition_oracle_state = self.composition.state2oracle(
-            state=self._get_composition_state(state)
-        ).to(self.device)
-        space_group_oracle_state = (
-            self.space_group.state2oracle(state=self._get_space_group_state(state))
-            .unsqueeze(-1)  # StateGroup oracle state is a single number
-            .to(self.device)
-        )
-        lattice_parameters_oracle_state = self.lattice_parameters.state2oracle(
-            state=self._get_lattice_parameters_state(state)
-        ).to(self.device)
-
+        # TODO: Might break because StateGroup oracle state is a single number
         return torch.cat(
-            [
-                composition_oracle_state,
-                space_group_oracle_state,
-                lattice_parameters_oracle_state,
-            ]
+            (
+                subenv.state2oracle(self._get_state_of_subenv(state, stage))
+                for stage, subenv in self.subenvs
+            )
         )
 
     def statebatch2oracle(
@@ -928,21 +775,11 @@ class CCrystal(GFlowNetEnv):
     def statetorch2oracle(
         self, states: TensorType["batch", "state_dim"]
     ) -> TensorType["batch", "state_oracle_dim"]:
-        composition_oracle_states = self.composition.statetorch2oracle(
-            self._get_composition_tensor_states(states)
-        ).to(self.device)
-        space_group_oracle_states = self.space_group.statetorch2oracle(
-            self._get_space_group_tensor_states(states)
-        ).to(self.device)
-        lattice_parameters_oracle_states = self.lattice_parameters.statetorch2oracle(
-            self._get_lattice_parameters_tensor_states(states)
-        ).to(self.device)
         return torch.cat(
-            [
-                composition_oracle_states,
-                space_group_oracle_states,
-                lattice_parameters_oracle_states,
-            ],
+            (
+                subenv.statetorch2oracle(self._get_states_of_subenv(states, stage))
+                for stage, subenv in self.subenvs
+            ),
             dim=1,
         )
 
@@ -965,29 +802,31 @@ class CCrystal(GFlowNetEnv):
         and need to synchronize the LatticeParameter's lattice system to what that
         state indicates,
         """
-        if self.space_group.done:
-            lattice_system = self.space_group.lattice_system
+        if self.subenvs[Stage.SPACE_GROUP].done:
+            lattice_system = self.subenvs[Stage.SPACE_GROUP].lattice_system
             if lattice_system != "None":
-                self._set_lattice_parameters()
+                self.subenvs[Stage.LATTICE_PARAMETERS].set_lattice_system(
+                    lattice_system
+                )
             else:
-                self.lattice_parameters.lattice_system = TRICLINIC
+                self.subenvs[Stage.LATTICE_PARAMETERS].set_lattice_system(TRICLINIC)
         # Set stoichiometry constraints in space group sub-environment
-        if self.do_stoichiometry_sg_check and self.composition.done:
-            self.space_group.set_n_atoms_compatibility_dict(self.composition.state)
+        if self.do_stoichiometry_sg_check and self.subenvs[Stage.COMPOSITION].done:
+            self.subenvs[Stage.SPACE_GROUP].set_n_atoms_compatibility_dict(
+                self.subenvs[Stage.COMPOSITION].state
+            )
 
     def state2readable(self, state: Optional[List[int]] = None) -> str:
         if state is None:
             state = self.state
 
-        composition_readable = self.composition.state2readable(
-            state=self._get_composition_state(state)
-        )
-        space_group_readable = self.space_group.state2readable(
-            state=self._get_space_group_state(state)
-        )
-        lattice_parameters_readable = self.lattice_parameters.state2readable(
-            state=self._get_lattice_parameters_state(state)
-        )
+        readables = [
+            subenv.state2readable(self._get_state_of_subenv(state, stage))
+            for stage, subenv in self.subenvs
+        ]
+        composition_readable = readables[0]
+        space_group_readable = readables[1]
+        lattice_parameters_readable = readables[2]
 
         return (
             f"Stage = {state[0]}; "
@@ -996,15 +835,18 @@ class CCrystal(GFlowNetEnv):
             f"LatticeParameters = {lattice_parameters_readable}"
         )
 
-    def readable2state(self, readable: str) -> List[int]:
-        splits = readable.split("; ")
-        readables = [x.split(" = ")[1] for x in splits]
+    # TODO: redo
 
-        return (
-            [int(readables[0])]
-            + self.composition.readable2state(
-                json.loads(readables[1].replace("'", '"'))
-            )
-            + self.space_group.readable2state(readables[2])
-            + self.lattice_parameters.readable2state(readables[3])
-        )
+
+#     def readable2state(self, readable: str) -> List[int]:
+#         splits = readable.split("; ")
+#         readables = [x.split(" = ")[1] for x in splits]
+#
+#         return (
+#             [int(readables[0])]
+#             + self.composition.readable2state(
+#                 json.loads(readables[1].replace("'", '"'))
+#             )
+#             + self.space_group.readable2state(readables[2])
+#             + self.lattice_parameters.readable2state(readables[3])
+#         )
