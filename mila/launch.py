@@ -13,7 +13,7 @@ from yaml import safe_load
 
 ROOT = Path(__file__).resolve().parent.parent
 
-GIT_WARNING = False
+GIT_WARNING = True
 
 HELP = dedent(
     """
@@ -346,21 +346,21 @@ def code_dir_for_slurm_tmp_dir_checkout(git_checkout):
     repo = Repo(ROOT)
     if git_checkout is None:
         git_checkout = repo.active_branch.name
-        if not GIT_WARNING:
+        if GIT_WARNING:
             print("💥 Git warnings:")
             print(
                 f"  • `git_checkout` not provided. Using current branch: {git_checkout}"
             )
         # warn for uncommitted changes
-        if repo.is_dirty() and not GIT_WARNING:
+        if repo.is_dirty() and GIT_WARNING:
             print(
                 "  • Your repo contains uncommitted changes. "
                 + "They will *not* be available when cloning happens within the job."
             )
-        if "y" not in input("Continue anyway? [y/N] ").lower():
+        if GIT_WARNING and "y" not in input("Continue anyway? [y/N] ").lower():
             print("🛑 Aborted")
             sys.exit(0)
-        GIT_WARNING = True
+        GIT_WARNING = False
 
     return dedent(
         """\
@@ -368,6 +368,7 @@ def code_dir_for_slurm_tmp_dir_checkout(git_checkout):
         git clone {git_url} tpm-gflownet
         cd tpm-gflownet
         {git_checkout}
+        echo "Current commit: $(git rev-parse HEAD)"
     """
     ).format(
         git_url=repo.remotes.origin.url,
