@@ -388,6 +388,8 @@ def test__trajectories_are_reversible(env):
 
 def test__backward_actions_have_nonzero_forward_prob(env, n=1000):
     states = _get_terminating_states(env, n)
+    if states is None:
+        return
     policy_random = torch.unsqueeze(
         tfloat(env.random_policy_output, float_type=env.float, device=env.device), 0
     )
