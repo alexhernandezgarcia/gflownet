@@ -9,6 +9,7 @@ from hydra import compose, initialize
 from omegaconf import OmegaConf
 
 from gflownet.utils.common import copy, tbool, tfloat
+from gflownet.utils.policy import parse_policy_config
 
 
 def test__all_env_common(env):
@@ -262,14 +263,8 @@ def test__gflownet_minimal_runs(env):
         config.proxy, device=config.device, float_precision=config.float_precision
     )
     # Policy
-    forward_config = OmegaConf.create(config.policy)
-    forward_config["config"] = config.policy.forward
-    del forward_config.forward
-    del forward_config.backward
-    backward_config = OmegaConf.create(config.policy)
-    backward_config["config"] = config.policy.backward
-    del backward_config.forward
-    del backward_config.backward
+    forward_config = parse_policy_config(config, kind="forward")
+    backward_config = parse_policy_config(config, kind="backward")
     forward_policy = hydra.utils.instantiate(
         forward_config,
         env=env,
