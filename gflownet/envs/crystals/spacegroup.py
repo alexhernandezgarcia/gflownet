@@ -608,7 +608,9 @@ class SpaceGroup(GFlowNetEnv):
         False otherwise.
         """
         # Get list of space groups compatible with the composition
-        space_groups = [self.n_atoms_compatibility_dict[sg] for sg in self.space_groups]
+        space_groups = [
+            sg for sg in self.space_groups if self.n_atoms_compatibility_dict[sg]
+        ]
 
         # Prune the list of space groups to those compatible with the provided crystal-
         # lattice system
