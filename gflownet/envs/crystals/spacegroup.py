@@ -102,19 +102,14 @@ class SpaceGroup(GFlowNetEnv):
             the space group. 0's are removed from the list. If None, composition/space
             group constraints are ignored.
         """
-        # Get dictionaries
+        # Read dictionaries from YAML files
         self.crystal_lattice_systems = _get_crystal_lattice_systems()
         self.point_symmetries = _get_point_symmetries()
         self.space_groups = _get_space_groups()
+        # Restrict spacce groups to a subset
         self._restrict_space_groups(space_groups_subset)
         # Set dictionary of compatibility with number of atoms
         self.set_n_atoms_compatibility_dict(n_atoms)
-        # Dictionary of all properties
-        self.properties = {
-            Prop.CLS: self.crystal_lattice_systems,
-            Prop.PS: self.point_symmetries,
-            Prop.SG: self.space_groups,
-        }
         # Indices of state types (see self.get_state_type)
         self.state_type_indices = [0, 1, 2, 3]
         # End-of-sequence action
@@ -138,7 +133,13 @@ class SpaceGroup(GFlowNetEnv):
         state (see self.state_type_indices).
         """
         actions = []
-        for prop, indices in self.properties.items():
+        # Create dictionary with of all properties
+        properties = {
+            Prop.CLS: self.crystal_lattice_systems,
+            Prop.PS: self.point_symmetries,
+            Prop.SG: self.space_groups,
+        }
+        for prop, indices in properties.items():
             for s_from_type in self.state_type_indices:
                 if prop == Prop.CLS and s_from_type in [1, 3]:
                     continue
