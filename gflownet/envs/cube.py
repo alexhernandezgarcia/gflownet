@@ -367,7 +367,7 @@ class ContinuousCube(CubeBase):
         Therefore, the output of the policy model has dimensionality D x C x 3 + 2,
         where D is the number of dimensions (self.n_dim) and C is the number of
         components (self.n_comp).
-        
+
         See
         ---
         _beta_params_to_policy_outputs()
