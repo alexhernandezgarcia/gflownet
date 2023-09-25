@@ -8,11 +8,9 @@ from typing import List, Optional, Tuple
 
 import matplotlib.pyplot as plt
 import numpy as np
-import numpy.typing as npt
-import pandas as pd
 import torch
 from sklearn.neighbors import KernelDensity
-from torch.distributions import Bernoulli, Beta, Categorical, MixtureSameFamily, Uniform
+from torch.distributions import Bernoulli, Beta, Categorical, MixtureSameFamily
 from torchtyping import TensorType
 
 from gflownet.envs.base import GFlowNetEnv
@@ -353,8 +351,8 @@ class ContinuousCube(CubeBase):
         For each dimension d of the hyper-cube and component c of the mixture, the
         output of the policy should return:
           1) the weight of the component in the mixture,
-          2) the logit(alpha) parameter of the Beta distribution to sample the increment,
-          3) the logit(beta) parameter of the Beta distribution to sample the increment.
+          2) the pre-alpha parameter of the Beta distribution to sample the increment,
+          3) the pre-beta parameter of the Beta distribution to sample the increment.
 
         These parameters are the first n_dim * n_comp * 3 of the policy output such
         that the first 3 x C elements correspond to the first dimension, and so on.
@@ -369,6 +367,10 @@ class ContinuousCube(CubeBase):
         Therefore, the output of the policy model has dimensionality D x C x 3 + 2,
         where D is the number of dimensions (self.n_dim) and C is the number of
         components (self.n_comp).
+        
+        See
+        ---
+        _beta_params_to_policy_outputs()
         """
         # Parameters for continuous actions
         self._len_policy_output_cont = self.n_dim * self.n_comp * 3
