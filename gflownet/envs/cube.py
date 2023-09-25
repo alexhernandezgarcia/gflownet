@@ -950,8 +950,8 @@ class ContinuousCube(CubeBase):
             )
             actions_tensor[is_bts] = actions_bts
             # Make ignored dimensions zero
-            actions_tensor[is_bts] = self._mask_ignored_dimensions(
-                mask[is_bts], actions_tensor[is_bts]
+            actions_tensor[is_bts, :-1] = self._mask_ignored_dimensions(
+                mask[is_bts], actions_tensor[is_bts, :-1]
             )
         actions = [tuple(a.tolist()) for a in actions_tensor]
         return actions, None
