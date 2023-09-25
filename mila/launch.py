@@ -7,10 +7,13 @@ from os import popen
 from os.path import expandvars
 from pathlib import Path
 from textwrap import dedent
+from git import Repo
 
 from yaml import safe_load
 
 ROOT = Path(__file__).resolve().parent.parent
+
+DIRTY_REPO_OK = False
 
 HELP = dedent(
     """
@@ -337,6 +340,46 @@ def print_md_help(parser, defaults):
     print(HELP, end="")
 
 
+def code_dir_for_slurm_tmp_dir_checkout(git_checkout):
+    global DIRTY_REPO_OK
+
+    repo = Repo(ROOT)
+    if git_checkout is None:
+        git_checkout = repo.active_branch.name
+        if not DIRTY_REPO_OK:
+            print("💥 Git warnings:")
+            print(
+                f"  • `git_checkout` not provided. Using current branch: {git_checkout}"
+            )
+        # warn for uncommitted changes
+        if repo.is_dirty() and not DIRTY_REPO_OK:
+            print(
+                "  • Your repo contains uncommitted changes. "
+                + "They will *not* be available when cloning happens within the job."
+            )
+            if (
+                "y"
+                not in input(
+                    "Continue anyway, ignoring current changes? [y/N] "
+                ).lower()
+            ):
+                print("🛑 Aborted")
+                sys.exit(0)
+            DIRTY_REPO_OK = True
+
+    return dedent(
+        """\
+        $SLURM_TMPDIR
+        git clone {git_url} tpm-gflownet
+        cd tpm-gflownet
+        {git_checkout}
+    """
+    ).format(
+        git_url=repo.remotes.origin.url,
+        git_checkout=f"git checkout {git_checkout}" if git_checkout else "",
+    )
+
+
 if __name__ == "__main__":
     defaults = {
         "code_dir": "$root",
@@ -344,6 +387,7 @@ if __name__ == "__main__":
         "cpus_per_task": 2,
         "dry-run": False,
         "force": False,
+        "git_checkout": None,
         "gres": "gpu:1",
         "job_name": "gflownet",
         "jobs": None,
@@ -429,6 +473,14 @@ if __name__ == "__main__":
         + f" Defaults to {defaults['code_dir']}",
     )
     parser.add_argument(
+        "--git_checkout",
+        type=str,
+        help="Branch or commit to checkout before running the code."
+        + " This is only used if --code_dir='$SLURM_TMPDIR'. If not specified, "
+        + " the current branch is used."
+        + f" Defaults to {defaults['git_checkout']}",
+    )
+    parser.add_argument(
         "--jobs",
         type=str,
         help="jobs (nested) file name in external/jobs (with or without .yaml)."
@@ -510,7 +562,11 @@ if __name__ == "__main__":
         job_args = deep_update(job_args, job_dict)
         job_args = deep_update(job_args, args)
 
-        job_args["code_dir"] = str(resolve(job_args["code_dir"]))
+        job_args["code_dir"] = (
+            str(resolve(job_args["code_dir"]))
+            if "SLURM_TMPDIR" not in job_args["code_dir"]
+            else code_dir_for_slurm_tmp_dir_checkout(job_args.get("git_checkout"))
+        )
         job_args["outdir"] = str(resolve(job_args["outdir"]))
         job_args["venv"] = str(resolve(job_args["venv"]))
         job_args["main_args"] = script_dict_to_main_args_str(job_args.get("script", {}))
