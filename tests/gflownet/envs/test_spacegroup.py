@@ -5,7 +5,7 @@ import pytest
 import torch
 from pyxtal.symmetry import Group
 
-from gflownet.envs.crystals.spacegroup import SpaceGroup
+from gflownet.envs.crystals.spacegroup import Prop, SpaceGroup
 
 N_ATOMS = [3, 7, 9]
 SG_SUBSET = [1, 17, 39, 123, 230]
@@ -284,14 +284,14 @@ def test__get_mask_invalid_actions_forward__incompatible_sg_are_invalid(
     """
     all_x = env_with_composition.get_all_terminating_states()
     for state in all_x:
-        state[env_with_composition.sg_idx] = 0
+        state[Prop.SG] = 0
         env_with_composition.set_state(state=state, done=False)
         mask_f = env_with_composition.get_mask_invalid_actions_forward()
         state_type = env_with_composition.get_state_type(state)
         for sg in env_with_composition.space_groups:
             sg_pyxtal = Group(sg)
             is_compatible = sg_pyxtal.check_compatible(N_ATOMS)[0]
-            action = (env_with_composition.sg_idx, sg, state_type)
+            action = (Prop.SG, sg, state_type)
             if not is_compatible:
                 assert mask_f[env_with_composition.action_space.index(action)] is True
 
@@ -302,31 +302,31 @@ def test__states_are_compatible_with_pymatgen(env):
         env.step((2, idx, 0))
         sg_int = pmgg.sg_symbol_from_int_number(idx)
         sg = pmgg.SpaceGroup(sg_int)
-        assert sg.int_number == env.state[env.sg_idx]
+        assert sg.int_number == env.state[Prop.SG]
         assert sg.crystal_system == env.crystal_system
         assert sg.symbol == env.space_group_symbol
         assert sg.point_group == env.point_group
 
 
 @pytest.mark.parametrize(
-    "n_atoms, cls_idx, ps_idx",
+    "n_atoms, cls, ps",
     [
         [[1], 5, 1],
         [[17], 5, 1],
         [[1, 13], 5, 1],
     ],
 )
-def test__special_cases_composition_compatibility(n_atoms, cls_idx, ps_idx):
+def test__special_cases_composition_compatibility(n_atoms, cls, ps):
     env = SpaceGroup(n_atoms=n_atoms)
     # Crystal lattice system space groups must not compatible with composition
     # constraints
-    assert env._is_compatible(cls_idx=cls_idx) is False
+    assert env._is_compatible(cls=cls) is False
     # Setting crystal lattice system should fail
     action_cls_5_from_0 = (0, 5, 0)
     state_new, action, valid = env.step(action_cls_5_from_0)
     assert valid is False
     # Point symmetry space groups must be compatible with composition constraints
-    assert env._is_compatible(ps_idx=ps_idx) is True
+    assert env._is_compatible(ps=ps) is True
     # Setting point symmetry should be valid
     action_ps_1_from_0 = (1, 1, 0)
     state_new, action, valid = env.step(action_ps_1_from_0)
