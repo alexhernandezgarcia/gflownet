@@ -289,10 +289,10 @@ class ContinuousCube(CubeBase):
     """
     Continuous hyper-cube environment (continuous version of a hyper-grid) in which the
     action space consists of the increment of each dimension d, modelled by a mixture
-    of Beta distributions. The states space is the value of each dimension. In order to
+    of Beta distributions. The state space is the value of each dimension. In order to
     ensure that all trajectories are of finite length, actions have a minimum increment
     for all dimensions determined by min_incr. If the value of any dimension is larger
-    than 1 - min_incr, then that dimension can be further incremented. In order to
+    than 1 - min_incr, then that dimension can't be further incremented. In order to
     ensure the coverage of the state space, the first action (from the source state) is
     not constrained by the minimum increment.
 
@@ -351,10 +351,10 @@ class ContinuousCube(CubeBase):
         Continuous actions
 
         For each dimension d of the hyper-cube and component c of the mixture, the
-        output of the policy should return
-          1) the weight of the component in the mixture
-          2) the logit(alpha) parameter of the Beta distribution to sample the increment
-          3) the logit(beta) parameter of the Beta distribution to sample the increment
+        output of the policy should return:
+          1) the weight of the component in the mixture,
+          2) the logit(alpha) parameter of the Beta distribution to sample the increment,
+          3) the logit(beta) parameter of the Beta distribution to sample the increment.
 
         These parameters are the first n_dim * n_comp * 3 of the policy output such
         that the first 3 x C elements correspond to the first dimension, and so on.
