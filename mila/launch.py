@@ -262,6 +262,18 @@ def find_jobs_conf(args):
     return jobs_conf_path, local_out_dir
 
 
+def quote(value):
+    v = str(value)
+    if " " in v:
+        if "'" not in v:
+            v = f"'{v}'"
+        elif '"' not in v:
+            v = f'"{v}"'
+        else:
+            raise ValueError(f"Cannot quote {value}")
+    return v
+
+
 def script_dict_to_main_args_str(script_dict, is_first=True, nested_key=""):
     """
     Recursively turns a dict of script args into a string of main.py args
@@ -272,11 +284,14 @@ def script_dict_to_main_args_str(script_dict, is_first=True, nested_key=""):
         previous_str (str, optional): base string to append to. Defaults to "".
     """
     if not isinstance(script_dict, dict):
-        return nested_key + "=" + str(script_dict) + " "
+        return f"{nested_key}={quote(script_dict)} "
     new_str = ""
     for k, v in script_dict.items():
         if k == "__value__":
-            new_str += nested_key + "=" + str(v) + " "
+            value = str(v)
+            if " " in value:
+                value = f"'{value}'"
+            new_str += f"{nested_key}={quote(v)} "
             continue
         new_key = k if not nested_key else nested_key + "." + str(k)
         new_str += script_dict_to_main_args_str(v, nested_key=new_key, is_first=False)
