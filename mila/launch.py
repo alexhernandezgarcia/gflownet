@@ -267,6 +267,7 @@ def find_jobs_conf(args):
 
 def quote(value):
     v = str(value)
+    v = v.replace("(", r"\(").replace(")", r"\)")
     if " " in v:
         if "'" not in v:
             v = f"'{v}'"
@@ -355,6 +356,19 @@ def print_md_help(parser, defaults):
     print(HELP, end="")
 
 
+def ssh_to_https(url):
+    """
+    Converts a ssh git url to https.
+    Eg:
+    """
+    if "https://" in url:
+        return url
+    if "git@" in url:
+        path = url.split(":")[1]
+        return f"https://github.com/{path}"
+    raise ValueError(f"Could not convert {url} to https")
+
+
 def code_dir_for_slurm_tmp_dir_checkout(git_checkout):
     global GIT_WARNING
 
@@ -386,7 +400,7 @@ def code_dir_for_slurm_tmp_dir_checkout(git_checkout):
         echo "Current commit: $(git rev-parse HEAD)"
     """
     ).format(
-        git_url=repo.remotes.origin.url,
+        git_url=ssh_to_https(repo.remotes.origin.url),
         git_checkout=f"git checkout {git_checkout}" if git_checkout else "",
     )
 
