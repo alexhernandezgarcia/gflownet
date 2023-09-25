@@ -98,17 +98,17 @@ class CLatticeParameters(ContinuousCube):
     def _angle2statevalue(self, angle):
         return (angle - self.min_angle) / self.angle_range
 
-    def _get_param(self, param):
+    def _get_param(self, state, param):
         if hasattr(self, param):
             return getattr(self, param)
         else:
             if param in LENGTH_PARAMETER_NAMES:
                 return self._statevalue2length(
-                    self.state[self._get_index_of_param(param)]
+                    state[self._get_index_of_param(param)]
                 )
             elif param in ANGLE_PARAMETER_NAMES:
                 return self._statevalue2angle(
-                    self.state[self._get_index_of_param(param)]
+                    state[self._get_index_of_param(param)]
                 )
             else:
                 raise ValueError(f"{param} is not a valid lattice parameter")
@@ -241,7 +241,7 @@ class CLatticeParameters(ContinuousCube):
         """
         state = self._get_state(state)
 
-        a, b, c, alpha, beta, gamma = [self._get_param(p) for p in PARAMETER_NAMES]
+        a, b, c, alpha, beta, gamma = [self._get_param(state, p) for p in PARAMETER_NAMES]
         return (a, b, c), (alpha, beta, gamma)
 
     def state2readable(self, state: Optional[List[int]] = None) -> str:
