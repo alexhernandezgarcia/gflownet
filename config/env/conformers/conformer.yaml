@@ -32,7 +32,8 @@ buffer:
   data_path: null
   train: null
   test:
-    type: grid
-    n: 1000
+    type: random
+    seed: 0
+    n: 4096
     output_csv: conformer_test.csv
     output_pkl: conformer_test.pkl
