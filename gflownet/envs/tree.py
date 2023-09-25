@@ -158,11 +158,11 @@ class Tree(GFlowNetEnv):
         threshold_components: int = 1,
         beta_params_min: float = 0.1,
         beta_params_max: float = 2.0,
-        fixed_distribution: dict = {
+        fixed_distr_params: dict = {
             "beta_alpha": 2.0,
             "beta_beta": 5.0,
         },
-        random_distribution: dict = {
+        random_distr_params: dict = {
             "beta_alpha": 1.0,
             "beta_beta": 1.0,
         },
@@ -294,8 +294,8 @@ class Tree(GFlowNetEnv):
         self.statetorch2oracle = self.statetorch2policy
 
         super().__init__(
-            fixed_distribution=fixed_distribution,
-            random_distribution=random_distribution,
+            fixed_distr_params=fixed_distr_params,
+            random_distr_params=random_distr_params,
             continuous=continuous,
             **kwargs,
         )
