@@ -2,86 +2,96 @@
 Classes to represent hyper-cube environments
 """
 import itertools
+import warnings
 from abc import ABC, abstractmethod
 from typing import List, Optional, Tuple
 
 import matplotlib.pyplot as plt
 import numpy as np
-import numpy.typing as npt
-import pandas as pd
 import torch
 from sklearn.neighbors import KernelDensity
-from torch.distributions import Bernoulli, Beta, Categorical, MixtureSameFamily, Uniform
+from torch.distributions import Bernoulli, Beta, Categorical, MixtureSameFamily
 from torchtyping import TensorType
 
 from gflownet.envs.base import GFlowNetEnv
 from gflownet.utils.common import copy, tbool, tfloat
 
 
-class Cube(GFlowNetEnv, ABC):
+class CubeBase(GFlowNetEnv, ABC):
     """
     Base class for hyper-cube environments, continuous or hybrid versions of the
     hyper-grid in which the continuous increments are modelled by a (mixture of) Beta
     distribution(s).
 
-    The states space is the value of each dimension. If the value of a dimension gets
-    larger than max_val, then the trajectory is ended.
+    The states space is the value of each dimension, defined in the closed set [0, 1].
+    If the value of a dimension gets larger than 1 - min_incr, then the trajectory is
+    ended (the only possible action is EOS).
 
     Attributes
     ----------
     n_dim : int
         Dimensionality of the hyper-cube.
 
-    max_val : float
-        Max length of the hyper-cube.
-
     min_incr : float
-        Minimum increment in the actions, expressed as the fraction of max_val. This is
-        necessary to ensure coverage of the state space.
+        Minimum increment in the actions, in (0, 1). This is necessary to ensure
+        that all trajectories have finite length.
+
+    n_comp : int
+        Number of components in the mixture of Beta distributions.
+
+    epsilon : float
+        Small constant to control the clamping interval of the inputs to the
+        calculation of log probabilities. Clamping interval will be [epsilon, 1 -
+        epsilon]. Default: 1e-6.
+
+    kappa : float
+        Small constant to control the intervals of the generated sets of states (in a
+        grid or uniformly). States will be in the interval [kappa, 1 - kappa]. Default:
+        1e-3.
     """
 
     def __init__(
         self,
         n_dim: int = 2,
-        max_val: float = 1.0,
         min_incr: float = 0.1,
         n_comp: int = 1,
         beta_params_min: float = 0.1,
-        beta_params_max: float = 1000.0,
+        beta_params_max: float = 100.0,
+        epsilon: float = 1e-6,
+        kappa: float = 1e-3,
         fixed_distr_params: dict = {
             "beta_weights": 1.0,
-            "beta_alpha": 2.0,
-            "beta_beta": 5.0,
-            "bernoulli_source_logit": 1.0,
-            "bernoulli_eos_logit": 1.0,
+            "beta_alpha": 10.0,
+            "beta_beta": 10.0,
+            "bernoulli_bts_prob": 0.1,
+            "bernoulli_eos_prob": 0.1,
         },
         random_distr_params: dict = {
             "beta_weights": 1.0,
-            "beta_alpha": 1000.0,
-            "beta_beta": 1000.0,
-            "bernoulli_source_logit": 1.0,
-            "bernoulli_eos_logit": 1.0,
+            "beta_alpha": 10.0,
+            "beta_beta": 10.0,
+            "bernoulli_bts_prob": 0.1,
+            "bernoulli_eos_prob": 0.1,
         },
         **kwargs,
     ):
         assert n_dim > 0
-        assert max_val > 0.0
+        assert min_incr > 0.0
+        assert min_incr < 1.0
         assert n_comp > 0
         # Main properties
         self.n_dim = n_dim
-        self.eos = self.n_dim
-        self.max_val = max_val
-        self.min_incr = min_incr * self.max_val
+        self.min_incr = min_incr
         # Parameters of the policy distribution
         self.n_comp = n_comp
         self.beta_params_min = beta_params_min
         self.beta_params_max = beta_params_max
-        # Source state: position 0 at all dimensions
-        self.source = [0.0 for _ in range(self.n_dim)]
-        # Action from source: (n_dim, 0)
-        self.action_source = (self.n_dim, 0)
-        # End-of-sequence action: (n_dim + 1, 0)
-        self.eos = (self.n_dim + 1, 0)
+        # Source state is abstract - not included in the cube: -1 for all dimensions.
+        self.source = [-1 for _ in range(self.n_dim)]
+        # Small constant to clamp the inputs to the beta distribution
+        self.epsilon = epsilon
+        # Small constant to restrict the interval of (test) sets
+        self.kappa = kappa
         # Conversions: only conversions to policy are implemented and the rest are the
         # same
         self.state2proxy = self.state2policy
@@ -122,20 +132,20 @@ class Cube(GFlowNetEnv, ABC):
         self, states: TensorType["batch", "state_dim"] = None
     ) -> TensorType["batch", "policy_input_dim"]:
         """
-        Clips the states into [0, max_val] and maps them to [-1.0, 1.0]
+        Clips the states into [0, 1] and maps them to [-1.0, 1.0]
 
         Args
         ----
         state : list
             State
         """
-        return 2.0 * torch.clip(states, min=0.0, max=self.max_val) - 1.0
+        return 2.0 * torch.clip(states, min=0.0, max=1.0) - 1.0
 
     def statebatch2policy(
         self, states: List[List]
     ) -> TensorType["batch", "state_proxy_dim"]:
         """
-        Clips the states into [0, max_val] and maps them to [-1.0, 1.0]
+        Clips the states into [0, 1] and maps them to [-1.0, 1.0]
 
         Args
         ----
@@ -148,11 +158,11 @@ class Cube(GFlowNetEnv, ABC):
 
     def state2policy(self, state: List = None) -> List:
         """
-        Clips the state into [0, max_val] and maps it to [-1.0, 1.0]
+        Clips the state into [0, 1] and maps it to [-1.0, 1.0]
         """
         if state is None:
             state = self.state.copy()
-        return [2.0 * min(max(0.0, s), self.max_val) - 1.0 for s in state]
+        return [2.0 * min(max(0.0, s), 1.0) - 1.0 for s in state]
 
     def state2readable(self, state: List) -> str:
         """
@@ -249,8 +259,31 @@ class Cube(GFlowNetEnv, ABC):
         """
         pass
 
+    def _beta_params_to_policy_outputs(self, param_name: str, params_dict: dict):
+        """
+        Maps the values of alpha and beta given in the configuration to new values such
+        that when passed to _make_increments_distribution, the actual alpha and beta
+        passed to the Beta distribution(s) are the ones from the configuration.
 
-class ContinuousCube(Cube):
+        Args
+        ----
+        param_name : str
+            Name of the parameter to transform: alpha or beta
+
+        params_dict : dict
+            Dictionary with the complete set of parameters of the distribution.
+
+        See
+        ---
+        _make_increments_distribution()
+        """
+        param_value = tfloat(
+            params_dict[f"beta_{param_name}"], float_type=self.float, device=self.device
+        )
+        return torch.logit((param_value - self.beta_params_min) / self.beta_params_max)
+
+
+class ContinuousCube(CubeBase):
     """
     Continuous hyper-cube environment (continuous version of a hyper-grid) in which the
     action space consists of the increment of each dimension d, modelled by a mixture
@@ -264,7 +297,7 @@ class ContinuousCube(Cube):
     Actions do not represent absolute increments but rather the relative increment with
     respect to the distance to the edges of the hyper-cube, from the minimum increment.
     That is, if dimension d of a state has value 0.3, the minimum increment (min_incr)
-    is 0.1 and the maximum value (max_val) is 1.0, an action of 0.5 will increment the
+    is 0.1 and the maximum value is 1.0, an action of 0.5 will increment the
     value of the dimension in 0.5 * (1.0 - 0.3 - 0.1) = 0.5 * 0.6 = 0.3. Therefore, the
     value of d in the next state will be 0.3 + 0.3 = 0.6.
 
@@ -273,12 +306,12 @@ class ContinuousCube(Cube):
     n_dim : int
         Dimensionality of the hyper-cube.
 
-    max_val : float
-        Max length of the hyper-cube.
-
     min_incr : float
-        Minimum increment in the actions, expressed as the fraction of max_val. This is
-        necessary to ensure that trajectories have finite length.
+        Minimum increment in the actions, in (0, 1). This is necessary to ensure
+        that all trajectories have finite length.
+
+    n_comp : int
+        Number of components in the mixture of Beta distributions.
     """
 
     def __init__(self, **kwargs):
@@ -288,18 +321,23 @@ class ContinuousCube(Cube):
         """
         The action space is continuous, thus not defined as such here.
 
-        The actions are tuples of length n_dim, where the value at position d indicates
-        the increment of dimension d.
+        The actions are tuples of length n_dim + 1, where the value at position d
+        indicates the increment of dimension d, and the value at position -1 indicates
+        whether the action is from or to source (1), or 0 otherwise.
 
         EOS is indicated by np.inf for all dimensions.
 
-        This method defines self.eos and the returned action space is simply a
-        representative (arbitrary) action with an increment of 0.0 in all dimensions,
+        This method defines self.eos and the returned action space is simply
+        a representative (arbitrary) action with an increment of 0.0 in all dimensions,
         and EOS.
         """
-        self.eos = tuple([np.inf] * self.n_dim)
-        self.representative_action = tuple([0.0] * self.n_dim)
+        actions_dim = self.n_dim + 1
+        self.eos = tuple([np.inf] * actions_dim)
+        self.representative_action = tuple([0.0] * actions_dim)
         return [self.representative_action, self.eos]
+
+    def get_max_traj_length(self):
+        return np.ceil(1.0 / self.min_incr) + 2
 
     def get_policy_output(self, params: dict) -> TensorType["policy_output_dim"]:
         """
@@ -313,8 +351,8 @@ class ContinuousCube(Cube):
         For each dimension d of the hyper-cube and component c of the mixture, the
         output of the policy should return:
           1) the weight of the component in the mixture,
-          2) the logit(alpha) parameter of the Beta distribution to sample the increment,
-          3) the logit(beta) parameter of the Beta distribution to sample the increment.
+          2) the pre-alpha parameter of the Beta distribution to sample the increment,
+          3) the pre-beta parameter of the Beta distribution to sample the increment.
 
         These parameters are the first n_dim * n_comp * 3 of the policy output such
         that the first 3 x C elements correspond to the first dimension, and so on.
@@ -329,6 +367,10 @@ class ContinuousCube(Cube):
         Therefore, the output of the policy model has dimensionality D x C x 3 + 2,
         where D is the number of dimensions (self.n_dim) and C is the number of
         components (self.n_comp).
+
+        See
+        ---
+        _beta_params_to_policy_outputs()
         """
         # Parameters for continuous actions
         self._len_policy_output_cont = self.n_dim * self.n_comp * 3
@@ -338,22 +380,30 @@ class ContinuousCube(Cube):
             device=self.device,
         )
         policy_output_cont[0::3] = params["beta_weights"]
-        policy_output_cont[1::3] = params["beta_alpha"]
-        policy_output_cont[2::3] = params["beta_beta"]
+        policy_output_cont[1::3] = self._beta_params_to_policy_outputs("alpha", params)
+        policy_output_cont[2::3] = self._beta_params_to_policy_outputs("beta", params)
         # Logit for Bernoulli distribution to model EOS action
-        policy_output_eos = torch.tensor(
-            [params["bernoulli_eos_logit"]], dtype=self.float, device=self.device
+        policy_output_eos_logit = torch.logit(
+            tfloat(
+                [params["bernoulli_eos_prob"]],
+                float_type=self.float,
+                device=self.device,
+            )
         )
         # Logit for Bernoulli distribution to model back-to-source action
-        policy_output_source = torch.tensor(
-            [params["bernoulli_source_logit"]], dtype=self.float, device=self.device
+        policy_output_bts_logit = torch.logit(
+            tfloat(
+                [params["bernoulli_bts_prob"]],
+                float_type=self.float,
+                device=self.device,
+            )
         )
         # Concatenate all outputs
         policy_output = torch.cat(
             (
                 policy_output_cont,
-                policy_output_source,
-                policy_output_eos,
+                policy_output_bts_logit,
+                policy_output_eos_logit,
             )
         )
         return policy_output
@@ -449,7 +499,7 @@ class ContinuousCube(Cube):
         if done:
             return [True] * mask_dim
         mask = [False] * mask_dim
-        # If the state is not the source state, EOS is invalid
+        # If the state is the source state, EOS is invalid
         if state == self.source:
             mask[2] = True
         # If the state is not the source, indicate not special case (True)
@@ -486,6 +536,9 @@ class ContinuousCube(Cube):
         done = self._get_done(done)
         mask_dim = 3
         mask = [True] * mask_dim
+        # If the state is the source state, entire mask is True
+        if state == self.source:
+            return mask
         # If done, only valid action is EOS.
         if done:
             mask[2] = False
@@ -508,20 +561,18 @@ class ContinuousCube(Cube):
         """
         pass
 
-    @staticmethod
     def relative_to_absolute_increments(
+        self,
         states: TensorType["n_states", "n_dim"],
         increments_rel: TensorType["n_states", "n_dim"],
-        min_increments: TensorType["n_states", "n_dim"],
-        max_val: float,
         is_backward: bool,
     ):
         """
         Returns a batch of absolute increments (actions) given a batch of states,
         relative increments and minimum_increments.
 
-        Given a dimension value x, a relative increment r, a minimum increment m and a
-        maximum value 1, the absolute increment a is given by:
+        Given a dimension value x, a relative increment r, and a minimum increment m,
+        then the absolute increment a is given by:
 
         Forward:
 
@@ -531,29 +582,26 @@ class ContinuousCube(Cube):
 
         a = m + r * (x - m)
         """
-        max_val = torch.full_like(states, max_val)
+        min_increments = torch.full_like(
+            increments_rel, self.min_incr, dtype=self.float, device=self.device
+        )
         if is_backward:
-            increments_abs = min_increments + increments_rel * (states - min_increments)
+            return min_increments + increments_rel * (states - min_increments)
         else:
-            increments_abs = min_increments + increments_rel * (
-                max_val - states - min_increments
-            )
-        return increments_abs
+            return min_increments + increments_rel * (1.0 - states - min_increments)
 
-    @staticmethod
     def absolute_to_relative_increments(
+        self,
         states: TensorType["n_states", "n_dim"],
         increments_abs: TensorType["n_states", "n_dim"],
-        min_increments: TensorType["n_states", "n_dim"],
-        max_val: float,
         is_backward: bool,
     ):
         """
         Returns a batch of relative increments (as sampled by the Beta distributions)
         given a batch of states, absolute increments (actions) and minimum_increments.
 
-        Given a dimension value x, an absolute increment a, a minimum increment m and a
-        maximum value 1, the relative increment r is given by:
+        Given a dimension value x, an absolute increment a, and a minimum increment m,
+        then the relative increment r is given by:
 
         Forward:
 
@@ -563,16 +611,50 @@ class ContinuousCube(Cube):
 
         r = (a - m) / (x - m)
         """
-        max_val = torch.full_like(states, max_val)
+        min_increments = torch.full_like(
+            increments_abs, self.min_incr, dtype=self.float, device=self.device
+        )
         if is_backward:
-            increments_rel = (increments_abs - min_increments) / (
-                states - min_increments
-            )
+            return (increments_abs - min_increments) / (states - min_increments)
         else:
-            increments_rel = (increments_abs - min_increments) / (
-                max_val - states - min_increments
-            )
-        return increments_rel
+            return (increments_abs - min_increments) / (1.0 - states - min_increments)
+
+    @staticmethod
+    def _get_beta_params_from_mean_variance(
+        mean: TensorType["n_states", "n_dim_x_n_comp"],
+        variance: TensorType["n_states", "n_dim_x_n_comp"],
+    ) -> Tuple[
+        TensorType["n_states", "n_dim_x_n_comp"],
+        TensorType["n_states", "n_dim_x_n_comp"],
+    ]:
+        """
+        Calculates the alpha and beta parameters of a Beta distribution from the mean
+        and variance.
+
+        The method operates on tensors containing a batch of means and variances.
+
+        Args
+        ----
+        mean : tensor
+            A batch of means.
+
+        variance : tensor
+            A batch of variances.
+
+        Returns
+        -------
+        alpha : tensor
+            The alpha parameters for the Beta distributions as a function of the mean
+            and variances.
+
+        beta : tensor
+            The beta parameters for the Beta distributions as a function of the mean
+            and variances.
+        """
+        one_minus_mean = 1.0 - mean
+        beta = one_minus_mean * (mean * one_minus_mean - variance) / variance
+        alpha = (mean * beta) / one_minus_mean
+        return alpha, beta
 
     def _make_increments_distribution(
         self,
@@ -633,7 +715,7 @@ class ContinuousCube(Cube):
         originating state is the source state (special case, see
         get_mask_invalid_actions_forward()). Furthermore, absolute increments must also
         be smaller than the distance from the dimension value to the edge of the cube
-        (self.max_val). In order to accomodate these constraints, first relative
+        (1.0). In order to accomodate these constraints, first relative
         increments (in [0, 1]) are sampled from a (mixture of) Beta distribution(s),
         where 0.0 indicates an absolute increment of min_incr and 1.0 indicates an
         absolute increment of 1 - x + min_incr (going to the edge).
@@ -661,6 +743,9 @@ class ContinuousCube(Cube):
         """
         # Initialize variables
         n_states = policy_outputs.shape[0]
+        states_from_tensor = tfloat(
+            states_from, float_type=self.float, device=self.device
+        )
         is_eos = torch.zeros(n_states, dtype=torch.bool, device=self.device)
         # Determine source states
         is_source = ~mask[:, 1]
@@ -678,7 +763,7 @@ class ContinuousCube(Cube):
             distr_eos = Bernoulli(logits=logits_eos)
             is_eos_sampled[do_eos] = tbool(distr_eos.sample(), device=self.device)
             is_eos[is_eos_sampled] = True
-        # Sample relative increments if EOS is not the sampled or forced action
+        # Sample (relative) increments if EOS is not the (sampled or forced) action
         do_increments = ~is_eos
         if torch.any(do_increments):
             if sampling_method == "uniform":
@@ -687,30 +772,31 @@ class ContinuousCube(Cube):
                 distr_increments = self._make_increments_distribution(
                     policy_outputs[do_increments]
                 )
-            # Shape of increments_rel: [n_do_increments, n_dim]
-            increments_rel = distr_increments.sample()
-            # Get minimum increments
-            min_increments = torch.full_like(
-                increments_rel, self.min_incr, dtype=self.float, device=self.device
-            )
-            min_increments[is_source[do_increments]] = 0.0
-            # Compute absolute increments
-            states_from_do_increments = tfloat(
-                states_from, float_type=self.float, device=self.device
-            )[do_increments]
-            increments_abs = self.relative_to_absolute_increments(
-                states_from_do_increments,
-                increments_rel,
-                min_increments,
-                self.max_val,
+            # Shape of increments: [n_do_increments, n_dim]
+            increments = distr_increments.sample()
+            # Compute absolute increments from sampled relative increments if state is
+            # not source
+            is_relative = ~is_source[do_increments]
+            states_from_rel = tfloat(
+                states_from_tensor[do_increments],
+                float_type=self.float,
+                device=self.device,
+            )[is_relative]
+            increments[is_relative] = self.relative_to_absolute_increments(
+                states_from_rel,
+                increments[is_relative],
                 is_backward=False,
             )
         # Build actions
         actions_tensor = torch.full(
-            (n_states, self.n_dim), torch.inf, dtype=self.float, device=self.device
+            (n_states, self.n_dim + 1), torch.inf, dtype=self.float, device=self.device
         )
         if torch.any(do_increments):
-            actions_tensor[do_increments] = increments_abs
+            increments = torch.cat(
+                (increments, torch.zeros((increments.shape[0], 1))), dim=1
+            )
+            actions_tensor[do_increments] = increments
+        actions_tensor[is_source, -1] = 1
         actions = [tuple(a.tolist()) for a in actions_tensor]
         return actions, None
 
@@ -742,7 +828,7 @@ class ContinuousCube(Cube):
 
         The continuous distribution to sample the continuous action described above
         must be mixed with the discrete distribution to model the sampling of the back
-        to source (BST) action. While the BST action is also a continuous action, it
+        to source (BTS) action. While the BTS action is also a continuous action, it
         needs to be modelled with a (discrete) Bernoulli distribution in order to
         ensure that this action has positive likelihood.
 
@@ -776,34 +862,36 @@ class ContinuousCube(Cube):
                     policy_outputs[do_increments]
                 )
             # Shape of increments_rel: [n_do_increments, n_dim]
-            increments_rel = distr_increments.sample()
-            # Set minimum increments
-            min_increments = torch.full_like(
-                increments_rel, self.min_incr, dtype=self.float, device=self.device
-            )
-            # Compute absolute increments
-            states_from_do_increments = tfloat(
+            increments = distr_increments.sample()
+            # Compute absolute increments from all sampled relative increments
+            states_from_rel = tfloat(
                 states_from, float_type=self.float, device=self.device
             )[do_increments]
-            increments_abs = self.relative_to_absolute_increments(
-                states_from_do_increments,
-                increments_rel,
-                min_increments,
-                self.max_val,
+            increments = self.relative_to_absolute_increments(
+                states_from_rel,
+                increments,
                 is_backward=True,
             )
         # Build actions
         actions_tensor = torch.zeros(
-            (n_states, self.n_dim), dtype=self.float, device=self.device
+            (n_states, self.n_dim + 1), dtype=self.float, device=self.device
         )
-        actions_tensor[is_eos] = torch.inf
+        actions_tensor[is_eos] = tfloat(
+            self.eos, float_type=self.float, device=self.device
+        )
         if torch.any(do_increments):
-            actions_tensor[do_increments] = increments_abs
+            increments = torch.cat(
+                (increments, torch.zeros((increments.shape[0], 1))), dim=1
+            )
+            actions_tensor[do_increments] = increments
         if torch.any(is_bts):
             # BTS actions are equal to the originating states
             actions_bts = tfloat(
                 states_from, float_type=self.float, device=self.device
             )[is_bts]
+            actions_bts = torch.cat(
+                (actions_bts, torch.ones((actions_bts.shape[0], 1))), dim=1
+            )
             actions_tensor[is_bts] = actions_bts
         actions = [tuple(a.tolist()) for a in actions_tensor]
         return actions, None
@@ -811,7 +899,7 @@ class ContinuousCube(Cube):
     def get_logprobs(
         self,
         policy_outputs: TensorType["n_states", "policy_output_dim"],
-        actions: TensorType["n_states", "n_dim"],
+        actions: TensorType["n_states", "actions_dim"],
         mask: TensorType["n_states", "3"],
         states_from: List,
         is_backward: bool,
@@ -852,7 +940,7 @@ class ContinuousCube(Cube):
     def _get_logprobs_forward(
         self,
         policy_outputs: TensorType["n_states", "policy_output_dim"],
-        actions: TensorType["n_states", "n_dim"],
+        actions: TensorType["n_states", "actions_dim"],
         mask: TensorType["n_states", "3"],
         states_from: List,
     ) -> TensorType["batch_size"]:
@@ -897,34 +985,38 @@ class ContinuousCube(Cube):
         do_increments = ~is_eos
         if torch.any(do_increments):
             # Get absolute increments
-            increments_abs = actions[do_increments]
-            # Get minimum increments
-            min_increments = torch.full_like(
-                increments_abs, self.min_incr, dtype=self.float, device=self.device
-            )
-            min_increments[is_source[do_increments]] = 0.0
-            # Get relative increments
-            increments_rel = self.absolute_to_relative_increments(
-                states_from_tensor[do_increments],
-                increments_abs,
-                min_increments,
-                self.max_val,
-                is_backward=False,
-            )
+            increments = actions[do_increments, :-1]
+            # Make sure increments are finite
+            assert torch.any(torch.isfinite(increments))
+            # Compute relative increments from absolute increments if state is not
+            # source
+            is_relative = ~is_source[do_increments]
+            if torch.any(is_relative):
+                states_from_rel = tfloat(
+                    states_from_tensor[do_increments],
+                    float_type=self.float,
+                    device=self.device,
+                )[is_relative]
+                increments[is_relative] = self.absolute_to_relative_increments(
+                    states_from_rel,
+                    increments[is_relative],
+                    is_backward=False,
+                )
+            # Compute diagonal of the Jacobian (see _get_jacobian_diag()) if state is
+            # not source
+            is_relative = torch.logical_and(do_increments, ~is_source)
+            if torch.any(is_relative):
+                jacobian_diag[is_relative] = self._get_jacobian_diag(
+                    states_from_rel,
+                    is_backward=False,
+                )
             # Get logprobs
             distr_increments = self._make_increments_distribution(
                 policy_outputs[do_increments]
             )
             # Clamp because increments of 0.0 or 1.0 would yield nan
             logprobs_increments_rel[do_increments] = distr_increments.log_prob(
-                torch.clamp(increments_rel, min=1e-6, max=(1 - 1e-6))
-            )
-            # Compute diagonal of the Jacobian (see _get_jacobian_diag())
-            jacobian_diag[do_increments] = self._get_jacobian_diag(
-                states_from_tensor[do_increments],
-                min_increments,
-                self.max_val,
-                is_backward=False,
+                torch.clamp(increments, min=self.epsilon, max=(1 - self.epsilon))
             )
         # Get log determinant of the Jacobian
         log_det_jacobian = torch.sum(torch.log(jacobian_diag), dim=1)
@@ -936,7 +1028,7 @@ class ContinuousCube(Cube):
     def _get_logprobs_backward(
         self,
         policy_outputs: TensorType["n_states", "policy_output_dim"],
-        actions: TensorType["n_states", "n_dim"],
+        actions: TensorType["n_states", "actions_dim"],
         mask: TensorType["n_states", "3"],
         states_from: List,
     ) -> TensorType["batch_size"]:
@@ -967,7 +1059,7 @@ class ContinuousCube(Cube):
             # BTS actions are equal to the originating states
             is_bts_sampled = torch.zeros_like(do_bts)
             is_bts_sampled[do_bts] = torch.all(
-                actions[do_bts] == states_from_tensor[do_bts], dim=1
+                actions[do_bts, :-1] == states_from_tensor[do_bts], dim=1
             )
             is_bts[is_bts_sampled] = True
             logits_bts = self._get_policy_source_logit(policy_outputs)[do_bts]
@@ -979,16 +1071,18 @@ class ContinuousCube(Cube):
         do_increments = torch.logical_and(~is_bts, ~is_eos)
         if torch.any(do_increments):
             # Get absolute increments
-            increments_abs = actions[do_increments]
-            min_increments = torch.full_like(
-                increments_abs, self.min_incr, dtype=self.float, device=self.device
-            )
-            # Get relative increments
-            increments_rel = self.absolute_to_relative_increments(
+            increments = actions[do_increments, :-1]
+            # Make sure increments are finite
+            assert torch.any(torch.isfinite(increments))
+            # Compute absolute increments from all sampled relative increments
+            increments = self.absolute_to_relative_increments(
                 states_from_tensor[do_increments],
-                increments_abs,
-                min_increments,
-                self.max_val,
+                increments,
+                is_backward=True,
+            )
+            # Compute diagonal of the Jacobian (see _get_jacobian_diag())
+            jacobian_diag[do_increments] = self._get_jacobian_diag(
+                states_from_tensor[do_increments],
                 is_backward=True,
             )
             # Get logprobs
@@ -997,14 +1091,7 @@ class ContinuousCube(Cube):
             )
             # Clamp because increments of 0.0 or 1.0 would yield nan
             logprobs_increments_rel[do_increments] = distr_increments.log_prob(
-                torch.clamp(increments_rel, min=1e-6, max=(1 - 1e-6))
-            )
-            # Compute diagonal of the Jacobian (see _get_jacobian_diag())
-            jacobian_diag[do_increments] = self._get_jacobian_diag(
-                states_from_tensor[do_increments],
-                min_increments,
-                self.max_val,
-                is_backward=True,
+                torch.clamp(increments, min=self.epsilon, max=(1 - self.epsilon))
             )
         # Get log determinant of the Jacobian
         log_det_jacobian = torch.sum(torch.log(jacobian_diag), dim=1)
@@ -1015,11 +1102,9 @@ class ContinuousCube(Cube):
         logprobs[is_eos] = 0.0
         return logprobs
 
-    @staticmethod
     def _get_jacobian_diag(
+        self,
         states_from: TensorType["n_states", "n_dim"],
-        min_increments: TensorType["n_states", "n_dim"],
-        max_val: float,
         is_backward: bool,
     ):
         """
@@ -1027,7 +1112,7 @@ class ContinuousCube(Cube):
         the target states.
 
         Forward: the sampled variables are the relative increments r_f and the state
-        updates (s -> s') are (assuming max_val = 1):
+        updates (s -> s') are:
 
         s' = s + m + r_f(1 - s - m)
         r_f = (s' - s - m) / (1 - s - m)
@@ -1052,12 +1137,13 @@ class ContinuousCube(Cube):
         other than itself are zero. Therefore, the Jacobian is diagonal and the
         determinant is the product of the diagonal.
         """
-        epsilon = 1e-9
-        max_val = torch.full_like(states_from, max_val)
+        min_increments = torch.full_like(
+            states_from, self.min_incr, dtype=self.float, device=self.device
+        )
         if is_backward:
-            return 1.0 / ((states_from - min_increments) + epsilon)
+            return 1.0 / ((states_from - min_increments))
         else:
-            return 1.0 / ((max_val - states_from - min_increments) + epsilon)
+            return 1.0 / ((1.0 - states_from - min_increments))
 
     def _step(
         self,
@@ -1089,39 +1175,34 @@ class ContinuousCube(Cube):
             False, if the action is not allowed for the current state, e.g. stop at the
             root state
         """
-        epsilon = 1e-9
-        for dim, incr in enumerate(action):
+        # If forward action is from source, initialize state to all zeros.
+        if not backward and action[-1] == 1 and self.state == self.source:
+            state = [0.0 for _ in range(self.n_dim)]
+        else:
+            state = copy(self.state)
+        # Increment dimensions
+        for dim, incr in enumerate(action[:-1]):
             if backward:
-                self.state[dim] -= incr
+                state[dim] -= incr
             else:
-                self.state[dim] += incr
-        # If state is close enough to source, set source to avoid escaping comparison
-        # to source.
-        if self.isclose(self.state, self.source, atol=1e-6):
-            self.state = copy(self.source)
-        if not all([s <= (self.max_val + epsilon) for s in self.state]):
-            import ipdb
+                state[dim] += incr
 
-            ipdb.set_trace()
-        assert all(
-            [s <= (self.max_val + epsilon) for s in self.state]
-        ), f"""
-        State is out of cube bounds.
-        \nState:\n{self.state}\nAction:\n{action}\nIncrement: {incr}
-        """
-        if not all([s >= (0.0 - epsilon) for s in self.state]):
-            import ipdb
+        # If state is out of bounds, return invalid
+        if any([s > 1.0 for s in state]) or any([s < 0.0 for s in state]):
+            warnings.warn(
+                f"""
+                State is out of cube bounds.
+                \nCurrent state:\n{self.state}\nAction:\n{action}\nNext state: {state}
+                """
+            )
+            return self.state, action, False
 
-            ipdb.set_trace()
-        assert all(
-            [s >= (0.0 - epsilon) for s in self.state]
-        ), f"""
-        State is out of cube bounds.
-        \nState:\n{self.state}\nAction:\n{action}\nIncrement: {incr}
-        """
+        # Otherwise, set self.state as the udpated state and return valid.
+        self.n_actions += 1
+        self.state = state
         return self.state, action, True
 
-    # TODO: make generic for continuous environments
+    # TODO: make generic for continuous environments?
     def step(self, action: Tuple[float]) -> Tuple[List[float], Tuple[int, float], bool]:
         """
         Executes step given an action. An action is the absolute increment of each
@@ -1154,11 +1235,8 @@ class ContinuousCube(Cube):
             return self.state, self.eos, True
         # Otherwise perform action
         else:
-            self.n_actions += 1
-            self._step(action, backward=False)
-            return self.state, action, True
+            return self._step(action, backward=False)
 
-    # TODO: make generic for continuous environments
     def step_backwards(
         self, action: Tuple[int, float]
     ) -> Tuple[List[float], Tuple[int, float], bool]:
@@ -1190,26 +1268,65 @@ class ContinuousCube(Cube):
             self.done = False
             self.n_actions += 1
             return self.state, action, True
-        # Otherwise perform action
-        else:
-            assert action != self.eos
+        assert action != self.eos
+        # If action is BTS, set source state
+        if action[-1] == 1 and self.state != self.source:
             self.n_actions += 1
-            self._step(action, backward=True)
+            self.state = self.source
             return self.state, action, True
+        # Otherwise perform action
+        return self._step(action, backward=True)
 
-    def get_grid_terminating_states(self, n_states: int) -> List[List]:
+    def get_grid_terminating_states(
+        self, n_states: int, kappa: Optional[float] = None
+    ) -> List[List]:
+        """
+        Constructs a grid of terminating states within the range of the hyper-cube.
+
+        Args
+        ----
+        n_states : int
+            Requested number of states. The actual number of states will be rounded up
+            such that all dimensions have the same number of states.
+
+        kappa : float
+            Small constant indicating the distance to the theoretical limits of the
+            cube [0, 1], in order to avoid innacuracies in the computation of the log
+            probabilities due to clamping. The grid will thus be in [kappa, 1 -
+            kappa]. If None, self.kappa will be used.
+        """
+        if kappa is None:
+            kappa = self.kappa
         n_per_dim = int(np.ceil(n_states ** (1 / self.n_dim)))
-        linspaces = [np.linspace(0, self.max_val, n_per_dim) for _ in range(self.n_dim)]
+        linspaces = [
+            np.linspace(kappa, 1.0 - kappa, n_per_dim) for _ in range(self.n_dim)
+        ]
         states = list(itertools.product(*linspaces))
-        # TODO: check if necessary
         states = [list(el) for el in states]
         return states
 
     def get_uniform_terminating_states(
-        self, n_states: int, seed: int = None
+        self, n_states: int, seed: int = None, kappa: Optional[float] = None
     ) -> List[List]:
+        """
+        Constructs a set of terminating states sampled uniformly within the range of
+        the hyper-cube.
+
+        Args
+        ----
+        n_states : int
+            Number of states in the returned list.
+
+        kappa : float
+            Small constant indicating the distance to the theoretical limits of the
+            cube [0, 1], in order to avoid innacuracies in the computation of the log
+            probabilities due to clamping. The states will thus be uniformly sampled in
+            [kappa, 1 - kappa]. If None, self.kappa will be used.
+        """
+        if kappa is None:
+            kappa = self.kappa
         rng = np.random.default_rng(seed)
-        states = rng.uniform(low=0.0, high=self.max_val, size=(n_states, self.n_dim))
+        states = rng.uniform(low=kappa, high=1.0 - kappa, size=(n_states, self.n_dim))
         return states.tolist()
 
     # TODO: make generic for all environments
@@ -1217,8 +1334,7 @@ class ContinuousCube(Cube):
         self, n_samples: int, epsilon=1e-4
     ) -> TensorType["n_samples", "state_dim"]:
         """
-        Rejection sampling with proposal the uniform distribution in
-        [0, max_val]]^n_dim.
+        Rejection sampling with proposal the uniform distribution in [0, 1]^n_dim.
 
         Returns a tensor in GFloNet (state) format.
         """

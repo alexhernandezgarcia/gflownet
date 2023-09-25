@@ -8,31 +8,32 @@ continuous: True
 func: corners
 # Dimensions of hypercube
 n_dim: 2
-max_val: 1.0
+# Constant to restrict interval of test sets
+kappa: 1e-3
 # Policy
-beta_params_min: 0.01
-beta_params_max: 1000.0
 min_incr: 0.1
 n_comp: 1
+epsilon: 1e-6
+beta_params_min: 0.1
+beta_params_max: 100.0
 fixed_distr_params:
   beta_weights: 1.0
-  beta_alpha: 0.01
-  beta_beta: 0.01
-  bernoulli_source_logit: 0.0
-  bernoulli_eos_logit: 0.0
+  beta_alpha: 10.0
+  beta_beta: 10.0
+  bernoulli_bts_prob: 0.1
+  bernoulli_eos_prob: 0.1
 random_distr_params:
   beta_weights: 1.0
-  # IMPORTANT: adjust because of sigmoid!
-  beta_alpha: 0.01
-  beta_beta: $beta_params_max
-  bernoulli_source_logit: 0.0
-  bernoulli_eos_logit: 0.0
+  beta_alpha: 10.0
+  beta_beta: 10.0
+  bernoulli_bts_prob: 0.1
+  bernoulli_eos_prob: 0.1
 # Buffer
 buffer:
   data_path: null
   train: null
   test:
     type: grid
-    n: 1000
+    n: 900
     output_csv: ccube_test.csv
     output_pkl: ccube_test.pkl
