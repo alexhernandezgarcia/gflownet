@@ -132,6 +132,13 @@ class CLatticeParameters(ContinuousCube):
         else:
             return None
 
+    def set_lattice_system(self, lattice_system: str):
+        """
+        Sets the lattice system of the unit cell and updates the constraints.
+        """
+        self.lattice_system = lattice_system
+        self._setup_constraints()
+
     def _setup_constraints(self):
         """
         Computes the mask of ignored dimensions, given the constraints imposed by the
