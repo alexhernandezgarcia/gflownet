@@ -607,7 +607,7 @@ if __name__ == "__main__":
             sbatch_path.parent.mkdir(parents=True, exist_ok=True)
             # write template
             sbatch_path.write_text(templated)
-            print(f"  🏷  Created ./{sbatch_path.relative_to(Path.cwd())}")
+            print(f"\n  🏷  Created ./{sbatch_path.relative_to(Path.cwd())}")
             # Submit job to SLURM
             out = popen(f"sbatch {sbatch_path}").read()
             # Identify printed-out job id
