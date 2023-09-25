@@ -3,18 +3,13 @@ Classes to represent continuous lattice parameters environments.
 """
 from typing import List, Optional, Tuple
 
-import numpy as np
-import torch
-from torch import Tensor
 from torchtyping import TensorType
 
-from gflownet.envs.crystals.lattice_parameters import LatticeParameters
 from gflownet.envs.cube import ContinuousCube
 from gflownet.utils.common import copy, tfloat
 from gflownet.utils.crystals.constants import (
     CUBIC,
     HEXAGONAL,
-    LATTICE_SYSTEMS,
     MONOCLINIC,
     ORTHORHOMBIC,
     RHOMBOHEDRAL,
