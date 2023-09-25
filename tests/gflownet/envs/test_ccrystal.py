@@ -10,6 +10,29 @@ from gflownet.envs.crystals.ccrystal import CCrystal, Stage
 from gflownet.envs.crystals.clattice_parameters import TRICLINIC
 from gflownet.utils.common import tbool, tfloat
 
+SG_SUBSET_ALL_CLS_PS = [
+    1,
+    2,
+    3,
+    6,
+    16,
+    17,
+    67,
+    81,
+    89,
+    127,
+    143,
+    144,
+    146,
+    148,
+    168,
+    169,
+    189,
+    195,
+    200,
+    230,
+]
+
 
 @pytest.fixture
 def env():
@@ -24,6 +47,7 @@ def env_with_stoichiometry_sg_check():
     return CCrystal(
         composition_kwargs={"elements": 4},
         do_stoichiometry_sg_check=True,
+        space_group_kwargs={"space_groups_subset": SG_SUBSET_ALL_CLS_PS},
     )
 
 
@@ -1199,9 +1223,14 @@ def test__get_logprobs_backward__returns_valid_actions(env, states, actions):
 
 
 def test__continuous_env_common(env):
+    print(
+        "\n\nCommon tests for crystal without composition <-> space group constraints\n"
+    )
     return common.test__continuous_env_common(env)
 
 
-# @pytest.mark.skip(reason="skip until updated")
-# def test__all_env_common(env_with_stoichiometry_sg_check):
-#     return common.test__all_env_common(env_with_stoichiometry_sg_check)
+def test__continuous_env_with_stoichiometry_sg_check_common(
+    env_with_stoichiometry_sg_check,
+):
+    print("\n\nCommon tests for crystal with composition <-> space group constraints\n")
+    return common.test__continuous_env_common(env_with_stoichiometry_sg_check)
