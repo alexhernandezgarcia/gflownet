@@ -48,14 +48,31 @@ def _get_space_groups():
 class Prop:
     """
     Encodes the 3 properties of the SpaceGroup Environment:
-        - Crystal lattice system
-        - Point symmetry
-        - Space group
+        0: Crystal lattice system
+        1: Point symmetry
+        2: Space group
     """
 
     CLS = 0
     PS = 1
     SG = 2
+
+
+class StateType(Enum):
+    """
+    Enumeration of the 5 types of state:
+        0: Source - both crystal-lattice system and point symmetry are unset (== 0)
+        1: CLS - crystal-lattice system is set (!= 0); point symmetry is unset
+        2: PS - crystal-lattice system is unset; point symmetry is set
+        3: CLS_PS - both crystal-lattice system and point symmetry are set
+        4: SG: space group is set (trajectory done)
+    """
+
+    SOURCE = 0
+    CLS = 1
+    PS = 2
+    CLS_PS = 3
+    SG = 4
 
 
 class SpaceGroup(GFlowNetEnv):
@@ -110,8 +127,6 @@ class SpaceGroup(GFlowNetEnv):
         self._restrict_space_groups(space_groups_subset)
         # Set dictionary of compatibility with number of atoms
         self.set_n_atoms_compatibility_dict(n_atoms)
-        # Indices of state types (see self.get_state_type)
-        self.state_type_indices = [0, 1, 2, 3]
         # End-of-sequence action
         self.eos = (-1, -1, -1)
         # Source state: index 0 (empty) for all three properties (crystal-lattice
@@ -130,7 +145,7 @@ class SpaceGroup(GFlowNetEnv):
         (property, index, state_from_type), where property is (0: crystal-lattice
         system, 1: point symmetry, 2: space group), index is the index of the property
         set by the action and state_from_type is the state type of the originating
-        state (see self.state_type_indices).
+        state (see StateType).
         """
         actions = []
         # Create dictionary with of all properties
@@ -140,12 +155,14 @@ class SpaceGroup(GFlowNetEnv):
             Prop.SG: self.space_groups,
         }
         for prop, indices in properties.items():
-            for s_from_type in self.state_type_indices:
-                if prop == Prop.CLS and s_from_type in [1, 3]:
+            for state_type in StateType:
+                if state_type == StateType.SG:
                     continue
-                if prop == Prop.PS and s_from_type in [2, 3]:
+                if prop == Prop.CLS and state_type in [StateType.CLS, StateType.CLS_PS]:
                     continue
-                actions_prop = [(prop, idx, s_from_type) for idx in indices]
+                if prop == Prop.PS and state_type in [StateType.PS, StateType.CLS_PS]:
+                    continue
+                actions_prop = [(prop, idx, state_type.value) for idx in indices]
                 actions += actions_prop
         actions += [self.eos]
         return actions
@@ -583,7 +600,7 @@ class SpaceGroup(GFlowNetEnv):
     def get_state_type(self, state: List[int] = None) -> int:
         """
         Returns the index of the type of the state passed as an argument. The state
-        type is one of the following (self.state_type_indices):
+        type is one of the following (StateType):
             0: both crystal-lattice system and point symmetry are unset (== 0)
             1: crystal-lattice system is set (!= 0); point symmetry is unset
             2: crystal-lattice system is unset; point symmetry is set
