@@ -268,7 +268,7 @@ def find_jobs_conf(args):
 def quote(value):
     v = str(value)
     v = v.replace("(", r"\(").replace(")", r"\)")
-    if " " in v:
+    if " " in v or "=" in v:
         if "'" not in v:
             v = f"'{v}'"
         elif '"' not in v:
@@ -623,13 +623,20 @@ if __name__ == "__main__":
             sbatch_path.parent.mkdir(parents=True, exist_ok=True)
             # write template
             sbatch_path.write_text(templated)
-            print(f"\n  🏷  Created ./{sbatch_path.relative_to(Path.cwd())}")
+            print()
             # Submit job to SLURM
             out = popen(f"sbatch {sbatch_path}").read().strip()
             # Identify printed-out job id
             job_id = re.findall(r"Submitted batch job (\d+)", out)[0]
             job_ids.append(job_id)
             print("  ✅ " + out)
+            # Rename sbatch file with job id
+            parts = sbatch_path.stem.split(f"_{now}")
+            new_name = f"{parts[0]}_{job_id}_{now}"
+            if len(parts) > 1:
+                new_name += f"_{parts[1]}"
+            sbatch_path = sbatch_path.rename(sbatch_path.parent / new_name)
+            print(f"  🏷  Created ./{sbatch_path.relative_to(Path.cwd())}")
             # Write job ID & output file path in the sbatch file
             job_output_file = str(outdir / f"{job_args['job_name']}-{job_id}.out")
             job_out_files.append(job_output_file)
