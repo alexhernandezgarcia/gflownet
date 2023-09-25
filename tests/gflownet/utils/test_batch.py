@@ -1,6 +1,7 @@
 import numpy as np
 import pytest
 import torch
+
 from gflownet.envs.ctorus import ContinuousTorus
 from gflownet.envs.grid import Grid
 from gflownet.envs.tetris import Tetris
