@@ -611,7 +611,7 @@ if __name__ == "__main__":
             sbatch_path.write_text(templated)
             print(f"  🏷  Created ./{sbatch_path.relative_to(Path.cwd())}")
             # Submit job to SLURM
-            out = popen(f"sbatch {sbatch_path}").read()
+            out = popen(f"sbatch {sbatch_path}").read().strip()
             # Identify printed-out job id
             job_id = re.findall(r"Submitted batch job (\d+)", out)[0]
             job_ids.append(job_id)
