@@ -3,7 +3,9 @@ import numpy as np
 import pickle
 import os
 import copy
+import pandas as pd
 
+from datetime import datetime
 from scipy.spatial.transform import Rotation
 from sklearn.cluster import KMeans
 from pathlib import Path
@@ -41,9 +43,9 @@ def get_single_conf_rdkit(smiles, optimise=True, randomise_tas=False):
         Chem.rdMolTransforms.CanonicalizeConformer(conf)
     return mol
 
-def write_conformers(conf_list, smiles, output_dir, prefix=''):
-    conf_dict = {'conformer': conf_list}
-    filename = output_dir / f'{prefix}conformer_{smiles}.pkl'
+def write_conformers(conf_list, smiles, output_dir, prefix='', idx=None):
+    conf_dict = {'conformer': conf_list, 'smiles': smiles}
+    filename = output_dir / f'{prefix}conformer_{idx}.pkl'
     with open(filename, 'wb') as file:
         pickle.dump(conf_dict, file)
 
@@ -159,28 +161,37 @@ def set_atom_positions(mol, atom_positions):
     return mol
 
 def gen_multiple_conf_rdkit_cluster(smiles, n_confs):
-    pass
+    M = min(10 * n_confs, 2000)
+    mols = clustering(smiles, N=n_confs, M=M)
+    return mols
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--output_dir', type=str, default='./samples')
+    parser.add_argument('--output_base_dir', type=str, default='/home/mila/a/alexandra.volokhova/projects/gflownet/results/conformer/samples')
     parser.add_argument('--method', type=str, default='rdkit')
     parser.add_argument('--target_smiles', type=str, 
-                        default='/home/mila/a/alexandra.volokhova/projects/gflownet/results/conformer/target_smiles.pkl')
+                        default='/home/mila/a/alexandra.volokhova/projects/gflownet/results/conformer/target_smiles/target_smiles_4_initial.csv')
     parser.add_argument('--n_confs', type=int, default=300)  
     args = parser.parse_args()
 
-    output_dir = Path(args.output_dir)
+    output_base_dir = Path(args.output_base_dir)
+    if not output_base_dir.exists():
+        os.mkdir(output_base_dir) 
+    
+    current_datetime = datetime.now()
+    timestamp = current_datetime.strftime("%Y-%m-%d_%H-%M-%S")
+    ts = Path(args.target_smiles).name[:-4]
+    output_dir = output_base_dir / f'{args.method}_samples_{ts}_{timestamp}'
     if output_dir.exists():
-        print("Output dir already exists! Exit generation")  
+        print("Output dir already exisits! Exit generation")
     else:
         os.mkdir(output_dir)
-        with open(args.target_smiles, 'rb') as file:
-            smiles_list = pickle.load(file)
-        for smiles in tqdm(smiles_list):
+        target_smiles = pd.read_csv(args.target_smiles, index_col=0)
+        for idx, (_, item) in tqdm(enumerate(target_smiles.iterrows()), total=len(target_smiles)):
             if args.method == 'rdkit':
-                confs = gen_multiple_conf_rdkit(smiles, args.n_confs, optimise=True)
+                confs = gen_multiple_conf_rdkit(item.smiles, 2 * item.n_confs, optimise=True)
             if args.method == 'rdkit_cluster':
-                confs = gen_multiple_conf_rdkit_cluster(smiles, args.n_confs)
-            write_conformers(confs, smiles, output_dir, prefix=f'{args.method}_')
+                confs = gen_multiple_conf_rdkit_cluster(item.smiles, 2 * item.n_confs)
+            write_conformers(confs, item.smiles, output_dir, prefix=f'{args.method}_', idx=idx)
+        print("Finished generation, results are in {}".format(output_dir))
