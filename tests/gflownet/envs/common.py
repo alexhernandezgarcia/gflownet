@@ -330,7 +330,7 @@ def test__forward_actions_have_nonzero_backward_prob(env):
         tfloat(env.random_policy_output, float_type=env.float, device=env.device), 0
     )
     while not env.done:
-        state_new, action, valid = env.step_random(backward=False)
+        state_next, action, valid = env.step_random(backward=False)
         if not valid:
             continue
         # Get backward logprobs
@@ -339,19 +339,17 @@ def test__forward_actions_have_nonzero_backward_prob(env):
         actions_torch = torch.unsqueeze(
             tfloat(action, float_type=env.float, device=env.device), 0
         )
-        states_torch = torch.unsqueeze(
-            tfloat(env.state, float_type=env.float, device=env.device), 0
-        )
         policy_outputs = policy_random.clone().detach()
         logprobs_bw = env.get_logprobs(
             policy_outputs=policy_outputs,
             actions=actions_torch,
             mask=masks,
-            states_from=states_torch,
+            states_from=[env.state],
             is_backward=True,
         )
         assert torch.isfinite(logprobs_bw)
         assert logprobs_bw > -1e6
+        state_prev = copy(state_next)
 
 
 @pytest.mark.repeat(1000)
@@ -398,7 +396,7 @@ def test__backward_actions_have_nonzero_forward_prob(env, n=1000):
         while True:
             if env.equal(env.state, env.source):
                 break
-            state_new, action, valid = env.step_random(backward=True)
+            state_next, action, valid = env.step_random(backward=True)
             assert valid
             # Get forward logprobs
             mask_fw = env.get_mask_invalid_actions_forward()
@@ -406,19 +404,17 @@ def test__backward_actions_have_nonzero_forward_prob(env, n=1000):
             actions_torch = torch.unsqueeze(
                 tfloat(action, float_type=env.float, device=env.device), 0
             )
-            states_torch = torch.unsqueeze(
-                tfloat(env.state, float_type=env.float, device=env.device), 0
-            )
             policy_outputs = policy_random.clone().detach()
             logprobs_fw = env.get_logprobs(
                 policy_outputs=policy_outputs,
                 actions=actions_torch,
                 mask=masks,
-                states_from=states_torch,
+                states_from=[env.state],
                 is_backward=False,
             )
             assert torch.isfinite(logprobs_fw)
             assert logprobs_fw > -1e6
+            state_prev = copy(state_next)
 
 
 @pytest.mark.repeat(10)
