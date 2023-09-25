@@ -268,7 +268,7 @@ def find_jobs_conf(args):
 def quote(value):
     v = str(value)
     v = v.replace("(", r"\(").replace(")", r"\)")
-    if " " in v:
+    if " " in v or "=" in v:
         if '"' not in v:
             v = f'"{v}"'
         elif "'" not in v:
