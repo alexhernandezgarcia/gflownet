@@ -268,11 +268,11 @@ def find_jobs_conf(args):
 def quote(value):
     v = str(value)
     v = v.replace("(", r"\(").replace(")", r"\)")
-    if " " in v or "=" in v:
-        if "'" not in v:
-            v = f"'{v}'"
-        elif '"' not in v:
+    if " " in v:
+        if '"' not in v:
             v = f'"{v}"'
+        elif "'" not in v:
+            v = f"'{v}'"
         else:
             raise ValueError(f"Cannot quote {value}")
     return v
@@ -288,14 +288,24 @@ def script_dict_to_main_args_str(script_dict, is_first=True, nested_key=""):
         previous_str (str, optional): base string to append to. Defaults to "".
     """
     if not isinstance(script_dict, dict):
-        return f"{nested_key}={quote(script_dict)} "
+        candidate = f"{nested_key}={quote(script_dict)}"
+        if candidate.count("=") > 1:
+            assert "'" not in candidate, """Keys cannot contain ` ` and `'` and `=` """
+            candidate = f"'{candidate}'"
+        return candidate + " "
     new_str = ""
     for k, v in script_dict.items():
         if k == "__value__":
             value = str(v)
             if " " in value:
                 value = f"'{value}'"
-            new_str += f"{nested_key}={quote(v)} "
+            candidate = f"{nested_key}={quote(v)} "
+            if candidate.count("=") > 1:
+                assert (
+                    "'" not in candidate
+                ), """Keys cannot contain ` ` and `'` and `=` """
+                candidate = f"'{candidate}'"
+            new_str += candidate
             continue
         new_key = k if not nested_key else nested_key + "." + str(k)
         new_str += script_dict_to_main_args_str(v, nested_key=new_key, is_first=False)
