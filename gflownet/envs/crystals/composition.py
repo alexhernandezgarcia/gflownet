@@ -20,6 +20,8 @@ from gflownet.utils.crystals.pyxtal_cache import (
     space_group_wyckoff_gcd,
 )
 
+N_ELEMENTS_ORACLE = 94
+
 
 class Composition(GFlowNetEnv):
     """
@@ -28,7 +30,7 @@ class Composition(GFlowNetEnv):
 
     def __init__(
         self,
-        elements: Union[List, int] = 84,
+        elements: Union[List, int] = 94,
         max_diff_elem: int = 5,
         min_diff_elem: int = 2,
         min_atoms: int = 2,
@@ -406,8 +408,9 @@ class Composition(GFlowNetEnv):
 
     def state2oracle(self, state: List = None) -> Tensor:
         """
-        Prepares a state in "GFlowNet format" for the oracle. In this case, it simply
-        converts the state into a torch tensor, with dtype torch.long.
+        Prepares a state in "GFlowNet format" for the oracle. The output is a tensor of
+        length N_ELEMENTS_ORACLE + 1, where the positions of self.elements are filled with
+        the number of atoms of each element in the state.
 
         Args
         ----
@@ -421,15 +424,17 @@ class Composition(GFlowNetEnv):
         """
         if state is None:
             state = self.state
-
-        return tlong(state, device=self.device)
+        return self.statetorch2oracle(
+            torch.unsqueeze(tfloat(states, device=self.device), 0)
+        )
 
     def statetorch2oracle(
         self, states: TensorType["batch", "state_dim"]
     ) -> TensorType["batch", "state_oracle_dim"]:
         """
-        Prepares a batch of states in "GFlowNet format" for the oracle. The input to the
-        oracle is the atom counts for individual elements.
+        Prepares a batch of states in "GFlowNet format" for the oracle.  The output is
+        a tensor with N_ELEMENTS_ORACLE + 1 columns, where the positions of
+        self.elements are filled with the number of atoms of each element in the state.
 
         Args
         ----
@@ -440,7 +445,13 @@ class Composition(GFlowNetEnv):
         ----
         oracle_states : Tensor
         """
-        return states
+        states_oracle = torch.zeros(
+            (states.shape[0], N_ELEMENTS_ORACLE + 1),
+            device=self.device,
+            dtype=self.float,
+        )
+        states_oracle[:, tlong(self.elements, device=self.device)] = states
+        return states_oracle
 
     def statebatch2oracle(
         self, states: List[List]
@@ -453,7 +464,7 @@ class Composition(GFlowNetEnv):
         ----
         state : list
         """
-        return tlong(states, device=self.device)
+        return self.statetorch2oracle(tlong(states, device=self.device))
 
     def state2readable(self, state=None):
         """
