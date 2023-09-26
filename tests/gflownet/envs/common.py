@@ -9,6 +9,7 @@ from hydra import compose, initialize
 from omegaconf import OmegaConf
 
 from gflownet.utils.common import copy, tbool, tfloat
+from gflownet.utils.policy import parse_policy_config
 
 
 def test__all_env_common(env):
@@ -22,6 +23,7 @@ def test__all_env_common(env):
     test__step_random__does_not_sample_invalid_actions(env)
     test__forward_actions_have_nonzero_backward_prob(env)
     test__backward_actions_have_nonzero_forward_prob(env)
+    test__trajectories_are_reversible(env)
     test__get_parents_step_get_mask__are_compatible(env)
     test__sample_backwards_reaches_source(env)
     test__state2readable__is_reversible(env)
@@ -40,6 +42,7 @@ def test__continuous_env_common(env):
     test__backward_actions_have_nonzero_forward_prob(env)
     test__step__returns_same_state_action_and_invalid_if_done(env)
     test__sample_backwards_reaches_source(env)
+    test__trajectories_are_reversible(env)
 
 
 #     test__gflownet_minimal_runs(env)
@@ -260,14 +263,8 @@ def test__gflownet_minimal_runs(env):
         config.proxy, device=config.device, float_precision=config.float_precision
     )
     # Policy
-    forward_config = OmegaConf.create(config.policy)
-    forward_config["config"] = config.policy.forward
-    del forward_config.forward
-    del forward_config.backward
-    backward_config = OmegaConf.create(config.policy)
-    backward_config["config"] = config.policy.backward
-    del backward_config.forward
-    del backward_config.backward
+    forward_config = parse_policy_config(config, kind="forward")
+    backward_config = parse_policy_config(config, kind="backward")
     forward_policy = hydra.utils.instantiate(
         forward_config,
         env=env,
