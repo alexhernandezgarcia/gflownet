@@ -200,13 +200,15 @@ class Buffer:
         """
         if config is None:
             return None, None
-        elif "path" in config and config.path is not None:
-            path = self.logger.logdir / Path("data") / config.path
-            df = pd.read_csv(path, index_col=0)
-            # TODO: check if state2readable transformation is required.
-            return df
         elif "type" not in config:
             return None, None
+        elif config.type == "pkl" and "path" in config:
+            with open(config.path, "rb") as f:
+                data_dict = pickle.load(f)
+                samples = data_dict["x"]
+        elif config.type == "csv" and "path" in config:
+            df = pd.read_csv(config.path, index_col=0)
+            samples = df.iloc[:, :-1].values
         elif config.type == "all" and hasattr(self.env, "get_all_terminating_states"):
             samples = self.env.get_all_terminating_states()
         elif (

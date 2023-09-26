@@ -1024,7 +1024,7 @@ class GFlowNetAgent:
                 (None,),
                 env_metrics,
             )
-        elif self.continuous:
+        elif self.continuous and hasattr(self.env, "fit_kde"):
             # TODO make it work with conditional env
             x_sampled = torch2np(self.env.statebatch2proxy(x_sampled))
             x_tt = torch2np(self.env.statebatch2proxy(x_tt))
