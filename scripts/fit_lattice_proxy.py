@@ -42,7 +42,13 @@ if __name__ == "__main__":
     plt.show()
 
     # Plot histogram for a grid of samples.
-    env = LatticeParameters(lattice_system="triclinic")
+    env = LatticeParameters(
+        lattice_system="triclinic",
+        min_length=1.0,
+        max_length=350.0,
+        min_angle=50.0,
+        max_angle=150.0,
+    )
     linspaces = [env.lengths_tensor.numpy() for _ in range(3)] + [
         env.angles_tensor.numpy() for _ in range(3)
     ]
