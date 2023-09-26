@@ -1011,19 +1011,6 @@ class GFlowNetAgent:
             density_pred = np.array([hist[tuple(x)] / z_pred for x in x_tt])
             log_density_true = np.log(density_true + 1e-8)
             log_density_pred = np.log(density_pred + 1e-8)
-        elif self.buffer.test_type == "random":
-            # TODO: refactor
-            env_metrics = self.env.test(x_sampled)
-            return (
-                self.l1,
-                self.kl,
-                self.jsd,
-                corr_prob_traj_rewards,
-                var_logrewards_logp,
-                nll_tt,
-                (None,),
-                env_metrics,
-            )
         elif self.continuous and hasattr(self.env, "fit_kde"):
             # TODO make it work with conditional env
             x_sampled = torch2np(self.env.statebatch2proxy(x_sampled))
@@ -1064,7 +1051,18 @@ class GFlowNetAgent:
             density_true = np.exp(log_density_true)
             density_pred = np.exp(log_density_pred)
         else:
-            raise NotImplementedError
+            # TODO: refactor
+            env_metrics = self.env.test(x_sampled)
+            return (
+                self.l1,
+                self.kl,
+                self.jsd,
+                corr_prob_traj_rewards,
+                var_logrewards_logp,
+                nll_tt,
+                (None,),
+                env_metrics,
+            )
         # L1 error
         l1 = np.abs(density_pred - density_true).mean()
         # KL divergence
