@@ -11,7 +11,7 @@ from torch import Tensor
 from torchtyping import TensorType
 
 from gflownet.envs.base import GFlowNetEnv
-from gflownet.utils.common import tlong
+from gflownet.utils.common import tfloat, tlong
 from gflownet.utils.crystals.constants import ELEMENT_NAMES, OXIDATION_STATES
 from gflownet.utils.crystals.pyxtal_cache import (
     get_space_group,
