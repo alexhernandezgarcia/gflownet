@@ -878,17 +878,13 @@ class CCrystal(GFlowNetEnv):
 
         readables = [
             subenv.state2readable(self._get_state_of_subenv(state, stage))
-            for stage, subenv in self.subenvs
+            for stage, subenv in self.subenvs.items()
         ]
-        composition_readable = readables[0]
-        space_group_readable = readables[1]
-        lattice_parameters_readable = readables[2]
-
         return (
-            f"Stage = {state[0]}; "
-            f"Composition = {composition_readable}; "
-            f"SpaceGroup = {space_group_readable}; "
-            f"LatticeParameters = {lattice_parameters_readable}"
+            f"{self._get_stage(state)}; "
+            f"Composition = {readables[0]}; "
+            f"SpaceGroup = {readables[1]}; "
+            f"LatticeParameters = {readables[2]}"
         )
 
     # TODO: redo
