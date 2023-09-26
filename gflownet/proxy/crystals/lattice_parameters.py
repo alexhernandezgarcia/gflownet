@@ -15,6 +15,7 @@ class LatticeParameters(Proxy):
     def __init__(self, min_value: float = -100, **kwargs):
         super().__init__(**kwargs)
 
+        self.min = tfloat(min_value, float_type=self.float, device=self.device)
         self.min_value = min_value
         self.kde = None
 
