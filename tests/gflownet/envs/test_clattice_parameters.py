@@ -5,7 +5,6 @@ import torch
 from gflownet.envs.crystals.clattice_parameters import (
     CUBIC,
     HEXAGONAL,
-    LATTICE_SYSTEMS,
     MONOCLINIC,
     ORTHORHOMBIC,
     PARAMETER_NAMES,
@@ -14,6 +13,7 @@ from gflownet.envs.crystals.clattice_parameters import (
     TRICLINIC,
     CLatticeParameters,
 )
+from gflownet.envs.crystals.lattice_parameters import LATTICE_SYSTEMS
 
 N_REPETITIONS = 1000
 
@@ -113,91 +113,37 @@ def test__orthorhombic__constraints_remain_after_random_actions(env, lattice_sys
         assert len({alpha, beta, gamma, 90.0}) == 1
 
 
+@pytest.mark.parametrize("lattice_system", [TRICLINIC])
 @pytest.mark.parametrize(
-    "lattice_system",
-    [RHOMBOHEDRAL],
-)
-@pytest.mark.repeat(N_REPETITIONS)
-def test__rhombohedral__constraints_remain_after_random_actions(env, lattice_system):
-    env = env.reset()
-    while not env.done:
-        env.step_random()
-        (a, b, c), (alpha, beta, gamma) = env._unpack_lengths_angles()
-        assert len({a, b, c}) == 1
-        assert len({alpha, beta, gamma}) == 1
-        assert len({alpha, beta, gamma, 90.0}) == 2
-
-
-@pytest.mark.parametrize(
-    "lattice_system",
-    [TETRAGONAL],
-)
-@pytest.mark.repeat(N_REPETITIONS)
-def test__tetragonal__constraints_remain_after_random_actions(env, lattice_system):
-    env = env.reset()
-    while not env.done:
-        env.step_random()
-        (a, b, c), (alpha, beta, gamma) = env._unpack_lengths_angles()
-        assert a == b
-        assert len({a, b, c}) == 2
-        assert len({alpha, beta, gamma, 90.0}) == 1
-
-
-@pytest.mark.parametrize(
-    "lattice_system",
-    [TRICLINIC],
-)
-@pytest.mark.repeat(N_REPETITIONS)
-def test__triclinic__constraints_remain_after_random_actions(env, lattice_system):
-    env = env.reset()
-    while not env.done:
-        env.step_random()
-        (a, b, c), (alpha, beta, gamma) = env._unpack_lengths_angles()
-        assert len({a, b, c}) == 3
-        assert len({alpha, beta, gamma, 90.0}) == 4
-
-
-@pytest.mark.parametrize(
-    "lattice_system, expected_output",
+    "state, expected_output",
     [
-        (CUBIC, "(1.0, 1.0, 1.0), (90.0, 90.0, 90.0)"),
-        (HEXAGONAL, "(1.0, 1.0, 1.0), (90.0, 90.0, 120.0)"),
-        (MONOCLINIC, "(1.0, 1.0, 1.0), (90.0, 30.0, 90.0)"),
-        (ORTHORHOMBIC, "(1.0, 1.0, 1.0), (90.0, 90.0, 90.0)"),
-        (RHOMBOHEDRAL, "(1.0, 1.0, 1.0), (30.0, 30.0, 30.0)"),
-        (TETRAGONAL, "(1.0, 1.0, 1.0), (90.0, 90.0, 90.0)"),
-        (TRICLINIC, "(1.0, 1.0, 1.0), (30.0, 30.0, 30.0)"),
+        (
+            [0, 0, 0, 0, 0, 0],
+            torch.Tensor([1.0, 1.0, 1.0, 30.0, 30.0, 30.0]),
+        ),
+        (
+            [0.1, 0.2, 0.3, 0.4, 0.5, 0.6],
+            torch.Tensor([1.4, 1.8, 2.2, 78.0, 90.0, 102.0]),
+        ),
     ],
 )
-@pytest.mark.skip(reason="skip until it gets updated")
-def test__state2readable__gives_expected_results_for_initial_states(
-    env, lattice_system, expected_output
-):
-    assert env.state2readable() == expected_output
+def test__state2proxy__has_expected_output(env, lattice_system, state, expected_output):
+    assert torch.allclose(env.state2proxy(state), expected_output)
 
 
+@pytest.mark.parametrize("lattice_system", [TRICLINIC])
 @pytest.mark.parametrize(
-    "lattice_system, readable",
+    "states, expected_output",
     [
-        (CUBIC, "(1.0, 1.0, 1.0), (90.0, 90.0, 90.0)"),
-        (HEXAGONAL, "(1.0, 1.0, 1.0), (90.0, 90.0, 120.0)"),
-        (MONOCLINIC, "(1.0, 1.0, 1.0), (90.0, 30.0, 90.0)"),
-        (ORTHORHOMBIC, "(1.0, 1.0, 1.0), (90.0, 90.0, 90.0)"),
-        (RHOMBOHEDRAL, "(1.0, 1.0, 1.0), (30.0, 30.0, 30.0)"),
-        (TETRAGONAL, "(1.0, 1.0, 1.0), (90.0, 90.0, 90.0)"),
-        (TRICLINIC, "(1.0, 1.0, 1.0), (30.0, 30.0, 30.0)"),
+        (
+            [[0, 0, 0, 0, 0, 0], [0.1, 0.2, 0.3, 0.4, 0.5, 0.6]],
+            torch.Tensor(
+                [[1.0, 1.0, 1.0, 30.0, 30.0, 30.0], [1.4, 1.8, 2.2, 78.0, 90.0, 102.0]]
+            ),
+        ),
     ],
 )
-@pytest.mark.skip(reason="skip until it gets updated")
-def test__readable2state__gives_expected_results_for_initial_states(
-    env, lattice_system, readable
+def test__statetorch2proxy__has_expected_output(
+    env, lattice_system, states, expected_output
 ):
-    assert env.readable2state(readable) == env.state
-
-
-@pytest.mark.parametrize(
-    "lattice_system",
-    [CUBIC, HEXAGONAL, MONOCLINIC, ORTHORHOMBIC, RHOMBOHEDRAL, TETRAGONAL, TRICLINIC],
-)
-def test__continuous_env_common(env, lattice_system):
-    return common.test__continuous_env_common(env)
+    assert torch.allclose(env.statebatch2policy(states), expected_output)

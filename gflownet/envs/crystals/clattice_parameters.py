@@ -3,18 +3,15 @@ Classes to represent continuous lattice parameters environments.
 """
 from typing import List, Optional, Tuple
 
-import numpy as np
 import torch
 from torch import Tensor
 from torchtyping import TensorType
 
-from gflownet.envs.crystals.lattice_parameters import LatticeParameters
 from gflownet.envs.cube import ContinuousCube
 from gflownet.utils.common import copy, tfloat
 from gflownet.utils.crystals.constants import (
     CUBIC,
     HEXAGONAL,
-    LATTICE_SYSTEMS,
     MONOCLINIC,
     ORTHORHOMBIC,
     RHOMBOHEDRAL,
@@ -98,18 +95,14 @@ class CLatticeParameters(ContinuousCube):
     def _angle2statevalue(self, angle):
         return (angle - self.min_angle) / self.angle_range
 
-    def _get_param(self, param):
+    def _get_param(self, state, param):
         if hasattr(self, param):
             return getattr(self, param)
         else:
             if param in LENGTH_PARAMETER_NAMES:
-                return self._statevalue2length(
-                    self.state[self._get_index_of_param(param)]
-                )
+                return self._statevalue2length(state[self._get_index_of_param(param)])
             elif param in ANGLE_PARAMETER_NAMES:
-                return self._statevalue2angle(
-                    self.state[self._get_index_of_param(param)]
-                )
+                return self._statevalue2angle(state[self._get_index_of_param(param)])
             else:
                 raise ValueError(f"{param} is not a valid lattice parameter")
 
@@ -241,7 +234,9 @@ class CLatticeParameters(ContinuousCube):
         """
         state = self._get_state(state)
 
-        a, b, c, alpha, beta, gamma = [self._get_param(p) for p in PARAMETER_NAMES]
+        a, b, c, alpha, beta, gamma = [
+            self._get_param(state, p) for p in PARAMETER_NAMES
+        ]
         return (a, b, c), (alpha, beta, gamma)
 
     def state2readable(self, state: Optional[List[int]] = None) -> str:
@@ -269,14 +264,34 @@ class CLatticeParameters(ContinuousCube):
             state = self._set_param(state, param, value)
         return state
 
-    def statebatch2proxy(
+    def state2policy(self, state: Optional[List[float]] = None) -> Tensor:
+        """
+        Maps [0; 1] state values to edge lengths and angles.
+        """
+        state = self._get_state(state)
+
+        return Tensor([self._get_param(state, p) for p in PARAMETER_NAMES])
+
+    def statebatch2policy(
         self, states: List[List]
     ) -> TensorType["batch", "state_proxy_dim"]:
         """
-        Prepares a batch of states in "GFlowNet format" for the proxy: a tensor where
-        lengths and angles are converted into the target units (angstroms and degrees,
-        respectively).
+        Maps [0; 1] state values to edge lengths and angles.
         """
-        return self.statetorch2proxy(
-            tfloat(states, float_type=self.float, device=self.device)
+        return self.statetorch2policy(
+            tfloat(states, device=self.device, float_type=self.float)
+        )
+
+    def statetorch2policy(
+        self, states: TensorType["batch", "state_dim"] = None
+    ) -> TensorType["batch", "policy_input_dim"]:
+        """
+        Maps [0; 1] state values to edge lengths and angles.
+        """
+        return torch.cat(
+            [
+                self._statevalue2length(states[:, :3]),
+                self._statevalue2angle(states[:, 3:]),
+            ],
+            dim=1,
         )
