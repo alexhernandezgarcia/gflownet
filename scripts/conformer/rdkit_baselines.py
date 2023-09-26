@@ -172,7 +172,7 @@ if __name__ == '__main__':
     parser.add_argument('--method', type=str, default='rdkit')
     parser.add_argument('--target_smiles', type=str, 
                         default='/home/mila/a/alexandra.volokhova/projects/gflownet/results/conformer/target_smiles/target_smiles_4_initial.csv')
-    parser.add_argument('--n_confs', type=int, default=300)  
+    parser.add_argument('--n_confs', type=int, default=None)  
     args = parser.parse_args()
 
     output_base_dir = Path(args.output_base_dir)
@@ -189,9 +189,13 @@ if __name__ == '__main__':
         os.mkdir(output_dir)
         target_smiles = pd.read_csv(args.target_smiles, index_col=0)
         for idx, (_, item) in tqdm(enumerate(target_smiles.iterrows()), total=len(target_smiles)):
+            n_samples = args.n_confs
+            if n_samples is None:
+                n_samples = 2 * item.n_confs
+            print(f"start generating {n_samples} confs")
             if args.method == 'rdkit':
-                confs = gen_multiple_conf_rdkit(item.smiles, 2 * item.n_confs, optimise=True)
+                confs = gen_multiple_conf_rdkit(item.smiles, n_samples, optimise=True)
             if args.method == 'rdkit_cluster':
-                confs = gen_multiple_conf_rdkit_cluster(item.smiles, 2 * item.n_confs)
+                confs = gen_multiple_conf_rdkit_cluster(item.smiles, n_samples)
             write_conformers(confs, item.smiles, output_dir, prefix=f'{args.method}_', idx=idx)
         print("Finished generation, results are in {}".format(output_dir))
