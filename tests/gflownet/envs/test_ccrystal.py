@@ -182,6 +182,47 @@ def test__statetorch2proxy__is_concatenation_of_subenv_states(env, states):
 
 
 @pytest.mark.parametrize(
+    "states",
+    [
+        [
+            [0, 0, 0, 0, 0, 0, 0, 0, -1, -1, -1, -1, -1, -1],
+            [0, 0, 4, 0, 0, 0, 0, 0, -1, -1, -1, -1, -1, -1],
+            [1, 3, 1, 0, 6, 0, 0, 0, -1, -1, -1, -1, -1, -1],
+            [2, 1, 0, 4, 0, 4, 3, 105, 0.12, 0.23, 0.34, 0.45, 0.56, 0.67],
+            [1, 3, 1, 0, 6, 1, 0, 0, -1, -1, -1, -1, -1, -1],
+            [1, 3, 1, 0, 6, 1, 1, 0, -1, -1, -1, -1, -1, -1],
+            [0, 3, 0, 0, 0, 0, 0, 0, -1, -1, -1, -1, -1, -1],
+            [0, 3, 0, 0, 6, 0, 0, 0, -1, -1, -1, -1, -1, -1],
+            [1, 3, 1, 0, 6, 1, 2, 0, -1, -1, -1, -1, -1, -1],
+            [0, 3, 1, 0, 6, 0, 0, 0, -1, -1, -1, -1, -1, -1],
+            [2, 1, 0, 4, 0, 4, 3, 105, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6],
+            [2, 1, 0, 4, 0, 4, 3, 105, 0.76, 0.75, 0.74, 0.73, 0.72, 0.71],
+            [0, 0, 4, 3, 0, 0, 0, 0, -1, -1, -1, -1, -1, -1],
+        ],
+    ],
+)
+def test__state2readable__is_concatenation_of_subenv_states(env, states):
+    # Get policy states from the batch of states converted into each subenv
+    states_readable_expected = []
+    for state in states:
+        readables = []
+        for stage, subenv in env.subenvs.items():
+            readables.append(
+                subenv.state2readable(env._get_state_of_subenv(state, stage))
+            )
+        states_readable_expected.append(
+            f"{env._get_stage(state)}; "
+            f"Composition = {readables[0]}; "
+            f"SpaceGroup = {readables[1]}; "
+            f"LatticeParameters = {readables[2]}"
+        )
+    # Get policy states from env.statetorch2policy
+    states_readable = [env.state2readable(state) for state in states]
+    for readable, readable_expected in zip(states_readable, states_readable_expected):
+        assert readable == readable_expected
+
+
+@pytest.mark.parametrize(
     "state, state_composition, state_space_group, state_lattice_parameters",
     [
         [
