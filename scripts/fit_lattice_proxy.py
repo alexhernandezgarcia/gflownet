@@ -19,16 +19,16 @@ from gflownet.proxy.crystals.lattice_parameters import PICKLE_PATH
 
 
 DATASET_PATH = (
-    Path(__file__).parents[1] / "data" / "crystals" / "triclinic_lengths_angles.csv"
+    Path(__file__).parents[1] / "data" / "crystals" / "matbench_mp_e_form_lp_stats.csv"
 )
 
 
 if __name__ == "__main__":
-    X = pd.read_csv(DATASET_PATH).values
+    X = pd.read_csv(DATASET_PATH).sample(1000, random_state=0).values
     kde = Pipeline(
         [
             ("scaler", StandardScaler()),
-            ("kde", KernelDensity(kernel="gaussian", bandwidth=0.25)),
+            ("kde", KernelDensity(kernel="gaussian", bandwidth=5.0)),
         ]
     ).fit(X)
 
