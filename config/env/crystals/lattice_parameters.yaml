@@ -7,8 +7,8 @@ id: lattice_parameters
 
 lattice_system: triclinic
 min_length: 1.0
-max_length: 5.0
-min_angle: 30.0
+max_length: 350.0
+min_angle: 50.0
 max_angle: 150.0
 grid_size: 10
 max_increment: 1
