@@ -84,12 +84,14 @@ class CLatticeParameters(ContinuousCube):
         self._setup_constraints()
         super().__init__(n_dim=6, **kwargs)
 
+    # TODO: if source, keep as is
     def _statevalue2length(self, value):
         return self.min_length + value * self.length_range
 
     def _length2statevalue(self, length):
         return (length - self.min_length) / self.length_range
 
+    # TODO: if source, keep as is
     def _statevalue2angle(self, value):
         return self.min_angle + value * self.angle_range
 
