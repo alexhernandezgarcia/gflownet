@@ -753,7 +753,7 @@ class CCrystal(GFlowNetEnv):
         state = self._get_state(state)
         return self.statetorch2policy(
             torch.unsqueeze(tfloat(state, device=self.device, float_type=self.float), 0)
-        )
+        )[0]
 
     def statebatch2policy(
         self, states: List[List]
