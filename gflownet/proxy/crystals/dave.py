@@ -98,9 +98,27 @@ class DAVE(Proxy):
         self.scaled = True
 
     @torch.no_grad()
-    def __call__(self, states: TensorType["batch", "96"]) -> TensorType["batch"]:
+    def __call__(self, states: TensorType["batch", "102"]) -> TensorType["batch"]:
         """
         Forward pass of the proxy.
+
+        The proxy will decompose the state as:
+        * composition: ``states[:, :-7]`` -> length 95 (dummy 0 then 94 elements)
+        * space group: ``states[:, -7] - 1``
+        * lattice parameters: ``states[:, -6:]``
+
+        >>> composition MUST be a list of ATOMIC NUMBERS, prepended with a 0.
+        >>> dummy padding value at comp[0] MUST be 0.
+        ie -> comp[i] -> element Z=i
+        ie -> LiO2 -> [0, 0, 0, 1, 0, 0, 2, 0, ...] up until Z=94 for the MatBench proxy
+        ie -> len(comp) = 95 (0 then 94 elements)
+
+        >>> sg MUST be a list of ACTUAL space group numbers (1-230)
+
+        >>> lat_params MUST be a list of lattice parameters in the following order:
+        [a, b, c, alpha, beta, gamma] as floats.
+
+        >>> the states tensor MUST already be on the device.
 
         Args:
             states (torch.Tensor): States to infer on. Shape:
@@ -112,7 +130,7 @@ class DAVE(Proxy):
         self._set_scales()
 
         comp = states[:, :-7]
-        sg = states[:, -7] - 1
+        sg = states[:, -7]
         lat_params = states[:, -6:]
 
         if self.rescale_outputs:
