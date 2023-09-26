@@ -401,17 +401,21 @@ def code_dir_for_slurm_tmp_dir_checkout(git_checkout):
             sys.exit(0)
         GIT_WARNING = False
 
+    repo_url = ssh_to_https(repo.remotes.origin.url)
+    repo_name = repo_url.split("/")[-1].split(".git")[0]
+
     return dedent(
         """\
         $SLURM_TMPDIR
-        git clone {git_url} tpm-gflownet
-        cd tpm-gflownet
+        git clone {git_url} tmp-{repo_name}
+        cd tmp-{repo_name}
         {git_checkout}
         echo "Current commit: $(git rev-parse HEAD)"
     """
     ).format(
-        git_url=ssh_to_https(repo.remotes.origin.url),
+        git_url=repo_url,
         git_checkout=f"git checkout {git_checkout}" if git_checkout else "",
+        repo_name=repo_name,
     )
 
 
