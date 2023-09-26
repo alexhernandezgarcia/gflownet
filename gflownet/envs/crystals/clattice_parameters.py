@@ -298,7 +298,7 @@ class CLatticeParameters(ContinuousCube):
         """
         return states
 
-    def state2proxy(self, state: Optional[List[float]] = None) -> Tensor:
+    def state2oracle(self, state: Optional[List[float]] = None) -> Tensor:
         """
         Maps [0; 1] state values to edge lengths and angles.
         """
@@ -310,19 +310,19 @@ class CLatticeParameters(ContinuousCube):
             device=self.device,
         )
 
-    def statebatch2proxy(
+    def statebatch2oracle(
         self, states: List[List]
-    ) -> TensorType["batch", "state_proxy_dim"]:
+    ) -> TensorType["batch", "state_oracle_dim"]:
         """
         Maps [0; 1] state values to edge lengths and angles.
         """
-        return self.statetorch2proxy(
+        return self.statetorch2oracle(
             tfloat(states, device=self.device, float_type=self.float)
         )
 
-    def statetorch2proxy(
+    def statetorch2oracle(
         self, states: TensorType["batch", "state_dim"] = None
-    ) -> TensorType["batch", "proxy_input_dim"]:
+    ) -> TensorType["batch", "oracle_input_dim"]:
         """
         Maps [0; 1] state values to edge lengths and angles.
         """
@@ -334,24 +334,24 @@ class CLatticeParameters(ContinuousCube):
             dim=1,
         )
 
-    def state2oracle(self, state: Optional[List[int]] = None) -> Tensor:
+    def state2proxy(self, state: Optional[List[int]] = None) -> Tensor:
         """
-        Returns state2proxy(state).
+        Returns state2oracle(state).
         """
-        return self.state2proxy(state)
+        return self.state2oracle(state)
 
-    def statebatch2oracle(
+    def statebatch2proxy(
         self, states: List[List]
-    ) -> TensorType["batch", "state_proxy_dim"]:
+    ) -> TensorType["batch", "state_oracle_dim"]:
         """
-        Returns statebatch2proxy(states).
+        Returns statebatch2oracle(states).
         """
-        return self.statebatch2proxy(states)
+        return self.statebatch2oracle(states)
 
-    def statetorch2oracle(
+    def statetorch2proxy(
         self, states: TensorType["batch", "state_dim"]
-    ) -> TensorType["batch", "state_proxy_dim"]:
+    ) -> TensorType["batch", "state_oracle_dim"]:
         """
-        Returns statetorch2proxy(states).
+        Returns statetorch2oracle(states).
         """
-        return statetorch2proxy(states)
+        return self.statetorch2oracle(states)

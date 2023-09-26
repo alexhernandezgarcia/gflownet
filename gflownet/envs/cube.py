@@ -132,9 +132,9 @@ class CubeBase(GFlowNetEnv, ABC):
     def get_mask_invalid_actions_backward(self, state=None, done=None, parents_a=None):
         pass
 
-    def statetorch2proxy(
+    def statetorch2oracle(
         self, states: TensorType["batch", "state_dim"] = None
-    ) -> TensorType["batch", "proxy_input_dim"]:
+    ) -> TensorType["batch", "oracle_input_dim"]:
         """
         Clips the states into [0, 1] and maps them to [-1.0, 1.0]
 
@@ -145,9 +145,9 @@ class CubeBase(GFlowNetEnv, ABC):
         """
         return 2.0 * torch.clip(states, min=0.0, max=1.0) - 1.0
 
-    def statebatch2proxy(
+    def statebatch2oracle(
         self, states: List[List]
-    ) -> TensorType["batch", "state_proxy_dim"]:
+    ) -> TensorType["batch", "state_oracle_dim"]:
         """
         Clips the states into [0, 1] and maps them to [-1.0, 1.0]
 
@@ -156,11 +156,11 @@ class CubeBase(GFlowNetEnv, ABC):
         state : list
             State
         """
-        return self.statetorch2proxy(
+        return self.statetorch2oracle(
             tfloat(states, device=self.device, float_type=self.float)
         )
 
-    def state2proxy(self, state: List = None) -> List:
+    def state2oracle(self, state: List = None) -> List:
         """
         Clips the state into [0, 1] and maps it to [-1.0, 1.0]
         """
@@ -168,37 +168,37 @@ class CubeBase(GFlowNetEnv, ABC):
             state = self.state.copy()
         return [2.0 * min(max(0.0, s), 1.0) - 1.0 for s in state]
 
-    def statetorch2oracle(
+    def statetorch2proxy(
         self, states: TensorType["batch", "state_dim"] = None
     ) -> TensorType["batch", "oracle_input_dim"]:
         """
-        Returns statetorch2proxy(states), that is states mapped to [-1.0, 1.0].
+        Returns statetorch2oracle(states), that is states mapped to [-1.0, 1.0].
 
         Args
         ----
         state : list
             State
         """
-        return self.statetorch2proxy(states)
+        return self.statetorch2oracle(states)
 
-    def statebatch2oracle(
+    def statebatch2proxy(
         self, states: List[List]
     ) -> TensorType["batch", "state_oracle_dim"]:
         """
-        Returns statebatch2proxy(states), that is states mapped to [-1.0, 1.0].
+        Returns statebatch2oracle(states), that is states mapped to [-1.0, 1.0].
 
         Args
         ----
         state : list
             State
         """
-        return self.statebatch2proxy(states)
+        return self.statebatch2oracle(states)
 
-    def state2oracle(self, state: List = None) -> List:
+    def state2proxy(self, state: List = None) -> List:
         """
-        Returns state2proxy(state), that is the state mapped to [-1.0, 1.0].
+        Returns state2oracle(state), that is the state mapped to [-1.0, 1.0].
         """
-        return self.state2proxy(state)
+        return self.state2oracle(state)
 
     def statetorch2policy(
         self, states: TensorType["batch", "state_dim"] = None
