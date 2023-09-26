@@ -274,17 +274,17 @@ class CLatticeParameters(ContinuousCube):
 
     def state2policy(self, state: Optional[List[float]] = None) -> Tensor:
         """
-        Maps [0; 1] state values to edge lengths and angles.
+        Simply returns a torch tensor of the state as is, in the range [0, 1].
         """
         state = self._get_state(state)
-
-        return Tensor([self._get_param(state, p) for p in PARAMETER_NAMES])
+        return tfloat(state, float_type=self.float, device=self.device)
 
     def statebatch2policy(
         self, states: List[List]
     ) -> TensorType["batch", "state_proxy_dim"]:
         """
-        Maps [0; 1] state values to edge lengths and angles.
+        Simply returns a torch tensor of the states as are, in the range [0, 1], by
+        calling statetorch2policy.
         """
         return self.statetorch2policy(
             tfloat(states, device=self.device, float_type=self.float)
@@ -293,6 +293,36 @@ class CLatticeParameters(ContinuousCube):
     def statetorch2policy(
         self, states: TensorType["batch", "state_dim"] = None
     ) -> TensorType["batch", "policy_input_dim"]:
+        """
+        Simply returns the states as are, in the range [0, 1].
+        """
+        return states
+
+    def state2proxy(self, state: Optional[List[float]] = None) -> Tensor:
+        """
+        Maps [0; 1] state values to edge lengths and angles.
+        """
+        state = self._get_state(state)
+
+        return tfloat(
+            [self._get_param(state, p) for p in PARAMETER_NAMES],
+            float_type=self.float,
+            device=self.device,
+        )
+
+    def statebatch2proxy(
+        self, states: List[List]
+    ) -> TensorType["batch", "state_proxy_dim"]:
+        """
+        Maps [0; 1] state values to edge lengths and angles.
+        """
+        return self.statetorch2proxy(
+            tfloat(states, device=self.device, float_type=self.float)
+        )
+
+    def statetorch2proxy(
+        self, states: TensorType["batch", "state_dim"] = None
+    ) -> TensorType["batch", "proxy_input_dim"]:
         """
         Maps [0; 1] state values to edge lengths and angles.
         """
@@ -303,3 +333,25 @@ class CLatticeParameters(ContinuousCube):
             ],
             dim=1,
         )
+
+    def state2oracle(self, state: Optional[List[int]] = None) -> Tensor:
+        """
+        Returns state2proxy(state).
+        """
+        return self.state2proxy(state)
+
+    def statebatch2oracle(
+        self, states: List[List]
+    ) -> TensorType["batch", "state_proxy_dim"]:
+        """
+        Returns statebatch2proxy(states).
+        """
+        return self.statebatch2proxy(states)
+
+    def statetorch2oracle(
+        self, states: TensorType["batch", "state_dim"]
+    ) -> TensorType["batch", "state_proxy_dim"]:
+        """
+        Returns statetorch2proxy(states).
+        """
+        return statetorch2proxy(states)
