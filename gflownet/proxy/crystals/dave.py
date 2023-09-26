@@ -1,48 +1,17 @@
-import os
-import re
-import sys
 from copy import deepcopy
-from pathlib import Path
+from importlib.metadata import PackageNotFoundError, version
 
-import git
 import torch
 from torchtyping import TensorType
 
 from gflownet.proxy.base import Proxy
 
-# gflownet/ repo root
-ROOT = Path(__file__).resolve().parent.parent.parent.parent
-# where to clone / find the external code
-REPO_PATH = ROOT / "external" / "repos" / "ActiveLearningMaterials"
-# remote repo url to clone from
 REPO_URL = "https://github.com/sh-divya/ActiveLearningMaterials.git"
-
-
-def checkout_tag(tag):
-    """
-    Changes the proxy's repo state to the specified tag.
-
-    Args:
-        tag (str): Tag/release to checkout
-    """
-    repo = git.Repo(REPO_PATH)
-    major_revison = re.findall(r"v(\d+)", tag)[0]
-    if int(major_revison) < 2:
-        raise ValueError("Version is too old. Please use Dave v2.0.0 or later.")
-    if repo.git.describe("--tags") == tag:
-        return
-    for remote in repo.remotes:
-        remote.fetch()
-    if tag not in repo.tags:
-        raise ValueError(
-            f"Tag {tag} not found in repo {str(REPO_PATH)}. Available tags: {repo.tags}"
-            + "\nVerify the `release` config."
-        )
-    repo.git.checkout(repo.tags[tag].path)
-
-
-def resolve(path: str) -> Path:
-    return Path(os.path.expandvars(str(path))).expanduser().resolve()
+"""
+URL to the proxy's code repository. It is used to provide a link to the
+appropriate release link in case of version mismatch between requested
+and installed ``dave`` release.
+"""
 
 
 class DAVE(Proxy):
@@ -56,39 +25,51 @@ class DAVE(Proxy):
         * load the checkpoint from ``ckpt_path`` and build the proxy model
 
         The checkpoint path is resolved as follows:
-        * if ``ckpt_path`` is a dict, it is assumed to be a mapping from cluster
-            or $USER to path (e.g. {mila: /path/ckpt.ckpt, victor: /path/ckpt.ckpt})
+        * if ``ckpt_path`` is a dict, it is assumed to be a mapping from cluster or
+             ``$USER`` to path (e.g.
+             ``{mila: /path/ckpt.ckpt, victor: /path/ckpt.ckpt}``)
         * on the cluster, the path to the ckpt is public so everyone resolves to
-            "mila". For local dev you need to specify a path in dave.yaml that maps
-            to your local $USER.
-        * if the resulting path is a dir, it must contain exactly one .ckpt file
-        * if the resulting path is a file, it must be a .ckpt file
+            ``"mila"``. For local dev you need to specify a path in ``dave.yaml`` that
+            maps to your local ``$USER``.
+        * if the resulting path is a dir, it must contain exactly one ``.ckpt`` file
+        * if the resulting path is a file, it must be a ``.ckpt`` file
 
         Args:
             ckpt_path (dict, optional): Mapping from cluster / ``$USER`` to checkpoint.
-                Defaults to None.
-            release (str, optional): Tag to checkout in the DAVE repo. Defaults to None.
+                Defaults to ``None``.
+            release (str, optional): Tag to checkout in the DAVE repo.
+                Defaults to ``None``.
             rescale_outputs (bool, optional): Whether to rescale the proxy outputs
-                using its training mean and std. Defaults to True.
+                using its training mean and std. Defaults to ``True``.
         """
         super().__init__(**kwargs)
         self.rescale_outputs = rescale_outputs
         self.scaled = False
 
         print("Initializing DAVE proxy:")
-        print("  Fetching proxy Github code...")
-        if not REPO_PATH.exists():
-            # creatre $root/external/repos
-            REPO_PATH.parent.mkdir(exist_ok=True, parents=True)
-            # clone remote proxy code
-            git.Repo.clone_from(REPO_URL, str(REPO_PATH))
-        # at this point the repo must exist
-        assert REPO_PATH.exists()
-        # checkout the appropriate tag/release
-        checkout_tag(release)
+        print("  Checking out release:", release)
 
-        # import the proxu build funcion
-        sys.path.append(str(REPO_PATH))
+        pip_url = f"${REPO_URL}@{release}"
+
+        try:
+            dave_version = version("dave")
+        except PackageNotFoundError:
+            print("  💥 `dave` cannot be imported.")
+            print("    Install with:")
+            print(f"    $ pip install git+{pip_url}\n")
+
+            raise PackageNotFoundError("DAVE not found")
+
+        if dave_version != release:
+            print("  💥 `dave` version mismatch: ")
+            print(f"    current ({dave_version}) != requested ({release})")
+            print("    Install the requested version with:")
+            print(f"    $ pip install --upgrade git+{pip_url}\n")
+            raise ImportError("Wrong DAVE version")
+
+        print("  Found version:", dave_version)
+        print("  Loading model weights...")
+
         from dave import prepare_for_gfn
 
         self.model, self.proxy_loaders, self.scales = prepare_for_gfn(
@@ -98,6 +79,9 @@ class DAVE(Proxy):
         self.model.to(self.device)
 
     def _set_scales(self):
+        """
+        Sets the scales to the device and converts them to float if needed.
+        """
         if self.scaled:
             return
         if self.rescale_outputs:
@@ -115,6 +99,16 @@ class DAVE(Proxy):
 
     @torch.no_grad()
     def __call__(self, states: TensorType["batch", "96"]) -> TensorType["batch"]:
+        """
+        Forward pass of the proxy.
+
+        Args:
+            states (torch.Tensor): States to infer on. Shape:
+                ``(batch, [6 + 1 + n_elements])``.
+
+        Returns:
+            torch.Tensor: Proxy energies. Shape: ``(batch,)``.
+        """
         self._set_scales()
 
         comp = states[:, :-7]
@@ -148,11 +142,8 @@ class DAVE(Proxy):
         Infer on the training set and return the ground-truth and proxy values.
 
         Returns:
-        --------
-        energy: torch.Tensor
-            Ground-truth energies in the proxy's training set.
-        proxy: torch.Tensor
-            Proxy inference on its training set.
+            tuple: ``(energy, proxy)`` representing 1/ ground-truth energies and 2/
+                proxy inference on the proxy's training set.
         """
         rso = deepcopy(self.rescale_outputs)
         self.rescale_outputs = False
