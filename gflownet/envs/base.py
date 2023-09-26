@@ -695,7 +695,8 @@ class GFlowNetEnv:
 
         Continuous environments will generally have to overwrite this method.
         """
-        return torch.ones(self.action_space_dim, dtype=self.float, device=self.device)
+        # TODO: return torch but beware that it causes some unexpected weird erros.
+        return np.ones(self.action_space_dim)
 
     def state2proxy(self, state: List = None):
         """
