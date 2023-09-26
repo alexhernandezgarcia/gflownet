@@ -106,6 +106,82 @@ def test__pad_depad_action(env):
 
 
 @pytest.mark.parametrize(
+    "states",
+    [
+        [
+            [0, 0, 0, 0, 0, 0, 0, 0, -1, -1, -1, -1, -1, -1],
+            [0, 0, 4, 0, 0, 0, 0, 0, -1, -1, -1, -1, -1, -1],
+            [1, 3, 1, 0, 6, 0, 0, 0, -1, -1, -1, -1, -1, -1],
+            [2, 1, 0, 4, 0, 4, 3, 105, 0.12, 0.23, 0.34, 0.45, 0.56, 0.67],
+            [1, 3, 1, 0, 6, 1, 0, 0, -1, -1, -1, -1, -1, -1],
+            [1, 3, 1, 0, 6, 1, 1, 0, -1, -1, -1, -1, -1, -1],
+            [0, 3, 0, 0, 0, 0, 0, 0, -1, -1, -1, -1, -1, -1],
+            [0, 3, 0, 0, 6, 0, 0, 0, -1, -1, -1, -1, -1, -1],
+            [1, 3, 1, 0, 6, 1, 2, 0, -1, -1, -1, -1, -1, -1],
+            [0, 3, 1, 0, 6, 0, 0, 0, -1, -1, -1, -1, -1, -1],
+            [2, 1, 0, 4, 0, 4, 3, 105, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6],
+            [2, 1, 0, 4, 0, 4, 3, 105, 0.76, 0.75, 0.74, 0.73, 0.72, 0.71],
+            [0, 0, 4, 3, 0, 0, 0, 0, -1, -1, -1, -1, -1, -1],
+        ],
+    ],
+)
+def test__statetorch2policy__is_concatenation_of_subenv_states(env, states):
+    # Get policy states from the batch of states converted into each subenv
+    states_dict = {stage: [] for stage in env.subenvs}
+    for state in states:
+        for stage in env.subenvs:
+            states_dict[stage].append(env._get_state_of_subenv(state, stage))
+    states_policy_dict = {
+        stage: subenv.statebatch2policy(states_dict[stage])
+        for stage, subenv in env.subenvs.items()
+    }
+    states_policy_expected = torch.cat(
+        [el for el in states_policy_dict.values()], dim=1
+    )
+    # Get policy states from env.statetorch2policy
+    states_torch = tfloat(states, float_type=env.float, device=env.device)
+    states_policy = env.statetorch2policy(states_torch)
+    assert torch.all(torch.eq(states_policy, states_policy_expected))
+
+
+@pytest.mark.parametrize(
+    "states",
+    [
+        [
+            [0, 0, 0, 0, 0, 0, 0, 0, -1, -1, -1, -1, -1, -1],
+            [0, 0, 4, 0, 0, 0, 0, 0, -1, -1, -1, -1, -1, -1],
+            [1, 3, 1, 0, 6, 0, 0, 0, -1, -1, -1, -1, -1, -1],
+            [2, 1, 0, 4, 0, 4, 3, 105, 0.12, 0.23, 0.34, 0.45, 0.56, 0.67],
+            [1, 3, 1, 0, 6, 1, 0, 0, -1, -1, -1, -1, -1, -1],
+            [1, 3, 1, 0, 6, 1, 1, 0, -1, -1, -1, -1, -1, -1],
+            [0, 3, 0, 0, 0, 0, 0, 0, -1, -1, -1, -1, -1, -1],
+            [0, 3, 0, 0, 6, 0, 0, 0, -1, -1, -1, -1, -1, -1],
+            [1, 3, 1, 0, 6, 1, 2, 0, -1, -1, -1, -1, -1, -1],
+            [0, 3, 1, 0, 6, 0, 0, 0, -1, -1, -1, -1, -1, -1],
+            [2, 1, 0, 4, 0, 4, 3, 105, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6],
+            [2, 1, 0, 4, 0, 4, 3, 105, 0.76, 0.75, 0.74, 0.73, 0.72, 0.71],
+            [0, 0, 4, 3, 0, 0, 0, 0, -1, -1, -1, -1, -1, -1],
+        ],
+    ],
+)
+def test__statetorch2proxy__is_concatenation_of_subenv_states(env, states):
+    # Get proxy states from the batch of states converted into each subenv
+    states_dict = {stage: [] for stage in env.subenvs}
+    for state in states:
+        for stage in env.subenvs:
+            states_dict[stage].append(env._get_state_of_subenv(state, stage))
+    states_proxy_dict = {
+        stage: subenv.statebatch2proxy(states_dict[stage])
+        for stage, subenv in env.subenvs.items()
+    }
+    states_proxy_expected = torch.cat([el for el in states_proxy_dict.values()], dim=1)
+    # Get proxy states from env.statetorch2proxy
+    states_torch = tfloat(states, float_type=env.float, device=env.device)
+    states_proxy = env.statetorch2proxy(states_torch)
+    assert torch.all(torch.eq(states_proxy, states_proxy_expected))
+
+
+@pytest.mark.parametrize(
     "state, state_composition, state_space_group, state_lattice_parameters",
     [
         [
@@ -339,64 +415,6 @@ def test__get_mask_invald_actions_backward__returns_expected_stage_transition(
                 assert env._get_state_of_subenv(state, stg) == subenv.source
         mask_subenv = env._get_mask_of_subenv(mask, stg)
         assert mask_subenv == mask_subenv_expected
-
-
-@pytest.mark.skip(reason="skip until updated")
-@pytest.mark.parametrize(
-    "state, expected",
-    [
-        [
-            (2, 1, 1, 1, 1, 1, 2, 3, 1, 2, 3, 4, 5, 6),
-            Tensor([1.0, 1.0, 1.0, 1.0, 3.0, 1.4, 1.8, 2.2, 78.0, 90.0, 102.0]),
-        ],
-        [
-            (2, 4, 9, 0, 3, 0, 0, 105, 5, 3, 1, 0, 0, 9),
-            Tensor([4.0, 9.0, 0.0, 3.0, 105.0, 3.0, 2.2, 1.4, 30.0, 30.0, 138.0]),
-        ],
-    ],
-)
-def test__state2oracle__returns_expected_value(env, state, expected):
-    assert torch.allclose(env.state2oracle(state), expected, atol=1e-4)
-
-
-@pytest.mark.skip(reason="skip until updated")
-@pytest.mark.parametrize(
-    "state, expected",
-    [
-        [
-            (2, 1, 1, 1, 1, 1, 2, 3, 1, 2, 3, 4, 5, 6),
-            Tensor([1.0, 1.0, 1.0, 1.0, 3.0, 1.4, 1.8, 2.2, 78.0, 90.0, 102.0]),
-        ],
-        [
-            (2, 4, 9, 0, 3, 0, 0, 105, 5, 3, 1, 0, 0, 9),
-            Tensor([4.0, 9.0, 0.0, 3.0, 105.0, 3.0, 2.2, 1.4, 30.0, 30.0, 138.0]),
-        ],
-    ],
-)
-def test__state2proxy__returns_expected_value(env, state, expected):
-    assert torch.allclose(env.state2proxy(state), expected, atol=1e-4)
-
-
-@pytest.mark.skip(reason="skip until updated")
-@pytest.mark.parametrize(
-    "batch, expected",
-    [
-        [
-            [
-                (2, 1, 1, 1, 1, 1, 2, 3, 1, 2, 3, 4, 5, 6),
-                (2, 4, 9, 0, 3, 0, 0, 105, 5, 3, 1, 0, 0, 9),
-            ],
-            Tensor(
-                [
-                    [1.0, 1.0, 1.0, 1.0, 3.0, 1.4, 1.8, 2.2, 78.0, 90.0, 102.0],
-                    [4.0, 9.0, 0.0, 3.0, 105.0, 3.0, 2.2, 1.4, 30.0, 30.0, 138.0],
-                ]
-            ),
-        ],
-    ],
-)
-def test__statebatch2proxy__returns_expected_value(env, batch, expected):
-    assert torch.allclose(env.statebatch2proxy(batch), expected, atol=1e-4)
 
 
 @pytest.mark.parametrize(
@@ -801,7 +819,6 @@ def test__get_mask_invalid_actions_forward__masks_all_actions_from_different_sta
         )
 
 
-@pytest.mark.skip(reason="skip while developping other tests")
 def test__get_policy_outputs__is_the_concatenation_of_subenvs(env):
     policy_output_composition = env.subenvs[Stage.COMPOSITION].get_policy_output(
         env.subenvs[Stage.COMPOSITION].fixed_distr_params
