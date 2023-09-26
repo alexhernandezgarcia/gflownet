@@ -1,11 +1,9 @@
 import common
 import pytest
-import torch
 
 from gflownet.envs.crystals.clattice_parameters import (
     CUBIC,
     HEXAGONAL,
-    LATTICE_SYSTEMS,
     MONOCLINIC,
     ORTHORHOMBIC,
     PARAMETER_NAMES,
@@ -14,6 +12,7 @@ from gflownet.envs.crystals.clattice_parameters import (
     TRICLINIC,
     CLatticeParameters,
 )
+from gflownet.envs.crystals.lattice_parameters import LATTICE_SYSTEMS
 
 N_REPETITIONS = 1000
 
