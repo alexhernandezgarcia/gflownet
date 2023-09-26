@@ -473,7 +473,7 @@ class GFlowNetEnv:
         if sampling_method == "uniform":
             logits = torch.ones(policy_outputs.shape, dtype=self.float, device=device)
         elif sampling_method == "policy":
-            logits = policy_outputs
+            logits = policy_outputs.clone().detach()
             logits /= temperature_logits
         else:
             raise NotImplementedError(
@@ -546,7 +546,7 @@ class GFlowNetEnv:
         """
         device = policy_outputs.device
         ns_range = torch.arange(policy_outputs.shape[0]).to(device)
-        logits = policy_outputs
+        logits = policy_outputs.clone().detach()
         if mask is not None:
             logits[mask] = -torch.inf
         action_indices = (
@@ -695,8 +695,7 @@ class GFlowNetEnv:
 
         Continuous environments will generally have to overwrite this method.
         """
-        # TODO: return torch but beware that it causes some unexpected weird erros.
-        return np.ones(self.action_space_dim)
+        return torch.ones(self.action_space_dim, dtype=self.float, device=self.device)
 
     def state2proxy(self, state: List = None):
         """

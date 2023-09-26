@@ -158,10 +158,7 @@ def test__sample_actions__backward__returns_eos_if_done(env, n=5):
         env.set_state(state, done=True)
         masks.append(env.get_mask_invalid_actions_backward())
     # Build random policy outputs and tensor masks
-    policy_outputs = torch.tile(
-        tfloat(env.random_policy_output, float_type=env.float, device=env.device),
-        (len(states), 1),
-    )
+    policy_outputs = torch.tile(env.random_policy_output, (len(states), 1))
     # Add noise to policy outputs
     policy_outputs += torch.randn(policy_outputs.shape)
     masks = tbool(masks, device=env.device)
@@ -188,10 +185,7 @@ def test__get_logprobs__backward__returns_zero_if_done(env, n=5):
         (len(states), 1),
     )
     # Build random policy outputs and tensor masks
-    policy_outputs = torch.tile(
-        tfloat(env.random_policy_output, float_type=env.float, device=env.device),
-        (len(states), 1),
-    )
+    policy_outputs = torch.tile(env.random_policy_output, (len(states), 1))
     # Add noise to policy outputs
     policy_outputs += torch.randn(policy_outputs.shape)
     masks = tbool(masks, device=env.device)
@@ -306,7 +300,7 @@ def test__gflownet_minimal_runs(env):
 def test__sample_actions__get_logprobs__return_valid_actions_and_logprobs(env):
     env = env.reset()
     while not env.done:
-        policy_outputs = torch.unsqueeze(torch.tensor(env.random_policy_output), 0)
+        policy_outputs = torch.unsqueeze(env.random_policy_output, 0)
         mask_invalid = env.get_mask_invalid_actions_forward()
         valid_actions = [a for a, m in zip(env.action_space, mask_invalid) if not m]
         masks_invalid_torch = torch.unsqueeze(torch.BoolTensor(mask_invalid), 0)
@@ -330,9 +324,7 @@ def test__sample_actions__get_logprobs__return_valid_actions_and_logprobs(env):
 @pytest.mark.repeat(1000)
 def test__forward_actions_have_nonzero_backward_prob(env):
     env = env.reset()
-    policy_random = torch.unsqueeze(
-        tfloat(env.random_policy_output, float_type=env.float, device=env.device), 0
-    )
+    policy_random = torch.unsqueeze(env.random_policy_output, 0)
     while not env.done:
         state_next, action, valid = env.step_random(backward=False)
         if not valid:
@@ -405,9 +397,7 @@ def test__backward_actions_have_nonzero_forward_prob(env, n=1000):
     if states is None:
         warnings.warn("Skipping test because states are None.")
         return
-    policy_random = torch.unsqueeze(
-        tfloat(env.random_policy_output, float_type=env.float, device=env.device), 0
-    )
+    policy_random = torch.unsqueeze(env.random_policy_output, 0)
     for state in states:
         env.set_state(state, done=True)
         while True:
