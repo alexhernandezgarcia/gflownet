@@ -112,7 +112,7 @@ class DAVE(Proxy):
         self._set_scales()
 
         comp = states[:, :-7]
-        sg = states[:, -7] - 1
+        sg = states[:, -7]
         lat_params = states[:, -6:]
 
         n_env = comp.shape[-1]
