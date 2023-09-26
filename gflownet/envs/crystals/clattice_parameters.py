@@ -3,6 +3,7 @@ Classes to represent continuous lattice parameters environments.
 """
 from typing import List, Optional, Tuple
 
+import torch
 from torch import Tensor
 from torchtyping import TensorType
 
@@ -99,13 +100,9 @@ class CLatticeParameters(ContinuousCube):
             return getattr(self, param)
         else:
             if param in LENGTH_PARAMETER_NAMES:
-                return self._statevalue2length(
-                    state[self._get_index_of_param(param)]
-                )
+                return self._statevalue2length(state[self._get_index_of_param(param)])
             elif param in ANGLE_PARAMETER_NAMES:
-                return self._statevalue2angle(
-                    state[self._get_index_of_param(param)]
-                )
+                return self._statevalue2angle(state[self._get_index_of_param(param)])
             else:
                 raise ValueError(f"{param} is not a valid lattice parameter")
 
@@ -237,7 +234,9 @@ class CLatticeParameters(ContinuousCube):
         """
         state = self._get_state(state)
 
-        a, b, c, alpha, beta, gamma = [self._get_param(state, p) for p in PARAMETER_NAMES]
+        a, b, c, alpha, beta, gamma = [
+            self._get_param(state, p) for p in PARAMETER_NAMES
+        ]
         return (a, b, c), (alpha, beta, gamma)
 
     def state2readable(self, state: Optional[List[int]] = None) -> str:
@@ -265,60 +264,34 @@ class CLatticeParameters(ContinuousCube):
             state = self._set_param(state, param, value)
         return state
 
-    def statebatch2proxy(
+    def state2policy(self, state: Optional[List[float]] = None) -> Tensor:
+        """
+        Maps [0; 1] state values to edge lengths and angles.
+        """
+        state = self._get_state(state)
+
+        return Tensor([self._get_param(state, p) for p in PARAMETER_NAMES])
+
+    def statebatch2policy(
         self, states: List[List]
     ) -> TensorType["batch", "state_proxy_dim"]:
         """
-        Prepares a batch of states in "GFlowNet format" for the proxy: a tensor where
-        lengths and angles are converted into the target units (angstroms and degrees,
-        respectively).
+        Maps [0; 1] state values to edge lengths and angles.
         """
-        return self.statetorch2proxy(
-            tfloat(states, float_type=self.float, device=self.device)
+        return self.statetorch2policy(
+            tfloat(states, device=self.device, float_type=self.float)
         )
 
-    def state2oracle(self, state: Optional[List[int]] = None) -> Tensor:
+    def statetorch2policy(
+        self, states: TensorType["batch", "state_dim"] = None
+    ) -> TensorType["batch", "policy_input_dim"]:
         """
-        Prepares a list of states in "GFlowNet format" for the oracle.
-
-        Args
-        ----
-        state : list
-            A state.
-
-        Returns
-        ----
-        oracle_state : Tensor
-            Tensor containing lengths and angles converted from the Grid format.
-        """
-        if state is None:
-            state = self.state.copy()
-
-        return Tensor(
-            [self.cell2length[s] for s in state[:3]]
-            + [self.cell2angle[s] for s in state[3:]]
-        )
-
-    def statetorch2oracle(
-        self, states: TensorType["batch", "state_dim"]
-    ) -> TensorType["batch", "state_oracle_dim"]:
-        """
-        Prepares a batch of states in "GFlowNet format" for the oracle. The input to the
-        oracle is the lengths and angles.
-
-        Args
-        ----
-        states : Tensor
-            A state
-
-        Returns
-        ----
-        oracle_states : Tensor
+        Maps [0; 1] state values to edge lengths and angles.
         """
         return torch.cat(
             [
-                self.lengths_tensor[states[:, :3].long()],
-                self.angles_tensor[states[:, 3:].long()],
+                self._statevalue2length(states[:, :3]),
+                self._statevalue2angle(states[:, 3:]),
             ],
             dim=1,
         )
