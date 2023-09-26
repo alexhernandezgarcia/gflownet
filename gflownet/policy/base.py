@@ -6,14 +6,10 @@ from gflownet.utils.common import set_device, set_float_precision
 
 
 class Policy:
-    def __init__(
-        self, config, env, device, float_precision, base=None, checkpoint=None
-    ):
+    def __init__(self, config, env, device, float_precision, base=None):
         # Device and float precision
         self.device = set_device(device)
         self.float = set_float_precision(float_precision)
-        # Checkpoint
-        self.checkpoint = checkpoint
         # Input and output dimensions
         self.state_dim = env.policy_input_dim
         self.fixed_output = env.fixed_policy_output
@@ -30,6 +26,10 @@ class Policy:
         if config is None:
             config = OmegaConf.create()
             config.type = "uniform"
+        if "checkpoint" in config:
+            self.checkpoint = config.checkpoint
+        else:
+            self.checkpoint = None
         if "shared_weights" in config:
             self.shared_weights = config.shared_weights
         else:
