@@ -663,6 +663,10 @@ class Composition(GFlowNetEnv):
             return False
         # Check required elements
         used_elements = [self.idx2elem[idx] for idx, n in enumerate(x) if n > 0]
+        if len(used_elements) < self.min_diff_elem:
+            return False
+        if len(used_elements) > self.max_diff_elem:
+            return False
         if any(r not in used_elements for r in self.required_elements):
             return False
 
