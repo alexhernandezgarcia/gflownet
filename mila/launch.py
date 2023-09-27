@@ -257,9 +257,22 @@ def find_jobs_conf(args):
         if len(yamls) > 1:
             print(">>> Warning: found multiple matches:\n  •" + "\n  •".join(yamls))
         jobs_conf_path = Path(yamls[0])
-        local_out_dir = local_out_dir / jobs_conf_path.parent.relative_to(
-            ROOT / "external" / "jobs"
+        local_out_dir = (
+            local_out_dir
+            / jobs_conf_path.parent.relative_to(ROOT / "external" / "jobs")
+            / jobs_conf_path.stem
         )
+        if local_out_dir.exists():
+            max_local_id = max(
+                [
+                    int(d.name)
+                    for d in local_out_dir.parent.glob(f"{local_out_dir.name}/*")
+                ]
+                + [0]
+            )
+            new_id = max_local_id + 1
+            local_out_dir = local_out_dir / str(new_id)
+
     print("🗂  Using jobs file: ./" + str(jobs_conf_path.relative_to(Path.cwd())))
     print()
     return jobs_conf_path, local_out_dir
