@@ -1,16 +1,12 @@
 _target_: gflownet.policy.conformers.egnn.EGNNPolicy
 
-forward:
+shared:
   n_gnn_layers: 7
-  n_node_mlp_layers: 2
-  n_pool_mlp_layers: 2
+  n_mlp_layers: 2
   egnn_hidden_dim: 128
-  node_mlp_hidden_dim: 128
-  pool_mlp_hidden_dim: 128
-backward:
-  n_gnn_layers: 7
-  n_node_mlp_layers: 2
-  n_pool_mlp_layers: 2
-  egnn_hidden_dim: 128
-  node_mlp_hidden_dim: 128
-  pool_mlp_hidden_dim: 128
+  mlp_hidden_dim: 256
+  separate_mlp_per_torsion: True
+  use_fake_edges: True
+  fake_edge_radius: 2.0
+forward: null
+backward: null

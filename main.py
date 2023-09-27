@@ -96,6 +96,11 @@ def main(config):
         df.to_csv("gfn_samples.csv")
         dct = {"x": x_sampled, "energy": energies}
         pickle.dump(dct, open("gfn_samples.pkl", "wb"))
+        # TODO: refactor before merging
+        dct["conformer"] = [env.set_conformer(state).rdk_mol for state in x_sampled]
+        pickle.dump(
+            dct, open(f"conformers_{env.smiles}_{type(env.proxy).__name__}.pkl", "wb")
+        )
 
     # Print replay buffer
     if len(gflownet.buffer.replay) > 0:
