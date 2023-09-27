@@ -144,6 +144,22 @@ HELP = dedent(
 )
 
 
+def maybe_int(s):
+    """
+    Tries to convert a string to an int, returns -1 if it fails.
+
+    Args:
+        s (str): string to convert
+
+    Returns:
+        int: converted string or -1 if it fails
+    """
+    try:
+        return int(s)
+    except ValueError:
+        return -1
+
+
 def resolve(path):
     """
     Resolves a path with environment variables and user expansion.
@@ -265,7 +281,7 @@ def find_jobs_conf(args):
         if local_out_dir.exists():
             max_local_id = max(
                 [
-                    int(d.name)
+                    maybe_int(d.name)
                     for d in local_out_dir.parent.glob(f"{local_out_dir.name}/*")
                 ]
                 + [0]
