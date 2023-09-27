@@ -717,6 +717,7 @@ class GFlowNetAgent:
             The logarithm of the average ratio PF/PB over n trajectories sampled for
             each data point.
         """
+        print("Compute logprobs...", flush=True)
         batch = Batch(env=self.env, device=self.device, float_type=self.float)
         times = {}
         # Determine terminating states
@@ -737,7 +738,7 @@ class GFlowNetAgent:
         # Create an environment for each data point and trajectory and set the state
         envs = []
         mult_indices = max(n_states, n_trajectories)
-        for state_idx, x in enumerate(states_term):
+        for state_idx, x in tqdm(enumerate(states_term)):
             for traj_idx in range(n_trajectories):
                 idx = int(mult_indices * state_idx + traj_idx)
                 env = self.env.copy().reset(idx)
@@ -745,6 +746,10 @@ class GFlowNetAgent:
                 envs.append(env)
         # Sample trajectories
         max_iters = n_trajectories * max_iters_per_traj
+        print(
+            "Sampling backward actions from test data to estimate logprobs...",
+            flush=True,
+        )
         while envs:
             # Sample backward actions
             actions = self.sample_actions(
@@ -761,6 +766,7 @@ class GFlowNetAgent:
             # Filter out finished trajectories
             envs = [env for env in envs if not env.equal(env.state, env.source)]
         # Prepare data structures to compute log probabilities
+        print("Done sampling backwards", flush=True)
         traj_indices_batch = tlong(
             batch.get_unique_trajectory_indices(), device=self.device
         )
@@ -789,6 +795,7 @@ class GFlowNetAgent:
         logprobs_estimates = torch.logsumexp(
             logprobs_f - logprobs_b, dim=1
         ) - torch.log(torch.tensor(n_trajectories, device=self.device))
+        print("Done computing logprobs", flush=True)
         return logprobs_estimates
 
     def train(self):
@@ -990,11 +997,12 @@ class GFlowNetAgent:
         ).item()
         nll_tt = -logprobs_x_tt.mean().item()
 
-        batch, _ = self.sample_batch(n_forward=self.logger.test.n, train=False)
-        assert batch.is_valid()
-        x_sampled = batch.get_terminating_states()
-
+        x_sampled = []
         if self.buffer.test_type is not None and self.buffer.test_type == "all":
+            batch, _ = self.sample_batch(n_forward=self.logger.test.n, train=False)
+            assert batch.is_valid()
+            x_sampled = batch.get_terminating_states()
+
             if "density_true" in dict_tt:
                 density_true = dict_tt["density_true"]
             else:
@@ -1012,6 +1020,9 @@ class GFlowNetAgent:
             log_density_true = np.log(density_true + 1e-8)
             log_density_pred = np.log(density_pred + 1e-8)
         elif self.continuous and hasattr(self.env, "fit_kde"):
+            batch, _ = self.sample_batch(n_forward=self.logger.test.n, train=False)
+            assert batch.is_valid()
+            x_sampled = batch.get_terminating_states()
             # TODO make it work with conditional env
             x_sampled = torch2np(self.env.statebatch2proxy(x_sampled))
             x_tt = torch2np(self.env.statebatch2proxy(x_tt))
