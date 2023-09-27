@@ -661,7 +661,8 @@ if __name__ == "__main__":
             parts = sbatch_path.stem.split(f"_{now}")
             new_name = f"{parts[0]}_{job_id}_{now}"
             if len(parts) > 1:
-                new_name += f"_{parts[1]}"
+                new_name += f"{parts[1]}"
+            new_name += ".sh"
             sbatch_path = sbatch_path.rename(sbatch_path.parent / new_name)
             print(f"  🏷  Created ./{sbatch_path.relative_to(Path.cwd())}")
             # Write job ID & output file path in the sbatch file
