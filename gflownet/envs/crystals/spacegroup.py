@@ -13,6 +13,7 @@ from torch import Tensor
 from torchtyping import TensorType
 
 from gflownet.envs.base import GFlowNetEnv
+from gflownet.utils.crystals.pyxtal_cache import space_group_check_compatible
 
 CRYSTAL_LATTICE_SYSTEMS = None
 POINT_SYMMETRIES = None
@@ -656,7 +657,7 @@ class SpaceGroup(GFlowNetEnv):
             return {sg: True for sg in space_groups}
         assert all([n > 0 for n in n_atoms])
         assert all([sg > 0 and sg <= 230 for sg in space_groups])
-        return {sg: Group(sg).check_compatible(n_atoms)[0] for sg in space_groups}
+        return {sg: space_group_check_compatible(sg, n_atoms) for sg in space_groups}
 
     def get_all_terminating_states(
         self, apply_stoichiometry_constraints: Optional[bool] = True
