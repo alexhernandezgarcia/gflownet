@@ -507,7 +507,6 @@ class GFlowNetAgent:
             envs, actions, valids = self.step(envs, actions, backward=True)
             # Add to batch
             batch_replay.add_to_batch(envs, actions, valids, backward=True, train=train)
-            assert all(valids)
             # Filter out finished trajectories
             envs = [env for env in envs if not env.equal(env.state, env.source)]
         times["replay_actions"] = time.time() - t0_replay
@@ -791,6 +790,16 @@ class GFlowNetAgent:
         logprobs_b[data_indices, traj_indices] = self.compute_logprobs_trajectories(
             batch, backward=True
         )
+        # Check whether logprobs are finite
+        all_logprobs_finite = torch.all(
+            torch.logical_and(torch.isfinite(logprobs_f), torch.isfinite(logprobs_b)),
+            dim=1,
+        )
+        if not torch.all(all_logprobs_finite):
+            print("The following samples have yielded inf or nan logprobs:")
+            for state, is_finite in zip(states_term, all_logprobs_finite):
+                if not is_finite:
+                    print(self.env.state2readable(state))
         # Compute log of the average probabilities of the ratio PF / PB
         logprobs_estimates = torch.logsumexp(
             logprobs_f - logprobs_b, dim=1

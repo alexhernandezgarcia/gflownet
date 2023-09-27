@@ -217,8 +217,8 @@ class Buffer:
                         f", but only {n_samples_new} are valid according to the "
                         "environment settings. Invalid samples have been discarded."
                     )
-                samples = samples[:20]
-                print("We are currently selecting only 20 samples")
+                samples = samples[:25]
+                print("We are currently selecting only 25 samples")
                 print("Remember to write a function to normalise the data in code")
                 print("Max number of elements in data set has to match config")
                 print("Actually, write a function that contrasts the stats")
