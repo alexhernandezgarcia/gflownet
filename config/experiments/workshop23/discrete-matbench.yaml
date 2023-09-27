@@ -36,18 +36,19 @@ gflownet:
     n_train_steps: 10000
     lr_decay_period: 1000000
   replay_sampling: weighted
-  policy:
-    forward:
-      type: mlp
-      n_hid: 512
-      n_layers: 5
-      checkpoint: forward
-    backward:
-      type: mlp
-      n_hid: 512
-      n_layers: 5
-      shared_weights: False
-      checkpoint: backward
+
+policy:
+  forward:
+    type: mlp
+    n_hid: 512
+    n_layers: 5
+    checkpoint: forward
+  backward:
+    type: mlp
+    n_hid: 512
+    n_layers: 5
+    shared_weights: False
+    checkpoint: backward
 
 # WandB
 logger:
