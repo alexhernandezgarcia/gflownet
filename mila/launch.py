@@ -7,8 +7,8 @@ from os import popen
 from os.path import expandvars
 from pathlib import Path
 from textwrap import dedent
-from git import Repo
 
+from git import Repo
 from yaml import safe_load
 
 ROOT = Path(__file__).resolve().parent.parent
