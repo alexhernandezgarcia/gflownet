@@ -357,3 +357,18 @@ class CLatticeParameters(ContinuousCube):
         Returns statetorch2oracle(states).
         """
         return self.statetorch2oracle(states)
+
+    def is_valid(self, x: List) -> bool:
+        """
+        Determines whether a state is valid, according to the attributes of the
+        environment.
+        """
+        lengths, angles = self._unpack_lengths_angles(x)
+        # Check lengths
+        if any([l < self.min_length or l > self.max_length for l in lengths]):
+            return False
+        if any([l < self.min_angle or l > self.max_angle for l in angles]):
+            return False
+
+        # If all checks are passed, return True
+        return True

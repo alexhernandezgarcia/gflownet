@@ -887,6 +887,19 @@ class CCrystal(GFlowNetEnv):
             f"LatticeParameters = {readables[2]}"
         )
 
+    def process_data_set(self, data: List[List]) -> List[List]:
+        is_valid_list = []
+        for x in data:
+            is_valid_list.append(
+                all(
+                    [
+                        subenv.is_valid(self._get_state_of_subenv(x, stage))
+                        for stage, subenv in self.subenvs.items()
+                    ]
+                )
+            )
+        return [x for x, is_valid in zip(data, is_valid_list) if is_valid]
+
     # TODO: redo
 
 

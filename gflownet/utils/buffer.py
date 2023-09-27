@@ -208,6 +208,20 @@ class Buffer:
             with open(config.path, "rb") as f:
                 data_dict = pickle.load(f)
                 samples = data_dict["x"]
+                n_samples_orig = len(samples)
+                print(f"The data set containts {n_samples_orig} samples", end="")
+                samples = self.env.process_data_set(samples)
+                n_samples_new = len(samples)
+                if n_samples_new != n_samples_orig:
+                    print(
+                        f", but only {n_samples_new} are valid according to the "
+                        "environment settings. Invalid samples have been discarded."
+                    )
+                samples = samples[:20]
+                print("We are currently selecting only 20 samples")
+                print("Remember to write a function to normalise the data in code")
+                print("Max number of elements in data set has to match config")
+                print("Actually, write a function that contrasts the stats")
         elif config.type == "csv" and "path" in config:
             print(f"from CSV: {config.path}\n")
             df = pd.read_csv(config.path, index_col=0)

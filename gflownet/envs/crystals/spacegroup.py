@@ -770,3 +770,12 @@ class SpaceGroup(GFlowNetEnv):
                 continue
             all_x.append(self._set_constrained_properties([0, 0, sg]))
         return all_x
+
+    def is_valid(self, x: List) -> bool:
+        """
+        Determines whether a state is valid, according to the attributes of the
+        environment.
+        """
+        if x[self.sg_idx] in self.space_groups:
+            return True
+        return False

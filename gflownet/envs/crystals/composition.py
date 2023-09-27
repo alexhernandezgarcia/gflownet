@@ -641,3 +641,30 @@ class Composition(GFlowNetEnv):
         ]
 
         return any(poss_charge_sum)
+
+    def is_valid(self, x: List) -> bool:
+        """
+        Determines whether a state is valid, according to the attributes of the
+        environment.
+        """
+        # Check length is equal to number of elements
+        if len(x) != len(self.elements):
+            return False
+        # Check total number of atoms
+        n_atoms = sum(x)
+        if n_atoms < self.min_atoms:
+            return False
+        if n_atoms > self.max_atoms:
+            return False
+        # Check number element
+        if any([n < self.min_atom_i for n in x if n > 0]):
+            return False
+        if any([n > self.max_atom_i for n in x if n > 0]):
+            return False
+        # Check required elements
+        used_elements = [self.idx2elem[idx] for idx, n in enumerate(x) if n > 0]
+        if any(r not in used_elements for r in self.required_elements):
+            return False
+
+        # If all checks are passed, return True
+        return True
