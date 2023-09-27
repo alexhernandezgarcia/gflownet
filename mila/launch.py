@@ -723,6 +723,7 @@ if __name__ == "__main__":
         new_conf_path = local_out_dir / f"{jobs_conf_path.stem}_{now}.yaml"
         new_conf_path.parent.mkdir(parents=True, exist_ok=True)
         conf += "\n# " + jobs_str + "\n"
+        conf += f"\n# WandB query: ({'|'.join(job_ids)})"
         conf += (
             "\n# Job Output files:\n#"
             + "\n#".join([f"  • {f}" for f in job_out_files])
