@@ -8,7 +8,6 @@ from typing import Dict, List, Optional, Tuple, Union
 import numpy as np
 import torch
 import yaml
-from pyxtal.symmetry import Group
 from torch import Tensor
 from torchtyping import TensorType
 
@@ -632,11 +631,11 @@ class SpaceGroup(GFlowNetEnv):
     def build_n_atoms_compatibility_dict(n_atoms: List[int], space_groups: List[int]):
         """
         Obtains which space groups are compatible with the stoichiometry given as
-        argument (n_atoms). It relies on pyxtal's
-        pyxtal.symmetry.Group.check_compatible(). Note that True is stored only if both
-        is_compatible and has_freedom are True.
+        argument (n_atoms).
 
-        See: https://pyxtal.readthedocs.io/en/latest/pyxtal.symmetry.html
+        It relies on a function which, internally, calls pyxtal's
+        pyxtal.symmetry.Group.check_compatible(). Note that sometimes that pyxtal
+        is known to return invalid results.
 
         Args
         ----
