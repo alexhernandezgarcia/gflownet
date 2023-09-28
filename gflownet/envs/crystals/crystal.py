@@ -432,6 +432,7 @@ class Crystal(GFlowNetEnv):
             )
             parents = [self._build_state(p, Stage.COMPOSITION) for p in parents]
             actions = [self._pad_action(a, Stage.COMPOSITION) for a in actions]
+        # TODO: refactor source check
         elif stage == Stage.SPACE_GROUP or (
             stage == Stage.LATTICE_PARAMETERS
             and self._get_lattice_parameters_state(state)
