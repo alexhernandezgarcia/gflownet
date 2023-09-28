@@ -307,19 +307,18 @@ class Crystal(GFlowNetEnv):
             ] = space_group_mask
         elif stage == Stage.LATTICE_PARAMETERS:
             """
-            TODO: to be stateless (meaning, operating as a function, not a method with
-            current object context) this needs to set lattice system based on the passed
-            state only. Right now it uses the current LatticeParameter environment, in
-            particular the lattice system that it was set to, and that changes the invalid
-            actions mask.
-
-            If for some reason a state will be passed to this method that describes an
-            object with different lattice system than what self.lattice_system contains,
-            the result will be invalid.
+            TODO: refactor below implementation such that it remains stateless,
+            but doesn't require creation of LatticeParameters object every time.
             """
+            lattice_system = self.space_group.get_lattice_system(
+                self._get_space_group_state(state)
+            )
+            lattice_parameters = LatticeParameters(
+                lattice_system=lattice_system, **self.lattice_parameters_kwargs
+            )
             lattice_parameters_state = self._get_lattice_parameters_state(state)
             lattice_parameters_mask = (
-                self.lattice_parameters.get_mask_invalid_actions_forward(
+                lattice_parameters.get_mask_invalid_actions_forward(
                     state=lattice_parameters_state, done=False
                 )
             )
@@ -446,17 +445,16 @@ class Crystal(GFlowNetEnv):
             actions = [self._pad_action(a, Stage.SPACE_GROUP) for a in actions]
         elif stage == Stage.LATTICE_PARAMETERS:
             """
-            TODO: to be stateless (meaning, operating as a function, not a method with
-            current object context) this needs to set lattice system based on the passed
-            state only. Right now it uses the current LatticeParameter environment, in
-            particular the lattice system that it was set to, and that changes the invalid
-            actions mask.
-
-            If for some reason a state will be passed to this method that describes an
-            object with different lattice system than what self.lattice_system contains,
-            the result will be invalid.
+            TODO: refactor below implementation such that it remains stateless,
+            but doesn't require creation of LatticeParameters object every time.
             """
-            parents, actions = self.lattice_parameters.get_parents(
+            lattice_system = self.space_group.get_lattice_system(
+                self._get_space_group_state(state)
+            )
+            lattice_parameters = LatticeParameters(
+                lattice_system=lattice_system, **self.lattice_parameters_kwargs
+            )
+            parents, actions = lattice_parameters.get_parents(
                 state=self._get_lattice_parameters_state(state), done=done
             )
             parents = [self._build_state(p, Stage.LATTICE_PARAMETERS) for p in parents]
