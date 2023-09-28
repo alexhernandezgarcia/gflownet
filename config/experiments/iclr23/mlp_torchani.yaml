@@ -42,7 +42,7 @@ policy:
   forward:
     checkpoint: forward.ckpt
   backward:
-    checkpoint: forward.ckpt
+    checkpoint: backward.ckpt
 
 # WandB
 logger:
