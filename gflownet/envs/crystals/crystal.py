@@ -435,7 +435,12 @@ class Crystal(GFlowNetEnv):
         elif stage == Stage.SPACE_GROUP or (
             stage == Stage.LATTICE_PARAMETERS
             and self._get_lattice_parameters_state(state)
-            == self.lattice_parameters.source
+            == LatticeParameters(
+                lattice_system=self.space_group.get_lattice_system(
+                    self._get_space_group_state(state)
+                ),
+                **self.lattice_parameters_kwargs,
+            ).source
         ):
             space_group_done = stage == Stage.LATTICE_PARAMETERS
             parents, actions = self.space_group.get_parents(
