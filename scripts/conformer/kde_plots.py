@@ -35,7 +35,8 @@ def get_smiles_and_proxy_class(filename):
     proxy_name = filename.split('_')[-1][:-4]
     proxy_class = PROXY_DICT[proxy_name]
     proxy = proxy_class(device="cpu", float_precision=32)
-    env = Conformer(smiles=sm, n_torsion_angles=2, reward_func="boltzmann", reward_beta=32, proxy=proxy)
+    env = Conformer(smiles=sm, n_torsion_angles=2, reward_func="boltzmann", reward_beta=32, proxy=proxy,
+                    reward_sampling_method='nested')
     # proxy.setup(env)
     return sm, PROXY_NAME_DICT[proxy_name], proxy, env
 
@@ -78,7 +79,7 @@ def main(args):
     output_base = Path(args.output_dir)
     if not output_base.exists():
         os.mkdir(output_base)
-    for filename in tqdm(os.listdir(base_path)[:2]):
+    for filename in tqdm(os.listdir(base_path)):
         ct = time.time()
         print(f'{datetime.now().strftime("%H-%M-%S")}: Initialising env')
         smiles, pr_name, proxy, env = get_smiles_and_proxy_class(filename)
@@ -91,7 +92,7 @@ def main(args):
         os.mkdir(output_dir)
         print(f'Will save results at {output_dir}')
 
-        samples = load_samples(filename, base_path)[:100]
+        samples = load_samples(filename, base_path)
         n_samples = samples.shape[0]
         print(f'{datetime.now().strftime("%H-%M-%S")}: Computing true kde')
         kde_true = get_true_kde(env, n_samples, bandwidth=args.bandwidth)
@@ -125,7 +126,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--samples_dir', type=str, default='/home/mila/a/alexandra.volokhova/projects/gflownet/results/conformer/samples/mcmc_samples')
     parser.add_argument('--output_dir', type=str, default='/home/mila/a/alexandra.volokhova/projects/gflownet/results/conformer/kde_stats/mcmc')
-    parser.add_argument('--bandwidth', type=float, default=0.1)
+    parser.add_argument('--bandwidth', type=float, default=0.15)
     parser.add_argument('--n_test', type=int, default=10000) 
     args = parser.parse_args()
     main(args)
