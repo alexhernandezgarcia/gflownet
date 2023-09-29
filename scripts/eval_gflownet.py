@@ -152,24 +152,49 @@ def main(args):
         print(f"Var (log(R) - logp): {var_logrew_logp}")
         print(f"NLL: {nll}")
 
-    # Sample from trained GFlowNet
-    output_dir = Path(args.run_path) / "eval/samples"
+    # ------------------------------------------
+    # -----  Sample from trained GFlowNet  -----
+    # ------------------------------------------
+
+    output_dir = base_dir / "eval" / "samples"
     output_dir.mkdir(parents=True, exist_ok=True)
+    tmp_dir = output_dir / "tmp"
+    tmp_dir.mkdir(parents=True, exist_ok=True)
+
     if args.n_samples > 0 and args.n_samples <= 1e5:
-        print(f"Sampling {args.n_samples} forward trajectories from GFlowNet...")
-        batch, times = gflownet.sample_batch(n_forward=args.n_samples, train=False)
-        x_sampled = batch.get_terminating_states(proxy=True)
-        energies = env.oracle(x_sampled)
-        x_sampled = batch.get_terminating_states()
-        df = pd.DataFrame(
-            {
-                "readable": [env.state2readable(x) for x in x_sampled],
-                "energies": energies.tolist(),
-            }
+        print(
+            f"Sampling {args.n_samples} forward trajectories",
+            f"from GFlowNet in batches of {args.sampling_batch_size}",
         )
+        for i, bs in enumerate(
+            tqdm(get_batch_sizes(args.n_samples, args.sampling_batch_size))
+        ):
+            batch, times = gflownet.sample_batch(n_forward=bs, train=False)
+            x_sampled = batch.get_terminating_states(proxy=True)
+            energies = env.oracle(x_sampled)
+            x_sampled = batch.get_terminating_states()
+            df = pd.DataFrame(
+                {
+                    "readable": [env.state2readable(x) for x in x_sampled],
+                    "energies": energies.tolist(),
+                }
+            )
+            df.to_csv(tmp_dir / f"gfn_samples_{i}.csv")
+            dct = {"x": x_sampled, "energy": energies}
+            pickle.dump(dct, open(tmp_dir / f"gfn_samples_{i}.pkl", "wb"))
+
+        # Concatenate all samples
+        print("Concatenating sample CSVs")
+        df = pd.concat([pd.read_csv(f) for f in tqdm(list(tmp_dir.glob("*.csv")))])
         df.to_csv(output_dir / "gfn_samples.csv")
-        dct = {"x": x_sampled, "energy": energies}
+        dct = {}
+        for f in tqdm(list(tmp_dir.glob("*.pkl"))):
+            tmp_dict = pickle.load(open(f, "rb"))
+            dct = {k: v + tmp_dict[k] for k, v in dct.items()}
         pickle.dump(dct, open(output_dir / "gfn_samples.pkl", "wb"))
+
+        if "y" in input("Delete temporary files? (y/n)"):
+            shutil.rmtree(tmp_dir)
 
 
 if __name__ == "__main__":
