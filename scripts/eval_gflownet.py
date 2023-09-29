@@ -2,19 +2,18 @@
 Computes evaluation metrics and plots from a pre-trained GFlowNet model.
 """
 import pickle
+import shutil
 import sys
 from argparse import ArgumentParser
 from pathlib import Path
 
-import hydra
-import torch
-from hydra import compose, initialize, initialize_config_dir
 import pandas as pd
-from omegaconf import OmegaConf
-from torch.distributions.categorical import Categorical
+import torch
+from tqdm import tqdm
 
-from gflownet.gflownet import GFlowNetAgent
-from gflownet.utils.policy import parse_policy_config
+sys.path.append(str(Path(__file__).resolve().parent.parent))
+
+from gflownet.utils.common import load_gflow_net_from_run_path
 
 
 def add_args(parser):
@@ -105,6 +104,14 @@ def set_device(device: str):
 
 
 def main(args):
+    gflownet = load_gflow_net_from_run_path(
+        run_path=args.run_path,
+        device=args.device,
+        no_wandb=True,
+        print_config=args.print_config,
+    )
+    env = gflownet.env
+
     base_dir = Path(args.output_dir or args.run_path)
 
     # ---------------------------------
