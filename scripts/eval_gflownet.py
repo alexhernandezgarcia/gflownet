@@ -65,6 +65,38 @@ def add_args(parser):
     return parser
 
 
+def get_batch_sizes(total, b=1):
+    """
+    Batches an iterable into chunks of size n and returns their expected lengths
+
+    Args:
+        total (int): total samples to produce
+        b (int): the batch size
+
+    Returns:
+        list: list of batch sizes
+    """
+    n = total // b
+    chunks = [b] * n
+    if total % b != 0:
+        chunks += [total % b]
+    return chunks
+
+
+def print_args(args):
+    """
+    Prints the arguments
+
+    Args:
+        args (argparse.Namespace): the parsed arguments
+    """
+    print("Arguments:")
+    darg = vars(args)
+    max_k = max([len(k) for k in darg])
+    for k in darg:
+        print(f"\t{k:{max_k}}: {darg[k]}")
+
+
 def set_device(device: str):
     if device.lower() == "cuda" and torch.cuda.is_available():
         return torch.device("cuda")
