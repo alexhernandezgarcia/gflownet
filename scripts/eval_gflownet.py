@@ -36,6 +36,31 @@ def add_args(parser):
         type=int,
         help="Number of sequences to sample",
     )
+    parser.add_argument(
+        "--sampling_batch_size",
+        default=100,
+        type=int,
+        help="Number of samples to generate at a time to "
+        + "avoid memory issues. Will sum to n_samples.",
+    )
+    parser.add_argument(
+        "--output_dir",
+        default=None,
+        type=str,
+        help="Path to output directory. If not provided, will use run_path.",
+    )
+    parser.add_argument(
+        "--print_config",
+        default=False,
+        action="store_true",
+        help="Print the config file",
+    )
+    parser.add_argument(
+        "--samples_only",
+        default=False,
+        action="store_true",
+        help="Only sample from the model, do not compute metrics",
+    )
     parser.add_argument("--device", default="cpu", type=str)
     return parser
 
