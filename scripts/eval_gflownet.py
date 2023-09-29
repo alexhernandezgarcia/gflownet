@@ -202,6 +202,8 @@ if __name__ == "__main__":
     _, override_args = parser.parse_known_args()
     parser = add_args(parser)
     args = parser.parse_args()
+    torch.set_grad_enabled(False)
     torch.set_num_threads(1)
+    print_args(args)
     main(args)
     sys.exit()
