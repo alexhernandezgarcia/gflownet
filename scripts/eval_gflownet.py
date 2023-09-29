@@ -1,6 +1,7 @@
 """
 Computes evaluation metrics and plots from a pre-trained GFlowNet model.
 """
+import pickle
 import sys
 from argparse import ArgumentParser
 from pathlib import Path
@@ -8,10 +9,12 @@ from pathlib import Path
 import hydra
 import torch
 from hydra import compose, initialize, initialize_config_dir
+import pandas as pd
 from omegaconf import OmegaConf
 from torch.distributions.categorical import Categorical
 
-from gflownet.gflownet import GFlowNetAgent, Policy
+from gflownet.gflownet import GFlowNetAgent
+from gflownet.utils.policy import parse_policy_config
 
 
 def add_args(parser):
@@ -68,31 +71,55 @@ def main(args):
         device=config.device,
         float_precision=config.float_precision,
     )
+    forward_config = parse_policy_config(config, kind="forward")
+    backward_config = parse_policy_config(config, kind="backward")
+    forward_policy = hydra.utils.instantiate(
+        forward_config,
+        env=env,
+        device=config.device,
+        float_precision=config.float_precision,
+    )
+    backward_policy = hydra.utils.instantiate(
+        backward_config,
+        env=env,
+        device=config.device,
+        float_precision=config.float_precision,
+        base=forward_policy,
+    )
     gflownet = hydra.utils.instantiate(
         config.gflownet,
         device=config.device,
         float_precision=config.float_precision,
         env=env,
         buffer=config.env.buffer,
+        forward_policy=forward_policy,
+        backward_policy=backward_policy,
         logger=logger,
     )
     # Load final models
-    ckpt = Path(args.run_path) / config.logger.logdir.ckpts
-    forward_final = [
-        f for f in ckpt.glob(f"{config.gflownet.policy.forward.checkpoint}*final*")
+    ckpt = [
+        f for f in Path(args.run_path).rglob(config.logger.logdir.ckpts) if f.is_dir()
     ][0]
+    forward_final = [f for f in ckpt.glob(f"*final*")][0]
+    backward_final = [f for f in ckpt.glob(f"*final*")][0]
     gflownet.forward_policy.model.load_state_dict(
         torch.load(forward_final, map_location=set_device(args.device))
     )
-    backward_final = [
-        f for f in ckpt.glob(f"{config.gflownet.policy.backward.checkpoint}*final*")
-    ][0]
     gflownet.backward_policy.model.load_state_dict(
         torch.load(backward_final, map_location=set_device(args.device))
     )
     # Test GFlowNet model
     gflownet.logger.test.n = args.n_samples
-    l1, kl, jsd, figs = gflownet.test()
+    (
+        l1,
+        kl,
+        jsd,
+        corr_prob_traj_rew,
+        var_logrew_logp,
+        nll,
+        figs,
+        env_metrics,
+    ) = gflownet.test()
     # Save figures
     keys = ["True reward and GFlowNet samples", "GFlowNet KDE Policy", "Reward KDE"]
     fignames = ["samples", "kde_gfn", "kde_reward"]
@@ -100,7 +127,35 @@ def main(args):
     output_dir.mkdir(parents=True, exist_ok=True)
     for fig, figname in zip(figs, fignames):
         output_fig = output_dir / figname
-        fig.savefig(output_fig, bbox_inches="tight")
+        if fig is not None:
+            fig.savefig(output_fig, bbox_inches="tight")
+
+    # Print metrics
+    print(f"L1: {l1}")
+    print(f"KL: {kl}")
+    print(f"JSD: {jsd}")
+    print(f"Corr (exp(logp), rewards): {corr_prob_traj_rew}")
+    print(f"Var (log(R) - logp): {var_logrew_logp}")
+    print(f"NLL: {nll}")
+
+    # Sample from trained GFlowNet
+    output_dir = Path(args.run_path) / "eval/samples"
+    output_dir.mkdir(parents=True, exist_ok=True)
+    if args.n_samples > 0 and args.n_samples <= 1e5:
+        print(f"Sampling {args.n_samples} forward trajectories from GFlowNet...")
+        batch, times = gflownet.sample_batch(n_forward=args.n_samples, train=False)
+        x_sampled = batch.get_terminating_states(proxy=True)
+        energies = env.oracle(x_sampled)
+        x_sampled = batch.get_terminating_states()
+        df = pd.DataFrame(
+            {
+                "readable": [env.state2readable(x) for x in x_sampled],
+                "energies": energies.tolist(),
+            }
+        )
+        df.to_csv(output_dir / "gfn_samples.csv")
+        dct = {"x": x_sampled, "energy": energies}
+        pickle.dump(dct, open(output_dir / "gfn_samples.pkl", "wb"))
 
 
 if __name__ == "__main__":
