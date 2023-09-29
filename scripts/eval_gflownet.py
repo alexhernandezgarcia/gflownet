@@ -105,95 +105,45 @@ def set_device(device: str):
 
 
 def main(args):
-    # Load config
-    with initialize_config_dir(
-        version_base=None, config_dir=args.run_path + "/.hydra", job_name="xxx"
-    ):
-        config = compose(config_name="config")
-        print(OmegaConf.to_yaml(config))
-    # Disable wandb
-    config.logger.do.online = False
-    # Logger
-    logger = hydra.utils.instantiate(config.logger, config, _recursive_=False)
-    # The proxy is required in the env for scoring: might be an oracle or a model
-    proxy = hydra.utils.instantiate(
-        config.proxy,
-        device=config.device,
-        float_precision=config.float_precision,
-    )
-    # The proxy is passed to env and used for computing rewards
-    env = hydra.utils.instantiate(
-        config.env,
-        proxy=proxy,
-        device=config.device,
-        float_precision=config.float_precision,
-    )
-    forward_config = parse_policy_config(config, kind="forward")
-    backward_config = parse_policy_config(config, kind="backward")
-    forward_policy = hydra.utils.instantiate(
-        forward_config,
-        env=env,
-        device=config.device,
-        float_precision=config.float_precision,
-    )
-    backward_policy = hydra.utils.instantiate(
-        backward_config,
-        env=env,
-        device=config.device,
-        float_precision=config.float_precision,
-        base=forward_policy,
-    )
-    gflownet = hydra.utils.instantiate(
-        config.gflownet,
-        device=config.device,
-        float_precision=config.float_precision,
-        env=env,
-        buffer=config.env.buffer,
-        forward_policy=forward_policy,
-        backward_policy=backward_policy,
-        logger=logger,
-    )
-    # Load final models
-    ckpt = [
-        f for f in Path(args.run_path).rglob(config.logger.logdir.ckpts) if f.is_dir()
-    ][0]
-    forward_final = [f for f in ckpt.glob(f"*final*")][0]
-    backward_final = [f for f in ckpt.glob(f"*final*")][0]
-    gflownet.forward_policy.model.load_state_dict(
-        torch.load(forward_final, map_location=set_device(args.device))
-    )
-    gflownet.backward_policy.model.load_state_dict(
-        torch.load(backward_final, map_location=set_device(args.device))
-    )
-    # Test GFlowNet model
-    gflownet.logger.test.n = args.n_samples
-    (
-        l1,
-        kl,
-        jsd,
-        corr_prob_traj_rew,
-        var_logrew_logp,
-        nll,
-        figs,
-        env_metrics,
-    ) = gflownet.test()
-    # Save figures
-    keys = ["True reward and GFlowNet samples", "GFlowNet KDE Policy", "Reward KDE"]
-    fignames = ["samples", "kde_gfn", "kde_reward"]
-    output_dir = Path(args.run_path) / "figures"
-    output_dir.mkdir(parents=True, exist_ok=True)
-    for fig, figname in zip(figs, fignames):
-        output_fig = output_dir / figname
-        if fig is not None:
-            fig.savefig(output_fig, bbox_inches="tight")
+    base_dir = Path(args.output_dir or args.run_path)
 
-    # Print metrics
-    print(f"L1: {l1}")
-    print(f"KL: {kl}")
-    print(f"JSD: {jsd}")
-    print(f"Corr (exp(logp), rewards): {corr_prob_traj_rew}")
-    print(f"Var (log(R) - logp): {var_logrew_logp}")
-    print(f"NLL: {nll}")
+    # ---------------------------------
+    # -----  Test GFlowNet model  -----
+    # ---------------------------------
+
+    if not args.samples_only:
+        gflownet.logger.test.n = args.n_samples
+        (
+            l1,
+            kl,
+            jsd,
+            corr_prob_traj_rew,
+            var_logrew_logp,
+            nll,
+            figs,
+            env_metrics,
+        ) = gflownet.test()
+        # Save figures
+        keys = ["True reward and GFlowNet samples", "GFlowNet KDE Policy", "Reward KDE"]
+        fignames = ["samples", "kde_gfn", "kde_reward"]
+
+        output_dir = base_dir / "figures"
+        print("output_dir: ", str(output_dir))
+        output_dir.mkdir(parents=True, exist_ok=True)
+
+        for fig, figname in zip(figs, fignames):
+            output_fig = output_dir / figname
+            if fig is not None:
+                fig.savefig(output_fig, bbox_inches="tight")
+        print(f"Saved figures to {output_dir}")
+
+        # Print metrics
+        print(f"L1: {l1}")
+        print(f"KL: {kl}")
+        print(f"JSD: {jsd}")
+        print(f"Corr (exp(logp), rewards): {corr_prob_traj_rew}")
+        print(f"Var (log(R) - logp): {var_logrew_logp}")
+        print(f"NLL: {nll}")
 
     # Sample from trained GFlowNet
     output_dir = Path(args.run_path) / "eval/samples"
