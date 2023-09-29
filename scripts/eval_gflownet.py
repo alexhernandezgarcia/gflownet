@@ -15,6 +15,7 @@ from torch.distributions.categorical import Categorical
 
 from gflownet.gflownet import GFlowNetAgent
 from gflownet.utils.policy import parse_policy_config
+from crystalrandom import generate_random_crystals
 
 
 def add_args(parser):
@@ -37,9 +38,14 @@ def add_args(parser):
         help="Number of sequences to sample",
     )
     parser.add_argument(
-        "--random",
+        "--randominit",
         action="store_true",
         help="Sample from an untrained GFlowNet",
+    )
+    parser.add_argument(
+        "--random_crystals",
+        action="store_true",
+        help="Sample crystals uniformly, without constraints",
     )
     parser.add_argument("--device", default="cpu", type=str)
     return parser
@@ -101,8 +107,37 @@ def main(args):
         backward_policy=backward_policy,
         logger=logger,
     )
+    # Sample random crystals uniformly without constraints
+    output_dir = Path(args.run_path) / "eval/samples"
+    output_dir.mkdir(parents=True, exist_ok=True)
+    if args.random_crystals and args.n_samples > 0 and args.n_samples <= 1e5:
+        print(f"Sampling {args.n_samples} random crystals without constraints...")
+        x_sampled = generate_random_crystals(
+            n_samples=args.n_samples,
+            elements=config.env.composition_kwargs.elements,
+            min_elements=2,
+            max_elements=5,
+            max_atoms=config.env.composition_kwargs.max_atoms,
+            max_atom_i=config.env.composition_kwargs.max_atom_i,
+            space_groups=config.env.space_group_kwargs.space_groups_subset,
+            min_length=config.env.lattice_parameters_kwargs.min_length,
+            max_length=config.env.lattice_parameters_kwargs.max_length,
+            min_angle=config.env.lattice_parameters_kwargs.min_angle,
+            max_angle=config.env.lattice_parameters_kwargs.max_angle,
+        )
+        energies = env.oracle(env.statebatch2proxy(x_sampled))
+        df = pd.DataFrame(
+            {
+                "readable": [env.state2readable(x) for x in x_sampled],
+                "energies": energies.tolist(),
+            }
+        )
+        df.to_csv(output_dir / "randomcrystals_samples.csv")
+        dct = {"x": x_sampled, "energy": energies}
+        pickle.dump(dct, open(output_dir / "randomcrystals_samples.pkl", "wb"))
+
     # Load final models
-    if not args.random:
+    if not args.randominit:
         ckpt = [
             f
             for f in Path(args.run_path).rglob(config.logger.logdir.ckpts)
@@ -161,13 +196,13 @@ def main(args):
                 "energies": energies.tolist(),
             }
         )
-        if args.random:
-            df.to_csv(output_dir / "random_samples.csv")
+        if args.randominit:
+            df.to_csv(output_dir / "randominit_samples.csv")
         else:
             df.to_csv(output_dir / "gfn_samples.csv")
         dct = {"x": x_sampled, "energy": energies}
-        if args.random:
-            pickle.dump(dct, open(output_dir / "random_samples.pkl", "wb"))
+        if args.randominit:
+            pickle.dump(dct, open(output_dir / "randominit_samples.pkl", "wb"))
         else:
             pickle.dump(dct, open(output_dir / "gfn_samples.pkl", "wb"))
 
