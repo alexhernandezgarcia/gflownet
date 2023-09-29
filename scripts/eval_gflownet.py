@@ -36,6 +36,11 @@ def add_args(parser):
         type=int,
         help="Number of sequences to sample",
     )
+    parser.add_argument(
+        "--random",
+        action="store_true",
+        help="Sample from an untrained GFlowNet",
+    )
     parser.add_argument("--device", default="cpu", type=str)
     return parser
 
@@ -97,17 +102,20 @@ def main(args):
         logger=logger,
     )
     # Load final models
-    ckpt = [
-        f for f in Path(args.run_path).rglob(config.logger.logdir.ckpts) if f.is_dir()
-    ][0]
-    forward_final = [f for f in ckpt.glob(f"*final*")][0]
-    backward_final = [f for f in ckpt.glob(f"*final*")][0]
-    gflownet.forward_policy.model.load_state_dict(
-        torch.load(forward_final, map_location=set_device(args.device))
-    )
-    gflownet.backward_policy.model.load_state_dict(
-        torch.load(backward_final, map_location=set_device(args.device))
-    )
+    if not args.random:
+        ckpt = [
+            f
+            for f in Path(args.run_path).rglob(config.logger.logdir.ckpts)
+            if f.is_dir()
+        ][0]
+        forward_final = [f for f in ckpt.glob(f"*final*")][0]
+        backward_final = [f for f in ckpt.glob(f"*final*")][0]
+        gflownet.forward_policy.model.load_state_dict(
+            torch.load(forward_final, map_location=set_device(args.device))
+        )
+        gflownet.backward_policy.model.load_state_dict(
+            torch.load(backward_final, map_location=set_device(args.device))
+        )
     # Test GFlowNet model
     gflownet.logger.test.n = args.n_samples
     (
@@ -153,9 +161,19 @@ def main(args):
                 "energies": energies.tolist(),
             }
         )
-        df.to_csv(output_dir / "gfn_samples.csv")
+        if args.random:
+            df.to_csv(output_dir / "random_samples.csv")
+        else:
+            df.to_csv(output_dir / "gfn_samples.csv")
         dct = {"x": x_sampled, "energy": energies}
-        pickle.dump(dct, open(output_dir / "gfn_samples.pkl", "wb"))
+        if args.random:
+            pickle.dump(dct, open(output_dir / "random_samples.pkl", "wb"))
+        else:
+            pickle.dump(dct, open(output_dir / "gfn_samples.pkl", "wb"))
+
+    # Store test data set
+    gflownet.buffer.test.rename(columns={"samples": "readable"})
+    gflownet.buffer.test.to_csv(output_dir / "test_samples.csv")
 
 
 if __name__ == "__main__":
