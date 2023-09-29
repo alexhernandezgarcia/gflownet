@@ -11,6 +11,7 @@ import itertools
 
 class DEL(Grid):
     def __init__(self, n_dim, min_step_len, max_step_len, eos, length):
+        super().__init__(n_dim, length=2)
         self.n_dim = n_dim
         self.min_step_len = min_step_len
         self.max_step_len = max_step_len
@@ -29,7 +30,16 @@ class DEL(Grid):
         actions.append((-1,))
         return actions
 
-    
+    def step(self, action):
+        """
+        Update the state based on the given action.
+        """
+        if action == self.eos:
+            # End of sequence action
+            self.done = True
+            return
+        for dim_index in action:
+            self.state[dim_index] = 1
 
     def get_parents(self, state=None, done=None, action=None):
         """
