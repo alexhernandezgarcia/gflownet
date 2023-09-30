@@ -737,7 +737,7 @@ class GFlowNetAgent:
         # Create an environment for each data point and trajectory and set the state
         envs = []
         mult_indices = max(n_states, n_trajectories)
-        for state_idx, x in tqdm(enumerate(states_term)):
+        for state_idx, x in enumerate(tqdm(states_term)):
             for traj_idx in range(n_trajectories):
                 idx = int(mult_indices * state_idx + traj_idx)
                 env = self.env.copy().reset(idx)
