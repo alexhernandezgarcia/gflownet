@@ -105,7 +105,11 @@ def find_latest_checkpoint(ckpt_dir, pattern):
 
 
 def load_gflow_net_from_run_path(
-    run_path, no_wandb=True, print_config=False, device="cuda", load_final_ckpt=True,
+    run_path,
+    no_wandb=True,
+    print_config=False,
+    device="cuda",
+    load_final_ckpt=True,
 ):
     run_path = resolve_path(run_path)
     hydra_dir = run_path / ".hydra"
