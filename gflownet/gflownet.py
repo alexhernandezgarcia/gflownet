@@ -669,6 +669,7 @@ class GFlowNetAgent:
         n_trajectories: int = 1,
         max_iters_per_traj: int = 10,
         max_data_size: int = 1e5,
+        batch_size: int = 100,
     ):
         """
         Estimates the probability of sampling with current GFlowNet policy
@@ -717,7 +718,6 @@ class GFlowNetAgent:
             each data point.
         """
         print("Compute logprobs...", flush=True)
-        batch = Batch(env=self.env, device=self.device, float_type=self.float)
         times = {}
         # Determine terminating states
         if isinstance(data, list):
@@ -734,43 +734,7 @@ class GFlowNetAgent:
         assert (
             n_states < max_data_size
         ), "The size of the test data is larger than max_data_size ({max_data_size})."
-        # Create an environment for each data point and trajectory and set the state
-        envs = []
-        mult_indices = max(n_states, n_trajectories)
-        for state_idx, x in enumerate(tqdm(states_term)):
-            for traj_idx in range(n_trajectories):
-                idx = int(mult_indices * state_idx + traj_idx)
-                env = self.env.copy().reset(idx)
-                env.set_state(x, done=True)
-                envs.append(env)
-        # Sample trajectories
-        max_iters = n_trajectories * max_iters_per_traj
-        print(
-            "Sampling backward actions from test data to estimate logprobs...",
-            flush=True,
-        )
-        while envs:
-            # Sample backward actions
-            actions = self.sample_actions(
-                envs,
-                batch,
-                backward=True,
-                no_random=True,
-                times=times,
-            )
-            # Update environments with sampled actions
-            envs, actions, valids = self.step(envs, actions, backward=True)
-            # Add to batch
-            batch.add_to_batch(envs, actions, valids, backward=True, train=True)
-            # Filter out finished trajectories
-            envs = [env for env in envs if not env.equal(env.state, env.source)]
-        # Prepare data structures to compute log probabilities
-        print("Done sampling backwards", flush=True)
-        traj_indices_batch = tlong(
-            batch.get_unique_trajectory_indices(), device=self.device
-        )
-        data_indices = traj_indices_batch // mult_indices
-        traj_indices = traj_indices_batch % mult_indices
+        # Compute log probabilities in batches
         logprobs_f = torch.full(
             (n_states, n_trajectories),
             -torch.inf,
@@ -783,23 +747,58 @@ class GFlowNetAgent:
             dtype=self.float,
             device=self.device,
         )
-        # Compute log probabilities of the trajectories
-        logprobs_f[data_indices, traj_indices] = self.compute_logprobs_trajectories(
-            batch, backward=False
+        mult_indices = max(n_states, n_trajectories)
+        init_batch = 0
+        end_batch = min(batch_size, n_states)
+        print(
+            "Sampling backward actions from test data to estimate logprobs...",
+            flush=True,
         )
-        logprobs_b[data_indices, traj_indices] = self.compute_logprobs_trajectories(
-            batch, backward=True
-        )
-        # Check whether logprobs are finite
-        all_logprobs_finite = torch.all(
-            torch.logical_and(torch.isfinite(logprobs_f), torch.isfinite(logprobs_b)),
-            dim=1,
-        )
-        if not torch.all(all_logprobs_finite):
-            print("The following samples have yielded inf or nan logprobs:")
-            for state, is_finite in zip(states_term, all_logprobs_finite):
-                if not is_finite:
-                    print(self.env.state2readable(state))
+        while init_batch < n_states:
+            batch = Batch(env=self.env, device=self.device, float_type=self.float)
+            # Create an environment for each data point and trajectory and set the state
+            envs = []
+            for state_idx in range(init_batch, end_batch):
+                for traj_idx in range(n_trajectories):
+                    idx = int(mult_indices * state_idx + traj_idx)
+                    env = self.env.copy().reset(idx)
+                    env.set_state(states_term[state_idx], done=True)
+                    envs.append(env)
+            # Sample trajectories
+            max_iters = n_trajectories * max_iters_per_traj
+            while envs:
+                # Sample backward actions
+                actions = self.sample_actions(
+                    envs,
+                    batch,
+                    backward=True,
+                    no_random=True,
+                    times=times,
+                )
+                # Update environments with sampled actions
+                envs, actions, valids = self.step(envs, actions, backward=True)
+                assert all(valids)
+                # Add to batch
+                batch.add_to_batch(envs, actions, valids, backward=True, train=True)
+                # Filter out finished trajectories
+                envs = [env for env in envs if not env.equal(env.state, env.source)]
+            # Prepare data structures to compute log probabilities
+            traj_indices_batch = tlong(
+                batch.get_unique_trajectory_indices(), device=self.device
+            )
+            data_indices = traj_indices_batch // mult_indices
+            traj_indices = traj_indices_batch % mult_indices
+            # Compute log probabilities of the trajectories
+            logprobs_f[data_indices, traj_indices] = self.compute_logprobs_trajectories(
+                batch, backward=False
+            )
+            logprobs_b[data_indices, traj_indices] = self.compute_logprobs_trajectories(
+                batch, backward=True
+            )
+            # Increment batch indices
+            init_batch += batch_size
+            end_batch = min(end_batch + batch_size, n_states)
+
         # Compute log of the average probabilities of the ratio PF / PB
         logprobs_estimates = torch.logsumexp(
             logprobs_f - logprobs_b, dim=1
@@ -995,6 +994,7 @@ class GFlowNetAgent:
             x_tt,
             n_trajectories=self.logger.test.n_trajs_logprobs,
             max_data_size=self.logger.test.max_data_logprobs,
+            batch_size=self.logger.test.logprobs_batch_size,
         )
         rewards_x_tt = self.env.reward_batch(x_tt)
         corr_prob_traj_rewards = np.corrcoef(

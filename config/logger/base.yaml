@@ -22,6 +22,7 @@ test:
   top_k_period: -1
   # Number of backward trajectories to estimate the log likelihood of each test data point
   n_trajs_logprobs: 10
+  logprobs_batch_size: 100
   # Maximum number of test data points to compute log likelihood probs.
   max_data_logprobs: 1e5
 # Oracle metrics
