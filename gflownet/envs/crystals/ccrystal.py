@@ -74,13 +74,15 @@ class CCrystal(GFlowNetEnv):
         composition_kwargs: Optional[Dict] = None,
         space_group_kwargs: Optional[Dict] = None,
         lattice_parameters_kwargs: Optional[Dict] = None,
-        do_stoichiometry_sg_check: bool = False,
+        do_composition_to_sg_constraints: bool = True,
+        do_sg_to_lp_constraints: bool = True,
         **kwargs,
     ):
         self.composition_kwargs = composition_kwargs or {}
         self.space_group_kwargs = space_group_kwargs or {}
         self.lattice_parameters_kwargs = lattice_parameters_kwargs or {}
-        self.do_stoichiometry_sg_check = do_stoichiometry_sg_check
+        self.do_composition_to_sg_constraints = do_composition_to_sg_constraints
+        self.do_sg_to_lp_constraints = do_sg_to_lp_constraints
 
         composition = Composition(**self.composition_kwargs)
         space_group = SpaceGroup(**self.space_group_kwargs)
@@ -521,15 +523,16 @@ class CCrystal(GFlowNetEnv):
         if action_subenv == self.subenvs[stage].eos:
             stage = Stage.next(stage)
             if stage == Stage.SPACE_GROUP:
-                if self.do_stoichiometry_sg_check:
+                if self.do_composition_to_sg_constraints:
                     self.subenvs[Stage.SPACE_GROUP].set_n_atoms_compatibility_dict(
                         self.subenvs[Stage.COMPOSITION].state
                     )
             elif stage == Stage.LATTICE_PARAMETERS:
-                lattice_system = self.subenvs[Stage.SPACE_GROUP].lattice_system
-                self.subenvs[Stage.LATTICE_PARAMETERS].set_lattice_system(
-                    lattice_system
-                )
+                if self.do_sg_to_lp_constraints:
+                    lattice_system = self.subenvs[Stage.SPACE_GROUP].lattice_system
+                    self.subenvs[Stage.LATTICE_PARAMETERS].set_lattice_system(
+                        lattice_system
+                    )
             elif stage == Stage.DONE:
                 self.n_actions += 1
                 self.done = True
@@ -860,14 +863,17 @@ class CCrystal(GFlowNetEnv):
         """
         if self.subenvs[Stage.SPACE_GROUP].done:
             lattice_system = self.subenvs[Stage.SPACE_GROUP].lattice_system
-            if lattice_system != "None":
+            if lattice_system != "None" and self.do_sg_to_lp_constraints:
                 self.subenvs[Stage.LATTICE_PARAMETERS].set_lattice_system(
                     lattice_system
                 )
             else:
                 self.subenvs[Stage.LATTICE_PARAMETERS].set_lattice_system(TRICLINIC)
         # Set stoichiometry constraints in space group sub-environment
-        if self.do_stoichiometry_sg_check and self.subenvs[Stage.COMPOSITION].done:
+        if (
+            self.do_composition_to_sg_constraints
+            and self.subenvs[Stage.COMPOSITION].done
+        ):
             self.subenvs[Stage.SPACE_GROUP].set_n_atoms_compatibility_dict(
                 self.subenvs[Stage.COMPOSITION].state
             )
