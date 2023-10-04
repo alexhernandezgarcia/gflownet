@@ -728,6 +728,26 @@ class GFlowNetEnv:
             tfloat(states, float_type=self.float, device=self.device)
         )
 
+    def statebatch2kde(self, states: List[List]) -> npt.NDArray[np.float32]:
+        """
+        Prepares a batch of states in "GFlowNet format" for the proxy. Typically,
+        this will be the same as the statebatch2proxy, but in cases in which proxy
+        input is already processed (e.g., conformers, with list of torsion angles
+        converted to 3D positions of atoms), this can be overwritten to preserve KDE.
+        """
+        return self.statebatch2proxy(states)
+
+    def statetorch2kde(
+        self, states: TensorType["batch_size", "state_dim"]
+    ) -> TensorType["batch_size", "state_proxy_dim"]:
+        """
+        Prepares a batch of states in torch "GFlowNet format" for the KDE. Typically,
+        this will be the same as the statetorch2proxy, but in cases in which proxy
+        input is already processed (e.g., conformers, with list of torsion angles
+        converted to 3D positions of atoms), this can be overwritten to preserve KDE.
+        """
+        return self.statetorch2proxy(states)
+
     def policy2state(self, state_policy: List) -> List:
         """
         Converts the model (e.g. one-hot encoding) version of a state given as

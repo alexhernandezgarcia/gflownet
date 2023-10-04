@@ -1,0 +1,3 @@
+_target_: gflownet.proxy.conformers.xtb.XTBMoleculeEnergy
+
+method: gfnff

@@ -1,0 +1,36 @@
+defaults:
+  - base
+
+_target_: gflownet.envs.conformers.conformer.Conformer
+
+# smiles: 'CC(C(=O)NC)NC(=O)C' # alanine dipeptide
+# smiles: 'CC(C)Cc1ccc(cc1)[C@@H](C)C(=O)O' # ibuprofen
+smiles: 'O=C(c1ccc2n1CCC2C(=O)O)c3ccccc3' # ketorolac
+# smiles: 'CCCCCC1=CC(=C(C(=C1)O)C2C=C(CCC2C(=C)C)C)O' # cannabidiol
+# smiles: 'CN1C2CCC1C(C(C2)OC(=O)C3=CC=CC=C3)C(=O)OC' # cocaine
+n_torsion_angles: 2
+reward_sampling_method: nested
+
+id: conformer
+policy_encoding_dim_per_angle: null
+# Fixed length of trajectories
+length_traj: 10
+vonmises_min_concentration: 1e-3
+# Parameters of the fixed policy output distribution
+n_comp: 3
+fixed_distribution:
+  vonmises_mean: 0.0
+  vonmises_concentration: 0.5
+# Parameters of the random policy output distribution
+random_distribution:
+  vonmises_mean: 0.0
+  vonmises_concentration: 0.001
+# Buffer
+buffer:
+  data_path: null
+  train: null
+  test:
+    type: grid
+    n: 1000
+    output_csv: conformer_test.csv
+    output_pkl: conformer_test.pkl

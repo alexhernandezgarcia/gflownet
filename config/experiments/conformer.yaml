@@ -1,59 +1,52 @@
 # @package _global_
 
 defaults:
-   - override /env: conformers/alaninedipeptide
+   - override /env: conformers/conformer
    - override /gflownet: trajectorybalance
-   - override /proxy: conformers/rf
+   - override /policy: conformers/mlp
+   - override /proxy: conformers/tblite
    - override /logger: wandb
-   - override /user: sasha
 
 # Environment
 env:
   length_traj: 10
   policy_encoding_dim_per_angle: 10
+  policy_type: mlp
   n_comp: 5
   vonmises_min_concentration: 4
+  reward_func: boltzmann
+  reward_beta: 32
+  reward_sampling_method: nested
 
 # GFlowNet hyperparameters
 gflownet:
   random_action_prob: 0.1
   optimizer:
-    batch_size: 100
+    batch_size:
+      forward: 100
+      backward_dataset: 0
+      backward_replay: 0
     lr: 0.00001
     z_dim: 16
     lr_z_mult: 1000
     n_train_steps: 40000
     lr_decay_period: 1000000
 
-# Policy
-policy:
-  forward:
-    type: mlp
-    n_hid: 512
-    n_layers: 5
-    checkpoint: forward
-  backward:
-    type: mlp
-    n_hid: 512
-    n_layers: 5
-    shared_weights: False
-    checkpoint: backward
-
 # WandB
 logger:
   lightweight: True
   project_name: "gflownet"
-  tags: 
+  tags:
     - gflownet
     - continuous
     - molecule
   test:
-    period: 500
+    period: 5000
     n: 10000
   checkpoints:
-    period: 500
+    period: 5000
 
 # Hydra
 hydra:
   run:
-    dir: ${user.logdir.root}/icml23/molecule/${now:%Y-%m-%d_%H-%M-%S}
+    dir: ${user.logdir.root}/molecule/${now:%Y-%m-%d_%H-%M-%S}

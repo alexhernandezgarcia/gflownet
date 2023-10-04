@@ -1,6 +1,14 @@
 """
 Runnable script with hydra capabilities
 """
+
+# This is a hotfix for tblite (used for the conformer generation) not
+# importing correctly unless it is being imported first.
+try:
+    from tblite import interface
+except:
+    pass
+
 import os
 import pickle
 import random

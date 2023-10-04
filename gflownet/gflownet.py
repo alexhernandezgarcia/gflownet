@@ -1038,8 +1038,8 @@ class GFlowNetAgent:
             )
         elif self.continuous:
             # TODO make it work with conditional env
-            x_sampled = torch2np(self.env.statebatch2proxy(x_sampled))
-            x_tt = torch2np(self.env.statebatch2proxy(x_tt))
+            x_sampled = torch2np(self.env.statebatch2kde(x_sampled))
+            x_tt = torch2np(self.env.statebatch2kde(x_tt))
             kde_pred = self.env.fit_kde(
                 x_sampled,
                 kernel=self.logger.test.kde.kernel,
@@ -1049,11 +1049,11 @@ class GFlowNetAgent:
                 log_density_true = dict_tt["log_density_true"]
                 kde_true = dict_tt["kde_true"]
             else:
-                # Sample from reward via rejection sampling
+                # Sample from reward via rejection or nested sampling
                 x_from_reward = self.env.sample_from_reward(
                     n_samples=self.logger.test.n
                 )
-                x_from_reward = torch2np(self.env.statetorch2proxy(x_from_reward))
+                x_from_reward = torch2np(self.env.statetorch2kde(x_from_reward))
                 # Fit KDE with samples from reward
                 kde_true = self.env.fit_kde(
                     x_from_reward,
@@ -1088,11 +1088,11 @@ class GFlowNetAgent:
 
         # Plots
 
-        if hasattr(self.env, "plot_reward_samples"):
+        if hasattr(self.env, "plot_reward_samples") and self.env.n_dim <= 2:
             fig_reward_samples = self.env.plot_reward_samples(x_sampled, **plot_kwargs)
         else:
             fig_reward_samples = None
-        if hasattr(self.env, "plot_kde"):
+        if hasattr(self.env, "plot_kde") and self.env.n_dim <= 2:
             fig_kde_pred = self.env.plot_kde(kde_pred, **plot_kwargs)
             fig_kde_true = self.env.plot_kde(kde_true, **plot_kwargs)
         else:
