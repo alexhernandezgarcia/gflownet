@@ -9,8 +9,8 @@ usage: launch.py [-h] [--help-md] [--job_name JOB_NAME] [--outdir OUTDIR]
                  [--cpus_per_task CPUS_PER_TASK] [--mem MEM] [--gres GRES]
                  [--partition PARTITION] [--modules MODULES]
                  [--conda_env CONDA_ENV] [--venv VENV] [--template TEMPLATE]
-                 [--code_dir CODE_DIR] [--jobs JOBS] [--dry-run] [--verbose]
-                 [--force]
+                 [--code_dir CODE_DIR] [--git_checkout GIT_CHECKOUT]
+                 [--jobs JOBS] [--dry-run] [--verbose] [--force]
 
 optional arguments:
   -h, --help            show this help message and exit
@@ -35,6 +35,11 @@ optional arguments:
                         $root/mila/sbatch/template-conda.sh
   --code_dir CODE_DIR   cd before running main.py (defaults to here). Defaults
                         to $root
+  --git_checkout GIT_CHECKOUT
+                        Branch or commit to checkout before running the code.
+                        This is only used if --code_dir='$SLURM_TMPDIR'. If
+                        not specified, the current branch is used. Defaults to
+                        None
   --jobs JOBS           jobs (nested) file name in external/jobs (with or
                         without .yaml). Or an absolute path to a yaml file
                         anywhere Defaults to None
@@ -54,6 +59,7 @@ conda_env     : gflownet
 cpus_per_task : 2
 dry-run       : False
 force         : False
+git_checkout  : None
 gres          : gpu:1
 job_name      : gflownet
 jobs          : None
