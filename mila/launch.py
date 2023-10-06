@@ -21,7 +21,7 @@ HELP = dedent(
 
     Examples:
 
-    ```sh
+    ```bash
     # using default job configuration, with script args from the command-line:
     $ python mila/launch.py user=$USER logger.do.online=False
 
