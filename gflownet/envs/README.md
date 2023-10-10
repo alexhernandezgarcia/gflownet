@@ -48,3 +48,7 @@ It is possible to store the best trajectories, according to the reward, in a buf
 To use the replay buffer (once enabled) for backward sampling, one can specify `gflownet.optimizer.batch_size.backward_replay`. Currently, backward sampling is supported in one of two modes (specified using `gflownet.replay_sampling`):
 - `permutation` (default): terminating states from the replay buffer are randomly permuted at each iteration, and first `gflownet.optimizer.batch_size.backward_replay` of them are used to sample trajectories,
 - `weighted`: terminating states are sampled with probability equal to their reward.
+
+:::{tip}
+You can use [MyST](https://myst-parser.readthedocs.io/en/latest/syntax/admonitions.html) in the documentation. This is expected to fail on Github.
+:::
