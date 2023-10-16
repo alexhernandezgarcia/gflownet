@@ -45,6 +45,10 @@ class DAVE(Proxy):
         super().__init__(**kwargs)
         self.rescale_outputs = rescale_outputs
         self.scaled = False
+        if "clip" in kwargs:
+            self.clip = kwargs["clip"]
+        else:
+            self.clip = False
 
         print("Initializing DAVE proxy:")
         print("  Checking out release:", release)
@@ -144,6 +148,21 @@ class DAVE(Proxy):
 
         if self.rescale_outputs:
             y = y * self.scales["y"]["std"] + self.scales["y"]["mean"]
+
+        if self.clip and self.clip.do:
+            if self.rescale_outputs:
+                if self.clip.min_stds:
+                    y_min = -1.0 * self.clip.min_stds * self.scales["y"]["std"]
+                else:
+                    y_min = None
+                if self.clip.max_stds:
+                    y_max = self.clip.max_stds * self.scales["y"]["std"]
+                else:
+                    y_max = None
+            else:
+                y_min = self.clip.min
+                y_max = self.clip.max
+            y = torch.clamp(min=y_min, max=y_max)
 
         return y
 
