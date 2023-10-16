@@ -60,19 +60,17 @@ class Prop:
 
 class StateType(Enum):
     """
-    Enumeration of the 5 types of state:
+    Enumeration of the 4 types of state from which transitions can originate:
         0: Source - both crystal-lattice system and point symmetry are unset (== 0)
         1: CLS - crystal-lattice system is set (!= 0); point symmetry is unset
         2: PS - crystal-lattice system is unset; point symmetry is set
         3: CLS_PS - both crystal-lattice system and point symmetry are set
-        4: SG: space group is set (trajectory done)
     """
 
     SOURCE = 0
     CLS = 1
     PS = 2
     CLS_PS = 3
-    SG = 4
 
 
 class SpaceGroup(GFlowNetEnv):
@@ -156,8 +154,6 @@ class SpaceGroup(GFlowNetEnv):
         }
         for prop, indices in properties.items():
             for state_type in StateType:
-                if state_type == StateType.SG:
-                    continue
                 if prop == Prop.CLS and state_type in [StateType.CLS, StateType.CLS_PS]:
                     continue
                 if prop == Prop.PS and state_type in [StateType.PS, StateType.CLS_PS]:
