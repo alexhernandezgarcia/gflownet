@@ -233,10 +233,10 @@ def main(args):
             max_atoms=config.env.composition_kwargs.max_atoms,
             max_atom_i=config.env.composition_kwargs.max_atom_i,
             space_groups=config.env.space_group_kwargs.space_groups_subset,
-            min_length=config.env.lattice_parameters_kwargs.min_length,
-            max_length=config.env.lattice_parameters_kwargs.max_length,
-            min_angle=config.env.lattice_parameters_kwargs.min_angle,
-            max_angle=config.env.lattice_parameters_kwargs.max_angle,
+            min_length=0.0,
+            max_length=1.0,
+            min_angle=0.0,
+            max_angle=1.0,
         )
         energies = env.oracle(env.statebatch2proxy(x_sampled))
         df = pd.DataFrame(
