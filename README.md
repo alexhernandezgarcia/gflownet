@@ -1,39 +1,11 @@
-# GFlowNet
+# Private sister repository of gflownet
 
-This repository implements GFlowNets, generative flow networks for probabilistic modelling, on PyTorch. A design guideline behind this implementation is the separation of the logic of the GFlowNet agent and the environments on which the agent can be trained on. In other words, this implementation should allow its extension with new environments without major or any changes to to the agent. Another design guideline is flexibility and modularity. The configuration is handled via the use of [Hydra](https://hydra.cc/docs/intro/).
+This repository (`gflownet-dev`) is private. It is meant to be used to develop research ideas and projects before making them public in the original [alexhernandezgarcia/gflownet](https://github.com/alexhernandezgarcia/gflownet) repository (`gflownet`).
 
-## Installation
+As of October 2023, it is uncertain whether we will stick to this plan in the long term, but the idea is the following:
 
-### pip
+- Develop ideas and projects in `gflownet-dev`.
+- Upon publication or whenever the authors feel comfortable, transfer the relevant code to `gflownet`. 
+- Relevant code improvements and development that does not compromise research projects should be transferred to `gflownet` as early as possible.
 
-```bash
-python -m pip install --upgrade https://github.com/alexhernandezgarcia/gflownet/archive/main.zip
-```
-
-## How to train a GFlowNet model
-
-To train a GFlowNet model with the default configuration, simply run
-
-```bash
-python main.py user.logdir.root=<path/to/log/files/>
-```
-
-Alternatively, you can create a user configuration file in `config/user/<username>.yaml` specifying a `logdir.root` and run
-
-```bash
-python main.py user=<username>
-```
-
-Using Hydra, you can easily specify any variable of the configuration in the command line. For example, to train GFlowNet with the trajectory balance loss, on the continuous torus (`ctorus`) environment and the corresponding proxy:
-
-```bash
-python main.py gflownet=trajectorybalance env=ctorus proxy=torus
-```
-
-The above command will overwrite the `env` and `proxy` default configuration with the configuration files in `config/env/ctorus.yaml` and `config/proxy/torus.yaml` respectively.
-
-Hydra configuration is hierarchical. For instance, a handy variable to change while debugging our code is to avoid logging to wandb. You can do this by setting `logger.do.online=False`.
-
-## Logging to wandb
-
-The repository supports logging of train and evaluation metrics to [wandb.ai](https://wandb.ai), but it is disabled by default. In order to enable it, set the configuration variable `logger.do.online` to `True`.
+This involves extra complexity, so we will re-evaluate or refine this plan after a test period.
