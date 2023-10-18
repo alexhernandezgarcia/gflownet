@@ -97,6 +97,11 @@ class SpaceGroup(GFlowNetEnv):
         """
         Args
         ----
+        space_groups_subset : iterable
+            A subset of space group (international) numbers to which to restrict the
+            state space. If None (default), the entire set of 230 space groups is
+            considered.
+
         n_atoms : list of int (optional)
             A list with the number of atoms per element, used to compute constraints on
             the space group. 0's are removed from the list. If None, composition/space
