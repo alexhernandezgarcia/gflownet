@@ -687,10 +687,7 @@ class SpaceGroup(GFlowNetEnv):
         sg_subset = set(sg_subset)
 
         # Update self.space_groups
-        self.space_groups = deepcopy(self.space_groups)
-        sg_to_remove = [sg for sg in self.space_groups if sg not in sg_subset]
-        for sg in sg_to_remove:
-            del self.space_groups[sg]
+        self.space_groups = [sg for sg in self.space_groups if sg in sg_subset]
 
         # Update self.crystal_lattice_systems based on space groups
         self.crystal_lattice_systems = deepcopy(self.crystal_lattice_systems)
