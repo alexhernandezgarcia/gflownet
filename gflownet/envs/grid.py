@@ -388,7 +388,7 @@ class Grid(GFlowNetEnv):
         return states.tolist()
 
     # TODO: review
-    def plot_samples_frequency(self, samples, ax=None, title=None, rescale=1):
+    def plot_reward_samples(self, samples, ax=None, title=None, rescale=1):
         """
         Plot 2D histogram of samples.
         """
@@ -426,4 +426,4 @@ class Grid(GFlowNetEnv):
         if standalone == True:
             plt.tight_layout()
             plt.close()
-        return ax
+        return fig
