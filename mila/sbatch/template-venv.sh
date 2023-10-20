@@ -5,6 +5,7 @@
 #SBATCH --mem={mem}
 #SBATCH --gres={gres}
 #SBATCH --partition={partition}
+#SBATCH --time={time}
 
 module load {modules}
 source {venv}/bin/activate
