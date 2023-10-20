@@ -726,7 +726,7 @@ class SpaceGroup(GFlowNetEnv):
         for ps in ps_to_remove:
             del self.point_symmetries[ps]
 
-        # Update self.crystal_lattice_systems based on point symmetries
+        # Update point symmetries of remaining crystal lattice systems
         point_symmetries = set(self.point_symmetries)
         for cls in self.crystal_lattice_systems:
             cls_point_symmetries = point_symmetries.intersection(
@@ -736,7 +736,7 @@ class SpaceGroup(GFlowNetEnv):
                 cls_point_symmetries
             )
 
-        # Update self.point_symmetries based on crystal lattice systems
+        # Update crystal lattice systems of remaining point symmetries
         crystal_lattice_systems = set(self.crystal_lattice_systems)
         for ps in self.point_symmetries:
             ps_crystal_lattice_systems = crystal_lattice_systems.intersection(
