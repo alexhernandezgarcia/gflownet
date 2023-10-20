@@ -158,11 +158,11 @@ class Tree(GFlowNetEnv):
         threshold_components: int = 1,
         beta_params_min: float = 0.1,
         beta_params_max: float = 2.0,
-        fixed_distribution: dict = {
+        fixed_distr_params: dict = {
             "beta_alpha": 2.0,
             "beta_beta": 5.0,
         },
-        random_distribution: dict = {
+        random_distr_params: dict = {
             "beta_alpha": 1.0,
             "beta_beta": 1.0,
         },
@@ -294,8 +294,8 @@ class Tree(GFlowNetEnv):
         self.statetorch2oracle = self.statetorch2policy
 
         super().__init__(
-            fixed_distribution=fixed_distribution,
-            random_distribution=random_distribution,
+            fixed_distr_params=fixed_distr_params,
+            random_distr_params=random_distr_params,
             continuous=continuous,
             **kwargs,
         )
@@ -670,10 +670,11 @@ class Tree(GFlowNetEnv):
             policy_outputs_discrete = policy_outputs[
                 is_discrete, : self._index_continuous_policy_output
             ]
+            # states_from can be None because it will be ignored
             actions_discrete, logprobs_discrete = super().sample_actions_batch(
                 policy_outputs_discrete,
                 mask[is_discrete, : self._index_continuous_policy_output],
-                states_from,
+                None,
                 is_backward,
                 sampling_method,
                 temperature_logits,
@@ -752,34 +753,34 @@ class Tree(GFlowNetEnv):
     def get_logprobs_continuous(
         self,
         policy_outputs: TensorType["n_states", "policy_output_dim"],
-        is_forward: bool,
         actions: TensorType["n_states", "n_dim"],
-        states_target: TensorType["n_states", "policy_input_dim"],
-        mask_invalid_actions: TensorType["n_states", "1"] = None,
+        mask: TensorType["n_states", "1"] = None,
+        states_from: Optional[List] = None,
+        is_backward: bool = False,
     ) -> TensorType["batch_size"]:
         """
         Computes log probabilities of actions given policy outputs and actions.
         """
         n_states = policy_outputs.shape[0]
-        if states_target is None:
-            states_target = torch.empty(
+        # TODO: make nicer
+        if states_from is None:
+            states_from = torch.empty(
                 (n_states, self.policy_input_dim), device=self.device
             )
         logprobs = torch.zeros(n_states, device=self.device, dtype=self.float)
         # Discrete actions
-        mask_discrete = mask_invalid_actions[:, self._action_index_pick_threshold]
+        mask_discrete = mask[:, self._action_index_pick_threshold]
         if torch.any(mask_discrete):
             policy_outputs_discrete = policy_outputs[
                 mask_discrete, : self._index_continuous_policy_output
             ]
+            # states_from can be None because it will be ignored
             logprobs_discrete = super().get_logprobs(
                 policy_outputs_discrete,
-                is_forward,
                 actions[mask_discrete],
-                states_target[mask_discrete],
-                mask_invalid_actions[
-                    mask_discrete, : self._index_continuous_policy_output
-                ],
+                mask[mask_discrete, : self._index_continuous_policy_output],
+                None,
+                is_backward,
             )
             logprobs[mask_discrete] = logprobs_discrete
         if torch.all(mask_discrete):
@@ -804,29 +805,29 @@ class Tree(GFlowNetEnv):
     def get_logprobs(
         self,
         policy_outputs: TensorType["n_states", "policy_output_dim"],
-        is_forward: bool,
         actions: TensorType["n_states", "n_dim"],
-        states_target: TensorType["n_states", "policy_input_dim"],
-        mask_invalid_actions: TensorType["n_states", "1"] = None,
+        mask: TensorType["n_states", "1"] = None,
+        states_from: Optional[List] = None,
+        is_backward: bool = False,
     ) -> TensorType["batch_size"]:
         """
         Computes log probabilities of actions given policy outputs and actions.
         """
         if self.continuous:
             return self.get_logprobs_continuous(
-                policy_outputs=policy_outputs,
-                is_forward=is_forward,
-                actions=actions,
-                states_target=states_target,
-                mask_invalid_actions=mask_invalid_actions,
+                policy_outputs,
+                actions,
+                mask,
+                states_from,
+                is_backward,
             )
         else:
             return super().get_logprobs(
-                policy_outputs=policy_outputs,
-                is_forward=is_forward,
-                actions=actions,
-                states_target=states_target,
-                mask_invalid_actions=mask_invalid_actions,
+                policy_outputs,
+                actions,
+                mask,
+                states_from,
+                is_backward,
             )
 
     def state2policy_mlp(
