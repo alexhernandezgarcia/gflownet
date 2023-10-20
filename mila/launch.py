@@ -406,6 +406,7 @@ if __name__ == "__main__":
         "outdir": "$SCRATCH/gflownet/logs/slurm",
         "partition": "long",
         "template": "$root/mila/sbatch/template-conda.sh",
+        "time": None,
         "venv": None,
         "verbose": False,
     }
@@ -453,6 +454,13 @@ if __name__ == "__main__":
         type=str,
         help="slurm partition to use for the job."
         + f" Defaults to {defaults['partition']}",
+    )
+    parser.add_argument(
+        "--time",
+        type=str,
+        help="wall clock time limit (e.g. 2-12:00:00). "
+        + "See: https://slurm.schedmd.com/sbatch.html#OPT_time"
+        + f" Defaults to {defaults['time']}",
     )
     parser.add_argument(
         "--modules",
