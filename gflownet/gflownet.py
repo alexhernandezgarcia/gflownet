@@ -1000,6 +1000,8 @@ class GFlowNetAgent:
             dict_tt = pickle.load(f)
             x_tt = dict_tt["x"]
 
+        env_metrics = {}
+
         # Compute correlation between the rewards of the test data and the log
         # likelihood of the data according the the GFlowNet policy; and NLL.
         # TODO: organise code for better efficiency and readability
@@ -1043,16 +1045,6 @@ class GFlowNetAgent:
         elif self.buffer.test_type == "random":
             # TODO: refactor
             env_metrics = self.env.test(x_sampled)
-            return (
-                self.l1,
-                self.kl,
-                self.jsd,
-                corr_prob_traj_rewards,
-                var_logrewards_logp,
-                nll_tt,
-                (None,),
-                env_metrics,
-            )
         elif self.continuous:
             # TODO make it work with conditional env
             x_sampled = torch2np(self.env.statebatch2proxy(x_sampled))
@@ -1094,14 +1086,22 @@ class GFlowNetAgent:
             density_pred = np.exp(log_density_pred)
         else:
             raise NotImplementedError
-        # L1 error
-        l1 = np.abs(density_pred - density_true).mean()
-        # KL divergence
-        kl = (density_true * (log_density_true - log_density_pred)).mean()
-        # Jensen-Shannon divergence
-        log_mean_dens = np.logaddexp(log_density_true, log_density_pred) + np.log(0.5)
-        jsd = 0.5 * np.sum(density_true * (log_density_true - log_mean_dens))
-        jsd += 0.5 * np.sum(density_pred * (log_density_pred - log_mean_dens))
+
+        if self.buffer.test_type == "all" or self.continuous:
+            # L1 error
+            l1 = np.abs(density_pred - density_true).mean()
+            # KL divergence
+            kl = (density_true * (log_density_true - log_density_pred)).mean()
+            # Jensen-Shannon divergence
+            log_mean_dens = np.logaddexp(log_density_true, log_density_pred) + np.log(
+                0.5
+            )
+            jsd = 0.5 * np.sum(density_true * (log_density_true - log_mean_dens))
+            jsd += 0.5 * np.sum(density_pred * (log_density_pred - log_mean_dens))
+        else:
+            l1 = self.l1
+            kl = self.kl
+            jsd = self.jsd
 
         # Plots
 
@@ -1123,7 +1123,7 @@ class GFlowNetAgent:
             var_logrewards_logp,
             nll_tt,
             [fig_reward_samples, fig_kde_pred, fig_kde_true],
-            {},
+            env_metrics,
         )
 
     @torch.no_grad()
