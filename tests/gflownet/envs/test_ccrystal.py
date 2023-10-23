@@ -382,10 +382,11 @@ def test__set_state__sets_state_subenvs_dones_and_constraints(
 
     # Check composition constraints
     if has_composition_constraints:
+        n_atoms = [n for n in env.subenvs[Stage.COMPOSITION].state if n > 0]
         n_atoms_compatibility_dict = env.subenvs[
             Stage.SPACE_GROUP
         ].build_n_atoms_compatibility_dict(
-            env.subenvs[Stage.COMPOSITION].state,
+            n_atoms,
             env.subenvs[Stage.SPACE_GROUP].space_groups.keys(),
         )
         assert (
