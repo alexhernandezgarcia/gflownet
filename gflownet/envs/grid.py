@@ -387,7 +387,6 @@ class Grid(GFlowNetEnv):
         states = rng.integers(low=0, high=self.length, size=(n_states, self.n_dim))
         return states.tolist()
 
-    # TODO: review
     def plot_reward_samples(
         self,
         samples,
