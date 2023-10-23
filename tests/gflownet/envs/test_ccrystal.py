@@ -38,6 +38,7 @@ SG_SUBSET_ALL_CLS_PS = [
 def env():
     return CCrystal(
         composition_kwargs={"elements": 4},
+        do_composition_to_sg_constraints=False,
         space_group_kwargs={"space_groups_subset": list(range(1, 15 + 1)) + [105]},
     )
 
@@ -46,7 +47,7 @@ def env():
 def env_with_stoichiometry_sg_check():
     return CCrystal(
         composition_kwargs={"elements": 4},
-        do_stoichiometry_sg_check=True,
+        do_composition_to_sg_constraints=True,
         space_group_kwargs={"space_groups_subset": SG_SUBSET_ALL_CLS_PS},
     )
 
@@ -341,7 +342,7 @@ def test__state_of_subenv__returns_expected(
         ),
         (
             "env_with_stoichiometry_sg_check",
-            [2, 1, 0, 4, 0, 4, 3, 105, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6],
+            [2, 4, 0, 4, 0, 4, 3, 105, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6],
             [True, True, False],
             True,
             True,
