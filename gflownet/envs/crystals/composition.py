@@ -445,12 +445,14 @@ class Composition(GFlowNetEnv):
         ----
         oracle_states : Tensor
         """
+        states_float = states.to(self.float)
+
         states_oracle = torch.zeros(
             (states.shape[0], N_ELEMENTS_ORACLE + 1),
             device=self.device,
             dtype=self.float,
         )
-        states_oracle[:, tlong(self.elements, device=self.device)] = states
+        states_oracle[:, tlong(self.elements, device=self.device)] = states_float
         return states_oracle
 
     def statebatch2oracle(
