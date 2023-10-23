@@ -474,3 +474,23 @@ class ContinuousTorus(HybridTorus):
 
     def get_max_traj_length(self):
         return int(self.length_traj) + 1
+
+    def is_excluded_from_training(self, state):
+        """
+        Returns True if the state passed as argument should be excluded from training;
+        False otherwise.
+
+        Currently, the excluded states are hard coded in this method and they
+        correspond to the states in the corner of length ceil(self.length / 2) that is
+        farthest from the source state.
+
+        Args
+        ----
+        state : list
+            The queried state.
+
+        Returns
+        -------
+            True if the state should be excluded from training; False otherwise.
+        """
+        return all([s >= 0.66 * np.pi and s <= 1.33 * np.pi for s in state[:-1]])
