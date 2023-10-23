@@ -27,22 +27,6 @@ class Stage(Enum):
     LATTICE_PARAMETERS = 2
     DONE = 3
 
-    def next(self) -> "Stage":
-        """
-        Returns the next Stage in the enumeration or None if at the last stage.
-        """
-        if self.value + 1 == len(Stage):
-            return None
-        return Stage(self.value + 1)
-
-    def prev(self) -> "Stage":
-        """
-        Returns the previous Stage in the enumeration or DONE if from the first stage.
-        """
-        if self.value - 1 < 0:
-            return Stage.DONE
-        return Stage(self.value - 1)
-
     def to_pad(self) -> int:
         """
         Maps stage value to a padding. The following mapping is used:
@@ -75,14 +59,22 @@ class CCrystal(GFlowNetEnv):
         space_group_kwargs: Optional[Dict] = None,
         lattice_parameters_kwargs: Optional[Dict] = None,
         do_composition_to_sg_constraints: bool = True,
+        do_sg_to_composition_constraints: bool = True,
         do_sg_to_lp_constraints: bool = True,
+        do_sg_before_composition: bool = False,
         **kwargs,
     ):
-        self.composition_kwargs = composition_kwargs or {}
+        do_composition_sg_checks = (
+            do_sg_to_composition_constraints and do_sg_before_composition
+        )
+        self.composition_kwargs = dict(
+            composition_kwargs or {}, do_spacegroup_check=do_composition_sg_checks
+        )
         self.space_group_kwargs = space_group_kwargs or {}
         self.lattice_parameters_kwargs = lattice_parameters_kwargs or {}
         self.do_composition_to_sg_constraints = do_composition_to_sg_constraints
         self.do_sg_to_lp_constraints = do_sg_to_lp_constraints
+        self.do_sg_before_composition = do_sg_before_composition
 
         composition = Composition(**self.composition_kwargs)
         space_group = SpaceGroup(**self.space_group_kwargs)
@@ -102,7 +94,8 @@ class CCrystal(GFlowNetEnv):
 
         # 0-th element of state encodes current stage: 0 for composition,
         # 1 for space group, 2 for lattice parameters
-        self.source = [Stage.COMPOSITION.value]
+        initial_stage = self._get_next_stage(None)
+        self.source = [initial_stage.value]
         for subenv in self.subenvs.values():
             self.source.extend(subenv.source)
 
@@ -378,6 +371,86 @@ class CCrystal(GFlowNetEnv):
                 return states[:, init_col:end_col]
             init_col = end_col
 
+    def _is_source_state(self, state) -> bool:
+        """Determines if the provided state is a source state.
+        This method returns True if the provided state corresponds to the initial state
+        of any of the sub-environments. Returns False otherwise.
+        """
+        stage = self._get_stage(state)
+        return self._get_state_of_subenv(state, stage) == self.subenvs[stage].source
+
+    def _get_previous_stage(self, stage: Stage) -> Stage:
+        """Return the stage that preceeds the provided stage.
+        There are two possible stage ordering depending on
+        self.do_sg_before_composition. Either :
+        Composition -> SpaceGroup -> LatticeParameter -> Done
+        or
+        SpaceGroup -> Composition -> LatticeParameter -> Done
+        """
+        if self.do_sg_before_composition:
+            if stage is Stage.SPACE_GROUP:
+                # Space group is the initial stage. No previous stage.
+                return Stage.DONE
+            elif stage is Stage.COMPOSITION:
+                return Stage.SPACE_GROUP
+            elif stage is Stage.LATTICE_PARAMETERS:
+                return Stage.COMPOSITION
+            elif stage is Stage.DONE:
+                return Stage.LATTICE_PARAMETERS
+            else:
+                raise ValueError(f"Unrecognized stage {stage}.")
+
+        else:
+            if stage is Stage.COMPOSITION:
+                # Space group is the initial stage. No previous stage.
+                return Stage.DONE
+            elif stage is Stage.SPACE_GROUP:
+                return Stage.COMPOSITION
+            elif stage is Stage.LATTICE_PARAMETERS:
+                return Stage.SPACE_GROUP
+            elif stage is Stage.DONE:
+                return Stage.LATTICE_PARAMETERS
+            else:
+                raise ValueError(f"Unrecognized stage {stage}.")
+
+    def _get_next_stage(self, stage: Stage = None) -> Stage:
+        """Returns the stage that follows the provided stage.
+        If no stage is provided, this function will return the initial stage. There are
+        two possible stage ordering depending on self.do_sg_before_composition. Either :
+        Composition -> SpaceGroup -> LatticeParameter -> Done
+        or
+        SpaceGroup -> Composition -> LatticeParameter -> Done
+        """
+        if self.do_sg_before_composition:
+            if stage is None:
+                # In the event of a environment reset, return the initial stage
+                return Stage.SPACE_GROUP
+            elif stage is Stage.SPACE_GROUP:
+                return Stage.COMPOSITION
+            elif stage is Stage.COMPOSITION:
+                return Stage.LATTICE_PARAMETERS
+            elif stage is Stage.LATTICE_PARAMETERS:
+                return Stage.DONE
+            elif stage is Stage.DONE:
+                return None
+            else:
+                raise ValueError(f"Unrecognized stage {stage}.")
+
+        else:
+            if stage is None:
+                # In the event of a environment reset, return the initial stage
+                return Stage.COMPOSITION
+            elif stage is Stage.COMPOSITION:
+                return Stage.SPACE_GROUP
+            elif stage is Stage.SPACE_GROUP:
+                return Stage.LATTICE_PARAMETERS
+            elif stage is Stage.LATTICE_PARAMETERS:
+                return Stage.DONE
+            elif stage is Stage.DONE:
+                return None
+            else:
+                raise ValueError(f"Unrecognized stage {stage}.")
+
     # TODO: set mask of done state if stage is not the current one for correctness.
     def get_mask_invalid_actions_forward(
         self, state: Optional[List[int]] = None, done: Optional[bool] = None
@@ -521,22 +594,34 @@ class CCrystal(GFlowNetEnv):
 
         # If action is EOS of subenv, advance stage and set constraints or exit
         if action_subenv == self.subenvs[stage].eos:
-            stage = Stage.next(stage)
-            if stage == Stage.SPACE_GROUP:
-                if self.do_composition_to_sg_constraints:
+            stage = self._get_next_stage(stage)
+
+            if stage is Stage.SPACE_GROUP:
+                if (
+                    not self.do_sg_before_composition
+                    and self.do_composition_to_sg_constraints
+                ):
                     self.subenvs[Stage.SPACE_GROUP].set_n_atoms_compatibility_dict(
                         self.subenvs[Stage.COMPOSITION].state
                     )
-            elif stage == Stage.LATTICE_PARAMETERS:
+
+            elif stage is Stage.COMPOSITION:
+                if self.do_sg_before_composition and self.do_stoichiometry_sg_check:
+                    space_group = self.subenvs[Stage.SPACE_GROUP].space_group
+                    self.subenvs[Stage.COMPOSITION].space_group = space_group
+
+            elif stage is Stage.LATTICE_PARAMETERS:
                 if self.do_sg_to_lp_constraints:
                     lattice_system = self.subenvs[Stage.SPACE_GROUP].lattice_system
                     self.subenvs[Stage.LATTICE_PARAMETERS].set_lattice_system(
                         lattice_system
                     )
-            elif stage == Stage.DONE:
+
+            elif stage is Stage.DONE:
                 self.n_actions += 1
                 self.done = True
                 return self.state, self.eos, True
+
             else:
                 raise ValueError(f"Unrecognized stage {stage}.")
 
@@ -585,9 +670,10 @@ class CCrystal(GFlowNetEnv):
 
         # If state of subenv is source of subenv, decrease stage
         if self._get_state_of_subenv(self.state, stage) == self.subenvs[stage].source:
-            stage = Stage.prev(stage)
-            # If stage is DONE, set global source and return
-            if stage == Stage.DONE:
+            stage = self._get_previous_stage(stage)
+            # If stage is DONE, we've returned to the environment's initial state,
+            # set global source and return
+            if stage is Stage.DONE:
                 self.state = self.source
                 return self.state, action, True
 
@@ -647,7 +733,7 @@ class CCrystal(GFlowNetEnv):
                 and stage != Stage(0)
                 and state_subenv == self.subenvs[stage].source
             ):
-                stage = Stage.prev(stage)
+                stage = self._get_previous_stage(stage)
             states_dict[stage].append(state_subenv)
             stages.append(stage)
         stages_tensor = tlong([stage.value for stage in stages], device=self.device)
@@ -726,7 +812,7 @@ class CCrystal(GFlowNetEnv):
                 and stage != Stage(0)
                 and state_subenv == self.subenvs[stage].source
             ):
-                stage = Stage.prev(stage)
+                stage = self._get_previous_stage(stage)
             states_dict[stage].append(state_subenv)
             stages.append(stage)
         stages_tensor = tlong([stage.value for stage in stages], device=self.device)
@@ -845,23 +931,40 @@ class CCrystal(GFlowNetEnv):
     def set_state(self, state: List, done: Optional[bool] = False):
         super().set_state(state, done)
 
+        stage = self._get_stage(state)
         stage_idx = self._get_stage(state).value
 
         # Determine which subenvs are done based on stage and done
-        done_subenvs = [True] * stage_idx + [False] * (len(self.subenvs) - stage_idx)
+        done_subenvs = {
+            Stage.COMPOSITION: False,
+            Stage.SPACE_GROUP: False,
+            Stage.LATTICE_PARAMETERS: False,
+        }
+        if stage is Stage.COMPOSITION and self.do_sg_before_composition:
+            done_subenvs[Stage.SPACE_GROUP] = True
+        elif stage is Stage.SPACE_GROUP and not self.do_sg_before_composition:
+            done_subenvs[Stage.COMPOSITION] = True
+        elif stage is Stage.LATTICE_PARAMETERS:
+            done_subenvs[Stage.COMPOSITION] = True
+            done_subenvs[Stage.SPACE_GROUP] = True
+        elif stage is Stage.DONE:
+            for subenv in done_subenvs:
+                done_subenvs[subenv] = True
         done_subenvs[-1] = done
+
         # Set state and done of each sub-environment
         for (stage, subenv), subenv_done in zip(self.subenvs.items(), done_subenvs):
-            subenv.set_state(self._get_state_of_subenv(state, stage), subenv_done)
+            stage_done = done_subenvs[stage]
+            subenv.set_state(self._get_state_of_subenv(state, stage), stage_done)
 
-        """
-        We synchronize LatticeParameter's lattice system with the one of SpaceGroup
-        (if it was set) or reset it to the default triclinic otherwise. Why this is 
-        needed: for backward sampling, where we start from an arbitrary terminal state,
-        and need to synchronize the LatticeParameter's lattice system to what that
-        state indicates,
-        """
         if self.subenvs[Stage.SPACE_GROUP].done:
+            """
+            We synchronize LatticeParameter's lattice system with the one of SpaceGroup
+            (if it was set) or reset it to the default triclinic otherwise. Why this is
+            needed: for backward sampling, where we start from an arbitrary terminal
+            state and need to synchronize the LatticeParameter's lattice system to what
+            that state indicates,
+            """
             lattice_system = self.subenvs[Stage.SPACE_GROUP].lattice_system
             if lattice_system != "None" and self.do_sg_to_lp_constraints:
                 self.subenvs[Stage.LATTICE_PARAMETERS].set_lattice_system(
@@ -869,6 +972,12 @@ class CCrystal(GFlowNetEnv):
                 )
             else:
                 self.subenvs[Stage.LATTICE_PARAMETERS].set_lattice_system(TRICLINIC)
+
+            # Set the stoichiometry constraints in the composition sub-environment
+            if self.do_sg_before_composition and self.do_sg_to_composition_constraints:
+                space_group = self.subenvs[Stage.SPACE_GROUP].space_group
+                self.subenvs[Stage.COMPOSITION].space_group = space_group
+
         # Set stoichiometry constraints in space group sub-environment
         if (
             self.do_composition_to_sg_constraints
