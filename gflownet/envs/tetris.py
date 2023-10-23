@@ -6,6 +6,7 @@ import re
 import warnings
 from typing import List, Optional, Tuple
 
+import matplotlib.pyplot as plt
 import numpy as np
 import numpy.typing as npt
 import torch
@@ -22,6 +23,17 @@ PIECES = {
     "S": [5, [[0, 5, 5], [5, 5, 0]]],
     "T": [6, [[6, 6, 6], [0, 6, 0]]],
     "Z": [7, [[7, 7, 0], [0, 7, 7]]],
+}
+
+PIECES_COLORS = {
+    0: [255, 255, 255],
+    1: [19, 232, 232],
+    2: [30, 30, 201],
+    3: [240, 110, 2],
+    4: [236, 236, 14],
+    5: [0, 128, 0],
+    6: [125, 5, 126],
+    7: [236, 14, 14],
 }
 
 
@@ -550,3 +562,80 @@ class Tetris(GFlowNetEnv):
             return max_relevant_piece_idx + incr
         else:
             return min_idx
+
+    # TODO: the name of the method does not correspond to the functionality (top k)
+    def plot_reward_samples(
+        self,
+        samples,
+        k_top: int = 10,
+        n_rows=2,
+        dpi=150,
+    ):
+        """
+        Plot tetris boards of top K samples.
+
+        Args
+        ----
+        samples : list
+            List of terminating states.
+
+        k_top : int
+            The number of samples that will be included in the plot. The k_top samples
+            with the highest reward are selected.
+
+        n_rows : int
+            Number of rows in the plot. The number of columns will be calculated
+            according the n_rows and k_top.
+
+        dpi : int
+            DPI (dots per inch) of the figure, to determine the resolution.
+        """
+        # Init figure
+        n_cols = np.ceil(k_top / n_rows).astype(int)
+        fig, axes = plt.subplots(nrows=n_rows, ncols=n_cols, dpi=dpi)
+        # Get rewards of samples and select top K
+        rewards = self.proxy2reward(self.proxy(self.statebatch2proxy(samples)))
+        rewards_topk, indices_topk = torch.sort(rewards, descending=True)[:k_top]
+        indices_topk = indices_topk.tolist()
+        for idx, ax in zip(indices_topk, axes.flatten()):
+            self._plot_board(samples[idx], ax)
+        fig.tight_layout()
+        return fig
+
+    @staticmethod
+    def _plot_board(board, ax, cellsize=20, linewidth=2):
+        """
+        Plots a single Tetris board (a state).
+
+        Args
+        ----
+        board : tensor
+            State to plot.
+
+        ax : matplotlib Axis
+            The axis in which to plot the board.
+
+        cellsize : int
+           The size (length) of each board cell, in pixels.
+
+        linewidth : int
+            The width of the separation between cells, in pixels.
+        """
+        board = board.clone().numpy()
+        height = board.shape[0] * cellsize
+        width = board.shape[1] * cellsize
+        board_img = 128 * np.ones(
+            (height + linewidth, width + linewidth, 3), dtype=np.uint8
+        )
+        for row in range(board.shape[0]):
+            for col in range(board.shape[1]):
+                row_init = row * cellsize + linewidth
+                row_end = row_init + cellsize - linewidth
+                col_init = col * cellsize + linewidth
+                col_end = col_init + cellsize - linewidth
+                color_key = int(board[row, col] / 100)
+                board_img[row_init:row_end, col_init:col_end, :] = PIECES_COLORS[
+                    color_key
+                ]
+        ax.imshow(board_img)
+        ax.set_axis_off()
