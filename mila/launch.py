@@ -7,10 +7,13 @@ from os import popen
 from os.path import expandvars
 from pathlib import Path
 from textwrap import dedent
+from git import Repo
 
 from yaml import safe_load
 
 ROOT = Path(__file__).resolve().parent.parent
+
+GIT_WARNING = True
 
 HELP = dedent(
     """
@@ -21,7 +24,7 @@ HELP = dedent(
 
     Examples:
 
-    ```sh
+    ```bash
     # using default job configuration, with script args from the command-line:
     $ python mila/launch.py user=$USER logger.do.online=False
 
@@ -337,6 +340,55 @@ def print_md_help(parser, defaults):
     print(HELP, end="")
 
 
+def ssh_to_https(url):
+    """
+    Converts a ssh git url to https.
+    Eg:
+    """
+    if "https://" in url:
+        return url
+    if "git@" in url:
+        path = url.split(":")[1]
+        return f"https://github.com/{path}"
+    raise ValueError(f"Could not convert {url} to https")
+
+
+def code_dir_for_slurm_tmp_dir_checkout(git_checkout):
+    global GIT_WARNING
+
+    repo = Repo(ROOT)
+    if git_checkout is None:
+        git_checkout = repo.active_branch.name
+        if GIT_WARNING:
+            print("💥 Git warnings:")
+            print(
+                f"  • `git_checkout` not provided. Using current branch: {git_checkout}"
+            )
+        # warn for uncommitted changes
+        if repo.is_dirty() and GIT_WARNING:
+            print(
+                "  • Your repo contains uncommitted changes. "
+                + "They will *not* be available when cloning happens within the job."
+            )
+        if GIT_WARNING and "y" not in input("Continue anyway? [y/N] ").lower():
+            print("🛑 Aborted")
+            sys.exit(0)
+        GIT_WARNING = False
+
+    return dedent(
+        """\
+        $SLURM_TMPDIR
+        git clone {git_url} tpm-gflownet
+        cd tpm-gflownet
+        {git_checkout}
+        echo "Current commit: $(git rev-parse HEAD)"
+    """
+    ).format(
+        git_url=ssh_to_https(repo.remotes.origin.url),
+        git_checkout=f"git checkout {git_checkout}" if git_checkout else "",
+    )
+
+
 if __name__ == "__main__":
     defaults = {
         "code_dir": "$root",
@@ -344,6 +396,7 @@ if __name__ == "__main__":
         "cpus_per_task": 2,
         "dry-run": False,
         "force": False,
+        "git_checkout": None,
         "gres": "gpu:1",
         "job_name": "gflownet",
         "jobs": None,
@@ -353,6 +406,7 @@ if __name__ == "__main__":
         "outdir": "$SCRATCH/gflownet/logs/slurm",
         "partition": "long",
         "template": "$root/mila/sbatch/template-conda.sh",
+        "time": None,
         "venv": None,
         "verbose": False,
     }
@@ -402,6 +456,13 @@ if __name__ == "__main__":
         + f" Defaults to {defaults['partition']}",
     )
     parser.add_argument(
+        "--time",
+        type=str,
+        help="wall clock time limit (e.g. 2-12:00:00). "
+        + "See: https://slurm.schedmd.com/sbatch.html#OPT_time"
+        + f" Defaults to {defaults['time']}",
+    )
+    parser.add_argument(
         "--modules",
         type=str,
         help="string after 'module load'." + f" Defaults to {defaults['modules']}",
@@ -427,6 +488,14 @@ if __name__ == "__main__":
         type=str,
         help="cd before running main.py (defaults to here)."
         + f" Defaults to {defaults['code_dir']}",
+    )
+    parser.add_argument(
+        "--git_checkout",
+        type=str,
+        help="Branch or commit to checkout before running the code."
+        + " This is only used if --code_dir='$SLURM_TMPDIR'. If not specified, "
+        + " the current branch is used."
+        + f" Defaults to {defaults['git_checkout']}",
     )
     parser.add_argument(
         "--jobs",
@@ -510,7 +579,11 @@ if __name__ == "__main__":
         job_args = deep_update(job_args, job_dict)
         job_args = deep_update(job_args, args)
 
-        job_args["code_dir"] = str(resolve(job_args["code_dir"]))
+        job_args["code_dir"] = (
+            str(resolve(job_args["code_dir"]))
+            if "SLURM_TMPDIR" not in job_args["code_dir"]
+            else code_dir_for_slurm_tmp_dir_checkout(job_args.get("git_checkout"))
+        )
         job_args["outdir"] = str(resolve(job_args["outdir"]))
         job_args["venv"] = str(resolve(job_args["venv"]))
         job_args["main_args"] = script_dict_to_main_args_str(job_args.get("script", {}))
@@ -542,7 +615,7 @@ if __name__ == "__main__":
             sbatch_path.parent.mkdir(parents=True, exist_ok=True)
             # write template
             sbatch_path.write_text(templated)
-            print(f"  🏷  Created ./{sbatch_path.relative_to(Path.cwd())}")
+            print(f"\n  🏷  Created ./{sbatch_path.relative_to(Path.cwd())}")
             # Submit job to SLURM
             out = popen(f"sbatch {sbatch_path}").read()
             # Identify printed-out job id

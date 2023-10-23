@@ -2,17 +2,19 @@
 Classes to represent crystal environments
 """
 import itertools
+from copy import deepcopy
+from enum import Enum
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Dict, Iterable, List, Optional, Tuple, Union
 
 import numpy as np
 import torch
 import yaml
-from pyxtal.symmetry import Group
 from torch import Tensor
 from torchtyping import TensorType
 
 from gflownet.envs.base import GFlowNetEnv
+from gflownet.utils.crystals.pyxtal_cache import space_group_check_compatible
 
 CRYSTAL_LATTICE_SYSTEMS = None
 POINT_SYMMETRIES = None
@@ -41,6 +43,19 @@ def _get_space_groups():
         with open(Path(__file__).parent / "space_groups.yaml", "r") as f:
             SPACE_GROUPS = yaml.safe_load(f)
     return SPACE_GROUPS
+
+
+class Prop(Enum):
+    """
+    Enumeration of the 3 properties of the SpaceGroup Environment:
+        - Crystal lattice system
+        - Point symmetry
+        - Space group
+    """
+
+    CLS = 0
+    PS = 1
+    SG = 2
 
 
 class SpaceGroup(GFlowNetEnv):
@@ -73,10 +88,20 @@ class SpaceGroup(GFlowNetEnv):
     the order of selection of properties.
     """
 
-    def __init__(self, n_atoms: Optional[List[int]] = None, **kwargs):
+    def __init__(
+        self,
+        space_groups_subset: Optional[Iterable] = None,
+        n_atoms: Optional[List[int]] = None,
+        **kwargs,
+    ):
         """
         Args
         ----
+        space_groups_subset : iterable
+            A subset of space group (international) numbers to which to restrict the
+            state space. If None (default), the entire set of 230 space groups is
+            considered.
+
         n_atoms : list of int (optional)
             A list with the number of atoms per element, used to compute constraints on
             the space group. 0's are removed from the list. If None, composition/space
@@ -86,14 +111,18 @@ class SpaceGroup(GFlowNetEnv):
         self.crystal_lattice_systems = _get_crystal_lattice_systems()
         self.point_symmetries = _get_point_symmetries()
         self.space_groups = _get_space_groups()
-        self.n_crystal_lattice_systems = len(self.crystal_lattice_systems)
-        self.n_point_symmetries = len(self.point_symmetries)
-        self.n_space_groups = len(self.space_groups)
+        self._restrict_space_groups(space_groups_subset)
         # Set dictionary of compatibility with number of atoms
         self.set_n_atoms_compatibility_dict(n_atoms)
         # Indices in the state representation: crystal-lattice system (cls), point
         # symmetry (ps) and space group (sg)
         self.cls_idx, self.ps_idx, self.sg_idx = 0, 1, 2
+        # Dictionary of all properties
+        self.properties = {
+            Prop.CLS: self.crystal_lattice_systems,
+            Prop.PS: self.point_symmetries,
+            Prop.SG: self.space_groups,
+        }
         # Indices of state types (see self.get_state_type)
         self.state_type_indices = [0, 1, 2, 3]
         # End-of-sequence action
@@ -117,20 +146,13 @@ class SpaceGroup(GFlowNetEnv):
         state (see self.state_type_indices).
         """
         actions = []
-        for prop, n_idx in zip(
-            [self.cls_idx, self.ps_idx, self.sg_idx],
-            [
-                self.n_crystal_lattice_systems,
-                self.n_point_symmetries,
-                self.n_space_groups,
-            ],
-        ):
+        for prop, indices in self.properties.items():
             for s_from_type in self.state_type_indices:
-                if prop == self.cls_idx and s_from_type in [1, 3]:
+                if prop == Prop.CLS and s_from_type in [1, 3]:
                     continue
-                if prop == self.ps_idx and s_from_type in [2, 3]:
+                if prop == Prop.PS and s_from_type in [2, 3]:
                     continue
-                actions_prop = [(prop, idx + 1, s_from_type) for idx in range(n_idx)]
+                actions_prop = [(prop.value, idx, s_from_type) for idx in indices]
                 actions += actions_prop
         actions += [self.eos]
         return actions
@@ -158,17 +180,18 @@ class SpaceGroup(GFlowNetEnv):
             mask[-1] = False
             return mask
         state_type = self.get_state_type(state)
-        # No constraints if neither crystal-lattice system nor point symmetry selected
+        # If neither crystal-lattice system nor point symmetry selected, apply only
+        # composition-compatibility constraints
         if cls_idx == 0 and ps_idx == 0:
             crystal_lattice_systems = [
-                (self.cls_idx, idx + 1, state_type)
-                for idx in range(self.n_crystal_lattice_systems)
-                if self._is_compatible(cls_idx=idx + 1)
+                (self.cls_idx, idx, state_type)
+                for idx in self.crystal_lattice_systems
+                if self._is_compatible(cls_idx=idx)
             ]
             point_symmetries = [
-                (self.ps_idx, idx + 1, state_type)
-                for idx in range(self.n_point_symmetries)
-                if self._is_compatible(ps_idx=idx + 1)
+                (self.ps_idx, idx, state_type)
+                for idx in self.point_symmetries
+                if self._is_compatible(ps_idx=idx)
             ]
         # Constraints after having selected crystal-lattice system
         if cls_idx != 0:
@@ -187,9 +210,9 @@ class SpaceGroup(GFlowNetEnv):
                 ]
         else:
             space_groups_cls = [
-                (self.sg_idx, idx + 1, state_type)
-                for idx in range(self.n_space_groups)
-                if self.n_atoms_compatibility_dict[idx + 1]
+                (self.sg_idx, idx, state_type)
+                for idx in self.space_groups
+                if self.n_atoms_compatibility_dict[idx]
             ]
         # Constraints after having selected point symmetry
         if ps_idx != 0:
@@ -208,9 +231,9 @@ class SpaceGroup(GFlowNetEnv):
                 ]
         else:
             space_groups_ps = [
-                (self.sg_idx, idx + 1, state_type)
-                for idx in range(self.n_space_groups)
-                if self.n_atoms_compatibility_dict[idx + 1]
+                (self.sg_idx, idx, state_type)
+                for idx in self.space_groups
+                if self.n_atoms_compatibility_dict[idx]
             ]
         # Merge space_groups constraints and determine valid space group actions
         space_groups = list(set(space_groups_cls).intersection(set(space_groups_ps)))
@@ -608,7 +631,9 @@ class SpaceGroup(GFlowNetEnv):
         False otherwise.
         """
         # Get list of space groups compatible with the composition
-        space_groups = [self.n_atoms_compatibility_dict[sg] for sg in self.space_groups]
+        space_groups = [
+            sg for sg in self.space_groups if self.n_atoms_compatibility_dict[sg]
+        ]
 
         # Prune the list of space groups to those compatible with the provided crystal-
         # lattice system
@@ -628,11 +653,11 @@ class SpaceGroup(GFlowNetEnv):
     def build_n_atoms_compatibility_dict(n_atoms: List[int], space_groups: List[int]):
         """
         Obtains which space groups are compatible with the stoichiometry given as
-        argument (n_atoms). It relies on pyxtal's
-        pyxtal.symmetry.Group.check_compatible(). Note that True is stored only if both
-        is_compatible and has_freedom are True.
+        argument (n_atoms).
 
-        See: https://pyxtal.readthedocs.io/en/latest/pyxtal.symmetry.html
+        It relies on a function which, internally, calls pyxtal's
+        pyxtal.symmetry.Group.check_compatible(). Note that sometimes that pyxtal
+        is known to return invalid results.
 
         Args
         ----
@@ -653,13 +678,81 @@ class SpaceGroup(GFlowNetEnv):
             return {sg: True for sg in space_groups}
         assert all([n > 0 for n in n_atoms])
         assert all([sg > 0 and sg <= 230 for sg in space_groups])
-        return {sg: Group(sg).check_compatible(n_atoms)[0] for sg in space_groups}
+        return {sg: space_group_check_compatible(sg, n_atoms) for sg in space_groups}
+
+    def _restrict_space_groups(self, sg_subset: Optional[Iterable] = None):
+        """
+        Updates the dictionaries:
+            - self.space_groups
+            - self.crystal_lattice_systems
+            - self.point_symmetries
+        by eliminating the space groups that are not in the subset sg_subset passed as
+        an argument.
+        """
+        if sg_subset is None:
+            return
+        sg_subset = set(sg_subset)
+
+        # Update self.space_groups
+        self.space_groups = {
+            k: v for (k, v) in self.space_groups.items() if k in sg_subset
+        }
+
+        # Update self.crystal_lattice_systems based on space groups
+        self.crystal_lattice_systems = deepcopy(self.crystal_lattice_systems)
+        cls_to_remove = []
+        for cls in self.crystal_lattice_systems:
+            cls_space_groups = sg_subset.intersection(
+                set(self.crystal_lattice_systems[cls]["space_groups"])
+            )
+            if len(cls_space_groups) == 0:
+                cls_to_remove.append(cls)
+            else:
+                self.crystal_lattice_systems[cls]["space_groups"] = list(
+                    cls_space_groups
+                )
+        for cls in cls_to_remove:
+            del self.crystal_lattice_systems[cls]
+
+        # Update self.point_symmetries based on space groups
+        self.point_symmetries = deepcopy(self.point_symmetries)
+        ps_to_remove = []
+        for ps in self.point_symmetries:
+            ps_space_groups = sg_subset.intersection(
+                set(self.point_symmetries[ps]["space_groups"])
+            )
+            if len(ps_space_groups) == 0:
+                ps_to_remove.append(ps)
+            else:
+                self.point_symmetries[ps]["space_groups"] = list(ps_space_groups)
+        for ps in ps_to_remove:
+            del self.point_symmetries[ps]
+
+        # Update point symmetries of remaining crystal lattice systems
+        point_symmetries = set(self.point_symmetries)
+        for cls in self.crystal_lattice_systems:
+            cls_point_symmetries = point_symmetries.intersection(
+                set(self.crystal_lattice_systems[cls]["point_symmetries"])
+            )
+            self.crystal_lattice_systems[cls]["point_symmetries"] = list(
+                cls_point_symmetries
+            )
+
+        # Update crystal lattice systems of remaining point symmetries
+        crystal_lattice_systems = set(self.crystal_lattice_systems)
+        for ps in self.point_symmetries:
+            ps_crystal_lattice_systems = crystal_lattice_systems.intersection(
+                set(self.point_symmetries[ps]["crystal_lattice_systems"])
+            )
+            self.point_symmetries[ps]["crystal_lattice_systems"] = list(
+                ps_crystal_lattice_systems
+            )
 
     def get_all_terminating_states(
         self, apply_stoichiometry_constraints: Optional[bool] = True
     ) -> List[List]:
         all_x = []
-        for sg in range(1, self.n_space_groups + 1):
+        for sg in self.space_groups:
             if (
                 apply_stoichiometry_constraints
                 and self.n_atoms_compatibility_dict[sg] is False

@@ -40,9 +40,9 @@ class GFlowNetEnv:
         proxy=None,
         oracle=None,
         proxy_state_format: str = "oracle",
+        fixed_distr_params: Optional[dict] = None,
+        random_distr_params: Optional[dict] = None,
         skip_mask_check: bool = False,
-        fixed_distribution: Optional[dict] = None,
-        random_distribution: Optional[dict] = None,
         conditional: bool = False,
         continuous: bool = False,
         **kwargs,
@@ -93,8 +93,10 @@ class GFlowNetEnv:
         # Max trajectory length
         self.max_traj_length = self.get_max_traj_length()
         # Policy outputs
-        self.fixed_policy_output = self.get_policy_output(fixed_distribution)
-        self.random_policy_output = self.get_policy_output(random_distribution)
+        self.fixed_distr_params = fixed_distr_params
+        self.random_distr_params = random_distr_params
+        self.fixed_policy_output = self.get_policy_output(self.fixed_distr_params)
+        self.random_policy_output = self.get_policy_output(self.random_distr_params)
         self.policy_output_dim = len(self.fixed_policy_output)
         self.policy_input_dim = len(self.state2policy())
         if proxy is not None and self.proxy == self.oracle:
@@ -406,8 +408,7 @@ class GFlowNetEnv:
             return self.state, action, False
         parents, parents_a = self.get_parents()
         state_next = parents[parents_a.index(action)]
-        self.state = state_next
-        self.done = False
+        self.set_state(state_next, done=False)
         self.n_actions += 1
         return self.state, action, True
 
@@ -503,21 +504,44 @@ class GFlowNetEnv:
     def get_logprobs(
         self,
         policy_outputs: TensorType["n_states", "policy_output_dim"],
-        is_forward: bool,
         actions: TensorType["n_states", "actions_dim"],
-        states_target: TensorType["n_states", "policy_input_dim"],
-        mask_invalid_actions: TensorType["batch_size", "policy_output_dim"] = None,
+        mask: TensorType["batch_size", "policy_output_dim"] = None,
+        states_from: Optional[List] = None,
+        is_backward: bool = False,
     ) -> TensorType["batch_size"]:
         """
         Computes log probabilities of actions given policy outputs and actions. This
         implementation is generally valid for all discrete environments but continuous
         environments will likely have to implement its own.
+
+        Args
+        ----
+        policy_outputs : tensor
+            The output of the GFlowNet policy model.
+
+        mask : tensor
+            The mask of invalid actions. For continuous or mixed environments, the mask
+            may be tensor with an arbitrary length contaning information about special
+            states, as defined elsewhere in the environment.
+
+        actions : tensor
+            The actions from each state in the batch for which to compute the log
+            probability.
+
+        states_from : tensor
+            The states originating the actions, in GFlowNet format. Ignored in discrete
+            environments and only required in certain continuous environments.
+
+        is_backward : bool
+            True if the actions are backward, False if the actions are forward
+            (default). Ignored in discrete environments and only required in certain
+            continuous environments.
         """
         device = policy_outputs.device
         ns_range = torch.arange(policy_outputs.shape[0]).to(device)
         logits = policy_outputs
-        if mask_invalid_actions is not None:
-            logits[mask_invalid_actions] = -torch.inf
+        if mask is not None:
+            logits[mask] = -torch.inf
         action_indices = (
             torch.tensor(
                 [self.action_space.index(tuple(action.tolist())) for action in actions]
@@ -942,10 +966,12 @@ class GFlowNetEnv:
                 y_nan = torch.isnan(state_y)
                 if not torch.equal(x_nan, y_nan):
                     return False
-                return torch.all(torch.isclose(state_x[~x_nan], state_y[~y_nan], atol))
+                return torch.all(
+                    torch.isclose(state_x[~x_nan], state_y[~y_nan], atol=atol)
+                )
             return torch.equal(state_x, state_y)
         else:
-            return np.all(np.isclose(state_x, state_y, atol))
+            return np.all(np.isclose(state_x, state_y, atol=atol))
 
     def set_energies_stats(self, energies_stats):
         self.energies_stats = energies_stats

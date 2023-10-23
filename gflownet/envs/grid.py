@@ -403,43 +403,61 @@ class Grid(GFlowNetEnv):
         ).tolist()
         return self._states_excluded_from_training
 
-    # TODO: review
-    def plot_samples_frequency(self, samples, ax=None, title=None, rescale=1):
+    def plot_reward_samples(
+        self,
+        samples,
+        ax=None,
+        title=None,
+        rescale=1,
+        dpi=150,
+        n_ticks_max=50,
+        reward_norm=True,
+    ):
         """
         Plot 2D histogram of samples.
         """
-        if self.n_dim > 2:
+        # Only available for 2D grids
+        if self.n_dim != 2:
             return None
-        if ax is None:
-            fig, ax = plt.subplots()
-            standalone = True
-        else:
-            standalone = False
-        # make a list of integers from 0 to n_dim
-        if rescale != 1:
-            step = int(self.length / rescale)
-        else:
-            step = 1
-        ax.set_xticks(np.arange(start=0, stop=self.length, step=step))
-        ax.set_yticks(np.arange(start=0, stop=self.length, step=step))
-        # check if samples is on GPU
-        if torch.is_tensor(samples) and samples.is_cuda:
-            samples = samples.detach().cpu()
-        states = np.array(samples).astype(int)
-        grid = np.zeros((self.length, self.length))
-        if title == None:
-            ax.set_title("Frequency of Coordinates Sampled")
-        else:
-            ax.set_title(title)
-        # TODO: optimize
-        for state in states:
-            grid[state[0], state[1]] += 1
-        im = ax.imshow(grid)
+        # Init figure
+        fig, axes = plt.subplots(ncols=2, dpi=dpi)
+        step_ticks = np.ceil(self.length / n_ticks_max).astype(int)
+        # Get all states and their reward
+        if not hasattr(self, "_rewards_all_2d"):
+            states_all = self.get_all_terminating_states()
+            rewards_all = self.proxy2reward(
+                self.proxy(self.statebatch2proxy(states_all))
+            )
+            if reward_norm:
+                rewards_all = rewards_all / rewards_all.sum()
+            self._rewards_all_2d = torch.empty(
+                (self.length, self.length), device=self.device, dtype=self.float
+            )
+            for row in range(self.length):
+                for col in range(self.length):
+                    idx = states_all.index([row, col])
+                    self._rewards_all_2d[row, col] = rewards_all[idx]
+            self._rewards_all_2d = self._rewards_all_2d.detach().cpu().numpy()
+        # 2D histogram of samples
+        samples = np.array(samples)
+        samples_hist, xedges, yedges = np.histogram2d(
+            samples[:, 0], samples[:, 1], bins=(self.length, self.length), density=True
+        )
+        # Transpose and reverse rows so that [0, 0] is at bottom left
+        samples_hist = samples_hist.T[::-1, :]
+        # Plot reward
+        self._plot_grid_2d(self._rewards_all_2d, axes[0], step_ticks)
+        # Plot samples histogram
+        self._plot_grid_2d(samples_hist, axes[1], step_ticks)
+        fig.tight_layout()
+        return fig
+
+    @staticmethod
+    def _plot_grid_2d(img, ax, step_ticks):
+        ax_img = ax.imshow(img)
         divider = make_axes_locatable(ax)
-        cax = divider.append_axes("right", size="5%", pad=0.05)
-        plt.colorbar(im, cax=cax)
-        plt.show()
-        if standalone == True:
-            plt.tight_layout()
-            plt.close()
-        return ax
+        cax = divider.append_axes("top", size="5%", pad=0.05)
+        ax.set_xticks(np.arange(start=0, stop=img.shape[0], step=step_ticks))
+        ax.set_yticks(np.arange(start=0, stop=img.shape[1], step=step_ticks)[::-1])
+        plt.colorbar(ax_img, cax=cax, orientation="horizontal")
+        cax.xaxis.set_ticks_position("top")
