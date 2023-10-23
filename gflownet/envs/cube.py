@@ -1329,6 +1329,26 @@ class ContinuousCube(CubeBase):
         states = rng.uniform(low=kappa, high=1.0 - kappa, size=(n_states, self.n_dim))
         return states.tolist()
 
+    def is_excluded_from_training(self, state):
+        """
+        Returns True if the state passed as argument should be excluded from training;
+        False otherwise.
+
+        Currently, the excluded states are hard coded in this method and they
+        correspond to the states in the corner of length ceil(self.length / 2) that is
+        farthest from the source state.
+
+        Args
+        ----
+        state : list
+            The queried state.
+
+        Returns
+        -------
+            True if the state should be excluded from training; False otherwise.
+        """
+        return all([s >= 0.5 for s in state])
+
     # TODO: make generic for all environments
     def sample_from_reward(
         self, n_samples: int, epsilon=1e-4
