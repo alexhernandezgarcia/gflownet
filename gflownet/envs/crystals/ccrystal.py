@@ -64,17 +64,21 @@ class CCrystal(GFlowNetEnv):
         do_sg_before_composition: bool = False,
         **kwargs,
     ):
-        do_composition_sg_checks = (
+        self.do_sg_to_composition_constraints = (
             do_sg_to_composition_constraints and do_sg_before_composition
         )
+        self.do_composition_to_sg_constraints = (
+            do_composition_to_sg_constraints and not do_sg_before_composition
+        )
+        self.do_sg_to_lp_constraints = do_sg_to_lp_constraints
+        self.do_sg_before_composition = do_sg_before_composition
+
         self.composition_kwargs = dict(
-            composition_kwargs or {}, do_spacegroup_check=do_composition_sg_checks
+            composition_kwargs or {},
+            do_spacegroup_check=self.do_sg_to_composition_constraints,
         )
         self.space_group_kwargs = space_group_kwargs or {}
         self.lattice_parameters_kwargs = lattice_parameters_kwargs or {}
-        self.do_composition_to_sg_constraints = do_composition_to_sg_constraints
-        self.do_sg_to_lp_constraints = do_sg_to_lp_constraints
-        self.do_sg_before_composition = do_sg_before_composition
 
         composition = Composition(**self.composition_kwargs)
         space_group = SpaceGroup(**self.space_group_kwargs)
