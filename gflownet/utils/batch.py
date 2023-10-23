@@ -1382,6 +1382,15 @@ class Batch:
         self,
         states: Optional[Union[List, TensorType["n_states", "..."]]] = None,
     ):
+        """
+        Removes from the batch those trajectories containing a state included in the
+        restricted set, indicated by the argument states.
+
+        Args
+        ----
+        states : list
+            The list of restricted states that must be removed from the training batch.
+        """
         # Build set of indices of trajectories that contain any of the states
         traj_indices_to_remove = set([])
         for state in states:
@@ -1410,4 +1419,3 @@ class Batch:
         self.size -= len(batch_indices_to_remove)
         if not self.is_valid():
             raise Exception("Batch is not valid after removing trajectories")
-        # TODO: update indices (as for logprobs)
