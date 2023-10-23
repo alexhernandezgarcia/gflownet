@@ -403,6 +403,27 @@ class Grid(GFlowNetEnv):
         ).tolist()
         return self._states_excluded_from_training
 
+    def is_excluded_from_training(self, state):
+        """
+        Returns True if the state passed as argument should be excluded from training;
+        False otherwise.
+
+        Currently, the excluded states are hard coded in this method and they
+        correspond to the states in the corner of length ceil(self.length / 2) that is
+        farthest from the source state.
+
+        Args
+        ----
+        state : list
+            The queried state.
+
+        Returns
+        -------
+            True if the state should be excluded from training; False otherwise.
+        """
+        min_cell = int(np.ceil(self.length / 2))
+        return all([s >= min_cell for s in state])
+
     def plot_reward_samples(
         self,
         samples,

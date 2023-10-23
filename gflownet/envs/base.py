@@ -1025,6 +1025,26 @@ class GFlowNetEnv:
         if self.proxy:
             self.proxy.setup(self)
 
+    def is_excluded_from_training(self, state):
+        """
+        Returns True if the state passed as argument should be excluded from training;
+        False otherwise.
+
+        This generic function returns None, which is interpreted as all states are
+        valid, none is restricted.
+
+        Args
+        ----
+        state : list
+            The queried state.
+
+        Returns
+        -------
+            True if the state should be excluded from training; False otherwise. None,
+            if no state is excluded (default).
+        """
+        return None
+
     @torch.no_grad()
     def compute_train_energy_proxy_and_rewards(self):
         """

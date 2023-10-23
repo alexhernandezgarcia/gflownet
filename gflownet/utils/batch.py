@@ -1,5 +1,5 @@
 from collections import OrderedDict
-from typing import List, Optional, Set, Tuple, Union
+from typing import Callable, List, Optional, Set, Tuple, Union
 
 import numpy as np
 import numpy.typing as npt
@@ -1397,6 +1397,56 @@ class Batch:
             traj_indices_to_remove = traj_indices_to_remove.union(
                 self._get_trajectories_with_state(state)
             )
+        # Build list of all batch indices corresponding to trajectories to remove
+        batch_indices_to_remove = sorted(
+            [
+                idx
+                for traj_idx in traj_indices_to_remove
+                for idx in self.trajectories[traj_idx]
+            ]
+        )
+        # Remove trajectory variables
+        for traj_idx in traj_indices_to_remove:
+            del self.trajectories[traj_idx]
+            del self.envs[traj_idx]
+            self.is_backward.pop(traj_idx, None)
+        # Remove batch items
+        for idx in batch_indices_to_remove[::-1]:
+            self._remove_idx(idx)
+        # Remake self.trajectories
+        self._remake_trajectories()
+        # Update size
+        self.size -= len(batch_indices_to_remove)
+        if not self.is_valid():
+            raise Exception("Batch is not valid after removing trajectories")
+
+    def remove_trajectories_with_restricted_states(
+        self,
+        is_excluded_func: Callable = None,
+    ):
+        """
+        Removes from the batch those trajectories containing any state restricted by
+        the input function is_excluded_func.
+
+        Args
+        ----
+        is_excluded_func : Callable
+            A function that receives one state as an input and returns a boolean output:
+            True if the state should not be included in the training batch, False
+            otherwise.
+        """
+        if is_excluded_func is None:
+            return
+        # Build set of indices of trajectories that contain any restricted state
+        traj_indices_to_remove = []
+        for idx, s in enumerate(self.states):
+            traj_idx = self.traj_indices[idx]
+            if traj_idx in traj_indices_to_remove:
+                continue
+            if is_excluded_func(s):
+                traj_indices_to_remove.append(traj_idx)
+        traj_indices_to_remove = set(traj_indices_to_remove)
+
         # Build list of all batch indices corresponding to trajectories to remove
         batch_indices_to_remove = sorted(
             [

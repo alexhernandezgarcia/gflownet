@@ -865,8 +865,8 @@ class GFlowNetAgent:
                 batch.merge(sub_batch)
             # Remove trajectories with excluded states from training batch
             if self.do_exclude_states_from_training:
-                batch.remove_trajectories_with_states(
-                    self.env.get_states_excluded_from_training()
+                batch.remove_trajectories_with_restricted_states(
+                    self.env.is_excluded_from_training
                 )
                 while len(batch) < self.batch_size_total:
                     n_missing = self.batch_size_total - len(batch)
