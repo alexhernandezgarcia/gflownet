@@ -425,8 +425,8 @@ class Composition(GFlowNetEnv):
         if state is None:
             state = self.state
         return self.statetorch2oracle(
-            torch.unsqueeze(tfloat(states, device=self.device), 0)
-        )
+            torch.unsqueeze(tfloat(state, device=self.device, float_type=self.float), 0)
+        )[0]
 
     def statetorch2oracle(
         self, states: TensorType["batch", "state_dim"]
