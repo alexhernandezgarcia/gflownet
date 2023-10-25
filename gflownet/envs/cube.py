@@ -1347,6 +1347,7 @@ class ContinuousCube(CubeBase):
         -------
             True if the state should be excluded from training; False otherwise.
         """
+#         return state[0] <= 0.5 and state[1] <= 0.5
 #         return state[1] >= 0.5 and state[0] < 0.5
 #         return state[0] >= 0.5 and state[1] < 0.5
 #         return all([s >= 0.33 and s <= 0.66 for s in state])

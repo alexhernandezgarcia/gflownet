@@ -582,6 +582,7 @@ class Tetris(GFlowNetEnv):
             True if the state should be excluded from training; False otherwise.
         """
         upper_half = state[: self.height // 2, :]
+#         return torch.any(upper_half > 0)
         has_O = torch.any(upper_half // self.max_pieces_per_type == self.piece2idx("O"))
         has_I = torch.any(upper_half // self.max_pieces_per_type == self.piece2idx("I"))
         return has_O or has_I
