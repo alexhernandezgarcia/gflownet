@@ -8,6 +8,7 @@ from pyxtal.symmetry import Group
 from gflownet.envs.crystals.spacegroup import SpaceGroup
 
 N_ATOMS = [3, 7, 9]
+SG_SUBSET = [1, 17, 39, 123, 230]
 
 
 @pytest.fixture
@@ -20,10 +21,67 @@ def env_with_composition():
     return SpaceGroup(n_atoms=N_ATOMS)
 
 
+@pytest.fixture
+def env_with_restricted_spacegroups():
+    return SpaceGroup(space_groups_subset=SG_SUBSET)
+
+
 def test__environment__initializes_properly():
     env = SpaceGroup()
     assert env.source == [0] * 3
     assert env.state == [0] * 3
+
+
+def test__environment__space_groups_subset__initializes_properly():
+    def count_distinct(my_dict, sub_key):
+        all_elements = []
+        for sub_dict in my_dict.values():
+            all_elements.extend(sub_dict[sub_key])
+
+        distinct_elements = set(all_elements)
+        return len(distinct_elements)
+
+    env = SpaceGroup(space_groups_subset=[1, 2])
+    nb_spacegroups = 2
+    nb_cls = 1
+    nb_ps = 2
+    assert env.source == [0] * 3
+    assert env.state == [0] * 3
+    assert len(env.space_groups) == nb_spacegroups
+    assert len(env.crystal_lattice_systems) == nb_cls
+    assert len(env.point_symmetries) == nb_ps
+    assert count_distinct(env.crystal_lattice_systems, "space_groups") == nb_spacegroups
+    assert count_distinct(env.crystal_lattice_systems, "point_symmetries") == nb_ps
+    assert count_distinct(env.point_symmetries, "space_groups") == nb_spacegroups
+    assert count_distinct(env.point_symmetries, "crystal_lattice_systems") == nb_cls
+
+    env = SpaceGroup(space_groups_subset=range(1, 15 + 1))
+    nb_spacegroups = 15
+    nb_cls = 2
+    nb_ps = 3
+    assert env.source == [0] * 3
+    assert env.state == [0] * 3
+    assert len(env.space_groups) == nb_spacegroups
+    assert len(env.crystal_lattice_systems) == nb_cls
+    assert len(env.point_symmetries) == nb_ps
+    assert count_distinct(env.crystal_lattice_systems, "space_groups") == nb_spacegroups
+    assert count_distinct(env.crystal_lattice_systems, "point_symmetries") == nb_ps
+    assert count_distinct(env.point_symmetries, "space_groups") == nb_spacegroups
+    assert count_distinct(env.point_symmetries, "crystal_lattice_systems") == nb_cls
+
+    env = SpaceGroup(space_groups_subset=SG_SUBSET)
+    nb_spacegroups = len(SG_SUBSET)
+    nb_cls = 4
+    nb_ps = 4
+    assert env.source == [0] * 3
+    assert env.state == [0] * 3
+    assert len(env.space_groups) == nb_spacegroups
+    assert len(env.crystal_lattice_systems) == nb_cls
+    assert len(env.point_symmetries) == nb_ps
+    assert count_distinct(env.crystal_lattice_systems, "space_groups") == nb_spacegroups
+    assert count_distinct(env.crystal_lattice_systems, "point_symmetries") == nb_ps
+    assert count_distinct(env.point_symmetries, "space_groups") == nb_spacegroups
+    assert count_distinct(env.point_symmetries, "crystal_lattice_systems") == nb_cls
 
 
 def test__environment__action_space_has_eos():
@@ -85,6 +143,42 @@ def test__environment__action_space_has_eos():
     ],
 )
 def test__action_space__contains_expected(env, action, expected):
+    assert (action in env.action_space) == expected
+
+
+@pytest.mark.parametrize(
+    "action, expected",
+    [
+        (
+            (2, 1, 0),
+            True,
+        ),
+        (
+            (2, 17, 0),
+            True,
+        ),
+        (
+            (2, 39, 0),
+            True,
+        ),
+        (
+            (2, 123, 0),
+            True,
+        ),
+        (
+            (2, 230, 0),
+            True,
+        ),
+        (
+            (2, 2, 0),
+            False,
+        ),
+    ],
+)
+def test__action_space__env_with_restricted_spacegroups__contains_expected(
+    env_with_restricted_spacegroups, action, expected
+):
+    env = env_with_restricted_spacegroups
     assert (action in env.action_space) == expected
 
 
@@ -231,7 +325,7 @@ def test__get_mask_invalid_actions_forward__incompatible_sg_are_invalid(
         env_with_composition.set_state(state=state, done=False)
         mask_f = env_with_composition.get_mask_invalid_actions_forward()
         state_type = env_with_composition.get_state_type(state)
-        for sg in range(1, env_with_composition.n_space_groups + 1):
+        for sg in env_with_composition.space_groups:
             sg_pyxtal = Group(sg)
             is_compatible = sg_pyxtal.check_compatible(N_ATOMS)[0]
             action = (env_with_composition.sg_idx, sg, state_type)
@@ -240,10 +334,10 @@ def test__get_mask_invalid_actions_forward__incompatible_sg_are_invalid(
 
 
 def test__states_are_compatible_with_pymatgen(env):
-    for idx in range(env.n_space_groups):
+    for idx in env.space_groups:
         env = env.reset()
-        env.step((2, idx + 1, 0))
-        sg_int = pmgg.sg_symbol_from_int_number(idx + 1)
+        env.step((2, idx, 0))
+        sg_int = pmgg.sg_symbol_from_int_number(idx)
         sg = pmgg.SpaceGroup(sg_int)
         assert sg.int_number == env.state[env.sg_idx]
         assert sg.crystal_system == env.crystal_system
@@ -280,5 +374,18 @@ def test__special_cases_composition_compatibility(n_atoms, cls_idx, ps_idx):
     assert valid is False
 
 
-def test__all_env_common(env):
+def test__all_common__env(env):
+    print("\n\nCommon tests for SpaceGroup without composition restrictions\n")
     return common.test__all_env_common(env)
+
+
+def test__all_common__env_with_composition(env_with_composition):
+    print(
+        f"\n\nCommon tests for SpaceGroup with restrictions from composition {N_ATOMS}\n"
+    )
+    return common.test__all_env_common(env_with_composition)
+
+
+def test__all_common__env_with_restricted_spacegroups(env_with_restricted_spacegroups):
+    print(f"\n\nCommon tests for SpaceGroup with restricted space groups {SG_SUBSET}")
+    return common.test__all_env_common(env_with_restricted_spacegroups)

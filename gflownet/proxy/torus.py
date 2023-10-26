@@ -17,17 +17,25 @@ class Torus(Proxy):
 
     @property
     def min(self):
-        if self.normalize:
-            return -1.0
-        else:
-            return -((self.n_dim * 2) ** 3)
+        if not hasattr(self, "_min"):
+            if self.normalize:
+                self._min = torch.tensor(-1.0, device=self.device, dtype=self.float)
+            else:
+                self._min = torch.tensor(
+                    -((self.n_dim * 2) ** 3), device=self.device, dtype=self.float
+                )
+        return self._min
 
     @property
     def norm(self):
-        if self.normalize:
-            return -((self.n_dim * 2) ** 3)
-        else:
-            return -1.0
+        if not hasattr(self, "_norm"):
+            if self.normalize:
+                self._norm = torch.tensor(
+                    -((self.n_dim * 2) ** 3), device=self.device, dtype=self.float
+                )
+            else:
+                self._norm = torch.tensor(-1.0, device=self.device, dtype=self.float)
+        return self._norm
 
     def __call__(self, states: TensorType["batch", "state_dim"]) -> TensorType["batch"]:
         """

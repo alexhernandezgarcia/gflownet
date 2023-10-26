@@ -2,7 +2,6 @@
 Classes to represent hyper-torus environments
 """
 import itertools
-import warnings
 from typing import List, Optional, Tuple
 
 import numpy as np
@@ -54,31 +53,34 @@ class ContinuousTorus(HybridTorus):
         self.representative_action = tuple([0.0] * self.n_dim)
         return [self.representative_action, self.eos]
 
-    def get_policy_output(self, params: dict):
+    def get_policy_output(self, params: dict) -> TensorType["policy_output_dim"]:
         """
         Defines the structure of the output of the policy model, from which an
         action is to be determined or sampled, by returning a vector with a fixed
         random policy.
 
         For each dimension d of the hyper-torus and component c of the mixture, the
-        output of the policy should return 1) the weight of the component in the
-        mixture, 2) the location of the von Mises distribution and 3) the concentration
-        of the von Mises distribution to sample the increment of the angle.
+        output of the policy should return
+          1) the weight of the component in the mixture
+          2) the location of the von Mises distribution to sample the angle increment
+          3) the log concentration of the von Mises distribution to sample the angle
+          increment
 
-        Therefore, the output of the policy model has dimensionality D x C x 1, where D
+        Therefore, the output of the policy model has dimensionality D x C x 3, where D
         is the number of dimensions (self.n_dim) and C is the number of components
-        (self.n_comp). In sum, the entries of the entries of the policy output are:
-
-        - d * c * 3 + 0: weight of component c in the mixture for dim. d
-        - d * c * 3 + 1: location of Von Mises distribution for dim. d, comp. c
-        - d * c * 3 + 2: log concentration of Von Mises distribution for dim. d, comp. c
+        (self.n_comp). The first 3 x C entries in the policy output correspond to the
+        first dimension, and so on.
         """
         policy_output = np.ones(self.n_dim * self.n_comp * 3)
         policy_output[1::3] = params["vonmises_mean"]
         policy_output[2::3] = params["vonmises_concentration"]
         return policy_output
 
-    def get_mask_invalid_actions_forward(self, state=None, done=None):
+    def get_mask_invalid_actions_forward(
+        self,
+        state: Optional[List] = None,
+        done: Optional[bool] = None,
+    ) -> List:
         """
         The action space is continuous, thus the mask is not of invalid actions as
         in discrete environments, but an indicator of "special cases", for example
@@ -260,18 +262,18 @@ class ContinuousTorus(HybridTorus):
             actions_tensor[do_sample] = angles_sampled
             logprobs[do_sample] = distr_angles.log_prob(angles_sampled)
         logprobs = torch.sum(logprobs, axis=1)
-        # Catch special case for backwards return-to-source actions
+        # Catch special case for backwards backt-to-source (BTS) actions
         if is_backward:
-            do_return_to_source = mask[:, 0]
-            if torch.any(do_return_to_source):
+            do_bts = mask[:, 0]
+            if torch.any(do_bts):
                 source_angles = tfloat(
                     self.source[: self.n_dim], float_type=self.float, device=self.device
                 )
                 states_from_angles = tfloat(
                     states_from, float_type=self.float, device=self.device
-                )[do_return_to_source, : self.n_dim]
-                actions_return_to_source = states_from_angles - source_angles
-                actions_tensor[do_return_to_source] = actions_return_to_source
+                )[do_bts, : self.n_dim]
+                actions_bts = states_from_angles - source_angles
+                actions_tensor[do_bts] = actions_bts
         # TODO: is this too inefficient because of the multiple data transfers?
         actions = [tuple(a.tolist()) for a in actions_tensor]
         return actions, logprobs
@@ -279,16 +281,34 @@ class ContinuousTorus(HybridTorus):
     def get_logprobs(
         self,
         policy_outputs: TensorType["n_states", "policy_output_dim"],
-        is_forward: bool,
         actions: TensorType["n_states", "n_dim"],
-        states_target: TensorType["n_states", "policy_input_dim"],
-        mask_invalid_actions: TensorType["n_states", "1"] = None,
+        mask: TensorType["n_states", "1"],
+        states_from: Optional[List] = None,
+        is_backward: bool = False,
     ) -> TensorType["batch_size"]:
         """
         Computes log probabilities of actions given policy outputs and actions.
+
+        Args
+        ----
+        policy_outputs : tensor
+            The output of the GFlowNet policy model.
+
+        mask : tensor
+            The mask containing information special cases.
+
+        actions : tensor
+            The actions (angle increments) from each state in the batch for which to
+            compute the log probability.
+
+        states_from : tensor
+            Ignored.
+
+        is_backward : bool
+            Ignored.
         """
         device = policy_outputs.device
-        do_sample = torch.all(~mask_invalid_actions, dim=1)
+        do_sample = torch.all(~mask, dim=1)
         n_states = policy_outputs.shape[0]
         logprobs = torch.zeros(n_states, self.n_dim).to(device)
         if torch.any(do_sample):
@@ -315,7 +335,7 @@ class ContinuousTorus(HybridTorus):
         self,
         action: Tuple[float],
         backward: bool,
-    ) -> Tuple[List[float], Tuple[int, float], bool]:
+    ) -> Tuple[List[float], Tuple[float], bool]:
         """
         Updates self.state given a non-EOS action. This method is called by both step()
         and step_backwards(), with the corresponding value of argument backward.
@@ -365,7 +385,7 @@ class ContinuousTorus(HybridTorus):
 
     def step(
         self, action: Tuple[float], skip_mask_check: bool = False
-    ) -> Tuple[List[float], Tuple[int, float], bool]:
+    ) -> Tuple[List[float], Tuple[float], bool]:
         """
         Executes forward step given an action.
 
@@ -411,7 +431,7 @@ class ContinuousTorus(HybridTorus):
 
     def step_backwards(
         self, action: Tuple[float], skip_mask_check: bool = False
-    ) -> Tuple[List[float], Tuple[int, float], bool]:
+    ) -> Tuple[List[float], Tuple[float], bool]:
         """
         Executes backward step given an action.
 
