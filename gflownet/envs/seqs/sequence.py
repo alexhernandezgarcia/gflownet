@@ -20,9 +20,12 @@ from gflownet.envs.base import GFlowNetEnv
 
 class Sequence(GFlowNetEnv):
     """
-    Parent of sequence environments. By default, for illustration purposes, this parent
-    class is functional and represents binary sequences of 0s and 1s, that can be
-    padded with the special token [PAD] and are terminated by the special token [EOS].
+    Parent class of sequence environments, in its simplest form: sequences are
+    constructed starting from an empty sequence and adding one token at a time.
+
+    By default, for illustration purposes, this parent class is functional and
+    represents binary sequences of 0s and 1s, that can be padded with the special token
+    [PAD] and are terminated by the special token [EOS].
 
     Attributes
     ----------
@@ -31,15 +34,6 @@ class Sequence(GFlowNetEnv):
 
     max_length : int
         Maximum length of the sequences.
-
-    min_length : int
-        Minimum length of the sequences
-
-    max_word_length : int
-        Maximum number of tokens allowed per action.
-
-    min_word_length : int
-        Minimum number of tokens allowed per action.
 
     eos_token : int, str
        EOS token. Default: -1.
@@ -52,25 +46,14 @@ class Sequence(GFlowNetEnv):
         self,
         tokens: Iterable = [0, 1],
         max_length: int = 10,
-        min_length: int = 1,
-        max_word_length: int = 1,
-        min_word_length: int = 1,
         eos_token: Union[int, str] = -1,
         pad_token: Union[int, str] = -2,
         **kwargs,
     ):
-        assert min_length > 0
         assert max_length > 0
-        assert max_length >= min_length
-        assert min_word_length > 0
-        assert max_word_length > 0
-        assert max_word_length >= min_word_length
         # Main attributes
         self.tokens = set(tokens)
-        self.min_length = min_length
         self.max_length = max_length
-        self.min_word_length = min_word_length
-        self.max_word_length = max_word_length
         self.eos_idx = -1
         self.pad_idx = -2
         # Dictionaries
@@ -83,7 +66,7 @@ class Sequence(GFlowNetEnv):
             self.max_length, self.pad_idx, dtype=torch.long, device=self.device
         )
         # End-of-sequence action
-        self.eos = (self.eos_idx,) + (self.pad_idx,) * (self.max_word_length - 1)
+        self.eos = (self.eos_idx,)
         # Base class init
         super().__init__(**kwargs)
 
@@ -91,33 +74,13 @@ class Sequence(GFlowNetEnv):
         """
         Constructs list with all possible actions, including eos.
 
-        An action is represented by a vector of length max_word_length where each
-        element indicates the idex of the token to add to the sequence. Actions with a
-        number of tokens smaller than max_word_length are padded with pad_idx.
+        An action is represented by a single-element tuple indicating the index of the
+        token to be added to the current sequence (state).
 
-        Examples:
-            If min_word_length = 1 and max_word_length = 1:
-                actions: [(0,), (1,), (-1,)]
-            If min_word_length = 2 and max_word_length = 2:
-                actions: [(0, 0,), (0, 1), (1, 0), (1, 1), (-1, -2)]
-            If min_word_length = 1 and max_word_length = 2:
-                actions: [(0, -2), (1, -2), (0, 0,), (0, 1), (1, 0), (1, 1), (-1, -2)]
+        The action space of this parent class is:
+            action_space: [(0,), (1,), (-1,)]
         """
-        valid_wordlens = np.arange(self.min_word_length, self.max_word_length + 1)
-        alphabet = [a for a in range(self.n_alphabet)]
-        actions = []
-        for r in valid_wordlens:
-            actions_r = [el for el in itertools.product(alphabet, repeat=r)]
-            actions += actions_r
-        # Add "eos" action
-        # eos != n_alphabet in the init because it would break if max_word_length >1
-        actions = actions + [(len(actions),)]
-        self.eos = len(actions) - 1
-        return actions
-
-    def copy(self):
-        return self.__class__(**self.__dict__)
-        # return deepcopy(self)
+        return [(idx,) for idx in self.idx2token]
 
     def get_mask_invalid_actions_forward(self, state=None, done=None):
         """
