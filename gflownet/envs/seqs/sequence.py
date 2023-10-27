@@ -89,8 +89,19 @@ class Sequence(GFlowNetEnv):
 
     def get_action_space(self):
         """
-        Constructs list with all possible actions
-        If min_word_length = n_alphabet = 2, actions: [(0, 0,), (1, 1)] and so on
+        Constructs list with all possible actions, including eos.
+
+        An action is represented by a vector of length max_word_length where each
+        element indicates the idex of the token to add to the sequence. Actions with a
+        number of tokens smaller than max_word_length are padded with pad_idx.
+
+        Examples:
+            If min_word_length = 1 and max_word_length = 1:
+                actions: [(0,), (1,), (-1,)]
+            If min_word_length = 2 and max_word_length = 2:
+                actions: [(0, 0,), (0, 1), (1, 0), (1, 1), (-1, -2)]
+            If min_word_length = 1 and max_word_length = 2:
+                actions: [(0, -2), (1, -2), (0, 0,), (0, 1), (1, 0), (1, 1), (-1, -2)]
         """
         valid_wordlens = np.arange(self.min_word_length, self.max_word_length + 1)
         alphabet = [a for a in range(self.n_alphabet)]
