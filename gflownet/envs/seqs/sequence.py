@@ -40,6 +40,12 @@ class Sequence(GFlowNetEnv):
 
     min_word_length : int
         Minimum number of tokens allowed per action.
+
+    eos_token : int, str
+       EOS token. Default: -1.
+
+    pad_token : int, str
+       PAD token. Default: -2.
     """
 
     def __init__(
@@ -49,42 +55,43 @@ class Sequence(GFlowNetEnv):
         min_length: int = 1,
         max_word_length: int = 1,
         min_word_length: int = 1,
+        eos_token: Union[int, str] = -1,
+        pad_token: Union[int, str] = -2,
         **kwargs,
     ):
         assert min_length > 0
         assert max_length > 0
+        assert max_length >= min_length
         assert min_word_length > 0
         assert max_word_length > 0
+        assert max_word_length >= min_word_length
         # Main attributes
-        self.tokens = tokens
+        self.tokens = set(tokens)
         self.min_length = min_length
         self.max_length = max_length
         self.min_word_length = min_word_length
         self.max_word_length = max_word_length
-
-        self.lookup = {a: i for (i, a) in enumerate(self.vocab)}
-        self.inverse_lookup = {i: a for (i, a) in enumerate(self.vocab)}
-        self.n_alphabet = len(self.vocab) - len(special_tokens)
-        self.padding_idx = self.lookup["[PAD]"]
-        # TODO: eos re-initalised in get_actions_space so why was this initialisation required in the first place (maybe mfenv)
-        self.eos = self.lookup["[EOS]"]
-        self.source = torch.ones(self.max_length, dtype=torch.int64) * self.padding_idx
-        # reset this to a lower value
-        self.min_reward = 1e-20
-        # if proxy is not None:
-        #     self.proxy = proxy
-        super().__init__(
-            **kwargs,
+        self.eos_idx = -1
+        self.pad_idx = -2
+        # Dictionaries
+        self.idx2token = {idx: token for idx, token in enumerate(self.tokens)}
+        self.idx2token[self.eos_idx] = eos_token
+        self.idx2token[self.pad_idx] = pad_token
+        self.token2idx = {token: idx for idx, token in self.idx2token.items()}
+        # Source state: vector of length max_length filled with pad token
+        self.source = torch.full(
+            self.max_length, self.pad_idx, dtype=torch.long, device=self.device
         )
-        self.policy_input_dim = self.state2policy().shape[-1]
-        self.tokenizer = None
+        # End-of-sequence action
+        self.eos = (self.eos_idx,) + (self.pad_idx,) * (self.max_word_length - 1)
+        # Base class init
+        super().__init__(**kwargs)
 
     def get_action_space(self):
         """
         Constructs list with all possible actions
         If min_word_length = n_alphabet = 2, actions: [(0, 0,), (1, 1)] and so on
         """
-        assert self.max_word_length >= self.min_word_length
         valid_wordlens = np.arange(self.min_word_length, self.max_word_length + 1)
         alphabet = [a for a in range(self.n_alphabet)]
         actions = []
