@@ -57,7 +57,7 @@ public  git@github.com:alexhernandezgarcia/gflownet.git (fetch)
 public  git@github.com:alexhernandezgarcia/gflownet.git (push)
 ```
 
-### Fetching a branch from the public repository
+### Merging a branch from the public repository
 
 A common action we may want to often do is fetching changes in the public repository, for instance after a PR is merged into `main`. These are some steps we can follow, assuming we have added the public repository to the list of remotes (see above).
 
