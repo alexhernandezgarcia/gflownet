@@ -1,6 +1,8 @@
 import yaml
 import pandas as pd
+from typing import Iterable
 
+# lattice offsets depending on the bravais centering
 lattice_symbols = {
     "P": ["(0, 0, 0)"],
     "A": ["(0, 0, 0)", "(0, 1/2, 1/2)"],
@@ -15,8 +17,11 @@ lattice_symbols = {
 }
 
 
-def parse_wyckoff_csv(wyckoff_file):
-    """Parse Wyckoff.csv
+def parse_wyckoff_csv():
+    """Originally implemented in the spglib package, see https://github.com/spglib/spglib
+        Adapted following our own needs.
+    Uses:    Wyckoff.csv: file taken from above repo.
+             spg.csv: file mapping hall numbers (column index 0) to spacegroup numbers (column index 4).
 
     There are 530 data sets. For one example:
 
@@ -25,8 +30,27 @@ def parse_wyckoff_csv(wyckoff_file):
     ::2:b:2:(0,y,1/2):::
     ::2:a:2:(0,y,0):::
 
-    """
+    Any number in first column corresponds to the hall number.
+    The 230 space groups can be represented in cartesian coordinates following 530 conventional settings,
+    depending on the origin and orientation of the axes. We decide to take the one convention per spacegroup,
+    following the same procedure as the Bilbao Crystallographic server:
 
+        "These are specific settings of space groups that coincide with the conventional space-group
+        descriptions found in Volume A of International Tables for Crystallography (referred to as ITA).
+        For space groups with more than one description in ITA, the following settings are chosen as
+        standard: unique axis b setting, cell choice 1 for monoclinic groups, hexagonal axes setting
+        for rhombohedral groups, and origin choice 2 (origin in -1) for the centrosymmetric groups listed
+        with respect to two origins in ITA."
+
+    For more info see https://www.cryst.ehu.es/cgi-bin/cryst/programs/nph-def-ita_settings?what=wp
+    and the International Tables.
+
+    The next lines in the csv files specify the individual positions in form 4:c:1:(x,y,z):(-x,y,-z)::,
+    corresponding to the multiplicity, Wyckoff letter, site symmetry and algebraic terms. If more than 4 terms are present,
+    they are written on multiple lines.
+    """
+    with open("gflownet/envs/crystals/wyckoff.csv", "r") as fp:
+        wyckoff_file = parse_wyckoff_csv(fp)
     rowdata = []
     points = []
     hP_nums = [433, 436, 444, 450, 452, 458, 460]
@@ -89,24 +113,70 @@ def parse_wyckoff_csv(wyckoff_file):
             n_pos *= len(lattice_symbols[wyckoff[i]["symbol"][0]])
             assert n_pos == w["multiplicity"]
 
+        # only keeping the standard settings
+        df_hall = pd.read_csv("gflownet/envs/crystals/spg.csv", header=None)
+        hall_numbers = []
+        for sg_number in range(1, 231):
+            hall_numbers.append(df_hall[(df_hall[4] == sg_number)].index[0])
+        spacegroups = [spacegroups[sg_number] for sg_number in hall_numbers]
+
     return wyckoff
 
 
 class Wyckoff:
-    def __init__(self, offset, algebraic) -> None:
+    """Simple class representing a Wyckoff position. Only defined by its offset and algebraic terms."""
+
+    def __init__(self, offset: Iterable, algebraic: Iterable) -> None:
+        """
+        Parameters
+        ----------
+        offset : Iterable
+            offset positions encoded as follows, e.g. ["(0,0,0)","(1/2,1/2,1/2)"]
+        algebraic : Iterable
+            algebraic positions encoded as follows, e.g. ["(x,y,z)","(-x,-y,-z)"]
+        """
         self.offset = frozenset(offset)
         self.algebraic = frozenset(algebraic)
 
-    def get_multiplicity(self):
+    def get_multiplicity(self) -> int:
+        """Get Wyckoff multiplicity: number of sites
+
+        Returns
+        -------
+        int
+            multiplicity
+        """
         return len(self.offset) * len(self.algebraic)
 
-    def get_offset(self):
+    def get_offset(self) -> Iterable:
+        """get offset positions encoded as: ["(0,0,0)","(1/2,1/2,1/2)"]
+
+        Returns
+        -------
+        Iterable
+            offset positions
+        """
         return self.offset
 
-    def get_algebraic(self):
+    def get_algebraic(self) -> Iterable:
+        """get algebraic positions encoded as: ["(x,y,z)","(-x,-y,-z)"]
+
+        Returns
+        -------
+        Iterable
+            algebraic positions
+        """
         return self.algebraic
 
-    def get_all_positions(self):
+    def get_all_positions(self) -> Iterable:
+        """get all Wyckoff positions, i.e. outer product over offsets and algebraic contributions. The number of positions equals the multiplicity.
+
+        Returns
+        -------
+        Iterable
+            All Wyckoff positions.
+        """
+
         w_pos = []
         for ofs in self.offset:
             ofs = ofs.strip("()").split(",")
@@ -115,7 +185,14 @@ class Wyckoff:
                 w_pos.append(tuple([x + y for x, y in zip(ofs, a)]))
         return w_pos
 
-    def as_dict(self):
+    def as_dict(self) -> dict:
+        """Dictionary representation of the wyckoff position
+
+        Returns
+        -------
+        dict
+            keys: multiplicity, offset, algebraic and positions.
+        """
         return {
             "multiplicity": self.get_multiplicity(),
             "offset": list(self.get_offset()),
@@ -140,19 +217,12 @@ class Wyckoff:
         return wyckoff_str
 
 
-with open("gflownet/envs/crystals/wyckoff.csv", "r") as fp:
-    spacegroups = parse_wyckoff_csv(fp)
+spacegroups = parse_wyckoff_csv()
 
 for i, w in enumerate(spacegroups):
     for p in w["wyckoff"]:
         pure_trans = lattice_symbols[w["symbol"][0]]
         p["positions"] = Wyckoff(pure_trans, p["positions"])
-
-df_hall = pd.read_csv("gflownet/envs/crystals/spg.csv", header=None)
-hall_numbers = []
-for i in range(1, 231):
-    hall_numbers.append(df_hall[(df_hall[4] == i)].index[0])
-spacegroups = [spacegroups[i] for i in hall_numbers]
 
 wyckoff_positions = []
 for sg in spacegroups:
