@@ -11,6 +11,8 @@ python -m virtualenv $1
 source $1/bin/activate
 # Update pip
 python -m pip install --upgrade pip
+# Force reinstall six to avoid issues with existing installations
+python -m pip install --upgrade --force-reinstall six
 # Install PyTorch family
 python -m pip install torch==1.12.1+cu113 --extra-index-url https://download.pytorch.org/whl/cu113
 # Requirements to run
