@@ -38,7 +38,6 @@ class GFlowNetEnv:
         energies_stats: List[int] = None,
         denorm_proxy: bool = False,
         proxy=None,
-        oracle=None,
         proxy_state_format: str = "oracle",
         fixed_distr_params: Optional[dict] = None,
         random_distr_params: Optional[dict] = None,
@@ -68,17 +67,10 @@ class GFlowNetEnv:
         self.reward_func = reward_func
         self.energies_stats = energies_stats
         self.denorm_proxy = denorm_proxy
-        # Proxy and oracle
+        # Proxy
         self.proxy = proxy
         self.setup_proxy()
-        if oracle is None:
-            self.oracle = self.proxy
-        else:
-            self.oracle = oracle
-        if self.oracle is None or self.oracle.higher_is_better:
-            self.proxy_factor = 1.0
-        else:
-            self.proxy_factor = -1.0
+        self.proxy_factor = -1.0
         self.proxy_state_format = proxy_state_format
         # Flag to skip checking if action is valid (computing mask) before step
         self.skip_mask_check = skip_mask_check
@@ -99,9 +91,6 @@ class GFlowNetEnv:
         self.random_policy_output = self.get_policy_output(self.random_distr_params)
         self.policy_output_dim = len(self.fixed_policy_output)
         self.policy_input_dim = len(self.state2policy())
-        if proxy is not None and self.proxy == self.oracle:
-            self.statebatch2proxy = self.statebatch2oracle
-            self.statetorch2proxy = self.statetorch2oracle
 
     @abstractmethod
     def get_action_space(self):
@@ -706,25 +695,6 @@ class GFlowNetEnv:
         """
         return states
 
-    def state2oracle(self, state: List = None):
-        """
-        Prepares a state in "GFlowNet format" for the oracle.
-
-        Args
-        ----
-        state : list
-            A state
-        """
-        if state is None:
-            state = self.state.copy()
-        return state
-
-    def statebatch2oracle(self, states: List[List]):
-        """
-        Prepares a batch of states in "GFlowNet format" for the oracles
-        """
-        return states
-
     def statetorch2policy(
         self, states: TensorType["batch_size", "state_dim"]
     ) -> TensorType["batch_size", "policy_input_dim"]:
@@ -824,9 +794,9 @@ class GFlowNetEnv:
 
     def proxy2reward(self, proxy_vals):
         """
-        Prepares the output of an oracle for GFlowNet: the inputs proxy_vals is
-        expected to be a negative value (energy), unless self.denorm_proxy is True. If
-        the latter, the proxy values are first de-normalized according to the mean and
+        Prepares the output of a proxy for GFlowNet: the inputs proxy_vals is expected
+        to be a negative value (energy), unless self.denorm_proxy is True. If the
+        latter, the proxy values are first de-normalized according to the mean and
         standard deviation in self.energies_stats. The output of the function is a
         strictly positive reward - provided self.reward_norm and self.reward_beta are
         positive - and larger than self.min_reward.
@@ -869,7 +839,7 @@ class GFlowNetEnv:
     def reward2proxy(self, reward):
         """
         Converts a "GFlowNet reward" into a (negative) energy or values as returned by
-        an oracle.
+        a proxy.
         """
         if self.reward_func == "power":
             return self.proxy_factor * torch.exp(
@@ -1350,7 +1320,7 @@ class GFlowNetEnv:
         return metrics, figs, fig_names
 
     def plot_reward_distribution(
-        self, states=None, scores=None, ax=None, title=None, oracle=None, **kwargs
+        self, states=None, scores=None, ax=None, title=None, proxy=None, **kwargs
     ):
         if ax is None:
             fig, ax = plt.subplots()
@@ -1359,15 +1329,15 @@ class GFlowNetEnv:
             standalone = False
         if title == None:
             title = "Scores of Sampled States"
-        if oracle is None:
-            oracle = self.oracle
+        if proxy is None:
+            proxy = self.proxy
         if scores is None:
             if isinstance(states[0], torch.Tensor):
                 states = torch.vstack(states).to(self.device, self.float)
             if isinstance(states, torch.Tensor) == False:
                 states = torch.tensor(states, device=self.device, dtype=self.float)
-            oracle_states = self.statetorch2oracle(states)
-            scores = oracle(oracle_states)
+            states_proxy = self.statetorch2proxy(states)
+            scores = self.proxy(states_proxy)
         if isinstance(scores, TensorType):
             scores = scores.cpu().detach().numpy()
         ax.hist(scores)

@@ -77,7 +77,7 @@ def main(config):
     if config.n_samples > 0 and config.n_samples <= 1e5:
         batch, times = gflownet.sample_batch(n_forward=config.n_samples, train=False)
         x_sampled = batch.get_terminating_states(proxy=True)
-        energies = env.oracle(x_sampled)
+        energies = env.proxy(x_sampled)
         x_sampled = batch.get_terminating_states()
         df = pd.DataFrame(
             {
