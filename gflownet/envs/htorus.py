@@ -22,15 +22,15 @@ from gflownet.utils.common import tfloat, torch2np
 class HybridTorus(GFlowNetEnv):
     """
     Continuous (hybrid: discrete and continuous) hyper-torus environment in which the
-    action space consists of the selection of which dimension d to increment increment
-    and of the angle of dimension d. The trajectory is of fixed length length_traj.
+    action space consists of the selection of which dimension d to increment and of the
+    angle of dimension d. The trajectory is of fixed length length_traj.
 
     The states space is the concatenation of the angle (in radians and within [0, 2 *
     pi]) at each dimension and the number of actions.
 
     Attributes
     ----------
-    ndim : int
+    n_dim : int
         Dimensionality of the torus
 
     length_traj : int
@@ -45,11 +45,11 @@ class HybridTorus(GFlowNetEnv):
         policy_encoding_dim_per_angle: int = None,
         do_nonzero_source_prob: bool = True,
         vonmises_min_concentration: float = 1e-3,
-        fixed_distribution: dict = {
+        fixed_distr_params: dict = {
             "vonmises_mean": 0.0,
             "vonmises_concentration": 0.5,
         },
-        random_distribution: dict = {
+        random_distr_params: dict = {
             "vonmises_mean": 0.0,
             "vonmises_concentration": 0.001,
         },
@@ -71,7 +71,7 @@ class HybridTorus(GFlowNetEnv):
         # Source state: position 0 at all dimensions and number of actions 0
         self.source_angles = [0.0 for _ in range(self.n_dim)]
         self.source = self.source_angles + [0]
-        # End-of-sequence action: (n_dim, None)
+        # End-of-sequence action: (n_dim, 0)
         self.eos = (self.n_dim, 0)
         # TODO: assess if really needed
         self.state2oracle = self.state2proxy
@@ -79,8 +79,8 @@ class HybridTorus(GFlowNetEnv):
         self.statetorch2oracle = self.statetorch2proxy
         # Base class init
         super().__init__(
-            fixed_distribution=fixed_distribution,
-            random_distribution=random_distribution,
+            fixed_distr_params=fixed_distr_params,
+            random_distr_params=random_distr_params,
             **kwargs,
         )
         self.continuous = True
@@ -132,7 +132,11 @@ class HybridTorus(GFlowNetEnv):
         policy_output[2 :: self.n_params_per_dim] = params["vonmises_concentration"]
         return policy_output
 
-    def get_mask_invalid_actions_forward(self, state=None, done=None):
+    def get_mask_invalid_actions_forward(
+        self,
+        state: Optional[List] = None,
+        done: Optional[bool] = None,
+    ) -> List:
         """
         Returns a vector with the length of the discrete part of the action space:
         True if action is invalid going forward given the current state, False
@@ -169,10 +173,10 @@ class HybridTorus(GFlowNetEnv):
             mask = [False for _ in range(self.action_space_dim)]
             mask[-1] = True
         # Catch cases where it would not be possible to reach the initial state
-        noninit_states = [s for s, ss in zip(state[:-1], self.source_angles) if s != ss]
-        if len(noninit_states) > state[-1]:
+        noninit_dims = [s for s, ss in zip(state[:-1], self.source_angles) if s != ss]
+        if len(noninit_dims) > state[-1]:
             raise ValueError("This point in the code should never be reached!")
-        elif len(noninit_states) == state[-1] and len(noninit_states) >= state[-1] - 1:
+        elif len(noninit_dims) == state[-1] and len(noninit_dims) >= state[-1] - 1:
             mask = [
                 True if s == ss else m
                 for m, s, ss in zip(mask, state[:-1], self.source_angles)
@@ -390,13 +394,14 @@ class HybridTorus(GFlowNetEnv):
         ]
         return actions, logprobs
 
+    # TODO: deprecated
     def get_logprobs(
         self,
         policy_outputs: TensorType["n_states", "policy_output_dim"],
-        is_forward: bool,
         actions: TensorType["n_states", 2],
-        states_target: TensorType["n_states", "policy_input_dim"],
-        mask_invalid_actions: TensorType["batch_size", "policy_output_dim"] = None,
+        mask: TensorType["batch_size", "policy_output_dim"] = None,
+        states_from: Optional[List] = None,
+        is_backward: bool = False,
     ) -> TensorType["batch_size"]:
         """
         Computes log probabilities of actions given policy outputs and actions.
@@ -409,8 +414,8 @@ class HybridTorus(GFlowNetEnv):
         ns_range = torch.arange(n_states).to(device)
         # Dimensions
         logits_dims = policy_outputs[:, 0 :: self.n_params_per_dim]
-        if mask_invalid_actions is not None:
-            logits_dims[mask_invalid_actions] = -torch.inf
+        if mask is not None:
+            logits_dims[mask] = -torch.inf
         logprobs_dim = self.logsoftmax(logits_dims)[ns_range, dimensions]
         # Angle increments
         # Cases where p(angle) should be computed (nofix):
@@ -427,11 +432,11 @@ class HybridTorus(GFlowNetEnv):
         source = torch.tensor(self.source_angles, device=device)
         source_aux = torch.tensor(self.source_angles + [-1], device=device)
         nsource_ne_nsteps = torch.ne(
-            torch.sum(torch.ne(states_target[:, :-1], source), axis=1),
-            states_target[:, -1],
+            torch.sum(torch.ne(states_to[:, :-1], source), axis=1),
+            states_to[:, -1],
         )
         angledim_ne_source = torch.ne(
-            states_target[ns_range, dimensions], source_aux[dimensions]
+            states_to[ns_range, dimensions], source_aux[dimensions]
         )
         noeos = torch.ne(dimensions, self.eos[0])
         nofix_indices = torch.logical_and(
@@ -524,6 +529,14 @@ class HybridTorus(GFlowNetEnv):
         angles = list(itertools.product(*linspaces))
         states = [list(el) + [self.length_traj] for el in angles]
         return states
+
+    def get_uniform_terminating_states(
+        self, n_states: int, seed: int = None
+    ) -> List[List]:
+        rng = np.random.default_rng(seed)
+        angles = rng.uniform(low=0.0, high=(2 * np.pi), size=(n_states, self.n_dim))
+        states = np.concatenate((angles, np.ones((n_states, 1))), axis=1)
+        return states.tolist()
 
     # TODO: make generic for all environments
     def sample_from_reward(

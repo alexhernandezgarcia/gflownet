@@ -22,10 +22,10 @@ test_args:
 threshold_components: 3
 beta_params_min: 0.1
 beta_params_max: 100.0
-fixed_distribution:
+fixed_distr_params:
   beta_alpha: 2.0
   beta_beta: 5.0
-random_distribution:
+random_distr_params:
   beta_alpha: 1.0
   beta_beta: 1.0
 # Buffer
