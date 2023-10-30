@@ -156,6 +156,16 @@ class Grid(GFlowNetEnv):
         a vector of length n_dim with values in the range [cell_min, cell_max].
 
         See: statetorch2policy()
+
+        Args
+        ----
+        states : list or tensor
+            A batch of states in environment format, either as a list of states or as a
+            single tensor.
+
+        Returns
+        -------
+        A tensor containing all the states in the batch.
         """
         states = tfloat(states, device=self.device, float_type=self.float)
         return (
@@ -234,6 +244,16 @@ class Grid(GFlowNetEnv):
           - state: [0, 3, 1]
           - policy format: [1, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0]
                            |     0    |      3    |      1    |
+
+        Args
+        ----
+        states : list or tensor
+            A batch of states in environment format, either as a list of states or as a
+            single tensor.
+
+        Returns
+        -------
+        A tensor containing all the states in the batch.
         """
         states = tlong(states, device=self.device)
         n_states = states.shape[0]
