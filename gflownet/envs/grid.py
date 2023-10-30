@@ -152,7 +152,7 @@ class Grid(GFlowNetEnv):
         self, states: Union[List[List], TensorType["batch", "state_dim"]]
     ) -> TensorType["batch", "state_proxy_dim"]:
         """
-        Prepares a batch of states in "GFlowNet format" for the proxy: each state is
+        Prepares a batch of states in "environment format" for the proxy: each state is
         a vector of length n_dim with values in the range [cell_min, cell_max].
 
         See: statetorch2policy()
@@ -231,9 +231,9 @@ class Grid(GFlowNetEnv):
 
     def states2policy(
         self, states: Union[List, TensorType["batch", "state_dim"]]
-    ) -> TensorType["batch", "policy_output_dim"]:
+    ) -> TensorType["batch", "policy_input_dim"]:
         """
-        Prepares a batch of states in "GFlowNet format" for the policy model: states
+        Prepares a batch of states in "environment format" for the policy model: states
         are one-hot encoded.
 
         The output is a 2D tensor, with the second dimension of size length * n_dim,
