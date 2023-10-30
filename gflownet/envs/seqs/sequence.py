@@ -47,6 +47,7 @@ class Sequence(GFlowNetEnv):
         **kwargs,
     ):
         assert max_length > 0
+        assert len(set(tokens)) == len(tokens)
         # Make sure that padding token is not one of the regular tokens
         if pad_token in tokens:
             raise ValueError(
@@ -63,16 +64,14 @@ class Sequence(GFlowNetEnv):
         # Set device because it is needed in the init
         self.device = set_device(kwargs["device"])
         # Main attributes
-        self.tokens = set(tokens)
+        self.tokens = tuple(tokens)
         self.n_tokens = len(self.tokens)
         self.max_length = max_length
         self.eos_idx = -1
         self.pad_idx = 0
         self.dtype = type(pad_token)
         # Dictionaries
-        self.idx2token = {
-            idx + 1: token for idx, token in enumerate(sorted(self.tokens))
-        }
+        self.idx2token = {idx + 1: token for idx, token in enumerate(self.tokens)}
         self.idx2token[self.pad_idx] = pad_token
         self.token2idx = {token: idx for idx, token in self.idx2token.items()}
         # Source state: vector of length max_length filled with pad token
