@@ -2,7 +2,7 @@
 Classes to represent a hyper-grid environments
 """
 import itertools
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, Union
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -12,6 +12,7 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 from torchtyping import TensorType
 
 from gflownet.envs.base import GFlowNetEnv
+from gflownet.utils.common import tfloat, tlong
 
 
 class Grid(GFlowNetEnv):
@@ -81,9 +82,6 @@ class Grid(GFlowNetEnv):
         # TODO: assess if really needed
         if self.proxy_state_format == "ohe":
             self.statebatch2proxy = self.statebatch2policy
-        elif self.proxy_state_format == "oracle":
-            self.statebatch2proxy = self.statebatch2oracle
-            self.statetorch2proxy = self.statetorch2oracle
 
     def get_action_space(self):
         """
@@ -127,7 +125,7 @@ class Grid(GFlowNetEnv):
                 mask[idx] = True
         return mask
 
-    def state2oracle(self, state: List = None) -> List:
+    def state2proxy(self, state: List = None) -> List:
         """
         Prepares a state in "GFlowNet format" for the oracles: a list of length
         n_dim with values in the range [cell_min, cell_max] for each state.
@@ -150,33 +148,52 @@ class Grid(GFlowNetEnv):
             .tolist()
         )
 
-    def statebatch2oracle(
+    def states2proxy(
+        self, states: Union[List[List], TensorType["batch", "state_dim"]]
+    ) -> TensorType["batch", "state_proxy_dim"]:
+        """
+        Prepares a batch of states in "GFlowNet format" for the proxy: each state is
+        a vector of length n_dim with values in the range [cell_min, cell_max].
+
+        See: statetorch2policy()
+        """
+        states = tfloat(states, device=self.device, float_type=self.float)
+        return (
+            self.statetorch2policy(states).reshape(
+                (states.shape[0], self.n_dim, self.length)
+            )
+            * torch.tensor(self.cells[None, :]).to(states.device, self.float)
+        ).sum(axis=2)
+
+    def statebatch2proxy(
         self, states: List[List]
-    ) -> TensorType["batch", "state_oracle_dim"]:
+    ) -> TensorType["batch", "state_proxy_dim"]:
         """
         Prepares a batch of states in "GFlowNet format" for the oracles: each state is
         a vector of length n_dim with values in the range [cell_min, cell_max].
 
-        See: statetorch2oracle()
+        See: statetorch2proxy()
 
         Args
         ----
         state : list
             State
         """
-        return self.statetorch2oracle(
-            torch.tensor(states, device=self.device, dtype=self.float)
+        return self.states2proxy(states)
+        return self.statetorch2proxy(
+            tfloat(states, device=self.device, float_type=self.float)
         )
 
-    def statetorch2oracle(
+    def statetorch2proxy(
         self, states: TensorType["batch", "state_dim"]
-    ) -> TensorType["batch", "state_oracle_dim"]:
+    ) -> TensorType["batch", "state_proxy_dim"]:
         """
         Prepares a batch of states in "GFlowNet format" for the oracles: each state is
         a vector of length n_dim with values in the range [cell_min, cell_max].
 
         See: statetorch2policy()
         """
+        return self.states2proxy(states)
         return (
             self.statetorch2policy(states).reshape(
                 (len(states), self.n_dim, self.length)
@@ -202,6 +219,32 @@ class Grid(GFlowNetEnv):
         state_policy[(np.arange(len(state)) * self.length + state)] = 1
         return state_policy.tolist()
 
+    def states2policy(
+        self, states: Union[List, TensorType["batch", "state_dim"]]
+    ) -> TensorType["batch", "policy_output_dim"]:
+        """
+        Prepares a batch of states in "GFlowNet format" for the policy model: states
+        are one-hot encoded.
+
+        The output is a 2D tensor, with the second dimension of size length * n_dim,
+        where each n-th successive block of length elements is a one-hot encoding of
+        the position in the n-th dimension.
+
+        Example (n_dim = 3, length = 4):
+          - state: [0, 3, 1]
+          - policy format: [1, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0]
+                           |     0    |      3    |      1    |
+        """
+        states = tlong(states, device=self.device)
+        n_states = states.shape[0]
+        cols = states + torch.arange(self.n_dim) * self.length
+        rows = torch.repeat_interleave(torch.arange(n_states), self.n_dim)
+        states_policy = torch.zeros(
+            (n_states, self.length * self.n_dim), dtype=self.float, device=self.device
+        )
+        states_policy[rows, cols.flatten()] = 1.0
+        return states_policy
+
     def statebatch2policy(self, states: List[List]) -> npt.NDArray[np.float32]:
         """
         Transforms a batch of states into a one-hot encoding. The output is a numpy
@@ -209,6 +252,7 @@ class Grid(GFlowNetEnv):
 
         See state2policy().
         """
+        return self.states2policy(states)
         cols = np.array(states) + np.arange(self.n_dim) * self.length
         rows = np.repeat(np.arange(len(states)), self.n_dim)
         state_policy = np.zeros(
@@ -226,6 +270,7 @@ class Grid(GFlowNetEnv):
 
         See state2policy().
         """
+        return self.states2policy(states)
         device = states.device
         cols = (states + torch.arange(self.n_dim).to(device) * self.length).to(int)
         rows = torch.repeat_interleave(

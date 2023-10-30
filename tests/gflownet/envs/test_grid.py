@@ -45,7 +45,7 @@ def config_path():
 
 
 @pytest.mark.parametrize(
-    "state, state2oracle",
+    "state, state2proxy",
     [
         (
             [0, 0, 0],
@@ -65,12 +65,12 @@ def config_path():
         ),
     ],
 )
-def test__state2oracle__returns_expected(env, state, state2oracle):
-    assert state2oracle == env.state2oracle(state)
+def test__state2proxy__returns_expected(env, state, state2proxy):
+    assert state2proxy == env.state2proxy(state)
 
 
 @pytest.mark.parametrize(
-    "states, statebatch2oracle",
+    "states, statebatch2proxy",
     [
         (
             [[0, 0, 0], [4, 4, 4], [1, 2, 3], [4, 0, 1]],
@@ -78,8 +78,8 @@ def test__state2oracle__returns_expected(env, state, state2oracle):
         ),
     ],
 )
-def test__statebatch2oracle__returns_expected(env, states, statebatch2oracle):
-    assert torch.equal(torch.Tensor(statebatch2oracle), env.statebatch2oracle(states))
+def test__statebatch2proxy__returns_expected(env, states, statebatch2proxy):
+    assert torch.equal(torch.Tensor(statebatch2proxy), env.statebatch2proxy(states))
 
 
 @pytest.mark.parametrize(
