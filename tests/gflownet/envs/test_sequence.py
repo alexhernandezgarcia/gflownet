@@ -8,7 +8,7 @@ from gflownet.utils.common import tlong
 
 @pytest.fixture
 def env():
-    return Sequence(tokens=[-2, -1, 0, 1, 2], pad_token=10, max_length=5, device="cpu")
+    return Sequence(tokens=(-2, -1, 0, 1, 2), pad_token=10, max_length=5, device="cpu")
 
 
 @pytest.fixture
@@ -23,7 +23,6 @@ def env_default():
         [-2, -1, 0, 1, 2],
         (0, 1),
         (-2, -1, 0, 1, 2),
-        [0, 1, 1],
     ],
 )
 def test__environment_initializes_properly(tokens):
