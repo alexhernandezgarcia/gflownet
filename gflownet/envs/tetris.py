@@ -4,7 +4,7 @@ An environment inspired by the game of Tetris.
 import itertools
 import re
 import warnings
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, Union
 
 import numpy as np
 import numpy.typing as npt
@@ -99,10 +99,6 @@ class Tetris(GFlowNetEnv):
         )
         # End-of-sequence action: all -1
         self.eos = (-1, -1, -1)
-        # Conversions
-        self.state2proxy = self.state2oracle
-        self.statebatch2proxy = self.statebatch2oracle
-        self.statetorch2proxy = self.statetorch2oracle
 
         # Precompute all possible rotations of each piece and the corresponding binary
         # mask
@@ -251,11 +247,12 @@ class Tetris(GFlowNetEnv):
             mask[-1] = True
         return mask
 
-    def state2oracle(
+    def state2proxy(
         self, state: Optional[TensorType["height", "width"]] = None
     ) -> TensorType["height", "width"]:
         """
-        Prepares a state in "GFlowNet format" for the oracles: simply converts non-zero
+        Prepares a state in "environment format" for the oracles: simply converts
+        non-zero
         (non-empty) cells into 1s.
 
         Args
@@ -264,13 +261,37 @@ class Tetris(GFlowNetEnv):
         """
         if state is None:
             state = self.state.clone().detach()
-        state_oracle = state.clone().detach()
-        state_oracle[state_oracle != 0] = 1
-        return state_oracle
+        state_proxy = state.clone().detach()
+        state_proxy[state_proxy != 0] = 1
+        return state_proxy
 
-    def statebatch2oracle(
+    def states2proxy(
+        self,
+        states: Union[
+            List[TensorType["height", "width"]], TensorType["height", "width", "batch"]
+        ],
+    ) -> TensorType["height", "width", "batch"]:
+        """
+        Prepares a batch of states in "environment format" for a proxy: : simply
+        converts non-zero (non-empty) cells into 1s.
+
+        Args
+        ----
+        states : list of 2D tensors or 3D tensor
+            A batch of states in environment format, either as a list of states or as a
+            single tensor.
+
+        Returns
+        -------
+        A tensor containing all the states in the batch.
+        """
+        states = tint(states, device=self.device, int_type=self.int)
+        states[states != 0] = 1
+        return states
+
+    def statebatch2proxy(
         self, states: List[TensorType["height", "width"]]
-    ) -> TensorType["batch", "state_oracle_dim"]:
+    ) -> TensorType["batch", "state_proxy_dim"]:
         """
         Prepares a batch of states in "GFlowNet format" for the oracles: simply
         converts non-zero (non-empty) cells into 1s.
@@ -279,17 +300,19 @@ class Tetris(GFlowNetEnv):
         ----
         state : list
         """
+        return self.states2proxy(states)
         states = torch.stack(states)
         states[states != 0] = 1
         return states
 
-    def statetorch2oracle(
+    def statetorch2proxy(
         self, states: TensorType["height", "width", "batch"]
     ) -> TensorType["height", "width", "batch"]:
         """
         Prepares a batch of states in "GFlowNet format" for the oracles: : simply
         converts non-zero (non-empty) cells into 1s.
         """
+        return self.states2proxy(states)
         states[states != 0] = 1
         return states
 
@@ -299,19 +322,44 @@ class Tetris(GFlowNetEnv):
         """
         Prepares a state in "GFlowNet format" for the policy model.
 
-        See: state2oracle()
+        See: state2proxy()
         """
-        return self.state2oracle(state).flatten()
+        return self.state2proxy(state).flatten()
+
+    def states2policy(
+        self,
+        states: Union[
+            List[TensorType["height", "width"]], TensorType["height", "width", "batch"]
+        ],
+    ) -> TensorType["height", "width", "batch"]:
+        """
+        Prepares a batch of states in "environment format" for the policy model.
+
+        See statetorch2proxy().
+
+        Args
+        ----
+        states : list of 2D tensors or 3D tensor
+            A batch of states in environment format, either as a list of states or as a
+            single tensor.
+
+        Returns
+        -------
+        A tensor containing all the states in the batch.
+        """
+        states = tint(states, device=self.device, int_type=self.int)
+        return self.states2proxy(states).flatten(start_dim=1)
 
     def statebatch2policy(
         self, states: List[TensorType["height", "width"]]
-    ) -> TensorType["batch", "state_oracle_dim"]:
+    ) -> TensorType["batch", "state_proxy_dim"]:
         """
         Prepares a batch of states in "GFlowNet format" for the policy model.
 
-        See statebatch2oracle().
+        See statebatch2proxy().
         """
-        return self.statebatch2oracle(states).flatten(start_dim=1)
+        return self.states2policy(states)
+        return self.statebatch2proxy(states).flatten(start_dim=1)
 
     def statetorch2policy(
         self, states: TensorType["height", "width", "batch"]
@@ -319,9 +367,10 @@ class Tetris(GFlowNetEnv):
         """
         Prepares a batch of states in "GFlowNet format" for the policy model.
 
-        See statetorch2oracle().
+        See statetorch2proxy().
         """
-        return self.statetorch2oracle(states).flatten(start_dim=1)
+        return self.states2policy(states)
+        return self.statetorch2proxy(states).flatten(start_dim=1)
 
     def policy2state(
         self, policy: Optional[TensorType["height", "width"]] = None
@@ -329,7 +378,7 @@ class Tetris(GFlowNetEnv):
         """
         Returns None to signal that the conversion is not reversible.
 
-        See: state2oracle()
+        See: state2proxy()
         """
         return None
 
