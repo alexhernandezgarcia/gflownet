@@ -167,36 +167,36 @@ def batch_with_rest(start, stop, step, tensor=False):
 
 def tfloat(x, device, float_type):
     if isinstance(x, list) and torch.is_tensor(x[0]):
-        return torch.stack(x).type(float_type).to(device)
+        return torch.stack(x).to(device=device, dtype=float_type)
     if torch.is_tensor(x):
-        return x.type(float_type).to(device)
+        return x.to(device=device, dtype=float_type)
     else:
         return torch.tensor(x, dtype=float_type, device=device)
 
 
 def tlong(x, device):
     if isinstance(x, list) and torch.is_tensor(x[0]):
-        return torch.stack(x).type(torch.long).to(device)
+        return torch.stack(x).to(device=device, dtype=torch.long)
     if torch.is_tensor(x):
-        return x.type(torch.long).to(device)
+        return x.to(device=device, dtype=torch.long)
     else:
         return torch.tensor(x, dtype=torch.long, device=device)
 
 
 def tint(x, device, int_type):
     if isinstance(x, list) and torch.is_tensor(x[0]):
-        return torch.stack(x).type(int_type).to(device)
+        return torch.stack(x).to(device=device, dtype=int_type)
     if torch.is_tensor(x):
-        return x.type(int_type).to(device)
+        return x.to(device=device, dtype=int_type)
     else:
         return torch.tensor(x, dtype=int_type, device=device)
 
 
 def tbool(x, device):
     if isinstance(x, list) and torch.is_tensor(x[0]):
-        return torch.stack(x).type(torch.bool).to(device)
+        return torch.stack(x).to(device=device, dtype=torch.bool)
     if torch.is_tensor(x):
-        return x.type(torch.bool).to(device)
+        return x.to(device=device, dtype=torch.bool)
     else:
         return torch.tensor(x, dtype=torch.bool, device=device)
 
