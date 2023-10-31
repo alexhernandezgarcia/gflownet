@@ -539,7 +539,7 @@ class HybridTorus(GFlowNetEnv):
                 ),
                 axis=1,
             )
-            rewards = self.reward_torchbatch(samples)
+            rewards = self.reward_batch(samples)
             mask = (
                 torch.rand(n_samples, dtype=self.float, device=self.device)
                 * (max_reward + epsilon)

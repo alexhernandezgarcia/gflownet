@@ -777,22 +777,6 @@ class GFlowNetEnv:
             rewards[list(done)] = self.proxy2reward(self.proxy(states_proxy)).tolist()
         return rewards
 
-    def reward_torchbatch(
-        self,
-        states: TensorType["batch_size", "state_dim"],
-        done: TensorType["batch_size"] = None,
-    ):
-        """
-        Computes the rewards of a batch of states in "GFlownet format"
-        """
-        if done is None:
-            done = torch.ones(states.shape[0], dtype=torch.bool, device=self.device)
-        states_proxy = self.states2proxy(states[done, :])
-        reward = torch.zeros(done.shape[0], dtype=self.float, device=self.device)
-        if states[done, :].shape[0] > 0:
-            reward[done] = self.proxy2reward(self.proxy(states_proxy))
-        return reward
-
     def proxy2reward(self, proxy_vals):
         """
         Prepares the output of a proxy for GFlowNet: the inputs proxy_vals is expected
