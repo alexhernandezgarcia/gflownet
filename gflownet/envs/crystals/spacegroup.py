@@ -10,11 +10,11 @@ from typing import Dict, Iterable, List, Optional, Tuple, Union
 import numpy as np
 import torch
 import yaml
+from gflownet.envs.base import GFlowNetEnv
+from gflownet.utils.common import tlong
+from gflownet.utils.crystals.pyxtal_cache import space_group_check_compatible
 from torch import Tensor
 from torchtyping import TensorType
-
-from gflownet.envs.base import GFlowNetEnv
-from gflownet.utils.crystals.pyxtal_cache import space_group_check_compatible
 
 CRYSTAL_LATTICE_SYSTEMS = None
 POINT_SYMMETRIES = None
@@ -130,10 +130,6 @@ class SpaceGroup(GFlowNetEnv):
         # Source state: index 0 (empty) for all three properties (crystal-lattice
         # system index, point symmetry index, space group)
         self.source = [0 for _ in range(3)]
-        # Conversions
-        self.state2proxy = self.state2oracle
-        self.statebatch2proxy = self.statebatch2oracle
-        self.statetorch2proxy = self.statetorch2oracle
         # Base class init
         super().__init__(**kwargs)
 
@@ -247,10 +243,10 @@ class SpaceGroup(GFlowNetEnv):
         ]
         return mask
 
-    def state2oracle(self, state: List = None) -> Tensor:
+    def state2proxy(self, state: List = None) -> Tensor:
         """
-        Prepares a list of states in "GFlowNet format" for the oracle. The input to the
-        oracle is simply the space group.
+        Prepares a list of states in "GFlowNet format" for the proxy. The input to the
+        proxy is simply the space group.
 
         Args
         ----
@@ -259,22 +255,42 @@ class SpaceGroup(GFlowNetEnv):
 
         Returns
         ----
-        oracle_state : Tensor
+        proxy_state : Tensor
         """
         if state is None:
             state = self.state
         if state[self.sg_idx] == 0:
             raise ValueError(
-                "The space group must have been set in order to call the oracle"
+                "The space group must have been set in order to call the proxy"
             )
         return torch.tensor(state[self.sg_idx], device=self.device, dtype=torch.long)
 
-    def statebatch2oracle(
-        self, states: List[List]
-    ) -> TensorType["batch", "state_oracle_dim"]:
+    def states2proxy(
+        self, states: Union[List[List], TensorType["batch", "state_dim"]]
+    ) -> TensorType["batch", "state_proxy_dim"]:
         """
-        Prepares a batch of states in "GFlowNet format" for the oracle. The input to the
-        oracle is simply the space group.
+        Prepares a batch of states in "environment format" for the proxy: the proxy
+        format is simply the space group.
+
+        Args
+        ----
+        states : list or tensor
+            A batch of states in environment format, either as a list of states or as a
+            single tensor.
+
+        Returns
+        -------
+        A tensor containing all the states in the batch.
+        """
+        states = tlong(states, device=self.device)
+        return torch.unsqueeze(states[:, self.sg_idx], dim=1)
+
+    def statebatch2proxy(
+        self, states: List[List]
+    ) -> TensorType["batch", "state_proxy_dim"]:
+        """
+        Prepares a batch of states in "GFlowNet format" for the proxy. The input to the
+        proxy is simply the space group.
 
         Args
         ----
@@ -283,18 +299,19 @@ class SpaceGroup(GFlowNetEnv):
 
         Returns
         ----
-        oracle_state : Tensor
+        proxy_state : Tensor
         """
-        return self.statetorch2oracle(
+        return self.states2proxy(states)
+        return self.statetorch2proxy(
             torch.tensor(states, device=self.device, dtype=torch.long)
         )
 
-    def statetorch2oracle(
+    def statetorch2proxy(
         self, states: TensorType["batch", "state_dim"]
-    ) -> TensorType["batch", "state_oracle_dim"]:
+    ) -> TensorType["batch", "state_proxy_dim"]:
         """
-        Prepares a batch of states in "GFlowNet format" for the oracle. The input to the
-        oracle is simply the space group.
+        Prepares a batch of states in "GFlowNet format" for the proxy. The input to the
+        proxy is simply the space group.
 
         Args
         ----
@@ -303,8 +320,9 @@ class SpaceGroup(GFlowNetEnv):
 
         Returns
         ----
-        oracle_state : Tensor
+        proxy_state : Tensor
         """
+        return self.states2proxy(states)
         return torch.unsqueeze(states[:, self.sg_idx], dim=1).to(torch.long)
 
     def state2readable(self, state=None):
