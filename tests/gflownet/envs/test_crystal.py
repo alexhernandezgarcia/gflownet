@@ -112,8 +112,8 @@ def test__state2proxy__returns_expected_value(env, state, expected):
         ],
     ],
 )
-def test__statebatch2proxy__returns_expected_value(env, batch, expected):
-    assert torch.allclose(env.statebatch2proxy(batch), expected, atol=1e-4)
+def test__states2proxy__returns_expected_value(env, batch, expected):
+    assert torch.allclose(env.states2proxy(batch), expected, atol=1e-4)
 
 
 @pytest.mark.parametrize("action", [(1, 1, -2, -2, -2, -2), (3, 4, -2, -2, -2, -2)])
