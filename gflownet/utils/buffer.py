@@ -230,7 +230,7 @@ class Buffer:
             samples = self.env.get_random_terminating_states(config.n)
         else:
             return None, None
-        energies = self.env.proxy(self.env.statebatch2proxy(samples)).tolist()
+        energies = self.env.proxy(self.env.states2proxy(samples)).tolist()
         df = pd.DataFrame(
             {
                 "samples": [self.env.state2readable(s) for s in samples],

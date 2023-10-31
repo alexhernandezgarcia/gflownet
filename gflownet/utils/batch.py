@@ -408,12 +408,7 @@ class Batch:
                     self.get_states_of_trajectory(traj_idx, states, traj_indices)
                 )
             return states_policy
-        # TODO: do we need tfloat or is done in env.statebatch2policy?
-        return tfloat(
-            self.env.statebatch2policy(states),
-            device=self.device,
-            float_type=self.float,
-        )
+        return self.env.states2policy(states)
 
     def states2proxy(
         self,
@@ -461,7 +456,7 @@ class Batch:
                 if traj_idx not in traj_indices:
                     continue
                 states_proxy.append(
-                    self.envs[traj_idx].statebatch2proxy(
+                    self.envs[traj_idx].states2proxy(
                         self.get_states_of_trajectory(traj_idx, states, traj_indices)
                     )
                 )
@@ -471,7 +466,7 @@ class Batch:
             index[perm_index] = index.clone()
             states_proxy = concat_items(states_proxy, index)
             return states_proxy
-        return self.env.statebatch2proxy(states)
+        return self.env.states2proxy(states)
 
     def get_actions(self) -> TensorType["n_states, action_dim"]:
         """
@@ -678,13 +673,7 @@ class Batch:
             self.parents_all.extend(parents)
             self.parents_actions_all.extend(parents_a)
             self.parents_all_indices.extend([idx] * len(parents))
-            self.parents_all_policy.append(
-                tfloat(
-                    self.envs[traj_idx].statebatch2policy(parents),
-                    device=self.device,
-                    float_type=self.float,
-                )
-            )
+            self.parents_all_policy.append(self.envs[traj_idx].states2policy(parents))
         # Convert to tensors
         self.parents_actions_all = tfloat(
             self.parents_actions_all,
