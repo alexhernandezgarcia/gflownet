@@ -2,7 +2,7 @@
 Classes to represent hyper-torus environments
 """
 import itertools
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, Union
 
 import numpy as np
 import numpy.typing as npt
@@ -11,6 +11,7 @@ import torch
 from torchtyping import TensorType
 
 from gflownet.envs.base import GFlowNetEnv
+from gflownet.utils.common import tfloat, tlong
 
 
 class Torus(GFlowNetEnv):
@@ -64,9 +65,6 @@ class Torus(GFlowNetEnv):
         self.eos = tuple([self.max_increment + 1 for _ in range(self.n_dim)])
         # Angle increments in radians
         self.angle_rad = 2 * np.pi / self.n_angles
-        # TODO: assess if really needed
-        self.state2oracle = self.state2proxy
-        self.statebatch2oracle = self.statebatch2proxy
         # Base class init
         super().__init__(**kwargs)
 
@@ -112,12 +110,36 @@ class Torus(GFlowNetEnv):
             mask[-1] = True
         return mask
 
+    def states2proxy(
+        self, states: Union[List[List], TensorType["batch", "state_dim"]]
+    ) -> TensorType["batch", "state_proxy_dim"]:
+        """
+        Prepares a batch of states in "environment format" for the proxy: each state is
+        a vector of length n_dim where each value is an angle in radians. The n_actions
+        item is removed.
+
+        Args
+        ----
+        states : list or tensor
+            A batch of states in environment format, either as a list of states or as a
+            single tensor.
+
+        Returns
+        -------
+        A tensor containing all the states in the batch.
+        """
+        return (
+            tfloat(states, device=self.device, float_type=self.float)[:, :-1]
+            * self.angle_rad
+        )
+
     def statebatch2proxy(self, states: List[List]) -> npt.NDArray[np.float32]:
         """
         Prepares a batch of states in "GFlowNet format" for the proxy: an array where
         each state is a row of length n_dim with an angle in radians. The n_actions
         item is removed.
         """
+        return self.states2proxy(states)
         return torch.tensor(states, device=self.device)[:, :-1] * self.angle_rad
 
     def statetorch2proxy(
@@ -126,6 +148,7 @@ class Torus(GFlowNetEnv):
         """
         Prepares a batch of states in torch "GFlowNet format" for the proxy.
         """
+        return self.states2proxy(states)
         return states[:, :-1] * self.angle_rad
 
     # TODO: circular encoding as in htorus
@@ -155,6 +178,45 @@ class Torus(GFlowNetEnv):
         state_policy[-1] = state[-1]
         return state_policy
 
+    # TODO: circular encoding as in htorus
+    def states2policy(
+        self, states: Union[List, TensorType["batch", "state_dim"]]
+    ) -> TensorType["batch", "policy_input_dim"]:
+        """
+        Prepares a batch of states in "environment format" for the policy model: the
+        policy format is a one-hot encoding of the states.
+
+        Each row is a vector of length n_angles * n_dim + 1, where each n-th successive
+        block of length elements is a one-hot encoding of the position in the n-th
+        dimension.
+
+        Example, n_dim = 2, n_angles = 4:
+          - state: [1, 3, 4]
+                          | a  | n | (a = angles, n = n_actions)
+          - policy format: [0, 1, 0, 0, 0, 0, 0, 1, 4]
+                           |     1    |     3     | 4 |
+        Args
+        ----
+        states : list or tensor
+            A batch of states in environment format, either as a list of states or as a
+            single tensor.
+
+        Returns
+        -------
+        A tensor containing all the states in the batch.
+        """
+        states = tlong(states, device=self.device)
+        cols = states[:, :-1] + torch.arange(self.n_dim).to(self.device) * self.n_angles
+        rows = torch.repeat_interleave(
+            torch.arange(states.shape[0]).to(self.device), self.n_dim
+        )
+        states_policy = torch.zeros(
+            (states.shape[0], self.n_angles * self.n_dim + 1)
+        ).to(states)
+        states_policy[rows, cols.flatten()] = 1.0
+        states_policy[:, -1] = states[:, -1]
+        return states_policy
+
     def statebatch2policy(self, states: List[List]) -> npt.NDArray[np.float32]:
         """
         Transforms a batch of states into the policy model format. The output is a numpy
@@ -162,6 +224,7 @@ class Torus(GFlowNetEnv):
 
         See state2policy().
         """
+        return self.states2policy(states)
         states = np.array(states)
         cols = states[:, :-1] + np.arange(self.n_dim) * self.n_angles
         rows = np.repeat(np.arange(states.shape[0]), self.n_dim)
@@ -181,6 +244,7 @@ class Torus(GFlowNetEnv):
 
         See state2policy().
         """
+        return self.states2policy(states)
         device = states.device
         cols = (
             states[:, :-1] + torch.arange(self.n_dim).to(device) * self.n_angles
