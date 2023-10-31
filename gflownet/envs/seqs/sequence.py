@@ -31,9 +31,6 @@ class Sequence(GFlowNetEnv):
     max_length : int
         Maximum length of the sequences.
 
-    eos_token : int, str
-       EOS token. Default: -1.
-
     pad_token : int, str
        PAD token. Default: -2.
     """
@@ -42,7 +39,6 @@ class Sequence(GFlowNetEnv):
         self,
         tokens: Iterable = [0, 1],
         max_length: int = 5,
-        eos_token: Union[int, float, str] = -1,
         pad_token: Union[int, float, str] = -2,
         **kwargs,
     ):
