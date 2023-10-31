@@ -761,6 +761,7 @@ class GFlowNetEnv:
             self.proxy(torch.unsqueeze(self.state2proxy(state), dim=0))[0]
         )
 
+    # TODO: cleanup
     def reward_batch(self, states: List[List], done=None):
         """
         Computes the rewards of a batch of states, given a list of states and 'dones'
