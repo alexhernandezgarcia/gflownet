@@ -155,7 +155,7 @@ class Grid(GFlowNetEnv):
         Prepares a batch of states in "environment format" for the proxy: each state is
         a vector of length n_dim with values in the range [cell_min, cell_max].
 
-        See: statetorch2policy()
+        See: states2policy()
 
         Args
         ----
@@ -169,7 +169,7 @@ class Grid(GFlowNetEnv):
         """
         states = tfloat(states, device=self.device, float_type=self.float)
         return (
-            self.statetorch2policy(states).reshape(
+            self.states2policy(states).reshape(
                 (states.shape[0], self.n_dim, self.length)
             )
             * torch.tensor(self.cells[None, :]).to(states.device, self.float)
