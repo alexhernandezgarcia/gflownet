@@ -40,10 +40,38 @@ class AlanineDipeptide(ContinuousTorus):
             self.conformer.set_torsion_angle(ta, state[idx])
         return self.conformer
 
+    # TODO: are the conversions to oracle relevant?
+    def states2proxy(
+        self, states: Union[List[List], TensorType["batch", "state_dim"]]
+    ) -> npt.NDArray:
+        """
+        Prepares a batch of states in "environment format" for the proxy: each state is
+        a vector of length n_dim where each value is an angle in radians. The n_actions
+        item is removed.
+
+        Important: this method returns a numpy array, unlike in most other
+        environments.
+
+        Args
+        ----
+        states : list or tensor
+            A batch of states in environment format, either as a list of states or as a
+            single tensor.
+
+        Returns
+        -------
+        A numpy array containing all the states in the batch.
+        """
+        if torch.is_tensor(states[0]):
+            return states.cpu().numpy()[:, :-1]
+        else:
+            return np.array(states)[:, :-1]
+
     def statetorch2proxy(self, states: TensorType["batch", "state_dim"]) -> npt.NDArray:
         """
         Prepares a batch of states in torch "GFlowNet format" for the oracle.
         """
+        return self.states2proxy(states)
         device = states.device
         if device == torch.device("cpu"):
             np_states = states.numpy()
@@ -57,6 +85,7 @@ class AlanineDipeptide(ContinuousTorus):
         each state is a row of length n_dim with an angle in radians. The n_actions
         item is removed.
         """
+        return self.states2proxy(states)
         return np.array(states)[:, :-1]
 
     def statetorch2oracle(
