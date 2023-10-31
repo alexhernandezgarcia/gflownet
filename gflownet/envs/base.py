@@ -90,7 +90,7 @@ class GFlowNetEnv:
         self.fixed_policy_output = self.get_policy_output(self.fixed_distr_params)
         self.random_policy_output = self.get_policy_output(self.random_distr_params)
         self.policy_output_dim = len(self.fixed_policy_output)
-        self.policy_input_dim = self.state2policy().shape[1]
+        self.policy_input_dim = len(self.state2policy())
 
     @abstractmethod
     def get_action_space(self):
@@ -694,7 +694,7 @@ class GFlowNetEnv:
             A state
         """
         state = self._get_state(state)
-        return self.states2proxy([state])
+        return torch.squeeze(self.states2proxy([state]), dim=0)
 
     def states2policy(
         self, states: Union[List, TensorType["batch", "state_dim"]]
@@ -727,7 +727,7 @@ class GFlowNetEnv:
             A state
         """
         state = self._get_state(state)
-        return self.states2policy([state])
+        return torch.squeeze(self.states2policy([state]), dim=0)
 
     def state2readable(self, state=None):
         """
