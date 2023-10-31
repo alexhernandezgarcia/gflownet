@@ -141,7 +141,7 @@ class CubeBase(GFlowNetEnv, ABC):
         -------
         A tensor containing all the states in the batch.
         """
-        states = float(states, device=self.device, float_type=self.float)
+        states = tfloat(states, device=self.device, float_type=self.float)
         return 2.0 * torch.clip(states, min=0.0, max=1.0) - 1.0
 
     def state2readable(self, state: List) -> str:
