@@ -3,13 +3,14 @@ from enum import Enum
 from typing import Dict, List, Optional, Tuple, Union
 
 import torch
+from torch import Tensor
+from torchtyping import TensorType
+
 from gflownet.envs.base import GFlowNetEnv
 from gflownet.envs.crystals.composition import Composition
 from gflownet.envs.crystals.lattice_parameters import LatticeParameters
 from gflownet.envs.crystals.spacegroup import SpaceGroup
 from gflownet.utils.crystals.constants import TRICLINIC
-from torch import Tensor
-from torchtyping import TensorType
 
 
 class Stage(Enum):
@@ -506,43 +507,13 @@ class Crystal(GFlowNetEnv):
         A tensor containing all the states in the batch.
         """
         states = tlong(states, device=self.device)
-        composition_proxy_states = self.composition.statetorch2proxy(
+        composition_proxy_states = self.composition.states2proxy(
             self._get_composition_tensor_states(states)
         ).to(self.device)
-        space_group_proxy_states = self.space_group.statetorch2proxy(
+        space_group_proxy_states = self.space_group.states2proxy(
             self._get_space_group_tensor_states(states)
         ).to(self.device)
-        lattice_parameters_proxy_states = self.lattice_parameters.statetorch2proxy(
-            self._get_lattice_parameters_tensor_states(states)
-        ).to(self.device)
-        return torch.cat(
-            [
-                composition_proxy_states,
-                space_group_proxy_states,
-                lattice_parameters_proxy_states,
-            ],
-            dim=1,
-        )
-
-    def statebatch2proxy(
-        self, states: List[List]
-    ) -> TensorType["batch", "state_proxy_dim"]:
-        return self.states2proxy(states)
-        return self.statetorch2proxy(
-            torch.tensor(states, device=self.device, dtype=torch.long)
-        )
-
-    def statetorch2proxy(
-        self, states: TensorType["batch", "state_dim"]
-    ) -> TensorType["batch", "state_proxy_dim"]:
-        return self.states2proxy(states)
-        composition_proxy_states = self.composition.statetorch2proxy(
-            self._get_composition_tensor_states(states)
-        ).to(self.device)
-        space_group_proxy_states = self.space_group.statetorch2proxy(
-            self._get_space_group_tensor_states(states)
-        ).to(self.device)
-        lattice_parameters_proxy_states = self.lattice_parameters.statetorch2proxy(
+        lattice_parameters_proxy_states = self.lattice_parameters.states2proxy(
             self._get_lattice_parameters_tensor_states(states)
         ).to(self.device)
         return torch.cat(

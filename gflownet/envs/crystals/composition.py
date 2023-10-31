@@ -6,6 +6,10 @@ from typing import Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import torch
+from pyxtal.symmetry import Group
+from torch import Tensor
+from torchtyping import TensorType
+
 from gflownet.envs.base import GFlowNetEnv
 from gflownet.utils.common import tlong
 from gflownet.utils.crystals.constants import ELEMENT_NAMES, OXIDATION_STATES
@@ -15,9 +19,6 @@ from gflownet.utils.crystals.pyxtal_cache import (
     space_group_lowest_free_wp_multiplicity,
     space_group_wyckoff_gcd,
 )
-from pyxtal.symmetry import Group
-from torch import Tensor
-from torchtyping import TensorType
 
 
 class Composition(GFlowNetEnv):
@@ -399,54 +400,22 @@ class Composition(GFlowNetEnv):
 
         return mask
 
-    def state2proxy(self, state: List = None) -> Tensor:
-        """
-        Prepares a state in "GFlowNet format" for the proxy. In this case, it simply
-        converts the state into a torch tensor, with dtype torch.long.
-
-        Args
-        ----
-        state : list
-            A state
-
-        Returns
-        ----
-        proxy_state : Tensor
-            Tensor containing counts of individual elements
-        """
-        if state is None:
-            state = self.state
-
-        return tlong(state, device=self.device)
-
-    def statetorch2proxy(
-        self, states: TensorType["batch", "state_dim"]
+    def states2proxy(
+        self, states: Union[List[List], TensorType["batch", "state_dim"]]
     ) -> TensorType["batch", "state_proxy_dim"]:
         """
-        Prepares a batch of states in "GFlowNet format" for the proxy. The input to the
-        proxy is the atom counts for individual elements.
+        Prepares a batch of states in "environment format" for the proxy: simply
+        returns the states as are with dtype long.
 
         Args
         ----
-        states : Tensor
-            A state
+        states : list or tensor
+            A batch of states in environment format, either as a list of states or as a
+            single tensor.
 
         Returns
-        ----
-        proxy_states : Tensor
-        """
-        return states
-
-    def statebatch2proxy(
-        self, states: List[List]
-    ) -> TensorType["batch", "state_proxy_dim"]:
-        """
-        Prepares a batch of states in "GFlowNet format" for the proxy. In this case,
-        it simply converts the states into a torch tensor, with dtype torch.long.
-
-        Args
-        ----
-        state : list
+        -------
+        A tensor containing all the states in the batch.
         """
         return tlong(states, device=self.device)
 

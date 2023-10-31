@@ -67,27 +67,7 @@ class AlanineDipeptide(ContinuousTorus):
         else:
             return np.array(states)[:, :-1]
 
-    def statetorch2proxy(self, states: TensorType["batch", "state_dim"]) -> npt.NDArray:
-        """
-        Prepares a batch of states in torch "GFlowNet format" for the oracle.
-        """
-        return self.states2proxy(states)
-        device = states.device
-        if device == torch.device("cpu"):
-            np_states = states.numpy()
-        else:
-            np_states = states.cpu().numpy()
-        return np_states[:, :-1]
-
-    def statebatch2proxy(self, states: List[List]) -> npt.NDArray:
-        """
-        Prepares a batch of states in "GFlowNet format" for the proxy: a tensor where
-        each state is a row of length n_dim with an angle in radians. The n_actions
-        item is removed.
-        """
-        return self.states2proxy(states)
-        return np.array(states)[:, :-1]
-
+    # TODO: need to keep?
     def statetorch2oracle(
         self, states: TensorType["batch", "state_dim"]
     ) -> List[Tuple[npt.NDArray, npt.NDArray]]:
@@ -102,6 +82,7 @@ class AlanineDipeptide(ContinuousTorus):
         result = self.statebatch2oracle(np_states)
         return result
 
+    # TODO: need to keep?
     def statebatch2oracle(
         self, states: List[List]
     ) -> List[Tuple[npt.NDArray, npt.NDArray]]:

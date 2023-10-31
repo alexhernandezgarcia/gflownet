@@ -5,6 +5,9 @@ from typing import List, Optional, Tuple, Union
 
 import numpy as np
 import torch
+from torch import Tensor
+from torchtyping import TensorType
+
 from gflownet.envs.grid import Grid
 from gflownet.utils.common import tlong
 from gflownet.utils.crystals.constants import (
@@ -17,8 +20,6 @@ from gflownet.utils.crystals.constants import (
     TETRAGONAL,
     TRICLINIC,
 )
-from torch import Tensor
-from torchtyping import TensorType
 
 
 class LatticeParameters(Grid):
@@ -380,31 +381,6 @@ class LatticeParameters(Grid):
             [
                 self.lengths_tensor[states[:, :3]],
                 self.angles_tensor[states[:, 3:]],
-            ],
-            dim=1,
-        )
-
-    def statetorch2proxy(
-        self, states: TensorType["batch", "state_dim"]
-    ) -> TensorType["batch", "state_proxy_dim"]:
-        """
-        Prepares a batch of states in "GFlowNet format" for the proxy. The input to the
-        proxy is the lengths and angles.
-
-        Args
-        ----
-        states : Tensor
-            A state
-
-        Returns
-        ----
-        proxy_states : Tensor
-        """
-        return self.states2proxy(states)
-        return torch.cat(
-            [
-                self.lengths_tensor[states[:, :3].long()],
-                self.angles_tensor[states[:, 3:].long()],
             ],
             dim=1,
         )

@@ -133,24 +133,6 @@ class Torus(GFlowNetEnv):
             * self.angle_rad
         )
 
-    def statebatch2proxy(self, states: List[List]) -> npt.NDArray[np.float32]:
-        """
-        Prepares a batch of states in "GFlowNet format" for the proxy: an array where
-        each state is a row of length n_dim with an angle in radians. The n_actions
-        item is removed.
-        """
-        return self.states2proxy(states)
-        return torch.tensor(states, device=self.device)[:, :-1] * self.angle_rad
-
-    def statetorch2proxy(
-        self, states: TensorType["batch", "state_dim"]
-    ) -> TensorType["batch", "state_proxy_dim"]:
-        """
-        Prepares a batch of states in torch "GFlowNet format" for the proxy.
-        """
-        return self.states2proxy(states)
-        return states[:, :-1] * self.angle_rad
-
     # TODO: circular encoding as in htorus
     def state2policy(self, state=None) -> List:
         """
@@ -216,48 +198,6 @@ class Torus(GFlowNetEnv):
         states_policy[rows, cols.flatten()] = 1.0
         states_policy[:, -1] = states[:, -1]
         return states_policy
-
-    def statebatch2policy(self, states: List[List]) -> npt.NDArray[np.float32]:
-        """
-        Transforms a batch of states into the policy model format. The output is a numpy
-        array of shape [n_states, n_angles * n_dim + 1].
-
-        See state2policy().
-        """
-        return self.states2policy(states)
-        states = np.array(states)
-        cols = states[:, :-1] + np.arange(self.n_dim) * self.n_angles
-        rows = np.repeat(np.arange(states.shape[0]), self.n_dim)
-        state_policy = np.zeros(
-            (len(states), self.n_angles * self.n_dim + 1), dtype=np.float32
-        )
-        state_policy[rows, cols.flatten()] = 1.0
-        state_policy[:, -1] = states[:, -1]
-        return state_policy
-
-    def statetorch2policy(
-        self, states: TensorType["batch", "state_dim"]
-    ) -> TensorType["batch", "policy_output_dim"]:
-        """
-        Transforms a batch of torch states into the policy model format. The output is
-        a tensor of shape [n_states, n_angles * n_dim + 1].
-
-        See state2policy().
-        """
-        return self.states2policy(states)
-        device = states.device
-        cols = (
-            states[:, :-1] + torch.arange(self.n_dim).to(device) * self.n_angles
-        ).to(int)
-        rows = torch.repeat_interleave(
-            torch.arange(states.shape[0]).to(device), self.n_dim
-        )
-        state_policy = torch.zeros(
-            (states.shape[0], self.n_angles * self.n_dim + 1)
-        ).to(states)
-        state_policy[rows, cols.flatten()] = 1.0
-        state_policy[:, -1] = states[:, -1]
-        return state_policy
 
     def state2readable(self, state: Optional[List] = None) -> str:
         """

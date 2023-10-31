@@ -199,36 +199,6 @@ class HybridTorus(GFlowNetEnv):
         """
         return tfloat(states, device=self.device, float_type=self.float)[:, :-1]
 
-    def statebatch2proxy(
-        self, states: List[List]
-    ) -> TensorType["batch", "state_proxy_dim"]:
-        """
-        Prepares a batch of states in "GFlowNet format" for the proxy: a tensor where
-        each state is a row of length n_dim with an angle in radians. The n_actions
-        item is removed.
-        """
-        return self.states2proxy(states)
-        return torch.tensor(states, device=self.device)[:, :-1]
-
-    def statetorch2proxy(
-        self, states: TensorType["batch", "state_dim"]
-    ) -> TensorType["batch", "state_proxy_dim"]:
-        """
-        Prepares a batch of states in torch "GFlowNet format" for the proxy.
-        """
-        return self.states2proxy(states)
-        return states[:, :-1]
-
-    def state2policy(self, state: List = None) -> List:
-        """
-        Returns the policy encoding of the state.
-
-        See: statebatch2policy()
-        """
-        if state is None:
-            state = self.state.copy()
-        return self.statebatch2policy([state]).tolist()[0]
-
     def states2policy(
         self, states: Union[List, TensorType["batch", "state_dim"]]
     ) -> TensorType["batch", "policy_input_dim"]:
@@ -266,49 +236,6 @@ class HybridTorus(GFlowNetEnv):
             [torch.cos(encoding), torch.sin(encoding), torch.unsqueeze(step, 1)],
             dim=1,
         )
-
-    def statetorch2policy(
-        self, states: TensorType["batch", "state_dim"]
-    ) -> TensorType["batch", "policy_input_dim"]:
-        """
-        Prepares a batch of states in torch "GFlowNet format" for the policy.
-
-        If policy_encoding_dim_per_angle >= 2, then the state (angles) is encoded using
-        trigonometric components.
-        """
-        return self.states2policy(states)
-        if (
-            self.policy_encoding_dim_per_angle is not None
-            and self.policy_encoding_dim_per_angle >= 2
-        ):
-            step = states[:, -1]
-            code_half_size = self.policy_encoding_dim_per_angle // 2
-            int_coeff = (
-                torch.arange(1, code_half_size + 1)
-                .repeat(states.shape[-1] - 1)
-                .to(states)
-            )
-            encoding = (
-                torch.repeat_interleave(states[:, :-1], repeats=code_half_size, dim=1)
-                * int_coeff
-            )
-            states = torch.cat(
-                [torch.cos(encoding), torch.sin(encoding), torch.unsqueeze(step, 1)],
-                dim=1,
-            )
-        return states
-
-    def statebatch2policy(
-        self, states: List[List]
-    ) -> TensorType["batch_size", "policy_input_dim"]:
-        """
-        Prepares a batch of states in "GFlowNet format" for the policy.
-
-        See: statetorch2policy()
-        """
-        return self.states2policy(states)
-        states = tfloat(states, float_type=self.float, device=self.device)
-        return self.statetorch2policy(states)
 
     def state2readable(self, state: List) -> str:
         """
@@ -652,7 +579,7 @@ class HybridTorus(GFlowNetEnv):
             [samples_mesh, torch.ones(samples_mesh.shape[0], 1)], 1
         ).to(self.device)
         rewards = torch2np(
-            self.proxy2reward(self.proxy(self.statetorch2proxy(states_mesh)))
+            self.proxy2reward(self.proxy(self.states2proxy(states_mesh)))
         )
         # Init figure
         fig, ax = plt.subplots()

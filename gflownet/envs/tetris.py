@@ -289,43 +289,6 @@ class Tetris(GFlowNetEnv):
         states[states != 0] = 1
         return states
 
-    def statebatch2proxy(
-        self, states: List[TensorType["height", "width"]]
-    ) -> TensorType["batch", "state_proxy_dim"]:
-        """
-        Prepares a batch of states in "GFlowNet format" for the oracles: simply
-        converts non-zero (non-empty) cells into 1s.
-
-        Args
-        ----
-        state : list
-        """
-        return self.states2proxy(states)
-        states = torch.stack(states)
-        states[states != 0] = 1
-        return states
-
-    def statetorch2proxy(
-        self, states: TensorType["height", "width", "batch"]
-    ) -> TensorType["height", "width", "batch"]:
-        """
-        Prepares a batch of states in "GFlowNet format" for the oracles: : simply
-        converts non-zero (non-empty) cells into 1s.
-        """
-        return self.states2proxy(states)
-        states[states != 0] = 1
-        return states
-
-    def state2policy(
-        self, state: Optional[TensorType["height", "width"]] = None
-    ) -> TensorType["height", "width"]:
-        """
-        Prepares a state in "GFlowNet format" for the policy model.
-
-        See: state2proxy()
-        """
-        return self.state2proxy(state).flatten()
-
     def states2policy(
         self,
         states: Union[
@@ -335,7 +298,7 @@ class Tetris(GFlowNetEnv):
         """
         Prepares a batch of states in "environment format" for the policy model.
 
-        See statetorch2proxy().
+        See states2proxy().
 
         Args
         ----
@@ -349,28 +312,6 @@ class Tetris(GFlowNetEnv):
         """
         states = tint(states, device=self.device, int_type=self.int)
         return self.states2proxy(states).flatten(start_dim=1)
-
-    def statebatch2policy(
-        self, states: List[TensorType["height", "width"]]
-    ) -> TensorType["batch", "state_proxy_dim"]:
-        """
-        Prepares a batch of states in "GFlowNet format" for the policy model.
-
-        See statebatch2proxy().
-        """
-        return self.states2policy(states)
-        return self.statebatch2proxy(states).flatten(start_dim=1)
-
-    def statetorch2policy(
-        self, states: TensorType["height", "width", "batch"]
-    ) -> TensorType["height", "width", "batch"]:
-        """
-        Prepares a batch of states in "GFlowNet format" for the policy model.
-
-        See statetorch2proxy().
-        """
-        return self.states2policy(states)
-        return self.statetorch2proxy(states).flatten(start_dim=1)
 
     def state2readable(self, state: Optional[TensorType["height", "width"]] = None):
         """

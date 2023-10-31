@@ -81,7 +81,7 @@ class Grid(GFlowNetEnv):
         # Proxy format
         # TODO: assess if really needed
         if self.proxy_state_format == "ohe":
-            self.statebatch2proxy = self.statebatch2policy
+            self.states2proxy = self.states2policy
 
     def get_action_space(self):
         """
@@ -175,60 +175,6 @@ class Grid(GFlowNetEnv):
             * torch.tensor(self.cells[None, :]).to(states.device, self.float)
         ).sum(axis=2)
 
-    def statebatch2proxy(
-        self, states: List[List]
-    ) -> TensorType["batch", "state_proxy_dim"]:
-        """
-        Prepares a batch of states in "GFlowNet format" for the oracles: each state is
-        a vector of length n_dim with values in the range [cell_min, cell_max].
-
-        See: statetorch2proxy()
-
-        Args
-        ----
-        state : list
-            State
-        """
-        return self.states2proxy(states)
-        return self.statetorch2proxy(
-            tfloat(states, device=self.device, float_type=self.float)
-        )
-
-    def statetorch2proxy(
-        self, states: TensorType["batch", "state_dim"]
-    ) -> TensorType["batch", "state_proxy_dim"]:
-        """
-        Prepares a batch of states in "GFlowNet format" for the oracles: each state is
-        a vector of length n_dim with values in the range [cell_min, cell_max].
-
-        See: statetorch2policy()
-        """
-        return self.states2proxy(states)
-        return (
-            self.statetorch2policy(states).reshape(
-                (len(states), self.n_dim, self.length)
-            )
-            * torch.tensor(self.cells[None, :]).to(states.device, self.float)
-        ).sum(axis=2)
-
-    def state2policy(self, state: List = None) -> List:
-        """
-        Transforms the state given as argument (or self.state if None) into a
-        one-hot encoding. The output is a list of len length * n_dim,
-        where each n-th successive block of length elements is a one-hot encoding of
-        the position in the n-th dimension.
-
-        Example:
-          - State, state: [0, 3, 1] (n_dim = 3)
-          - state2policy(state): [1, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0] (length = 4)
-                              |     0    |      3    |      1    |
-        """
-        if state is None:
-            state = self.state.copy()
-        state_policy = np.zeros(self.length * self.n_dim, dtype=np.float32)
-        state_policy[(np.arange(len(state)) * self.length + state)] = 1
-        return state_policy.tolist()
-
     def states2policy(
         self, states: Union[List, TensorType["batch", "state_dim"]]
     ) -> TensorType["batch", "policy_input_dim"]:
@@ -264,43 +210,6 @@ class Grid(GFlowNetEnv):
         )
         states_policy[rows, cols.flatten()] = 1.0
         return states_policy
-
-    def statebatch2policy(self, states: List[List]) -> npt.NDArray[np.float32]:
-        """
-        Transforms a batch of states into a one-hot encoding. The output is a numpy
-        array of shape [n_states, length * n_dim].
-
-        See state2policy().
-        """
-        return self.states2policy(states)
-        cols = np.array(states) + np.arange(self.n_dim) * self.length
-        rows = np.repeat(np.arange(len(states)), self.n_dim)
-        state_policy = np.zeros(
-            (len(states), self.length * self.n_dim), dtype=np.float32
-        )
-        state_policy[rows, cols.flatten()] = 1.0
-        return state_policy
-
-    def statetorch2policy(
-        self, states: TensorType["batch", "state_dim"]
-    ) -> TensorType["batch", "policy_output_dim"]:
-        """
-        Transforms a batch of states into a one-hot encoding. The output is a numpy
-        array of shape [n_states, length * n_dim].
-
-        See state2policy().
-        """
-        return self.states2policy(states)
-        device = states.device
-        cols = (states + torch.arange(self.n_dim).to(device) * self.length).to(int)
-        rows = torch.repeat_interleave(
-            torch.arange(states.shape[0]).to(device), self.n_dim
-        )
-        state_policy = torch.zeros(
-            (states.shape[0], self.length * self.n_dim), dtype=states.dtype
-        ).to(device)
-        state_policy[rows, cols.flatten()] = 1.0
-        return state_policy
 
     def readable2state(self, readable, alphabet={}):
         """
