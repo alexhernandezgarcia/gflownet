@@ -90,7 +90,7 @@ class GFlowNetEnv:
         self.fixed_policy_output = self.get_policy_output(self.fixed_distr_params)
         self.random_policy_output = self.get_policy_output(self.random_distr_params)
         self.policy_output_dim = len(self.fixed_policy_output)
-        self.policy_input_dim = len(self.state2policy())
+        self.policy_input_dim = self.state2policy().shape[1]
 
     @abstractmethod
     def get_action_space(self):
