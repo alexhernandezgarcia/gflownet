@@ -1097,10 +1097,8 @@ def test__state2policy_returns_expected(env, state, expected):
     ],
 )
 @pytest.mark.skip(reason="skip while developping other tests")
-def test__statetorch2policy_returns_expected(env, states, expected):
-    assert torch.equal(
-        env.statetorch2policy(torch.tensor(states)), torch.tensor(expected)
-    )
+def test__states2policy_returns_expected(env, states, expected):
+    assert torch.equal(env.states2policy(torch.tensor(states)), torch.tensor(expected))
 
 
 @pytest.mark.parametrize(
