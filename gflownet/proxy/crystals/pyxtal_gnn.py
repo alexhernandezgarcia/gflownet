@@ -31,13 +31,13 @@ def is_valid_crystal(
 
     # Validate that the angles can be use together to create a unit cell with
     # non-zero, non-imaginary volume.
-    if a + b + c >= 360:
+    if alpha + beta + gamma >= 360:
         return False
-    elif a + b - c <= 0:
+    elif alpha + beta - gamma <= 0:
         return False
-    elif a + c - b <= 0:
+    elif alpha + gamma - beta <= 0:
         return False
-    elif b + c + a <= 0:
+    elif beta + gamma + alpha <= 0:
         return False
 
     return True
