@@ -74,8 +74,8 @@ def test__pad_depad_action(env):
         ],
     ],
 )
-def test__state2oracle__returns_expected_value(env, state, expected):
-    assert torch.allclose(env.state2oracle(state), expected, atol=1e-4)
+def test__state2proxy__returns_expected_value(env, state, expected):
+    assert torch.allclose(env.state2proxy(state), expected, atol=1e-4)
 
 
 @pytest.mark.parametrize(
