@@ -1,14 +1,12 @@
 """
 Classes to represent crystal environments
 """
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, Union
 
 import numpy as np
 import torch
-from torch import Tensor
-from torchtyping import TensorType
-
 from gflownet.envs.grid import Grid
+from gflownet.utils.common import tlong
 from gflownet.utils.crystals.constants import (
     CUBIC,
     HEXAGONAL,
@@ -19,6 +17,8 @@ from gflownet.utils.crystals.constants import (
     TETRAGONAL,
     TRICLINIC,
 )
+from torch import Tensor
+from torchtyping import TensorType
 
 
 class LatticeParameters(Grid):
@@ -336,9 +336,9 @@ class LatticeParameters(Grid):
 
         return mask
 
-    def state2oracle(self, state: Optional[List[int]] = None) -> Tensor:
+    def state2proxy(self, state: Optional[List[int]] = None) -> Tensor:
         """
-        Prepares a list of states in "GFlowNet format" for the oracle.
+        Prepares a list of states in "GFlowNet format" for the proxy.
 
         Args
         ----
@@ -347,7 +347,7 @@ class LatticeParameters(Grid):
 
         Returns
         ----
-        oracle_state : Tensor
+        proxy_state : Tensor
             Tensor containing lengths and angles converted from the Grid format.
         """
         if state is None:
@@ -358,12 +358,38 @@ class LatticeParameters(Grid):
             + [self.cell2angle[s] for s in state[3:]]
         )
 
-    def statetorch2oracle(
-        self, states: TensorType["batch", "state_dim"]
-    ) -> TensorType["batch", "state_oracle_dim"]:
+    def states2proxy(
+        self, states: Union[List[List], TensorType["batch", "state_dim"]]
+    ) -> TensorType["batch", "state_proxy_dim"]:
         """
-        Prepares a batch of states in "GFlowNet format" for the oracle. The input to the
-        oracle is the lengths and angles.
+        Prepares a batch of states in "environment format" for the proxy: the
+        concatenation of the lengths and angles.
+
+        Args
+        ----
+        states : list or tensor
+            A batch of states in environment format, either as a list of states or as a
+            single tensor.
+
+        Returns
+        -------
+        A tensor containing all the states in the batch.
+        """
+        states = tlong(states, device=self.device)
+        return torch.cat(
+            [
+                self.lengths_tensor[states[:, :3]],
+                self.angles_tensor[states[:, 3:]],
+            ],
+            dim=1,
+        )
+
+    def statetorch2proxy(
+        self, states: TensorType["batch", "state_dim"]
+    ) -> TensorType["batch", "state_proxy_dim"]:
+        """
+        Prepares a batch of states in "GFlowNet format" for the proxy. The input to the
+        proxy is the lengths and angles.
 
         Args
         ----
@@ -372,8 +398,9 @@ class LatticeParameters(Grid):
 
         Returns
         ----
-        oracle_states : Tensor
+        proxy_states : Tensor
         """
+        return self.states2proxy(states)
         return torch.cat(
             [
                 self.lengths_tensor[states[:, :3].long()],

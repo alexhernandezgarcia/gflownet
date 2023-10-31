@@ -282,8 +282,8 @@ def test__step__changes_state_as_expected(env, lattice_system, actions, exp_stat
         ),
     ],
 )
-def test__state2oracle__returns_expected_tensor(env, lattice_system, state, exp_tensor):
-    assert torch.equal(env.state2oracle(state), torch.Tensor(exp_tensor))
+def test__state2proxy__returns_expected_tensor(env, lattice_system, state, exp_tensor):
+    assert torch.equal(env.state2proxy(state), torch.Tensor(exp_tensor))
 
 
 @pytest.mark.parametrize("lattice_system", [TRICLINIC])
