@@ -10,6 +10,7 @@ from gflownet.envs.base import GFlowNetEnv
 from gflownet.envs.crystals.composition import Composition
 from gflownet.envs.crystals.lattice_parameters import LatticeParameters
 from gflownet.envs.crystals.spacegroup import SpaceGroup
+from gflownet.utils.common import tlong
 from gflownet.utils.crystals.constants import TRICLINIC
 
 
