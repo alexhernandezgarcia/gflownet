@@ -757,7 +757,9 @@ class GFlowNetEnv:
         done = self._get_done(done)
         if done is False:
             return tfloat(0.0, float_type=self.float, device=self.device)
-        return self.proxy2reward(self.proxy(self.state2proxy(state))[0])
+        return self.proxy2reward(
+            self.proxy(torch.unsqueeze(self.state2proxy(state), dim=0))[0]
+        )
 
     def reward_batch(self, states: List[List], done=None):
         """
