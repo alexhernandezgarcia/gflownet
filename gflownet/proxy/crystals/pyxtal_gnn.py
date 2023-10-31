@@ -1,13 +1,43 @@
+from importlib.metadata import PackageNotFoundError, version
+
+import pyxtal
 import torch
+from pyxtal.lattice import Lattice
+from pyxtal.msg import Comp_CompatibilityError
+from pyxtal.symmetry import Group
 from torchtyping import TensorType
 
 from gflownet.proxy.base import Proxy
 from gflownet.utils.common import tfloat
 
-import pyxtal
-from pyxtal.lattice import Lattice
-from pyxtal.msg import Comp_CompatibilityError
-from pyxtal.symmetry import Group
+# URLs to the code repositories used by this proxy.
+DAVE_REPO_URL = "https://github.com/sh-divya/ActiveLearningMaterials.git"
+
+
+def ensure_library_version(library_name, repo_url, release):
+    """Ensure that a library is available for import with a given version
+
+    If the library is unavailable, or the wrong release, this method will print
+    instructions to remedy the situation and raise an exception.
+    """
+
+    pip_url = f"{repo_url}@{release}"
+
+    try:
+        lib_version = version(library_name)
+    except PackageNotFoundError:
+        print(f"  💥 `{library_name}` cannot be imported.")
+        print("    Install with:")
+        print(f"    $ pip install git+{pip_url}\n")
+
+        raise PackageNotFoundError(f"Library `{library_name}` not found")
+
+    if lib_version != release:
+        print(f"  💥 `{library_name}` version mismatch: ")
+        print(f"    current ({lib_version}) != requested ({release})")
+        print("    Install the requested version with:")
+        print(f"    $ pip install --upgrade git+{pip_url}\n")
+        raise ImportError(f"Wrong version for library `{library_name}`")
 
 
 def is_valid_crystal(
@@ -54,8 +84,12 @@ class PyxtalGNN(Proxy):
 
     ENERGY_INVALID_SAMPLE = 10
 
-    def __init__(self, n_pyxtal_samples=1, **kwargs):
+    def __init__(self, ckpt_path=None, dave_release=None, n_pyxtal_samples=1, **kwargs):
         super().__init__(**kwargs)
+
+        # Import the necessary util function from the DAVE repository
+        ensure_library_version("dave", DAVE_REPO_URL, dave_release)
+
         self.n_pyxtal_samples = n_pyxtal_samples
 
     @torch.no_grad()
@@ -74,7 +108,6 @@ class PyxtalGNN(Proxy):
         return tfloat(y, states.device, states.dtype)
 
     def evaluate_state(self, state) -> float:
-
         # Obtain composition, space group and lattice parameters from the state
         composition = state[:-7].astype("int32")
         space_group_idx = state[-7].astype("int32")
@@ -123,15 +156,27 @@ class PyxtalGNN(Proxy):
         return global_sample_score
 
     def graph_from_pyxtal(self, pyxtal_crystal):
-        return None #TODO
+        # Obtain util function from the DAVE repository
+        from dave.utils.atoms_to_graph import AtomsToGraphs, pymatgen_structure_to_graph
+
+        # Convert the PyXtal crystal to pymatgen and then to a graph format
+        a2g = AtomsToGraphs(
+            max_neigh=50,
+            radius=6.0,
+            r_energy=False,
+            r_forces=False,
+            r_distances=True,
+            r_edges=False,
+        )
+        graph = pymatgen_structure_to_graph(pyxtal_crystal.to_pymatgen(), a2g)
+        return graph
 
     def energy_from_graph(self, graph):
-        return 0 #TODO
+        return 0  # TODO
 
     def generate_pyxtal_samples(
         self, space_group_idx, elements, atoms_per_element, a, b, c, alpha, beta, gamma
     ):
-
         # Instantiate space group
         space_group = Group(space_group_idx)
 
@@ -149,8 +194,8 @@ class PyxtalGNN(Proxy):
                     group=space_group,
                     species=elements,
                     numIons=atoms_per_element,
-                    lattice=lattice
-            )
+                    lattice=lattice,
+                )
             except Comp_CompatibilityError:
                 # PyXtal deems the composition incompatible with the space
                 # group. PyXtal is sometimes wrong on this but, at any rate,
@@ -163,8 +208,6 @@ class PyxtalGNN(Proxy):
 
         return pyxtal_samples
 
-
     def pyxtal2proxy(self, pyxtal_crystal):
         # TODO
         return None
-
