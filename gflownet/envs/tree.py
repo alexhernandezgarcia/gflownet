@@ -291,7 +291,6 @@ class Tree(GFlowNetEnv):
             raise ValueError(
                 f"Unrecognized policy_format = {policy_format}, expected either 'mlp' or 'gnn'."
             )
-        self.statetorch2oracle = self.statetorch2policy
 
         super().__init__(
             fixed_distr_params=fixed_distr_params,
