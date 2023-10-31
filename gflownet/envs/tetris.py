@@ -311,7 +311,7 @@ class Tetris(GFlowNetEnv):
         A tensor containing all the states in the batch.
         """
         states = tint(states, device=self.device, int_type=self.int)
-        return self.states2proxy(states).flatten(start_dim=1)
+        return self.states2proxy(states).flatten(start_dim=1).to(self.float)
 
     def state2readable(self, state: Optional[TensorType["height", "width"]] = None):
         """
