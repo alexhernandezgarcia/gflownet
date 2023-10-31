@@ -462,34 +462,6 @@ class Crystal(GFlowNetEnv):
 
         return parents, actions
 
-    def state2proxy(self, state: Optional[List[int]] = None) -> Tensor:
-        """
-        Prepares a list of states in "GFlowNet format" for the proxy. Simply
-        a concatenation of all crystal components.
-        """
-        if state is None:
-            state = self.state.copy()
-
-        composition_proxy_state = self.composition.state2proxy(
-            state=self._get_composition_state(state)
-        ).to(self.device)
-        space_group_proxy_state = (
-            self.space_group.state2proxy(state=self._get_space_group_state(state))
-            .unsqueeze(-1)  # StateGroup proxy state is a single number
-            .to(self.device)
-        )
-        lattice_parameters_proxy_state = self.lattice_parameters.state2proxy(
-            state=self._get_lattice_parameters_state(state)
-        ).to(self.device)
-
-        return torch.cat(
-            [
-                composition_proxy_state,
-                space_group_proxy_state,
-                lattice_parameters_proxy_state,
-            ]
-        )
-
     def states2proxy(
         self, states: Union[List[List], TensorType["batch", "state_dim"]]
     ) -> TensorType["batch", "state_proxy_dim"]:

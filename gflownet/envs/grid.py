@@ -125,29 +125,6 @@ class Grid(GFlowNetEnv):
                 mask[idx] = True
         return mask
 
-    def state2proxy(self, state: List = None) -> List:
-        """
-        Prepares a state in "GFlowNet format" for the oracles: a list of length
-        n_dim with values in the range [cell_min, cell_max] for each state.
-
-        See: state2policy()
-
-        Args
-        ----
-        state : list
-            State
-        """
-        if state is None:
-            state = self.state.copy()
-        return (
-            (
-                np.array(self.state2policy(state)).reshape((self.n_dim, self.length))
-                * self.cells[None, :]
-            )
-            .sum(axis=1)
-            .tolist()
-        )
-
     def states2proxy(
         self, states: Union[List[List], TensorType["batch", "state_dim"]]
     ) -> TensorType["batch", "state_proxy_dim"]:

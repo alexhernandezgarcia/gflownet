@@ -337,28 +337,6 @@ class LatticeParameters(Grid):
 
         return mask
 
-    def state2proxy(self, state: Optional[List[int]] = None) -> Tensor:
-        """
-        Prepares a list of states in "GFlowNet format" for the proxy.
-
-        Args
-        ----
-        state : list
-            A state.
-
-        Returns
-        ----
-        proxy_state : Tensor
-            Tensor containing lengths and angles converted from the Grid format.
-        """
-        if state is None:
-            state = self.state.copy()
-
-        return Tensor(
-            [self.cell2length[s] for s in state[:3]]
-            + [self.cell2angle[s] for s in state[3:]]
-        )
-
     def states2proxy(
         self, states: Union[List[List], TensorType["batch", "state_dim"]]
     ) -> TensorType["batch", "state_proxy_dim"]:

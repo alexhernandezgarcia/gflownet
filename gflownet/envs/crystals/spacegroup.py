@@ -244,28 +244,6 @@ class SpaceGroup(GFlowNetEnv):
         ]
         return mask
 
-    def state2proxy(self, state: List = None) -> Tensor:
-        """
-        Prepares a list of states in "GFlowNet format" for the proxy. The input to the
-        proxy is simply the space group.
-
-        Args
-        ----
-        state : list
-            A state
-
-        Returns
-        ----
-        proxy_state : Tensor
-        """
-        if state is None:
-            state = self.state
-        if state[self.sg_idx] == 0:
-            raise ValueError(
-                "The space group must have been set in order to call the proxy"
-            )
-        return torch.tensor(state[self.sg_idx], device=self.device, dtype=torch.long)
-
     def states2proxy(
         self, states: Union[List[List], TensorType["batch", "state_dim"]]
     ) -> TensorType["batch", "state_proxy_dim"]:

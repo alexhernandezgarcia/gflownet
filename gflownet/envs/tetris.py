@@ -247,24 +247,6 @@ class Tetris(GFlowNetEnv):
             mask[-1] = True
         return mask
 
-    def state2proxy(
-        self, state: Optional[TensorType["height", "width"]] = None
-    ) -> TensorType["height", "width"]:
-        """
-        Prepares a state in "environment format" for the oracles: simply converts
-        non-zero
-        (non-empty) cells into 1s.
-
-        Args
-        ----
-        state : tensor
-        """
-        if state is None:
-            state = self.state.clone().detach()
-        state_proxy = state.clone().detach()
-        state_proxy[state_proxy != 0] = 1
-        return state_proxy
-
     def states2proxy(
         self,
         states: Union[
