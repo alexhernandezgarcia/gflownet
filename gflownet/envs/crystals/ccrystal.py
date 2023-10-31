@@ -954,7 +954,7 @@ class CCrystal(GFlowNetEnv):
         elif stage is Stage.DONE:
             for subenv in done_subenvs:
                 done_subenvs[subenv] = True
-        done_subenvs[-1] = done
+        done_subenvs[Stage.LATTICE_PARAMETERS] = done
 
         # Set state and done of each sub-environment
         for (stage, subenv), subenv_done in zip(self.subenvs.items(), done_subenvs):
