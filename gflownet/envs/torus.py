@@ -134,33 +134,6 @@ class Torus(GFlowNetEnv):
         )
 
     # TODO: circular encoding as in htorus
-    def state2policy(self, state=None) -> List:
-        """
-        Transforms the angles part of the state given as argument (or self.state if
-        None) into a one-hot encoding. The output is a list of len n_angles * n_dim +
-        1, where each n-th successive block of length elements is a one-hot encoding of
-        the position in the n-th dimension.
-
-        Example, n_dim = 2, n_angles = 4:
-          - State, state: [1, 3, 4]
-                          | a  | n | (a = angles, n = n_actions)
-          - state2policy(state): [0, 1, 0, 0, 0, 0, 0, 1, 4]
-                                 |     1    |     3     | 4 |
-        """
-        if state is None:
-            state = self.state.copy()
-        # TODO: do we need float32?
-        # TODO: do we need one-hot?
-        state_policy = np.zeros(self.n_angles * self.n_dim + 1, dtype=np.float32)
-        # Angles
-        state_policy[: self.n_dim * self.n_angles][
-            (np.arange(self.n_dim) * self.n_angles + state[: self.n_dim])
-        ] = 1
-        # Number of actions
-        state_policy[-1] = state[-1]
-        return state_policy
-
-    # TODO: circular encoding as in htorus
     def states2policy(
         self, states: Union[List, TensorType["batch", "state_dim"]]
     ) -> TensorType["batch", "policy_input_dim"]:
@@ -197,7 +170,7 @@ class Torus(GFlowNetEnv):
         ).to(states)
         states_policy[rows, cols.flatten()] = 1.0
         states_policy[:, -1] = states[:, -1]
-        return states_policy
+        return states_policy.to(self.float)
 
     def state2readable(self, state: Optional[List] = None) -> str:
         """
