@@ -4,7 +4,7 @@ Classes to represent hyper-torus environments
 import itertools
 import re
 from copy import deepcopy
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, Union
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -73,10 +73,6 @@ class HybridTorus(GFlowNetEnv):
         self.source = self.source_angles + [0]
         # End-of-sequence action: (n_dim, 0)
         self.eos = (self.n_dim, 0)
-        # TODO: assess if really needed
-        self.state2oracle = self.state2proxy
-        self.statebatch2oracle = self.statebatch2proxy
-        self.statetorch2oracle = self.statetorch2proxy
         # Base class init
         super().__init__(
             fixed_distr_params=fixed_distr_params,
@@ -183,6 +179,26 @@ class HybridTorus(GFlowNetEnv):
             ] + [mask[-1]]
         return mask
 
+    def states2proxy(
+        self, states: Union[List[List], TensorType["batch", "state_dim"]]
+    ) -> TensorType["batch", "state_proxy_dim"]:
+        """
+        Prepares a batch of states in "environment format" for the proxy: each state is
+        a vector of length n_dim where each value is an angle in radians. The n_actions
+        item is removed.
+
+        Args
+        ----
+        states : list or tensor
+            A batch of states in environment format, either as a list of states or as a
+            single tensor.
+
+        Returns
+        -------
+        A tensor containing all the states in the batch.
+        """
+        return tfloat(states, device=self.device, float_type=self.float)[:, :-1]
+
     def statebatch2proxy(
         self, states: List[List]
     ) -> TensorType["batch", "state_proxy_dim"]:
@@ -191,6 +207,7 @@ class HybridTorus(GFlowNetEnv):
         each state is a row of length n_dim with an angle in radians. The n_actions
         item is removed.
         """
+        return self.states2proxy(states)
         return torch.tensor(states, device=self.device)[:, :-1]
 
     def statetorch2proxy(
@@ -199,6 +216,7 @@ class HybridTorus(GFlowNetEnv):
         """
         Prepares a batch of states in torch "GFlowNet format" for the proxy.
         """
+        return self.states2proxy(states)
         return states[:, :-1]
 
     def state2policy(self, state: List = None) -> List:
@@ -211,6 +229,44 @@ class HybridTorus(GFlowNetEnv):
             state = self.state.copy()
         return self.statebatch2policy([state]).tolist()[0]
 
+    def states2policy(
+        self, states: Union[List, TensorType["batch", "state_dim"]]
+    ) -> TensorType["batch", "policy_input_dim"]:
+        """
+        Prepares a batch of states in "environment format" for the policy model: if
+        policy_encoding_dim_per_angle >= 2, then the state (angles) is encoded using
+        trigonometric components.
+
+        Args
+        ----
+        states : list or tensor
+            A batch of states in environment format, either as a list of states or as a
+            single tensor.
+
+        Returns
+        -------
+        A tensor containing all the states in the batch.
+        """
+        states = tfloat(states, float_type=self.float, device=self.device)
+        if (
+            self.policy_encoding_dim_per_angle is None
+            or self.policy_encoding_dim_per_angle < 2
+        ):
+            return states
+        step = states[:, -1]
+        code_half_size = self.policy_encoding_dim_per_angle // 2
+        int_coeff = (
+            torch.arange(1, code_half_size + 1).repeat(states.shape[-1] - 1).to(states)
+        )
+        encoding = (
+            torch.repeat_interleave(states[:, :-1], repeats=code_half_size, dim=1)
+            * int_coeff
+        )
+        return torch.cat(
+            [torch.cos(encoding), torch.sin(encoding), torch.unsqueeze(step, 1)],
+            dim=1,
+        )
+
     def statetorch2policy(
         self, states: TensorType["batch", "state_dim"]
     ) -> TensorType["batch", "policy_input_dim"]:
@@ -220,6 +276,7 @@ class HybridTorus(GFlowNetEnv):
         If policy_encoding_dim_per_angle >= 2, then the state (angles) is encoded using
         trigonometric components.
         """
+        return self.states2policy(states)
         if (
             self.policy_encoding_dim_per_angle is not None
             and self.policy_encoding_dim_per_angle >= 2
@@ -249,6 +306,7 @@ class HybridTorus(GFlowNetEnv):
 
         See: statetorch2policy()
         """
+        return self.states2policy(states)
         states = tfloat(states, float_type=self.float, device=self.device)
         return self.statetorch2policy(states)
 
