@@ -259,23 +259,6 @@ class Torus(GFlowNetEnv):
         state_policy[:, -1] = states[:, -1]
         return state_policy
 
-    def policy2state(self, state_policy: List) -> List:
-        """
-        Transforms the one-hot encoding version of a state given as argument
-        into a state (list of the position at each dimension).
-
-        Example, n_dim = 2, n_angles = 4:
-          - state_policy: [0, 1, 0, 0, 0, 0, 0, 1, 4]
-                          |     0    |     3     | 4 |
-          - policy2state(state_policy): [1, 3, 4]
-                            | a  | n | (a = angles, n = n_actions)
-        """
-        mat_angles_policy = np.reshape(
-            state_policy[: self.n_dim * self.n_angles], (self.n_dim, self.n_angles)
-        )
-        angles = np.where(mat_angles_policy)[1].tolist()
-        return angles + [int(state_policy[-1])]
-
     def state2readable(self, state: Optional[List] = None) -> str:
         """
         Converts a state (a list of positions) into a human-readable string

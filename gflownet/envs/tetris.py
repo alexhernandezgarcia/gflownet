@@ -372,16 +372,6 @@ class Tetris(GFlowNetEnv):
         return self.states2policy(states)
         return self.statetorch2proxy(states).flatten(start_dim=1)
 
-    def policy2state(
-        self, policy: Optional[TensorType["height", "width"]] = None
-    ) -> TensorType["height", "width"]:
-        """
-        Returns None to signal that the conversion is not reversible.
-
-        See: state2proxy()
-        """
-        return None
-
     def state2readable(self, state: Optional[TensorType["height", "width"]] = None):
         """
         Converts a state (board) into a human-friendly string.

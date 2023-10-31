@@ -854,14 +854,6 @@ class Tree(GFlowNetEnv):
         states = torch.cat([states[:, :, : Attribute.ACTIVE], active_features], dim=1)
         return states.flatten(start_dim=1)
 
-    def policy2state(
-        self, policy: Optional[TensorType["policy_input_dim"]] = None
-    ) -> None:
-        """
-        Returns None to signal that the conversion is not reversible.
-        """
-        return None
-
     def statebatch2proxy(
         self, states: List[TensorType["state_dim"]]
     ) -> TensorType["batch", "state_proxy_dim"]:

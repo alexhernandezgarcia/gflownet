@@ -302,18 +302,6 @@ class Grid(GFlowNetEnv):
         state_policy[rows, cols.flatten()] = 1.0
         return state_policy
 
-    def policy2state(self, state_policy: List) -> List:
-        """
-        Transforms the one-hot encoding version of a state given as argument
-        into a state (list of the position at each dimension).
-
-        Example:
-          - state_policy: [1, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0] (length = 4, n_dim = 3)
-                          |     0    |      3    |      1    |
-          - policy2state(state_policy): [0, 3, 1]
-        """
-        return np.where(np.reshape(state_policy, (self.n_dim, self.length)))[1].tolist()
-
     def readable2state(self, readable, alphabet={}):
         """
         Converts a human-readable string representing a state into a state as a list of

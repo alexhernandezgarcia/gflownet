@@ -310,16 +310,6 @@ class HybridTorus(GFlowNetEnv):
         states = tfloat(states, float_type=self.float, device=self.device)
         return self.statetorch2policy(states)
 
-    def policy2state(self, state_policy: List) -> List:
-        """
-        Returns the input as is.
-        """
-        if self.policy_encoding_dim_per_angle is not None:
-            raise NotImplementedError(
-                "Convertion from encoded policy_state to state is not impemented"
-            )
-        return state_policy
-
     def state2readable(self, state: List) -> str:
         """
         Converts a state (a list of positions) into a human-readable string
