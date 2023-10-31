@@ -6,10 +6,6 @@ from typing import Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import torch
-from pyxtal.symmetry import Group
-from torch import Tensor
-from torchtyping import TensorType
-
 from gflownet.envs.base import GFlowNetEnv
 from gflownet.utils.common import tlong
 from gflownet.utils.crystals.constants import ELEMENT_NAMES, OXIDATION_STATES
@@ -19,6 +15,9 @@ from gflownet.utils.crystals.pyxtal_cache import (
     space_group_lowest_free_wp_multiplicity,
     space_group_wyckoff_gcd,
 )
+from pyxtal.symmetry import Group
+from torch import Tensor
+from torchtyping import TensorType
 
 
 class Composition(GFlowNetEnv):
@@ -132,10 +131,6 @@ class Composition(GFlowNetEnv):
         self.source = [0 for _ in self.elements]
         # End-of-sequence action
         self.eos = (-1, -1)
-        # Conversions
-        self.state2proxy = self.state2oracle
-        self.statebatch2proxy = self.statebatch2oracle
-        self.statetorch2proxy = self.statetorch2oracle
         super().__init__(**kwargs)
 
     def get_action_space(self):
@@ -404,9 +399,9 @@ class Composition(GFlowNetEnv):
 
         return mask
 
-    def state2oracle(self, state: List = None) -> Tensor:
+    def state2proxy(self, state: List = None) -> Tensor:
         """
-        Prepares a state in "GFlowNet format" for the oracle. In this case, it simply
+        Prepares a state in "GFlowNet format" for the proxy. In this case, it simply
         converts the state into a torch tensor, with dtype torch.long.
 
         Args
@@ -416,7 +411,7 @@ class Composition(GFlowNetEnv):
 
         Returns
         ----
-        oracle_state : Tensor
+        proxy_state : Tensor
             Tensor containing counts of individual elements
         """
         if state is None:
@@ -424,12 +419,12 @@ class Composition(GFlowNetEnv):
 
         return tlong(state, device=self.device)
 
-    def statetorch2oracle(
+    def statetorch2proxy(
         self, states: TensorType["batch", "state_dim"]
-    ) -> TensorType["batch", "state_oracle_dim"]:
+    ) -> TensorType["batch", "state_proxy_dim"]:
         """
-        Prepares a batch of states in "GFlowNet format" for the oracle. The input to the
-        oracle is the atom counts for individual elements.
+        Prepares a batch of states in "GFlowNet format" for the proxy. The input to the
+        proxy is the atom counts for individual elements.
 
         Args
         ----
@@ -438,15 +433,15 @@ class Composition(GFlowNetEnv):
 
         Returns
         ----
-        oracle_states : Tensor
+        proxy_states : Tensor
         """
         return states
 
-    def statebatch2oracle(
+    def statebatch2proxy(
         self, states: List[List]
-    ) -> TensorType["batch", "state_oracle_dim"]:
+    ) -> TensorType["batch", "state_proxy_dim"]:
         """
-        Prepares a batch of states in "GFlowNet format" for the oracles. In this case,
+        Prepares a batch of states in "GFlowNet format" for the proxy. In this case,
         it simply converts the states into a torch tensor, with dtype torch.long.
 
         Args
