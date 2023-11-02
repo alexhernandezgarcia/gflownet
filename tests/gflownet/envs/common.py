@@ -220,16 +220,6 @@ def test__sample_backwards_reaches_source(env, n=100):
 
 
 @pytest.mark.repeat(100)
-def test__state2policy__is_reversible(env):
-    env = env.reset()
-    while not env.done:
-        state_recovered = env.policy2state(env.state2policy())
-        if state_recovered is not None:
-            assert env.equal(env.state, state_recovered)
-        env.step_random()
-
-
-@pytest.mark.repeat(100)
 def test__state2readable__is_reversible(env):
     env = env.reset()
     while not env.done:

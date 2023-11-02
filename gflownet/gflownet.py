@@ -325,7 +325,7 @@ class GFlowNetAgent:
             # Check for at least one non-random action
             if idx_norandom.sum() > 0:
                 states_policy = tfloat(
-                    self.env.statebatch2policy(
+                    self.env.states2policy(
                         [s for s, do in zip(states, idx_norandom) if do]
                     ),
                     device=self.device,
@@ -1040,8 +1040,8 @@ class GFlowNetAgent:
             )
         elif self.continuous:
             # TODO make it work with conditional env
-            x_sampled = torch2np(self.env.statebatch2proxy(x_sampled))
-            x_tt = torch2np(self.env.statebatch2proxy(x_tt))
+            x_sampled = torch2np(self.env.states2proxy(x_sampled))
+            x_tt = torch2np(self.env.states2proxy(x_tt))
             kde_pred = self.env.fit_kde(
                 x_sampled,
                 kernel=self.logger.test.kde.kernel,
@@ -1055,7 +1055,7 @@ class GFlowNetAgent:
                 x_from_reward = self.env.sample_from_reward(
                     n_samples=self.logger.test.n
                 )
-                x_from_reward = torch2np(self.env.statetorch2proxy(x_from_reward))
+                x_from_reward = torch2np(self.env.states2proxy(x_from_reward))
                 # Fit KDE with samples from reward
                 kde_true = self.env.fit_kde(
                     x_from_reward,
@@ -1325,7 +1325,7 @@ def logq(traj_list, actions_list, model, env):
         with torch.no_grad():
             logits_traj = model(
                 tfloat(
-                    env.statebatch2policy(traj),
+                    env.states2policy(traj),
                     device=self.device,
                     float_type=self.float,
                 )
