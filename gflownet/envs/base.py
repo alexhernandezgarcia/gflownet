@@ -694,7 +694,16 @@ class GFlowNetEnv:
             A state
         """
         state = self._get_state(state)
-        return torch.squeeze(self.states2proxy([state]), dim=0)
+        state_proxy = self.states2proxy([state])
+        if isinstance(state_proxy, list):
+            return state_proxy[0]
+        elif torch.is_tensor(state_proxy):
+            return torch.squeeze(state_proxy, dim=0)
+        else:
+            raise NotImplementedError(
+                "The output of states2proxy must be either a list or a tensor. "
+                f"Got {type(state_proxy)}."
+            )
 
     def states2policy(
         self, states: Union[List, TensorType["batch", "state_dim"]]
