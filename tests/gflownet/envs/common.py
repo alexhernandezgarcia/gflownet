@@ -223,6 +223,117 @@ def test__sample_actions__get_logprobs__return_valid_actions_and_logprobs(env):
         env.step(action)
 
 
+@pytest.mark.repeat(1000)
+def test__forward_actions_have_nonzero_backward_prob(env):
+    env = env.reset()
+    policy_random = torch.unsqueeze(
+        tfloat(env.random_policy_output, float_type=env.float, device=env.device), 0
+    )
+    while not env.done:
+        state_new, action, valid = env.step_random(backward=False)
+        if not valid:
+            continue
+        # Get backward logprobs
+        mask_bw = env.get_mask_invalid_actions_backward()
+        masks = torch.unsqueeze(tbool(mask_bw, device=env.device), 0)
+        actions_torch = torch.unsqueeze(
+            tfloat(action, float_type=env.float, device=env.device), 0
+        )
+        states_torch = torch.unsqueeze(
+            tfloat(env.state, float_type=env.float, device=env.device), 0
+        )
+        policy_outputs = policy_random.clone().detach()
+        logprobs_bw = env.get_logprobs(
+            policy_outputs=policy_outputs,
+            actions=actions_torch,
+            mask=masks,
+            states_from=states_torch,
+            is_backward=True,
+        )
+        assert torch.isfinite(logprobs_bw)
+        assert logprobs_bw > -1e6
+
+
+@pytest.mark.repeat(1000)
+def test__trajectories_are_reversible(env):
+    # Skip for certain environments until fixed:
+    skip_envs = ["Crystal", "LatticeParameters", "Tree"]
+    if env.__class__.__name__ in skip_envs:
+        warnings.warn("Skipping test for this specific environment.")
+        return
+    env = env.reset()
+
+    # Sample random forward trajectory
+    states_trajectory_fw = []
+    actions_trajectory_fw = []
+    while not env.done:
+        state, action, valid = env.step_random(backward=False)
+        if valid:
+            states_trajectory_fw.append(copy(state))
+            actions_trajectory_fw.append(action)
+
+    # Sample backward trajectory with actions in forward trajectory
+    states_trajectory_bw = []
+    actions_trajectory_bw = []
+    actions_trajectory_fw_copy = actions_trajectory_fw.copy()
+    while not env.equal(env.state, env.source) or env.done:
+        state, action, valid = env.step_backwards(actions_trajectory_fw_copy.pop())
+        if valid:
+            states_trajectory_bw.append(copy(state))
+            actions_trajectory_bw.append(action)
+
+    assert all(
+        [
+            env.equal(s_fw, s_bw)
+            for s_fw, s_bw in zip(
+                states_trajectory_fw[:-1], states_trajectory_bw[-2::-1]
+            )
+        ]
+    )
+    assert actions_trajectory_fw == actions_trajectory_bw[::-1]
+
+
+def test__backward_actions_have_nonzero_forward_prob(env, n=1000):
+    # Skip for certain environments until fixed:
+    skip_envs = ["Crystal", "LatticeParameters"]
+    if env.__class__.__name__ in skip_envs:
+        warnings.warn("Skipping test for this specific environment.")
+        return
+    states = _get_terminating_states(env, n)
+    if states is None:
+        warnings.warn("Skipping test because states are None.")
+        return
+    policy_random = torch.unsqueeze(
+        tfloat(env.random_policy_output, float_type=env.float, device=env.device), 0
+    )
+    for state in states:
+        env.set_state(state, done=True)
+        while True:
+            if env.equal(env.state, env.source):
+                break
+            state_new, action, valid = env.step_random(backward=True)
+            assert valid
+            # Get forward logprobs
+            mask_fw = env.get_mask_invalid_actions_forward()
+            masks = torch.unsqueeze(tbool(mask_fw, device=env.device), 0)
+            actions_torch = torch.unsqueeze(
+                tfloat(action, float_type=env.float, device=env.device), 0
+            )
+            states_torch = torch.unsqueeze(
+                tfloat(env.state, float_type=env.float, device=env.device), 0
+            )
+            policy_outputs = policy_random.clone().detach()
+            logprobs_fw = env.get_logprobs(
+                policy_outputs=policy_outputs,
+                actions=actions_torch,
+                mask=masks,
+                states_from=states_torch,
+                is_backward=False,
+            )
+            assert torch.isfinite(logprobs_fw)
+            assert logprobs_fw > -1e6
+
+
 @pytest.mark.repeat(10)
 def test__init__state_is_source_no_parents(env):
     assert env.equal(env.state, env.source)
