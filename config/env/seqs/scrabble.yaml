@@ -1,0 +1,17 @@
+defaults:
+  - base
+
+_target_: gflownet.envs.seqs.scrabble.Scrabble
+
+id: scrabble
+# Max length
+max_length: 7
+# Buffer
+buffer:
+  data_path: null
+  train: null
+  test:
+    type: uniform
+    n: 10
+    output_csv: scrabble_test.csv
+    output_pkl: scrabble_test.pkl
