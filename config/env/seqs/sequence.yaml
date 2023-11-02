@@ -7,6 +7,8 @@ id: sequence
 # Tokens
 tokens: [0, 1]
 pad_token: -1
+# Max length
+max_length: 5
 # Buffer
 buffer:
   data_path: null
