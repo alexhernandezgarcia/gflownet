@@ -461,21 +461,26 @@ class CCrystal(GFlowNetEnv):
     ) -> List[bool]:
         """
         Computes the forward actions mask of the state.
-
-        The mask of the parent crystal is simply the concatenation of the masks of the
-        three sub-environments. This assumes that the methods that will use the mask
-        will extract the part corresponding to the relevant stage and ignore the rest.
         """
         state = self._get_state(state)
+        stage = self._get_stage(state)
         done = self._get_done(done)
 
         mask = []
-        for stage, subenv in self.subenvs.items():
-            mask.extend(
-                subenv.get_mask_invalid_actions_forward(
-                    self._get_state_of_subenv(state, stage), done
-                )
+        for subenv_stage, subenv in self.subenvs.items():
+            # Get the mask of the current stage
+            subenv_mask = subenv.get_mask_invalid_actions_forward(
+                self._get_state_of_subenv(state, subenv_stage), done
             )
+
+            # If the subenv is not the current stage, make all actions invalid.
+            # TODO : We could save on computation by not calling
+            # _get_state_of_subenv() to generate these all-invalid masks
+            if subenv_stage != stage:
+                subenv_mask = [True] * len(subenv_mask)
+
+            mask.extend(subenv_mask)
+
         return mask
 
     # TODO: this piece of code looks awful
