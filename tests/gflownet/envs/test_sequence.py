@@ -204,3 +204,11 @@ def test__state2readable__returns_expected(env, state, readable):
 def test__readable2state__returns_expected(env, state, readable):
     state = tlong(state, device=env.device)
     assert torch.equal(env.readable2state(readable), state)
+
+
+def test__all_env_common__standard(env):
+    print(
+        f"\n\nCommon tests for Sequence with tokens {env.tokens} and "
+        f"max_length {env.max_length}\n"
+    )
+    return common.test__all_env_common(env)
