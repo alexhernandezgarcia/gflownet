@@ -1,0 +1,73 @@
+import pytest
+import torch
+
+from gflownet.envs.seqs.scrabble import Scrabble
+from gflownet.proxy.scrabble import ScrabbleScorer
+
+
+@pytest.fixture()
+def proxy():
+    return ScrabbleScorer(device="cpu", float_precision=32)
+
+
+@pytest.fixture
+def env():
+    return Scrabble(max_length=7, device="cpu")
+
+
+@pytest.mark.parametrize(
+    "samples, scores_expected",
+    [
+        (
+            [
+                ["C", "A", "T", "0", "0", "0", "0"],
+                ["D", "O", "G", "0", "0", "0", "0"],
+                ["B", "I", "R", "D", "0", "0", "0"],
+            ],
+            [3 + 1 + 1, 2 + 1 + 2, 3 + 1 + 1 + 2],
+        ),
+    ],
+)
+def test__scrabble_scorer__returns_expected_scores(
+    env, proxy, samples, scores_expected
+):
+    # Make scores expected negative
+    scores_expected = [-s for s in scores_expected]
+    proxy.setup(env)
+    scores = proxy(samples)
+    assert scores.tolist() == scores_expected
+
+
+@pytest.mark.parametrize(
+    "sample, score_expected",
+    [
+        (
+            "C A T",
+            3 + 1 + 1,
+        ),
+        (
+            "C A T Z",
+            0,
+        ),
+        (
+            "D O G",
+            2 + 1 + 2,
+        ),
+        (
+            "B I R D",
+            3 + 1 + 1 + 2,
+        ),
+        (
+            "G F N",
+            0,
+        ),
+    ],
+)
+def test__scrabble_scorer__returns_expected_scores_after_conversions(
+    env, proxy, sample, score_expected
+):
+    proxy.setup(env)
+    env.set_state(env.readable2state(sample))
+    sample_proxy = env.state2proxy()
+    score = proxy([sample_proxy])
+    assert score.tolist() == [-1.0 * score_expected]
