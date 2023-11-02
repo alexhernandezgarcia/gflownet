@@ -185,7 +185,8 @@ def test__states2proxy__returns_expected(env, states, states_proxy):
 @pytest.mark.parametrize(
     "state, readable",
     [
-        ([0, 0, 0, 0, 0], "10 10 10 10 10"),
+        ([0, 0, 0, 0, 0], ""),
+        ([1, 3, 2, 0, 0], "-2 0 -1"),
         ([1, 3, 2, 1, 4], "-2 0 -1 -2 1"),
     ],
 )
@@ -197,7 +198,8 @@ def test__state2readable__returns_expected(env, state, readable):
 @pytest.mark.parametrize(
     "state, readable",
     [
-        ([0, 0, 0, 0, 0], "10 10 10 10 10"),
+        ([0, 0, 0, 0, 0], ""),
+        ([1, 3, 2, 0, 0], "-2 0 -1"),
         ([1, 3, 2, 1, 4], "-2 0 -1 -2 1"),
     ],
 )

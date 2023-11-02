@@ -36,7 +36,7 @@ class Sequence(GFlowNetEnv):
        EOS token. Default: -1.
 
     pad_token : int, str
-       PAD token. Default: -2.
+       PAD token. Default: -1.
     """
 
     def __init__(
@@ -65,6 +65,7 @@ class Sequence(GFlowNetEnv):
         self.device = set_device(kwargs["device"])
         # Main attributes
         self.tokens = tuple(tokens)
+        self.pad_token = pad_token
         self.n_tokens = len(self.tokens)
         self.max_length = max_length
         self.eos_idx = -1
@@ -233,7 +234,7 @@ class Sequence(GFlowNetEnv):
         Example, with max_length = 5:
           - Sequence (tokens): 0100
           - state: [1, 2, 1, 1, 0]
-          - proxy format: [0, 1, 0, 0, -2]
+          - proxy format: [0, 1, 0, 0, -1]
 
         Args
         ----
@@ -301,7 +302,7 @@ class Sequence(GFlowNetEnv):
         A string of space-separated tokens.
         """
         state = self._get_state(state)
-        state = state.tolist()
+        state = self._unpad(state.tolist())
         return "".join([str(self.idx2token[idx]) + " " for idx in state])[:-1]
 
     def readable2state(self, readable: str) -> TensorType["max_length"]:
@@ -317,8 +318,12 @@ class Sequence(GFlowNetEnv):
         -------
         A tensor containing the indices of the tokens.
         """
+        if readable == "":
+            return self.source
         return tlong(
-            [self.token2idx[self.dtype(token)] for token in readable.split(" ")],
+            self._pad(
+                [self.token2idx[self.dtype(token)] for token in readable.split(" ")]
+            ),
             device=self.device,
         )
 
@@ -349,6 +354,40 @@ class Sequence(GFlowNetEnv):
         for idx, length in enumerate(lengths):
             samples[idx, length:] = 0
         return samples
+
+    def _pad(self, seq_list: list):
+        """
+        Pads a sequence represented as a list of indices.
+
+        Args
+        ----
+        seq_list : list
+            The input sequence. A list containing a list of indices.
+
+        Returns
+        -------
+        The input list padded by the end with self.pad_idx.
+        """
+        return seq_list + [self.pad_idx] * (self.max_length - len(seq_list))
+
+    def _unpad(self, seq_list: list):
+        """
+        Removes the padding from the end off a sequence represented as a list of
+        indices.
+
+        Args
+        ----
+        seq_list : list
+            The input sequence. A list containing a list of indices, including possibly
+            padding indices.
+
+        Returns
+        -------
+        The input list padded by the end with self.pad_idx.
+        """
+        if self.pad_idx not in seq_list:
+            return seq_list
+        return seq_list[: seq_list.index(self.pad_idx)]
 
     def _get_seq_length(self, state: TensorType["max_length"] = None):
         """
