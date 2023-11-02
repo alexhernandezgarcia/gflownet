@@ -32,9 +32,6 @@ class Sequence(GFlowNetEnv):
     max_length : int
         Maximum length of the sequences.
 
-    eos_token : int, str
-       EOS token. Default: -1.
-
     pad_token : int, str
        PAD token. Default: -2.
     """
@@ -42,8 +39,8 @@ class Sequence(GFlowNetEnv):
     def __init__(
         self,
         tokens: Iterable = [0, 1],
-        max_length: int = 5,
         pad_token: Union[int, float, str] = -1,
+        max_length: int = 5,
         **kwargs,
     ):
         assert max_length > 0
@@ -65,6 +62,7 @@ class Sequence(GFlowNetEnv):
         self.device = set_device(kwargs["device"])
         # Main attributes
         self.tokens = tuple(tokens)
+        self.pad_token = pad_token
         self.n_tokens = len(self.tokens)
         self.max_length = max_length
         self.eos_idx = -1
