@@ -8,6 +8,7 @@ from typing import Iterable, List, Optional, Tuple, Union
 
 import torch
 import torch.nn.functional as F
+from torch.distributions import Categorical
 from torchtyping import TensorType
 
 from gflownet.envs.base import GFlowNetEnv
@@ -42,8 +43,7 @@ class Sequence(GFlowNetEnv):
         self,
         tokens: Iterable = [0, 1],
         max_length: int = 5,
-        eos_token: Union[int, float, str] = -1,
-        pad_token: Union[int, float, str] = -2,
+        pad_token: Union[int, float, str] = -1,
         **kwargs,
     ):
         assert max_length > 0
@@ -278,7 +278,11 @@ class Sequence(GFlowNetEnv):
         A tensor containing all the states in the batch.
         """
         states = tlong(states, device=self.device)
-        return F.one_hot(states, self.n_tokens + 1).reshape(states.shape[0], -1)
+        return (
+            F.one_hot(states, self.n_tokens + 1)
+            .reshape(states.shape[0], -1)
+            .to(self.float)
+        )
 
     def state2readable(self, state: TensorType["max_length"] = None) -> str:
         """
@@ -317,6 +321,34 @@ class Sequence(GFlowNetEnv):
             [self.token2idx[self.dtype(token)] for token in readable.split(" ")],
             device=self.device,
         )
+
+    def get_uniform_terminating_states(
+        self, n_states: int, seed: int = None
+    ) -> List[TensorType["batch", "max_length"]]:
+        """
+        Constructs a batch of n states uniformly sampled in the sample space of the
+        environment.
+
+        Args
+        ----
+        n_states : int
+            The number of states to sample.
+
+        seed : int
+            Random seed.
+        """
+        n_tokens = len(self.tokens)
+        n_per_length = tlong(
+            [n_tokens**length for length in range(1, self.max_length + 1)],
+            device=self.device,
+        )
+        lengths = Categorical(logits=n_per_length.repeat(n_states, 1)).sample() + 1
+        samples = torch.randint(
+            low=1, high=n_tokens + 1, size=(n_states, self.max_length)
+        )
+        for idx, length in enumerate(lengths):
+            samples[idx, length:] = 0
+        return samples
 
     def _get_seq_length(self, state: TensorType["max_length"] = None):
         """
