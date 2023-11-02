@@ -1,0 +1,18 @@
+defaults:
+  - base
+
+_target_: gflownet.envs.seqs.sequence.Sequence
+
+id: sequence
+# Tokens
+tokens: [0, 1]
+pad_token: -1
+# Buffer
+buffer:
+  data_path: null
+  train: null
+  test:
+    type: uniform
+    n: 10
+    output_csv: sequence_test.csv
+    output_pkl: sequence_test.pkl
