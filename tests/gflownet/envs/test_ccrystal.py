@@ -81,10 +81,10 @@ def test__stage_prev__returns_expected(env, env_sg_first):
     assert env._get_previous_stage(Stage.LATTICE_PARAMETERS) == Stage.SPACE_GROUP
     assert env._get_previous_stage(Stage.DONE) == Stage.LATTICE_PARAMETERS
 
-    assert env_sg_first._get_previous_stage(Stage.COMPOSITION) == Stage.DONE
-    assert env_sg_first._get_previous_stage(Stage.SPACE_GROUP) == Stage.COMPOSITION
+    assert env_sg_first._get_previous_stage(Stage.SPACE_GROUP) == Stage.DONE
+    assert env_sg_first._get_previous_stage(Stage.COMPOSITION) == Stage.SPACE_GROUP
     assert (
-        env_sg_first._get_previous_stage(Stage.LATTICE_PARAMETERS) == Stage.SPACE_GROUP
+        env_sg_first._get_previous_stage(Stage.LATTICE_PARAMETERS) == Stage.COMPOSITION
     )
     assert env_sg_first._get_previous_stage(Stage.DONE) == Stage.LATTICE_PARAMETERS
 
@@ -100,9 +100,9 @@ def test__environment__has_expected_initial_state(env_input, initial_stage, requ
     the continuous lattice parameters environment is all -1s.
     """
     env = request.getfixturevalue(env_input)
-    expected_initial_state = [initial_stage] + [0] * (4 + 3 + 6)
+    expected_initial_state = [initial_stage] + [0] * (4 + 3) + [-1] * 6
     assert (
-        env.state == env.source == [0] * (1 + 4 + 3) + [-1] * 6
+        env.state == env.source == expected_initial_state
     )  # stage + n elements + space groups + lattice parameters
 
 
@@ -731,7 +731,7 @@ def test__step__single_action_works(env, action):
             [(2, 105, 0, -3, -3, -3, -3), (-1, -1, -1, -3, -3, -3, -3)],
             [0, 0, 0, 0, 0, 4, 3, 105, -1, -1, -1, -1, -1, -1],
             Stage.COMPOSITION,
-            False,
+            True,
         ],
         [
             "env_sg_first",
