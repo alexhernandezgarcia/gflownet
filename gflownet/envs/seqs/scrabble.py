@@ -1,20 +1,11 @@
 """
 Class to represent a Scrabble-inspired environment.
 """
-from collections import OrderedDict
-from pathlib import Path
-import yaml
 from gflownet.envs.seqs.sequence import Sequence
+from gflownet.utils.scrabble.utils import read_alphabet
 
-ALPHABET = None
 PAD_TOKEN = "0"
 
-def _read_alphabet():
-    global ALPHABET
-    if ALPHABET is None:
-        with open(Path(__file__).parent / "alphabet.yaml", "r") as f:
-            ALPHABET = OrderedDict(yaml.safe_load(f))
-    return ALPHABET
 
 class Scrabble(Sequence):
     """
@@ -28,5 +19,5 @@ class Scrabble(Sequence):
         self,
         **kwargs,
     ):
-        alphabet_dict = _read_alphabet()
+        alphabet_dict = read_alphabet()
         super().__init__(tokens=alphabet_dict.keys(), pad_token=PAD_TOKEN, **kwargs)
