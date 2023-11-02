@@ -41,4 +41,6 @@ class ScrabbleScorer(Proxy):
         return sum(map(lambda x: self.alphabet_dict[x], sample))
 
     def _unpad_and_string(self, sample: list) -> str:
-        return "".join(sample[: sample.index(self.pad_token)]).lower()
+        if self.pad_token in sample:
+            sample = sample[: sample.index(self.pad_token)]
+        return "".join(sample).lower()
