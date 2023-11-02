@@ -610,7 +610,7 @@ class CCrystal(GFlowNetEnv):
                     )
 
             elif stage is Stage.COMPOSITION:
-                if self.do_sg_before_composition and self.do_stoichiometry_sg_check:
+                if self.do_sg_before_composition and self.do_sg_to_composition_constraints:
                     space_group = self.subenvs[Stage.SPACE_GROUP].space_group
                     self.subenvs[Stage.COMPOSITION].space_group = space_group
 
