@@ -539,9 +539,10 @@ def test__get_mask_invald_actions_backward__returns_expected_stage_transition(
 ):
     env = request.getfixturevalue(env_input)
     stage = env._get_stage(state)
+    prev_stage = env._get_previous_stage(stage)
     mask = env.get_mask_invalid_actions_backward(state, done=False)
     for stg, subenv in env.subenvs.items():
-        if stg == env._get_previous_stage(stage) and stage != Stage(0):
+        if stg == prev_stage and prev_stage != Stage.DONE:
             # Mask of done (EOS only) if stage is previous stage in state
             mask_subenv_expected = subenv.get_mask_invalid_actions_backward(
                 env._get_state_of_subenv(state, stg), done=True

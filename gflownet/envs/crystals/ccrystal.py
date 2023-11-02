@@ -510,8 +510,13 @@ class CCrystal(GFlowNetEnv):
 
         mask = []
         do_eos_only = False
+
         # Iterate stages in reverse order
-        for stg, subenv in reversed(self.subenvs.items()):
+        subenv_masks = {}
+        stg = self._get_previous_stage(Stage.DONE)
+        while stg != Stage.DONE:
+            subenv = self.subenvs[stg]
+
             state_subenv = self._get_state_of_subenv(state, stg)
             # Set mask of done state because state of next subenv is source
             if do_eos_only:
@@ -524,7 +529,8 @@ class CCrystal(GFlowNetEnv):
                 # stg is the current stage
                 if stg == stage:
                     # state of subenv is the source state
-                    if stg != Stage(0) and state_subenv == subenv.source:
+                    prev_stg = self._get_previous_stage(stg)
+                    if prev_stg != Stage.DONE and state_subenv == subenv.source:
                         do_eos_only = True
                         mask_subenv = subenv.get_mask_invalid_actions_backward(
                             subenv.source
@@ -539,8 +545,13 @@ class CCrystal(GFlowNetEnv):
                     mask_subenv = subenv.get_mask_invalid_actions_backward(
                         subenv.source
                     )
-            mask.extend(mask_subenv[::-1])
-        return mask[::-1]
+            subenv_masks[stg] = mask_subenv
+            stg = self._get_previous_stage(stg)
+
+        # Combine the individual masks to produce the global mask
+        for stg, subenv in self.subenvs.items():
+            mask.extend(subenv_masks[stg])
+        return mask
 
     def _update_state(self, stage: Stage):
         """
