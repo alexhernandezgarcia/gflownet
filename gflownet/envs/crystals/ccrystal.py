@@ -286,7 +286,7 @@ class CCrystal(GFlowNetEnv):
         )
 
         super().reset(env_id=env_id)
-        self._set_stage(Stage.COMPOSITION)
+        self._set_stage(self._get_next_stage(None))
 
         return self
 
