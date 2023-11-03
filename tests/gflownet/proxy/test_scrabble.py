@@ -7,7 +7,7 @@ from gflownet.proxy.scrabble import ScrabbleScorer
 
 @pytest.fixture()
 def proxy():
-    return ScrabbleScorer(device="cpu", float_precision=32)
+    return ScrabbleScorer(vocabulary_check=True, device="cpu", float_precision=32)
 
 
 @pytest.fixture

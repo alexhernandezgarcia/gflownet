@@ -18,6 +18,6 @@ def read_alphabet():
 def read_vocabulary():
     global VOCABULARY
     if VOCABULARY is None:
-        with open(Path(__file__).parent / "vocabulary_en", "r") as f:
+        with open(Path(__file__).parent / "vocabulary_7letters_en", "r") as f:
             VOCABULARY = set(f.read().splitlines())
     return VOCABULARY

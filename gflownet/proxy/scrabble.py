@@ -9,7 +9,8 @@ from gflownet.utils.scrabble.utils import read_alphabet, read_vocabulary
 
 
 class ScrabbleScorer(Proxy):
-    def __init__(self, **kwargs):
+    def __init__(self, vocabulary_check: bool = False, **kwargs):
+        self.vocabulary_check = vocabulary_check
         self.alphabet_dict = read_alphabet()
         self.vocabulary = read_vocabulary()
         super().__init__(**kwargs)
@@ -31,7 +32,10 @@ class ScrabbleScorer(Proxy):
             )
         scores = []
         for sample in states:
-            if self._unpad_and_string(sample) not in self.vocabulary:
+            if (
+                self.vocabulary_check
+                and self._unpad_and_string(sample) not in self.vocabulary
+            ):
                 scores.append(0.0)
             else:
                 scores.append(-1.0 * self._sum_scores(sample))
