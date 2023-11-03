@@ -21,6 +21,11 @@ env:
   reward_sampling_method: nested
   buffer:
     replay_capacity: 1000
+    # To enable KDE plots, change this to `type: grid` (`n: 1000` was used in the original experiments).
+    test:
+      type: random
+      seed: 0
+      n: 4096
 
 # GFlowNet hyperparameters
 gflownet:
