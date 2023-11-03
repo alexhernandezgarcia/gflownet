@@ -66,7 +66,10 @@ class ScrabbleScorer(Proxy):
         """
         if torch.is_tensor(states):
             output = torch.zeros(states.shape[0], device=self.device, dtype=self.float)
-            is_in_vocabulary = self._is_in_vocabulary(states)
+            if self.vocabulary_check:
+                is_in_vocabulary = self._is_in_vocabulary(states)
+            else:
+                is_in_vocabulary = torch.ones_like(output, dtype=torch.bool)
             output[is_in_vocabulary] = -1.0 * self.scores[states[is_in_vocabulary]].sum(
                 dim=1
             )
