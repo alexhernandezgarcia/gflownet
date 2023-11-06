@@ -753,7 +753,7 @@ class CCrystal(GFlowNetEnv):
             # stage so that EOS of preceding stage is sampled.
             if (
                 is_backward
-                and stage != Stage(0)
+                and self._get_previous_stage(stage) != Stage.DONE
                 and state_subenv == self.subenvs[stage].source
             ):
                 stage = self._get_previous_stage(stage)
@@ -832,7 +832,7 @@ class CCrystal(GFlowNetEnv):
             # stage so that EOS of preceding stage is sampled.
             if (
                 is_backward
-                and stage != Stage(0)
+                and self._get_previous_stage(stage) != Stage.DONE
                 and state_subenv == self.subenvs[stage].source
             ):
                 stage = self._get_previous_stage(stage)
