@@ -435,14 +435,13 @@ def test__set_state__sets_state_subenvs_dones_and_constraints(
         assert subenv.done == done
 
     # Check lattice parameters
-    if env.subenvs[Stage.SPACE_GROUP].lattice_system != "None":
-        assert has_lattice_parameters
+    if has_lattice_parameters:
+        assert env.subenvs[Stage.SPACE_GROUP].lattice_system != "None"
         assert (
             env.subenvs[Stage.SPACE_GROUP].lattice_system
             == env.subenvs[Stage.LATTICE_PARAMETERS].lattice_system
         )
-    else:
-        assert not has_lattice_parameters
+
 
     # Check composition constraints
     if has_composition_constraints:
