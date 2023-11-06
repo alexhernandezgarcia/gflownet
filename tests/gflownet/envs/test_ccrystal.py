@@ -442,7 +442,6 @@ def test__set_state__sets_state_subenvs_dones_and_constraints(
             == env.subenvs[Stage.LATTICE_PARAMETERS].lattice_system
         )
 
-
     # Check composition constraints
     if has_composition_constraints:
         n_atoms = [n for n in env.subenvs[Stage.COMPOSITION].state if n > 0]
