@@ -132,10 +132,6 @@ class Composition(GFlowNetEnv):
         self.source = [0 for _ in self.elements]
         # End-of-sequence action
         self.eos = (-1, -1)
-        # Conversions
-        self.state2proxy = self.state2oracle
-        self.statebatch2proxy = self.statebatch2oracle
-        self.statetorch2proxy = self.statetorch2oracle
         super().__init__(**kwargs)
 
     def get_action_space(self):
@@ -404,54 +400,22 @@ class Composition(GFlowNetEnv):
 
         return mask
 
-    def state2oracle(self, state: List = None) -> Tensor:
+    def states2proxy(
+        self, states: Union[List[List], TensorType["batch", "state_dim"]]
+    ) -> TensorType["batch", "state_proxy_dim"]:
         """
-        Prepares a state in "GFlowNet format" for the oracle. In this case, it simply
-        converts the state into a torch tensor, with dtype torch.long.
+        Prepares a batch of states in "environment format" for the proxy: simply
+        returns the states as are with dtype long.
 
         Args
         ----
-        state : list
-            A state
+        states : list or tensor
+            A batch of states in environment format, either as a list of states or as a
+            single tensor.
 
         Returns
-        ----
-        oracle_state : Tensor
-            Tensor containing counts of individual elements
-        """
-        if state is None:
-            state = self.state
-
-        return tlong(state, device=self.device)
-
-    def statetorch2oracle(
-        self, states: TensorType["batch", "state_dim"]
-    ) -> TensorType["batch", "state_oracle_dim"]:
-        """
-        Prepares a batch of states in "GFlowNet format" for the oracle. The input to the
-        oracle is the atom counts for individual elements.
-
-        Args
-        ----
-        states : Tensor
-            A state
-
-        Returns
-        ----
-        oracle_states : Tensor
-        """
-        return states
-
-    def statebatch2oracle(
-        self, states: List[List]
-    ) -> TensorType["batch", "state_oracle_dim"]:
-        """
-        Prepares a batch of states in "GFlowNet format" for the oracles. In this case,
-        it simply converts the states into a torch tensor, with dtype torch.long.
-
-        Args
-        ----
-        state : list
+        -------
+        A tensor containing all the states in the batch.
         """
         return tlong(states, device=self.device)
 

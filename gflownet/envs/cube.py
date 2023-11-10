@@ -4,7 +4,7 @@ Classes to represent hyper-cube environments
 import itertools
 import warnings
 from abc import ABC, abstractmethod
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, Union
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -92,14 +92,10 @@ class CubeBase(GFlowNetEnv, ABC):
         self.epsilon = epsilon
         # Small constant to restrict the interval of (test) sets
         self.kappa = kappa
-        # Conversions: only conversions to policy are implemented and the rest are the
-        # same
+        # Conversions: only conversions to policy are implemented and the conversion to
+        # proxy format is the same
+        self.states2proxy = self.states2policy
         self.state2proxy = self.state2policy
-        self.statebatch2proxy = self.statebatch2policy
-        self.statetorch2proxy = self.statetorch2policy
-        self.state2oracle = self.state2proxy
-        self.statebatch2oracle = self.statebatch2proxy
-        self.statetorch2oracle = self.statetorch2proxy
         # Base class init
         super().__init__(
             fixed_distr_params=fixed_distr_params,
@@ -128,41 +124,25 @@ class CubeBase(GFlowNetEnv, ABC):
     def get_mask_invalid_actions_backward(self, state=None, done=None, parents_a=None):
         pass
 
-    def statetorch2policy(
-        self, states: TensorType["batch", "state_dim"] = None
+    def states2policy(
+        self, states: Union[List, TensorType["batch", "state_dim"]]
     ) -> TensorType["batch", "policy_input_dim"]:
         """
-        Clips the states into [0, 1] and maps them to [-1.0, 1.0]
+        Prepares a batch of states in "environment format" for the policy model: clips
+        the states into [0, 1] and maps them to [-1.0, 1.0]
 
         Args
         ----
-        state : list
-            State
+        states : list or tensor
+            A batch of states in environment format, either as a list of states or as a
+            single tensor.
+
+        Returns
+        -------
+        A tensor containing all the states in the batch.
         """
+        states = tfloat(states, device=self.device, float_type=self.float)
         return 2.0 * torch.clip(states, min=0.0, max=1.0) - 1.0
-
-    def statebatch2policy(
-        self, states: List[List]
-    ) -> TensorType["batch", "state_proxy_dim"]:
-        """
-        Clips the states into [0, 1] and maps them to [-1.0, 1.0]
-
-        Args
-        ----
-        state : list
-            State
-        """
-        return self.statetorch2policy(
-            tfloat(states, device=self.device, float_type=self.float)
-        )
-
-    def state2policy(self, state: List = None) -> List:
-        """
-        Clips the state into [0, 1] and maps it to [-1.0, 1.0]
-        """
-        if state is None:
-            state = self.state.copy()
-        return [2.0 * min(max(0.0, s), 1.0) - 1.0 for s in state]
 
     def state2readable(self, state: List) -> str:
         """
@@ -1341,7 +1321,7 @@ class ContinuousCube(CubeBase):
         samples_final = []
         max_reward = self.proxy2reward(self.proxy.min)
         while len(samples_final) < n_samples:
-            samples_uniform = self.statebatch2proxy(
+            samples_uniform = self.states2proxy(
                 self.get_uniform_terminating_states(n_samples)
             )
             rewards = self.proxy2reward(self.proxy(samples_uniform))

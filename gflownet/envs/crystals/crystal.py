@@ -10,6 +10,7 @@ from gflownet.envs.base import GFlowNetEnv
 from gflownet.envs.crystals.composition import Composition
 from gflownet.envs.crystals.lattice_parameters import LatticeParameters
 from gflownet.envs.crystals.spacegroup import SpaceGroup
+from gflownet.utils.common import tlong
 from gflownet.utils.crystals.constants import TRICLINIC
 
 
@@ -128,11 +129,6 @@ class Crystal(GFlowNetEnv):
             self.lattice_parameters.eos, Stage.LATTICE_PARAMETERS
         )
 
-        # Conversions
-        self.state2proxy = self.state2oracle
-        self.statebatch2proxy = self.statebatch2oracle
-        self.statetorch2proxy = self.statetorch2oracle
-
         super().__init__(**kwargs)
 
     def _set_lattice_parameters(self):
@@ -247,7 +243,7 @@ class Crystal(GFlowNetEnv):
 
     def _get_composition_tensor_states(
         self, states: TensorType["batch", "state_dim"]
-    ) -> TensorType["batch", "state_oracle_dim"]:
+    ) -> TensorType["batch", "state_proxy_dim"]:
         return states[:, self.composition_state_start : self.composition_state_end]
 
     def _get_space_group_state(self, state: Optional[List[int]] = None) -> List[int]:
@@ -258,7 +254,7 @@ class Crystal(GFlowNetEnv):
 
     def _get_space_group_tensor_states(
         self, states: TensorType["batch", "state_dim"]
-    ) -> TensorType["batch", "state_oracle_dim"]:
+    ) -> TensorType["batch", "state_proxy_dim"]:
         return states[:, self.space_group_state_start : self.space_group_state_end]
 
     def _get_lattice_parameters_state(
@@ -273,7 +269,7 @@ class Crystal(GFlowNetEnv):
 
     def _get_lattice_parameters_tensor_states(
         self, states: TensorType["batch", "state_dim"]
-    ) -> TensorType["batch", "state_oracle_dim"]:
+    ) -> TensorType["batch", "state_proxy_dim"]:
         return states[
             :, self.lattice_parameters_state_start : self.lattice_parameters_state_end
         ]
@@ -466,58 +462,38 @@ class Crystal(GFlowNetEnv):
 
         return parents, actions
 
-    def state2oracle(self, state: Optional[List[int]] = None) -> Tensor:
+    def states2proxy(
+        self, states: Union[List[List], TensorType["batch", "state_dim"]]
+    ) -> TensorType["batch", "state_proxy_dim"]:
         """
-        Prepares a list of states in "GFlowNet format" for the oracle. Simply
-        a concatenation of all crystal components.
+        Prepares a batch of states in "environment format" for the proxy: simply a
+        concatenation of all crystal components.
+
+        Args
+        ----
+        states : list or tensor
+            A batch of states in environment format, either as a list of states or as a
+            single tensor.
+
+        Returns
+        -------
+        A tensor containing all the states in the batch.
         """
-        if state is None:
-            state = self.state.copy()
-
-        composition_oracle_state = self.composition.state2oracle(
-            state=self._get_composition_state(state)
-        ).to(self.device)
-        space_group_oracle_state = (
-            self.space_group.state2oracle(state=self._get_space_group_state(state))
-            .unsqueeze(-1)  # StateGroup oracle state is a single number
-            .to(self.device)
-        )
-        lattice_parameters_oracle_state = self.lattice_parameters.state2oracle(
-            state=self._get_lattice_parameters_state(state)
-        ).to(self.device)
-
-        return torch.cat(
-            [
-                composition_oracle_state,
-                space_group_oracle_state,
-                lattice_parameters_oracle_state,
-            ]
-        )
-
-    def statebatch2oracle(
-        self, states: List[List]
-    ) -> TensorType["batch", "state_oracle_dim"]:
-        return self.statetorch2oracle(
-            torch.tensor(states, device=self.device, dtype=torch.long)
-        )
-
-    def statetorch2oracle(
-        self, states: TensorType["batch", "state_dim"]
-    ) -> TensorType["batch", "state_oracle_dim"]:
-        composition_oracle_states = self.composition.statetorch2oracle(
+        states = tlong(states, device=self.device)
+        composition_proxy_states = self.composition.states2proxy(
             self._get_composition_tensor_states(states)
         ).to(self.device)
-        space_group_oracle_states = self.space_group.statetorch2oracle(
+        space_group_proxy_states = self.space_group.states2proxy(
             self._get_space_group_tensor_states(states)
         ).to(self.device)
-        lattice_parameters_oracle_states = self.lattice_parameters.statetorch2oracle(
+        lattice_parameters_proxy_states = self.lattice_parameters.states2proxy(
             self._get_lattice_parameters_tensor_states(states)
         ).to(self.device)
         return torch.cat(
             [
-                composition_oracle_states,
-                space_group_oracle_states,
-                lattice_parameters_oracle_states,
+                composition_proxy_states,
+                space_group_proxy_states,
+                lattice_parameters_proxy_states,
             ],
             dim=1,
         )
