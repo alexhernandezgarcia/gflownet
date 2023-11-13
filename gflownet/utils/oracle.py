@@ -14,7 +14,8 @@ except:
     )
     pass
 try:
-    from bbdob import DeceptiveTrap, FourPeaks, NKLandscape, OneMax, TwoMin, WModel
+    from bbdob import (DeceptiveTrap, FourPeaks, NKLandscape, OneMax, TwoMin,
+                       WModel)
     from bbdob.utils import idx2one_hot
 except:
     print(

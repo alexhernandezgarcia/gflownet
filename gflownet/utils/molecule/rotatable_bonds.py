@@ -112,6 +112,7 @@ def is_hydrogen_ta(mol, ta):
     second = is_connected_to_three_hydrogens(mol, ta[2], ta[1])
     return first or second
 
+
 def has_hydrogen_tas(mol):
     tas = get_rotatable_ta_list(mol)
     hydrogen_flags = []

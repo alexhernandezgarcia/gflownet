@@ -1,29 +1,33 @@
 import argparse
-import numpy as np
-import pickle
-import os
 import copy
-import pandas as pd
-
+import os
+import pickle
 from datetime import datetime
-from scipy.spatial.transform import Rotation
-from sklearn.cluster import KMeans
 from pathlib import Path
+
+import numpy as np
+import pandas as pd
 from rdkit import Chem
 from rdkit.Chem import AllChem
 from rdkit.Chem import rdMolAlign as MA
 from rdkit.Chem import rdMolTransforms
+from rdkit.Chem.rdForceFieldHelpers import MMFFOptimizeMolecule
 from rdkit.Geometry.rdGeometry import Point3D
+from scipy.spatial.transform import Rotation
+from sklearn.cluster import KMeans
 from tqdm import tqdm
 
-from rdkit.Chem.rdForceFieldHelpers import MMFFOptimizeMolecule
 
 def gen_multiple_conf_rdkit(smiles, n_confs, optimise=True, randomise_tas=False):
     mols = []
     for _ in range(n_confs):
-        mols.append(get_single_conf_rdkit(smiles, optimise=optimise, 
-                                          randomise_tas=randomise_tas))
+        mols.append(
+            get_single_conf_rdkit(
+                smiles, optimise=optimise, randomise_tas=randomise_tas
+            )
+        )
     return mols
+
 
 def get_single_conf_rdkit(smiles, optimise=True, randomise_tas=False):
     mol = Chem.MolFromSmiles(smiles)
@@ -43,11 +47,13 @@ def get_single_conf_rdkit(smiles, optimise=True, randomise_tas=False):
         Chem.rdMolTransforms.CanonicalizeConformer(conf)
     return mol
 
-def write_conformers(conf_list, smiles, output_dir, prefix='', idx=None):
-    conf_dict = {'conformer': conf_list, 'smiles': smiles}
-    filename = output_dir / f'{prefix}conformer_{idx}.pkl'
-    with open(filename, 'wb') as file:
+
+def write_conformers(conf_list, smiles, output_dir, prefix="", idx=None):
+    conf_dict = {"conformer": conf_list, "smiles": smiles}
+    filename = output_dir / f"{prefix}conformer_{idx}.pkl"
+    with open(filename, "wb") as file:
         pickle.dump(conf_dict, file)
+
 
 def get_torsions(m):
     # taken from https://gist.github.com/ZhouGengmo/5b565f51adafcd911c0bc115b2ef027c
@@ -94,14 +100,15 @@ def clustering(smiles, M=1000, N=100):
     rdkit_coords_list = []
 
     # add MMFF optimize conformers, 20x
-    rdkit_mols = gen_multiple_conf_rdkit(smiles, n_confs=M, 
-                                         optimise=True, randomise_tas=False)
+    rdkit_mols = gen_multiple_conf_rdkit(
+        smiles, n_confs=M, optimise=True, randomise_tas=False
+    )
     rdkit_mols = [Chem.RemoveHs(x) for x in rdkit_mols]
     sz = len(rdkit_mols)
     # normalize
     tgt_coords = rdkit_mols[0].GetConformers()[0].GetPositions().astype(np.float32)
     tgt_coords = tgt_coords - np.mean(tgt_coords, axis=0)
-    
+
     for item in rdkit_mols:
         _coords = item.GetConformers()[0].GetPositions().astype(np.float32)
         _coords = _coords - _coords.mean(axis=0)  # need to normalize first
@@ -110,8 +117,9 @@ def clustering(smiles, M=1000, N=100):
     total_sz += sz
 
     # add no MMFF optimize conformers, 5x
-    rdkit_mols = gen_multiple_conf_rdkit(smiles, n_confs=int(M // 4), 
-                                         optimise=False, randomise_tas=False)
+    rdkit_mols = gen_multiple_conf_rdkit(
+        smiles, n_confs=int(M // 4), optimise=False, randomise_tas=False
+    )
     rdkit_mols = [Chem.RemoveHs(x) for x in rdkit_mols]
     sz = len(rdkit_mols)
 
@@ -123,8 +131,9 @@ def clustering(smiles, M=1000, N=100):
     total_sz += sz
 
     ### add uniform rotation bonds conformers, 5x
-    rdkit_mols = gen_multiple_conf_rdkit(smiles, n_confs=int(M // 4), 
-                                         optimise=False, randomise_tas=True)
+    rdkit_mols = gen_multiple_conf_rdkit(
+        smiles, n_confs=int(M // 4), optimise=False, randomise_tas=True
+    )
     rdkit_mols = [Chem.RemoveHs(x) for x in rdkit_mols]
     sz = len(rdkit_mols)
 
@@ -142,13 +151,14 @@ def clustering(smiles, M=1000, N=100):
     ids = kmeans.predict(rdkit_coords_flatten)
     # get cluster center
     center_coords = kmeans.cluster_centers_
-    coords_list = [center_coords[i].reshape(-1,3) for i in range(cluster_size)]
+    coords_list = [center_coords[i].reshape(-1, 3) for i in range(cluster_size)]
     mols = []
     for coord in coords_list:
         mol = get_single_conf_rdkit(smiles, optimise=False, randomise_tas=False)
         mol = set_atom_positions(mol, coord)
         mols.append(copy.deepcopy(mol))
     return mols
+
 
 def set_atom_positions(mol, atom_positions):
     """
@@ -160,42 +170,54 @@ def set_atom_positions(mol, atom_positions):
         conf.SetAtomPosition(idx, Point3D(*pos))
     return mol
 
+
 def gen_multiple_conf_rdkit_cluster(smiles, n_confs):
     M = min(10 * n_confs, 2000)
     mols = clustering(smiles, N=n_confs, M=M)
     return mols
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--output_base_dir', type=str, default='/home/mila/a/alexandra.volokhova/projects/gflownet/results/conformer/samples')
-    parser.add_argument('--method', type=str, default='rdkit')
-    parser.add_argument('--target_smiles', type=str, 
-                        default='/home/mila/a/alexandra.volokhova/projects/gflownet/results/conformer/target_smiles/target_smiles_4_initial.csv')
-    parser.add_argument('--n_confs', type=int, default=None)  
+    parser.add_argument(
+        "--output_base_dir",
+        type=str,
+        default="/home/mila/a/alexandra.volokhova/projects/gflownet/results/conformer/samples",
+    )
+    parser.add_argument("--method", type=str, default="rdkit")
+    parser.add_argument(
+        "--target_smiles",
+        type=str,
+        default="/home/mila/a/alexandra.volokhova/projects/gflownet/results/conformer/target_smiles/target_smiles_4_initial.csv",
+    )
+    parser.add_argument("--n_confs", type=int, default=None)
     args = parser.parse_args()
 
     output_base_dir = Path(args.output_base_dir)
     if not output_base_dir.exists():
-        os.mkdir(output_base_dir) 
-    
+        os.mkdir(output_base_dir)
+
     current_datetime = datetime.now()
     timestamp = current_datetime.strftime("%Y-%m-%d_%H-%M-%S")
     ts = Path(args.target_smiles).name[:-4]
-    output_dir = output_base_dir / f'{args.method}_samples_{ts}_{timestamp}'
+    output_dir = output_base_dir / f"{args.method}_samples_{ts}_{timestamp}"
     if output_dir.exists():
         print("Output dir already exisits! Exit generation")
     else:
         os.mkdir(output_dir)
         target_smiles = pd.read_csv(args.target_smiles, index_col=0)
-        for idx, (_, item) in tqdm(enumerate(target_smiles.iterrows()), total=len(target_smiles)):
+        for idx, (_, item) in tqdm(
+            enumerate(target_smiles.iterrows()), total=len(target_smiles)
+        ):
             n_samples = args.n_confs
             if n_samples is None:
                 n_samples = 2 * item.n_confs
             print(f"start generating {n_samples} confs")
-            if args.method == 'rdkit':
+            if args.method == "rdkit":
                 confs = gen_multiple_conf_rdkit(item.smiles, n_samples, optimise=True)
-            if args.method == 'rdkit_cluster':
+            if args.method == "rdkit_cluster":
                 confs = gen_multiple_conf_rdkit_cluster(item.smiles, n_samples)
-            write_conformers(confs, item.smiles, output_dir, prefix=f'{args.method}_', idx=idx)
+            write_conformers(
+                confs, item.smiles, output_dir, prefix=f"{args.method}_", idx=idx
+            )
         print("Finished generation, results are in {}".format(output_dir))

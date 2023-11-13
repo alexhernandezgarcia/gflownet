@@ -2,17 +2,13 @@ import common
 import pytest
 import torch
 
-from gflownet.envs.crystals.lattice_parameters import (
-    CUBIC,
-    HEXAGONAL,
-    LATTICE_SYSTEMS,
-    MONOCLINIC,
-    ORTHORHOMBIC,
-    RHOMBOHEDRAL,
-    TETRAGONAL,
-    TRICLINIC,
-    LatticeParameters,
-)
+from gflownet.envs.crystals.lattice_parameters import (CUBIC, HEXAGONAL,
+                                                       LATTICE_SYSTEMS,
+                                                       MONOCLINIC,
+                                                       ORTHORHOMBIC,
+                                                       RHOMBOHEDRAL,
+                                                       TETRAGONAL, TRICLINIC,
+                                                       LatticeParameters)
 
 
 @pytest.fixture()

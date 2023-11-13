@@ -9,7 +9,8 @@ import numpy as np
 import numpy.typing as npt
 import pandas as pd
 import torch
-from torch.distributions import Categorical, MixtureSameFamily, Uniform, VonMises
+from torch.distributions import (Categorical, MixtureSameFamily, Uniform,
+                                 VonMises)
 from torchtyping import TensorType
 
 from gflownet.envs.htorus import HybridTorus

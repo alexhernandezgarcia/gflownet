@@ -8,16 +8,9 @@ from gflownet.envs.tetris import Tetris
 from gflownet.proxy.corners import Corners
 from gflownet.proxy.tetris import Tetris as TetrisScore
 from gflownet.utils.batch import Batch
-from gflownet.utils.common import (
-    concat_items,
-    copy,
-    set_device,
-    set_float_precision,
-    tbool,
-    tfloat,
-    tint,
-    tlong,
-)
+from gflownet.utils.common import (concat_items, copy, set_device,
+                                   set_float_precision, tbool, tfloat, tint,
+                                   tlong)
 
 # Sets the number of repetitions for the tests. Please increase to ~10 after
 # introducing changes to the Batch class and decrease again to 1 when passed.

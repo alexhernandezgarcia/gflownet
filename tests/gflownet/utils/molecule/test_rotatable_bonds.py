@@ -2,10 +2,8 @@ import pytest
 from rdkit import Chem
 
 from gflownet.utils.molecule import constants
-from gflownet.utils.molecule.rotatable_bonds import (
-    find_rotor_from_smiles,
-    is_hydrogen_ta,
-)
+from gflownet.utils.molecule.rotatable_bonds import (find_rotor_from_smiles,
+                                                     is_hydrogen_ta)
 
 
 def test_simple_ad():
