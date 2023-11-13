@@ -37,6 +37,7 @@ def get_all_confs_geom(base_path, smiles, summary_file=None):
             return conformers
     except KeyError:
         print('No pickle_path file for {}'.format(smiles))
+        return None
 
 def get_rd_mol(smiles):
     mol = Chem.MolFromSmiles(smiles)

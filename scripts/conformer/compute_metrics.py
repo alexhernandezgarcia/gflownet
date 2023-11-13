@@ -66,6 +66,14 @@ def main(args):
     print('All smiles')
     print(*smiles, sep='\n')
     ref_confs = [get_all_confs_geom(base_path, sm, drugs_summ) for sm in smiles]
+    # filter out nans
+    gen_confs = [gen_confs[idx] for idx, val in enumerate(ref_confs) if val is not None]
+    smiles = [smiles[idx] for idx, val in enumerate(ref_confs) if val is not None]
+    if len(energies) > 0:
+        energies = [energies[idx] for idx, val in enumerate(ref_confs) if val is not None]
+    ref_confs = [val for val in ref_confs if val is not None]
+    assert len(gen_confs) == len(ref_confs) == len(smiles)
+
     if args.use_top_k:
         if len(energies) == 0:
             raise Exception("Cannot use top-k without energies")
