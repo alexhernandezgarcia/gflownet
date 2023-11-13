@@ -8,8 +8,10 @@ import pandas as pd
 from rdkit import Chem
 from tqdm import tqdm
 
-from gflownet.utils.molecule.rotatable_bonds import (get_rotatable_ta_list,
-                                                     is_hydrogen_ta)
+from gflownet.utils.molecule.rotatable_bonds import (
+    get_rotatable_ta_list,
+    is_hydrogen_ta,
+)
 
 
 def get_conf_geom(base_path, smiles, conf_idx=0, summary_file=None):

@@ -9,10 +9,16 @@ import pandas as pd
 from rdkit import Chem
 from tqdm import tqdm
 
-from gflownet.utils.molecule.geom import (all_same_graphs, get_all_confs_geom,
-                                          get_conf_geom, get_rd_mol)
-from gflownet.utils.molecule.rotatable_bonds import (get_rotatable_ta_list,
-                                                     has_hydrogen_tas)
+from gflownet.utils.molecule.geom import (
+    all_same_graphs,
+    get_all_confs_geom,
+    get_conf_geom,
+    get_rd_mol,
+)
+from gflownet.utils.molecule.rotatable_bonds import (
+    get_rotatable_ta_list,
+    has_hydrogen_tas,
+)
 
 """
 Here we use rdkit_folder format of the GEOM dataset 

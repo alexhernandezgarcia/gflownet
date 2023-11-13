@@ -21,9 +21,15 @@ from tqdm import tqdm
 from gflownet.envs.base import GFlowNetEnv
 from gflownet.utils.batch import Batch
 from gflownet.utils.buffer import Buffer
-from gflownet.utils.common import (batch_with_rest, set_device,
-                                   set_float_precision, tbool, tfloat, tlong,
-                                   torch2np)
+from gflownet.utils.common import (
+    batch_with_rest,
+    set_device,
+    set_float_precision,
+    tbool,
+    tfloat,
+    tlong,
+    torch2np,
+)
 
 
 class GFlowNetAgent:
