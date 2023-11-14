@@ -181,7 +181,8 @@ class Wyckoff:
         return self.algebraic
 
     def get_all_positions(self) -> Iterable:
-        """Get all Wyckoff positions, i.e. outer product over offsets and algebraic contributions. The number of positions equals the multiplicity.
+        """Get all Wyckoff positions, i.e. outer product over offsets and algebraic contributions.
+           The number of positions equals the multiplicity.
 
         Returns
         -------
@@ -248,8 +249,8 @@ class Wyckoff:
 
         Returns
         -------
-        Iterable[str]
-            List of total positions (crossproduct of offsets and algebraic terms)
+        str
+            string representing a 3-tuple of the position, e.g. "(x+1/2,y,z)"
         """
         import re
         from fractions import Fraction
@@ -277,7 +278,7 @@ class Wyckoff:
         return final_str
 
 
-# get all spacegroups in stadard settings
+# get all spacegroups in standard settings
 spacegroups = parse_wyckoff_csv()
 
 
