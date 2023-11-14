@@ -1,3 +1,5 @@
+# @package _global_
+
 defaults:
   - override /env: tetris
   - override /gflownet: trajectorybalance
@@ -9,6 +11,19 @@ env:
   width: 4
   height: 4
   pieces: ["I", "L", "O"]
+  rotations: [0, 90]
+  buffer:
+    # replay_capacity: 0
+    test:
+      type: uniform
+      output_csv: simple_tetris_val.csv
+      output_pkl: simple_tetris_val.pkl
+
+gflownet:
+  optimizer:
+    n_train_steps: 10000
+    lr_z_mult: 100
+    lr: 0.0001
 
 device: cpu
 logger:
