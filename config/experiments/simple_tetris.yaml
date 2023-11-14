@@ -1,0 +1,17 @@
+defaults:
+  - override /env: tetris
+  - override /gflownet: trajectorybalance
+  - override /policy: mlp
+  - override /proxy: tetris
+  - override /logger: wandb
+
+env:
+  width: 4
+  height: 4
+  pieces: ["I", "L", "O"]
+
+device: cpu
+logger:
+  do:
+    online: True
+  project_name: simple_tetris
