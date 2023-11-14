@@ -683,7 +683,9 @@ class GFlowNetEnv:
         """
         return tfloat(states, device=self.device, float_type=self.float)
 
-    def state2proxy(self, state: Union[List, TensorType["state_dim"]] = None):
+    def state2proxy(
+        self, state: Union[List, TensorType["state_dim"]] = None
+    ) -> TensorType["state_proxy_dim"]:
         """
         Prepares a state in "GFlowNet format" for the proxy. By default, states2proxy
         is called, which by default will return the state as is.
@@ -716,7 +718,9 @@ class GFlowNetEnv:
         """
         return tfloat(states, device=self.device, float_type=self.float)
 
-    def state2policy(self, state: Union[List, TensorType["state_dim"]] = None):
+    def state2policy(
+        self, state: Union[List, TensorType["state_dim"]] = None
+    ) -> TensorType["policy_input_dim"]:
         """
         Prepares a state in "GFlowNet format" for the policy model. By default,
         states2policy is called, which by default will return the state as is.
