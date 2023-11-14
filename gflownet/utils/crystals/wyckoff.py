@@ -5,7 +5,7 @@ from typing import Iterable
 # lattice offsets depending on the Bravais centering
 # most are trivial to understand (see Bravais lattices)
 # H centering is a bit tricky: it corresponds to
-# the orthorombic lattice in hexagonal axes setting.
+# the rhombohedral lattice in hexagonal axes setting.
 lattice_offset = {
     "P": ["(0, 0, 0)"],  # primitive
     "A": ["(0, 0, 0)", "(0, 1/2, 1/2)"],
@@ -17,7 +17,7 @@ lattice_offset = {
         "(0, 0, 0)",
         "(2/3, 1/3, 1/3)",
         "(1/3, 2/3, 2/3)",
-    ],  # rhombohedric in hexagonal axes
+    ],  # rhombohedral in hexagonal axes
     "F": [
         "(0, 0, 0)",
         "(0, 1/2, 1/2)",
@@ -61,7 +61,7 @@ def parse_wyckoff_csv():
     corresponding to the multiplicity, Wyckoff letter, site symmetry and algebraic terms. If more than 4 terms are present,
     they are written on multiple lines.
     """
-    wyckoff_file = open("gflownet/envs/crystals/wyckoff.csv", "r")
+    wyckoff_file = open("gflownet/utils/crystals/wyckoff.csv", "r")
     rowdata = []
     points = []
     hP_nums = [433, 436, 444, 450, 452, 458, 460]
@@ -125,7 +125,7 @@ def parse_wyckoff_csv():
             assert n_pos == w["multiplicity"]
 
     # only keeping the standard settings
-    df_hall = pd.read_csv("gflownet/envs/crystals/spg.csv", header=None)
+    df_hall = pd.read_csv("gflownet/utils/crystals/spg.csv", header=None)
     hall_numbers = []
     for sg_number in range(1, 231):
         hall_numbers.append(df_hall[(df_hall[4] == sg_number)].index[0])
@@ -138,13 +138,13 @@ def parse_wyckoff_csv():
 class Wyckoff:
     """Simple class representing a Wyckoff position. Only defined by its offset and algebraic terms."""
 
-    def __init__(self, offset: Iterable, algebraic: Iterable) -> None:
+    def __init__(self, offset: Iterable[str], algebraic: Iterable[str]) -> None:
         """
         Parameters
         ----------
-        offset : Iterable
+        offset : Iterable[str]
             offset positions encoded as follows, e.g. ["(0,0,0)","(1/2,1/2,1/2)"]
-        algebraic : Iterable
+        algebraic : Iterable[str]
             algebraic positions encoded as follows, e.g. ["(x,y,z)","(-x,-y,-z)"]
         """
         self.offset = frozenset(offset)
@@ -192,9 +192,9 @@ class Wyckoff:
         w_pos = []
         for ofs in self.offset:
             ofs = ofs.strip("()").split(",")
-            for a in self.algebraic:
-                a = a.strip("()").split(",")
-                w_pos.append(tuple([x + y for x, y in zip(ofs, a)]))
+            for alg in self.algebraic:
+                alg = alg.strip("()").split(",")
+                w_pos.append(self._format_position(ofs, alg))
         return w_pos
 
     def as_dict(self) -> dict:
@@ -209,7 +209,7 @@ class Wyckoff:
             "multiplicity": self.get_multiplicity(),
             "offset": list(self.get_offset()),
             "algebraic": list(self.get_algebraic()),
-            "positions": [list(p) for p in self.get_all_positions()],
+            "positions": list(self.get_all_positions()),
         }
 
     def __hash__(self) -> int:
@@ -231,6 +231,50 @@ class Wyckoff:
         wyckoff_str += "Algebraic: "
         wyckoff_str += str(list(self.algebraic))
         return wyckoff_str
+
+    @staticmethod
+    def _format_position(offset: tuple, algebraic: tuple) -> str:
+        """
+        Given an offset and an algebraic position, it will compute and format
+        the total position
+
+
+        Parameters
+        ----------
+        offset : tuple
+            offset positions encoded as follows, e.g. ("x","y","z")
+        algebraic : tuple
+            algebraic positions encoded as follows, e.g. ("1/2","0","0")
+
+        Returns
+        -------
+        Iterable[str]
+            List of total positions (crossproduct of offsets and algebraic terms)
+        """
+        import re
+        from fractions import Fraction
+
+        def frac2string(s):
+            frac1, frac2 = s.groups(0)
+            f = Fraction(frac1) + Fraction(frac2)
+            return str(f)
+
+        positions_str = [x + "+" + y for x, y in zip(algebraic, offset)]
+        cleaned_positions = []
+        for pos_str in positions_str:
+            pos_str = pos_str.replace(" ", "")
+            pos_str = re.sub(r"(\+\-|\-\+)", "-", pos_str)  # replace ++, -- by +
+            pos_str = re.sub(r"(\+\+|\-\-)", "+", pos_str)  # replace +- by -
+            pos_str = re.sub(r"[\+\-]?0\+?", "", pos_str)  # remove 0's
+            pos_str = re.sub(r"0\-]?", "-", pos_str)
+            pos_str = re.sub(
+                r"(\d/\d)\+(\d/\d)", frac2string, pos_str
+            )  # perform fraction addition
+            if pos_str == "":  # reset to 0 if nothing left
+                pos_str = "0"
+            cleaned_positions.append(pos_str)
+        final_str = "(" + ",".join(cleaned_positions) + ")"
+        return final_str
 
 
 # get all spacegroups in stadard settings
