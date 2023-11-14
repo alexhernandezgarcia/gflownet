@@ -2,16 +2,28 @@ import yaml
 import pandas as pd
 from typing import Iterable
 
-# lattice offsets depending on the bravais centering
-lattice_symbols = {
-    "P": ["(0, 0, 0)"],
+# lattice offsets depending on the Bravais centering
+# most are trivial to understand (see Bravais lattices)
+# H centering is a bit tricky: it corresponds to
+# the orthorombic lattice in hexagonal axes setting.
+lattice_offset = {
+    "P": ["(0, 0, 0)"],  # primitive
     "A": ["(0, 0, 0)", "(0, 1/2, 1/2)"],
     "B": ["(0, 0, 0)", "(1/2, 0, 1/2))"],
     "C": ["(0, 0, 0)", "(1/2, 1/2, 0)"],
     "I": ["(0, 0, 0)", "(1/2, 1/2, 1/2)"],
     "R": ["(0, 0, 0)"],
-    "H": ["(0, 0, 0)", "(2/3, 1/3, 1/3)", "(1/3, 2/3, 2/3)"],
-    "F": ["(0, 0, 0)", "(0, 1/2, 1/2)", "(1/2, 0, 1/2)", "(1/2, 1/2, 0)"],
+    "H": [
+        "(0, 0, 0)",
+        "(2/3, 1/3, 1/3)",
+        "(1/3, 2/3, 2/3)",
+    ],  # rhombohedric in hexagonal axes
+    "F": [
+        "(0, 0, 0)",
+        "(0, 1/2, 1/2)",
+        "(1/2, 0, 1/2)",
+        "(1/2, 1/2, 0)",
+    ],  # Face centered
     "p": ["(0, 0, 0)"],
     "c": ["(0, 0, 0)", "(1/2, 1/2, 0)"],
 }
@@ -23,7 +35,7 @@ def parse_wyckoff_csv():
     Uses:    Wyckoff.csv: file taken from above repo.
              spg.csv: file mapping hall numbers (column index 0) to spacegroup numbers (column index 4).
 
-    There are 530 data sets. For one example:
+    There are 530 entries. For one example:
 
     9:C 1 2 1:::::::
     ::4:c:1:(x,y,z):(-x,y,-z)::
@@ -49,8 +61,7 @@ def parse_wyckoff_csv():
     corresponding to the multiplicity, Wyckoff letter, site symmetry and algebraic terms. If more than 4 terms are present,
     they are written on multiple lines.
     """
-    with open("gflownet/envs/crystals/wyckoff.csv", "r") as fp:
-        wyckoff_file = parse_wyckoff_csv(fp)
+    wyckoff_file = open("gflownet/envs/crystals/wyckoff.csv", "r")
     rowdata = []
     points = []
     hP_nums = [433, 436, 444, 450, 452, 458, 460]
@@ -110,15 +121,16 @@ def parse_wyckoff_csv():
         # assertion
         for w in wyckoff[i]["wyckoff"]:
             n_pos = len(w["positions"])
-            n_pos *= len(lattice_symbols[wyckoff[i]["symbol"][0]])
+            n_pos *= len(lattice_offset[wyckoff[i]["symbol"][0]])
             assert n_pos == w["multiplicity"]
 
-        # only keeping the standard settings
-        df_hall = pd.read_csv("gflownet/envs/crystals/spg.csv", header=None)
-        hall_numbers = []
-        for sg_number in range(1, 231):
-            hall_numbers.append(df_hall[(df_hall[4] == sg_number)].index[0])
-        spacegroups = [spacegroups[sg_number] for sg_number in hall_numbers]
+    # only keeping the standard settings
+    df_hall = pd.read_csv("gflownet/envs/crystals/spg.csv", header=None)
+    hall_numbers = []
+    for sg_number in range(1, 231):
+        hall_numbers.append(df_hall[(df_hall[4] == sg_number)].index[0])
+
+    wyckoff = [wyckoff[sg_number] for sg_number in hall_numbers]
 
     return wyckoff
 
@@ -149,7 +161,7 @@ class Wyckoff:
         return len(self.offset) * len(self.algebraic)
 
     def get_offset(self) -> Iterable:
-        """get offset positions encoded as: ["(0,0,0)","(1/2,1/2,1/2)"]
+        """Get offset positions encoded as: ["(0,0,0)","(1/2,1/2,1/2)"]
 
         Returns
         -------
@@ -159,7 +171,7 @@ class Wyckoff:
         return self.offset
 
     def get_algebraic(self) -> Iterable:
-        """get algebraic positions encoded as: ["(x,y,z)","(-x,-y,-z)"]
+        """Get algebraic positions encoded as: ["(x,y,z)","(-x,-y,-z)"]
 
         Returns
         -------
@@ -169,7 +181,7 @@ class Wyckoff:
         return self.algebraic
 
     def get_all_positions(self) -> Iterable:
-        """get all Wyckoff positions, i.e. outer product over offsets and algebraic contributions. The number of positions equals the multiplicity.
+        """Get all Wyckoff positions, i.e. outer product over offsets and algebraic contributions. The number of positions equals the multiplicity.
 
         Returns
         -------
@@ -201,12 +213,16 @@ class Wyckoff:
         }
 
     def __hash__(self) -> int:
+        """Hash function to compare equivalent Wyckoff positions"""
         return hash((self.offset, self.algebraic))
 
     def __eq__(self, __value: object) -> bool:
+        """Two Wyckoff positions are same if and only if they have the same set of
+        offsets and algebraic terms, order invariant."""
         return self.__hash__() == __value.__hash__()
 
     def __str__(self) -> str:
+        """Simple string representation of a Wyckoff position."""
         wyckoff_str = "Multiplicity: {}\n".format(
             len(self.offset) * len(self.algebraic)
         )
@@ -217,34 +233,44 @@ class Wyckoff:
         return wyckoff_str
 
 
+# get all spacegroups in stadard settings
 spacegroups = parse_wyckoff_csv()
 
-for i, w in enumerate(spacegroups):
-    for p in w["wyckoff"]:
-        pure_trans = lattice_symbols[w["symbol"][0]]
-        p["positions"] = Wyckoff(pure_trans, p["positions"])
 
+# convert to Wyckoff objects
 wyckoff_positions = []
-for sg in spacegroups:
-    for w in sg["wyckoff"]:
-        wyckoff_positions.append(w["positions"])
+for spacegroup in spacegroups:
+    for wyckoff_data in spacegroup["wyckoff"]:
+        pure_trans = lattice_offset[spacegroup["symbol"][0]]  # get space group letter
+        wyckoff_data["positions"] = Wyckoff(pure_trans, wyckoff_data["positions"])
+        wyckoff_positions.append(wyckoff_data["positions"])
 
+
+# create a mapping between unique idx and unique Wyckoff position
 wyckoff_positions = list(set(wyckoff_positions))
-wyckoff_mapping = {wyckoff_positions[i]: i + 1 for i in range(len(wyckoff_positions))}
-wyckoff_dict = {
-    i + 1: wyckoff_positions[i].as_dict() for i in range(len(wyckoff_positions))
+wyckoff2idx = {
+    wyckoff_position: idx + 1 for idx, wyckoff_position in enumerate(wyckoff_positions)
+}
+idx2wyckoff = {
+    idx + 1: wyckoff_position.as_dict()
+    for idx, wyckoff_position in enumerate(wyckoff_positions)
 }
 
+
+# create yaml file for unique Wyckoff indices
 with open("gflownet/envs/crystals/wyckoff.yaml", "w") as fp:
-    yaml.dump(wyckoff_dict, fp)
+    yaml.dump(idx2wyckoff, fp)
 
+
+# Update yaml file defining the spacegroups
 with open("gflownet/envs/crystals/space_groups.yaml") as fp:
-    spacegroup_dict = yaml.safe_load(fp)
+    spacegroup_yaml_dict = yaml.safe_load(fp)
 
-for i in range(0, 230):
-    spacegroup_dict[i + 1]["wyckoff_positions"] = [
-        wyckoff_mapping[w["positions"]] for w in spacegroups[i]["wyckoff"]
+for sg_number in range(1, 231):
+    spacegroup_yaml_dict[sg_number]["wyckoff_positions"] = [
+        wyckoff2idx[wyckoff_data["positions"]]
+        for wyckoff_data in spacegroups[sg_number - 1]["wyckoff"]
     ]
 
 with open("gflownet/envs/crystals/space_groups_wyckoff.yaml", "w") as fp:
-    yaml.dump(spacegroup_dict, fp)
+    yaml.dump(spacegroup_yaml_dict, fp)
