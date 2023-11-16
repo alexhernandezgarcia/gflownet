@@ -406,7 +406,7 @@ if __name__ == "__main__":
         "outdir": "$SCRATCH/gflownet/logs/slurm",
         "partition": "long",
         "template": "$root/mila/sbatch/template-conda.sh",
-        "time": None,
+        "time": "0",
         "venv": None,
         "verbose": False,
     }
