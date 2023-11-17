@@ -546,7 +546,7 @@ class GFlowNetEnv:
         """
         device = policy_outputs.device
         ns_range = torch.arange(policy_outputs.shape[0]).to(device)
-        logits = policy_outputs.clone().detach()
+        logits = policy_outputs.clone()
         if mask is not None:
             logits[mask] = -torch.inf
         action_indices = (
