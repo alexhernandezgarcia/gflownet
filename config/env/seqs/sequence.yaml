@@ -14,7 +14,6 @@ buffer:
   data_path: null
   train: null
   test:
-    type: uniform
-    n: 10
+    type: all
     output_csv: sequence_test.csv
     output_pkl: sequence_test.pkl

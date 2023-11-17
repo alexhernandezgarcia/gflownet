@@ -4,6 +4,7 @@ are constructed by adding tokens from a dictionary. An alternative to this kind 
 sequence environment (not-implemented as of July 2023) would be a "mutation-based"
 modification of the sequences, or a combination of mutations and additions.
 """
+import itertools
 from typing import Iterable, List, Optional, Tuple, Union
 
 import torch
@@ -327,9 +328,38 @@ class Sequence(GFlowNetEnv):
             device=self.device,
         )
 
+    def get_all_terminating_states(self) -> List[TensorType["max_length"]]:
+        """
+        Constructs a batch with all the states in the sample space of the environment.
+        """
+        samples = []
+        tokens_indices = set(self.idx2token.keys())
+        tokens_indices.remove(self.pad_idx)
+        for length in range(1, self.max_length + 1):
+            samples_aux = tlong(
+                list(itertools.product(*[tokens_indices] * length)),
+                device=self.device,
+            )
+            samples.append(
+                torch.cat(
+                    (
+                        samples_aux,
+                        torch.full(
+                            (samples_aux.shape[0], self.max_length - length),
+                            self.pad_idx,
+                        ).to(samples_aux),
+                    ),
+                    dim=1,
+                )
+            )
+        # TODO: this is very inneficient but currently this method has to return a list
+        # of states in the GFlowNet format.
+        samples = torch.cat(samples).tolist()
+        return [tlong(sample, device=self.device) for sample in samples]
+
     def get_uniform_terminating_states(
         self, n_states: int, seed: int = None
-    ) -> List[TensorType["batch", "max_length"]]:
+    ) -> LIst[TensorType["max_length"]]:
         """
         Constructs a batch of n states uniformly sampled in the sample space of the
         environment.
@@ -353,7 +383,10 @@ class Sequence(GFlowNetEnv):
         )
         for idx, length in enumerate(lengths):
             samples[idx, length:] = 0
-        return samples
+        # TODO: this is very inneficient but currently this method has to return a list
+        # of states in the GFlowNet format.
+        samples = torch.cat(samples).tolist()
+        return [tlong(sample, device=self.device) for sample in samples]
 
     def _pad(self, seq_list: list):
         """
