@@ -359,7 +359,7 @@ class Sequence(GFlowNetEnv):
 
     def get_uniform_terminating_states(
         self, n_states: int, seed: int = None
-    ) -> LIst[TensorType["max_length"]]:
+    ) -> List[TensorType["max_length"]]:
         """
         Constructs a batch of n states uniformly sampled in the sample space of the
         environment.
