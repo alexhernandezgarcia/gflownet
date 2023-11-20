@@ -90,6 +90,7 @@ class GFlowNetEnv:
             self.action_space, device=self.device, dtype=self.float
         )
         self.action_space_dim = len(self.action_space)
+        self.mask_dim = self.action_space_dim
         # Max trajectory length
         self.max_traj_length = self.get_max_traj_length()
         # Policy outputs
@@ -472,8 +473,14 @@ class GFlowNetEnv:
         if sampling_method == "uniform":
             logits = torch.ones(policy_outputs.shape, dtype=self.float, device=device)
         elif sampling_method == "policy":
-            logits = policy_outputs
+            logits = policy_outputs.clone().detach()
             logits /= temperature_logits
+        else:
+            raise NotImplementedError(
+                f"Sampling method {sampling_method} is invalid. "
+                "Options are: policy, uniform."
+            )
+
         if mask is not None:
             assert not torch.all(mask), dedent(
                 """
@@ -539,7 +546,7 @@ class GFlowNetEnv:
         """
         device = policy_outputs.device
         ns_range = torch.arange(policy_outputs.shape[0]).to(device)
-        logits = policy_outputs
+        logits = policy_outputs.clone()
         if mask is not None:
             logits[mask] = -torch.inf
         action_indices = (
@@ -607,7 +614,7 @@ class GFlowNetEnv:
             The list of actions (tuples) in the trajectory.
         """
         actions = []
-        while self.done is not True:
+        while not self.done:
             _, action, valid = self.step_random()
             if valid:
                 actions.append(action)
@@ -663,7 +670,9 @@ class GFlowNetEnv:
             count += 1
         return states
 
-    def get_policy_output(self, params: Optional[dict] = None):
+    def get_policy_output(
+        self, params: Optional[dict] = None
+    ) -> TensorType["policy_output_dim"]:
         """
         Defines the structure of the output of the policy model, from which an
         action is to be determined or sampled, by returning a vector with a fixed
@@ -672,7 +681,7 @@ class GFlowNetEnv:
 
         Continuous environments will generally have to overwrite this method.
         """
-        return np.ones(self.action_space_dim)
+        return torch.ones(self.action_space_dim, dtype=self.float, device=self.device)
 
     def state2proxy(self, state: List = None):
         """

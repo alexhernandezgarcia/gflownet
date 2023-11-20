@@ -35,6 +35,8 @@ class ContinuousTorus(HybridTorus):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
+        # Mask dimensionality:
+        self.mask_dim = 2
 
     def get_action_space(self):
         """
@@ -71,7 +73,9 @@ class ContinuousTorus(HybridTorus):
         (self.n_comp). The first 3 x C entries in the policy output correspond to the
         first dimension, and so on.
         """
-        policy_output = np.ones(self.n_dim * self.n_comp * 3)
+        policy_output = torch.ones(
+            self.n_dim * self.n_comp * 3, dtype=self.float, device=self.device
+        )
         policy_output[1::3] = params["vonmises_mean"]
         policy_output[2::3] = params["vonmises_concentration"]
         return policy_output

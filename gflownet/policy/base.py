@@ -12,12 +12,8 @@ class Policy:
         self.float = set_float_precision(float_precision)
         # Input and output dimensions
         self.state_dim = env.policy_input_dim
-        self.fixed_output = torch.tensor(env.fixed_policy_output).to(
-            dtype=self.float, device=self.device
-        )
-        self.random_output = torch.tensor(env.random_policy_output).to(
-            dtype=self.float, device=self.device
-        )
+        self.fixed_output = env.fixed_policy_output
+        self.random_output = env.random_policy_output
         self.output_dim = len(self.fixed_output)
         # Optional base model
         self.base = base
