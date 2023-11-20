@@ -734,6 +734,7 @@ class GFlowNetAgent:
         assert (
             n_states < max_data_size
         ), "The size of the test data is larger than max_data_size ({max_data_size})."
+
         # Compute log probabilities in batches
         logprobs_f = torch.full(
             (n_states, n_trajectories),

@@ -387,6 +387,45 @@ def test__trajectories_are_reversible(env):
     assert actions_trajectory_fw == actions_trajectory_bw[::-1]
 
 
+@pytest.mark.repeat(1000)
+def test__trajectories_are_reversible(env):
+    # Skip for certain environments until fixed:
+    skip_envs = ["Crystal", "LatticeParameters", "Tree"]
+    if env.__class__.__name__ in skip_envs:
+        warnings.warn("Skipping test for this specific environment.")
+        return
+    env = env.reset()
+
+    # Sample random forward trajectory
+    states_trajectory_fw = []
+    actions_trajectory_fw = []
+    while not env.done:
+        state, action, valid = env.step_random(backward=False)
+        if valid:
+            states_trajectory_fw.append(state)
+            actions_trajectory_fw.append(action)
+
+    # Sample backward trajectory with actions in forward trajectory
+    states_trajectory_bw = []
+    actions_trajectory_bw = []
+    actions_trajectory_fw_copy = actions_trajectory_fw.copy()
+    while not env.equal(env.state, env.source) or env.done:
+        state, action, valid = env.step_backwards(actions_trajectory_fw_copy.pop())
+        if valid:
+            states_trajectory_bw.append(state)
+            actions_trajectory_bw.append(action)
+
+    assert all(
+        [
+            env.equal(s_fw, s_bw)
+            for s_fw, s_bw in zip(
+                states_trajectory_fw[:-1], states_trajectory_bw[-2::-1]
+            )
+        ]
+    )
+    assert actions_trajectory_fw == actions_trajectory_bw[::-1]
+
+
 def test__backward_actions_have_nonzero_forward_prob(env, n=1000):
     # Skip for certain environments until fixed:
     skip_envs = ["Crystal", "LatticeParameters"]

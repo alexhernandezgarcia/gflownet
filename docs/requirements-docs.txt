@@ -1,0 +1,11 @@
+sphinx
+myst-parser
+furo==2023.3.27
+sphinx-copybutton
+sphinx-autodoc-typehints
+sphinx-autoapi==2.1.0
+sphinx-math-dollar
+sphinx-design
+sphinx-copybutton
+sphinx-hoverxref
+sphinxext-opengraph

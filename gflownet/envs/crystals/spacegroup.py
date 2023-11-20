@@ -97,6 +97,11 @@ class SpaceGroup(GFlowNetEnv):
         """
         Args
         ----
+        space_groups_subset : iterable
+            A subset of space group (international) numbers to which to restrict the
+            state space. If None (default), the entire set of 230 space groups is
+            considered.
+
         n_atoms : list of int (optional)
             A list with the number of atoms per element, used to compute constraints on
             the space group. 0's are removed from the list. If None, composition/space
@@ -691,10 +696,9 @@ class SpaceGroup(GFlowNetEnv):
         sg_subset = set(sg_subset)
 
         # Update self.space_groups
-        self.space_groups = deepcopy(self.space_groups)
-        sg_to_remove = [sg for sg in self.space_groups if sg not in sg_subset]
-        for sg in sg_to_remove:
-            del self.space_groups[sg]
+        self.space_groups = {
+            k: v for (k, v) in self.space_groups.items() if k in sg_subset
+        }
 
         # Update self.crystal_lattice_systems based on space groups
         self.crystal_lattice_systems = deepcopy(self.crystal_lattice_systems)
@@ -726,37 +730,25 @@ class SpaceGroup(GFlowNetEnv):
         for ps in ps_to_remove:
             del self.point_symmetries[ps]
 
-        # Update self.crystal_lattice_systems based on point symmetries
-        cls_to_remove = []
+        # Update point symmetries of remaining crystal lattice systems
         point_symmetries = set(self.point_symmetries)
         for cls in self.crystal_lattice_systems:
             cls_point_symmetries = point_symmetries.intersection(
                 set(self.crystal_lattice_systems[cls]["point_symmetries"])
             )
-            if len(cls_point_symmetries) == 0:
-                cls_to_remove.append(cls)
-            else:
-                self.crystal_lattice_systems[cls]["point_symmetries"] = list(
-                    cls_point_symmetries
-                )
-        for cls in cls_to_remove:
-            del self.crystal_lattice_systems[cls]
+            self.crystal_lattice_systems[cls]["point_symmetries"] = list(
+                cls_point_symmetries
+            )
 
-        # Update self.point_symmetries based on point symmetries
-        ps_to_remove = []
+        # Update crystal lattice systems of remaining point symmetries
         crystal_lattice_systems = set(self.crystal_lattice_systems)
         for ps in self.point_symmetries:
             ps_crystal_lattice_systems = crystal_lattice_systems.intersection(
                 set(self.point_symmetries[ps]["crystal_lattice_systems"])
             )
-            if len(ps_crystal_lattice_systems) == 0:
-                ps_to_remove.append(ps)
-            else:
-                self.point_symmetries[ps]["crystal_lattice_systems"] = list(
-                    ps_crystal_lattice_systems
-                )
-        for ps in ps_to_remove:
-            del self.point_symmetries[ps]
+            self.point_symmetries[ps]["crystal_lattice_systems"] = list(
+                ps_crystal_lattice_systems
+            )
 
     def get_all_terminating_states(
         self, apply_stoichiometry_constraints: Optional[bool] = True
