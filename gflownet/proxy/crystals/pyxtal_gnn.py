@@ -12,9 +12,10 @@ from gflownet.utils.common import tfloat
 
 # URLs to the code repositories used by this proxy.
 DAVE_REPO_URL = "https://github.com/sh-divya/ActiveLearningMaterials.git"
+OCP_REPO_URL = "https://github.com/RolnickLab/ocp"
 
 
-def ensure_library_version(library_name, repo_url, release):
+def ensure_library_version(library_name, repo_url, release=None):
     """Ensure that a library is available for import with a given version
 
     If the library is unavailable, or the wrong release, this method will print
@@ -32,7 +33,7 @@ def ensure_library_version(library_name, repo_url, release):
 
         raise PackageNotFoundError(f"Library `{library_name}` not found")
 
-    if lib_version != release:
+    if release is not None and lib_version != release:
         print(f"  💥 `{library_name}` version mismatch: ")
         print(f"    current ({lib_version}) != requested ({release})")
         print("    Install the requested version with:")
@@ -89,6 +90,9 @@ class PyxtalGNN(Proxy):
 
         # Import the necessary util function from the DAVE repository
         ensure_library_version("dave", DAVE_REPO_URL, dave_release)
+
+        # Import that the OCP package is available for the surface creation functions
+        ensure_library_version("ocp-models", OCP_REPO_URL)
 
         self.n_pyxtal_samples = n_pyxtal_samples
 
