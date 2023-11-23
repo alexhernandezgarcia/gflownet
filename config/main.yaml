@@ -3,6 +3,7 @@ defaults:
   - env: grid
   - gflownet: flowmatch
   - policy: mlp_${gflownet}
+  - state_flow: null
   - proxy: corners
   - logger: wandb
   - user: alex

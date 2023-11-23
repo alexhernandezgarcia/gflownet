@@ -39,6 +39,7 @@ class Batch:
         env: Optional[GFlowNetEnv] = None,
         device: Union[str, torch.device] = "cpu",
         float_type: Union[int, torch.dtype] = 32,
+        non_terminal_rewards: bool = False
     ):
         """
         env : GFlowNetEnv
@@ -56,6 +57,8 @@ class Batch:
         self.device = set_device(device)
         # Float precision
         self.float = set_float_precision(float_type)
+        # Whether rewards should be computed for non-terminal states
+        self.non_terminal_rewards = non_terminal_rewards
         # Generic environment, properties and dictionary of state and forward mask of
         # source (as tensor)
         if env is not None:
@@ -843,10 +846,15 @@ class Batch:
         rewards: torch.tensor
             Tensor of rewards.
         """
-        states_proxy_done = self.get_terminating_states(proxy=True)
+        
         self.rewards = torch.zeros(len(self), dtype=self.float, device=self.device)
+        states_proxy_done = self.get_terminating_states(proxy=True)
         done = self.get_done()
-        if len(done) > 0:
+        if self.non_terminal_rewards:
+            self.rewards = self.env.proxy2reward(
+                self.env.proxy(self.states2proxy())
+            ) 
+        elif len(done) > 0:
             self.rewards[done] = self.env.proxy2reward(
                 self.env.proxy(states_proxy_done)
             )

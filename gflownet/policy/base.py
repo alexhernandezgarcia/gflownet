@@ -1,55 +1,35 @@
 import torch
 from omegaconf import OmegaConf
 from torch import nn
-
+from abc import ABC, abstractmethod
 from gflownet.utils.common import set_device, set_float_precision
 
 
-class Policy:
-    def __init__(self, config, env, device, float_precision, base=None):
+class ModelBase(ABC):
+    def __init__(self, config, input_dim, device, float_precision, base=None):
         # Device and float precision
         self.device = set_device(device)
         self.float = set_float_precision(float_precision)
-        # Input and output dimensions
-        self.state_dim = env.policy_input_dim
-        self.fixed_output = torch.tensor(env.fixed_policy_output).to(
-            dtype=self.float, device=self.device
-        )
-        self.random_output = torch.tensor(env.random_policy_output).to(
-            dtype=self.float, device=self.device
-        )
-        self.output_dim = len(self.fixed_output)
+        # Input dimension
+        self.input_dim = input_dim
+        # Must be redefined in the children classes
+        self.output_dim = None
+        
         # Optional base model
         self.base = base
 
         self.parse_config(config)
-        self.instantiate()
 
     def parse_config(self, config):
         # If config is null, default to uniform
         if config is None:
             config = OmegaConf.create()
             config.type = "uniform"
-        if "checkpoint" in config:
-            self.checkpoint = config.checkpoint
-        else:
-            self.checkpoint = None
-        if "shared_weights" in config:
-            self.shared_weights = config.shared_weights
-        else:
-            self.shared_weights = False
-        if "n_hid" in config:
-            self.n_hid = config.n_hid
-        else:
-            self.n_hid = None
-        if "n_layers" in config:
-            self.n_layers = config.n_layers
-        else:
-            self.n_layers = None
-        if "tail" in config:
-            self.tail = config.tail
-        else:
-            self.tail = []
+        self.checkpoint = config.get("checkpoint", None)
+        self.shared_weights = config.get("shared_weights", False)
+        self.n_hid = config.get("n_hid", None)
+        self.n_layers = config.get("n_layers", None)
+        self.tail = config.get("tail", [])
         if "type" in config:
             self.type = config.type
         elif self.shared_weights:
@@ -57,18 +37,9 @@ class Policy:
         else:
             raise "Policy type must be defined if shared_weights is False"
 
+    @abstractmethod
     def instantiate(self):
-        if self.type == "fixed":
-            self.model = self.fixed_distribution
-            self.is_model = False
-        elif self.type == "uniform":
-            self.model = self.uniform_distribution
-            self.is_model = False
-        elif self.type == "mlp":
-            self.model = self.make_mlp(nn.LeakyReLU()).to(self.device)
-            self.is_model = True
-        else:
-            raise "Policy model type not defined"
+        pass
 
     def __call__(self, states):
         return self.model(states)
@@ -95,7 +66,7 @@ class Policy:
             return mlp
         elif self.shared_weights == False:
             layers_dim = (
-                [self.state_dim] + [self.n_hid] * self.n_layers + [(self.output_dim)]
+                [self.input_dim] + [self.n_hid] * self.n_layers + [(self.output_dim)]
             )
             mlp = nn.Sequential(
                 *(
@@ -117,6 +88,38 @@ class Policy:
             raise ValueError(
                 "Base Model must be provided when shared_weights is set to True"
             )
+
+
+
+class Policy(ModelBase):
+    def __init__(self, config, env, device, float_precision, base=None):
+        super().__init__(config, env.policy_input_dim, device, float_precision, base)
+
+        # Outputs 
+        
+        self.fixed_output = torch.tensor(env.fixed_policy_output).to(
+            dtype=self.float, device=self.device
+        )
+        self.random_output = torch.tensor(env.random_policy_output).to(
+            dtype=self.float, device=self.device
+        )
+        self.output_dim = len(self.fixed_output)
+
+        self.instantiate()
+
+
+    def instantiate(self):
+        if self.type == "fixed":
+            self.model = self.fixed_distribution
+            self.is_model = False
+        elif self.type == "uniform":
+            self.model = self.uniform_distribution
+            self.is_model = False
+        elif self.type == "mlp":
+            self.model = self.make_mlp(nn.LeakyReLU()).to(self.device)
+            self.is_model = True
+        else:
+            raise "Policy model type not defined"
 
     def fixed_distribution(self, states):
         """

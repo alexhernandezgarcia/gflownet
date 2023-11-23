@@ -61,6 +61,17 @@ def main(config):
         base=forward_policy,
     )
 
+    if config.gflownet.optimizer.loss in ["forwardlooking", "fl"]:
+        state_flow = hydra.utils.instantiate(
+            config.state_flow,
+            env=env,
+            device=config.device,
+            float_precision=config.float_precision,
+            base=forward_policy,
+            )
+    else:
+        state_flow = None
+
     gflownet = hydra.utils.instantiate(
         config.gflownet,
         device=config.device,
@@ -68,6 +79,7 @@ def main(config):
         env=env,
         forward_policy=forward_policy,
         backward_policy=backward_policy,
+        state_flow=state_flow,
         buffer=config.env.buffer,
         logger=logger,
     )
