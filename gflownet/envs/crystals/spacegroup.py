@@ -551,6 +551,21 @@ class SpaceGroup(GFlowNetEnv):
     def space_group_symbol(self) -> str:
         return self.get_space_group_symbol(self.state)
 
+    def get_space_group(self, state: List[int] = None) -> int:
+        """
+        Returns the index of the space group symbol given a state.
+        """
+        if state is None:
+            state = self.state
+        if state[self.sg_idx] != 0:
+            return state[self.sg_idx]
+        else:
+            return None
+
+    @property
+    def space_group(self) -> int:
+        return self.get_space_group(self.state)
+
     # TODO: Technically the crystal class could be determined from crystal-lattice
     # system + point symmetry
     def get_crystal_class(self, state: List[int] = None) -> str:

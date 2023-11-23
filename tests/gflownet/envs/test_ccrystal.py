@@ -52,31 +52,57 @@ def env_with_stoichiometry_sg_check():
     )
 
 
-def test__stage_next__returns_expected():
-    assert Stage.next(Stage.COMPOSITION) == Stage.SPACE_GROUP
-    assert Stage.next(Stage.SPACE_GROUP) == Stage.LATTICE_PARAMETERS
-    assert Stage.next(Stage.LATTICE_PARAMETERS) == Stage.DONE
-    assert Stage.next(Stage.DONE) == None
+@pytest.fixture
+def env_sg_first():
+    return CCrystal(
+        composition_kwargs={"elements": 4},
+        do_sg_to_composition_constraints=True,
+        do_sg_before_composition=True,
+    )
 
 
-def test__stage_prev__returns_expected():
-    assert Stage.prev(Stage.COMPOSITION) == Stage.DONE
-    assert Stage.prev(Stage.SPACE_GROUP) == Stage.COMPOSITION
-    assert Stage.prev(Stage.LATTICE_PARAMETERS) == Stage.SPACE_GROUP
-    assert Stage.prev(Stage.DONE) == Stage.LATTICE_PARAMETERS
+def test__stage_next__returns_expected(env, env_sg_first):
+    assert env._get_next_stage(None) == Stage.COMPOSITION
+    assert env._get_next_stage(Stage.COMPOSITION) == Stage.SPACE_GROUP
+    assert env._get_next_stage(Stage.SPACE_GROUP) == Stage.LATTICE_PARAMETERS
+    assert env._get_next_stage(Stage.LATTICE_PARAMETERS) == Stage.DONE
+    assert env._get_next_stage(Stage.DONE) == None
+
+    assert env_sg_first._get_next_stage(None) == Stage.SPACE_GROUP
+    assert env_sg_first._get_next_stage(Stage.SPACE_GROUP) == Stage.COMPOSITION
+    assert env_sg_first._get_next_stage(Stage.COMPOSITION) == Stage.LATTICE_PARAMETERS
+    assert env_sg_first._get_next_stage(Stage.LATTICE_PARAMETERS) == Stage.DONE
+    assert env_sg_first._get_next_stage(Stage.DONE) == None
+
+
+def test__stage_prev__returns_expected(env, env_sg_first):
+    assert env._get_previous_stage(Stage.COMPOSITION) == Stage.DONE
+    assert env._get_previous_stage(Stage.SPACE_GROUP) == Stage.COMPOSITION
+    assert env._get_previous_stage(Stage.LATTICE_PARAMETERS) == Stage.SPACE_GROUP
+    assert env._get_previous_stage(Stage.DONE) == Stage.LATTICE_PARAMETERS
+
+    assert env_sg_first._get_previous_stage(Stage.SPACE_GROUP) == Stage.DONE
+    assert env_sg_first._get_previous_stage(Stage.COMPOSITION) == Stage.SPACE_GROUP
+    assert (
+        env_sg_first._get_previous_stage(Stage.LATTICE_PARAMETERS) == Stage.COMPOSITION
+    )
+    assert env_sg_first._get_previous_stage(Stage.DONE) == Stage.LATTICE_PARAMETERS
 
 
 def test__environment__initializes_properly(env):
     pass
 
 
-def test__environment__has_expected_initial_state(env):
+@pytest.mark.parametrize("env_input, initial_stage", [["env", 0], ["env_sg_first", 1]])
+def test__environment__has_expected_initial_state(env_input, initial_stage, request):
     """
     The source of the composition and space group environments is all 0s. The source of
     the continuous lattice parameters environment is all -1s.
     """
+    env = request.getfixturevalue(env_input)
+    expected_initial_state = [initial_stage] + [0] * (4 + 3) + [-1] * 6
     assert (
-        env.state == env.source == [0] * (1 + 4 + 3) + [-1] * 6
+        env.state == env.source == expected_initial_state
     )  # stage + n elements + space groups + lattice parameters
 
 
@@ -310,12 +336,13 @@ def test__state_of_subenv__returns_expected(
 
 
 @pytest.mark.parametrize(
-    "env_input, state, dones, has_lattice_parameters, has_composition_constraints",
+    "env_input, state, dones, has_lattice_parameters, has_composition_constraints, has_spacegroup_constraints",
     [
         (
             "env",
             [0, 0, 4, 0, 0, 0, 0, 0, -1, -1, -1, -1, -1, -1],
             [False, False, False],
+            False,
             False,
             False,
         ),
@@ -325,12 +352,14 @@ def test__state_of_subenv__returns_expected(
             [False, False, False],
             False,
             False,
+            False,
         ),
         (
             "env",
             [1, 3, 1, 0, 6, 1, 2, 0, -1, -1, -1, -1, -1, -1],
             [True, False, False],
             True,
+            False,
             False,
         ),
         (
@@ -339,12 +368,46 @@ def test__state_of_subenv__returns_expected(
             [True, True, False],
             True,
             False,
+            False,
         ),
         (
             "env_with_stoichiometry_sg_check",
             [2, 4, 0, 4, 0, 4, 3, 105, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6],
             [True, True, False],
             True,
+            True,
+            False,
+        ),
+        (
+            "env_sg_first",
+            [1, 0, 0, 0, 0, 0, 0, 0, -1, -1, -1, -1, -1, -1],
+            [False, False, False],
+            False,
+            False,
+            False,
+        ),
+        (
+            "env_sg_first",
+            [1, 0, 0, 0, 0, 4, 3, 105, -1, -1, -1, -1, -1, -1],
+            [False, False, False],
+            False,
+            False,
+            False,
+        ),
+        (
+            "env_sg_first",
+            [0, 3, 1, 0, 6, 4, 3, 105, -1, -1, -1, -1, -1, -1],
+            [False, True, False],
+            True,
+            False,
+            True,
+        ),
+        (
+            "env_sg_first",
+            [2, 1, 0, 4, 0, 4, 3, 105, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6],
+            [True, True, False],
+            True,
+            False,
             True,
         ),
     ],
@@ -355,6 +418,7 @@ def test__set_state__sets_state_subenvs_dones_and_constraints(
     dones,
     has_lattice_parameters,
     has_composition_constraints,
+    has_spacegroup_constraints,
     request,
 ):
     env = request.getfixturevalue(env_input)
@@ -371,14 +435,12 @@ def test__set_state__sets_state_subenvs_dones_and_constraints(
         assert subenv.done == done
 
     # Check lattice parameters
-    if env.subenvs[Stage.SPACE_GROUP].lattice_system != "None":
-        assert has_lattice_parameters
+    if has_lattice_parameters:
+        assert env.subenvs[Stage.SPACE_GROUP].lattice_system != "None"
         assert (
             env.subenvs[Stage.SPACE_GROUP].lattice_system
             == env.subenvs[Stage.LATTICE_PARAMETERS].lattice_system
         )
-    else:
-        assert not has_lattice_parameters
 
     # Check composition constraints
     if has_composition_constraints:
@@ -394,24 +456,50 @@ def test__set_state__sets_state_subenvs_dones_and_constraints(
             == env.subenvs[Stage.SPACE_GROUP].n_atoms_compatibility_dict
         )
 
+    # Check spacegroup constraints
+    if has_spacegroup_constraints:
+        assert (
+            env.subenvs[Stage.COMPOSITION].space_group
+            == env.subenvs[Stage.SPACE_GROUP].space_group
+        )
+
 
 @pytest.mark.parametrize(
-    "state",
+    "env_input, state",
     [
-        [0, 0, 4, 0, 0, 0, 0, 0, -1, -1, -1, -1, -1, -1],
-        [0, 3, 0, 0, 0, 0, 0, 0, -1, -1, -1, -1, -1, -1],
-        [0, 3, 0, 0, 6, 0, 0, 0, -1, -1, -1, -1, -1, -1],
-        [0, 3, 1, 0, 6, 0, 0, 0, -1, -1, -1, -1, -1, -1],
-        [1, 3, 1, 0, 6, 1, 0, 0, -1, -1, -1, -1, -1, -1],
-        [1, 3, 1, 0, 6, 1, 1, 0, -1, -1, -1, -1, -1, -1],
-        [1, 3, 1, 0, 6, 1, 2, 0, -1, -1, -1, -1, -1, -1],
-        [1, 3, 1, 0, 6, 1, 2, 2, -1, -1, -1, -1, -1, -1],
-        [2, 1, 0, 4, 0, 4, 3, 105, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6],
-        [2, 1, 0, 4, 0, 4, 3, 105, 0.12, 0.23, 0.34, 0.45, 0.56, 0.67],
-        [2, 1, 0, 4, 0, 4, 3, 105, 0.76, 0.75, 0.74, 0.73, 0.72, 0.71],
+        ("env", [0, 0, 4, 0, 0, 0, 0, 0, -1, -1, -1, -1, -1, -1]),
+        ("env", [0, 3, 0, 0, 0, 0, 0, 0, -1, -1, -1, -1, -1, -1]),
+        ("env", [0, 3, 0, 0, 6, 0, 0, 0, -1, -1, -1, -1, -1, -1]),
+        ("env", [0, 3, 1, 0, 6, 0, 0, 0, -1, -1, -1, -1, -1, -1]),
+        ("env", [1, 3, 1, 0, 6, 1, 0, 0, -1, -1, -1, -1, -1, -1]),
+        ("env", [1, 3, 1, 0, 6, 1, 1, 0, -1, -1, -1, -1, -1, -1]),
+        ("env", [1, 3, 1, 0, 6, 1, 2, 0, -1, -1, -1, -1, -1, -1]),
+        ("env", [1, 3, 1, 0, 6, 1, 2, 2, -1, -1, -1, -1, -1, -1]),
+        ("env", [2, 1, 0, 4, 0, 4, 3, 105, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6]),
+        ("env", [2, 1, 0, 4, 0, 4, 3, 105, 0.12, 0.23, 0.34, 0.45, 0.56, 0.67]),
+        ("env", [2, 1, 0, 4, 0, 4, 3, 105, 0.76, 0.75, 0.74, 0.73, 0.72, 0.71]),
+        ("env_sg_first", [1, 0, 0, 0, 0, 1, 0, 0, -1, -1, -1, -1, -1, -1]),
+        ("env_sg_first", [1, 0, 0, 0, 0, 1, 1, 0, -1, -1, -1, -1, -1, -1]),
+        ("env_sg_first", [1, 0, 0, 0, 0, 1, 2, 0, -1, -1, -1, -1, -1, -1]),
+        ("env_sg_first", [1, 0, 0, 0, 0, 1, 2, 2, -1, -1, -1, -1, -1, -1]),
+        ("env_sg_first", [0, 3, 0, 0, 0, 1, 2, 2, -1, -1, -1, -1, -1, -1]),
+        ("env_sg_first", [0, 3, 0, 0, 6, 1, 2, 2, -1, -1, -1, -1, -1, -1]),
+        ("env_sg_first", [0, 3, 1, 0, 6, 1, 2, 2, -1, -1, -1, -1, -1, -1]),
+        ("env_sg_first", [2, 1, 0, 4, 0, 4, 3, 105, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6]),
+        (
+            "env_sg_first",
+            [2, 1, 0, 4, 0, 4, 3, 105, 0.12, 0.23, 0.34, 0.45, 0.56, 0.67],
+        ),
+        (
+            "env_sg_first",
+            [2, 1, 0, 4, 0, 4, 3, 105, 0.76, 0.75, 0.74, 0.73, 0.72, 0.71],
+        ),
     ],
 )
-def test__get_mask_invalid_actions_backward__returns_expected_general_case(env, state):
+def test__get_mask_invalid_actions_backward__returns_expected_general_case(
+    env_input, state, request
+):
+    env = request.getfixturevalue(env_input)
     stage = env._get_stage(state)
     mask = env.get_mask_invalid_actions_backward(state, done=False)
     for stg, subenv in env.subenvs.items():
@@ -430,22 +518,29 @@ def test__get_mask_invalid_actions_backward__returns_expected_general_case(env, 
 
 
 @pytest.mark.parametrize(
-    "state",
+    "env_input, state",
     [
-        [0, 0, 0, 0, 0, 0, 0, 0, -1, -1, -1, -1, -1, -1],
-        [1, 3, 0, 0, 6, 0, 0, 0, -1, -1, -1, -1, -1, -1],
-        [1, 3, 1, 0, 6, 0, 0, 0, -1, -1, -1, -1, -1, -1],
-        [2, 3, 1, 0, 6, 1, 2, 2, -1, -1, -1, -1, -1, -1],
-        [2, 3, 1, 0, 6, 2, 1, 3, -1, -1, -1, -1, -1, -1],
+        ("env", [0, 0, 0, 0, 0, 0, 0, 0, -1, -1, -1, -1, -1, -1]),
+        ("env", [1, 3, 0, 0, 6, 0, 0, 0, -1, -1, -1, -1, -1, -1]),
+        ("env", [1, 3, 1, 0, 6, 0, 0, 0, -1, -1, -1, -1, -1, -1]),
+        ("env", [2, 3, 1, 0, 6, 1, 2, 2, -1, -1, -1, -1, -1, -1]),
+        ("env", [2, 3, 1, 0, 6, 2, 1, 3, -1, -1, -1, -1, -1, -1]),
+        ("env_sg_first", [1, 0, 0, 0, 0, 0, 0, 0, -1, -1, -1, -1, -1, -1]),
+        ("env_sg_first", [0, 0, 0, 0, 0, 1, 2, 2, -1, -1, -1, -1, -1, -1]),
+        ("env_sg_first", [0, 0, 0, 0, 0, 2, 1, 3, -1, -1, -1, -1, -1, -1]),
+        ("env_sg_first", [2, 3, 1, 0, 6, 1, 2, 2, -1, -1, -1, -1, -1, -1]),
+        ("env_sg_first", [2, 3, 1, 0, 6, 2, 1, 3, -1, -1, -1, -1, -1, -1]),
     ],
 )
 def test__get_mask_invald_actions_backward__returns_expected_stage_transition(
-    env, state
+    env_input, state, request
 ):
+    env = request.getfixturevalue(env_input)
     stage = env._get_stage(state)
+    prev_stage = env._get_previous_stage(stage)
     mask = env.get_mask_invalid_actions_backward(state, done=False)
     for stg, subenv in env.subenvs.items():
-        if stg == Stage.prev(stage) and stage != Stage(0):
+        if stg == prev_stage and prev_stage != Stage.DONE:
             # Mask of done (EOS only) if stage is previous stage in state
             mask_subenv_expected = subenv.get_mask_invalid_actions_backward(
                 env._get_state_of_subenv(state, stg), done=True
@@ -470,21 +565,24 @@ def test__step__single_action_works(env, action):
 
 
 @pytest.mark.parametrize(
-    "actions, exp_result, exp_stage, last_action_valid",
+    "env_input, actions, exp_result, exp_stage, last_action_valid",
     [
         [
+            "env",
             [(1, 1, -2, -2, -2, -2, -2), (3, 4, -2, -2, -2, -2, -2)],
             [0, 1, 0, 4, 0, 0, 0, 0, -1, -1, -1, -1, -1, -1],
             Stage.COMPOSITION,
             True,
         ],
         [
+            "env",
             [(2, 105, 3, -3, -3, -3, -3)],
             [0, 0, 0, 0, 0, 0, 0, 0, -1, -1, -1, -1, -1, -1],
             Stage.COMPOSITION,
             False,
         ],
         [
+            "env",
             [
                 (1, 1, -2, -2, -2, -2, -2),
                 (3, 4, -2, -2, -2, -2, -2),
@@ -495,6 +593,7 @@ def test__step__single_action_works(env, action):
             True,
         ],
         [
+            "env",
             [
                 (1, 1, -2, -2, -2, -2, -2),
                 (3, 4, -2, -2, -2, -2, -2),
@@ -506,6 +605,7 @@ def test__step__single_action_works(env, action):
             True,
         ],
         [
+            "env",
             [
                 (1, 1, -2, -2, -2, -2, -2),
                 (3, 4, -2, -2, -2, -2, -2),
@@ -518,6 +618,7 @@ def test__step__single_action_works(env, action):
             False,
         ],
         [
+            "env",
             [
                 (1, 1, -2, -2, -2, -2, -2),
                 (3, 4, -2, -2, -2, -2, -2),
@@ -530,6 +631,7 @@ def test__step__single_action_works(env, action):
             True,
         ],
         [
+            "env",
             [
                 (1, 1, -2, -2, -2, -2, -2),
                 (3, 4, -2, -2, -2, -2, -2),
@@ -543,6 +645,7 @@ def test__step__single_action_works(env, action):
             False,
         ],
         [
+            "env",
             [
                 (1, 1, -2, -2, -2, -2, -2),
                 (3, 4, -2, -2, -2, -2, -2),
@@ -556,6 +659,7 @@ def test__step__single_action_works(env, action):
             True,
         ],
         [
+            "env",
             [
                 (1, 1, -2, -2, -2, -2, -2),
                 (3, 4, -2, -2, -2, -2, -2),
@@ -570,6 +674,7 @@ def test__step__single_action_works(env, action):
             False,
         ],
         [
+            "env",
             [
                 (1, 1, -2, -2, -2, -2, -2),
                 (3, 4, -2, -2, -2, -2, -2),
@@ -584,6 +689,7 @@ def test__step__single_action_works(env, action):
             True,
         ],
         [
+            "env",
             [
                 (1, 1, -2, -2, -2, -2, -2),
                 (3, 4, -2, -2, -2, -2, -2),
@@ -598,11 +704,124 @@ def test__step__single_action_works(env, action):
             Stage.LATTICE_PARAMETERS,
             True,
         ],
+        [
+            "env_sg_first",
+            [(1, 1, -2, -2, -2, -2, -2)],
+            [1, 0, 0, 0, 0, 0, 0, 0, -1, -1, -1, -1, -1, -1],
+            Stage.SPACE_GROUP,
+            False,
+        ],
+        [
+            "env_sg_first",
+            [(2, 105, 0, -3, -3, -3, -3)],
+            [1, 0, 0, 0, 0, 4, 3, 105, -1, -1, -1, -1, -1, -1],
+            Stage.SPACE_GROUP,
+            True,
+        ],
+        [
+            "env_sg_first",
+            [(2, 105, 0, -3, -3, -3, -3), (2, 105, 0, -3, -3, -3, -3)],
+            [1, 0, 0, 0, 0, 4, 3, 105, -1, -1, -1, -1, -1, -1],
+            Stage.SPACE_GROUP,
+            False,
+        ],
+        [
+            "env_sg_first",
+            [(2, 105, 0, -3, -3, -3, -3), (-1, -1, -1, -3, -3, -3, -3)],
+            [0, 0, 0, 0, 0, 4, 3, 105, -1, -1, -1, -1, -1, -1],
+            Stage.COMPOSITION,
+            True,
+        ],
+        [
+            "env_sg_first",
+            [
+                (2, 105, 0, -3, -3, -3, -3),
+                (-1, -1, -1, -3, -3, -3, -3),
+                (3, 4, -2, -2, -2, -2, -2),
+            ],
+            [0, 0, 0, 4, 0, 4, 3, 105, -1, -1, -1, -1, -1, -1],
+            Stage.COMPOSITION,
+            True,
+        ],
+        [
+            "env_sg_first",
+            [
+                (2, 105, 0, -3, -3, -3, -3),
+                (-1, -1, -1, -3, -3, -3, -3),
+                (1, 2, -2, -2, -2, -2, -2),
+                (3, 4, -2, -2, -2, -2, -2),
+                (-1, -1, -2, -2, -2, -2, -2),
+            ],
+            [2, 2, 0, 4, 0, 4, 3, 105, -1, -1, -1, -1, -1, -1],
+            Stage.LATTICE_PARAMETERS,
+            True,
+        ],
+        [
+            "env_sg_first",
+            [
+                (2, 105, 0, -3, -3, -3, -3),
+                (-1, -1, -1, -3, -3, -3, -3),
+                (1, 2, -2, -2, -2, -2, -2),
+                (3, 4, -2, -2, -2, -2, -2),
+                (-1, -1, -2, -2, -2, -2, -2),
+                (1.5, 0, 0, 0, 0, 0, 0),
+            ],
+            [2, 2, 0, 4, 0, 4, 3, 105, -1, -1, -1, -1, -1, -1],
+            Stage.LATTICE_PARAMETERS,
+            False,
+        ],
+        [
+            "env_sg_first",
+            [
+                (2, 105, 0, -3, -3, -3, -3),
+                (-1, -1, -1, -3, -3, -3, -3),
+                (1, 2, -2, -2, -2, -2, -2),
+                (3, 4, -2, -2, -2, -2, -2),
+                (-1, -1, -2, -2, -2, -2, -2),
+                (0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 1),
+                (0.6, 0.5, 0.8, 0.3, 0.2, 0.6, 0),
+            ],
+            [2, 2, 0, 4, 0, 4, 3, 105, 0.1, 0.1, 0.3, 0.4, 0.4, 0.4],
+            Stage.LATTICE_PARAMETERS,
+            False,
+        ],
+        [
+            "env_sg_first",
+            [
+                (2, 105, 0, -3, -3, -3, -3),
+                (-1, -1, -1, -3, -3, -3, -3),
+                (1, 2, -2, -2, -2, -2, -2),
+                (3, 4, -2, -2, -2, -2, -2),
+                (-1, -1, -2, -2, -2, -2, -2),
+                (0.1, 0.1, 0.3, 0.0, 0.0, 0.0, 1),
+                (0.66, 0.0, 0.44, 0.0, 0.0, 0.0, 0),
+            ],
+            [2, 2, 0, 4, 0, 4, 3, 105, 0.76, 0.76, 0.74, 0.4, 0.4, 0.4],
+            Stage.LATTICE_PARAMETERS,
+            True,
+        ],
+        [
+            "env_sg_first",
+            [
+                (2, 105, 0, -3, -3, -3, -3),
+                (-1, -1, -1, -3, -3, -3, -3),
+                (1, 2, -2, -2, -2, -2, -2),
+                (3, 4, -2, -2, -2, -2, -2),
+                (-1, -1, -2, -2, -2, -2, -2),
+                (0.1, 0.1, 0.3, 0.0, 0.0, 0.0, 1),
+                (0.66, 0.66, 0.44, 0.0, 0.0, 0.0, 0),
+                (np.inf, np.inf, np.inf, np.inf, np.inf, np.inf, np.inf),
+            ],
+            [2, 2, 0, 4, 0, 4, 3, 105, 0.76, 0.76, 0.74, 0.4, 0.4, 0.4],
+            Stage.LATTICE_PARAMETERS,
+            True,
+        ],
     ],
 )
 def test__step__action_sequence_has_expected_result(
-    env, actions, exp_result, exp_stage, last_action_valid
+    env_input, actions, exp_result, exp_stage, last_action_valid, request
 ):
+    env = request.getfixturevalue(env_input)
     for action in actions:
         warnings.filterwarnings("ignore")
         _, _, valid = env.step(action)
@@ -613,9 +832,10 @@ def test__step__action_sequence_has_expected_result(
 
 
 @pytest.mark.parametrize(
-    "state_init, state_end, stage_init, stage_end, actions, last_action_valid",
+    "env_input, state_init, state_end, stage_init, stage_end, actions, last_action_valid",
     [
         [
+            "env",
             [0, 1, 0, 4, 0, 0, 0, 0, -1, -1, -1, -1, -1, -1],
             [0, 0, 0, 0, 0, 0, 0, 0, -1, -1, -1, -1, -1, -1],
             Stage.COMPOSITION,
@@ -624,6 +844,7 @@ def test__step__action_sequence_has_expected_result(
             True,
         ],
         [
+            "env",
             [0, 0, 0, 0, 0, 0, 0, 0, -1, -1, -1, -1, -1, -1],
             [0, 0, 0, 0, 0, 0, 0, 0, -1, -1, -1, -1, -1, -1],
             Stage.COMPOSITION,
@@ -632,6 +853,7 @@ def test__step__action_sequence_has_expected_result(
             False,
         ],
         [
+            "env",
             [1, 1, 0, 4, 0, 0, 0, 0, -1, -1, -1, -1, -1, -1],
             [0, 0, 0, 0, 0, 0, 0, 0, -1, -1, -1, -1, -1, -1],
             Stage.SPACE_GROUP,
@@ -644,6 +866,7 @@ def test__step__action_sequence_has_expected_result(
             True,
         ],
         [
+            "env",
             [1, 1, 0, 4, 0, 4, 3, 105, -1, -1, -1, -1, -1, -1],
             [0, 0, 0, 0, 0, 0, 0, 0, -1, -1, -1, -1, -1, -1],
             Stage.SPACE_GROUP,
@@ -657,6 +880,7 @@ def test__step__action_sequence_has_expected_result(
             True,
         ],
         [
+            "env",
             [2, 1, 0, 4, 0, 4, 3, 105, -1, -1, -1, -1, -1, -1],
             [0, 0, 0, 0, 0, 0, 0, 0, -1, -1, -1, -1, -1, -1],
             Stage.LATTICE_PARAMETERS,
@@ -671,6 +895,7 @@ def test__step__action_sequence_has_expected_result(
             True,
         ],
         [
+            "env",
             [2, 1, 0, 4, 0, 4, 3, 105, 0.1, 0.1, 0.3, 0.4, 0.4, 0.4],
             [2, 1, 0, 4, 0, 4, 3, 105, 0.1, 0.1, 0.3, 0.4, 0.4, 0.4],
             Stage.LATTICE_PARAMETERS,
@@ -681,6 +906,7 @@ def test__step__action_sequence_has_expected_result(
             False,
         ],
         [
+            "env",
             [2, 1, 0, 4, 0, 4, 3, 105, 0.1, 0.1, 0.3, 0.4, 0.4, 0.4],
             [0, 0, 0, 0, 0, 0, 0, 0, -1, -1, -1, -1, -1, -1],
             Stage.LATTICE_PARAMETERS,
@@ -696,6 +922,7 @@ def test__step__action_sequence_has_expected_result(
             True,
         ],
         [
+            "env",
             [2, 1, 0, 4, 0, 4, 3, 105, 0.76, 0.76, 0.74, 0.4, 0.4, 0.4],
             [0, 0, 0, 0, 0, 0, 0, 0, -1, -1, -1, -1, -1, -1],
             Stage.LATTICE_PARAMETERS,
@@ -712,6 +939,7 @@ def test__step__action_sequence_has_expected_result(
             True,
         ],
         [
+            "env",
             [2, 1, 0, 4, 0, 4, 3, 105, 0.76, 0.76, 0.74, 0.4, 0.4, 0.4],
             [0, 0, 0, 0, 0, 0, 0, 0, -1, -1, -1, -1, -1, -1],
             Stage.LATTICE_PARAMETERS,
@@ -728,11 +956,88 @@ def test__step__action_sequence_has_expected_result(
             ],
             True,
         ],
+        [
+            "env_sg_first",
+            [1, 0, 0, 0, 0, 4, 3, 105, -1, -1, -1, -1, -1, -1],
+            [1, 0, 0, 0, 0, 0, 0, 0, -1, -1, -1, -1, -1, -1],
+            Stage.SPACE_GROUP,
+            Stage.SPACE_GROUP,
+            [
+                (2, 105, 0, -3, -3, -3, -3),
+            ],
+            True,
+        ],
+        [
+            "env_sg_first",
+            [0, 1, 0, 4, 0, 4, 3, 105, -1, -1, -1, -1, -1, -1],
+            [1, 0, 0, 0, 0, 4, 3, 105, -1, -1, -1, -1, -1, -1],
+            Stage.COMPOSITION,
+            Stage.SPACE_GROUP,
+            [
+                (3, 4, -2, -2, -2, -2, -2),
+                (1, 1, -2, -2, -2, -2, -2),
+                (-1, -1, -1, -3, -3, -3, -3),
+            ],
+            True,
+        ],
+        [
+            "env_sg_first",
+            [2, 1, 0, 4, 0, 4, 3, 105, -1, -1, -1, -1, -1, -1],
+            [1, 0, 0, 0, 0, 0, 0, 0, -1, -1, -1, -1, -1, -1],
+            Stage.LATTICE_PARAMETERS,
+            Stage.SPACE_GROUP,
+            [
+                (-1, -1, -2, -2, -2, -2, -2),
+                (3, 4, -2, -2, -2, -2, -2),
+                (1, 1, -2, -2, -2, -2, -2),
+                (-1, -1, -1, -3, -3, -3, -3),
+                (2, 105, 0, -3, -3, -3, -3),
+            ],
+            True,
+        ],
+        [
+            "env_sg_first",
+            [2, 1, 0, 4, 0, 4, 3, 105, 0.1, 0.1, 0.3, 0.4, 0.4, 0.4],
+            [2, 1, 0, 4, 0, 4, 3, 105, 0.1, 0.1, 0.3, 0.4, 0.4, 0.4],
+            Stage.LATTICE_PARAMETERS,
+            Stage.LATTICE_PARAMETERS,
+            [
+                (1.5, 0, 0, 0, 0, 0, 0),
+            ],
+            False,
+        ],
+        [
+            "env_sg_first",
+            [2, 1, 0, 4, 0, 4, 3, 105, 0.76, 0.76, 0.74, 0.4, 0.4, 0.4],
+            [1, 0, 0, 0, 0, 0, 0, 0, -1, -1, -1, -1, -1, -1],
+            Stage.LATTICE_PARAMETERS,
+            Stage.SPACE_GROUP,
+            [
+                (np.inf, np.inf, np.inf, np.inf, np.inf, np.inf, np.inf),
+                (0.66, 0.0, 0.44, 0.0, 0.0, 0.0, 0),
+                (0.1, 0.1, 0.3, 0.0, 0.0, 0.0, 1),
+                (-1, -1, -2, -2, -2, -2, -2),
+                (3, 4, -2, -2, -2, -2, -2),
+                (1, 1, -2, -2, -2, -2, -2),
+                (-1, -1, -1, -3, -3, -3, -3),
+                (2, 105, 0, -3, -3, -3, -3),
+            ],
+            True,
+        ],
     ],
 )
 def test__step_backwards__action_sequence_has_expected_result(
-    env, state_init, state_end, stage_init, stage_end, actions, last_action_valid
+    env_input,
+    state_init,
+    state_end,
+    stage_init,
+    stage_end,
+    actions,
+    last_action_valid,
+    request,
 ):
+    env = request.getfixturevalue(env_input)
+
     # Hacky way to also test if first action global EOS
     if actions[0] == env.eos:
         env.set_state(state_init, done=True)
@@ -1294,3 +1599,8 @@ def test__continuous_env_with_stoichiometry_sg_check_common(
 ):
     print("\n\nCommon tests for crystal with composition <-> space group constraints\n")
     return common.test__continuous_env_common(env_with_stoichiometry_sg_check)
+
+
+def test__continuous_env_common(env_sg_first):
+    print("\n\nCommon tests for crystal with space group first\n")
+    return common.test__continuous_env_common(env_sg_first)
