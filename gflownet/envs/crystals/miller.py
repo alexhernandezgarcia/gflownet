@@ -51,10 +51,8 @@ class MillerIndices(Grid):
             - True if the forward action is invalid from the current state.
             - False otherwise.
         """
-        if state is None:
-            state = self.state.copy()
-        if done is None:
-            done = self.done
+        state = self._get_state(state)
+        done = self._get_done(done)
 
         mask = super().get_mask_invalid_actions_forward(state, done)
 
