@@ -8,12 +8,12 @@ from gflownet.envs.grid import Grid
 
 class MillerIndices(Grid):
     """
-    The Miller indices are represented by either 3 parameters (h, k, l) if the
-    structure is cubic, or by 4 parameters (h, k, i, l) if the structure is hexagonal
-    or rhombohedral. However, for hexagonal and rhombohedral structures, there is
-    redundancy in the parameters. h, k and i are united by h + k + i = 0. As such,
-    even for hexagonal and rhombohedral structures, we only need to model 3 free
-    dimensions.
+    The Miller indices are represented by either 3 parameters (h, k, l) in general, or
+    by 4 parameters (h, k, i, l) if the structure is hexagonal or rhombohedral.
+    However, for hexagonal and rhombohedral structures, there is redundancy in the
+    parameters. h, k and i are united by h + k + i = 0. As such, even for hexagonal and
+    rhombohedral structures, we only need to model 3 free dimensions.
+
     Each parameter can take values in the set {-2, -1, 0, 1, 2}.
     Therefore, we can represent the Miller indices environment by a hyper cube of
     length 5, with dimensionality 3.
