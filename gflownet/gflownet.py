@@ -682,6 +682,74 @@ class GFlowNetAgent:
         )
         return loss, loss, loss
 
+    def forwardlooking_loss(self, it, batch):
+        """
+        Computes the Forward-Looking GFlowNet loss of a batch
+        Reference : https://arxiv.org/pdf/2302.01687.pdf
+
+        Args
+        ----
+        it : int
+            Iteration
+
+        batch : Batch
+            A batch of data, containing all the states in the trajectories.
+
+
+        Returns
+        -------
+        loss : float
+
+        term_loss : float
+            Loss of the terminal nodes only
+
+        nonterm_loss : float
+            Loss of the intermediate nodes only
+        """
+
+        assert batch.is_valid()
+        # Get necessary tensors from batch
+        states_policy = batch.get_states(policy=True)
+        states = batch.get_states(policy=False)
+        actions = batch.get_actions()
+        parents_policy = batch.get_parents(policy=True)
+        parents = batch.get_parents(policy=False)
+        traj_indices = batch.get_trajectory_indices(consecutive=True)
+        done = batch.get_done()
+
+        masks_b = batch.get_masks_backward()
+        policy_output_b = self.backward_policy(states_policy)
+        logprobs_bkw = self.env.get_logprobs(
+                policy_output_b, actions, masks_b, states, is_backward=True
+            )
+        masks_f = batch.get_masks_forward(of_parents=True)
+        policy_output_f = self.forward_policy(parents_policy)
+        logprobs_fwd = self.env.get_logprobs(
+                policy_output_f, actions, masks_f, parents, is_backward=False
+            )
+        
+
+        states_log_flflow = self.state_flow(states_policy)
+        # forward-looking flow is 1 in the terminal states
+        states_log_flflow[done.eq(1)] = 0.
+        # Can be optimised by reusing states_log_flflow and batch.get_parent_indices
+        parents_log_flflow = self.state_flow(parents_policy)
+
+        assert batch.non_terminal_rewards
+        rewards_states = batch.get_rewards()
+        rewards_parents = batch.get_rewards_parents()
+        energies_states = -torch.log(rewards_states)
+        energies_parents = -torch.log(rewards_parents)
+
+        per_node_loss = (parents_log_flflow - states_log_flflow + logprobs_fwd - logprobs_bkw + 
+                         energies_states - energies_parents).pow(2)
+        
+        term_loss = per_node_loss[done].mean()
+        nonterm_loss = per_node_loss[~done].mean()
+        loss = per_node_loss.mean()
+
+        return loss, term_loss, nonterm_loss
+
     @torch.no_grad()
     def estimate_logprobs_data(
         self,
@@ -888,6 +956,8 @@ class GFlowNetAgent:
                     losses = self.trajectorybalance_loss(
                         it * self.ttsr + j, batch
                     )  # returns (opt loss, *metrics)
+                elif self.loss == "forwardlooking":
+                    losses = self.forwardlooking_loss(it * self.ttsr + j, batch)
                 else:
                     print("Unknown loss!")
                 # TODO: deal with this in a better way

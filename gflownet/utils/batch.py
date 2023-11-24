@@ -91,12 +91,14 @@ class Batch:
         self.states_policy = None
         self.parents_policy = None
         # Flags for available items
-        self.parents_available = True
+        self.parents_available = False
         self.parents_policy_available = False
         self.parents_all_available = False
         self.masks_forward_available = False
         self.masks_backward_available = False
         self.rewards_available = False
+        self.rewards_parents_available = False
+        self.rewards_source_available = False
 
     def __len__(self):
         return self.size
@@ -524,6 +526,16 @@ class Batch:
         else:
             return self.parents
 
+    def get_parents_indices(self):
+        if self.parents_available is False:
+            self._compute_parents()
+        return self.parents_indices
+
+    def get_parent_is_source(self):
+        if self.parents_available is False:
+            self._compute_parents()
+        return self.parents_indices == -1
+
     def _compute_parents(self):
         """
         Obtains the parent (single parent for each state) of all states in the batch.
@@ -539,18 +551,24 @@ class Batch:
         self.parents_available is set to True.
         """
         self.parents = []
+        self.parents_indices = []
         indices = []
         # Iterate over the trajectories to obtain the parents from the states
         for traj_idx, batch_indices in self.trajectories.items():
             # parent is source
             self.parents.append(self.envs[traj_idx].source)
+            # there's no source state in the batch
+            self.parents_indices.append(-1)
             # parent is not source
             # TODO: check if tensor and sort without iter
             self.parents.extend([self.states[idx] for idx in batch_indices[:-1]])
+            self.parents_indices.extend([idx for idx in batch_indices[:-1]])
             indices.extend(batch_indices)
         # Sort parents list in the same order as states
         # TODO: check if tensor and sort without iter
         self.parents = [self.parents[indices.index(idx)] for idx in range(len(self))]
+        self.parents_indices = tlong([self.parents_indices[indices.index(idx)] for idx in range(len(self))],
+                                        device=self.device)
         self.parents_available = True
 
     # TODO: consider converting directly from self.parents
@@ -835,30 +853,69 @@ class Batch:
         if self.rewards_available is False or force_recompute is True:
             self._compute_rewards()
         return self.rewards
-
+    
     def _compute_rewards(self):
         """
         Computes rewards for all self.states by first converting the states into proxy
-        format.
-
-        Returns
-        -------
-        rewards: torch.tensor
-            Tensor of rewards.
+        format. The result is stored in self.rewards as a torch.tensor
         """
         
         self.rewards = torch.zeros(len(self), dtype=self.float, device=self.device)
-        states_proxy_done = self.get_terminating_states(proxy=True)
         done = self.get_done()
         if self.non_terminal_rewards:
             self.rewards = self.env.proxy2reward(
                 self.env.proxy(self.states2proxy())
             ) 
         elif len(done) > 0:
+            states_proxy_done = self.get_terminating_states(proxy=True)
             self.rewards[done] = self.env.proxy2reward(
                 self.env.proxy(states_proxy_done)
             )
         self.rewards_available = True
+
+    def get_rewards_parents(self) -> TensorType["n_states"]:
+        """
+        Returns the rewards of all parents in the batch
+        """
+        if not self.rewards_parents_available:
+            self._compute_rewards_parents()
+        return self.rewards_parents
+
+    def _compute_rewards_parents(self):
+        """
+        Computes rewards of the self.parents by reusing rewards of the states (i.e. self.rewards).
+        Stores the result in self.rewards_parents 
+        """
+        state_rewards = self.get_rewards()
+        self.rewards_parents = torch.zeros_like(state_rewards)
+        parent_is_source = self.get_parent_is_source()
+        parent_indices = self.get_parents_indices()
+        self.rewards_parents[~parent_is_source] = self.rewards[parent_indices[~parent_is_source]]
+        rewards_source = self.get_rewards_source()
+        self.rewards_parents[parent_is_source] = rewards_source[parent_is_source]
+        self.rewards_parents_available = True
+
+    def get_rewards_source(self) -> TensorType["n_states"]:
+        """
+        Returns rewards of the corresponding source states for each state in the batch.
+        """
+        if not self.rewards_source_available:
+            self._compute_rewards_source()
+        return self.rewards_source
+    
+    def _compute_rewards_source(self):
+        """
+        Computes a tensor of length len(self.states) with rewards of the corresponding source states.
+        Stores the result in self.rewards_source
+        """
+        # This will not work if source is randomised
+        if not self.conditional:
+            source_proxy = self.env.state2proxy(self.env.source)
+            reward_source = self.env.proxy2reward(self.env.proxy(source_proxy))
+            self.rewards_source = reward_source.expand(len(self))
+        else:
+            raise NotImplementedError
+        self.rewards_source_available = True
 
     def get_terminating_states(
         self,
