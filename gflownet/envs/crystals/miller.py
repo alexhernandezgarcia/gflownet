@@ -61,7 +61,7 @@ class MillerIndices(Grid):
         # on the mask to ensure that the trajectory doesn't end in an invalid state.
         if self.is_hexagonal_rhombohedral:
             # Extract the miller indices from the state
-            h, k, l = self.state2oracle(state)
+            h, k, l = [self.cells[s] for s in state]
 
             # Enforce that the trajectory ends in a state satisfying -2 <= h + k.
             # This requirement won't be satisfied at the beginning of the trajectory
