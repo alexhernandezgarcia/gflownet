@@ -387,9 +387,6 @@ class Logger:
                 path = self.sf_ckpt_path.parent / stem
                 torch.save(state_flow.model.state_dict(), path)
 
-
-
-
     def log_time(self, times: dict, use_context: bool):
         if self.do.times:
             times = {"time_{}".format(k): v for k, v in times.items()}

@@ -1,7 +1,9 @@
+from abc import ABC, abstractmethod
+
 import torch
 from omegaconf import OmegaConf
 from torch import nn
-from abc import ABC, abstractmethod
+
 from gflownet.utils.common import set_device, set_float_precision
 
 
@@ -14,7 +16,7 @@ class ModelBase(ABC):
         self.input_dim = input_dim
         # Must be redefined in the children classes
         self.output_dim = None
-        
+
         # Optional base model
         self.base = base
 
@@ -90,13 +92,12 @@ class ModelBase(ABC):
             )
 
 
-
 class Policy(ModelBase):
     def __init__(self, config, env, device, float_precision, base=None):
         super().__init__(config, env.policy_input_dim, device, float_precision, base)
 
-        # Outputs 
-        
+        # Outputs
+
         self.fixed_output = torch.tensor(env.fixed_policy_output).to(
             dtype=self.float, device=self.device
         )
@@ -106,7 +107,6 @@ class Policy(ModelBase):
         self.output_dim = len(self.fixed_output)
 
         self.instantiate()
-
 
     def instantiate(self):
         if self.type == "fixed":

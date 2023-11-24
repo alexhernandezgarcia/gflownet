@@ -39,7 +39,7 @@ class Batch:
         env: Optional[GFlowNetEnv] = None,
         device: Union[str, torch.device] = "cpu",
         float_type: Union[int, torch.dtype] = 32,
-        non_terminal_rewards: bool = False
+        non_terminal_rewards: bool = False,
     ):
         """
         env : GFlowNetEnv
@@ -567,8 +567,10 @@ class Batch:
         # Sort parents list in the same order as states
         # TODO: check if tensor and sort without iter
         self.parents = [self.parents[indices.index(idx)] for idx in range(len(self))]
-        self.parents_indices = tlong([self.parents_indices[indices.index(idx)] for idx in range(len(self))],
-                                        device=self.device)
+        self.parents_indices = tlong(
+            [self.parents_indices[indices.index(idx)] for idx in range(len(self))],
+            device=self.device,
+        )
         self.parents_available = True
 
     # TODO: consider converting directly from self.parents
@@ -853,19 +855,17 @@ class Batch:
         if self.rewards_available is False or force_recompute is True:
             self._compute_rewards()
         return self.rewards
-    
+
     def _compute_rewards(self):
         """
         Computes rewards for all self.states by first converting the states into proxy
         format. The result is stored in self.rewards as a torch.tensor
         """
-        
+
         self.rewards = torch.zeros(len(self), dtype=self.float, device=self.device)
         done = self.get_done()
         if self.non_terminal_rewards:
-            self.rewards = self.env.proxy2reward(
-                self.env.proxy(self.states2proxy())
-            ) 
+            self.rewards = self.env.proxy2reward(self.env.proxy(self.states2proxy()))
         elif len(done) > 0:
             states_proxy_done = self.get_terminating_states(proxy=True)
             self.rewards[done] = self.env.proxy2reward(
@@ -884,13 +884,15 @@ class Batch:
     def _compute_rewards_parents(self):
         """
         Computes rewards of the self.parents by reusing rewards of the states (i.e. self.rewards).
-        Stores the result in self.rewards_parents 
+        Stores the result in self.rewards_parents
         """
         state_rewards = self.get_rewards()
         self.rewards_parents = torch.zeros_like(state_rewards)
         parent_is_source = self.get_parent_is_source()
         parent_indices = self.get_parents_indices()
-        self.rewards_parents[~parent_is_source] = self.rewards[parent_indices[~parent_is_source]]
+        self.rewards_parents[~parent_is_source] = self.rewards[
+            parent_indices[~parent_is_source]
+        ]
         rewards_source = self.get_rewards_source()
         self.rewards_parents[parent_is_source] = rewards_source[parent_is_source]
         self.rewards_parents_available = True
@@ -902,7 +904,7 @@ class Batch:
         if not self.rewards_source_available:
             self._compute_rewards_source()
         return self.rewards_source
-    
+
     def _compute_rewards_source(self):
         """
         Computes a tensor of length len(self.states) with rewards of the corresponding source states.

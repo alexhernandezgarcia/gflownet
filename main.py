@@ -68,7 +68,7 @@ def main(config):
             device=config.device,
             float_precision=config.float_precision,
             base=forward_policy,
-            )
+        )
     else:
         state_flow = None
 

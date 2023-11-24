@@ -17,7 +17,6 @@ from sklearn.preprocessing import StandardScaler
 from gflownet.envs.crystals.lattice_parameters import LatticeParameters
 from gflownet.proxy.crystals.lattice_parameters import PICKLE_PATH
 
-
 DATASET_PATH = (
     Path(__file__).parents[1] / "data" / "crystals" / "matbench_mp_e_form_lp_stats.csv"
 )

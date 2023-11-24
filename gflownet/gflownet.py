@@ -128,7 +128,7 @@ class GFlowNetAgent:
             print(f"\tStd score: {self.buffer.test['energies'].std()}")
             print(f"\tMin score: {self.buffer.test['energies'].min()}")
             print(f"\tMax score: {self.buffer.test['energies'].max()}")
-        
+
         # Models
         self.forward_policy = forward_policy
         if self.forward_policy.checkpoint is not None:
@@ -157,8 +157,8 @@ class GFlowNetAgent:
 
         self.state_flow = state_flow
         if self.state_flow is not None and self.state_flow.checkpoint is not None:
-           self.logger.set_state_flow_ckpt_path(self.state_flow.checkpoint)
-           # TODO: add the logic and conditions to reload a model
+            self.logger.set_state_flow_ckpt_path(self.state_flow.checkpoint)
+            # TODO: add the logic and conditions to reload a model
         else:
             self.logger.set_state_flow_ckpt_path(None)
 
@@ -202,7 +202,7 @@ class GFlowNetAgent:
             parameters += list(self.backward_policy.model.parameters())
         if self.state_flow is not None:
             if self.loss != "forwardlooking":
-               raise ValueError(f"State flow cannot be trained in {self.loss} loss.")
+                raise ValueError(f"State flow cannot be trained in {self.loss} loss.")
             parameters += list(self.state_flow.model.parameters())
         return parameters
 
@@ -424,12 +424,22 @@ class GFlowNetAgent:
             "actions_envs": 0.0,
         }
         t0_all = time.time()
-        batch = Batch(env=self.env, device=self.device, float_type=self.float, non_terminal_rewards=self.non_terminal_rewards)
+        batch = Batch(
+            env=self.env,
+            device=self.device,
+            float_type=self.float,
+            non_terminal_rewards=self.non_terminal_rewards,
+        )
 
         # ON-POLICY FORWARD trajectories
         t0_forward = time.time()
         envs = [self.env.copy().reset(idx) for idx in range(n_forward)]
-        batch_forward = Batch(env=self.env, device=self.device, float_type=self.float, non_terminal_rewards=self.non_terminal_rewards)
+        batch_forward = Batch(
+            env=self.env,
+            device=self.device,
+            float_type=self.float,
+            non_terminal_rewards=self.non_terminal_rewards,
+        )
         while envs:
             # Sample actions
             t0_a_envs = time.time()
@@ -451,7 +461,12 @@ class GFlowNetAgent:
         # TRAIN BACKWARD trajectories
         t0_train = time.time()
         envs = [self.env.copy().reset(idx) for idx in range(n_train)]
-        batch_train = Batch(env=self.env, device=self.device, float_type=self.float, non_terminal_rewards=self.non_terminal_rewards)
+        batch_train = Batch(
+            env=self.env,
+            device=self.device,
+            float_type=self.float,
+            non_terminal_rewards=self.non_terminal_rewards,
+        )
         if n_train > 0 and self.buffer.train_pkl is not None:
             with open(self.buffer.train_pkl, "rb") as f:
                 dict_tr = pickle.load(f)
@@ -482,7 +497,12 @@ class GFlowNetAgent:
 
         # REPLAY BACKWARD trajectories
         t0_replay = time.time()
-        batch_replay = Batch(env=self.env, device=self.device, float_type=self.float, non_terminal_rewards=self.non_terminal_rewards)
+        batch_replay = Batch(
+            env=self.env,
+            device=self.device,
+            float_type=self.float,
+            non_terminal_rewards=self.non_terminal_rewards,
+        )
         if n_replay > 0 and self.buffer.replay_pkl is not None:
             with open(self.buffer.replay_pkl, "rb") as f:
                 dict_replay = pickle.load(f)
@@ -720,18 +740,17 @@ class GFlowNetAgent:
         masks_b = batch.get_masks_backward()
         policy_output_b = self.backward_policy(states_policy)
         logprobs_bkw = self.env.get_logprobs(
-                policy_output_b, actions, masks_b, states, is_backward=True
-            )
+            policy_output_b, actions, masks_b, states, is_backward=True
+        )
         masks_f = batch.get_masks_forward(of_parents=True)
         policy_output_f = self.forward_policy(parents_policy)
         logprobs_fwd = self.env.get_logprobs(
-                policy_output_f, actions, masks_f, parents, is_backward=False
-            )
-        
+            policy_output_f, actions, masks_f, parents, is_backward=False
+        )
 
         states_log_flflow = self.state_flow(states_policy)
         # forward-looking flow is 1 in the terminal states
-        states_log_flflow[done.eq(1)] = 0.
+        states_log_flflow[done.eq(1)] = 0.0
         # Can be optimised by reusing states_log_flflow and batch.get_parent_indices
         parents_log_flflow = self.state_flow(parents_policy)
 
@@ -741,9 +760,15 @@ class GFlowNetAgent:
         energies_states = -torch.log(rewards_states)
         energies_parents = -torch.log(rewards_parents)
 
-        per_node_loss = (parents_log_flflow - states_log_flflow + logprobs_fwd - logprobs_bkw + 
-                         energies_states - energies_parents).pow(2)
-        
+        per_node_loss = (
+            parents_log_flflow
+            - states_log_flflow
+            + logprobs_fwd
+            - logprobs_bkw
+            + energies_states
+            - energies_parents
+        ).pow(2)
+
         term_loss = per_node_loss[done].mean()
         nonterm_loss = per_node_loss[~done].mean()
         loss = per_node_loss.mean()
@@ -840,7 +865,12 @@ class GFlowNetAgent:
         end_batch = min(batch_size, n_states)
         pbar = tqdm(total=n_states)
         while init_batch < n_states:
-            batch = Batch(env=self.env, device=self.device, float_type=self.float, non_terminal_rewards=self.non_terminal_rewards)
+            batch = Batch(
+                env=self.env,
+                device=self.device,
+                float_type=self.float,
+                non_terminal_rewards=self.non_terminal_rewards,
+            )
             # Create an environment for each data point and trajectory and set the state
             envs = []
             for state_idx in range(init_batch, end_batch):
@@ -939,7 +969,12 @@ class GFlowNetAgent:
                 self.logger.log_metrics(metrics, use_context=self.use_context, step=it)
                 self.logger.log_summary(summary)
             t0_iter = time.time()
-            batch = Batch(env=self.env, device=self.device, float_type=self.float, non_terminal_rewards=self.non_terminal_rewards)
+            batch = Batch(
+                env=self.env,
+                device=self.device,
+                float_type=self.float,
+                non_terminal_rewards=self.non_terminal_rewards,
+            )
             for j in range(self.sttr):
                 sub_batch, times = self.sample_batch(
                     n_forward=self.batch_size.forward,
@@ -1021,7 +1056,9 @@ class GFlowNetAgent:
             times.update({"log": t1_log - t0_log})
             # Save intermediate models
             t0_model = time.time()
-            self.logger.save_models(self.forward_policy, self.backward_policy, self.state_flow, step=it)
+            self.logger.save_models(
+                self.forward_policy, self.backward_policy, self.state_flow, step=it
+            )
             t1_model = time.time()
             times.update({"save_interim_model": t1_model - t0_model})
 
@@ -1050,7 +1087,9 @@ class GFlowNetAgent:
             self.logger.log_time(times, use_context=self.use_context)
 
         # Save final model
-        self.logger.save_models(self.forward_policy, self.backward_policy, self.state_flow, final=True)
+        self.logger.save_models(
+            self.forward_policy, self.backward_policy, self.state_flow, final=True
+        )
         # Close logger
         if self.use_context is False:
             self.logger.end()
@@ -1225,7 +1264,12 @@ class GFlowNetAgent:
         print()
         if not gfn_states:
             # sample states from the current gfn
-            batch = Batch(env=self.env, device=self.device, float_type=self.float, non_terminal_rewards=self.non_terminal_rewards)
+            batch = Batch(
+                env=self.env,
+                device=self.device,
+                float_type=self.float,
+                non_terminal_rewards=self.non_terminal_rewards,
+            )
             self.random_action_prob = 0
             t = time.time()
             print("Sampling from GFN...", end="\r")
@@ -1248,7 +1292,12 @@ class GFlowNetAgent:
         if do_random:
             # sample random states from uniform actions
             if not random_states:
-                batch = Batch(env=self.env, device=self.device, float_type=self.float, non_terminal_rewards=self.non_terminal_rewards)
+                batch = Batch(
+                    env=self.env,
+                    device=self.device,
+                    float_type=self.float,
+                    non_terminal_rewards=self.non_terminal_rewards,
+                )
                 self.random_action_prob = 1.0
                 print("[test_top_k] Sampling at random...", end="\r")
                 for b in batch_with_rest(
