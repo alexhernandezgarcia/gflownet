@@ -525,7 +525,7 @@ class Batch:
 
     def get_parents_indices(self):
         """
-        Returns indices of the parents of the states in the batch. 
+        Returns indices of the parents of the states in the batch.
         Each index corresponds to the position of the patent in the self.states tensor, if it is peresent there.
         If a parent is not present in self.states (i.e. it is source), the corresponding index is -1
         """
@@ -544,8 +544,8 @@ class Batch:
           as self.states (list of lists or tensor)
             Length: n_states
             Shape: [n_states, state_dims]
-        - self.parents_indices: the position of each parent in self.states tensor. 
-          If a parent is not present in self.states (i.e. it is source), the corresponding index is -1 
+        - self.parents_indices: the position of each parent in self.states tensor.
+          If a parent is not present in self.states (i.e. it is source), the corresponding index is -1
 
         self.parents_available is set to True.
         """
@@ -898,7 +898,7 @@ class Batch:
         Computes rewards of the self.parents by reusing rewards of the states (i.e. self.rewards).
         Stores the result in self.rewards_parents
         """
-        # TODO: this may return zero rewards for all parents if before  
+        # TODO: this may return zero rewards for all parents if before
         # rewards for states were computed with do_non_terminating=False
         state_rewards = self.get_rewards(do_non_terminating=True)
         self.rewards_parents = torch.zeros_like(state_rewards)

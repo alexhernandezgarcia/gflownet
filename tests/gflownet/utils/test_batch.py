@@ -71,6 +71,7 @@ def corners():
 def tetris_score():
     return TetrisScore(device="cpu", float_precision=32, normalize=False)
 
+
 @pytest.fixture()
 def tetris_score_norm():
     return TetrisScore(device="cpu", float_precision=32, normalize=True)
@@ -1330,13 +1331,16 @@ def test__make_indices_consecutive__multiplied_indices_become_consecutive(
         traj_indices_batch, tlong(traj_indices_consecutive, device=batch.device)
     )
 
+
 @pytest.mark.repeat(N_REPETITIONS)
 @pytest.mark.parametrize(
     "env, proxy",
     [("grid2d", "corners"), ("tetris6x4", "tetris_score"), ("ctorus2d5l", "corners")],
 )
 # @pytest.mark.skip(reason="skip while developping other tests")
-def test__get_rewards__single_env_returns_expected_non_terminal(env, proxy, batch, request):
+def test__get_rewards__single_env_returns_expected_non_terminal(
+    env, proxy, batch, request
+):
     env = request.getfixturevalue(env)
     proxy = request.getfixturevalue(proxy)
     env = env.reset()
@@ -1367,14 +1371,16 @@ def test__get_rewards__single_env_returns_expected_non_terminal(env, proxy, batc
     "env, proxy",
     [("grid2d", "corners"), ("tetris6x4", "tetris_score_norm")],
 )
-def test__get_rewards_multiple_env_returns_expected_non_zero_non_terminal(env, proxy, batch, request):
+def test__get_rewards_multiple_env_returns_expected_non_zero_non_terminal(
+    env, proxy, batch, request
+):
     batch_size = BATCH_SIZE
     env_ref = request.getfixturevalue(env)
     proxy = request.getfixturevalue(proxy)
     env_ref = env_ref.reset()
     env_ref.proxy = proxy
     env_ref.setup_proxy()
-    env_ref.reward_func = 'boltzmann'
+    env_ref.reward_func = "boltzmann"
 
     batch.set_env(env_ref)
 
@@ -1386,7 +1392,6 @@ def test__get_rewards_multiple_env_returns_expected_non_zero_non_terminal(env, p
 
     rewards = []
     proxy_values = []
-
 
     # Iterate until envs is empty
     while envs:
@@ -1414,15 +1419,24 @@ def test__get_rewards_multiple_env_returns_expected_non_zero_non_terminal(env, p
         rewards_batch,
         tfloat(rewards, device=batch.device, float_type=batch.float),
     ), (rewards, rewards_batch)
-    assert ~torch.any(torch.isclose(rewards_batch, torch.zeros_like(rewards_batch))), rewards_batch
+    assert ~torch.any(
+        torch.isclose(rewards_batch, torch.zeros_like(rewards_batch))
+    ), rewards_batch
+
 
 @pytest.mark.repeat(N_REPETITIONS)
 # @pytest.mark.skip(reason="skip while developping other tests")
 @pytest.mark.parametrize(
     "env, proxy",
-    [("grid2d", "corners"), ("tetris6x4", "tetris_score_norm"), ("ctorus2d5l", "corners")],
+    [
+        ("grid2d", "corners"),
+        ("tetris6x4", "tetris_score_norm"),
+        ("ctorus2d5l", "corners"),
+    ],
 )
-def test__get_rewards_parents_multiple_env_returns_expected_non_terminal(env, proxy, batch, request):
+def test__get_rewards_parents_multiple_env_returns_expected_non_terminal(
+    env, proxy, batch, request
+):
     batch_size = BATCH_SIZE
     env_ref = request.getfixturevalue(env)
     proxy = request.getfixturevalue(proxy)
@@ -1456,7 +1470,9 @@ def test__get_rewards_parents_multiple_env_returns_expected_non_terminal(env, pr
                 # Add to iter lists
                 actions_iter.append(action)
                 valids_iter.append(valid)
-                rewards_parents.append(env.reward(state=parent, done=done_parent, do_non_terminating=True))
+                rewards_parents.append(
+                    env.reward(state=parent, done=done_parent, do_non_terminating=True)
+                )
                 rewards.append(env.reward(do_non_terminating=True))
         # Add all envs, actions and valids to batch
         batch.add_to_batch(envs, actions_iter, valids_iter)
