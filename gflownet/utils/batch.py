@@ -39,7 +39,6 @@ class Batch:
         env: Optional[GFlowNetEnv] = None,
         device: Union[str, torch.device] = "cpu",
         float_type: Union[int, torch.dtype] = 32,
-        non_terminal_rewards: bool = False,
     ):
         """
         env : GFlowNetEnv
@@ -57,8 +56,6 @@ class Batch:
         self.device = set_device(device)
         # Float precision
         self.float = set_float_precision(float_type)
-        # Whether rewards should be computed for non-terminal states
-        self.non_terminal_rewards = non_terminal_rewards
         # Generic environment, properties and dictionary of state and forward mask of
         # source (as tensor)
         if env is not None:
@@ -837,7 +834,9 @@ class Batch:
         self.masks_backward_available = True
 
     def get_rewards(
-        self, force_recompute: Optional[bool] = False
+        self,
+        force_recompute: Optional[bool] = False,
+        do_non_terminating: Optional[bool] = False,
     ) -> TensorType["n_states"]:
         """
         Returns the rewards of all states in the batch (including not done).
@@ -846,26 +845,37 @@ class Batch:
         ----
         force_recompute : bool
             If True, the rewards are recomputed even if they are available.
+
+        do_non_terminating : bool
+            If True, compute the rewards of the non-terminating states instead of
+            assigning reward 0.
         """
         if self.rewards_available is False or force_recompute is True:
-            self._compute_rewards()
+            self._compute_rewards(do_non_terminating)
         return self.rewards
 
-    def _compute_rewards(self):
+    def _compute_rewards(self, do_non_terminating: Optional[bool] = False):
         """
         Computes rewards for all self.states by first converting the states into proxy
         format. The result is stored in self.rewards as a torch.tensor
+
+        Args
+        ----
+        do_non_terminating : bool
+            If True, compute the rewards of the non-terminating states instead of
+            assigning reward 0.
         """
 
-        self.rewards = torch.zeros(len(self), dtype=self.float, device=self.device)
-        done = self.get_done()
-        if self.non_terminal_rewards:
+        if do_non_terminating:
             self.rewards = self.env.proxy2reward(self.env.proxy(self.states2proxy()))
-        elif len(done) > 0:
-            states_proxy_done = self.get_terminating_states(proxy=True)
-            self.rewards[done] = self.env.proxy2reward(
-                self.env.proxy(states_proxy_done)
-            )
+        else:
+            self.rewards = torch.zeros(len(self), dtype=self.float, device=self.device)
+            done = self.get_done()
+            if len(done) > 0:
+                states_proxy_done = self.get_terminating_states(proxy=True)
+                self.rewards[done] = self.env.proxy2reward(
+                    self.env.proxy(states_proxy_done)
+                )
         self.rewards_available = True
 
     def get_rewards_parents(self) -> TensorType["n_states"]:
