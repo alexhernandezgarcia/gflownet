@@ -732,7 +732,7 @@ class GFlowNetAgent:
         parents_log_flflow = self.state_flow(parents_policy)
 
         rewards_states = batch.get_rewards(do_non_terminating=True)
-        rewards_parents = batch.get_rewards_parents()
+        rewards_parents = batch.get_rewards_parents(do_non_terminating=True)
         energies_states = -torch.log(rewards_states)
         energies_parents = -torch.log(rewards_parents)
 

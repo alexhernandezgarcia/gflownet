@@ -524,13 +524,18 @@ class Batch:
             return self.parents
 
     def get_parents_indices(self):
+        """
+        Returns indices of the parents of the states in the batch. 
+        Each index corresponds to the position of the patent in the self.states tensor, if it is peresent there.
+        If a parent is not present in self.states (i.e. it is source), the corresponding index is -1
+        """
         if self.parents_available is False:
             self._compute_parents()
         return self.parents_indices
 
     def _compute_parents(self):
         """
-        Obtains the parent (single parent for each state) of all states in the batch.
+        Obtains the parent (single parent for each state) of all states in the batch and its index.
         The parents are computed, obtaining all necessary components, if they are not
         readily available. Missing components and newly computed components are added
         to the batch (self.component is set). The following variable is stored:
@@ -539,6 +544,8 @@ class Batch:
           as self.states (list of lists or tensor)
             Length: n_states
             Shape: [n_states, state_dims]
+        - self.parents_indices: the position of each parent in self.states tensor. 
+          If a parent is not present in self.states (i.e. it is source), the corresponding index is -1 
 
         self.parents_available is set to True.
         """
@@ -878,20 +885,32 @@ class Batch:
                 )
         self.rewards_available = True
 
-    def get_rewards_parents(self) -> TensorType["n_states"]:
+    def get_rewards_parents(self, do_non_terminating=False) -> TensorType["n_states"]:
         """
         Returns the rewards of all parents in the batch
+
+        Args
+        ----
+        do_non_terminating : bool
+            If True, compute the rewards of the non-terminating states instead of
+            assigning reward 0.
         """
         if not self.rewards_parents_available:
-            self._compute_rewards_parents()
+            self._compute_rewards_parents(do_non_terminating=do_non_terminating)
         return self.rewards_parents
 
-    def _compute_rewards_parents(self):
+    def _compute_rewards_parents(self, do_non_terminating=False):
         """
         Computes rewards of the self.parents by reusing rewards of the states (i.e. self.rewards).
         Stores the result in self.rewards_parents
+
+        Args
+        ----
+        do_non_terminating : bool
+            If True, compute the rewards of the non-terminating states instead of
+            assigning reward 0.
         """
-        state_rewards = self.get_rewards()
+        state_rewards = self.get_rewards(do_non_terminating=do_non_terminating)
         self.rewards_parents = torch.zeros_like(state_rewards)
         parent_indices = self.get_parents_indices()
         parent_is_source = parent_indices == -1

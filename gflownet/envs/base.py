@@ -780,13 +780,13 @@ class GFlowNetEnv:
         """
         return str(traj).replace("(", "[").replace(")", "]").replace(",", "")
 
-    def reward(self, state=None, done=None):
+    def reward(self, state=None, done=None, do_non_terminating=False):
         """
         Computes the reward of a state
         """
         state = self._get_state(state)
         done = self._get_done(done)
-        if done is False:
+        if done is False and do_non_terminating is False:
             return tfloat(0.0, float_type=self.float, device=self.device)
         return self.proxy2reward(self.proxy(self.state2proxy(state))[0])
 
