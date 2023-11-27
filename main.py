@@ -60,10 +60,10 @@ def main(config):
         float_precision=config.float_precision,
         base=forward_policy,
     )
-
-    if config.gflownet.optimizer.loss in ["forwardlooking", "fl"]:
+    # State flow
+    if config.gflownet.state_flow is not None:
         state_flow = hydra.utils.instantiate(
-            config.state_flow,
+            config.gflownet.state_flow,
             env=env,
             device=config.device,
             float_precision=config.float_precision,
@@ -71,7 +71,7 @@ def main(config):
         )
     else:
         state_flow = None
-
+    # GFlowNet Agent
     gflownet = hydra.utils.instantiate(
         config.gflownet,
         device=config.device,
@@ -83,6 +83,8 @@ def main(config):
         buffer=config.env.buffer,
         logger=logger,
     )
+
+    # Train GFlowNet
     gflownet.train()
 
     # Sample from trained GFlowNet
