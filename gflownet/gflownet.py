@@ -195,7 +195,7 @@ class GFlowNetAgent:
         parameters = list(self.forward_policy.model.parameters())
         if self.backward_policy.is_model:
             if self.loss == "flowmatch":
-                raise ValueError("Backward Policy cannot be a nn in flowmatch.")
+                raise ValueError("Backward Policy cannot be a model in flowmatch.")
             parameters += list(self.backward_policy.model.parameters())
         if self.state_flow is not None:
             if self.loss != "forwardlooking":
