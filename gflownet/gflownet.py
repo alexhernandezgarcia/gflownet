@@ -725,11 +725,11 @@ class GFlowNetAgent:
             policy_output_f, actions, masks_f, parents, is_backward=False
         )
 
-        states_log_flflow = self.state_flow(states_policy)
+        states_log_flflow = self.state_flow(states_policy).squeeze()
         # forward-looking flow is 1 in the terminal states
         states_log_flflow[done.eq(1)] = 0.0
         # Can be optimised by reusing states_log_flflow and batch.get_parent_indices
-        parents_log_flflow = self.state_flow(parents_policy)
+        parents_log_flflow = self.state_flow(parents_policy).squeeze()
 
         rewards_states = batch.get_rewards(do_non_terminating=True)
         rewards_parents = batch.get_rewards_parents()
