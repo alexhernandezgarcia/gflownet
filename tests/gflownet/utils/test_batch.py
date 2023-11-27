@@ -1463,7 +1463,7 @@ def test__get_rewards_parents_multiple_env_returns_expected_non_terminal(env, pr
         # Remove done envs
         envs = [env for env in envs if not env.done]
 
-    rewards_parents_batch = batch.get_rewards_parents(do_non_terminating=True)
+    rewards_parents_batch = batch.get_rewards_parents()
     rewards_parents = torch.stack(rewards_parents)
 
     rewards_batch = batch.get_rewards(do_non_terminating=True)

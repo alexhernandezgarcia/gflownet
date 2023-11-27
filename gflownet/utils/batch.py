@@ -885,32 +885,22 @@ class Batch:
                 )
         self.rewards_available = True
 
-    def get_rewards_parents(self, do_non_terminating=False) -> TensorType["n_states"]:
+    def get_rewards_parents(self) -> TensorType["n_states"]:
         """
         Returns the rewards of all parents in the batch
-
-        Args
-        ----
-        do_non_terminating : bool
-            If True, compute the rewards of the non-terminating states instead of
-            assigning reward 0.
         """
         if not self.rewards_parents_available:
-            self._compute_rewards_parents(do_non_terminating=do_non_terminating)
+            self._compute_rewards_parents()
         return self.rewards_parents
 
-    def _compute_rewards_parents(self, do_non_terminating=False):
+    def _compute_rewards_parents(self):
         """
         Computes rewards of the self.parents by reusing rewards of the states (i.e. self.rewards).
         Stores the result in self.rewards_parents
-
-        Args
-        ----
-        do_non_terminating : bool
-            If True, compute the rewards of the non-terminating states instead of
-            assigning reward 0.
         """
-        state_rewards = self.get_rewards(do_non_terminating=do_non_terminating)
+        # TODO: this may return zero rewards for all parents if before  
+        # rewards for states were computed with do_non_terminating=False
+        state_rewards = self.get_rewards(do_non_terminating=True)
         self.rewards_parents = torch.zeros_like(state_rewards)
         parent_indices = self.get_parents_indices()
         parent_is_source = parent_indices == -1
