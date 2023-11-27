@@ -531,11 +531,6 @@ class Batch:
             self._compute_parents()
         return self.parents_indices
 
-    def get_parent_is_source(self):
-        if self.parents_available is False:
-            self._compute_parents()
-        return self.parents_indices == -1
-
     def _compute_parents(self):
         """
         Obtains the parent (single parent for each state) of all states in the batch.
@@ -888,8 +883,8 @@ class Batch:
         """
         state_rewards = self.get_rewards()
         self.rewards_parents = torch.zeros_like(state_rewards)
-        parent_is_source = self.get_parent_is_source()
         parent_indices = self.get_parents_indices()
+        parent_is_source = parent_indices == -1
         self.rewards_parents[~parent_is_source] = self.rewards[
             parent_indices[~parent_is_source]
         ]
