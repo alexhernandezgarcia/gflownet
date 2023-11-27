@@ -25,3 +25,9 @@ class StateFlow(ModelBase):
             self.is_model = True
         else:
             raise "StateFlow model type not defined"
+
+    def __call__(self, states):
+        """
+        Returns a tensor of the state flows of the shape (batch_size, )
+        """
+        return super().__call__(states).squeeze()
