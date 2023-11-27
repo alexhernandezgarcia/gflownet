@@ -554,7 +554,7 @@ class Batch:
             # parent is not source
             # TODO: check if tensor and sort without iter
             self.parents.extend([self.states[idx] for idx in batch_indices[:-1]])
-            self.parents_indices.extend([idx for idx in batch_indices[:-1]])
+            self.parents_indices.extend(batch_indices[:-1])
             indices.extend(batch_indices)
         # Sort parents list in the same order as states
         # TODO: check if tensor and sort without iter
