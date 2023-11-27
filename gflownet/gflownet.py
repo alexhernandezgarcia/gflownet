@@ -421,20 +421,12 @@ class GFlowNetAgent:
             "actions_envs": 0.0,
         }
         t0_all = time.time()
-        batch = Batch(
-            env=self.env,
-            device=self.device,
-            float_type=self.float,
-        )
+        batch = Batch(env=self.env, device=self.device, float_type=self.float)
 
         # ON-POLICY FORWARD trajectories
         t0_forward = time.time()
         envs = [self.env.copy().reset(idx) for idx in range(n_forward)]
-        batch_forward = Batch(
-            env=self.env,
-            device=self.device,
-            float_type=self.float,
-        )
+        batch_forward = Batch(env=self.env, device=self.device, float_type=self.float)
         while envs:
             # Sample actions
             t0_a_envs = time.time()
@@ -456,11 +448,7 @@ class GFlowNetAgent:
         # TRAIN BACKWARD trajectories
         t0_train = time.time()
         envs = [self.env.copy().reset(idx) for idx in range(n_train)]
-        batch_train = Batch(
-            env=self.env,
-            device=self.device,
-            float_type=self.float,
-        )
+        batch_train = Batch(env=self.env, device=self.device, float_type=self.float)
         if n_train > 0 and self.buffer.train_pkl is not None:
             with open(self.buffer.train_pkl, "rb") as f:
                 dict_tr = pickle.load(f)
@@ -491,11 +479,7 @@ class GFlowNetAgent:
 
         # REPLAY BACKWARD trajectories
         t0_replay = time.time()
-        batch_replay = Batch(
-            env=self.env,
-            device=self.device,
-            float_type=self.float,
-        )
+        batch_replay = Batch(env=self.env, device=self.device, float_type=self.float)
         if n_replay > 0 and self.buffer.replay_pkl is not None:
             with open(self.buffer.replay_pkl, "rb") as f:
                 dict_replay = pickle.load(f)
@@ -857,11 +841,7 @@ class GFlowNetAgent:
         end_batch = min(batch_size, n_states)
         pbar = tqdm(total=n_states)
         while init_batch < n_states:
-            batch = Batch(
-                env=self.env,
-                device=self.device,
-                float_type=self.float,
-            )
+            batch = Batch(env=self.env, device=self.device, float_type=self.float)
             # Create an environment for each data point and trajectory and set the state
             envs = []
             for state_idx in range(init_batch, end_batch):
@@ -960,11 +940,7 @@ class GFlowNetAgent:
                 self.logger.log_metrics(metrics, use_context=self.use_context, step=it)
                 self.logger.log_summary(summary)
             t0_iter = time.time()
-            batch = Batch(
-                env=self.env,
-                device=self.device,
-                float_type=self.float,
-            )
+            batch = Batch(env=self.env, device=self.device, float_type=self.float)
             for j in range(self.sttr):
                 sub_batch, times = self.sample_batch(
                     n_forward=self.batch_size.forward,
@@ -1254,11 +1230,7 @@ class GFlowNetAgent:
         print()
         if not gfn_states:
             # sample states from the current gfn
-            batch = Batch(
-                env=self.env,
-                device=self.device,
-                float_type=self.float,
-            )
+            batch = Batch(env=self.env, device=self.device, float_type=self.float)
             self.random_action_prob = 0
             t = time.time()
             print("Sampling from GFN...", end="\r")
@@ -1281,11 +1253,7 @@ class GFlowNetAgent:
         if do_random:
             # sample random states from uniform actions
             if not random_states:
-                batch = Batch(
-                    env=self.env,
-                    device=self.device,
-                    float_type=self.float,
-                )
+                batch = Batch(env=self.env, device=self.device, float_type=self.float)
                 self.random_action_prob = 1.0
                 print("[test_top_k] Sampling at random...", end="\r")
                 for b in batch_with_rest(
