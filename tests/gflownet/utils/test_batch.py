@@ -1338,7 +1338,7 @@ def test__make_indices_consecutive__multiplied_indices_become_consecutive(
     [("grid2d", "corners"), ("tetris6x4", "tetris_score"), ("ctorus2d5l", "corners")],
 )
 # @pytest.mark.skip(reason="skip while developping other tests")
-def test__get_rewards__single_env_returns_expected_non_terminal(
+def test__get_rewards__single_env_returns_expected_non_terminating(
     env, proxy, batch, request
 ):
     env = request.getfixturevalue(env)
@@ -1371,7 +1371,7 @@ def test__get_rewards__single_env_returns_expected_non_terminal(
     "env, proxy",
     [("grid2d", "corners"), ("tetris6x4", "tetris_score_norm")],
 )
-def test__get_rewards_multiple_env_returns_expected_non_zero_non_terminal(
+def test__get_rewards_multiple_env_returns_expected_non_zero_non_terminating(
     env, proxy, batch, request
 ):
     batch_size = BATCH_SIZE
@@ -1434,7 +1434,7 @@ def test__get_rewards_multiple_env_returns_expected_non_zero_non_terminal(
         ("ctorus2d5l", "corners"),
     ],
 )
-def test__get_rewards_parents_multiple_env_returns_expected_non_terminal(
+def test__get_rewards_parents_multiple_env_returns_expected_non_terminating(
     env, proxy, batch, request
 ):
     batch_size = BATCH_SIZE
