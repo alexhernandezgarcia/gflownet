@@ -199,10 +199,10 @@ class GFlowNetAgent:
             parameters += list(self.backward_policy.model.parameters())
         if self.state_flow is not None:
             if self.loss != "forwardlooking":
-                raise ValueError(f"State flow cannot be trained in {self.loss} loss.")
+                raise ValueError(f"State flow cannot be trained with {self.loss} loss.")
             parameters += list(self.state_flow.model.parameters())
         return parameters
-                raise ValueError(f"State flow cannot be trained with {self.loss} loss.")
+
     def sample_actions(
         self,
         envs: List[GFlowNetEnv],
