@@ -891,7 +891,7 @@ class Batch:
         Computes rewards of the self.parents by reusing rewards of the states (i.e. self.rewards).
         Stores the result in self.rewards_parents
         """
-        state_rewards = self.get_rewards()
+        state_rewards = self.get_rewards(do_non_terminating=True)
         self.rewards_parents = torch.zeros_like(state_rewards)
         parent_indices = self.get_parents_indices()
         parent_is_source = parent_indices == -1
