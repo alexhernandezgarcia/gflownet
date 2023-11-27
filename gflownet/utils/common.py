@@ -94,13 +94,16 @@ def resolve_path(path: str) -> Path:
     return Path(expandvars(str(path))).expanduser().resolve()
 
 
-def find_latest_checkpoint(ckpt_dir, pattern):
-    final = list(ckpt_dir.glob(f"{pattern}*final*"))
+def find_latest_checkpoint(ckpt_dir, ckpt_name):
+    ckpt_name = Path(ckpt_name).stem
+    final = list(ckpt_dir.glob(f"{ckpt_name}*final*"))
     if len(final) > 0:
         return final[0]
-    ckpts = list(ckpt_dir.glob(f"{pattern}*"))
+    ckpts = list(ckpt_dir.glob(f"{ckpt_name}*"))
     if not ckpts:
-        raise ValueError(f"No checkpoints found in {ckpt_dir} with pattern {pattern}")
+        raise ValueError(
+            f"No final checkpoints found in {ckpt_dir} with pattern {ckpt_name}*final*"
+        )
     return sorted(ckpts, key=lambda f: float(f.stem.split("iter")[1]))[-1]
 
 
@@ -175,12 +178,12 @@ def load_gflow_net_from_run_path(
     # -------------------------------
 
     ckpt = [f for f in run_path.rglob(config.logger.logdir.ckpts) if f.is_dir()][0]
-    forward_final = find_latest_checkpoint(ckpt, "pf")
+    forward_final = find_latest_checkpoint(ckpt, config.policy.forward.checkpoint)
     gflownet.forward_policy.model.load_state_dict(
         torch.load(forward_final, map_location=set_device(device))
     )
     try:
-        backward_final = find_latest_checkpoint(ckpt, "pb")
+        backward_final = find_latest_checkpoint(ckpt, config.policy.backward.checkpoint)
         gflownet.backward_policy.model.load_state_dict(
             torch.load(backward_final, map_location=set_device(device))
         )

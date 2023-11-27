@@ -217,9 +217,6 @@ class Buffer:
                         f", but only {n_samples_new} are valid according to the "
                         "environment settings. Invalid samples have been discarded."
                     )
-                n_max = 100
-                samples = samples[:n_max]
-                print(f"Only the first {n_max} samples will be kept in the data.")
                 print("Remember to write a function to normalise the data in code")
                 print("Max number of elements in data set has to match config")
                 print("Actually, write a function that contrasts the stats")
