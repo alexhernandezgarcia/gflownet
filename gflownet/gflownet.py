@@ -202,7 +202,7 @@ class GFlowNetAgent:
                 raise ValueError(f"State flow cannot be trained in {self.loss} loss.")
             parameters += list(self.state_flow.model.parameters())
         return parameters
-
+                raise ValueError(f"State flow cannot be trained with {self.loss} loss.")
     def sample_actions(
         self,
         envs: List[GFlowNetEnv],
