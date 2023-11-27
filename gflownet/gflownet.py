@@ -77,15 +77,12 @@ class GFlowNetAgent:
         if optimizer.loss in ["flowmatch", "flowmatching"]:
             self.loss = "flowmatch"
             self.logZ = None
-            self.non_terminal_rewards = False
         elif optimizer.loss in ["trajectorybalance", "tb"]:
             self.loss = "trajectorybalance"
             self.logZ = nn.Parameter(torch.ones(optimizer.z_dim) * 150.0 / 64)
-            self.non_terminal_rewards = False
         elif optimizer.loss in ["forwardlooking", "fl"]:
             self.loss = "forwardlooking"
             self.logZ = None
-            self.non_terminal_rewards = True
         else:
             print("Unkown loss. Using flowmatch as default")
             self.loss = "flowmatch"
@@ -428,7 +425,6 @@ class GFlowNetAgent:
             env=self.env,
             device=self.device,
             float_type=self.float,
-            non_terminal_rewards=self.non_terminal_rewards,
         )
 
         # ON-POLICY FORWARD trajectories
@@ -438,7 +434,6 @@ class GFlowNetAgent:
             env=self.env,
             device=self.device,
             float_type=self.float,
-            non_terminal_rewards=self.non_terminal_rewards,
         )
         while envs:
             # Sample actions
@@ -465,7 +460,6 @@ class GFlowNetAgent:
             env=self.env,
             device=self.device,
             float_type=self.float,
-            non_terminal_rewards=self.non_terminal_rewards,
         )
         if n_train > 0 and self.buffer.train_pkl is not None:
             with open(self.buffer.train_pkl, "rb") as f:
@@ -501,7 +495,6 @@ class GFlowNetAgent:
             env=self.env,
             device=self.device,
             float_type=self.float,
-            non_terminal_rewards=self.non_terminal_rewards,
         )
         if n_replay > 0 and self.buffer.replay_pkl is not None:
             with open(self.buffer.replay_pkl, "rb") as f:
@@ -754,8 +747,7 @@ class GFlowNetAgent:
         # Can be optimised by reusing states_log_flflow and batch.get_parent_indices
         parents_log_flflow = self.state_flow(parents_policy)
 
-        assert batch.non_terminal_rewards
-        rewards_states = batch.get_rewards()
+        rewards_states = batch.get_rewards(do_non_terminating=True)
         rewards_parents = batch.get_rewards_parents()
         energies_states = -torch.log(rewards_states)
         energies_parents = -torch.log(rewards_parents)
@@ -869,7 +861,6 @@ class GFlowNetAgent:
                 env=self.env,
                 device=self.device,
                 float_type=self.float,
-                non_terminal_rewards=self.non_terminal_rewards,
             )
             # Create an environment for each data point and trajectory and set the state
             envs = []
@@ -973,7 +964,6 @@ class GFlowNetAgent:
                 env=self.env,
                 device=self.device,
                 float_type=self.float,
-                non_terminal_rewards=self.non_terminal_rewards,
             )
             for j in range(self.sttr):
                 sub_batch, times = self.sample_batch(
@@ -1268,7 +1258,6 @@ class GFlowNetAgent:
                 env=self.env,
                 device=self.device,
                 float_type=self.float,
-                non_terminal_rewards=self.non_terminal_rewards,
             )
             self.random_action_prob = 0
             t = time.time()
@@ -1296,7 +1285,6 @@ class GFlowNetAgent:
                     env=self.env,
                     device=self.device,
                     float_type=self.float,
-                    non_terminal_rewards=self.non_terminal_rewards,
                 )
                 self.random_action_prob = 1.0
                 print("[test_top_k] Sampling at random...", end="\r")
