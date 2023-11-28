@@ -3,6 +3,7 @@ import pytest
 import torch
 
 from gflownet.envs.grid import Grid
+from gflownet.utils.common import tfloat
 
 
 @pytest.fixture
@@ -66,7 +67,10 @@ def config_path():
     ],
 )
 def test__state2proxy__returns_expected(env, state, state2proxy):
-    assert state2proxy == env.state2proxy(state)
+    assert torch.equal(
+        tfloat(state2proxy, device=env.device, float_type=env.float),
+        env.state2proxy(state),
+    )
 
 
 @pytest.mark.parametrize(
