@@ -419,7 +419,7 @@ class Composition(GFlowNetEnv):
         -------
         A tensor containing all the states in the batch.
         """
-        return self.statetorch2oracle(tlong(states, device=self.device))
+        return tlong(states, device=self.device)
 
     def state2readable(self, state=None):
         """

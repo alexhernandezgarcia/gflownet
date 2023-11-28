@@ -903,7 +903,7 @@ class CCrystal(GFlowNetEnv):
         states = tfloat(states, device=self.device, float_type=self.float)
         return torch.cat(
             [
-                subenv.states2oracle(self._get_states_of_subenv(states, stage))
+                subenv.states2proxy(self._get_states_of_subenv(states, stage))
                 for stage, subenv in self.subenvs.items()
             ],
             dim=1,
