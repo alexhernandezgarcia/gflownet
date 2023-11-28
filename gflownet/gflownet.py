@@ -808,10 +808,10 @@ class GFlowNetAgent:
             - logprobs_b
             + energies_transitions
         ).pow(2)
-        loss = per_node_loss.mean()
-        loss_terminating = per_node_loss[done].mean()
-        loss_intermediate = per_node_loss[~done].mean()
-        return loss, term_loss, nonterm_loss
+        loss = loss_all.mean()
+        loss_terminating = loss_all[done].mean()
+        loss_intermediate = loss_all[~done].mean()
+        return loss, loss_terminating, loss_intermediate
 
     @torch.no_grad()
     def estimate_logprobs_data(
