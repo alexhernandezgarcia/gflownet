@@ -736,10 +736,11 @@ class GFlowNetAgent:
         logflow_parents = self.state_flow(parents_policy).squeeze()
 
         # Detailed balance loss
-        loss = (
-            (logflow_parents + logprobs_f - logflow_states - logprobs_b).pow(2).mean()
-        )
-        return loss, loss, loss
+        loss_all = (logflow_parents + logprobs_f - logflow_states - logprobs_b).pow(2)
+        loss = loss_all.mean()
+        loss_terminating = loss_all[done].mean()
+        loss_intermediate = loss_all[~done].mean()
+        return loss, loss_terminating, loss_intermediate
 
     def forwardlooking_loss(self, it, batch):
         """
