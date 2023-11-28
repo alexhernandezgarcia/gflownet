@@ -730,10 +730,10 @@ class GFlowNetAgent:
         )
 
         # Get logflows
-        logflow_states = self.state_flow(states_policy).squeeze()
+        logflow_states = self.state_flow(states_policy)
         logflow_states[done.eq(1)] = torch.log(rewards)
         # TODO: Optimise by reusing logflow_states and batch.get_parent_indices
-        logflow_parents = self.state_flow(parents_policy).squeeze()
+        logflow_parents = self.state_flow(parents_policy)
 
         # Detailed balance loss
         loss_all = (logflow_parents + logprobs_f - logflow_states - logprobs_b).pow(2)
