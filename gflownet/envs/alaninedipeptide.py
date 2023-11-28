@@ -1,5 +1,5 @@
 from copy import deepcopy
-from typing import List, Tuple
+from typing import List, Tuple, Union
 
 import numpy as np
 import numpy.typing as npt
@@ -40,25 +40,34 @@ class AlanineDipeptide(ContinuousTorus):
             self.conformer.set_torsion_angle(ta, state[idx])
         return self.conformer
 
-    def statetorch2proxy(self, states: TensorType["batch", "state_dim"]) -> npt.NDArray:
+    # TODO: are the conversions to oracle relevant?
+    def states2proxy(
+        self, states: Union[List[List], TensorType["batch", "state_dim"]]
+    ) -> npt.NDArray:
         """
-        Prepares a batch of states in torch "GFlowNet format" for the oracle.
-        """
-        device = states.device
-        if device == torch.device("cpu"):
-            np_states = states.numpy()
-        else:
-            np_states = states.cpu().numpy()
-        return np_states[:, :-1]
-
-    def statebatch2proxy(self, states: List[List]) -> npt.NDArray:
-        """
-        Prepares a batch of states in "GFlowNet format" for the proxy: a tensor where
-        each state is a row of length n_dim with an angle in radians. The n_actions
+        Prepares a batch of states in "environment format" for the proxy: each state is
+        a vector of length n_dim where each value is an angle in radians. The n_actions
         item is removed.
-        """
-        return np.array(states)[:, :-1]
 
+        Important: this method returns a numpy array, unlike in most other
+        environments.
+
+        Args
+        ----
+        states : list or tensor
+            A batch of states in environment format, either as a list of states or as a
+            single tensor.
+
+        Returns
+        -------
+        A numpy array containing all the states in the batch.
+        """
+        if torch.is_tensor(states[0]):
+            return states.cpu().numpy()[:, :-1]
+        else:
+            return np.array(states)[:, :-1]
+
+    # TODO: need to keep?
     def statetorch2oracle(
         self, states: TensorType["batch", "state_dim"]
     ) -> List[Tuple[npt.NDArray, npt.NDArray]]:
@@ -73,6 +82,7 @@ class AlanineDipeptide(ContinuousTorus):
         result = self.statebatch2oracle(np_states)
         return result
 
+    # TODO: need to keep?
     def statebatch2oracle(
         self, states: List[List]
     ) -> List[Tuple[npt.NDArray, npt.NDArray]]:

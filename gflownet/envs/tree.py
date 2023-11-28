@@ -285,13 +285,11 @@ class Tree(GFlowNetEnv):
         # Conversions
         policy_format = policy_format.lower()
         if policy_format == "mlp":
-            self.state2policy = self.state2policy_mlp
-            self.statetorch2policy = self.statetorch2policy_mlp
+            self.states2policy = self.states2policy_mlp
         elif policy_format != "gnn":
             raise ValueError(
                 f"Unrecognized policy_format = {policy_format}, expected either 'mlp' or 'gnn'."
             )
-        self.statetorch2oracle = self.statetorch2policy
 
         super().__init__(
             fixed_distr_params=fixed_distr_params,
@@ -830,52 +828,25 @@ class Tree(GFlowNetEnv):
                 is_backward,
             )
 
-    def state2policy_mlp(
-        self, state: Optional[TensorType["state_dim"]] = None
-    ) -> TensorType["policy_input_dim"]:
-        """
-        Prepares a state in "GFlowNet format" for the policy model.
-        """
-        if state is None:
-            state = self.state.clone().detach()
-        return self.statetorch2policy_mlp(state.unsqueeze(0))[0]
-
-    def statetorch2policy_mlp(
-        self, states: TensorType["batch_size", "state_dim"]
+    def states2policy_mlp(
+        self,
+        states: Union[
+            List[TensorType["state_dim"]], TensorType["batch_size", "state_dim"]
+        ],
     ) -> TensorType["batch_size", "policy_input_dim"]:
         """
         Prepares a batch of states in torch "GFlowNet format" for an MLP policy model.
         It replaces the NaNs by -2s, removes the activity attribute, and explicitly
         appends the attribute vector of the active node (if present).
         """
+        if isinstance(states, list):
+            states = torch.stack(states)
         rows, cols = torch.where(states[:, :-1, Attribute.ACTIVE] == Status.ACTIVE)
         active_features = torch.full((states.shape[0], 1, 4), -2.0)
         active_features[rows] = states[rows, cols, : Attribute.ACTIVE].unsqueeze(1)
         states[states.isnan()] = -2
         states = torch.cat([states[:, :, : Attribute.ACTIVE], active_features], dim=1)
         return states.flatten(start_dim=1)
-
-    def policy2state(
-        self, policy: Optional[TensorType["policy_input_dim"]] = None
-    ) -> None:
-        """
-        Returns None to signal that the conversion is not reversible.
-        """
-        return None
-
-    def statebatch2proxy(
-        self, states: List[TensorType["state_dim"]]
-    ) -> TensorType["batch", "state_proxy_dim"]:
-        """
-        Prepares a batch of states in "GFlowNet format" for the proxy: simply
-        stacks the list of tensors and calls self.statetorch2proxy.
-
-        Args
-        ----
-        state : list
-        """
-        states = torch.stack(states)
-        return self.statetorch2proxy(states)
 
     def _attributes_to_readable(self, attributes: List) -> str:
         # Node type
