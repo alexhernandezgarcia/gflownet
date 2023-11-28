@@ -7,12 +7,12 @@ In the following, `$root` refers to the root of the current repository.
 ```sh
 usage: launch.py [-h] [--help-md] [--job_name JOB_NAME] [--outdir OUTDIR]
                  [--cpus_per_task CPUS_PER_TASK] [--mem MEM] [--gres GRES]
-                 [--partition PARTITION] [--modules MODULES]
+                 [--partition PARTITION] [--time TIME] [--modules MODULES]
                  [--conda_env CONDA_ENV] [--venv VENV] [--template TEMPLATE]
                  [--code_dir CODE_DIR] [--git_checkout GIT_CHECKOUT]
                  [--jobs JOBS] [--dry-run] [--verbose] [--force]
 
-optional arguments:
+options:
   -h, --help            show this help message and exit
   --help-md             Show an extended help message as markdown. Can be
                         useful to overwrite LAUNCH.md with `$ python
@@ -26,6 +26,9 @@ optional arguments:
   --gres GRES           gres per node (e.g. gpu:1). Defaults to gpu:1
   --partition PARTITION
                         slurm partition to use for the job. Defaults to long
+  --time TIME           wall clock time limit (e.g. 2-12:00:00). See:
+                        https://slurm.schedmd.com/sbatch.html#OPT_time
+                        Defaults to None
   --modules MODULES     string after 'module load'. Defaults to anaconda/3
                         cuda/11.3
   --conda_env CONDA_ENV
@@ -69,6 +72,7 @@ modules       : anaconda/3 cuda/11.3
 outdir        : $SCRATCH/gflownet/logs/slurm
 partition     : long
 template      : $root/mila/sbatch/template-conda.sh
+time          : None
 venv          : None
 verbose       : False
 ```

@@ -551,6 +551,21 @@ class SpaceGroup(GFlowNetEnv):
     def space_group_symbol(self) -> str:
         return self.get_space_group_symbol(self.state)
 
+    def get_space_group(self, state: List[int] = None) -> int:
+        """
+        Returns the index of the space group symbol given a state.
+        """
+        if state is None:
+            state = self.state
+        if state[self.sg_idx] != 0:
+            return state[self.sg_idx]
+        else:
+            return None
+
+    @property
+    def space_group(self) -> int:
+        return self.get_space_group(self.state)
+
     # TODO: Technically the crystal class could be determined from crystal-lattice
     # system + point symmetry
     def get_crystal_class(self, state: List[int] = None) -> str:
@@ -614,8 +629,6 @@ class SpaceGroup(GFlowNetEnv):
             removed from the list since they do not count towards the compatibility
             with a space group.
         """
-        if n_atoms is not None:
-            n_atoms = [n for n in n_atoms if n > 0]
         # Get compatibility with stoichiometry
         self.n_atoms_compatibility_dict = SpaceGroup.build_n_atoms_compatibility_dict(
             n_atoms, self.space_groups.keys()
@@ -650,7 +663,9 @@ class SpaceGroup(GFlowNetEnv):
         return len(space_groups) > 0
 
     @staticmethod
-    def build_n_atoms_compatibility_dict(n_atoms: List[int], space_groups: List[int]):
+    def build_n_atoms_compatibility_dict(
+        n_atoms: List[int], space_groups: Iterable[int]
+    ):
         """
         Obtains which space groups are compatible with the stoichiometry given as
         argument (n_atoms).
@@ -662,8 +677,9 @@ class SpaceGroup(GFlowNetEnv):
         Args
         ----
         n_atoms : list of int
-            A list of positive number of atoms for each element in a stoichiometry. If
-            None, all space groups will be marked as compatible.
+            A list of number of atoms for each element in a stoichiometry. 0s will be
+            removed from the list since they do not count towards the compatibility
+            with a space group. If None, all space groups will be marked as compatible.
 
         space_groups : list of int
             A list of space group international numbers, in [1, 230]
@@ -676,6 +692,7 @@ class SpaceGroup(GFlowNetEnv):
         """
         if n_atoms is None:
             return {sg: True for sg in space_groups}
+        n_atoms = [n for n in n_atoms if n > 0]
         assert all([n > 0 for n in n_atoms])
         assert all([sg > 0 and sg <= 230 for sg in space_groups])
         return {sg: space_group_check_compatible(sg, n_atoms) for sg in space_groups}
@@ -760,3 +777,12 @@ class SpaceGroup(GFlowNetEnv):
                 continue
             all_x.append(self._set_constrained_properties([0, 0, sg]))
         return all_x
+
+    def is_valid(self, x: List) -> bool:
+        """
+        Determines whether a state is valid, according to the attributes of the
+        environment.
+        """
+        if x[self.sg_idx] in self.space_groups:
+            return True
+        return False

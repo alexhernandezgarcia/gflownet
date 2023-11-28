@@ -200,13 +200,30 @@ class Buffer:
         """
         if config is None:
             return None, None
-        elif "path" in config and config.path is not None:
-            path = self.logger.logdir / Path("data") / config.path
-            df = pd.read_csv(path, index_col=0)
-            # TODO: check if state2readable transformation is required.
-            return df
-        elif "type" not in config:
+        print("\nConstructing data set ", end="")
+        if "type" not in config:
             return None, None
+        elif config.type == "pkl" and "path" in config:
+            print(f"from pickled file: {config.path}\n")
+            with open(config.path, "rb") as f:
+                data_dict = pickle.load(f)
+                samples = data_dict["x"]
+                n_samples_orig = len(samples)
+                print(f"The data set containts {n_samples_orig} samples", end="")
+                samples = self.env.process_data_set(samples)
+                n_samples_new = len(samples)
+                if n_samples_new != n_samples_orig:
+                    print(
+                        f", but only {n_samples_new} are valid according to the "
+                        "environment settings. Invalid samples have been discarded."
+                    )
+                print("Remember to write a function to normalise the data in code")
+                print("Max number of elements in data set has to match config")
+                print("Actually, write a function that contrasts the stats")
+        elif config.type == "csv" and "path" in config:
+            print(f"from CSV: {config.path}\n")
+            df = pd.read_csv(config.path, index_col=0)
+            samples = df.iloc[:, :-1].values
         elif config.type == "all" and hasattr(self.env, "get_all_terminating_states"):
             samples = self.env.get_all_terminating_states()
         elif (
@@ -214,6 +231,7 @@ class Buffer:
             and "n" in config
             and hasattr(self.env, "get_grid_terminating_states")
         ):
+            print(f"by sampling a grid of {config.n} points\n")
             samples = self.env.get_grid_terminating_states(config.n)
         elif (
             config.type == "uniform"
@@ -221,12 +239,14 @@ class Buffer:
             and "seed" in config
             and hasattr(self.env, "get_uniform_terminating_states")
         ):
+            print(f"by sampling {config.n} points uniformly\n")
             samples = self.env.get_uniform_terminating_states(config.n, config.seed)
         elif (
             config.type == "random"
             and "n" in config
             and hasattr(self.env, "get_random_terminating_states")
         ):
+            print(f"by sampling {config.n} points randomly\n")
             samples = self.env.get_random_terminating_states(config.n)
         else:
             return None, None
