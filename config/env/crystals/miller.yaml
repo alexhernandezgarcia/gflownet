@@ -1,0 +1,20 @@
+defaults:
+  - base
+
+_target_: gflownet.envs.crystals.miller.MillerIndices
+
+id: millerindices
+# Whether the structure is cubic
+is_cubic: True
+# Maximum increment per each dimension that can be done by one action
+max_increment: 1
+# Maximum number of dimensions that can be incremented by one action
+max_dim_per_action: 1
+# Buffer
+buffer:
+  data_path: null
+  train: null
+  test:
+    type: all
+    output_csv: miller_test.csv
+    output_pkl: miller_test.pkl
