@@ -4,8 +4,8 @@ defaults:
 _target_: gflownet.envs.crystals.miller.MillerIndices
 
 id: millerindices
-# Whether the structure is cubic
-is_cubic: True
+# Whether the structure is hexagonal or rhombohedral
+is_hexagonal_rhombohedral: False
 # Maximum increment per each dimension that can be done by one action
 max_increment: 1
 # Maximum number of dimensions that can be incremented by one action
