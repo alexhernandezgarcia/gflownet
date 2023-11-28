@@ -7,8 +7,8 @@ from os import popen
 from os.path import expandvars
 from pathlib import Path
 from textwrap import dedent
-from git import Repo
 
+from git import Repo
 from yaml import safe_load
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -265,6 +265,19 @@ def find_jobs_conf(args):
     return jobs_conf_path, local_out_dir
 
 
+def quote(value):
+    v = str(value)
+    v = v.replace("(", r"\(").replace(")", r"\)")
+    if " " in v or "=" in v:
+        if '"' not in v:
+            v = f'"{v}"'
+        elif "'" not in v:
+            v = f"'{v}'"
+        else:
+            raise ValueError(f"Cannot quote {value}")
+    return v
+
+
 def script_dict_to_main_args_str(script_dict, is_first=True, nested_key=""):
     """
     Recursively turns a dict of script args into a string of main.py args
@@ -275,11 +288,24 @@ def script_dict_to_main_args_str(script_dict, is_first=True, nested_key=""):
         previous_str (str, optional): base string to append to. Defaults to "".
     """
     if not isinstance(script_dict, dict):
-        return nested_key + "=" + str(script_dict) + " "
+        candidate = f"{nested_key}={quote(script_dict)}"
+        if candidate.count("=") > 1:
+            assert "'" not in candidate, """Keys cannot contain ` ` and `'` and `=` """
+            candidate = f"'{candidate}'"
+        return candidate + " "
     new_str = ""
     for k, v in script_dict.items():
         if k == "__value__":
-            new_str += nested_key + "=" + str(v) + " "
+            value = str(v)
+            if " " in value:
+                value = f"'{value}'"
+            candidate = f"{nested_key}={quote(v)} "
+            if candidate.count("=") > 1:
+                assert (
+                    "'" not in candidate
+                ), """Keys cannot contain ` ` and `'` and `=` """
+                candidate = f"'{candidate}'"
+            new_str += candidate
             continue
         new_key = k if not nested_key else nested_key + "." + str(k)
         new_str += script_dict_to_main_args_str(v, nested_key=new_key, is_first=False)
@@ -375,17 +401,21 @@ def code_dir_for_slurm_tmp_dir_checkout(git_checkout):
             sys.exit(0)
         GIT_WARNING = False
 
+    repo_url = ssh_to_https(repo.remotes.origin.url)
+    repo_name = repo_url.split("/")[-1].split(".git")[0]
+
     return dedent(
         """\
         $SLURM_TMPDIR
-        git clone {git_url} tpm-gflownet
-        cd tpm-gflownet
+        git clone {git_url} tmp-{repo_name}
+        cd tmp-{repo_name}
         {git_checkout}
         echo "Current commit: $(git rev-parse HEAD)"
     """
     ).format(
-        git_url=ssh_to_https(repo.remotes.origin.url),
+        git_url=repo_url,
         git_checkout=f"git checkout {git_checkout}" if git_checkout else "",
+        repo_name=repo_name,
     )
 
 
@@ -406,6 +436,7 @@ if __name__ == "__main__":
         "outdir": "$SCRATCH/gflownet/logs/slurm",
         "partition": "long",
         "template": "$root/mila/sbatch/template-conda.sh",
+        "time": "0",
         "venv": None,
         "verbose": False,
     }
@@ -453,6 +484,13 @@ if __name__ == "__main__":
         type=str,
         help="slurm partition to use for the job."
         + f" Defaults to {defaults['partition']}",
+    )
+    parser.add_argument(
+        "--time",
+        type=str,
+        help="wall clock time limit (e.g. 2-12:00:00). "
+        + "See: https://slurm.schedmd.com/sbatch.html#OPT_time"
+        + f" Defaults to {defaults['time']}",
     )
     parser.add_argument(
         "--modules",
@@ -607,13 +645,20 @@ if __name__ == "__main__":
             sbatch_path.parent.mkdir(parents=True, exist_ok=True)
             # write template
             sbatch_path.write_text(templated)
-            print(f"\n  🏷  Created ./{sbatch_path.relative_to(Path.cwd())}")
+            print()
             # Submit job to SLURM
-            out = popen(f"sbatch {sbatch_path}").read()
+            out = popen(f"sbatch {sbatch_path}").read().strip()
             # Identify printed-out job id
             job_id = re.findall(r"Submitted batch job (\d+)", out)[0]
             job_ids.append(job_id)
             print("  ✅ " + out)
+            # Rename sbatch file with job id
+            parts = sbatch_path.stem.split(f"_{now}")
+            new_name = f"{parts[0]}_{job_id}_{now}"
+            if len(parts) > 1:
+                new_name += f"_{parts[1]}"
+            sbatch_path = sbatch_path.rename(sbatch_path.parent / new_name)
+            print(f"  🏷  Created ./{sbatch_path.relative_to(Path.cwd())}")
             # Write job ID & output file path in the sbatch file
             job_output_file = str(outdir / f"{job_args['job_name']}-{job_id}.out")
             job_out_files.append(job_output_file)

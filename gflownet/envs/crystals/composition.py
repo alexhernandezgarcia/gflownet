@@ -11,7 +11,7 @@ from torch import Tensor
 from torchtyping import TensorType
 
 from gflownet.envs.base import GFlowNetEnv
-from gflownet.utils.common import tlong
+from gflownet.utils.common import tfloat, tlong
 from gflownet.utils.crystals.constants import ELEMENT_NAMES, OXIDATION_STATES
 from gflownet.utils.crystals.pyxtal_cache import (
     get_space_group,
@@ -19,6 +19,8 @@ from gflownet.utils.crystals.pyxtal_cache import (
     space_group_lowest_free_wp_multiplicity,
     space_group_wyckoff_gcd,
 )
+
+N_ELEMENTS_ORACLE = 94
 
 
 class Composition(GFlowNetEnv):
@@ -28,7 +30,7 @@ class Composition(GFlowNetEnv):
 
     def __init__(
         self,
-        elements: Union[List, int] = 84,
+        elements: Union[List, int] = 94,
         max_diff_elem: int = 5,
         min_diff_elem: int = 2,
         min_atoms: int = 2,
@@ -417,7 +419,7 @@ class Composition(GFlowNetEnv):
         -------
         A tensor containing all the states in the batch.
         """
-        return tlong(states, device=self.device)
+        return self.statetorch2oracle(tlong(states, device=self.device))
 
     def state2readable(self, state=None):
         """
@@ -606,3 +608,34 @@ class Composition(GFlowNetEnv):
                 nums_charges[0] = (num - 1, charges)
 
         return 0 in poss_charge_sum
+
+    def is_valid(self, x: List) -> bool:
+        """
+        Determines whether a state is valid, according to the attributes of the
+        environment.
+        """
+        # Check length is equal to number of elements
+        if len(x) != len(self.elements):
+            return False
+        # Check total number of atoms
+        n_atoms = sum(x)
+        if n_atoms < self.min_atoms:
+            return False
+        if n_atoms > self.max_atoms:
+            return False
+        # Check number element
+        if any([n < self.min_atom_i for n in x if n > 0]):
+            return False
+        if any([n > self.max_atom_i for n in x if n > 0]):
+            return False
+        # Check required elements
+        used_elements = [self.idx2elem[idx] for idx, n in enumerate(x) if n > 0]
+        if len(used_elements) < self.min_diff_elem:
+            return False
+        if len(used_elements) > self.max_diff_elem:
+            return False
+        if any(r not in used_elements for r in self.required_elements):
+            return False
+
+        # If all checks are passed, return True
+        return True

@@ -123,7 +123,9 @@ class HybridTorus(GFlowNetEnv):
         - d * n_params_per_dim + 3: logit of Bernoulli distribution
         with d in [0, ..., D]
         """
-        policy_output = np.ones(self.n_dim * self.n_params_per_dim + 1)
+        policy_output = torch.ones(
+            self.n_dim * self.n_params_per_dim + 1, dtype=self.float, device=self.device
+        )
         policy_output[1 :: self.n_params_per_dim] = params["vonmises_mean"]
         policy_output[2 :: self.n_params_per_dim] = params["vonmises_concentration"]
         return policy_output
