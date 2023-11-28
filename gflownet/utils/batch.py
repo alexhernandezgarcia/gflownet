@@ -527,7 +527,7 @@ class Batch:
         """
         Returns the indices of the parents of the states in the batch.
 
-        Each item idx in the returned list corresponds to the index in self.states that
+        Each i-th item in the returned list contains the index in self.states that
         contains the parent of self.states[idx], if it is peresent there. If a parent
         is not present in self.states (because it is the source), the index is -1.
 
