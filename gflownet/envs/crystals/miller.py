@@ -4,6 +4,7 @@ Class to represent an environment to sample Miller indices (hkl).
 from typing import List, Optional
 
 from gflownet.envs.grid import Grid
+from gflownet.utils.crystals.constants import HEXAGONAL, RHOMBOHEDRAL
 
 
 class MillerIndices(Grid):
@@ -86,3 +87,13 @@ class MillerIndices(Grid):
                     mask[action_idx] = True
 
         return mask
+
+    def set_lattice_system(self, lattice_system: str):
+        """
+        Sets the lattice system of the unit cell.
+
+        The specific lattice system is not required in this environment. Instead, only
+        is_hexagonal_rhombohedral is set to True or False according to the lattice
+        system.
+        """
+        self.is_hexagonal_rhombohedral = lattice_system in [HEXAGONAL, RHOMBOHEDRAL]
