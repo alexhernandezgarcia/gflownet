@@ -9,29 +9,6 @@ from torch import Tensor
 from gflownet.envs.crystals.catalyst import Catalyst, Stage
 from gflownet.utils.common import tbool, tfloat
 
-SG_SUBSET_ALL_CLS_PS = [
-    1,
-    2,
-    3,
-    6,
-    16,
-    17,
-    67,
-    81,
-    89,
-    127,
-    143,
-    144,
-    146,
-    148,
-    168,
-    169,
-    189,
-    195,
-    200,
-    230,
-]
-
 
 @pytest.fixture
 def env():
