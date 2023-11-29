@@ -786,7 +786,7 @@ class GFlowNetEnv:
         """
         state = self._get_state(state)
         done = self._get_done(done)
-        if done is False and do_non_terminating is False:
+        if not done and not do_non_terminating:
             return tfloat(0.0, float_type=self.float, device=self.device)
         return self.proxy2reward(self.proxy(self.state2proxy(state))[0])
 
