@@ -1020,7 +1020,7 @@ class Catalyst(GFlowNetEnv):
             f"Composition = {readables[0]}; "
             f"SpaceGroup = {readables[1]}; "
             f"LatticeParameters = {readables[2]};"
-            f"MillerIndices = {readables[2]}"
+            f"MillerIndices = {readables[3]}"
         )
 
     def process_data_set(self, data: List[List]) -> List[List]:
