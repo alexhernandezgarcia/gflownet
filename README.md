@@ -6,9 +6,29 @@ This repository implements GFlowNets, generative flow networks for probabilistic
 
 ### pip
 
+Prereqs: install `fftw3`:
+
 ```bash
+brew install fftw  # OSX
+sudo apt-get install fftw  # Ubuntu
+```
+
+To setup the environment with all dependencies, first install the pytorch `>=2.0.1` version appropriate to your system and some other dependencies more easily handled using Conda, and then pip install the package and remaining dependencies itself:
+
+```bash
+conda install xtb-python -c conda-forge -y
+conda install pytorch torchvision torchaudio -c pytorch -y # Use the version appropriate to your environment.
+conda install pyshtools  -c conda-forge -y
+
 python -m pip install --upgrade https://github.com/alexhernandezgarcia/gflownet/archive/main.zip
 ```
+
+Note, to install the package with developer tools, do instead 
+
+```bash
+cd /path/to/gflownet
+pip install -e .[dev]
+```.
 
 ## How to train a GFlowNet model
 
