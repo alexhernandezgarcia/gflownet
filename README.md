@@ -4,7 +4,7 @@ This repository implements GFlowNets, generative flow networks for probabilistic
 
 ## Contributors
 
-Many wonderful scientists and developers have contributed to this repository: [Alex Hernandez-Garcia](https://github.com/alexhernandezgarcia), [Nikita Saxena](https://github.com/nikita-0209), [Alexandra Volokhova](https://github.com/AlexandraVolokhova), [Michał Koziarski](https://github.com/michalkoziarski), [Divya Sharma](https://github.com/sh-divya), [Pierre Luc Carrier](https://github.com/michalkoziarski) and [Victor Schmidt](https://github.com/vict0rsch). The GFlowNet implementation was initially part of [github.com/InfluenceFunctional/ActiveLearningPipeline](https://github.com/InfluenceFunctional/ActiveLearningPipeline).
+Many wonderful scientists and developers have contributed to this repository: [Alex Hernandez-Garcia](https://github.com/alexhernandezgarcia), [Nikita Saxena](https://github.com/nikita-0209), [Alexandra Volokhova](https://github.com/AlexandraVolokhova), [Michał Koziarski](https://github.com/michalkoziarski), [Divya Sharma](https://github.com/sh-divya), [Pierre Luc Carrier](https://github.com/carriepl) and [Victor Schmidt](https://github.com/vict0rsch). The GFlowNet implementation was initially part of [github.com/InfluenceFunctional/ActiveLearningPipeline](https://github.com/InfluenceFunctional/ActiveLearningPipeline).
 
 ## Research
 
