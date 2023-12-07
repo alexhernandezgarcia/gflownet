@@ -1462,7 +1462,7 @@ def test__get_rewards_parents_multiple_env_returns_expected_non_terminating(
         # Make step env by env (different to GFN Agent) to have full control
         for env in envs:
             parent = copy(env.state)
-            done_parent = env.done
+            assert env.done is False
 
             # Sample random action
             state, action, valid = env.step_random()
@@ -1471,7 +1471,7 @@ def test__get_rewards_parents_multiple_env_returns_expected_non_terminating(
                 actions_iter.append(action)
                 valids_iter.append(valid)
                 rewards_parents.append(
-                    env.reward(state=parent, done=done_parent, do_non_terminating=True)
+                    env.reward(state=parent, done=False, do_non_terminating=True)
                 )
                 rewards.append(env.reward(do_non_terminating=True))
         # Add all envs, actions and valids to batch
