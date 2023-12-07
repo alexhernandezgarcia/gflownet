@@ -34,6 +34,15 @@ The above command will overwrite the `env` and `proxy` default configuration wit
 
 Hydra configuration is hierarchical. For instance, a handy variable to change while debugging our code is to avoid logging to wandb. You can do this by setting `logger.do.online=False`.
 
+## GFlowNet loss functions
+
+Currently, the implementation includes the following GFlowNet losses:
+
+- [Flow-matching (FM)](https://arxiv.org/abs/2106.04399): `gflownet=flowmatch`
+- [Trajectory balance (TB)](https://arxiv.org/abs/2201.13259): `gflownet=trajectorybalance`
+- [Detailed balance (DB)](https://arxiv.org/abs/2201.13259): `gflownet=detailedbalance`
+- [Forward-looking (FL)](https://arxiv.org/abs/2302.01687): `gflownet=forwardlooking`
+
 ## Logging to wandb
 
 The repository supports logging of train and evaluation metrics to [wandb.ai](https://wandb.ai), but it is disabled by default. In order to enable it, set the configuration variable `logger.do.online` to `True`.
