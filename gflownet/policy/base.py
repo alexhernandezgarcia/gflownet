@@ -8,15 +8,15 @@ from gflownet.utils.common import set_device, set_float_precision
 
 
 class ModelBase(ABC):
-    def __init__(self, config, input_dim, device, float_precision, base=None):
+    def __init__(self, config, env, device, float_precision, base=None):
         # Device and float precision
         self.device = set_device(device)
         self.float = set_float_precision(float_precision)
-        # Input dimension
-        self.input_dim = input_dim
-        # Must be redefined in the children classes
-        self.output_dim = None
-
+        # Input and output dimensions
+        self.state_dim = env.policy_input_dim
+        self.fixed_output = env.fixed_policy_output
+        self.random_output = env.random_policy_output
+        self.output_dim = len(self.fixed_output)
         # Optional base model
         self.base = base
 
@@ -68,7 +68,7 @@ class ModelBase(ABC):
             return mlp
         elif self.shared_weights == False:
             layers_dim = (
-                [self.input_dim] + [self.n_hid] * self.n_layers + [(self.output_dim)]
+                [self.state_dim] + [self.n_hid] * self.n_layers + [(self.output_dim)]
             )
             mlp = nn.Sequential(
                 *(
@@ -94,17 +94,7 @@ class ModelBase(ABC):
 
 class Policy(ModelBase):
     def __init__(self, config, env, device, float_precision, base=None):
-        super().__init__(config, env.policy_input_dim, device, float_precision, base)
-
-        # Outputs
-
-        self.fixed_output = torch.tensor(env.fixed_policy_output).to(
-            dtype=self.float, device=self.device
-        )
-        self.random_output = torch.tensor(env.random_policy_output).to(
-            dtype=self.float, device=self.device
-        )
-        self.output_dim = len(self.fixed_output)
+        super().__init__(config, env, device, float_precision, base)
 
         self.instantiate()
 

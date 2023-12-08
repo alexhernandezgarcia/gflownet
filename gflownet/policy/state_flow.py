@@ -11,9 +11,8 @@ class StateFlow(ModelBase):
     """
 
     def __init__(self, config, env, device, float_precision, base=None):
-        super().__init__(config, env.policy_input_dim, device, float_precision, base)
-
-        # output dim
+        super().__init__(config, env, device, float_precision, base)
+        # Output dimension
         self.output_dim = 1
 
         # Instantiate neural network

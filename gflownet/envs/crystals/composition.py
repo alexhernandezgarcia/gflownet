@@ -11,7 +11,7 @@ from torch import Tensor
 from torchtyping import TensorType
 
 from gflownet.envs.base import GFlowNetEnv
-from gflownet.utils.common import tlong
+from gflownet.utils.common import tfloat, tlong
 from gflownet.utils.crystals.constants import ELEMENT_NAMES, OXIDATION_STATES
 from gflownet.utils.crystals.pyxtal_cache import (
     get_space_group,
@@ -19,6 +19,8 @@ from gflownet.utils.crystals.pyxtal_cache import (
     space_group_lowest_free_wp_multiplicity,
     space_group_wyckoff_gcd,
 )
+
+N_ELEMENTS_ORACLE = 94
 
 
 class Composition(GFlowNetEnv):
@@ -28,7 +30,7 @@ class Composition(GFlowNetEnv):
 
     def __init__(
         self,
-        elements: Union[List, int] = 84,
+        elements: Union[List, int] = 94,
         max_diff_elem: int = 5,
         min_diff_elem: int = 2,
         min_atoms: int = 2,
@@ -406,8 +408,9 @@ class Composition(GFlowNetEnv):
 
     def state2oracle(self, state: List = None) -> Tensor:
         """
-        Prepares a state in "GFlowNet format" for the oracle. In this case, it simply
-        converts the state into a torch tensor, with dtype torch.long.
+        Prepares a state in "GFlowNet format" for the oracle. The output is a tensor of
+        length N_ELEMENTS_ORACLE + 1, where the positions of self.elements are filled with
+        the number of atoms of each element in the state.
 
         Args
         ----
@@ -421,15 +424,17 @@ class Composition(GFlowNetEnv):
         """
         if state is None:
             state = self.state
-
-        return tlong(state, device=self.device)
+        return self.statetorch2oracle(
+            torch.unsqueeze(tfloat(state, device=self.device, float_type=self.float), 0)
+        )[0]
 
     def statetorch2oracle(
         self, states: TensorType["batch", "state_dim"]
     ) -> TensorType["batch", "state_oracle_dim"]:
         """
-        Prepares a batch of states in "GFlowNet format" for the oracle. The input to the
-        oracle is the atom counts for individual elements.
+        Prepares a batch of states in "GFlowNet format" for the oracle.  The output is
+        a tensor with N_ELEMENTS_ORACLE + 1 columns, where the positions of
+        self.elements are filled with the number of atoms of each element in the state.
 
         Args
         ----
@@ -440,7 +445,15 @@ class Composition(GFlowNetEnv):
         ----
         oracle_states : Tensor
         """
-        return states
+        states_float = states.to(self.float)
+
+        states_oracle = torch.zeros(
+            (states.shape[0], N_ELEMENTS_ORACLE + 1),
+            device=self.device,
+            dtype=self.float,
+        )
+        states_oracle[:, tlong(self.elements, device=self.device)] = states_float
+        return states_oracle
 
     def statebatch2oracle(
         self, states: List[List]
@@ -453,7 +466,7 @@ class Composition(GFlowNetEnv):
         ----
         state : list
         """
-        return tlong(states, device=self.device)
+        return self.statetorch2oracle(tlong(states, device=self.device))
 
     def state2readable(self, state=None):
         """
@@ -642,3 +655,34 @@ class Composition(GFlowNetEnv):
                 nums_charges[0] = (num - 1, charges)
 
         return 0 in poss_charge_sum
+
+    def is_valid(self, x: List) -> bool:
+        """
+        Determines whether a state is valid, according to the attributes of the
+        environment.
+        """
+        # Check length is equal to number of elements
+        if len(x) != len(self.elements):
+            return False
+        # Check total number of atoms
+        n_atoms = sum(x)
+        if n_atoms < self.min_atoms:
+            return False
+        if n_atoms > self.max_atoms:
+            return False
+        # Check number element
+        if any([n < self.min_atom_i for n in x if n > 0]):
+            return False
+        if any([n > self.max_atom_i for n in x if n > 0]):
+            return False
+        # Check required elements
+        used_elements = [self.idx2elem[idx] for idx, n in enumerate(x) if n > 0]
+        if len(used_elements) < self.min_diff_elem:
+            return False
+        if len(used_elements) > self.max_diff_elem:
+            return False
+        if any(r not in used_elements for r in self.required_elements):
+            return False
+
+        # If all checks are passed, return True
+        return True

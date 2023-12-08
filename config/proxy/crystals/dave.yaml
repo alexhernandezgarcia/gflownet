@@ -1,7 +1,13 @@
 _target_: gflownet.proxy.crystals.dave.DAVE
 
-release: 0.3.2
+release: 0.3.4
 ckpt_path:
   mila: /network/scratch/s/schmidtv/crystals-proxys/proxy-ckpts/
   victor: ~/Documents/Github/ActiveLearningMaterials/checkpoints/980065c0/checkpoints-3ff648a2
 rescale_outputs: true
+clip:
+  do: False
+  min_stds: null
+  max_stds: null
+  min: null
+  max: null

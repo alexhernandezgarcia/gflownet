@@ -53,10 +53,7 @@ def test__sample_actions_batch__special_cases(
         mask = torch.unsqueeze(
             tbool(env.get_mask_invalid_actions_forward(), device=env.device), 0
         )
-    random_policy = torch.unsqueeze(
-        tfloat(env.random_policy_output, float_type=env.float, device=env.device),
-        0,
-    )
+    random_policy = torch.unsqueeze(env.random_policy_output, 0)
     action_sampled = env.sample_actions_batch(
         random_policy,
         mask,
@@ -96,10 +93,7 @@ def test__sample_actions_batch__not_special_cases(
         mask = torch.unsqueeze(
             tbool(env.get_mask_invalid_actions_forward(), device=env.device), 0
         )
-    random_policy = torch.unsqueeze(
-        tfloat(env.random_policy_output, float_type=env.float, device=env.device),
-        0,
-    )
+    random_policy = torch.unsqueeze(env.random_policy_output, 0)
     action_sampled = env.sample_actions_batch(
         random_policy,
         mask,
