@@ -406,8 +406,10 @@ class Composition(GFlowNetEnv):
         self, states: Union[List[List], TensorType["batch", "state_dim"]]
     ) -> TensorType["batch", "state_proxy_dim"]:
         """
-        Prepares a batch of states in "environment format" for the proxy: simply
-        returns the states as are with dtype long.
+        Prepares a batch of states in "environment format" for the proxy: The output is
+        a tensor of dtype long with N_ELEMENTS_ORACLE + 1 columns, where the positions
+        of self.elements are filled with the number of atoms of each element in the
+        state.
 
         Args
         ----
@@ -419,7 +421,14 @@ class Composition(GFlowNetEnv):
         -------
         A tensor containing all the states in the batch.
         """
-        return tlong(states, device=self.device)
+        states = tlong(states, device=self.device)
+        states_proxy = torch.zeros(
+            (states.shape[0], N_ELEMENTS_ORACLE + 1),
+            device=self.device,
+            dtype=torch.long,
+        )
+        states_proxy[:, tlong(self.elements, device=self.device)] = states
+        return states_proxy
 
     def state2readable(self, state=None):
         """
