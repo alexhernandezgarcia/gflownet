@@ -7,6 +7,8 @@ _target_: gflownet.envs.crystals.crystal.Crystal
 id: crystal
 composition_kwargs:
   elements: 89
+  max_atoms: 20
+  max_atom_i: 16
 lattice_parameters_kwargs:
   min_length: 1.0
   max_length: 5.0

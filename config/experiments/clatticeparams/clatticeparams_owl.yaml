@@ -1,33 +1,38 @@
 # @package _global_
-# A configuration that works well with the uniform proxy.
-# wandb: https://wandb.ai/alexhg/cube/runs/1du9iyr5
 
 defaults:
-   - override /env: ccube
+   - override /env: crystals/clattice_parameters
    - override /gflownet: trajectorybalance
-   - override /proxy: uniform
+   - override /proxy: corners
    - override /logger: wandb
    - override /user: alex
 
 # Environment
 env:
-  n_comp: 2
-  n_dim: 2
-  beta_params_min: 0.1
+  # Lattice system
+  lattice_system: cubic
+  # Allowed ranges of size and angles
+  min_length: 1.0
+  max_length: 5.0
+  min_angle: 30.0
+  max_angle: 150.0
+  # Cube
+  n_comp: 5
+  beta_params_min: 0.01
   beta_params_max: 100.0
   min_incr: 0.1
-  fixed_distr_params:
+  fixed_distribution:
     beta_weights: 1.0
-    beta_alpha: 10.0
-    beta_beta: 10.0
-    bernoulli_eos_prob: 0.1
-    bernoulli_bts_prob: 0.1
-  random_distr_params:
+    beta_alpha: 0.01
+    beta_beta: 0.01
+    bernoulli_source_logit: 1.0
+    bernoulli_eos_logit: 1.0
+  random_distribution:
     beta_weights: 1.0
-    beta_alpha: 10.0
-    beta_beta: 10.0
-    bernoulli_eos_prob: 0.1
-    bernoulli_bts_prob: 0.1
+    beta_alpha: 0.01
+    beta_beta: 0.01
+    bernoulli_source_logit: 1.0
+    bernoulli_eos_logit: 1.0
   reward_func: identity
 
 # GFlowNet hyperparameters
@@ -45,17 +50,20 @@ gflownet:
 policy:
   forward:
     type: mlp
-    n_hid: 128
-    n_layers: 2
+    n_hid: 512
+    n_layers: 5
     checkpoint: forward
   backward:
-    shared_weights: True
+    type: mlp
+    n_hid: 512
+    n_layers: 5
+    shared_weights: False
     checkpoint: backward
 
 # WandB
 logger:
   lightweight: True
-  project_name: "cube"
+  project_name: "GFlowNet Cube"
   tags: 
     - gflownet
     - continuous

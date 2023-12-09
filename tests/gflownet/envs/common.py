@@ -158,10 +158,7 @@ def test__sample_actions__backward__returns_eos_if_done(env, n=5):
         env.set_state(state, done=True)
         masks.append(env.get_mask_invalid_actions_backward())
     # Build random policy outputs and tensor masks
-    policy_outputs = torch.tile(
-        tfloat(env.random_policy_output, float_type=env.float, device=env.device),
-        (len(states), 1),
-    )
+    policy_outputs = torch.tile(env.random_policy_output, (len(states), 1))
     # Add noise to policy outputs
     policy_outputs += torch.randn(policy_outputs.shape)
     masks = tbool(masks, device=env.device)
@@ -188,10 +185,7 @@ def test__get_logprobs__backward__returns_zero_if_done(env, n=5):
         (len(states), 1),
     )
     # Build random policy outputs and tensor masks
-    policy_outputs = torch.tile(
-        tfloat(env.random_policy_output, float_type=env.float, device=env.device),
-        (len(states), 1),
-    )
+    policy_outputs = torch.tile(env.random_policy_output, (len(states), 1))
     # Add noise to policy outputs
     policy_outputs += torch.randn(policy_outputs.shape)
     masks = tbool(masks, device=env.device)
@@ -296,7 +290,7 @@ def test__gflownet_minimal_runs(env):
 def test__sample_actions__get_logprobs__return_valid_actions_and_logprobs(env):
     env = env.reset()
     while not env.done:
-        policy_outputs = torch.unsqueeze(torch.tensor(env.random_policy_output), 0)
+        policy_outputs = torch.unsqueeze(env.random_policy_output, 0)
         mask_invalid = env.get_mask_invalid_actions_forward()
         valid_actions = [a for a, m in zip(env.action_space, mask_invalid) if not m]
         masks_invalid_torch = torch.unsqueeze(torch.BoolTensor(mask_invalid), 0)
@@ -320,11 +314,9 @@ def test__sample_actions__get_logprobs__return_valid_actions_and_logprobs(env):
 @pytest.mark.repeat(1000)
 def test__forward_actions_have_nonzero_backward_prob(env):
     env = env.reset()
-    policy_random = torch.unsqueeze(
-        tfloat(env.random_policy_output, float_type=env.float, device=env.device), 0
-    )
+    policy_random = torch.unsqueeze(env.random_policy_output, 0)
     while not env.done:
-        state_new, action, valid = env.step_random(backward=False)
+        state_next, action, valid = env.step_random(backward=False)
         if not valid:
             continue
         # Get backward logprobs
@@ -333,19 +325,56 @@ def test__forward_actions_have_nonzero_backward_prob(env):
         actions_torch = torch.unsqueeze(
             tfloat(action, float_type=env.float, device=env.device), 0
         )
-        states_torch = torch.unsqueeze(
-            tfloat(env.state, float_type=env.float, device=env.device), 0
-        )
         policy_outputs = policy_random.clone().detach()
         logprobs_bw = env.get_logprobs(
             policy_outputs=policy_outputs,
             actions=actions_torch,
             mask=masks,
-            states_from=states_torch,
+            states_from=[env.state],
             is_backward=True,
         )
         assert torch.isfinite(logprobs_bw)
         assert logprobs_bw > -1e6
+        state_prev = copy(state_next)
+
+
+@pytest.mark.repeat(1000)
+def test__trajectories_are_reversible(env):
+    # Skip for certain environments until fixed:
+    skip_envs = ["Crystal", "LatticeParameters", "Tree"]
+    if env.__class__.__name__ in skip_envs:
+        warnings.warn("Skipping test for this specific environment.")
+        return
+    env = env.reset()
+
+    # Sample random forward trajectory
+    states_trajectory_fw = []
+    actions_trajectory_fw = []
+    while not env.done:
+        state, action, valid = env.step_random(backward=False)
+        if valid:
+            states_trajectory_fw.append(state)
+            actions_trajectory_fw.append(action)
+
+    # Sample backward trajectory with actions in forward trajectory
+    states_trajectory_bw = []
+    actions_trajectory_bw = []
+    actions_trajectory_fw_copy = actions_trajectory_fw.copy()
+    while not env.equal(env.state, env.source) or env.done:
+        state, action, valid = env.step_backwards(actions_trajectory_fw_copy.pop())
+        if valid:
+            states_trajectory_bw.append(state)
+            actions_trajectory_bw.append(action)
+
+    assert all(
+        [
+            env.equal(s_fw, s_bw)
+            for s_fw, s_bw in zip(
+                states_trajectory_fw[:-1], states_trajectory_bw[-2::-1]
+            )
+        ]
+    )
+    assert actions_trajectory_fw == actions_trajectory_bw[::-1]
 
 
 @pytest.mark.repeat(1000)
@@ -397,15 +426,13 @@ def test__backward_actions_have_nonzero_forward_prob(env, n=1000):
     if states is None:
         warnings.warn("Skipping test because states are None.")
         return
-    policy_random = torch.unsqueeze(
-        tfloat(env.random_policy_output, float_type=env.float, device=env.device), 0
-    )
+    policy_random = torch.unsqueeze(env.random_policy_output, 0)
     for state in states:
         env.set_state(state, done=True)
         while True:
             if env.equal(env.state, env.source):
                 break
-            state_new, action, valid = env.step_random(backward=True)
+            state_next, action, valid = env.step_random(backward=True)
             assert valid
             # Get forward logprobs
             mask_fw = env.get_mask_invalid_actions_forward()
@@ -413,19 +440,17 @@ def test__backward_actions_have_nonzero_forward_prob(env, n=1000):
             actions_torch = torch.unsqueeze(
                 tfloat(action, float_type=env.float, device=env.device), 0
             )
-            states_torch = torch.unsqueeze(
-                tfloat(env.state, float_type=env.float, device=env.device), 0
-            )
             policy_outputs = policy_random.clone().detach()
             logprobs_fw = env.get_logprobs(
                 policy_outputs=policy_outputs,
                 actions=actions_torch,
                 mask=masks,
-                states_from=states_torch,
+                states_from=[env.state],
                 is_backward=False,
             )
             assert torch.isfinite(logprobs_fw)
             assert logprobs_fw > -1e6
+            state_prev = copy(state_next)
 
 
 @pytest.mark.repeat(10)
