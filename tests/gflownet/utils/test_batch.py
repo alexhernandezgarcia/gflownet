@@ -123,14 +123,7 @@ def test__get_states__single_env_returns_expected(env, batch, request):
         assert torch.equal(torch.stack(states_batch), torch.stack(states))
     else:
         assert states_batch == states
-    assert torch.equal(
-        states_policy_batch,
-        tfloat(
-            env.statebatch2policy(states),
-            device=batch.device,
-            float_type=batch.float,
-        ),
-    )
+    assert torch.equal(states_policy_batch, env.states2policy(states))
 
 
 @pytest.mark.repeat(N_REPETITIONS)
@@ -155,14 +148,7 @@ def test__get_parents__single_env_returns_expected(env, batch, request):
         assert torch.equal(torch.stack(parents_batch), torch.stack(parents))
     else:
         assert parents_batch == parents
-    assert torch.equal(
-        parents_policy_batch,
-        tfloat(
-            env.statebatch2policy(parents),
-            device=batch.device,
-            float_type=batch.float,
-        ),
-    )
+    assert torch.equal(parents_policy_batch, env.states2policy(parents))
 
 
 @pytest.mark.repeat(N_REPETITIONS)
@@ -197,14 +183,7 @@ def test__get_parents_all__single_env_returns_expected(env, batch, request):
             float_type=batch.float,
         ),
     )
-    assert torch.equal(
-        parents_all_policy_batch,
-        tfloat(
-            env.statebatch2policy(parents_all),
-            device=batch.device,
-            float_type=batch.float,
-        ),
-    )
+    assert torch.equal(parents_all_policy_batch, env.states2policy(parents_all))
 
 
 @pytest.mark.repeat(N_REPETITIONS)
@@ -365,14 +344,7 @@ def test__forward_sampling_multiple_envs_all_as_expected(env, proxy, batch, requ
         assert torch.equal(torch.stack(states_batch), torch.stack(states))
     else:
         assert states_batch == states
-    assert torch.equal(
-        states_policy_batch,
-        tfloat(
-            env.statebatch2policy(states),
-            device=batch.device,
-            float_type=batch.float,
-        ),
-    )
+    assert torch.equal(states_policy_batch, env.states2policy(states))
     # Check actions
     actions_batch = batch.get_actions()
     assert torch.equal(
@@ -399,14 +371,7 @@ def test__forward_sampling_multiple_envs_all_as_expected(env, proxy, batch, requ
         assert torch.equal(torch.stack(parents_batch), torch.stack(parents))
     else:
         assert parents_batch == parents
-    assert torch.equal(
-        parents_policy_batch,
-        tfloat(
-            env.statebatch2policy(parents),
-            device=batch.device,
-            float_type=batch.float,
-        ),
-    )
+    assert torch.equal(parents_policy_batch, env.states2policy(parents))
     # Check parents_all
     if not env.continuous:
         parents_all_batch, parents_all_a_batch, _ = batch.get_parents_all()
@@ -423,14 +388,7 @@ def test__forward_sampling_multiple_envs_all_as_expected(env, proxy, batch, requ
                 float_type=batch.float,
             ),
         )
-        assert torch.equal(
-            parents_all_policy_batch,
-            tfloat(
-                env.statebatch2policy(parents_all),
-                device=batch.device,
-                float_type=batch.float,
-            ),
-        )
+        assert torch.equal(parents_all_policy_batch, env.states2policy(parents_all))
     # Check rewards
     rewards_batch = batch.get_rewards()
     rewards = torch.stack(rewards)
@@ -447,14 +405,7 @@ def test__forward_sampling_multiple_envs_all_as_expected(env, proxy, batch, requ
         )
     else:
         assert states_term_batch == states_term_sorted
-    assert torch.equal(
-        states_term_policy_batch,
-        tfloat(
-            env.statebatch2policy(states_term_sorted),
-            device=batch.device,
-            float_type=batch.float,
-        ),
-    )
+    assert torch.equal(states_term_policy_batch, env.states2policy(states_term_sorted))
 
 
 @pytest.mark.repeat(N_REPETITIONS)
@@ -551,14 +502,7 @@ def test__backward_sampling_multiple_envs_all_as_expected(env, proxy, batch, req
         assert torch.equal(torch.stack(states_batch), torch.stack(states))
     else:
         assert states_batch == states
-    assert torch.equal(
-        states_policy_batch,
-        tfloat(
-            env.statebatch2policy(states),
-            device=batch.device,
-            float_type=batch.float,
-        ),
-    )
+    assert torch.equal(states_policy_batch, env.states2policy(states))
     # Check actions
     actions_batch = batch.get_actions()
     assert torch.equal(
@@ -585,14 +529,7 @@ def test__backward_sampling_multiple_envs_all_as_expected(env, proxy, batch, req
         assert torch.equal(torch.stack(parents_batch), torch.stack(parents))
     else:
         assert parents_batch == parents
-    assert torch.equal(
-        parents_policy_batch,
-        tfloat(
-            env.statebatch2policy(parents),
-            device=batch.device,
-            float_type=batch.float,
-        ),
-    )
+    assert torch.equal(parents_policy_batch, env.states2policy(parents))
     # Check parents_all
     if not env.continuous:
         parents_all_batch, parents_all_a_batch, _ = batch.get_parents_all()
@@ -609,14 +546,7 @@ def test__backward_sampling_multiple_envs_all_as_expected(env, proxy, batch, req
                 float_type=batch.float,
             ),
         )
-        assert torch.equal(
-            parents_all_policy_batch,
-            tfloat(
-                env.statebatch2policy(parents_all),
-                device=batch.device,
-                float_type=batch.float,
-            ),
-        )
+        assert torch.equal(parents_all_policy_batch, env.states2policy(parents_all))
     # Check rewards
     rewards_batch = batch.get_rewards()
     rewards = torch.stack(rewards)
@@ -633,14 +563,7 @@ def test__backward_sampling_multiple_envs_all_as_expected(env, proxy, batch, req
         )
     else:
         assert states_term_batch == states_term_sorted
-    assert torch.equal(
-        states_term_policy_batch,
-        tfloat(
-            env.statebatch2policy(states_term_sorted),
-            device=batch.device,
-            float_type=batch.float,
-        ),
-    )
+    assert torch.equal(states_term_policy_batch, env.states2policy(states_term_sorted))
 
 
 @pytest.mark.repeat(N_REPETITIONS)
@@ -794,14 +717,7 @@ def test__mixed_sampling_multiple_envs_all_as_expected(env, proxy, batch, reques
         assert torch.equal(torch.stack(states_batch), torch.stack(states))
     else:
         assert states_batch == states
-    assert torch.equal(
-        states_policy_batch,
-        tfloat(
-            env.statebatch2policy(states),
-            device=batch.device,
-            float_type=batch.float,
-        ),
-    )
+    assert torch.equal(states_policy_batch, env.states2policy(states))
     # Check actions
     actions_batch = batch.get_actions()
     assert torch.equal(
@@ -828,14 +744,7 @@ def test__mixed_sampling_multiple_envs_all_as_expected(env, proxy, batch, reques
         assert torch.equal(torch.stack(parents_batch), torch.stack(parents))
     else:
         assert parents_batch == parents
-    assert torch.equal(
-        parents_policy_batch,
-        tfloat(
-            env.statebatch2policy(parents),
-            device=batch.device,
-            float_type=batch.float,
-        ),
-    )
+    assert torch.equal(parents_policy_batch, env.states2policy(parents))
     # Check parents_all
     if not env.continuous:
         parents_all_batch, parents_all_a_batch, _ = batch.get_parents_all()
@@ -852,14 +761,7 @@ def test__mixed_sampling_multiple_envs_all_as_expected(env, proxy, batch, reques
                 float_type=batch.float,
             ),
         )
-        assert torch.equal(
-            parents_all_policy_batch,
-            tfloat(
-                env.statebatch2policy(parents_all),
-                device=batch.device,
-                float_type=batch.float,
-            ),
-        )
+        assert torch.equal(parents_all_policy_batch, env.states2policy(parents_all))
     # Check rewards
     rewards_batch = batch.get_rewards()
     rewards = torch.stack(rewards)
@@ -876,14 +778,7 @@ def test__mixed_sampling_multiple_envs_all_as_expected(env, proxy, batch, reques
         )
     else:
         assert states_term_batch == states_term_sorted
-    assert torch.equal(
-        states_term_policy_batch,
-        tfloat(
-            env.statebatch2policy(states_term_sorted),
-            device=batch.device,
-            float_type=batch.float,
-        ),
-    )
+    assert torch.equal(states_term_policy_batch, env.states2policy(states_term_sorted))
 
 
 @pytest.mark.repeat(N_REPETITIONS)
@@ -1043,14 +938,7 @@ def test__mixed_sampling_merged_all_as_expected(env, proxy, request):
         assert torch.equal(torch.stack(states_batch), torch.stack(states))
     else:
         assert states_batch == states
-    assert torch.equal(
-        states_policy_batch,
-        tfloat(
-            env.statebatch2policy(states),
-            device=batch.device,
-            float_type=batch.float,
-        ),
-    )
+    assert torch.equal(states_policy_batch, env.states2policy(states))
     # Check actions
     actions_batch = batch.get_actions()
     assert torch.equal(
@@ -1077,14 +965,7 @@ def test__mixed_sampling_merged_all_as_expected(env, proxy, request):
         assert torch.equal(torch.stack(parents_batch), torch.stack(parents))
     else:
         assert parents_batch == parents
-    assert torch.equal(
-        parents_policy_batch,
-        tfloat(
-            env.statebatch2policy(parents),
-            device=batch.device,
-            float_type=batch.float,
-        ),
-    )
+    assert torch.equal(parents_policy_batch, env.states2policy(parents))
     # Check parents_all
     if not env.continuous:
         parents_all_batch, parents_all_a_batch, _ = batch.get_parents_all()
@@ -1101,14 +982,7 @@ def test__mixed_sampling_merged_all_as_expected(env, proxy, request):
                 float_type=batch.float,
             ),
         )
-        assert torch.equal(
-            parents_all_policy_batch,
-            tfloat(
-                env.statebatch2policy(parents_all),
-                device=batch.device,
-                float_type=batch.float,
-            ),
-        )
+        assert torch.equal(parents_all_policy_batch, env.states2policy(parents_all))
     # Check rewards
     rewards_batch = batch.get_rewards()
     rewards = torch.stack(rewards)
@@ -1125,14 +999,7 @@ def test__mixed_sampling_merged_all_as_expected(env, proxy, request):
         )
     else:
         assert states_term_batch == states_term_sorted
-    assert torch.equal(
-        states_term_policy_batch,
-        tfloat(
-            env.statebatch2policy(states_term_sorted),
-            device=batch.device,
-            float_type=batch.float,
-        ),
-    )
+    assert torch.equal(states_term_policy_batch, env.states2policy(states_term_sorted))
 
 
 @pytest.mark.repeat(N_REPETITIONS)
