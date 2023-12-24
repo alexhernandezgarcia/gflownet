@@ -521,3 +521,410 @@ def test__set_state__sets_state_subenvs_dones_and_constraints(
             env.subenvs[Stage.COMPOSITION].space_group
             == env.subenvs[Stage.SPACE_GROUP].space_group
         )
+
+
+@pytest.mark.parametrize(
+    "env, state",
+    [
+        ("env_sg_to_miller", [1, 0, 0, 0, 0, 1, 0, 0, -1, -1, -1, -1, -1, -1, 0, 0, 0]),
+        ("env_sg_to_miller", [1, 0, 0, 0, 0, 1, 2, 0, -1, -1, -1, -1, -1, -1, 0, 0, 0]),
+        ("env_sg_to_miller", [1, 0, 0, 0, 0, 1, 2, 2, -1, -1, -1, -1, -1, -1, 0, 0, 0]),
+        ("env_sg_to_miller", [1, 0, 0, 0, 0, 6, 0, 0, -1, -1, -1, -1, -1, -1, 0, 0, 0]),
+        ("env_sg_to_miller", [1, 0, 0, 0, 0, 6, 1, 0, -1, -1, -1, -1, -1, -1, 0, 0, 0]),
+        (
+            "env_sg_to_miller",
+            [1, 0, 0, 0, 0, 6, 1, 143, -1, -1, -1, -1, -1, -1, 0, 0, 0],
+        ),
+        ("env_sg_to_miller", [0, 1, 0, 4, 0, 1, 2, 2, -1, -1, -1, -1, -1, -1, 0, 0, 0]),
+        (
+            "env_sg_to_miller",
+            [2, 1, 0, 4, 0, 1, 2, 2, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0, 0, 0],
+        ),
+        (
+            "env_sg_to_miller",
+            [3, 1, 0, 4, 0, 1, 2, 2, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0, 1, 3],
+        ),
+    ],
+)
+def test__get_mask_invalid_actions_backward__returns_expected_general_case(
+    env, state, request
+):
+    env = request.getfixturevalue(env)
+    stage = env._get_stage(state)
+    mask = env.get_mask_invalid_actions_backward(state, done=False)
+    for stg, subenv in env.subenvs.items():
+        if stg == stage:
+            # Mask of state if stage is current stage in state
+            mask_subenv_expected = subenv.get_mask_invalid_actions_backward(
+                env._get_state_of_subenv(state, stg)
+            )
+        else:
+            # Mask of source if stage is other than current stage in state
+            mask_subenv_expected = subenv.get_mask_invalid_actions_backward(
+                subenv.source
+            )
+        mask_subenv = env._get_mask_of_subenv(mask, stg)
+        assert mask_subenv == mask_subenv_expected
+
+
+@pytest.mark.parametrize(
+    "env, state",
+    [
+        ("env_sg_to_miller", [0, 0, 0, 0, 0, 1, 2, 2, -1, -1, -1, -1, -1, -1, 0, 0, 0]),
+        ("env_sg_to_miller", [0, 0, 0, 0, 0, 1, 2, 2, -1, -1, -1, -1, -1, -1, 0, 0, 0]),
+        (
+            "env_sg_to_miller",
+            [2, 1, 0, 4, 0, 6, 1, 143, -1, -1, -1, -1, -1, -1, 0, 0, 0],
+        ),
+        (
+            "env_sg_to_miller",
+            [3, 1, 0, 4, 0, 1, 2, 2, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0, 0, 0],
+        ),
+    ],
+)
+def test__get_mask_invald_actions_backward__returns_expected_stage_transition(
+    env, state, request
+):
+    env = request.getfixturevalue(env)
+    stage = env._get_stage(state)
+    prev_stage = env._get_previous_stage(stage)
+    mask = env.get_mask_invalid_actions_backward(state, done=False)
+    for stg, subenv in env.subenvs.items():
+        if stg == prev_stage and prev_stage != Stage.DONE:
+            # Mask of done (EOS only) if stage is previous stage in state
+            mask_subenv_expected = subenv.get_mask_invalid_actions_backward(
+                env._get_state_of_subenv(state, stg), done=True
+            )
+        else:
+            mask_subenv_expected = subenv.get_mask_invalid_actions_backward(
+                subenv.source
+            )
+            if stg == stage:
+                assert env._get_state_of_subenv(state, stg) == subenv.source
+        mask_subenv = env._get_mask_of_subenv(mask, stg)
+        assert mask_subenv == mask_subenv_expected
+
+
+@pytest.mark.repeat(10)
+@pytest.mark.parametrize("env", ["env_no_sg_to_miller", "env_sg_to_miller"])
+def test__step_random__does_not_crash_from_source(env, request):
+    """
+    Very low bar test...
+    """
+    env = request.getfixturevalue(env)
+    env.reset()
+    env.step_random()
+    assert True
+
+
+@pytest.mark.parametrize(
+    "env, actions, exp_result, exp_stage, last_action_valid",
+    [
+        [
+            "env_sg_to_miller",
+            [(0, 1, 0, -3, -3, -3, -3)],
+            [1, 0, 0, 0, 0, 1, 0, 0, -1, -1, -1, -1, -1, -1, 0, 0, 0],
+            Stage.SPACE_GROUP,
+            True,
+        ],
+        [
+            "env_sg_to_miller",
+            [(0, 1, 0, -3, -3, -3, -3), (1, 2, 1, -3, -3, -3, -3)],
+            [1, 0, 0, 0, 0, 1, 2, 0, -1, -1, -1, -1, -1, -1, 0, 0, 0],
+            Stage.SPACE_GROUP,
+            True,
+        ],
+        [
+            "env_sg_to_miller",
+            [
+                (0, 1, 0, -3, -3, -3, -3),
+                (1, 2, 1, -3, -3, -3, -3),
+                (2, 2, 3, -3, -3, -3, -3),
+            ],
+            [1, 0, 0, 0, 0, 1, 2, 2, -1, -1, -1, -1, -1, -1, 0, 0, 0],
+            Stage.SPACE_GROUP,
+            True,
+        ],
+        [
+            "env_sg_to_miller",
+            [
+                (0, 6, 0, -3, -3, -3, -3),
+                (1, 1, 1, -3, -3, -3, -3),
+                (2, 143, 3, -3, -3, -3, -3),
+            ],
+            [1, 0, 0, 0, 0, 6, 1, 143, -1, -1, -1, -1, -1, -1, 0, 0, 0],
+            Stage.SPACE_GROUP,
+            True,
+        ],
+        [
+            "env_sg_to_miller",
+            [
+                (0, 6, 0, -3, -3, -3, -3),
+                (1, 1, 1, -3, -3, -3, -3),
+                (2, 143, 3, -3, -3, -3, -3),
+                (-1, -1, -1, -3, -3, -3, -3),
+                (1, 1, -2, -2, -2, -2, -2),
+                (3, 4, -2, -2, -2, -2, -2),
+            ],
+            [0, 1, 0, 4, 0, 6, 1, 143, -1, -1, -1, -1, -1, -1, 0, 0, 0],
+            Stage.COMPOSITION,
+            True,
+        ],
+        [
+            "env_sg_to_miller",
+            [
+                (0, 6, 0, -3, -3, -3, -3),
+                (1, 1, 1, -3, -3, -3, -3),
+                (2, 143, 3, -3, -3, -3, -3),
+                (-1, -1, -1, -3, -3, -3, -3),
+                (1, 1, -2, -2, -2, -2, -2),
+                (3, 4, -2, -2, -2, -2, -2),
+                (-1, -1, -2, -2, -2, -2, -2),
+            ],
+            [2, 1, 0, 4, 0, 6, 1, 143, -1, -1, -1, -1, -1, -1, 0, 0, 0],
+            Stage.LATTICE_PARAMETERS,
+            True,
+        ],
+        [
+            "env_sg_to_miller",
+            [
+                (0, 6, 0, -3, -3, -3, -3),
+                (1, 1, 1, -3, -3, -3, -3),
+                (2, 143, 3, -3, -3, -3, -3),
+                (-1, -1, -1, -3, -3, -3, -3),
+                (1, 1, -2, -2, -2, -2, -2),
+                (3, 4, -2, -2, -2, -2, -2),
+                (-1, -1, -2, -2, -2, -2, -2),
+                (0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 1),
+            ],
+            [2, 1, 0, 4, 0, 6, 1, 143, 0.1, 0.1, 0.3, 0.4, 0.4, 0.7, 0, 0, 0],
+            Stage.LATTICE_PARAMETERS,
+            True,
+        ],
+        [
+            "env_sg_to_miller",
+            [
+                (0, 6, 0, -3, -3, -3, -3),
+                (1, 1, 1, -3, -3, -3, -3),
+                (2, 143, 3, -3, -3, -3, -3),
+                (-1, -1, -1, -3, -3, -3, -3),
+                (1, 1, -2, -2, -2, -2, -2),
+                (3, 4, -2, -2, -2, -2, -2),
+                (-1, -1, -2, -2, -2, -2, -2),
+                (0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 1),
+                (0.66, 0.0, 0.44, 0.0, 0.0, 0.0, 0),
+            ],
+            [2, 1, 0, 4, 0, 6, 1, 143, 0.76, 0.76, 0.74, 0.4, 0.4, 0.7, 0, 0, 0],
+            Stage.LATTICE_PARAMETERS,
+            True,
+        ],
+        [
+            "env_sg_to_miller",
+            [
+                (0, 6, 0, -3, -3, -3, -3),
+                (1, 1, 1, -3, -3, -3, -3),
+                (2, 143, 3, -3, -3, -3, -3),
+                (-1, -1, -1, -3, -3, -3, -3),
+                (1, 1, -2, -2, -2, -2, -2),
+                (3, 4, -2, -2, -2, -2, -2),
+                (-1, -1, -2, -2, -2, -2, -2),
+                (0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 1),
+                (0.66, 0.0, 0.44, 0.0, 0.0, 0.0, 0),
+                (np.inf, np.inf, np.inf, np.inf, np.inf, np.inf, np.inf),
+            ],
+            [3, 1, 0, 4, 0, 6, 1, 143, 0.76, 0.76, 0.74, 0.4, 0.4, 0.7, 0, 0, 0],
+            Stage.MILLER_INDICES,
+            True,
+        ],
+        [
+            "env_sg_to_miller",
+            [
+                (0, 6, 0, -3, -3, -3, -3),
+                (1, 1, 1, -3, -3, -3, -3),
+                (2, 143, 3, -3, -3, -3, -3),
+                (-1, -1, -1, -3, -3, -3, -3),
+                (1, 1, -2, -2, -2, -2, -2),
+                (3, 4, -2, -2, -2, -2, -2),
+                (-1, -1, -2, -2, -2, -2, -2),
+                (0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 1),
+                (0.66, 0.0, 0.44, 0.0, 0.0, 0.0, 0),
+                (np.inf, np.inf, np.inf, np.inf, np.inf, np.inf, np.inf),
+                (1, 0, 0, -5, -5, -5, -5),
+            ],
+            [3, 1, 0, 4, 0, 6, 1, 143, 0.76, 0.76, 0.74, 0.4, 0.4, 0.7, 1, 0, 0],
+            Stage.MILLER_INDICES,
+            True,
+        ],
+        [
+            "env_sg_to_miller",
+            [
+                (2, 143, 0, -3, -3, -3, -3),
+                (-1, -1, -1, -3, -3, -3, -3),
+                (1, 1, -2, -2, -2, -2, -2),
+                (3, 4, -2, -2, -2, -2, -2),
+                (-1, -1, -2, -2, -2, -2, -2),
+                (0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 1),
+                (np.inf, np.inf, np.inf, np.inf, np.inf, np.inf, np.inf),
+                (1, 0, 0, -5, -5, -5, -5),
+            ],
+            [3, 1, 0, 4, 0, 6, 1, 143, 0.1, 0.1, 0.3, 0.4, 0.4, 0.7, 1, 0, 0],
+            Stage.MILLER_INDICES,
+            True,
+        ],
+    ],
+)
+def test__step__action_sequence_has_expected_result(
+    env, actions, exp_result, exp_stage, last_action_valid, request
+):
+    env = request.getfixturevalue(env)
+    for action in actions:
+        warnings.filterwarnings("ignore")
+        _, _, valid = env.step(action)
+
+    assert env.state == exp_result
+    assert env._get_stage() == exp_stage
+    assert valid == last_action_valid
+
+
+@pytest.mark.parametrize(
+    "env, state_init, state_end, stage_init, stage_end, actions, last_action_valid",
+    [
+        [
+            "env_sg_to_miller",
+            [1, 0, 0, 0, 0, 1, 0, 0, -1, -1, -1, -1, -1, -1, 0, 0, 0],
+            [1, 0, 0, 0, 0, 0, 0, 0, -1, -1, -1, -1, -1, -1, 0, 0, 0],
+            Stage.SPACE_GROUP,
+            Stage.SPACE_GROUP,
+            [(0, 1, 0, -3, -3, -3, -3)],
+            True,
+        ],
+        [
+            "env_sg_to_miller",
+            [1, 0, 0, 0, 0, 1, 2, 2, -1, -1, -1, -1, -1, -1, 0, 0, 0],
+            [1, 0, 0, 0, 0, 0, 0, 0, -1, -1, -1, -1, -1, -1, 0, 0, 0],
+            Stage.SPACE_GROUP,
+            Stage.SPACE_GROUP,
+            [
+                (2, 2, 3, -3, -3, -3, -3),
+                (1, 2, 1, -3, -3, -3, -3),
+                (0, 1, 0, -3, -3, -3, -3),
+            ],
+            True,
+        ],
+        [
+            "env_sg_to_miller",
+            [3, 1, 0, 4, 0, 6, 1, 143, 0.76, 0.76, 0.74, 0.4, 0.4, 0.7, 1, 0, 0],
+            [3, 1, 0, 4, 0, 6, 1, 143, 0.76, 0.76, 0.74, 0.4, 0.4, 0.7, 0, 0, 0],
+            Stage.MILLER_INDICES,
+            Stage.MILLER_INDICES,
+            [
+                (1, 0, 0, -5, -5, -5, -5),
+            ],
+            True,
+        ],
+        [
+            "env_sg_to_miller",
+            [3, 1, 0, 4, 0, 6, 1, 143, 0.76, 0.76, 0.74, 0.4, 0.4, 0.7, 1, 0, 0],
+            [2, 1, 0, 4, 0, 6, 1, 143, 0.76, 0.76, 0.74, 0.4, 0.4, 0.7, 0, 0, 0],
+            Stage.MILLER_INDICES,
+            Stage.LATTICE_PARAMETERS,
+            [
+                (1, 0, 0, -5, -5, -5, -5),
+                (np.inf, np.inf, np.inf, np.inf, np.inf, np.inf, np.inf),
+            ],
+            True,
+        ],
+        [
+            "env_sg_to_miller",
+            [3, 1, 0, 4, 0, 6, 1, 143, 0.76, 0.76, 0.74, 0.4, 0.4, 0.7, 1, 0, 0],
+            [1, 0, 0, 0, 0, 0, 0, 0, -1, -1, -1, -1, -1, -1, 0, 0, 0],
+            Stage.MILLER_INDICES,
+            Stage.SPACE_GROUP,
+            [
+                (1, 0, 0, -5, -5, -5, -5),
+                (np.inf, np.inf, np.inf, np.inf, np.inf, np.inf, np.inf),
+                (0.66, 0.0, 0.44, 0.0, 0.0, 0.0, 0),
+                (0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 1),
+                (-1, -1, -2, -2, -2, -2, -2),
+                (3, 4, -2, -2, -2, -2, -2),
+                (1, 1, -2, -2, -2, -2, -2),
+                (-1, -1, -1, -3, -3, -3, -3),
+                (2, 143, 3, -3, -3, -3, -3),
+                (1, 1, 1, -3, -3, -3, -3),
+                (0, 6, 0, -3, -3, -3, -3),
+            ],
+            True,
+        ],
+    ],
+)
+def test__step_backwards__action_sequence_has_expected_result(
+    env,
+    state_init,
+    state_end,
+    stage_init,
+    stage_end,
+    actions,
+    last_action_valid,
+    request,
+):
+    env = request.getfixturevalue(env)
+
+    # Hacky way to also test if first action global EOS
+    if actions[0] == env.eos:
+        env.set_state(state_init, done=True)
+    else:
+        env.set_state(state_init, done=False)
+    assert env.state == state_init
+    assert env._get_stage() == stage_init
+    for action in actions:
+        warnings.filterwarnings("ignore")
+        _, _, valid = env.step_backwards(action)
+
+    assert env.state == state_end
+    assert env._get_stage() == stage_end
+    assert valid == last_action_valid
+
+
+@pytest.mark.skip(
+    reason="This is not the correct way of checking an exception is raised"
+)
+@pytest.mark.parametrize(
+    "env, state, action",
+    [
+        [
+            "env_sg_to_miller",
+            [1, 0, 0, 0, 0, 0, 0, 0, -1, -1, -1, -1, -1, -1, 0, 0, 0],
+            (1, 1, -2, -2, -2, -2, -2),
+        ],
+    ],
+)
+def test__step__actions_not_in_subenv_raise_exception(env, state, action, request):
+    env = request.getfixturevalue(env)
+    env.set_state(state)
+    stage = env._get_stage(env.state)
+    subenv = env.subenvs[stage]
+    action_subenv = env._depad_action(action, stage)
+    action_to_check = subenv.action2representative(action_subenv)
+    with pytest.raises(
+        ValueError,
+        match=f"Tried to execute action {action_to_check} not present in action space.",
+    ):
+        _, _, valid = env.step(action)
+
+
+@pytest.mark.repeat(100)
+@pytest.mark.parametrize("env", ["env_no_sg_to_miller", "env_sg_to_miller"])
+def test__trajectory_random__does_not_crash_from_source(env, request):
+    """
+    Raising the bar...
+    """
+    env = request.getfixturevalue(env)
+    env.reset()
+    env.trajectory_random()
+    assert True
+
+
+@pytest.mark.skip(reason="skip while developping other tests")
+def test__continuous_env_common(env_sg_to_miller):
+    print("\n\nCommon tests for catalyst with constraints from SG to Miller indices\n")
+    return common.test__continuous_env_common(env_sg_to_miller)
