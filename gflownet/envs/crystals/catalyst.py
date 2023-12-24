@@ -4,6 +4,9 @@ from enum import Enum
 from typing import Dict, List, Optional, Tuple, Union
 
 import torch
+from torch import Tensor
+from torchtyping import TensorType
+
 from gflownet.envs.base import GFlowNetEnv
 from gflownet.envs.crystals.clattice_parameters import CLatticeParameters
 from gflownet.envs.crystals.composition import Composition
@@ -11,8 +14,6 @@ from gflownet.envs.crystals.miller import MillerIndices
 from gflownet.envs.crystals.spacegroup import SpaceGroup
 from gflownet.utils.common import copy, tbool, tfloat, tlong
 from gflownet.utils.crystals.constants import TRICLINIC
-from torch import Tensor
-from torchtyping import TensorType
 
 
 class Stage(Enum):
@@ -209,18 +210,6 @@ class Catalyst(GFlowNetEnv):
             )
 
         return action_space
-
-    def action2representative(self, action: Tuple) -> Tuple:
-        """
-        Replaces the continuous values of lattice parameters actions by the
-        representative action of the environment so that it can be compared against the
-        action space.
-        """
-        if self._get_stage() == Stage.LATTICE_PARAMETERS:
-            return self.subenvs[Stage.LATTICE_PARAMETERS].action2representative(
-                self._depad_action(action, Stage.LATTICE_PARAMETERS)
-            )
-        return action
 
     def get_max_traj_length(self) -> int:
         return sum([subenv.get_max_traj_length() for subenv in self.subenvs.values()])
@@ -612,12 +601,16 @@ class Catalyst(GFlowNetEnv):
             False, if the action is not allowed for the current state. True otherwise.
         """
         stage = self._get_stage(self.state)
+        subenv = self.subenvs[stage]
+        action_subenv = self._depad_action(action, stage)
+
+        # Perform pre-step from subenv - if it was done from the "superenv" there could
+        # be a mismatch between mask and action space due to continuous subenvs.
+        action_to_check = subenv.action2representative(action_subenv)
         # Skip mask check if stage is lattice parameters (continuous actions)
         if stage == Stage.LATTICE_PARAMETERS:
             skip_mask_check = True
-        # Replace action by its representative to check against the mask.
-        action_to_check = self.action2representative(action)
-        do_step, self.state, action_to_check = self._pre_step(
+        do_step, self.state, _ = subenv._pre_step(
             action_to_check,
             skip_mask_check=(skip_mask_check or self.skip_mask_check),
         )
@@ -625,8 +618,7 @@ class Catalyst(GFlowNetEnv):
             return self.state, action, False
 
         # Call step of current subenvironment
-        action_subenv = self._depad_action(action, stage)
-        _, action_subenv, valid = self.subenvs[stage].step(action_subenv)
+        _, action_subenv, valid = subenv.step(action_subenv)
 
         # If action is invalid, exit immediately. Otherwise increment actions and go on
         if not valid:
@@ -634,7 +626,7 @@ class Catalyst(GFlowNetEnv):
         self.n_actions += 1
 
         # If action is EOS of subenv, advance stage and set constraints or exit
-        if action_subenv == self.subenvs[stage].eos:
+        if action_subenv == subenv.eos:
             stage = self._get_next_stage(stage)
 
             if stage is Stage.SPACE_GROUP:
@@ -706,12 +698,20 @@ class Catalyst(GFlowNetEnv):
             False, if the action is not allowed for the current state. True otherwise.
         """
         stage = self._get_stage(self.state)
+        subenv = self.subenvs[stage]
+        # If state of subenv is source of subenv, decrease stage and subenv
+        if self._get_state_of_subenv(self.state, stage) == subenv.source:
+            stage = self._get_previous_stage(stage)
+            subenv = self.subenvs[stage]
+        action_subenv = self._depad_action(action, stage)
+
+        # Perform pre-step from subenv - if it was done from the "superenv" there could
+        # be a mismatch between mask and action space due to continuous subenvs.
+        action_to_check = subenv.action2representative(action_subenv)
         # Skip mask check if stage is lattice parameters (continuous actions)
         if stage == Stage.LATTICE_PARAMETERS:
             skip_mask_check = True
-        # Replace action by its representative to check against the mask.
-        action_to_check = self.action2representative(action)
-        do_step, self.state, action_to_check = self._pre_step(
+        do_step, self.state, _ = subenv._pre_step(
             action_to_check,
             backward=True,
             skip_mask_check=(skip_mask_check or self.skip_mask_check),
@@ -719,18 +719,14 @@ class Catalyst(GFlowNetEnv):
         if not do_step:
             return self.state, action, False
 
-        # If state of subenv is source of subenv, decrease stage
-        if self._get_state_of_subenv(self.state, stage) == self.subenvs[stage].source:
-            stage = self._get_previous_stage(stage)
-            # If stage is DONE, we've returned to the environment's initial state,
-            # set global source and return
-            if stage is Stage.DONE:
-                self.state = self.source
-                return self.state, action, True
+        # If stage is DONE, we've returned to the environment's initial state: set
+        # global source and return
+        if stage is Stage.DONE:
+            self.state = self.source
+            return self.state, action, True
 
         # Call step of current subenvironment
-        action_subenv = self._depad_action(action, stage)
-        state_next, _, valid = self.subenvs[stage].step_backwards(action_subenv)
+        state_next, _, valid = subenv.step_backwards(action_subenv)
 
         # If action is invalid, exit immediately. Otherwise continue,
         if not valid:
