@@ -24,6 +24,20 @@ jobs:
         __value__: grid
         length: 10
       gflownet: trajectorybalance
+  - slurm:
+      job_name: sanity-grid-db
+    script:
+      env:
+        __value__: grid
+        length: 10
+      gflownet: detailedbalance
+  - slurm:
+      job_name: sanity-grid-fl
+    script:
+      env:
+        __value__: grid
+        length: 10
+      gflownet: forwardlooking
   # Tetris
   - slurm:
       job_name: sanity-tetris-fm
@@ -42,6 +56,43 @@ jobs:
         width: 5
         height: 10
       gflownet: trajectorybalance
+      proxy: tetris
+  # Mini-Tetris
+  - slurm:
+      job_name: sanity-mintetris-fm
+    script:
+      env:
+        __value__: tetris
+        width: 3
+        height: 10
+        pieces: ["J", "L", "S", "Z"]
+        allow_eos_before_full: True
+        reward_func: boltzmann
+      gflownet: flowmatch
+      proxy: tetris
+  - slurm:
+      job_name: sanity-mintetris-tb
+    script:
+      env:
+        __value__: tetris
+        width: 3
+        height: 10
+        pieces: ["J", "L", "S", "Z"]
+        allow_eos_before_full: True
+        reward_func: boltzmann
+      gflownet: trajectorybalance
+      proxy: tetris
+  - slurm:
+      job_name: sanity-mintetris-fl
+    script:
+      env:
+        __value__: tetris
+        width: 3
+        height: 10
+        pieces: ["J", "L", "S", "Z"]
+        allow_eos_before_full: True
+        reward_func: boltzmann
+      gflownet: forwardlooking
       proxy: tetris
   # Ctorus
   - slurm:
