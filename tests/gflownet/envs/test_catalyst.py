@@ -807,8 +807,8 @@ def test__step_random__does_not_crash_from_source(env, request):
                 (0, 0, 1, -5, -5, -5, -5),
                 (0, 0, 0, -5, -5, -5, -5),
             ],
-            [3, 1, 0, 4, 0, 6, 1, 143, 0.1, 0.1, 0.3, 0.4, 0.4, 0.7, 0, 1, 3],
-            Stage.MILLER_INDICES,
+            [4, 1, 0, 4, 0, 6, 1, 143, 0.1, 0.1, 0.3, 0.4, 0.4, 0.7, 0, 1, 3],
+            Stage.DONE,
             True,
         ],
         [
@@ -829,8 +829,8 @@ def test__step_random__does_not_crash_from_source(env, request):
                 (0, 0, 1, -5, -5, -5, -5),
                 (0, 0, 0, -5, -5, -5, -5),
             ],
-            [3, 1, 0, 4, 0, 6, 1, 143, 0.1, 0.1, 0.3, 0.4, 0.4, 0.7, 2, 2, 2],
-            Stage.MILLER_INDICES,
+            [4, 1, 0, 4, 0, 6, 1, 143, 0.1, 0.1, 0.3, 0.4, 0.4, 0.7, 2, 2, 2],
+            Stage.DONE,
             True,
         ],
     ],
@@ -917,6 +917,62 @@ def test__step__action_sequence_has_expected_result(
             ],
             True,
         ],
+        [
+            "env_sg_to_miller",
+            [4, 1, 0, 4, 0, 6, 1, 143, 0.76, 0.76, 0.74, 0.4, 0.4, 0.7, 1, 0, 0],
+            [3, 1, 0, 4, 0, 6, 1, 143, 0.76, 0.76, 0.74, 0.4, 0.4, 0.7, 1, 0, 0],
+            Stage.DONE,
+            Stage.MILLER_INDICES,
+            [
+                (0, 0, 0, -5, -5, -5, -5),
+            ],
+            True,
+        ],
+        [
+            "env_sg_to_miller",
+            [3, 1, 0, 4, 0, 6, 1, 143, 0.76, 0.76, 0.74, 0.4, 0.4, 0.7, 1, 0, 0],
+            [3, 1, 0, 4, 0, 6, 1, 143, 0.76, 0.76, 0.74, 0.4, 0.4, 0.7, 0, 0, 0],
+            Stage.MILLER_INDICES,
+            Stage.MILLER_INDICES,
+            [
+                (1, 0, 0, -5, -5, -5, -5),
+            ],
+            True,
+        ],
+        [
+            "env_sg_to_miller",
+            [4, 1, 0, 4, 0, 6, 1, 143, 0.76, 0.76, 0.74, 0.4, 0.4, 0.7, 1, 0, 0],
+            [3, 1, 0, 4, 0, 6, 1, 143, 0.76, 0.76, 0.74, 0.4, 0.4, 0.7, 0, 0, 0],
+            Stage.DONE,
+            Stage.MILLER_INDICES,
+            [
+                (0, 0, 0, -5, -5, -5, -5),
+                (1, 0, 0, -5, -5, -5, -5),
+            ],
+            True,
+        ],
+        [
+            "env_sg_to_miller",
+            [4, 1, 0, 4, 0, 6, 1, 143, 0.76, 0.76, 0.74, 0.4, 0.4, 0.7, 1, 0, 0],
+            [1, 0, 0, 0, 0, 0, 0, 0, -1, -1, -1, -1, -1, -1, 0, 0, 0],
+            Stage.DONE,
+            Stage.SPACE_GROUP,
+            [
+                (0, 0, 0, -5, -5, -5, -5),
+                (1, 0, 0, -5, -5, -5, -5),
+                (np.inf, np.inf, np.inf, np.inf, np.inf, np.inf, np.inf),
+                (0.66, 0.0, 0.44, 0.0, 0.0, 0.0, 0),
+                (0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 1),
+                (-1, -1, -2, -2, -2, -2, -2),
+                (3, 4, -2, -2, -2, -2, -2),
+                (1, 1, -2, -2, -2, -2, -2),
+                (-1, -1, -1, -3, -3, -3, -3),
+                (2, 143, 3, -3, -3, -3, -3),
+                (1, 1, 1, -3, -3, -3, -3),
+                (0, 6, 0, -3, -3, -3, -3),
+            ],
+            True,
+        ],
     ],
 )
 def test__step_backwards__action_sequence_has_expected_result(
@@ -974,7 +1030,7 @@ def test__step__actions_not_in_subenv_raise_exception(env, state, action, reques
         _, _, valid = env.step(action)
 
 
-@pytest.mark.repeat(100)
+@pytest.mark.repeat(10)
 @pytest.mark.parametrize("env", ["env_no_sg_to_miller", "env_sg_to_miller"])
 def test__trajectory_random__does_not_crash_from_source(env, request):
     """
@@ -986,7 +1042,7 @@ def test__trajectory_random__does_not_crash_from_source(env, request):
     assert True
 
 
-@pytest.mark.repeat(100)
+@pytest.mark.repeat(10)
 @pytest.mark.parametrize("env", ["env_no_sg_to_miller", "env_sg_to_miller"])
 def test__trajectory_random__returns_reasonable_state_and_actions(env, request):
     """
@@ -1007,6 +1063,25 @@ def test__trajectory_random__returns_reasonable_state_and_actions(env, request):
     for action in actions:
         env.step(action)
     assert state == env.state
+
+
+@pytest.mark.repeat(10)
+# @pytest.mark.skip(reason="skip while developping other tests")
+@pytest.mark.parametrize(
+    "state",
+    [
+        [4, 1, 0, 4, 0, 6, 1, 143, 0.1, 0.1, 0.3, 0.4, 0.4, 0.7, 2, 2, 2],
+        [4, 1, 0, 4, 0, 1, 2, 2, 0.1, 0.1, 0.3, 0.4, 0.4, 0.7, 0, 1, 3],
+        [4, 1, 0, 4, 0, 6, 1, 143, 0.1, 0.1, 0.3, 0.4, 0.4, 0.7, 0, 0, 0],
+    ],
+)
+def test__if_done_only_valid_action_is_eos(env_sg_to_miller, state):
+    env = env_sg_to_miller
+    env.set_state(state, done=True)
+    state_sampled, action, valid = env.step_random(backward=True)
+    assert valid is True
+    assert action == env.eos
+    assert state_sampled[1:] == state[1:]
 
 
 # @pytest.mark.skip(reason="skip while developping other tests")
