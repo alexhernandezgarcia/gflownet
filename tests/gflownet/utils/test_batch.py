@@ -72,6 +72,11 @@ def tetris_score():
     return TetrisScore(device="cpu", float_precision=32, normalize=False)
 
 
+@pytest.fixture()
+def tetris_score_norm():
+    return TetrisScore(device="cpu", float_precision=32, normalize=True)
+
+
 # @pytest.mark.skip(reason="skip while developping other tests")
 def test__len__returnszero_at_init(batch):
     assert len(batch) == 0
@@ -1192,3 +1197,173 @@ def test__make_indices_consecutive__multiplied_indices_become_consecutive(
     assert torch.equal(
         traj_indices_batch, tlong(traj_indices_consecutive, device=batch.device)
     )
+
+
+@pytest.mark.repeat(N_REPETITIONS)
+@pytest.mark.parametrize(
+    "env, proxy",
+    [("grid2d", "corners"), ("tetris6x4", "tetris_score"), ("ctorus2d5l", "corners")],
+)
+# @pytest.mark.skip(reason="skip while developping other tests")
+def test__get_rewards__single_env_returns_expected_non_terminating(
+    env, proxy, batch, request
+):
+    env = request.getfixturevalue(env)
+    proxy = request.getfixturevalue(proxy)
+    env = env.reset()
+    env.proxy = proxy
+    env.setup_proxy()
+    batch.set_env(env)
+
+    rewards = []
+    while not env.done:
+        parent = env.state
+        # Sample random action
+        _, action, valid = env.step_random()
+        # Add to batch
+        batch.add_to_batch([env], [action], [valid])
+        if valid:
+            rewards.append(env.reward(do_non_terminating=True))
+    rewards_batch = batch.get_rewards(do_non_terminating=True)
+    rewards = torch.stack(rewards)
+    assert torch.equal(
+        rewards_batch,
+        tfloat(rewards, device=batch.device, float_type=batch.float),
+    ), (rewards, rewards_batch)
+
+
+@pytest.mark.repeat(N_REPETITIONS)
+# @pytest.mark.skip(reason="skip while developping other tests")
+@pytest.mark.parametrize(
+    "env, proxy",
+    [("grid2d", "corners"), ("tetris6x4", "tetris_score_norm")],
+)
+def test__get_rewards_multiple_env_returns_expected_non_zero_non_terminating(
+    env, proxy, batch, request
+):
+    batch_size = BATCH_SIZE
+    env_ref = request.getfixturevalue(env)
+    proxy = request.getfixturevalue(proxy)
+    env_ref = env_ref.reset()
+    env_ref.proxy = proxy
+    env_ref.setup_proxy()
+    env_ref.reward_func = "boltzmann"
+
+    batch.set_env(env_ref)
+
+    # Make list of envs
+    envs = []
+    for idx in range(batch_size):
+        env_aux = env_ref.copy().reset(idx)
+        envs.append(env_aux)
+
+    rewards = []
+    proxy_values = []
+
+    # Iterate until envs is empty
+    while envs:
+        actions_iter = []
+        valids_iter = []
+        # Make step env by env (different to GFN Agent) to have full control
+        for env in envs:
+            parent = copy(env.state)
+            # Sample random action
+            state, action, valid = env.step_random()
+            if valid:
+                # Add to iter lists
+                actions_iter.append(action)
+                valids_iter.append(valid)
+                rewards.append(env.reward(do_non_terminating=True))
+                proxy_values.append(
+                    env.proxy(torch.unsqueeze(env.state2proxy(env.state), dim=0))[0]
+                )
+        # Add all envs, actions and valids to batch
+        batch.add_to_batch(envs, actions_iter, valids_iter)
+        # Remove done envs
+        envs = [env for env in envs if not env.done]
+
+    rewards_batch = batch.get_rewards(do_non_terminating=True)
+    rewards = torch.stack(rewards)
+    assert torch.equal(
+        rewards_batch,
+        tfloat(rewards, device=batch.device, float_type=batch.float),
+    ), (rewards, rewards_batch)
+    assert ~torch.any(
+        torch.isclose(rewards_batch, torch.zeros_like(rewards_batch))
+    ), rewards_batch
+
+
+@pytest.mark.repeat(N_REPETITIONS)
+# @pytest.mark.skip(reason="skip while developping other tests")
+@pytest.mark.parametrize(
+    "env, proxy",
+    [
+        ("grid2d", "corners"),
+        ("tetris6x4", "tetris_score_norm"),
+        ("ctorus2d5l", "corners"),
+    ],
+)
+def test__get_rewards_parents_multiple_env_returns_expected_non_terminating(
+    env, proxy, batch, request
+):
+    batch_size = BATCH_SIZE
+    env_ref = request.getfixturevalue(env)
+    proxy = request.getfixturevalue(proxy)
+    env_ref = env_ref.reset()
+    env_ref.proxy = proxy
+    env_ref.setup_proxy()
+
+    batch.set_env(env_ref)
+
+    # Make list of envs
+    envs = []
+    for idx in range(batch_size):
+        env_aux = env_ref.copy().reset(idx)
+        envs.append(env_aux)
+
+    rewards_parents = []
+    rewards = []
+
+    # Iterate until envs is empty
+    while envs:
+        actions_iter = []
+        valids_iter = []
+        # Make step env by env (different to GFN Agent) to have full control
+        for env in envs:
+            parent = copy(env.state)
+            assert env.done is False
+
+            # Sample random action
+            state, action, valid = env.step_random()
+            if valid:
+                # Add to iter lists
+                actions_iter.append(action)
+                valids_iter.append(valid)
+                rewards_parents.append(
+                    env.reward(state=parent, done=False, do_non_terminating=True)
+                )
+                rewards.append(env.reward(do_non_terminating=True))
+        # Add all envs, actions and valids to batch
+        batch.add_to_batch(envs, actions_iter, valids_iter)
+        # Remove done envs
+        envs = [env for env in envs if not env.done]
+
+    rewards_parents_batch = batch.get_rewards_parents()
+    rewards_parents = torch.stack(rewards_parents)
+
+    rewards_batch = batch.get_rewards(do_non_terminating=True)
+    rewards = torch.stack(rewards)
+
+    assert torch.all(
+        torch.isclose(
+            rewards_parents_batch,
+            tfloat(rewards_parents, device=batch.device, float_type=batch.float),
+        )
+    ), (rewards_parents, rewards_parents_batch)
+
+    assert torch.all(
+        torch.isclose(
+            rewards_batch,
+            tfloat(rewards, device=batch.device, float_type=batch.float),
+        )
+    ), (rewards, rewards_batch)

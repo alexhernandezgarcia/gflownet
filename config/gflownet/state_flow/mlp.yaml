@@ -1,0 +1,9 @@
+_target_: gflownet.policy.state_flow.StateFlow
+
+config:
+  type: mlp
+  n_hid: 128
+  n_layers: 2
+  checkpoint: null
+  reload_ckpt: False
+  shared_weights: False

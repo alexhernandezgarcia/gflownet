@@ -102,6 +102,9 @@ class CubeBase(GFlowNetEnv, ABC):
         self.epsilon = epsilon
         # Small constant to restrict the interval of (test) sets
         self.kappa = kappa
+        # Conversions: only conversions to policy are implemented and the conversion to
+        # proxy format is the same
+        self.states2proxy = self.states2policy
         # Base class init
         super().__init__(
             fixed_distr_params=fixed_distr_params,
@@ -149,70 +152,6 @@ class CubeBase(GFlowNetEnv, ABC):
         """
         states = tfloat(states, device=self.device, float_type=self.float)
         return 2.0 * torch.clip(states, min=0.0, max=1.0) - 1.0
-
-    def statetorch2proxy(
-        self, states: TensorType["batch", "state_dim"] = None
-    ) -> TensorType["batch", "oracle_input_dim"]:
-        """
-        Returns statetorch2oracle(states), that is states mapped to [-1.0, 1.0].
-
-        Args
-        ----
-        state : list
-            State
-        """
-        return self.statetorch2oracle(states)
-
-    def statebatch2proxy(
-        self, states: List[List]
-    ) -> TensorType["batch", "state_oracle_dim"]:
-        """
-        Returns statebatch2oracle(states), that is states mapped to [-1.0, 1.0].
-
-        Args
-        ----
-        state : list
-            State
-        """
-        return self.statebatch2oracle(states)
-
-    def state2proxy(self, state: List = None) -> List:
-        """
-        Returns state2oracle(state), that is the state mapped to [-1.0, 1.0].
-        """
-        return self.state2oracle(state)
-
-    def statetorch2policy(
-        self, states: TensorType["batch", "state_dim"] = None
-    ) -> TensorType["batch", "policy_input_dim"]:
-        """
-        Returns statetorch2proxy(states), that is states mapped to [-1.0, 1.0].
-
-        Args
-        ----
-        state : list
-            State
-        """
-        return self.statetorch2proxy(states)
-
-    def statebatch2policy(
-        self, states: List[List]
-    ) -> TensorType["batch", "state_proxy_dim"]:
-        """
-        Returns statebatch2proxy(states), that is states mapped to [-1.0, 1.0].
-
-        Args
-        ----
-        state : list
-            State
-        """
-        return self.statebatch2proxy(states)
-
-    def state2policy(self, state: List = None) -> List:
-        """
-        Returns state2proxy(state), that is the state mapped to [-1.0, 1.0].
-        """
-        return self.state2proxy(state)
 
     def state2readable(self, state: List) -> str:
         """
