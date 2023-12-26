@@ -601,6 +601,8 @@ class Catalyst(GFlowNetEnv):
             False, if the action is not allowed for the current state. True otherwise.
         """
         stage = self._get_stage(self.state)
+        if stage == Stage.DONE:
+            return self.state, action, False
         subenv = self.subenvs[stage]
         action_subenv = self._depad_action(action, stage)
 
@@ -661,9 +663,7 @@ class Catalyst(GFlowNetEnv):
                     )
 
             elif stage is Stage.DONE:
-                self.n_actions += 1
                 self.done = True
-                return self.state, self.eos, True
 
             else:
                 raise ValueError(f"Unrecognized stage {stage}.")
@@ -698,9 +698,14 @@ class Catalyst(GFlowNetEnv):
             False, if the action is not allowed for the current state. True otherwise.
         """
         stage = self._get_stage(self.state)
-        subenv = self.subenvs[stage]
-        # If state of subenv is source of subenv, decrease stage and subenv
-        if self._get_state_of_subenv(self.state, stage) == subenv.source:
+        if stage != Stage.DONE:
+            subenv = self.subenvs[stage]
+        # If stage is DONE or state of subenv is source of subenv, decrease stage and
+        # subenv
+        if (
+            stage == Stage.DONE
+            or self._get_state_of_subenv(self.state, stage) == subenv.source
+        ):
             stage = self._get_previous_stage(stage)
             subenv = self.subenvs[stage]
         action_subenv = self._depad_action(action, stage)
@@ -775,10 +780,12 @@ class Catalyst(GFlowNetEnv):
             state_subenv = self._get_state_of_subenv(s, stage)
             # If the actions are backwards and state is source of subenv, decrease
             # stage so that EOS of preceding stage is sampled.
-            if (
-                is_backward
-                and self._get_previous_stage(stage) != Stage.DONE
-                and state_subenv == self.subenvs[stage].source
+            if is_backward and (
+                stage == Stage.DONE
+                or (
+                    self._get_previous_stage(stage) != Stage.DONE
+                    and state_subenv == self.subenvs[stage].source
+                )
             ):
                 stage = self._get_previous_stage(stage)
             states_dict[stage].append(state_subenv)
@@ -854,10 +861,12 @@ class Catalyst(GFlowNetEnv):
             state_subenv = self._get_state_of_subenv(s, stage)
             # If the actions are backwards and state is source of subenv, decrease
             # stage so that EOS of preceding stage is sampled.
-            if (
-                is_backward
-                and self._get_previous_stage(stage) != Stage.DONE
-                and state_subenv == self.subenvs[stage].source
+            if is_backward and (
+                stage == Stage.DONE
+                or (
+                    self._get_previous_stage(stage) != Stage.DONE
+                    and state_subenv == self.subenvs[stage].source
+                )
             ):
                 stage = self._get_previous_stage(stage)
             states_dict[stage].append(state_subenv)
