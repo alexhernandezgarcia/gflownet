@@ -610,7 +610,7 @@ class Catalyst(GFlowNetEnv):
         # Skip mask check if stage is lattice parameters (continuous actions)
         if stage == Stage.LATTICE_PARAMETERS:
             skip_mask_check = True
-        do_step, self.state, _ = subenv._pre_step(
+        do_step, _, _ = subenv._pre_step(
             action_to_check,
             skip_mask_check=(skip_mask_check or self.skip_mask_check),
         )
@@ -711,7 +711,7 @@ class Catalyst(GFlowNetEnv):
         # Skip mask check if stage is lattice parameters (continuous actions)
         if stage == Stage.LATTICE_PARAMETERS:
             skip_mask_check = True
-        do_step, self.state, _ = subenv._pre_step(
+        do_step, _, _ = subenv._pre_step(
             action_to_check,
             backward=True,
             skip_mask_check=(skip_mask_check or self.skip_mask_check),

@@ -771,6 +771,68 @@ def test__step_random__does_not_crash_from_source(env, request):
             Stage.MILLER_INDICES,
             True,
         ],
+        [
+            "env_sg_to_miller",
+            [
+                (2, 143, 0, -3, -3, -3, -3),
+                (-1, -1, -1, -3, -3, -3, -3),
+                (1, 1, -2, -2, -2, -2, -2),
+                (3, 4, -2, -2, -2, -2, -2),
+                (-1, -1, -2, -2, -2, -2, -2),
+                (0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 1),
+                (np.inf, np.inf, np.inf, np.inf, np.inf, np.inf, np.inf),
+                (0, 1, 0, -5, -5, -5, -5),
+                (0, 0, 1, -5, -5, -5, -5),
+                (0, 0, 1, -5, -5, -5, -5),
+                (0, 0, 1, -5, -5, -5, -5),
+                (0, 0, 0, -5, -5, -5, -5),
+            ],
+            [3, 1, 0, 4, 0, 6, 1, 143, 0.1, 0.1, 0.3, 0.4, 0.4, 0.7, 0, 1, 3],
+            Stage.MILLER_INDICES,
+            False,
+        ],
+        [
+            "env_no_sg_to_miller",
+            [
+                (2, 143, 0, -3, -3, -3, -3),
+                (-1, -1, -1, -3, -3, -3, -3),
+                (1, 1, -2, -2, -2, -2, -2),
+                (3, 4, -2, -2, -2, -2, -2),
+                (-1, -1, -2, -2, -2, -2, -2),
+                (0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 1),
+                (np.inf, np.inf, np.inf, np.inf, np.inf, np.inf, np.inf),
+                (0, 1, 0, -5, -5, -5, -5),
+                (0, 0, 1, -5, -5, -5, -5),
+                (0, 0, 1, -5, -5, -5, -5),
+                (0, 0, 1, -5, -5, -5, -5),
+                (0, 0, 0, -5, -5, -5, -5),
+            ],
+            [3, 1, 0, 4, 0, 6, 1, 143, 0.1, 0.1, 0.3, 0.4, 0.4, 0.7, 0, 1, 3],
+            Stage.MILLER_INDICES,
+            True,
+        ],
+        [
+            "env_sg_to_miller",
+            [
+                (2, 143, 0, -3, -3, -3, -3),
+                (-1, -1, -1, -3, -3, -3, -3),
+                (1, 1, -2, -2, -2, -2, -2),
+                (3, 4, -2, -2, -2, -2, -2),
+                (-1, -1, -2, -2, -2, -2, -2),
+                (0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 1),
+                (np.inf, np.inf, np.inf, np.inf, np.inf, np.inf, np.inf),
+                (1, 0, 0, -5, -5, -5, -5),
+                (1, 0, 0, -5, -5, -5, -5),
+                (0, 1, 0, -5, -5, -5, -5),
+                (0, 1, 0, -5, -5, -5, -5),
+                (0, 0, 1, -5, -5, -5, -5),
+                (0, 0, 1, -5, -5, -5, -5),
+                (0, 0, 0, -5, -5, -5, -5),
+            ],
+            [3, 1, 0, 4, 0, 6, 1, 143, 0.1, 0.1, 0.3, 0.4, 0.4, 0.7, 2, 2, 2],
+            Stage.MILLER_INDICES,
+            True,
+        ],
     ],
 )
 def test__step__action_sequence_has_expected_result(
@@ -924,7 +986,30 @@ def test__trajectory_random__does_not_crash_from_source(env, request):
     assert True
 
 
-@pytest.mark.skip(reason="skip while developping other tests")
+@pytest.mark.repeat(100)
+@pytest.mark.parametrize("env", ["env_no_sg_to_miller", "env_sg_to_miller"])
+def test__trajectory_random__returns_reasonable_state_and_actions(env, request):
+    """
+    Just a little higher...
+    """
+    env = request.getfixturevalue(env)
+    env.reset()
+    state, actions = env.trajectory_random()
+    assert env.done is True
+    # State has substates of correct length
+    for stage, subenv in env.subenvs.items():
+        substate = env._get_state_of_subenv(env.state, stage)
+        substate_source = env._get_state_of_subenv(env.source, stage)
+        assert substate == subenv.state
+        assert len(substate) == len(substate_source)
+    # Replay of trajectory actions leads to same state
+    env.reset()
+    for action in actions:
+        env.step(action)
+    assert state == env.state
+
+
+# @pytest.mark.skip(reason="skip while developping other tests")
 def test__continuous_env_common(env_sg_to_miller):
     print("\n\nCommon tests for catalyst with constraints from SG to Miller indices\n")
     return common.test__continuous_env_common(env_sg_to_miller)
