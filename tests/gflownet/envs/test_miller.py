@@ -1,7 +1,9 @@
 import common
 import pytest
+import torch
 
 from gflownet.envs.crystals.miller import MillerIndices
+from gflownet.utils.common import tfloat
 
 
 @pytest.fixture
@@ -15,7 +17,7 @@ def no_hexa_rhombo():
 
 
 @pytest.mark.parametrize(
-    "state, state2oracle",
+    "state, state2proxy",
     [
         (
             [0, 0, 0],
@@ -39,11 +41,19 @@ def no_hexa_rhombo():
         ),
     ],
 )
-def test__state2oracle__returns_expected(
-    hexa_rhombo, no_hexa_rhombo, state, state2oracle
+def test__state2proxy__returns_expected(
+    hexa_rhombo, no_hexa_rhombo, state, state2proxy
 ):
-    assert state2oracle == hexa_rhombo.state2oracle(state)
-    assert state2oracle == no_hexa_rhombo.state2oracle(state)
+    assert torch.equal(
+        tfloat(state2proxy, device=hexa_rhombo.device, float_type=hexa_rhombo.float),
+        hexa_rhombo.state2proxy(state),
+    )
+    assert torch.equal(
+        tfloat(
+            state2proxy, device=no_hexa_rhombo.device, float_type=no_hexa_rhombo.float
+        ),
+        no_hexa_rhombo.state2proxy(state),
+    )
 
 
 @pytest.mark.parametrize(

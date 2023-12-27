@@ -86,3 +86,56 @@ class MillerIndices(Grid):
                     mask[action_idx] = True
 
         return mask
+
+    def _is_terminating(self, state: List) -> bool:
+        """
+        Determines whether a state can be a terminating state, given the constraints.
+
+        If the lattice is hexagonal or rhombohedral, then -2 <= h + k <= 2 for a state
+        to be terminating. Otherwise, all states can be terminating.
+
+        Args
+        ----
+        state : list
+            An input state
+
+        Returns
+        -------
+        True, if the state can be terminating, given the constraints. False, otherwise.
+        """
+        if not self.is_hexagonal_rhombohedral:
+            return True
+        h, k, _ = [self.cells[s] for s in state]
+        if h + k < -2 or h + k > 2:
+            return False
+        return True
+
+    def get_all_terminating_states(self) -> List[List]:
+        """
+        Gets all terminating states. If is_hexagonal_rhombohedral is True, it discards
+        the terminating states that do not satisfy the constraints.
+        """
+        states_all = super().get_all_terminating_states()
+        if not self.is_hexagonal_rhombohedral:
+            return states_all
+        states_all_constraints = []
+        for state in states_all:
+            if self._is_terminating(state):
+                states_all_constraints.append(state)
+        return states_all_constraints
+
+    def get_uniform_terminating_states(
+        self, n_states: int, seed: int = None
+    ) -> List[List]:
+        """
+        Gets uniformly sampled terminating states. If is_hexagonal_rhombohedral is
+        True, it discards the terminating states that do not satisfy the constraints.
+        """
+        states_uniform = super().get_uniform_terminating_states()
+        if not self.is_hexagonal_rhombohedral:
+            return states_uniform
+        states_uniform_constraints = []
+        for state in states_uniform:
+            if self._is_terminating(state):
+                states_uniform_constraints.append(state)
+        return states_uniform_constraints
