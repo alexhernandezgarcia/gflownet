@@ -34,6 +34,8 @@ optimizer:
   # From original implementation
   bootstrap_tau: 0.0
   clip_grad_norm: 0.0
+# State flow modelling
+state_flow: null
 # If True, compute rewards in batches
 batch_reward: True
 # Force zero probability of sampling invalid actions

@@ -152,22 +152,22 @@ def test__pad_depad_action(env):
         ],
     ],
 )
-def test__statetorch2policy__is_concatenation_of_subenv_states(env, states):
+def test__states2policy__is_concatenation_of_subenv_states(env, states):
     # Get policy states from the batch of states converted into each subenv
     states_dict = {stage: [] for stage in env.subenvs}
     for state in states:
         for stage in env.subenvs:
             states_dict[stage].append(env._get_state_of_subenv(state, stage))
     states_policy_dict = {
-        stage: subenv.statebatch2policy(states_dict[stage])
+        stage: subenv.states2policy(states_dict[stage])
         for stage, subenv in env.subenvs.items()
     }
     states_policy_expected = torch.cat(
         [el for el in states_policy_dict.values()], dim=1
     )
-    # Get policy states from env.statetorch2policy
+    # Get policy states from env.states2policy
     states_torch = tfloat(states, float_type=env.float, device=env.device)
-    states_policy = env.statetorch2policy(states_torch)
+    states_policy = env.states2policy(states_torch)
     assert torch.all(torch.eq(states_policy, states_policy_expected))
 
 
@@ -191,20 +191,20 @@ def test__statetorch2policy__is_concatenation_of_subenv_states(env, states):
         ],
     ],
 )
-def test__statetorch2proxy__is_concatenation_of_subenv_states(env, states):
+def test__states2proxy__is_concatenation_of_subenv_states(env, states):
     # Get proxy states from the batch of states converted into each subenv
     states_dict = {stage: [] for stage in env.subenvs}
     for state in states:
         for stage in env.subenvs:
             states_dict[stage].append(env._get_state_of_subenv(state, stage))
     states_proxy_dict = {
-        stage: subenv.statebatch2proxy(states_dict[stage])
+        stage: subenv.states2proxy(states_dict[stage])
         for stage, subenv in env.subenvs.items()
     }
     states_proxy_expected = torch.cat([el for el in states_proxy_dict.values()], dim=1)
-    # Get proxy states from env.statetorch2proxy
+    # Get proxy states from env.states2proxy
     states_torch = tfloat(states, float_type=env.float, device=env.device)
-    states_proxy = env.statetorch2proxy(states_torch)
+    states_proxy = env.states2proxy(states_torch)
     assert torch.all(torch.eq(states_proxy, states_proxy_expected))
 
 
@@ -243,7 +243,7 @@ def test__state2readable__is_concatenation_of_subenv_states(env, states):
             f"SpaceGroup = {readables[1]}; "
             f"LatticeParameters = {readables[2]}"
         )
-    # Get policy states from env.statetorch2policy
+    # Get policy states from env.states2policy
     states_readable = [env.state2readable(state) for state in states]
     for readable, readable_expected in zip(states_readable, states_readable_expected):
         assert readable == readable_expected

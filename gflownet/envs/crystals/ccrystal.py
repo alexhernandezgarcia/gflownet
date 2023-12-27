@@ -857,99 +857,57 @@ class CCrystal(GFlowNetEnv):
             )
         return logprobs
 
-    def state2policy(self, state: Optional[List[int]] = None) -> Tensor:
-        """
-        Prepares one state in "GFlowNet format" for the policy. Simply
-        a concatenation of all crystal components.
-        """
-        state = self._get_state(state)
-        return self.statetorch2policy(
-            torch.unsqueeze(tfloat(state, device=self.device, float_type=self.float), 0)
-        )[0]
-
-    def statebatch2policy(
-        self, states: List[List]
+    def states2policy(
+        self, states: Union[List[List], TensorType["batch", "state_dim"]]
     ) -> TensorType["batch", "state_policy_dim"]:
         """
-        Prepares a batch of states in "GFlowNet format" for the policy. Simply
+        Prepares a batch of states in "environment format" for the policy model: simply
         a concatenation of all crystal components.
-        """
-        return self.statetorch2policy(
-            tfloat(states, device=self.device, float_type=self.float)
-        )
 
-    def statetorch2policy(
-        self, states: TensorType["batch", "state_dim"]
-    ) -> TensorType["batch", "state_policy_dim"]:
+        Args
+        ----
+        states : list or tensor
+            A batch of states in environment format, either as a list of states or as a
+            single tensor.
+
+        Returns
+        -------
+        A tensor containing all the states in the batch.
         """
-        Prepares a tensor batch of states in "GFlowNet format" for the policy. Simply
-        a concatenation of all crystal components.
-        """
+        states = tfloat(states, device=self.device, float_type=self.float)
         return torch.cat(
             [
-                subenv.statetorch2policy(self._get_states_of_subenv(states, stage))
+                subenv.states2policy(self._get_states_of_subenv(states, stage))
                 for stage, subenv in self.subenvs.items()
             ],
             dim=1,
         )
 
-    def state2oracle(self, state: Optional[List[int]] = None) -> Tensor:
-        """
-        Prepares one state in "GFlowNet format" for the oracle. Simply
-        a concatenation of all crystal components.
-        """
-        state = self._get_state(state)
-        return self.statetorch2oracle(
-            torch.unsqueeze(tfloat(state, device=self.device, float_type=self.float), 0)
-        )
-
-    def statebatch2oracle(
-        self, states: List[List]
+    def states2proxy(
+        self, states: Union[List[List], TensorType["batch", "state_dim"]]
     ) -> TensorType["batch", "state_oracle_dim"]:
         """
-        Prepares a batch of states in "GFlowNet format" for the oracle. Simply
-        a concatenation of all crystal components.
-        """
-        return self.statetorch2oracle(
-            tfloat(states, device=self.device, float_type=self.float)
-        )
+        Prepares a batch of states in "environment format" for a proxy: simply a
+        concatenation of all crystal components.
 
-    def statetorch2oracle(
-        self, states: TensorType["batch", "state_dim"]
-    ) -> TensorType["batch", "state_oracle_dim"]:
+        Args
+        ----
+        states : list or tensor
+            A batch of states in environment format, either as a list of states or as a
+            single tensor.
+
+        Returns
+        -------
+        A tensor containing all the states in the batch.
         """
-        Prepares one state in "GFlowNet format" for the oracle. Simply
-        a concatenation of all crystal components.
-        """
+        states = tfloat(states, device=self.device, float_type=self.float)
         return torch.cat(
             [
-                subenv.statetorch2oracle(self._get_states_of_subenv(states, stage))
+                subenv.states2proxy(self._get_states_of_subenv(states, stage))
                 for stage, subenv in self.subenvs.items()
             ],
             dim=1,
         )
-
-    def state2proxy(self, state: Optional[List[int]] = None) -> Tensor:
-        """
-        Returns state2oracle(state).
-        """
-        return self.state2oracle(state)
-
-    def statebatch2proxy(
-        self, states: List[List]
-    ) -> TensorType["batch", "state_oracle_dim"]:
-        """
-        Returns statebatch2oracle(states).
-        """
-        return self.statebatch2oracle(states)
-
-    def statetorch2proxy(
-        self, states: TensorType["batch", "state_dim"]
-    ) -> TensorType["batch", "state_oracle_dim"]:
-        """
-        Returns statetorch2oracle(states).
-        """
-        return self.statetorch2oracle(states)
 
     def set_state(self, state: List, done: Optional[bool] = False):
         super().set_state(state, done)
