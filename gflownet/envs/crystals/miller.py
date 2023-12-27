@@ -102,8 +102,8 @@ class MillerIndices(Grid):
         """
         Determines whether a state can be a terminating state, given the constraints.
 
-        All states can be terminating states, except if the lattice is hexagonal or
-        rhombohedral and h + k < -2.
+        If the lattice is hexagonal or rhombohedral, then -2 <= h + k <= 2 for a state
+        to be terminating. Otherwise, all states can be terminating.
 
         Args
         ----
@@ -117,7 +117,7 @@ class MillerIndices(Grid):
         if not self.is_hexagonal_rhombohedral:
             return True
         h, k, _ = [self.cells[s] for s in state]
-        if h + k < -2:
+        if h + k < -2 or h + k > 2:
             return False
         return True
 
