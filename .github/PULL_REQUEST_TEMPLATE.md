@@ -1,5 +1,7 @@
+
+
 ### Tests, black and isort
-- [ ] `python -m pytest -s ./tests/`
+- [ ] `python -m pytest ./tests/`
 - [ ] `black ./gflownet/`
 - [ ] `black ./tests/`
 - [ ] `isort --profile black ./gflownet/`
