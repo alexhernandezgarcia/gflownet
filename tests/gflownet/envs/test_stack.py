@@ -18,7 +18,14 @@ def env_grid2d_tetrismini():
     return Stack(
         subenvs=(
             Grid(n_dim=2, length=3, cell_min=-1.0, cell_max=1.0),
-            Tetris(width=4, height=5, pieces=["I", "O"], rotations=[0], device="cpu"),
+            Tetris(
+                width=4,
+                height=5,
+                pieces=["I", "O"],
+                rotations=[0],
+                allow_eos_before_full=True,
+                device="cpu",
+            ),
         )
     )
 
@@ -33,6 +40,7 @@ def env_cube_tetris():
                 height=6,
                 pieces=["J", "L", "O"],
                 rotations=[0, 180],
+                allow_eos_before_full=True,
                 device="cpu",
             ),
         )
@@ -44,7 +52,14 @@ def env_cube_tetris_grid():
     return Stack(
         subenvs=(
             ContinuousCube(n_dim=2, n_comp=3, min_incr=0.1),
-            Tetris(width=4, height=5, pieces=["I", "O"], rotations=[0], device="cpu"),
+            Tetris(
+                width=4,
+                height=5,
+                pieces=["I", "O"],
+                rotations=[0],
+                allow_eos_before_full=True,
+                device="cpu",
+            ),
             Grid(n_dim=3, length=3, cell_min=-1.0, cell_max=1.0),
         )
     )
@@ -93,8 +108,8 @@ def test__pad_depad_action__return_expected(env, action_stack, action_subenv, re
         [
             # fmt: off
             # Grid
-            (0, 0, 0, 0), 
-            (0, 1, 0, 0), 
+            (0, 0, 0, 0),
+            (0, 1, 0, 0),
             (0, 0, 1, 0),
             # Tetris
             (1, 1, 0, 0),
@@ -121,8 +136,8 @@ def test__get_action_space__returns_expected(env_grid2d_tetrismini, action_space
             "env_grid2d_tetrismini",
             [
                 # fmt: off
-                0, 
-                [0, 0], 
+                0,
+                [0, 0],
                 torch.tensor([
                     [000, 000, 000, 000],
                     [000, 000, 000, 000],
@@ -137,8 +152,8 @@ def test__get_action_space__returns_expected(env_grid2d_tetrismini, action_space
             "env_cube_tetris",
             [
                 # fmt: off
-                0, 
-                [-1.0, -1.0], 
+                0,
+                [-1.0, -1.0],
                 torch.tensor([
                     [000, 000],
                     [000, 000],
@@ -154,8 +169,8 @@ def test__get_action_space__returns_expected(env_grid2d_tetrismini, action_space
             "env_cube_tetris_grid",
             [
                 # fmt: off
-                0, 
-                [-1.0, -1.0], 
+                0,
+                [-1.0, -1.0],
                 torch.tensor([
                     [000, 000, 000, 000],
                     [000, 000, 000, 000],
@@ -181,8 +196,8 @@ def test__source_is_expected(env, source, request):
             "env_grid2d_tetrismini",
             [
                 # fmt: off
-                0, 
-                [0, 0], 
+                0,
+                [0, 0],
                 torch.tensor([
                     [000, 000, 000, 000],
                     [000, 000, 000, 000],
@@ -198,8 +213,8 @@ def test__source_is_expected(env, source, request):
             "env_grid2d_tetrismini",
             [
                 # fmt: off
-                1, 
-                [0, 0], 
+                1,
+                [0, 0],
                 torch.tensor([
                     [000, 000, 000, 000],
                     [000, 000, 000, 000],
@@ -215,8 +230,8 @@ def test__source_is_expected(env, source, request):
             "env_grid2d_tetrismini",
             [
                 # fmt: off
-                0, 
-                [1, 2], 
+                0,
+                [1, 2],
                 torch.tensor([
                     [000, 000, 000, 000],
                     [000, 000, 000, 000],
@@ -232,8 +247,8 @@ def test__source_is_expected(env, source, request):
             "env_grid2d_tetrismini",
             [
                 # fmt: off
-                1, 
-                [1, 2], 
+                1,
+                [1, 2],
                 torch.tensor([
                     [000, 000, 000, 000],
                     [000, 000, 000, 000],
@@ -249,8 +264,8 @@ def test__source_is_expected(env, source, request):
             "env_grid2d_tetrismini",
             [
                 # fmt: off
-                1, 
-                [1, 2], 
+                1,
+                [1, 2],
                 torch.tensor([
                     [000, 000, 000, 000],
                     [000, 000, 000, 000],
@@ -266,8 +281,8 @@ def test__source_is_expected(env, source, request):
             "env_grid2d_tetrismini",
             [
                 # fmt: off
-                1, 
-                [1, 2], 
+                1,
+                [1, 2],
                 torch.tensor([
                     [000, 000, 000, 000],
                     [100, 000, 000, 000],
@@ -283,8 +298,8 @@ def test__source_is_expected(env, source, request):
             "env_grid2d_tetrismini",
             [
                 # fmt: off
-                1, 
-                [1, 2], 
+                1,
+                [1, 2],
                 torch.tensor([
                     [000, 000, 000, 000],
                     [100, 000, 401, 401],
@@ -317,6 +332,263 @@ def test__set_state__sets_state_and_dones(env, state, dones, request):
         assert subenv.done == done
 
 
+@pytest.mark.skip(reason="skip while developping other tests")
+@pytest.mark.parametrize(
+    "env, state",
+    [
+        (
+            "env_grid2d_tetrismini",
+            [
+                # fmt: off
+                0,
+                [2, 0],
+                torch.tensor([
+                    [000, 000, 000, 000],
+                    [000, 000, 000, 000],
+                    [000, 000, 000, 000],
+                    [000, 000, 000, 000],
+                    [000, 000, 000, 000],
+                ], dtype=torch.int16, device="cpu"),
+                # fmt: on
+            ],
+        ),
+        (
+            "env_grid2d_tetrismini",
+            [
+                # fmt: off
+                1,
+                [2, 0],
+                torch.tensor([
+                    [000, 000, 000, 000],
+                    [100, 000, 000, 000],
+                    [100, 000, 000, 000],
+                    [100, 000, 000, 000],
+                    [100, 000, 000, 000],
+                ], dtype=torch.int16, device="cpu"),
+                # fmt: on
+            ],
+        ),
+        (
+            "env_cube_tetris",
+            [
+                # fmt: off
+                0,
+                [0.3, 0.7],
+                torch.tensor([
+                    [000, 000],
+                    [000, 000],
+                    [000, 000],
+                    [000, 000],
+                    [000, 000],
+                    [000, 000],
+                ], dtype=torch.int16, device="cpu"),
+                # fmt: on
+            ],
+        ),
+        (
+            "env_cube_tetris",
+            [
+                # fmt: off
+                1,
+                [0.3, 0.7],
+                torch.tensor([
+                    [000, 200],
+                    [000, 200],
+                    [200, 200],
+                    [300, 000],
+                    [300, 000],
+                    [300, 300],
+                ], dtype=torch.int16, device="cpu"),
+                # fmt: on
+            ],
+        ),
+        (
+            "env_cube_tetris_grid",
+            [
+                # fmt: off
+                2,
+                [0.3, 0.7],
+                torch.tensor([
+                    [000, 200],
+                    [000, 200],
+                    [200, 200],
+                    [300, 000],
+                    [300, 000],
+                    [300, 300],
+                ], dtype=torch.int16, device="cpu"),
+                [1, 0, 2],
+                # fmt: on
+            ],
+        ),
+    ],
+)
+def test__get_mask_invalid_actions_backward__returns_expected_general_case(
+    env, state, request
+):
+    env = request.getfixturevalue(env)
+    stage = env._get_stage(state)
+    mask = env.get_mask_invalid_actions_backward(state, done=False)
+    for stg, subenv in env.subenvs.items():
+        if stg == stage:
+            # Mask of state if stage is current stage in state
+            mask_subenv_expected = subenv.get_mask_invalid_actions_backward(
+                env._get_state_of_subenv(state, stg)
+            )
+        else:
+            # Dummy mask (all True) if stage is other than current stage in state
+            mask_subenv_expected = [True] * subenv.mask_dim
+        mask_subenv = env._get_mask_of_subenv(mask, stg)
+        assert mask_subenv == mask_subenv_expected, state
+
+
+@pytest.mark.parametrize(
+    "env, state, dones",
+    [
+        # Tetris source, Tetris not done
+        (
+            "env_grid2d_tetrismini",
+            [
+                # fmt: off
+                1,
+                [2, 0],
+                torch.tensor([
+                    [000, 000, 000, 000],
+                    [000, 000, 000, 000],
+                    [000, 000, 000, 000],
+                    [000, 000, 000, 000],
+                    [000, 000, 000, 000],
+                ], dtype=torch.int16, device="cpu"),
+                # fmt: on
+            ],
+            [True, False],
+        ),
+        # Tetris source, Tetris done (only valid action is Tetris EOS)
+        (
+            "env_grid2d_tetrismini",
+            [
+                # fmt: off
+                1,
+                [2, 0],
+                torch.tensor([
+                    [000, 000, 000, 000],
+                    [000, 000, 000, 000],
+                    [000, 000, 000, 000],
+                    [000, 000, 000, 000],
+                    [000, 000, 000, 000],
+                ], dtype=torch.int16, device="cpu"),
+                # fmt: on
+            ],
+            [True, True],
+        ),
+        # Global source
+        (
+            "env_grid2d_tetrismini",
+            [
+                # fmt: off
+                0,
+                [0, 0],
+                torch.tensor([
+                    [000, 000, 000, 000],
+                    [000, 000, 000, 000],
+                    [000, 000, 000, 000],
+                    [000, 000, 000, 000],
+                    [000, 000, 000, 000],
+                ], dtype=torch.int16, device="cpu"),
+                # fmt: on
+            ],
+            [False, False],
+        ),
+        (
+            "env_cube_tetris",
+            [
+                # fmt: off
+                1,
+                [0.3, 0.7],
+                torch.tensor([
+                    [000, 000],
+                    [000, 000],
+                    [000, 000],
+                    [000, 000],
+                    [000, 000],
+                    [000, 000],
+                ], dtype=torch.int16, device="cpu"),
+                # fmt: on
+            ],
+            [True, False],
+        ),
+        # Last stage is source but done
+        (
+            "env_cube_tetris_grid",
+            [
+                # fmt: off
+                2,
+                [0.3, 0.7],
+                torch.tensor([
+                    [000, 200],
+                    [000, 200],
+                    [200, 200],
+                    [300, 000],
+                    [300, 000],
+                    [300, 300],
+                ], dtype=torch.int16, device="cpu"),
+                [0, 0, 0],
+                # fmt: on
+            ],
+            [True, True, True],
+        ),
+        # Last stage is source, but not done
+        (
+            "env_cube_tetris_grid",
+            [
+                # fmt: off
+                2,
+                [0.3, 0.7],
+                torch.tensor([
+                    [000, 200],
+                    [000, 200],
+                    [200, 200],
+                    [300, 000],
+                    [300, 000],
+                    [300, 300],
+                ], dtype=torch.int16, device="cpu"),
+                [0, 0, 0],
+                # fmt: on
+            ],
+            [True, True, False],
+        ),
+    ],
+)
+def test__get_mask_invalid_actions_backward__returns_expected_stage_transition(
+    env, state, dones, request
+):
+    env = request.getfixturevalue(env)
+    stage = env._get_stage(state)
+    prev_stage = stage - 1
+    mask = env.get_mask_invalid_actions_backward(state, done=dones[-1])
+    for stg, subenv in env.subenvs.items():
+        if stg == stage and stage == env.n_subenvs - 1 and dones[-1]:
+            state_subenv = env._get_state_of_subenv(state, stg)
+            assert subenv.equal(state_subenv, subenv.source)
+            # Mask of state if stage is current stage in state and is done
+            mask_subenv_expected = subenv.get_mask_invalid_actions_backward(
+                state_subenv, done=dones[-1]
+            )
+        elif stg == prev_stage and prev_stage >= 0 and not dones[-1]:
+            # Mask of done (EOS only) if stage is previous stage of state
+            mask_subenv_expected = subenv.get_mask_invalid_actions_backward(
+                env._get_state_of_subenv(state, stg), done=True
+            )
+        else:
+            # Dummy mask (all True) otherwise
+            mask_subenv_expected = [True] * subenv.mask_dim
+        mask_subenv = env._get_mask_of_subenv(mask, stg)
+        if not mask_subenv == mask_subenv_expected:
+            import ipdb
+
+            ipdb.set_trace()
+        assert mask_subenv == mask_subenv_expected, state
+
+
 @pytest.mark.parametrize(
     "env, state_from, action, state_next_exp, valid_exp",
     [
@@ -324,8 +596,8 @@ def test__set_state__sets_state_and_dones(env, state, dones, request):
             "env_grid2d_tetrismini",
             [
                 # fmt: off
-                0, 
-                [0, 0], 
+                0,
+                [0, 0],
                 torch.tensor([
                     [000, 000, 000, 000],
                     [000, 000, 000, 000],
@@ -338,8 +610,8 @@ def test__set_state__sets_state_and_dones(env, state, dones, request):
             (0, 1, 0, 0),
             [
                 # fmt: off
-                0, 
-                [1, 0], 
+                0,
+                [1, 0],
                 torch.tensor([
                     [000, 000, 000, 000],
                     [000, 000, 000, 000],
@@ -355,8 +627,8 @@ def test__set_state__sets_state_and_dones(env, state, dones, request):
             "env_grid2d_tetrismini",
             [
                 # fmt: off
-                0, 
-                [1, 0], 
+                0,
+                [1, 0],
                 torch.tensor([
                     [000, 000, 000, 000],
                     [000, 000, 000, 000],
@@ -369,8 +641,8 @@ def test__set_state__sets_state_and_dones(env, state, dones, request):
             (0, 1, 0, 0),
             [
                 # fmt: off
-                0, 
-                [2, 0], 
+                0,
+                [2, 0],
                 torch.tensor([
                     [000, 000, 000, 000],
                     [000, 000, 000, 000],
@@ -387,8 +659,8 @@ def test__set_state__sets_state_and_dones(env, state, dones, request):
             "env_grid2d_tetrismini",
             [
                 # fmt: off
-                0, 
-                [2, 0], 
+                0,
+                [2, 0],
                 torch.tensor([
                     [000, 000, 000, 000],
                     [000, 000, 000, 000],
@@ -401,8 +673,8 @@ def test__set_state__sets_state_and_dones(env, state, dones, request):
             (0, 0, 0, 0),
             [
                 # fmt: off
-                1, 
-                [2, 0], 
+                1,
+                [2, 0],
                 torch.tensor([
                     [000, 000, 000, 000],
                     [000, 000, 000, 000],
@@ -450,8 +722,8 @@ def test__set_state__sets_state_and_dones(env, state, dones, request):
             "env_grid2d_tetrismini",
             [
                 # fmt: off
-                1, 
-                [2, 0], 
+                1,
+                [2, 0],
                 torch.tensor([
                     [000, 000, 000, 000],
                     [000, 000, 000, 000],
@@ -464,8 +736,8 @@ def test__set_state__sets_state_and_dones(env, state, dones, request):
             (1, 1, 0, 0),
             [
                 # fmt: off
-                1, 
-                [2, 0], 
+                1,
+                [2, 0],
                 torch.tensor([
                     [000, 000, 000, 000],
                     [100, 000, 000, 000],
@@ -481,8 +753,8 @@ def test__set_state__sets_state_and_dones(env, state, dones, request):
             "env_grid2d_tetrismini",
             [
                 # fmt: off
-                1, 
-                [2, 0], 
+                1,
+                [2, 0],
                 torch.tensor([
                     [000, 000, 000, 000],
                     [100, 000, 000, 000],
@@ -495,8 +767,8 @@ def test__set_state__sets_state_and_dones(env, state, dones, request):
             (1, 4, 0, 2),
             [
                 # fmt: off
-                1, 
-                [2, 0], 
+                1,
+                [2, 0],
                 torch.tensor([
                     [000, 000, 000, 000],
                     [100, 000, 000, 000],
@@ -545,8 +817,8 @@ def test__set_state__sets_state_and_dones(env, state, dones, request):
             "env_grid2d_tetrismini",
             [
                 # fmt: off
-                1, 
-                [2, 0], 
+                1,
+                [2, 0],
                 torch.tensor([
                     [000, 000, 000, 000],
                     [100, 401, 401, 000],
@@ -559,8 +831,8 @@ def test__set_state__sets_state_and_dones(env, state, dones, request):
             (1, -1, -1, -1),
             [
                 # fmt: off
-                1, 
-                [2, 0], 
+                1,
+                [2, 0],
                 torch.tensor([
                     [000, 000, 000, 000],
                     [100, 401, 401, 000],
@@ -606,8 +878,8 @@ def test__step__works_as_expected(
             "env_grid2d_tetrismini",
             [
                 # fmt: off
-                0, 
-                [2, 0], 
+                0,
+                [2, 0],
                 torch.tensor([
                     [000, 000, 000, 000],
                     [000, 000, 000, 000],
@@ -620,8 +892,8 @@ def test__step__works_as_expected(
             (0, 1, 0, 0),
             [
                 # fmt: off
-                0, 
-                [1, 0], 
+                0,
+                [1, 0],
                 torch.tensor([
                     [000, 000, 000, 000],
                     [000, 000, 000, 000],
@@ -637,8 +909,8 @@ def test__step__works_as_expected(
             "env_grid2d_tetrismini",
             [
                 # fmt: off
-                1, 
-                [2, 0], 
+                1,
+                [2, 0],
                 torch.tensor([
                     [000, 000, 000, 000],
                     [100, 000, 000, 000],
@@ -651,8 +923,8 @@ def test__step__works_as_expected(
             (1, 1, 0, 0),
             [
                 # fmt: off
-                1, 
-                [2, 0], 
+                1,
+                [2, 0],
                 torch.tensor([
                     [000, 000, 000, 000],
                     [000, 000, 000, 000],
@@ -668,8 +940,8 @@ def test__step__works_as_expected(
             "env_grid2d_tetrismini",
             [
                 # fmt: off
-                1, 
-                [2, 0], 
+                1,
+                [2, 0],
                 torch.tensor([
                     [000, 000, 000, 000],
                     [100, 000, 000, 000],
@@ -682,8 +954,8 @@ def test__step__works_as_expected(
             (1, 4, 0, 2),
             [
                 # fmt: off
-                1, 
-                [2, 0], 
+                1,
+                [2, 0],
                 torch.tensor([
                     [000, 000, 000, 000],
                     [100, 000, 000, 000],
@@ -700,8 +972,8 @@ def test__step__works_as_expected(
             "env_grid2d_tetrismini",
             [
                 # fmt: off
-                0, 
-                [1, 0], 
+                0,
+                [1, 0],
                 torch.tensor([
                     [000, 000, 000, 000],
                     [000, 000, 000, 000],
@@ -714,8 +986,8 @@ def test__step__works_as_expected(
             (0, 1, 0, 0),
             [
                 # fmt: off
-                0, 
-                [0, 0], 
+                0,
+                [0, 0],
                 torch.tensor([
                     [000, 000, 000, 000],
                     [000, 000, 000, 000],
@@ -732,8 +1004,8 @@ def test__step__works_as_expected(
             "env_grid2d_tetrismini",
             [
                 # fmt: off
-                0, 
-                [0, 0], 
+                0,
+                [0, 0],
                 torch.tensor([
                     [000, 000, 000, 000],
                     [000, 000, 000, 000],
@@ -746,8 +1018,8 @@ def test__step__works_as_expected(
             (0, 1, 0, 0),
             [
                 # fmt: off
-                0, 
-                [0, 0], 
+                0,
+                [0, 0],
                 torch.tensor([
                     [000, 000, 000, 000],
                     [000, 000, 000, 000],
@@ -764,8 +1036,8 @@ def test__step__works_as_expected(
             "env_grid2d_tetrismini",
             [
                 # fmt: off
-                1, 
-                [2, 0], 
+                1,
+                [2, 0],
                 torch.tensor([
                     [000, 000, 000, 000],
                     [000, 000, 000, 000],
@@ -778,8 +1050,8 @@ def test__step__works_as_expected(
             (0, 0, 0, 0),
             [
                 # fmt: off
-                0, 
-                [2, 0], 
+                0,
+                [2, 0],
                 torch.tensor([
                     [000, 000, 000, 000],
                     [000, 000, 000, 000],
@@ -796,8 +1068,8 @@ def test__step__works_as_expected(
             "env_grid2d_tetrismini",
             [
                 # fmt: off
-                1, 
-                [2, 0], 
+                1,
+                [2, 0],
                 torch.tensor([
                     [000, 000, 000, 000],
                     [100, 401, 401, 000],
@@ -810,8 +1082,8 @@ def test__step__works_as_expected(
             (1, -1, -1, -1),
             [
                 # fmt: off
-                1, 
-                [2, 0], 
+                1,
+                [2, 0],
                 torch.tensor([
                     [000, 000, 000, 000],
                     [100, 401, 401, 000],
@@ -876,3 +1148,8 @@ def test__trajectory_random__does_not_crash_from_source(env, request):
     env.reset()
     env.trajectory_random()
     pass
+
+
+def test__continuous_env_common(env_grid2d_tetrismini):
+    print("\n\nCommon (continuous) tests for Grid 3x3 -> Tetris-mini\n")
+    return common.test__continuous_env_common(env_grid2d_tetrismini)
