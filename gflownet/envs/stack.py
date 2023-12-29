@@ -317,13 +317,13 @@ class Stack(GFlowNetEnv):
         stage = self._get_stage(state)
 
         # Set a flag if:
-        #   - The subenv is not done
+        #   - done is False
         #   - The stage is not the first one (0)
         #   - The state of the subenv is the source
         subenv = self.subenvs[stage]
         do_eos_prev_stage = (
             stage > 0
-            and not subenv.done
+            and not done
             and self.equal(self._get_state_of_subenv(state, stage), subenv.source)
         )
 
@@ -338,7 +338,7 @@ class Stack(GFlowNetEnv):
                 if do_eos_prev_stage and subenv_stage == (stage - 1):
                     # Set mask of done state because state of next subenv is source
                     subenv_mask = subenv.get_mask_invalid_actions_backward(
-                        state_subenv, done=True
+                        self._get_state_of_subenv(state, subenv_stage), done=True
                     )
                 else:
                     subenv_mask = [True] * subenv.mask_dim
