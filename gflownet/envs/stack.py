@@ -50,7 +50,7 @@ class Stack(GFlowNetEnv):
         self.source = [0] + [subenv.source for subenv in self.subenvs.values()]
 
         # Get action dimensionality by computing the maximum action length among all
-        # sub-environments, and adding 1 (see get_action_space())
+        # sub-environments, and adding 1 to indicate the sub-environment.
         self.action_dim = max([len(subenv.eos) for subenv in self.subenvs.values()]) + 1
 
         # EOS is EOS of the last stage
@@ -58,8 +58,12 @@ class Stack(GFlowNetEnv):
             self.subenvs[self.n_subenvs - 1].eos, stage=self.n_subenvs - 1
         )
 
-        # Mask dimensionality
-        self.mask_dim = sum([subenv.mask_dim for subenv in self.subenvs.values()])
+        # Get the mask dimensionality by computing the maximum length among all
+        # sub-environments, plus n_subenvs indicate the sub-environment as a one-hot
+        # encoding (to keep it boolean).
+        self.mask_dim = (
+            max([subenv.mask_dim for subenv in self.subenvs.values()]) + self.n_subenvs
+        )
 
         # The stack is continuous if any subenv is continuous
         self.continuous = any([subenv.continuous for subenv in self.subenvs.values()])
@@ -156,34 +160,6 @@ class Stack(GFlowNetEnv):
                 return policy_outputs[:, init_col:end_col]
             init_col = end_col
 
-    def _get_mask_of_subenv(
-        self, mask: Union[List, TensorType["n_states", "mask_dim"]], stage: int
-    ):
-        """
-        Returns the columns of a tensor of masks that correspond to the sub-environment
-        indicated by stage.
-
-        Args
-        ----
-        mask : list or tensor
-            A mask of a single state as a list or a tensor containing a batch of masks.
-            It is assumed that all the rows in the this tensor correspond to the same
-            stage.
-
-        stage : int
-            Index of the sub-environment of which the corresponding columns of the
-            masks are to be extracted.
-        """
-        init_col = 0
-        for stg, subenv in self.subenvs.items():
-            end_col = init_col + subenv.mask_dim
-            if stg == stage:
-                if isinstance(mask, list):
-                    return mask[init_col:end_col]
-                else:
-                    return mask[:, init_col:end_col]
-            init_col = end_col
-
     def reset(self, env_id: Union[int, str] = None):
         # TODO: if the properties of the environment change due to constraints, then we
         # may have to store the original subenvs separately and use them here.
@@ -275,26 +251,26 @@ class Stack(GFlowNetEnv):
     ) -> List[bool]:
         """
         Computes the forward actions mask of the state.
+
+        The mask of the stack environment is the mask of the current sub-environment,
+        preceded by a one-hot encoding of the index of the subenv and padded with False
+        up to mask_dim. Including only the relevant mask saves memory and computation.
         """
         state = self._get_state(state)
         stage = self._get_stage(state)
         done = self._get_done(done)
 
-        mask = []
-        for subenv_stage, subenv in self.subenvs.items():
-            # If the subenv is not the current stage, make all actions invalid (True).
-            # Because the mask of continuous states is arbitrary, note that this
-            # assumes that the methods that will use the mask will extract the part
-            # corresponding to the relevant stage and ignore the rest.
-            if subenv_stage != stage:
-                subenv_mask = [True] * subenv.mask_dim
-            else:
-                # Get the mask of the current stage
-                subenv_mask = subenv.get_mask_invalid_actions_forward(
-                    self._get_state_of_subenv(state, subenv_stage), done
-                )
-            mask.extend(subenv_mask)
-        return mask
+        subenv = self.subenvs[stage]
+        stage_onehot = [False] * self.n_subenvs
+        stage_onehot[stage] = True
+        padding = [False] * (self.mask_dim - (subenv.mask_dim + 3))
+        return (
+            stage_onehot
+            + subenv.get_mask_invalid_actions_forward(
+                self._get_state_of_subenv(state, subenv_stage), done
+            )
+            + padding
+        )
 
     def get_mask_invalid_actions_backward(
         self, state: Optional[List[int]] = None, done: Optional[bool] = None
@@ -302,56 +278,73 @@ class Stack(GFlowNetEnv):
         """
         Computes the backward actions mask of the state.
 
-        The mask of the stack environment is simply the concatenation of the masks of
-        the three sub-environments. However, only the mask of the state of the current
-        sub-environment is computed; for the other sub-environments, a dummy mask is
-        used. Note that this assumes that the methods that will use the mask will
-        extract the part corresponding to the relevant stage and ignore the rest.
+        The mask of the stack environment is the mask of the relevant sub-environment,
+        preceded by a one-hot encoding of the index of the subenv and padded with False
+        up to mask_dim. Including only the relevant mask saves memory and computation.
 
-        Nonetheless, in order to enable backward transitions between stages, the EOS
-        action of the preceding stage has to be valid when the state of a
-        sub-environment is the source.
+        The relevant sub-environment regarding the backward mask is always the current
+        sub-environment except if the state of the sub-environment is the source, in
+        which case the mask must be the one of the preceding sub-environment, so as to
+        sample its EOS action.
+
+        Exceptions to the above are:
+            - if done is True, in which case the current sub-environment is the last
+              stage and the EOS action must come from itself, not the preceding subenv.
+            - if the current stage is the first sub-environment, in which case there is
+              no preceding stage.
         """
         state = self._get_state(state)
         done = self._get_done(done)
         stage = self._get_stage(state)
 
-        # Set a flag if:
-        #   - done is False
-        #   - The stage is not the first one (0)
-        #   - The state of the subenv is the source
         subenv = self.subenvs[stage]
-        do_eos_prev_stage = (
+        if (
             stage > 0
             and not done
             and self.equal(self._get_state_of_subenv(state, stage), subenv.source)
+        ):
+            stage -= 1
+            subenv = self.subenvs[stage]
+            done = True
+
+        stage_onehot = [False] * self.n_subenvs
+        stage_onehot[stage] = True
+        padding = [False] * (self.mask_dim - (subenv.mask_dim + 3))
+        return (
+            stage_onehot
+            + subenv.get_mask_invalid_actions_backward(
+                self._get_state_of_subenv(state, subenv_stage), done
+            )
+            + padding
         )
 
-        mask = []
+    def _get_mask_of_subenv(
+        self, mask: Union[List, TensorType["n_states", "mask_dim"]], stage: int
+    ):
+        """
+        Returns the columns of a tensor of masks that correspond to the sub-environment
+        indicated by stage.
 
-        for subenv_stage, subenv in self.subenvs.items():
-            # If the subenv is not the current stage, make all actions invalid (True).
-            # Because the mask of continuous states is arbitrary, note that this
-            # assumes that the methods that will use the mask will extract the part
-            # corresponding to the relevant stage and ignore the rest.
-            if subenv_stage != stage:
-                if do_eos_prev_stage and subenv_stage == (stage - 1):
-                    # Set mask of done state because state of next subenv is source
-                    subenv_mask = subenv.get_mask_invalid_actions_backward(
-                        self._get_state_of_subenv(state, subenv_stage), done=True
-                    )
+        Args
+        ----
+        mask : list or tensor
+            A mask of a single state as a list or a tensor containing a batch of masks.
+            It is assumed that all the rows in the this tensor correspond to the same
+            stage.
+
+        stage : int
+            Index of the sub-environment of which the corresponding columns of the
+            masks are to be extracted.
+        """
+        init_col = 0
+        for stg, subenv in self.subenvs.items():
+            end_col = init_col + subenv.mask_dim
+            if stg == stage:
+                if isinstance(mask, list):
+                    return mask[init_col:end_col]
                 else:
-                    subenv_mask = [True] * subenv.mask_dim
-            else:
-                if do_eos_prev_stage:
-                    subenv_mask = [True] * subenv.mask_dim
-                else:
-                    # Get the mask of the current stage
-                    subenv_mask = subenv.get_mask_invalid_actions_backward(
-                        self._get_state_of_subenv(state, subenv_stage), done
-                    )
-            mask.extend(subenv_mask)
-        return mask
+                    return mask[:, init_col:end_col]
+            init_col = end_col
 
     # TODO: do we need a method for this?
     def _update_state(self, stage: int):
