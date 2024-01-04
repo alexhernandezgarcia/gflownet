@@ -90,6 +90,7 @@ def main():
     df_data["composition"] = df_data["encoded"].map(encoded_to_comp)
     for struct_idx in range(5):
         df_data[f"structure_{struct_idx}"] = df_data["encoded"].map(encoded_to_crystal)
+    df_data[f"structure"] = df_data["structure_0"]
 
     df_data["spacegroup"] = df_data["encoded"].map(lambda x: x[SPACEGROUP_IDX])
     out_dir = Path(args.out_dir)
