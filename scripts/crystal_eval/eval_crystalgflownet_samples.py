@@ -1,5 +1,7 @@
 """
-Computes evaluation metrics and plots from saved crystal samples.
+Computes evaluation metrics and plots from pickled sample data and/or metric file if
+this script has been run previously on the data. Be sure to run the script `convert_GFN_to_structures`
+in order to have a standard input data format, saved to data/crystals/eval_data/
 """
 
 import os
@@ -11,12 +13,13 @@ from argparse import ArgumentParser
 import numpy as np
 import pandas as pd
 
-from metrics import Rediscovery
+from metrics import BaseMetric, Rediscovery
 
 METRICS = [
     Rediscovery(
         rediscovery_path=None  # Path to original dataset for comparing against generated samples
     ),
+    BaseMetric(),  # add future metrics to the list here
 ]
 
 
