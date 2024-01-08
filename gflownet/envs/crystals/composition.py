@@ -447,7 +447,7 @@ class Composition(GFlowNetEnv):
             for i, s_i in enumerate(state)
             if s_i > 0
         }
-        return readable
+        return str(readable)
 
     def readable2state(self, readable):
         """
