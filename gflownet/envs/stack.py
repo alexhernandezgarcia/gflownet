@@ -196,23 +196,6 @@ class Stack(GFlowNetEnv):
             stage = self._get_stage(state)
         return state[stage + 1]
 
-    # TODO: do we need a method for this?
-    def _get_states_of_subenv(self, states: List[List], stage: int) -> List:
-        """
-        Returns the part of the batch of states corresponding to the subenv indicated
-        by stage.
-
-        Args
-        ----
-        states : tensor
-            A batch of states of the parent stack environment.
-
-        stage : int
-            Index of the sub-environment of which the corresponding part of the
-            states is to be extracted.
-        """
-        return [state[stage + 1] for state in states]
-
     def get_mask_invalid_actions_forward(
         self, state: Optional[List[int]] = None, done: Optional[bool] = None
     ) -> List[bool]:
@@ -590,7 +573,7 @@ class Stack(GFlowNetEnv):
         """
         return torch.cat(
             [
-                subenv.states2policy(self._get_states_of_subenv(states, stage))
+                subenv.states2policy([state[stage + 1] for state in states])
                 for stage, subenv in self.subenvs.items()
             ],
             dim=1,
@@ -614,7 +597,7 @@ class Stack(GFlowNetEnv):
         """
         return torch.cat(
             [
-                subenv.states2proxy(self._get_states_of_subenv(states, stage))
+                subenv.states2proxy([state[stage + 1] for state in states])
                 for stage, subenv in self.subenvs.items()
             ],
             dim=1,
