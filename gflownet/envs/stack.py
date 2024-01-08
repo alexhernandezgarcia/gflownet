@@ -603,6 +603,35 @@ class Stack(GFlowNetEnv):
             dim=1,
         )
 
+    def state2readable(self, state: Optional[List[int]] = None) -> str:
+        """
+        Converts a state into human-readable representation. It concatenates the
+        readable representations of each sub-environment, separated by "; " and
+        preceded by "Stage {stage}; ".
+        """
+        if state is None:
+            state = self.state
+        readable = f"Stage {self._get_stage(state)}; " + "".join(
+            [
+                subenv.state2readable(self._get_state_of_subenv(state, stage)) + "; "
+                for stage, subenv in self.subenvs.items()
+            ]
+        )
+        readable = readable[:-2]
+        return readable
+
+    def readable2state(self, readable: str) -> List[int]:
+        """
+        Converts a human-readable representation of a state into the standard format.
+        """
+        readables = readable.split("; ")
+        stage = int(readables[0][-1])
+        readables = readables[1:]
+        return [stage] + [
+            subenv.readable2state(readables[stage])
+            for stage, subenv in self.subenvs.items()
+        ]
+
     @staticmethod
     def equal(state_x, state_y):
         """

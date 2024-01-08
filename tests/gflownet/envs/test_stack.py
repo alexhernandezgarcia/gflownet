@@ -1144,6 +1144,21 @@ def test__trajectory_random__does_not_crash_from_source(env, request):
     pass
 
 
+@pytest.mark.skip(reason="skip while developping other tests")
+@pytest.mark.repeat(100)
+@pytest.mark.parametrize(
+    "env", ["env_grid2d_tetrismini", "env_cube_tetris", "env_cube_tetris_grid"]
+)
+def test__state2readable__is_reversible(env, request):
+    env = request.getfixturevalue(env)
+    env = env.reset()
+    while not env.done:
+        state_recovered = env.readable2state(env.state2readable())
+        if state_recovered is not None:
+            assert env.equal(env.state, state_recovered)
+        env.step_random()
+
+
 # @pytest.mark.skip(reason="skip while developping other tests")
 def test__continuous_env_common_grid2d_tetrismini(env_grid2d_tetrismini):
     print("\n\nCommon (continuous) tests for Grid 3x3 -> Tetris-mini\n")
