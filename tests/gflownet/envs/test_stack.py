@@ -186,7 +186,7 @@ def test__get_action_space__returns_expected(env_grid2d_tetrismini, action_space
 )
 def test__source_is_expected(env, source, request):
     env = request.getfixturevalue(env)
-    assert env.equal_stack(env.source, source)
+    assert env.equal(env.source, source)
 
 
 @pytest.mark.parametrize(
@@ -321,7 +321,7 @@ def test__set_state__sets_state_and_dones(env, state, dones, request):
         env.set_state(state, done=False)
 
     # Check global state
-    assert env.equal_stack(env.state, state)
+    assert env.equal(env.state, state)
 
     # Check states of subenvs
     for stage, subenv in env.subenvs.items():
@@ -563,30 +563,24 @@ def test__get_mask_invalid_actions_backward__returns_expected_stage_transition(
 ):
     env = request.getfixturevalue(env)
     stage = env._get_stage(state)
-    prev_stage = stage - 1
+    subenv = env.subenvs[stage]
+    state_subenv = env._get_state_of_subenv(state, stage)
+    done = dones[-1]
+    # If it is not the initial stage, the env is not done and the state of the subenv
+    # is the source, then the relevant mask is the one from the previous subenv
+    if stage > 0 and not done and subenv.equal(state_subenv, subenv.source):
+        stage -= 1
+        subenv = env.subenvs[stage]
+        state_subenv = env._get_state_of_subenv(state, stage)
+        done = True
+    # Get the global mask and extract the relenvant part
     mask = env.get_mask_invalid_actions_backward(state, done=dones[-1])
-    for stg, subenv in env.subenvs.items():
-        if stg == stage and stage == env.n_subenvs - 1 and dones[-1]:
-            state_subenv = env._get_state_of_subenv(state, stg)
-            assert subenv.equal(state_subenv, subenv.source)
-            # Mask of state if stage is current stage in state and is done
-            mask_subenv_expected = subenv.get_mask_invalid_actions_backward(
-                state_subenv, done=dones[-1]
-            )
-        elif stg == prev_stage and prev_stage >= 0 and not dones[-1]:
-            # Mask of done (EOS only) if stage is previous stage of state
-            mask_subenv_expected = subenv.get_mask_invalid_actions_backward(
-                env._get_state_of_subenv(state, stg), done=True
-            )
-        else:
-            # Dummy mask (all True) otherwise
-            mask_subenv_expected = [True] * subenv.mask_dim
-        mask_subenv = env._get_mask_of_subenv(mask, stg)
-        if not mask_subenv == mask_subenv_expected:
-            import ipdb
-
-            ipdb.set_trace()
-        assert mask_subenv == mask_subenv_expected, state
+    mask_subenv = mask[env.n_subenvs : env.n_subenvs + subenv.mask_dim]
+    # Get expected mask of the subenv
+    mask_subenv_expected = subenv.get_mask_invalid_actions_backward(
+        env._get_state_of_subenv(state, stage), done=done
+    )
+    assert mask_subenv == mask_subenv_expected, state
 
 
 @pytest.mark.parametrize(
@@ -853,14 +847,14 @@ def test__step__works_as_expected(
     env.set_state(state_from)
 
     # Check init state
-    assert env.equal_stack(env.state, state_from)
+    assert env.equal(env.state, state_from)
 
     # Perform step
     state_next, action_done, valid = env.step(action)
 
     # Check end state
-    assert env.equal_stack(env.state, state_next)
-    assert env.equal_stack(env.state, state_next_exp)
+    assert env.equal(env.state, state_next)
+    assert env.equal(env.state, state_next_exp)
 
     # Check action and valid
     assert action_done == action
@@ -1108,14 +1102,14 @@ def test__step_backwards__works_as_expected(
     env.set_state(state_from, done)
 
     # Check init state
-    assert env.equal_stack(env.state, state_from)
+    assert env.equal(env.state, state_from)
 
     # Perform step
     state_next, action_done, valid = env.step_backwards(action)
 
     # Check end state
-    assert env.equal_stack(env.state, state_next)
-    assert env.equal_stack(env.state, state_next_exp)
+    assert env.equal(env.state, state_next)
+    assert env.equal(env.state, state_next_exp)
 
     # Check action and valid
     assert action_done == action
@@ -1150,6 +1144,19 @@ def test__trajectory_random__does_not_crash_from_source(env, request):
     pass
 
 
-def test__continuous_env_common(env_grid2d_tetrismini):
+# @pytest.mark.skip(reason="skip while developping other tests")
+def test__continuous_env_common_grid2d_tetrismini(env_grid2d_tetrismini):
     print("\n\nCommon (continuous) tests for Grid 3x3 -> Tetris-mini\n")
     return common.test__continuous_env_common(env_grid2d_tetrismini)
+
+
+# @pytest.mark.skip(reason="skip while developping other tests")
+def test__continuous_env_common_cube_tetris(env_cube_tetris):
+    print("\n\nCommon (continuous) tests for Cube -> Tetris\n")
+    return common.test__continuous_env_common(env_cube_tetris)
+
+
+# @pytest.mark.skip(reason="skip while developping other tests")
+def test__continuous_env_common_cube_tetris_grid(env_cube_tetris_grid):
+    print("\n\nCommon (continuous) tests for Cube -> Tetris -> Grid 3x3x3\n")
+    return common.test__continuous_env_common(env_cube_tetris_grid)

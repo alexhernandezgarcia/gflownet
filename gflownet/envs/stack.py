@@ -179,38 +179,6 @@ class Stack(GFlowNetEnv):
         return state[0]
 
     # TODO: do we need a method for this?
-    def _set_stage(self, stage: int, state: Optional[List] = None):
-        """
-        Sets the stage of the current environment (self.state) or of the state passed
-        as an argument by updating state[0].
-        """
-        if state is None:
-            state = self.state
-        state[0] = stage
-
-    def _get_policy_states_of_subenv(
-        self, state: TensorType["n_states", "state_dim"], stage: int
-    ):
-        """
-        Returns the part of the states corresponding to the subenv indicated by stage.
-
-        Args
-        ----
-        states : tensor
-            A tensor containing a batch of states in policy format.
-
-        stage : int
-            Index of the sub-environment of which the corresponding columns of the
-            batch of states are to be extracted.
-        """
-        init_col = 0
-        for stg, subenv in self.subenvs.items():
-            end_col = init_col + subenv.policy_input_dim
-            if stg == stage:
-                return states[:, init_col:end_col]
-            init_col = end_col
-
-    # TODO: do we need a method for this?
     def _get_state_of_subenv(self, state: List, stage: Optional[int] = None):
         """
         Returns the part of the state corresponding to the subenv indicated by stage.
@@ -245,7 +213,6 @@ class Stack(GFlowNetEnv):
         """
         return [state[stage + 1] for state in states]
 
-    # TODO: set mask of done state if stage is not the current one for correctness.
     def get_mask_invalid_actions_forward(
         self, state: Optional[List[int]] = None, done: Optional[bool] = None
     ) -> List[bool]:
@@ -267,7 +234,7 @@ class Stack(GFlowNetEnv):
         return (
             stage_onehot
             + subenv.get_mask_invalid_actions_forward(
-                self._get_state_of_subenv(state, subenv_stage), done
+                self._get_state_of_subenv(state, stage), done
             )
             + padding
         )
@@ -313,38 +280,10 @@ class Stack(GFlowNetEnv):
         return (
             stage_onehot
             + subenv.get_mask_invalid_actions_backward(
-                self._get_state_of_subenv(state, subenv_stage), done
+                self._get_state_of_subenv(state, stage), done
             )
             + padding
         )
-
-    def _get_mask_of_subenv(
-        self, mask: Union[List, TensorType["n_states", "mask_dim"]], stage: int
-    ):
-        """
-        Returns the columns of a tensor of masks that correspond to the sub-environment
-        indicated by stage.
-
-        Args
-        ----
-        mask : list or tensor
-            A mask of a single state as a list or a tensor containing a batch of masks.
-            It is assumed that all the rows in the this tensor correspond to the same
-            stage.
-
-        stage : int
-            Index of the sub-environment of which the corresponding columns of the
-            masks are to be extracted.
-        """
-        init_col = 0
-        for stg, subenv in self.subenvs.items():
-            end_col = init_col + subenv.mask_dim
-            if stg == stage:
-                if isinstance(mask, list):
-                    return mask[init_col:end_col]
-                else:
-                    return mask[:, init_col:end_col]
-            init_col = end_col
 
     # TODO: do we need a method for this?
     def _update_state(self, stage: int):
@@ -383,7 +322,7 @@ class Stack(GFlowNetEnv):
         """
         # If done, exit immediately
         if self.done:
-            return False, self.state, action
+            return self.state, action, False
 
         # Get stage, subenv, and action of subenv
         stage = self._get_stage(self.state)
@@ -539,53 +478,37 @@ class Stack(GFlowNetEnv):
         need to first extract the part of the policy outputs, the masks and the states
         that correspond to the sub-environment.
         """
-        states_dict = {stage: [] for stage in range(self.n_subenvs)}
+        # Get the relevant stage of each mask from the one-hot prefix
+        stages = torch.where(mask[:, : self.n_subenvs])[1]
+        stages_int = stages.tolist()
+        states_dict = {stage: [] for stage in self.subenvs.keys()}
         """
         A dictionary with keys equal to the stage indices and the values are the list
         of states in the stage of the key. The states are only the part corresponding
         to the sub-environment.
         """
-        stages = []
-        for s in states_from:
-            stage = self._get_stage(s)
-            state_subenv = self._get_state_of_subenv(s, stage)
-            # If the actions are backwards and state is source of subenv, decrease
-            # stage so that EOS of preceding stage is sampled.
-            # TODO: this may not be able to sample global EOS if state of last subenv
-            # is source. Check mask.
-            if (
-                is_backward
-                and stage != 0
-                and state_subenv == self.subenvs[stage].source
-            ):
-                stage -= 1
-            states_dict[stage].append(state_subenv)
-            stages.append(stage)
-        stages_tensor = tlong(stages, device=self.device)
-        is_subenv_dict = {
-            stage: stages_tensor == stage for stage in range(self.n_subenvs)
-        }
+        for state, stage in zip(states_from, stages_int):
+            states_dict[stage].append(self._get_state_of_subenv(state, stage))
 
         # Sample actions from each sub-environment
-        actions_logprobs_dict = {
-            stage: subenv.sample_actions_batch(
-                self._get_policy_outputs_of_subenv(
-                    policy_outputs[is_subenv_dict[stage]], stage
-                ),
-                self._get_mask_of_subenv(mask[is_subenv_dict[stage]], stage),
+        actions_logprobs_dict = {}
+        for stage, subenv in self.subenvs.items():
+            stage_mask = stages == stage
+            if not torch.any(stage_mask):
+                continue
+            actions_logprobs_dict[stage] = subenv.sample_actions_batch(
+                self._get_policy_outputs_of_subenv(policy_outputs[stage_mask], stage),
+                mask[stage_mask, self.n_subenvs : self.n_subenvs + subenv.mask_dim],
                 states_dict[stage],
                 is_backward,
                 sampling_method,
                 temperature_logits,
                 max_sampling_attempts,
             )
-            for stage, subenv in self.subenvs.items()
-            if torch.any(is_subenv_dict[stage])
-        }
 
         # Stitch all actions in the right order, with the right padding
         actions = []
-        for stage in stages:
+        for stage in stages_int:
             actions.append(
                 self._pad_action(actions_logprobs_dict[stage][0].pop(0), stage)
             )
@@ -622,44 +545,28 @@ class Stack(GFlowNetEnv):
             (default).
         """
         n_states = policy_outputs.shape[0]
-        states_dict = {stage: [] for stage in range(self.n_subenvs)}
+        # Get the relevant stage of each mask from the one-hot prefix
+        stages = torch.where(mask[:, : self.n_subenvs])[1]
+        stages_int = stages.tolist()
+        states_dict = {stage: [] for stage in self.subenvs.keys()}
         """
         A dictionary with keys equal to Stage and the values are the list of states in
         the stage of the key. The states are only the part corresponding to the
         sub-environment.
         """
-        stages = []
-        for s in states_from:
-            stage = self._get_stage(s)
-            state_subenv = self._get_state_of_subenv(s, stage)
-            # If the actions are backwards and state is source of subenv, decrease
-            # stage so that EOS of preceding stage is sampled.
-            # TODO: this may not be able to compute the correct logprob of the global
-            # EOS if state of last subenv is source. Check mask.
-            if (
-                is_backward
-                and stage != 0
-                and state_subenv == self.subenvs[stage].source
-            ):
-                stage -= 1
-            states_dict[stage].append(state_subenv)
-            stages.append(stage)
-        stages_tensor = tlong(stages, device=self.device)
-        is_subenv_dict = {
-            stage: stages_tensor == stage for stage in range(self.n_subenvs)
-        }
+        for state, stage in zip(states_from, stages_int):
+            states_dict[stage].append(self._get_state_of_subenv(state, stage))
 
         # Compute logprobs from each sub-environment
         logprobs = torch.empty(n_states, dtype=self.float, device=self.device)
         for stage, subenv in self.subenvs.items():
-            if not torch.any(is_subenv_dict[stage]):
+            stage_mask = stages == stage
+            if not torch.any(stage_mask):
                 continue
-            logprobs[is_subenv_dict[stage]] = subenv.get_logprobs(
-                self._get_policy_outputs_of_subenv(
-                    policy_outputs[is_subenv_dict[stage]], stage
-                ),
-                actions[is_subenv_dict[stage], 1 : 1 + len(subenv.eos)],
-                self._get_mask_of_subenv(mask[is_subenv_dict[stage]], stage),
+            logprobs[stage_mask] = subenv.get_logprobs(
+                self._get_policy_outputs_of_subenv(policy_outputs[stage_mask], stage),
+                actions[stage_mask, 1 : 1 + len(subenv.eos)],
+                mask[stage_mask, self.n_subenvs : self.n_subenvs + subenv.mask_dim],
                 states_dict[stage],
                 is_backward,
             )
@@ -714,9 +621,8 @@ class Stack(GFlowNetEnv):
         )
 
     @staticmethod
-    def equal_stack(state_x, state_y):
+    def equal(state_x, state_y):
         """
-        A version of equal() for the global stack to account for the composite nature
-        of the states.
+        Overwrites equal() to account for the composite nature of the states.
         """
         return all([GFlowNetEnv.equal(sx, sy) for sx, sy in zip(state_x, state_y)])
