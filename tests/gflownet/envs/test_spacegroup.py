@@ -6,6 +6,7 @@ import torch
 from pyxtal.symmetry import Group
 
 from gflownet.envs.crystals.spacegroup import SpaceGroup
+from gflownet.utils.common import copy
 
 N_ATOMS = [3, 7, 9]
 N_ATOMS_B = [5, 0, 14, 1]
@@ -383,6 +384,63 @@ def test__special_cases_composition_compatibility(n_atoms, cls_idx, ps_idx):
     action_cls_5_from_2 = (0, 5, 2)
     state_new, action, valid = env.step(action_cls_5_from_2)
     assert valid is False
+
+
+@pytest.mark.parametrize(
+    "state",
+    [
+        [0, 0, 0],
+        [1, 0, 0],
+        [0, 1, 0],
+        [0, 0, 1],
+        [1, 1, 0],
+        [1, 0, 1],
+        [0, 1, 1],
+        [1, 1, 1],
+    ],
+)
+def test__get_parents__does_not_change_state(env, state):
+    state_orig = copy(state)
+    parents = env.get_parents(state, False)
+    assert state == state_orig
+
+
+@pytest.mark.parametrize(
+    "state",
+    [
+        [0, 0, 0],
+        [1, 0, 0],
+        [0, 1, 0],
+        [0, 0, 1],
+        [1, 1, 0],
+        [1, 0, 1],
+        [0, 1, 1],
+        [1, 1, 1],
+    ],
+)
+def test__get_mask_invalid_actions_forward__does_not_change_state(env, state):
+    state_orig = copy(state)
+    mask_f = env.get_mask_invalid_actions_forward(state, False)
+    assert state == state_orig
+
+
+@pytest.mark.parametrize(
+    "state",
+    [
+        [0, 0, 0],
+        [1, 0, 0],
+        [0, 1, 0],
+        [0, 0, 1],
+        [1, 1, 0],
+        [1, 0, 1],
+        [0, 1, 1],
+        [1, 1, 1],
+    ],
+)
+def test__get_mask_invalid_actions_backward__does_not_change_state(env, state):
+    state_orig = copy(state)
+    mask_b = env.get_mask_invalid_actions_backward(state, False)
+    assert state == state_orig
 
 
 def test__all_common__env(env):
