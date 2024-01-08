@@ -350,9 +350,10 @@ class SpaceGroup(GFlowNetEnv):
                 action = (self.sg_idx, sg, 0)
                 actions.append(action)
                 # Add parents: states before setting space group
-                state[self.sg_idx] = 0
-                for prop in range(len(state)):
-                    parent = state.copy()
+                state_pre_sg = state.copy()
+                state_pre_sg[self.sg_idx] = 0
+                for prop in range(len(state_pre_sg)):
+                    parent = state_pre_sg.copy()
                     parent[prop] = 0
                     parents.append(parent)
                     parent_type = self.get_state_type(parent)
