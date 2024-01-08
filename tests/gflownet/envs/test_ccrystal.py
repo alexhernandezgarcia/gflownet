@@ -1587,20 +1587,20 @@ def test__get_logprobs_backward__returns_valid_actions(env, states, actions):
     assert torch.all(torch.isfinite(logprobs))
 
 
-def test__continuous_env_common(env):
+def test__common__env_mini_comp_first(env):
     print(
         "\n\nCommon tests for crystal without composition <-> space group constraints\n"
     )
     return common.test__continuous_env_common(env)
 
 
-def test__continuous_env_with_stoichiometry_sg_check_common(
+def test__common__env_with_stoichiometry_sg_check_common(
     env_with_stoichiometry_sg_check,
 ):
     print("\n\nCommon tests for crystal with composition <-> space group constraints\n")
     return common.test__continuous_env_common(env_with_stoichiometry_sg_check)
 
 
-def test__continuous_env_common(env_sg_first):
+def test__common__env_sg_first(env_sg_first):
     print("\n\nCommon tests for crystal with space group first\n")
     return common.test__continuous_env_common(env_sg_first)
