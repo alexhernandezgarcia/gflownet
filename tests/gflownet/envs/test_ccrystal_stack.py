@@ -409,7 +409,7 @@ def test__set_state__sets_state_subenvs_dones_and_constraints(
         )
 
 
-@pytest.mark.skip(reason="skip while developping other tests")
+# @pytest.mark.skip(reason="skip while developping other tests")
 @pytest.mark.parametrize(
     "env, state",
     [
@@ -465,11 +465,45 @@ def test__get_mask_invalid_actions_backward__returns_expected_general_case(
     mask_subenv_expected = subenv.get_mask_invalid_actions_backward(
         env._get_state_of_subenv(state, stage), done=False
     )
-    if not mask_subenv == mask_subenv_expected:
-        import ipdb
-
-        ipdb.set_trace()
     assert mask_subenv == mask_subenv_expected, state
+
+
+@pytest.mark.parametrize(
+    "env, state",
+    [
+        ("env_mini_comp_first", [0, [0, 0, 0, 0], [0, 0, 0], [-1, -1, -1, -1, -1, -1]]),
+        ("env_mini_comp_first", [1, [3, 0, 0, 6], [0, 0, 0], [-1, -1, -1, -1, -1, -1]]),
+        ("env_mini_comp_first", [1, [3, 1, 0, 6], [0, 0, 0], [-1, -1, -1, -1, -1, -1]]),
+        ("env_mini_comp_first", [2, [3, 1, 0, 6], [1, 2, 2], [-1, -1, -1, -1, -1, -1]]),
+        ("env_mini_comp_first", [2, [3, 1, 0, 6], [2, 1, 3], [-1, -1, -1, -1, -1, -1]]),
+        ("env_sg_first", [0, [0, 0, 0], [0, 0, 0, 0], [-1, -1, -1, -1, -1, -1]]),
+        ("env_sg_first", [1, [1, 2, 2], [0, 0, 0, 0], [-1, -1, -1, -1, -1, -1]]),
+        ("env_sg_first", [1, [2, 1, 3], [0, 0, 0, 0], [-1, -1, -1, -1, -1, -1]]),
+        ("env_sg_first", [2, [1, 2, 2], [3, 1, 0, 6], [-1, -1, -1, -1, -1, -1]]),
+        ("env_sg_first", [2, [2, 1, 3], [3, 1, 0, 6], [-1, -1, -1, -1, -1, -1]]),
+    ],
+)
+def test__get_mask_invald_actions_backward__returns_expected_stage_transition(
+    env, state, request
+):
+    env = request.getfixturevalue(env)
+    stage = env._get_stage(state)
+    prev_stage = env._get_previous_stage(stage)
+    mask = env.get_mask_invalid_actions_backward(state, done=False)
+    for stg, subenv in env.subenvs.items():
+        if stg == prev_stage and prev_stage != Stage.DONE:
+            # Mask of done (EOS only) if stage is previous stage in state
+            mask_subenv_expected = subenv.get_mask_invalid_actions_backward(
+                env._get_state_of_subenv(state, stg), done=True
+            )
+        else:
+            mask_subenv_expected = subenv.get_mask_invalid_actions_backward(
+                subenv.source
+            )
+            if stg == stage:
+                assert env._get_state_of_subenv(state, stg) == subenv.source
+        mask_subenv = env._get_mask_of_subenv(mask, stg)
+        assert mask_subenv == mask_subenv_expected
 
 
 @pytest.mark.repeat(10)
