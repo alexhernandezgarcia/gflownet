@@ -488,22 +488,31 @@ def test__get_mask_invald_actions_backward__returns_expected_stage_transition(
 ):
     env = request.getfixturevalue(env)
     stage = env._get_stage(state)
-    prev_stage = env._get_previous_stage(stage)
+    if stage == 0:
+        assert env.equal(state, env.source)
+        return
+    stage -= 1
+    subenv = env.subenvs[stage]
     mask = env.get_mask_invalid_actions_backward(state, done=False)
-    for stg, subenv in env.subenvs.items():
-        if stg == prev_stage and prev_stage != Stage.DONE:
-            # Mask of done (EOS only) if stage is previous stage in state
-            mask_subenv_expected = subenv.get_mask_invalid_actions_backward(
-                env._get_state_of_subenv(state, stg), done=True
-            )
-        else:
-            mask_subenv_expected = subenv.get_mask_invalid_actions_backward(
-                subenv.source
-            )
-            if stg == stage:
-                assert env._get_state_of_subenv(state, stg) == subenv.source
-        mask_subenv = env._get_mask_of_subenv(mask, stg)
-        assert mask_subenv == mask_subenv_expected
+    assert mask[stage]
+    mask_subenv = mask[3 : 3 + subenv.mask_dim]
+    mask_subenv_expected = subenv.get_mask_invalid_actions_backward(
+        env._get_state_of_subenv(state, stage), done=True
+    )
+    assert mask_subenv == mask_subenv_expected, state
+
+
+@pytest.mark.parametrize(
+    "env, action",
+    [
+        ("env_mini_comp_first", (1, 1, 0, 0, 0, 0, 0)),
+        ("env_mini_comp_first", (3, 4, 0, 0, 0, 0, 0)),
+    ],
+)
+def test__step__action_from_source_changes_state(env, action):
+    env.step(action)
+
+    assert env.state != env.source
 
 
 @pytest.mark.repeat(10)
