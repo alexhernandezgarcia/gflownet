@@ -43,6 +43,10 @@ class Stack(GFlowNetEnv):
         """
         self.subenvs = OrderedDict({idx: subenv for idx, subenv in enumerate(subenvs)})
         self.n_subenvs = len(self.subenvs)
+        # A copy of the subenvs to be used by reset()
+        self.subenvs_orig = OrderedDict(
+            {idx: subenv.copy() for idx, subenv in self.subenvs.items()}
+        )
 
         # States are represented as a list of subenv's states, front-padded by the
         # index of the current subenv (stage). The source state is the list of source
@@ -161,10 +165,12 @@ class Stack(GFlowNetEnv):
             init_col = end_col
 
     def reset(self, env_id: Union[int, str] = None):
-        # TODO: if the properties of the environment change due to constraints, then we
-        # may have to store the original subenvs separately and use them here.
-        for subenv in self.subenvs.values():
-            subenv.reset()
+        """
+        Resets the environment by copying the original subenvs.
+        """
+        self.subenvs = OrderedDict(
+            {idx: subenv.copy() for idx, subenv in self.subenvs_orig.items()}
+        )
         super().reset(env_id=env_id)
         return self
 
