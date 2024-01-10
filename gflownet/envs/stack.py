@@ -274,6 +274,29 @@ class Stack(GFlowNetEnv):
             + padding
         )
 
+    def get_valid_actions(
+        self,
+        state: Optional[List] = None,
+        done: Optional[bool] = None,
+        backward: Optional[bool] = False,
+    ) -> List[Tuple]:
+        """
+        Returns the list of non-invalid (valid, for short) according to the mask of
+        invalid actions.
+
+        This method is overridden because the mask of a Stack of environments does not
+        cover the entire action space, but only the current sub-environment. Therefore,
+        this method calls the get_valid_actions() method of the current sub-environment
+        and returns the padded actions.
+        """
+        stage = self._get_stage(state)
+        subenv = self.subenvs[stage]
+        state_subenv = self._get_state_of_subenv(state, stage)
+        return [
+            self._pad_action(action, stage)
+            for action in subenv.get_valid_actions(state_subenv, done, backward)
+        ]
+
     # TODO: do we need a method for this?
     def _update_state(self, stage: int):
         """
