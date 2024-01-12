@@ -48,7 +48,7 @@ env:
     replay_capacity: 0
     test:
       type: pkl
-      path: /home/mila/h/hernanga/gflownet/data/crystals/matbench_normed_l0.9-100_a50-150_val_12_SGinter_states_energy.pkl
+      path: /home/mila/h/hernanga/gflownet/data/crystals/matbench_normed_stack_l0.9-100_a50-150_val_12_SGinter_states_energy.pkl
       output_csv: ccrystal_val.csv
       output_pkl: ccrystal_val.pkl
 
