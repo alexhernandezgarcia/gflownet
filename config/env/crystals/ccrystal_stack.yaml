@@ -1,0 +1,27 @@
+defaults:
+  - base
+
+_target_: gflownet.envs.crystals.ccrystal_stack.CCrystal
+
+# Composition config
+id: ccrystal_stack
+composition_kwargs:
+  elements: 89
+# Lattice parameters config
+lattice_parameters_kwargs:
+  min_length: 1.0
+  max_length: 350.0
+  min_angle: 50.0
+  max_angle: 150.0
+# Space group config
+space_group_kwargs:
+  space_groups_subset: null
+# Stoichiometry <-> space group check
+do_composition_to_sg_constraints: True
+self.do_sg_to_lp_constraints: True
+
+# Buffer
+buffer:
+  data_path: null
+  train: null
+  test: null
