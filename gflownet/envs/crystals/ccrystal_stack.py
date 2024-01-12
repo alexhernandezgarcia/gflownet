@@ -70,7 +70,7 @@ class CCrystal(Stack):
         self.stage_latticeparameters = 2
 
         # Initialize base Stack environment
-        super().__init__(subenvs=subenvs)
+        super().__init__(subenvs=subenvs, **kwargs)
 
     def _apply_constraints(self):
         """
