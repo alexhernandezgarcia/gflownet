@@ -202,8 +202,46 @@ class Stack(GFlowNetEnv):
             stage = self._get_stage(state)
         return state[stage + 1]
 
+    def _get_relevant_stage_subenv_substate_done(
+        self,
+        state: Optional[List] = None,
+        done: Optional[bool] = None,
+        is_backward: Optional[bool] = False,
+    ) -> Tuple[int, GFlowNetEnv, Union[List, TensorType["state_dim"]], bool]:
+        """
+        Retrieves the relevant stage, subenv, state of the subenv and done of the
+        subenv.
+
+        The relevant stage is, in general, the stage indicated in the state.
+
+        However, if is_backward is True, then the relevant stage will be the previous
+        stage if the following conditions are true:
+            - The stage indicated in the state is not 0.
+            - The state of the subenv of the stage indicated by the state is not the
+              source state.
+            - The global done is False
+
+        The above case correspond to backward transitions between sub-environments.
+        """
+        state = self._get_state(state)
+        done = self._get_done(done)
+        stage = self._get_stage(state)
+        subenv = self.subenvs[stage]
+        state_subenv = self._get_state_of_subenv(state, stage)
+        if (
+            is_backward
+            and stage > 0
+            and not done
+            and self.equal(state_subenv, subenv.source)
+        ):
+            stage = stage - 1
+            subenv = self.subenvs[stage]
+            state_subenv = self._get_state_of_subenv(state, stage)
+            done = True
+        return stage, subenv, state_subenv, done
+
     def get_mask_invalid_actions_forward(
-        self, state: Optional[List[int]] = None, done: Optional[bool] = None
+        self, state: Optional[List] = None, done: Optional[bool] = None
     ) -> List[bool]:
         """
         Computes the forward actions mask of the state.
@@ -212,24 +250,24 @@ class Stack(GFlowNetEnv):
         preceded by a one-hot encoding of the index of the subenv and padded with False
         up to mask_dim. Including only the relevant mask saves memory and computation.
         """
-        state = self._get_state(state)
-        stage = self._get_stage(state)
-        done = self._get_done(done)
+        (
+            stage,
+            subenv,
+            state_subenv,
+            done,
+        ) = self._get_relevant_stage_subenv_substate_done(state, done)
 
-        subenv = self.subenvs[stage]
         stage_onehot = [False] * self.n_subenvs
         stage_onehot[stage] = True
         padding = [False] * (self.mask_dim - (subenv.mask_dim + 3))
         return (
             stage_onehot
-            + subenv.get_mask_invalid_actions_forward(
-                self._get_state_of_subenv(state, stage), done
-            )
+            + subenv.get_mask_invalid_actions_forward(state_subenv, done)
             + padding
         )
 
     def get_mask_invalid_actions_backward(
-        self, state: Optional[List[int]] = None, done: Optional[bool] = None
+        self, state: Optional[List] = None, done: Optional[bool] = None
     ) -> List[bool]:
         """
         Computes the backward actions mask of the state.
@@ -249,28 +287,19 @@ class Stack(GFlowNetEnv):
             - if the current stage is the first sub-environment, in which case there is
               no preceding stage.
         """
-        state = self._get_state(state)
-        done = self._get_done(done)
-        stage = self._get_stage(state)
-
-        subenv = self.subenvs[stage]
-        if (
-            stage > 0
-            and not done
-            and self.equal(self._get_state_of_subenv(state, stage), subenv.source)
-        ):
-            stage -= 1
-            subenv = self.subenvs[stage]
-            done = True
+        (
+            stage,
+            subenv,
+            state_subenv,
+            done,
+        ) = self._get_relevant_stage_subenv_substate_done(state, done, is_backward=True)
 
         stage_onehot = [False] * self.n_subenvs
         stage_onehot[stage] = True
         padding = [False] * (self.mask_dim - (subenv.mask_dim + 3))
         return (
             stage_onehot
-            + subenv.get_mask_invalid_actions_backward(
-                self._get_state_of_subenv(state, stage), done
-            )
+            + subenv.get_mask_invalid_actions_backward(state_subenv, done)
             + padding
         )
 
@@ -286,12 +315,15 @@ class Stack(GFlowNetEnv):
 
         This method is overridden because the mask of a Stack of environments does not
         cover the entire action space, but only the current sub-environment. Therefore,
-        this method calls the get_valid_actions() method of the current sub-environment
-        and returns the padded actions.
+        this method calls the get_valid_actions() method of the currently relevant
+        sub-environment and returns the padded actions.
         """
-        stage = self._get_stage(state)
-        subenv = self.subenvs[stage]
-        state_subenv = self._get_state_of_subenv(state, stage)
+        (
+            stage,
+            subenv,
+            state_subenv,
+            done,
+        ) = self._get_relevant_stage_subenv_substate_done(state, done, backward)
         return [
             self._pad_action(action, stage)
             for action in subenv.get_valid_actions(state_subenv, done, backward)
