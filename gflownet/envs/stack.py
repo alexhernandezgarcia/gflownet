@@ -185,7 +185,7 @@ class Stack(GFlowNetEnv):
         return state[0]
 
     # TODO: do we need a method for this?
-    def _get_state_of_subenv(self, state: List, stage: Optional[int] = None):
+    def _get_substate(self, state: List, stage: Optional[int] = None):
         """
         Returns the part of the state corresponding to the subenv indicated by stage.
 
@@ -202,7 +202,7 @@ class Stack(GFlowNetEnv):
             stage = self._get_stage(state)
         return state[stage + 1]
 
-    def _get_relevant_stage_subenv_substate_done(
+    def _get_stage_subenv_substate_done(
         self,
         state: Optional[List] = None,
         done: Optional[bool] = None,
@@ -227,7 +227,7 @@ class Stack(GFlowNetEnv):
         done = self._get_done(done)
         stage = self._get_stage(state)
         subenv = self.subenvs[stage]
-        state_subenv = self._get_state_of_subenv(state, stage)
+        state_subenv = self._get_substate(state, stage)
         if (
             is_backward
             and stage > 0
@@ -236,7 +236,7 @@ class Stack(GFlowNetEnv):
         ):
             stage = stage - 1
             subenv = self.subenvs[stage]
-            state_subenv = self._get_state_of_subenv(state, stage)
+            state_subenv = self._get_substate(state, stage)
             done = True
         return stage, subenv, state_subenv, done
 
@@ -250,12 +250,9 @@ class Stack(GFlowNetEnv):
         preceded by a one-hot encoding of the index of the subenv and padded with False
         up to mask_dim. Including only the relevant mask saves memory and computation.
         """
-        (
-            stage,
-            subenv,
-            state_subenv,
-            done,
-        ) = self._get_relevant_stage_subenv_substate_done(state, done)
+        stage, subenv, state_subenv, done = self._get_stage_subenv_substate_done(
+            state, done
+        )
 
         stage_onehot = [False] * self.n_subenvs
         stage_onehot[stage] = True
@@ -287,12 +284,9 @@ class Stack(GFlowNetEnv):
             - if the current stage is the first sub-environment, in which case there is
               no preceding stage.
         """
-        (
-            stage,
-            subenv,
-            state_subenv,
-            done,
-        ) = self._get_relevant_stage_subenv_substate_done(state, done, is_backward=True)
+        stage, subenv, state_subenv, done = self._get_stage_subenv_substate_done(
+            state, done, is_backward=True
+        )
 
         stage_onehot = [False] * self.n_subenvs
         stage_onehot[stage] = True
@@ -318,12 +312,9 @@ class Stack(GFlowNetEnv):
         this method calls the get_valid_actions() method of the currently relevant
         sub-environment and returns the padded actions.
         """
-        (
-            stage,
-            subenv,
-            state_subenv,
-            done,
-        ) = self._get_relevant_stage_subenv_substate_done(state, done, backward)
+        stage, subenv, state_subenv, done = self._get_stage_subenv_substate_done(
+            state, done, backward
+        )
         return [
             self._pad_action(action, stage)
             for action in subenv.get_valid_actions(state_subenv, done, backward)
@@ -495,7 +486,7 @@ class Stack(GFlowNetEnv):
         n_done = self._get_stage(state) + int(done)
         dones = (True,) * n_done + (False,) * (self.n_subenvs - n_done)
         for (stage, subenv), done_subenv in zip(self.subenvs.items(), dones):
-            subenv.set_state(self._get_state_of_subenv(self.state, stage), done_subenv)
+            subenv.set_state(self._get_substate(self.state, stage), done_subenv)
 
         # Apply constraints
         self._apply_constraints()
@@ -532,7 +523,7 @@ class Stack(GFlowNetEnv):
         to the sub-environment.
         """
         for state, stage in zip(states_from, stages_int):
-            states_dict[stage].append(self._get_state_of_subenv(state, stage))
+            states_dict[stage].append(self._get_substate(state, stage))
 
         # Sample actions from each sub-environment
         actions_logprobs_dict = {}
@@ -599,7 +590,7 @@ class Stack(GFlowNetEnv):
         sub-environment.
         """
         for state, stage in zip(states_from, stages_int):
-            states_dict[stage].append(self._get_state_of_subenv(state, stage))
+            states_dict[stage].append(self._get_substate(state, stage))
 
         # Compute logprobs from each sub-environment
         logprobs = torch.empty(n_states, dtype=self.float, device=self.device)
@@ -674,7 +665,7 @@ class Stack(GFlowNetEnv):
             state = self.state
         readable = f"Stage {self._get_stage(state)}; " + "".join(
             [
-                subenv.state2readable(self._get_state_of_subenv(state, stage)) + "; "
+                subenv.state2readable(self._get_substate(state, stage)) + "; "
                 for stage, subenv in self.subenvs.items()
             ]
         )
