@@ -5,7 +5,7 @@
 # $1: Environment name
 #
 module --force purge
-module load python/3.8
+module load python/3.9
 module load cuda/11.7
 python -m virtualenv $1
 source $1/bin/activate
