@@ -32,5 +32,7 @@ python -m pip install numpy pandas scikit-learn hydra-core tqdm torchtyping matp
 python -m pip install wandb
 # pymatgen, pyxtal: for the crystal environments
 python -m pip install pymatgen pyxtal
+# dave proxy: consider updating the version
+python -m pip install git+https://github.com/sh-divya/ActiveLearningMaterials.git@0.3.4
 ### Dev packages ###
 python -m pip install black flake8 isort pylint ipdb jupyter pytest pytest-repeat

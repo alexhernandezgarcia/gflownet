@@ -34,6 +34,8 @@ python -m pip install numpy pandas scikit-learn hydra-core tqdm torchtyping matp
 python -m pip install wandb
 # pymatgen, pyxtal: for the crystal environments
 python -m pip install pymatgen pyxtal
+# dave proxy: consider updating the version
+python -m pip install git+https://github.com/sh-divya/ActiveLearningMaterials.git@0.3.4
 # torchani and RDKit for molecules, tree, etc.
 python -m pip install torchani rdkit
 # DGL (see https://www.dgl.ai/pages/start.html) - giving problems
