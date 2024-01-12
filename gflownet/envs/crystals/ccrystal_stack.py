@@ -112,7 +112,7 @@ class CCrystal(Stack):
             is_valid_list.append(
                 all(
                     [
-                        subenv.is_valid(self._get_state_of_subenv(x, stage))
+                        subenv.is_valid(self._get_substate(x, stage))
                         for stage, subenv in self.subenvs.items()
                     ]
                 )
