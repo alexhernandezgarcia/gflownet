@@ -471,9 +471,9 @@ class GFlowNetEnv:
             )
 
         if mask is not None:
-            assert not torch.all(mask), dedent(
+            assert not torch.all(mask, dim=1).any(), dedent(
                 """
-            All actions in the mask are invalid.
+            All actions in the mask are invalid for some states in the batch.
             """
             )
             logits[mask] = -torch.inf
