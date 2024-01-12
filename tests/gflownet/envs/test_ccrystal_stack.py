@@ -1000,13 +1000,15 @@ def test___get_policy_outputs_of_subenv__returns_correct_output(env_mini_comp_fi
     )
     assert torch.all(
         torch.eq(
-            env._get_policy_outputs_of_subenv(policy_outputs, env.stage_latticeparameters),
+            env._get_policy_outputs_of_subenv(
+                policy_outputs, env.stage_latticeparameters
+            ),
             policy_output_lattice_parameters,
         )
     )
 
 
-@pytest.mark.skip(reason="skip while developping other tests")
+# @pytest.mark.skip(reason="skip while developping other tests")
 @pytest.mark.repeat(10)
 @pytest.mark.parametrize(
     "env", ["env_mini_comp_first", "env_with_stoichiometry_sg_check", "env_sg_first"]
@@ -1018,7 +1020,7 @@ def test__step_random__does_not_crash_from_source(env, request):
     pass
 
 
-@pytest.mark.skip(reason="skip while developping other tests")
+# @pytest.mark.skip(reason="skip while developping other tests")
 @pytest.mark.parametrize(
     "states",
     [
@@ -1130,7 +1132,180 @@ def test__sample_actions_backward__returns_valid_actions(env_mini_comp_first, st
         assert action in env.get_valid_actions(state, done=False, backward=True)
 
 
-@pytest.mark.skip(reason="skip while developping other tests")
+@pytest.mark.parametrize(
+    "states, actions",
+    [
+        [
+            [
+                [0, [0, 0, 0, 0], [0, 0, 0], [-1, -1, -1, -1, -1, -1]],
+                [0, [0, 4, 0, 0], [0, 0, 0], [-1, -1, -1, -1, -1, -1]],
+                [0, [0, 4, 3, 0], [0, 0, 0], [-1, -1, -1, -1, -1, -1]],
+                [0, [3, 0, 0, 0], [0, 0, 0], [-1, -1, -1, -1, -1, -1]],
+                [0, [3, 0, 0, 6], [0, 0, 0], [-1, -1, -1, -1, -1, -1]],
+                [0, [3, 1, 0, 6], [0, 0, 0], [-1, -1, -1, -1, -1, -1]],
+            ],
+            [
+                (0, 1, 7, 0, 0, 0, 0, 0),
+                (0, 3, 16, 0, 0, 0, 0, 0),
+                (0, 1, 6, 0, 0, 0, 0, 0),
+                (0, 3, 8, 0, 0, 0, 0, 0),
+                (0, 2, 11, 0, 0, 0, 0, 0),
+                (0, 3, 9, 0, 0, 0, 0, 0),
+            ],
+        ],
+        [
+            [
+                [0, [0, 0, 0, 0], [0, 0, 0], [-1, -1, -1, -1, -1, -1]],
+                [1, [3, 1, 0, 6], [0, 0, 0], [-1, -1, -1, -1, -1, -1]],
+                [1, [3, 1, 0, 6], [1, 0, 0], [-1, -1, -1, -1, -1, -1]],
+                [1, [3, 1, 0, 6], [1, 1, 0], [-1, -1, -1, -1, -1, -1]],
+            ],
+            [
+                (0, 1, 6, 0, 0, 0, 0, 0),
+                (1, 2, 14, 0, 0, 0, 0, 0),
+                (1, 2, 2, 1, 0, 0, 0, 0),
+                (1, 2, 1, 3, 0, 0, 0, 0),
+            ],
+        ],
+        [
+            [
+                [0, [0, 0, 0, 0], [0, 0, 0], [-1, -1, -1, -1, -1, -1]],
+                [0, [0, 4, 0, 0], [0, 0, 0], [-1, -1, -1, -1, -1, -1]],
+                [1, [3, 1, 0, 6], [0, 0, 0], [-1, -1, -1, -1, -1, -1]],
+                [2, [1, 0, 4, 0], [4, 3, 105], [0.1, 0.1, 0.3, 0.4, 0.4, 0.4]],
+                [1, [3, 1, 0, 6], [1, 0, 0], [-1, -1, -1, -1, -1, -1]],
+                [1, [3, 1, 0, 6], [1, 1, 0], [-1, -1, -1, -1, -1, -1]],
+                [0, [3, 0, 0, 0], [0, 0, 0], [-1, -1, -1, -1, -1, -1]],
+                [0, [3, 0, 0, 6], [0, 0, 0], [-1, -1, -1, -1, -1, -1]],
+                [1, [3, 1, 0, 6], [1, 2, 0], [-1, -1, -1, -1, -1, -1]],
+                [0, [3, 1, 0, 6], [0, 0, 0], [-1, -1, -1, -1, -1, -1]],
+                [2, [1, 0, 4, 0], [4, 3, 105], [0.5, 0.5, 0.3, 0.4, 0.4, 0.4]],
+                [2, [1, 0, 4, 0], [4, 3, 105], [0.45, 0.45, 0.33, 0.4, 0.4, 0.4]],
+                [0, [0, 4, 3, 0], [0, 0, 0], [-1, -1, -1, -1, -1, -1]],
+            ],
+            [
+                (0, 1, 15, 0, 0, 0, 0, 0),
+                (0, 1, 2, 0, 0, 0, 0, 0),
+                (1, 2, 7, 0, 0, 0, 0, 0),
+                (2, 0.49, 0.40, 0.40, 0.37, 0.35, 0.36, 0.0),
+                (1, 2, 1, 1, 0, 0, 0, 0),
+                (1, 2, 1, 3, 0, 0, 0, 0),
+                (0, 2, 11, 0, 0, 0, 0, 0),
+                (0, 3, 9, 0, 0, 0, 0, 0),
+                (1, 2, 2, 3, 0, 0, 0, 0),
+                (0, 3, 2, 0, 0, 0, 0, 0),
+                (2, 0.27, 0.28, 0.30, 0.39, 0.37, 0.29, 0.0),
+                (2, 0.32, 0.30, 0.45, 0.33, 0.42, 0.39, 0.0),
+                (0, 4, 4, 0, 0, 0, 0, 0),
+            ],
+        ],
+    ],
+)
+def test__get_logprobs_forward__returns_valid_actions(
+    env_mini_comp_first, states, actions
+):
+    env = env_mini_comp_first
+    n_states = len(states)
+    actions = tfloat(actions, float_type=env.float, device=env.device)
+    # Get masks
+    masks = tbool(
+        [env.get_mask_invalid_actions_forward(s) for s in states], device=env.device
+    )
+    # Build policy outputs
+    params = env.random_distr_params
+    policy_outputs = torch.tile(env.get_policy_output(params), dims=(n_states, 1))
+    # Get log probs
+    logprobs = env.get_logprobs(
+        policy_outputs, actions, masks, states, is_backward=False
+    )
+    assert torch.all(torch.isfinite(logprobs))
+
+
+# TODO: Set lattice system
+@pytest.mark.parametrize(
+    "states, actions",
+    [
+        [
+            [
+                [0, [0, 4, 0, 0], [0, 0, 0], [-1, -1, -1, -1, -1, -1]],
+                [0, [0, 4, 3, 0], [0, 0, 0], [-1, -1, -1, -1, -1, -1]],
+                [0, [3, 0, 0, 0], [0, 0, 0], [-1, -1, -1, -1, -1, -1]],
+                [0, [3, 0, 0, 6], [0, 0, 0], [-1, -1, -1, -1, -1, -1]],
+                [0, [3, 1, 0, 6], [0, 0, 0], [-1, -1, -1, -1, -1, -1]],
+            ],
+            [
+                (0, 2, 4, 0, 0, 0, 0, 0),
+                (0, 2, 4, 0, 0, 0, 0, 0),
+                (0, 1, 3, 0, 0, 0, 0, 0),
+                (0, 1, 3, 0, 0, 0, 0, 0),
+                (0, 4, 6, 0, 0, 0, 0, 0),
+            ],
+        ],
+        [
+            [
+                [1, [3, 1, 0, 6], [0, 0, 0], [-1, -1, -1, -1, -1, -1]],
+                [1, [3, 1, 0, 6], [1, 0, 0], [-1, -1, -1, -1, -1, -1]],
+                [1, [3, 1, 0, 6], [1, 1, 0], [-1, -1, -1, -1, -1, -1]],
+            ],
+            [
+                (0, -1, -1, 0, 0, 0, 0, 0),
+                (1, 0, 1, 0, 0, 0, 0, 0),
+                (1, 1, 1, 1, 0, 0, 0, 0),
+            ],
+        ],
+        [
+            [
+                [0, [0, 4, 0, 0], [0, 0, 0], [-1, -1, -1, -1, -1, -1]],
+                [1, [3, 1, 0, 6], [0, 0, 0], [-1, -1, -1, -1, -1, -1]],
+                # [2, [1, 0, 4, 0], [4, 3, 105], [0.1, 0.1, 0.3, 0.4, 0.4, 0.4]],
+                [1, [3, 1, 0, 6], [1, 0, 0], [-1, -1, -1, -1, -1, -1]],
+                [1, [3, 1, 0, 6], [1, 1, 0], [-1, -1, -1, -1, -1, -1]],
+                [0, [3, 0, 0, 0], [0, 0, 0], [-1, -1, -1, -1, -1, -1]],
+                [0, [3, 0, 0, 6], [0, 0, 0], [-1, -1, -1, -1, -1, -1]],
+                [1, [3, 1, 0, 6], [1, 2, 0], [-1, -1, -1, -1, -1, -1]],
+                [0, [3, 1, 0, 6], [0, 0, 0], [-1, -1, -1, -1, -1, -1]],
+                # [2, [1, 0, 4, 0], [4, 3, 105], [0.5, 0.5, 0.3, 0.4, 0.4, 0.4]],
+                # [2, [1, 0, 4, 0], [4, 3, 105], [0.45, 0.45, 0.33, 0.4, 0.4, 0.4]],
+                [0, [0, 4, 3, 0], [0, 0, 0], [-1, -1, -1, -1, -1, -1]],
+            ],
+            [
+                (0, 2, 4, 0, 0, 0, 0, 0),
+                (0, -1, -1, 0, 0, 0, 0, 0),
+                # (2, 0.10, 0.10, 0.17, 0.0, 0.0, 0.0, 0.0),
+                (1, 0, 1, 0, 0, 0, 0, 0),
+                (1, 1, 1, 1, 0, 0, 0, 0),
+                (0, 1, 3, 0, 0, 0, 0, 0),
+                (0, 1, 3, 0, 0, 0, 0, 0),
+                (1, 1, 2, 1, 0, 0, 0, 0),
+                (0, 2, 1, 0, 0, 0, 0, 0),
+                # (2, 0.37, 0.37, 0.23, 0.0, 0.0, 0.0, 0.0),
+                # (2, 0.23, 0.23, 0.11, 0.0, 0.0, 0.0, 0.0),
+                (0, 3, 3, 0, 0, 0, 0, 0),
+            ],
+        ],
+    ],
+)
+def test__get_logprobs_backward__returns_valid_actions(
+    env_mini_comp_first, states, actions
+):
+    env = env_mini_comp_first
+    n_states = len(states)
+    actions = tfloat(actions, float_type=env.float, device=env.device)
+    # Get masks
+    masks = tbool(
+        [env.get_mask_invalid_actions_backward(s) for s in states], device=env.device
+    )
+    # Build policy outputs
+    params = env.random_distr_params
+    policy_outputs = torch.tile(env.get_policy_output(params), dims=(n_states, 1))
+    # Get log probs
+    logprobs = env.get_logprobs(
+        policy_outputs, actions, masks, states, is_backward=True
+    )
+    assert torch.all(torch.isfinite(logprobs))
+
+
+# @pytest.mark.skip(reason="skip while developping other tests")
 @pytest.mark.repeat(10)
 @pytest.mark.parametrize(
     "env", ["env_mini_comp_first", "env_with_stoichiometry_sg_check", "env_sg_first"]
@@ -1142,7 +1317,7 @@ def test__trajectory_random__does_not_crash_from_source(env, request):
     pass
 
 
-@pytest.mark.skip(reason="skip while developping other tests")
+# @pytest.mark.skip(reason="skip while developping other tests")
 def test__common__env_mini_comp_first(env_mini_comp_first):
     print(
         "\n\nCommon tests for crystal without composition <-> space group constraints\n"
@@ -1150,7 +1325,7 @@ def test__common__env_mini_comp_first(env_mini_comp_first):
     return common.test__continuous_env_common(env_mini_comp_first)
 
 
-@pytest.mark.skip(reason="skip while developping other tests")
+# @pytest.mark.skip(reason="skip while developping other tests")
 def test__common__env_sg_first(env_sg_first):
     print("\n\nCommon tests for crystal with space group first\n")
     return common.test__continuous_env_common(env_sg_first)
