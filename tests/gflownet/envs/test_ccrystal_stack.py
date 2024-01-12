@@ -138,7 +138,7 @@ def test__states2policy__is_concatenation_of_subenv_states(env_mini_comp_first, 
     states_dict = {stage: [] for stage in env.subenvs}
     for state in states:
         for stage in env.subenvs:
-            states_dict[stage].append(env._get_state_of_subenv(state, stage))
+            states_dict[stage].append(env._get_substate(state, stage))
     states_policy_dict = {
         stage: subenv.states2policy(states_dict[stage])
         for stage, subenv in env.subenvs.items()
@@ -177,7 +177,7 @@ def test__states2proxy__is_concatenation_of_subenv_states(env_mini_comp_first, s
     states_dict = {stage: [] for stage in env.subenvs}
     for state in states:
         for stage in env.subenvs:
-            states_dict[stage].append(env._get_state_of_subenv(state, stage))
+            states_dict[stage].append(env._get_substate(state, stage))
     states_proxy_dict = {
         stage: subenv.states2proxy(states_dict[stage])
         for stage, subenv in env.subenvs.items()
@@ -268,7 +268,7 @@ def test__state_of_subenv__returns_expected(
 ):
     env = env_mini_comp_first
     for stage in env.subenvs:
-        state_subenv = env._get_state_of_subenv(state, stage)
+        state_subenv = env._get_substate(state, stage)
         if stage == 0:
             assert state_subenv == state_composition
         elif stage == 1:
@@ -373,7 +373,7 @@ def test__set_state__sets_state_subenvs_dones_and_constraints(
 
     # Check states of subenvs
     for stage, subenv in env.subenvs.items():
-        assert subenv.state == env._get_state_of_subenv(state, stage)
+        assert subenv.state == env._get_substate(state, stage)
 
     # Check dones
     for subenv, done in zip(env.subenvs.values(), dones):
@@ -463,7 +463,7 @@ def test__get_mask_invalid_actions_backward__returns_expected_general_case(
     mask = env.get_mask_invalid_actions_backward(state, done=False)
     mask_subenv = mask[3 : 3 + subenv.mask_dim]
     mask_subenv_expected = subenv.get_mask_invalid_actions_backward(
-        env._get_state_of_subenv(state, stage), done=False
+        env._get_substate(state, stage), done=False
     )
     assert mask_subenv == mask_subenv_expected, state
 
@@ -497,7 +497,7 @@ def test__get_mask_invald_actions_backward__returns_expected_stage_transition(
     assert mask[stage]
     mask_subenv = mask[3 : 3 + subenv.mask_dim]
     mask_subenv_expected = subenv.get_mask_invalid_actions_backward(
-        env._get_state_of_subenv(state, stage), done=True
+        env._get_substate(state, stage), done=True
     )
     assert mask_subenv == mask_subenv_expected, state
 
@@ -940,28 +940,202 @@ def test__reset(env, actions, request):
     assert env.subenvs[env.stage_latticeparameters].lattice_system == TRICLINIC
 
 
+def test__get_policy_outputs__is_the_concatenation_of_subenvs(env_mini_comp_first):
+    env = env_mini_comp_first
+    policy_output_composition = env.subenvs[env.stage_composition].get_policy_output(
+        env.subenvs[env.stage_composition].fixed_distr_params
+    )
+    policy_output_space_group = env.subenvs[env.stage_spacegroup].get_policy_output(
+        env.subenvs[env.stage_spacegroup].fixed_distr_params
+    )
+    policy_output_lattice_parameters = env.subenvs[
+        env.stage_latticeparameters
+    ].get_policy_output(env.subenvs[env.stage_latticeparameters].fixed_distr_params)
+    policy_output_cat = torch.cat(
+        (
+            policy_output_composition,
+            policy_output_space_group,
+            policy_output_lattice_parameters,
+        )
+    )
+    policy_output = env.get_policy_output(env.fixed_distr_params)
+    assert torch.all(torch.eq(policy_output_cat, policy_output))
+
+
+def test___get_policy_outputs_of_subenv__returns_correct_output(env_mini_comp_first):
+    env = env_mini_comp_first
+    n_states = 5
+    policy_output_composition = torch.tile(
+        env.subenvs[env.stage_composition].get_policy_output(
+            env.subenvs[env.stage_composition].fixed_distr_params
+        ),
+        dims=(n_states, 1),
+    )
+    policy_output_space_group = torch.tile(
+        env.subenvs[env.stage_spacegroup].get_policy_output(
+            env.subenvs[env.stage_spacegroup].fixed_distr_params
+        ),
+        dims=(n_states, 1),
+    )
+    policy_output_lattice_parameters = torch.tile(
+        env.subenvs[env.stage_latticeparameters].get_policy_output(
+            env.subenvs[env.stage_latticeparameters].fixed_distr_params
+        ),
+        dims=(n_states, 1),
+    )
+    policy_outputs = torch.tile(
+        env.get_policy_output(env.fixed_distr_params), dims=(n_states, 1)
+    )
+    assert torch.all(
+        torch.eq(
+            env._get_policy_outputs_of_subenv(policy_outputs, env.stage_composition),
+            policy_output_composition,
+        )
+    )
+    assert torch.all(
+        torch.eq(
+            env._get_policy_outputs_of_subenv(policy_outputs, env.stage_spacegroup),
+            policy_output_space_group,
+        )
+    )
+    assert torch.all(
+        torch.eq(
+            env._get_policy_outputs_of_subenv(policy_outputs, env.stage_latticeparameters),
+            policy_output_lattice_parameters,
+        )
+    )
+
+
+@pytest.mark.skip(reason="skip while developping other tests")
 @pytest.mark.repeat(10)
 @pytest.mark.parametrize(
     "env", ["env_mini_comp_first", "env_with_stoichiometry_sg_check", "env_sg_first"]
 )
 def test__step_random__does_not_crash_from_source(env, request):
-    """
-    Very low bar test...
-    """
     env = request.getfixturevalue(env)
     env.reset()
     env.step_random()
     pass
 
 
+@pytest.mark.skip(reason="skip while developping other tests")
+@pytest.mark.parametrize(
+    "states",
+    [
+        [
+            [0, [0, 0, 0, 0], [0, 0, 0], [-1, -1, -1, -1, -1, -1]],
+            [0, [0, 4, 0, 0], [0, 0, 0], [-1, -1, -1, -1, -1, -1]],
+            [0, [0, 4, 3, 0], [0, 0, 0], [-1, -1, -1, -1, -1, -1]],
+            [0, [3, 0, 0, 0], [0, 0, 0], [-1, -1, -1, -1, -1, -1]],
+            [0, [3, 0, 0, 6], [0, 0, 0], [-1, -1, -1, -1, -1, -1]],
+            [0, [3, 1, 0, 6], [0, 0, 0], [-1, -1, -1, -1, -1, -1]],
+        ],
+        [
+            [0, [0, 0, 0, 0], [0, 0, 0], [-1, -1, -1, -1, -1, -1]],
+            [1, [3, 1, 0, 6], [0, 0, 0], [-1, -1, -1, -1, -1, -1]],
+            [1, [3, 1, 0, 6], [1, 0, 0], [-1, -1, -1, -1, -1, -1]],
+            [1, [3, 1, 0, 6], [1, 1, 0], [-1, -1, -1, -1, -1, -1]],
+        ],
+        [
+            [0, [0, 0, 0, 0], [0, 0, 0], [-1, -1, -1, -1, -1, -1]],
+            [0, [0, 4, 0, 0], [0, 0, 0], [-1, -1, -1, -1, -1, -1]],
+            [1, [3, 1, 0, 6], [0, 0, 0], [-1, -1, -1, -1, -1, -1]],
+            [2, [1, 0, 4, 0], [4, 3, 105], [0.1, 0.1, 0.3, 0.4, 0.4, 0.4]],
+            [1, [3, 1, 0, 6], [1, 0, 0], [-1, -1, -1, -1, -1, -1]],
+            [1, [3, 1, 0, 6], [1, 1, 0], [-1, -1, -1, -1, -1, -1]],
+            [0, [3, 0, 0, 0], [0, 0, 0], [-1, -1, -1, -1, -1, -1]],
+            [0, [3, 0, 0, 6], [0, 0, 0], [-1, -1, -1, -1, -1, -1]],
+            [1, [3, 1, 0, 6], [1, 2, 0], [-1, -1, -1, -1, -1, -1]],
+            [0, [3, 1, 0, 6], [0, 0, 0], [-1, -1, -1, -1, -1, -1]],
+            [2, [1, 0, 4, 0], [4, 3, 105], [0.5, 0.5, 0.3, 0.4, 0.4, 0.4]],
+            [2, [1, 0, 4, 0], [4, 3, 105], [0.45, 0.45, 0.33, 0.4, 0.4, 0.4]],
+            [0, [0, 4, 3, 0], [0, 0, 0], [-1, -1, -1, -1, -1, -1]],
+        ],
+    ],
+)
+def test__sample_actions_forward__returns_valid_actions(env_mini_comp_first, states):
+    env = env_mini_comp_first
+    n_states = len(states)
+    # Get masks
+    masks = tbool(
+        [env.get_mask_invalid_actions_forward(s) for s in states], device=env.device
+    )
+    # Build policy outputs
+    params = env.random_distr_params
+    policy_outputs = torch.tile(env.get_policy_output(params), dims=(n_states, 1))
+    # Sample actions
+    actions, _ = env.sample_actions_batch(
+        policy_outputs, masks, states, is_backward=False
+    )
+    # Sample actions are valid
+    for state, action in zip(states, actions):
+        if env._get_stage(state) == env.stage_latticeparameters:
+            continue
+        assert action in env.get_valid_actions(state, done=False, backward=False)
+
+
+@pytest.mark.parametrize(
+    "states",
+    [
+        [
+            [0, [0, 4, 0, 0], [0, 0, 0], [-1, -1, -1, -1, -1, -1]],
+            [0, [0, 4, 3, 0], [0, 0, 0], [-1, -1, -1, -1, -1, -1]],
+        ],
+        [
+            [0, [0, 4, 0, 0], [0, 0, 0], [-1, -1, -1, -1, -1, -1]],
+            [0, [0, 4, 3, 0], [0, 0, 0], [-1, -1, -1, -1, -1, -1]],
+            [0, [3, 0, 0, 0], [0, 0, 0], [-1, -1, -1, -1, -1, -1]],
+            [0, [3, 0, 0, 6], [0, 0, 0], [-1, -1, -1, -1, -1, -1]],
+            [0, [3, 1, 0, 6], [0, 0, 0], [-1, -1, -1, -1, -1, -1]],
+        ],
+        [
+            [1, [3, 1, 0, 6], [0, 0, 0], [-1, -1, -1, -1, -1, -1]],
+            [1, [3, 1, 0, 6], [1, 0, 0], [-1, -1, -1, -1, -1, -1]],
+            [1, [3, 1, 0, 6], [1, 1, 0], [-1, -1, -1, -1, -1, -1]],
+        ],
+        [
+            [0, [0, 4, 0, 0], [0, 0, 0], [-1, -1, -1, -1, -1, -1]],
+            [1, [3, 1, 0, 6], [0, 0, 0], [-1, -1, -1, -1, -1, -1]],
+            [2, [1, 0, 4, 0], [4, 3, 105], [0.1, 0.1, 0.3, 0.4, 0.4, 0.4]],
+            [1, [3, 1, 0, 6], [1, 0, 0], [-1, -1, -1, -1, -1, -1]],
+            [1, [3, 1, 0, 6], [1, 1, 0], [-1, -1, -1, -1, -1, -1]],
+            [0, [3, 0, 0, 0], [0, 0, 0], [-1, -1, -1, -1, -1, -1]],
+            [0, [3, 0, 0, 6], [0, 0, 0], [-1, -1, -1, -1, -1, -1]],
+            [1, [3, 1, 0, 6], [1, 2, 0], [-1, -1, -1, -1, -1, -1]],
+            [0, [3, 1, 0, 6], [0, 0, 0], [-1, -1, -1, -1, -1, -1]],
+            [2, [1, 0, 4, 0], [4, 3, 105], [0.5, 0.5, 0.3, 0.4, 0.4, 0.4]],
+            [2, [1, 0, 4, 0], [4, 3, 105], [0.45, 0.45, 0.33, 0.4, 0.4, 0.4]],
+            [0, [0, 4, 3, 0], [0, 0, 0], [-1, -1, -1, -1, -1, -1]],
+        ],
+    ],
+)
+def test__sample_actions_backward__returns_valid_actions(env_mini_comp_first, states):
+    env = env_mini_comp_first
+    n_states = len(states)
+    # Get masks
+    masks = tbool(
+        [env.get_mask_invalid_actions_backward(s) for s in states], device=env.device
+    )
+    # Build policy outputs
+    params = env.random_distr_params
+    policy_outputs = torch.tile(env.get_policy_output(params), dims=(n_states, 1))
+    # Sample actions
+    actions, _ = env.sample_actions_batch(
+        policy_outputs, masks, states, is_backward=True
+    )
+    # Sample actions are valid
+    for state, action in zip(states, actions):
+        if env._get_stage(state) == env.stage_latticeparameters:
+            continue
+        assert action in env.get_valid_actions(state, done=False, backward=True)
+
+
+@pytest.mark.skip(reason="skip while developping other tests")
 @pytest.mark.repeat(10)
 @pytest.mark.parametrize(
     "env", ["env_mini_comp_first", "env_with_stoichiometry_sg_check", "env_sg_first"]
 )
 def test__trajectory_random__does_not_crash_from_source(env, request):
-    """
-    Raising the bar...
-    """
     env = request.getfixturevalue(env)
     env.reset()
     env.trajectory_random()
