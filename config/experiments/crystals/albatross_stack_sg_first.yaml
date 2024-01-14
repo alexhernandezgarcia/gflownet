@@ -10,10 +10,10 @@ device: cpu
 
 # Environment
 env:
-  do_composition_to_sg_constraints: False,
-  do_sg_to_composition_constraints: True,
-  # do_sg_to_lp_constraints: True,
-  do_sg_before_composition: True,
+  do_composition_to_sg_constraints: False
+  do_sg_to_composition_constraints: True
+  do_sg_to_lp_constraints: True
+  do_sg_before_composition: True
   composition_kwargs:
     elements: [1, 3, 6, 7, 8, 9, 12, 14, 15, 16, 17, 26]
     min_atoms: 2
