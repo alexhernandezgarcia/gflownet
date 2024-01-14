@@ -159,7 +159,7 @@ class CLatticeParameters(ContinuousCube):
             self.b_idx = 1
             self.c_idx = 2
         else:
-            raise NotImplementedError
+            raise ValueError(f"{self.lattice_system} is not a valid lattice system")
         # Angles: alpha, beta, gamma
         # alpha == beta == gamma == 90.0
         if self.lattice_system in [CUBIC, ORTHORHOMBIC, TETRAGONAL]:
