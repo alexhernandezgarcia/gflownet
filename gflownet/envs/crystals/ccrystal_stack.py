@@ -115,6 +115,40 @@ class CCrystal(Stack):
                     lattice_system
                 )
 
+    def states2proxy(
+        self, states: List[List]
+    ) -> TensorType["batch", "state_oracle_dim"]:
+        """
+        Prepares a batch of states in "environment format" for a proxy: simply a
+        concatenation of the proxy-format states of the sub-environments.
+
+        This method is overriden so as to account for the space group before
+        composition case, since the proxy expects composition first regardless.
+
+        Args
+        ----
+        states : list
+            A batch of states in environment format.
+
+        Returns
+        -------
+        A tensor containing all the states in the batch.
+        """
+        if not self.do_sg_before_composition:
+            return super().states2proxy(states)
+        stages_composition_first = [
+            self.stage_composition,
+            self.stage_spacegroup,
+            self.stage_latticeparameters,
+        ]
+        return torch.cat(
+            [
+                self.subenvs[stage].states2proxy([state[stage + 1] for state in states])
+                for stage in stages_composition_first
+            ],
+            dim=1,
+        )
+
     # TODO: this could eventually be moved to Stack
     def process_data_set(self, data: List[List]) -> List[List]:
         is_valid_list = []
