@@ -114,13 +114,15 @@ class Stack(GFlowNetEnv):
         """
         return (stage,) + action + (0,) * (self.action_dim - len(action) - 1)
 
-    def _depad_action(self, action: Tuple, stage: int) -> Tuple:
+    def _depad_action(self, action: Tuple, stage: int = None) -> Tuple:
         """
         Reverses padding operation, such that the resulting action can be passed to the
         underlying environment.
 
         See: _pad_action()
         """
+        if stage is None:
+            stage = action[0]
         return action[1 : 1 + len(self.subenvs[stage].eos)]
 
     def get_max_traj_length(self) -> int:
@@ -393,7 +395,7 @@ class Stack(GFlowNetEnv):
                 self.done = True
             else:
                 stage += 1
-                self._apply_constraints()
+                self._apply_constraints(action)
 
         # Update gloabl state and return
         self.state = self._update_state(stage)
@@ -464,13 +466,19 @@ class Stack(GFlowNetEnv):
         self.state = self._update_state(stage)
         return self.state, action, valid
 
-    def _apply_constraints(self):
+    def _apply_constraints(self, action: Tuple = None):
         """
         Applies constraints across sub-environments. No constraints are applied by
         default, but this method may be overriden by children classes to incorporate
         specific constraints.
 
         This method is used in step() and set_state().
+
+        Args
+        ----
+        action : tuple (optional)
+            An action, which can be used to determine whether which constraints should
+            be applied and which should not, since the computations may be intensive.
         """
         pass
 

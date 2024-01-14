@@ -72,7 +72,7 @@ class CCrystal(Stack):
         # Initialize base Stack environment
         super().__init__(subenvs=subenvs, **kwargs)
 
-    def _apply_constraints(self):
+    def _apply_constraints(self, action: Tuple = None):
         """
         Applies constraints across sub-environments, when applicable.
 
@@ -83,19 +83,29 @@ class CCrystal(Stack):
         This method is used in step() and set_state().
         """
         # Apply constraints composition -> space group
-        if self.subenvs[self.stage_composition].done:
-            if (
-                not self.do_sg_before_composition
-                and self.do_composition_to_sg_constraints
-            ):
-                self.subenvs[self.stage_spacegroup].set_n_atoms_compatibility_dict(
-                    self.subenvs[self.stage_composition].state
-                )
+        # Apply constraint only if action is None or if it is the composition EOS
+        if (
+            self.subenvs[self.stage_composition].done
+            and self.do_composition_to_sg_constraints
+            and not self.do_sg_before_composition
+            and (
+                action is None
+                or self._depad_action(action)
+                == self.subenvs[self.stage_composition].eos
+            )
+        ):
+            self.subenvs[self.stage_spacegroup].set_n_atoms_compatibility_dict(
+                self.subenvs[self.stage_composition].state
+            )
 
         # Apply constraints:
         # - space group -> composition
         # - space group -> lattice parameters
-        if self.subenvs[self.stage_spacegroup].done:
+        # Apply constraint only if action is None or if it is the space group EOS
+        if self.subenvs[self.stage_spacegroup].done and (
+            action is None
+            or self._depad_action(action) == self.subenvs[self.stage_spacegroup].eos
+        ):
             if self.do_sg_before_composition and self.do_sg_to_composition_constraints:
                 space_group = self.subenvs[self.stage_spacegroup].space_group
                 self.subenvs[self.stage_composition].space_group = space_group
