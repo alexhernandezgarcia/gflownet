@@ -10,6 +10,20 @@ As of October 2023, it is uncertain whether we will stick to this plan in the lo
 
 This involves extra complexity, so we will re-evaluate or refine this plan after a test period.
 
+## Configuring the pre-commit git hook
+
+You can setup a git hook that will automatically run black and isort on the source code before any call to git commit. This will help ensure that you don't forget to run these tools on your code before committing it. This can be done with:
+
+```bash
+cp ./config/git/pre-commit ./.git/hooks/pre-commit
+chmod +x ./.git/hooks/pre-commit
+```
+
+which will copy the predefied hook file to its proper destination and make sure that it can be executed as a script. This script runs both black and isort in check-only mode meaning that it will print the list of code issues but it will not modify the code for you.
+
+WARNING : This script runs on the full source code, not only on the changes that you have staged. So if you implemented two features A (without any code issue) and B (which contains a code issue) and you're trying to commit feature A, the git hook will complain about feature B and prevent you from committing your code.
+
+
 ## Short guide to work multiple remote repositories
 
 Here is a basic guide about how to work with multiple repositories, in our case the "public" repository ([alexhernandezgarcia/gflownet](https://github.com/alexhernandezgarcia/gflownet)) and the "dev" repository ([alexhernandezgarcia/gflownet-dev](https://github.com/alexhernandezgarcia/gflownet-dev)).
