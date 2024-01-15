@@ -291,6 +291,10 @@ class Sequence(GFlowNetEnv):
         """
         Converts a state into a human-readable string.
 
+        Example, with max_length = 5:
+          - state: [1, 2, 1, 1, 0]
+          - readable: "0 1 0 0"
+
         The output string contains the token corresponding to each index in the state,
         separated by spaces.
 
@@ -310,6 +314,10 @@ class Sequence(GFlowNetEnv):
     def readable2state(self, readable: str) -> TensorType["max_length"]:
         """
         Converts a state in readable format into the "environment format" (tensor)
+
+        Example, with max_length = 5:
+          - readable: "0 1 0 0"
+          - state: [1, 2, 1, 1, 0]
 
         Args
         ----
