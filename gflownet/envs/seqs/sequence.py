@@ -184,8 +184,9 @@ class Sequence(GFlowNetEnv):
         Args
         ----
         action : tuple
-            Action to be executed. An action is a tuple int values indicating the
-            dimensions to increment by 1.
+            Action to be executed. An action is represented by a single-element tuple
+            indicating the index of the token to be added to the current sequence
+            (state).
 
         skip_mask_check : bool
             If True, skip computing forward mask of invalid actions to check if the
