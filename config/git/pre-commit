@@ -1,0 +1,11 @@
+# Run black on main source code
+black ./gflownet/ --check --verbose
+
+# Run black on unit test code
+black ./tests/ --check --verbose
+
+# Validate import format in main source code
+isort --profile black ./gflownet/ --check-only
+
+# Validate import format in unit test code
+isort --profile black ./tests/ --check-only
