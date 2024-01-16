@@ -325,7 +325,7 @@ def test__set_state__sets_state_and_dones(env, state, dones, request):
 
     # Check states of subenvs
     for stage, subenv in env.subenvs.items():
-        assert env.equal(subenv.state, env._get_state_of_subenv(state, stage))
+        assert env.equal(subenv.state, env._get_substate(state, stage))
 
     # Check dones
     for subenv, done in zip(env.subenvs.values(), dones):
@@ -432,7 +432,7 @@ def test__get_mask_invalid_actions_backward__returns_expected_general_case(
         if stg == stage:
             # Mask of state if stage is current stage in state
             mask_subenv_expected = subenv.get_mask_invalid_actions_backward(
-                env._get_state_of_subenv(state, stg)
+                env._get_substate(state, stg)
             )
         else:
             # Dummy mask (all True) if stage is other than current stage in state
@@ -564,21 +564,21 @@ def test__get_mask_invalid_actions_backward__returns_expected_stage_transition(
     env = request.getfixturevalue(env)
     stage = env._get_stage(state)
     subenv = env.subenvs[stage]
-    state_subenv = env._get_state_of_subenv(state, stage)
+    state_subenv = env._get_substate(state, stage)
     done = dones[-1]
     # If it is not the initial stage, the env is not done and the state of the subenv
     # is the source, then the relevant mask is the one from the previous subenv
     if stage > 0 and not done and subenv.equal(state_subenv, subenv.source):
         stage -= 1
         subenv = env.subenvs[stage]
-        state_subenv = env._get_state_of_subenv(state, stage)
+        state_subenv = env._get_substate(state, stage)
         done = True
     # Get the global mask and extract the relenvant part
     mask = env.get_mask_invalid_actions_backward(state, done=dones[-1])
     mask_subenv = mask[env.n_subenvs : env.n_subenvs + subenv.mask_dim]
     # Get expected mask of the subenv
     mask_subenv_expected = subenv.get_mask_invalid_actions_backward(
-        env._get_state_of_subenv(state, stage), done=done
+        env._get_substate(state, stage), done=done
     )
     assert mask_subenv == mask_subenv_expected, state
 
