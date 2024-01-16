@@ -258,7 +258,7 @@ class Stack(GFlowNetEnv):
 
         stage_onehot = [False] * self.n_subenvs
         stage_onehot[stage] = True
-        padding = [False] * (self.mask_dim - (subenv.mask_dim + 3))
+        padding = [False] * (self.mask_dim - (subenv.mask_dim + self.n_subenvs))
         return (
             stage_onehot
             + subenv.get_mask_invalid_actions_forward(state_subenv, done)
@@ -292,7 +292,7 @@ class Stack(GFlowNetEnv):
 
         stage_onehot = [False] * self.n_subenvs
         stage_onehot[stage] = True
-        padding = [False] * (self.mask_dim - (subenv.mask_dim + 3))
+        padding = [False] * (self.mask_dim - (subenv.mask_dim + self.n_subenvs))
         return (
             stage_onehot
             + subenv.get_mask_invalid_actions_backward(state_subenv, done)
