@@ -1,6 +1,7 @@
 """
 Script for sampling uniform crystals (w/o constraints) and evaluating them with reward function
-should be run with the same config as main.py
+should be run with the same config as main.py, e.g. 
+python sample_uniform_with_rewards.py +experiments=crystals/albatross_sg_first logger.do.online=False user=sasha
 """
 import pickle
 import sys
@@ -48,16 +49,15 @@ def main(config):
 
     energies = env.proxy(env.states2proxy(x_sampled))
     rewards = env.proxy2reward(energies)
-    result = {
-        'samples': x_sampled,
-        'rewards': rewards
-    }
+    readable = [env.state2readable(x) for x in x_sampled]
+    result = pd.DataFrame({
+        'readable': readable,
+        'rewards': rewards,
+        'energies': energies
+    })
 
-    path = '/home/mila/a/alexandra.volokhova/projects/gflownet/scripts/uni_crystals_with_weigths.pkl'
-
-    with open(path, 'wb') as file:
-        pickle.dump(result, file)
-    print(path)
+    path = '/home/mila/a/alexandra.volokhova/projects/gflownet/scripts/samples_uniform_with_rewards.csv'
+    result.to_csv(path)
     
 
 if __name__ == "__main__":
