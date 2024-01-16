@@ -1,0 +1,13 @@
+#!/bin/bash
+
+# Run black on main source code
+black ./gflownet/ --check
+
+# Run black on unit test code
+black ./tests/ --check
+
+# Validate import format in main source code
+isort --profile black ./gflownet/ --check-only
+
+# Validate import format in unit test code
+isort --profile black ./tests/ --check-only
