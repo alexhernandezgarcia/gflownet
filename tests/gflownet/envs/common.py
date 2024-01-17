@@ -392,7 +392,7 @@ def test__trajectories_are_reversible(env):
     while not env.done:
         state, action, valid = env.step_random(backward=False)
         if valid:
-            states_trajectory_fw.append(state)
+            states_trajectory_fw.append(copy(state))
             actions_trajectory_fw.append(action)
 
     # Sample backward trajectory with actions in forward trajectory
@@ -402,7 +402,7 @@ def test__trajectories_are_reversible(env):
     while not env.equal(env.state, env.source) or env.done:
         state, action, valid = env.step_backwards(actions_trajectory_fw_copy.pop())
         if valid:
-            states_trajectory_bw.append(state)
+            states_trajectory_bw.append(copy(state))
             actions_trajectory_bw.append(action)
 
     assert all(
