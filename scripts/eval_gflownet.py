@@ -238,7 +238,7 @@ def main(args):
             min_angle=0.0,
             max_angle=1.0,
         )
-        energies = env.oracle(env.statebatch2proxy(x_sampled))
+        energies = env.oracle(env.states2proxy(x_sampled))
         df = pd.DataFrame(
             {
                 "readable": [env.state2readable(x) for x in x_sampled],

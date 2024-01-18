@@ -10,6 +10,7 @@ sh/
 *.txt
 .vscode/
 external/
+playground/
 !requirements.txt
 !docs/requirements-docs.txt
 .DS_Store
