@@ -42,6 +42,45 @@ def generate_random_crystals(
         samples.append(state)
     return samples
 
+def generate_random_crystals_uniform(
+    n_samples: int,
+    elements: list[int],
+    min_elements: int,
+    max_elements: int,
+    max_atoms: int,
+    max_atom_i: int,
+    space_groups: list[int],
+    min_length: float,
+    max_length: float,
+    min_angle: float,
+    max_angle: float,
+):
+    samples = []
+    for _ in range(n_samples):
+        # Elements of composition
+        
+        n_elements = np.random.randint(low=min_elements, high=max_elements + 1)
+        elements_indices = np.random.randint(low=0, high=len(elements), size=n_elements)
+        elements_selected = [elements[int(idx)] for idx in elements_indices]
+        # Atoms per element
+        done = False
+        while not done:
+            composition = [0] * len(elements)
+            for el in elements_selected:
+                n_atoms_el = np.random.randint(low=1, high=max_atom_i + 1)
+                composition[elements.index(el)] = n_atoms_el
+            if sum(composition) <= max_atoms:
+                done = True
+
+        # Space group
+        space_group = [0, 0, np.random.permutation(space_groups)[0]]
+        # Lattice parameters
+        lengths = list(np.random.uniform(low=min_length, high=max_length, size=3))
+        angles = list(np.random.uniform(low=min_angle, high=max_angle, size=3))
+        # State
+        state = [2] + composition + space_group + lengths + angles
+        samples.append(state)
+    return samples
 
 # samples = generate_random_crystals(
 #     n_samples=10,

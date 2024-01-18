@@ -12,7 +12,7 @@ import pandas as pd
 from gflownet.utils.common import chdir_random_subdir
 from gflownet.utils.policy import parse_policy_config
 
-from crystalrandom import generate_random_crystals
+from crystalrandom import generate_random_crystals_uniform
 
 
 @hydra.main(config_path="../../config", config_name="main", version_base="1.1")
@@ -32,7 +32,7 @@ def main(config):
         float_precision=config.float_precision,
     )
 
-    x_sampled = generate_random_crystals(
+    x_sampled = generate_random_crystals_uniform(
                 n_samples=N_SAMPLES,
                 elements=config.env.composition_kwargs.elements,
                 min_elements=2,
