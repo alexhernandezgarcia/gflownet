@@ -42,6 +42,7 @@ def generate_random_crystals(
         samples.append(state)
     return samples
 
+
 def generate_random_crystals_uniform(
     n_samples: int,
     elements: list[int],
@@ -58,7 +59,7 @@ def generate_random_crystals_uniform(
     samples = []
     for _ in range(n_samples):
         # Elements of composition
-        
+
         n_elements = np.random.randint(low=min_elements, high=max_elements + 1)
         elements_indices = np.random.randint(low=0, high=len(elements), size=n_elements)
         elements_selected = [elements[int(idx)] for idx in elements_indices]
@@ -81,6 +82,7 @@ def generate_random_crystals_uniform(
         state = [2] + composition + space_group + lengths + angles
         samples.append(state)
     return samples
+
 
 # samples = generate_random_crystals(
 #     n_samples=10,
