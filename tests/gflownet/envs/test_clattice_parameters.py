@@ -159,7 +159,7 @@ def test__triclinic__constraints_remain_after_random_actions(env, lattice_system
 
 
 @pytest.mark.parametrize(
-    "lattice_system, states, states_proxy_expected",
+    "lattice_system, states, expected",
     [
         (
             TRICLINIC,
@@ -189,27 +189,16 @@ def test__triclinic__constraints_remain_after_random_actions(env, lattice_system
         ),
     ],
 )
-def test__statetorch2proxy__returns_expected(
-    env, lattice_system, states, states_proxy_expected
-):
+def test__states2proxy__returns_expected(env, lattice_system, states, expected):
     """
     Various lattice systems are tried because the conversion should be independent of
     the lattice system, since the states are expected to satisfy the constraints.
     """
-    # Get policy states from the batch of states converted into each subenv
-    # Get policy states from env.statetorch2policy
-    states_torch = tfloat(states, float_type=env.float, device=env.device)
-    states_proxy_expected_torch = tfloat(
-        states_proxy_expected, float_type=env.float, device=env.device
-    )
-    states_proxy = env.statetorch2proxy(states_torch)
-    assert torch.all(torch.eq(states_proxy, states_proxy_expected_torch))
-    states_proxy = env.statebatch2proxy(states_torch)
-    assert torch.all(torch.eq(states_proxy, states_proxy_expected_torch))
+    assert torch.equal(env.states2proxy(states), torch.tensor(expected))
 
 
 @pytest.mark.parametrize(
-    "lattice_system, states, states_policy_expected",
+    "lattice_system, states, expected",
     [
         (
             TRICLINIC,
@@ -219,8 +208,8 @@ def test__statetorch2proxy__returns_expected(
                 [1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
             ],
             [
-                [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
-                [0.0, 0.2, 0.5, 0.0, 0.5, 1.0],
+                [-1.0, -1.0, -1.0, -1.0, -1.0, -1.0],
+                [-1.0, -0.6, 0.0, -1.0, 0.0, 1.0],
                 [1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
             ],
         ),
@@ -232,30 +221,19 @@ def test__statetorch2proxy__returns_expected(
                 [1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
             ],
             [
-                [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
-                [0.25, 0.5, 0.75, 0.25, 0.5, 0.75],
+                [-1.0, -1.0, -1.0, -1.0, -1.0, -1.0],
+                [-0.5, 0.0, 0.5, -0.5, 0.0, 0.5],
                 [1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
             ],
         ),
     ],
 )
-def test__statetorch2policy__returns_expected(
-    env, lattice_system, states, states_policy_expected
-):
+def test__states2policy__returns_expected(env, lattice_system, states, expected):
     """
     Various lattice systems are tried because the conversion should be independent of
     the lattice system, since the states are expected to satisfy the constraints.
     """
-    # Get policy states from the batch of states converted into each subenv
-    # Get policy states from env.statetorch2policy
-    states_torch = tfloat(states, float_type=env.float, device=env.device)
-    states_policy_expected_torch = tfloat(
-        states_policy_expected, float_type=env.float, device=env.device
-    )
-    states_policy = env.statetorch2policy(states_torch)
-    assert torch.all(torch.eq(states_policy, states_policy_expected_torch))
-    states_policy = env.statebatch2policy(states_torch)
-    assert torch.all(torch.eq(states_policy, states_policy_expected_torch))
+    assert torch.equal(env.states2policy(states), torch.tensor(expected))
 
 
 @pytest.mark.parametrize(

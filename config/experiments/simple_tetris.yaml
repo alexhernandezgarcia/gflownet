@@ -1,0 +1,47 @@
+# @package _global_
+
+defaults:
+  - override /env: tetris
+  - override /gflownet: trajectorybalance
+  - override /policy: mlp
+  - override /proxy: tetris
+  - override /logger: wandb
+
+env:
+  reward_func: boltzmann
+  reward_beta: 10.0
+  width: 4
+  height: 4
+  pieces: ["I", "O", "J", "L", "T"]
+  rotations: [0, 90, 180, 270]
+  buffer:
+    # replay_capacity: 0
+    test:
+      type: random
+      output_csv: simple_tetris_val.csv
+      output_pkl: simple_tetris_val.pkl
+      n: 100
+
+gflownet:
+  random_action_prob: 0.3
+  optimizer:
+    n_train_steps: 10000
+    lr_z_mult: 100
+    lr: 0.0001
+
+policy:
+  forward:
+    type: mlp
+    n_hid: 128
+    n_layers: 5
+
+  backward:
+    shared_weights: True
+    checkpoint: null
+    reload_ckpt: False
+
+device: cpu
+logger:
+  do:
+    online: True
+  project_name: simple_tetris

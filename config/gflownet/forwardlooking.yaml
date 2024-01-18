@@ -1,0 +1,9 @@
+defaults:
+  - gflownet
+  - state_flow: mlp
+
+optimizer:
+  loss: forwardlooking
+  lr: 0.0001
+  lr_decay_period: 1000000
+  lr_decay_gamma: 0.5
