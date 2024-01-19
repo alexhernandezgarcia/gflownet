@@ -259,7 +259,8 @@ class Buffer:
         )
         return df, {"x": samples, "energy": energies}
 
-    def compute_stats(self, data):
+    @staticmethod
+    def compute_stats(data):
         mean_data = data["energies"].mean()
         std_data = data["energies"].std()
         min_data = data["energies"].min()
@@ -267,3 +268,24 @@ class Buffer:
         data_zscores = (data["energies"] - mean_data) / std_data
         max_norm_data = data_zscores.max()
         return mean_data, std_data, min_data, max_data, max_norm_data
+
+    @staticmethod
+    def select(data_dict: dict, n: int, mode: str = "permutation", rng=None):
+        # TODO: need list()?
+        samples = data_dict["x"]
+        if mode == "permutation":
+            assert rng is not None
+            samples = [samples[idx] for idx in rng.permutation(n)]
+        elif mode in ["energy", "rewards"]:
+            # TODO: need fromiter()?
+            scores = np.fromiter(data_dict[mode], dtype=float)
+            indices = np.random.choice(
+                len(samples),
+                size=n,
+                replace=False,
+                p=scores / scores.sum(),
+            )
+            samples = [samples[idx] for idx in indices]
+        else:
+            raise ValueError(f"Unrecognized sampling mode: {mode}.")
+        return samples
