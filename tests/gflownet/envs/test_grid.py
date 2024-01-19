@@ -94,11 +94,20 @@ def test__get_action_space__returns_expected(
     assert set(action_space) == set(env_extended_action_space_2d.action_space)
 
 
-def test__all_env_common__standard(env_extended_action_space_3d):
-    print("\n\nCommon tests for 5x5 Grid with extended action space\n")
-    return common.test__all_env_common(env_extended_action_space_3d)
+class TestGridBasic(common.BaseTestsContinuous):
+    """Common tests for 5x5 Grid with standard action space."""
+    @pytest.fixture(autouse=True)
+    def setup(self, env):
+        self.env = env
+        self.repeats = {
+            "test__reset__state_is_source": 10,
+        }
 
-
-def test__all_env_common__extended(env):
-    print("\n\nCommon tests for 5x5 Grid with standard action space\n")
-    return common.test__all_env_common(env)
+class TestGridExtended(common.BaseTestsContinuous):
+    """Common tests for 5x5 Grid with extended action space."""
+    @pytest.fixture(autouse=True)
+    def setup(self, env_extended_action_space_3d):
+        self.env = env_extended_action_space_3d
+        self.repeats = {
+            "test__reset__state_is_source": 10,
+        }
