@@ -54,6 +54,7 @@ class GFlowNetAgent:
         active_learning=False,
         sample_only=False,
         replay_sampling="permutation",
+        train_sampling="permutation",
         **kwargs,
     ):
         # Seed
@@ -98,6 +99,7 @@ class GFlowNetAgent:
         self.oracle_n = oracle.n
         # Buffers
         self.replay_sampling = replay_sampling
+        self.train_sampling = train_sampling
         self.buffer = Buffer(
             **buffer, env=self.env, make_train_test=not sample_only, logger=logger
         )
@@ -454,12 +456,12 @@ class GFlowNetAgent:
         batch_train = Batch(env=self.env, device=self.device, float_type=self.float)
         if n_train > 0 and self.buffer.train_pkl is not None:
             with open(self.buffer.train_pkl, "rb") as f:
-                dict_tr = pickle.load(f)
-                # TODO: implement other sampling options besides permutation
-                # TODO: this converts to numpy
-                x_tr = self.rng.permutation(dict_tr["x"])
-            for idx, env in enumerate(envs):
-                env.set_state(x_tr[idx], done=True)
+                dict_train = pickle.load(f)
+                x_train = self.buffer.select(
+                    dict_train, n_train, self.train_sampling, self.rng
+                )
+            for env, x in zip(envs, x_train):
+                env.set_state(x, done=True)
         while envs:
             # Sample backward actions
             t0_a_envs = time.time()
@@ -488,29 +490,11 @@ class GFlowNetAgent:
                 dict_replay = pickle.load(f)
                 n_replay = min(n_replay, len(dict_replay["x"]))
                 envs = [self.env.copy().reset(idx) for idx in range(n_replay)]
-                if n_replay > 0:
-                    x_replay = list(dict_replay["x"].values())
-                    if self.replay_sampling == "permutation":
-                        x_replay = [
-                            x_replay[idx] for idx in self.rng.permutation(n_replay)
-                        ]
-                    elif self.replay_sampling == "weighted":
-                        x_rewards = np.fromiter(
-                            dict_replay["rewards"].values(), dtype=float
-                        )
-                        x_indices = np.random.choice(
-                            len(x_replay),
-                            size=n_replay,
-                            replace=False,
-                            p=x_rewards / x_rewards.sum(),
-                        )
-                        x_replay = [x_replay[idx] for idx in x_indices]
-                    else:
-                        raise ValueError(
-                            f"Unrecognized replay_sampling = {self.replay_sampling}."
-                        )
-            for idx, env in enumerate(envs):
-                env.set_state(x_replay[idx], done=True)
+                x_replay = self.buffer.select(
+                    dict_replay, n_replay, self.replay_sampling, self.rng
+                )
+            for env, x in zip(envs, x_replay):
+                env.set_state(x, done=True)
         while envs:
             # Sample backward actions
             t0_a_envs = time.time()
