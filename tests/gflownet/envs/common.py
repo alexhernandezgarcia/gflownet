@@ -38,7 +38,6 @@ class BaseTestsCommon:
             n_repeat = self.repeats[_get_current_method_name()]
 
         for _ in range(n_repeat):
-
             self.env.reset()
             # Sample random trajectory
             self.env.trajectory_random()
@@ -62,7 +61,6 @@ class BaseTestsCommon:
             n_repeat = self.repeats[_get_current_method_name()]
 
         for _ in range(n_repeat):
-
             states = _get_terminating_states(self.env, N)
             if states is None:
                 warnings.warn("Skipping test because states are None.")
@@ -89,7 +87,6 @@ class BaseTestsCommon:
             n_repeat = self.repeats[_get_current_method_name()]
 
         for _ in range(n_repeat):
-
             states = _get_terminating_states(self.env, N)
             if states is None:
                 warnings.warn("Skipping test because states are None.")
@@ -119,7 +116,6 @@ class BaseTestsCommon:
             n_repeat = self.repeats[_get_current_method_name()]
 
         for _ in range(n_repeat):
-
             self.env.reset()
             policy_random = torch.unsqueeze(self.env.random_policy_output, 0)
             while not self.env.done:
@@ -152,7 +148,6 @@ class BaseTestsCommon:
             n_repeat = self.repeats[_get_current_method_name()]
 
         for _ in range(n_repeat):
-
             # Skip for certain environments until fixed:
             skip_envs = ["Crystal", "LatticeParameters"]
             if self.env.__class__.__name__ in skip_envs:
@@ -174,7 +169,10 @@ class BaseTestsCommon:
                     mask_fw = self.env.get_mask_invalid_actions_forward()
                     masks = torch.unsqueeze(tbool(mask_fw, device=self.env.device), 0)
                     actions_torch = torch.unsqueeze(
-                        tfloat(action, float_type=self.env.float, device=self.env.device), 0
+                        tfloat(
+                            action, float_type=self.env.float, device=self.env.device
+                        ),
+                        0,
                     )
                     policy_outputs = policy_random.clone().detach()
                     logprobs_fw = self.env.get_logprobs(
@@ -195,7 +193,6 @@ class BaseTestsCommon:
             n_repeat = self.repeats[_get_current_method_name()]
 
         for _ in range(n_repeat):
-
             states = _get_terminating_states(self.env, N)
             if states is None:
                 warnings.warn("Skipping test because states are None.")
@@ -213,7 +210,11 @@ class BaseTestsCommon:
 
     def test__trajectories_are_reversible(self, n_repeat=1):
         # Skip for certain environments until fixed:
-        skip_envs = ["Crystal", "LatticeParameters", "Tree"]  # TODO: handle this using the count instead.
+        skip_envs = [
+            "Crystal",
+            "LatticeParameters",
+            "Tree",
+        ]  # TODO: handle this using the count instead.
         if self.env.__class__.__name__ in skip_envs:
             warnings.warn("Skipping test for this specific environment.")
             return
@@ -222,7 +223,6 @@ class BaseTestsCommon:
             n_repeat = self.repeats[_get_current_method_name()]
 
         for _ in range(n_repeat):
-
             self.env.reset()
 
             # Sample random forward trajectory
@@ -263,7 +263,6 @@ class BaseTestsDiscrete(BaseTestsCommon):
             n_repeat = self.repeats[_get_current_method_name()]
 
         for _ in range(n_repeat):
-
             assert self.env.equal(self.env.state, self.env.source)
             parents, actions = self.env.get_parents()
             assert len(parents) == 0
@@ -274,7 +273,6 @@ class BaseTestsDiscrete(BaseTestsCommon):
             n_repeat = self.repeats[_get_current_method_name()]
 
         for _ in range(n_repeat):
-
             self.env.step_random()
             self.env.reset()
             assert self.env.equal(self.env.state, self.env.source)
@@ -282,21 +280,26 @@ class BaseTestsDiscrete(BaseTestsCommon):
             assert len(parents) == 0
             assert len(actions) == 0
 
-    def test__sample_actions__get_logprobs__return_valid_actions_and_logprobs(self, n_repeat=1):
-
+    def test__sample_actions__get_logprobs__return_valid_actions_and_logprobs(
+        self, n_repeat=1
+    ):
         if _get_current_method_name() in self.repeats:
             n_repeat = self.repeats[_get_current_method_name()]
 
         for _ in range(n_repeat):
-
             self.env.reset()
             while not self.env.done:
                 policy_outputs = torch.unsqueeze(self.env.random_policy_output, 0)
                 mask_invalid = self.env.get_mask_invalid_actions_forward()
-                valid_actions = [a for a, m in zip(self.env.action_space, mask_invalid) if not m]
+                valid_actions = [
+                    a for a, m in zip(self.env.action_space, mask_invalid) if not m
+                ]
                 masks_invalid_torch = torch.unsqueeze(torch.BoolTensor(mask_invalid), 0)
                 actions, logprobs_sab = self.env.sample_actions_batch(
-                    policy_outputs, masks_invalid_torch, [self.env.state], is_backward=False
+                    policy_outputs,
+                    masks_invalid_torch,
+                    [self.env.state],
+                    is_backward=False,
                 )
                 actions_torch = torch.tensor(actions)
                 logprobs_glp = self.env.get_logprobs(
@@ -316,7 +319,6 @@ class BaseTestsDiscrete(BaseTestsCommon):
             n_repeat = self.repeats[_get_current_method_name()]
 
         for _ in range(n_repeat):
-
             self.env.reset()
             while not self.env.done:
                 state = copy(self.env.state)
@@ -335,7 +337,6 @@ class BaseTestsDiscrete(BaseTestsCommon):
             n_repeat = self.repeats[_get_current_method_name()]
 
         for _ in range(n_repeat):
-
             self.env.reset()
             n_actions = 0
             while not self.env.done:
@@ -363,7 +364,6 @@ class BaseTestsDiscrete(BaseTestsCommon):
             n_repeat = self.repeats[_get_current_method_name()]
 
         for _ in range(n_repeat):
-
             self.env.reset()
             while not self.env.done:
                 state_recovered = self.env.readable2state(self.env.state2readable())
@@ -376,7 +376,6 @@ class BaseTestsDiscrete(BaseTestsCommon):
             n_repeat = self.repeats[_get_current_method_name()]
 
         for _ in range(n_repeat):
-
             self.env.set_state(self.env.state, done=True)
             parents, actions = self.env.get_parents()
             if torch.is_tensor(self.env.state):
@@ -391,7 +390,6 @@ class BaseTestsDiscrete(BaseTestsCommon):
             n_repeat = self.repeats[_get_current_method_name()]
 
         for _ in range(n_repeat):
-
             action_space = self.env.action_space_torch
             indices_rand = torch.randint(
                 low=0,
@@ -408,18 +406,17 @@ class BaseTestsDiscrete(BaseTestsCommon):
             n_repeat = self.repeats[_get_current_method_name()]
 
         for _ in range(n_repeat):
-
             # Load config
             with initialize(
-                version_base="1.1",
-                config_path="../../../config",
-                job_name="xxx"
+                version_base="1.1", config_path="../../../config", job_name="xxx"
             ):
                 config = compose(config_name="tests")
 
             logger = hydra.utils.instantiate(config.logger, config, _recursive_=False)
             proxy = hydra.utils.instantiate(
-                config.proxy, device=config.device, float_precision=config.float_precision
+                config.proxy,
+                device=config.device,
+                float_precision=config.float_precision,
             )
 
             # Policy
@@ -464,7 +461,6 @@ class BaseTestsContinuous(BaseTestsCommon):
             n_repeat = self.repeats[_get_current_method_name()]
 
         for _ in range(n_repeat):
-
             self.env.step_random()
             self.env.reset()
             assert self.env.equal(self.env.state, self.env.source)
@@ -474,7 +470,6 @@ class BaseTestsContinuous(BaseTestsCommon):
             n_repeat = self.repeats[_get_current_method_name()]
 
         for _ in range(n_repeat):
-
             n_actions = 0
             while not self.env.done:
                 # Sample random action

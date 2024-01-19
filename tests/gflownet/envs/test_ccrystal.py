@@ -1589,6 +1589,7 @@ def test__get_logprobs_backward__returns_valid_actions(env, states, actions):
 
 class TestContinuousCubeBasic(common.BaseTestsContinuous):
     """Common tests for crystal without composition <-> space group constraints."""
+
     @pytest.fixture(autouse=True)
     def setup(self, env):
         self.env = env
@@ -1599,21 +1600,23 @@ class TestContinuousCubeBasic(common.BaseTestsContinuous):
 
 class TestContinuousCubeBasic(common.BaseTestsContinuous):
     """Common tests for crystal with composition <-> space group constraints."""
+
     @pytest.fixture(autouse=True)
     def setup(self, env_with_stoichiometry_sg_check):
         self.env = env_with_stoichiometry_sg_check
         self.repeats = {
-            "test__set_state__creates_new_copy_of_state": 10,   # Overrides no repeat.
+            "test__set_state__creates_new_copy_of_state": 10,  # Overrides no repeat.
             "test__reset__state_is_source": 0,
         }
 
 
 class TestContinuousCubeBasic(common.BaseTestsContinuous):
     """Common tests for crystal with space group first."""
+
     @pytest.fixture(autouse=True)
     def setup(self, env_sg_first):
         self.env = env_sg_first
         self.repeats = {
-            "test__get_logprobs__backward__returns_zero_if_done": 100,   # Overrides no repeat.
+            "test__get_logprobs__backward__returns_zero_if_done": 100,  # Overrides no repeat.
             "test__reset__state_is_source": 10,
         }

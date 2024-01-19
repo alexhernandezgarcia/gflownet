@@ -96,6 +96,7 @@ def test__get_action_space__returns_expected(
 
 class TestGridBasic(common.BaseTestsContinuous):
     """Common tests for 5x5 Grid with standard action space."""
+
     @pytest.fixture(autouse=True)
     def setup(self, env):
         self.env = env
@@ -103,8 +104,10 @@ class TestGridBasic(common.BaseTestsContinuous):
             "test__reset__state_is_source": 10,
         }
 
+
 class TestGridExtended(common.BaseTestsContinuous):
     """Common tests for 5x5 Grid with extended action space."""
+
     @pytest.fixture(autouse=True)
     def setup(self, env_extended_action_space_3d):
         self.env = env_extended_action_space_3d
