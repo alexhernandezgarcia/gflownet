@@ -50,11 +50,12 @@ def main(config):
     rewards = env.proxy2reward(energies)
     readable = [env.state2readable(x) for x in x_sampled]
     result = pd.DataFrame(
-        {"readable": readable, "rewards": rewards, "energies": energies}
+        {"readable": readable, "rewards": rewards, "energies": energies, "x": x_sampled}
     )
 
     path = "/home/mila/a/alexandra.volokhova/projects/gflownet/scripts/samples_uniform_with_rewards.csv"
     result.to_csv(path)
+
 
 
 if __name__ == "__main__":
