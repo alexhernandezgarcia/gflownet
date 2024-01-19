@@ -57,7 +57,6 @@ def main(config):
     result.to_csv(path)
 
 
-
 if __name__ == "__main__":
     main()
     sys.exit()
