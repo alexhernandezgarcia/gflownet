@@ -517,6 +517,7 @@ def test__get_parents__contains_expected(
 
 class TestTetrisCommon1Piece(common.BaseTestsDiscrete):
     """Common tests for a Single Piece Tetris."""
+
     @pytest.fixture(autouse=True)
     def setup(self, env_1piece):
         self.env = env_1piece
@@ -527,6 +528,7 @@ class TestTetrisCommon1Piece(common.BaseTestsDiscrete):
 
 class TestTetrisCommonMini(common.BaseTestsDiscrete):
     """Common tests for Mini Tetris."""
+
     @pytest.fixture(autouse=True)
     def setup(self, env_mini):
         self.env = env_mini
@@ -537,6 +539,7 @@ class TestTetrisCommonMini(common.BaseTestsDiscrete):
 
 class TestTetrisCommon(common.BaseTestsDiscrete):
     """Common tests for standard Tetris."""
+
     @pytest.fixture(autouse=True)
     def setup(self, env):
         self.env = env
@@ -547,6 +550,7 @@ class TestTetrisCommon(common.BaseTestsDiscrete):
 
 class TestTetrisCommonFull(common.BaseTestsDiscrete):
     """Common tests for full Tetris."""
+
     @pytest.fixture(autouse=True)
     def setup(self, env_full):
         self.env = env_full
@@ -557,6 +561,7 @@ class TestTetrisCommonFull(common.BaseTestsDiscrete):
 
 class TestTetrisCommon6X4(common.BaseTestsDiscrete):
     """Common tests for 6x4 Tetris."""
+
     @pytest.fixture(autouse=True)
     def setup(self, env6x4):
         self.env = env6x4

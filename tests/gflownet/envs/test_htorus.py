@@ -11,7 +11,16 @@ def env():
     return HybridTorus(n_dim=2, length_traj=3)
 
 
-@pytest.mark.parametrize("action_space", [[(0, 0), (1, 0), (2, 0),]])
+@pytest.mark.parametrize(
+    "action_space",
+    [
+        [
+            (0, 0),
+            (1, 0),
+            (2, 0),
+        ]
+    ],
+)
 def test__get_action_space__returns_expected(env, action_space):
     assert set(action_space) == set(env.action_space)
 

@@ -1014,6 +1014,7 @@ class TestTreeDiscrete(common.BaseTestsDiscrete):
             "test__reset__state_is_source": 10,
         }
 
+
 class TestTreeContinuous(common.BaseTestsContinuous):
     @pytest.fixture(autouse=True)
     def setup(self, env):

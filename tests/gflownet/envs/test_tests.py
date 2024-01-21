@@ -39,7 +39,6 @@ class BaseTestClass:
             self.env.add(1)
             print("Value: {}, State: {}".format(self.env.value, self.env.state))
 
-
     def test_common_2(self, n_repeat=1):
         if get_current_method_name() in self.repeats:
             n_repeat = self.repeats[get_current_method_name()]
@@ -63,7 +62,7 @@ class TestSpecificInstance1(BaseTestClass):
     def setup(self, env):
         self.env = env
         self.repeats = {
-            "test_common_2": 3,   # Overrides no repeat.
+            "test_common_2": 3,  # Overrides no repeat.
         }
 
 
@@ -72,5 +71,5 @@ class TestSpecificInstance2(BaseTestClass):
     def setup(self, env):
         self.env = env
         self.repeats = {
-            "test_common_1": 3,   # Overrides no repeat.
+            "test_common_1": 3,  # Overrides no repeat.
         }

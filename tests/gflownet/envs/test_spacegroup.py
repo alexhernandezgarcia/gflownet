@@ -387,6 +387,7 @@ def test__special_cases_composition_compatibility(n_atoms, cls_idx, ps_idx):
 
 class TestSpaceGroupBasic(common.BaseTestsDiscrete):
     """Common tests for SpaceGroup without composition restrictions."""
+
     @pytest.fixture(autouse=True)
     def setup(self, env):
         self.env = env
@@ -397,6 +398,7 @@ class TestSpaceGroupBasic(common.BaseTestsDiscrete):
 
 class TestSpaceGroupWithComposition(common.BaseTestsDiscrete):
     """Common tests for SpaceGroup with restrictions from composition."""
+
     @pytest.fixture(autouse=True)
     def setup(self, env_with_composition):
         self.env = env_with_composition
@@ -407,6 +409,7 @@ class TestSpaceGroupWithComposition(common.BaseTestsDiscrete):
 
 class TestSpaceGroupWithRestrictedSubgroups(common.BaseTestsDiscrete):
     """Common tests for SpaceGroup with restricted space groups."""
+
     @pytest.fixture(autouse=True)
     def setup(self, env_with_restricted_spacegroups):
         self.env = env_with_restricted_spacegroups
