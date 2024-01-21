@@ -11,6 +11,11 @@ def env():
 
 
 @pytest.fixture
+def env_default():
+    return Grid()
+
+
+@pytest.fixture
 def env_extended_action_space_2d():
     return Grid(
         n_dim=2,
@@ -32,11 +37,6 @@ def env_extended_action_space_3d():
         cell_min=-1.0,
         cell_max=1.0,
     )
-
-
-@pytest.fixture
-def env_default():
-    return Grid()
 
 
 @pytest.fixture
@@ -105,7 +105,29 @@ class TestGridBasic(common.BaseTestsContinuous):
         }
 
 
-class TestGridExtended(common.BaseTestsContinuous):
+class TestGridDefaults(common.BaseTestsContinuous):
+    """Common tests for 5x5 Grid with standard action space."""
+
+    @pytest.fixture(autouse=True)
+    def setup(self, env_default):
+        self.env = env_default
+        self.repeats = {
+            "test__reset__state_is_source": 10,
+        }
+
+
+class TestGridExtended2D(common.BaseTestsContinuous):
+    """Common tests for 5x5 Grid with extended action space."""
+
+    @pytest.fixture(autouse=True)
+    def setup(self, env_extended_action_space_2d):
+        self.env = env_extended_action_space_2d
+        self.repeats = {
+            "test__reset__state_is_source": 10,
+        }
+
+
+class TestGridExtended3D(common.BaseTestsContinuous):
     """Common tests for 5x5 Grid with extended action space."""
 
     @pytest.fixture(autouse=True)

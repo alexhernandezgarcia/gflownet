@@ -1587,7 +1587,7 @@ def test__get_logprobs_backward__returns_valid_actions(env, states, actions):
     assert torch.all(torch.isfinite(logprobs))
 
 
-class TestContinuousCubeBasic(common.BaseTestsContinuous):
+class TestContinuousCrystalBasic(common.BaseTestsContinuous):
     """Common tests for crystal without composition <-> space group constraints."""
 
     @pytest.fixture(autouse=True)
@@ -1598,7 +1598,7 @@ class TestContinuousCubeBasic(common.BaseTestsContinuous):
         }
 
 
-class TestContinuousCubeBasic(common.BaseTestsContinuous):
+class TestContinuousCrystalSGCheck(common.BaseTestsContinuous):
     """Common tests for crystal with composition <-> space group constraints."""
 
     @pytest.fixture(autouse=True)
@@ -1610,7 +1610,7 @@ class TestContinuousCubeBasic(common.BaseTestsContinuous):
         }
 
 
-class TestContinuousCubeBasic(common.BaseTestsContinuous):
+class TestContinuousCrystalSGFirst(common.BaseTestsContinuous):
     """Common tests for crystal with space group first."""
 
     @pytest.fixture(autouse=True)
