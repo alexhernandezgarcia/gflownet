@@ -150,7 +150,7 @@ def main():
     data = pd.read_pickle(Path(args.file_path))
 
     df_data = pd.DataFrame({"encoded": data["x"], "eform": data["energy"]})
-    df_data = df_data.sample(n=5)
+    # df_data = df_data.sample(n=5) # uncomment for testing
     df_data[f"structure"] = df_data["encoded"].map(encoded_to_container_structure)
 
     if args.n_rand_struct > 0:
