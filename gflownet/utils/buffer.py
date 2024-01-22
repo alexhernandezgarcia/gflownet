@@ -273,8 +273,11 @@ class Buffer:
     def select(data_dict: dict, n: int, mode: str = "permutation", rng=None):
         if n == 0:
             return []
-        # TODO: need list()?
         samples = data_dict["x"]
+        # If the data_dict comes from the replay buffer, then samples is a dict and we
+        # need to keep its values only
+        if isinstance(samples, dict):
+            samples = list(samples.values())
         if mode == "permutation":
             assert rng is not None
             samples = [samples[idx] for idx in rng.permutation(n)]
@@ -285,8 +288,11 @@ class Buffer:
                 score = "energy"
             else:
                 raise ValueError(f"Data set does not contain reward or energy key.")
-            # TODO: need fromiter()?
-            scores = np.fromiter(data_dict[score], dtype=float)
+            scores = data_dict[score]
+            # If the data_dict comes from the replay buffer, then scores is a dict and we
+            # need to keep its values only
+            if isinstance(scores, dict):
+                scores = np.fromiter(scores.values(), dtype=float)
             indices = np.random.choice(
                 len(samples),
                 size=n,
