@@ -1,8 +1,11 @@
 import pandas as pd
+import numpy as np
 from tqdm import tqdm
-from pymatgen.core import Structure, Composition
+from pymatgen.core import Structure
 from mp_api.client.mprester import MPRester
 from pymatgen.symmetry.analyzer import SpacegroupAnalyzer
+import matplotlib.pyplot as plt
+import seaborn as sns
 import os
 
 
@@ -10,9 +13,7 @@ class BaseMetric:
     def __init__(self) -> None:
         self.__name__ = self.__class__.__name__
 
-    def compute(
-        self, structures: Structure, compositions: Composition, **kwargs
-    ) -> dict:
+    def compute(self, structures: Structure, **kwargs) -> dict:
         """Performs the computational part of a metric and returns a JSONable dictionnary
 
         Parameters
@@ -30,7 +31,7 @@ class BaseMetric:
     def plot(self, data_results: dict[str]):
         """Create various plots and prints given data_results dict. The data_result dic has as
         keys different datasets names and as values a dictionnary providing from the above
-        compute function.
+        compute function. You can typically print things or save plots to out_dir.
 
         Parameters
         ----------
@@ -45,26 +46,67 @@ class BaseMetric:
         return None
 
 
+class NumberOfElements(BaseMetric):
+    def compute(self, structures: Structure, **kwargs) -> dict:
+        n_elems = [len(s.composition.as_dict()) for s in structures]
+        n_elems_distr = pd.Series(n_elems).value_counts().to_dict()
+        return n_elems_distr
+
+    def plot(self, data_results: dict[str]):
+        for dataset_name, data in data_results.items():
+            print(f"Dataset {dataset_name}")
+            for n, amount in data.items():
+                print(f"Number of {n}-elements materials:{amount}")
+            print("")
+
+        df = pd.DataFrame()
+        for label, data in data_results.items():
+            temp_df = pd.DataFrame(
+                {
+                    "Elements": list(data.keys()),
+                    "Occurrences": list(data.values()),
+                    "Dataset": label,
+                }
+            )
+            df = pd.concat([df, temp_df], ignore_index=True)
+
+        # Create the plot using Seaborn
+        fig, ax = plt.subplots()
+        sns.barplot(x="Elements", y="Occurrences", hue="Dataset", data=df, ax=ax)
+
+        # Labeling the plot
+        ax.set_xlabel("Elements")
+        ax.set_ylabel("Occurrences")
+        ax.set_title("Comparison of Element Occurrences")
+        fig.savefig("number_of_elements.pdf")
+
+
 class Rediscovery(BaseMetric):
     def __init__(self, rediscovery_path=None):
         super().__init__()
-        if rediscovery_path:
+        if rediscovery_path is not None:
             self.ref = pd.read_csv(rediscovery_path)
         else:
             try:
                 key = os.environ.get("MATPROJ_API_KEY")
+                if key is None:
+                    print(
+                        "No MP Key. Set your env variable MATPROJ_API_KEY or remove the Rediscovery metric."
+                    )
+                    exit()
                 self.ref = MPRester(key)
             except (KeyError, ValueError):
                 print(
-                    "No reference (either dataset or Materials Project API Key) present"
+                    "No reference (either dataset or Materials Project API Key) present."
                 )
-                return
+                exit()
 
-    def compute(self, structures, compositions):
+    def compute(self, structures):
+        compositions = [s.composition.as_dict() for s in structures]
         matches = self._comp_rediscovery(compositions, self.ref)
         return {"matches": matches}
 
-    def plot(self, data_results):
+    def plot(self, data_results, out_dir):
         for data_name, results in data_results.items():
             print(f"Following matches were found for {data_name}")
             print(results)
