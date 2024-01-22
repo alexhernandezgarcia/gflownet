@@ -31,7 +31,7 @@ python -m pip install numpy pandas scikit-learn hydra-core tqdm torchtyping matp
 # wandb: for logging onto WandB
 python -m pip install wandb
 # pymatgen, pyxtal: for the crystal environments
-python -m pip install pymatgen pyxtal
+python -m pip install pymatgen==2023.12.18 pyxtal==0.6.1
 # dave proxy: consider updating the version
 python -m pip install git+https://github.com/sh-divya/ActiveLearningMaterials.git@0.3.4
 ### Dev packages ###
