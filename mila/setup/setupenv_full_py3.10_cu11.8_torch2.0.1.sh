@@ -20,7 +20,7 @@ source $1/bin/activate
 # Update pip
 python -m pip install --upgrade pip
 # Force install six and appdirs to avoid issues
-pip install --ignore-installed six appdirs
+python -m pip install --ignore-installed six appdirs
 # Install PyTorch family, including torch-geometric and optional dependencies (for molecules, trees, etc.)
 # See: https://pytorch.org/
 # See: https://pytorch-geometric.readthedocs.io/en/latest/install/installation.html
