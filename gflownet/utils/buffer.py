@@ -271,14 +271,22 @@ class Buffer:
 
     @staticmethod
     def select(data_dict: dict, n: int, mode: str = "permutation", rng=None):
+        if n == 0:
+            return []
         # TODO: need list()?
         samples = data_dict["x"]
         if mode == "permutation":
             assert rng is not None
             samples = [samples[idx] for idx in rng.permutation(n)]
-        elif mode in ["energy", "rewards"]:
+        elif mode == "weighted":
+            if "rewards" in data_dict:
+                score = "rewards"
+            elif "energy" in data_dict:
+                score = "energy"
+            else:
+                raise ValueError(f"Data set does not contain reward or energy key.")
             # TODO: need fromiter()?
-            scores = np.fromiter(data_dict[mode], dtype=float)
+            scores = np.fromiter(data_dict[score], dtype=float)
             indices = np.random.choice(
                 len(samples),
                 size=n,
