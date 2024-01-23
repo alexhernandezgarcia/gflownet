@@ -637,7 +637,15 @@ class ContinuousCube(CubeBase):
             increments_abs, self.min_incr, dtype=self.float, device=self.device
         )
         if is_backward:
-            return (increments_abs - min_increments) / (states - min_increments)
+            increments_rel = (increments_abs - min_increments) / (
+                states - min_increments
+            )
+            # Add epsilon to numerator and denominator if values are unbounded
+            if not torch.all(torch.isfinite(increments_rel)):
+                increments_rel = (increments_abs - min_increments + 1e-9) / (
+                    states - min_increments + 1e-9
+                )
+            return increments_rel
         else:
             return (increments_abs - min_increments) / (1.0 - states - min_increments)
 
@@ -1138,14 +1146,14 @@ class ContinuousCube(CubeBase):
         if torch.any(do_increments):
             # Get absolute increments
             increments = actions[do_increments, :-1]
-            # Make sure increments are finite
-            assert torch.any(torch.isfinite(increments))
             # Compute absolute increments from all sampled relative increments
             increments = self.absolute_to_relative_increments(
                 states_from_tensor[do_increments],
                 increments,
                 is_backward=True,
             )
+            # Make sure increments are finite
+            assert torch.all(torch.isfinite(increments))
             # Compute diagonal of the Jacobian (see _get_jacobian_diag())
             log_jacobian_diag[do_increments] = torch.log(
                 self._get_jacobian_diag(
