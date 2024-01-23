@@ -175,7 +175,7 @@ def main(args):
 
         info["params"] = {f"p{i}": {"prior": {"min": 0, "max": 2*np.pi}, "ref": np.pi, "proposal": 0.01} for i in range(ndims)}
         
-        Rminus1_stop = 0.05
+        Rminus1_stop = args.rminus1_stop
         info["sampler"] = {"mcmc": {"Rminus1_stop": Rminus1_stop, "max_tries": 1000}}
 
         updated_info, sampler = run(info);
@@ -211,5 +211,6 @@ if __name__ == '__main__':
     parser.add_argument('--ids', nargs='+', required=True, type=int)
     parser.add_argument('--output_dir', type=str, default='./mcmc_outputs/')
     parser.add_argument('--proxy_name', type=str, default='torchani')
+    parser.add_argument('--rminus1_stop', type=float, default=0.05)
     args = parser.parse_args()
     main(args)
