@@ -1,24 +1,22 @@
 # tblite import should stay here first! othervise everything fails with tblite errors
-from gflownet.proxy.conformers.tblite import TBLiteMoleculeEnergy
-
-import os
-import pandas as pd
-import numpy as np
-import pickle
 import argparse
+import os
+import pickle
 from pathlib import Path
-import seaborn as sns
-import matplotlib.pyplot as plt
-from tqdm import tqdm
 
-from rdkit.Chem import AllChem, rdMolTransforms
-from gflownet.envs.conformers.conformer import PREDEFINED_SMILES
-from gflownet.utils.molecule.rotatable_bonds import (
-    get_rotatable_ta_list,
-    find_rotor_from_smiles,
-)
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+import seaborn as sns
+from gflownet.envs.conformers.conformer import PREDEFINED_SMILES, Conformer
+from gflownet.proxy.conformers.tblite import TBLiteMoleculeEnergy
 from gflownet.proxy.conformers.torchani import TorchANIMoleculeEnergy
-from gflownet.envs.conformers.conformer import Conformer
+from gflownet.utils.molecule.rotatable_bonds import (
+    find_rotor_from_smiles,
+    get_rotatable_ta_list,
+)
+from rdkit.Chem import AllChem, rdMolTransforms
+from tqdm import tqdm
 
 
 def get_uniform_samples_and_energy_weights(smiles, n_samples, energy_model="torchani"):
