@@ -246,7 +246,7 @@ def main(args):
             energies = proxy(env.statebatch2proxy(batch))
             return energies
 
-        if gdsamples.samples.shape[0] >= 1000:
+        if gdsamples.samples.shape[0] >= 1100:
             npars = len(info["params"])
             dct = {
                 "x": gdsamples.samples[-1000:, :npars]
