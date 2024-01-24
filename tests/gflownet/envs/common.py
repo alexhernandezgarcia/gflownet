@@ -1,9 +1,9 @@
+import inspect
 import warnings
 
 import hydra
 import numpy as np
 import pytest
-import inspect
 import torch
 import yaml
 from hydra import compose, initialize
