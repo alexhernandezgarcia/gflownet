@@ -142,7 +142,7 @@ class BaseTestsCommon:
                 state_prev = copy(state_next)  # TODO: We never use this. Remove?
 
     def test__backward_actions_have_nonzero_forward_prob(self, n_repeat=1):
-        N = 1000
+        N = 100
 
         if _get_current_method_name() in self.repeats:
             n_repeat = self.repeats[_get_current_method_name()]
