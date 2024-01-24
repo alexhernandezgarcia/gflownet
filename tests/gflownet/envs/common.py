@@ -372,17 +372,24 @@ class BaseTestsDiscrete(BaseTestsCommon):
                 self.env.step_random()
 
     def test__get_parents__returns_same_state_and_eos_if_done(self, n_repeat=1):
+        N = 10
+
         if _get_current_method_name() in self.repeats:
             n_repeat = self.repeats[_get_current_method_name()]
 
         for _ in range(n_repeat):
-            self.env.set_state(self.env.state, done=True)
-            parents, actions = self.env.get_parents()
-            if torch.is_tensor(self.env.state):
-                assert all([self.env.equal(p, self.env.state) for p in parents])
-            else:
-                assert parents == [self.env.state]
-            assert actions == [self.env.action_space[-1]]
+            states = _get_terminating_states(self.env, N)
+            if states is None:
+                warnings.warn("Skipping test because states are None.")
+                return
+            for state in states:
+                self.env.set_state(state, done=True)
+                parents, actions = self.env.get_parents()
+                if torch.is_tensor(self.env.state):
+                    assert all([self.env.equal(p, self.env.state) for p in parents])
+                else:
+                    assert parents == [self.env.state]
+                assert actions == [self.env.action_space[-1]]
 
     def test__actions2indices__returns_expected_tensor(self, n_repeat=1):
         BATCH_SIZE = 100
