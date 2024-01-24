@@ -385,10 +385,7 @@ class BaseTestsDiscrete(BaseTestsCommon):
             for state in states:
                 self.env.set_state(state, done=True)
                 parents, actions = self.env.get_parents()
-                if torch.is_tensor(self.env.state):
-                    assert all([self.env.equal(p, self.env.state) for p in parents])
-                else:
-                    assert parents == [self.env.state]
+                assert all([self.env.equal(p, self.env.state) for p in parents])
                 assert actions == [self.env.action_space[-1]]
 
     def test__actions2indices__returns_expected_tensor(self, n_repeat=1):
