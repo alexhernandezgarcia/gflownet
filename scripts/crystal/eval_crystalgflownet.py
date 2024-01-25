@@ -13,11 +13,10 @@ from tqdm import tqdm
 
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 
+from crystalrandom import generate_random_crystals
 from gflownet.gflownet import GFlowNetAgent
 from gflownet.utils.common import load_gflow_net_from_run_path
 from gflownet.utils.policy import parse_policy_config
-
-from crystalrandom import generate_random_crystals
 
 
 def add_args(parser):
@@ -195,7 +194,7 @@ def main(args):
                 min_angle=0.0,
                 max_angle=1.0,
             )
-            energies = env.oracle(env.statebatch2proxy(x_sampled))
+            energies = env.oracle(env.states2proxy(x_sampled))
             dct = {"energy": energies.tolist()}
             pickle.dump(dct, open(tmp_dir / f"randomcrystals_samples_{i}.pkl", "wb"))
 
