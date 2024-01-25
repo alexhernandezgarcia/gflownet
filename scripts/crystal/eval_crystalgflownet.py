@@ -195,7 +195,7 @@ def main(args):
                 min_angle=0.0,
                 max_angle=1.0,
             )
-            energies = env.oracle(env.statebatch2proxy(x_sampled))
+            energies = env.oracle(env.states2proxy(x_sampled))
             dct = {"energy": energies.tolist()}
             pickle.dump(dct, open(tmp_dir / f"randomcrystals_samples_{i}.pkl", "wb"))
 
