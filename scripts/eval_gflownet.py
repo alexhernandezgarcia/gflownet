@@ -193,7 +193,7 @@ def main(args):
         ):
             batch, times = gflownet.sample_batch(n_forward=bs, train=False)
             x_sampled = batch.get_terminating_states(proxy=True)
-            energies = env.oracle(x_sampled)
+            energies = env.proxy(x_sampled)
             x_sampled = batch.get_terminating_states()
             df = pd.DataFrame(
                 {
@@ -238,7 +238,7 @@ def main(args):
             min_angle=0.0,
             max_angle=1.0,
         )
-        energies = env.oracle(env.states2proxy(x_sampled))
+        energies = env.proxy(env.states2proxy(x_sampled))
         df = pd.DataFrame(
             {
                 "readable": [env.state2readable(x) for x in x_sampled],
