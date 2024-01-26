@@ -104,7 +104,8 @@ logger:
     - crystals
     - stack
     - matbench
-    - workshop23
+    - icml24
+    - formationenergy
   checkpoints:
     period: 500
   do:
@@ -121,5 +122,5 @@ logger:
 # Hydra
 hydra:
   run:
-    dir: ${user.logdir.root}/workshop23/discrete-matbench/${oc.env:SLURM_JOB_ID,local}/${now:%Y-%m-%d_%H-%M-%S}
+    dir: ${user.logdir.root}/icml24/crystalgfn/${oc.env:SLURM_JOB_ID,local}/${now:%Y-%m-%d_%H-%M-%S}
 
