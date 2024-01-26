@@ -111,6 +111,7 @@ logger:
   do:
     online: true
   test:
+    first_it: False
     n_trajs_logprobs: 100
     logprobs_batch_size: 10
     period: 10000
