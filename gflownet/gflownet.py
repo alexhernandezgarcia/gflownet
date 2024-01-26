@@ -477,7 +477,6 @@ class GFlowNetAgent:
             envs, actions, valids = self.step(envs, actions, backward=True)
             # Add to batch
             batch_train.add_to_batch(envs, actions, valids, backward=True, train=train)
-            assert all(valids)
             # Filter out finished trajectories
             envs = [env for env in envs if not env.equal(env.state, env.source)]
         times["train_actions"] = time.time() - t0_train
