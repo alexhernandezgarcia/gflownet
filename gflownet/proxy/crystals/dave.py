@@ -73,7 +73,7 @@ class DAVE(Proxy):
         print("Initializing DAVE proxy:")
         print("  Checking out release:", release)
 
-        pip_url = f"${REPO_URL}@{release}"
+        pip_url = f"{REPO_URL}@{release}"
 
         try:
             dave_version = version("dave")
