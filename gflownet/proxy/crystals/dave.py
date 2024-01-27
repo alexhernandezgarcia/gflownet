@@ -15,7 +15,14 @@ and installed ``dave`` release.
 
 
 class DAVE(Proxy):
-    def __init__(self, ckpt_path=None, release=None, rescale_outputs=True, **kwargs):
+    def __init__(
+        self,
+        ckpt_path=None,
+        release=None,
+        rescale_outputs=True,
+        mb_gap_target=None,
+        **kwargs,
+    ):
         """
         Wrapper class around the Divya-Alexandre-Victor proxy.
 
@@ -44,6 +51,19 @@ class DAVE(Proxy):
         """
         super().__init__(**kwargs)
         self.rescale_outputs = rescale_outputs
+        self.mb_gap_target = mb_gap_target
+        self.release = release
+
+        if release.startswith("1."):
+            assert self.mb_gap_target is not None, (
+                "mb_gap_target must be specified for releases "
+                + "1.x.x (i.e. band gap models)"
+            )
+            assert isinstance(self.mb_gap_target, float), (
+                "mb_gap_target must be a float (received "
+                + f"{self.mb_gap_target}: {type(self.mb_gap_target)})"
+            )
+
         self.scaled = False
         if "clip" in kwargs:
             self.clip = kwargs["clip"]
@@ -148,6 +168,9 @@ class DAVE(Proxy):
 
         if self.rescale_outputs:
             y = y * self.scales["y"]["std"] + self.scales["y"]["mean"]
+
+        if self.mb_gap_target is not None:
+            y = torch.abs(y - self.mb_gap_target)
 
         if self.clip and self.clip.do:
             if self.rescale_outputs:
