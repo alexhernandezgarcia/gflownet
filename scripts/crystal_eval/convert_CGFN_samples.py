@@ -41,7 +41,7 @@ def make_crystal(
     num_atoms: list = None,
     lattice: list = None,
 ):
-    """Makes a radom crystal with PyXtal given a spacegroup, species and their amount and a lattice.
+    """Makes a random crystal with PyXtal given a spacegroup, species and their amount and a lattice.
 
     Parameters
     ----------
