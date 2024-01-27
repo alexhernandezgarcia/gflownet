@@ -1,8 +1,9 @@
 import numpy as np
 import pandas as pd
+import torch
+
 from gflownet.proxy.base import Proxy
 from gflownet.utils.crystals.constants import ATOMIC_MASS
-import torch
 
 LENGTH_SCALE = (0.9, 100)
 ANGLE_SCALE = (50, 150)
