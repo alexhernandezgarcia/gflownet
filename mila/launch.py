@@ -379,7 +379,7 @@ def ssh_to_https(url):
     raise ValueError(f"Could not convert {url} to https")
 
 
-def code_dir_for_slurm_tmp_dir_checkout(git_checkout):
+def code_dir_for_slurm_tmp_dir_checkout(git_checkout, is_private=False):
     global GIT_WARNING
 
     repo = Repo(ROOT)
@@ -401,7 +401,7 @@ def code_dir_for_slurm_tmp_dir_checkout(git_checkout):
             sys.exit(0)
         GIT_WARNING = False
 
-    repo_url = ssh_to_https(repo.remotes.origin.url)
+    repo_url = ssh_to_https(repo.remotes.origin.url) if not is_private else str(ROOT)
     repo_name = repo_url.split("/")[-1].split(".git")[0]
 
     return dedent(
@@ -419,6 +419,29 @@ def code_dir_for_slurm_tmp_dir_checkout(git_checkout):
     )
 
 
+def clean_sbatch_params(templated):
+    """
+    Removes all SBATCH params that have an empty value.
+
+    Args:
+        templated (str): templated sbatch file
+
+    Returns:
+        str: cleaned sbatch file
+    """
+    new_lines = []
+    for line in templated.splitlines():
+        if not line.startswith("#SBATCH"):
+            new_lines.append(line)
+            continue
+        if "=" not in line:
+            new_lines.append(line)
+            continue
+        if line.split("=")[1].strip():
+            new_lines.append(line)
+    return "\n".join(new_lines)
+
+
 if __name__ == "__main__":
     defaults = {
         "code_dir": "$root",
@@ -428,6 +451,7 @@ if __name__ == "__main__":
         "force": False,
         "git_checkout": None,
         "gres": "gpu:1",
+        "is_private": False,
         "job_name": "gflownet",
         "jobs": None,
         "main_args": None,
@@ -551,6 +575,14 @@ if __name__ == "__main__":
         action="store_true",
         help="skip user confirmation." + f" Defaults to {defaults['force']}",
     )
+    parser.add_argument(
+        "--is_private",
+        action="store_true",
+        help="Whether the code is private (i.e. not on github or private repo)."
+        + "In this case, the code is cloned to $SLURM_TMPDIR "
+        + "from the current local repo path."
+        + f" Defaults to {defaults['is_private']}",
+    )
 
     known, unknown = parser.parse_known_args()
 
@@ -612,7 +644,9 @@ if __name__ == "__main__":
         job_args["code_dir"] = (
             str(resolve(job_args["code_dir"]))
             if "SLURM_TMPDIR" not in job_args["code_dir"]
-            else code_dir_for_slurm_tmp_dir_checkout(job_args.get("git_checkout"))
+            else code_dir_for_slurm_tmp_dir_checkout(
+                job_args.get("git_checkout"), args.get("is_private")
+            )
         )
         job_args["outdir"] = str(resolve(job_args["outdir"]))
         job_args["venv"] = str(resolve(job_args["venv"]))
@@ -633,6 +667,7 @@ if __name__ == "__main__":
 
         # format template for this run
         templated = template.format(**job_args)
+        templated = clean_sbatch_params(templated)
 
         # set output path for the sbatch file to execute in order to submit the job
         if jobs_conf_path is not None:
