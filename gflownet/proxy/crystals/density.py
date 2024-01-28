@@ -5,8 +5,7 @@ import torch
 from gflownet.proxy.base import Proxy
 from gflownet.utils.crystals.constants import ATOMIC_MASS
 
-LENGTH_SCALE = (0.9, 100)
-ANGLE_SCALE = (50, 150)
+DENSITY_CONVERSION = 10 / 6.022  # constant to convert g/molA3 to g/cm3
 
 
 class DensityProxy(Proxy):
@@ -31,33 +30,36 @@ class DensityProxy(Proxy):
             nd.array: Ehull energies. Shape: ``(batch,)``.
         """
         total_mass = states[:, :-7].dot(self.atomic_mass)
-        lattice = states[:, -6:]
-        lattice[:, 0:3] = (
-            lattice[:, 0:3] * (LENGTH_SCALE[1] - LENGTH_SCALE[0]) + LENGTH_SCALE[0]
+        a, b, c, alpha, beta, gamma = (
+            states[:, -6],
+            states[:, -5],
+            states[:, -4],
+            states[:, -3],
+            states[:, -2],
+            states[:, -1],
         )
-        lattice[:, 3:6] = (
-            lattice[:, 3:6] * (ANGLE_SCALE[1] - ANGLE_SCALE[0]) + ANGLE_SCALE[0]
-        )
-        lattice[:, 3:6] = torch.deg2rad(lattice[:, 3:6])  # convert to radians
+        alpha_rad = torch.deg2rad(alpha)
+        beta_rad = torch.deg2rad(beta)
+        gamma_rad = torch.deg2rad(gamma)
         volume = (
-            lattice[:, 0]
-            * lattice[:, 1]
-            * lattice[:, 2]
+            a
+            * b
+            * c
             * torch.sqrt(
                 1
                 - (
-                    +torch.square(torch.cos(lattice[:, 3]))
-                    + torch.square(torch.cos(lattice[:, 4]))
-                    + torch.square(torch.cos(lattice[:, 5]))
+                    +torch.square(torch.cos(alpha_rad))
+                    + torch.square(torch.cos(beta_rad))
+                    + torch.square(torch.cos(gamma_rad))
                 )
                 + (
                     2
-                    * torch.cos(lattice[:, 3])
-                    * torch.cos(lattice[:, 4])
-                    * torch.cos(lattice[:, 5])
+                    * torch.cos(alpha_rad)
+                    * torch.cos(beta_rad)
+                    * torch.cos(gamma_rad)
                 )
             )
         )
 
-        density = (total_mass / volume) * (10 / 6.022)  # constant to convert to g/cm3
+        density = (total_mass / volume) * DENSITY_CONVERSION
         return density  # Shape: (batch,)
