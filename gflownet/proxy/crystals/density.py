@@ -29,7 +29,7 @@ class DensityProxy(Proxy):
         Returns:
             nd.array: Ehull energies. Shape: ``(batch,)``.
         """
-        total_mass = states[:, :-7].dot(self.atomic_mass)
+        total_mass = states[:, 1:-7].dot(self.atomic_mass)
         a, b, c, alpha, beta, gamma = (
             states[:, -6],
             states[:, -5],
