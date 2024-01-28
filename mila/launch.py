@@ -450,7 +450,7 @@ if __name__ == "__main__":
         "dry-run": False,
         "force": False,
         "git_checkout": None,
-        "gres": "gpu:1",
+        "gres": "",
         "is_private": False,
         "job_name": "gflownet",
         "jobs": None,
@@ -460,7 +460,7 @@ if __name__ == "__main__":
         "outdir": "$SCRATCH/gflownet/logs/slurm",
         "partition": "long",
         "template": "$root/mila/sbatch/template-conda.sh",
-        "time": "0",
+        "time": "",
         "venv": None,
         "verbose": False,
     }
