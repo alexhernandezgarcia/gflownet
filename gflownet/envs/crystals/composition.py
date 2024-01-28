@@ -2,6 +2,7 @@
 Classes to represent material compositions (stoichiometry)
 """
 import itertools
+import re
 from typing import Dict, List, Optional, Tuple, Union
 
 import numpy as np
@@ -122,6 +123,7 @@ class Composition(GFlowNetEnv):
             else OXIDATION_STATES.copy()
         )
         self.alphabet = alphabet if alphabet is not None else ELEMENT_NAMES.copy()
+        self.alphabet_rev = {v: k for k, v in self.alphabet.items()}
         self.required_elements = (
             required_elements if required_elements is not None else []
         )
@@ -433,35 +435,54 @@ class Composition(GFlowNetEnv):
     def state2readable(self, state=None):
         """
         Transforms the state, represented as a list of elements' counts, into a
-        human-readable dict mapping elements' names to their corresponding counts.
+        human-readable version: a non-reduced formula, following the Hill system.
+
+        See: https://en.wikipedia.org/wiki/Chemical_formula#Hill_system
 
         Example:
             state: [2, 0, 1, 0]
             self.alphabet: {1: "H", 2: "He", 3: "Li", 4: "Be"}
-            output: {"H": 2, "Li": 1}
+            output: H2Li1
         """
         if state is None:
             state = self.state
-        readable = {
+        elements_atoms_dict = {
             self.alphabet[self.idx2elem[i]]: s_i
             for i, s_i in enumerate(state)
             if s_i > 0
         }
-        return str(readable)
+        formula = ""
+        if "C" in elements_atoms_dict:
+            formula += "C" + str(elements_atoms_dict["C"])
+        if "H" in elements_atoms_dict:
+            formula += "H" + str(elements_atoms_dict["H"])
+        formula += "".join(
+            [
+                el + str(n)
+                for el, n in sorted(elements_atoms_dict.items())
+                if el not in ["C", "H"]
+            ]
+        )
+        return formula
 
     def readable2state(self, readable):
         """
-        Converts a human-readable representation of a state into the standard format.
+        Converts the readable representaion of a state (a chemical formula) into the
+        standard format.
 
         Example:
-            readable: {"H": 2, "Li": 1} OR {"H": 2, "Li": 1, "He": 0, "Be": 0}
+            readable: H2Li1
             self.alphabet: {1: "H", 2: "He", 3: "Li", 4: "Be"}
             output: [2, 0, 1, 0]
         """
         state = [0 for _ in self.elements]
-        rev_alphabet = {v: k for k, v in self.alphabet.items()}
-        for k, v in readable.items():
-            state[self.elem2idx[rev_alphabet[k]]] = v
+        offset = 0
+        for match in re.finditer(r"\d+", readable):
+            span = match.span(0)
+            element = readable[offset : span[0]]
+            n_atoms = int(readable[span[0] : span[1]])
+            state[self.elem2idx[self.alphabet_rev[element]]] = n_atoms
+            offset = span[1]
         return state
 
     def reset(self, env_id=None):
