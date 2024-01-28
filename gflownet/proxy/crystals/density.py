@@ -30,35 +30,18 @@ class DensityProxy(Proxy):
             nd.array: Ehull energies. Shape: ``(batch,)``.
         """
         total_mass = states[:, 1:-7].dot(self.atomic_mass)
-        a, b, c, alpha, beta, gamma = (
+        a, b, c, cos_alpha, cos_beta, cos_gamma = (
             states[:, -6],
             states[:, -5],
             states[:, -4],
-            states[:, -3],
-            states[:, -2],
-            states[:, -1],
+            torch.cos(torch.deg2rad(states[:, -3])),
+            torch.cos(torch.deg2rad(states[:, -2])),
+            torch.cos(torch.deg2rad(states[:, -1])),
         )
-        alpha_rad = torch.deg2rad(alpha)
-        beta_rad = torch.deg2rad(beta)
-        gamma_rad = torch.deg2rad(gamma)
-        volume = (
-            a
-            * b
-            * c
-            * torch.sqrt(
-                1
-                - (
-                    +torch.square(torch.cos(alpha_rad))
-                    + torch.square(torch.cos(beta_rad))
-                    + torch.square(torch.cos(gamma_rad))
-                )
-                + (
-                    2
-                    * torch.cos(alpha_rad)
-                    * torch.cos(beta_rad)
-                    * torch.cos(gamma_rad)
-                )
-            )
+        volume = (a * b * c) * torch.sqrt(
+            1
+            - (cos_alpha.pow(2) + cos_beta.pow(2) + cos_beta.pow(2))
+            + (2 * cos_alpha * cos_beta * cos_gamma)
         )
 
         density = (total_mass / volume) * DENSITY_CONVERSION
