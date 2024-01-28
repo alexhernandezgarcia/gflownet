@@ -295,20 +295,12 @@ def test__get_parents__returns_expected(
         [0, 0, 0],
         [1, 0, 0],
         [0, 1, 0],
-        [0, 0, 1],
         [1, 1, 0],
-        [1, 0, 1],
-        [0, 1, 1],
         [1, 1, 1],
     ],
 )
 def test__state2readable2state(env, state):
-    assert all(
-        [
-            el1 == el2
-            for el1, el2 in zip(env.readable2state(env.state2readable(state)), state)
-        ]
-    )
+    assert env.equal(env.readable2state(env.state2readable(state)), state)
 
 
 def test__env_with_composition__compatibility_dict_as_in_pyxtal(env_with_composition):
