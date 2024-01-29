@@ -55,12 +55,12 @@ env:
     replay_capacity: 1000
     train:
       type: pkl
-      path: /home/mila/h/hernanga/gflownet/data/crystals/matbench_normed_stack_sg_first_l0.9-100_a50-150_train_22_SGinter_states_energy.pkl
+      path: /network/scratch/s/schmidtv/crystals-proxys/data/ai4mat-plots-data/matbench_normed_stack_sg_first_l0.9-100_a50-150_train_22_SGinter_states_energy.pkl
       output_csv: ccrystal_train.csv
       output_pkl: ccrystal_train.pkl
     test:
       type: pkl
-      path: /home/mila/h/hernanga/gflownet/data/crystals/matbench_normed_stack_sg_first_l0.9-100_a50-150_val_22_SGinter_states_energy.pkl
+      path: /network/scratch/s/schmidtv/crystals-proxys/data/ai4mat-plots-data/matbench_normed_stack_sg_first_l0.9-100_a50-150_val_22_SGinter_states_energy.pkl
       output_csv: ccrystal_val.csv
       output_pkl: ccrystal_val.pkl
 
