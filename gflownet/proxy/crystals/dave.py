@@ -68,6 +68,8 @@ class DAVE(Proxy):
         self.rescale_outputs = rescale_outputs
         self.mb_gap_target = mb_gap_target
         self.release = release
+        self.amplitude = amplitude
+        self.gamma = gamma
 
         if release.startswith("1."):
             assert self.mb_gap_target is not None, (
