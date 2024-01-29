@@ -114,7 +114,7 @@ logger:
     first_it: False
     n_trajs_logprobs: 100
     logprobs_batch_size: 10
-    period: 10000
+    period: -1
     n: 10
     n_top_k: 5000
     top_k: 100
