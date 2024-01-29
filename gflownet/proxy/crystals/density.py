@@ -8,7 +8,7 @@ from gflownet.utils.crystals.constants import ATOMIC_MASS
 DENSITY_CONVERSION = 10 / 6.022  # constant to convert g/molA3 to g/cm3
 
 
-class DensityProxy(Proxy):
+class Density(Proxy):
     def __init__(self, device, float_precision, higher_is_better=False, **kwargs):
         """
         Proxy to compute the density of a crystal, in g/cm3
