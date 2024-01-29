@@ -81,8 +81,8 @@ class DAVE(Proxy):
                 + f"{self.mb_gap_target}: {type(self.mb_gap_target)})"
             )
             assert (
-                isinstance(amplitude, float)
-                and isinstance(gamma, float)
+                isinstance(amplitude, (float, int))
+                and isinstance(gamma, (float, int))
                 and amplitude > 0
                 and gamma > 0
             ), (
