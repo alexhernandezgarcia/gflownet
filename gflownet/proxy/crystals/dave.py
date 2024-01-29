@@ -50,7 +50,7 @@ class DAVE(Proxy):
             -> use shift reward or boltzmann
         * mbgap: -amplitude * exp(- gamma * (gap(x) - target) ** 2)
             -> lower is better and < 0
-            -> use identity reward (identity still changes the sign
+            -> use identity reward (identity still changes the sign)
 
         Args:
             ckpt_path (dict, optional): Mapping from cluster / ``$USER`` to checkpoint.
