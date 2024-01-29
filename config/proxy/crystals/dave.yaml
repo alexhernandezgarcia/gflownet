@@ -1,10 +1,19 @@
 _target_: gflownet.proxy.crystals.dave.DAVE
 
+# releases 0.x.x refer to Formation Energy models
+# releases 1.x.x refer to Band Gap models
 release: 0.3.4
 ckpt_path:
   mila: /network/scratch/s/schmidtv/crystals-proxys/proxy-ckpts/
   victor: ~/Documents/Github/ActiveLearningMaterials/checkpoints/980065c0/checkpoints-3ff648a2
 rescale_outputs: true
+
+# Band Gap-specific params
+mb_gap_target: 1.34 # https://mila-umontreal.slack.com/archives/C04SC06HCTH/p1706213674295289
+amplitude: 1
+gamma: 1
+
+# Debug params
 clip:
   do: False
   min_stds: null

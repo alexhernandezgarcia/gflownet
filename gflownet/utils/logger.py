@@ -33,6 +33,7 @@ class Logger:
         tags: list = None,
         context: str = "0",
         notes: str = None,
+        entity: str = None,
     ):
         self.config = config
         self.do = do
@@ -61,7 +62,11 @@ class Logger:
             if slurm_job_id:
                 wandb_config["slurm_job_id"] = slurm_job_id
             self.run = self.wandb.init(
-                config=wandb_config, project=project_name, name=run_name, notes=notes
+                config=wandb_config,
+                project=project_name,
+                name=run_name,
+                notes=notes,
+                entity=entity,
             )
         else:
             self.wandb = None
