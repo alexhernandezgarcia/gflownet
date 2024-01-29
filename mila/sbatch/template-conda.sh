@@ -7,9 +7,18 @@
 #SBATCH --partition={partition}
 #SBATCH --time={time}
 
+echo
+printf '%.0s-' {1..30} && echo
+printf '%.0s-' {1..30} && echo
+echo "\nStarting job $SLURM_JOB_ID at: `date`\n"
+
 module load {modules}
 conda activate {conda_env}
 
 cd {code_dir}
+
+echo
+printf '%.0s-' {1..30} && echo
+printf '%.0s-' {1..30} && echo
 
 python main.py {main_args}
