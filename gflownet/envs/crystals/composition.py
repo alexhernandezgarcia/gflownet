@@ -467,7 +467,7 @@ class Composition(GFlowNetEnv):
 
     def readable2state(self, readable):
         """
-        Converts the readable representaion of a state (a chemical formula) into the
+        Converts the readable representation of a state (a chemical formula) into the
         standard format.
 
         Example:
