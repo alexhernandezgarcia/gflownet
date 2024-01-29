@@ -255,15 +255,8 @@ class Stack(GFlowNetEnv):
         stage, subenv, state_subenv, done = self._get_stage_subenv_substate_done(
             state, done
         )
-
-        stage_onehot = [False] * self.n_subenvs
-        stage_onehot[stage] = True
-        padding = [False] * (self.mask_dim - (subenv.mask_dim + self.n_subenvs))
-        return (
-            stage_onehot
-            + subenv.get_mask_invalid_actions_forward(state_subenv, done)
-            + padding
-        )
+        mask = subenv.get_mask_invalid_actions_forward(state_subenv, done)
+        return self._format_mask(mask, stage, subenv.mask_dim)
 
     def get_mask_invalid_actions_backward(
         self, state: Optional[List] = None, done: Optional[bool] = None
@@ -289,18 +282,37 @@ class Stack(GFlowNetEnv):
         stage, subenv, state_subenv, done = self._get_stage_subenv_substate_done(
             state, done, is_backward=True
         )
+        mask = subenv.get_mask_invalid_actions_backward(state_subenv, done)
+        return self._format_mask(mask, stage, subenv.mask_dim)
 
+    # TODO: rethink whether padding should be True (invalid) instead.
+    def _format_mask(self, mask: List[bool], stage: int, mask_dim: int):
+        """
+        Applies formatting to the mask of a sub-environment.
+
+        The output format is the mask of the input sub-environment,
+        preceded by a one-hot encoding of the index of the subenv and padded with False
+        up to mask_dim.
+
+        Args
+        ----
+        mask : list
+            The mask of a sub-environment
+
+        stage : int
+            The stage index of the sub-environment, needed for the one-hot prefix.
+
+        mask_dim : int
+            The dimensionality of the mask of the sub-environment, needed for padding.
+        """
         stage_onehot = [False] * self.n_subenvs
         stage_onehot[stage] = True
-        padding = [False] * (self.mask_dim - (subenv.mask_dim + self.n_subenvs))
-        return (
-            stage_onehot
-            + subenv.get_mask_invalid_actions_backward(state_subenv, done)
-            + padding
-        )
+        padding = [False] * (self.mask_dim - (mask_dim + self.n_subenvs))
+        return stage_onehot + mask + padding
 
     def get_valid_actions(
         self,
+        mask: Optional[bool] = None,
         state: Optional[List] = None,
         done: Optional[bool] = None,
         backward: Optional[bool] = False,
@@ -317,10 +329,35 @@ class Stack(GFlowNetEnv):
         stage, subenv, state_subenv, done = self._get_stage_subenv_substate_done(
             state, done, backward
         )
+        if mask is not None:
+            # Extract the part of the mask corresponding to the sub-environment
+            # TODO: consider writing a method to do this
+            mask = mask[self.n_subenvs : self.n_subenvs + subenv.mask_dim]
         return [
             self._pad_action(action, stage)
-            for action in subenv.get_valid_actions(state_subenv, done, backward)
+            for action in subenv.get_valid_actions(mask, state_subenv, done, backward)
         ]
+
+    def mask_conditioning(
+        self, mask: Union[List[bool], TensorType["mask_dim"]], env_cond, backward: bool
+    ):
+        """
+        Conditions the input mask based on the restrictions imposed by a conditioning
+        environment, env_cond.
+
+        This method is overriden because the base mask_conditioning would change the
+        mask unaware of the special Stack format. Therefore, this method calls the
+        mask_conditioning() method of the currently relevant sub-environment and
+        returns the mask with the correct Stack format.
+        """
+        stage = self._get_stage()
+        subenv = self.subenvs[stage]
+        # Extract the part of the mask corresponding to the sub-environment
+        # TODO: consider writing a method to do this
+        mask = mask[self.n_subenvs : self.n_subenvs + subenv.mask_dim]
+        env_cond = env_cond.subenvs[stage]
+        mask = subenv.mask_conditioning(mask, env_cond, backward)
+        return self._format_mask(mask, stage, subenv.mask_dim)
 
     # TODO: do we need a method for this?
     def _update_state(self, stage: int):

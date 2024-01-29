@@ -212,6 +212,7 @@ class GFlowNetAgent:
         self,
         envs: List[GFlowNetEnv],
         batch: Optional[Batch] = None,
+        env_cond: Optional[GFlowNetEnv] = None,
         sampling_method: Optional[str] = "policy",
         backward: Optional[bool] = False,
         temperature: Optional[float] = 1.0,
@@ -239,6 +240,10 @@ class GFlowNetAgent:
         batch_forward : Batch
             A batch from which to obtain required variables (e.g. masks) to avoid
             recomputing them.
+
+        env_cond : GFlowNetEnv or derived
+            An environment to do conditional sampling, that is restrict the action
+            space via the masks of the main environments.
 
         sampling_method : string
             - policy: uses current forward to obtain the sampling probabilities.
@@ -299,38 +304,8 @@ class GFlowNetAgent:
         # Build states and masks
         states = [env.state for env in envs]
 
-        # Retrieve masks from the batch (batch.get_item("mask_*") computes the mask if
-        # it is not available and stores it in the batch)
-        # TODO: make get_mask_ method with the ugly code below
-        if self.mask_invalid_actions is True:
-            if batch is not None:
-                if backward:
-                    mask_invalid_actions = tbool(
-                        [
-                            batch.get_item("mask_backward", env, backward=True)
-                            for env in envs
-                        ],
-                        device=self.device,
-                    )
-                else:
-                    mask_invalid_actions = tbool(
-                        [batch.get_item("mask_forward", env) for env in envs],
-                        device=self.device,
-                    )
-            # Compute masks since a batch was not provided
-            else:
-                if backward:
-                    mask_invalid_actions = tbool(
-                        [env.get_mask_invalid_actions_backward() for env in envs],
-                        device=self.device,
-                    )
-                else:
-                    mask_invalid_actions = tbool(
-                        [env.get_mask_invalid_actions_forward() for env in envs],
-                        device=self.device,
-                    )
-        else:
-            mask_invalid_actions = None
+        # Obtain masks of invalid actions
+        mask_invalid_actions = self._get_masks(envs, batch, env_cond, backward)
 
         # Build policy outputs
         policy_outputs = model.random_distribution(states)
@@ -367,6 +342,83 @@ class GFlowNetAgent:
             temperature,
         )
         return actions
+
+    def _get_masks(
+        self,
+        envs: List[GFlowNetEnv],
+        batch: Optional[Batch] = None,
+        env_cond: Optional[GFlowNetEnv] = None,
+        backward: Optional[bool] = False,
+    ) -> List[List[bool]]:
+        """
+        Given a batch and/or a list of environments, obtains the mask of invalid
+        actions of each environment's current state.
+
+        Note that batch.get_item("mask_*") computes the mask if it is not available and
+        stores it in the batch.
+
+        If env_cond is not None, then the masks will be adjusted according to the
+        restrictions imposed by the conditioning environment, env_cond (see
+        GFlowNetEnv.mask_conditioning()).
+
+        Args
+        ----
+        envs : list of GFlowNetEnv or derived
+            A list of instances of the environment
+
+        batch_forward : Batch
+            A batch from which to obtain the masks to avoid recomputing them.
+
+        env_cond : GFlowNetEnv or derived
+            An environment to do conditional sampling, that is restrict the action
+            space via the masks of the main environments. Ignored if None.
+
+        backward : bool
+            True if sampling is backward. False (forward) by default.
+
+        Returns
+        -------
+        A list of boolean lists containing the masks of invalid actions of each
+        environment.
+        """
+        if not self.mask_invalid_actions:
+            return None
+        if batch is not None:
+            if backward:
+                mask_invalid_actions = tbool(
+                    [
+                        batch.get_item("mask_backward", env, backward=True)
+                        for env in envs
+                    ],
+                    device=self.device,
+                )
+            else:
+                mask_invalid_actions = tbool(
+                    [batch.get_item("mask_forward", env) for env in envs],
+                    device=self.device,
+                )
+        # Compute masks since a batch was not provided
+        else:
+            if backward:
+                mask_invalid_actions = tbool(
+                    [env.get_mask_invalid_actions_backward() for env in envs],
+                    device=self.device,
+                )
+            else:
+                mask_invalid_actions = tbool(
+                    [env.get_mask_invalid_actions_forward() for env in envs],
+                    device=self.device,
+                )
+        # Mask conditioning
+        if env_cond is not None:
+            mask_invalid_actions = tbool(
+                [
+                    env.mask_conditioning(mask, env_cond, backward)
+                    for env, mask in zip(envs, mask_invalid_actions)
+                ],
+                device=self.device,
+            )
+        return mask_invalid_actions
 
     def step(
         self,
@@ -410,6 +462,7 @@ class GFlowNetAgent:
         n_forward: int = 0,
         n_train: int = 0,
         n_replay: int = 0,
+        env_cond: Optional[GFlowNetEnv] = None,
         train=True,
         progress=False,
     ):
@@ -438,6 +491,7 @@ class GFlowNetAgent:
             actions = self.sample_actions(
                 envs,
                 batch_forward,
+                env_cond,
                 no_random=not train,
                 times=times,
             )
@@ -468,6 +522,7 @@ class GFlowNetAgent:
             actions = self.sample_actions(
                 envs,
                 batch_train,
+                env_cond,
                 backward=True,
                 no_random=not train,
                 times=times,
@@ -500,6 +555,7 @@ class GFlowNetAgent:
             actions = self.sample_actions(
                 envs,
                 batch_replay,
+                env_cond,
                 backward=True,
                 no_random=not train,
                 times=times,
