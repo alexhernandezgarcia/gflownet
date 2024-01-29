@@ -79,23 +79,34 @@ def test__state2proxy__returns_expected_tensor(env, state, exp_tensor):
     assert torch.equal(env.state2proxy(state), tlong(exp_tensor, device=env.device))
 
 
-def test__state2readable(env):
-    state = [2, 0, 1, 0]
-    readable = {"H": 2, "Li": 1}
-
-    env.state = state
-
-    assert env.state2readable(state=state) == readable
+@pytest.mark.parametrize(
+    "state, readable",
+    [
+        ([2, 0, 1, 0], "H2Li1"),
+        ([2, 0, 0, 0], "H2"),
+        ([0, 0, 2, 0], "Li2"),
+        ([2, 5, 1, 16], "H2Be16He5Li1"),
+        ([0, 15, 7, 16], "Be16He15Li7"),
+    ],
+)
+def test__state2readable(env, state, readable):
+    assert env.state2readable(state) == readable
+    env.set_state(state)
     assert env.state2readable() == readable
 
 
-def test__readable2state(env):
-    state = [2, 0, 1, 0]
-    short_readable = {"H": 2, "Li": 1}
-    long_readable = {"H": 2, "He": 0, "Li": 1, "Be": 0}
-
-    assert env.readable2state(readable=short_readable) == state
-    assert env.readable2state(readable=long_readable) == state
+@pytest.mark.parametrize(
+    "state, readable",
+    [
+        ([2, 0, 1, 0], "H2Li1"),
+        ([2, 0, 0, 0], "H2"),
+        ([0, 0, 2, 0], "Li2"),
+        ([2, 5, 1, 16], "H2Be16He5Li1"),
+        ([0, 15, 7, 16], "Be16He15Li7"),
+    ],
+)
+def test__readable2state(env, state, readable):
+    assert env.readable2state(readable) == state
 
 
 def test__reset(env):
