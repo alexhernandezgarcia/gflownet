@@ -21,6 +21,8 @@ class DAVE(Proxy):
         release=None,
         rescale_outputs=True,
         mb_gap_target=None,
+        amplitude=None,
+        gamma=None,
         **kwargs,
     ):
         """
@@ -41,6 +43,15 @@ class DAVE(Proxy):
         * if the resulting path is a dir, it must contain exactly one ``.ckpt`` file
         * if the resulting path is a file, it must be a ``.ckpt`` file
 
+        Outputs: negative AND lower is better.
+
+        * eform: energy per atom (eV/atom)
+            -> lower is better but can be >0
+            -> use shift reward or boltzmann
+        * mbgap: -amplitude * exp(- gamma * (gap(x) - target) ** 2)
+            -> lower is better and < 0
+            -> use identity reward (identity still changes the sign
+
         Args:
             ckpt_path (dict, optional): Mapping from cluster / ``$USER`` to checkpoint.
                 Defaults to ``None``.
@@ -48,6 +59,10 @@ class DAVE(Proxy):
                 Defaults to ``None``.
             rescale_outputs (bool, optional): Whether to rescale the proxy outputs
                 using its training mean and std. Defaults to ``True``.
+            mb_gap_target (float, optional): Matbench Band-Gap target. Required for
+                band-gap proxy models, i.e. releases ``1.x.x``. Defaults to ``None``.
+            amplitude (float, optional): Out-exp amplitude of the proxy's output.
+            gamma (float, optional): In-exp scale of the proxy's output.
         """
         super().__init__(**kwargs)
         self.rescale_outputs = rescale_outputs
@@ -62,6 +77,19 @@ class DAVE(Proxy):
             assert isinstance(self.mb_gap_target, float), (
                 "mb_gap_target must be a float (received "
                 + f"{self.mb_gap_target}: {type(self.mb_gap_target)})"
+            )
+            assert (
+                isinstance(amplitude, float)
+                and isinstance(gamma, float)
+                and amplitude > 0
+                and gamma > 0
+            ), (
+                "amplitude and gamma must be specified for releases "
+                + "1.x.x (i.e. band gap models) and must be positive floats "
+                + f"(received {amplitude}: {type(amplitude)}, {gamma}: {type(gamma)})"
+            )
+            print(
+                "\nUsing a *Boltzmann PROXY* -> make sure to use the *Identity REWARD\n"
             )
 
         self.scaled = False
@@ -170,7 +198,8 @@ class DAVE(Proxy):
             y = y * self.scales["y"]["std"] + self.scales["y"]["mean"]
 
         if self.mb_gap_target is not None:
-            y = torch.abs(y - self.mb_gap_target)
+            y = (y - self.mb_gap_target) ** 2
+            y = -self.amplitude * torch.exp(-self.gamma * y)
 
         if self.clip and self.clip.do:
             if self.rescale_outputs:
@@ -185,6 +214,7 @@ class DAVE(Proxy):
             else:
                 y_min = self.clip.min
                 y_max = self.clip.max
+
             y = torch.clamp(min=y_min, max=y_max)
 
         return y
