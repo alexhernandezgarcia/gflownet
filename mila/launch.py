@@ -269,12 +269,10 @@ def quote(value):
     v = str(value)
     v = v.replace("(", r"\(").replace(")", r"\)")
     if " " in v or "=" in v:
-        if '"' not in v:
-            v = f'"{v}"'
-        elif "'" not in v:
-            v = f"'{v}'"
-        else:
-            raise ValueError(f"Cannot quote {value}")
+        v = v.replace('"', r"\"")
+        if "'" in v:
+            v = v.replace("'", r"\'")
+        v = f'"{v}"'
     return v
 
 
@@ -289,7 +287,7 @@ def script_dict_to_main_args_str(script_dict, is_first=True, nested_key=""):
     """
     if not isinstance(script_dict, dict):
         candidate = f"{nested_key}={quote(script_dict)}"
-        if candidate.count("=") > 1:
+        if candidate.count("=") > 1 or " " in candidate:
             assert "'" not in candidate, """Keys cannot contain ` ` and `'` and `=` """
             candidate = f"'{candidate}'"
         return candidate + " "
@@ -689,9 +687,7 @@ if __name__ == "__main__":
             print("  ✅ " + out)
             # Rename sbatch file with job id
             parts = sbatch_path.stem.split(f"_{now}")
-            new_name = f"{parts[0]}_{job_id}_{now}"
-            if len(parts) > 1:
-                new_name += f"_{parts[1]}"
+            new_name = f"{parts[0]}_{job_id}_{now}.sbatch"
             sbatch_path = sbatch_path.rename(sbatch_path.parent / new_name)
             print(f"  🏷  Created ./{sbatch_path.relative_to(Path.cwd())}")
             # Write job ID & output file path in the sbatch file

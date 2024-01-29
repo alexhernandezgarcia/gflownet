@@ -7,18 +7,15 @@
 #SBATCH --partition={partition}
 #SBATCH --time={time}
 
-echo
-printf '%.0s-' {1..30} && echo
-printf '%.0s-' {1..30} && echo
-echo "\nStarting job $SLURM_JOB_ID at: `date`\n"
+python3 -c 'print("\n" + "-" * 40 + "\n" + "-" * 40)'
+echo "Starting job $SLURM_JOB_ID at: `date`"
 
 module load {modules}
 source {venv}/bin/activate
 
 cd {code_dir}
 
+python3 -c 'print("\n" + "-" * 40 + "\n" + "-" * 40)'
 echo
-printf '%.0s-' {1..30} && echo
-printf '%.0s-' {1..30} && echo
 
 python main.py {main_args}
