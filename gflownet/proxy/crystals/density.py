@@ -47,7 +47,7 @@ class Density(Proxy):
             * lattice parameters: ``states[:, -6:]``
 
         Returns:
-            nd.array: Ehull energies. Shape: ``(batch,)``.
+            nd.array: -1 * density in g/cm3. Shape: ``(batch,)``.
         """
         total_mass = torch.matmul(states[:, 1:-7], self.atomic_mass)
         a, b, c, cos_alpha, cos_beta, cos_gamma = (
@@ -65,4 +65,4 @@ class Density(Proxy):
         )
 
         density = (total_mass / volume) * DENSITY_CONVERSION
-        return density  # Shape: (batch,)
+        return -density  # minus to make it energy-like
