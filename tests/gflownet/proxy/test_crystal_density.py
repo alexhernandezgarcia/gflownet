@@ -2,7 +2,7 @@ import pytest
 import torch
 
 from gflownet.envs.crystals.crystal import Crystal
-from gflownet.proxy.crystals.density import Density
+from gflownet.envs.crystals.ccrystal_stack import CCrystal
 
 
 @pytest.fixture()
@@ -11,7 +11,7 @@ def proxy():
 
 
 def test_density(proxy):
-    env = Crystal(composition_kwargs={"elemenst": 94})
+    env = CCrystal(composition_kwargs={"elements": 94})
 
     states = torch.zeros((2, 102))
     # Li2O mp-1960
