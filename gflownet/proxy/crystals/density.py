@@ -3,6 +3,7 @@ import pandas as pd
 import torch
 
 from gflownet.proxy.base import Proxy
+from gflownet.utils.common import tfloat
 from gflownet.utils.crystals.constants import ATOMIC_MASS
 
 DENSITY_CONVERSION = 10 / 6.022  # constant to convert g/molA3 to g/cm3
@@ -17,10 +18,11 @@ class Density(Proxy):
         super().__init__(device, float_precision, higher_is_better, **kwargs)
 
     def setup(self, env=None):
-        self.atomic_mass = torch.tensor(
-            [ATOMIC_MASS[n] for n in env.composition.elements]
+        self.atomic_mass = tfloat(
+            [ATOMIC_MASS[n] for n in env.composition.elements],
+            float_type=self.float,
+            device=self.device,
         )
-        assert 1 == 1
 
     @torch.no_grad()
     def __call__(self, states: torch.Tensor) -> torch.Tensor:
@@ -32,7 +34,7 @@ class Density(Proxy):
             * lattice parameters: ``states[:, -6:]``
 
         Returns:
-            nd.array: Ehull energies. Shape: ``(batch,)``.
+            nd.array: -1 * density in g/cm3. Shape: ``(batch,)``.
         """
         total_mass = torch.matmul(states[:, 1:-7], self.atomic_mass)
         a, b, c, cos_alpha, cos_beta, cos_gamma = (
@@ -50,4 +52,4 @@ class Density(Proxy):
         )
 
         density = (total_mass / volume) * DENSITY_CONVERSION
-        return density  # Shape: (batch,)
+        return -density  # minus to make it energy-like

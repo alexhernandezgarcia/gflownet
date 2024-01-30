@@ -30,4 +30,4 @@ def test_density(proxy):
 
     proxy.setup(env=env)
     result = proxy(states)
-    assert result == pytest.approx(torch.tensor([1.97, 2.71]), rel=1e-2)
+    assert result == pytest.approx(torch.tensor([-1.97, -2.71]), rel=1e-2)
