@@ -1,8 +1,8 @@
 import pytest
 import torch
 
-from gflownet.envs.crystals.crystal import Crystal
 from gflownet.envs.crystals.ccrystal_stack import CCrystal
+from gflownet.proxy.crystals.density import Density
 
 
 @pytest.fixture()
