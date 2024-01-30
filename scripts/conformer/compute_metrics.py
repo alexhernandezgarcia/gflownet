@@ -12,6 +12,7 @@ from tqdm import tqdm
 
 from gflownet.utils.molecule.geom import get_all_confs_geom
 from gflownet.utils.molecule.metrics import get_best_rmsd, get_cov_mat
+from gflownet.envs.conformers.conformer import PREDEFINED_SMILES
 
 
 def distant_enough(conf, others, delta):
@@ -42,6 +43,9 @@ def get_diverse_top_k(confs_list, k=None, delta=1.25):
 
 def get_smiles_from_filename(filename):
     smiles = filename.split("_")[1]
+    if smiles == 'mcmc':
+        smiles_idx = int(filename.split("_")[2][5:])
+        smiles = PREDEFINED_SMILES[smiles_idx]
     if smiles.endswith(".pkl"):
         smiles = smiles[:-4]
     return smiles
@@ -174,7 +178,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--geom_stats",
         type=str,
-        default="/home/mila/a/alexandra.volokhova/projects/gflownet/scripts/conformer/geom_stats.csv",
+        default="/home/mila/a/alexandra.volokhova/projects/gflownet/scripts/conformer/generated_files/geom_stats.csv",
     )
     parser.add_argument("--gen_dir", type=str, default="./")
     parser.add_argument("--use_top_k", type=bool, default=False)
