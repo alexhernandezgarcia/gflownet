@@ -71,7 +71,11 @@ class DAVE(Proxy):
         self.amplitude = amplitude
         self.gamma = gamma
 
-        if release.startswith("1."):
+        self.is_eform = self.is_bandgap = False
+
+        if release.startswith("0."):
+            self.is_eform = True
+        elif release.startswith("1."):
             assert self.mb_gap_target is not None, (
                 "mb_gap_target must be specified for releases "
                 + "1.x.x (i.e. band gap models)"
@@ -93,6 +97,9 @@ class DAVE(Proxy):
             print(
                 "\nUsing a *Boltzmann PROXY* -> make sure to use the *Identity REWARD\n"
             )
+            self.is_bandgap = True
+        else:
+            raise ValueError(f"Unknown release: {release}. Allowed: 0.x.x or 1.x.x")
 
         self.scaled = False
         if "clip" in kwargs:
@@ -199,7 +206,7 @@ class DAVE(Proxy):
         if self.rescale_outputs:
             y = y * self.scales["y"]["std"] + self.scales["y"]["mean"]
 
-        if self.mb_gap_target is not None:
+        if self.is_bandgap:
             y = (y - self.mb_gap_target) ** 2
             y = -self.amplitude * torch.exp(-self.gamma * y)
 
