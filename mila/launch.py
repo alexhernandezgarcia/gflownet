@@ -729,6 +729,10 @@ if __name__ == "__main__":
             + "\n#".join([f"  • {f}" for f in job_out_files])
             + "\n"
         )
+        wandb_query = f"({'|'.join(job_ids)})"
+        conf += f"\n# Wandb RegEx query:\n#  • {wandb_query}\n"
+        scancel = f"scancel {' '.join(job_ids)}"
+        conf += f"\n# Cancel all jobs:\n#  • {scancel}\n"
         rel = new_conf_path.relative_to(Path.cwd())
         if not dry_run:
             new_conf_path.write_text(conf)
