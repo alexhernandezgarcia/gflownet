@@ -13,7 +13,8 @@ def proxy():
 def test_density(proxy):
     env = CCrystal(composition_kwargs={"elements": 94})
 
-    states = torch.zeros((2, 102))
+    # Initialize a proxy-format tensor with two (source) states
+    states = env.states2proxy([env.source, env.source])
     # Li2O mp-1960
     states[0, [3, 8]] = torch.tensor([8, 4], dtype=torch.float)  # 8XLi, 4XO
     states[0, -6:-3] = 4.65

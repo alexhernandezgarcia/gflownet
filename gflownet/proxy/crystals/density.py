@@ -6,8 +6,9 @@ import torch
 from torchtyping import TensorType
 
 from gflownet.envs.crystals.ccrystal_stack import CCrystal
+from gflownet.envs.crystals.composition import N_ELEMENTS_ORACLE
 from gflownet.proxy.base import Proxy
-from gflownet.utils.common import tfloat
+from gflownet.utils.common import tfloat, tlong
 from gflownet.utils.crystals.constants import ATOMIC_MASS
 
 DENSITY_CONVERSION = 10 / 6.022  # constant to convert g/molA3 to g/cm3
@@ -24,11 +25,14 @@ class Density(Proxy):
 
     def setup(self, env=None):
         if isinstance(env, CCrystal):
-            self.atomic_mass = tfloat(
-                [ATOMIC_MASS[n] for n in env.subenvs[env.stage_composition].elements],
+            self.atomic_mass = torch.zeros(N_ELEMENTS_ORACLE + 1, dtype=self.float)
+            elements = env.subenvs[env.stage_composition].elements
+            atomic_mass_elements = tfloat(
+                [ATOMIC_MASS[n] for n in elements],
                 float_type=self.float,
                 device=self.device,
             )
+            self.atomic_mass[tlong(elements, device=self.device)] = atomic_mass_elements
         else:
             warnings.warn(
                 "Attempted to setup Density proxy without passing the right "
@@ -49,7 +53,7 @@ class Density(Proxy):
         Returns:
             nd.array: -1 * density in g/cm3. Shape: ``(batch,)``.
         """
-        total_mass = torch.matmul(states[:, 1:-7], self.atomic_mass)
+        total_mass = torch.matmul(states[:, :-7], self.atomic_mass)
         a, b, c, cos_alpha, cos_beta, cos_gamma = (
             states[:, -6],
             states[:, -5],
