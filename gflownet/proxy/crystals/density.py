@@ -1,29 +1,44 @@
+import warnings
+
 import numpy as np
 import pandas as pd
 import torch
+from torchtyping import TensorType
 
+from gflownet.envs.crystals.ccrystal_stack import CCrystal
 from gflownet.proxy.base import Proxy
+from gflownet.utils.common import tfloat
 from gflownet.utils.crystals.constants import ATOMIC_MASS
 
 DENSITY_CONVERSION = 10 / 6.022  # constant to convert g/molA3 to g/cm3
 
 
 class Density(Proxy):
-    def __init__(self, device, float_precision, higher_is_better=False, **kwargs):
+    def __init__(self, **kwargs):
         """
-        Proxy to compute the density of a crystal, in g/cm3
-        It requires the same inputs as  the Dave proxy
+        Proxy to compute the density of a crystal, in g/cm3.
+
+        It requires the same inputs as the Dave proxy.
         """
-        super().__init__(device, float_precision, higher_is_better, **kwargs)
+        super().__init__(**kwargs)
 
     def setup(self, env=None):
-        self.atomic_mass = torch.tensor(
-            [ATOMIC_MASS[n] for n in env.subenvs[env.stage_composition].elements]
-        )
-        assert 1 == 1
+        if isinstance(env, CCrystal):
+            self.atomic_mass = tfloat(
+                [ATOMIC_MASS[n] for n in env.subenvs[env.stage_composition].elements],
+                float_type=self.float,
+                device=self.device,
+            )
+        else:
+            warnings.warn(
+                "Attempted to setup Density proxy without passing the right "
+                "Crystal env type (continuous crystal stack)"
+            )
 
     @torch.no_grad()
-    def __call__(self, states: torch.Tensor) -> torch.Tensor:
+    def __call__(
+        self, states: TensorType["batch", "policy_input_dim"]
+    ) -> TensorType["batch"]:
         """
         Args:
             states (torch.Tensor): same as DAVE proxy, i.e.
