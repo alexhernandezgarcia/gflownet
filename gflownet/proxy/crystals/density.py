@@ -18,7 +18,7 @@ class Density(Proxy):
 
     def setup(self, env=None):
         self.atomic_mass = torch.tensor(
-            [ATOMIC_MASS[n] for n in env.composition.elements]
+            [ATOMIC_MASS[n] for n in env.subenvs[env.stage_composition].elements]
         )
         assert 1 == 1
 
