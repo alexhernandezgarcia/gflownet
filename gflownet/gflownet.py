@@ -193,6 +193,9 @@ class GFlowNetAgent:
         self.corr_prob_traj_rewards = 0.0
         self.var_logrewards_logp = -1.0
         self.nll_tt = 0.0
+        self.mean_logprobs_var = -1.0
+        self.mean_probs_var = -1.0
+        self.logprobs_var_nll_ratio = -1.0
 
     def parameters(self):
         parameters = list(self.forward_policy.model.parameters())
@@ -820,6 +823,7 @@ class GFlowNetAgent:
         max_iters_per_traj: int = 10,
         max_data_size: int = 1e5,
         batch_size: int = 100,
+        bs_num_samples = 10000,
     ):
         """
         Estimates the probability of sampling with current GFlowNet policy
@@ -860,12 +864,19 @@ class GFlowNetAgent:
             Maximum number of data points in the data set to avoid an accidental
             situation of having to sample too many backward trajectories. If necessary,
             the user should change this argument manually.
+        
+        bs_num_samples: int
+            Number of bootstrap resampling times for variance estimation of logprobs_estimates. 
+            Doesn't require recomputing of log probabilities, so can be arbitrary large
 
         Returns
         -------
         logprobs_estimates: torch.tensor
             The logarithm of the average ratio PF/PB over n trajectories sampled for
             each data point.
+
+        logprobs_var: torch.tensor
+            Bootstrap variances of the logprobs_estimates 
         """
         print("Compute logprobs...", flush=True)
         times = {}
@@ -956,8 +967,27 @@ class GFlowNetAgent:
         logprobs_estimates = torch.logsumexp(
             logprobs_f - logprobs_b, dim=1
         ) - torch.log(torch.tensor(n_trajectories, device=self.device))
+        logprobs_f_b_bs = self.bootstrap_samples(logprobs_f - logprobs_b, num_samples=bs_num_samples)
+        logprobs_estimates_bs = torch.logsumexp(
+            logprobs_f_b_bs, dim=1
+        ) - torch.log(torch.tensor(n_trajectories, device=self.device))
+        logprobs_var = torch.std(logprobs_estimates_bs, dim=-1)
+        probs_var = torch.std(torch.exp(logprobs_estimates_bs), dim=-1)
         print("Done computing logprobs", flush=True)
-        return logprobs_estimates
+        return logprobs_estimates, logprobs_var, probs_var
+    
+    @staticmethod
+    def bootstrap_samples(tensor, num_samples):
+        """
+        Bootstraps tensor along the last dimention
+        returns tensor of the shape [initial_shape, num_samples]
+        """
+        dim_size = tensor.size(-1)
+        bs_indices = torch.randint(0, dim_size, size=(num_samples*dim_size, ))
+        bs_samples = torch.index_select(tensor, -1, index=bs_indices)
+        bs_samples = bs_samples.view(tensor.size()[:-1] + (num_samples, dim_size)).transpose(-1,-2)
+        return bs_samples
+        
 
     def train(self):
         # Metrics
@@ -982,6 +1012,9 @@ class GFlowNetAgent:
                     self.corr_prob_traj_rewards,
                     self.var_logrewards_logp,
                     self.nll_tt,
+                    self.mean_logprobs_var,
+                    self.mean_probs_var,
+                    self.logprobs_var_nll_ratio,
                     figs,
                     env_metrics,
                 ) = self.test()
@@ -992,6 +1025,9 @@ class GFlowNetAgent:
                     self.corr_prob_traj_rewards,
                     self.var_logrewards_logp,
                     self.nll_tt,
+                    self.mean_logprobs_var,
+                    self.mean_probs_var,
+                    self.logprobs_var_nll_ratio,
                     it,
                     self.use_context,
                 )
@@ -1141,6 +1177,9 @@ class GFlowNetAgent:
                 self.corr_prob_traj_rewards,
                 self.var_logrewards_logp,
                 self.nll_tt,
+                self.mean_logprobs_var,
+                self.mean_probs_var,
+                self.logprobs_var_nll_ratio,
                 (None,),
                 {},
             )
@@ -1151,12 +1190,15 @@ class GFlowNetAgent:
         # Compute correlation between the rewards of the test data and the log
         # likelihood of the data according the the GFlowNet policy; and NLL.
         # TODO: organise code for better efficiency and readability
-        logprobs_x_tt = self.estimate_logprobs_data(
+        logprobs_x_tt, logprobs_var, probs_var = self.estimate_logprobs_data(
             x_tt,
             n_trajectories=self.logger.test.n_trajs_logprobs,
             max_data_size=self.logger.test.max_data_logprobs,
             batch_size=self.logger.test.logprobs_batch_size,
+            bs_num_samples=self.logger.test.logprobs_bootstrap_size
         )
+        mean_logprobs_var = logprobs_var.mean().item()
+        mean_probs_var = probs_var.mean().item()
         rewards_x_tt = self.env.reward_batch(x_tt)
         corr_prob_traj_rewards = np.corrcoef(
             np.exp(logprobs_x_tt.cpu().numpy()), rewards_x_tt
@@ -1166,6 +1208,7 @@ class GFlowNetAgent:
             - logprobs_x_tt
         ).item()
         nll_tt = -logprobs_x_tt.mean().item()
+        logprobs_var_nll_ratio = torch.mean(-logprobs_var / logprobs_x_tt).item()
 
         x_sampled = []
         if self.buffer.test_type is not None and self.buffer.test_type == "all":
@@ -1241,6 +1284,9 @@ class GFlowNetAgent:
                 corr_prob_traj_rewards,
                 var_logrewards_logp,
                 nll_tt,
+                mean_logprobs_var,
+                mean_probs_var,
+                logprobs_var_nll_ratio,
                 (None,),
                 env_metrics,
             )
@@ -1272,6 +1318,9 @@ class GFlowNetAgent:
             corr_prob_traj_rewards,
             var_logrewards_logp,
             nll_tt,
+            mean_logprobs_var,
+            mean_probs_var,
+            logprobs_var_nll_ratio,
             [fig_reward_samples, fig_kde_pred, fig_kde_true],
             {},
         )
