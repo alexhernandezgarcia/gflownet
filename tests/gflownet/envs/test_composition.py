@@ -4,6 +4,7 @@ import pytest
 import torch
 
 from gflownet.envs.crystals.composition import Composition
+from gflownet.utils.common import tlong
 
 
 @pytest.fixture
@@ -74,8 +75,8 @@ def test__environment__initializes_properly(elements):
         ),
     ],
 )
-def test__state2oracle__returns_expected_tensor(env, state, exp_tensor):
-    assert torch.equal(env.state2oracle(state), torch.Tensor(exp_tensor))
+def test__state2proxy__returns_expected_tensor(env, state, exp_tensor):
+    assert torch.equal(env.state2proxy(state), tlong(exp_tensor, device=env.device))
 
 
 def test__state2readable(env):

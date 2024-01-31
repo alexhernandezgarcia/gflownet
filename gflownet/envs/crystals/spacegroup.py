@@ -14,6 +14,7 @@ from torch import Tensor
 from torchtyping import TensorType
 
 from gflownet.envs.base import GFlowNetEnv
+from gflownet.utils.common import tlong
 from gflownet.utils.crystals.pyxtal_cache import space_group_check_compatible
 
 CRYSTAL_LATTICE_SYSTEMS = None
@@ -130,10 +131,6 @@ class SpaceGroup(GFlowNetEnv):
         # Source state: index 0 (empty) for all three properties (crystal-lattice
         # system index, point symmetry index, space group)
         self.source = [0 for _ in range(3)]
-        # Conversions
-        self.state2proxy = self.state2oracle
-        self.statebatch2proxy = self.statebatch2oracle
-        self.statetorch2proxy = self.statetorch2oracle
         # Base class init
         super().__init__(**kwargs)
 
@@ -247,65 +244,25 @@ class SpaceGroup(GFlowNetEnv):
         ]
         return mask
 
-    def state2oracle(self, state: List = None) -> Tensor:
+    def states2proxy(
+        self, states: Union[List[List], TensorType["batch", "state_dim"]]
+    ) -> TensorType["batch", "state_proxy_dim"]:
         """
-        Prepares a list of states in "GFlowNet format" for the oracle. The input to the
-        oracle is simply the space group.
+        Prepares a batch of states in "environment format" for the proxy: the proxy
+        format is simply the space group.
 
         Args
         ----
-        state : list
-            A state
+        states : list or tensor
+            A batch of states in environment format, either as a list of states or as a
+            single tensor.
 
         Returns
-        ----
-        oracle_state : Tensor
+        -------
+        A tensor containing all the states in the batch.
         """
-        if state is None:
-            state = self.state
-        if state[self.sg_idx] == 0:
-            raise ValueError(
-                "The space group must have been set in order to call the oracle"
-            )
-        return torch.tensor(state[self.sg_idx], device=self.device, dtype=torch.long)
-
-    def statebatch2oracle(
-        self, states: List[List]
-    ) -> TensorType["batch", "state_oracle_dim"]:
-        """
-        Prepares a batch of states in "GFlowNet format" for the oracle. The input to the
-        oracle is simply the space group.
-
-        Args
-        ----
-        state : list
-            A state
-
-        Returns
-        ----
-        oracle_state : Tensor
-        """
-        return self.statetorch2oracle(
-            torch.tensor(states, device=self.device, dtype=torch.long)
-        )
-
-    def statetorch2oracle(
-        self, states: TensorType["batch", "state_dim"]
-    ) -> TensorType["batch", "state_oracle_dim"]:
-        """
-        Prepares a batch of states in "GFlowNet format" for the oracle. The input to the
-        oracle is simply the space group.
-
-        Args
-        ----
-        state : list
-            A state
-
-        Returns
-        ----
-        oracle_state : Tensor
-        """
-        return torch.unsqueeze(states[:, self.sg_idx], dim=1).to(torch.long)
+        states = tlong(states, device=self.device)
+        return torch.unsqueeze(states[:, self.sg_idx], dim=1)
 
     def state2readable(self, state=None):
         """

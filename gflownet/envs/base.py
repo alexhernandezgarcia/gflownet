@@ -38,7 +38,6 @@ class GFlowNetEnv:
         energies_stats: List[int] = None,
         denorm_proxy: bool = False,
         proxy=None,
-        oracle=None,
         proxy_state_format: str = "oracle",
         fixed_distr_params: Optional[dict] = None,
         random_distr_params: Optional[dict] = None,
@@ -68,17 +67,10 @@ class GFlowNetEnv:
         self.reward_func = reward_func
         self.energies_stats = energies_stats
         self.denorm_proxy = denorm_proxy
-        # Proxy and oracle
+        # Proxy
         self.proxy = proxy
         self.setup_proxy()
-        if oracle is None:
-            self.oracle = self.proxy
-        else:
-            self.oracle = oracle
-        if self.oracle is None or self.oracle.higher_is_better:
-            self.proxy_factor = 1.0
-        else:
-            self.proxy_factor = -1.0
+        self.proxy_factor = -1.0
         self.proxy_state_format = proxy_state_format
         # Flag to skip checking if action is valid (computing mask) before step
         self.skip_mask_check = skip_mask_check
@@ -100,9 +92,6 @@ class GFlowNetEnv:
         self.random_policy_output = self.get_policy_output(self.random_distr_params)
         self.policy_output_dim = len(self.fixed_policy_output)
         self.policy_input_dim = len(self.state2policy())
-        if proxy is not None and self.proxy == self.oracle:
-            self.statebatch2proxy = self.statebatch2oracle
-            self.statetorch2proxy = self.statetorch2oracle
 
     @abstractmethod
     def get_action_space(self):
@@ -683,91 +672,75 @@ class GFlowNetEnv:
         """
         return torch.ones(self.action_space_dim, dtype=self.float, device=self.device)
 
-    def state2proxy(self, state: List = None):
+    def states2proxy(
+        self, states: Union[List[List], TensorType["batch", "state_dim"]]
+    ) -> TensorType["batch", "state_proxy_dim"]:
         """
-        Prepares a state in "GFlowNet format" for the proxy.
+        Prepares a batch of states in "environment format" for the proxy. By default,
+        the batch of states is converted into a tensor with float dtype and returned as
+        is.
+
+        Args
+        ----
+        states : list or tensor
+            A batch of states in environment format, either as a list of states or as a
+            single tensor.
+
+        Returns
+        -------
+        A tensor containing all the states in the batch.
+        """
+        return tfloat(states, device=self.device, float_type=self.float)
+
+    def state2proxy(
+        self, state: Union[List, TensorType["state_dim"]] = None
+    ) -> TensorType["state_proxy_dim"]:
+        """
+        Prepares a state in "GFlowNet format" for the proxy. By default, states2proxy
+        is called, which by default will return the state as is.
 
         Args
         ----
         state : list
             A state
         """
-        if state is None:
-            state = self.state.copy()
-        return self.statebatch2proxy([state])
+        state = self._get_state(state)
+        return torch.squeeze(self.states2proxy([state]), dim=0)
 
-    def statebatch2proxy(self, states: List[List]) -> npt.NDArray[np.float32]:
+    def states2policy(
+        self, states: Union[List, TensorType["batch", "state_dim"]]
+    ) -> TensorType["batch", "policy_input_dim"]:
         """
-        Prepares a batch of states in "GFlowNet format" for the proxy.
+        Prepares a batch of states in "environment format" for the policy model: By
+        default, the batch of states is converted into a tensor with float dtype and
+        returned as is.
+
+        Args
+        ----
+        states : list or tensor
+            A batch of states in environment format, either as a list of states or as a
+            single tensor.
+
+        Returns
+        -------
+        A tensor containing all the states in the batch.
+        """
+        return tfloat(states, device=self.device, float_type=self.float)
+
+    def state2policy(
+        self, state: Union[List, TensorType["state_dim"]] = None
+    ) -> TensorType["policy_input_dim"]:
+        """
+        Prepares a state in "GFlowNet format" for the policy model. By default,
+        states2policy is called, which by default will return the state as is.
 
         Args
         ----
         state : list
             A state
         """
-        return np.array(states)
-
-    def statetorch2proxy(
-        self, states: TensorType["batch_size", "state_dim"]
-    ) -> TensorType["batch_size", "state_proxy_dim"]:
-        """
-        Prepares a batch of states in torch "GFlowNet format" for the proxy.
-        """
-        return states
-
-    def state2oracle(self, state: List = None):
-        """
-        Prepares a state in "GFlowNet format" for the oracle.
-
-        Args
-        ----
-        state : list
-            A state
-        """
-        if state is None:
-            state = self.state.copy()
-        return state
-
-    def statebatch2oracle(self, states: List[List]):
-        """
-        Prepares a batch of states in "GFlowNet format" for the oracles
-        """
-        return states
-
-    def statetorch2policy(
-        self, states: TensorType["batch_size", "state_dim"]
-    ) -> TensorType["batch_size", "policy_input_dim"]:
-        """
-        Prepares a batch of states in torch "GFlowNet format" for the policy
-        """
-        return states
-
-    def state2policy(self, state=None):
-        """
-        Converts a state into a format suitable for a machine learning model, such as a
-        one-hot encoding.
-        """
-        if state is None:
-            state = self.state
-        return tfloat(state, float_type=self.float, device=self.device)
-
-    def statebatch2policy(
-        self, states: List[List]
-    ) -> TensorType["batch_size", "policy_input_dim"]:
-        """
-        Converts a batch of states into a format suitable for a machine learning model,
-        such as a one-hot encoding. Returns a numpy array.
-        """
-        return self.statetorch2policy(
-            tfloat(states, float_type=self.float, device=self.device)
-        )
-
-    def policy2state(self, state_policy: List) -> List:
-        """
-        Converts the model (e.g. one-hot encoding) version of a state given as
-        argument into a state.
-        """
-        return state_policy
+        state = self._get_state(state)
+        return torch.squeeze(self.states2policy([state]), dim=0)
 
     def state2readable(self, state=None):
         """
@@ -789,23 +762,26 @@ class GFlowNetEnv:
         """
         return str(traj).replace("(", "[").replace(")", "]").replace(",", "")
 
-    def reward(self, state=None, done=None):
+    def reward(self, state=None, done=None, do_non_terminating=False):
         """
         Computes the reward of a state
         """
         state = self._get_state(state)
         done = self._get_done(done)
-        if done is False:
+        if not done and not do_non_terminating:
             return tfloat(0.0, float_type=self.float, device=self.device)
-        return self.proxy2reward(self.proxy(self.state2proxy(state))[0])
+        return self.proxy2reward(
+            self.proxy(torch.unsqueeze(self.state2proxy(state), dim=0))[0]
+        )
 
+    # TODO: cleanup
     def reward_batch(self, states: List[List], done=None):
         """
         Computes the rewards of a batch of states, given a list of states and 'dones'
         """
         if done is None:
             done = np.ones(len(states), dtype=bool)
-        states_proxy = self.statebatch2proxy(states)
+        states_proxy = self.states2proxy(states)
         if isinstance(states_proxy, torch.Tensor):
             states_proxy = states_proxy[list(done), :]
         elif isinstance(states_proxy, list):
@@ -815,27 +791,11 @@ class GFlowNetEnv:
             rewards[list(done)] = self.proxy2reward(self.proxy(states_proxy)).tolist()
         return rewards
 
-    def reward_torchbatch(
-        self,
-        states: TensorType["batch_size", "state_dim"],
-        done: TensorType["batch_size"] = None,
-    ):
-        """
-        Computes the rewards of a batch of states in "GFlownet format"
-        """
-        if done is None:
-            done = torch.ones(states.shape[0], dtype=torch.bool, device=self.device)
-        states_proxy = self.statetorch2proxy(states[done, :])
-        reward = torch.zeros(done.shape[0], dtype=self.float, device=self.device)
-        if states[done, :].shape[0] > 0:
-            reward[done] = self.proxy2reward(self.proxy(states_proxy))
-        return reward
-
     def proxy2reward(self, proxy_vals):
         """
-        Prepares the output of an oracle for GFlowNet: the inputs proxy_vals is
-        expected to be a negative value (energy), unless self.denorm_proxy is True. If
-        the latter, the proxy values are first de-normalized according to the mean and
+        Prepares the output of a proxy for GFlowNet: the inputs proxy_vals is expected
+        to be a negative value (energy), unless self.denorm_proxy is True. If the
+        latter, the proxy values are first de-normalized according to the mean and
         standard deviation in self.energies_stats. The output of the function is a
         strictly positive reward - provided self.reward_norm and self.reward_beta are
         positive - and larger than self.min_reward.
@@ -878,7 +838,7 @@ class GFlowNetEnv:
     def reward2proxy(self, reward):
         """
         Converts a "GFlowNet reward" into a (negative) energy or values as returned by
-        an oracle.
+        a proxy.
         """
         if self.reward_func == "power":
             return self.proxy_factor * torch.exp(
@@ -1359,7 +1319,7 @@ class GFlowNetEnv:
         return metrics, figs, fig_names
 
     def plot_reward_distribution(
-        self, states=None, scores=None, ax=None, title=None, oracle=None, **kwargs
+        self, states=None, scores=None, ax=None, title=None, proxy=None, **kwargs
     ):
         if ax is None:
             fig, ax = plt.subplots()
@@ -1368,15 +1328,15 @@ class GFlowNetEnv:
             standalone = False
         if title == None:
             title = "Scores of Sampled States"
-        if oracle is None:
-            oracle = self.oracle
+        if proxy is None:
+            proxy = self.proxy
         if scores is None:
             if isinstance(states[0], torch.Tensor):
                 states = torch.vstack(states).to(self.device, self.float)
             if isinstance(states, torch.Tensor) == False:
                 states = torch.tensor(states, device=self.device, dtype=self.float)
-            oracle_states = self.statetorch2oracle(states)
-            scores = oracle(oracle_states)
+            states_proxy = self.states2proxy(states)
+            scores = self.proxy(states_proxy)
         if isinstance(scores, TensorType):
             scores = scores.cpu().detach().numpy()
         ax.hist(scores)

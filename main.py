@@ -60,7 +60,18 @@ def main(config):
         float_precision=config.float_precision,
         base=forward_policy,
     )
-
+    # State flow
+    if config.gflownet.state_flow is not None:
+        state_flow = hydra.utils.instantiate(
+            config.gflownet.state_flow,
+            env=env,
+            device=config.device,
+            float_precision=config.float_precision,
+            base=forward_policy,
+        )
+    else:
+        state_flow = None
+    # GFlowNet Agent
     gflownet = hydra.utils.instantiate(
         config.gflownet,
         device=config.device,
@@ -68,16 +79,19 @@ def main(config):
         env=env,
         forward_policy=forward_policy,
         backward_policy=backward_policy,
+        state_flow=state_flow,
         buffer=config.env.buffer,
         logger=logger,
     )
+
+    # Train GFlowNet
     gflownet.train()
 
     # Sample from trained GFlowNet
     if config.n_samples > 0 and config.n_samples <= 1e5:
         batch, times = gflownet.sample_batch(n_forward=config.n_samples, train=False)
         x_sampled = batch.get_terminating_states(proxy=True)
-        energies = env.oracle(x_sampled)
+        energies = env.proxy(x_sampled)
         x_sampled = batch.get_terminating_states()
         df = pd.DataFrame(
             {
