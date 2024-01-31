@@ -23,13 +23,13 @@ from gflownet.utils.batch import Batch
 from gflownet.utils.buffer import Buffer
 from gflownet.utils.common import (
     batch_with_rest,
+    bootstrap_samples,
     set_device,
     set_float_precision,
     tbool,
     tfloat,
     tlong,
     torch2np,
-    bootstrap_samples
 )
 
 
@@ -877,7 +877,10 @@ class GFlowNetAgent:
             each data point.
 
         logprobs_std: torch.tensor
-            Bootstrap variances of the logprobs_estimates
+            Bootstrap std of the logprobs_estimates
+
+        probs_std: torch.tensor
+            Bootstrap std of the torch.exp(logprobs_estimates)
         """
         print("Compute logprobs...", flush=True)
         times = {}

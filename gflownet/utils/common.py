@@ -291,6 +291,7 @@ def chdir_random_subdir():
     os.mkdir(cwd)
     os.chdir(cwd)
 
+
 def bootstrap_samples(tensor, num_samples):
     """
     Bootstraps tensor along the last dimention
