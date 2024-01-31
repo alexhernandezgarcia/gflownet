@@ -1,5 +1,6 @@
-import pytest
 import inspect
+
+import pytest
 
 
 def get_current_method_name():
