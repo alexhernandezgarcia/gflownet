@@ -191,11 +191,13 @@ def load_gflow_net_from_run_path(
     gflownet.forward_policy.model.load_state_dict(
         torch.load(forward_final, map_location=set_device(device))
     )
+    print(f"\nLoading checkpoint of forward model: {forward_final}\n")
     try:
         backward_final = find_latest_checkpoint(ckpt, config.policy.backward.checkpoint)
         gflownet.backward_policy.model.load_state_dict(
             torch.load(backward_final, map_location=set_device(device))
         )
+        print(f"\nLoading checkpoint of backward model: {backward_final}\n")
     except ValueError:
         print("No backward policy found")
     return gflownet, config
