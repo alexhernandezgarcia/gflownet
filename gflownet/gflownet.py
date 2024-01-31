@@ -867,7 +867,7 @@ class GFlowNetAgent:
             the user should change this argument manually.
 
         bs_num_samples: int
-            Number of bootstrap resampling times for variance estimation of logprobs_estimates.
+            Number of bootstrap resampling times for std estimation of logprobs_estimates.
             Doesn't require recomputing of log probabilities, so can be arbitrary large
 
         Returns
