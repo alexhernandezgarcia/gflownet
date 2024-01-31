@@ -29,6 +29,7 @@ from gflownet.utils.common import (
     tfloat,
     tlong,
     torch2np,
+    bootstrap_samples
 )
 
 
@@ -967,7 +968,7 @@ class GFlowNetAgent:
         logprobs_estimates = torch.logsumexp(
             logprobs_f - logprobs_b, dim=1
         ) - torch.log(torch.tensor(n_trajectories, device=self.device))
-        logprobs_f_b_bs = self.bootstrap_samples(
+        logprobs_f_b_bs = bootstrap_samples(
             logprobs_f - logprobs_b, num_samples=bs_num_samples
         )
         logprobs_estimates_bs = torch.logsumexp(logprobs_f_b_bs, dim=1) - torch.log(
@@ -977,20 +978,6 @@ class GFlowNetAgent:
         probs_var = torch.std(torch.exp(logprobs_estimates_bs), dim=-1)
         print("Done computing logprobs", flush=True)
         return logprobs_estimates, logprobs_var, probs_var
-
-    @staticmethod
-    def bootstrap_samples(tensor, num_samples):
-        """
-        Bootstraps tensor along the last dimention
-        returns tensor of the shape [initial_shape, num_samples]
-        """
-        dim_size = tensor.size(-1)
-        bs_indices = torch.randint(0, dim_size, size=(num_samples * dim_size,))
-        bs_samples = torch.index_select(tensor, -1, index=bs_indices)
-        bs_samples = bs_samples.view(
-            tensor.size()[:-1] + (num_samples, dim_size)
-        ).transpose(-1, -2)
-        return bs_samples
 
     def train(self):
         # Metrics
