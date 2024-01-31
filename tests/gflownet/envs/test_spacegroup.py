@@ -407,7 +407,7 @@ class TestSpaceGroupWithComposition(common.BaseTestsDiscrete):
         }
 
 
-class TestSpaceGroupWithRestrictedSubgroups(common.BaseTestsDiscrete):
+class TestSpaceGroupWithRestrictedSpaceGroups(common.BaseTestsDiscrete):
     """Common tests for SpaceGroup with restricted space groups."""
 
     @pytest.fixture(autouse=True)
