@@ -568,3 +568,6 @@ class TestTetrisCommon6X4(common.BaseTestsDiscrete):
         self.repeats = {
             "test__reset__state_is_source": 10,
         }
+        self.n_states = {
+            "test__get_parents__returns_same_state_and_eos_if_done": 100,
+        }

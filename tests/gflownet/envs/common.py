@@ -54,14 +54,16 @@ class BaseTestsCommon:
             assert action_step == action
             assert valid is False
 
-    def test__sample_actions__backward__returns_eos_if_done(self, n_repeat=1):
-        N = 5
+    def test__sample_actions__backward__returns_eos_if_done(self, n_repeat=1, n_states=5):
+
+        if _get_current_method_name() in self.n_states:
+            n_states = self.n_states[_get_current_method_name()]
 
         if _get_current_method_name() in self.repeats:
             n_repeat = self.repeats[_get_current_method_name()]
 
         for _ in range(n_repeat):
-            states = _get_terminating_states(self.env, N)
+            states = _get_terminating_states(self.env, n_states)
             if states is None:
                 warnings.warn("Skipping test because states are None.")
                 return
@@ -80,14 +82,16 @@ class BaseTestsCommon:
             )
             assert all([action == self.env.eos for action in actions])
 
-    def test__get_logprobs__backward__returns_zero_if_done(self, n_repeat=1):
-        N = 5
+    def test__get_logprobs__backward__returns_zero_if_done(self, n_repeat=1, n_states=5):
+
+        if _get_current_method_name() in self.n_states:
+            n_states = self.n_states[_get_current_method_name()]
 
         if _get_current_method_name() in self.repeats:
             n_repeat = self.repeats[_get_current_method_name()]
 
         for _ in range(n_repeat):
-            states = _get_terminating_states(self.env, N)
+            states = _get_terminating_states(self.env, n_states)
             if states is None:
                 warnings.warn("Skipping test because states are None.")
                 return
@@ -141,8 +145,10 @@ class BaseTestsCommon:
                 assert logprobs_bw > -1e6
                 state_prev = copy(state_next)  # TODO: We never use this. Remove?
 
-    def test__backward_actions_have_nonzero_forward_prob(self, n_repeat=1):
-        N = 100
+    def test__backward_actions_have_nonzero_forward_prob(self, n_repeat=1, n_states=100):
+
+        if _get_current_method_name() in self.n_states:
+            n_states = self.n_states[_get_current_method_name()]
 
         if _get_current_method_name() in self.repeats:
             n_repeat = self.repeats[_get_current_method_name()]
@@ -153,7 +159,7 @@ class BaseTestsCommon:
             if self.env.__class__.__name__ in skip_envs:
                 warnings.warn("Skipping test for this specific environment.")
                 return
-            states = _get_terminating_states(self.env, N)
+            states = _get_terminating_states(self.env, n_states)
             if states is None:
                 warnings.warn("Skipping test because states are None.")
                 return
@@ -186,14 +192,15 @@ class BaseTestsCommon:
                     assert logprobs_fw > -1e6
                     # state_prev = copy(state_next)  # TODO: Not accessed. Remove?
 
-    def test__sample_backwards_reaches_source(self, n_repeat=1):
-        N = 100
+    def test__sample_backwards_reaches_source(self, n_repeat=1, n_states=100):
+        if _get_current_method_name() in self.n_states:
+            n_states = self.n_states[_get_current_method_name()]
 
         if _get_current_method_name() in self.repeats:
             n_repeat = self.repeats[_get_current_method_name()]
 
         for _ in range(n_repeat):
-            states = _get_terminating_states(self.env, N)
+            states = _get_terminating_states(self.env, n_states)
             if states is None:
                 warnings.warn("Skipping test because states are None.")
                 return
@@ -371,14 +378,16 @@ class BaseTestsDiscrete(BaseTestsCommon):
                     assert self.env.isclose(self.env.state, state_recovered)
                 self.env.step_random()
 
-    def test__get_parents__returns_same_state_and_eos_if_done(self, n_repeat=1):
-        N = 10
+    def test__get_parents__returns_same_state_and_eos_if_done(self, n_repeat=1, n_states=10):
+
+        if _get_current_method_name() in self.n_states:
+            n_states = self.n_states[_get_current_method_name()]
 
         if _get_current_method_name() in self.repeats:
             n_repeat = self.repeats[_get_current_method_name()]
 
         for _ in range(n_repeat):
-            states = _get_terminating_states(self.env, N)
+            states = _get_terminating_states(self.env, n_states)
             if states is None:
                 warnings.warn("Skipping test because states are None.")
                 return
