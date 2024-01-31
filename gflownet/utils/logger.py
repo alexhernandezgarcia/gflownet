@@ -338,9 +338,9 @@ class Logger:
         corr_prob_traj_rewards: float,
         var_logrewards_logp: float,
         nll_tt: float,
-        mean_logprobs_var: float,
-        mean_probs_var: float,
-        logprobs_var_nll_ratio: float,
+        mean_logprobs_std: float,
+        mean_probs_std: float,
+        logprobs_std_nll_ratio: float,
         step: int,
         use_context: bool,
     ):
@@ -355,9 +355,9 @@ class Logger:
                     "Corr. (test probs., rewards)",
                     "Var(logR - logp) test",
                     "NLL of test data",
-                    "Mean Var Logprobs estimate",
-                    "Mean Var Probs estimate",
-                    "Var Logprops / NLL",
+                    "Mean BS Std(logp)",
+                    "Mean BS Std(p)",
+                    "BS Std(logp) / NLL",
                 ],
                 [
                     l1,
@@ -366,9 +366,9 @@ class Logger:
                     corr_prob_traj_rewards,
                     var_logrewards_logp,
                     nll_tt,
-                    mean_logprobs_var,
-                    mean_probs_var,
-                    logprobs_var_nll_ratio,
+                    mean_logprobs_std,
+                    mean_probs_std,
+                    logprobs_std_nll_ratio,
                 ],
             )
         )
