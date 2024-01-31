@@ -1,6 +1,7 @@
 """
 Computes evaluation metrics and plots from a pre-trained GFlowNet model.
 """
+
 import pickle
 import shutil
 import sys
@@ -13,7 +14,7 @@ from tqdm import tqdm
 
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 
-from crystalrandom import generate_random_crystals
+from crystalrandom import generate_random_crystals_uniform
 from hydra.utils import instantiate
 
 from gflownet.gflownet import GFlowNetAgent
@@ -73,6 +74,12 @@ def add_args(parser):
         default=False,
         action="store_true",
         help="Only sample from the model, do not compute metrics",
+    )
+    parser.add_argument(
+        "--random_only",
+        default=False,
+        action="store_true",
+        help="Only sample random crystals, not from GFlowNet.",
     )
     parser.add_argument(
         "--randominit",
@@ -211,7 +218,7 @@ def main(args):
     tmp_dir = output_dir / "tmp"
     tmp_dir.mkdir(parents=True, exist_ok=True)
 
-    if args.n_samples > 0 and args.n_samples <= 1e5:
+    if args.n_samples > 0 and args.n_samples <= 1e5 and not args.random_only:
         print(
             f"Sampling {args.n_samples} forward trajectories",
             f"from GFlowNet in batches of {args.sampling_batch_size}",
@@ -255,11 +262,11 @@ def main(args):
     # Sample random crystals uniformly without constraints
     if args.random_crystals and args.n_samples > 0 and args.n_samples <= 1e5:
         print(f"Sampling {args.n_samples} random crystals without constraints...")
-        x_sampled = generate_random_crystals(
+        x_sampled = generate_random_crystals_uniform(
             n_samples=args.n_samples,
             elements=config.env.composition_kwargs.elements,
-            min_elements=2,
-            max_elements=5,
+            min_elements=config.env.composition_kwargs.min_diff_elem,
+            max_elements=config.env.composition_kwargs.max_diff_elem,
             max_atoms=config.env.composition_kwargs.max_atoms,
             max_atom_i=config.env.composition_kwargs.max_atom_i,
             space_groups=config.env.space_group_kwargs.space_groups_subset,

@@ -79,7 +79,8 @@ def generate_random_crystals_uniform(
         lengths = list(np.random.uniform(low=min_length, high=max_length, size=3))
         angles = list(np.random.uniform(low=min_angle, high=max_angle, size=3))
         # State
-        state = [2] + composition + space_group + lengths + angles
+        # old format: state = [2] + composition + space_group + lengths + angles
+        state = [2, space_group, composition, lengths + angles]
         samples.append(state)
     return samples
 
