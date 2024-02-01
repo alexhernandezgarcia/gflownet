@@ -287,6 +287,7 @@ def main(args):
         df.to_csv(output_dir / "randomcrystals_samples.csv")
         dct = {"x": x_sampled, "energy": energies.tolist()}
         pickle.dump(dct, open(output_dir / "randomcrystals_samples.pkl", "wb"))
+        print("Saved random crystals samples to CSV and pickle at ", output_dir)
 
 
 if __name__ == "__main__":
