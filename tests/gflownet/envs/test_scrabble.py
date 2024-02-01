@@ -1,7 +1,7 @@
 import common
 import pytest
 
-from gflownet.envs.seqs.scrabble import Scrabble
+from gflownet.envs.scrabble import Scrabble
 
 
 @pytest.fixture
