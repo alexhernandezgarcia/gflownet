@@ -1,7 +1,7 @@
 defaults:
   - base
 
-_target_: gflownet.envs.seqs.scrabble.Scrabble
+_target_: gflownet.envs.scrabble.Scrabble
 
 id: scrabble
 # Buffer

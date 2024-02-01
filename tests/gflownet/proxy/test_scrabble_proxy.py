@@ -1,7 +1,7 @@
 import pytest
 import torch
 
-from gflownet.envs.seqs.scrabble import Scrabble
+from gflownet.envs.scrabble import Scrabble
 from gflownet.proxy.scrabble import ScrabbleScorer
 
 
