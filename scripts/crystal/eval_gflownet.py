@@ -12,7 +12,7 @@ import pandas as pd
 import torch
 from tqdm import tqdm
 
-sys.path.append(str(Path(__file__).resolve().parent.parent))
+sys.path.append(str(Path(__file__).resolve().parent.parent.parent))
 
 from crystalrandom import generate_random_crystals_uniform
 from hydra.utils import instantiate
@@ -194,7 +194,6 @@ def main(args):
     # ------------------------------------------
     # -----  Sample GFlowNet  -----
     # ------------------------------------------
-
     # Read conditional environment config, if provided
     # TODO: implement allow passing just name of config
     if args.conditional_env_config_path is not None:
