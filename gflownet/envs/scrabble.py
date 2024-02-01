@@ -69,8 +69,29 @@ class Scrabble(GFlowNetEnv):
 
     def __init__(
         self,
+        letters: Iterable = None,
+        max_length: int = 7,
+        pad_token: str = "0",
         **kwargs,
     ):
+        # Main attributes
+        if letters is None:
+            self.letters = LETTERS
+        else:
+            self.letters = letters
+        self.pad_token = pad_token
+        self.n_letters = len(self.letters)
+        self.max_length = max_length
+        self.eos_idx = -1
+        self.pad_idx = 0
+        # Dictionaries
+        self.idx2token = {idx + 1: token for idx, token in enumerate(self.letters)}
+        self.idx2token[self.pad_idx] = pad_token
+        self.token2idx = {token: idx for idx, token in self.idx2token.items()}
+        # Source state: list of length max_length filled with pad token
+        self.source = [self.pad_idx] * self.max_length
+        # End-of-sequence action
+        self.eos = (self.eos_idx,)
         # Base class init
         super().__init__(**kwargs)
 
@@ -84,42 +105,41 @@ class Scrabble(GFlowNetEnv):
         The action space of this parent class is:
             action_space: [(0,), (1,), (-1,)]
         """
-        pass
+        return [(self.token2idx[token],) for token in self.letters] + [(self.eos_idx,)]
 
-    def step(
-        self, action: Tuple[int], skip_mask_check: bool = False
-    ) -> [List[int], Tuple[int], bool]:
+    def get_mask_invalid_actions_forward(
+        self,
+        state: Optional[List[int]] = None,
+        done: Optional[bool] = None,
+    ) -> List[bool]:
         """
-        Executes step given an action.
+        Returns a list of length the action space with values:
+            - True if the forward action is invalid from the current state.
+            - False otherwise.
 
         Args
         ----
-        action : tuple
-            Action to be executed. An action is a tuple int values indicating the
-            dimensions to increment by 1.
+        state : tensor
+            Input state. If None, self.state is used.
 
-        skip_mask_check : bool
-            If True, skip computing forward mask of invalid actions to check if the
-            action is valid.
+        done : bool
+            Whether the trajectory is done. If None, self.done is used.
 
         Returns
         -------
-        self.state : list
-            The sequence after executing the action
-
-        action : tuple
-            Action executed
-
-        valid : bool
-            False, if the action is not allowed for the current state.
+        A list of boolean values.
         """
-        # Generic pre-step checks
-        do_step, self.state, action = self._pre_step(
-            action, skip_mask_check or self.skip_mask_check
-        )
-        if not do_step:
-            return self.state, action, False
-        pass
+        state = self._get_state(state)
+        done = self._get_done(done)
+        if done:
+            return [True for _ in range(self.action_space_dim)]
+        # If sequence is not at maximum length, all actions are valid
+        if state[-1] == self.pad_idx:
+            return [False for _ in range(self.action_space_dim)]
+        # Otherwise, only EOS is valid
+        mask = [True for _ in range(self.action_space_dim)]
+        mask[self.action_space.index(self.eos)] = False
+        return mask
 
     def get_parents(
         self,
@@ -155,33 +175,58 @@ class Scrabble(GFlowNetEnv):
         """
         state = self._get_state(state)
         done = self._get_done(done)
-        pass
+        if done:
+            return [state], [self.eos]
+        if self.equal(state, self.source):
+            return [], []
+        pos_last_letter = self._get_seq_length(state) - 1
+        parent = copy(state)
+        parent[pos_last_letter] = self.pad_idx
+        p_action = (state[pos_last_letter],)
+        return [parent], [p_action]
 
-    def get_mask_invalid_actions_forward(
-        self,
-        state: Optional[List[int]] = None,
-        done: Optional[bool] = None,
-    ) -> List[bool]:
+    def step(
+        self, action: Tuple[int], skip_mask_check: bool = False
+    ) -> [List[int], Tuple[int], bool]:
         """
-        Returns a list of length the action space with values:
-            - True if the forward action is invalid from the current state.
-            - False otherwise.
+        Executes step given an action.
 
         Args
         ----
-        state : tensor
-            Input state. If None, self.state is used.
+        action : tuple
+            Action to be executed. An action is a tuple int values indicating the
+            dimensions to increment by 1.
 
-        done : bool
-            Whether the trajectory is done. If None, self.done is used.
+        skip_mask_check : bool
+            If True, skip computing forward mask of invalid actions to check if the
+            action is valid.
 
         Returns
         -------
-        A list of boolean values.
+        self.state : list
+            The sequence after executing the action
+
+        action : tuple
+            Action executed
+
+        valid : bool
+            False, if the action is not allowed for the current state.
         """
-        state = self._get_state(state)
-        done = self._get_done(done)
-        pass
+        # Generic pre-step checks
+        do_step, self.state, action = self._pre_step(
+            action, skip_mask_check or self.skip_mask_check
+        )
+        if not do_step:
+            return self.state, action, False
+        valid = True
+        self.n_actions += 1
+        # If action is EOS, set done to True and return state as is
+        if action == self.eos:
+            self.done = True
+            return self.state, action, valid
+        # Update state
+        self.state[self._get_seq_length()] = action[0]
+        return self.state, action, valid
 
     def states2proxy(
         self, states: Union[List[List[int]], List[TensorType["max_length"]]]
@@ -200,7 +245,7 @@ class Scrabble(GFlowNetEnv):
         -------
         A list containing all the states in the batch, represented themselves as lists.
         """
-        pass
+        return tlong(states, device=self.device)
 
     def states2policy(
         self, states: Union[List[List[int]], List[TensorType["max_length"]]]
@@ -219,7 +264,12 @@ class Scrabble(GFlowNetEnv):
         -------
         A tensor containing all the states in the batch.
         """
-        pass
+        states = tlong(states, device=self.device)
+        return (
+            F.one_hot(states, self.n_letters + 1)
+            .reshape(states.shape[0], -1)
+            .to(self.float)
+        )
 
     def state2readable(self, state: List[int] = None) -> str:
         """
@@ -238,7 +288,8 @@ class Scrabble(GFlowNetEnv):
         A string of space-separated letters.
         """
         state = self._get_state(state)
-        pass
+        state = self._unpad(state)
+        return "".join([str(self.idx2token[idx]) + " " for idx in state])[:-1]
 
     def readable2state(self, readable: str) -> List[int]:
         """
@@ -253,7 +304,11 @@ class Scrabble(GFlowNetEnv):
         -------
         A tensor containing the indices of the letters.
         """
-        pass
+        if readable == "":
+            return self.source
+        return self._pad(
+            [self.token2idx[token] for token in readable.split(" ")]
+        )
 
     def get_uniform_terminating_states(
         self, n_states: int, seed: int = None
@@ -272,7 +327,7 @@ class Scrabble(GFlowNetEnv):
         """
         n_letters = len(self.letters)
         n_per_length = tlong(
-            [n_letters ** length for length in range(1, self.max_length + 1)],
+            [n_letters**length for length in range(1, self.max_length + 1)],
             device=self.device,
         )
         lengths = Categorical(logits=n_per_length.repeat(n_states, 1)).sample() + 1
@@ -331,4 +386,7 @@ class Scrabble(GFlowNetEnv):
         Length of the sequence, without counting the padding.
         """
         state = self._get_state(state)
-        pass
+        if state[-1] == self.pad_idx:
+            return state.index(self.pad_idx)
+        else:
+            return len(state)
