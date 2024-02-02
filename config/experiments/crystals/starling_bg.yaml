@@ -102,7 +102,7 @@ proxy:
   release: 1.0.0 # Bandgap release
   mb_gap_target: 1.34 # https://mila-umontreal.slack.com/archives/C04SC06HCTH/p1706213674295289
   amplitude: 1
-  gamma: 1
+  gamma: 8
 
 # WandB
 logger:
