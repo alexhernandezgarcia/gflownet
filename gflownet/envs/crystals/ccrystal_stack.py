@@ -151,14 +151,12 @@ class CCrystal(Stack):
 
     # TODO: this could eventually be moved to Stack
     def process_data_set(self, data: List[List]) -> List[List]:
-        is_valid_list = []
+        data_valid = []
         for x in data:
-            is_valid_list.append(
-                all(
-                    [
-                        subenv.is_valid(self._get_substate(x, stage))
-                        for stage, subenv in self.subenvs.items()
-                    ]
-                )
-            )
-        return [x for x, is_valid in zip(data, is_valid_list) if is_valid]
+            is_valid_subenvs = [
+                subenv.is_valid(self._get_substate(x, stage))
+                for stage, subenv in self.subenvs.items()
+            ]
+            if all(is_valid_subenvs):
+                data_valid.append(x)
+        return data_valid
