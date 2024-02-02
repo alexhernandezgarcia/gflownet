@@ -198,6 +198,9 @@ def main(args):
     # Read conditional environment config, if provided
     # TODO: implement allow passing just name of config
     if args.conditional_env_config_path is not None:
+        print(
+            f"Reading conditional environment config from {args.conditional_env_config_path}"
+        )
         config_cond_env = read_hydra_config(
             config_name=args.conditional_env_config_path
         )
@@ -324,6 +327,7 @@ def main(args):
         df.to_csv(output_dir / "randomcrystals_samples.csv")
         dct = {"x": x_sampled, "energy": energies.tolist()}
         pickle.dump(dct, open(output_dir / "randomcrystals_samples.pkl", "wb"))
+        print("Saved random crystals samples to CSV and pickle at ", output_dir)
 
 
 if __name__ == "__main__":
