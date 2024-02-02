@@ -9,6 +9,7 @@ from argparse import ArgumentParser
 from pathlib import Path
 
 import pandas as pd
+import numpy as np
 import torch
 from tqdm import tqdm
 
@@ -217,6 +218,39 @@ def main(args):
     tmp_dir = output_dir / "tmp"
     tmp_dir.mkdir(parents=True, exist_ok=True)
 
+    ### BANDGAP SPECIFIC ###
+    # If the proxy is bandgap, make is_bandgap flag false so as not to apply the
+    # transformation of the outputs and instead obtain the predicted bandgap as
+    # "energy"
+    if "DAVE" in config.proxy._target_ and env.proxy.is_bandgap:
+        env.proxy.is_bandgap = False
+
+        # Test
+#         samples = [env.readable2state(readable) for readable in gflownet.buffer.test["samples"]]
+#         energies = env.proxy(env.states2proxy(samples))
+#         df = pd.DataFrame(
+#             {
+#                 "readable": gflownet.buffer.test["samples"],
+#                 "energies": energies.tolist(),
+#             }
+#         )
+#         df.to_csv(output_dir / f"val.csv")
+#         dct = {"x": samples, "energy": energies.tolist()}
+#         pickle.dump(dct, open(output_dir / f"val.pkl", "wb"))
+# 
+#         # Train
+#         samples = [env.readable2state(readable) for readable in gflownet.buffer.train["samples"]]
+#         energies = env.proxy(env.states2proxy(samples))
+#         df = pd.DataFrame(
+#             {
+#                 "readable": gflownet.buffer.train["samples"],
+#                 "energies": energies.tolist(),
+#             }
+#         )
+#         df.to_csv(output_dir / f"train.csv")
+#         dct = {"x": samples, "energy": energies.tolist()}
+#         pickle.dump(dct, open(output_dir / f"train.pkl", "wb"))
+
     if args.n_samples > 0 and args.n_samples <= 1e5 and not args.random_only:
         print(
             f"Sampling {args.n_samples} forward trajectories",
@@ -250,6 +284,12 @@ def main(args):
             tmp_dict = pickle.load(open(f, "rb"))
             dct = {k: v + tmp_dict[k] for k, v in dct.items()}
         pickle.dump(dct, open(output_dir / f"{prefix}_samples.pkl", "wb"))
+
+        # Prints
+        proxy_vals = np.array(dct["energy"])
+        print(f"Mean proxy: {np.mean(proxy_vals)}")
+        print(f"Std proxy: {np.std(proxy_vals)}")
+        print(f"Median proxy: {np.median(proxy_vals)}")
 
         if "y" in input("Delete temporary files? (y/n)"):
             shutil.rmtree(tmp_dir)
