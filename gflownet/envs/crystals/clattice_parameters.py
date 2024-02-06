@@ -7,7 +7,7 @@ import torch
 from torch import Tensor
 from torchtyping import TensorType
 
-from gflownet.envs.cube import ContinuousCube
+from gflownet.envs.cube import ContinuousCube, ContinuousCubeSingleDimIncrement
 from gflownet.utils.common import copy, tfloat
 from gflownet.utils.crystals.constants import (
     CUBIC,
@@ -233,6 +233,500 @@ class CLatticeParameters(ContinuousCube):
                 state[idx] = getattr(self, f"{param}_state")
         self.state = copy(state)
         return self.state, action, valid
+
+    def _unpack_lengths_angles(
+        self, state: Optional[List[int]] = None
+    ) -> Tuple[Tuple, Tuple]:
+        """
+        Helper that 1) unpacks values coding lengths and angles from the state or from
+        the attributes of the instance and 2) converts them to actual edge lengths and
+        angles in the target units (angstroms or degrees).
+        """
+        state = self._get_state(state)
+
+        a, b, c, alpha, beta, gamma = [
+            self._get_param(state, p) for p in PARAMETER_NAMES
+        ]
+        return (a, b, c), (alpha, beta, gamma)
+
+    def state2readable(self, state: Optional[List[int]] = None) -> str:
+        """
+        Converts the state into a human-readable string in the format "(a, b, c),
+        (alpha, beta, gamma)".
+        """
+        state = self._get_state(state)
+
+        lengths, angles = self._unpack_lengths_angles(state)
+        return f"{lengths}, {angles}"
+
+    def readable2state(self, readable: str) -> List[int]:
+        """
+        Converts a human-readable representation of a state into the standard format.
+        """
+        state = copy(self.source)
+
+        for c in ["(", ")", " "]:
+            readable = readable.replace(c, "")
+        values = readable.split(",")
+        values = [float(value) for value in values]
+
+        for param, value in zip(PARAMETER_NAMES, values):
+            state = self._set_param(state, param, value)
+        return state
+
+    def state2policy(self, state: Optional[List[float]] = None) -> Tensor:
+        """
+        Simply returns a torch tensor of the state as is, in the range [0, 1].
+        """
+        state = self._get_state(state)
+        return tfloat(state, float_type=self.float, device=self.device)
+
+    def statebatch2policy(
+        self, states: List[List]
+    ) -> TensorType["batch", "state_proxy_dim"]:
+        """
+        Simply returns a torch tensor of the states as are, in the range [0, 1], by
+        calling statetorch2policy.
+        """
+        return self.statetorch2policy(
+            tfloat(states, device=self.device, float_type=self.float)
+        )
+
+    def statetorch2policy(
+        self, states: TensorType["batch", "state_dim"] = None
+    ) -> TensorType["batch", "policy_input_dim"]:
+        """
+        Simply returns the states as are, in the range [0, 1].
+        """
+        return states
+
+    def state2oracle(self, state: Optional[List[float]] = None) -> Tensor:
+        """
+        Maps [0; 1] state values to edge lengths and angles.
+        """
+        state = self._get_state(state)
+
+        return tfloat(
+            [self._get_param(state, p) for p in PARAMETER_NAMES],
+            float_type=self.float,
+            device=self.device,
+        )
+
+    def statebatch2oracle(
+        self, states: List[List]
+    ) -> TensorType["batch", "state_oracle_dim"]:
+        """
+        Maps [0; 1] state values to edge lengths and angles.
+        """
+        return self.statetorch2oracle(
+            tfloat(states, device=self.device, float_type=self.float)
+        )
+
+    def statetorch2oracle(
+        self, states: TensorType["batch", "state_dim"] = None
+    ) -> TensorType["batch", "oracle_input_dim"]:
+        """
+        Maps [0; 1] state values to edge lengths and angles.
+        """
+        return torch.cat(
+            [
+                self._statevalue2length(states[:, :3]),
+                self._statevalue2angle(states[:, 3:]),
+            ],
+            dim=1,
+        )
+
+    def state2proxy(self, state: Optional[List[int]] = None) -> Tensor:
+        """
+        Returns state2oracle(state).
+        """
+        return self.state2oracle(state)
+
+    def statebatch2proxy(
+        self, states: List[List]
+    ) -> TensorType["batch", "state_oracle_dim"]:
+        """
+        Returns statebatch2oracle(states).
+        """
+        return self.statebatch2oracle(states)
+
+    def statetorch2proxy(
+        self, states: TensorType["batch", "state_dim"]
+    ) -> TensorType["batch", "state_oracle_dim"]:
+        """
+        Returns statetorch2oracle(states).
+        """
+        return self.statetorch2oracle(states)
+
+    def is_valid(self, x: List) -> bool:
+        """
+        Determines whether a state is valid, according to the attributes of the
+        environment.
+        """
+        lengths, angles = self._unpack_lengths_angles(x)
+        # Check lengths
+        if any([l < self.min_length or l > self.max_length for l in lengths]):
+            return False
+        if any([l < self.min_angle or l > self.max_angle for l in angles]):
+            return False
+
+        # If all checks are passed, return True
+        return True
+
+
+class CLatticeParametersSingleDimIncrement(ContinuousCubeSingleDimIncrement):
+    """
+    Continuous lattice parameters environment for crystal structures generation.
+
+    This vaciant of the Continuous lattice parameters environment only allows
+    incrementing one dimension of the hypercube at a time which permits the
+    enforcement of additional correctness constraints on the environment state to
+    prevent, for instance, sampling 3 angles which would be incompatible between them
+    because one would be larger than the sum of the other two angles.
+
+    Models lattice parameters (three edge lengths and three angles describing unit
+    cell) with the constraints given by the provided lattice system (see
+    https://en.wikipedia.org/wiki/Bravais_lattice). This is implemented by inheriting
+    from the (continuous) cube environment, creating a mapping between cell position
+    and edge length or angle, and imposing lattice system constraints on their values.
+
+    The environment is a hyper cube of dimensionality 6 (the number of lattice
+    parameters), but it takes advantage of the mask of ignored dimensions implemented
+    in the Cube environment.
+
+    The values of the state will remain in the default [0, 1] range of the Cube, but
+    they are mapped to [min_length, max_length] in the case of the lengths and
+    [min_angle, max_angle] in the case of the angles.
+    """
+
+    def __init__(
+        self,
+        lattice_system: str,
+        min_length: Optional[float] = 1.0,
+        max_length: Optional[float] = 350.0,
+        min_angle: Optional[float] = 50.0,
+        max_angle: Optional[float] = 150.0,
+        **kwargs,
+    ):
+        """
+        Args
+        ----
+        lattice_system : str
+            One of the seven lattice systems. By default, the triclinic lattice system
+            is used, which has no constraints.
+
+        min_length : float
+            Minimum value of the lengths.
+
+        max_length : float
+            Maximum value of the lengths.
+
+        min_angle : float
+            Minimum value of the angles.
+
+        max_angle : float
+            Maximum value of the angles.
+        """
+        self.continuous = True
+        self.lattice_system = lattice_system
+        self.min_length = min_length
+        self.max_length = max_length
+        self.length_range = self.max_length - self.min_length
+        self.min_angle = min_angle
+        self.max_angle = max_angle
+        self.angle_range = self.max_angle - self.min_angle
+        self._setup_constraints()
+        super().__init__(n_dim=6, **kwargs)
+
+    def _statevalue2length(self, value):
+        # If value is -1 (source value), keep as is. Otherwise do the transformation
+        length = self.min_length + value * self.length_range
+        return (value == -1) * -1 + (value != -1) * length
+
+    def _length2statevalue(self, length):
+        # If length is -1 (source value), keep as is. Otherwise do the transformation
+        value = (length - self.min_length) / self.length_range
+        return (length == -1) * -1 + (length != -1) * value
+
+    def _statevalue2angle(self, value):
+        angle = self.min_angle + value * self.angle_range
+        return (value == -1) * -1 + (value != -1) * angle
+
+    def _angle2statevalue(self, angle):
+        value = (angle - self.min_angle) / self.angle_range
+        return (angle == -1) * -1 + (angle != -1) * value
+
+    def _get_param(self, state, param):
+        if hasattr(self, param):
+            return getattr(self, param)
+        else:
+            if param in LENGTH_PARAMETER_NAMES:
+                return self._statevalue2length(state[self._get_index_of_param(param)])
+            elif param in ANGLE_PARAMETER_NAMES:
+                return self._statevalue2angle(state[self._get_index_of_param(param)])
+            else:
+                raise ValueError(f"{param} is not a valid lattice parameter")
+
+    def _set_param(self, state, param, value):
+        param_idx = self._get_index_of_param(param)
+        if param_idx is not None:
+            if param in LENGTH_PARAMETER_NAMES:
+                state[param_idx] = self._length2statevalue(value)
+            elif param in ANGLE_PARAMETER_NAMES:
+                state[param_idx] = self._angle2statevalue(value)
+            else:
+                raise ValueError(f"{param} is not a valid lattice parameter")
+        return state
+
+    def _get_index_of_param(self, param):
+        param_idx = f"{param}_idx"
+        if hasattr(self, param_idx):
+            return getattr(self, param_idx)
+        else:
+            return None
+
+    def set_lattice_system(self, lattice_system: str):
+        """
+        Sets the lattice system of the unit cell and updates the constraints.
+        """
+        self.lattice_system = lattice_system
+        self._setup_constraints()
+
+    def _setup_constraints(self):
+        """
+        Computes the mask of ignored dimensions, given the constraints imposed by the
+        lattice system. Sets self.ignored_dims.
+        """
+        # Lengths: a, b, c
+        # a == b == c
+        if self.lattice_system in [CUBIC, RHOMBOHEDRAL]:
+            lengths_ignored_dims = [False, True, True]
+            self.a_idx = 0
+            self.b_idx = 0
+            self.c_idx = 0
+        # a == b != c
+        elif self.lattice_system in [HEXAGONAL, TETRAGONAL]:
+            lengths_ignored_dims = [False, True, False]
+            self.a_idx = 0
+            self.b_idx = 0
+            self.c_idx = 1
+        # a != b and a != c and b != c
+        elif self.lattice_system in [MONOCLINIC, ORTHORHOMBIC, TRICLINIC]:
+            lengths_ignored_dims = [False, False, False]
+            self.a_idx = 0
+            self.b_idx = 1
+            self.c_idx = 2
+        else:
+            raise NotImplementedError
+        # Angles: alpha, beta, gamma
+        # alpha == beta == gamma == 90.0
+        if self.lattice_system in [CUBIC, ORTHORHOMBIC, TETRAGONAL]:
+            angles_ignored_dims = [True, True, True]
+            self.alpha_idx = None
+            self.alpha = 90.0
+            self.alpha_state = self._angle2statevalue(self.alpha)
+            self.beta_idx = None
+            self.beta = 90.0
+            self.beta_state = self._angle2statevalue(self.beta)
+            self.gamma_idx = None
+            self.gamma = 90.0
+            self.gamma_state = self._angle2statevalue(self.gamma)
+        #  alpha == beta == 90.0 and gamma == 120.0
+        elif self.lattice_system == HEXAGONAL:
+            angles_ignored_dims = [True, True, True]
+            self.alpha_idx = None
+            self.alpha = 90.0
+            self.alpha_state = self._angle2statevalue(self.alpha)
+            self.beta_idx = None
+            self.beta = 90.0
+            self.beta_state = self._angle2statevalue(self.beta)
+            self.gamma_idx = None
+            self.gamma = 120.0
+            self.gamma_state = self._angle2statevalue(self.gamma)
+        # alpha == gamma == 90.0 and beta != 90.0
+        elif self.lattice_system == MONOCLINIC:
+            angles_ignored_dims = [True, False, True]
+            self.alpha_idx = None
+            self.alpha = 90.0
+            self.alpha_state = self._angle2statevalue(self.alpha)
+            self.beta_idx = 4
+            self.gamma_idx = None
+            self.gamma = 90.0
+            self.gamma_state = self._angle2statevalue(self.gamma)
+        # alpha == beta == gamma != 90.0
+        elif self.lattice_system == RHOMBOHEDRAL:
+            angles_ignored_dims = [False, True, True]
+            self.alpha_idx = 3
+            self.beta_idx = 3
+            self.gamma_idx = 3
+        # alpha != beta, alpha != gamma, beta != gamma
+        elif self.lattice_system == TRICLINIC:
+            angles_ignored_dims = [False, False, False]
+            self.alpha_idx = 3
+            self.beta_idx = 4
+            self.gamma_idx = 5
+        else:
+            raise NotImplementedError
+        self.ignored_dims = lengths_ignored_dims + angles_ignored_dims
+
+    def update_ignored_dims(self, state):
+        """
+        Updates the dimensions of the state corresponding to the ignored dimensions
+        based on the values of the dimensions that are not ignored.
+
+        Args
+        ----
+        state : list
+            Environment state vector
+
+        Returns
+        -------
+        state : list
+            Environment state vector with updated ignored dimensions
+        """
+        state = state.copy()
+        for idx, (param, is_ignored) in enumerate(
+            zip(PARAMETER_NAMES, self.ignored_dims)
+        ):
+            if not is_ignored:
+                continue
+            param_idx = self._get_index_of_param(param)
+            if param_idx is not None:
+                state[idx] = state[param_idx]
+            else:
+                state[idx] = getattr(self, f"{param}_state")
+
+        return state
+
+    def step(self, action: Tuple[float]) -> Tuple[List[float], Tuple[int, float], bool]:
+        """
+        Executes step given an action.
+
+        Args
+        ----
+        action : tuple
+            Action to be executed. The first element is the type of action
+            (selecting/incrementing/deselecting a dimension). The second element is
+            the value of the action (the dimension to select/deselect or the value
+            of the increment). The third element is only used for increment actions
+            and indicates whether the selected dimension to increment is currently in
+            its source state.
+
+        Returns
+        -------
+        self.state : list
+            The sequence after executing the action
+
+        action : int
+            Action executed
+
+        valid : bool
+            False, if the action is not allowed for the current state, e.g. stop at the
+            root state
+        """
+        state, action, valid = super().step(action)
+        state = self.update_ignored_dims(state)
+        self.state = copy(state)
+        return self.state, action, valid
+
+    def step_backwards(
+        self, action: Tuple[int, float]
+    ) -> Tuple[List[float], Tuple[int, float], bool]:
+        """
+        Executes backward step given an action.
+
+        Args
+        ----
+        action : tuple
+            Action to be executed. The first element is the type of action
+            (selecting/incrementing/deselecting a dimension). The second element is
+            the value of the action (the dimension to select/deselect or the value
+            of the increment). The third element is only used for increment actions
+            and indicates whether the selected dimension to increment is currently in
+            its source state.
+
+        Returns
+        -------
+        self.state : list
+            The sequence after executing the action
+
+        action : int
+            Action executed
+
+        valid : bool
+            False, if the action is not allowed for the current state, e.g. stop at the
+            root state
+        """
+        state, action, valid = super().step_backwards(action)
+        state = self.update_ignored_dims(state)
+        self.state = copy(state)
+        return self.state, action, valid
+
+    def step_random(self, backward: bool = False):
+        """
+        Samples a random action and executes the step.
+
+        Returns
+        -------
+        state : list
+            The state after executing the action.
+
+        action : int
+            Action, randomly sampled.
+
+        valid : bool
+            False, if the action is not allowed for the current state.
+        """
+        state, action, valid = super().step_random(backward=backward)
+        state = self.update_ignored_dims(state)
+        self.state = copy(state)
+        return self.state, action, valid
+
+    def get_angle_constraints_max_increment(self, state: list, angle_idx):
+        _, angles = self._unpack_lengths_angles(state)
+
+        angle_indices = [self.alpha_idx, self.beta_idx, self.gamma_idx]
+        sum_of_angles = sum(angles)
+
+        max_increment_by_angle = []
+        for i in range(len(angles)):
+            angle_value = angles[i]
+            angle_index = angle_indices[i]
+
+            # Get max increment for angle
+            if angle_indices[i] is None:
+                # This angle is fixed and therefore can't be incremented
+                max_increment = 0.0
+            else:
+                # Determine how many other angles are tied to this anglee (and will thus
+                # change if this angle changes)
+                nb_tied_angles = sum([idx == angle_index for idx in angle_indices]) - 1
+
+                # Determine what the max increment can be to ensure that the angle doesn't
+                # go over self.max_angle
+                max_increment_max_angle = max(self.max_angle - angle_value, 0)
+
+                # Determine what the max increment can be to ensure that the sum of angles
+                # doesn't go over 360. This number considers other angles that might be
+                # automatically incremented as a result of incrementing this angle
+                max_increment_360degrees = (360 - sum_of_angles) / (1 + nb_tied_angles)
+
+                # Determine what the max increment can be to ensure that this angle doesn't
+                # end up larger than the sum of the other angles.
+                # Special case : with other angles tied to this one, there's no way that this
+                # constraint can be violated so, in that case, there is no limit on the
+                # increment that stem from this constraint
+                max_increment_sum = np.inf
+                if nb_tied_angles == 0:
+                    max_increment_sum = max(sum_of_angles - 2 * angle_value, 0)
+
+                max_increment = min(
+                    max_increment_max_angle, max_increment_360degrees, max_increment_sum
+                )
+
+            max_increment_by_angle.append(max_increment)
+
+        return max_increment_by_angle
 
     def _unpack_lengths_angles(
         self, state: Optional[List[int]] = None
