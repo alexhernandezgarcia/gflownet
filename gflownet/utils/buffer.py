@@ -276,7 +276,7 @@ class Buffer:
         n: int,
         mode: str = "permutation",
         rng: np.random.Generator = None,
-    ):
+    ) -> List:
         """
         Selects a subset of n data points from data_dict, according to the criterion
         indicated by mode.
