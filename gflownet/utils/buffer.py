@@ -1,6 +1,7 @@
 """
 Buffer class to handle train and test data sets, reply buffer, etc.
 """
+
 import pickle
 
 import numpy as np
@@ -270,7 +271,39 @@ class Buffer:
         return mean_data, std_data, min_data, max_data, max_norm_data
 
     @staticmethod
-    def select(data_dict: dict, n: int, mode: str = "permutation", rng=None):
+    def select(
+        data_dict: dict,
+        n: int,
+        mode: str = "permutation",
+        rng: np.random.Generator = None,
+    ):
+        """
+        Selects a subset of n data points from data_dict, according to the criterion
+        indicated by mode.
+
+        The data dict may be a training set or a replay buffer.
+
+        The mode argument can be one of the following:
+            - permutation: data points are sampled uniformly from the dictionary, using
+              the random generator rng.
+            - weighted: data points are sampled with probability proportional to their
+              score.
+
+        Args
+        ----
+        data_dict : dict
+            A dictionary with samples (key "x") and scores (key "energy" or "rewards").
+
+        n : int
+            The number of samples to select from the dictionary.
+
+        mode : str
+            Sampling mode. Options: permutation, weighted.
+
+        rng : np.random.Generator
+            A numpy random number generator, used for the permutation mode. Ignored
+            otherwise.
+        """
         if n == 0:
             return []
         samples = data_dict["x"]
