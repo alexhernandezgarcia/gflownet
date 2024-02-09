@@ -290,3 +290,17 @@ def chdir_random_subdir():
     cwd += "/%08x" % random.getrandbits(32)
     os.mkdir(cwd)
     os.chdir(cwd)
+
+
+def bootstrap_samples(tensor, num_samples):
+    """
+    Bootstraps tensor along the last dimention
+    returns tensor of the shape [initial_shape, num_samples]
+    """
+    dim_size = tensor.size(-1)
+    bs_indices = torch.randint(0, dim_size, size=(num_samples * dim_size,))
+    bs_samples = torch.index_select(tensor, -1, index=bs_indices)
+    bs_samples = bs_samples.view(
+        tensor.size()[:-1] + (num_samples, dim_size)
+    ).transpose(-1, -2)
+    return bs_samples
