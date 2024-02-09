@@ -1,6 +1,7 @@
 """
 Classes to represent hyper-torus environments
 """
+
 import itertools
 from typing import List, Optional, Tuple
 

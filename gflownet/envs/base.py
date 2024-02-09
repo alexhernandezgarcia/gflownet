@@ -1,6 +1,7 @@
 """
 Base class of GFlowNet environments
 """
+
 import uuid
 from abc import abstractmethod
 from copy import deepcopy
