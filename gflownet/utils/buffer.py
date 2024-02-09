@@ -303,6 +303,11 @@ class Buffer:
         rng : np.random.Generator
             A numpy random number generator, used for the permutation mode. Ignored
             otherwise.
+
+        Returns
+        -------
+        list
+            A batch of n samples, selected from data_dict.
         """
         if n == 0:
             return []
