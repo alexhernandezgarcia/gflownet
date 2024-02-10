@@ -24,6 +24,8 @@ authors:
     family-names: Carrier
   - given-names: Victor
     family-names: Schmidt
+  - given-names: Joseph
+    family-names: D Viviano
 repository-code: 'https://github.com/alexhernandezgarcia/gflownet'
 abstract: >-
   This repository implements GFlowNets, generative flow
