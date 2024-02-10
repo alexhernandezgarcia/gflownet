@@ -1,6 +1,7 @@
 """
 Classes to represent a hyper-grid environments
 """
+
 import itertools
 from typing import List, Optional, Tuple, Union
 

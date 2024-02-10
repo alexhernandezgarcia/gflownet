@@ -358,9 +358,9 @@ class ForwardTreeModel(torch.nn.Module):
                 logits[indices, self.leaf_index : self.feature_index] = y_leaf
                 logits[indices, self.eos_index] = y_eos
             elif stage == Stage.LEAF:
-                logits[
-                    indices, self.feature_index : self.threshold_index
-                ] = self.feature_head(batch)
+                logits[indices, self.feature_index : self.threshold_index] = (
+                    self.feature_head(batch)
+                )
             else:
                 ks = [Tree.find_active(state) for state in states]
                 feature_index = torch.Tensor(
@@ -375,9 +375,9 @@ class ForwardTreeModel(torch.nn.Module):
                     if self.continuous:
                         logits[indices, (self.eos_index + 1) :] = head_output
                     else:
-                        logits[
-                            indices, self.threshold_index : self.operator_index
-                        ] = head_output
+                        logits[indices, self.threshold_index : self.operator_index] = (
+                            head_output
+                        )
                 elif stage == Stage.THRESHOLD:
                     threshold = torch.Tensor(
                         [
@@ -465,14 +465,14 @@ class BackwardTreeModel(torch.nn.Module):
             )
 
             if stage == Stage.COMPLETE:
-                logits[
-                    indices, self.operator_index : self.eos_index
-                ] = self.complete_stage_head(batch)
+                logits[indices, self.operator_index : self.eos_index] = (
+                    self.complete_stage_head(batch)
+                )
                 logits[indices, self.eos_index] = 1.0
             elif stage == Stage.LEAF:
-                logits[
-                    indices, self.leaf_index : self.feature_index
-                ] = self.leaf_stage_head(batch)
+                logits[indices, self.leaf_index : self.feature_index] = (
+                    self.leaf_stage_head(batch)
+                )
             elif stage == Stage.FEATURE:
                 logits[indices, self.feature_index : self.threshold_index] = 1.0
             elif stage == Stage.THRESHOLD:

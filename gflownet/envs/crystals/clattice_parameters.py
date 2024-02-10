@@ -1,6 +1,7 @@
 """
 Classes to represent continuous lattice parameters environments.
 """
+
 from typing import List, Optional, Tuple, Union
 
 import torch
