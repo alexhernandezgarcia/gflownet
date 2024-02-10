@@ -66,7 +66,7 @@ Bibtex Format
 
 ```txt
 @misc{hernandez-garcia2024,
-  author = {Hernandez-Garcia, Alex and Saxena, Nikita and Volokhova, Alexandra and Koziarski, Michał and Sharma, Divya and Carrier, Pierre Luc and Schmidt, Victor},
+  author = {Hernandez-Garcia, Alex and Saxena, Nikita and Volokhova, Alexandra and Koziarski, Michał and Sharma, Divya and Viviano, Joseph D and Carrier, Pierre Luc and Schmidt, Victor},
   title  = {gflownet},
   url    = {https://github.com/alexhernandezgarcia/gflownet},
   year   = {2024},
