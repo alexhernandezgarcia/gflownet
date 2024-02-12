@@ -49,7 +49,7 @@ pyxtal = {version = ">=0.6.1", optional = true }
 # This really should be named activelearningproxy
 dave = { git = "https://github.com/sh-divya/ActiveLearningMaterials.git", rev = "0.3.4", optional = true }
 # TODO: Fails due to BLAS error.. why?
-pyshtools = {version = ">=4.10.3", optional = true }
+pyshtools = {version = "==4.10.3", optional = true }
 
 # Molecules.
 # TODO: Remove Handled (for now) via a specialized script.
