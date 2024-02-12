@@ -17,6 +17,8 @@ This repository has been used in at least the following research articles:
 
 ## Installation
 
+**Quickstart: If you simply want to install everything, run `setup_all.sh`.**
+
 + This project **requires** `python 3.10` and `cuda 11.8`.
 + Setup is currently only supported on Ubuntu. It should also work on OSX, but you will need to handle the package dependencies.
 + The recommend installation is as follows:
@@ -31,7 +33,6 @@ pip install .[all]  # Install the remaining elelemts of this package.
 ```
 
 Aside from the base packages, you can optionally install `dev` tools using this tag, `materials` dependencies using this tag, or `molecules` packages using this tag. The simplest option is to use the `all` tag, as above, which installs all dependencies.
-
 
 ## How to train a GFlowNet model
 
