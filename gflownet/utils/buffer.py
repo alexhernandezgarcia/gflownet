@@ -3,6 +3,7 @@ Buffer class to handle train and test data sets, reply buffer, etc.
 """
 
 import pickle
+from typing import List
 
 import numpy as np
 import pandas as pd
