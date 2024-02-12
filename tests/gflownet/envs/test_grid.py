@@ -69,7 +69,7 @@ def config_path():
 def test__state2proxy__returns_expected(env, state, state2proxy):
     assert torch.equal(
         tfloat(state2proxy, device=env.device, float_type=env.float),
-        env.state2proxy(state),
+        env.state2proxy(state)[0],
     )
 
 

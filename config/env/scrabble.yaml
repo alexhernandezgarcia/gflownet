@@ -1,0 +1,15 @@
+defaults:
+  - base
+
+_target_: gflownet.envs.scrabble.Scrabble
+
+id: scrabble
+# Buffer
+buffer:
+  data_path: null
+  train: null
+  test:
+    type: uniform
+    n: 10
+    output_csv: scrabble_test.csv
+    output_pkl: scrabble_test.pkl
