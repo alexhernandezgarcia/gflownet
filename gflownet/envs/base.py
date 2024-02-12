@@ -772,9 +772,7 @@ class GFlowNetEnv:
         done = self._get_done(done)
         if not done and not do_non_terminating:
             return tfloat(0.0, float_type=self.float, device=self.device)
-        return self.proxy2reward(
-            self.proxy(self.state2proxy(state))[0]
-        )
+        return self.proxy2reward(self.proxy(self.state2proxy(state))[0])
 
     # TODO: cleanup
     def reward_batch(self, states: List[List], done=None):

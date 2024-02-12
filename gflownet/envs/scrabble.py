@@ -2,6 +2,7 @@
 Scrabble environment: starting from an emtpy sequence, letters are added one by one up
 to a maximum length.
 """
+
 from typing import Iterable, List, Optional, Tuple, Union
 
 import torch
@@ -306,9 +307,7 @@ class Scrabble(GFlowNetEnv):
         """
         if readable == "":
             return self.source
-        return self._pad(
-            [self.token2idx[token] for token in readable.split(" ")]
-        )
+        return self._pad([self.token2idx[token] for token in readable.split(" ")])
 
     def get_uniform_terminating_states(
         self, n_states: int, seed: int = None
