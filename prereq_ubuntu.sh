@@ -1,6 +1,4 @@
 #!/bin/bash
 
-# Prereqs for specific environments.
-sudo apt-get install fftw
-
-./prereq_python.sh
+# Prereqs for pyshtools.
+sudo apt-get install libfftw3-dev libblas-dev liblapack-dev
