@@ -37,7 +37,9 @@ class ScrabbleScorer(Proxy):
             self.scores = tlong(scores, device=self.device)
         # Build index-based version of the vocabulary as a tensor
         self.vocabulary = torch.zeros(
-            (len(self.vocabulary_orig), env.max_length), dtype=torch.int16
+            (len(self.vocabulary_orig), env.max_length),
+            dtype=torch.int16,
+            device=self.device,
         )
         for idx, word in enumerate(self.vocabulary_orig):
             word = "".join([letter + " " for letter in word.upper()])[:-1]
