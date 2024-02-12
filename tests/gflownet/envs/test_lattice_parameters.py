@@ -20,6 +20,11 @@ def env(lattice_system):
     return LatticeParameters(lattice_system=lattice_system, grid_size=61)
 
 
+@pytest.fixture()
+def triclinic_env():
+    return LatticeParameters(lattice_system=TRICLINIC, grid_size=5)
+
+
 @pytest.mark.parametrize("lattice_system", LATTICE_SYSTEMS)
 def test__environment__initializes_properly(env, lattice_system):
     pass
@@ -159,7 +164,6 @@ def test__get_mask_invalid_actions_forward__returns_expected_mask(
 @pytest.mark.parametrize("lattice_system", LATTICE_SYSTEMS)
 def test__get_parents__returns_no_parents_in_initial_state(env, lattice_system):
     parents, actions = env.get_parents()
-
     assert len(parents) == 0
     assert len(actions) == 0
 
@@ -167,9 +171,7 @@ def test__get_parents__returns_no_parents_in_initial_state(env, lattice_system):
 @pytest.mark.parametrize("lattice_system", LATTICE_SYSTEMS)
 def test__get_parents__returns_parents_after_step(env, lattice_system):
     env.step((1, 1, 1, 0, 0, 0))
-
     parents, actions = env.get_parents()
-
     assert len(parents) != 0
     assert len(actions) != 0
 
@@ -189,9 +191,7 @@ def test__get_parents__returns_same_number_of_parents_and_actions(
 ):
     for action in actions:
         env.step(action=action)
-
     parents, actions = env.get_parents()
-
     assert len(parents) == len(actions)
 
 
@@ -289,11 +289,8 @@ def test__state2proxy__returns_expected_tensor(env, lattice_system, state, exp_t
 @pytest.mark.parametrize("lattice_system", [TRICLINIC])
 def test__reset(env, lattice_system):
     env.step((1, 1, 1, 0, 0, 0))
-
     assert env.state != env.source
-
     env.reset()
-
     assert env.state == env.source
 
 
@@ -328,7 +325,10 @@ def test__readable2state__returns_initial_state_for_rhombohedral_and_triclinic(
     assert env.readable2state(readable) == [0, 0, 0, 0, 0, 0]
 
 
-def test__all_env_common():
-    env = LatticeParameters(lattice_system=TRICLINIC, grid_size=5)
-
-    return common.test__all_env_common(env)
+class TestLattice(common.BaseTestsDiscrete):
+    @pytest.fixture(autouse=True)
+    def setup(self, triclinic_env):
+        self.env = triclinic_env
+        self.repeats = {
+            "test__reset__state_is_source": 10,
+        }

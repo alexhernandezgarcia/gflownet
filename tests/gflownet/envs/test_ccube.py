@@ -1133,9 +1133,21 @@ def test__get_mask_invalid_actions_forward__returns_expected(env, state, expecte
     )
 
 
-def test__continuous_env_common__cube1d(cube1d):
-    return common.test__continuous_env_common(cube1d)
+class TestContinuousCubeBasic(common.BaseTestsContinuous):
+    @pytest.fixture(autouse=True)
+    def setup(self, cube1d):
+        self.env = cube1d
+        self.repeats = {
+            "test__get_logprobs__backward__returns_zero_if_done": 100,  # Overrides no repeat.
+            "test__reset__state_is_source": 10,
+        }
 
 
-def test__continuous_env_common__cube2d(cube2d):
-    return common.test__continuous_env_common(cube2d)
+class TestContinuousCubeBasic(common.BaseTestsContinuous):
+    @pytest.fixture(autouse=True)
+    def setup(self, cube2d):
+        self.env = cube2d
+        self.repeats = {
+            "test__get_logprobs__backward__returns_zero_if_done": 100,  # Overrides no repeat.
+            "test__reset__state_is_source": 10,
+        }

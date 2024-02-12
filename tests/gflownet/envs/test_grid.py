@@ -12,6 +12,11 @@ def env():
 
 
 @pytest.fixture
+def env_default():
+    return Grid()
+
+
+@pytest.fixture
 def env_extended_action_space_2d():
     return Grid(
         n_dim=2,
@@ -33,11 +38,6 @@ def env_extended_action_space_3d():
         cell_min=-1.0,
         cell_max=1.0,
     )
-
-
-@pytest.fixture
-def env_default():
-    return Grid()
 
 
 @pytest.fixture
@@ -98,11 +98,45 @@ def test__get_action_space__returns_expected(
     assert set(action_space) == set(env_extended_action_space_2d.action_space)
 
 
-def test__all_env_common__standard(env_extended_action_space_3d):
-    print("\n\nCommon tests for 5x5 Grid with extended action space\n")
-    return common.test__all_env_common(env_extended_action_space_3d)
+class TestGridBasic(common.BaseTestsContinuous):
+    """Common tests for 5x5 Grid with standard action space."""
+
+    @pytest.fixture(autouse=True)
+    def setup(self, env):
+        self.env = env
+        self.repeats = {
+            "test__reset__state_is_source": 10,
+        }
 
 
-def test__all_env_common__extended(env):
-    print("\n\nCommon tests for 5x5 Grid with standard action space\n")
-    return common.test__all_env_common(env)
+class TestGridDefaults(common.BaseTestsContinuous):
+    """Common tests for 5x5 Grid with standard action space."""
+
+    @pytest.fixture(autouse=True)
+    def setup(self, env_default):
+        self.env = env_default
+        self.repeats = {
+            "test__reset__state_is_source": 10,
+        }
+
+
+class TestGridExtended2D(common.BaseTestsContinuous):
+    """Common tests for 5x5 Grid with extended action space."""
+
+    @pytest.fixture(autouse=True)
+    def setup(self, env_extended_action_space_2d):
+        self.env = env_extended_action_space_2d
+        self.repeats = {
+            "test__reset__state_is_source": 10,
+        }
+
+
+class TestGridExtended3D(common.BaseTestsContinuous):
+    """Common tests for 5x5 Grid with extended action space."""
+
+    @pytest.fixture(autouse=True)
+    def setup(self, env_extended_action_space_3d):
+        self.env = env_extended_action_space_3d
+        self.repeats = {
+            "test__reset__state_is_source": 10,
+        }
