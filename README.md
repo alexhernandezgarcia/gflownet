@@ -18,27 +18,19 @@ This repository has been used in at least the following research articles:
 ## Installation
 
 + This project **requires** `python 3.10` and `cuda 11.8`.
-+ To initalize your environment, we have provided `prereq_ubuntu.sh`. This handles the prerequisites for installing this package.
-+ In the case that you want to use the `molecules` environment, you should also run `prereq_geometric.sh`.
-+ After these prerequisites are satified, you can simply pip install this package:
++ Setup is currently only supported on Ubuntu. It should also work on OSX, but you will need to handle the package dependencies.
++ The recommend installation is as follows:
 
 ```bash
-cd /path/to/gflownet
-pip install -e .[all]
+python3.10 -m venv ~/envs/gflownet  # Initalize your virtual env.
+source ~/envs/gflownet/bin/activate  # Activate your environment.
+./prereq_ubuntu.sh  # Installs some packages required by dependencies.
+./prereq_python.sh  # Installs python packages with specific wheels.
+./prereq_geometric.sh  # OPTIONAL - for the molecule environment.
+pip install .[all]  # Install the remaining elelemts of this package.
 ```
 
-TODO: Include information about tags here.
-
-### pip
-
-TODO: Remove? It looks like we used to depend on conda? I'm confused.
-
-```bash
-conda install xtb-python -c conda-forge -y
-conda install pyshtools  -c conda-forge -y
-
-python -m pip install --upgrade https://github.com/alexhernandezgarcia/gflownet/archive/main.zip
-```
+Aside from the base packages, you can optionally install `dev` tools using this tag, `materials` dependencies using this tag, or `molecules` packages using this tag. The simplest option is to use the `all` tag, as above, which installs all dependencies.
 
 
 ## How to train a GFlowNet model
