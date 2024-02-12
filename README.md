@@ -17,31 +17,28 @@ This repository has been used in at least the following research articles:
 
 ## Installation
 
-### pip
+This project **requires** `python 3.10` and `cuda 11.8`.
 
-Prereqs: install `fftw3`:
+To initalize your environment, we have provided `prereq_ubuntu.sh` and `prereq_osx.sh`. This handles the prerequisites for installing this package.
+
+After these prerequisites are satified, you can simply pip install this package.
+
+TODO: Include information about tags here.
 
 ```bash
-brew install fftw  # OSX
-sudo apt-get install fftw  # Ubuntu
+cd /path/to/gflownet
+pip install -e .[dev]
 ```
 
-To setup the environment with all dependencies, first install the pytorch `>=2.0.1` version appropriate to your system and some other dependencies more easily handled using Conda, and then pip install the package and remaining dependencies itself:
+### pip
 
 ```bash
 conda install xtb-python -c conda-forge -y
-conda install pytorch torchvision torchaudio -c pytorch -y # Use the version appropriate to your environment.
 conda install pyshtools  -c conda-forge -y
 
 python -m pip install --upgrade https://github.com/alexhernandezgarcia/gflownet/archive/main.zip
 ```
 
-Note, to install the package with developer tools, do instead 
-
-```bash
-cd /path/to/gflownet
-pip install -e .[dev]
-```.
 
 ## How to train a GFlowNet model
 
