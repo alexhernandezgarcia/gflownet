@@ -15,7 +15,6 @@ url = "https://data.pyg.org/whl/torch-2.0.1+cu118.html"
 priority = "primary"
 
 [tool.poetry.dependencies]
-
 # Base dependencies.
 hydra-core = ">=1.3.2"
 matplotlib = "*"
@@ -44,11 +43,8 @@ pytest-repeat = { version = ">=0.9.1", optional = true }
 # Materials / crystal environments.
 pymatgen = {version = ">=2023.12.18", optional = true }
 pyxtal = {version = ">=0.6.1", optional = true }
-# to potentially update!
-#activelearningproxy = { git = "https://github.com/sh-divya/ActiveLearningMaterials.git", tag = "0.3.4", optional = true }
-# This really should be named activelearningproxy
+# To potentially update! Also, this really should be named activelearningproxy.
 dave = { git = "https://github.com/sh-divya/ActiveLearningMaterials.git", rev = "0.3.4", optional = true }
-# TODO: Fails due to BLAS error.. why?
 pyshtools = {version = "==4.10.3", optional = true }
 
 # Molecules.
