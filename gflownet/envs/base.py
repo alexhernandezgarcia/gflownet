@@ -697,8 +697,9 @@ class GFlowNetEnv:
         self, state: Union[List, TensorType["state_dim"]] = None
     ) -> TensorType["state_proxy_dim"]:
         """
-        Prepares a state in "GFlowNet format" for the proxy. By default, states2proxy
-        is called, which by default will return the state as is.
+        Prepares a single state in "GFlowNet format" for the proxy. By default, simply
+        states2proxy is called and the output will be a "batch" with a single state in
+        the proxy format.
 
         Args
         ----
@@ -706,16 +707,7 @@ class GFlowNetEnv:
             A state
         """
         state = self._get_state(state)
-        state_proxy = self.states2proxy([state])
-        if isinstance(state_proxy, list):
-            return state_proxy[0]
-        elif torch.is_tensor(state_proxy):
-            return torch.squeeze(state_proxy, dim=0)
-        else:
-            raise NotImplementedError(
-                "The output of states2proxy must be either a list or a tensor. "
-                f"Got {type(state_proxy)}."
-            )
+        return self.states2proxy([state])
 
     def states2policy(
         self, states: Union[List, TensorType["batch", "state_dim"]]
@@ -781,7 +773,7 @@ class GFlowNetEnv:
         if not done and not do_non_terminating:
             return tfloat(0.0, float_type=self.float, device=self.device)
         return self.proxy2reward(
-            self.proxy(torch.unsqueeze(self.state2proxy(state), dim=0))[0]
+            self.proxy(self.state2proxy(state))[0]
         )
 
     # TODO: cleanup
