@@ -17,22 +17,21 @@ This repository has been used in at least the following research articles:
 
 ## Installation
 
-This project **requires** `python 3.10` and `cuda 11.8`.
-
-To initalize your environment, we have provided `prereq_ubuntu.sh`. This handles the prerequisites for installing this package.
-
-In the case that you want to use the `molecules` environment, you should also run `prereq_geometric.sh`.
-
-After these prerequisites are satified, you can simply pip install this package.
-
-TODO: Include information about tags here.
++ This project **requires** `python 3.10` and `cuda 11.8`.
++ To initalize your environment, we have provided `prereq_ubuntu.sh`. This handles the prerequisites for installing this package.
++ In the case that you want to use the `molecules` environment, you should also run `prereq_geometric.sh`.
++ After these prerequisites are satified, you can simply pip install this package:
 
 ```bash
 cd /path/to/gflownet
 pip install -e .[all]
 ```
 
+TODO: Include information about tags here.
+
 ### pip
+
+TODO: Remove? It looks like we used to depend on conda? I'm confused.
 
 ```bash
 conda install xtb-python -c conda-forge -y
