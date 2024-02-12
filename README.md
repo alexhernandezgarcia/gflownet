@@ -19,7 +19,9 @@ This repository has been used in at least the following research articles:
 
 This project **requires** `python 3.10` and `cuda 11.8`.
 
-To initalize your environment, we have provided `prereq_ubuntu.sh` and `prereq_osx.sh`. This handles the prerequisites for installing this package.
+To initalize your environment, we have provided `prereq_ubuntu.sh`. This handles the prerequisites for installing this package.
+
+In the case that you want to use the `molecules` environment, you should also run `prereq_geometric.sh`.
 
 After these prerequisites are satified, you can simply pip install this package.
 
@@ -27,7 +29,7 @@ TODO: Include information about tags here.
 
 ```bash
 cd /path/to/gflownet
-pip install -e .[dev]
+pip install -e .[all]
 ```
 
 ### pip
