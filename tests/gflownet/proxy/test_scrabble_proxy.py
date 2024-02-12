@@ -29,7 +29,26 @@ def env():
         ),
     ],
 )
-def test__scrabble_scorer__returns_expected_scores(
+def test__scrabble_scorer__returns_expected_scores_list_input_list_tokens(
+    env, proxy, samples, scores_expected
+):
+    # Make scores expected negative
+    scores_expected = [-s for s in scores_expected]
+    proxy.setup(env)
+    scores = proxy(samples)
+    assert scores.tolist() == scores_expected
+
+
+@pytest.mark.parametrize(
+    "samples, scores_expected",
+    [
+        (
+            ["CAT", "DOG", "BIRD", "FRIENDS"],
+            [3 + 1 + 1, 2 + 1 + 2, 3 + 1 + 1 + 2, 4 + 1 + 1 + 1 + 1 + 2 + 1],
+        ),
+    ],
+)
+def test__scrabble_scorer__returns_expected_scores_input_list_strings(
     env, proxy, samples, scores_expected
 ):
     # Make scores expected negative
@@ -68,11 +87,11 @@ def test__scrabble_scorer__returns_expected_scores(
         ),
     ],
 )
-def test__scrabble_scorer__returns_expected_scores_after_conversions(
+def test__scrabble_scorer__returns_expected_scores_input_state2proxy(
     env, proxy, sample, score_expected
 ):
     proxy.setup(env)
     env.set_state(env.readable2state(sample))
     sample_proxy = env.state2proxy()
-    score = proxy([sample_proxy])
+    score = proxy(sample_proxy)
     assert score.tolist() == [-1.0 * score_expected]

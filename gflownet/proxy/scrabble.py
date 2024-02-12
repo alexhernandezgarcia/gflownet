@@ -51,14 +51,22 @@ class ScrabbleScorer(Proxy):
         """
         Computes and returns the Scrabble score of sequence in a batch.
 
-        It assumes that the states are represented by the index of each token, as in
-        the "environment format" of sequences.
+        In principle and in general, the input states is a tensor, where each state
+        (row) is represented by the index of each token.
+
+        However, for debugging purposes, this proxy also works if the input states is a
+        list of:
+            - Strings
+            - List of string tokens
+        See: tests/gflownet/proxy/test_scrabble_proxy.py
 
         Args
         ----
-        states : tensor
-            A batch of states, where each row is a state and each state represents a
-            sequence by the indices of the token, including the padding.
+        states : tensor or list
+            If a tensor: A batch of states, where each row is a state and each state
+            represents a sequence by the indices of the token, including the padding.
+            If a list: A batch of state, where each entry is either a string containing
+            the word or a list of letters.
 
         Returns
         -------
@@ -74,11 +82,12 @@ class ScrabbleScorer(Proxy):
                 dim=1
             )
             return output
-        elif not isinstance(states, list):
+        elif isinstance(states, list):
+            scores = []
             for sample in states:
                 if (
                     self.vocabulary_check
-                    and self._unpad_and_string(sample) not in self.vocabulary
+                    and self._unpad_and_string(sample) not in self.vocabulary_orig
                 ):
                     scores.append(0.0)
                 else:
