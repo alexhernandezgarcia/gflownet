@@ -9,6 +9,11 @@ readme = "README.md"
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
 
+[tool.poetry.source]
+name = "cu118"
+url = "https://data.pyg.org/whl/torch-2.0.1+cu118.html"
+priority = "primary"
+
 [tool.poetry.dependencies]
 
 # base dependencies.
@@ -17,14 +22,9 @@ matplotlib = "*"
 numpy = "*"
 pandas = "*"
 plotly = ">=5.17.0"
-pymatgen = ">=2023.9.25"
-pyxtal = ">=0.6.0"
-rdkit = "*"
 scikit-learn = ">=1.2.2"  # scikit-learn version to load correct RF proxy
 scipy = ">=1.11.2"
 six = ">=1.16.0"
-torch-scatter = ">=2.1.1"
-torchani = "*"
 torchtyping = "*"
 tqdm = "*"
 wandb = ">=0.15.11"
@@ -41,13 +41,15 @@ pytest-repeat = { version = ">=0.9.1", optional = true }
 
 # materials / crystal environments.
 pymatgen = {version = ">=2023.12.18", optional = true }
-pyxtal = {version ">=0.6.1", optional = true }
+pyxtal = {version = ">=0.6.1", optional = true }
 # to potentially update!
-dave-proxy = { git = "https://github.com/sh-divya/ActiveLearningMaterials.git", branch = "0.3.4", optional = true }
+#activelearningproxy = { git = "https://github.com/sh-divya/ActiveLearningMaterials.git", tag = "0.3.4", optional = true }
+# This really should be named activelearningproxy
+dave = { git = "https://github.com/sh-divya/ActiveLearningMaterials.git", rev = "0.3.4", optional = true }
 pyshtools = {version = ">=4.10.3", optional = true }
 
 # molecules
-pyg = {version = "0.3.1+pt20cu118", optional = true }
+pyg_lib = {version = "0.3.1+pt20cu118", optional = true }
 torch-scatter = { version = "2.1.2+pt20cu118", optional = true }
 torch-sparse = { version = "0.6.18+pt20cu118", optional = true }
 torch-cluster = {version = "1.6.3+pt20cu118", optional = true }
@@ -67,11 +69,34 @@ dev = [
     "pytest",
     "pytest-repeat",
 ]
-materials = ["pymatgen", "pyxtal", "dave-proxy", "pyshtools"]
+materials = ["pymatgen", "pyxtal", "dave", "pyshtools"]
 molecules = [
-    "pyg",
+    "pyg_lib",
     "torch-scatter",
     "torch-sparse",
     "torch-cluster",
     "torch-spline-conv",
+    "torchani",
+    "rdkit",
+]
+all = [
+    "black",
+    "flake8",
+    "isort",
+    "pylint",
+    "ipdb",
+    "jupyter",
+    "pytest",
+    "pytest-repeat",
+    "pymatgen",
+    "pyxtal",
+    "dave",
+    "pyshtools",
+    "pyg_lib",
+    "torch-scatter",
+    "torch-sparse",
+    "torch-cluster",
+    "torch-spline-conv",
+    "torchani",
+    "rdkit",
 ]
