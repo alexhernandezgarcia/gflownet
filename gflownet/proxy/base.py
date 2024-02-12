@@ -1,6 +1,7 @@
 """
 Base class of GFlowNet proxies
 """
+
 from abc import ABC, abstractmethod
 
 import numpy as np

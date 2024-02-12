@@ -771,9 +771,9 @@ class Batch:
             masks_invalid_actions_forward_parents[parents_indices == -1] = self.source[
                 "mask_forward"
             ]
-            masks_invalid_actions_forward_parents[
-                parents_indices != -1
-            ] = masks_invalid_actions_forward[parents_indices[parents_indices != -1]]
+            masks_invalid_actions_forward_parents[parents_indices != -1] = (
+                masks_invalid_actions_forward[parents_indices[parents_indices != -1]]
+            )
             return masks_invalid_actions_forward_parents
         return masks_invalid_actions_forward
 

@@ -290,17 +290,17 @@ class Crystal(GFlowNetEnv):
             composition_mask = self.composition.get_mask_invalid_actions_forward(
                 state=self._get_composition_state(state), done=False
             )
-            mask[
-                self.composition_mask_start : self.composition_mask_end
-            ] = composition_mask
+            mask[self.composition_mask_start : self.composition_mask_end] = (
+                composition_mask
+            )
         elif stage == Stage.SPACE_GROUP:
             space_group_state = self._get_space_group_state(state)
             space_group_mask = self.space_group.get_mask_invalid_actions_forward(
                 state=space_group_state, done=False
             )
-            mask[
-                self.space_group_mask_start : self.space_group_mask_end
-            ] = space_group_mask
+            mask[self.space_group_mask_start : self.space_group_mask_end] = (
+                space_group_mask
+            )
         elif stage == Stage.LATTICE_PARAMETERS:
             """
             TODO: to be stateless (meaning, operating as a function, not a method with

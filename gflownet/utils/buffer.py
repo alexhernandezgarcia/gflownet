@@ -1,6 +1,7 @@
 """
 Buffer class to handle train and test data sets, reply buffer, etc.
 """
+
 import pickle
 
 import numpy as np

@@ -1,6 +1,7 @@
 """
 Classes to represent crystal environments
 """
+
 import itertools
 from copy import deepcopy
 from enum import Enum
