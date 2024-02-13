@@ -1274,9 +1274,7 @@ def test__get_rewards_multiple_env_returns_expected_non_zero_non_terminating(
                 actions_iter.append(action)
                 valids_iter.append(valid)
                 rewards.append(env.reward(do_non_terminating=True))
-                proxy_values.append(
-                    env.proxy(torch.unsqueeze(env.state2proxy(env.state), dim=0))[0]
-                )
+                proxy_values.append(env.proxy(env.state2proxy(env.state))[0])
         # Add all envs, actions and valids to batch
         batch.add_to_batch(envs, actions_iter, valids_iter)
         # Remove done envs

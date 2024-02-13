@@ -939,7 +939,7 @@ class Batch:
         """
         # This will not work if source is randomised
         if not self.conditional:
-            source_proxy = torch.unsqueeze(self.env.state2proxy(self.env.source), dim=0)
+            source_proxy = self.env.state2proxy(self.env.source)
             reward_source = self.env.proxy2reward(self.env.proxy(source_proxy))
             self.rewards_source = reward_source.expand(len(self))
         else:
