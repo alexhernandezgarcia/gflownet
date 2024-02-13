@@ -1598,6 +1598,7 @@ class TestContinuousCrystalBasic(common.BaseTestsContinuous):
         }
         self.n_states = {}  # TODO: Populate.
 
+
 class TestContinuousCrystalSGCheck(common.BaseTestsContinuous):
     """Common tests for crystal with composition <-> space group constraints."""
 

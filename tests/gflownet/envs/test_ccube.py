@@ -1143,6 +1143,7 @@ class TestContinuousCubeBasic(common.BaseTestsContinuous):
         }
         self.n_states = {}  # TODO: Populate.
 
+
 class TestContinuousCubeBasic(common.BaseTestsContinuous):
     @pytest.fixture(autouse=True)
     def setup(self, cube2d):
