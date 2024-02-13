@@ -29,7 +29,7 @@ source ~/envs/gflownet/bin/activate  # Activate your environment.
 ./prereq_ubuntu.sh  # Installs some packages required by dependencies.
 ./prereq_python.sh  # Installs python packages with specific wheels.
 ./prereq_geometric.sh  # OPTIONAL - for the molecule environment.
-pip install .[all]  # Install the remaining elelemts of this package.
+pip install .[all]  # Install the remaining elements of this package.
 ```
 
 Aside from the base packages, you can optionally install `dev` tools using this tag, `materials` dependencies using this tag, or `molecules` packages using this tag. The simplest option is to use the `all` tag, as above, which installs all dependencies.
