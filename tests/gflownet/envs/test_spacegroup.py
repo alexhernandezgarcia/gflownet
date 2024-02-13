@@ -394,6 +394,7 @@ class TestSpaceGroupBasic(common.BaseTestsDiscrete):
         self.repeats = {
             "test__reset__state_is_source": 10,
         }
+        self.n_states = {}  # TODO: Populate.
 
 
 class TestSpaceGroupWithComposition(common.BaseTestsDiscrete):
@@ -405,6 +406,7 @@ class TestSpaceGroupWithComposition(common.BaseTestsDiscrete):
         self.repeats = {
             "test__reset__state_is_source": 10,
         }
+        self.n_states = {}  # TODO: Populate.
 
 
 class TestSpaceGroupWithRestrictedSpaceGroups(common.BaseTestsDiscrete):
@@ -416,3 +418,4 @@ class TestSpaceGroupWithRestrictedSpaceGroups(common.BaseTestsDiscrete):
         self.repeats = {
             "test__reset__state_is_source": 10,
         }
+        self.n_states = {}  # TODO: Populate.

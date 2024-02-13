@@ -480,6 +480,7 @@ class TestCrystalBasic(common.BaseTestsDiscrete):
             "test__get_logprobs__backward__returns_zero_if_done": 100,  # Overrides no repeat.
             "test__reset__state_is_source": 10,
         }
+        self.n_states = {}  # TODO: Populate.
 
 
 class TestCrystalStoichiometrySGCheck(common.BaseTestsDiscrete):
@@ -490,3 +491,4 @@ class TestCrystalStoichiometrySGCheck(common.BaseTestsDiscrete):
             "test__get_logprobs__backward__returns_zero_if_done": 100,  # Overrides no repeat.
             "test__reset__state_is_source": 10,
         }
+        self.n_states = {}  # TODO: Populate.

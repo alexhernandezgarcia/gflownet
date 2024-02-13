@@ -332,3 +332,4 @@ class TestLattice(common.BaseTestsDiscrete):
         self.repeats = {
             "test__reset__state_is_source": 10,
         }
+        self.n_states = {}  # TODO: Populate.

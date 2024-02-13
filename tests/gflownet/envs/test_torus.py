@@ -77,6 +77,7 @@ class TestTorusBasic(common.BaseTestsDiscrete):
         self.repeats = {
             "test__reset__state_is_source": 10,
         }
+        self.n_states = {}  # TODO: Populate.
 
 
 class TestTorusExtendedActionSpace3D(common.BaseTestsDiscrete):
@@ -86,3 +87,4 @@ class TestTorusExtendedActionSpace3D(common.BaseTestsDiscrete):
         self.repeats = {
             "test__reset__state_is_source": 10,
         }
+        self.n_states = {}  # TODO: Populate.

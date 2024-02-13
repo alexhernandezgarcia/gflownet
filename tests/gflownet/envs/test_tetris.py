@@ -524,6 +524,7 @@ class TestTetrisCommon1Piece(common.BaseTestsDiscrete):
         self.repeats = {
             "test__reset__state_is_source": 10,
         }
+        self.n_states = {}  # TODO: Populate.
 
 
 class TestTetrisCommonMini(common.BaseTestsDiscrete):
@@ -535,6 +536,7 @@ class TestTetrisCommonMini(common.BaseTestsDiscrete):
         self.repeats = {
             "test__reset__state_is_source": 10,
         }
+        self.n_states = {}  # TODO: Populate.
 
 
 class TestTetrisCommon(common.BaseTestsDiscrete):
@@ -546,6 +548,7 @@ class TestTetrisCommon(common.BaseTestsDiscrete):
         self.repeats = {
             "test__reset__state_is_source": 10,
         }
+        self.n_states = {}  # TODO: Populate.
 
 
 class TestTetrisCommonFull(common.BaseTestsDiscrete):
@@ -557,6 +560,7 @@ class TestTetrisCommonFull(common.BaseTestsDiscrete):
         self.repeats = {
             "test__reset__state_is_source": 10,
         }
+        self.n_states = {}  # TODO: Populate.
 
 
 class TestTetrisCommon6X4(common.BaseTestsDiscrete):
@@ -571,3 +575,4 @@ class TestTetrisCommon6X4(common.BaseTestsDiscrete):
         self.n_states = {
             "test__get_parents__returns_same_state_and_eos_if_done": 100,
         }
+        self.n_states = {}  # TODO: Populate.

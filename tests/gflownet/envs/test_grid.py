@@ -107,6 +107,7 @@ class TestGridBasic(common.BaseTestsContinuous):
         self.repeats = {
             "test__reset__state_is_source": 10,
         }
+        self.n_states = {}  # TODO: Populate.
 
 
 class TestGridDefaults(common.BaseTestsContinuous):
@@ -118,6 +119,7 @@ class TestGridDefaults(common.BaseTestsContinuous):
         self.repeats = {
             "test__reset__state_is_source": 10,
         }
+        self.n_states = {}  # TODO: Populate.
 
 
 class TestGridExtended2D(common.BaseTestsContinuous):
@@ -129,6 +131,7 @@ class TestGridExtended2D(common.BaseTestsContinuous):
         self.repeats = {
             "test__reset__state_is_source": 10,
         }
+        self.n_states = {}  # TODO: Populate.
 
 
 class TestGridExtended3D(common.BaseTestsContinuous):
@@ -140,3 +143,4 @@ class TestGridExtended3D(common.BaseTestsContinuous):
         self.repeats = {
             "test__reset__state_is_source": 10,
         }
+        self.n_states = {}  # TODO: Populate.

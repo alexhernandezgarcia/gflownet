@@ -1596,7 +1596,7 @@ class TestContinuousCrystalBasic(common.BaseTestsContinuous):
         self.repeats = {
             "test__reset__state_is_source": 10,
         }
-
+        self.n_states = {}  # TODO: Populate.
 
 class TestContinuousCrystalSGCheck(common.BaseTestsContinuous):
     """Common tests for crystal with composition <-> space group constraints."""
@@ -1608,6 +1608,7 @@ class TestContinuousCrystalSGCheck(common.BaseTestsContinuous):
             "test__set_state__creates_new_copy_of_state": 10,  # Overrides no repeat.
             "test__reset__state_is_source": 0,
         }
+        self.n_states = {}  # TODO: Populate.
 
 
 class TestContinuousCrystalSGFirst(common.BaseTestsContinuous):
@@ -1620,3 +1621,4 @@ class TestContinuousCrystalSGFirst(common.BaseTestsContinuous):
             "test__get_logprobs__backward__returns_zero_if_done": 100,  # Overrides no repeat.
             "test__reset__state_is_source": 10,
         }
+        self.n_states = {}  # TODO: Populate.
