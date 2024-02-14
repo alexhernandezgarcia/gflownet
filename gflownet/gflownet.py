@@ -3,6 +3,7 @@ GFlowNet
 TODO:
     - Seeds
 """
+
 import copy
 import os
 import pickle
@@ -23,6 +24,7 @@ from gflownet.utils.batch import Batch
 from gflownet.utils.buffer import Buffer
 from gflownet.utils.common import (
     batch_with_rest,
+    bootstrap_samples,
     set_device,
     set_float_precision,
     tbool,
@@ -54,6 +56,7 @@ class GFlowNetAgent:
         active_learning=False,
         sample_only=False,
         replay_sampling="permutation",
+        train_sampling="permutation",
         **kwargs,
     ):
         # Seed
@@ -98,6 +101,7 @@ class GFlowNetAgent:
         self.oracle_n = oracle.n
         # Buffers
         self.replay_sampling = replay_sampling
+        self.train_sampling = train_sampling
         self.buffer = Buffer(
             **buffer, env=self.env, make_train_test=not sample_only, logger=logger
         )
@@ -193,6 +197,9 @@ class GFlowNetAgent:
         self.corr_prob_traj_rewards = 0.0
         self.var_logrewards_logp = -1.0
         self.nll_tt = 0.0
+        self.mean_logprobs_std = -1.0
+        self.mean_probs_std = -1.0
+        self.logprobs_std_nll_ratio = -1.0
 
     def parameters(self):
         parameters = list(self.forward_policy.model.parameters())
@@ -454,12 +461,12 @@ class GFlowNetAgent:
         batch_train = Batch(env=self.env, device=self.device, float_type=self.float)
         if n_train > 0 and self.buffer.train_pkl is not None:
             with open(self.buffer.train_pkl, "rb") as f:
-                dict_tr = pickle.load(f)
-                # TODO: implement other sampling options besides permutation
-                # TODO: this converts to numpy
-                x_tr = self.rng.permutation(dict_tr["x"])
-            for idx, env in enumerate(envs):
-                env.set_state(x_tr[idx], done=True)
+                dict_train = pickle.load(f)
+                x_train = self.buffer.select(
+                    dict_train, n_train, self.train_sampling, self.rng
+                )
+            for env, x in zip(envs, x_train):
+                env.set_state(x, done=True)
         while envs:
             # Sample backward actions
             t0_a_envs = time.time()
@@ -488,29 +495,11 @@ class GFlowNetAgent:
                 dict_replay = pickle.load(f)
                 n_replay = min(n_replay, len(dict_replay["x"]))
                 envs = [self.env.copy().reset(idx) for idx in range(n_replay)]
-                if n_replay > 0:
-                    x_replay = list(dict_replay["x"].values())
-                    if self.replay_sampling == "permutation":
-                        x_replay = [
-                            x_replay[idx] for idx in self.rng.permutation(n_replay)
-                        ]
-                    elif self.replay_sampling == "weighted":
-                        x_rewards = np.fromiter(
-                            dict_replay["rewards"].values(), dtype=float
-                        )
-                        x_indices = np.random.choice(
-                            len(x_replay),
-                            size=n_replay,
-                            replace=False,
-                            p=x_rewards / x_rewards.sum(),
-                        )
-                        x_replay = [x_replay[idx] for idx in x_indices]
-                    else:
-                        raise ValueError(
-                            f"Unrecognized replay_sampling = {self.replay_sampling}."
-                        )
-            for idx, env in enumerate(envs):
-                env.set_state(x_replay[idx], done=True)
+                x_replay = self.buffer.select(
+                    dict_replay, n_replay, self.replay_sampling, self.rng
+                )
+            for env, x in zip(envs, x_replay):
+                env.set_state(x, done=True)
         while envs:
             # Sample backward actions
             t0_a_envs = time.time()
@@ -820,6 +809,7 @@ class GFlowNetAgent:
         max_iters_per_traj: int = 10,
         max_data_size: int = 1e5,
         batch_size: int = 100,
+        bs_num_samples=10000,
     ):
         """
         Estimates the probability of sampling with current GFlowNet policy
@@ -861,11 +851,21 @@ class GFlowNetAgent:
             situation of having to sample too many backward trajectories. If necessary,
             the user should change this argument manually.
 
+        bs_num_samples: int
+            Number of bootstrap resampling times for std estimation of logprobs_estimates.
+            Doesn't require recomputing of log probabilities, so can be arbitrary large
+
         Returns
         -------
         logprobs_estimates: torch.tensor
             The logarithm of the average ratio PF/PB over n trajectories sampled for
             each data point.
+
+        logprobs_std: torch.tensor
+            Bootstrap std of the logprobs_estimates
+
+        probs_std: torch.tensor
+            Bootstrap std of the torch.exp(logprobs_estimates)
         """
         print("Compute logprobs...", flush=True)
         times = {}
@@ -956,8 +956,16 @@ class GFlowNetAgent:
         logprobs_estimates = torch.logsumexp(
             logprobs_f - logprobs_b, dim=1
         ) - torch.log(torch.tensor(n_trajectories, device=self.device))
+        logprobs_f_b_bs = bootstrap_samples(
+            logprobs_f - logprobs_b, num_samples=bs_num_samples
+        )
+        logprobs_estimates_bs = torch.logsumexp(logprobs_f_b_bs, dim=1) - torch.log(
+            torch.tensor(n_trajectories, device=self.device)
+        )
+        logprobs_std = torch.std(logprobs_estimates_bs, dim=-1)
+        probs_std = torch.std(torch.exp(logprobs_estimates_bs), dim=-1)
         print("Done computing logprobs", flush=True)
-        return logprobs_estimates
+        return logprobs_estimates, logprobs_std, probs_std
 
     def train(self):
         # Metrics
@@ -982,6 +990,9 @@ class GFlowNetAgent:
                     self.corr_prob_traj_rewards,
                     self.var_logrewards_logp,
                     self.nll_tt,
+                    self.mean_logprobs_std,
+                    self.mean_probs_std,
+                    self.logprobs_std_nll_ratio,
                     figs,
                     env_metrics,
                 ) = self.test()
@@ -992,6 +1003,9 @@ class GFlowNetAgent:
                     self.corr_prob_traj_rewards,
                     self.var_logrewards_logp,
                     self.nll_tt,
+                    self.mean_logprobs_std,
+                    self.mean_probs_std,
+                    self.logprobs_std_nll_ratio,
                     it,
                     self.use_context,
                 )
@@ -1141,6 +1155,9 @@ class GFlowNetAgent:
                 self.corr_prob_traj_rewards,
                 self.var_logrewards_logp,
                 self.nll_tt,
+                self.mean_logprobs_std,
+                self.mean_probs_std,
+                self.logprobs_std_nll_ratio,
                 (None,),
                 {},
             )
@@ -1151,12 +1168,15 @@ class GFlowNetAgent:
         # Compute correlation between the rewards of the test data and the log
         # likelihood of the data according the the GFlowNet policy; and NLL.
         # TODO: organise code for better efficiency and readability
-        logprobs_x_tt = self.estimate_logprobs_data(
+        logprobs_x_tt, logprobs_std, probs_std = self.estimate_logprobs_data(
             x_tt,
             n_trajectories=self.logger.test.n_trajs_logprobs,
             max_data_size=self.logger.test.max_data_logprobs,
             batch_size=self.logger.test.logprobs_batch_size,
+            bs_num_samples=self.logger.test.logprobs_bootstrap_size,
         )
+        mean_logprobs_std = logprobs_std.mean().item()
+        mean_probs_std = probs_std.mean().item()
         rewards_x_tt = self.env.reward_batch(x_tt)
         corr_prob_traj_rewards = np.corrcoef(
             np.exp(logprobs_x_tt.cpu().numpy()), rewards_x_tt
@@ -1166,6 +1186,7 @@ class GFlowNetAgent:
             - logprobs_x_tt
         ).item()
         nll_tt = -logprobs_x_tt.mean().item()
+        logprobs_std_nll_ratio = torch.mean(-logprobs_std / logprobs_x_tt).item()
 
         x_sampled = []
         if self.buffer.test_type is not None and self.buffer.test_type == "all":
@@ -1241,6 +1262,9 @@ class GFlowNetAgent:
                 corr_prob_traj_rewards,
                 var_logrewards_logp,
                 nll_tt,
+                mean_logprobs_std,
+                mean_probs_std,
+                logprobs_std_nll_ratio,
                 (None,),
                 env_metrics,
             )
@@ -1272,6 +1296,9 @@ class GFlowNetAgent:
             corr_prob_traj_rewards,
             var_logrewards_logp,
             nll_tt,
+            mean_logprobs_std,
+            mean_probs_std,
+            logprobs_std_nll_ratio,
             [fig_reward_samples, fig_kde_pred, fig_kde_true],
             {},
         )

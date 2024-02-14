@@ -1,7 +1,8 @@
 """
 Classes to represent continuous lattice parameters environments.
 """
-from typing import List, Optional, Tuple
+
+from typing import List, Optional, Tuple, Union
 
 import torch
 from torch import Tensor
@@ -235,7 +236,7 @@ class CLatticeParameters(ContinuousCube):
         return self.state, action, valid
 
     def _unpack_lengths_angles(
-        self, state: Optional[List[int]] = None
+        self, state: Optional[List[float]] = None
     ) -> Tuple[Tuple, Tuple]:
         """
         Helper that 1) unpacks values coding lengths and angles from the state or from
@@ -249,7 +250,34 @@ class CLatticeParameters(ContinuousCube):
         ]
         return (a, b, c), (alpha, beta, gamma)
 
-    def state2readable(self, state: Optional[List[int]] = None) -> str:
+    def states2proxy(
+        self, states: Union[List, TensorType["batch", "state_dim"]]
+    ) -> TensorType["height", "width", "batch"]:
+        """
+        Prepares a batch of states in "environment format" for a proxy: states are
+        mapped from [0; 1] to edge lengths and angles using min_length, max_length,
+        min_angle and max_angle, via _statevalue2length() and _statevalue2angle().
+
+        Args
+        ----
+        states : list or tensor
+            A batch of states in environment format, either as a list of states or as a
+            single tensor.
+
+        Returns
+        -------
+        A tensor containing all the states in the batch.
+        """
+        states = tfloat(states, device=self.device, float_type=self.float)
+        return torch.cat(
+            [
+                self._statevalue2length(states[:, :3]),
+                self._statevalue2angle(states[:, 3:]),
+            ],
+            dim=1,
+        )
+
+    def state2readable(self, state: Optional[List[float]] = None) -> str:
         """
         Converts the state into a human-readable string in the format "(a, b, c),
         (alpha, beta, gamma)".
@@ -259,7 +287,7 @@ class CLatticeParameters(ContinuousCube):
         lengths, angles = self._unpack_lengths_angles(state)
         return f"{lengths}, {angles}"
 
-    def readable2state(self, readable: str) -> List[int]:
+    def readable2state(self, readable: str) -> List[float]:
         """
         Converts a human-readable representation of a state into the standard format.
         """
@@ -273,90 +301,6 @@ class CLatticeParameters(ContinuousCube):
         for param, value in zip(PARAMETER_NAMES, values):
             state = self._set_param(state, param, value)
         return state
-
-    def state2policy(self, state: Optional[List[float]] = None) -> Tensor:
-        """
-        Simply returns a torch tensor of the state as is, in the range [0, 1].
-        """
-        state = self._get_state(state)
-        return tfloat(state, float_type=self.float, device=self.device)
-
-    def statebatch2policy(
-        self, states: List[List]
-    ) -> TensorType["batch", "state_proxy_dim"]:
-        """
-        Simply returns a torch tensor of the states as are, in the range [0, 1], by
-        calling statetorch2policy.
-        """
-        return self.statetorch2policy(
-            tfloat(states, device=self.device, float_type=self.float)
-        )
-
-    def statetorch2policy(
-        self, states: TensorType["batch", "state_dim"] = None
-    ) -> TensorType["batch", "policy_input_dim"]:
-        """
-        Simply returns the states as are, in the range [0, 1].
-        """
-        return states
-
-    def state2oracle(self, state: Optional[List[float]] = None) -> Tensor:
-        """
-        Maps [0; 1] state values to edge lengths and angles.
-        """
-        state = self._get_state(state)
-
-        return tfloat(
-            [self._get_param(state, p) for p in PARAMETER_NAMES],
-            float_type=self.float,
-            device=self.device,
-        )
-
-    def statebatch2oracle(
-        self, states: List[List]
-    ) -> TensorType["batch", "state_oracle_dim"]:
-        """
-        Maps [0; 1] state values to edge lengths and angles.
-        """
-        return self.statetorch2oracle(
-            tfloat(states, device=self.device, float_type=self.float)
-        )
-
-    def statetorch2oracle(
-        self, states: TensorType["batch", "state_dim"] = None
-    ) -> TensorType["batch", "oracle_input_dim"]:
-        """
-        Maps [0; 1] state values to edge lengths and angles.
-        """
-        return torch.cat(
-            [
-                self._statevalue2length(states[:, :3]),
-                self._statevalue2angle(states[:, 3:]),
-            ],
-            dim=1,
-        )
-
-    def state2proxy(self, state: Optional[List[int]] = None) -> Tensor:
-        """
-        Returns state2oracle(state).
-        """
-        return self.state2oracle(state)
-
-    def statebatch2proxy(
-        self, states: List[List]
-    ) -> TensorType["batch", "state_oracle_dim"]:
-        """
-        Returns statebatch2oracle(states).
-        """
-        return self.statebatch2oracle(states)
-
-    def statetorch2proxy(
-        self, states: TensorType["batch", "state_dim"]
-    ) -> TensorType["batch", "state_oracle_dim"]:
-        """
-        Returns statetorch2oracle(states).
-        """
-        return self.statetorch2oracle(states)
 
     def is_valid(self, x: List) -> bool:
         """

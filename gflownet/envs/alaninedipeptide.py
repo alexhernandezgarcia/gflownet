@@ -47,7 +47,7 @@ class AlanineDipeptide(ContinuousTorus):
         """
         Prepares a batch of states in "environment format" for the proxy: each state is
         a vector of length n_dim where each value is an angle in radians. The n_actions
-        item is removed.
+        item is removed. This transformation is obtained from the parent states2proxy.
 
         Important: this method returns a numpy array, unlike in most other
         environments.
@@ -62,41 +62,7 @@ class AlanineDipeptide(ContinuousTorus):
         -------
         A numpy array containing all the states in the batch.
         """
-        if torch.is_tensor(states[0]):
-            return states.cpu().numpy()[:, :-1]
-        else:
-            return np.array(states)[:, :-1]
-
-    # TODO: need to keep?
-    def statetorch2oracle(
-        self, states: TensorType["batch", "state_dim"]
-    ) -> List[Tuple[npt.NDArray, npt.NDArray]]:
-        """
-        Prepares a batch of states in torch "GFlowNet format" for the oracle.
-        """
-        device = states.device
-        if device == torch.device("cpu"):
-            np_states = states.numpy()
-        else:
-            np_states = states.cpu().numpy()
-        result = self.statebatch2oracle(np_states)
-        return result
-
-    # TODO: need to keep?
-    def statebatch2oracle(
-        self, states: List[List]
-    ) -> List[Tuple[npt.NDArray, npt.NDArray]]:
-        """
-        Prepares a batch of states in "GFlowNet format" for the oracle: a list of
-        tuples, where first element in the tuple is numpy array of atom positions of
-        shape [num_atoms, 3] and the second element is numpy array of atomic numbers of
-        shape [num_atoms, ]
-        """
-        states_oracle = []
-        for st in states:
-            conf = self.sync_conformer_with_state(st)
-            states_oracle.append((conf.get_atom_positions(), conf.get_atomic_numbers()))
-        return states_oracle
+        return super().states2proxy(states).numpy()
 
 
 if __name__ == "__main__":

@@ -103,5 +103,12 @@ def test__sample_actions_batch__not_special_cases(
     assert action_sampled != action_special
 
 
-def test__continuous_env_common(env):
-    return common.test__continuous_env_common(env)
+class TestContinuousTorusBasic(common.BaseTestsContinuous):
+    @pytest.fixture(autouse=True)
+    def setup(self, env):
+        self.env = env
+        self.repeats = {
+            "test__get_logprobs__backward__returns_zero_if_done": 100,  # Overrides no repeat.
+            "test__reset__state_is_source": 10,
+        }
+        self.n_states = {}  # TODO: Populate.

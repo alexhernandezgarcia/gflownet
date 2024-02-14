@@ -472,9 +472,23 @@ def test__get_mask_invalid_actions_forward__masks_all_actions_from_different_sta
         )
 
 
-def test__all_env_common(env):
-    return common.test__all_env_common(env)
+class TestCrystalBasic(common.BaseTestsDiscrete):
+    @pytest.fixture(autouse=True)
+    def setup(self, env):
+        self.env = env
+        self.repeats = {
+            "test__get_logprobs__backward__returns_zero_if_done": 100,  # Overrides no repeat.
+            "test__reset__state_is_source": 10,
+        }
+        self.n_states = {}  # TODO: Populate.
 
 
-def test__all_env_common(env_with_stoichiometry_sg_check):
-    return common.test__all_env_common(env_with_stoichiometry_sg_check)
+class TestCrystalStoichiometrySGCheck(common.BaseTestsDiscrete):
+    @pytest.fixture(autouse=True)
+    def setup(self, env_with_stoichiometry_sg_check):
+        self.env = env_with_stoichiometry_sg_check
+        self.repeats = {
+            "test__get_logprobs__backward__returns_zero_if_done": 100,  # Overrides no repeat.
+            "test__reset__state_is_source": 10,
+        }
+        self.n_states = {}  # TODO: Populate.

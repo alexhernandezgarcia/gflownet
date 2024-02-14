@@ -49,6 +49,8 @@ pct_offline: 0.0
 # Replay buffer
 replay_capacity: 0
 replay_sampling: permutation
+# Train data set backward sampling
+train_sampling: permutation
 num_empirical_loss: 200000
 oracle:
     # Number of samples for oracle metrics

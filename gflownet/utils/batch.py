@@ -771,9 +771,9 @@ class Batch:
             masks_invalid_actions_forward_parents[parents_indices == -1] = self.source[
                 "mask_forward"
             ]
-            masks_invalid_actions_forward_parents[
-                parents_indices != -1
-            ] = masks_invalid_actions_forward[parents_indices[parents_indices != -1]]
+            masks_invalid_actions_forward_parents[parents_indices != -1] = (
+                masks_invalid_actions_forward[parents_indices[parents_indices != -1]]
+            )
             return masks_invalid_actions_forward_parents
         return masks_invalid_actions_forward
 
@@ -939,7 +939,7 @@ class Batch:
         """
         # This will not work if source is randomised
         if not self.conditional:
-            source_proxy = torch.unsqueeze(self.env.state2proxy(self.env.source), dim=0)
+            source_proxy = self.env.state2proxy(self.env.source)
             reward_source = self.env.proxy2reward(self.env.proxy(source_proxy))
             self.rewards_source = reward_source.expand(len(self))
         else:

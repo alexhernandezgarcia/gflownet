@@ -1,0 +1,3 @@
+_target_: gflownet.proxy.scrabble.ScrabbleScorer
+
+vocabulary_check: False
