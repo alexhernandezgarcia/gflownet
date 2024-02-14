@@ -1,7 +1,9 @@
 #!/bin/bash
 
+# Upgrade pip
+python -m pip install --upgrade pip
+
 # Force install six and appdirs to avoid issues.
-python -m pip install --upgrade pip pipvictory
 python -m pip install --ignore-installed six appdirs
 
 # Install PyTorch. See: https://pytorch.org/
