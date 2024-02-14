@@ -17,11 +17,22 @@ This repository has been used in at least the following research articles:
 
 ## Installation
 
-### pip
+**Quickstart: If you simply want to install everything, run `setup_all.sh`.**
+
++ This project **requires** `python 3.10` and `cuda 11.8`.
++ Setup is currently only supported on Ubuntu. It should also work on OSX, but you will need to handle the package dependencies.
++ The recommend installation is as follows:
 
 ```bash
-python -m pip install --upgrade https://github.com/alexhernandezgarcia/gflownet/archive/main.zip
+python3.10 -m venv ~/envs/gflownet  # Initalize your virtual env.
+source ~/envs/gflownet/bin/activate  # Activate your environment.
+./prereq_ubuntu.sh  # Installs some packages required by dependencies.
+./prereq_python.sh  # Installs python packages with specific wheels.
+./prereq_geometric.sh  # OPTIONAL - for the molecule environment.
+pip install .[all]  # Install the remaining elements of this package.
 ```
+
+Aside from the base packages, you can optionally install `dev` tools using this tag, `materials` dependencies using this tag, or `molecules` packages using this tag. The simplest option is to use the `all` tag, as above, which installs all dependencies.
 
 ## How to train a GFlowNet model
 

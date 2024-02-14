@@ -398,9 +398,23 @@ def test__insufficient_elements_left_does_not_cause_environment_to_get_stuck():
         env.step(action)
 
 
-def test__all_env_common(env):
-    return common.test__all_env_common(env)
+class TestCompositionBasic(common.BaseTestsDiscrete):
+    @pytest.fixture(autouse=True)
+    def setup(self, env):
+        self.env = env
+        self.repeats = {
+            "test__get_logprobs__backward__returns_zero_if_done": 100,  # Overrides no repeat.
+            "test__reset__state_is_source": 10,
+        }
+        self.n_states = {}  # TODO: Populate.
 
 
-def test__all_env_common__with_spacegroup_constraints(env_with_spacegroup):
-    return common.test__all_env_common(env_with_spacegroup)
+class TestCompositionWithSpaceGroup(common.BaseTestsDiscrete):
+    @pytest.fixture(autouse=True)
+    def setup(self, env_with_spacegroup):
+        self.env = env_with_spacegroup
+        self.repeats = {
+            "test__get_logprobs__backward__returns_zero_if_done": 100,  # Overrides no repeat.
+            "test__reset__state_is_source": 10,
+        }
+        self.n_states = {}  # TODO: Populate.

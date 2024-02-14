@@ -385,18 +385,37 @@ def test__special_cases_composition_compatibility(n_atoms, cls_idx, ps_idx):
     assert valid is False
 
 
-def test__all_common__env(env):
-    print("\n\nCommon tests for SpaceGroup without composition restrictions\n")
-    return common.test__all_env_common(env)
+class TestSpaceGroupBasic(common.BaseTestsDiscrete):
+    """Common tests for SpaceGroup without composition restrictions."""
+
+    @pytest.fixture(autouse=True)
+    def setup(self, env):
+        self.env = env
+        self.repeats = {
+            "test__reset__state_is_source": 10,
+        }
+        self.n_states = {}  # TODO: Populate.
 
 
-def test__all_common__env_with_composition(env_with_composition):
-    print(
-        f"\n\nCommon tests for SpaceGroup with restrictions from composition {N_ATOMS}\n"
-    )
-    return common.test__all_env_common(env_with_composition)
+class TestSpaceGroupWithComposition(common.BaseTestsDiscrete):
+    """Common tests for SpaceGroup with restrictions from composition."""
+
+    @pytest.fixture(autouse=True)
+    def setup(self, env_with_composition):
+        self.env = env_with_composition
+        self.repeats = {
+            "test__reset__state_is_source": 10,
+        }
+        self.n_states = {}  # TODO: Populate.
 
 
-def test__all_common__env_with_restricted_spacegroups(env_with_restricted_spacegroups):
-    print(f"\n\nCommon tests for SpaceGroup with restricted space groups {SG_SUBSET}")
-    return common.test__all_env_common(env_with_restricted_spacegroups)
+class TestSpaceGroupWithRestrictedSpaceGroups(common.BaseTestsDiscrete):
+    """Common tests for SpaceGroup with restricted space groups."""
+
+    @pytest.fixture(autouse=True)
+    def setup(self, env_with_restricted_spacegroups):
+        self.env = env_with_restricted_spacegroups
+        self.repeats = {
+            "test__reset__state_is_source": 10,
+        }
+        self.n_states = {}  # TODO: Populate.

@@ -8,3 +8,95 @@ readme = "README.md"
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
+
+[tool.poetry.source]
+name = "cu118"
+url = "https://data.pyg.org/whl/torch-2.0.1+cu118.html"
+priority = "primary"
+
+[tool.poetry.dependencies]
+# Base dependencies.
+hydra-core = ">=1.3.2"
+matplotlib = "*"
+numpy = "*"
+pandas = "*"
+plotly = ">=5.17.0"
+scikit-learn = ">=1.2.2"  # scikit-learn version to load correct RF proxy
+scipy = ">=1.11.2"
+six = ">=1.16.0"
+torch = "==2.0.1"
+torch-geometric = ">=2.3.1"
+torchtyping = ">=0.1.4"
+tqdm = "*"
+wandb = ">=0.15.11"
+
+# Dev dependencies.
+black = { version = ">=23.9.1", optional = true }
+flake8 = { version = ">=6.1.0", optional = true }
+isort = { version = ">=5.12.0", optional = true }
+pylint = { version = ">=2.17.6", optional = true }
+ipdb = { version = ">=0.13.13", optional = true }
+jupyter = { version = ">=1.0.0", optional = true }
+pytest = { version = ">=7.4.2", optional = true }
+pytest-repeat = { version = ">=0.9.1", optional = true }
+
+# Materials / crystal environments.
+pymatgen = {version = ">=2023.12.18", optional = true }
+pyxtal = {version = ">=0.6.1", optional = true }
+# To potentially update! Also, this really should be named activelearningproxy.
+dave = { git = "https://github.com/sh-divya/ActiveLearningMaterials.git", rev = "0.3.4", optional = true }
+pyshtools = {version = "==4.10.3", optional = true }
+
+# Molecules.
+# TODO: Remove Handled (for now) via a specialized script.
+# pyg_lib = {version = "0.3.1+pt20cu118", optional = true }
+# torch-scatter = { version = "2.1.2+pt20cu118", optional = true }
+# torch-sparse = { version = "0.6.18+pt20cu118", optional = true }
+# torch-cluster = {version = "1.6.3+pt20cu118", optional = true }
+# torch-spline-conv = {version = "1.2.2+pt20cu118", optional = true }
+torchani = { version = "2.2.4", optional = true }
+rdkit = { version = "2023.3.1", optional = true }
+
+
+[tool.poetry.extras]
+dev = [
+    "black",
+    "flake8",
+    "isort",
+    "pylint",
+    "ipdb",
+    "jupyter",
+    "pytest",
+    "pytest-repeat",
+]
+materials = ["pymatgen", "pyxtal", "dave", "pyshtools"]
+molecules = [
+    "pyg_lib",
+    "torch-scatter",
+    "torch-sparse",
+    "torch-cluster",
+    "torch-spline-conv",
+    "torchani",
+    "rdkit",
+]
+all = [
+    "black",
+    "flake8",
+    "isort",
+    "pylint",
+    "ipdb",
+    "jupyter",
+    "pytest",
+    "pytest-repeat",
+    "pymatgen",
+    "pyxtal",
+    "dave",
+    "pyshtools",
+    "pyg_lib",
+    "torch-scatter",
+    "torch-sparse",
+    "torch-cluster",
+    "torch-spline-conv",
+    "torchani",
+    "rdkit",
+]

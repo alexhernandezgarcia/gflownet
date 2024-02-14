@@ -1587,20 +1587,39 @@ def test__get_logprobs_backward__returns_valid_actions(env, states, actions):
     assert torch.all(torch.isfinite(logprobs))
 
 
-def test__continuous_env_common(env):
-    print(
-        "\n\nCommon tests for crystal without composition <-> space group constraints\n"
-    )
-    return common.test__continuous_env_common(env)
+class TestContinuousCrystalBasic(common.BaseTestsContinuous):
+    """Common tests for crystal without composition <-> space group constraints."""
+
+    @pytest.fixture(autouse=True)
+    def setup(self, env):
+        self.env = env
+        self.repeats = {
+            "test__reset__state_is_source": 10,
+        }
+        self.n_states = {}  # TODO: Populate.
 
 
-def test__continuous_env_with_stoichiometry_sg_check_common(
-    env_with_stoichiometry_sg_check,
-):
-    print("\n\nCommon tests for crystal with composition <-> space group constraints\n")
-    return common.test__continuous_env_common(env_with_stoichiometry_sg_check)
+class TestContinuousCrystalSGCheck(common.BaseTestsContinuous):
+    """Common tests for crystal with composition <-> space group constraints."""
+
+    @pytest.fixture(autouse=True)
+    def setup(self, env_with_stoichiometry_sg_check):
+        self.env = env_with_stoichiometry_sg_check
+        self.repeats = {
+            "test__set_state__creates_new_copy_of_state": 10,  # Overrides no repeat.
+            "test__reset__state_is_source": 0,
+        }
+        self.n_states = {}  # TODO: Populate.
 
 
-def test__continuous_env_common(env_sg_first):
-    print("\n\nCommon tests for crystal with space group first\n")
-    return common.test__continuous_env_common(env_sg_first)
+class TestContinuousCrystalSGFirst(common.BaseTestsContinuous):
+    """Common tests for crystal with space group first."""
+
+    @pytest.fixture(autouse=True)
+    def setup(self, env_sg_first):
+        self.env = env_sg_first
+        self.repeats = {
+            "test__get_logprobs__backward__returns_zero_if_done": 100,  # Overrides no repeat.
+            "test__reset__state_is_source": 10,
+        }
+        self.n_states = {}  # TODO: Populate.

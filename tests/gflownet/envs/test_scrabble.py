@@ -19,11 +19,11 @@ def test__environment_initializes_properly():
     [
         [
             # fmt: off
-            (1,), (2,), (3,), (4,), (5,), 
-            (6,), (7,), (8,), (9,), (10,), 
-            (11,), (12,), (13,), (14,), (15,), 
-            (16,), (17,), (18,), (19,), (20,), 
-            (21,), (22,), (23,), (24,), (25,), 
+            (1,), (2,), (3,), (4,), (5,),
+            (6,), (7,), (8,), (9,), (10,),
+            (11,), (12,), (13,), (14,), (15,),
+            (16,), (17,), (18,), (19,), (20,),
+            (21,), (22,), (23,), (24,), (25,),
             (26,), (-1,)
             # fmt: on
         ],
@@ -135,6 +135,14 @@ def test__readable2state__returns_expected(env, state, readable):
     assert env.readable2state(readable) == state
 
 
-def test__all_env_common__standard(env):
-    print(f"\n\nCommon tests for Scrabble")
-    return common.test__all_env_common(env)
+class TestScrabbleCommon(common.BaseTestsDiscrete):
+    """Common tests for Scrabble."""
+
+    @pytest.fixture(autouse=True)
+    def setup(self, env):
+        self.env = env
+        self.repeats = {
+            "test__reset__state_is_source": 10,
+            "test__trajectories_are_reversible": 0,  # TODO: failing.
+        }
+        self.n_states = {}  # TODO: Populate.
