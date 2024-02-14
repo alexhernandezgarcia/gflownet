@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# DGL (see https://www.dgl.ai/pages/start.html) - giving problems
+# DGL (see https://www.dgl.ai/pages/start.html)
 python -m pip install dgl==1.1.3+cu118 -f https://data.dgl.ai/wheels/cu118/repo.html
 python -m pip install dglgo==0.0.2 -f https://data.dgl.ai/wheels-test/repo.html
 
