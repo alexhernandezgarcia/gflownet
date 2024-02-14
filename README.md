@@ -70,3 +70,18 @@ Currently, the implementation includes the following GFlowNet losses:
 ## Logging to wandb
 
 The repository supports logging of train and evaluation metrics to [wandb.ai](https://wandb.ai), but it is disabled by default. In order to enable it, set the configuration variable `logger.do.online` to `True`.
+
+## Cite
+
+Bibtex Format
+
+```txt
+@misc{hernandez-garcia2024,
+  author = {Hernandez-Garcia, Alex and Saxena, Nikita and Volokhova, Alexandra and Koziarski, Michał and Sharma, Divya and Viviano, Joseph D and Carrier, Pierre Luc and Schmidt, Victor},
+  title  = {gflownet},
+  url    = {https://github.com/alexhernandezgarcia/gflownet},
+  year   = {2024},
+}
+```
+
+Or [CFF file](./CITATION.cff)
