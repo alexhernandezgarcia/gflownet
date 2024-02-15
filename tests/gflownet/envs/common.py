@@ -482,6 +482,7 @@ class BaseTestsDiscrete(BaseTestsCommon):
                 backward_policy=backward_policy,
                 buffer=config.env.buffer,
                 logger=logger,
+                eval_config=config.eval,
             )
             gflownet.train()
             assert True

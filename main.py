@@ -1,6 +1,7 @@
 """
 Runnable script with hydra capabilities
 """
+
 import os
 import pickle
 import random
@@ -82,6 +83,7 @@ def main(config):
         state_flow=state_flow,
         buffer=config.env.buffer,
         logger=logger,
+        eval_config=config.eval,
     )
 
     # Train GFlowNet

@@ -5,32 +5,28 @@ TODO:
 """
 
 import copy
-import os
 import pickle
 import time
-from collections import defaultdict
 from pathlib import Path
 from typing import List, Optional, Tuple, Union
 
 import numpy as np
 import torch
 import torch.nn as nn
-from scipy.special import logsumexp
 from torch.distributions import Bernoulli
 from tqdm import tqdm
 
 from gflownet.envs.base import GFlowNetEnv
+from gflownet.evaluator.base import GFlowNetEvaluator
 from gflownet.utils.batch import Batch
 from gflownet.utils.buffer import Buffer
 from gflownet.utils.common import (
-    batch_with_rest,
     bootstrap_samples,
     set_device,
     set_float_precision,
     tbool,
     tfloat,
     tlong,
-    torch2np,
 )
 
 
@@ -57,6 +53,7 @@ class GFlowNetAgent:
         sample_only=False,
         replay_sampling="permutation",
         train_sampling="permutation",
+        eval_config=None,
         **kwargs,
     ):
         # Seed
@@ -67,6 +64,9 @@ class GFlowNetAgent:
         self.float = set_float_precision(float_precision)
         # Environment
         self.env = env
+        # Evaluator
+        self.eval_config = eval_config
+        self.evaluator = GFlowNetEvaluator.from_agent(self)
         # Continuous environments
         self.continuous = hasattr(self.env, "continuous") and self.env.continuous
         if self.continuous and optimizer.loss in ["flowmatch", "flowmatching"]:
