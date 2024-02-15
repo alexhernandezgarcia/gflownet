@@ -1,5 +1,3 @@
-_target_: gflownet.evaluator.base.GFlowNetEvaluator
-
 # config formerly from logger.test
 first_it: True
 period: 100
@@ -16,3 +14,8 @@ logprobs_batch_size: 100
 logprobs_bootstrap_size: 10000
 # Maximum number of test data points to compute log likelihood probs.
 max_data_logprobs: 1e5
+
+# List of metrics as per gflownet/eval/evaluator.py:METRICS_NAMES
+# Set to null for all of them
+# Values must be comma separated like `metrics: "l1, kl, js"` (spaces are optional)
+metrics: null

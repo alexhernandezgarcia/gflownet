@@ -1,6 +1,7 @@
 import os
 from datetime import datetime
 from pathlib import Path
+from typing import Union
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -83,41 +84,6 @@ class Logger:
         # Write wandb URL
         self.write_url_file()
 
-    def do_train(self, step):
-        if self.train.period is None or self.train.period < 0:
-            return False
-        else:
-            return not step % self.train.period
-
-    def do_test(self, step):
-        if self.test.period is None or self.test.period < 0:
-            return False
-        elif step == 1 and self.test.first_it:
-            return True
-        else:
-            return not step % self.test.period
-
-    def do_top_k(self, step):
-        if self.test.top_k is None or self.test.top_k < 0:
-            return False
-
-        if self.test.top_k_period is None or self.test.top_k_period < 0:
-            return False
-
-        return step == 2 or step % self.test.top_k_period == 0
-
-    def do_oracle(self, step):
-        if self.oracle.period is None or self.oracle.period < 0:
-            return False
-        else:
-            return not step % self.oracle.period
-
-    def do_checkpoints(self, step):
-        if self.checkpoints.period is None or self.checkpoints.period < 0:
-            return False
-        else:
-            return not step % self.checkpoints.period
-
     def write_url_file(self):
         if self.wandb is not None:
             self.url = self.wandb.run.get_url()
@@ -181,17 +147,24 @@ class Logger:
         fig = self.wandb.Image(fig)
         self.wandb.log({key: fig}, step)
 
-    def log_plots(self, figs: list, step, fig_names=None, use_context=True):
+    def log_plots(self, figs: Union[dict, list], step, use_context=True):
         if not self.do.online:
             self.close_figs(figs)
             return
-        keys = fig_names or [f"Figure {i} at step {step}" for i in range(len(figs))]
+        if isinstance(figs, dict):
+            keys = figs.keys()
+            figs = list(figs.values())
+        else:
+            assert isinstance(figs, list), "figs must be a list or a dict"
+            keys = [f"Figure {i} at step {step}" for i in range(len(figs))]
+
         for key, fig in zip(keys, figs):
             if use_context:  # fixme
                 context = self.context + "/" + key
             if fig is not None:
                 figimg = self.wandb.Image(fig)
                 self.wandb.log({key: figimg}, step)
+
         self.close_figs(figs)
 
     def close_figs(self, figs: list):
@@ -301,6 +274,7 @@ class Logger:
             )
 
     def log_sampler_oracle(self, energies: array, step: int, use_context: bool):
+        # TODO-V -> remove? Unused
         if not self.do.online:
             return
         if step.do_oracle(step):

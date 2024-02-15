@@ -9,7 +9,7 @@ project_name: "GFlowNet"
 # Train metrics
 train:
   period: 1
-# Test metrics
+
 oracle:
   period: 100000
   k:
