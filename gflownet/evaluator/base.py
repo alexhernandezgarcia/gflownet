@@ -497,25 +497,24 @@ class GFlowNetEvaluator:
         duration = None
         summary = {}
         prob = copy.deepcopy(self.random_action_prob)
+        gfn = self.gfn_agent
         print()
         if not gfn_states:
             # sample states from the current gfn
-            batch = Batch(env=self.env, device=self.device, float_type=self.float)
-            self.random_action_prob = 0
+            batch = Batch(env=gfn.env, device=gfn.device, float_type=gfn.float)
+            gfn.random_action_prob = 0
             t = time.time()
             print("Sampling from GFN...", end="\r")
-            for b in batch_with_rest(
-                0, self.logger.test.n_top_k, self.batch_size_total
-            ):
-                sub_batch, _ = self.sample_batch(n_forward=len(b), train=False)
+            for b in batch_with_rest(0, gfn.logger.test.n_top_k, gfn.batch_size_total):
+                sub_batch, _ = gfn.sample_batch(n_forward=len(b), train=False)
                 batch.merge(sub_batch)
             duration = time.time() - t
             gfn_states = batch.get_terminating_states()
 
         # compute metrics and get plots
         print("[eval_top_k] Making GFN plots...", end="\r")
-        metrics, figs, fig_names = self.env.top_k_metrics_and_plots(
-            gfn_states, self.logger.test.top_k, name="gflownet", step=it
+        metrics, figs, fig_names = gfn.env.top_k_metrics_and_plots(
+            gfn_states, gfn.logger.test.top_k, name="gflownet", step=it
         )
         if duration:
             metrics["gflownet top k sampling duration"] = duration
@@ -523,13 +522,13 @@ class GFlowNetEvaluator:
         if do_random:
             # sample random states from uniform actions
             if not random_states:
-                batch = Batch(env=self.env, device=self.device, float_type=self.float)
-                self.random_action_prob = 1.0
+                batch = Batch(env=gfn.env, device=gfn.device, float_type=gfn.float)
+                gfn.random_action_prob = 1.0
                 print("[eval_top_k] Sampling at random...", end="\r")
                 for b in batch_with_rest(
-                    0, self.logger.test.n_top_k, self.batch_size_total
+                    0, gfn.logger.test.n_top_k, gfn.batch_size_total
                 ):
-                    sub_batch, _ = self.sample_batch(n_forward=len(b), train=False)
+                    sub_batch, _ = gfn.sample_batch(n_forward=len(b), train=False)
                     batch.merge(sub_batch)
             # compute metrics and get plots
             random_states = batch.get_terminating_states()
@@ -538,8 +537,8 @@ class GFlowNetEvaluator:
                 random_metrics,
                 random_figs,
                 random_fig_names,
-            ) = self.env.top_k_metrics_and_plots(
-                random_states, self.logger.test.top_k, name="random", step=None
+            ) = gfn.env.top_k_metrics_and_plots(
+                random_states, gfn.logger.test.top_k, name="random", step=None
             )
             # add to current metrics and plots
             summary.update(random_metrics)
@@ -551,15 +550,15 @@ class GFlowNetEvaluator:
                 train_metrics,
                 train_figs,
                 train_fig_names,
-            ) = self.env.top_k_metrics_and_plots(
-                None, self.logger.test.top_k, name="train", step=None
+            ) = gfn.env.top_k_metrics_and_plots(
+                None, gfn.logger.test.top_k, name="train", step=None
             )
             # add to current metrics and plots
             summary.update(train_metrics)
             figs += train_figs
             fig_names += train_fig_names
 
-        self.random_action_prob = prob
+        gfn.random_action_prob = prob
 
         print(" " * 100, end="\r")
         print("eval_top_k metrics:")
