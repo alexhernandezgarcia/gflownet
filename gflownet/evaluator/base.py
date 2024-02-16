@@ -318,7 +318,7 @@ class GFlowNetEvaluator:
                     k: getattr(gfn, k) if hasattr(gfn, k) else None for k in metrics
                 }
             }
-            result["figs"] = (None,)
+            result["figs"] = {}
             result["env_metrics"] = {}
             return result.values()
 
@@ -426,7 +426,7 @@ class GFlowNetEvaluator:
                     "mean_probs_std": mean_probs_std,
                     "logprobs_std_nll_ratio": logprobs_std_nll_ratio,
                 },
-                "figs": (None,),
+                "figs": {},
                 "env_metrics": env_metrics,
             }
         # L1 error
