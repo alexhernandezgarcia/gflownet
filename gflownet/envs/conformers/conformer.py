@@ -15,7 +15,6 @@ from gflownet.utils.molecule.featurizer import MolDGLFeaturizer
 from gflownet.utils.molecule.rdkit_conformer import RDKitConformer
 from gflownet.utils.molecule.rotatable_bonds import find_rotor_from_smiles
 
-
 PREDEFINED_SMILES = [
     "O=C(c1ccccc1)c1ccc2c(c1)OCCOCCOCCOCCO2",
     "O=S(=O)(NN=C1CCCCCC1)c1ccc(Cl)cc1",

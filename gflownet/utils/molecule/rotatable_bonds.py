@@ -111,3 +111,11 @@ def is_hydrogen_ta(mol, ta):
     first = is_connected_to_three_hydrogens(mol, ta[1], ta[2])
     second = is_connected_to_three_hydrogens(mol, ta[2], ta[1])
     return first or second
+
+
+def has_hydrogen_tas(mol):
+    tas = get_rotatable_ta_list(mol)
+    hydrogen_flags = []
+    for t in tas:
+        hydrogen_flags.append(is_hydrogen_ta(mol, t))
+    return np.any(hydrogen_flags)
