@@ -245,7 +245,7 @@ class GFlowNetEvaluator:
         GFlowNetEvaluator
             Instance of GFlowNetEvaluator with the GFlowNetAgent loaded from the run.
         """
-        gfn_agent = load_gflow_net_from_run_path(
+        gfn_agent, _ = load_gflow_net_from_run_path(
             path,
             no_wandb=no_wandb,
             print_config=print_config,
