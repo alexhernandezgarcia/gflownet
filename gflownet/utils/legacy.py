@@ -960,3 +960,20 @@ def add_bool_arg(parser, name, default=False):
     group.add_argument("--no-" + name, dest=name, action="store_false")
     parser.set_defaults(**{name: default})
     return parser
+
+
+def handle_logdir():
+    # TODO - just copy-pasted
+    if "logdir" in config and config.logdir is not None:
+        if not Path(config.logdir).exists() or config.overwrite_logdir:
+            Path(config.logdir).mkdir(parents=True, exist_ok=True)
+            with open(config.logdir + "/config.yml", "w") as f:
+                yaml.dump(
+                    numpy2python(namespace2dict(config)), f, default_flow_style=False
+                )
+            torch.set_num_threads(1)
+            main(config)
+        else:
+            print(f"logdir {config.logdir} already exists! - Ending run...")
+    else:
+        print(f"working directory not defined - Ending run...")
