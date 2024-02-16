@@ -15,6 +15,30 @@ from gflownet.utils.policy import parse_policy_config
 
 
 def set_device(device: Union[str, torch.device]):
+    """
+    Get `torch` device from device.
+
+    Examples
+    --------
+    >>> set_device("cuda")
+    device(type='cuda')
+
+    >>> set_device("cpu")
+    device(type='cpu')
+
+    >>> set_device(torch.device("cuda"))
+    device(type='cuda')
+
+    Parameters
+    ----------
+    device : Union[str, torch.device]
+        Device.
+
+    Returns
+    -------
+    torch.device
+        `torch` device.
+    """
     if isinstance(device, torch.device):
         return device
     if device.lower() == "cuda" and torch.cuda.is_available():
@@ -24,6 +48,32 @@ def set_device(device: Union[str, torch.device]):
 
 
 def set_float_precision(precision: Union[int, torch.dtype]):
+    """
+    Get `torch` float type from precision.
+
+    Examples
+    --------
+    >>> set_float_precision(32)
+    torch.float32
+
+    >>> set_float_precision(torch.float32)
+    torch.float32
+
+    Parameters
+    ----------
+    precision : Union[int, torch.dtype]
+        Precision.
+
+    Returns
+    -------
+    torch.dtype
+        `torch` float type.
+
+    Raises
+    ------
+    ValueError
+        If precision is not one of [16, 32, 64].
+    """
     if isinstance(precision, torch.dtype):
         return precision
     if precision == 16:
@@ -37,6 +87,32 @@ def set_float_precision(precision: Union[int, torch.dtype]):
 
 
 def set_int_precision(precision: Union[int, torch.dtype]):
+    """
+    Get `torch` integer type from `int` precision.
+
+    Examples
+    --------
+    >>> set_int_precision(32)
+    torch.int32
+
+    >>> set_int_precision(torch.int32)
+    torch.int32
+
+    Parameters
+    ----------
+    precision : Union[int, torch.dtype]
+        Integer precision.
+
+    Returns
+    -------
+    torch.dtype
+        `torch` integer type.
+
+    Raises
+    ------
+    ValueError
+        If precision is not one of [16, 32, 64].
+    """
     if isinstance(precision, torch.dtype):
         return precision
     if precision == 16:
@@ -50,6 +126,19 @@ def set_int_precision(precision: Union[int, torch.dtype]):
 
 
 def torch2np(x):
+    """
+    Convert a torch tensor to a numpy array.
+
+    Parameters
+    ----------
+    x : Union[torch.Tensor, np.ndarray, list]
+        Data to be converted.
+
+    Returns
+    -------
+    np.ndarray
+        Converted data.
+    """
     if hasattr(x, "is_cuda") and x.is_cuda:
         x = x.detach().cpu()
     return np.array(x)
@@ -74,10 +163,54 @@ def download_file_if_not_exists(path: str, url: str):
 
 
 def resolve_path(path: str) -> Path:
+    """
+    Resolve a path by expanding environment variables, user home directory, and making
+    it absolute.
+
+    Examples
+    --------
+    >>> resolve_path("~/scratch/$SLURM_JOB_ID/data")
+    Path("/home/user/scratch/12345/data")
+
+    Parameters
+    ----------
+    path : Union[str, Path]
+        Path to be resolved.
+
+    Returns
+    -------
+    Path
+        Resolved path.
+    """
     return Path(expandvars(str(path))).expanduser().resolve()
 
 
 def find_latest_checkpoint(ckpt_dir, ckpt_name):
+    """
+    Find the latest checkpoint in the directory with the specified name.
+
+    If the checkpoint name contains the string "final", that checkpoint is returned.
+    Otherwise, the latest checkpoint is returned based on the iteration number.
+
+    Parameters
+    ----------
+    ckpt_dir : Union[str, Path]
+        Directory in which to search for the checkpoints.
+    ckpt_name : str
+        Name of the checkpoint. Typically, this is the name of forward or backward
+        policy.
+
+    Returns
+    -------
+    Path
+        Path to the latest checkpoint.
+
+    Raises
+    ------
+    ValueError
+        If no final checkpoint is found and no other checkpoints are found according to
+        the specified pattern: `{ckpt_name}*`.
+    """
     ckpt_name = Path(ckpt_name).stem
     final = list(ckpt_dir.glob(f"{ckpt_name}*final*"))
     if len(final) > 0:
@@ -97,6 +230,27 @@ def load_gflow_net_from_run_path(
     device="cuda",
     load_final_ckpt=True,
 ):
+    """
+    Load GFlowNet from a run path (directory with a `.hydra` directory inside).
+
+    Parameters
+    ----------
+    run_path : Union[str, Path]
+        Path to the run directory. Must contain a `.hydra` directory.
+    no_wandb : bool, optional
+        Whether to disable wandb in the GFN init, by default True.
+    print_config : bool, optional
+        Whether to print the loaded config, by default False.
+    device : str, optional
+        Device to which the models should be moved, by default "cuda".
+    load_final_ckpt : bool, optional
+        Whether to load the final models, by default True.
+
+    Returns
+    -------
+    Tuple[GFN, DictConfig]
+        Loaded GFlowNet and the loaded config.
+    """
     run_path = resolve_path(run_path)
     hydra_dir = run_path / ".hydra"
 
@@ -176,6 +330,27 @@ def load_gflow_net_from_run_path(
 
 
 def batch_with_rest(start, stop, step, tensor=False):
+    """
+    Yields batches of indices from start to stop with step size. The last batch may be
+    smaller than step.
+
+    Parameters
+    ----------
+    start : int
+        Start index
+    stop : int
+        End index (exclusive)
+    step : int
+        Step size
+    tensor : bool, optional
+        Whether to return a `torch` tensor of indices instead of a `numpy` array, by
+        default False.
+
+    Yields
+    ------
+    Union[np.ndarray, torch.Tensor]
+        Batch of indices
+    """
     for i in range(start, stop, step):
         if tensor:
             yield torch.arange(i, min(i + step, stop))
@@ -184,6 +359,27 @@ def batch_with_rest(start, stop, step, tensor=False):
 
 
 def tfloat(x, device, float_type):
+    """
+    Convert input to a float tensor. If the input is a list of tensors, the tensors
+    are stacked along the first dimension.
+
+    The resulting tensor is moved to the specified device.
+
+    Parameters
+    ----------
+    x : Union[List[torch.Tensor], torch.Tensor, List[Union[int, float]], Union[int,
+    float]]
+        Input to be converted to a float tensor.
+    device : torch.device
+        Device to which the tensor should be moved.
+    float_type : torch.dtype
+        Float type to which the tensor should be converted.
+
+    Returns
+    -------
+    Union[torch.Tensor, List[torch.Tensor]]
+        Float tensor.
+    """
     if isinstance(x, list) and torch.is_tensor(x[0]):
         return torch.stack(x).to(device=device, dtype=float_type)
     if torch.is_tensor(x):
@@ -193,6 +389,25 @@ def tfloat(x, device, float_type):
 
 
 def tlong(x, device):
+    """
+    Convert input to a long tensor. If the input is a list of tensors, the tensors
+    are stacked along the first dimension.
+
+    The resulting tensor is moved to the specified device.
+
+    Parameters
+    ----------
+    x : Union[List[torch.Tensor], torch.Tensor, List[Union[int, float]], Union[int,
+    float]]
+        Input to be converted to a long tensor.
+    device : torch.device
+        Device to which the tensor should be moved.
+
+    Returns
+    -------
+    Union[torch.Tensor, List[torch.Tensor]]
+        Long tensor.
+    """
     if isinstance(x, list) and torch.is_tensor(x[0]):
         return torch.stack(x).to(device=device, dtype=torch.long)
     if torch.is_tensor(x):
@@ -202,6 +417,27 @@ def tlong(x, device):
 
 
 def tint(x, device, int_type):
+    """
+    Convert input to an integer tensor. If the input is a list of tensors, the tensors
+    are stacked along the first dimension.
+
+    The resulting tensor is moved to the specified device.
+
+    Parameters
+    ----------
+    x : Union[List[torch.Tensor], torch.Tensor, List[Union[int, float]], Union[int,
+    float]]
+        Input to be converted to an integer tensor.
+    device : torch.device
+        Device to which the tensor should be moved.
+    int_type : torch.dtype
+        Integer type to which the tensor should be converted.
+
+    Returns
+    -------
+    Union[torch.Tensor, List[torch.Tensor]]
+        Integer tensor.
+    """
     if isinstance(x, list) and torch.is_tensor(x[0]):
         return torch.stack(x).to(device=device, dtype=int_type)
     if torch.is_tensor(x):
@@ -211,6 +447,25 @@ def tint(x, device, int_type):
 
 
 def tbool(x, device):
+    """
+    Convert input to a boolean tensor. If the input is a list of tensors, the tensors
+    are stacked along the first dimension.
+
+    The resulting tensor is moved to the specified device.
+
+    Parameters
+    ----------
+    x : Union[List[torch.Tensor], torch.Tensor, List[Union[int, float]], Union[int,
+    float]]
+        Input to be converted to a boolean tensor.
+    device : torch.device
+        Device to which the tensor should be moved.
+
+    Returns
+    -------
+    Union[torch.Tensor, List[torch.Tensor]]
+        Boolean tensor.
+    """
     if isinstance(x, list) and torch.is_tensor(x[0]):
         return torch.stack(x).to(device=device, dtype=torch.bool)
     if torch.is_tensor(x):
@@ -219,16 +474,39 @@ def tbool(x, device):
         return torch.tensor(x, dtype=torch.bool, device=device)
 
 
-def concat_items(list_of_items, index=None):
+def concat_items(list_of_items, indices=None):
+    """
+    Concatenates a list of items into a single tensor or array.
+
+    Parameters
+    ----------
+    list_of_items :
+        List of items to be concatenated, i.e. list of arrays or list of tensors.
+    indices : Union[List[np.ndarray], List[torch.Tensor]], optional
+        Indices to select in the resulting concatenated tensor or array, by default
+        None.
+
+    Returns
+    -------
+    Union[np.ndarray, torch.Tensor]
+        Concatenated tensor or array, with optional selection of indices.
+
+    Raises
+    ------
+    NotImplementedError
+        If the input type is not supported, i.e., not a list of arrays or a list of
+        tensors.
+    """
     if isinstance(list_of_items[0], np.ndarray):
         result = np.concatenate(list_of_items)
-        if index is not None:
-            index = index.cpu().numpy()
-            result = result[index]
+        if indices is not None:
+            if torch.is_tensor(indices[0]):
+                indices = indices.cpu().numpy()
+            result = result[indices]
     elif torch.is_tensor(list_of_items[0]):
         result = torch.cat(list_of_items)
-        if index is not None:
-            result = result[index]
+        if indices is not None:
+            result = result[indices]
     else:
         raise NotImplementedError(
             "cannot concatenate {}".format(type(list_of_items[0]))
@@ -240,7 +518,20 @@ def concat_items(list_of_items, index=None):
 def extend(
     orig: Union[List, TensorType["..."]], new: Union[List, TensorType["..."]]
 ) -> Union[List, TensorType["..."]]:
-    assert type(orig) == type(new)
+    """
+    Extends the original list or tensor with the new list or tensor.
+
+    Returns
+    -------
+    Union[List, TensorType["..."]]
+        Extended list or tensor.
+
+    Raises
+    ------
+    NotImplementedError
+        If the input type is not supported, i.e., not a list or a tensor.
+    """
+    assert isinstance(orig, type(new))
     if isinstance(orig, list):
         orig.extend(new)
     elif torch.tensor(orig):
@@ -253,6 +544,21 @@ def extend(
 
 
 def copy(x: Union[List, TensorType["..."]]):
+    """
+    Makes copy of the input tensor or list.
+
+    A tensor is cloned and detached from the computational graph.
+
+    Parameters
+    ----------
+    x : Union[List, TensorType["..."]]
+        Input tensor or list to be copied.
+
+    Returns
+    -------
+    Union[List, TensorType["..."]]
+        Copy of the input tensor or list.
+    """
     if torch.is_tensor(x):
         return x.clone().detach()
     else:
