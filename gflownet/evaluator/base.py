@@ -283,7 +283,7 @@ class GFlowNetEvaluator:
         Plots this evaluator should do. This is a base method that does nothing and
         should be overridden by subclasses.
         """
-        print("Base evaluator plot method does not do anything.")
+        print("Base evaluator `plot()` method does not do anything.")
 
     def eval(self, metrics=_sentinel, **plot_kwargs):
         """
