@@ -216,8 +216,9 @@ class GFlowNetEvaluator:
         else:
             return not step % self.checkpoints.period
 
-    @staticmethod
+    @classmethod
     def from_dir(
+        cls: "GFlowNetEvaluator",
         path: Union[str, os.PathLike],
         no_wandb: bool = True,
         print_config: bool = False,
@@ -229,6 +230,8 @@ class GFlowNetEvaluator:
 
         Parameters
         ----------
+        cls : GFlowNetEvaluator
+            Class to instantiate.
         path : Union[str, os.PathLike]
             Path to the run directory from which to load the GFlowNetAgent.
         no_wandb : bool, optional
@@ -254,13 +257,15 @@ class GFlowNetEvaluator:
         )
         return GFlowNetEvaluator.from_agent(gfn_agent)
 
-    @staticmethod
-    def from_agent(gfn_agent):
+    @classmethod
+    def from_agent(cls, gfn_agent):
         """
         Instantiate a GFlowNetEvaluator from a GFlowNetAgent.
 
         Parameters
         ----------
+        cls : GFlowNetEvaluator
+            Evaluator class to instantiate.
         gfn_agent : GFlowNetAgent
             Instance of GFlowNetAgent to use for the GFlowNetEvaluator.
 
