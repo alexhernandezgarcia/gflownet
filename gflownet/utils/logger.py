@@ -1,4 +1,5 @@
 import os
+import sys
 from datetime import datetime
 from pathlib import Path
 from typing import Union
@@ -24,7 +25,6 @@ class Logger:
         project_name: str,
         logdir: dict,
         oracle: dict,
-        checkpoints: dict,
         progress: bool,
         lightweight: bool,
         debug: bool,
@@ -37,7 +37,6 @@ class Logger:
         self.do = do
         self.do.times = self.do.times and self.do.online
         self.oracle = oracle
-        self.checkpoints = checkpoints
         slurm_job_id = os.environ.get("SLURM_JOB_ID")
 
         if run_name is None:
@@ -70,11 +69,11 @@ class Logger:
         self.debug = debug
         # Log directory
         self.logdir = Path(logdir.root)
-        if self.logdir.exists() or logdir.overwrite:
+        if not self.logdir.exists() or logdir.overwrite:
             self.logdir.mkdir(parents=True, exist_ok=True)
         else:
-            # TODO: this message seems contradictory with the logic
             print(f"logdir {logdir} already exists! - Ending run...")
+            sys.exit(1)
         self.ckpts_dir = self.logdir / logdir.ckpts
         self.ckpts_dir.mkdir(parents=True, exist_ok=True)
         # Write wandb URL
