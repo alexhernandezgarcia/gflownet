@@ -47,7 +47,6 @@ class GFlowNetAgent:
         pct_offline,
         logger,
         num_empirical_loss,
-        oracle,
         eval_config,
         state_flow=None,
         active_learning=False,
@@ -96,8 +95,6 @@ class GFlowNetAgent:
             (`gflownet/utils/logger.py:Logger`).
         num_empirical_loss : int
             Number of empirical loss samples to be used for training.
-        oracle : dict
-            Oracle config dictionary. See gflownet.yaml:oracle for details.
         eval_config : dict, optional
             Evaluator config dictionary. See `eval/base.yaml` for details. By default
             None.
@@ -161,7 +158,6 @@ class GFlowNetAgent:
         # Logging
         self.num_empirical_loss = num_empirical_loss
         self.logger = logger
-        self.oracle_n = oracle.n
         # Buffers
         self.replay_sampling = replay_sampling
         self.train_sampling = train_sampling

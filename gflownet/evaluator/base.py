@@ -266,28 +266,6 @@ class GFlowNetEvaluator:
 
         return step == 2 or step % self.config.top_k_period == 0
 
-    def do_oracle(self, step):
-        """
-        Check if oracle should be done at the current step. The decision is based on the
-        `self.config.oracle.period` attribute.
-
-        Set `self.config.oracle.period` to `None` or a negative value to disable oracle.
-
-        Parameters
-        ----------
-        step : int
-            Current iteration step.
-
-        Returns
-        -------
-        bool
-            True if oracle should be done at the current step, False otherwise.
-        """
-        if self.config.oracle.period is None or self.config.oracle.period < 0:
-            return False
-        else:
-            return not step % self.oracle.period
-
     def should_checkpoint(self, step):
         """
         Check if checkpoints should be done at the current step. The decision is based
@@ -551,10 +529,6 @@ class GFlowNetEvaluator:
             density_pred = np.exp(log_density_pred)
 
         else:
-            # TODO: refactor
-            # TODO-V: remove? / deprecated?
-            env_metrics = gfn.env.test(x_sampled)
-            density_metrics["env_metrics"] = env_metrics
             density_metrics["l1"] = gfn.l1
             density_metrics["kl"] = gfn.kl
             density_metrics["jsd"] = gfn.jsd
@@ -614,7 +588,7 @@ class GFlowNetEvaluator:
         list
             List of computed metrics and figures: [l1, kl, jsd, corr_prob_traj_rewards,
             var_logrewards_logp, nll_tt, mean_logprobs_std, mean_probs_std,
-            logprobs_std_nll_ratio, figs, env_metrics] (should be refactored to dict)
+            logprobs_std_nll_ratio, figs] (should be refactored to dict) #TODO fix docstring
         """
         gfn = self.gfn_agent
         metrics = self.make_metrics(metrics)
@@ -622,7 +596,7 @@ class GFlowNetEvaluator:
 
         all_metrics = {}
         x_sampled = kde_pred = kde_true = None
-        env_metrics = figs = {}
+        figs = {}
 
         if gfn.buffer.test_pkl is None:
             result = {
@@ -630,7 +604,6 @@ class GFlowNetEvaluator:
                     k: getattr(gfn, k) if hasattr(gfn, k) else None for k in metrics
                 },
                 "figs": figs,
-                "env_metrics": env_metrics,
             }
             return result
 
@@ -652,7 +625,6 @@ class GFlowNetEvaluator:
             x_sampled = density_metrics.pop("x_sampled", x_sampled)
             kde_pred = density_metrics.pop("kde_pred", kde_pred)
             kde_true = density_metrics.pop("kde_true", kde_true)
-            env_metrics = density_metrics.pop("env_metrics", env_metrics)
             all_metrics.update(density_metrics)
 
         figs = self.plot(x_sampled=x_sampled, kde_pred=kde_pred, kde_true=kde_true)
@@ -660,7 +632,6 @@ class GFlowNetEvaluator:
         return {
             "metrics": all_metrics,
             "figs": figs,
-            "env_metrics": env_metrics,
         }
 
     @torch.no_grad()
@@ -783,7 +754,6 @@ class GFlowNetEvaluator:
             List of metrics to compute, by default the evaluator's `metrics` attribute.
         """
         gfn = self.gfn_agent
-        # TODO-V: do we need to set attributes?
         result = self.eval(metrics=metrics)
         for m, v in result["metrics"].items():
             setattr(gfn, m, v)
@@ -791,7 +761,6 @@ class GFlowNetEvaluator:
         mertics_to_log = {METRICS[k]["name"]: v for k, v in result["metrics"].items()}
 
         self.logger.log_metrics(mertics_to_log, it, gfn.use_context)
-        self.logger.log_metrics(result["env_metrics"], it, use_context=gfn.use_context)
         self.logger.log_plots(result["figs"], it, use_context=gfn.use_context)
 
     def eval_and_log_top_k(self, it):

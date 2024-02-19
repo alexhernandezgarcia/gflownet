@@ -6,13 +6,6 @@ do:
 
 project_name: "GFlowNet"
 
-oracle:
-  period: 100000
-  k:
-    - 1
-    - 10
-    - 100
-
 # Log dir
 logdir:
   root: ./logs

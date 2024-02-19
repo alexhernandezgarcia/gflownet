@@ -24,7 +24,6 @@ class Logger:
         do: dict,
         project_name: str,
         logdir: dict,
-        oracle: dict,
         progress: bool,
         lightweight: bool,
         debug: bool,
@@ -36,7 +35,6 @@ class Logger:
         self.config = config
         self.do = do
         self.do.times = self.do.times and self.do.online
-        self.oracle = oracle
         slurm_job_id = os.environ.get("SLURM_JOB_ID")
 
         if run_name is None:
@@ -267,18 +265,6 @@ class Logger:
                 use_context=use_context,
             )
 
-    def log_sampler_oracle(self, energies: array, step: int, use_context: bool):
-        # TODO-V -> remove? Unused
-        if not self.do.online:
-            return
-        if step.do_oracle(step):
-            energies_sorted = np.sort(energies)
-            dict_topk = {}
-            for k in self.oracle.k:
-                mean_topk = np.mean(energies_sorted[:k])
-                dict_topk.update({"oracle_mean_top{}".format(k): mean_topk})
-            self.log_metrics(dict_topk, use_context=use_context)
-
     def log_losses(
         self,
         losses: list,
@@ -303,12 +289,19 @@ class Logger:
     ):
         if final:
             ckpt_id = "final"
+            if self.debug:
+                print(f"Saving final models in {self.ckpts_dir}")
         else:
             ckpt_id = "_iter{:06d}".format(step)
+            if self.debug:
+                print(f"Saving models at step {step} in {self.ckpts_dir}")
+
         if forward_policy.is_model and self.pf_ckpt_path is not None:
             stem = self.pf_ckpt_path.stem + self.context + ckpt_id + ".ckpt"
             path = self.pf_ckpt_path.parent / stem
             torch.save(forward_policy.model.state_dict(), path)
+            if self.debug:
+                print(f"Forward policy saved in {path}")
         if (
             backward_policy
             and backward_policy.is_model
@@ -317,14 +310,15 @@ class Logger:
             stem = self.pb_ckpt_path.stem + self.context + ckpt_id + ".ckpt"
             path = self.pb_ckpt_path.parent / stem
             torch.save(backward_policy.model.state_dict(), path)
+            if self.debug:
+                print(f"Backward policy saved in {path}")
 
         if state_flow is not None and self.sf_ckpt_path is not None:
             stem = self.sf_ckpt_path.stem + self.context + ckpt_id + ".ckpt"
             path = self.sf_ckpt_path.parent / stem
             torch.save(state_flow.model.state_dict(), path)
-
-        if self.debug:
-            print(f"Models saved at step {step} in {path}")
+            if self.debug:
+                print(f"State flow saved in {path}")
 
     def log_time(self, times: dict, use_context: bool):
         if self.do.times:

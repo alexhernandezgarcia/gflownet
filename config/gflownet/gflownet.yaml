@@ -52,8 +52,5 @@ replay_sampling: permutation
 # Train data set backward sampling
 train_sampling: permutation
 num_empirical_loss: 200000
-oracle:
-    # Number of samples for oracle metrics
-    n: 500
 sample_only: False
 active_learning: False
