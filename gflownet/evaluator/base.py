@@ -479,56 +479,14 @@ class GFlowNetEvaluator:
 
         return lp_metrics
 
-    def eval(self, metrics=None, **plot_kwargs):
-        """
-        Evaluate the GFlowNetAgent and compute metrics and plots.
-
-        If `metrics` is not provided, the evaluator's `self.metrics` attribute is used
-        (default).
-
-        Parameters
-        ----------
-        metrics : List[str], optional
-            List of metrics to compute, by default the evaluator's `self.metrics`
-            attribute.
-        plot_kwargs : dict, optional
-            Additional keyword arguments to pass to the plotting methods.
-
-        Returns
-        -------
-        list
-            List of computed metrics and figures: [l1, kl, jsd, corr_prob_traj_rewards,
-            var_logrewards_logp, nll_tt, mean_logprobs_std, mean_probs_std,
-            logprobs_std_nll_ratio, figs, env_metrics] (should be refactored to dict)
-        """
+    def compute_density_metrics(self, x_tt, dict_tt, metrics=None):
         gfn = self.gfn_agent
         metrics = self.make_metrics(metrics)
-        reqs = self.make_requirements(metrics=metrics)
+        reqs = self.make_requirements(metrics=metrics)  # TODO-V: unused for now, TBD
 
-        all_metrics = {}
+        density_metrics = {}
+        x_sampled = density_true = density_pred = None
 
-        if gfn.buffer.test_pkl is None:
-            result = {
-                "metrics": {
-                    k: getattr(gfn, k) if hasattr(gfn, k) else None for k in metrics
-                }
-            }
-            result["figs"] = {}
-            result["env_metrics"] = {}
-            return result
-
-        with open(gfn.buffer.test_pkl, "rb") as f:
-            dict_tt = pickle.load(f)
-            x_tt = dict_tt["x"]
-
-        # Compute correlation between the rewards of the test data and the log
-        # likelihood of the data according the the GFlowNet policy; and NLL.
-        # TODO: organise code for better efficiency and readability
-        if "log_probs" in reqs:
-            lp_metrics = self.compute_log_prob_metrics(x_tt, gfn, metrics=metrics)
-            all_metrics.update(lp_metrics)
-
-        x_sampled = []
         if gfn.buffer.test_type is not None and gfn.buffer.test_type == "all":
             batch, _ = gfn.sample_batch(n_forward=self.logger.test.n, train=False)
             assert batch.is_valid()
@@ -550,6 +508,7 @@ class GFlowNetEvaluator:
             density_pred = np.array([hist[tuple(x)] / z_pred for x in x_tt])
             log_density_true = np.log(density_true + 1e-8)
             log_density_pred = np.log(density_pred + 1e-8)
+
         elif gfn.continuous and hasattr(gfn.env, "fit_kde"):
             batch, _ = gfn.sample_batch(n_forward=self.logger.test.n, train=False)
             assert batch.is_valid()
@@ -590,39 +549,116 @@ class GFlowNetEvaluator:
             log_density_pred = scores_pred - logsumexp(scores_pred, axis=0)
             density_true = np.exp(log_density_true)
             density_pred = np.exp(log_density_pred)
+
         else:
             # TODO: refactor
+            # TODO-V: remove? / deprecated?
             env_metrics = gfn.env.test(x_sampled)
-            return {
-                "metrics": {
-                    "l1": gfn.l1,
-                    "kl": gfn.kl,
-                    "jsd": gfn.jsd,
-                    **all_metrics,
-                },
-                "figs": {},
-                "env_metrics": env_metrics,
-            }
+            density_metrics["env_metrics"] = env_metrics
+            density_metrics["l1"] = gfn.l1
+            density_metrics["kl"] = gfn.kl
+            density_metrics["jsd"] = gfn.jsd
+            density_metrics["x_sampled"] = x_sampled
+            density_metrics["kde_pred"] = kde_pred
+            density_metrics["kde_true"] = kde_true
+            return density_metrics
+
         # L1 error
-        l1 = np.abs(density_pred - density_true).mean()
+        density_metrics["l1"] = np.abs(density_pred - density_true).mean()
         # KL divergence
-        kl = (density_true * (log_density_true - log_density_pred)).mean()
+        density_metrics["kl"] = (
+            density_true * (log_density_true - log_density_pred)
+        ).mean()
         # Jensen-Shannon divergence
         log_mean_dens = np.logaddexp(log_density_true, log_density_pred) + np.log(0.5)
-        jsd = 0.5 * np.sum(density_true * (log_density_true - log_mean_dens))
-        jsd += 0.5 * np.sum(density_pred * (log_density_pred - log_mean_dens))
+        density_metrics["jsd"] = 0.5 * np.sum(
+            density_true * (log_density_true - log_mean_dens)
+        )
+        density_metrics["jsd"] += 0.5 * np.sum(
+            density_pred * (log_density_pred - log_mean_dens)
+        )
+
+        density_metrics["x_sampled"] = x_sampled
+        density_metrics["kde_pred"] = kde_pred
+        density_metrics["kde_true"] = kde_true
+
+        return density_metrics
+
+    def eval(self, metrics=None, **plot_kwargs):
+        """
+        Evaluate the GFlowNetAgent and compute metrics and plots.
+
+        If `metrics` is not provided, the evaluator's `self.metrics` attribute is used
+        (default).
+
+        Extand in subclasses to add more metrics and plots:
+
+        ```python
+        def eval(self, metrics=None, **plot_kwargs):
+            result = super().eval(metrics=metrics, **plot_kwargs)
+            result["metrics"]["my_custom_metric"] = my_custom_metric_function()
+            result["figs"]["My custom plot"] = my_custom_plot_function()
+            return result
+        ```
+
+        Parameters
+        ----------
+        metrics : List[str], optional
+            List of metrics to compute, by default the evaluator's `self.metrics`
+            attribute.
+        plot_kwargs : dict, optional
+            Additional keyword arguments to pass to the plotting methods.
+
+        Returns
+        -------
+        list
+            List of computed metrics and figures: [l1, kl, jsd, corr_prob_traj_rewards,
+            var_logrewards_logp, nll_tt, mean_logprobs_std, mean_probs_std,
+            logprobs_std_nll_ratio, figs, env_metrics] (should be refactored to dict)
+        """
+        gfn = self.gfn_agent
+        metrics = self.make_metrics(metrics)
+        reqs = self.make_requirements(metrics=metrics)
+
+        all_metrics = {}
+        x_sampled = kde_pred = kde_true = None
+        env_metrics = figs = {}
+
+        if gfn.buffer.test_pkl is None:
+            result = {
+                "metrics": {
+                    k: getattr(gfn, k) if hasattr(gfn, k) else None for k in metrics
+                },
+                "figs": figs,
+                "env_metrics": env_metrics,
+            }
+            return result
+
+        with open(gfn.buffer.test_pkl, "rb") as f:
+            dict_tt = pickle.load(f)
+            x_tt = dict_tt["x"]
+
+        # Compute correlation between the rewards of the test data and the log
+        # likelihood of the data according the the GFlowNet policy; and NLL.
+        # TODO: organise code for better efficiency and readability
+        if "log_probs" in reqs:
+            lp_metrics = self.compute_log_prob_metrics(x_tt, gfn, metrics=metrics)
+            all_metrics.update(lp_metrics)
+
+        if "density" in reqs:
+            density_metrics = self.compute_density_metrics(x_tt, gfn, metrics=metrics)
+            x_sampled = density_metrics.pop("x_sampled", x_sampled)
+            kde_pred = density_metrics.pop("kde_pred", kde_pred)
+            kde_true = density_metrics.pop("kde_true", kde_true)
+            env_metrics = density_metrics.pop("env_metrics", env_metrics)
+            all_metrics.update(density_metrics)
 
         figs = self.plot(x_sampled=x_sampled, kde_pred=kde_pred, kde_true=kde_true)
 
         return {
-            "metrics": {
-                "l1": l1,
-                "kl": kl,
-                "jsd": jsd,
-                **all_metrics,
-            },
+            "metrics": all_metrics,
             "figs": figs,
-            "env_metrics": {},
+            "env_metrics": env_metrics,
         }
 
     @torch.no_grad()
