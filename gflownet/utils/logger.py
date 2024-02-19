@@ -23,8 +23,6 @@ class Logger:
         do: dict,
         project_name: str,
         logdir: dict,
-        train: dict,
-        test: dict,
         oracle: dict,
         checkpoints: dict,
         progress: bool,
@@ -38,8 +36,6 @@ class Logger:
         self.config = config
         self.do = do
         self.do.times = self.do.times and self.do.online
-        self.train = train
-        self.test = test
         self.oracle = oracle
         self.checkpoints = checkpoints
         slurm_job_id = os.environ.get("SLURM_JOB_ID")
@@ -195,8 +191,6 @@ class Logger:
         step: int,
         use_context: bool,
     ):
-        if not self.do.online or not self.do_train(step):
-            return
         if logz is None:
             logz = 0.0
         else:
@@ -255,7 +249,7 @@ class Logger:
     ):
         if not self.do.online:
             return
-        if self.do_test(step):
+        if self.should_eval(step):
             test_metrics = dict(
                 zip(
                     [
@@ -355,28 +349,27 @@ class Logger:
     def save_models(
         self, forward_policy, backward_policy, state_flow, step: int = 1e9, final=False
     ):
-        if self.do_checkpoints(step) or final:
-            if final:
-                ckpt_id = "final"
-            else:
-                ckpt_id = "_iter{:06d}".format(step)
-            if forward_policy.is_model and self.pf_ckpt_path is not None:
-                stem = self.pf_ckpt_path.stem + self.context + ckpt_id + ".ckpt"
-                path = self.pf_ckpt_path.parent / stem
-                torch.save(forward_policy.model.state_dict(), path)
-            if (
-                backward_policy
-                and backward_policy.is_model
-                and self.pb_ckpt_path is not None
-            ):
-                stem = self.pb_ckpt_path.stem + self.context + ckpt_id + ".ckpt"
-                path = self.pb_ckpt_path.parent / stem
-                torch.save(backward_policy.model.state_dict(), path)
+        if final:
+            ckpt_id = "final"
+        else:
+            ckpt_id = "_iter{:06d}".format(step)
+        if forward_policy.is_model and self.pf_ckpt_path is not None:
+            stem = self.pf_ckpt_path.stem + self.context + ckpt_id + ".ckpt"
+            path = self.pf_ckpt_path.parent / stem
+            torch.save(forward_policy.model.state_dict(), path)
+        if (
+            backward_policy
+            and backward_policy.is_model
+            and self.pb_ckpt_path is not None
+        ):
+            stem = self.pb_ckpt_path.stem + self.context + ckpt_id + ".ckpt"
+            path = self.pb_ckpt_path.parent / stem
+            torch.save(backward_policy.model.state_dict(), path)
 
-            if state_flow is not None and self.sf_ckpt_path is not None:
-                stem = self.sf_ckpt_path.stem + self.context + ckpt_id + ".ckpt"
-                path = self.sf_ckpt_path.parent / stem
-                torch.save(state_flow.model.state_dict(), path)
+        if state_flow is not None and self.sf_ckpt_path is not None:
+            stem = self.sf_ckpt_path.stem + self.context + ckpt_id + ".ckpt"
+            path = self.sf_ckpt_path.parent / stem
+            torch.save(state_flow.model.state_dict(), path)
 
     def log_time(self, times: dict, use_context: bool):
         if self.do.times:

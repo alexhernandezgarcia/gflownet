@@ -1045,9 +1045,9 @@ class GFlowNetAgent:
         pbar = tqdm(range(1, self.n_train_steps + 1), disable=not self.logger.progress)
         for it in pbar:
             # Test and log
-            if self.evaluator.do_test(it):
+            if self.evaluator.should_eval(it):
                 self.evaluator.eval_and_log(it)
-            if self.evaluator.do_top_k(it):
+            if self.evaluator.should_eval_top_k(it):
                 self.evaluator.eval_and_log_top_k(it)
 
             t0_iter = time.time()
@@ -1111,7 +1111,7 @@ class GFlowNetAgent:
             # Log
             if self.logger.lightweight:
                 all_losses = all_losses[-100:]
-                all_visited = states_term
+                all_visited = states_term  # TODO-V: unused
             else:
                 all_visited.extend(states_term)
             # Progress bar
@@ -1120,24 +1120,26 @@ class GFlowNetAgent:
             )
             # Train logs
             t0_log = time.time()
-            self.logger.log_train(
-                losses=losses,
-                rewards=rewards,
-                proxy_vals=proxy_vals,
-                states_term=states_term,
-                batch_size=len(batch),
-                logz=self.logZ,
-                learning_rates=self.lr_scheduler.get_last_lr(),
-                step=it,
-                use_context=self.use_context,
-            )
+            if self.evaluator.should_log_train(it):
+                self.logger.log_train(
+                    losses=losses,
+                    rewards=rewards,
+                    proxy_vals=proxy_vals,
+                    states_term=states_term,
+                    batch_size=len(batch),
+                    logz=self.logZ,
+                    learning_rates=self.lr_scheduler.get_last_lr(),
+                    step=it,
+                    use_context=self.use_context,
+                )
             t1_log = time.time()
             times.update({"log": t1_log - t0_log})
             # Save intermediate models
             t0_model = time.time()
-            self.logger.save_models(
-                self.forward_policy, self.backward_policy, self.state_flow, step=it
-            )
+            if self.evaluator.should_checkpoint(it):
+                self.logger.save_models(
+                    self.forward_policy, self.backward_policy, self.state_flow, step=it
+                )
             t1_model = time.time()
             times.update({"save_interim_model": t1_model - t0_model})
 

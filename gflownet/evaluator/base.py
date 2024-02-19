@@ -116,7 +116,7 @@ class GFlowNetEvaluator:
         else:
             return not step % self.config.train.period
 
-    def do_test(self, step):
+    def should_eval(self, step):
         """
         Check if testing should be done at the current step. The decision is based on
         the `self.config.test.period` attribute.
@@ -144,7 +144,7 @@ class GFlowNetEvaluator:
         else:
             return not step % self.config.test.period
 
-    def do_top_k(self, step):
+    def should_eval_top_k(self, step):
         """
         Check if top k plots and metrics should be done at the current step. The
         decision is based on the `self.config.test.top_k` and
@@ -193,7 +193,7 @@ class GFlowNetEvaluator:
         else:
             return not step % self.oracle.period
 
-    def do_checkpoints(self, step):
+    def should_checkpoint(self, step):
         """
         Check if checkpoints should be done at the current step. The decision is based
         on the `self.checkpoints.period` attribute.
