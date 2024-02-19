@@ -22,39 +22,39 @@ _sentinel = object()
 METRICS = {
     "l1": {
         "name": "L1 error",
-        "requires": ["density"],
+        "requirements": ["density"],
     },
     "kl": {
         "name": "KL Div.",
-        "requires": ["density"],
+        "requirements": ["density"],
     },
     "jsd": {
         "name": "Jensen Shannon Div.",
-        "requires": ["density"],
+        "requirements": ["density"],
     },
     "corr_prob_traj_rewards": {
         "name": "Corr. (test probs., rewards)",
-        "requires": ["log_probs", "reward_batch"],
+        "requirements": ["log_probs", "reward_batch"],
     },
     "var_logrewards_logp": {
         "name": "Var(logR - logp) test",
-        "requires": ["log_probs", "reward_batch"],
+        "requirements": ["log_probs", "reward_batch"],
     },
     "nll_tt": {
         "name": "NLL of test data",
-        "requires": ["log_probs"],
+        "requirements": ["log_probs"],
     },
     "mean_logprobs_std": {
         "name": "Mean BS Std(logp)",
-        "requires": ["log_probs"],
+        "requirements": ["log_probs"],
     },
     "mean_probs_std": {
         "name": "Mean BS Std(p)",
-        "requires": ["log_probs"],
+        "requirements": ["log_probs"],
     },
     "logprobs_std_nll_ratio": {
         "name": "BS Std(logp) / NLL",
-        "requires": ["log_probs"],
+        "requirements": ["log_probs"],
     },
 }
 
@@ -86,11 +86,11 @@ class GFlowNetEvaluator:
         self.gfn_agent = kwargs.get("gfn_agent")
         self.config = self.gfn_agent.eval_config
         self.logger = self.gfn_agent.logger
-        self.requires = set()
+        self.reqs = set()
 
-        self.metrics = self.requires = _sentinel
+        self.metrics = self.reqs = _sentinel
         self.metrics = self.make_metrics(self.config.metrics)
-        self.requires = self.make_require()
+        self.reqs = self.make_requirements()
 
     def make_metrics(self, metrics=None):
         """
@@ -109,7 +109,7 @@ class GFlowNetEvaluator:
         -------
         dict
             Dictionary of metrics to compute, with the metric names as keys and the
-            metric names and requires as values.
+            metric names and requirements as values.
 
         Raises
         ------
@@ -139,24 +139,24 @@ class GFlowNetEvaluator:
 
         return {m: METRICS[m] for m in metrics}
 
-    def make_requires(self, requires=None, metrics=None):
+    def make_requirements(self, reqs=None, metrics=None):
         """
         Make requirements for the metrics to compute.
 
         1. If `metrics` is provided, they must be as a dict of metrics. The requirements
-           are computed from the `requires` attribute of the metrics.
+           are computed from the `requirements` attribute of the metrics.
 
-        2. Otherwise, the requirements are computed from the `requires` argument:
-            - If `requires` is `"all"`, all requirements of all metrics are computed.
-            - If `requires` is `None`, the evaluator's `self.requires` attribute is
+        2. Otherwise, the requirements are computed from the `reqs` argument:
+            - If `reqs` is `"all"`, all requirements of all metrics are computed.
+            - If `reqs` is `None`, the evaluator's `self.reqs` attribute is
               used.
-            - If `requires` is a list, it is used as the requirements.
+            - If `reqs` is a list, it is used as the requirements.
 
         Parameters
         ----------
-        requires : Union[str, List[str]], optional
+        reqs : Union[str, List[str]], optional
             The metrics requirements. Either `"all"`, a list of requirements or `None`
-            to use the evaluator's `self.requires` attribute. By default None
+            to use the evaluator's `self.reqs` attribute. By default None
         metrics : List[str], optional
             The list of metrics dicts to compute requirements for. By default None.
 
@@ -167,28 +167,26 @@ class GFlowNetEvaluator:
         """
 
         if metrics is not None:
-            return set([r for m in metrics.values() for r in m["requires"]])
+            return set([r for m in metrics.values() for r in m["requirements"]])
 
-        if requires == "all":
-            requires = set([r for m in METRICS.values() for r in m["requires"]])
-        if requires is None:
-            if self.requires is _sentinel:
-                self.requires = set(
-                    [r for m in self.metrics.values() for r in m["requires"]]
+        if reqs == "all":
+            reqs = set([r for m in METRICS.values() for r in m["requirements"]])
+        if reqs is None:
+            if self.reqs is _sentinel:
+                self.reqs = set(
+                    [r for m in self.metrics.values() for r in m["requirements"]]
                 )
-            requires = self.requires
-        if isinstance(requires, list):
-            requires = set(requires)
+            reqs = self.reqs
+        if isinstance(reqs, list):
+            reqs = set(reqs)
 
-        assert isinstance(
-            requires, set
-        ), f"requires should be a set, but is {type(requires)}"
-        assert all([isinstance(r, str) for r in requires]), (
-            "All elements of requires should be strings, but are "
-            + f"{[type(r) for r in requires]}"
+        assert isinstance(reqs, set), f"reqs should be a set, but is {type(reqs)}"
+        assert all([isinstance(r, str) for r in reqs]), (
+            "All elements of reqs should be strings, but are "
+            + f"{[type(r) for r in reqs]}"
         )
 
-        return requires
+        return reqs
 
     def do_train(self, step):
         """
@@ -436,7 +434,7 @@ class GFlowNetEvaluator:
     def compute_log_prob_metrics(self, x_tt, gfn, metrics=None):
         gfn = self.gfn_agent
         metrics = self.make_metrics(metrics)
-        requires = self.make_requires(metrics=metrics)
+        reqs = self.make_requirements(metrics=metrics)
 
         logprobs_x_tt, logprobs_std, probs_std = gfn.estimate_logprobs_data(
             x_tt,
@@ -454,7 +452,7 @@ class GFlowNetEvaluator:
         if "mean_probs_std" in metrics:
             lp_metrics["mean_probs_std"] = probs_std.mean().item()
 
-        if "reward_batch" in requires:
+        if "reward_batch" in reqs:
             rewards_x_tt = gfn.env.reward_batch(x_tt)
 
             if "corr_prob_traj_rewards" in metrics:
@@ -505,7 +503,7 @@ class GFlowNetEvaluator:
         """
         gfn = self.gfn_agent
         metrics = self.make_metrics(metrics)
-        requires = self.make_requires(metrics=metrics)
+        reqs = self.make_requirements(metrics=metrics)
 
         all_metrics = {}
 
@@ -526,7 +524,7 @@ class GFlowNetEvaluator:
         # Compute correlation between the rewards of the test data and the log
         # likelihood of the data according the the GFlowNet policy; and NLL.
         # TODO: organise code for better efficiency and readability
-        if "log_probs" in requires:
+        if "log_probs" in reqs:
             lp_metrics = self.compute_log_prob_metrics(x_tt, gfn, metrics=metrics)
             all_metrics.update(lp_metrics)
 
