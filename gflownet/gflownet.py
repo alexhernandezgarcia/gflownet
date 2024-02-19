@@ -130,9 +130,6 @@ class GFlowNetAgent:
         self.float = set_float_precision(float_precision)
         # Environment
         self.env = env
-        # Evaluator
-        self.eval_config = eval_config
-        self.evaluator = GFlowNetEvaluator.from_agent(self)
         # Continuous environments
         self.continuous = hasattr(self.env, "continuous") and self.env.continuous
         if self.continuous and optimizer.loss in ["flowmatch", "flowmatching"]:
@@ -240,6 +237,11 @@ class GFlowNetAgent:
             )
         else:
             self.opt, self.lr_scheduler, self.target = None, None, None
+
+        # Evaluator
+        self.eval_config = eval_config
+        self.evaluator = GFlowNetEvaluator.from_agent(self)
+
         self.n_train_steps = optimizer.n_train_steps
         self.batch_size = optimizer.batch_size
         self.batch_size_total = sum(self.batch_size.values())
