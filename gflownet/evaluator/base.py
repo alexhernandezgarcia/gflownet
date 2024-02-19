@@ -397,7 +397,12 @@ class GFlowNetEvaluator:
 
         if metrics is None:
             # TODO-V use this in the rest of the code to selectively compute metrics
-            metrics = set(METRICS_NAMES.keys())
+            metrics = set(METRICS.keys())
+            requires = set([r for m in metrics for r in METRICS[m]["requires"]])
+
+        if metrics is _sentinel:
+            metrics = self.metrics
+            requires = self.requires
 
         if gfn.buffer.test_pkl is None:
             result = {
