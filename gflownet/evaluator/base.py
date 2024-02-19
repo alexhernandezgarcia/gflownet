@@ -412,7 +412,7 @@ class GFlowNetEvaluator:
             }
             result["figs"] = {}
             result["env_metrics"] = {}
-            return result.values()
+            return result
 
         with open(gfn.buffer.test_pkl, "rb") as f:
             dict_tt = pickle.load(f)
