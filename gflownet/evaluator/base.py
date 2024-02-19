@@ -188,7 +188,7 @@ class GFlowNetEvaluator:
 
         return reqs
 
-    def do_train(self, step):
+    def should_log_train(self, step):
         """
         Check if training logs should be done at the current step. The decision is based
         on the `self.config.train.period` attribute.
