@@ -371,6 +371,56 @@ class GFlowNetEvaluator:
             "Reward KDE": fig_kde_true,
         }
 
+    def compute_log_prob_metrics(self, x_tt, gfn, dict_tt, requires=_sentinel):
+        gfn = self.gfn_agent
+
+        if requires is None:
+            requires = set([r for m in self.metrics.values() for r in m["requires"]])
+        if requires is _sentinel:
+            requires = self.requires
+
+        logprobs_x_tt, logprobs_std, probs_std = gfn.estimate_logprobs_data(
+            x_tt,
+            n_trajectories=self.logger.test.n_trajs_logprobs,
+            max_data_size=self.logger.test.max_data_logprobs,
+            batch_size=self.logger.test.logprobs_batch_size,
+            bs_num_samples=self.logger.test.logprobs_bootstrap_size,
+        )
+
+        lp_metrics = {}
+
+        if "mean_logprobs_std" in self.metrics:
+            lp_metrics["mean_logprobs_std"] = logprobs_std.mean().item()
+
+        if "mean_probs_std" in self.metrics:
+            lp_metrics["mean_probs_std"] = probs_std.mean().item()
+
+        if "reward_batch" in requires:
+            rewards_x_tt = gfn.env.reward_batch(x_tt)
+
+            if "corr_prob_traj_rewards" in self.metrics:
+                rewards_x_tt = gfn.env.reward_batch(x_tt)
+                lp_metrics["corr_prob_traj_rewards"] = np.corrcoef(
+                    np.exp(logprobs_x_tt.cpu().numpy()), rewards_x_tt
+                )[0, 1]
+
+            if "var_logrewards_logp" in self.metrics:
+                rewards_x_tt = gfn.env.reward_batch(x_tt)
+                lp_metrics["var_logrewards_logp"] = torch.var(
+                    torch.log(
+                        tfloat(rewards_x_tt, float_type=gfn.float, device=gfn.device)
+                    )
+                    - logprobs_x_tt
+                ).item()
+        if "nll_tt" in self.metrics:
+            lp_metrics["nll_tt"] = -logprobs_x_tt.mean().item()
+
+        if "logprobs_std_nll_ratio" in self.metrics:
+            lp_metrics["logprobs_std_nll_ratio"] = (
+                -logprobs_std.mean() / logprobs_x_tt.mean()
+            )
+
+        return lp_metrics
 
     def eval(self, metrics=_sentinel, **plot_kwargs):
         """
@@ -381,7 +431,7 @@ class GFlowNetEvaluator:
 
         Parameters
         ----------
-        metrics : _type_, optional
+        metrics : List[str], optional
             List of metrics to compute, by default the evaluator's `metrics` attribute.
         plot_kwargs : dict, optional
             Additional keyword arguments to pass to the plotting methods.
@@ -394,6 +444,7 @@ class GFlowNetEvaluator:
             logprobs_std_nll_ratio, figs, env_metrics] (should be refactored to dict)
         """
         gfn = self.gfn_agent
+        all_metrics = {}
 
         if metrics is None:
             # TODO-V use this in the rest of the code to selectively compute metrics
@@ -421,25 +472,11 @@ class GFlowNetEvaluator:
         # Compute correlation between the rewards of the test data and the log
         # likelihood of the data according the the GFlowNet policy; and NLL.
         # TODO: organise code for better efficiency and readability
-        logprobs_x_tt, logprobs_std, probs_std = gfn.estimate_logprobs_data(
-            x_tt,
-            n_trajectories=self.logger.test.n_trajs_logprobs,
-            max_data_size=self.logger.test.max_data_logprobs,
-            batch_size=self.logger.test.logprobs_batch_size,
-            bs_num_samples=self.logger.test.logprobs_bootstrap_size,
-        )
-        mean_logprobs_std = logprobs_std.mean().item()
-        mean_probs_std = probs_std.mean().item()
-        rewards_x_tt = gfn.env.reward_batch(x_tt)
-        corr_prob_traj_rewards = np.corrcoef(
-            np.exp(logprobs_x_tt.cpu().numpy()), rewards_x_tt
-        )[0, 1]
-        var_logrewards_logp = torch.var(
-            torch.log(tfloat(rewards_x_tt, float_type=gfn.float, device=gfn.device))
-            - logprobs_x_tt
-        ).item()
-        nll_tt = -logprobs_x_tt.mean().item()
-        logprobs_std_nll_ratio = torch.mean(-logprobs_std / logprobs_x_tt).item()
+        if "log_probs" in requires:
+            lp_metrics = self.compute_log_prob_metrics(
+                x_tt, gfn, dict_tt, requires=requires
+            )
+            all_metrics.update(lp_metrics)
 
         x_sampled = []
         if gfn.buffer.test_type is not None and gfn.buffer.test_type == "all":
@@ -511,12 +548,7 @@ class GFlowNetEvaluator:
                     "l1": gfn.l1,
                     "kl": gfn.kl,
                     "jsd": gfn.jsd,
-                    "corr_prob_traj_rewards": corr_prob_traj_rewards,
-                    "var_logrewards_logp": var_logrewards_logp,
-                    "nll_tt": nll_tt,
-                    "mean_logprobs_std": mean_logprobs_std,
-                    "mean_probs_std": mean_probs_std,
-                    "logprobs_std_nll_ratio": logprobs_std_nll_ratio,
+                    **all_metrics,
                 },
                 "figs": {},
                 "env_metrics": env_metrics,
@@ -537,12 +569,7 @@ class GFlowNetEvaluator:
                 "l1": l1,
                 "kl": kl,
                 "jsd": jsd,
-                "corr_prob_traj_rewards": corr_prob_traj_rewards,
-                "var_logrewards_logp": var_logrewards_logp,
-                "nll_tt": nll_tt,
-                "mean_logprobs_std": mean_logprobs_std,
-                "mean_probs_std": mean_probs_std,
-                "logprobs_std_nll_ratio": logprobs_std_nll_ratio,
+                **all_metrics,
             },
             "figs": figs,
             "env_metrics": {},
