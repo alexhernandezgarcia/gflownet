@@ -299,54 +299,6 @@ class Logger:
             use_context=use_context,
         )
 
-    def log_test_metrics(
-        self,
-        l1: float,
-        kl: float,
-        jsd: float,
-        corr_prob_traj_rewards: float,
-        var_logrewards_logp: float,
-        nll_tt: float,
-        mean_logprobs_std: float,
-        mean_probs_std: float,
-        logprobs_std_nll_ratio: float,
-        step: int,
-        use_context: bool,
-    ):
-        if not self.do.online:
-            return
-        metrics = dict(
-            zip(
-                [
-                    "L1 error",
-                    "KL Div.",
-                    "Jensen Shannon Div.",
-                    "Corr. (test probs., rewards)",
-                    "Var(logR - logp) test",
-                    "NLL of test data",
-                    "Mean BS Std(logp)",
-                    "Mean BS Std(p)",
-                    "BS Std(logp) / NLL",
-                ],
-                [
-                    l1,
-                    kl,
-                    jsd,
-                    corr_prob_traj_rewards,
-                    var_logrewards_logp,
-                    nll_tt,
-                    mean_logprobs_std,
-                    mean_probs_std,
-                    logprobs_std_nll_ratio,
-                ],
-            )
-        )
-        self.log_metrics(
-            metrics,
-            use_context=use_context,
-            step=step,
-        )
-
     def save_models(
         self, forward_policy, backward_policy, state_flow, step: int = 1e9, final=False
     ):

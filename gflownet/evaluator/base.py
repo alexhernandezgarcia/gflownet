@@ -601,7 +601,9 @@ class GFlowNetEvaluator:
         for m, v in result["metrics"].items():
             setattr(gfn, m, v)
 
-        self.logger.log_test_metrics(*result["metrics"].values(), it, gfn.use_context)
+        mertics_to_log = {METRICS[k]["name"]: v for k, v in result["metrics"].values()}
+
+        self.logger.log_metrics(mertics_to_log, it, gfn.use_context)
         self.logger.log_metrics(result["env_metrics"], it, use_context=gfn.use_context)
         self.logger.log_plots(result["figs"], it, use_context=gfn.use_context)
 
