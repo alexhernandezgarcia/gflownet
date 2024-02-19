@@ -6,19 +6,12 @@ do:
 
 project_name: "GFlowNet"
 
-# Train metrics
-train:
-  period: 1
-
 oracle:
   period: 100000
   k:
     - 1
     - 10
     - 100
-# Policy model checkpoints
-checkpoints:
-  period: 1000
 
 # Log dir
 logdir:

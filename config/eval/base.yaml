@@ -14,8 +14,9 @@ logprobs_batch_size: 100
 logprobs_bootstrap_size: 10000
 # Maximum number of test data points to compute log likelihood probs.
 max_data_logprobs: 1e5
-
+train_log_period: 1
+checkpoints_period: 1000
 # List of metrics as per gflownet/eval/evaluator.py:METRICS_NAMES
 # Set to null for all of them
 # Values must be comma separated like `metrics: "l1, kl, js"` (spaces are optional)
-metrics: null
+metrics: all
