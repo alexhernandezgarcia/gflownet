@@ -48,14 +48,80 @@ class GFlowNetAgent:
         logger,
         num_empirical_loss,
         oracle,
+        eval_config,
         state_flow=None,
         active_learning=False,
         sample_only=False,
         replay_sampling="permutation",
         train_sampling="permutation",
-        eval_config=None,
         **kwargs,
     ):
+        """
+        Main class of this repository. Handles
+
+        Parameters
+        ----------
+        env : GFlowNetEnv
+            The environment to be used for training, i.e. the DAG, action space and
+            reward function.
+        seed : int
+            Random seed to be used for reproducibility.
+        device : str
+            Device to be used for training and inference, e.g. "cuda" or "cpu".
+        float_precision : int
+            Precision of the floating point numbers, e.g. 32 or 64.
+        optimizer : dict
+            Optimizer config dictionary. See gflownet.yaml:optimizer for details.
+        buffer : dict
+            Buffer config dictionary. See gflownet.yaml:buffer for details.
+        forward_policy : gflownet.policy.base.Policy
+            The forward policy to be used for training. Parameterized from
+            `gflownet.yaml:forward_policy` and parsed with
+            `gflownet/utils/policy.py:set_policy`.
+        backward_policy : gflownet.policy.base.Policy
+            Same as forward_policy, but for the backward policy.
+        mask_invalid_actions : bool
+            Whether to mask invalid actions in the policy outputs.
+        temperature_logits : float
+            Temperature to adjust the logits by logits /= temperature. If None,
+            self.temperature_logits is used.
+        random_action_prob : float
+            Probability of sampling random actions. If None (default),
+            self.random_action_prob is used, unless its value is forced to either 0.0 or
+            1.0 by other arguments (sampling_method or no_random).
+        pct_offline : float
+            Percentage of offline data to be used for training.
+        logger : gflownet.utils.logger.Logger
+            Logger object to be used for logging and saving checkpoints
+            (`gflownet/utils/logger.py:Logger`).
+        num_empirical_loss : int
+            Number of empirical loss samples to be used for training.
+        oracle : dict
+            Oracle config dictionary. See gflownet.yaml:oracle for details.
+        eval_config : dict, optional
+            Evaluator config dictionary. See `eval/base.yaml` for details. By default
+            None.
+        state_flow : dict, optional
+            State flow config dictionary. See `gflownet.yaml:state_flow` for details. By
+            default None.
+        active_learning : bool, optional
+            Whether this GFlowNetAgent is part of an active learning loop, by default
+            False. This means the logger will use its context in metrics names.
+        sample_only : bool, optional
+            This GFNA is only going to be used to sample, no need to make the train/test
+            buffer.
+        replay_sampling : str, optional
+            Type of sampling for the replay buffer. See
+            :method:`~gflownet.utils.buffer.select`. By default "permutation".
+        train_sampling : str, optional
+            Type of sampling for the train buffer (offline backward trajectories). See
+            :method:`~gflownet.utils.buffer.select`. By default "permutation".
+
+        Raises
+        ------
+        Exception
+            If the loss is flowmatch/flowmatching and the environment is continuous.
+        """
         # Seed
         self.rng = np.random.default_rng(seed)
         # Device
