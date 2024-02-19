@@ -244,7 +244,7 @@ class BaseTestsCommon:
             while not self.env.done:
                 state, action, valid = self.env.step_random(backward=False)
                 if valid:
-                    states_trajectory_fw.append(state)
+                    states_trajectory_fw.append(copy(state))
                     actions_trajectory_fw.append(action)
 
             # Sample backward trajectory with actions in forward trajectory
@@ -256,7 +256,7 @@ class BaseTestsCommon:
                     actions_trajectory_fw_copy.pop()
                 )
                 if valid:
-                    states_trajectory_bw.append(state)
+                    states_trajectory_bw.append(copy(state))
                     actions_trajectory_bw.append(action)
 
             assert all(
