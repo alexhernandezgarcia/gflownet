@@ -172,7 +172,8 @@ class Logger:
         if not self.do.online:
             return
         for key, value in metrics.items():
-            self.log_metric(key, value, step=step, use_context=use_context)
+            if value is not None:
+                self.log_metric(key, value, step=step, use_context=use_context)
 
     def log_summary(self, summary: dict):
         if not self.do.online:
