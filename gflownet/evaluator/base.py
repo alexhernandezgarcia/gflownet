@@ -19,16 +19,43 @@ from gflownet.utils.common import (
 
 _sentinel = object()
 
-METRICS_NAMES = {
-    "l1": "L1 error",
-    "kl": "KL Div.",
-    "jsd": "Jensen Shannon Div.",
-    "corr_prob_traj_rewards": "Corr. (test probs., rewards)",
-    "var_logrewards_logp": "Var(logR - logp) test",
-    "nll_tt": "NLL of test data",
-    "mean_logprobs_std": "Mean BS Std(logp)",
-    "mean_probs_std": "Mean BS Std(p)",
-    "logprobs_std_nll_ratio": "BS Std(logp) / NLL",
+METRICS = {
+    "l1": {
+        "name": "L1 error",
+        "requires": ["density"],
+    },
+    "kl": {
+        "name": "KL Div.",
+        "requires": ["density"],
+    },
+    "jsd": {
+        "name": "Jensen Shannon Div.",
+        "requires": ["density"],
+    },
+    "corr_prob_traj_rewards": {
+        "name": "Corr. (test probs., rewards)",
+        "requires": ["log_probs", "reward_batch"],
+    },
+    "var_logrewards_logp": {
+        "name": "Var(logR - logp) test",
+        "requires": ["log_probs", "reward_batch"],
+    },
+    "nll_tt": {
+        "name": "NLL of test data",
+        "requires": ["log_probs"],
+    },
+    "mean_logprobs_std": {
+        "name": "Mean BS Std(logp)",
+        "requires": ["log_probs"],
+    },
+    "mean_probs_std": {
+        "name": "Mean BS Std(p)",
+        "requires": ["log_probs"],
+    },
+    "logprobs_std_nll_ratio": {
+        "name": "BS Std(logp) / NLL",
+        "requires": ["log_probs"],
+    },
 }
 
 
@@ -59,6 +86,7 @@ class GFlowNetEvaluator:
         self.gfn_agent = kwargs.get("gfn_agent")
         self.config = self.gfn_agent.eval_config
         self.logger = self.gfn_agent.logger
+        self.requires = set()
 
         self.set_metrics(self.config.metrics)
 
@@ -67,31 +95,38 @@ class GFlowNetEvaluator:
         Set the metrics to be computed by the evaluator to the `self.metrics` attribute.
 
         If `None`, all metrics are computed. If a string, it can be a comma-separated
-        list of metric names, with or without spaces. All metrics must be in
-        `METRICS_NAMES`.
+        list of metric names, with or without spaces. All metrics must be in `METRICS`.
+
+        Sets the `self.metrics` attribute to a dictionary of metrics to be computed
+        according to the `METRICS` dictionary. In other words, `self.metrics` will be
+        a subset of `METRICS`.
 
         Parameters
         ----------
         metrics : (Union[str, List[str]], optional)
             Metrics to compute when running the `evaluator.eval()` function. Defaults to
-            None, i.e. all metrics in `METRICS_NAMES` are computed.
+            None, i.e. all metrics in `METRICS` are computed.
 
         Raises
         ------
             ValueError
-                If a metric name is not in `METRICS_NAMES`.
+                If a metric name is not in `METRICS`.
         """
         if metrics is None:
-            metrics = METRICS_NAMES.keys()
+            metrics = list(METRICS.keys())
         if isinstance(metrics, str):
             if "," in metrics:
                 metrics = [m.strip() for m in metrics.split(",")]
             else:
                 metrics = [metrics]
         for m in metrics:
-            if m not in METRICS_NAMES:
+            if m not in METRICS:
                 raise ValueError(f"Unknown metric name: {m}")
-        self.metrics = metrics
+
+        self.metrics = {k: METRICS[k] for k in metrics}
+        self.requires = set(
+            [r for m in self.metrics for r in self.metrics[m]["requires"]]
+        )
 
     def do_train(self, step):
         """
