@@ -88,18 +88,16 @@ class GFlowNetEvaluator:
         self.logger = self.gfn_agent.logger
         self.requires = set()
 
-        self.set_metrics(self.config.metrics)
+        self.metrics = self.requires = _sentinel
+        self.metrics = self.make_metrics(self.config.metrics)
+        self.requires = self.make_require()
 
-    def set_metrics(self, metrics=None):
+    def make_metrics(self, metrics=None):
         """
-        Set the metrics to be computed by the evaluator to the `self.metrics` attribute.
+        Parse metrics from a list, a string or None.
 
         If `None`, all metrics are computed. If a string, it can be a comma-separated
         list of metric names, with or without spaces. All metrics must be in `METRICS`.
-
-        Sets the `self.metrics` attribute to a dictionary of metrics to be computed
-        according to the `METRICS` dictionary. In other words, `self.metrics` will be
-        a subset of `METRICS`.
 
         Parameters
         ----------
@@ -107,26 +105,90 @@ class GFlowNetEvaluator:
             Metrics to compute when running the `evaluator.eval()` function. Defaults to
             None, i.e. all metrics in `METRICS` are computed.
 
+        Returns
+        -------
+        dict
+            Dictionary of metrics to compute, with the metric names as keys and the
+            metric names and requires as values.
+
         Raises
         ------
             ValueError
                 If a metric name is not in `METRICS`.
         """
+        if metrics == "all":
+            metrics = METRICS.keys()
+
         if metrics is None:
-            metrics = list(METRICS.keys())
+            assert self.metrics is not _sentinel, (
+                "Error setting self.metrics. This is likely due to the `metrics:`"
+                + " entry missing from your eval config. Set it to 'all' to compute all"
+                + " metrics or to a comma-separated list of metric names (eg 'l1, kl')."
+            )
+            return self.metrics
+
         if isinstance(metrics, str):
             if "," in metrics:
                 metrics = [m.strip() for m in metrics.split(",")]
             else:
                 metrics = [metrics]
+
         for m in metrics:
             if m not in METRICS:
                 raise ValueError(f"Unknown metric name: {m}")
 
-        self.metrics = {k: METRICS[k] for k in metrics}
-        self.requires = set(
-            [r for m in self.metrics for r in self.metrics[m]["requires"]]
+        return {m: METRICS[m] for m in metrics}
+
+    def make_requires(self, requires=None, metrics=None):
+        """
+        Make requirements for the metrics to compute.
+
+        1. If `metrics` is provided, they must be as a dict of metrics. The requirements
+           are computed from the `requires` attribute of the metrics.
+
+        2. Otherwise, the requirements are computed from the `requires` argument:
+            - If `requires` is `"all"`, all requirements of all metrics are computed.
+            - If `requires` is `None`, the evaluator's `self.requires` attribute is
+              used.
+            - If `requires` is a list, it is used as the requirements.
+
+        Parameters
+        ----------
+        requires : Union[str, List[str]], optional
+            The metrics requirements. Either `"all"`, a list of requirements or `None`
+            to use the evaluator's `self.requires` attribute. By default None
+        metrics : List[str], optional
+            The list of metrics dicts to compute requirements for. By default None.
+
+        Returns
+        -------
+        set[str]
+            The set of requirements for the metrics.
+        """
+
+        if metrics is not None:
+            return set([r for m in metrics.values() for r in m["requires"]])
+
+        if requires == "all":
+            requires = set([r for m in METRICS.values() for r in m["requires"]])
+        if requires is None:
+            if self.requires is _sentinel:
+                self.requires = set(
+                    [r for m in self.metrics.values() for r in m["requires"]]
+                )
+            requires = self.requires
+        if isinstance(requires, list):
+            requires = set(requires)
+
+        assert isinstance(
+            requires, set
+        ), f"requires should be a set, but is {type(requires)}"
+        assert all([isinstance(r, str) for r in requires]), (
+            "All elements of requires should be strings, but are "
+            + f"{[type(r) for r in requires]}"
         )
+
+        return requires
 
     def do_train(self, step):
         """
@@ -371,13 +433,10 @@ class GFlowNetEvaluator:
             "Reward KDE": fig_kde_true,
         }
 
-    def compute_log_prob_metrics(self, x_tt, gfn, dict_tt, requires=_sentinel):
+    def compute_log_prob_metrics(self, x_tt, gfn, metrics=None):
         gfn = self.gfn_agent
-
-        if requires is None:
-            requires = set([r for m in self.metrics.values() for r in m["requires"]])
-        if requires is _sentinel:
-            requires = self.requires
+        metrics = self.make_metrics(metrics)
+        requires = self.make_requires(metrics=metrics)
 
         logprobs_x_tt, logprobs_std, probs_std = gfn.estimate_logprobs_data(
             x_tt,
@@ -389,22 +448,22 @@ class GFlowNetEvaluator:
 
         lp_metrics = {}
 
-        if "mean_logprobs_std" in self.metrics:
+        if "mean_logprobs_std" in metrics:
             lp_metrics["mean_logprobs_std"] = logprobs_std.mean().item()
 
-        if "mean_probs_std" in self.metrics:
+        if "mean_probs_std" in metrics:
             lp_metrics["mean_probs_std"] = probs_std.mean().item()
 
         if "reward_batch" in requires:
             rewards_x_tt = gfn.env.reward_batch(x_tt)
 
-            if "corr_prob_traj_rewards" in self.metrics:
+            if "corr_prob_traj_rewards" in metrics:
                 rewards_x_tt = gfn.env.reward_batch(x_tt)
                 lp_metrics["corr_prob_traj_rewards"] = np.corrcoef(
                     np.exp(logprobs_x_tt.cpu().numpy()), rewards_x_tt
                 )[0, 1]
 
-            if "var_logrewards_logp" in self.metrics:
+            if "var_logrewards_logp" in metrics:
                 rewards_x_tt = gfn.env.reward_batch(x_tt)
                 lp_metrics["var_logrewards_logp"] = torch.var(
                     torch.log(
@@ -412,27 +471,28 @@ class GFlowNetEvaluator:
                     )
                     - logprobs_x_tt
                 ).item()
-        if "nll_tt" in self.metrics:
+        if "nll_tt" in metrics:
             lp_metrics["nll_tt"] = -logprobs_x_tt.mean().item()
 
-        if "logprobs_std_nll_ratio" in self.metrics:
+        if "logprobs_std_nll_ratio" in metrics:
             lp_metrics["logprobs_std_nll_ratio"] = (
                 -logprobs_std.mean() / logprobs_x_tt.mean()
             )
 
         return lp_metrics
 
-    def eval(self, metrics=_sentinel, **plot_kwargs):
+    def eval(self, metrics=None, **plot_kwargs):
         """
         Evaluate the GFlowNetAgent and compute metrics and plots.
 
-        If `metrics` is not provided, the evaluator's `metrics` attribute is
-        used (default).
+        If `metrics` is not provided, the evaluator's `self.metrics` attribute is used
+        (default).
 
         Parameters
         ----------
         metrics : List[str], optional
-            List of metrics to compute, by default the evaluator's `metrics` attribute.
+            List of metrics to compute, by default the evaluator's `self.metrics`
+            attribute.
         plot_kwargs : dict, optional
             Additional keyword arguments to pass to the plotting methods.
 
@@ -444,16 +504,10 @@ class GFlowNetEvaluator:
             logprobs_std_nll_ratio, figs, env_metrics] (should be refactored to dict)
         """
         gfn = self.gfn_agent
+        metrics = self.make_metrics(metrics)
+        requires = self.make_requires(metrics=metrics)
+
         all_metrics = {}
-
-        if metrics is None:
-            # TODO-V use this in the rest of the code to selectively compute metrics
-            metrics = set(METRICS.keys())
-            requires = set([r for m in metrics for r in METRICS[m]["requires"]])
-
-        if metrics is _sentinel:
-            metrics = self.metrics
-            requires = self.requires
 
         if gfn.buffer.test_pkl is None:
             result = {
@@ -473,9 +527,7 @@ class GFlowNetEvaluator:
         # likelihood of the data according the the GFlowNet policy; and NLL.
         # TODO: organise code for better efficiency and readability
         if "log_probs" in requires:
-            lp_metrics = self.compute_log_prob_metrics(
-                x_tt, gfn, dict_tt, requires=requires
-            )
+            lp_metrics = self.compute_log_prob_metrics(x_tt, gfn, metrics=metrics)
             all_metrics.update(lp_metrics)
 
         x_sampled = []
@@ -680,7 +732,7 @@ class GFlowNetEvaluator:
 
         return metrics, figs, summary
 
-    def eval_and_log(self, it, metrics=_sentinel):
+    def eval_and_log(self, it, metrics=None):
         """
         Evaluate the GFlowNetAgent and log the results with its logger.
 
