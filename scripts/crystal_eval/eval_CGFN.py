@@ -4,21 +4,41 @@ this script has been run previously on the data. Be sure to run the script `conv
 in order to have a standard input data format, saved to data/crystals/eval_data/.
 """
 
-import os
 import json
-from pathlib import Path
+import os
 from argparse import ArgumentParser
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
-from metrics import NumberOfElements, Rediscovery
+from metrics import SG2LP, SMACT, Comp2SG, Eform, Ehull, NumberOfElements, Rediscovery
+
 
 # put all metrics to be computed here:
-METRICS = [
-    NumberOfElements(),
-    # Rediscovery(
-    #     rediscovery_path=None  # Path to original dataset for comparing against generated samples
-    # ),
-]
+def init_metrics():  # in a function to enable forking
+    global METRICS
+    METRICS = [
+        NumberOfElements(),
+        Rediscovery(
+            rediscovery_path=None  # Path to original dataset for comparing against generated samples
+        ),
+        Eform(),
+        SMACT(),
+        SMACT(oxidation_states_set="icsd"),
+        SMACT(oxidation_states_set="pymatgen"),
+        SMACT(oxidation_states_set="our_oxidations"),
+        SMACT(oxidation_only=True),
+        SMACT(oxidation_states_set="icsd", oxidation_only=True),
+        SMACT(oxidation_states_set="pymatgen", oxidation_only=True),
+        SMACT(oxidation_states_set="our_oxidations.txt", oxidation_only=True),
+        Comp2SG(),
+        SG2LP(),
+        Ehull(
+            PD_path="data/crystals/eval_data/MP_hull_12elms.zip",  # replace by your path
+            n_jobs=4,
+            debug=True,  # set False to make a full run
+        ),
+    ]
 
 
 def add_args(parser):
@@ -68,6 +88,7 @@ def print_args(args):
 
 
 def main():
+    init_metrics()
     # Parse arguments
     parser = ArgumentParser()
     _, override_args = parser.parse_known_args()
@@ -100,7 +121,9 @@ def main():
         else:
             for metric in METRICS:
                 print(f"Computing {metric.__name__}")
-                results = metric.compute(df["structure"])
+                results = metric.compute(
+                    df["structure"], energies=df["eform"], sg=df["symmetry"]
+                )
                 data_results[data_name][metric.__name__] = results
             with open(metrics_path, "w+") as fp:
                 json.dump(data_results[data_name], fp)
@@ -111,19 +134,22 @@ def main():
     os.chdir(out_dir)
     for metric in METRICS:
         try:
+            print([d for d, _ in data_results.items()])
+            # raise Exception
             metric.plot(
                 {
                     data_name: results[metric.__name__]
-                    for dataname, results in data_results.items()
+                    for data_name, results in data_results.items()
                 },
             )
         except KeyError as ke:
             print(
-                "Key not found in file. Metrics have changed. Rerun using --force_compute."
+                f"Key {ke} not found in file. Metrics have changed. Rerun using --force_compute."
             )
             exit()
     os.chdir(original_directory)
     print("Done")
+    print(f"Check summary figures saved in {out_dir}")
 
 
 if __name__ == "__main__":

@@ -39,3 +39,7 @@ Before running the second script (`eval_CGFN`) be sure that `data/crystals/eval_
 ## Structure Generation with pyXtal
 
 You can generate structures with `--n_random_struct` and relax them with `relax.py`. However, it is not recommended using at this point, as it will result in many empty (None) structures. This will be addressed in a future PR.
+
+## SMACT
+
+The SMACT metric requires the python library "SMACT", that can be installed using `pip install smact`

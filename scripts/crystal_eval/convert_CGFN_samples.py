@@ -5,14 +5,15 @@
 # symmetry: dictionnary with key "spacegroup". (other keys such as Wyckoff may be added later)
 # eform: formation energy in eV
 
-import pandas as pd
-import numpy as np
-from pymatgen.core import Structure, Lattice
-from pyxtal import pyxtal
-from pyxtal.lattice import Lattice as pyxtal_lattice
+import os
 from argparse import ArgumentParser
 from pathlib import Path
-import os
+
+import numpy as np
+import pandas as pd
+from pymatgen.core import Lattice, Structure
+from pyxtal import pyxtal
+from pyxtal.lattice import Lattice as pyxtal_lattice
 
 # encoded elements in CGFN pickle
 IDX2ELEM = {
