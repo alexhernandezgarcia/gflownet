@@ -1135,47 +1135,6 @@ class GFlowNetAgent:
         corr = np.corrcoef(data_logq, self.buffer.test["energies"])
         return corr, data_logq, times
 
-    # TODO: reorganize and remove
-    def log_iter(
-        self,
-        pbar,
-        rewards,
-        proxy_vals,
-        states_term,
-        data,
-        it,
-        times,
-        losses,
-        all_losses,
-        all_visited,
-    ):
-        # train metrics
-        self.logger.log_sampler_train(
-            rewards, proxy_vals, states_term, data, it, self.use_context
-        )
-
-        # logZ
-        self.logger.log_metric("logZ", self.logZ.sum(), it, use_context=False)
-
-        # test metrics
-        # TODO: integrate corr into test()
-        if not self.logger.lightweight and self.buffer.test is not None:
-            corr, data_logq, times = self.get_log_corr(times)
-            self.logger.log_sampler_test(corr, data_logq, it, self.use_context)
-
-        # oracle metrics
-        oracle_batch, oracle_times = self.sample_batch(
-            n_forward=self.oracle_n, train=False
-        )
-
-        if not self.logger.lightweight:
-            self.logger.log_metric(
-                "unique_states",
-                np.unique(all_visited).shape[0],
-                step=it,
-                use_context=self.use_context,
-            )
-
 
 def make_opt(params, logZ, config):
     """
