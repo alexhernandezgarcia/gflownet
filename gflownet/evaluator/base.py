@@ -283,12 +283,59 @@ class GFlowNetEvaluator:
 
         return GFlowNetEvaluator(gfn_agent=gfn_agent, sentinel=_sentinel)
 
-    def plot(self):
+    def plot(self, x_sampled=None, kde_pred=None, kde_true=None, **plot_kwargs):
         """
-        Plots this evaluator should do. This is a base method that does nothing and
-        should be overridden by subclasses.
+        Plots this evaluator should do, returned as a dict `{str: plt.Figure}` which
+        will be logged.
+
+        By default, this method will call the `plot_reward_samples` method of the
+        GFlowNetAgent's environment, and the `plot_kde` method of the GFlowNetAgent's
+        environment if it exists for both the `kde_pred` and `kde_true` arguments.
+
+        Extend this method to add more plots:
+
+        ```python
+        def plot(self, x_sampled, kde_pred, kde_true, **plot_kwargs):
+            figs = super().plot(x_sampled, kde_pred, kde_true, **plot_kwargs) figs["My
+            custom plot"] = my_custom_plot_function(x_sampled, kde_pred) return figs
+        ```
+
+        Parameters
+        ----------
+        x_sampled : list, optional
+            List of sampled states.
+        kde_pred : sklearn.neighbors.KernelDensity
+            KDE policy as per `Environment.fit_kde`
+        kde_true : object
+            True KDE.
+        plot_kwargs : dict
+            Additional keyword arguments to pass to the plotting methods.
+
+        Returns
+        -------
+        dict[str, plt.Figure]
+            Dictionary of figures to be logged. The keys are the figure names and the
+            values are the figures.
         """
-        print("Base evaluator `plot()` method does not do anything.")
+        gfn = self.gfn_agent
+
+        fig_kde_pred = fig_kde_true = fig_reward_samples = None
+
+        if hasattr(gfn.env, "plot_reward_samples") and x_sampled is not None:
+            fig_reward_samples = gfn.env.plot_reward_samples(x_sampled, **plot_kwargs)
+
+        if hasattr(gfn.env, "plot_kde"):
+            if kde_pred is not None:
+                fig_kde_pred = gfn.env.plot_kde(kde_pred, **plot_kwargs)
+            if kde_true is not None:
+                fig_kde_true = gfn.env.plot_kde(kde_true, **plot_kwargs)
+
+        return {
+            "True reward and GFlowNet samples": fig_reward_samples,
+            "GFlowNet KDE Policy": fig_kde_pred,
+            "Reward KDE": fig_kde_true,
+        }
+
 
     def eval(self, metrics=_sentinel, **plot_kwargs):
         """
@@ -443,18 +490,7 @@ class GFlowNetEvaluator:
         jsd = 0.5 * np.sum(density_true * (log_density_true - log_mean_dens))
         jsd += 0.5 * np.sum(density_pred * (log_density_pred - log_mean_dens))
 
-        # Plots
-        # TODO-V: move to evaluator.plot()?
-        if hasattr(gfn.env, "plot_reward_samples"):
-            fig_reward_samples = gfn.env.plot_reward_samples(x_sampled, **plot_kwargs)
-        else:
-            fig_reward_samples = None
-        if hasattr(gfn.env, "plot_kde"):
-            fig_kde_pred = gfn.env.plot_kde(kde_pred, **plot_kwargs)
-            fig_kde_true = gfn.env.plot_kde(kde_true, **plot_kwargs)
-        else:
-            fig_kde_pred = None
-            fig_kde_true = None
+        figs = self.plot(x_sampled=x_sampled, kde_pred=kde_pred, kde_true=kde_true)
 
         return {
             "metrics": {
@@ -468,11 +504,7 @@ class GFlowNetEvaluator:
                 "mean_probs_std": mean_probs_std,
                 "logprobs_std_nll_ratio": logprobs_std_nll_ratio,
             },
-            "figs": {
-                "True reward and GFlowNet samples": fig_reward_samples,
-                "GFlowNet KDE Policy": fig_kde_pred,
-                "Reward KDE": fig_kde_true,
-            },
+            "figs": figs,
             "env_metrics": {},
         }
 
