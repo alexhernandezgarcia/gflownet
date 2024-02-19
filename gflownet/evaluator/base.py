@@ -206,10 +206,10 @@ class GFlowNetEvaluator:
         bool
             True if training should be done at the current step, False otherwise.
         """
-        if self.config.train.period is None or self.config.train.period < 0:
+        if self.config.train_log_period is None or self.config.train_log_period < 0:
             return False
         else:
-            return not step % self.config.train.period
+            return not step % self.config.train_log_period
 
     def should_eval(self, step):
         """
@@ -232,12 +232,12 @@ class GFlowNetEvaluator:
         bool
             True if testing should be done at the current step, False otherwise.
         """
-        if self.config.test.period is None or self.config.test.period < 0:
+        if self.config.period is None or self.config.period < 0:
             return False
-        elif step == 1 and self.config.test.first_it:
+        elif step == 1 and self.config.first_it:
             return True
         else:
-            return not step % self.config.test.period
+            return not step % self.config.period
 
     def should_eval_top_k(self, step):
         """
@@ -258,13 +258,13 @@ class GFlowNetEvaluator:
         bool
             True if top k plots and metrics should be done at the current step, False
         """
-        if self.config.test.top_k is None or self.config.test.top_k < 0:
+        if self.config.top_k is None or self.config.top_k < 0:
             return False
 
-        if self.config.test.top_k_period is None or self.config.test.top_k_period < 0:
+        if self.config.top_k_period is None or self.config.top_k_period < 0:
             return False
 
-        return step == 2 or step % self.config.test.top_k_period == 0
+        return step == 2 or step % self.config.top_k_period == 0
 
     def do_oracle(self, step):
         """
@@ -306,10 +306,10 @@ class GFlowNetEvaluator:
         bool
             True if checkpoints should be done at the current step, False otherwise.
         """
-        if self.checkpoints.period is None or self.checkpoints.period < 0:
+        if self.config.checkpoints_period is None or self.config.checkpoints_period < 0:
             return False
         else:
-            return not step % self.checkpoints.period
+            return not step % self.config.checkpoints_period
 
     @classmethod
     def from_dir(
@@ -431,17 +431,17 @@ class GFlowNetEvaluator:
             "Reward KDE": fig_kde_true,
         }
 
-    def compute_log_prob_metrics(self, x_tt, gfn, metrics=None):
+    def compute_log_prob_metrics(self, x_tt, metrics=None):
         gfn = self.gfn_agent
         metrics = self.make_metrics(metrics)
         reqs = self.make_requirements(metrics=metrics)
 
         logprobs_x_tt, logprobs_std, probs_std = gfn.estimate_logprobs_data(
             x_tt,
-            n_trajectories=self.logger.test.n_trajs_logprobs,
-            max_data_size=self.logger.test.max_data_logprobs,
-            batch_size=self.logger.test.logprobs_batch_size,
-            bs_num_samples=self.logger.test.logprobs_bootstrap_size,
+            n_trajectories=self.config.n_trajs_logprobs,
+            max_data_size=self.config.max_data_logprobs,
+            batch_size=self.config.logprobs_batch_size,
+            bs_num_samples=self.config.logprobs_bootstrap_size,
         )
 
         lp_metrics = {}
@@ -488,7 +488,7 @@ class GFlowNetEvaluator:
         x_sampled = density_true = density_pred = None
 
         if gfn.buffer.test_type is not None and gfn.buffer.test_type == "all":
-            batch, _ = gfn.sample_batch(n_forward=self.logger.test.n, train=False)
+            batch, _ = gfn.sample_batch(n_forward=self.config.n, train=False)
             assert batch.is_valid()
             x_sampled = batch.get_terminating_states()
 
@@ -510,7 +510,7 @@ class GFlowNetEvaluator:
             log_density_pred = np.log(density_pred + 1e-8)
 
         elif gfn.continuous and hasattr(gfn.env, "fit_kde"):
-            batch, _ = gfn.sample_batch(n_forward=self.logger.test.n, train=False)
+            batch, _ = gfn.sample_batch(n_forward=self.config.n, train=False)
             assert batch.is_valid()
             x_sampled = batch.get_terminating_states()
             # TODO make it work with conditional env
@@ -518,21 +518,21 @@ class GFlowNetEvaluator:
             x_tt = torch2np(gfn.env.states2proxy(x_tt))
             kde_pred = gfn.env.fit_kde(
                 x_sampled,
-                kernel=self.logger.test.kde.kernel,
-                bandwidth=self.logger.test.kde.bandwidth,
+                kernel=self.config.kde.kernel,
+                bandwidth=self.config.kde.bandwidth,
             )
             if "log_density_true" in dict_tt and "kde_true" in dict_tt:
                 log_density_true = dict_tt["log_density_true"]
                 kde_true = dict_tt["kde_true"]
             else:
                 # Sample from reward via rejection sampling
-                x_from_reward = gfn.env.sample_from_reward(n_samples=self.logger.test.n)
+                x_from_reward = gfn.env.sample_from_reward(n_samples=self.config.n)
                 x_from_reward = torch2np(gfn.env.states2proxy(x_from_reward))
                 # Fit KDE with samples from reward
                 kde_true = gfn.env.fit_kde(
                     x_from_reward,
-                    kernel=self.logger.test.kde.kernel,
-                    bandwidth=self.logger.test.kde.bandwidth,
+                    kernel=self.config.kde.kernel,
+                    bandwidth=self.config.kde.bandwidth,
                 )
                 # Estimate true log density using test samples
                 # TODO: this may be specific-ish for the torus or not
@@ -642,11 +642,13 @@ class GFlowNetEvaluator:
         # likelihood of the data according the the GFlowNet policy; and NLL.
         # TODO: organise code for better efficiency and readability
         if "log_probs" in reqs:
-            lp_metrics = self.compute_log_prob_metrics(x_tt, gfn, metrics=metrics)
+            lp_metrics = self.compute_log_prob_metrics(x_tt, metrics=metrics)
             all_metrics.update(lp_metrics)
 
         if "density" in reqs:
-            density_metrics = self.compute_density_metrics(x_tt, gfn, metrics=metrics)
+            density_metrics = self.compute_density_metrics(
+                x_tt, dict_tt, metrics=metrics
+            )
             x_sampled = density_metrics.pop("x_sampled", x_sampled)
             kde_pred = density_metrics.pop("kde_pred", kde_pred)
             kde_true = density_metrics.pop("kde_true", kde_true)
@@ -786,7 +788,7 @@ class GFlowNetEvaluator:
         for m, v in result["metrics"].items():
             setattr(gfn, m, v)
 
-        mertics_to_log = {METRICS[k]["name"]: v for k, v in result["metrics"].values()}
+        mertics_to_log = {METRICS[k]["name"]: v for k, v in result["metrics"].items()}
 
         self.logger.log_metrics(mertics_to_log, it, gfn.use_context)
         self.logger.log_metrics(result["env_metrics"], it, use_context=gfn.use_context)
