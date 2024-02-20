@@ -464,7 +464,7 @@ class GFlowNetEvaluator:
         if "logprobs_std_nll_ratio" in metrics:
             lp_metrics["logprobs_std_nll_ratio"] = (
                 -logprobs_std.mean() / logprobs_x_tt.mean()
-            )
+            ).item()
 
         return lp_metrics
 
