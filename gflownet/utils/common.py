@@ -223,6 +223,64 @@ def find_latest_checkpoint(ckpt_dir, ckpt_name):
     return sorted(ckpts, key=lambda f: float(f.stem.split("iter")[1]))[-1]
 
 
+def gflownet_from_config(config):
+    """
+    Create GFlowNet from a Hydra OmegaConf config.
+
+    Parameters
+    ----------
+    config : DictConfig
+        Config.
+
+    Returns
+    -------
+    GFN
+        GFlowNet.
+    """
+    # Logger
+    logger = instantiate(config.logger, config, _recursive_=False)
+    # The proxy is required in the env for scoring: might be an oracle or a model
+    proxy = instantiate(
+        config.proxy,
+        device=config.device,
+        float_precision=config.float_precision,
+    )
+    # The proxy is passed to env and used for computing rewards
+    env = instantiate(
+        config.env,
+        proxy=proxy,
+        device=config.device,
+        float_precision=config.float_precision,
+    )
+    forward_config = parse_policy_config(config, kind="forward")
+    backward_config = parse_policy_config(config, kind="backward")
+    forward_policy = instantiate(
+        forward_config,
+        env=env,
+        device=config.device,
+        float_precision=config.float_precision,
+    )
+    backward_policy = instantiate(
+        backward_config,
+        env=env,
+        device=config.device,
+        float_precision=config.float_precision,
+        base=forward_policy,
+    )
+    gflownet = instantiate(
+        config.gflownet,
+        device=config.device,
+        float_precision=config.float_precision,
+        env=env,
+        buffer=config.env.buffer,
+        forward_policy=forward_policy,
+        backward_policy=backward_policy,
+        logger=logger,
+        eval_config=config.eval,
+    )
+    return gflownet
+
+
 def load_gflow_net_from_run_path(
     run_path,
     no_wandb=True,
