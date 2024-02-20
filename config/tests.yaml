@@ -1,5 +1,4 @@
 defaults:
-  - _self_
   - env: grid
   - gflownet: trajectorybalance
   - proxy: uniform
@@ -7,6 +6,7 @@ defaults:
   - logger: base
   - user: alex
   - eval: base
+  - _self_
 
 # Device
 device: cpu
