@@ -19,7 +19,6 @@ class Buffer:
     def __init__(
         self,
         env,
-        make_train_test=False,
         replay_capacity=0,
         output_csv=None,
         data_path=None,

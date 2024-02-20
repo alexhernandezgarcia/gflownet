@@ -50,7 +50,6 @@ class GFlowNetAgent:
         eval_config,
         state_flow=None,
         use_context=False,
-        sample_only=False,
         replay_sampling="permutation",
         train_sampling="permutation",
         **kwargs,
@@ -104,9 +103,6 @@ class GFlowNetAgent:
         use_context : bool, optional
             Whether the logger will use its context in metrics names. Formerly the
             `active_learning: bool` flag. By default False.
-        sample_only : bool, optional
-            This GFNA is only going to be used to sample, no need to make the train/test
-            buffer.
         replay_sampling : str, optional
             Type of sampling for the replay buffer. See
             :method:`~gflownet.utils.buffer.select`. By default "permutation".
@@ -161,9 +157,7 @@ class GFlowNetAgent:
         # Buffers
         self.replay_sampling = replay_sampling
         self.train_sampling = train_sampling
-        self.buffer = Buffer(
-            **buffer, env=self.env, make_train_test=not sample_only, logger=logger
-        )
+        self.buffer = Buffer(**buffer, env=self.env, logger=logger)
         # Train set statistics and reward normalization constant
         if self.buffer.train is not None:
             energies_stats_tr = [
