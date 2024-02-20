@@ -1,3 +1,12 @@
+"""
+Tests common to all environments.
+
+Note that copying the state is necessary in some tests to preserve specific values of
+the state. This is necessary because in some environments the state is a list which is
+updated when an action is applied. Therefore, if the tests needs to keep older values
+of the state, for example in test__trajectories_are_reversible(), a copy is needed.
+"""
+
 import inspect
 import warnings
 
