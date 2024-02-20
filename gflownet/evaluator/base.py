@@ -539,13 +539,14 @@ class GFlowNetEvaluator:
             density_true = np.exp(log_density_true)
             density_pred = np.exp(log_density_pred)
 
+            density_metrics["kde_pred"] = kde_pred
+            density_metrics["kde_true"] = kde_true
+
         else:
             density_metrics["l1"] = gfn.l1
             density_metrics["kl"] = gfn.kl
             density_metrics["jsd"] = gfn.jsd
             density_metrics["x_sampled"] = x_sampled
-            density_metrics["kde_pred"] = kde_pred
-            density_metrics["kde_true"] = kde_true
             return density_metrics
 
         # L1 error
@@ -564,9 +565,6 @@ class GFlowNetEvaluator:
         )
 
         density_metrics["x_sampled"] = x_sampled
-        density_metrics["kde_pred"] = kde_pred
-        density_metrics["kde_true"] = kde_true
-
         return density_metrics
 
     def eval(self, metrics=None, **plot_kwargs):
