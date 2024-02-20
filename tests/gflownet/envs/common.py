@@ -253,6 +253,7 @@ class BaseTestsCommon:
             while not self.env.done:
                 state, action, valid = self.env.step_random(backward=False)
                 if valid:
+                    # Copy prevents mutation by next step.
                     states_trajectory_fw.append(copy(state))
                     actions_trajectory_fw.append(action)
 
@@ -265,6 +266,7 @@ class BaseTestsCommon:
                     actions_trajectory_fw_copy.pop()
                 )
                 if valid:
+                    # Copy prevents mutation by next step.
                     states_trajectory_bw.append(copy(state))
                     actions_trajectory_bw.append(action)
 
