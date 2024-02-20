@@ -49,7 +49,7 @@ class GFlowNetAgent:
         num_empirical_loss,
         eval_config,
         state_flow=None,
-        active_learning=False,
+        use_context=False,
         sample_only=False,
         replay_sampling="permutation",
         train_sampling="permutation",
@@ -101,9 +101,9 @@ class GFlowNetAgent:
         state_flow : dict, optional
             State flow config dictionary. See `gflownet.yaml:state_flow` for details. By
             default None.
-        active_learning : bool, optional
-            Whether this GFlowNetAgent is part of an active learning loop, by default
-            False. This means the logger will use its context in metrics names.
+        use_context : bool, optional
+            Whether the logger will use its context in metrics names. Formerly the
+            `active_learning: bool` flag. By default False.
         sample_only : bool, optional
             This GFNA is only going to be used to sample, no need to make the train/test
             buffer.
@@ -247,7 +247,7 @@ class GFlowNetAgent:
         self.tau = optimizer.bootstrap_tau
         self.ema_alpha = optimizer.ema_alpha
         self.early_stopping = optimizer.early_stopping
-        self.use_context = active_learning
+        self.use_context = use_context
         self.logsoftmax = torch.nn.LogSoftmax(dim=1)
         # Training
         self.mask_invalid_actions = mask_invalid_actions

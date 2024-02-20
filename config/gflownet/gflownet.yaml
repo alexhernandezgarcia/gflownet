@@ -53,4 +53,4 @@ replay_sampling: permutation
 train_sampling: permutation
 num_empirical_loss: 200000
 sample_only: False
-active_learning: False
+use_context: False
