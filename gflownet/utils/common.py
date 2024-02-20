@@ -239,7 +239,7 @@ def gflownet_from_config(config):
     """
     # Logger
     logger = instantiate(config.logger, config, _recursive_=False)
-    # The proxy is required in the env for scoring: might be an oracle or a model
+    # The proxy is required in the env for scoring
     proxy = instantiate(
         config.proxy,
         device=config.device,
@@ -326,7 +326,7 @@ def load_gflow_net_from_run_path(
 
     # Logger
     logger = instantiate(config.logger, config, _recursive_=False)
-    # The proxy is required in the env for scoring: might be an oracle or a model
+    # The proxy is required in the env for scoring
     proxy = instantiate(
         config.proxy,
         device=config.device,
