@@ -21,39 +21,39 @@ _sentinel = object()
 
 METRICS = {
     "l1": {
-        "name": "L1 error",
+        "display_name": "L1 error",
         "requirements": ["density"],
     },
     "kl": {
-        "name": "KL Div.",
+        "display_name": "KL Div.",
         "requirements": ["density"],
     },
     "jsd": {
-        "name": "Jensen Shannon Div.",
+        "display_name": "Jensen Shannon Div.",
         "requirements": ["density"],
     },
     "corr_prob_traj_rewards": {
-        "name": "Corr. (test probs., rewards)",
+        "display_name": "Corr. (test probs., rewards)",
         "requirements": ["log_probs", "reward_batch"],
     },
     "var_logrewards_logp": {
-        "name": "Var(logR - logp) test",
+        "display_name": "Var(logR - logp) test",
         "requirements": ["log_probs", "reward_batch"],
     },
     "nll_tt": {
-        "name": "NLL of test data",
+        "display_name": "NLL of test data",
         "requirements": ["log_probs"],
     },
     "mean_logprobs_std": {
-        "name": "Mean BS Std(logp)",
+        "display_name": "Mean BS Std(logp)",
         "requirements": ["log_probs"],
     },
     "mean_probs_std": {
-        "name": "Mean BS Std(p)",
+        "display_name": "Mean BS Std(p)",
         "requirements": ["log_probs"],
     },
     "logprobs_std_nll_ratio": {
-        "name": "BS Std(logp) / NLL",
+        "display_name": "BS Std(logp) / NLL",
         "requirements": ["log_probs"],
     },
 }
@@ -758,7 +758,9 @@ class GFlowNetEvaluator:
         for m, v in result["metrics"].items():
             setattr(gfn, m, v)
 
-        mertics_to_log = {METRICS[k]["name"]: v for k, v in result["metrics"].items()}
+        mertics_to_log = {
+            METRICS[k]["display_name"]: v for k, v in result["metrics"].items()
+        }
 
         self.logger.log_metrics(mertics_to_log, it, gfn.use_context)
         self.logger.log_plots(result["figs"], it, use_context=gfn.use_context)
