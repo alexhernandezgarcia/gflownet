@@ -57,6 +57,7 @@ METRICS = {
         "requirements": ["log_probs"],
     },
 }
+ALL_REQS = set([r for m in METRICS.values() for r in m["requirements"]])
 
 
 class GFlowNetEvaluator:
@@ -169,8 +170,14 @@ class GFlowNetEvaluator:
         if metrics is not None:
             return set([r for m in metrics.values() for r in m["requirements"]])
 
-        if reqs == "all":
-            reqs = set([r for m in METRICS.values() for r in m["requirements"]])
+        if isinstance(reqs, str):
+            if reqs == "all":
+                reqs = ALL_REQS.copy()
+            else:
+                raise ValueError(
+                    "reqs should be 'all', a list of requirements or None, but is "
+                    + f"{reqs}."
+                )
         if reqs is None:
             if self.reqs is _sentinel:
                 self.reqs = set(
@@ -185,6 +192,10 @@ class GFlowNetEvaluator:
             "All elements of reqs should be strings, but are "
             + f"{[type(r) for r in reqs]}"
         )
+
+        for r in reqs:
+            if r not in ALL_REQS:
+                raise ValueError(f"Unknown requirement: {r}")
 
         return reqs
 
