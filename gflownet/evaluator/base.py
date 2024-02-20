@@ -95,14 +95,20 @@ class GFlowNetEvaluator:
 
     def make_metrics(self, metrics=None):
         """
-        Parse metrics from a list, a string or None.
+        Parse metrics from a dict, list, a string or None.
 
-        If `None`, all metrics are computed. If a string, it can be a comma-separated
-        list of metric names, with or without spaces. All metrics must be in `METRICS`.
+        - If `None`, all metrics are selected.
+        - If a string, it can be a comma-separated list of metric names, with or without
+          spaces.
+        - If a list, it should be a list of metric names (keys of `METRICS`).
+        - If a dict, its keys should be metric names and its values will be ignored:
+          they will be assigned from `METRICS`.
+
+        All metrics must be in `METRICS`.
 
         Parameters
         ----------
-        metrics : (Union[str, List[str]], optional)
+        metrics : Union[str, List[str]], optional
             Metrics to compute when running the `evaluator.eval()` function. Defaults to
             None, i.e. all metrics in `METRICS` are computed.
 
@@ -110,16 +116,13 @@ class GFlowNetEvaluator:
         -------
         dict
             Dictionary of metrics to compute, with the metric names as keys and the
-            metric names and requirements as values.
+            metric display names and requirements as values.
 
         Raises
         ------
             ValueError
                 If a metric name is not in `METRICS`.
         """
-        if metrics == "all":
-            metrics = METRICS.keys()
-
         if metrics is None:
             assert self.metrics is not _sentinel, (
                 "Error setting self.metrics. This is likely due to the `metrics:`"
@@ -128,11 +131,30 @@ class GFlowNetEvaluator:
             )
             return self.metrics
 
+        if not isinstance(metrics, (str, list, dict)):
+            raise ValueError(
+                "metrics should be None, a string, a list or a dict,"
+                + f" but is {type(metrics)}."
+            )
+
+        if metrics == "all":
+            metrics = METRICS.keys()
+
         if isinstance(metrics, str):
+            if metrics == "":
+                raise ValueError(
+                    "`metrics` should not be an empty string. "
+                    + "Set to 'all' or a list of metric names or None (null in YAML)."
+                )
             if "," in metrics:
-                metrics = [m.strip() for m in metrics.split(",")]
+                metrics = metrics.split(",")
             else:
                 metrics = [metrics]
+
+        if isinstance(metrics, dict):
+            metrics = metrics.keys()
+
+        metrics = [m.strip() for m in metrics]
 
         for m in metrics:
             if m not in METRICS:
@@ -149,8 +171,7 @@ class GFlowNetEvaluator:
 
         2. Otherwise, the requirements are computed from the `reqs` argument:
             - If `reqs` is `"all"`, all requirements of all metrics are computed.
-            - If `reqs` is `None`, the evaluator's `self.reqs` attribute is
-              used.
+            - If `reqs` is `None`, the evaluator's `self.reqs` attribute is used.
             - If `reqs` is a list, it is used as the requirements.
 
         Parameters
@@ -158,8 +179,9 @@ class GFlowNetEvaluator:
         reqs : Union[str, List[str]], optional
             The metrics requirements. Either `"all"`, a list of requirements or `None`
             to use the evaluator's `self.reqs` attribute. By default None
-        metrics : List[str], optional
-            The list of metrics dicts to compute requirements for. By default None.
+        metrics : Union[str, List[str], dict], optional
+            The metrics to compute requirements for. If not a dict, will be passed to
+            `make_metrics`. By default None.
 
         Returns
         -------
@@ -168,6 +190,11 @@ class GFlowNetEvaluator:
         """
 
         if metrics is not None:
+            if not isinstance(metrics, dict):
+                metrics = self.make_metrics(metrics)
+            for m in metrics:
+                if m not in METRICS:
+                    raise ValueError(f"Unknown metric name: {m}")
             return set([r for m in metrics.values() for r in m["requirements"]])
 
         if isinstance(reqs, str):
@@ -180,6 +207,12 @@ class GFlowNetEvaluator:
                 )
         if reqs is None:
             if self.reqs is _sentinel:
+                if not isinstance(self.metrics, dict):
+                    raise ValueError(
+                        "Cannot compute requirements from `None` without the `metrics`"
+                        + " argument or the `self.metrics` attribute set to a dict"
+                        + " of metrics."
+                    )
                 self.reqs = set(
                     [r for m in self.metrics.values() for r in m["requirements"]]
                 )
@@ -187,7 +220,10 @@ class GFlowNetEvaluator:
         if isinstance(reqs, list):
             reqs = set(reqs)
 
-        assert isinstance(reqs, set), f"reqs should be a set, but is {type(reqs)}"
+        assert isinstance(
+            reqs, set
+        ), f"reqs should be None, 'all', a set or a list, but is {type(reqs)}"
+
         assert all([isinstance(r, str) for r in reqs]), (
             "All elements of reqs should be strings, but are "
             + f"{[type(r) for r in reqs]}"
@@ -215,12 +251,12 @@ class GFlowNetEvaluator:
         Returns
         -------
         bool
-            True if training should be done at the current step, False otherwise.
+            True if train logging should be done at the current step, False otherwise.
         """
-        if self.config.train_log_period is None or self.config.train_log_period < 0:
+        if self.config.train_log_period is None or self.config.train_log_period <= 0:
             return False
         else:
-            return not step % self.config.train_log_period
+            return step % self.config.train_log_period == 0
 
     def should_eval(self, step):
         """
@@ -243,12 +279,12 @@ class GFlowNetEvaluator:
         bool
             True if testing should be done at the current step, False otherwise.
         """
-        if self.config.period is None or self.config.period < 0:
+        if self.config.period is None or self.config.period <= 0:
             return False
         elif step == 1 and self.config.first_it:
             return True
         else:
-            return not step % self.config.period
+            return step % self.config.period == 0
 
     def should_eval_top_k(self, step):
         """
@@ -269,13 +305,16 @@ class GFlowNetEvaluator:
         bool
             True if top k plots and metrics should be done at the current step, False
         """
-        if self.config.top_k is None or self.config.top_k < 0:
+        if self.config.top_k is None or self.config.top_k <= 0:
             return False
 
-        if self.config.top_k_period is None or self.config.top_k_period < 0:
+        if self.config.top_k_period is None or self.config.top_k_period <= 0:
             return False
 
-        return step == 2 or step % self.config.top_k_period == 0
+        if step == 1 and self.config.first_it:
+            return True
+
+        return step % self.config.top_k_period == 0
 
     def should_checkpoint(self, step):
         """
@@ -295,7 +334,10 @@ class GFlowNetEvaluator:
         bool
             True if checkpoints should be done at the current step, False otherwise.
         """
-        if self.config.checkpoints_period is None or self.config.checkpoints_period < 0:
+        if (
+            self.config.checkpoints_period is None
+            or self.config.checkpoints_period <= 0
+        ):
             return False
         else:
             return not step % self.config.checkpoints_period
