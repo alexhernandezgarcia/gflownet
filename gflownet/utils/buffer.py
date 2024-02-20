@@ -43,6 +43,12 @@ class Buffer:
         self.replay_trajs = {}
         self.replay_rewards = {}
         self.replay_pkl = "replay.pkl"
+
+        self.train_csv = None
+        self.train_pkl = None
+        self.test_csv = None
+        self.test_pkl = None
+
         self.save_replay()
         # Define train and test data sets
         if train is not None and "type" in train:
@@ -56,6 +62,7 @@ class Buffer:
             and train.output_csv is not None
         ):
             self.train.to_csv(train.output_csv)
+            self.train_csv = train.output_csv
         if (
             dict_tr is not None
             and "output_pkl" in train
@@ -74,6 +81,7 @@ class Buffer:
             """
             )
             self.train_pkl = None
+
         if test is not None and "type" in test:
             self.test_type = test.type
         else:
@@ -84,6 +92,7 @@ class Buffer:
             and "output_csv" in test
             and test.output_csv is not None
         ):
+            self.test_csv = test.output_csv
             self.test.to_csv(test.output_csv)
         if dict_tt is not None and "output_pkl" in test and test.output_pkl is not None:
             with open(test.output_pkl, "wb") as f:
