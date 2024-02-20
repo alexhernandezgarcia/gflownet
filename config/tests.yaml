@@ -6,6 +6,7 @@ defaults:
   - policy: mlp
   - logger: base
   - user: alex
+  - eval: base
 
 # Device
 device: cpu
