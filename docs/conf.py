@@ -80,7 +80,23 @@ html_favicon = "./_static/images/gflownet-logo-32.png"
 # -----  Plugins configs  -----
 # -----------------------------
 
-# todo extension
+# Napoleon
+# https://www.sphinx-doc.org/en/master/usage/extensions/napoleon.html#configuration
+napoleon_google_docstring = True
+napoleon_numpy_docstring = True
+napoleon_include_init_with_doc = False
+napoleon_include_private_with_doc = False
+napoleon_include_special_with_doc = True
+napoleon_use_admonition_for_examples = True
+napoleon_use_admonition_for_notes = True
+napoleon_use_admonition_for_references = True
+napoleon_use_ivar = False
+napoleon_use_param = True
+napoleon_use_rtype = False
+napoleon_preprocess_types = False
+napoleon_type_aliases = None
+napoleon_attr_annotations = True
+
 # https://www.sphinx-doc.org/en/master/usage/extensions/todo.html#directive-todo
 todo_include_todos = True
 
