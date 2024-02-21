@@ -1103,7 +1103,6 @@ class GFlowNetAgent:
             # Log
             if self.logger.lightweight:
                 all_losses = all_losses[-100:]
-                all_visited = states_term  # TODO-V: unused
             else:
                 all_visited.extend(states_term)
             # Progress bar

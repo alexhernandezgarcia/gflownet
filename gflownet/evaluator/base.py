@@ -513,7 +513,6 @@ class GFlowNetEvaluator:
     def compute_density_metrics(self, x_tt, dict_tt, metrics=None):
         gfn = self.gfn_agent
         metrics = self.make_metrics(metrics)
-        reqs = self.make_requirements(metrics=metrics)  # TODO-V: unused for now, TBD
 
         density_metrics = {}
         x_sampled = density_true = density_pred = None
