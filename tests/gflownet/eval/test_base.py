@@ -46,7 +46,7 @@ def dummy_evaluator(config_for_tests):
 
 
 @pytest.fixture
-def constant_evaluator():
+def constant_evaluator():  # faster fixture for state-less tests
     CONSTANT_EVALUATOR.config = OmegaConf.create(
         {"eval_config": {"metrics": "all"}, "logger": {}}
     )
@@ -234,7 +234,6 @@ def test__eval(gflownet_for_tests, parameterization):
     assert Path("./replay.pkl").exists()
     # results: {"metrics": dict[str, float], "figs": list[plt.Figure]}
     results = gflownet_for_tests.evaluator.eval()
-    breakpoint()
 
     for k, v in results["metrics"].items():
         assert isinstance(k, str)
