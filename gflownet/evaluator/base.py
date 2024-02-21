@@ -834,7 +834,7 @@ class GFlowNetEvaluator:
 if __name__ == "__main__":
     # Try using the GFlowNetEvaluator by running this script from the root:
     # $ ipython
-    # In [1]: run gflownet/eval/base.py
+    # In [1]: run gflownet/evaluator/base.py
 
     from pathlib import Path
 
@@ -845,10 +845,14 @@ if __name__ == "__main__":
     #    eval.checkpoints_period=100
     scratch = Path("/network/scratch/s/schmidtv")
     run_dirs = scratch / "crystals/logs/"
-    gfn_run_dir = run_dirs / "2024-02-20_19-31-50/0df3449a"  # simple_tetris run
+    gfn_run_dir = run_dirs / "2024-02-20_19-31-50"  # simple_tetris run
 
     gfne = GFlowNetEvaluator.from_dir(gfn_run_dir)
     results = gfne.eval()
     for name, metric in results["metrics"].items():
         print(f"{name:20}: {metric:.4f}")
-    print("Available figures in results['figs']:", ", ".join(results["figs"].keys()))
+    print(
+        "Available figures in results['figs']:",
+        ", ".join([fname for fname, fig in results["figs"].items() if fig is not None])
+        or "None",
+    )
