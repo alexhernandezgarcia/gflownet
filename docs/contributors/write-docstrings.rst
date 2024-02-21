@@ -21,7 +21,7 @@ In the :doc:`previous section </contributors/write-documentation>`, we learned a
 
     There are two main conventions for writing docstrings: `Numpy <https://www.sphinx-doc.org/en/master/usage/extensions/example_numpy.html#example-numpy>`_ and `Google <https://www.sphinx-doc.org/en/master/usage/extensions/example_google.html#example-google>`_. The latter (Google) is more popular in the Python community, but the former (Numpy) is more popular in the scientific Python community.
 
-We use the |numpy|_ **convention** for the |gflownet|_ project.
+We use the |numpy-docs|_ **convention** for the ``gflownet`` project.
 
 First, start with a one-line summary that gives an overview of the functionality, in Google docstring style:
 
@@ -269,8 +269,5 @@ There's an easy way to check: use a tool called `pydocstyle <https://www.pydocst
 
     LINKS SECTION ⬇️
 
-.. |numpy| replace::  **Numpy**
-.. _numpy: https://numpydoc.readthedocs.io/en/latest/format.html
-
-.. |gflownet| replace::  ``gflownet``
-.. _gflownet: :py:mod:`gflownet`
+.. |numpy-docs| replace:: **Numpy**
+.. _numpy-docs: https://numpydoc.readthedocs.io/en/latest/format.html
