@@ -310,6 +310,7 @@ def load_gflow_net_from_run_path(
     print_config=False,
     device="cuda",
     load_final_ckpt=True,
+    empty_ok=False,
 ):
     """
     Load GFlowNet from a run path (directory with a `.hydra` directory inside).
@@ -326,11 +327,18 @@ def load_gflow_net_from_run_path(
         Device to which the models should be moved, by default "cuda".
     load_final_ckpt : bool, optional
         Whether to load the final models, by default True.
+    empty_ok : bool, optional
+        Whether to allow the checkpoints directory to be empty, by default False.
 
     Returns
     -------
     Tuple[GFN, DictConfig]
         Loaded GFlowNet and the loaded config.
+
+    Raises
+    ------
+    ValueError
+        If no checkpoints are found in the directory.
     """
     run_path = resolve_path(run_path)
     hydra_dir = run_path / ".hydra"
@@ -375,6 +383,8 @@ def load_gflow_net_from_run_path(
         )
 
     if forward_final is None and backward_final is None:
+        if not empty_ok:
+            raise ValueError("No checkpoints found in", str(ckpt_dir))
         print("Warning: no checkpoints found in", str(ckpt_dir))
 
     return gflownet, config
