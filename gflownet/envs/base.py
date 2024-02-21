@@ -19,6 +19,9 @@ from torchtyping import TensorType
 from gflownet.utils.common import copy, set_device, set_float_precision, tbool, tfloat
 
 CMAP = mpl.colormaps["cividis"]
+""""
+Plotting colour map (cividis).
+"""
 
 
 class GFlowNetEnv:
