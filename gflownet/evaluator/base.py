@@ -835,22 +835,21 @@ if __name__ == "__main__":
     # Try using the GFlowNetEvaluator by running this script from the root:
     # $ ipython
     # In [1]: run gflownet/evaluator/base.py
+    #
+    # Note: this will not work on previous checkpoints whose config does not contain an
+    # `eval` entry, you have to run one. Add `eval.checkpoint_period=10` to quickly
+    # have a checkpoint to test.
 
     from pathlib import Path
 
-    # Demo run:
-    # $ python main.py user=$USER \
-    #    +experiments=simple_tetris \
-    #    logger.do.online=False \
-    #    eval.checkpoints_period=100
-    scratch = Path("/network/scratch/s/schmidtv")
-    run_dirs = scratch / "crystals/logs/"
-    gfn_run_dir = run_dirs / "2024-02-20_19-31-50"  # simple_tetris run
+    gfn_run_dir = "PUT_YOUR_RUN_DIR_HERE"  # a run dir contains a .hydra folder
 
     gfne = GFlowNetEvaluator.from_dir(gfn_run_dir)
     results = gfne.eval()
+
     for name, metric in results["metrics"].items():
         print(f"{name:20}: {metric:.4f}")
+
     print(
         "Available figures in results['figs']:",
         ", ".join([fname for fname, fig in results["figs"].items() if fig is not None])
