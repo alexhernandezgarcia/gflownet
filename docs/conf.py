@@ -23,8 +23,8 @@ sys.path.insert(0, str(ROOT))
 # -- Project information -----------------------------------------------------
 
 project = "gflownet"
-copyright = "2023, Alex Hernandez-Garcia"
-author = "Alex Hernandez-Garcia, Michał Koziarski, Nikita Saxena, Victor Schmidt, Alexandra Volokhova, Michael Kilgour, Pierre Luc Carrier and others"
+copyright = "2024, Alex Hernandez-Garcia"
+author = "Alex Hernandez-Garcia, Nikita Saxena, Alexandra Volokhova, Michał Koziarski, Divya Sharma, Joseph D Viviano, Pierre Luc Carrier, Victor Schmidt and others."
 
 
 # -- General configuration ---------------------------------------------------
