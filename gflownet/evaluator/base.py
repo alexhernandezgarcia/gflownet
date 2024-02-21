@@ -636,10 +636,9 @@ class GFlowNetEvaluator:
 
         Returns
         -------
-        list
-            List of computed metrics and figures: [l1, kl, jsd, corr_prob_traj_rewards,
-            var_logrewards_logp, nll_tt, mean_logprobs_std, mean_probs_std,
-            logprobs_std_nll_ratio, figs] (should be refactored to dict) #TODO fix docstring
+        dict
+            Computed dict of metrics and figures as
+            `{"metrics": {str: float}, "figs": {str: plt.Figure}}`.
         """
         gfn = self.gfn_agent
         metrics = self.make_metrics(metrics)
@@ -834,13 +833,23 @@ class GFlowNetEvaluator:
 
 
 if __name__ == "__main__":
-    # dev test case, will move to tests
+    # Try using the GFlowNetEvaluator by running this script from the root:
+    # $ ipython
+    # In [1]: run gflownet/eval/base.py
+
     from pathlib import Path
 
-    scratch = Path(os.environ["SCRATCH"])
-    run_dirs = scratch / "crystals/logs/icml24/crystalgfn"
-    gfn_run_dir = run_dirs / "4074836/2024-01-27_20-54-55/5908fe41"
+    # Demo run:
+    # $ python main.py user=$USER \
+    #    +experiments=simple_tetris \
+    #    logger.do.online=False \
+    #    eval.checkpoints_period=100
+    scratch = Path("/network/scratch/s/schmidtv")
+    run_dirs = scratch / "crystals/logs/"
+    gfn_run_dir = run_dirs / "2024-02-20_19-31-50/0df3449a"  # simple_tetris run
 
     gfne = GFlowNetEvaluator.from_dir(gfn_run_dir)
-    gfne.plot()
-    gfne.compute_metrics()
+    results = gfne.eval()
+    for name, metric in results["metrics"].items():
+        print(f"{name:20}: {metric:.4f}")
+    print("Available figures in results['figs']:", ", ".join(results["figs"].keys()))
