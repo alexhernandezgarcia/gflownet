@@ -1311,16 +1311,22 @@ class GFlowNetAgent:
         Sample from the current GFN and compute metrics and plots for the top k states
         according to both the energy and the reward.
 
-        Args:
-            it (int): current iteration
-            progress (bool, optional): Print sampling progress. Defaults to False.
-            gfn_states (list, optional): Already sampled gfn states. Defaults to None.
-            random_states (list, optional): Already sampled random states.
-                Defaults to None.
+        Parameters
+        ----------
+        it : int
+            Current iteration.
+        progress : bool, optional
+            Print sampling progress. Defaults to False.
+        gfn_states : list, optional
+            Already sampled gfn states. Defaults to None.
+        random_states : list, optional
+            Already sampled random states. Defaults to None.
 
-        Returns:
-            tuple[dict, list[plt.Figure], list[str], dict]: Computed dict of metrics,
-                and figures, their names and optionally (only once) summary metrics.
+        Returns
+        -------
+        tuple[dict, list[plt.Figure], list[str], dict]
+            Computed dict of metrics, and figures, their names and optionally (only
+            once) summary metrics.
         """
         # only do random top k plots & metrics once
         do_random = it // self.logger.test.top_k_period == 1

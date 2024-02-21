@@ -23,8 +23,10 @@ def add_args(parser):
     """
     Adds command-line arguments to parser
 
-    Returns:
-        argparse.Namespace: the parsed arguments
+    Returns
+    -------
+    argparse.ArgumentParser
+        The parser with added arguments
     """
     parser.add_argument(
         "--run_path",
@@ -74,14 +76,27 @@ def add_args(parser):
 
 def get_batch_sizes(total, b=1):
     """
-    Batches an iterable into chunks of size n and returns their expected lengths
+    Batches an iterable into chunks of size n and returns their expected lengths.
 
-    Args:
-        total (int): total samples to produce
-        b (int): the batch size
+    Example
+    -------
 
-    Returns:
-        list: list of batch sizes
+    .. code-block:: python
+
+        >>> get_batch_sizes(10, 3)
+        [3, 3, 3, 1]
+
+    Parameters
+    ----------
+    total : int
+        total samples to produce
+    b : int
+        the batch size
+
+    Returns
+    -------
+    list
+        list of batch sizes
     """
     n = total // b
     chunks = [b] * n
@@ -94,8 +109,10 @@ def print_args(args):
     """
     Prints the arguments
 
-    Args:
-        args (argparse.Namespace): the parsed arguments
+    Parameters
+    ----------
+    args : argparse.Namespace
+        the parsed arguments
     """
     print("Arguments:")
     darg = vars(args)

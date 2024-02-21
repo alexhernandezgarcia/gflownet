@@ -30,8 +30,10 @@ def parsed_args():
     """
     Parse and returns command-line args
 
-    Returns:
-        argparse.Namespace: the parsed arguments
+    Returns
+    -------
+    argparse.Namespace
+        the parsed arguments
     """
     parser = ArgumentParser()
     parser.add_argument(
