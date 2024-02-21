@@ -29,6 +29,7 @@ def main(config):
     # Set other random seeds
     set_seeds(config.seed)
 
+    # Initialize GFlowNet from config
     # Logger
     logger = hydra.utils.instantiate(config.logger, config, _recursive_=False)
     # The proxy is required in the env for scoring
@@ -93,11 +94,11 @@ def main(config):
     if config.n_samples > 0 and config.n_samples <= 1e5:
         batch, times = gflownet.sample_batch(n_forward=config.n_samples, train=False)
         x_sampled = batch.get_terminating_states(proxy=True)
-        energies = env.proxy(x_sampled)
+        energies = gflownet.env.proxy(x_sampled)
         x_sampled = batch.get_terminating_states()
         df = pd.DataFrame(
             {
-                "readable": [env.state2readable(x) for x in x_sampled],
+                "readable": [gflownet.env.state2readable(x) for x in x_sampled],
                 "energies": energies.tolist(),
             }
         )

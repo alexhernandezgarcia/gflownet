@@ -239,12 +239,14 @@ def gflownet_from_config(config):
     """
     # Logger
     logger = instantiate(config.logger, config, _recursive_=False)
+
     # The proxy is required in the env for scoring
     proxy = instantiate(
         config.proxy,
         device=config.device,
         float_precision=config.float_precision,
     )
+
     # The proxy is passed to env and used for computing rewards
     env = instantiate(
         config.env,
@@ -252,8 +254,11 @@ def gflownet_from_config(config):
         device=config.device,
         float_precision=config.float_precision,
     )
+
+    # The policy is used to model the probability of a forward/backward action
     forward_config = parse_policy_config(config, kind="forward")
     backward_config = parse_policy_config(config, kind="backward")
+
     forward_policy = instantiate(
         forward_config,
         env=env,
@@ -267,17 +272,33 @@ def gflownet_from_config(config):
         float_precision=config.float_precision,
         base=forward_policy,
     )
+
+    # State flow
+    if config.gflownet.state_flow is not None:
+        state_flow = instantiate(
+            config.gflownet.state_flow,
+            env=env,
+            device=config.device,
+            float_precision=config.float_precision,
+            base=forward_policy,
+        )
+    else:
+        state_flow = None
+
+    # GFlowNet Agent
     gflownet = instantiate(
         config.gflownet,
         device=config.device,
         float_precision=config.float_precision,
         env=env,
-        buffer=config.env.buffer,
         forward_policy=forward_policy,
         backward_policy=backward_policy,
+        state_flow=state_flow,
+        buffer=config.env.buffer,
         logger=logger,
         eval_config=config.eval,
     )
+
     return gflownet
 
 
