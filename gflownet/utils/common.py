@@ -211,6 +211,8 @@ def find_latest_checkpoint(ckpt_dir, ckpt_name):
         If no final checkpoint is found and no other checkpoints are found according to
         the specified pattern: `{ckpt_name}*`.
     """
+    if ckpt_name is None:
+        return None
     ckpt_name = Path(ckpt_name).stem
     final = list(ckpt_dir.glob(f"{ckpt_name}*final*"))
     if len(final) > 0:
@@ -345,46 +347,7 @@ def load_gflow_net_from_run_path(
         # Disable wandb
         config.logger.do.online = False
 
-    # Logger
-    logger = instantiate(config.logger, config, _recursive_=False)
-    # The proxy is required in the env for scoring
-    proxy = instantiate(
-        config.proxy,
-        device=config.device,
-        float_precision=config.float_precision,
-    )
-    # The proxy is passed to env and used for computing rewards
-    env = instantiate(
-        config.env,
-        proxy=proxy,
-        device=config.device,
-        float_precision=config.float_precision,
-    )
-    forward_config = parse_policy_config(config, kind="forward")
-    backward_config = parse_policy_config(config, kind="backward")
-    forward_policy = instantiate(
-        forward_config,
-        env=env,
-        device=config.device,
-        float_precision=config.float_precision,
-    )
-    backward_policy = instantiate(
-        backward_config,
-        env=env,
-        device=config.device,
-        float_precision=config.float_precision,
-        base=forward_policy,
-    )
-    gflownet = instantiate(
-        config.gflownet,
-        device=config.device,
-        float_precision=config.float_precision,
-        env=env,
-        buffer=config.env.buffer,
-        forward_policy=forward_policy,
-        backward_policy=backward_policy,
-        logger=logger,
-    )
+    gflownet = gflownet_from_config(config)
 
     if not load_final_ckpt:
         return gflownet, config
@@ -393,18 +356,27 @@ def load_gflow_net_from_run_path(
     # -----  Load final models  -----
     # -------------------------------
 
-    ckpt = [f for f in run_path.rglob(config.logger.logdir.ckpts) if f.is_dir()][0]
-    forward_final = find_latest_checkpoint(ckpt, config.policy.forward.checkpoint)
-    gflownet.forward_policy.model.load_state_dict(
-        torch.load(forward_final, map_location=set_device(device))
-    )
-    try:
-        backward_final = find_latest_checkpoint(ckpt, config.policy.backward.checkpoint)
+    ckpt_dir = [f for f in run_path.rglob(config.logger.logdir.ckpts) if f.is_dir()][0]
+
+    forward_final = find_latest_checkpoint(ckpt_dir, config.policy.forward.checkpoint)
+    if forward_final is None:
+        print("Warning: no forward policy checkpoint found")
+    else:
+        gflownet.forward_policy.model.load_state_dict(
+            torch.load(forward_final, map_location=set_device(device))
+        )
+
+    backward_final = find_latest_checkpoint(ckpt_dir, config.policy.backward.checkpoint)
+    if backward_final is None:
+        print("Warning: no backward policy checkpoint found")
+    else:
         gflownet.backward_policy.model.load_state_dict(
             torch.load(backward_final, map_location=set_device(device))
         )
-    except ValueError:
-        print("No backward policy found")
+
+    if forward_final is None and backward_final is None:
+        print("Warning: no checkpoints found in", str(ckpt_dir))
+
     return gflownet, config
 
 
