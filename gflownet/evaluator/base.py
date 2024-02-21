@@ -57,7 +57,21 @@ METRICS = {
         "requirements": ["log_probs"],
     },
 }
+"""
+All metrics that can be computed by the GFlowNetEvaluator. Structured as a dict with the
+metric names as keys and the metric display names and requirements as values.
+
+Requirements are used to decide which kind of data / samples is required to compute the
+metric.
+
+Display names are used to log the metrics and to display them in the console.
+"""
+
 ALL_REQS = set([r for m in METRICS.values() for r in m["requirements"]])
+"""
+Union of all requirements of all metrics in `METRICS`. Computed from
+:py:const:`METRICS`.
+"""
 
 
 class GFlowNetEvaluator:
