@@ -811,17 +811,19 @@ class GFlowNetAgent:
         batch_size: int = 100,
         bs_num_samples=10000,
     ):
-        """
+        r"""
         Estimates the probability of sampling with current GFlowNet policy
         (self.forward_policy) the objects in a data set given by the argument data. The
         (log) probabilities are estimated by sampling a number of backward trajectories
         (n_trajectories) through importance sampling and calculating the forward
         probabilities of the trajectories.
 
-        $\log p_T(x) = \int_{x \in \tau} P_F(\tau)d\tau$
-        $= \log \mathbb{E}_{P_B(\tau|x)} \frac{P_F(x)}{P_B(\tau|x)}$
-        $\approx \log \frac{1}{N} \sum_{i=1}^{N} \frac{P_F(x_i)}{P_B(\tau|x_i)}$
-        $= \log \sum_{i=1}^{N} \frac{P_F(x_i)}{P_B(\tau|x_i)} - \log N$
+        $$
+        \log p_T(x) = \int_{x \in \tau} P_F(\tau)d\tau \\
+        = \log \mathbb{E}_{P_B(\tau|x)} \frac{P_F(x)}{P_B(\tau|x)}\\
+        \approx \log \frac{1}{N} \sum_{i=1}^{N} \frac{P_F(x_i)}{P_B(\tau|x_i)}\\
+        = \log \sum_{i=1}^{N} \frac{P_F(x_i)}{P_B(\tau|x_i)} - \log N
+        $$
 
         Note: torch.logsumexp is used to compute the log of the sum, in order to have
         numerical stability, since we have the log PF and log PB, instead of directly
