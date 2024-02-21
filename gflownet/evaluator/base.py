@@ -93,6 +93,73 @@ class GFlowNetEvaluator:
         self.metrics = self.make_metrics(self.config.metrics)
         self.reqs = self.make_requirements()
 
+    @classmethod
+    def from_dir(
+        cls: "GFlowNetEvaluator",
+        path: Union[str, os.PathLike],
+        no_wandb: bool = True,
+        print_config: bool = False,
+        device: str = "cuda",
+        load_final_ckpt: bool = True,
+    ):
+        """
+        Instantiate a GFlowNetEvaluator from a run directory.
+
+        Parameters
+        ----------
+        cls : GFlowNetEvaluator
+            Class to instantiate.
+        path : Union[str, os.PathLike]
+            Path to the run directory from which to load the GFlowNetAgent.
+        no_wandb : bool, optional
+            Prevent wandb initialization, by default True
+        print_config : bool, optional
+            Whether or not to print the resulting (loaded) config, by default False
+        device : str, optional
+            Device to use for the instantiated GFlowNetAgent, by default "cuda"
+        load_final_ckpt : bool, optional
+            Use the latest possible checkpoint available in the path, by default True
+
+        Returns
+        -------
+        GFlowNetEvaluator
+            Instance of GFlowNetEvaluator with the GFlowNetAgent loaded from the run.
+        """
+        gfn_agent, _ = load_gflow_net_from_run_path(
+            path,
+            no_wandb=no_wandb,
+            print_config=print_config,
+            device=device,
+            load_final_ckpt=load_final_ckpt,
+        )
+        return GFlowNetEvaluator.from_agent(gfn_agent)
+
+    @classmethod
+    def from_agent(cls, gfn_agent):
+        """
+        Instantiate a GFlowNetEvaluator from a GFlowNetAgent.
+
+        Parameters
+        ----------
+        cls : GFlowNetEvaluator
+            Evaluator class to instantiate.
+        gfn_agent : GFlowNetAgent
+            Instance of GFlowNetAgent to use for the GFlowNetEvaluator.
+
+        Returns
+        -------
+        GFlowNetEvaluator
+            Instance of GFlowNetEvaluator with the provided GFlowNetAgent.
+        """
+        from gflownet.gflownet import GFlowNetAgent
+
+        assert isinstance(gfn_agent, GFlowNetAgent), (
+            "gfn_agent should be an instance of GFlowNetAgent, but is an instance of "
+            + f"{type(gfn_agent)}."
+        )
+
+        return GFlowNetEvaluator(gfn_agent=gfn_agent, sentinel=_sentinel)
+
     def make_metrics(self, metrics=None):
         """
         Parse metrics from a dict, list, a string or None.
@@ -341,73 +408,6 @@ class GFlowNetEvaluator:
             return False
         else:
             return not step % self.config.checkpoints_period
-
-    @classmethod
-    def from_dir(
-        cls: "GFlowNetEvaluator",
-        path: Union[str, os.PathLike],
-        no_wandb: bool = True,
-        print_config: bool = False,
-        device: str = "cuda",
-        load_final_ckpt: bool = True,
-    ):
-        """
-        Instantiate a GFlowNetEvaluator from a run directory.
-
-        Parameters
-        ----------
-        cls : GFlowNetEvaluator
-            Class to instantiate.
-        path : Union[str, os.PathLike]
-            Path to the run directory from which to load the GFlowNetAgent.
-        no_wandb : bool, optional
-            Prevent wandb initialization, by default True
-        print_config : bool, optional
-            Whether or not to print the resulting (loaded) config, by default False
-        device : str, optional
-            Device to use for the instantiated GFlowNetAgent, by default "cuda"
-        load_final_ckpt : bool, optional
-            Use the latest possible checkpoint available in the path, by default True
-
-        Returns
-        -------
-        GFlowNetEvaluator
-            Instance of GFlowNetEvaluator with the GFlowNetAgent loaded from the run.
-        """
-        gfn_agent, _ = load_gflow_net_from_run_path(
-            path,
-            no_wandb=no_wandb,
-            print_config=print_config,
-            device=device,
-            load_final_ckpt=load_final_ckpt,
-        )
-        return GFlowNetEvaluator.from_agent(gfn_agent)
-
-    @classmethod
-    def from_agent(cls, gfn_agent):
-        """
-        Instantiate a GFlowNetEvaluator from a GFlowNetAgent.
-
-        Parameters
-        ----------
-        cls : GFlowNetEvaluator
-            Evaluator class to instantiate.
-        gfn_agent : GFlowNetAgent
-            Instance of GFlowNetAgent to use for the GFlowNetEvaluator.
-
-        Returns
-        -------
-        GFlowNetEvaluator
-            Instance of GFlowNetEvaluator with the provided GFlowNetAgent.
-        """
-        from gflownet.gflownet import GFlowNetAgent
-
-        assert isinstance(gfn_agent, GFlowNetAgent), (
-            "gfn_agent should be an instance of GFlowNetAgent, but is an instance of "
-            + f"{type(gfn_agent)}."
-        )
-
-        return GFlowNetEvaluator(gfn_agent=gfn_agent, sentinel=_sentinel)
 
     def plot(self, x_sampled=None, kde_pred=None, kde_true=None, **plot_kwargs):
         """
