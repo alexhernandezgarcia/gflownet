@@ -23,7 +23,11 @@ In the :doc:`previous section </contributors/write-documentation>`, we learned a
 
 We use the |numpy-docs|_ **convention** for the ``gflownet`` project.
 
-First, start with a one-line summary that gives an overview of the functionality, in Google docstring style:
+First, start with a one-line summary that gives an overview of the functionality, in Numpy docstring style:
+
+.. caution::
+
+     *Unlike* Markdown, code rendering like ``this`` in docstrics uses **two** backticks ``````, not one `````.
 
 .. code-block:: python
 
@@ -133,7 +137,7 @@ Importantly, if you need maths in your docstrings, you can use LaTeX to write eq
 
 .. important::
 
-    If you want to use LaTeX in your docstrings, you need to use raw strings `r"...""` for `\` to be appropriately interpreted. Alternatively you must double them `\\`. For example:
+    If you want to use LaTeX in your docstrings, you need to use raw strings ``r"..."`` for ``\`` to be appropriately interpreted. Alternatively you must double them ``\\``. For example:
 
     .. code-block:: python
 

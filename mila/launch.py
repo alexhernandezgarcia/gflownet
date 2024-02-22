@@ -184,31 +184,31 @@ def load_jobs(yaml_path):
 
     Example yaml file:
 
-    ```
-    shared:
-      slurm:
-        gres: gpu:1
-        mem: 16G
-        cpus_per_task: 2
-      script:
-        user: $USER
-        +experiments: neurips23/crystal-comp-sg-lp.yaml
-        gflownet:
-          __value__: tranjectorybalance
+    .. code-block:: yaml
 
-    jobs:
-    - {}
-    - script:
-        gflownet:
-            __value__: flowmatch
-            policy:
-                backward: null
-    - slurm:
-        partition: main
-      script:
-        gflownet.policy.backward: null
-        gflownet: flowmatch
-    ```
+        shared:
+        slurm:
+            gres: gpu:1
+            mem: 16G
+            cpus_per_task: 2
+        script:
+            user: $USER
+            +experiments: neurips23/crystal-comp-sg-lp.yaml
+            gflownet:
+            __value__: tranjectorybalance
+
+        jobs:
+        - {}
+        - script:
+            gflownet:
+                __value__: flowmatch
+                policy:
+                    backward: null
+        - slurm:
+            partition: main
+        script:
+            gflownet.policy.backward: null
+            gflownet: flowmatch
 
     Parameters
     ----------
@@ -291,7 +291,7 @@ def quote(value):
 def script_dict_to_main_args_str(script_dict, is_first=True, nested_key=""):
     """
     Recursively turns a dict of script args into a string of main.py args
-    as `nested.key=value` pairs
+    as ``nested.key=value`` pairs
 
     Parameters
     ----------

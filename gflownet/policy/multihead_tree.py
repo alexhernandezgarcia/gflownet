@@ -50,13 +50,12 @@ class Backbone(torch.nn.Module):
 
 class LeafSelectionHead(torch.nn.Module):
     """
-    Node-level prediction head. Consists of a stack of GNN layers, and if `model_eos`
+    Node-level prediction head. Consists of a stack of GNN layers, and if ``model_eos``
     is True, a separate linear layer for modeling the exit action.
 
-    Note that in the forward function a conversion from the node-level predictions
-    to an expected vector policy output is being done. Because of that, the output
-    is a regular tensor (with logits at correct positions, regardless of the graph
-    shape).
+    Note that in the forward function a conversion from the node-level predictions to an
+    expected vector policy output is being done. Because of that, the output is a
+    regular tensor (with logits at correct positions, regardless of the graph shape).
     """
 
     def __init__(

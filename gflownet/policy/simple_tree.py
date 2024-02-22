@@ -63,7 +63,7 @@ class Head(torch.nn.Module):
     """
     GNN head: a combination of a pooling layer and a stack of linear layers,
     that takes the input graphs processed by the provided backbone and outputs
-    `out_dim` values.
+    ``out_dim`` values.
 
     This is a naive variant of a Tree policy model, that in particular doesn't
     do any node-level prediction, but instead predicts the whole policy output
