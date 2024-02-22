@@ -368,7 +368,6 @@ class Stack(GFlowNetEnv):
 
         # Perform pre-step from subenv - if it was done from the stack env there could
         # be a mismatch between mask and action space due to continuous subenvs.
-
         action_to_check = subenv.action2representative(action_subenv)
         # Skip mask check if stage is continuous
         if subenv.continuous:
@@ -440,7 +439,7 @@ class Stack(GFlowNetEnv):
         # Perform pre-step from subenv - if it was done from the "superenv" there could
         # be a mismatch between mask and action space due to continuous subenvs.
         action_to_check = subenv.action2representative(action_subenv)
-        # Skip mask check if stage is lattice parameters (continuous actions)
+        # Skip mask check if stage is continuous
         if subenv.continuous:
             skip_mask_check = True
         do_step, _, _ = subenv._pre_step(
