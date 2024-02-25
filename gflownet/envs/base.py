@@ -19,6 +19,9 @@ from torchtyping import TensorType
 from gflownet.utils.common import copy, set_device, set_float_precision, tbool, tfloat
 
 CMAP = mpl.colormaps["cividis"]
+"""
+Plotting colour map (cividis).
+"""
 
 
 class GFlowNetEnv:
@@ -1039,14 +1042,14 @@ class GFlowNetEnv:
 
         In particular, if no states, energy, or reward are passed, then the name
         *must* be "train", and the energy and reward will be computed from the
-        proxy using `env.compute_train_energy_proxy_and_rewards()`. In this case,
-        `top_k_metrics_and_plots` will be called a second time to compute the
+        proxy using ``env.compute_train_energy_proxy_and_rewards()``. In this case,
+        ``top_k_metrics_and_plots`` will be called a second time to compute the
         metrics and plots of the proxy distribution in addition to the ground-truth
         distribution.
         Train mode should only be called once at the begining of training as
         distributions do not change over time.
 
-        If `states` are passed, then the energy and reward will be computed from the
+        If ``states`` are passed, then the energy and reward will be computed from the
         proxy for those states. They are typically sampled from the current GFN.
 
         Otherwise, energy and reward should be passed directly.
@@ -1070,7 +1073,7 @@ class GFlowNetEnv:
         name: str
             Name of the distribution to compute metrics and plots for.
             Typically "gflownet", "random" or "train". Will be used in
-            metrics names like `f"Mean {name} energy"`.
+            metrics names like ``f"Mean {name} energy"``.
 
         energy: torch.Tensor, optional
             Batch of pre-computed energies
@@ -1090,7 +1093,7 @@ class GFlowNetEnv:
             List of matplotlib figures
 
         figs_names: list
-            List of figure names for `figs`
+            List of figure names for ``figs``
         """
 
         if states is None and energy is None and reward is None:

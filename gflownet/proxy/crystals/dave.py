@@ -24,23 +24,25 @@ class DAVE(Proxy):
         * import the proxy build function ``make_model`` by updating ``sys.path``
         * load the checkpoint from ``ckpt_path`` and build the proxy model
 
-        The checkpoint path is resolved as follows:
-        * if ``ckpt_path`` is a dict, it is assumed to be a mapping from cluster or
-             ``$USER`` to path (e.g.
-             ``{mila: /path/ckpt.ckpt, victor: /path/ckpt.ckpt}``)
+        The checkpoint path is resolved as follows: * if ``ckpt_path`` is a dict, it is
+        assumed to be a mapping from cluster or
+             ``$USER`` to path (e.g. ``{mila: /path/ckpt.ckpt, victor:
+             /path/ckpt.ckpt}``)
         * on the cluster, the path to the ckpt is public so everyone resolves to
             ``"mila"``. For local dev you need to specify a path in ``dave.yaml`` that
             maps to your local ``$USER``.
         * if the resulting path is a dir, it must contain exactly one ``.ckpt`` file
         * if the resulting path is a file, it must be a ``.ckpt`` file
 
-        Args:
-            ckpt_path (dict, optional): Mapping from cluster / ``$USER`` to checkpoint.
-                Defaults to ``None``.
-            release (str, optional): Tag to checkout in the DAVE repo.
-                Defaults to ``None``.
-            rescale_outputs (bool, optional): Whether to rescale the proxy outputs
-                using its training mean and std. Defaults to ``True``.
+        Parameters
+        ----------
+        ckpt_path : dict, optional
+            Mapping from cluster / ``$USER`` to checkpoint, by default None
+        release : str, optional
+            Tag to checkout in the DAVE repo, by default None
+        rescale_outputs : bool, optional
+            Whether to rescale the proxy outputs using its training mean and std, by
+            default True
         """
         super().__init__(**kwargs)
         self.rescale_outputs = rescale_outputs
@@ -124,12 +126,15 @@ class DAVE(Proxy):
 
         >>> the states tensor MUST already be on the device.
 
-        Args:
-            states (torch.Tensor): States to infer on. Shape:
-                ``(batch, [6 + 1 + n_elements])``.
+        Parameters
+        ----------
+        states : torch.Tensor
+            States to infer on. Shape: ``(batch, [6 + 1 + n_elements])``.
 
-        Returns:
-            torch.Tensor: Proxy energies. Shape: ``(batch,)``.
+        Returns
+        -------
+        torch.Tensor
+            Proxy energies. Shape: ``(batch,)``.
         """
         self._set_scales()
 
@@ -171,9 +176,11 @@ class DAVE(Proxy):
         """
         Infer on the training set and return the ground-truth and proxy values.
 
-        Returns:
-            tuple: ``(energy, proxy)`` representing 1/ ground-truth energies and 2/
-                proxy inference on the proxy's training set.
+        Returns
+        -------
+        tuple[torch.Tensor, torch.Tensor]
+            ``(energy, proxy)`` representing 1/ ground-truth energies and 2/
+                proxy inference on the proxy's training set as 1D tensors.
         """
         rso = deepcopy(self.rescale_outputs)
         self.rescale_outputs = False

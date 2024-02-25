@@ -811,17 +811,19 @@ class GFlowNetAgent:
         batch_size: int = 100,
         bs_num_samples=10000,
     ):
-        """
+        r"""
         Estimates the probability of sampling with current GFlowNet policy
         (self.forward_policy) the objects in a data set given by the argument data. The
         (log) probabilities are estimated by sampling a number of backward trajectories
         (n_trajectories) through importance sampling and calculating the forward
         probabilities of the trajectories.
 
-        $\log p_T(x) = \int_{x \in \tau} P_F(\tau)d\tau$
-        $= \log \mathbb{E}_{P_B(\tau|x)} \frac{P_F(x)}{P_B(\tau|x)}$
-        $\approx \log \frac{1}{N} \sum_{i=1}^{N} \frac{P_F(x_i)}{P_B(\tau|x_i)}$
-        $= \log \sum_{i=1}^{N} \frac{P_F(x_i)}{P_B(\tau|x_i)} - \log N$
+        $$
+        \log p_T(x) = \int_{x \in \tau} P_F(\tau)d\tau \\
+        = \log \mathbb{E}_{P_B(\tau|x)} \frac{P_F(x)}{P_B(\tau|x)}\\
+        \approx \log \frac{1}{N} \sum_{i=1}^{N} \frac{P_F(x_i)}{P_B(\tau|x_i)}\\
+        = \log \sum_{i=1}^{N} \frac{P_F(x_i)}{P_B(\tau|x_i)} - \log N
+        $$
 
         Note: torch.logsumexp is used to compute the log of the sum, in order to have
         numerical stability, since we have the log PF and log PB, instead of directly
@@ -1309,16 +1311,22 @@ class GFlowNetAgent:
         Sample from the current GFN and compute metrics and plots for the top k states
         according to both the energy and the reward.
 
-        Args:
-            it (int): current iteration
-            progress (bool, optional): Print sampling progress. Defaults to False.
-            gfn_states (list, optional): Already sampled gfn states. Defaults to None.
-            random_states (list, optional): Already sampled random states.
-                Defaults to None.
+        Parameters
+        ----------
+        it : int
+            Current iteration.
+        progress : bool, optional
+            Print sampling progress. Defaults to False.
+        gfn_states : list, optional
+            Already sampled gfn states. Defaults to None.
+        random_states : list, optional
+            Already sampled random states. Defaults to None.
 
-        Returns:
-            tuple[dict, list[plt.Figure], list[str], dict]: Computed dict of metrics,
-                and figures, their names and optionally (only once) summary metrics.
+        Returns
+        -------
+        tuple[dict, list[plt.Figure], list[str], dict]
+            Computed dict of metrics, and figures, their names and optionally (only
+            once) summary metrics.
         """
         # only do random top k plots & metrics once
         do_random = it // self.logger.test.top_k_period == 1

@@ -114,7 +114,11 @@ class Policy(ModelBase):
     def fixed_distribution(self, states):
         """
         Returns the fixed distribution specified by the environment.
-        Args: states: tensor
+
+        Parameters
+        ----------
+        states : tensor
+            The states for which the fixed distribution is to be returned
         """
         return torch.tile(self.fixed_output, (len(states), 1)).to(
             dtype=self.float, device=self.device
@@ -123,7 +127,11 @@ class Policy(ModelBase):
     def random_distribution(self, states):
         """
         Returns the random distribution specified by the environment.
-        Args: states: tensor
+
+        Parameters
+        ----------
+        states : tensor
+            The states for which the random distribution is to be returned
         """
         return torch.tile(self.random_output, (len(states), 1)).to(
             dtype=self.float, device=self.device
@@ -132,7 +140,11 @@ class Policy(ModelBase):
     def uniform_distribution(self, states):
         """
         Return action logits (log probabilities) from a uniform distribution
-        Args: states: tensor
+
+        Parameters
+        ----------
+        states : tensor
+            The states for which the uniform distribution is to be returned
         """
         return torch.ones(
             (len(states), self.output_dim), dtype=self.float, device=self.device

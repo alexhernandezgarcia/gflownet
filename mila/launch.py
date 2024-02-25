@@ -149,11 +149,15 @@ def resolve(path):
     Resolves a path with environment variables and user expansion.
     All paths will end up as absolute paths.
 
-    Args:
-        path (str | Path): The path to resolve
+    Parameters
+    ----------
+    path : str | Path
+        The path to resolve
 
-    Returns:
-        Path: resolved path
+    Returns
+    -------
+    Path
+        resolved path
     """
     if path is None:
         return None
@@ -166,8 +170,10 @@ def now_str():
     Returns a string with the current date and time.
     Eg: "20210923_123456"
 
-    Returns:
-        str: current date and time
+    Returns
+    -------
+    str
+        current date and time
     """
     return datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
 
@@ -178,37 +184,41 @@ def load_jobs(yaml_path):
 
     Example yaml file:
 
-    ```
-    shared:
-      slurm:
-        gres: gpu:1
-        mem: 16G
-        cpus_per_task: 2
-      script:
-        user: $USER
-        +experiments: neurips23/crystal-comp-sg-lp.yaml
-        gflownet:
-          __value__: tranjectorybalance
+    .. code-block:: yaml
 
-    jobs:
-    - {}
-    - script:
-        gflownet:
-            __value__: flowmatch
-            policy:
-                backward: null
-    - slurm:
-        partition: main
-      script:
-        gflownet.policy.backward: null
-        gflownet: flowmatch
-    ```
+        shared:
+        slurm:
+            gres: gpu:1
+            mem: 16G
+            cpus_per_task: 2
+        script:
+            user: $USER
+            +experiments: neurips23/crystal-comp-sg-lp.yaml
+            gflownet:
+            __value__: tranjectorybalance
 
-    Args:
-        yaml_path (str | Path): Where to fine the yaml file
+        jobs:
+        - {}
+        - script:
+            gflownet:
+                __value__: flowmatch
+                policy:
+                    backward: null
+        - slurm:
+            partition: main
+        script:
+            gflownet.policy.backward: null
+            gflownet: flowmatch
 
-    Returns:
-        list[dict]: List of run configurations as dicts
+    Parameters
+    ----------
+    yaml_path : str | Path
+        Where to fine the yaml file
+
+    Returns
+    -------
+    list[dict]
+        List of run configurations as dicts
     """
     if yaml_path is None:
         return []
@@ -281,11 +291,21 @@ def quote(value):
 def script_dict_to_main_args_str(script_dict, is_first=True, nested_key=""):
     """
     Recursively turns a dict of script args into a string of main.py args
-    as `nested.key=value` pairs
+    as ``nested.key=value`` pairs
 
-    Args:
-        script_dict (dict): script dictionary of args
-        previous_str (str, optional): base string to append to. Defaults to "".
+    Parameters
+    ----------
+    script_dict : dict
+        script dictionary of args
+    is_first : bool, optional
+        whether this is the first call in the recursion
+    nested_key : str, optional
+        prefix to add to the keys as ``nested.key``
+
+    Returns
+    -------
+    str
+        string of main.py args (eg: ``"key=value nested.key2=value2"``)
     """
     if not isinstance(script_dict, dict):
         candidate = f"{nested_key}={quote(script_dict)}"
@@ -318,12 +338,17 @@ def deep_update(a, b, path=None, verbose=None):
     """
     https://stackoverflow.com/questions/7204805/how-to-merge-dictionaries-of-dictionaries/7205107#7205107
 
-    Args:
-        a (dict): dict to update
-        b (dict): dict to update from
+    Parameters
+    ----------
+    a : dict
+        dict to update
+    b : dict
+        dict to update from
 
-    Returns:
-        dict: updated copy of a
+    Returns
+    -------
+    dict
+        updated copy of a
     """
     if path is None:
         path = []

@@ -24,6 +24,7 @@ Some of the great features of using Sphinx is to be able to automatically genera
 
 For instance: :meth:`~gflownet.gflownet.GFlowNetAgent.trajectorybalance_loss` or to an external function :func:`torch.cuda.synchronize()`.
 
+.. _learn by example:
 
 Learn by example
 ^^^^^^^^^^^^^^^^

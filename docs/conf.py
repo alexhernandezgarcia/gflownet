@@ -23,8 +23,8 @@ sys.path.insert(0, str(ROOT))
 # -- Project information -----------------------------------------------------
 
 project = "gflownet"
-copyright = "2023, Alex Hernandez-Garcia"
-author = "Alex Hernandez-Garcia, Michał Koziarski, Nikita Saxena, Victor Schmidt, Alexandra Volokhova, Michael Kilgour, Pierre Luc Carrier and others"
+copyright = "2024, Alex Hernandez-Garcia"
+author = "Alex Hernandez-Garcia, Nikita Saxena, Alexandra Volokhova, Michał Koziarski, Divya Sharma, Joseph D Viviano, Pierre Luc Carrier, Victor Schmidt and others."
 
 
 # -- General configuration ---------------------------------------------------
@@ -80,7 +80,23 @@ html_favicon = "./_static/images/gflownet-logo-32.png"
 # -----  Plugins configs  -----
 # -----------------------------
 
-# todo extension
+# Napoleon
+# https://www.sphinx-doc.org/en/master/usage/extensions/napoleon.html#configuration
+napoleon_google_docstring = True
+napoleon_numpy_docstring = True
+napoleon_include_init_with_doc = False
+napoleon_include_private_with_doc = False
+napoleon_include_special_with_doc = True
+napoleon_use_admonition_for_examples = True
+napoleon_use_admonition_for_notes = True
+napoleon_use_admonition_for_references = True
+napoleon_use_ivar = False
+napoleon_use_param = True
+napoleon_use_rtype = False
+napoleon_preprocess_types = False
+napoleon_type_aliases = None
+napoleon_attr_annotations = True
+
 # https://www.sphinx-doc.org/en/master/usage/extensions/todo.html#directive-todo
 todo_include_todos = True
 
@@ -113,7 +129,7 @@ intersphinx_mapping = {
 autodoc_typehints = "description"
 autoapi_type = "python"
 autoapi_dirs = [str(ROOT / "gflownet")]
-autoapi_member_order = "alphabetical"
+autoapi_member_order = "bysource"
 autoapi_template_dir = "_templates/autoapi"
 autoapi_python_class_content = "init"
 autoapi_options = [
