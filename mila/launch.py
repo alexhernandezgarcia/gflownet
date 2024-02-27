@@ -144,6 +144,22 @@ HELP = dedent(
 )
 
 
+def maybe_int(s):
+    """
+    Tries to convert a string to an int, returns -1 if it fails.
+
+    Args:
+        s (str): string to convert
+
+    Returns:
+        int: converted string or -1 if it fails
+    """
+    try:
+        return int(s)
+    except ValueError:
+        return -1
+
+
 def resolve(path):
     """
     Resolves a path with environment variables and user expansion.
@@ -267,9 +283,22 @@ def find_jobs_conf(args):
         if len(yamls) > 1:
             print(">>> Warning: found multiple matches:\n  •" + "\n  •".join(yamls))
         jobs_conf_path = Path(yamls[0])
-        local_out_dir = local_out_dir / jobs_conf_path.parent.relative_to(
-            ROOT / "external" / "jobs"
+        local_out_dir = (
+            local_out_dir
+            / jobs_conf_path.parent.relative_to(ROOT / "external" / "jobs")
+            / jobs_conf_path.stem
         )
+        if local_out_dir.exists():
+            max_local_id = max(
+                [
+                    maybe_int(d.name)
+                    for d in local_out_dir.parent.glob(f"{local_out_dir.name}/*")
+                ]
+                + [0]
+            )
+            new_id = max_local_id + 1
+            local_out_dir = local_out_dir / str(new_id)
+
     print("🗂  Using jobs file: ./" + str(jobs_conf_path.relative_to(Path.cwd())))
     print()
     return jobs_conf_path, local_out_dir
@@ -681,7 +710,8 @@ if __name__ == "__main__":
             parts = sbatch_path.stem.split(f"_{now}")
             new_name = f"{parts[0]}_{job_id}_{now}"
             if len(parts) > 1:
-                new_name += f"_{parts[1]}"
+                new_name += f"{parts[1]}"
+            new_name += ".sh"
             sbatch_path = sbatch_path.rename(sbatch_path.parent / new_name)
             print(f"  🏷  Created ./{sbatch_path.relative_to(Path.cwd())}")
             # Write job ID & output file path in the sbatch file
@@ -718,6 +748,7 @@ if __name__ == "__main__":
         new_conf_path = local_out_dir / f"{jobs_conf_path.stem}_{now}.yaml"
         new_conf_path.parent.mkdir(parents=True, exist_ok=True)
         conf += "\n# " + jobs_str + "\n"
+        conf += f"\n# WandB query: ({'|'.join(job_ids)})"
         conf += (
             "\n# Job Output files:\n#"
             + "\n#".join([f"  • {f}" for f in job_out_files])
