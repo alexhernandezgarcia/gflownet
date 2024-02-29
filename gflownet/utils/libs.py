@@ -101,11 +101,14 @@ def install_and_checkout(name, url, version, pull, remote="origin", verbose=Fals
 
 
 def require_external_library(
-    name, url, version, pull, fail="raise", remote="origin", verbose=False
+    name, url, version, pull=True, fail="raise", remote="origin", verbose=False
 ):
     """
     Install and checkout an external library from a git repository and prepend it to
     sys.path.
+
+    If ``pull``, ``fail`` or ``remote`` are set to ``None``, their default values will
+    be used.
 
     Parameters
     ----------
@@ -131,12 +134,20 @@ def require_external_library(
         If the library cannot be installed or checked-out and ``fail`` is set to
         ``"raise"``.
     """
+    if fail is None:
+        fail = "raise"
+    if remote is None:
+        remote = "origin"
+    if pull is None:
+        pull = True
+
     if pull and is_drac():
         print(
             "💥 Warning: `pull` is `True` but you are running on a DRAC cluster. "
             "Overriding to `False` because the cluster is not connected to the internet."
         )
         pull = False
+
     try:
         repo_path = install_and_checkout(
             name, url, version, pull, remote=remote, verbose=verbose
