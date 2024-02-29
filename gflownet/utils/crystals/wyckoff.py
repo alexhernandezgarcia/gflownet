@@ -1,6 +1,7 @@
-import yaml
-import pandas as pd
 from typing import Iterable
+
+import pandas as pd
+import yaml
 
 # lattice offsets depending on the Bravais centering
 # most are trivial to understand (see Bravais lattices)

@@ -1,6 +1,7 @@
 """
 Class to represent an environment to sample Miller indices (hkl).
 """
+
 from typing import List, Optional
 
 from gflownet.envs.grid import Grid

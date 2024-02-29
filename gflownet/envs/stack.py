@@ -1,6 +1,7 @@
 """
 Base class to stack multiple environments.
 """
+
 import json
 from collections import OrderedDict
 from enum import Enum
