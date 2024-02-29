@@ -182,7 +182,8 @@ def require_external_library(
     if pull and is_drac():
         print(
             "💥 Warning: `pull` is `True` but you are running on a DRAC cluster. "
-            "Overriding to `False` because the cluster is not connected to the internet."
+            "Overriding to `False` because the cluster is not connected to "
+            + "the internet."
         )
         pull = False
 
