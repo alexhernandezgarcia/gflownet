@@ -1,3 +1,5 @@
+import os
+import re
 import sys
 from pathlib import Path
 
@@ -5,6 +7,39 @@ from git import Repo
 
 ROOT = Path(__file__).resolve().parent.parent.parent
 REPOS = ROOT / "external" / "repos"
+
+
+def is_drac(from_env=True):
+    """
+    Check if the current environment is a DRAC cluster.
+
+    Parameters
+    ----------
+    from_env : bool, optional
+        Whether to check the environment variables to determine if we are on a DRAC
+        cluster, by default True. Otherwise, we check for the presence of a slurm
+        configuration file and read the cluster name from it.
+
+    Returns
+    -------
+    bool
+        Whether the current environment is a DRAC cluster.
+    """
+    # Easy way to check if we are on a drac cluster
+    if from_env:
+        return bool(os.environ.get("CC_CLUSTER"))
+
+    # more robust to check any slurm cluster
+    # not used for now but keeping for future use if needed
+    slurm_conf_path = Path("/etc/slurm/slurm.conf")
+    if not slurm_conf_path.exists():
+        return False
+    conf = slurm_conf_path.read_text()
+    matches = re.findall(r"ClusterName=(\w+)", conf)
+    if not matches:
+        return False
+    cluster = matches[0]
+    return cluster in {"narval", "beluga", "cedar", "graham", "arbutus", "niagara"}
 
 
 def install_and_checkout(name, url, version, pull, remote="origin", verbose=False):
@@ -96,6 +131,12 @@ def require_external_library(
         If the library cannot be installed or checked-out and ``fail`` is set to
         ``"raise"``.
     """
+    if pull and is_drac():
+        print(
+            "💥 Warning: `pull` is `True` but you are running on a DRAC cluster. "
+            "Overriding to `False` because the cluster is not connected to the internet."
+        )
+        pull = False
     try:
         repo_path = install_and_checkout(
             name, url, version, pull, remote=remote, verbose=verbose
