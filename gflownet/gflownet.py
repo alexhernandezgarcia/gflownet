@@ -3,6 +3,7 @@ GFlowNet
 TODO:
     - Seeds
 """
+
 import copy
 import os
 import pickle
@@ -23,6 +24,7 @@ from gflownet.utils.batch import Batch
 from gflownet.utils.buffer import Buffer
 from gflownet.utils.common import (
     batch_with_rest,
+    bootstrap_samples,
     set_device,
     set_float_precision,
     tbool,
@@ -195,6 +197,9 @@ class GFlowNetAgent:
         self.corr_prob_traj_rewards = 0.0
         self.var_logrewards_logp = -1.0
         self.nll_tt = 0.0
+        self.mean_logprobs_std = -1.0
+        self.mean_probs_std = -1.0
+        self.logprobs_std_nll_ratio = -1.0
 
     def parameters(self):
         parameters = list(self.forward_policy.model.parameters())
@@ -859,18 +864,21 @@ class GFlowNetAgent:
         max_iters_per_traj: int = 10,
         max_data_size: int = 1e5,
         batch_size: int = 100,
+        bs_num_samples=10000,
     ):
-        """
+        r"""
         Estimates the probability of sampling with current GFlowNet policy
         (self.forward_policy) the objects in a data set given by the argument data. The
         (log) probabilities are estimated by sampling a number of backward trajectories
         (n_trajectories) through importance sampling and calculating the forward
         probabilities of the trajectories.
 
-        $\log p_T(x) = \int_{x \in \tau} P_F(\tau)d\tau$
-        $= \log \mathbb{E}_{P_B(\tau|x)} \frac{P_F(x)}{P_B(\tau|x)}$
-        $\approx \log \frac{1}{N} \sum_{i=1}^{N} \frac{P_F(x_i)}{P_B(\tau|x_i)}$
-        $= \log \sum_{i=1}^{N} \frac{P_F(x_i)}{P_B(\tau|x_i)} - \log N$
+        $$
+        \log p_T(x) = \int_{x \in \tau} P_F(\tau)d\tau \\
+        = \log \mathbb{E}_{P_B(\tau|x)} \frac{P_F(x)}{P_B(\tau|x)}\\
+        \approx \log \frac{1}{N} \sum_{i=1}^{N} \frac{P_F(x_i)}{P_B(\tau|x_i)}\\
+        = \log \sum_{i=1}^{N} \frac{P_F(x_i)}{P_B(\tau|x_i)} - \log N
+        $$
 
         Note: torch.logsumexp is used to compute the log of the sum, in order to have
         numerical stability, since we have the log PF and log PB, instead of directly
@@ -900,11 +908,21 @@ class GFlowNetAgent:
             situation of having to sample too many backward trajectories. If necessary,
             the user should change this argument manually.
 
+        bs_num_samples: int
+            Number of bootstrap resampling times for std estimation of logprobs_estimates.
+            Doesn't require recomputing of log probabilities, so can be arbitrary large
+
         Returns
         -------
         logprobs_estimates: torch.tensor
             The logarithm of the average ratio PF/PB over n trajectories sampled for
             each data point.
+
+        logprobs_std: torch.tensor
+            Bootstrap std of the logprobs_estimates
+
+        probs_std: torch.tensor
+            Bootstrap std of the torch.exp(logprobs_estimates)
         """
         print("Compute logprobs...", flush=True)
         times = {}
@@ -995,8 +1013,16 @@ class GFlowNetAgent:
         logprobs_estimates = torch.logsumexp(
             logprobs_f - logprobs_b, dim=1
         ) - torch.log(torch.tensor(n_trajectories, device=self.device))
+        logprobs_f_b_bs = bootstrap_samples(
+            logprobs_f - logprobs_b, num_samples=bs_num_samples
+        )
+        logprobs_estimates_bs = torch.logsumexp(logprobs_f_b_bs, dim=1) - torch.log(
+            torch.tensor(n_trajectories, device=self.device)
+        )
+        logprobs_std = torch.std(logprobs_estimates_bs, dim=-1)
+        probs_std = torch.std(torch.exp(logprobs_estimates_bs), dim=-1)
         print("Done computing logprobs", flush=True)
-        return logprobs_estimates
+        return logprobs_estimates, logprobs_std, probs_std
 
     def train(self):
         # Metrics
@@ -1021,6 +1047,9 @@ class GFlowNetAgent:
                     self.corr_prob_traj_rewards,
                     self.var_logrewards_logp,
                     self.nll_tt,
+                    self.mean_logprobs_std,
+                    self.mean_probs_std,
+                    self.logprobs_std_nll_ratio,
                     figs,
                     env_metrics,
                 ) = self.test()
@@ -1031,6 +1060,9 @@ class GFlowNetAgent:
                     self.corr_prob_traj_rewards,
                     self.var_logrewards_logp,
                     self.nll_tt,
+                    self.mean_logprobs_std,
+                    self.mean_probs_std,
+                    self.logprobs_std_nll_ratio,
                     it,
                     self.use_context,
                 )
@@ -1180,6 +1212,9 @@ class GFlowNetAgent:
                 self.corr_prob_traj_rewards,
                 self.var_logrewards_logp,
                 self.nll_tt,
+                self.mean_logprobs_std,
+                self.mean_probs_std,
+                self.logprobs_std_nll_ratio,
                 (None,),
                 {},
             )
@@ -1190,12 +1225,15 @@ class GFlowNetAgent:
         # Compute correlation between the rewards of the test data and the log
         # likelihood of the data according the the GFlowNet policy; and NLL.
         # TODO: organise code for better efficiency and readability
-        logprobs_x_tt = self.estimate_logprobs_data(
+        logprobs_x_tt, logprobs_std, probs_std = self.estimate_logprobs_data(
             x_tt,
             n_trajectories=self.logger.test.n_trajs_logprobs,
             max_data_size=self.logger.test.max_data_logprobs,
             batch_size=self.logger.test.logprobs_batch_size,
+            bs_num_samples=self.logger.test.logprobs_bootstrap_size,
         )
+        mean_logprobs_std = logprobs_std.mean().item()
+        mean_probs_std = probs_std.mean().item()
         rewards_x_tt = self.env.reward_batch(x_tt)
         corr_prob_traj_rewards = np.corrcoef(
             np.exp(logprobs_x_tt.cpu().numpy()), rewards_x_tt
@@ -1205,6 +1243,7 @@ class GFlowNetAgent:
             - logprobs_x_tt
         ).item()
         nll_tt = -logprobs_x_tt.mean().item()
+        logprobs_std_nll_ratio = torch.mean(-logprobs_std / logprobs_x_tt).item()
 
         x_sampled = []
         if self.buffer.test_type is not None and self.buffer.test_type == "all":
@@ -1280,6 +1319,9 @@ class GFlowNetAgent:
                 corr_prob_traj_rewards,
                 var_logrewards_logp,
                 nll_tt,
+                mean_logprobs_std,
+                mean_probs_std,
+                logprobs_std_nll_ratio,
                 (None,),
                 env_metrics,
             )
@@ -1311,6 +1353,9 @@ class GFlowNetAgent:
             corr_prob_traj_rewards,
             var_logrewards_logp,
             nll_tt,
+            mean_logprobs_std,
+            mean_probs_std,
+            logprobs_std_nll_ratio,
             [fig_reward_samples, fig_kde_pred, fig_kde_true],
             {},
         )
@@ -1321,16 +1366,22 @@ class GFlowNetAgent:
         Sample from the current GFN and compute metrics and plots for the top k states
         according to both the energy and the reward.
 
-        Args:
-            it (int): current iteration
-            progress (bool, optional): Print sampling progress. Defaults to False.
-            gfn_states (list, optional): Already sampled gfn states. Defaults to None.
-            random_states (list, optional): Already sampled random states.
-                Defaults to None.
+        Parameters
+        ----------
+        it : int
+            Current iteration.
+        progress : bool, optional
+            Print sampling progress. Defaults to False.
+        gfn_states : list, optional
+            Already sampled gfn states. Defaults to None.
+        random_states : list, optional
+            Already sampled random states. Defaults to None.
 
-        Returns:
-            tuple[dict, list[plt.Figure], list[str], dict]: Computed dict of metrics,
-                and figures, their names and optionally (only once) summary metrics.
+        Returns
+        -------
+        tuple[dict, list[plt.Figure], list[str], dict]
+            Computed dict of metrics, and figures, their names and optionally (only
+            once) summary metrics.
         """
         # only do random top k plots & metrics once
         do_random = it // self.logger.test.top_k_period == 1

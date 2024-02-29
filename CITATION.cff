@@ -1,0 +1,48 @@
+# This CITATION.cff file was generated with cffinit.
+# Visit https://bit.ly/cffinit to generate yours today!
+
+cff-version: 1.2.0
+title: gflownet
+message: >-
+  If you use this software, please cite it using the
+  metadata from this file.
+type: software
+authors:
+  - given-names: Alex
+    family-names: Hernandez-Garcia
+    email: alex.hernandez-garcia@mila.quebec
+    affiliation: Mila
+  - given-names: Nikita
+    family-names: Saxena
+  - given-names: Alexandra
+    family-names: Volokhova
+  - given-names: Michał
+    family-names: Koziarski
+  - given-names: Divya
+    family-names: Sharma
+  - given-names: Pierre Luc
+    family-names: Carrier
+  - given-names: Victor
+    family-names: Schmidt
+  - given-names: Joseph
+    family-names: D Viviano
+repository-code: 'https://github.com/alexhernandezgarcia/gflownet'
+abstract: >-
+  This repository implements GFlowNets, generative flow
+  networks for probabilistic modelling, on PyTorch. A design
+  guideline behind this implementation is the separation of
+  the logic of the GFlowNet agent and the environments on
+  which the agent can be trained on. In other words, this
+  implementation facilitates the extension with new
+  environments for new applications. The configuration is
+  handled via the use of Hydra.
+keywords:
+  - gflownet
+  - gflownets
+  - gfn
+  - python
+  - pytorch
+  - generative-flow-networks
+  - scientific-discovery
+  - crystal-gfn
+license: CC-BY-NC-SA-4.0

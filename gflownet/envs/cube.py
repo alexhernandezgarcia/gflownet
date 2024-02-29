@@ -1,6 +1,7 @@
 """
 Classes to represent hyper-cube environments
 """
+
 import itertools
 import warnings
 from abc import ABC, abstractmethod

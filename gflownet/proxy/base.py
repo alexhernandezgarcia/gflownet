@@ -1,6 +1,7 @@
 """
 Base class of GFlowNet proxies
 """
+
 from abc import ABC, abstractmethod
 
 import numpy as np
@@ -28,11 +29,12 @@ class Proxy(ABC):
     @abstractmethod
     def __call__(self, states: npt.NDArray[np.float32]) -> npt.NDArray[np.float32]:
         """
-        Args:
+        Implement  this function to call the get_reward method of the appropriate Proxy
+        Class (EI, UCB, Proxy, Oracle etc).
+
+        Parameters
+        ----------
             states: ndarray
-        Function:
-            calls the get_reward method of the appropriate Proxy Class (EI, UCB, Proxy,
-            Oracle etc)
         """
         pass
 

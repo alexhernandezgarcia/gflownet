@@ -1,6 +1,7 @@
 """
 Script to create data set of with nupack labels.
 """
+
 import os
 import pickle
 import time
@@ -19,8 +20,10 @@ def add_args(parser):
     """
     Adds command-line arguments to parser
 
-    Returns:
-        argparse.Namespace: the parsed arguments
+    Returns
+    -------
+    argparse.ArgumentParser
+        The parser with added arguments
     """
     args2config = {}
     parser.add_argument(

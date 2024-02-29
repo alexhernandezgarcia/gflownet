@@ -1,6 +1,7 @@
 """
 Classes to represent hyper-torus environments
 """
+
 import itertools
 import re
 from copy import deepcopy

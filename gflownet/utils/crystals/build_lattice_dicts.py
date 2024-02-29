@@ -3,6 +3,7 @@ Reads a dictionary with crystal classes and their point groups, and a dictionary
 the point group of each space group, and outputs a dictionary containing both the point
 groups and space groups of each crystal class.
 """
+
 import sys
 from argparse import ArgumentParser
 
@@ -29,8 +30,10 @@ def parsed_args():
     """
     Parse and returns command-line args
 
-    Returns:
-        argparse.Namespace: the parsed arguments
+    Returns
+    -------
+    argparse.Namespace
+        the parsed arguments
     """
     parser = ArgumentParser()
     parser.add_argument(

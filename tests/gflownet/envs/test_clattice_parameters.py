@@ -278,5 +278,12 @@ def test__readable2state__gives_expected_results_for_initial_states(
     "lattice_system",
     [CUBIC, HEXAGONAL, MONOCLINIC, ORTHORHOMBIC, RHOMBOHEDRAL, TETRAGONAL, TRICLINIC],
 )
-def test__continuous_env_common(env, lattice_system):
-    return common.test__continuous_env_common(env)
+class TestContinuousLatticeBasic(common.BaseTestsContinuous):
+    @pytest.fixture(autouse=True)
+    def setup(self, env, lattice_system):
+        self.env = env  # lattice_system intializes env fixture.
+        self.repeats = {
+            "test__get_logprobs__backward__returns_zero_if_done": 100,  # Overrides no repeat.
+            "test__reset__state_is_source": 10,
+        }
+        self.n_states = {}  # TODO: Populate.

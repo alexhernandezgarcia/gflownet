@@ -1,6 +1,7 @@
 """
 Classes to represent material compositions (stoichiometry)
 """
+
 import itertools
 import re
 from typing import Dict, List, Optional, Tuple, Union
