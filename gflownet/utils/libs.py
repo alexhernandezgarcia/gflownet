@@ -101,7 +101,14 @@ def install_and_checkout(name, url, version, pull, remote="origin", verbose=Fals
 
 
 def require_external_library(
-    name, url, version, pull=True, fail="raise", remote="origin", verbose=False
+    name,
+    url,
+    version,
+    sub_path=None,
+    pull=True,
+    fail="raise",
+    remote="origin",
+    verbose=False,
 ):
     """
     Install and checkout an external library from a git repository and prepend it to
@@ -118,21 +125,28 @@ def require_external_library(
         The URL of the repository to clone. Can be a local path or a remote URL.
     version : str
         The version (tag or branch) to checkout.
+    sub_path: str, optional
+        The sub-path to prepend to sys.path after checking out the library. For instance
+        a ``src/`` folder containing the package to use. By default ``None``.
     pull : bool
         Whether to pull from the remote after checking out the version.
     fail : str, optional
         Whether to raise an exception if the library cannot be installed or checked-out.
-        Can be either ``"pass"`` or ``"raise"``, by default "raise".
+        Can be either ``"pass"`` or ``"raise"``, by default ``"raise"``.
     remote : str, optional
-        The name of the remote to pull from, by default "origin".
+        The name of the remote to pull from, by default ``"origin"``.
     verbose : bool, optional
-        Whether to print progress messages, by default False.
+        Whether to print progress messages, by default ``False``.
 
     Raises
     ------
     Exception
         If the library cannot be installed or checked-out and ``fail`` is set to
         ``"raise"``.
+    ValueError
+        If the requested ``sub_path`` does not exist in the checked-out repository.
+    AssertionError
+        If the requested ``sub_path`` is not a string or a ``pathlib.Path``.
     """
     if fail is None:
         fail = "raise"
@@ -155,6 +169,15 @@ def require_external_library(
     except Exception as e:
         if fail != "pass":
             raise e
+
+    if sub_path:
+        assert isinstance(
+            sub_path, (str, Path)
+        ), "`sub_path` must be a string or a `pathlib.Path`"
+        repo_path = repo_path / sub_path
+        if not repo_path.exists():
+            raise ValueError(f"Could not find {sub_path} in {repo_path}")
+
     repo_path = str(repo_path)
     verbose and print(f"Prepending {repo_path} to sys.path")
     sys.path.insert(0, repo_path)
