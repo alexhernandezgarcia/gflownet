@@ -65,7 +65,9 @@ def install_and_checkout(name, url, version, pull, remote="origin", verbose=Fals
     return repo_path
 
 
-def require_external_library(name, url, version, pull, remote="origin", verbose=False):
+def require_external_library(
+    name, url, version, pull, fail="raise", remote="origin", verbose=False
+):
     """
     Install and checkout an external library from a git repository and prepend it to
     sys.path.
@@ -80,13 +82,27 @@ def require_external_library(name, url, version, pull, remote="origin", verbose=
         The version (tag or branch) to checkout.
     pull : bool
         Whether to pull from the remote after checking out the version.
+    fail : str, optional
+        Whether to raise an exception if the library cannot be installed or checked-out.
+        Can be either ``"pass"`` or ``"raise"``, by default "raise".
     remote : str, optional
         The name of the remote to pull from, by default "origin".
     verbose : bool, optional
         Whether to print progress messages, by default False.
+
+    Raises
+    ------
+    Exception
+        If the library cannot be installed or checked-out and ``fail`` is set to
+        ``"raise"``.
     """
-    repo_path = str(
-        install_and_checkout(name, url, version, pull, remote=remote, verbose=verbose)
-    )
+    try:
+        repo_path = install_and_checkout(
+            name, url, version, pull, remote=remote, verbose=verbose
+        )
+    except Exception as e:
+        if fail != "pass":
+            raise e
+    repo_path = str(repo_path)
     verbose and print(f"Prepending {repo_path} to sys.path")
     sys.path.insert(0, repo_path)
