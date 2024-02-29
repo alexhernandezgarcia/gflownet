@@ -88,6 +88,8 @@ def install_and_checkout(name, url, version, pull, remote="origin", verbose=Fals
     if not repo_path.exists():
         verbose and print(f"Cloning {name} from {url}...", end="", flush=True)
         Repo.clone_from(url, repo_path)
+        verbose and print("Remember to handle this library's dependecies manually.")
+        pull = False  # no need to pull if we just cloned
         verbose and print("done")
 
     repo = Repo(repo_path)
