@@ -1159,19 +1159,37 @@ def test__state2readable__is_reversible(env, request):
         env.step_random()
 
 
-# @pytest.mark.skip(reason="skip while developping other tests")
-def test__continuous_env_common_grid2d_tetrismini(env_grid2d_tetrismini):
-    print("\n\nCommon (continuous) tests for Grid 3x3 -> Tetris-mini\n")
-    return common.test__continuous_env_common(env_grid2d_tetrismini)
+class TestGrid2DTetrisMini(common.BaseTestsContinuous):
+    """Common tests for Grid 3x3 -> Tetris-mini."""
+
+    @pytest.fixture(autouse=True)
+    def setup(self, env_grid2d_tetrismini):
+        self.env = env_grid2d_tetrismini
+        self.repeats = {
+            "test__reset__state_is_source": 10,
+        }
+        self.n_states = {}  # TODO: Populate.
 
 
-# @pytest.mark.skip(reason="skip while developping other tests")
-def test__continuous_env_common_cube_tetris(env_cube_tetris):
-    print("\n\nCommon (continuous) tests for Cube -> Tetris\n")
-    return common.test__continuous_env_common(env_cube_tetris)
+class TestCubeTetris(common.BaseTestsContinuous):
+    """Common tests for Cube -> Tetris."""
+
+    @pytest.fixture(autouse=True)
+    def setup(self, env_cube_tetris):
+        self.env = env_cube_tetris
+        self.repeats = {
+            "test__reset__state_is_source": 10,
+        }
+        self.n_states = {}  # TODO: Populate.
 
 
-# @pytest.mark.skip(reason="skip while developping other tests")
-def test__continuous_env_common_cube_tetris_grid(env_cube_tetris_grid):
-    print("\n\nCommon (continuous) tests for Cube -> Tetris -> Grid 3x3x3\n")
-    return common.test__continuous_env_common(env_cube_tetris_grid)
+class TestCubeTetris(common.BaseTestsContinuous):
+    """Common tests for Cube -> Tetris -> Grid 3x3x3."""
+
+    @pytest.fixture(autouse=True)
+    def setup(self, env_cube_tetris_grid):
+        self.env = env_cube_tetris_grid
+        self.repeats = {
+            "test__reset__state_is_source": 10,
+        }
+        self.n_states = {}  # TODO: Populate.
