@@ -1,3 +1,12 @@
+"""
+Utilities to install and use external libraries in a Python script.
+
+Mainly used to install and checkout external code from a Git repository and prepend it
+to ``sys.path`` with :py:func:`~gflownet.utils.libs.require_external_library`.
+. This is useful when working with external libraries that are not
+available on PyPI or that are not installed in the current environment.
+"""
+
 import os
 import re
 import sys
@@ -6,7 +15,9 @@ from pathlib import Path
 from git import Repo
 
 ROOT = Path(__file__).resolve().parent.parent.parent
+"""Path to the root of the project."""
 REPOS = ROOT / "external" / "repos"
+"""Path to the directory where external repositories are cloned."""
 
 
 def is_drac(from_env=True):
@@ -111,11 +122,24 @@ def require_external_library(
     verbose=False,
 ):
     """
-    Install and checkout an external library from a git repository and prepend it to
-    sys.path.
+    Clone & checkout external code from a Git repository and prepend it to ``sys.path``.
 
     If ``pull``, ``fail`` or ``remote`` are set to ``None``, their default values will
     be used.
+
+    Examples
+    --------
+
+    >>> conf = {
+        "name": "ocp",
+        "url": "https://github.com/RolnickLab/ocp",
+        "version": "finetuned-and-notag"
+    }
+    >>> require_external_library(**conf, verbose=True)
+    Cloning ocp from https://github.com/RolnickLab/ocp...done
+    Remember to handle this library's dependecies manually.
+    Checking out finetuned-and-notag
+    Prepending .../gflownet/external/repos/ocp__finetuned-and-notag to sys.path
 
     Parameters
     ----------
