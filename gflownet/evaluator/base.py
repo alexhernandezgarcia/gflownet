@@ -537,13 +537,17 @@ class GFlowNetEvaluator:
                 -logprobs_std.mean() / logprobs_x_tt.mean()
             ).item()
 
-        return lp_metrics
+        return {
+            "metrics": lp_metrics,
+        }
 
     def compute_density_metrics(self, x_tt, dict_tt, metrics=None):
         gfn = self.gfn_agent
         metrics = self.make_metrics(metrics)
 
         density_metrics = {}
+        density_data = {}
+
         x_sampled = density_true = density_pred = None
 
         if gfn.buffer.test_type is not None and gfn.buffer.test_type == "all":
@@ -609,15 +613,18 @@ class GFlowNetEvaluator:
             density_true = np.exp(log_density_true)
             density_pred = np.exp(log_density_pred)
 
-            density_metrics["kde_pred"] = kde_pred
-            density_metrics["kde_true"] = kde_true
+            density_data["kde_pred"] = kde_pred
+            density_data["kde_true"] = kde_true
 
         else:
             density_metrics["l1"] = gfn.l1
             density_metrics["kl"] = gfn.kl
             density_metrics["jsd"] = gfn.jsd
-            density_metrics["x_sampled"] = x_sampled
-            return density_metrics
+            density_data["x_sampled"] = x_sampled
+            return {
+                "metrics": density_metrics,
+                "data": density_data,
+            }
 
         # L1 error
         density_metrics["l1"] = np.abs(density_pred - density_true).mean()
@@ -634,8 +641,12 @@ class GFlowNetEvaluator:
             density_pred * (log_density_pred - log_mean_dens)
         )
 
-        density_metrics["x_sampled"] = x_sampled
-        return density_metrics
+        density_data["x_sampled"] = x_sampled
+
+        return {
+            "metrics": density_metrics,
+            "data": density_data,
+        }
 
     def eval(self, metrics=None, **plot_kwargs):
         """
@@ -672,18 +683,16 @@ class GFlowNetEvaluator:
         metrics = self.make_metrics(metrics)
         reqs = self.make_requirements(metrics=metrics)
 
-        all_metrics = {}
-        x_sampled = kde_pred = kde_true = None
-        figs = {}
-
         if gfn.buffer.test_pkl is None:
-            result = {
+            return {
                 "metrics": {
                     k: getattr(gfn, k) if hasattr(gfn, k) else None for k in metrics
                 },
-                "figs": figs,
+                "data": {},
             }
-            return result
+
+        all_data = {}
+        all_metrics = {}
 
         with open(gfn.buffer.test_pkl, "rb") as f:
             dict_tt = pickle.load(f)
@@ -693,23 +702,20 @@ class GFlowNetEvaluator:
         # likelihood of the data according the the GFlowNet policy; and NLL.
         # TODO: organise code for better efficiency and readability
         if "log_probs" in reqs:
-            lp_metrics = self.compute_log_prob_metrics(x_tt, metrics=metrics)
-            all_metrics.update(lp_metrics)
+            lp_results = self.compute_log_prob_metrics(x_tt, metrics=metrics)
+            all_metrics.update(lp_results.get("metrics", {}))
+            all_data.update(lp_results.get("data", {}))
 
         if "density" in reqs:
-            density_metrics = self.compute_density_metrics(
+            density_results = self.compute_density_metrics(
                 x_tt, dict_tt, metrics=metrics
             )
-            x_sampled = density_metrics.pop("x_sampled", x_sampled)
-            kde_pred = density_metrics.pop("kde_pred", kde_pred)
-            kde_true = density_metrics.pop("kde_true", kde_true)
-            all_metrics.update(density_metrics)
-
-        figs = self.plot(x_sampled=x_sampled, kde_pred=kde_pred, kde_true=kde_true)
+            all_metrics.update(density_results.get("metrics", {}))
+            all_data.update(density_results.get("data", {}))
 
         return {
             "metrics": all_metrics,
-            "figs": figs,
+            "data": all_data,
         }
 
     @torch.no_grad()
@@ -837,16 +843,18 @@ class GFlowNetEvaluator:
             List of metrics to compute, by default the evaluator's `metrics` attribute.
         """
         gfn = self.gfn_agent
-        result = self.eval(metrics=metrics)
-        for m, v in result["metrics"].items():
+        results = self.eval(metrics=metrics)
+        for m, v in results["metrics"].items():
             setattr(gfn, m, v)
 
         mertics_to_log = {
-            METRICS[k]["display_name"]: v for k, v in result["metrics"].items()
+            METRICS[k]["display_name"]: v for k, v in results["metrics"].items()
         }
 
+        figs = self.plot(**results["data"])
+
         self.logger.log_metrics(mertics_to_log, it, gfn.use_context)
-        self.logger.log_plots(result["figs"], it, use_context=gfn.use_context)
+        self.logger.log_plots(figs, it, use_context=gfn.use_context)
 
     def eval_and_log_top_k(self, it):
         """
@@ -875,8 +883,6 @@ if __name__ == "__main__":
     # Note: this will not work on previous checkpoints whose config does not contain an
     # `eval` entry, you have to run one. Add `eval.checkpoint_period=10` to quickly
     # have a checkpoint to test.
-
-    from pathlib import Path
 
     gfn_run_dir = "PUT_YOUR_RUN_DIR_HERE"  # a run dir contains a .hydra folder
 
