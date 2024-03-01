@@ -1,8 +1,10 @@
 """
 Abstract evaluator class for GFlowNetAgent.
 
-Should not be used directly, but subclassed to implement specific evaluators for
-different tasks and environments.
+.. warning::
+
+    Should not be used directly, but subclassed to implement specific evaluators for
+    different tasks and environments.
 
 See :py:class:`~gflownet.evaluator.base.GFlowNetEvaluator` for a default,
 concrete implementation of this abstract class.
