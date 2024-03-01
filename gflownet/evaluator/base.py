@@ -434,11 +434,12 @@ class GFlowNetEvaluator:
 
         Extend this method to add more plots:
 
-        ```python
-        def plot(self, x_sampled, kde_pred, kde_true, **plot_kwargs):
-            figs = super().plot(x_sampled, kde_pred, kde_true, **plot_kwargs) figs["My
-            custom plot"] = my_custom_plot_function(x_sampled, kde_pred) return figs
-        ```
+        .. code-block:: python
+
+            def plot(self, x_sampled, kde_pred, kde_true, plot_kwargs, **kwargs):
+                figs = super().plot(x_sampled, kde_pred, kde_true, plot_kwargs)
+                figs["My custom plot"] = my_custom_plot_function(x_sampled, kde_pred)
+                return figs
 
         Parameters
         ----------
@@ -450,6 +451,8 @@ class GFlowNetEvaluator:
             True KDE.
         plot_kwargs : dict
             Additional keyword arguments to pass to the plotting methods.
+        kwargs : dict
+            Catch-all for additional arguments.
 
         Returns
         -------
@@ -631,13 +634,13 @@ class GFlowNetEvaluator:
 
         Extand in subclasses to add more metrics and plots:
 
-        ```python
-        def eval(self, metrics=None, **plot_kwargs):
-            result = super().eval(metrics=metrics, **plot_kwargs)
-            result["metrics"]["my_custom_metric"] = my_custom_metric_function()
-            result["figs"]["My custom plot"] = my_custom_plot_function()
-            return result
-        ```
+        .. code-block:: python
+
+            def eval(self, metrics=None, **plot_kwargs):
+                result = super().eval(metrics=metrics, **plot_kwargs)
+                result["metrics"]["my_custom_metric"] = my_custom_metric_function()
+                result["figs"]["My custom plot"] = my_custom_plot_function()
+                return result
 
         Parameters
         ----------
