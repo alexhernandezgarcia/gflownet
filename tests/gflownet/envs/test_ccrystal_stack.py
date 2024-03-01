@@ -1317,15 +1317,27 @@ def test__trajectory_random__does_not_crash_from_source(env, request):
     pass
 
 
-# @pytest.mark.skip(reason="skip while developping other tests")
-def test__common__env_mini_comp_first(env_mini_comp_first):
-    print(
-        "\n\nCommon tests for crystal without composition <-> space group constraints\n"
-    )
-    return common.test__continuous_env_common(env_mini_comp_first)
+class TestMiniCrystalCompFirst(common.BaseTestsContinuous):
+    """Common tests for a mini crystal stack with composition first environment."""
+
+    @pytest.fixture(autouse=True)
+    def setup(self, env_mini_comp_first):
+        self.env = env_mini_comp_first
+        self.repeats = {
+            "test__get_logprobs__backward__returns_zero_if_done": 100,  # Overrides no repeat.
+            "test__reset__state_is_source": 10,
+        }
+        self.n_states = {}  # TODO: Populate.
 
 
-# @pytest.mark.skip(reason="skip while developping other tests")
-def test__common__env_sg_first(env_sg_first):
-    print("\n\nCommon tests for crystal with space group first\n")
-    return common.test__continuous_env_common(env_sg_first)
+class TestCrystalSGFirst(common.BaseTestsContinuous):
+    """Common tests for crystal stack with space group first."""
+
+    @pytest.fixture(autouse=True)
+    def setup(self, env_sg_first):
+        self.env = env_sg_first
+        self.repeats = {
+            "test__get_logprobs__backward__returns_zero_if_done": 100,  # Overrides no repeat.
+            "test__reset__state_is_source": 10,
+        }
+        self.n_states = {}  # TODO: Populate.
