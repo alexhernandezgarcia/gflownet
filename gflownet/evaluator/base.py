@@ -714,9 +714,10 @@ class GFlowNetEvaluator:
 
         Returns
         -------
-        tuple[dict, dict[str, plt.Figure], dict]
-            Computed dict of metrics, and figures (as {str: plt.Figure}), and optionally
-            (only once) summary metrics.
+        dict
+            Computed dict of metrics, and figures, and optionally (only once) summary
+            metrics. Schema: ``{"metrics": {str: float}, "figs": {str: plt.Figure},
+            "summary": {str: float}}``.
         """
         # only do random top k plots & metrics once
         do_random = it // self.logger.test.top_k_period == 1
@@ -800,7 +801,11 @@ class GFlowNetEvaluator:
 
         figs = {f: n for f, n in zip(figs, fig_names)}
 
-        return metrics, figs, summary
+        return {
+            "metrics": metrics,
+            "figs": figs,
+            "summary": summary,
+        }
 
     def eval_and_log(self, it, metrics=None):
         """
@@ -839,10 +844,12 @@ class GFlowNetEvaluator:
             Current iteration step, by default None.
         """
 
-        metrics, figs, summary = self.eval_top_k(it)
-        self.logger.log_plots(figs, it, use_context=self.use_context)
-        self.logger.log_metrics(metrics, use_context=self.use_context, step=it)
-        self.logger.log_summary(summary)
+        results = self.eval_top_k(it)
+        self.logger.log_plots(results["figs"], it, use_context=self.use_context)
+        self.logger.log_metrics(
+            results["metrics"], use_context=self.use_context, step=it
+        )
+        self.logger.log_summary(results["summary"])
 
 
 if __name__ == "__main__":
