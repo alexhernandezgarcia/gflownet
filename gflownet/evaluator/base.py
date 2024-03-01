@@ -433,7 +433,9 @@ class GFlowNetEvaluator:
         else:
             return not step % self.config.checkpoints_period
 
-    def plot(self, x_sampled=None, kde_pred=None, kde_true=None, **plot_kwargs):
+    def plot(
+        self, x_sampled=None, kde_pred=None, kde_true=None, plot_kwargs={}, **kwargs
+    ):
         """
         Plots this evaluator should do, returned as a dict `{str: plt.Figure}` which
         will be logged.
