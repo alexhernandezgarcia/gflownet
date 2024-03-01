@@ -4,9 +4,11 @@ Base evaluator class for GFlowNetAgent.
 In charge of evaluating the GFlowNetAgent, computing metrics plotting figures and
 optionally logging results using the GFlowNetAgent's logger.
 
-Only the :py:meth:`~gflownet.evaluator.base.GFlowNetEvaluator.from_dir` and
-:py:meth:`~gflownet.evaluator.base.GFlowNetEvaluator.from_agent` class methods should be
-used to instantiate this class.
+.. important::
+
+    Only the :py:meth:`~gflownet.evaluator.abstract.GFlowNetAbstractEvaluator.from_dir`
+    and :py:meth:`~gflownet.evaluator.abstract.GFlowNetAbstractEvaluator.from_agent`
+    class methods should be used to instantiate this class.
 
 Create a new evaluator by subclassing this class and extending the :py:meth:`eval`
 method to add more metrics and plots.
@@ -14,26 +16,52 @@ method to add more metrics and plots.
 Typical call stack:
 
 1. :py:meth:`gflownet.gflownet.GFlowNetAgent.train` calls the evaluator's
+
 2. :py:meth:`~gflownet.evaluator.base.GFlowNetEvaluator.should_eval`.
-    If it returns ``True`` then :py:meth:`~gflownet.gflownet.GFlowNetAgent.train` calls
+   If it returns ``True`` then :py:meth:`~gflownet.gflownet.GFlowNetAgent.train` calls
+
 3. :py:meth:`~gflownet.evaluator.base.GFlowNetEvaluator.eval_and_log` which itself calls
+
 4. :py:meth:`~gflownet.evaluator.base.GFlowNetEvaluator.eval` as
-    ``results = self.eval(metrics=None)`` and then ``figs = self.plot(**results["data"])``
+   ``results = self.eval(metrics=None)`` and then
+   ``figs = self.plot(**results["data"])``
+
 5. finally, :py:meth:`~gflownet.evaluator.base.GFlowNetEvaluator.eval_and_log` logs the
-    results using the GFlowNetAgent's logger as
-    ``self.logger.log_metrics(results["metrics"])`` and ``self.logger.log_plots(figs)``.
+   results using the GFlowNetAgent's logger as
+   ``self.logger.log_metrics(results["metrics"])`` and ``self.logger.log_plots(figs)``.
 
 Example
 -------
 
 .. code-block:: python
 
-    # gflownet/evaluator/my_evaluator.py
+    # How to create a new evaluator:
+    from gflownet.evaluator.base import GFlowNetEvaluator
 
+    gfn_run_dir = "PUT_YOUR_RUN_DIR_HERE"  # a run dir contains a .hydra folder
+    gfne = GFlowNetEvaluator.from_dir(gfn_run_dir)
+    results = gfne.eval()
+
+    for name, metric in results["metrics"].items():
+        print(f"{name:20}: {metric:.4f}")
+
+    data = results.get("data", {})
+
+    plots = gfne.plot(**data)
+
+    print(
+        "Available figures in plots:",
+        ", ".join([fname for fname, fig in plots.items() if fig is not None])
+        or "None",
+    )
+
+
+.. code-block:: python
+
+    # gflownet/evaluator/my_evaluator.py
     from gflownet.evaluator.base import GFlowNetEvaluator, METRICS, ALL_REQS
 
     class MyEvaluator(GFlowNetEvaluator):
-
         def update_all_metrics_and_requirements(self):
             global METRICS, ALL_REQS
 
@@ -123,91 +151,20 @@ Similarly, `eval_and_log` will compute the ``dict`` of figures as
 ``fig_dict = self.plot(**results["data"])`` where ``results`` is the output of ``eval``.
 """
 
-import copy
-import os
 import pickle
-import time
 from collections import defaultdict
-from typing import Union
 
 import numpy as np
 import torch
 from scipy.special import logsumexp
 
-from gflownet.evaluator.abstract import (
-    ALL_REQS,
-    METRICS,
-    GFlowNetAbstractEvaluator,
-    _sentinel,
-)
-from gflownet.utils.batch import Batch
-from gflownet.utils.common import (
-    batch_with_rest,
-    load_gflow_net_from_run_path,
-    tfloat,
-    torch2np,
-)
+from gflownet.evaluator.abstract import ALL_REQS  # noqa
+from gflownet.evaluator.abstract import METRICS  # noqa
+from gflownet.evaluator.abstract import GFlowNetAbstractEvaluator
+from gflownet.utils.common import tfloat, torch2np
 
 
 class GFlowNetEvaluator(GFlowNetAbstractEvaluator):
-
-    def plot(
-        self, x_sampled=None, kde_pred=None, kde_true=None, plot_kwargs={}, **kwargs
-    ):
-        """
-        Plots this evaluator should do, returned as a dict `{str: plt.Figure}` which
-        will be logged.
-
-        By default, this method will call the `plot_reward_samples` method of the
-        GFlowNetAgent's environment, and the `plot_kde` method of the GFlowNetAgent's
-        environment if it exists for both the `kde_pred` and `kde_true` arguments.
-
-        Extend this method to add more plots:
-
-        .. code-block:: python
-
-            def plot(self, x_sampled, kde_pred, kde_true, plot_kwargs, **kwargs):
-                figs = super().plot(x_sampled, kde_pred, kde_true, plot_kwargs)
-                figs["My custom plot"] = my_custom_plot_function(x_sampled, kde_pred)
-                return figs
-
-        Parameters
-        ----------
-        x_sampled : list, optional
-            List of sampled states.
-        kde_pred : sklearn.neighbors.KernelDensity
-            KDE policy as per `Environment.fit_kde`
-        kde_true : object
-            True KDE.
-        plot_kwargs : dict
-            Additional keyword arguments to pass to the plotting methods.
-        kwargs : dict
-            Catch-all for additional arguments.
-
-        Returns
-        -------
-        dict[str, plt.Figure]
-            Dictionary of figures to be logged. The keys are the figure names and the
-            values are the figures.
-        """
-        gfn = self.gfn_agent
-
-        fig_kde_pred = fig_kde_true = fig_reward_samples = None
-
-        if hasattr(gfn.env, "plot_reward_samples") and x_sampled is not None:
-            fig_reward_samples = gfn.env.plot_reward_samples(x_sampled, **plot_kwargs)
-
-        if hasattr(gfn.env, "plot_kde"):
-            if kde_pred is not None:
-                fig_kde_pred = gfn.env.plot_kde(kde_pred, **plot_kwargs)
-            if kde_true is not None:
-                fig_kde_true = gfn.env.plot_kde(kde_true, **plot_kwargs)
-
-        return {
-            "True reward and GFlowNet samples": fig_reward_samples,
-            "GFlowNet KDE Policy": fig_kde_pred,
-            "Reward KDE": fig_kde_true,
-        }
 
     def compute_log_prob_metrics(self, x_tt, metrics=None):
         gfn = self.gfn_agent
@@ -434,6 +391,64 @@ class GFlowNetEvaluator(GFlowNetAbstractEvaluator):
         return {
             "metrics": all_metrics,
             "data": all_data,
+        }
+
+    def plot(
+        self, x_sampled=None, kde_pred=None, kde_true=None, plot_kwargs={}, **kwargs
+    ):
+        """
+        Plots this evaluator should do, returned as a dict `{str: plt.Figure}` which
+        will be logged.
+
+        By default, this method will call the `plot_reward_samples` method of the
+        GFlowNetAgent's environment, and the `plot_kde` method of the GFlowNetAgent's
+        environment if it exists for both the `kde_pred` and `kde_true` arguments.
+
+        Extend this method to add more plots:
+
+        .. code-block:: python
+
+            def plot(self, x_sampled, kde_pred, kde_true, plot_kwargs, **kwargs):
+                figs = super().plot(x_sampled, kde_pred, kde_true, plot_kwargs)
+                figs["My custom plot"] = my_custom_plot_function(x_sampled, kde_pred)
+                return figs
+
+        Parameters
+        ----------
+        x_sampled : list, optional
+            List of sampled states.
+        kde_pred : sklearn.neighbors.KernelDensity
+            KDE policy as per `Environment.fit_kde`
+        kde_true : object
+            True KDE.
+        plot_kwargs : dict
+            Additional keyword arguments to pass to the plotting methods.
+        kwargs : dict
+            Catch-all for additional arguments.
+
+        Returns
+        -------
+        dict[str, plt.Figure]
+            Dictionary of figures to be logged. The keys are the figure names and the
+            values are the figures.
+        """
+        gfn = self.gfn_agent
+
+        fig_kde_pred = fig_kde_true = fig_reward_samples = None
+
+        if hasattr(gfn.env, "plot_reward_samples") and x_sampled is not None:
+            fig_reward_samples = gfn.env.plot_reward_samples(x_sampled, **plot_kwargs)
+
+        if hasattr(gfn.env, "plot_kde"):
+            if kde_pred is not None:
+                fig_kde_pred = gfn.env.plot_kde(kde_pred, **plot_kwargs)
+            if kde_true is not None:
+                fig_kde_true = gfn.env.plot_kde(kde_true, **plot_kwargs)
+
+        return {
+            "True reward and GFlowNet samples": fig_reward_samples,
+            "GFlowNet KDE Policy": fig_kde_pred,
+            "Reward KDE": fig_kde_true,
         }
 
 
