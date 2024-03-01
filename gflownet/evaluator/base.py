@@ -104,8 +104,18 @@ class GFlowNetEvaluator:
         self.reqs = set()
 
         self.metrics = self.reqs = _sentinel
+
+        self.update_all_metrics_and_requirements()
+
         self.metrics = self.make_metrics(self.config.metrics)
         self.reqs = self.make_requirements()
+
+    def update_all_metrics_and_requirements(self):
+        """
+        Method to be implemented by subclasses to update the global dict of metrics and
+        requirements.
+        """
+        pass
 
     @classmethod
     def from_dir(
