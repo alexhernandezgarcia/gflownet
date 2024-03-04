@@ -12,6 +12,7 @@ Branin function is typically used as a minimization problem, with the minima aro
 zero but positive. In order to map the range into the convential negative range, an
 upper bound of of Branin in the standard domain (UPPER_BOUND_IN_DOMAIN) is subtracted.
 """
+
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
