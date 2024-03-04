@@ -74,6 +74,38 @@ def test__environment__initializes_properly(env, request):
 
 
 @pytest.mark.parametrize(
+    "env, is_continuous",
+    [
+        ("env_grid2d_tetrismini", False),
+        ("env_cube_tetris", True),
+        ("env_cube_tetris_grid", True),
+    ],
+)
+def test__environment__is_continuous(env, is_continuous, request):
+    env = request.getfixturevalue(env)
+    assert env.continuous == is_continuous
+
+
+@pytest.mark.parametrize(
+    "env, action, representative",
+    [
+        ("env_grid2d_tetrismini", (0, 1, 0, 0), (0, 1, 0, 0)),
+        ("env_grid2d_tetrismini", (1, 1, 0, 3), (1, 1, 0, 3)),
+        ("env_cube_tetris", (0, 0.2, 0.3, 0), (0, 0, 0, 0)),
+        ("env_cube_tetris", (0, 0.5, 0.7, 1), (0, 0, 0, 0)),
+        ("env_cube_tetris", (1, 4, 0, 2), (1, 4, 0, 2)),
+        ("env_cube_tetris_grid", (0, 0.5, 0.7, 1), (0, 0, 0, 0)),
+        ("env_cube_tetris_grid", (1, 4, 0, 2), (1, 4, 0, 2)),
+        ("env_cube_tetris_grid", (2, 0, 1, 0), (2, 0, 1, 0)),
+        ("env_cube_tetris_grid", (2, 0, 0, 0), (2, 0, 0, 0)),
+    ],
+)
+def test__action2representative(env, action, representative, request):
+    env = request.getfixturevalue(env)
+    assert env.action2representative(action) == representative
+
+
+@pytest.mark.parametrize(
     "env, action_stack, action_subenv",
     [
         ("env_grid2d_tetrismini", (0, 0, 0, 0), (0, 0)),

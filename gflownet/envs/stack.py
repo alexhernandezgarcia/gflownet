@@ -70,9 +70,6 @@ class Stack(GFlowNetEnv):
             max([subenv.mask_dim for subenv in self.subenvs.values()]) + self.n_subenvs
         )
 
-        # The stack is continuous if any subenv is continuous
-        self.continuous = any([subenv.continuous for subenv in self.subenvs.values()])
-
         # Base class init
         super().__init__(
             fixed_distr_params=[
@@ -83,6 +80,9 @@ class Stack(GFlowNetEnv):
             ],
             **kwargs,
         )
+
+        # The stack is continuous if any subenv is continuous
+        self.continuous = any([subenv.continuous for subenv in self.subenvs.values()])
 
     def get_action_space(self) -> List[Tuple]:
         """
@@ -407,7 +407,7 @@ class Stack(GFlowNetEnv):
         # Perform pre-step from subenv - if it was done from the stack env there could
         # be a mismatch between mask and action space due to continuous subenvs.
         action_to_check = subenv.action2representative(action_subenv)
-        # Skip mask check if stage is lattice parameters (continuous actions)
+        # Skip mask check if stage is continuous
         if subenv.continuous:
             skip_mask_check = True
         do_step, _, _ = subenv._pre_step(
@@ -477,7 +477,7 @@ class Stack(GFlowNetEnv):
         # Perform pre-step from subenv - if it was done from the "superenv" there could
         # be a mismatch between mask and action space due to continuous subenvs.
         action_to_check = subenv.action2representative(action_subenv)
-        # Skip mask check if stage is lattice parameters (continuous actions)
+        # Skip mask check if stage is continuous
         if subenv.continuous:
             skip_mask_check = True
         do_step, _, _ = subenv._pre_step(
@@ -729,6 +729,22 @@ class Stack(GFlowNetEnv):
             subenv.readable2state(readables[stage])
             for stage, subenv in self.subenvs.items()
         ]
+
+    def action2representative(self, action: Tuple) -> int:
+        """
+        Replaces the part of the action associated with a sub-environment by its
+        representative. The part of the action that identifies the sub-environment
+        concerned by the action remains unaffected.
+        """
+        # Get stage from action (not from state), subenv and action of subenv
+        stage = action[0]
+        subenv = self.subenvs[stage]
+        action_subenv = self._depad_action(action, stage)
+
+        # Obtain the representative from the subenv
+        representative_subenv = subenv.action2representative(action_subenv)
+        representative = self._pad_action(representative_subenv, stage)
+        return representative
 
     @staticmethod
     def equal(state_x, state_y):
