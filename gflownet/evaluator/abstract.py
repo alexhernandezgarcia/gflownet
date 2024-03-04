@@ -115,21 +115,25 @@ class GFlowNetAbstractEvaluator(metaclass=ABCMeta):
         to easily instantiate this class from a run directory or an existing
         in-memory ``GFlowNetAgent``.
 
-        Use :py:method:`set_agent` to set the evaluator's ``GFlowNetAgent`` after
-        initialization if it was not provided at instantiation as ``gfn_agent=``.
+        Use
+        :py:method:`~gflownet.evaluator.abstract.GFlowNetAbstractEvaluator.set_agent`
+        to set the evaluator's ``GFlowNetAgent`` after initialization if it was not
+        provided at instantiation as ``gfn_agent=``.
 
-        This ``init`` function will call, in order:
+        This ``__init__`` function will call, in order:
 
-        1. :py:method:`GFlowNetAbstractEvaluator.update_all_metrics_and_requirements`
+        1. :py:method:`~gflownet.evaluator.abstract.GFlowNetAbstractEvaluator.update_all_metrics_and_requirements`
            which uses new metrics
-           defined in the :py:method:`define_new_metrics` method to update the global
-           :py:const:`METRICS` and :py:const:`ALL_REQS` variables in classes
-           inheriting from :py:class:`GFlowNetAbstractEvaluator`.
+           defined in the
+           :py:method:`~gflownet.evaluator.abstract.GFlowNetAbstractEvaluator.define_new_metrics`
+           method to update the global :py:const:`METRICS` and :py:const:`ALL_REQS`
+           variables in classes inheriting from :py:class:`GFlowNetAbstractEvaluator`.
 
         2. ``self.metrics = self.make_metrics(self.config.metrics)`` using
            :py:method:`make_metrics`
 
-        3. ``self.reqs = self.make_requirements()`` using :py:method:`make_requirements`
+        3. ``self.reqs = self.make_requirements()`` using
+        :py:method:`~gflownet.evaluator.abstract.GFlowNetAbstractEvaluator.make_requirements`
 
         Arguments
         ---------
@@ -220,7 +224,7 @@ class GFlowNetAbstractEvaluator(metaclass=ABCMeta):
         Returns
         -------
         dict
-            Dictionary of new metrics to add to the global `METRICS` dict.
+            Dictionary of new metrics to add to the global :py:const:`METRICS` dict.
         """
         pass
 
@@ -305,22 +309,22 @@ class GFlowNetAbstractEvaluator(metaclass=ABCMeta):
 
     def make_metrics(self, metrics=None):
         """
-        Parse metrics from a dict, list, a string or None.
+        Parse metrics from a dict, list, a string or ``None``.
 
-        - If `None`, all metrics are selected.
+        - If ``None``, all metrics are selected.
         - If a string, it can be a comma-separated list of metric names, with or without
           spaces.
-        - If a list, it should be a list of metric names (keys of `METRICS`).
+        - If a list, it should be a list of metric names (keys of :py:const:`METRICS`).
         - If a dict, its keys should be metric names and its values will be ignored:
-          they will be assigned from `METRICS`.
+          they will be assigned from :py:const:`METRICS`.
 
-        All metrics must be in `METRICS`.
+        All metrics must be in :py:const:`METRICS`.
 
         Parameters
         ----------
         metrics : Union[str, List[str]], optional
             Metrics to compute when running the `evaluator.eval()` function. Defaults to
-            None, i.e. all metrics in `METRICS` are computed.
+            None, i.e. all metrics in :py:const:`METRICS` are computed.
 
         Returns
         -------
@@ -331,7 +335,7 @@ class GFlowNetAbstractEvaluator(metaclass=ABCMeta):
         Raises
         ------
             ValueError
-                If a metric name is not in `METRICS`.
+                If a metric name is not in :py:const:`METRICS`.
         """
         if metrics is None:
             assert self.metrics is not _sentinel, (
@@ -376,22 +380,25 @@ class GFlowNetAbstractEvaluator(metaclass=ABCMeta):
         """
         Make requirements for the metrics to compute.
 
-        1. If `metrics` is provided, they must be as a dict of metrics. The requirements
-           are computed from the `requirements` attribute of the metrics.
+        1. If ``metrics`` is provided, they must be as a dict of metrics.
+           The requirements are computed from the ``requirements`` attribute of
+           the metrics.
 
-        2. Otherwise, the requirements are computed from the `reqs` argument:
-            - If `reqs` is `"all"`, all requirements of all metrics are computed.
-            - If `reqs` is `None`, the evaluator's `self.reqs` attribute is used.
-            - If `reqs` is a list, it is used as the requirements.
+        2. Otherwise, the requirements are computed from the ``reqs`` argument:
+            - If ``reqs`` is ``"all"``, all requirements of all metrics are computed.
+            - If ``reqs`` is ``None``, the evaluator's ``self.reqs`` attribute is used.
+            - If ``reqs`` is a list, it is used as the requirements.
 
         Parameters
         ----------
         reqs : Union[str, List[str]], optional
-            The metrics requirements. Either `"all"`, a list of requirements or `None`
-            to use the evaluator's `self.reqs` attribute. By default None
+            The metrics requirements. Either ``"all"``, a list of requirements or
+            ``None`` to use the evaluator's ``self.reqs`` attribute.
+            By default ``None``.
         metrics : Union[str, List[str], dict], optional
             The metrics to compute requirements for. If not a dict, will be passed to
-            `make_metrics`. By default None.
+            :py:meth:`~gflownet.evaluator.abstract.GFlowNetAbstractEvaluator.make_metrics``.
+            By default None.
 
         Returns
         -------
@@ -448,9 +455,9 @@ class GFlowNetAbstractEvaluator(metaclass=ABCMeta):
     def should_log_train(self, step):
         """
         Check if training logs should be done at the current step. The decision is based
-        on the `self.config.train.period` attribute.
+        on the ``self.config.train.period`` attribute.
 
-        Set `self.config.train.period` to `None` or a negative value to disable
+        Set ``self.config.train.period`` to ``None`` or a negative value to disable
         training.
 
         Parameters
@@ -471,13 +478,14 @@ class GFlowNetAbstractEvaluator(metaclass=ABCMeta):
     def should_eval(self, step):
         """
         Check if testing should be done at the current step. The decision is based on
-        the `self.config.test.period` attribute.
+        the ``self.config.test.period`` attribute.
 
-        Set `self.config.test.first_it` to `True` if testing should be done at the first
-        iteration step. Otherwise, testing will be done aftter `self.config.test.period`
-        steps.
+        Set ``self.config.test.first_it`` to ``True`` if testing should be done at the
+        first iteration step. Otherwise, testing will be done aftter
+        ``self.config.test.period`` steps.
 
-        Set `self.config.test.period` to `None` or a negative value to disable testing.
+        Set ``self.config.test.period`` to ``None`` or a negative value to disable
+        testing.
 
         Parameters
         ----------
@@ -499,10 +507,10 @@ class GFlowNetAbstractEvaluator(metaclass=ABCMeta):
     def should_eval_top_k(self, step):
         """
         Check if top k plots and metrics should be done at the current step. The
-        decision is based on the `self.config.test.top_k` and
-        `self.config.test.top_k_period` attributes.
+        decision is based on the ``self.config.test.top_k`` and
+        ``self.config.test.top_k_period`` attributes.
 
-        Set `self.config.test.top_k` to `None` or a negative value to disable top k
+        Set ``self.config.test.top_k`` to ``None`` or a negative value to disable top k
         plots and metrics.
 
         Parameters
@@ -529,9 +537,9 @@ class GFlowNetAbstractEvaluator(metaclass=ABCMeta):
     def should_checkpoint(self, step):
         """
         Check if checkpoints should be done at the current step. The decision is based
-        on the `self.checkpoints.period` attribute.
+        on the ``self.checkpoints.period`` attribute.
 
-        Set `self.checkpoints.period` to `None` or a negative value to disable
+        Set ``self.checkpoints.period`` to ``None`` or a negative value to disable
         checkpoints.
 
         Parameters
@@ -568,15 +576,16 @@ class GFlowNetAbstractEvaluator(metaclass=ABCMeta):
         """
         Evaluate the GFlowNetAgent and log the results with its logger.
 
-        Will call `self.eval()` and log the results using the GFlowNetAgent's logger
-        `log_metrics()` and `log_plots()` methods.
+        Will call ``self.eval()`` and log the results using the GFlowNetAgent's logger
+        ``log_metrics()`` and ``log_plots()`` methods.
 
         Parameters
         ----------
         it : int
             Current iteration step.
         metrics : Union[str, List[str]], optional
-            List of metrics to compute, by default the evaluator's `metrics` attribute.
+            List of metrics to compute, by default the evaluator's ``metrics``
+            attribute.
         """
         results = self.eval(metrics=metrics)
         for m, v in results["metrics"].items():
