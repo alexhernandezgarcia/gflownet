@@ -115,12 +115,12 @@ class GFlowNetAbstractEvaluator(metaclass=ABCMeta):
 
         You can use the :py:method:`from_dir` or :py:method:`from_agent` class methods
         to easily instantiate this class from a run directory or an existing
-        in-memory ``GFlowNetAgent``.
+        in-memory :py:class:`GFlowNetAgent`.
 
         Use
         :py:method:`~gflownet.evaluator.abstract.GFlowNetAbstractEvaluator.set_agent`
-        to set the evaluator's ``GFlowNetAgent`` after initialization if it was not
-        provided at instantiation as ``gfn_agent=``.
+        to set the evaluator's :py:class:`GFlowNetAgent` after initialization if it was
+        not provided at instantiation as ``GflowNetEvaluator(gfn_agent=...)``.
 
         This ``__init__`` function will call, in order:
 
