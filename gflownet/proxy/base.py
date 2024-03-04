@@ -1,10 +1,14 @@
 """
 Base class of GFlowNet proxies
 """
+
 from abc import ABC, abstractmethod
+from typing import List, Union
+
+import numpy.typing as npt
+from torchtyping import TensorType
 
 from gflownet.utils.common import set_device, set_float_precision
-from torchtyping import TensorType
 
 
 class Proxy(ABC):
@@ -22,13 +26,22 @@ class Proxy(ABC):
         pass
 
     @abstractmethod
-    def __call__(self, states: TensorType["batch", "state_dim"]) -> TensorType["batch"]:
+    def __call__(
+        self,
+        states: Union[TensorType["batch", "state_dim"], npt.NDArray[np.float32], List],
+    ) -> TensorType["batch"]:
         """
-        Args:
-            states: ndarray
-        Function:
-            calls the get_reward method of the appropriate Proxy Class (EI, UCB, Proxy,
-            Oracle etc)
+        Computes the values of the proxy for a batch of states.
+
+        Parameters
+        ----------
+        states: torch.tensor, ndarray, list
+            A batch of states in proxy format.
+
+        Returns
+        -------
+        torch.tensor
+            The proxy value for each state in the input batch.
         """
         pass
 
