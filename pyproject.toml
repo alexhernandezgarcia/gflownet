@@ -16,6 +16,7 @@ priority = "primary"
 
 [tool.poetry.dependencies]
 # Base dependencies.
+botorch = ">=0.10.0"
 hydra-core = ">=1.3.2"
 matplotlib = "*"
 numpy = "*"
