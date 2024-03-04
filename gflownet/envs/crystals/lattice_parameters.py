@@ -1,20 +1,18 @@
 """
-Classes to represent crystal environments
+Classes to represent continuous lattice parameters environments.
 """
 
 from typing import List, Optional, Tuple, Union
 
-import numpy as np
 import torch
 from torch import Tensor
 from torchtyping import TensorType
 
-from gflownet.envs.grid import Grid
-from gflownet.utils.common import tlong
+from gflownet.envs.cube import ContinuousCube
+from gflownet.utils.common import copy, tfloat
 from gflownet.utils.crystals.constants import (
     CUBIC,
     HEXAGONAL,
-    LATTICE_SYSTEMS,
     MONOCLINIC,
     ORTHORHOMBIC,
     RHOMBOHEDRAL,
@@ -22,328 +20,243 @@ from gflownet.utils.crystals.constants import (
     TRICLINIC,
 )
 
+LENGTH_PARAMETER_NAMES = ("a", "b", "c")
+ANGLE_PARAMETER_NAMES = ("alpha", "beta", "gamma")
+PARAMETER_NAMES = LENGTH_PARAMETER_NAMES + ANGLE_PARAMETER_NAMES
 
-class LatticeParameters(Grid):
+
+# TODO: figure out a way to inherit the (discrete) LatticeParameters env or create a
+# common class for both discrete and continous with the common methods.
+class LatticeParameters(ContinuousCube):
     """
-    LatticeParameters environment for crystal structure generation.
+    Continuous lattice parameters environment for crystal structures generation.
 
-    Models lattice parameters (three edge lengths and three angles describing unit cell) with the constraints
-    given by the provided lattice system (see https://en.wikipedia.org/wiki/Bravais_lattice). This is implemented
-    by inheriting from the discrete Grid environment, creating a mapping between cell position and edge length
-    or angle, and imposing lattice system constraints on their values.
+    Models lattice parameters (three edge lengths and three angles describing unit
+    cell) with the constraints given by the provided lattice system (see
+    https://en.wikipedia.org/wiki/Bravais_lattice). This is implemented by inheriting
+    from the (continuous) cube environment, creating a mapping between cell position
+    and edge length or angle, and imposing lattice system constraints on their values.
 
-    Note that similar to the Grid environment, the values are initialized with zeros (or target angles, if they
-    are predetermined by the lattice system), and can be only increased with a discrete steps.
+    The environment is a hyper cube of dimensionality 6 (the number of lattice
+    parameters), but it takes advantage of the mask of ignored dimensions implemented
+    in the Cube environment.
+
+    The values of the state will remain in the default [0, 1] range of the Cube, but
+    they are mapped to [min_length, max_length] in the case of the lengths and
+    [min_angle, max_angle] in the case of the angles.
     """
 
     def __init__(
         self,
         lattice_system: str,
-        min_length: float = 1.0,
-        max_length: float = 5.0,
-        min_angle: float = 30.0,
-        max_angle: float = 150.0,
-        grid_size: int = 10,
-        max_increment: int = 1,
+        min_length: Optional[float] = 1.0,
+        max_length: Optional[float] = 350.0,
+        min_angle: Optional[float] = 50.0,
+        max_angle: Optional[float] = 150.0,
         **kwargs,
     ):
         """
         Args
-        ----------
+        ----
         lattice_system : str
-            One of the seven lattice systems.
+            One of the seven lattice systems. By default, the triclinic lattice system
+            is used, which has no constraints.
 
         min_length : float
-            Minimum value of the edge length.
+            Minimum value of the lengths.
 
         max_length : float
-            Maximum value of the edge length.
+            Maximum value of the lengths.
 
         min_angle : float
             Minimum value of the angles.
 
         max_angle : float
             Maximum value of the angles.
-
-        grid_size : int
-            Length of the underlying grid that is used to map discrete values to actual edge lengths and angles.
-
-        max_increment : int
-            Maximum increment of each dimension by the actions.
         """
-        super().__init__(
-            n_dim=6,
-            length=grid_size,
-            max_increment=max_increment,
-            max_dim_per_action=3,
-            **kwargs,
-        )
-
-        if lattice_system not in LATTICE_SYSTEMS:
-            raise ValueError(
-                f"Expected one of the keys or values from {LATTICE_SYSTEMS}, received {lattice_system}."
-            )
-
+        self.continuous = True
         self.lattice_system = lattice_system
         self.min_length = min_length
         self.max_length = max_length
+        self.length_range = self.max_length - self.min_length
         self.min_angle = min_angle
         self.max_angle = max_angle
-        self.grid_size = grid_size
+        self.angle_range = self.max_angle - self.min_angle
+        self._setup_constraints()
+        super().__init__(n_dim=6, **kwargs)
 
-        # we ensure that 90 and 120 degrees angle are present in the search space,
-        # since for some systems they must be set to one of these values
-        angles = np.linspace(min_angle, max_angle, grid_size + 1)
-        angles[np.abs(angles - 90.0).argmin()] = 90.0
-        angles[np.abs(angles - 120.0).argmin()] = 120.0
-        lengths = np.linspace(min_length, max_length, grid_size + 1)
+    # TODO: if source, keep as is
+    def _statevalue2length(self, value):
+        return self.min_length + value * self.length_range
 
-        self.cell2angle = {k: v for k, v in enumerate(angles)}
-        self.angle2cell = {v: k for k, v in self.cell2angle.items()}
-        self.cell2length = {k: v for k, v in enumerate(lengths)}
-        self.length2cell = {v: k for k, v in self.cell2length.items()}
-        self.angles_tensor = Tensor(angles)
-        self.lengths_tensor = Tensor(lengths)
+    def _length2statevalue(self, length):
+        return (length - self.min_length) / self.length_range
 
-        if (
-            90.0 not in self.cell2angle.values()
-            or 120.0 not in self.cell2angle.values()
-        ):
-            raise ValueError(
-                f"Given min_angle = {min_angle}, max_angle = {max_angle} and grid_size = {grid_size}, "
-                f"possible discrete angle values {tuple(self.cell2angle.values())} do not include either "
-                f"the 90 degrees or 120 degrees angle, which must both be present."
-            )
+    # TODO: if source, keep as is
+    def _statevalue2angle(self, value):
+        return self.min_angle + value * self.angle_range
 
-        self._set_source()
-        self.reset()
+    def _angle2statevalue(self, angle):
+        return (angle - self.min_angle) / self.angle_range
 
-    def _set_source(self):
-        """
-        Helper that sets self.source depending on the given self.lattice_system. For systems that have
-        specific angle requirements, they will be preset to these values.
-        """
-        if self.lattice_system == CUBIC:
-            angles = [90.0, 90.0, 90.0]
-        elif self.lattice_system == HEXAGONAL:
-            angles = [90.0, 90.0, 120.0]
-        elif self.lattice_system == MONOCLINIC:
-            angles = [90.0, self.min_angle, 90.0]
-        elif self.lattice_system == ORTHORHOMBIC:
-            angles = [90.0, 90.0, 90.0]
-        elif self.lattice_system == RHOMBOHEDRAL:
-            angles = [self.min_angle, self.min_angle, self.min_angle]
-        elif self.lattice_system == TETRAGONAL:
-            angles = [90.0, 90.0, 90.0]
-        elif self.lattice_system == TRICLINIC:
-            angles = [self.min_angle, self.min_angle, self.min_angle]
+    def _get_param(self, state, param):
+        if hasattr(self, param):
+            return getattr(self, param)
         else:
-            raise NotImplementedError(
-                f"Unspecified lattice system {self.lattice_system}."
-            )
+            if param in LENGTH_PARAMETER_NAMES:
+                return self._statevalue2length(state[self._get_index_of_param(param)])
+            elif param in ANGLE_PARAMETER_NAMES:
+                return self._statevalue2angle(state[self._get_index_of_param(param)])
+            else:
+                raise ValueError(f"{param} is not a valid lattice parameter")
 
-        self.source = [0, 0, 0] + [self.angle2cell[angle] for angle in angles]
+    def _set_param(self, state, param, value):
+        param_idx = self._get_index_of_param(param)
+        if param_idx is not None:
+            if param in LENGTH_PARAMETER_NAMES:
+                state[param_idx] = self._length2statevalue(value)
+            elif param in ANGLE_PARAMETER_NAMES:
+                state[param_idx] = self._angle2statevalue(value)
+            else:
+                raise ValueError(f"{param} is not a valid lattice parameter")
+        return state
 
-    def get_action_space(self) -> List[Tuple[int]]:
+    def _get_index_of_param(self, param):
+        param_idx = f"{param}_idx"
+        if hasattr(self, param_idx):
+            return getattr(self, param_idx)
+        else:
+            return None
+
+    def set_lattice_system(self, lattice_system: str):
         """
-        Constructs list with all possible actions, including eos.
-
-        The action is described by a 6-dimensional tuple, i-th value of which corresponds to increasing the
-        i-th value of state by action[i].
-
-        State is encoded as a 6-dimensional list of numbers: the first three describe edge lengths,
-        and the last three angles. Note that they are not directly lengths and angles, but rather integer values
-        from 0 to self.grid_size, that can be mapped to actual lengths and angles using self.cell2length and
-        self.cell2angle, respectively.
-
-        In the case of lengths the allowed actions are:
-            - increment a by n,
-            - increment b by n,
-            - increment c by n,
-            - increment both a and b by n (required by hexagonal and tetragonal lattice systems,
-                for which a == b =/= c),
-            - increment all a, b and c by n (required by cubic and rhombohedral lattice systems, for which
-                a == b == c).
-
-        In the case of angles the allowed actions are:
-            - increment alpha by n,
-            - increment beta by n,
-            - increment gamma by n,
-            - increment all alpha, beta and gama by n (required by rhombohedral lattice systems, for which
-                alpha == beta == gamma =/= 90 degrees).
+        Sets the lattice system of the unit cell and updates the constraints.
         """
-        valid_steplens = [el for el in range(1, self.max_increment + 1)]
-        actions = []
+        self.lattice_system = lattice_system
+        self._setup_constraints()
 
-        # lengths
-        for r in valid_steplens:
-            for dim in [0, 1, 2]:
-                action = [0 for _ in range(6)]
-                action[dim] = r
-                actions.append(tuple(action))
-            actions.append((r, r, 0, 0, 0, 0))
-            actions.append((r, r, r, 0, 0, 0))
+    def _setup_constraints(self):
+        """
+        Computes the mask of ignored dimensions, given the constraints imposed by the
+        lattice system. Sets self.ignored_dims.
+        """
+        # Lengths: a, b, c
+        # a == b == c
+        if self.lattice_system in [CUBIC, RHOMBOHEDRAL]:
+            lengths_ignored_dims = [False, True, True]
+            self.a_idx = 0
+            self.b_idx = 0
+            self.c_idx = 0
+        # a == b != c
+        elif self.lattice_system in [HEXAGONAL, TETRAGONAL]:
+            lengths_ignored_dims = [False, True, False]
+            self.a_idx = 0
+            self.b_idx = 0
+            self.c_idx = 1
+        # a != b and a != c and b != c
+        elif self.lattice_system in [MONOCLINIC, ORTHORHOMBIC, TRICLINIC]:
+            lengths_ignored_dims = [False, False, False]
+            self.a_idx = 0
+            self.b_idx = 1
+            self.c_idx = 2
+        else:
+            raise ValueError(f"{self.lattice_system} is not a valid lattice system")
+        # Angles: alpha, beta, gamma
+        # alpha == beta == gamma == 90.0
+        if self.lattice_system in [CUBIC, ORTHORHOMBIC, TETRAGONAL]:
+            angles_ignored_dims = [True, True, True]
+            self.alpha_idx = None
+            self.alpha = 90.0
+            self.alpha_state = self._angle2statevalue(self.alpha)
+            self.beta_idx = None
+            self.beta = 90.0
+            self.beta_state = self._angle2statevalue(self.beta)
+            self.gamma_idx = None
+            self.gamma = 90.0
+            self.gamma_state = self._angle2statevalue(self.gamma)
+        #  alpha == beta == 90.0 and gamma == 120.0
+        elif self.lattice_system == HEXAGONAL:
+            angles_ignored_dims = [True, True, True]
+            self.alpha_idx = None
+            self.alpha = 90.0
+            self.alpha_state = self._angle2statevalue(self.alpha)
+            self.beta_idx = None
+            self.beta = 90.0
+            self.beta_state = self._angle2statevalue(self.beta)
+            self.gamma_idx = None
+            self.gamma = 120.0
+            self.gamma_state = self._angle2statevalue(self.gamma)
+        # alpha == gamma == 90.0 and beta != 90.0
+        elif self.lattice_system == MONOCLINIC:
+            angles_ignored_dims = [True, False, True]
+            self.alpha_idx = None
+            self.alpha = 90.0
+            self.alpha_state = self._angle2statevalue(self.alpha)
+            self.beta_idx = 4
+            self.gamma_idx = None
+            self.gamma = 90.0
+            self.gamma_state = self._angle2statevalue(self.gamma)
+        # alpha == beta == gamma != 90.0
+        elif self.lattice_system == RHOMBOHEDRAL:
+            angles_ignored_dims = [False, True, True]
+            self.alpha_idx = 3
+            self.beta_idx = 3
+            self.gamma_idx = 3
+        # alpha != beta, alpha != gamma, beta != gamma
+        elif self.lattice_system == TRICLINIC:
+            angles_ignored_dims = [False, False, False]
+            self.alpha_idx = 3
+            self.beta_idx = 4
+            self.gamma_idx = 5
+        else:
+            raise NotImplementedError
+        self.ignored_dims = lengths_ignored_dims + angles_ignored_dims
 
-        # angles
-        for r in valid_steplens:
-            for dim in [3, 4, 5]:
-                action = [0 for _ in range(6)]
-                action[dim] = r
-                actions.append(tuple(action))
-            actions.append((0, 0, 0, r, r, r))
-
-        actions.append(self.eos)
-
-        return actions
+    def _step(
+        self,
+        action: Tuple[float],
+        backward: bool,
+    ) -> Tuple[List[float], Tuple[float], bool]:
+        """
+        Updates the dimensions of the state corresponding to the ignored dimensions
+        after a call to the Cube's _step().
+        """
+        state, action, valid = super()._step(action, backward)
+        for idx, (param, is_ignored) in enumerate(
+            zip(PARAMETER_NAMES, self.ignored_dims)
+        ):
+            if not is_ignored:
+                continue
+            param_idx = self._get_index_of_param(param)
+            if param_idx is not None:
+                state[idx] = state[param_idx]
+            else:
+                state[idx] = getattr(self, f"{param}_state")
+        self.state = copy(state)
+        return self.state, action, valid
 
     def _unpack_lengths_angles(
-        self, state: Optional[List[int]] = None
+        self, state: Optional[List[float]] = None
     ) -> Tuple[Tuple, Tuple]:
         """
-        Helper that 1) unpacks values coding edge lengths and angles (in the grid cell format)
-        from the state, and 2) converts them to actual edge lengths and angles.
+        Helper that 1) unpacks values coding lengths and angles from the state or from
+        the attributes of the instance and 2) converts them to actual edge lengths and
+        angles in the target units (angstroms or degrees).
         """
-        if state is None:
-            state = self.state.copy()
+        state = self._get_state(state)
 
-        a, b, c = [self.cell2length[s] for s in state[:3]]
-        alpha, beta, gamma = [self.cell2angle[s] for s in state[3:]]
-
+        a, b, c, alpha, beta, gamma = [
+            self._get_param(state, p) for p in PARAMETER_NAMES
+        ]
         return (a, b, c), (alpha, beta, gamma)
 
-    def _are_intermediate_lengths_valid(
-        self, state: Optional[List[int]] = None
-    ) -> bool:
-        """
-        Helper that check whether the intermediate constraints defined by self.lattice_system for lengths are met.
-
-        For intermediate state, we want to ensure that (CUBIC, RHOMBOHEDRAL) lattice systems allow only simultaneous
-        change of all three edge lengths, and (HEXAGONAL, TETRAGONAL) lattice systems disallow changing
-        a and b independently.
-        """
-        (a, b, c), _ = self._unpack_lengths_angles(state)
-
-        if self.lattice_system in [CUBIC, RHOMBOHEDRAL]:
-            return a == b == c
-        elif self.lattice_system in [HEXAGONAL, TETRAGONAL]:
-            return a == b
-        elif self.lattice_system in [MONOCLINIC, ORTHORHOMBIC, TRICLINIC]:
-            return True
-        else:
-            raise NotImplementedError
-
-    def _are_final_lengths_valid(self, state: Optional[List[int]] = None) -> bool:
-        """
-        Helper that check whether the final constraints defined by self.lattice_system for lengths are met.
-        """
-        (a, b, c), _ = self._unpack_lengths_angles(state)
-
-        if self.lattice_system in [CUBIC, RHOMBOHEDRAL]:
-            return a == b == c
-        elif self.lattice_system in [HEXAGONAL, TETRAGONAL]:
-            return a == b != c
-        elif self.lattice_system in [MONOCLINIC, ORTHORHOMBIC, TRICLINIC]:
-            return a != b and a != c and b != c
-        else:
-            raise NotImplementedError
-
-    def _are_intermediate_angles_valid(self, state: Optional[List[int]] = None) -> bool:
-        """
-        Helper that check whether the intermediate constraints defined by self.lattice_system for angles are met.
-
-        For intermediate state, we want to ensure that (CUBIC, HEXAGONAL, MONOCLINIC, ORTHORHOMBIC, TETRAGONAL)
-        lattice systems disallow change of the angles that have only one valid value, and for RHOMBOHEDRAL that
-        only simultaneous change of all three angles is allowed.
-        """
-        _, (alpha, beta, gamma) = self._unpack_lengths_angles(state)
-
-        if self.lattice_system in [CUBIC, ORTHORHOMBIC, TETRAGONAL]:
-            return alpha == beta == gamma == 90.0
-        elif self.lattice_system == HEXAGONAL:
-            return alpha == beta == 90.0 and gamma == 120.0
-        elif self.lattice_system == MONOCLINIC:
-            return alpha == gamma == 90.0
-        elif self.lattice_system == RHOMBOHEDRAL:
-            return alpha == beta == gamma
-        elif self.lattice_system == TRICLINIC:
-            return True
-        else:
-            raise NotImplementedError
-
-    def _are_final_angles_valid(self, state: Optional[List[int]] = None) -> bool:
-        """
-        Helper that check whether the final constraints defined by self.lattice_system for angles are met.
-        """
-        _, (alpha, beta, gamma) = self._unpack_lengths_angles(state)
-
-        if self.lattice_system in [CUBIC, ORTHORHOMBIC, TETRAGONAL]:
-            return alpha == beta == gamma == 90.0
-        elif self.lattice_system == HEXAGONAL:
-            return alpha == beta == 90.0 and gamma == 120.0
-        elif self.lattice_system == MONOCLINIC:
-            return alpha == gamma == 90.0 and beta != 90.0
-        elif self.lattice_system == RHOMBOHEDRAL:
-            return alpha == beta == gamma != 90.0
-        elif self.lattice_system == TRICLINIC:
-            return len({alpha, beta, gamma, 90.0}) == 4
-        else:
-            raise NotImplementedError
-
-    def _is_intermediate_state_valid(self, state: List[int]) -> bool:
-        """
-        Helper that checks whether the given state meets intermediate self.lattice_system constraints.
-        """
-        return self._are_intermediate_lengths_valid(
-            state
-        ) and self._are_intermediate_angles_valid(state)
-
-    def _is_final_state_valid(self, state: List[int]) -> bool:
-        """
-        Helper that checks whether the given state meets final self.lattice_system constraints.
-        """
-        return self._are_final_lengths_valid(state) and self._are_final_angles_valid(
-            state
-        )
-
-    def get_mask_invalid_actions_forward(
-        self, state: Optional[List[int]] = None, done: Optional[bool] = None
-    ) -> List[bool]:
-        """
-        Returns a vector of length equal to that of the action space: True if forward action is
-        invalid given the current state, False otherwise.
-        """
-        if state is None:
-            state = self.state.copy()
-        if done is None:
-            done = self.done
-
-        mask = super().get_mask_invalid_actions_forward(state=state, done=done)
-
-        # eos invalid if final lattice system constraints not met
-        mask[-1] = not self._is_final_state_valid(state)
-
-        # actions invalid if intermediate lattice system constraints not met
-        for idx, a in enumerate(self.action_space[:-1]):
-            child = state.copy()
-            for d, incr in enumerate(a):
-                child[d] += incr
-            if not self._is_intermediate_state_valid(child):
-                mask[idx] = True
-
-        # If there are no valid actions (which can happen if we set all of the dimensions
-        # to their maximum values, and one of the constraints is not satisfied), force eos
-        # to be valid to avoid getting stuck in an infinite loop during sampling.
-        if all(mask):
-            mask[-1] = False
-
-        return mask
-
     def states2proxy(
-        self, states: Union[List[List], TensorType["batch", "state_dim"]]
-    ) -> TensorType["batch", "state_proxy_dim"]:
+        self, states: Union[List, TensorType["batch", "state_dim"]]
+    ) -> TensorType["height", "width", "batch"]:
         """
-        Prepares a batch of states in "environment format" for the proxy: the
-        concatenation of the lengths and angles.
+        Prepares a batch of states in "environment format" for a proxy: states are
+        mapped from [0; 1] to edge lengths and angles using min_length, max_length,
+        min_angle and max_angle, via _statevalue2length() and _statevalue2angle().
 
         Args
         ----
@@ -355,100 +268,51 @@ class LatticeParameters(Grid):
         -------
         A tensor containing all the states in the batch.
         """
-        states = tlong(states, device=self.device)
+        states = tfloat(states, device=self.device, float_type=self.float)
         return torch.cat(
             [
-                self.lengths_tensor[states[:, :3]],
-                self.angles_tensor[states[:, 3:]],
+                self._statevalue2length(states[:, :3]),
+                self._statevalue2angle(states[:, 3:]),
             ],
             dim=1,
         )
 
-    def state2readable(self, state: Optional[List[int]] = None) -> str:
+    def state2readable(self, state: Optional[List[float]] = None) -> str:
         """
-        Converts the state into a human-readable string in the format "(a, b, c), (alpha, beta, gamma)".
+        Converts the state into a human-readable string in the format "(a, b, c),
+        (alpha, beta, gamma)".
         """
-        if state is None:
-            state = self.state
+        state = self._get_state(state)
+
         lengths, angles = self._unpack_lengths_angles(state)
         return f"{lengths}, {angles}"
 
-    def readable2state(self, readable: str) -> List[int]:
+    def readable2state(self, readable: str) -> List[float]:
         """
         Converts a human-readable representation of a state into the standard format.
         """
-        state = []
+        state = copy(self.source)
 
         for c in ["(", ")", " "]:
             readable = readable.replace(c, "")
         values = readable.split(",")
+        values = [float(value) for value in values]
 
-        if len(values) != 6:
-            raise ValueError(
-                f"Expected readable to split into 6 distinct values, got {len(values)} values = {values}."
-            )
-
-        for v in values[:3]:
-            s = self.length2cell.get(float(v))
-            if s is None:
-                raise ValueError(
-                    f'Unrecognized key "{float(v)}" in self.length2cell = {self.length2cell}.'
-                )
-            state.append(s)
-
-        for v in values[3:]:
-            s = self.angle2cell.get(float(v))
-            if s is None:
-                raise ValueError(
-                    f'Unrecognized key "{float(v)}" in self.angle2cell = {self.angle2cell}.'
-                )
-            state.append(s)
-
+        for param, value in zip(PARAMETER_NAMES, values):
+            state = self._set_param(state, param, value)
         return state
 
-    def get_parents(
-        self,
-        state: Optional[List[int]] = None,
-        done: Optional[bool] = None,
-        action: Optional[Tuple] = None,
-    ) -> Tuple[List, List]:
+    def is_valid(self, x: List) -> bool:
         """
-        Determines all parents and actions that lead to state.
-
-        Args
-        ----
-        state : list
-            Representation of a state.
-
-        done : bool
-            Whether the trajectory is done. If None, done is taken from instance.
-
-        action : tuple
-            Last action performed.
-
-        Returns
-        -------
-        parents : list
-            List of parents in state format.
-
-        actions : list
-            List of actions that lead to state for each parent in parents.
+        Determines whether a state is valid, according to the attributes of the
+        environment.
         """
-        if state is None:
-            state = self.state.copy()
-        if done is None:
-            done = self.done
-        if done:
-            return [state], [self.eos]
+        lengths, angles = self._unpack_lengths_angles(x)
+        # Check lengths
+        if any([l < self.min_length or l > self.max_length for l in lengths]):
+            return False
+        if any([l < self.min_angle or l > self.max_angle for l in angles]):
+            return False
 
-        parents = []
-        actions = []
-
-        for i, (parent, action) in enumerate(
-            zip(*super().get_parents(state, done, action))
-        ):
-            if self._is_intermediate_state_valid(parent):
-                parents.append(parent)
-                actions.append(action)
-
-        return parents, actions
+        # If all checks are passed, return True
+        return True

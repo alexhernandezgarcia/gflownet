@@ -1,7 +1,7 @@
 import pytest
 import torch
 
-from gflownet.envs.crystals.ccrystal_stack import CCrystal
+from gflownet.envs.crystals.crystal import Crystal
 from gflownet.proxy.crystals.density import Density
 
 
@@ -11,7 +11,7 @@ def proxy():
 
 
 def test_density(proxy):
-    env = CCrystal(composition_kwargs={"elements": 94})
+    env = Crystal(composition_kwargs={"elements": 94})
 
     # Initialize a proxy-format tensor with two (source) states
     states = env.states2proxy([env.source, env.source])
