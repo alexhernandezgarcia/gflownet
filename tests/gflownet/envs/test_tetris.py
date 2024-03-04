@@ -466,8 +466,6 @@ def test__get_parents__returns_expected(
         assert p_a == p_a_e
 
 
-#
-#
 @pytest.mark.parametrize(
     "state, parent_expected, parent_a_expected",
     [
@@ -517,22 +515,64 @@ def test__get_parents__contains_expected(
     assert any([a == parent_a_expected for a in parents_a])
 
 
-def test__all_env_common__1piece(env_1piece):
-    print("\n\nCommon tests for 1 piece Tetris\n")
-    return common.test__all_env_common(env_1piece)
+class TestTetrisCommon1Piece(common.BaseTestsDiscrete):
+    """Common tests for a Single Piece Tetris."""
+
+    @pytest.fixture(autouse=True)
+    def setup(self, env_1piece):
+        self.env = env_1piece
+        self.repeats = {
+            "test__reset__state_is_source": 10,
+        }
+        self.n_states = {}  # TODO: Populate.
 
 
-def test__all_env_common__mini(env_mini):
-    print("\n\nCommon tests for mini Tetris\n")
-    return common.test__all_env_common(env_mini)
+class TestTetrisCommonMini(common.BaseTestsDiscrete):
+    """Common tests for Mini Tetris."""
+
+    @pytest.fixture(autouse=True)
+    def setup(self, env_mini):
+        self.env = env_mini
+        self.repeats = {
+            "test__reset__state_is_source": 10,
+        }
+        self.n_states = {}  # TODO: Populate.
 
 
-def test__all_env_common_standard(env):
-    print("\n\nCommon tests for standard Tetris\n")
-    return common.test__all_env_common(env)
+class TestTetrisCommon(common.BaseTestsDiscrete):
+    """Common tests for standard Tetris."""
+
+    @pytest.fixture(autouse=True)
+    def setup(self, env):
+        self.env = env
+        self.repeats = {
+            "test__reset__state_is_source": 10,
+        }
+        self.n_states = {}  # TODO: Populate.
 
 
-@pytest.mark.skip(reason="Takes too long")
-def test__all_env_common(env_full):
-    print("\n\nCommon tests for full Tetris\n")
-    return common.test__all_env_common(env_full)
+class TestTetrisCommonFull(common.BaseTestsDiscrete):
+    """Common tests for full Tetris."""
+
+    @pytest.fixture(autouse=True)
+    def setup(self, env_full):
+        self.env = env_full
+        self.repeats = {
+            "test__reset__state_is_source": 10,
+        }
+        self.n_states = {}  # TODO: Populate.
+
+
+class TestTetrisCommon6X4(common.BaseTestsDiscrete):
+    """Common tests for 6x4 Tetris."""
+
+    @pytest.fixture(autouse=True)
+    def setup(self, env6x4):
+        self.env = env6x4
+        self.repeats = {
+            "test__reset__state_is_source": 10,
+        }
+        self.n_states = {
+            "test__get_parents__returns_same_state_and_eos_if_done": 100,
+        }
+        self.n_states = {}  # TODO: Populate.

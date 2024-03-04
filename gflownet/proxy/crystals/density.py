@@ -5,7 +5,7 @@ import pandas as pd
 import torch
 from torchtyping import TensorType
 
-from gflownet.envs.crystals.ccrystal_stack import CCrystal
+from gflownet.envs.crystals.crystal import Crystal
 from gflownet.envs.crystals.composition import N_ELEMENTS_ORACLE
 from gflownet.proxy.base import Proxy
 from gflownet.utils.common import tfloat, tlong
@@ -24,7 +24,7 @@ class Density(Proxy):
         super().__init__(**kwargs)
 
     def setup(self, env=None):
-        if isinstance(env, CCrystal):
+        if isinstance(env, Crystal):
             self.atomic_mass = torch.zeros(N_ELEMENTS_ORACLE + 1, dtype=self.float)
             elements = env.subenvs[env.stage_composition].elements
             atomic_mass_elements = tfloat(

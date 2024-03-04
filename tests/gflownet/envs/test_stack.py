@@ -74,6 +74,38 @@ def test__environment__initializes_properly(env, request):
 
 
 @pytest.mark.parametrize(
+    "env, is_continuous",
+    [
+        ("env_grid2d_tetrismini", False),
+        ("env_cube_tetris", True),
+        ("env_cube_tetris_grid", True),
+    ],
+)
+def test__environment__is_continuous(env, is_continuous, request):
+    env = request.getfixturevalue(env)
+    assert env.continuous == is_continuous
+
+
+@pytest.mark.parametrize(
+    "env, action, representative",
+    [
+        ("env_grid2d_tetrismini", (0, 1, 0, 0), (0, 1, 0, 0)),
+        ("env_grid2d_tetrismini", (1, 1, 0, 3), (1, 1, 0, 3)),
+        ("env_cube_tetris", (0, 0.2, 0.3, 0), (0, 0, 0, 0)),
+        ("env_cube_tetris", (0, 0.5, 0.7, 1), (0, 0, 0, 0)),
+        ("env_cube_tetris", (1, 4, 0, 2), (1, 4, 0, 2)),
+        ("env_cube_tetris_grid", (0, 0.5, 0.7, 1), (0, 0, 0, 0)),
+        ("env_cube_tetris_grid", (1, 4, 0, 2), (1, 4, 0, 2)),
+        ("env_cube_tetris_grid", (2, 0, 1, 0), (2, 0, 1, 0)),
+        ("env_cube_tetris_grid", (2, 0, 0, 0), (2, 0, 0, 0)),
+    ],
+)
+def test__action2representative(env, action, representative, request):
+    env = request.getfixturevalue(env)
+    assert env.action2representative(action) == representative
+
+
+@pytest.mark.parametrize(
     "env, action_stack, action_subenv",
     [
         ("env_grid2d_tetrismini", (0, 0, 0, 0), (0, 0)),
@@ -1159,19 +1191,37 @@ def test__state2readable__is_reversible(env, request):
         env.step_random()
 
 
-# @pytest.mark.skip(reason="skip while developping other tests")
-def test__continuous_env_common_grid2d_tetrismini(env_grid2d_tetrismini):
-    print("\n\nCommon (continuous) tests for Grid 3x3 -> Tetris-mini\n")
-    return common.test__continuous_env_common(env_grid2d_tetrismini)
+class TestGrid2DTetrisMini(common.BaseTestsContinuous):
+    """Common tests for Grid 3x3 -> Tetris-mini."""
+
+    @pytest.fixture(autouse=True)
+    def setup(self, env_grid2d_tetrismini):
+        self.env = env_grid2d_tetrismini
+        self.repeats = {
+            "test__reset__state_is_source": 10,
+        }
+        self.n_states = {}  # TODO: Populate.
 
 
-# @pytest.mark.skip(reason="skip while developping other tests")
-def test__continuous_env_common_cube_tetris(env_cube_tetris):
-    print("\n\nCommon (continuous) tests for Cube -> Tetris\n")
-    return common.test__continuous_env_common(env_cube_tetris)
+class TestCubeTetris(common.BaseTestsContinuous):
+    """Common tests for Cube -> Tetris."""
+
+    @pytest.fixture(autouse=True)
+    def setup(self, env_cube_tetris):
+        self.env = env_cube_tetris
+        self.repeats = {
+            "test__reset__state_is_source": 10,
+        }
+        self.n_states = {}  # TODO: Populate.
 
 
-# @pytest.mark.skip(reason="skip while developping other tests")
-def test__continuous_env_common_cube_tetris_grid(env_cube_tetris_grid):
-    print("\n\nCommon (continuous) tests for Cube -> Tetris -> Grid 3x3x3\n")
-    return common.test__continuous_env_common(env_cube_tetris_grid)
+class TestCubeTetris(common.BaseTestsContinuous):
+    """Common tests for Cube -> Tetris -> Grid 3x3x3."""
+
+    @pytest.fixture(autouse=True)
+    def setup(self, env_cube_tetris_grid):
+        self.env = env_cube_tetris_grid
+        self.repeats = {
+            "test__reset__state_is_source": 10,
+        }
+        self.n_states = {}  # TODO: Populate.

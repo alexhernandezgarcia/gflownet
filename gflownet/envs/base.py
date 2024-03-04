@@ -1,6 +1,7 @@
 """
 Base class of GFlowNet environments
 """
+
 import uuid
 from abc import abstractmethod
 from copy import deepcopy
@@ -18,6 +19,9 @@ from torchtyping import TensorType
 from gflownet.utils.common import copy, set_device, set_float_precision, tbool, tfloat
 
 CMAP = mpl.colormaps["cividis"]
+"""
+Plotting colour map (cividis).
+"""
 
 
 class GFlowNetEnv:
@@ -711,8 +715,9 @@ class GFlowNetEnv:
         self, state: Union[List, TensorType["state_dim"]] = None
     ) -> TensorType["state_proxy_dim"]:
         """
-        Prepares a state in "GFlowNet format" for the proxy. By default, states2proxy
-        is called, which by default will return the state as is.
+        Prepares a single state in "GFlowNet format" for the proxy. By default, simply
+        states2proxy is called and the output will be a "batch" with a single state in
+        the proxy format.
 
         Args
         ----
@@ -720,7 +725,7 @@ class GFlowNetEnv:
             A state
         """
         state = self._get_state(state)
-        return torch.squeeze(self.states2proxy([state]), dim=0)
+        return self.states2proxy([state])
 
     def states2policy(
         self, states: Union[List, TensorType["batch", "state_dim"]]
@@ -785,9 +790,7 @@ class GFlowNetEnv:
         done = self._get_done(done)
         if not done and not do_non_terminating:
             return tfloat(0.0, float_type=self.float, device=self.device)
-        return self.proxy2reward(
-            self.proxy(torch.unsqueeze(self.state2proxy(state), dim=0))[0]
-        )
+        return self.proxy2reward(self.proxy(self.state2proxy(state))[0])
 
     # TODO: cleanup
     def reward_batch(self, states: List[List], done=None):
@@ -1087,14 +1090,14 @@ class GFlowNetEnv:
 
         In particular, if no states, energy, or reward are passed, then the name
         *must* be "train", and the energy and reward will be computed from the
-        proxy using `env.compute_train_energy_proxy_and_rewards()`. In this case,
-        `top_k_metrics_and_plots` will be called a second time to compute the
+        proxy using ``env.compute_train_energy_proxy_and_rewards()``. In this case,
+        ``top_k_metrics_and_plots`` will be called a second time to compute the
         metrics and plots of the proxy distribution in addition to the ground-truth
         distribution.
         Train mode should only be called once at the begining of training as
         distributions do not change over time.
 
-        If `states` are passed, then the energy and reward will be computed from the
+        If ``states`` are passed, then the energy and reward will be computed from the
         proxy for those states. They are typically sampled from the current GFN.
 
         Otherwise, energy and reward should be passed directly.
@@ -1118,7 +1121,7 @@ class GFlowNetEnv:
         name: str
             Name of the distribution to compute metrics and plots for.
             Typically "gflownet", "random" or "train". Will be used in
-            metrics names like `f"Mean {name} energy"`.
+            metrics names like ``f"Mean {name} energy"``.
 
         energy: torch.Tensor, optional
             Batch of pre-computed energies
@@ -1138,7 +1141,7 @@ class GFlowNetEnv:
             List of matplotlib figures
 
         figs_names: list
-            List of figure names for `figs`
+            List of figure names for ``figs``
         """
 
         if states is None and energy is None and reward is None:

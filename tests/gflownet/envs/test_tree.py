@@ -1006,11 +1006,21 @@ def env(X, y):
     return Tree(X, y)
 
 
-def test__continuous_env_common__standard(env):
-    print("\n\nCommon (continuous) tests for standard Tree\n")
-    return common.test__continuous_env_common(env)
+class TestTreeDiscrete(common.BaseTestsDiscrete):
+    @pytest.fixture(autouse=True)
+    def setup(self, env):
+        self.env = env
+        self.repeats = {
+            "test__reset__state_is_source": 10,
+        }
+        self.n_states = {}  # TODO: Populate.
 
 
-def test__all_env_common__standard(env):
-    print("\n\nCommon tests for standard Tree\n")
-    return common.test__all_env_common(env)
+class TestTreeContinuous(common.BaseTestsContinuous):
+    @pytest.fixture(autouse=True)
+    def setup(self, env):
+        self.env = env
+        self.repeats = {
+            "test__reset__state_is_source": 10,
+        }
+        self.n_states = {}  # TODO: Populate.

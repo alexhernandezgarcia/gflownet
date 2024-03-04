@@ -1,6 +1,7 @@
 """
 Classes to represent material compositions (stoichiometry)
 """
+
 import itertools
 import re
 from typing import Dict, List, Optional, Tuple, Union
@@ -467,7 +468,7 @@ class Composition(GFlowNetEnv):
 
     def readable2state(self, readable):
         """
-        Converts the readable representaion of a state (a chemical formula) into the
+        Converts the readable representation of a state (a chemical formula) into the
         standard format.
 
         Example:

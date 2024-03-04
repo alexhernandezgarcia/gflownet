@@ -301,3 +301,91 @@ def chdir_random_subdir():
     cwd += "/%08x" % random.getrandbits(32)
     os.mkdir(cwd)
     os.chdir(cwd)
+
+
+def bootstrap_samples(tensor, num_samples):
+    """
+    Bootstraps tensor along the last dimention
+    returns tensor of the shape [initial_shape, num_samples]
+    """
+    dim_size = tensor.size(-1)
+    bs_indices = torch.randint(0, dim_size, size=(num_samples * dim_size,))
+    bs_samples = torch.index_select(tensor, -1, index=bs_indices)
+    bs_samples = bs_samples.view(
+        tensor.size()[:-1] + (num_samples, dim_size)
+    ).transpose(-1, -2)
+    return bs_samples
+
+
+def example_documented_function(arg1, arg2):
+    r"""Summary line: this function is not used anywhere, it's just an example.
+
+    Extended description of function from the docstrings tutorial :ref:`write
+    docstrings-extended`.
+
+    Refer to
+
+    * functions with :py:func:`gflownet.utils.common.set_device`
+    * classes with :py:class:`gflownet.gflownet.GFlowNetAgent`
+    * methods with :py:meth:`gflownet.envs.base.GFlowNetEnv.get_action_space`
+    * constants with :py:const:`gflownet.envs.base.CMAP`
+
+    Prepenend with ``~`` to refer to the name of the object only instead of the full
+    path -> :py:func:`~gflownet.utils.common.set_device` will display as ``set_device``
+    instead of the full path.
+
+    Great maths:
+
+    .. math::
+
+        \int_0^1 x^2 dx = \frac{1}{3}
+
+    .. important::
+
+        A docstring with **math** MUST be a raw Python string (a string prepended with
+        an ``r``: ``r"raw"``) to avoid backslashes being treated as escape characters.
+
+        Alternatively, you can use double backslashes.
+
+    .. warning::
+
+        Display a warning. See :ref:`learn by example`. (<-- this is a cross reference,
+        learn about it `here
+        <https://www.sphinx-doc.org/en/master/usage/referencing.html#ref-rolel>`_)
+
+
+    Examples
+    --------
+    >>> function(1, 'a')
+    True
+    >>> function(1, 2)
+    True
+
+    >>> function(1, 1)
+    Traceback (most recent call last):
+        ...
+
+    Notes
+    -----
+    This block uses ``$ ... $`` for inline maths -> $e^{\frac{x}{2}}$.
+
+    Or ``$$ ... $$`` for block math instead of the ``.. math:`` directive above.
+
+    $$\int_0^1 x^2 dx = \frac{1}{3}$$
+
+
+    Parameters
+    ----------
+    arg1 : int
+        Description of arg1
+    arg2 : str
+        Description of arg2
+
+    Returns
+    -------
+    bool
+        Description of return value
+    """
+    if arg1 == arg2:
+        raise ValueError("arg1 must not be equal to arg2")
+    return True

@@ -1,6 +1,7 @@
 """
 Computes evaluation metrics and plots from a pre-trained GFlowNet model.
 """
+
 import pickle
 import shutil
 import sys
@@ -13,9 +14,6 @@ from tqdm import tqdm
 
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 
-from crystalrandom import generate_random_crystals
-from hydra.utils import instantiate
-
 from gflownet.gflownet import GFlowNetAgent
 from gflownet.utils.common import load_gflow_net_from_run_path, read_hydra_config
 from gflownet.utils.policy import parse_policy_config
@@ -25,8 +23,10 @@ def add_args(parser):
     """
     Adds command-line arguments to parser
 
-    Returns:
-        argparse.Namespace: the parsed arguments
+    Returns
+    -------
+    argparse.ArgumentParser
+        The parser with added arguments
     """
     parser.add_argument(
         "--run_path",
@@ -79,25 +79,33 @@ def add_args(parser):
         action="store_true",
         help="Sample from an untrained GFlowNet",
     )
-    parser.add_argument(
-        "--random_crystals",
-        action="store_true",
-        help="Sample crystals uniformly, without constraints",
-    )
     parser.add_argument("--device", default="cpu", type=str)
     return parser
 
 
 def get_batch_sizes(total, b=1):
     """
-    Batches an iterable into chunks of size n and returns their expected lengths
+    Batches an iterable into chunks of size n and returns their expected lengths.
 
-    Args:
-        total (int): total samples to produce
-        b (int): the batch size
+    Example
+    -------
 
-    Returns:
-        list: list of batch sizes
+    .. code-block:: python
+
+        >>> get_batch_sizes(10, 3)
+        [3, 3, 3, 1]
+
+    Parameters
+    ----------
+    total : int
+        total samples to produce
+    b : int
+        the batch size
+
+    Returns
+    -------
+    list
+        list of batch sizes
     """
     n = total // b
     chunks = [b] * n
@@ -110,8 +118,10 @@ def print_args(args):
     """
     Prints the arguments
 
-    Args:
-        args (argparse.Namespace): the parsed arguments
+    Parameters
+    ----------
+    args : argparse.Namespace
+        the parsed arguments
     """
     print("Arguments:")
     darg = vars(args)
@@ -247,37 +257,6 @@ def main(args):
 
         if "y" in input("Delete temporary files? (y/n)"):
             shutil.rmtree(tmp_dir)
-
-    # ------------------------------------
-    # -----  Sample random crystals  -----
-    # ------------------------------------
-
-    # Sample random crystals uniformly without constraints
-    if args.random_crystals and args.n_samples > 0 and args.n_samples <= 1e5:
-        print(f"Sampling {args.n_samples} random crystals without constraints...")
-        x_sampled = generate_random_crystals(
-            n_samples=args.n_samples,
-            elements=config.env.composition_kwargs.elements,
-            min_elements=2,
-            max_elements=5,
-            max_atoms=config.env.composition_kwargs.max_atoms,
-            max_atom_i=config.env.composition_kwargs.max_atom_i,
-            space_groups=config.env.space_group_kwargs.space_groups_subset,
-            min_length=0.0,
-            max_length=1.0,
-            min_angle=0.0,
-            max_angle=1.0,
-        )
-        energies = env.proxy(env.states2proxy(x_sampled))
-        df = pd.DataFrame(
-            {
-                "readable": [env.state2readable(x) for x in x_sampled],
-                "energies": energies.tolist(),
-            }
-        )
-        df.to_csv(output_dir / "randomcrystals_samples.csv")
-        dct = {"x": x_sampled, "energy": energies.tolist()}
-        pickle.dump(dct, open(output_dir / "randomcrystals_samples.pkl", "wb"))
 
 
 if __name__ == "__main__":

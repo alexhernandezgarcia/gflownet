@@ -5,7 +5,7 @@ defaults:
   - policy: mlp_${gflownet}
   - proxy: corners
   - logger: wandb
-  - user: alex
+  - user: default
 
 # Device
 device: cuda
