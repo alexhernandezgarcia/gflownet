@@ -120,7 +120,10 @@ class GFlowNetAbstractEvaluator(metaclass=ABCMeta):
 
         This ``init`` function will call, in order:
 
-        1. :py:method:`update_all_metrics_and_requirements`
+        1. :py:method:`.update_all_metrics_and_requirements` which uses new metrics
+           defined in the :py:method:`define_new_metrics` method to update the global
+           :py:const:`METRICS` and :py:const:`ALL_REQS` variables in classes
+           inheriting from :py:class:`GFlowNetAbstractEvaluator`.
 
         2. ``self.metrics = self.make_metrics(self.config.metrics)`` using
            :py:method:`make_metrics`
@@ -197,12 +200,40 @@ class GFlowNetAbstractEvaluator(metaclass=ABCMeta):
             + " GFlowNetAgent."
         )
 
+    def define_new_metrics(self):
+        """
+        Method to be implemented by subclasses to define new metrics.
+
+        Example
+        -------
+        .. code-block:: python
+
+            def define_new_metrics(self):
+                return {
+                    "my_custom_metric": {
+                        "display_name": "My custom metric",
+                        "requirements": ["density", "new_req"],
+                    }
+                }
+
+        Returns
+        -------
+        dict
+            Dictionary of new metrics to add to the global `METRICS` dict.
+        """
+        pass
+
     def update_all_metrics_and_requirements(self):
         """
         Method to be implemented by subclasses to update the global dict of metrics and
         requirements.
         """
-        pass
+        new_metrics = self.define_new_metrics()
+        if new_metrics:
+            global METRICS
+            global ALL_REQS
+            METRICS.update(new_metrics)
+            ALL_REQS = set([r for m in METRICS.values() for r in m["requirements"]])
 
     @classmethod
     def from_dir(

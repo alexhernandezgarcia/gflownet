@@ -60,20 +60,17 @@ Implementing your own evaluator
     from gflownet.evaluator.base import GFlowNetEvaluator, METRICS, ALL_REQS
 
     class MyEvaluator(GFlowNetEvaluator):
-        def update_all_metrics_and_requirements(self):
+        def define_new_metrics(self):
             '''
             This method is called when the class is instantiated and is used to update
-            the global METRICS and ALL_REQS variables. It is used to define new metrics:
-            their display names (when logged) and requirements.
+            the global METRICS and ALL_REQS variables.
             '''
-            global METRICS, ALL_REQS
-
-            METRICS["my_custom_metric"] = {
-                "display_name": "My custom metric",
-                "requirements": ["density", "new_req"],
+            return {
+                "your_metric": {
+                    "display_name": "My custom metric",
+                    "requirements": ["density", "new_req"],
+                },
             }
-
-            ALL_REQS = set([r for m in METRICS.values() for r in m["requirements"]])
 
 
         def my_custom_metric(self, some, arguments):
@@ -231,9 +228,9 @@ Then define your own ``evaluator`` in the config file:
     period: 1000
 
 
-In the previous example, the ``update_all_metrics_and_requirements`` method is used to
-update the global ``METRICS`` and ``ALL_REQS`` variables. It will be called when the
-``MyEvaluator`` class is instantiated, in the init of ``BaseEvaluator``.
+In the previous example, the ``define_new_metrics`` method is used to define new
+metrics and associated requirements. It will be called when the
+``MyEvaluator`` class is instantiated, in the init of ``GFlowNetAbstractEvaluator``.
 
 By defining a new requirement, you ensure that the new metrics and plots will only be
 computed if user asks for a metric that requires such computations.
