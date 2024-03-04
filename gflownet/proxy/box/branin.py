@@ -73,6 +73,14 @@ class Branin(Proxy):
         )
         return Branin.map_to_negative_range(self.function_mf_botorch(states))
 
+    @property
+    def min(self):
+        if not hasattr(self, "_min"):
+            self._min = torch.tensor(
+                -UPPER_BOUND_IN_DOMAIN, device=self.device, dtype=self.float
+            )
+        return self._min
+
     @staticmethod
     def map_to_standard_domain(
         states: TensorType["batch", "2"]
