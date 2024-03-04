@@ -5,6 +5,7 @@ Base class of GFlowNet proxies
 from abc import ABC, abstractmethod
 from typing import List, Union
 
+import numpy as np
 import numpy.typing as npt
 from torchtyping import TensorType
 
