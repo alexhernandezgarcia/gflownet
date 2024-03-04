@@ -26,6 +26,36 @@ Typical call stack:
    results using the GFlowNetAgent's logger as
    ``self.logger.log_metrics(results["metrics"])`` and ``self.logger.log_plots(figs)``.
 
+Basic concepts
+--------------
+
+The evaluator is used to compute metrics and plots. It is used to evaluate the
+performance of the agent during training and to log the results. It is also
+intended to be used to evaluate the performance of a trained agent.
+
+The ``metrics`` keyword argument usually reflect to a description of which quantities
+are to be computed. They can take the following forms:
+
+- ``None``: all metrics defined in the config file / in the evaluator's
+  ``.config.metrics`` attribute will be computed.
+
+- ``"all"``: all known metrics as defined in :py:const:`METRICS` will be computed.
+
+  - Note that classes that inherit from :py:class:`GFlowNetEvaluator` can define new
+    metrics with the :py:meth:`define_new_metrics` method.
+
+- ``list``: a list of metric names to be computed. The names must be keys of
+  :py:const:`METRICS`.
+
+- ``dict``: a dictionary that is a subset of :py:const:`METRICS`.
+
+The concept of ``requirements`` is used to avoid unnecessary computations. If a metric
+requires a certain quantity to be computed, then the evaluator will only compute that
+quantity if the metric is requested. This is done by the :py:meth:`make_requirements`
+method and can be used in methods that compute metrics and plots like
+``if "some_req" in reqs`` (see below for an example).
+
+
 Using an Evaluator
 ------------------
 
@@ -217,7 +247,7 @@ Then define your own ``evaluator`` in the config file:
 
 .. code-block:: yaml
 
-    # gflownet/config/evaluator/my_evaluator.yaml
+    # config/evaluator/my_evaluator.yaml
     defaults:
       - base
 

@@ -323,8 +323,10 @@ class GFlowNetAbstractEvaluator(metaclass=ABCMeta):
         Parameters
         ----------
         metrics : Union[str, List[str]], optional
-            Metrics to compute when running the `evaluator.eval()` function. Defaults to
-            None, i.e. all metrics in :py:const:`METRICS` are computed.
+            Metrics to compute when running the
+            :py:meth:`~gflownet.evaluator.abstract.GFlowNetAbstractEvaluator.eval`
+            method. Defaults to ``None``, i.e. all metrics in :py:const:`METRICS`
+            are computed.
 
         Returns
         -------
@@ -566,6 +568,34 @@ class GFlowNetAbstractEvaluator(metaclass=ABCMeta):
 
     @abstractmethod
     def eval(self, metrics=None, **plot_kwargs):
+        """
+        The main method to compute metrics and intermediate results.
+
+        This method should return a dict with two keys: "metrics" and "data".
+
+        The "metrics" key should contain the new metric(s) and the "data" key should
+        contain the intermediate results that can be used to plot the new metric(s).
+
+        Example
+        -------
+        >>> metrics = None # use the default metrics from the config file
+        >>> results = gfne.eval(metrics=metrics)
+        >>> plots = gfne.plot(**results["data"])
+
+        >>> metrics = "all" # compute all metrics, regardless of the config
+        >>> results = gfne.eval(metrics=metrics)
+
+        >>> metrics = ["l1", "kl"] # compute only the L1 and KL metrics
+        >>> results = gfne.eval(metrics=metrics)
+
+        >>> metrics = "l1,kl" # alternative syntax
+        >>> results = gfne.eval(metrics=metrics)
+
+        Parameters
+        ----------
+        metrics : Union[str, dict, list], optional
+            Which metrics to compute, by default ``None``.
+        """
         pass
 
     @abstractmethod
