@@ -1073,7 +1073,7 @@ def test__sample_actions_forward__returns_valid_actions(env_mini_comp_first, sta
     for state, action in zip(states, actions):
         if env._get_stage(state) == env.stage_latticeparameters:
             continue
-        assert action in env.get_valid_actions(state, done=False, backward=False)
+        assert action in env.get_valid_actions(state=state, done=False, backward=False)
 
 
 @pytest.mark.parametrize(
@@ -1129,7 +1129,7 @@ def test__sample_actions_backward__returns_valid_actions(env_mini_comp_first, st
     for state, action in zip(states, actions):
         if env._get_stage(state) == env.stage_latticeparameters:
             continue
-        assert action in env.get_valid_actions(state, done=False, backward=True)
+        assert action in env.get_valid_actions(state=state, done=False, backward=True)
 
 
 @pytest.mark.parametrize(
