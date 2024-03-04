@@ -1,3 +1,5 @@
+_target_: gflownet.evaluator.base.GFlowNetEvaluator
+
 # config formerly from logger.test
 first_it: True
 period: 100

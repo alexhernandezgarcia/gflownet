@@ -1,5 +1,6 @@
 import os
 import random
+from copy import deepcopy
 from os.path import expandvars
 from pathlib import Path
 from typing import List, Union
@@ -8,7 +9,7 @@ import numpy as np
 import torch
 from hydra import compose, initialize_config_dir
 from hydra.utils import get_original_cwd, instantiate
-from omegaconf import OmegaConf
+from omegaconf import DictConfig, OmegaConf
 from torchtyping import TensorType
 
 from gflownet.utils.policy import parse_policy_config
@@ -257,6 +258,9 @@ def gflownet_from_config(config):
         float_precision=config.float_precision,
     )
 
+    # The evaluator is used to compute metrics and plots
+    evaluator = instantiate(config.eval)
+
     # The policy is used to model the probability of a forward/backward action
     forward_config = parse_policy_config(config, kind="forward")
     backward_config = parse_policy_config(config, kind="backward")
@@ -298,7 +302,8 @@ def gflownet_from_config(config):
         state_flow=state_flow,
         buffer=config.env.buffer,
         logger=logger,
-        eval_config=config.eval,
+        evaluator=evaluator,
+        full_config=config,
     )
 
     return gflownet

@@ -1,8 +1,10 @@
 """
 Base evaluator class for GFlowNetAgent.
 
-In charge of evaluating the GFlowNetAgent, computing metrics plotting figures and
+In charge of evaluating a generic GFlowNetAgent, computing metrics plotting figures and
 optionally logging results using the GFlowNetAgent's logger.
+
+Take it as example to implement your own evaluator class for your custom use-case.
 
 .. important::
 
@@ -12,7 +14,9 @@ optionally logging results using the GFlowNetAgent's logger.
 
 """
 
+import copy
 import pickle
+import time
 from collections import defaultdict
 
 import numpy as np
@@ -22,17 +26,132 @@ from scipy.special import logsumexp
 from gflownet.evaluator.abstract import ALL_REQS  # noqa
 from gflownet.evaluator.abstract import METRICS  # noqa
 from gflownet.evaluator.abstract import GFlowNetAbstractEvaluator
-from gflownet.utils.common import tfloat, torch2np
+from gflownet.utils.batch import Batch
+from gflownet.utils.common import batch_with_rest, tfloat, torch2np
 
 
 class GFlowNetEvaluator(GFlowNetAbstractEvaluator):
 
+    @torch.no_grad()
+    def eval_top_k(self, it, gfn_states=None, random_states=None):
+        """
+        Sample from the current GFN and compute metrics and plots for the top k states
+        according to both the energy and the reward.
+
+        Parameters
+        ----------
+        it : int
+            current iteration
+        gfn_states : list, optional
+            Already sampled gfn states. Defaults to None.
+        random_states : list, optional
+            Already sampled random states. Defaults to None.
+
+        Returns
+        -------
+        dict
+            Computed dict of metrics, and figures, and optionally (only once) summary
+            metrics. Schema: ``{"metrics": {str: float}, "figs": {str: plt.Figure},
+            "summary": {str: float}}``.
+        """
+        # only do random top k plots & metrics once
+        do_random = it // self.logger.test.top_k_period == 1
+        duration = None
+        summary = {}
+        prob = copy.deepcopy(self.random_action_prob)
+        print()
+        if not gfn_states:
+            # sample states from the current gfn
+            batch = Batch(
+                env=self.gfn.env, device=self.gfn.device, float_type=self.gfn.float
+            )
+            self.gfn.random_action_prob = 0
+            t = time.time()
+            print("Sampling from GFN...", end="\r")
+            for b in batch_with_rest(
+                0, self.gfn.logger.test.n_top_k, self.gfn.batch_size_total
+            ):
+                sub_batch, _ = self.gfn.sample_batch(n_forward=len(b), train=False)
+                batch.merge(sub_batch)
+            duration = time.time() - t
+            gfn_states = batch.get_terminating_states()
+
+        # compute metrics and get plots
+        print("[eval_top_k] Making GFN plots...", end="\r")
+        metrics, figs, fig_names = self.gfn.env.top_k_metrics_and_plots(
+            gfn_states, self.gfn.logger.test.top_k, name="gflownet", step=it
+        )
+        if duration:
+            metrics["gflownet top k sampling duration"] = duration
+
+        if do_random:
+            # sample random states from uniform actions
+            if not random_states:
+                batch = Batch(
+                    env=self.gfn.env, device=self.gfn.device, float_type=self.gfn.float
+                )
+                self.gfn.random_action_prob = 1.0
+                print("[eval_top_k] Sampling at random...", end="\r")
+                for b in batch_with_rest(
+                    0, self.gfn.logger.test.n_top_k, self.gfn.batch_size_total
+                ):
+                    sub_batch, _ = self.gfn.sample_batch(n_forward=len(b), train=False)
+                    batch.merge(sub_batch)
+            # compute metrics and get plots
+            random_states = batch.get_terminating_states()
+            print("[eval_top_k] Making Random plots...", end="\r")
+            (
+                random_metrics,
+                random_figs,
+                random_fig_names,
+            ) = self.gfn.env.top_k_metrics_and_plots(
+                random_states, self.gfn.logger.test.top_k, name="random", step=None
+            )
+            # add to current metrics and plots
+            summary.update(random_metrics)
+            figs += random_figs
+            fig_names += random_fig_names
+            # compute training data metrics and get plots
+            print("[eval_top_k] Making train plots...", end="\r")
+            (
+                train_metrics,
+                train_figs,
+                train_fig_names,
+            ) = self.gfn.env.top_k_metrics_and_plots(
+                None, self.gfn.logger.test.top_k, name="train", step=None
+            )
+            # add to current metrics and plots
+            summary.update(train_metrics)
+            figs += train_figs
+            fig_names += train_fig_names
+
+        self.gfn.random_action_prob = prob
+
+        print(" " * 100, end="\r")
+        print("eval_top_k metrics:")
+        max_k = max([len(k) for k in (list(metrics.keys()) + list(summary.keys()))]) + 1
+        print(
+            "  •  "
+            + "\n  •  ".join(
+                f"{k:{max_k}}: {v:.4f}"
+                for k, v in (list(metrics.items()) + list(summary.items()))
+            )
+        )
+        print()
+
+        figs = {f: n for f, n in zip(figs, fig_names)}
+
+        return {
+            "metrics": metrics,
+            "figs": figs,
+            "summary": summary,
+        }
+
     def compute_log_prob_metrics(self, x_tt, metrics=None):
-        gfn = self.gfn_agent
         metrics = self.make_metrics(metrics)
         reqs = self.make_requirements(metrics=metrics)
 
-        logprobs_x_tt, logprobs_std, probs_std = gfn.estimate_logprobs_data(
+        logprobs_x_tt, logprobs_std, probs_std = self.gfn.estimate_logprobs_data(
             x_tt,
             n_trajectories=self.config.n_trajs_logprobs,
             max_data_size=self.config.max_data_logprobs,
@@ -49,19 +168,23 @@ class GFlowNetEvaluator(GFlowNetAbstractEvaluator):
             lp_metrics["mean_probs_std"] = probs_std.mean().item()
 
         if "reward_batch" in reqs:
-            rewards_x_tt = gfn.env.reward_batch(x_tt)
+            rewards_x_tt = self.gfn.env.reward_batch(x_tt)
 
             if "corr_prob_traj_rewards" in metrics:
-                rewards_x_tt = gfn.env.reward_batch(x_tt)
+                rewards_x_tt = self.gfn.env.reward_batch(x_tt)
                 lp_metrics["corr_prob_traj_rewards"] = np.corrcoef(
                     np.exp(logprobs_x_tt.cpu().numpy()), rewards_x_tt
                 )[0, 1]
 
             if "var_logrewards_logp" in metrics:
-                rewards_x_tt = gfn.env.reward_batch(x_tt)
+                rewards_x_tt = self.gfn.env.reward_batch(x_tt)
                 lp_metrics["var_logrewards_logp"] = torch.var(
                     torch.log(
-                        tfloat(rewards_x_tt, float_type=gfn.float, device=gfn.device)
+                        tfloat(
+                            rewards_x_tt,
+                            float_type=self.gfn.float,
+                            device=self.gfn.device,
+                        )
                     )
                     - logprobs_x_tt
                 ).item()
@@ -78,7 +201,6 @@ class GFlowNetEvaluator(GFlowNetAbstractEvaluator):
         }
 
     def compute_density_metrics(self, x_tt, dict_tt, metrics=None):
-        gfn = self.gfn_agent
         metrics = self.make_metrics(metrics)
 
         density_metrics = {}
@@ -86,18 +208,18 @@ class GFlowNetEvaluator(GFlowNetAbstractEvaluator):
 
         x_sampled = density_true = density_pred = None
 
-        if gfn.buffer.test_type is not None and gfn.buffer.test_type == "all":
-            batch, _ = gfn.sample_batch(n_forward=self.config.n, train=False)
+        if self.gfn.buffer.test_type is not None and self.gfn.buffer.test_type == "all":
+            batch, _ = self.gfn.sample_batch(n_forward=self.config.n, train=False)
             assert batch.is_valid()
             x_sampled = batch.get_terminating_states()
 
             if "density_true" in dict_tt:
                 density_true = dict_tt["density_true"]
             else:
-                rewards = gfn.env.reward_batch(x_tt)
+                rewards = self.gfn.env.reward_batch(x_tt)
                 z_true = rewards.sum()
                 density_true = rewards / z_true
-                with open(gfn.buffer.test_pkl, "wb") as f:
+                with open(self.gfn.buffer.test_pkl, "wb") as f:
                     dict_tt["density_true"] = density_true
                     pickle.dump(dict_tt, f)
             hist = defaultdict(int)
@@ -108,14 +230,14 @@ class GFlowNetEvaluator(GFlowNetAbstractEvaluator):
             log_density_true = np.log(density_true + 1e-8)
             log_density_pred = np.log(density_pred + 1e-8)
 
-        elif gfn.continuous and hasattr(gfn.env, "fit_kde"):
-            batch, _ = gfn.sample_batch(n_forward=self.config.n, train=False)
+        elif self.gfn.continuous and hasattr(self.gfn.env, "fit_kde"):
+            batch, _ = self.gfn.sample_batch(n_forward=self.config.n, train=False)
             assert batch.is_valid()
             x_sampled = batch.get_terminating_states()
             # TODO make it work with conditional env
-            x_sampled = torch2np(gfn.env.states2proxy(x_sampled))
-            x_tt = torch2np(gfn.env.states2proxy(x_tt))
-            kde_pred = gfn.env.fit_kde(
+            x_sampled = torch2np(self.gfn.env.states2proxy(x_sampled))
+            x_tt = torch2np(self.gfn.env.states2proxy(x_tt))
+            kde_pred = self.gfn.env.fit_kde(
                 x_sampled,
                 kernel=self.config.kde.kernel,
                 bandwidth=self.config.kde.bandwidth,
@@ -125,10 +247,10 @@ class GFlowNetEvaluator(GFlowNetAbstractEvaluator):
                 kde_true = dict_tt["kde_true"]
             else:
                 # Sample from reward via rejection sampling
-                x_from_reward = gfn.env.sample_from_reward(n_samples=self.config.n)
-                x_from_reward = torch2np(gfn.env.states2proxy(x_from_reward))
+                x_from_reward = self.gfn.env.sample_from_reward(n_samples=self.config.n)
+                x_from_reward = torch2np(self.gfn.env.states2proxy(x_from_reward))
                 # Fit KDE with samples from reward
-                kde_true = gfn.env.fit_kde(
+                kde_true = self.gfn.env.fit_kde(
                     x_from_reward,
                     kernel=self.config.kde.kernel,
                     bandwidth=self.config.kde.bandwidth,
@@ -138,7 +260,7 @@ class GFlowNetEvaluator(GFlowNetAbstractEvaluator):
                 scores_true = kde_true.score_samples(x_tt)
                 log_density_true = scores_true - logsumexp(scores_true, axis=0)
                 # Add log_density_true and kde_true to pickled test dict
-                with open(gfn.buffer.test_pkl, "wb") as f:
+                with open(self.gfn.buffer.test_pkl, "wb") as f:
                     dict_tt["log_density_true"] = log_density_true
                     dict_tt["kde_true"] = kde_true
                     pickle.dump(dict_tt, f)
@@ -153,9 +275,9 @@ class GFlowNetEvaluator(GFlowNetAbstractEvaluator):
             density_data["kde_true"] = kde_true
 
         else:
-            density_metrics["l1"] = gfn.l1
-            density_metrics["kl"] = gfn.kl
-            density_metrics["jsd"] = gfn.jsd
+            density_metrics["l1"] = self.gfn.l1
+            density_metrics["kl"] = self.gfn.kl
+            density_metrics["jsd"] = self.gfn.jsd
             density_data["x_sampled"] = x_sampled
             return {
                 "metrics": density_metrics,
@@ -215,14 +337,14 @@ class GFlowNetEvaluator(GFlowNetAbstractEvaluator):
             Computed dict of metrics and figures as
             `{"metrics": {str: float}, "figs": {str: plt.Figure}}`.
         """
-        gfn = self.gfn_agent
         metrics = self.make_metrics(metrics)
         reqs = self.make_requirements(metrics=metrics)
 
-        if gfn.buffer.test_pkl is None:
+        if self.gfn.buffer.test_pkl is None:
             return {
                 "metrics": {
-                    k: getattr(gfn, k) if hasattr(gfn, k) else None for k in metrics
+                    k: getattr(self.gfn, k) if hasattr(self.gfn, k) else None
+                    for k in metrics
                 },
                 "data": {},
             }
@@ -230,7 +352,7 @@ class GFlowNetEvaluator(GFlowNetAbstractEvaluator):
         all_data = {}
         all_metrics = {}
 
-        with open(gfn.buffer.test_pkl, "rb") as f:
+        with open(self.gfn.buffer.test_pkl, "rb") as f:
             dict_tt = pickle.load(f)
             x_tt = dict_tt["x"]
 
@@ -293,18 +415,19 @@ class GFlowNetEvaluator(GFlowNetAbstractEvaluator):
             Dictionary of figures to be logged. The keys are the figure names and the
             values are the figures.
         """
-        gfn = self.gfn_agent
 
         fig_kde_pred = fig_kde_true = fig_reward_samples = None
 
-        if hasattr(gfn.env, "plot_reward_samples") and x_sampled is not None:
-            fig_reward_samples = gfn.env.plot_reward_samples(x_sampled, **plot_kwargs)
+        if hasattr(self.gfn.env, "plot_reward_samples") and x_sampled is not None:
+            fig_reward_samples = self.gfn.env.plot_reward_samples(
+                x_sampled, **plot_kwargs
+            )
 
-        if hasattr(gfn.env, "plot_kde"):
+        if hasattr(self.gfn.env, "plot_kde"):
             if kde_pred is not None:
-                fig_kde_pred = gfn.env.plot_kde(kde_pred, **plot_kwargs)
+                fig_kde_pred = self.gfn.env.plot_kde(kde_pred, **plot_kwargs)
             if kde_true is not None:
-                fig_kde_true = gfn.env.plot_kde(kde_true, **plot_kwargs)
+                fig_kde_true = self.gfn.env.plot_kde(kde_true, **plot_kwargs)
 
         return {
             "True reward and GFlowNet samples": fig_reward_samples,

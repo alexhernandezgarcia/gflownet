@@ -17,10 +17,9 @@ which will be called by the
 .. code-block:: python
 
         def eval_and_log(self, it, metrics=None):
-            gfn = self.gfn_agent
             results = self.eval(metrics=metrics)
             for m, v in results["metrics"].items():
-                setattr(gfn, m, v)
+                setattr(self.gfn, m, v)
 
             mertics_to_log = {
                 METRICS[k]["display_name"]: v for k, v in results["metrics"].items()
@@ -28,20 +27,20 @@ which will be called by the
 
             figs = self.plot(**results["data"])
 
-            self.logger.log_metrics(mertics_to_log, it, gfn.use_context)
-            self.logger.log_plots(figs, it, use_context=gfn.use_context)
+            self.logger.log_metrics(mertics_to_log, it, self.gfn.use_context)
+            self.logger.log_plots(figs, it, use_context=self.gfn.use_context)
+
+See :py:mod:`gflownet.evaluator` for a full-fledged example and
+:py:mod:`gflownet.evaluator.base` for a concrete implementation of this abstract class.
 """
 
-import copy
 import os
-import time
 from abc import ABCMeta, abstractmethod
 from typing import Union
 
-import torch
+from omegaconf import OmegaConf
 
-from gflownet.utils.batch import Batch
-from gflownet.utils.common import batch_with_rest, load_gflow_net_from_run_path
+from gflownet.utils.common import load_gflow_net_from_run_path
 
 _sentinel = object()
 
@@ -91,6 +90,10 @@ Requirements are used to decide which kind of data / samples is required to comp
 metric.
 
 Display names are used to log the metrics and to display them in the console.
+
+Implementations of :py:class:`GFlowNetAbstractEvaluator` should update
+this dict and the :py:const:`ALL_REQS` set to include new metrics by implementing the
+:py:method:`update_all_metrics_and_requirements` method.
 """
 
 ALL_REQS = set([r for m in METRICS.values() for r in m["requirements"]])
@@ -101,15 +104,38 @@ Union of all requirements of all metrics in `METRICS`. Computed from
 
 
 class GFlowNetAbstractEvaluator(metaclass=ABCMeta):
-    def __init__(self, **kwargs):
+    def __init__(self, gfn_agent=None, **config):
         """
         Base evaluator class for GFlowNetAgent.
 
         In charge of evaluating the GFlowNetAgent, computing metrics plotting figures
         and optionally logging results using the GFlowNetAgent's logger.
 
-        Only the `from_dir` and `from_agent` class methods should be used to instantiate
-        this class.
+        You can use the :py:method:`from_dir` or :py:method:`from_agent` class methods
+        to easily instantiate this class from a run directory or an existing
+        in-memory ``GFlowNetAgent``.
+
+        Use :py:method:`set_agent` to set the evaluator's ``GFlowNetAgent`` after
+        initialization if it was not provided at instantiation as ``gfn_agent=``.
+
+        This ``init`` function will call, in order:
+
+        1. :py:method:`update_all_metrics_and_requirements`
+
+        2. ``self.metrics = self.make_metrics(self.config.metrics)`` using
+           :py:method:`make_metrics`
+
+        3. ``self.reqs = self.make_requirements()`` using :py:method:`make_requirements`
+
+        Arguments
+        ---------
+        gfn_agent : GFlowNetAgent, optional
+            The GFlowNetAgent to evaluate. By default None. Should be set using the
+            :py:method:`from_dir` or :py:method:`from_agent` class methods.
+
+        config : dict
+            The configuration of the evaluator. Will be converted to an OmegaConf
+            instance and stored in the ``self.config`` attribute.
 
         Raises
         ------
@@ -118,23 +144,58 @@ class GFlowNetAbstractEvaluator(metaclass=ABCMeta):
             prevent instantiation of the base class without using the `from_dir` or
             `from_agent` class methods.
 
+        Attributes
+        ----------
+        config : OmegaConf
+            The configuration of the evaluator.
+        metrics : dict
+            Dictionary of metrics to compute, with the metric names as keys and the
+            metric display names and requirements as values.
+        reqs : set[str]
+            The set of requirements for the metrics. Used to decide which kind of data /
+            samples is required to compute the metric.
+        logger : Logger
+            The logger to use to log the results of the evaluation. Will be set to the
+            GFlowNetAgent's logger.
+        gfn: :py:class:`GFlowNetAgent`
+            The GFlowNetAgent to evaluate.
         """
-        if kwargs.get("sentinel") is not _sentinel:
-            raise NotImplementedError(
-                "Base evaluator class should not be instantiated. Use "
-                + "GFlowNetEvaluator.from_dir or GFlowNetEvaluator.from_agent methods."
-            )
-        self.gfn_agent = kwargs.get("gfn_agent")
-        self.config = self.gfn_agent.eval_config
-        self.logger = self.gfn_agent.logger
-        self.reqs = set()
+
+        self._gfn_agent = gfn_agent
+        self.config = OmegaConf.create(config)
+
+        if self._gfn_agent is not None:
+            self.logger = self._gfn_agent.logger
 
         self.metrics = self.reqs = _sentinel
 
         self.update_all_metrics_and_requirements()
-
         self.metrics = self.make_metrics(self.config.metrics)
         self.reqs = self.make_requirements()
+
+    @property
+    def gfn(self):
+        if type(self._gfn_agent).__name__ != "GFlowNetAgent":
+            raise ValueError(
+                "The GFlowNetAgent has not been set. Use the `from_dir` or `from_agent`"
+                + " class methods to instantiate this class or set the `gfn` attribute."
+            )
+        return self._gfn_agent
+
+    def set_agent(self, gfn_agent):
+        assert type(gfn_agent).__name__ == "GFlowNetAgent", (
+            "gfn_agent should be an instance of GFlowNetAgent, but is an instance of "
+            + f"{type(gfn_agent)}."
+        )
+        self._gfn_agent = gfn_agent
+        self.logger = gfn_agent.logger
+
+    @gfn.setter
+    def gfn(self, _):
+        raise AttributeError(
+            "The `gfn` attribute is read-only. Use the `set_agent` method to set the"
+            + " GFlowNetAgent."
+        )
 
     def update_all_metrics_and_requirements(self):
         """
@@ -182,7 +243,7 @@ class GFlowNetAbstractEvaluator(metaclass=ABCMeta):
             device=device,
             load_final_ckpt=load_final_ckpt,
         )
-        return GFlowNetAbstractEvaluator.from_agent(gfn_agent)
+        return cls.from_agent(gfn_agent)
 
     @classmethod
     def from_agent(cls, gfn_agent):
@@ -208,7 +269,7 @@ class GFlowNetAbstractEvaluator(metaclass=ABCMeta):
             + f"{type(gfn_agent)}."
         )
 
-        return GFlowNetAbstractEvaluator(gfn_agent=gfn_agent, sentinel=_sentinel)
+        return cls(gfn_agent=gfn_agent, **gfn_agent.evaluator.config)
 
     def make_metrics(self, metrics=None):
         """
@@ -467,6 +528,10 @@ class GFlowNetAbstractEvaluator(metaclass=ABCMeta):
     def eval(self, metrics=None, **plot_kwargs):
         pass
 
+    @abstractmethod
+    def eval_top_k(self, it):
+        pass
+
     def eval_and_log(self, it, metrics=None):
         """
         Evaluate the GFlowNetAgent and log the results with its logger.
@@ -481,10 +546,9 @@ class GFlowNetAbstractEvaluator(metaclass=ABCMeta):
         metrics : Union[str, List[str]], optional
             List of metrics to compute, by default the evaluator's `metrics` attribute.
         """
-        gfn = self.gfn_agent
         results = self.eval(metrics=metrics)
         for m, v in results["metrics"].items():
-            setattr(gfn, m, v)
+            setattr(self.gfn, m, v)
 
         mertics_to_log = {
             METRICS[k]["display_name"]: v for k, v in results["metrics"].items()
@@ -492,118 +556,8 @@ class GFlowNetAbstractEvaluator(metaclass=ABCMeta):
 
         figs = self.plot(**results["data"])
 
-        self.logger.log_metrics(mertics_to_log, it, gfn.use_context)
-        self.logger.log_plots(figs, it, use_context=gfn.use_context)
-
-    @torch.no_grad()
-    def eval_top_k(self, it, gfn_states=None, random_states=None):
-        """
-        Sample from the current GFN and compute metrics and plots for the top k states
-        according to both the energy and the reward.
-
-        Parameters
-        ----------
-        it : int
-            current iteration
-        gfn_states : list, optional
-            Already sampled gfn states. Defaults to None.
-        random_states : list, optional
-            Already sampled random states. Defaults to None.
-
-        Returns
-        -------
-        dict
-            Computed dict of metrics, and figures, and optionally (only once) summary
-            metrics. Schema: ``{"metrics": {str: float}, "figs": {str: plt.Figure},
-            "summary": {str: float}}``.
-        """
-        # only do random top k plots & metrics once
-        do_random = it // self.logger.test.top_k_period == 1
-        duration = None
-        summary = {}
-        prob = copy.deepcopy(self.random_action_prob)
-        gfn = self.gfn_agent
-        print()
-        if not gfn_states:
-            # sample states from the current gfn
-            batch = Batch(env=gfn.env, device=gfn.device, float_type=gfn.float)
-            gfn.random_action_prob = 0
-            t = time.time()
-            print("Sampling from GFN...", end="\r")
-            for b in batch_with_rest(0, gfn.logger.test.n_top_k, gfn.batch_size_total):
-                sub_batch, _ = gfn.sample_batch(n_forward=len(b), train=False)
-                batch.merge(sub_batch)
-            duration = time.time() - t
-            gfn_states = batch.get_terminating_states()
-
-        # compute metrics and get plots
-        print("[eval_top_k] Making GFN plots...", end="\r")
-        metrics, figs, fig_names = gfn.env.top_k_metrics_and_plots(
-            gfn_states, gfn.logger.test.top_k, name="gflownet", step=it
-        )
-        if duration:
-            metrics["gflownet top k sampling duration"] = duration
-
-        if do_random:
-            # sample random states from uniform actions
-            if not random_states:
-                batch = Batch(env=gfn.env, device=gfn.device, float_type=gfn.float)
-                gfn.random_action_prob = 1.0
-                print("[eval_top_k] Sampling at random...", end="\r")
-                for b in batch_with_rest(
-                    0, gfn.logger.test.n_top_k, gfn.batch_size_total
-                ):
-                    sub_batch, _ = gfn.sample_batch(n_forward=len(b), train=False)
-                    batch.merge(sub_batch)
-            # compute metrics and get plots
-            random_states = batch.get_terminating_states()
-            print("[eval_top_k] Making Random plots...", end="\r")
-            (
-                random_metrics,
-                random_figs,
-                random_fig_names,
-            ) = gfn.env.top_k_metrics_and_plots(
-                random_states, gfn.logger.test.top_k, name="random", step=None
-            )
-            # add to current metrics and plots
-            summary.update(random_metrics)
-            figs += random_figs
-            fig_names += random_fig_names
-            # compute training data metrics and get plots
-            print("[eval_top_k] Making train plots...", end="\r")
-            (
-                train_metrics,
-                train_figs,
-                train_fig_names,
-            ) = gfn.env.top_k_metrics_and_plots(
-                None, gfn.logger.test.top_k, name="train", step=None
-            )
-            # add to current metrics and plots
-            summary.update(train_metrics)
-            figs += train_figs
-            fig_names += train_fig_names
-
-        gfn.random_action_prob = prob
-
-        print(" " * 100, end="\r")
-        print("eval_top_k metrics:")
-        max_k = max([len(k) for k in (list(metrics.keys()) + list(summary.keys()))]) + 1
-        print(
-            "  •  "
-            + "\n  •  ".join(
-                f"{k:{max_k}}: {v:.4f}"
-                for k, v in (list(metrics.items()) + list(summary.items()))
-            )
-        )
-        print()
-
-        figs = {f: n for f, n in zip(figs, fig_names)}
-
-        return {
-            "metrics": metrics,
-            "figs": figs,
-            "summary": summary,
-        }
+        self.logger.log_metrics(mertics_to_log, it, self.gfn.use_context)
+        self.logger.log_plots(figs, it, use_context=self.gfn.use_context)
 
     def eval_and_log_top_k(self, it):
         """

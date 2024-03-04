@@ -47,7 +47,7 @@ class GFlowNetAgent:
         pct_offline,
         logger,
         num_empirical_loss,
-        eval_config,
+        evaluator,
         state_flow=None,
         use_context=False,
         replay_sampling="permutation",
@@ -94,9 +94,8 @@ class GFlowNetAgent:
             (`gflownet/utils/logger.py:Logger`).
         num_empirical_loss : int
             Number of empirical loss samples to be used for training.
-        eval_config : dict, optional
-            Evaluator config dictionary. See `eval/base.yaml` for details. By default
-            None.
+        evaluator : gflownet.evaluator.base.GFlowNetEvaluator
+            :py:mod:`~gflownet.evaluator` ``Evaluator`` instance.
         state_flow : dict, optional
             State flow config dictionary. See `gflownet.yaml:state_flow` for details. By
             default None.
@@ -229,8 +228,8 @@ class GFlowNetAgent:
             self.opt, self.lr_scheduler, self.target = None, None, None
 
         # Evaluator
-        self.eval_config = eval_config
-        self.evaluator = GFlowNetEvaluator.from_agent(self)
+        self.evaluator = evaluator
+        self.evaluator.set_agent(self)
 
         self.n_train_steps = optimizer.n_train_steps
         self.batch_size = optimizer.batch_size

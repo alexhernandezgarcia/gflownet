@@ -45,6 +45,8 @@ def main(config):
         device=config.device,
         float_precision=config.float_precision,
     )
+    # The evaluator is used to compute metrics and plots
+    evaluator = hydra.utils.instantiate(config.eval)
     # The policy is used to model the probability of a forward/backward action
     forward_config = parse_policy_config(config, kind="forward")
     backward_config = parse_policy_config(config, kind="backward")
@@ -74,6 +76,7 @@ def main(config):
     else:
         state_flow = None
     # GFlowNet Agent
+
     gflownet = hydra.utils.instantiate(
         config.gflownet,
         device=config.device,
@@ -84,7 +87,7 @@ def main(config):
         state_flow=state_flow,
         buffer=config.env.buffer,
         logger=logger,
-        eval_config=config.eval,
+        evaluator=evaluator,
     )
 
     # Train GFlowNet
