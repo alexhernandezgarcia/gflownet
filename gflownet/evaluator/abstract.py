@@ -120,7 +120,7 @@ class GFlowNetAbstractEvaluator(metaclass=ABCMeta):
 
         This ``init`` function will call, in order:
 
-        1. :py:method:`.GFlowNetAbstractEvaluator.update_all_metrics_and_requirements`
+        1. :py:method:`GFlowNetAbstractEvaluator.update_all_metrics_and_requirements`
            which uses new metrics
            defined in the :py:method:`define_new_metrics` method to update the global
            :py:const:`METRICS` and :py:const:`ALL_REQS` variables in classes
