@@ -1,5 +1,10 @@
 """
 Classes to represent continuous lattice parameters environments.
+
+An implementation for discrete lattice parameters preceded this one but has been
+removed for simplicity. Check commit 9f3477d8e46c4624f9162d755663993b83196546 to see
+these changes or the history previous to that commit to consult previous
+implementations.
 """
 
 from typing import List, Optional, Tuple, Union

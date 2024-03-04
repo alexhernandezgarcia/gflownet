@@ -1,3 +1,10 @@
+"""
+These tests are for the continuous lattice parameters environment. The tests for the
+former discrete implementation have been removed for simplicity.  Check commit
+9f3477d8e46c4624f9162d755663993b83196546 to see these changes or the history previous
+to that commit to consult previous implementations.
+"""
+
 import common
 import pytest
 import torch
@@ -5,6 +12,7 @@ import torch
 from gflownet.envs.crystals.lattice_parameters import (
     CUBIC,
     HEXAGONAL,
+    LATTICE_SYSTEMS,
     MONOCLINIC,
     ORTHORHOMBIC,
     PARAMETER_NAMES,
@@ -13,7 +21,6 @@ from gflownet.envs.crystals.lattice_parameters import (
     TRICLINIC,
     LatticeParameters,
 )
-from gflownet.envs.crystals.lattice_parameters import LATTICE_SYSTEMS
 from gflownet.utils.common import tfloat
 
 N_REPETITIONS = 100

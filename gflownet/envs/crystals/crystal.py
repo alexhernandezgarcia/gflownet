@@ -1,3 +1,11 @@
+"""
+This implementation uses the Stack meta-environment and the continuous Lattice
+Parameters environment. Alternative implementations preceded this one but have been
+removed for simplicity. Check commit 9f3477d8e46c4624f9162d755663993b83196546 to see
+these changes or the history previous to that commit to consult previous
+implementations.
+"""
+
 import json
 from collections import OrderedDict
 from enum import Enum
@@ -7,8 +15,8 @@ import torch
 from torch import Tensor
 from torchtyping import TensorType
 
-from gflownet.envs.crystals.lattice_parameters import LatticeParameters
 from gflownet.envs.crystals.composition import Composition
+from gflownet.envs.crystals.lattice_parameters import LatticeParameters
 from gflownet.envs.crystals.spacegroup import SpaceGroup
 from gflownet.envs.stack import Stack
 from gflownet.utils.common import copy, tbool, tfloat, tlong

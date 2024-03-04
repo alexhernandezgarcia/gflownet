@@ -1,3 +1,11 @@
+"""
+These tests are for the Crystal implementation that uses the Stack meta-environment and
+the continuous Lattice Parameters environment. Alternative implementations preceded
+this one but have been removed for simplicity. Check commit
+9f3477d8e46c4624f9162d755663993b83196546 to see these changes or the history previous
+to that commit to consult previous implementations.
+"""
+
 import warnings
 
 import common
