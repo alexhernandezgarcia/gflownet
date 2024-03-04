@@ -169,11 +169,6 @@ class BaseTestsCommon:
             n_repeat = self.repeats[_get_current_method_name()]
 
         for _ in range(n_repeat):
-            # Skip for certain environments until fixed:
-            skip_envs = ["Crystal", "LatticeParameters"]
-            if self.env.__class__.__name__ in skip_envs:
-                warnings.warn("Skipping test for this specific environment.")
-                return
             states = _get_terminating_states(self.env, n_states)
             if states is None:
                 warnings.warn("Skipping test because states are None.")
@@ -233,8 +228,6 @@ class BaseTestsCommon:
     def test__trajectories_are_reversible(self, n_repeat=1):
         # Skip for certain environments until fixed:
         skip_envs = [
-            "Crystal",
-            "LatticeParameters",
             "Tree",
         ]  # TODO: handle this using the count instead.
         if self.env.__class__.__name__ in skip_envs:
@@ -522,9 +515,6 @@ def _get_current_method_name():
 
 
 def _get_terminating_states(env, n):
-    # Hacky way of skipping the Crystal BW sampling test until fixed.
-    if env.__class__.__name__ == "Crystal":
-        return
     if hasattr(env, "get_all_terminating_states"):
         return env.get_all_terminating_states()
     elif hasattr(env, "get_grid_terminating_states"):
