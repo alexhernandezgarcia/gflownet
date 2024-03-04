@@ -83,33 +83,35 @@ METRICS = {
     },
 }
 """
-All metrics that can be computed by a GFlowNetEvaluator. Structured as a dict with the
-metric names as keys and the metric display names and requirements as values.
+All metrics that can be computed by a ``GFlowNetEvaluator``.
+
+Structured as a dict with the metric names as keys and the metric display
+names and requirements as values.
 
 Requirements are used to decide which kind of data / samples is required to compute the
 metric.
 
 Display names are used to log the metrics and to display them in the console.
 
-Implementations of :py:class:`GFlowNetAbstractEvaluator` should update
-this dict and the :py:const:`ALL_REQS` set to include new metrics by implementing the
-:py:method:`update_all_metrics_and_requirements` method.
+Implementations of :py:class:`GFlowNetAbstractEvaluator` can add new metrics to
+this dict by implementing the method
+:py:method:`~gflownet.evaluator.abstract.define_new_metrics`.
 """
 
 ALL_REQS = set([r for m in METRICS.values() for r in m["requirements"]])
 """
-Union of all requirements of all metrics in `METRICS`. Computed from
-:py:const:`METRICS`.
+Union of all requirements of all metrics in :py:const:`METRICS`.
 """
 
 
 class GFlowNetAbstractEvaluator(metaclass=ABCMeta):
     def __init__(self, gfn_agent=None, **config):
         """
-        Base evaluator class for GFlowNetAgent.
+        Abstract evaluator class for :py:class:`GFlowNetAgent`.
 
-        In charge of evaluating the GFlowNetAgent, computing metrics plotting figures
-        and optionally logging results using the GFlowNetAgent's logger.
+        In charge of evaluating the :py:class:`GFlowNetAgent`, computing metrics
+        plotting figures and optionally logging results using the
+        :py:class:`GFlowNetAgent`'s :py:class:`Logger`.
 
         You can use the :py:method:`from_dir` or :py:method:`from_agent` class methods
         to easily instantiate this class from a run directory or an existing

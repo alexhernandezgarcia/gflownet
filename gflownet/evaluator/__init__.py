@@ -266,10 +266,11 @@ By defining a new requirement, you ensure that the new metrics and plots will on
 computed if user asks for a metric that requires such computations.
 
 By default, the train loop will call
-:py:meth:`~gflownet.evaluator.base.GFlowNetEvaluator.eval_and_log` which itself calls
-:py:meth:`~gflownet.evaluator.base.GFlowNetEvaluator.eval` so if you override ``eval()``
-as above, the new metrics and plots will be computed and logged.
+:py:meth:`~gflownet.evaluator.base.GFlowNetAbstractEvaluator.eval_and_log` which itself
+calls :py:meth:`~gflownet.evaluator.base.GFlowNetEvaluator.eval` so if you override
+``eval()`` as above, the new metrics and plots will be computed and logged.
 
-Similarly, `eval_and_log` will compute the ``dict`` of figures as
-``fig_dict = self.plot(**results["data"])`` where ``results`` is the output of ``eval``.
+Similarly, :py:meth:`~gflownet.evaluator.base.GFlowNetEvaluator.eval_and_log`
+will compute the ``dict`` of figures as ``fig_dict = self.plot(**results["data"])``
+where ``results`` is the output of ``eval``.
 """
