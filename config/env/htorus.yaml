@@ -5,7 +5,6 @@ _target_: gflownet.envs.htorus.HybridTorus
 
 id: ctorus
 continuous: True
-func: sincos
 # Dimensions of hypertorus
 n_dim: 2
 policy_encoding_dim_per_angle: null
