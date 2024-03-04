@@ -5,7 +5,7 @@ import torch
 from gflownet.envs.ctorus import ContinuousTorus
 from gflownet.envs.grid import Grid
 from gflownet.envs.tetris import Tetris
-from gflownet.proxy.corners import Corners
+from gflownet.proxy.box.corners import Corners
 from gflownet.proxy.tetris import Tetris as TetrisScore
 from gflownet.utils.batch import Batch
 from gflownet.utils.common import (
