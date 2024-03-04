@@ -3,8 +3,5 @@ defaults:
 
 _target_: gflownet.utils.logger.Logger
 
-do:
-  online: True
-
 tags: 
     - gflownet

@@ -5,6 +5,7 @@
 #SBATCH --mem={mem}
 #SBATCH --gres={gres}
 #SBATCH --partition={partition}
+#SBATCH --time={time}
 
 module load {modules}
 conda activate {conda_env}

@@ -17,6 +17,15 @@ test:
   kde:
     bandwidth: 0.1
     kernel: gaussian
+  n_top_k: 5000
+  top_k: 100
+  top_k_period: -1
+  # Number of backward trajectories to estimate the log likelihood of each test data point
+  n_trajs_logprobs: 10
+  logprobs_batch_size: 100
+  logprobs_bootstrap_size: 10000
+  # Maximum number of test data points to compute log likelihood probs.
+  max_data_logprobs: 1e5
 # Oracle metrics
 oracle:
   period: 100000
@@ -33,7 +42,8 @@ logdir:
   root: ./logs
   ckpts: ckpts
   overwrite: True
-debug: False 
-lightweight: False 
+debug: False
+lightweight: False
 progress: True
 context: "0"
+notes: null # wandb run notes (e.g. "baseline")

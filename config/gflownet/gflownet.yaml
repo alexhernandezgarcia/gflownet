@@ -21,9 +21,12 @@ optimizer:
   sgd_momentum: 0.9
   # Number of trajectories of each kind
   batch_size:
+    # Forward on-policy (possibly tempered and/or with random actions)
     forward: 10
-    train: 0
-    replay: 0
+    # Backward from training set
+    backward_dataset: 0
+    # Backward from replay buffer
+    backward_replay: 0
   # Train to sample ratio
   train_to_sample_ratio: 1
   # Number of training iterations
@@ -31,6 +34,8 @@ optimizer:
   # From original implementation
   bootstrap_tau: 0.0
   clip_grad_norm: 0.0
+# State flow modelling
+state_flow: null
 # If True, compute rewards in batches
 batch_reward: True
 # Force zero probability of sampling invalid actions
@@ -43,15 +48,9 @@ random_action_prob: 0.0
 pct_offline: 0.0
 # Replay buffer
 replay_capacity: 0
-policy:
-  forward:
-    type: mlp
-    n_hid: 128
-    n_layers: 2
-    checkpoint: null
-    reload_ckpt: False
-  backward: null
-  ckpt_period: null
+replay_sampling: permutation
+# Train data set backward sampling
+train_sampling: permutation
 num_empirical_loss: 200000
 oracle:
     # Number of samples for oracle metrics

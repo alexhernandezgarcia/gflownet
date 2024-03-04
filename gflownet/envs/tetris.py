@@ -1,9 +1,11 @@
 """
 An environment inspired by the game of Tetris.
 """
+
 import itertools
 import re
-from typing import List, Optional, Tuple
+import warnings
+from typing import List, Optional, Tuple, Union
 
 import numpy as np
 import numpy.typing as npt
@@ -98,10 +100,6 @@ class Tetris(GFlowNetEnv):
         )
         # End-of-sequence action: all -1
         self.eos = (-1, -1, -1)
-        # Conversions
-        self.state2proxy = self.state2oracle
-        self.statebatch2proxy = self.statebatch2oracle
-        self.statetorch2proxy = self.statetorch2oracle
 
         # Precompute all possible rotations of each piece and the corresponding binary
         # mask
@@ -250,92 +248,59 @@ class Tetris(GFlowNetEnv):
             mask[-1] = True
         return mask
 
-    def state2oracle(
-        self, state: Optional[TensorType["height", "width"]] = None
-    ) -> TensorType["height", "width"]:
+    def states2proxy(
+        self,
+        states: Union[
+            List[TensorType["height", "width"]], TensorType["height", "width", "batch"]
+        ],
+    ) -> TensorType["height", "width", "batch"]:
         """
-        Prepares a state in "GFlowNet format" for the oracles: simply converts non-zero
-        (non-empty) cells into 1s.
-
-        Args
-        ----
-        state : tensor
-        """
-        if state is None:
-            state = self.state.clone().detach()
-        state_oracle = state.clone().detach()
-        state_oracle[state_oracle != 0] = 1
-        return state_oracle
-
-    def statebatch2oracle(
-        self, states: List[TensorType["height", "width"]]
-    ) -> TensorType["batch", "state_oracle_dim"]:
-        """
-        Prepares a batch of states in "GFlowNet format" for the oracles: simply
+        Prepares a batch of states in "environment format" for a proxy: : simply
         converts non-zero (non-empty) cells into 1s.
 
         Args
         ----
-        state : list
+        states : list of 2D tensors or 3D tensor
+            A batch of states in environment format, either as a list of states or as a
+            single tensor.
+
+        Returns
+        -------
+        A tensor containing all the states in the batch.
         """
-        states = torch.stack(states)
+        states = tint(states, device=self.device, int_type=self.int)
         states[states != 0] = 1
         return states
 
-    def statetorch2oracle(
-        self, states: TensorType["height", "width", "batch"]
+    def states2policy(
+        self,
+        states: Union[
+            List[TensorType["height", "width"]], TensorType["height", "width", "batch"]
+        ],
     ) -> TensorType["height", "width", "batch"]:
         """
-        Prepares a batch of states in "GFlowNet format" for the oracles: : simply
-        converts non-zero (non-empty) cells into 1s.
-        """
-        states[states != 0] = 1
-        return states
+        Prepares a batch of states in "environment format" for the policy model.
 
-    def state2policy(
-        self, state: Optional[TensorType["height", "width"]] = None
-    ) -> TensorType["height", "width"]:
-        """
-        Prepares a state in "GFlowNet format" for the policy model.
+        See states2proxy().
 
-        See: state2oracle()
-        """
-        return self.state2oracle(state).flatten()
+        Args
+        ----
+        states : list of 2D tensors or 3D tensor
+            A batch of states in environment format, either as a list of states or as a
+            single tensor.
 
-    def statebatch2policy(
-        self, states: List[TensorType["height", "width"]]
-    ) -> TensorType["batch", "state_oracle_dim"]:
+        Returns
+        -------
+        A tensor containing all the states in the batch.
         """
-        Prepares a batch of states in "GFlowNet format" for the policy model.
+        states = tint(states, device=self.device, int_type=self.int)
+        return self.states2proxy(states).flatten(start_dim=1).to(self.float)
 
-        See statebatch2oracle().
-        """
-        return self.statebatch2oracle(states).flatten(start_dim=1)
-
-    def statetorch2policy(
-        self, states: TensorType["height", "width", "batch"]
-    ) -> TensorType["height", "width", "batch"]:
-        """
-        Prepares a batch of states in "GFlowNet format" for the policy model.
-
-        See statetorch2oracle().
-        """
-        return self.statetorch2oracle(states).flatten(start_dim=1)
-
-    def policy2state(
-        self, policy: Optional[TensorType["height", "width"]] = None
-    ) -> TensorType["height", "width"]:
-        """
-        Returns None to signal that the conversion is not reversible.
-
-        See: state2oracle()
-        """
-        return None
-
-    def state2readable(self, state):
+    def state2readable(self, state: Optional[TensorType["height", "width"]] = None):
         """
         Converts a state (board) into a human-friendly string.
         """
+        state = self._get_state(state)
         if isinstance(state, tuple):
             readable = str(np.stack(state))
         else:
@@ -468,6 +433,27 @@ class Tetris(GFlowNetEnv):
     def get_max_traj_length(self):
         return int(1e9)
 
+    def set_state(
+        self, state: TensorType["height", "width"], done: Optional[bool] = False
+    ):
+        """
+        Sets the state and done. If done is True but incompatible with state (done is
+        True, allow_eos_before_full is False and state is not full), then force done
+        False and print warning. Also, make sure state is tensor.
+        """
+        if not torch.is_tensor(state):
+            state = torch.tensor(state, dtype=torch.int16)
+        if done is True and not self.allow_eos_before_full:
+            mask = self.get_mask_invalid_actions_forward(state, done=False)
+            if not all(mask[:-1]):
+                done = False
+                warnings.warn(
+                    f"Attempted to set state\n\n{self.state2readable(state)}\n\n"
+                    "with done = True, which is not compatible with "
+                    "allow_eos_before_full = False. Forcing done = False."
+                )
+        return super().set_state(state, done)
+
     def _piece_can_be_lifted(self, board, piece_idx):
         """
         Returns True if the piece with index piece_idx could be lifted, that is all
@@ -527,29 +513,3 @@ class Tetris(GFlowNetEnv):
             return max_relevant_piece_idx + incr
         else:
             return min_idx
-
-    def get_uniform_terminating_states(
-        self, n_states: int, seed: int = None, n_factor_max: int = 10
-    ) -> List[List]:
-        rng = np.random.default_rng(seed)
-        n_iter_max = n_states * n_factor_max
-        states = []
-        for it in range(int(n_iter_max)):
-            self.reset()
-            while not self.done:
-                # Sample random action
-                mask_invalid = torch.unsqueeze(
-                    torch.BoolTensor(self.get_mask_invalid_actions_forward()), 0
-                )
-                random_policy = torch.unsqueeze(
-                    torch.tensor(self.random_policy_output, dtype=self.float), 0
-                )
-                actions, _ = self.sample_actions(
-                    policy_outputs=random_policy, mask_invalid_actions=mask_invalid
-                )
-                _, _, _ = self.step(actions[0])
-            if not any([torch.equal(self.state, s) for s in states]):
-                states.append(self.state)
-            if len(states) == n_states:
-                break
-        return states

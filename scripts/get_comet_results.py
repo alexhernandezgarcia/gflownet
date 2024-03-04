@@ -1,6 +1,7 @@
 """
 Script to retrieve results from Comet.ml
 """
+
 from argparse import ArgumentParser
 from pathlib import Path
 
@@ -15,8 +16,10 @@ def add_args(parser):
     """
     Adds command-line arguments to parser
 
-    Returns:
-        argparse.Namespace: the parsed arguments
+    Returns
+    -------
+    argparse.ArgumentParser
+        The parser with added arguments
     """
     # YAML config
     parser.add_argument(

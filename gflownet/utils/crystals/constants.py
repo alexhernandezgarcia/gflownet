@@ -240,6 +240,24 @@ OXIDATION_STATES = {
     118: [0],
 }
 
+CUBIC = "cubic"
+HEXAGONAL = "hexagonal"
+MONOCLINIC = "monoclinic"
+ORTHORHOMBIC = "orthorhombic"
+RHOMBOHEDRAL = "rhombohedral"
+TETRAGONAL = "tetragonal"
+TRICLINIC = "triclinic"
+
+LATTICE_SYSTEMS = [
+    CUBIC,
+    HEXAGONAL,
+    MONOCLINIC,
+    ORTHORHOMBIC,
+    RHOMBOHEDRAL,
+    TETRAGONAL,
+    TRICLINIC,
+]
+
 # See: https://en.wikipedia.org/wiki/Crystal_system#Crystal_classes
 # Each item in the dictionary contains a list of:
 # - crystal system name

@@ -1,10 +1,13 @@
 """
 Buffer class to handle train and test data sets, reply buffer, etc.
 """
+
 import pickle
+from typing import List
 
 import numpy as np
 import pandas as pd
+import torch
 
 
 class Buffer:
@@ -38,9 +41,9 @@ class Buffer:
         self.replay.reward = [-1 for _ in range(self.replay_capacity)]
         self.replay_states = {}
         self.replay_trajs = {}
+        self.replay_rewards = {}
         self.replay_pkl = "replay.pkl"
-        with open(self.replay_pkl, "wb") as f:
-            pickle.dump({"x": self.replay_states, "trajs": self.replay_trajs}, f)
+        self.save_replay()
         # Define train and test data sets
         if train is not None and "type" in train:
             self.train_type = train.type
@@ -110,6 +113,17 @@ class Buffer:
                 self.test
             )
 
+    def save_replay(self):
+        with open(self.replay_pkl, "wb") as f:
+            pickle.dump(
+                {
+                    "x": self.replay_states,
+                    "trajs": self.replay_trajs,
+                    "rewards": self.replay_rewards,
+                },
+                f,
+            )
+
     def add(
         self,
         states,
@@ -153,8 +167,17 @@ class Buffer:
         for idx, (state, traj, reward, energy) in enumerate(
             zip(states, trajs, rewards, energies)
         ):
-            if allow_duplicate_states is False and state in self.replay_states.values():
-                continue
+            if not allow_duplicate_states:
+                if isinstance(state, torch.Tensor):
+                    is_duplicate = False
+                    for replay_state in self.replay_states.values():
+                        if torch.allclose(state, replay_state, equal_nan=True):
+                            is_duplicate = True
+                            break
+                else:
+                    is_duplicate = state in self.replay_states.values()
+                if is_duplicate:
+                    continue
             if (
                 reward > self.replay.iloc[-1]["reward"]
                 and traj not in self.replay_trajs.values()
@@ -168,9 +191,9 @@ class Buffer:
                 }
                 self.replay_states[(idx, it)] = state
                 self.replay_trajs[(idx, it)] = traj
+                self.replay_rewards[(idx, it)] = reward
                 self.replay.sort_values(by="reward", ascending=False, inplace=True)
-        with open(self.replay_pkl, "wb") as f:
-            pickle.dump({"x": self.replay_states, "trajs": self.replay_trajs}, f)
+        self.save_replay()
         return self.replay
 
     def make_data_set(self, config):
@@ -179,13 +202,30 @@ class Buffer:
         """
         if config is None:
             return None, None
-        elif "path" in config and config.path is not None:
-            path = self.logger.logdir / Path("data") / config.path
-            df = pd.read_csv(path, index_col=0)
-            # TODO: check if state2readable transformation is required.
-            return df
-        elif "type" not in config:
+        print("\nConstructing data set ", end="")
+        if "type" not in config:
             return None, None
+        elif config.type == "pkl" and "path" in config:
+            print(f"from pickled file: {config.path}\n")
+            with open(config.path, "rb") as f:
+                data_dict = pickle.load(f)
+                samples = data_dict["x"]
+                n_samples_orig = len(samples)
+                print(f"The data set containts {n_samples_orig} samples", end="")
+                samples = self.env.process_data_set(samples)
+                n_samples_new = len(samples)
+                if n_samples_new != n_samples_orig:
+                    print(
+                        f", but only {n_samples_new} are valid according to the "
+                        "environment settings. Invalid samples have been discarded."
+                    )
+                print("Remember to write a function to normalise the data in code")
+                print("Max number of elements in data set has to match config")
+                print("Actually, write a function that contrasts the stats")
+        elif config.type == "csv" and "path" in config:
+            print(f"from CSV: {config.path}\n")
+            df = pd.read_csv(config.path, index_col=0)
+            samples = df.iloc[:, :-1].values
         elif config.type == "all" and hasattr(self.env, "get_all_terminating_states"):
             samples = self.env.get_all_terminating_states()
         elif (
@@ -193,6 +233,7 @@ class Buffer:
             and "n" in config
             and hasattr(self.env, "get_grid_terminating_states")
         ):
+            print(f"by sampling a grid of {config.n} points\n")
             samples = self.env.get_grid_terminating_states(config.n)
         elif (
             config.type == "uniform"
@@ -200,10 +241,18 @@ class Buffer:
             and "seed" in config
             and hasattr(self.env, "get_uniform_terminating_states")
         ):
+            print(f"by sampling {config.n} points uniformly\n")
             samples = self.env.get_uniform_terminating_states(config.n, config.seed)
+        elif (
+            config.type == "random"
+            and "n" in config
+            and hasattr(self.env, "get_random_terminating_states")
+        ):
+            print(f"by sampling {config.n} points randomly\n")
+            samples = self.env.get_random_terminating_states(config.n)
         else:
             return None, None
-        energies = self.env.oracle(self.env.statebatch2oracle(samples)).tolist()
+        energies = self.env.proxy(self.env.states2proxy(samples)).tolist()
         df = pd.DataFrame(
             {
                 "samples": [self.env.state2readable(s) for s in samples],
@@ -212,7 +261,8 @@ class Buffer:
         )
         return df, {"x": samples, "energy": energies}
 
-    def compute_stats(self, data):
+    @staticmethod
+    def compute_stats(data):
         mean_data = data["energies"].mean()
         std_data = data["energies"].std()
         min_data = data["energies"].min()
@@ -220,3 +270,75 @@ class Buffer:
         data_zscores = (data["energies"] - mean_data) / std_data
         max_norm_data = data_zscores.max()
         return mean_data, std_data, min_data, max_data, max_norm_data
+
+    @staticmethod
+    def select(
+        data_dict: dict,
+        n: int,
+        mode: str = "permutation",
+        rng: np.random.Generator = None,
+    ) -> List:
+        """
+        Selects a subset of n data points from data_dict, according to the criterion
+        indicated by mode.
+
+        The data dict may be a training set or a replay buffer.
+
+        The mode argument can be one of the following:
+            - permutation: data points are sampled uniformly from the dictionary, using
+              the random generator rng.
+            - weighted: data points are sampled with probability proportional to their
+              score.
+
+        Args
+        ----
+        data_dict : dict
+            A dictionary with samples (key "x") and scores (key "energy" or "rewards").
+
+        n : int
+            The number of samples to select from the dictionary.
+
+        mode : str
+            Sampling mode. Options: permutation, weighted.
+
+        rng : np.random.Generator
+            A numpy random number generator, used for the permutation mode. Ignored
+            otherwise.
+
+        Returns
+        -------
+        list
+            A batch of n samples, selected from data_dict.
+        """
+        if n == 0:
+            return []
+        samples = data_dict["x"]
+        # If the data_dict comes from the replay buffer, then samples is a dict and we
+        # need to keep its values only
+        if isinstance(samples, dict):
+            samples = list(samples.values())
+        if mode == "permutation":
+            assert rng is not None
+            samples = [samples[idx] for idx in rng.permutation(n)]
+        elif mode == "weighted":
+            if "rewards" in data_dict:
+                score = "rewards"
+            elif "energy" in data_dict:
+                score = "energy"
+            else:
+                raise ValueError(f"Data set does not contain reward or energy key.")
+            scores = data_dict[score]
+            # If the data_dict comes from the replay buffer, then scores is a dict and we
+            # need to keep its values only
+            if isinstance(scores, dict):
+                scores = np.fromiter(scores.values(), dtype=float)
+            indices = np.random.choice(
+                len(samples),
+                size=n,
+                replace=False,
+                p=scores / scores.sum(),
+            )
+            samples = [samples[idx] for idx in indices]
+        else:
+            raise ValueError(f"Unrecognized sampling mode: {mode}.")
+        return samples

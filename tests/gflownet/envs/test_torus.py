@@ -70,9 +70,21 @@ def test__get_action_space__returns_expected(
     assert set(action_space) == set(env_extended_action_space_2d.action_space)
 
 
-def test__all_env_common(env):
-    return common.test__all_env_common(env)
+class TestTorusBasic(common.BaseTestsDiscrete):
+    @pytest.fixture(autouse=True)
+    def setup(self, env):
+        self.env = env
+        self.repeats = {
+            "test__reset__state_is_source": 10,
+        }
+        self.n_states = {}  # TODO: Populate.
 
 
-def test__all_env_common(env_extended_action_space_3d):
-    return common.test__all_env_common(env_extended_action_space_3d)
+class TestTorusExtendedActionSpace3D(common.BaseTestsDiscrete):
+    @pytest.fixture(autouse=True)
+    def setup(self, env_extended_action_space_3d):
+        self.env = env_extended_action_space_3d
+        self.repeats = {
+            "test__reset__state_is_source": 10,
+        }
+        self.n_states = {}  # TODO: Populate.

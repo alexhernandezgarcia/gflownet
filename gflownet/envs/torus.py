@@ -1,8 +1,9 @@
 """
 Classes to represent hyper-torus environments
 """
+
 import itertools
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, Union
 
 import numpy as np
 import numpy.typing as npt
@@ -11,6 +12,7 @@ import torch
 from torchtyping import TensorType
 
 from gflownet.envs.base import GFlowNetEnv
+from gflownet.utils.common import tfloat, tlong
 
 
 class Torus(GFlowNetEnv):
@@ -64,9 +66,6 @@ class Torus(GFlowNetEnv):
         self.eos = tuple([self.max_increment + 1 for _ in range(self.n_dim)])
         # Angle increments in radians
         self.angle_rad = 2 * np.pi / self.n_angles
-        # TODO: assess if really needed
-        self.state2oracle = self.state2proxy
-        self.statebatch2oracle = self.statebatch2proxy
         # Base class init
         super().__init__(**kwargs)
 
@@ -112,111 +111,74 @@ class Torus(GFlowNetEnv):
             mask[-1] = True
         return mask
 
-    def statebatch2proxy(self, states: List[List]) -> npt.NDArray[np.float32]:
-        """
-        Prepares a batch of states in "GFlowNet format" for the proxy: an array where
-        each state is a row of length n_dim with an angle in radians. The n_actions
-        item is removed.
-        """
-        return torch.tensor(states, device=self.device)[:, :-1] * self.angle_rad
-
-    def statetorch2proxy(
-        self, states: TensorType["batch", "state_dim"]
+    def states2proxy(
+        self, states: Union[List[List], TensorType["batch", "state_dim"]]
     ) -> TensorType["batch", "state_proxy_dim"]:
         """
-        Prepares a batch of states in torch "GFlowNet format" for the proxy.
+        Prepares a batch of states in "environment format" for the proxy: each state is
+        a vector of length n_dim where each value is an angle in radians. The n_actions
+        item is removed.
+
+        Args
+        ----
+        states : list or tensor
+            A batch of states in environment format, either as a list of states or as a
+            single tensor.
+
+        Returns
+        -------
+        A tensor containing all the states in the batch.
         """
-        return states[:, :-1] * self.angle_rad
+        return (
+            tfloat(states, device=self.device, float_type=self.float)[:, :-1]
+            * self.angle_rad
+        )
 
     # TODO: circular encoding as in htorus
-    def state2policy(self, state=None) -> List:
+    def states2policy(
+        self, states: Union[List, TensorType["batch", "state_dim"]]
+    ) -> TensorType["batch", "policy_input_dim"]:
         """
-        Transforms the angles part of the state given as argument (or self.state if
-        None) into a one-hot encoding. The output is a list of len n_angles * n_dim +
-        1, where each n-th successive block of length elements is a one-hot encoding of
-        the position in the n-th dimension.
+        Prepares a batch of states in "environment format" for the policy model: the
+        policy format is a one-hot encoding of the states.
+
+        Each row is a vector of length n_angles * n_dim + 1, where each n-th successive
+        block of length elements is a one-hot encoding of the position in the n-th
+        dimension.
 
         Example, n_dim = 2, n_angles = 4:
-          - State, state: [1, 3, 4]
+          - state: [1, 3, 4]
                           | a  | n | (a = angles, n = n_actions)
-          - state2policy(state): [0, 1, 0, 0, 0, 0, 0, 1, 4]
-                                 |     1    |     3     | 4 |
-        """
-        if state is None:
-            state = self.state.copy()
-        # TODO: do we need float32?
-        # TODO: do we need one-hot?
-        state_policy = np.zeros(self.n_angles * self.n_dim + 1, dtype=np.float32)
-        # Angles
-        state_policy[: self.n_dim * self.n_angles][
-            (np.arange(self.n_dim) * self.n_angles + state[: self.n_dim])
-        ] = 1
-        # Number of actions
-        state_policy[-1] = state[-1]
-        return state_policy
+          - policy format: [0, 1, 0, 0, 0, 0, 0, 1, 4]
+                           |     1    |     3     | 4 |
+        Args
+        ----
+        states : list or tensor
+            A batch of states in environment format, either as a list of states or as a
+            single tensor.
 
-    def statebatch2policy(self, states: List[List]) -> npt.NDArray[np.float32]:
+        Returns
+        -------
+        A tensor containing all the states in the batch.
         """
-        Transforms a batch of states into the policy model format. The output is a numpy
-        array of shape [n_states, n_angles * n_dim + 1].
-
-        See state2policy().
-        """
-        states = np.array(states)
-        cols = states[:, :-1] + np.arange(self.n_dim) * self.n_angles
-        rows = np.repeat(np.arange(states.shape[0]), self.n_dim)
-        state_policy = np.zeros(
-            (len(states), self.n_angles * self.n_dim + 1), dtype=np.float32
-        )
-        state_policy[rows, cols.flatten()] = 1.0
-        state_policy[:, -1] = states[:, -1]
-        return state_policy
-
-    def statetorch2policy(
-        self, states: TensorType["batch", "state_dim"]
-    ) -> TensorType["batch", "policy_output_dim"]:
-        """
-        Transforms a batch of torch states into the policy model format. The output is
-        a tensor of shape [n_states, n_angles * n_dim + 1].
-
-        See state2policy().
-        """
-        device = states.device
-        cols = (
-            states[:, :-1] + torch.arange(self.n_dim).to(device) * self.n_angles
-        ).to(int)
+        states = tlong(states, device=self.device)
+        cols = states[:, :-1] + torch.arange(self.n_dim).to(self.device) * self.n_angles
         rows = torch.repeat_interleave(
-            torch.arange(states.shape[0]).to(device), self.n_dim
+            torch.arange(states.shape[0]).to(self.device), self.n_dim
         )
-        state_policy = torch.zeros(
+        states_policy = torch.zeros(
             (states.shape[0], self.n_angles * self.n_dim + 1)
         ).to(states)
-        state_policy[rows, cols.flatten()] = 1.0
-        state_policy[:, -1] = states[:, -1]
-        return state_policy
+        states_policy[rows, cols.flatten()] = 1.0
+        states_policy[:, -1] = states[:, -1]
+        return states_policy.to(self.float)
 
-    def policy2state(self, state_policy: List) -> List:
-        """
-        Transforms the one-hot encoding version of a state given as argument
-        into a state (list of the position at each dimension).
-
-        Example, n_dim = 2, n_angles = 4:
-          - state_policy: [0, 1, 0, 0, 0, 0, 0, 1, 4]
-                          |     0    |     3     | 4 |
-          - policy2state(state_policy): [1, 3, 4]
-                            | a  | n | (a = angles, n = n_actions)
-        """
-        mat_angles_policy = np.reshape(
-            state_policy[: self.n_dim * self.n_angles], (self.n_dim, self.n_angles)
-        )
-        angles = np.where(mat_angles_policy)[1].tolist()
-        return angles + [int(state_policy[-1])]
-
-    def state2readable(self, state: List) -> str:
+    def state2readable(self, state: Optional[List] = None) -> str:
         """
         Converts a state (a list of positions) into a human-readable string
         representing a state.
         """
+        state = self._get_state(state)
         angles = (
             str(state[: self.n_dim])
             .replace("(", "[")

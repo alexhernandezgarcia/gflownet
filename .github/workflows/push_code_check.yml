@@ -1,0 +1,46 @@
+name: Code Formatting and Tests
+
+on: [push]
+
+jobs:
+  Continuous-Integration:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo code
+        uses: actions/checkout@v3
+
+      - name: Run Black on main source code
+        uses: psf/black@stable
+        with:
+          options: "--check --verbose"
+          src: "./gflownet/"
+
+      - name: Run Black on unit test code
+        uses: psf/black@stable
+        with:
+          options: "--check --verbose"
+          src: "./tests/"
+
+      - name: Set up Python 3.10
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install code dependencies
+        run: bash ./prereq_ci.sh pip install --upgrade
+
+      - name: Install GFlowNet repo
+        run: pip install -e .[all] --quiet
+
+      - name: Install Pytest and Isort
+        run: pip install pytest isort
+
+      - name: Validate import format in main source code
+        run: isort --profile black ./gflownet/ --check-only
+
+      - name: Validate import format in unit test code
+        run: isort --profile black ./tests/ --check-only
+
+      - name: Run unit tests
+        run: pytest

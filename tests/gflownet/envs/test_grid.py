@@ -3,11 +3,17 @@ import pytest
 import torch
 
 from gflownet.envs.grid import Grid
+from gflownet.utils.common import tfloat
 
 
 @pytest.fixture
 def env():
     return Grid(n_dim=3, length=5, cell_min=-1.0, cell_max=1.0)
+
+
+@pytest.fixture
+def env_default():
+    return Grid()
 
 
 @pytest.fixture
@@ -35,17 +41,12 @@ def env_extended_action_space_3d():
 
 
 @pytest.fixture
-def env_default():
-    return Grid()
-
-
-@pytest.fixture
 def config_path():
     return "../../../config/env/grid.yaml"
 
 
 @pytest.mark.parametrize(
-    "state, state2oracle",
+    "state, state2proxy",
     [
         (
             [0, 0, 0],
@@ -65,12 +66,15 @@ def config_path():
         ),
     ],
 )
-def test__state2oracle__returns_expected(env, state, state2oracle):
-    assert state2oracle == env.state2oracle(state)
+def test__state2proxy__returns_expected(env, state, state2proxy):
+    assert torch.equal(
+        tfloat(state2proxy, device=env.device, float_type=env.float),
+        env.state2proxy(state)[0],
+    )
 
 
 @pytest.mark.parametrize(
-    "states, statebatch2oracle",
+    "states, states2proxy",
     [
         (
             [[0, 0, 0], [4, 4, 4], [1, 2, 3], [4, 0, 1]],
@@ -78,8 +82,8 @@ def test__state2oracle__returns_expected(env, state, state2oracle):
         ),
     ],
 )
-def test__statebatch2oracle__returns_expected(env, states, statebatch2oracle):
-    assert torch.equal(torch.Tensor(statebatch2oracle), env.statebatch2oracle(states))
+def test__states2proxy__returns_expected(env, states, states2proxy):
+    assert torch.equal(torch.Tensor(states2proxy), env.states2proxy(states))
 
 
 @pytest.mark.parametrize(
@@ -94,9 +98,49 @@ def test__get_action_space__returns_expected(
     assert set(action_space) == set(env_extended_action_space_2d.action_space)
 
 
-def test__all_env_common(env):
-    return common.test__all_env_common(env)
+class TestGridBasic(common.BaseTestsContinuous):
+    """Common tests for 5x5 Grid with standard action space."""
+
+    @pytest.fixture(autouse=True)
+    def setup(self, env):
+        self.env = env
+        self.repeats = {
+            "test__reset__state_is_source": 10,
+        }
+        self.n_states = {}  # TODO: Populate.
 
 
-def test__all_env_common(env_extended_action_space_3d):
-    return common.test__all_env_common(env_extended_action_space_3d)
+class TestGridDefaults(common.BaseTestsContinuous):
+    """Common tests for 5x5 Grid with standard action space."""
+
+    @pytest.fixture(autouse=True)
+    def setup(self, env_default):
+        self.env = env_default
+        self.repeats = {
+            "test__reset__state_is_source": 10,
+        }
+        self.n_states = {}  # TODO: Populate.
+
+
+class TestGridExtended2D(common.BaseTestsContinuous):
+    """Common tests for 5x5 Grid with extended action space."""
+
+    @pytest.fixture(autouse=True)
+    def setup(self, env_extended_action_space_2d):
+        self.env = env_extended_action_space_2d
+        self.repeats = {
+            "test__reset__state_is_source": 10,
+        }
+        self.n_states = {}  # TODO: Populate.
+
+
+class TestGridExtended3D(common.BaseTestsContinuous):
+    """Common tests for 5x5 Grid with extended action space."""
+
+    @pytest.fixture(autouse=True)
+    def setup(self, env_extended_action_space_3d):
+        self.env = env_extended_action_space_3d
+        self.repeats = {
+            "test__reset__state_is_source": 10,
+        }
+        self.n_states = {}  # TODO: Populate.

@@ -2,14 +2,17 @@
 
 ## 💻 Command-line help
 
+In the following, `$root` refers to the root of the current repository.
+
 ```sh
 usage: launch.py [-h] [--help-md] [--job_name JOB_NAME] [--outdir OUTDIR]
                  [--cpus_per_task CPUS_PER_TASK] [--mem MEM] [--gres GRES]
-                 [--partition PARTITION] [--modules MODULES]
-                 [--conda_env CONDA_ENV] [--venv VENV] [--code_dir CODE_DIR]
+                 [--partition PARTITION] [--time TIME] [--modules MODULES]
+                 [--conda_env CONDA_ENV] [--venv VENV] [--template TEMPLATE]
+                 [--code_dir CODE_DIR] [--git_checkout GIT_CHECKOUT]
                  [--jobs JOBS] [--dry-run] [--verbose] [--force]
 
-optional arguments:
+options:
   -h, --help            show this help message and exit
   --help-md             Show an extended help message as markdown. Can be
                         useful to overwrite LAUNCH.md with `$ python
@@ -23,15 +26,26 @@ optional arguments:
   --gres GRES           gres per node (e.g. gpu:1). Defaults to gpu:1
   --partition PARTITION
                         slurm partition to use for the job. Defaults to long
+  --time TIME           wall clock time limit (e.g. 2-12:00:00). See:
+                        https://slurm.schedmd.com/sbatch.html#OPT_time
+                        Defaults to None
   --modules MODULES     string after 'module load'. Defaults to anaconda/3
                         cuda/11.3
   --conda_env CONDA_ENV
                         conda environment name. Defaults to gflownet
   --venv VENV           path to venv (without bin/activate). Defaults to None
+  --template TEMPLATE   path to sbatch template. Defaults to
+                        $root/mila/sbatch/template-conda.sh
   --code_dir CODE_DIR   cd before running main.py (defaults to here). Defaults
-                        to $PWD
-  --jobs JOBS           run file name in external/jobs (with or without
-                        .yaml). Defaults to None
+                        to $root
+  --git_checkout GIT_CHECKOUT
+                        Branch or commit to checkout before running the code.
+                        This is only used if --code_dir='$SLURM_TMPDIR'. If
+                        not specified, the current branch is used. Defaults to
+                        None
+  --jobs JOBS           jobs (nested) file name in external/jobs (with or
+                        without .yaml). Or an absolute path to a yaml file
+                        anywhere Defaults to None
   --dry-run             Don't run just, show what it would have run. Defaults
                         to False
   --verbose             print templated sbatch after running it. Defaults to
@@ -43,11 +57,12 @@ optional arguments:
 ## 🎛️ Default values
 
 ```yaml
-code_dir      : $PWD
+code_dir      : $root
 conda_env     : gflownet
 cpus_per_task : 2
 dry-run       : False
 force         : False
+git_checkout  : None
 gres          : gpu:1
 job_name      : gflownet
 jobs          : None
@@ -56,7 +71,8 @@ mem           : 32G
 modules       : anaconda/3 cuda/11.3
 outdir        : $SCRATCH/gflownet/logs/slurm
 partition     : long
-template      : /Users/victor/Documents/Github/gflownet/sbatch/template-conda.sh
+template      : $root/mila/sbatch/template-conda.sh
+time          : None
 venv          : None
 verbose       : False
 ```
@@ -68,7 +84,7 @@ a single job from the command-line, or a list of jobs from a `yaml` file.
 
 Examples:
 
-```sh
+```bash
 # using default job configuration, with script args from the command-line:
 $ python mila/launch.py user=$USER logger.do.online=False
 
@@ -198,3 +214,10 @@ And their SLURM configuration will be similar as the `shared.slurm` params, with
 1. The second job will have `partition: unkillable` instead of the default (`long`).
 2. They will all have `64G` of memory instead of the default (`32G`) because the `--mem=64G` command-line
     argument overrides everything.
+
+## Updating the launcher
+
+When updating the launcher, you should:
+
+1. Update this markdown text **in launch.py:HELP** (do not edit this `LAUNCH.md`)
+2. Run `$ python mila/launch.py --help-md > LAUNCH.md` to update this `LAUNCH.md` from the new `launch.py:HELP` text, new flags etc.

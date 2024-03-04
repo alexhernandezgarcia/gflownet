@@ -8,9 +8,12 @@ from os.path import expandvars
 from pathlib import Path
 from textwrap import dedent
 
+from git import Repo
 from yaml import safe_load
 
 ROOT = Path(__file__).resolve().parent.parent
+
+GIT_WARNING = True
 
 HELP = dedent(
     """
@@ -21,7 +24,7 @@ HELP = dedent(
 
     Examples:
 
-    ```sh
+    ```bash
     # using default job configuration, with script args from the command-line:
     $ python mila/launch.py user=$USER logger.do.online=False
 
@@ -118,6 +121,13 @@ HELP = dedent(
     1. The second job will have `partition: unkillable` instead of the default (`long`).
     2. They will all have `64G` of memory instead of the default (`32G`) because the `--mem=64G` command-line
         argument overrides everything.
+
+    ## Updating the launcher
+
+    When updating the launcher, you should:
+
+    1. Update this markdown text **in launch.py:HELP** (do not edit this `LAUNCH.md`)
+    2. Run `$ python mila/launch.py --help-md > LAUNCH.md` to update this `LAUNCH.md` from the new `launch.py:HELP` text, new flags etc.
     """.format(
         yaml_example="\n".join(
             [
@@ -139,11 +149,15 @@ def resolve(path):
     Resolves a path with environment variables and user expansion.
     All paths will end up as absolute paths.
 
-    Args:
-        path (str | Path): The path to resolve
+    Parameters
+    ----------
+    path : str | Path
+        The path to resolve
 
-    Returns:
-        Path: resolved path
+    Returns
+    -------
+    Path
+        resolved path
     """
     if path is None:
         return None
@@ -156,8 +170,10 @@ def now_str():
     Returns a string with the current date and time.
     Eg: "20210923_123456"
 
-    Returns:
-        str: current date and time
+    Returns
+    -------
+    str
+        current date and time
     """
     return datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
 
@@ -168,37 +184,41 @@ def load_jobs(yaml_path):
 
     Example yaml file:
 
-    ```
-    shared:
-      slurm:
-        gres: gpu:1
-        mem: 16G
-        cpus_per_task: 2
-      script:
-        user: $USER
-        +experiments: neurips23/crystal-comp-sg-lp.yaml
-        gflownet:
-          __value__: tranjectorybalance
+    .. code-block:: yaml
 
-    jobs:
-    - {}
-    - script:
-        gflownet:
-            __value__: flowmatch
-            policy:
-                backward: null
-    - slurm:
-        partition: main
-      script:
-        gflownet.policy.backward: null
-        gflownet: flowmatch
-    ```
+        shared:
+        slurm:
+            gres: gpu:1
+            mem: 16G
+            cpus_per_task: 2
+        script:
+            user: $USER
+            +experiments: neurips23/crystal-comp-sg-lp.yaml
+            gflownet:
+            __value__: tranjectorybalance
 
-    Args:
-        yaml_path (str | Path): Where to fine the yaml file
+        jobs:
+        - {}
+        - script:
+            gflownet:
+                __value__: flowmatch
+                policy:
+                    backward: null
+        - slurm:
+            partition: main
+        script:
+            gflownet.policy.backward: null
+            gflownet: flowmatch
 
-    Returns:
-        list[dict]: List of run configurations as dicts
+    Parameters
+    ----------
+    yaml_path : str | Path
+        Where to fine the yaml file
+
+    Returns
+    -------
+    list[dict]
+        List of run configurations as dicts
     """
     if yaml_path is None:
         return []
@@ -218,44 +238,94 @@ def load_jobs(yaml_path):
 
 
 def find_jobs_conf(args):
+    local_out_dir = ROOT / "external" / "launched_sbatch_scripts"
     if not args.get("jobs"):
-        return None
-    if args["jobs"].endswith(".yaml"):
-        args["jobs"] = args["jobs"][:-5]
-    if args["jobs"].endswith(".yml"):
-        args["jobs"] = args["jobs"][:-4]
-    if args["jobs"].startswith("external/"):
-        args["jobs"] = args["jobs"][9:]
-    if args["jobs"].startswith("jobs/"):
-        args["jobs"] = args["jobs"][5:]
-    yamls = [
-        str(y) for y in (ROOT / "external" / "jobs").glob(f"**/{args['jobs']}.y*ml")
-    ]
-    if len(yamls) == 0:
-        raise ValueError(f"Could not find {args['jobs']}.y(a)ml in ./external/jobs/")
-    if len(yamls) > 1:
-        print(">>> Warning: found multiple matches:\n  •" + "\n  •".join(yamls))
-    jobs_conf_path = Path(yamls[0])
-    print("🗂 Using jobs file: ./" + str(jobs_conf_path.relative_to(Path.cwd())))
+        return None, local_out_dir / "_other_"
+
+    if resolve(args["jobs"]).is_file():
+        assert args["jobs"].endswith(".yaml") or args["jobs"].endswith(
+            ".yml"
+        ), "jobs file must be a yaml file"
+        jobs_conf_path = resolve(args["jobs"])
+        local_out_dir = local_out_dir / jobs_conf_path.parent.name
+    else:
+        if args["jobs"].endswith(".yaml"):
+            args["jobs"] = args["jobs"][:-5]
+        if args["jobs"].endswith(".yml"):
+            args["jobs"] = args["jobs"][:-4]
+        if args["jobs"].startswith("external/"):
+            args["jobs"] = args["jobs"][9:]
+        if args["jobs"].startswith("jobs/"):
+            args["jobs"] = args["jobs"][5:]
+        yamls = [
+            str(y) for y in (ROOT / "external" / "jobs").glob(f"**/{args['jobs']}.y*ml")
+        ]
+        if len(yamls) == 0:
+            raise ValueError(
+                f"Could not find {args['jobs']}.y(a)ml in ./external/jobs/"
+            )
+        if len(yamls) > 1:
+            print(">>> Warning: found multiple matches:\n  •" + "\n  •".join(yamls))
+        jobs_conf_path = Path(yamls[0])
+        local_out_dir = local_out_dir / jobs_conf_path.parent.relative_to(
+            ROOT / "external" / "jobs"
+        )
+    print("🗂  Using jobs file: ./" + str(jobs_conf_path.relative_to(Path.cwd())))
     print()
-    return jobs_conf_path
+    return jobs_conf_path, local_out_dir
+
+
+def quote(value):
+    v = str(value)
+    v = v.replace("(", r"\(").replace(")", r"\)")
+    if " " in v or "=" in v:
+        if '"' not in v:
+            v = f'"{v}"'
+        elif "'" not in v:
+            v = f"'{v}'"
+        else:
+            raise ValueError(f"Cannot quote {value}")
+    return v
 
 
 def script_dict_to_main_args_str(script_dict, is_first=True, nested_key=""):
     """
     Recursively turns a dict of script args into a string of main.py args
-    as `nested.key=value` pairs
+    as ``nested.key=value`` pairs
 
-    Args:
-        script_dict (dict): script dictionary of args
-        previous_str (str, optional): base string to append to. Defaults to "".
+    Parameters
+    ----------
+    script_dict : dict
+        script dictionary of args
+    is_first : bool, optional
+        whether this is the first call in the recursion
+    nested_key : str, optional
+        prefix to add to the keys as ``nested.key``
+
+    Returns
+    -------
+    str
+        string of main.py args (eg: ``"key=value nested.key2=value2"``)
     """
     if not isinstance(script_dict, dict):
-        return nested_key + "=" + str(script_dict) + " "
+        candidate = f"{nested_key}={quote(script_dict)}"
+        if candidate.count("=") > 1:
+            assert "'" not in candidate, """Keys cannot contain ` ` and `'` and `=` """
+            candidate = f"'{candidate}'"
+        return candidate + " "
     new_str = ""
     for k, v in script_dict.items():
         if k == "__value__":
-            new_str += nested_key + "=" + str(v) + " "
+            value = str(v)
+            if " " in value:
+                value = f"'{value}'"
+            candidate = f"{nested_key}={quote(v)} "
+            if candidate.count("=") > 1:
+                assert (
+                    "'" not in candidate
+                ), """Keys cannot contain ` ` and `'` and `=` """
+                candidate = f"'{candidate}'"
+            new_str += candidate
             continue
         new_key = k if not nested_key else nested_key + "." + str(k)
         new_str += script_dict_to_main_args_str(v, nested_key=new_key, is_first=False)
@@ -268,12 +338,17 @@ def deep_update(a, b, path=None, verbose=None):
     """
     https://stackoverflow.com/questions/7204805/how-to-merge-dictionaries-of-dictionaries/7205107#7205107
 
-    Args:
-        a (dict): dict to update
-        b (dict): dict to update from
+    Parameters
+    ----------
+    a : dict
+        dict to update
+    b : dict
+        dict to update from
 
-    Returns:
-        dict: updated copy of a
+    Returns
+    -------
+    dict
+        updated copy of a
     """
     if path is None:
         path = []
@@ -298,6 +373,7 @@ def print_md_help(parser, defaults):
 
     print("# 🤝 Gflownet Launch tool help\n")
     print("## 💻 Command-line help\n")
+    print("In the following, `$root` refers to the root of the current repository.\n")
     print("```sh")
     print(parser.format_help())
     print("```\n")
@@ -315,13 +391,67 @@ def print_md_help(parser, defaults):
     print(HELP, end="")
 
 
+def ssh_to_https(url):
+    """
+    Converts a ssh git url to https.
+    Eg:
+    """
+    if "https://" in url:
+        return url
+    if "git@" in url:
+        path = url.split(":")[1]
+        return f"https://github.com/{path}"
+    raise ValueError(f"Could not convert {url} to https")
+
+
+def code_dir_for_slurm_tmp_dir_checkout(git_checkout):
+    global GIT_WARNING
+
+    repo = Repo(ROOT)
+    if git_checkout is None:
+        git_checkout = repo.active_branch.name
+        if GIT_WARNING:
+            print("💥 Git warnings:")
+            print(
+                f"  • `git_checkout` not provided. Using current branch: {git_checkout}"
+            )
+        # warn for uncommitted changes
+        if repo.is_dirty() and GIT_WARNING:
+            print(
+                "  • Your repo contains uncommitted changes. "
+                + "They will *not* be available when cloning happens within the job."
+            )
+        if GIT_WARNING and "y" not in input("Continue anyway? [y/N] ").lower():
+            print("🛑 Aborted")
+            sys.exit(0)
+        GIT_WARNING = False
+
+    repo_url = ssh_to_https(repo.remotes.origin.url)
+    repo_name = repo_url.split("/")[-1].split(".git")[0]
+
+    return dedent(
+        """\
+        $SLURM_TMPDIR
+        git clone {git_url} tmp-{repo_name}
+        cd tmp-{repo_name}
+        {git_checkout}
+        echo "Current commit: $(git rev-parse HEAD)"
+    """
+    ).format(
+        git_url=repo_url,
+        git_checkout=f"git checkout {git_checkout}" if git_checkout else "",
+        repo_name=repo_name,
+    )
+
+
 if __name__ == "__main__":
     defaults = {
-        "code_dir": "$PWD",
+        "code_dir": "$root",
         "conda_env": "gflownet",
         "cpus_per_task": 2,
         "dry-run": False,
         "force": False,
+        "git_checkout": None,
         "gres": "gpu:1",
         "job_name": "gflownet",
         "jobs": None,
@@ -330,7 +460,8 @@ if __name__ == "__main__":
         "modules": "anaconda/3 cuda/11.3",
         "outdir": "$SCRATCH/gflownet/logs/slurm",
         "partition": "long",
-        "template": ROOT / "sbatch" / "template-conda.sh",
+        "template": "$root/mila/sbatch/template-conda.sh",
+        "time": "0",
         "venv": None,
         "verbose": False,
     }
@@ -380,6 +511,13 @@ if __name__ == "__main__":
         + f" Defaults to {defaults['partition']}",
     )
     parser.add_argument(
+        "--time",
+        type=str,
+        help="wall clock time limit (e.g. 2-12:00:00). "
+        + "See: https://slurm.schedmd.com/sbatch.html#OPT_time"
+        + f" Defaults to {defaults['time']}",
+    )
+    parser.add_argument(
         "--modules",
         type=str,
         help="string after 'module load'." + f" Defaults to {defaults['modules']}",
@@ -396,15 +534,29 @@ if __name__ == "__main__":
         + f" Defaults to {defaults['venv']}",
     )
     parser.add_argument(
+        "--template",
+        type=str,
+        help="path to sbatch template." + f" Defaults to {defaults['template']}",
+    )
+    parser.add_argument(
         "--code_dir",
         type=str,
         help="cd before running main.py (defaults to here)."
         + f" Defaults to {defaults['code_dir']}",
     )
     parser.add_argument(
+        "--git_checkout",
+        type=str,
+        help="Branch or commit to checkout before running the code."
+        + " This is only used if --code_dir='$SLURM_TMPDIR'. If not specified, "
+        + " the current branch is used."
+        + f" Defaults to {defaults['git_checkout']}",
+    )
+    parser.add_argument(
         "--jobs",
         type=str,
-        help="run file name in external/jobs (with or without .yaml)."
+        help="jobs (nested) file name in external/jobs (with or without .yaml)."
+        + " Or an absolute path to a yaml file anywhere"
         + f" Defaults to {defaults['jobs']}",
     )
     parser.add_argument(
@@ -455,7 +607,7 @@ if __name__ == "__main__":
         outdir.mkdir(parents=True, exist_ok=True)
 
     # find jobs config file in external/jobs as a yaml file
-    jobs_conf_path = find_jobs_conf(args)
+    jobs_conf_path, local_out_dir = find_jobs_conf(args)
     # load yaml file as list of dicts. May be empty if jobs_conf_path is None
     job_dicts = load_jobs(jobs_conf_path)
     # No run passed in the CLI args or in the associated yaml file so run the
@@ -465,6 +617,7 @@ if __name__ == "__main__":
 
     # Save submitted jobs ids
     job_ids = []
+    job_out_files = []
 
     # A unique datetime identifier for the jobs about to be submitted
     now = now_str()
@@ -475,21 +628,17 @@ if __name__ == "__main__":
             sys.exit(0)
         print()
 
-    local_out_dir = ROOT / "external" / "launched_sbatch_scripts"
-    if jobs_conf_path is not None:
-        local_out_dir = local_out_dir / jobs_conf_path.parent.relative_to(
-            ROOT / "external" / "jobs"
-        )
-    else:
-        local_out_dir = local_out_dir / "_other_"
-
     for i, job_dict in enumerate(job_dicts):
         job_args = defaults.copy()
         job_args = deep_update(job_args, job_dict.pop("slurm", {}))
         job_args = deep_update(job_args, job_dict)
         job_args = deep_update(job_args, args)
 
-        job_args["code_dir"] = str(resolve(job_args["code_dir"]))
+        job_args["code_dir"] = (
+            str(resolve(job_args["code_dir"]))
+            if "SLURM_TMPDIR" not in job_args["code_dir"]
+            else code_dir_for_slurm_tmp_dir_checkout(job_args.get("git_checkout"))
+        )
         job_args["outdir"] = str(resolve(job_args["outdir"]))
         job_args["venv"] = str(resolve(job_args["venv"]))
         job_args["main_args"] = script_dict_to_main_args_str(job_args.get("script", {}))
@@ -521,19 +670,29 @@ if __name__ == "__main__":
             sbatch_path.parent.mkdir(parents=True, exist_ok=True)
             # write template
             sbatch_path.write_text(templated)
-            print(f"  🏷  Created ./{sbatch_path.relative_to(Path.cwd())}")
+            print()
             # Submit job to SLURM
-            out = popen(f"sbatch {sbatch_path}").read()
+            out = popen(f"sbatch {sbatch_path}").read().strip()
             # Identify printed-out job id
             job_id = re.findall(r"Submitted batch job (\d+)", out)[0]
             job_ids.append(job_id)
             print("  ✅ " + out)
+            # Rename sbatch file with job id
+            parts = sbatch_path.stem.split(f"_{now}")
+            new_name = f"{parts[0]}_{job_id}_{now}"
+            if len(parts) > 1:
+                new_name += f"_{parts[1]}"
+            sbatch_path = sbatch_path.rename(sbatch_path.parent / new_name)
+            print(f"  🏷  Created ./{sbatch_path.relative_to(Path.cwd())}")
             # Write job ID & output file path in the sbatch file
+            job_output_file = str(outdir / f"{job_args['job_name']}-{job_id}.out")
+            job_out_files.append(job_output_file)
+            print("  📝  Job output file will be: " + job_output_file)
             templated += (
                 "\n# SLURM_JOB_ID: "
                 + job_id
                 + "\n# Output file: "
-                + str(outdir / f"{job_args['job_name']}-{job_id}.out")
+                + job_output_file
                 + "\n"
             )
             sbatch_path.write_text(templated)
@@ -559,10 +718,15 @@ if __name__ == "__main__":
         new_conf_path = local_out_dir / f"{jobs_conf_path.stem}_{now}.yaml"
         new_conf_path.parent.mkdir(parents=True, exist_ok=True)
         conf += "\n# " + jobs_str + "\n"
-        new_conf_path.write_text(conf)
+        conf += (
+            "\n# Job Output files:\n#"
+            + "\n#".join([f"  • {f}" for f in job_out_files])
+            + "\n"
+        )
         rel = new_conf_path.relative_to(Path.cwd())
         if not dry_run:
-            print(f"   Created summary YAML in ./{rel}")
+            new_conf_path.write_text(conf)
+            print(f"   Created summary YAML in {rel}")
 
     if job_ids:
         print(f"   {jobs_str}\n")

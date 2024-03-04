@@ -26,8 +26,8 @@ class Batch:
     Important note: one env should correspond to only one trajectory, all env_id should
     be unique.
 
-    Note: self.state_indices start by index 1 to indicate that index 0 would correspond
-    to the source state but the latter is not stored in the batch for each trajectory.
+    Note: self.state_indices start from index 1 to indicate that index 0 would correspond
+    to the source state, but the latter is not stored in the batch for each trajectory.
     This implies that one has to be careful when indexing the list of batch_indices in
     self.trajectories by using self.state_indices. For example, the batch index of
     state state_idx of trajectory traj_idx is self.trajectories[traj_idx][state_idx-1]
@@ -88,12 +88,14 @@ class Batch:
         self.states_policy = None
         self.parents_policy = None
         # Flags for available items
-        self.parents_available = True
+        self.parents_available = False
         self.parents_policy_available = False
         self.parents_all_available = False
         self.masks_forward_available = False
         self.masks_backward_available = False
         self.rewards_available = False
+        self.rewards_parents_available = False
+        self.rewards_source_available = False
 
     def __len__(self):
         return self.size
@@ -129,7 +131,7 @@ class Batch:
 
     def set_env(self, env: GFlowNetEnv):
         """
-        Sets the generic environment passed as an argument an initializes the
+        Sets the generic environment passed as an argument and initializes the
         environment-dependent properties.
         """
         self.env = env.copy().reset()
@@ -168,7 +170,7 @@ class Batch:
 
         backward : bool
             A boolean value indicating whether the action was sampled backward (False
-            by dfefault). If True, the behavior is slightly different so as to match
+            by default). If True, the behavior is slightly different so as to match
             what is stored in forward sampling:
                 - If it is the first state in the trajectory (action from a done
                   state/env), then done is stored as True, instead of taking env.done
@@ -250,17 +252,57 @@ class Batch:
         """
         return len(self.trajectories)
 
-    def get_trajectory_indices(self) -> TensorType["n_states", int]:
+    def get_unique_trajectory_indices(self) -> List:
+        """
+        Returns the unique trajectory indices as the keys of self.trajectories, which
+        is an OrderedDict, as a list.
+        """
+        return list(self.trajectories.keys())
+
+    def get_trajectory_indices(
+        self, consecutive: bool = False, return_mapping_dict: bool = False
+    ) -> TensorType["n_states", int]:
         """
         Returns the trajectory index of all elements in the batch as a long int torch
         tensor.
+
+        Args
+        ----
+        consecutive : bool
+            If True, the trajectory indices are mapped to consecutive indices starting
+            from 0, in the order of the OrderedDict self.trajectory.keys(). If False
+            (default), the trajectory indices are returned as they are.
+
+        return_mapping_dict : bool
+            If True, the dictionary mapping actual_index: consecutive_index is returned
+            as a second argument. Ignored if consecutive is False.
 
         Returns
         -------
         traj_indices : torch.tensor
             self.traj_indices as a long int torch tensor.
+
+        traj_index_to_consecutive_dict : dict
+            A dictionary mapping the actual trajectory indices in the Batch to the
+            consecutive indices. Ommited if return_mapping_dict is False (default).
         """
-        return tlong(self.traj_indices, device=self.device)
+        if consecutive:
+            traj_index_to_consecutive_dict = {
+                traj_idx: consecutive
+                for consecutive, traj_idx in enumerate(self.trajectories)
+            }
+            traj_indices = list(
+                map(lambda x: traj_index_to_consecutive_dict[x], self.traj_indices)
+            )
+        else:
+            traj_indices = self.traj_indices
+        if return_mapping_dict and consecutive:
+            return (
+                tlong(traj_indices, device=self.device),
+                traj_index_to_consecutive_dict,
+            )
+        else:
+            return tlong(traj_indices, device=self.device)
 
     def get_state_indices(self) -> TensorType["n_states", int]:
         """
@@ -321,7 +363,7 @@ class Batch:
 
     def states2policy(
         self,
-        states: Optional[Union[List, TensorType["n_states", "..."]]] = None,
+        states: Optional[Union[List[List], List[TensorType["n_states", "..."]]]] = None,
         traj_indices: Optional[Union[List, TensorType["n_states"]]] = None,
     ) -> TensorType["n_states", "state_policy_dims"]:
         """
@@ -330,8 +372,8 @@ class Batch:
 
         Args
         ----
-        states: list or torch.tensor
-            States in GFlowNet format.
+        states: list
+            List of states in GFlowNet format.
 
         traj_indices: list or torch.tensor
             Ids indicating which env corresponds to each state in states. It is only
@@ -368,16 +410,11 @@ class Batch:
                     self.get_states_of_trajectory(traj_idx, states, traj_indices)
                 )
             return states_policy
-        # TODO: do we need tfloat or is done in env.statebatch2policy?
-        return tfloat(
-            self.env.statebatch2policy(states),
-            device=self.device,
-            float_type=self.float,
-        )
+        return self.env.states2policy(states)
 
     def states2proxy(
         self,
-        states: Optional[Union[List, TensorType["n_states", "..."]]] = None,
+        states: Optional[Union[List[List], List[TensorType["n_states", "..."]]]] = None,
         traj_indices: Optional[Union[List, TensorType["n_states"]]] = None,
     ) -> Union[
         TensorType["n_states", "state_proxy_dims"], npt.NDArray[np.float32], List
@@ -391,8 +428,8 @@ class Batch:
 
         Args
         ----
-        states: list or torch.tensor
-            States in GFlowNet format.
+        states: list
+            List of states in GFlowNet format.
 
         traj_indices: list or torch.tensor
             Ids indicating which env corresponds to each state in states. It is only
@@ -421,7 +458,7 @@ class Batch:
                 if traj_idx not in traj_indices:
                     continue
                 states_proxy.append(
-                    self.envs[traj_idx].statebatch2proxy(
+                    self.envs[traj_idx].states2proxy(
                         self.get_states_of_trajectory(traj_idx, states, traj_indices)
                     )
                 )
@@ -431,7 +468,7 @@ class Batch:
             index[perm_index] = index.clone()
             states_proxy = concat_items(states_proxy, index)
             return states_proxy
-        return self.env.statebatch2proxy(states)
+        return self.env.states2proxy(states)
 
     def get_actions(self) -> TensorType["n_states, action_dim"]:
         """
@@ -481,33 +518,63 @@ class Batch:
         else:
             return self.parents
 
+    def get_parents_indices(self):
+        """
+        Returns the indices of the parents of the states in the batch.
+
+        Each i-th item in the returned list contains the index in self.states that
+        contains the parent of self.states[i], if it is present there. If a parent
+        is not present in self.states (because it is the source), the index is -1.
+
+        Returns
+        -------
+        self.parents_indices
+            The indices in self.states of the parents of self.states.
+        """
+        if self.parents_available is False:
+            self._compute_parents()
+        return self.parents_indices
+
     def _compute_parents(self):
         """
-        Obtains the parent (single parent for each state) of all states in the batch.
+        Obtains the parent (single parent for each state) of all states in the batch
+        and its index.
+
         The parents are computed, obtaining all necessary components, if they are not
         readily available. Missing components and newly computed components are added
-        to the batch (self.component is set). The following variable is stored:
+        to the batch (self.component is set). The following variables are stored:
 
         - self.parents: the parent of each state in the batch. It will be the same type
           as self.states (list of lists or tensor)
             Length: n_states
             Shape: [n_states, state_dims]
+        - self.parents_indices: the position of each parent in self.states tensor. If a
+          parent is not present in self.states (i.e. it is source), the corresponding
+          index is -1.
 
         self.parents_available is set to True.
         """
         self.parents = []
+        self.parents_indices = []
         indices = []
         # Iterate over the trajectories to obtain the parents from the states
         for traj_idx, batch_indices in self.trajectories.items():
             # parent is source
             self.parents.append(self.envs[traj_idx].source)
+            # there's no source state in the batch
+            self.parents_indices.append(-1)
             # parent is not source
             # TODO: check if tensor and sort without iter
             self.parents.extend([self.states[idx] for idx in batch_indices[:-1]])
+            self.parents_indices.extend(batch_indices[:-1])
             indices.extend(batch_indices)
         # Sort parents list in the same order as states
         # TODO: check if tensor and sort without iter
         self.parents = [self.parents[indices.index(idx)] for idx in range(len(self))]
+        self.parents_indices = tlong(
+            [self.parents_indices[indices.index(idx)] for idx in range(len(self))],
+            device=self.device,
+        )
         self.parents_available = True
 
     # TODO: consider converting directly from self.parents
@@ -630,7 +697,7 @@ class Batch:
                 action=action,
             )
             assert (
-                action in parents_a
+                self.env.action2representative(action) in parents_a
             ), f"""
             Sampled action is not in the list of valid actions from parents.
             \nState:\n{state}\nAction:\n{action}
@@ -638,13 +705,7 @@ class Batch:
             self.parents_all.extend(parents)
             self.parents_actions_all.extend(parents_a)
             self.parents_all_indices.extend([idx] * len(parents))
-            self.parents_all_policy.append(
-                tfloat(
-                    self.envs[traj_idx].statebatch2policy(parents),
-                    device=self.device,
-                    float_type=self.float,
-                )
-            )
+            self.parents_all_policy.append(self.envs[traj_idx].states2policy(parents))
         # Convert to tensors
         self.parents_actions_all = tfloat(
             self.parents_actions_all,
@@ -710,9 +771,9 @@ class Batch:
             masks_invalid_actions_forward_parents[parents_indices == -1] = self.source[
                 "mask_forward"
             ]
-            masks_invalid_actions_forward_parents[
-                parents_indices != -1
-            ] = masks_invalid_actions_forward[parents_indices[parents_indices != -1]]
+            masks_invalid_actions_forward_parents[parents_indices != -1] = (
+                masks_invalid_actions_forward[parents_indices[parents_indices != -1]]
+            )
             return masks_invalid_actions_forward_parents
         return masks_invalid_actions_forward
 
@@ -779,7 +840,9 @@ class Batch:
         self.masks_backward_available = True
 
     def get_rewards(
-        self, force_recompute: Optional[bool] = False
+        self,
+        force_recompute: Optional[bool] = False,
+        do_non_terminating: Optional[bool] = False,
     ) -> TensorType["n_states"]:
         """
         Returns the rewards of all states in the batch (including not done).
@@ -788,29 +851,100 @@ class Batch:
         ----
         force_recompute : bool
             If True, the rewards are recomputed even if they are available.
+
+        do_non_terminating : bool
+            If True, compute the rewards of the non-terminating states instead of
+            assigning reward 0.
         """
         if self.rewards_available is False or force_recompute is True:
-            self._compute_rewards()
+            self._compute_rewards(do_non_terminating)
         return self.rewards
 
-    def _compute_rewards(self):
+    def _compute_rewards(self, do_non_terminating: Optional[bool] = False):
         """
         Computes rewards for all self.states by first converting the states into proxy
-        format.
+        format. The result is stored in self.rewards as a torch.tensor
+
+        Args
+        ----
+        do_non_terminating : bool
+            If True, compute the rewards of the non-terminating states instead of
+            assigning reward 0.
+        """
+
+        if do_non_terminating:
+            self.rewards = self.env.proxy2reward(self.env.proxy(self.states2proxy()))
+        else:
+            self.rewards = torch.zeros(len(self), dtype=self.float, device=self.device)
+            done = self.get_done()
+            if len(done) > 0:
+                states_proxy_done = self.get_terminating_states(proxy=True)
+                self.rewards[done] = self.env.proxy2reward(
+                    self.env.proxy(states_proxy_done)
+                )
+        self.rewards_available = True
+
+    def get_rewards_parents(self) -> TensorType["n_states"]:
+        """
+        Returns the rewards of all parents in the batch.
 
         Returns
         -------
-        rewards: torch.tensor
-            Tensor of rewards.
+        self.rewards_parents
+            A tensor containing the rewards of the parents of self.states.
         """
-        states_proxy_done = self.get_terminating_states(proxy=True)
-        self.rewards = torch.zeros(len(self), dtype=self.float, device=self.device)
-        done = self.get_done()
-        if len(done) > 0:
-            self.rewards[done] = self.env.proxy2reward(
-                self.env.proxy(states_proxy_done)
-            )
-        self.rewards_available = True
+        if not self.rewards_parents_available:
+            self._compute_rewards_parents()
+        return self.rewards_parents
+
+    def _compute_rewards_parents(self):
+        """
+        Computes the rewards of self.parents by reusing the rewards of the states
+        (self.rewards).
+
+        Stores the result in self.rewards_parents.
+        """
+        # TODO: this may return zero rewards for all parents if before
+        # rewards for states were computed with do_non_terminating=False
+        state_rewards = self.get_rewards(do_non_terminating=True)
+        self.rewards_parents = torch.zeros_like(state_rewards)
+        parent_indices = self.get_parents_indices()
+        parent_is_source = parent_indices == -1
+        self.rewards_parents[~parent_is_source] = self.rewards[
+            parent_indices[~parent_is_source]
+        ]
+        rewards_source = self.get_rewards_source()
+        self.rewards_parents[parent_is_source] = rewards_source[parent_is_source]
+        self.rewards_parents_available = True
+
+    def get_rewards_source(self) -> TensorType["n_states"]:
+        """
+        Returns rewards of the corresponding source states for each state in the batch.
+
+        Returns
+        -------
+        self.rewards_source
+            A tensor containing the rewards the source states.
+        """
+        if not self.rewards_source_available:
+            self._compute_rewards_source()
+        return self.rewards_source
+
+    def _compute_rewards_source(self):
+        """
+        Computes a tensor of length len(self.states) with the rewards of the
+        corresponding source states.
+
+        Stores the result in self.rewards_source.
+        """
+        # This will not work if source is randomised
+        if not self.conditional:
+            source_proxy = self.env.state2proxy(self.env.source)
+            reward_source = self.env.proxy2reward(self.env.proxy(source_proxy))
+            self.rewards_source = reward_source.expand(len(self))
+        else:
+            raise NotImplementedError
+        self.rewards_source_available = True
 
     def get_terminating_states(
         self,
@@ -911,6 +1045,10 @@ class Batch:
         return self.rewards[indices][done]
 
     def get_actions_trajectories(self) -> List[List[Tuple]]:
+        """
+        Returns the actions corresponding to all trajectories in the batch, sorted by
+        trajectory index (the order in the ordered dict self.trajectories).
+        """
         actions_trajectories = []
         for batch_indices in self.trajectories.values():
             actions_trajectories.append([self.actions[idx] for idx in batch_indices])
@@ -927,7 +1065,27 @@ class Batch:
         TensorType["n_states", "state_proxy_dims"], npt.NDArray[np.float32], List
     ]:
         """
-        TODO: docstring
+        Returns the states of the trajectory indicated by traj_idx. If states and
+        traj_indices are not None, then these will be the only states and trajectory
+        indices considered.
+
+        See: states2policy()
+        See: states2proxy()
+
+        Args
+        ----
+        traj_idx : int
+            Index of the trajectory from which to return the states.
+
+        states : tensor, array or list
+            States from the trajectory to consider.
+
+        traj_indices : tensor, array or list
+            Trajectory indices of the trajectory to consider.
+
+        Returns
+        -------
+        Tensor, array or list of states of the requested trajectory.
         """
         # TODO: re-implement using the batch indices in self.trajectories[traj_idx]
         # If either states or traj_indices are not None, both must be the same type and
@@ -1041,6 +1199,46 @@ class Batch:
         if len(np.unique(batch_indices)) != len(batch_indices):
             return False
         return True
+
+    def traj_indices_are_consecutive(self) -> bool:
+        """
+        Returns True if the trajectory indices start from 0 and are consecutive; False
+        otherwise.
+        """
+        trajectories_consecutive = list(self.trajectories) == list(
+            np.arange(self.get_n_trajectories())
+        )
+        envs_consecutive = list(self.envs) == list(np.arange(self.get_n_trajectories()))
+        return trajectories_consecutive and envs_consecutive
+
+    def make_indices_consecutive(self):
+        """
+        Updates the trajectory indices as well as the env ids such that they start from
+        0 and are consecutive. Note that only the trajectory indices are changed, but
+        importantly the order of the main data in the batch is preserved.
+
+        Examples:
+
+        - Original indices: 0, 10, 20
+        - New indices: 0, 1, 2
+
+        - Original indices: 1, 5, 3
+        - New indices: 0, 1, 2
+
+        Note: this method is unsued as of September 1st 2023, but is left here for
+        potential future use.
+        """
+        if self.traj_indices_are_consecutive():
+            return
+        self.traj_indices = self.get_trajectory_indices(consecutive=True).tolist()
+        self.trajectories = OrderedDict(
+            zip(range(self.get_n_trajectories()), self.trajectories.values())
+        )
+        self.envs = OrderedDict(
+            {idx: env.set_id(idx) for idx, env in enumerate(self.envs.values())}
+        )
+        assert self.traj_indices_are_consecutive()
+        assert self.is_valid()
 
     def _shift_indices(self, traj_shift: int, batch_shift: int):
         """
