@@ -259,7 +259,7 @@ def gflownet_from_config(config):
     )
 
     # The evaluator is used to compute metrics and plots
-    evaluator = instantiate(config.eval)
+    evaluator = instantiate(config.evaluator)
 
     # The policy is used to model the probability of a forward/backward action
     forward_config = parse_policy_config(config, kind="forward")
@@ -303,7 +303,6 @@ def gflownet_from_config(config):
         buffer=config.env.buffer,
         logger=logger,
         evaluator=evaluator,
-        full_config=config,
     )
 
     return gflownet

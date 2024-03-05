@@ -46,7 +46,7 @@ def main(config):
         float_precision=config.float_precision,
     )
     # The evaluator is used to compute metrics and plots
-    evaluator = hydra.utils.instantiate(config.eval)
+    evaluator = hydra.utils.instantiate(config.evaluator)
     # The policy is used to model the probability of a forward/backward action
     forward_config = parse_policy_config(config, kind="forward")
     backward_config = parse_policy_config(config, kind="backward")
