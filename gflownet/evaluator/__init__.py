@@ -1,6 +1,22 @@
 """
-Create a new evaluator by subclassing this class and extending the :meth:`eval`
-method to add more metrics and plots.
+An ``Evaluator`` is a class that is used to compute metrics and plots.
+It serves two complementary purposes:
+
+1. It is used to evaluate the performance of the agent during training and to log the
+   results.
+2. It is intended to be used to evaluate the performance of a trained agent, from a
+   directory containing the agent's checkpoints for instance.
+
+.. note::
+
+    This dual use explains some seaminlgy redundant methods / or arguments to methods.
+
+    For instance in :`gflownet.evaluator.abstract.AbstractEvaluator.eval` the
+    ``metrics`` argument will never change during the training of a GflowNet (it will
+    always be ``None``, *i.e.* inherited from the config file) but a user looking to
+    evaluate a trained agent may want to specify different metrics to compute without
+    altering the config file.
+
 
 .. important::
 
