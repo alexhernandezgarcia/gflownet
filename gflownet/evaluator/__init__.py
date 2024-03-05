@@ -122,7 +122,7 @@ override the following methods:
 By default, the training loop will call the ``eval_and_log`` method which itself calls
 the ``eval`` method to log the metrics, and the ``plot`` method to log the figures:
 
-..code-block:: python
+.. code-block:: python
 
     def eval_and_log(self, metrics=None, **plot_kwargs):
         results = self.eval(metrics=metrics)
