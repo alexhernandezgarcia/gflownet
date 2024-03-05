@@ -11,7 +11,7 @@ It serves two complementary purposes:
 
     This dual use explains some seaminlgy redundant methods / or arguments to methods.
 
-    For instance in :`gflownet.evaluator.abstract.AbstractEvaluator.eval` the
+    For instance in :meth:`gflownet.evaluator.abstract.AbstractEvaluator.eval` the
     ``metrics`` argument will never change during the training of a GflowNet (it will
     always be ``None``, *i.e.* inherited from the config file) but a user looking to
     evaluate a trained agent may want to specify different metrics to compute without
@@ -111,10 +111,39 @@ Using an Evaluator
 Implementing your own evaluator
 -------------------------------
 
+In general, you will inherit from :class:`~gflownet.evaluator.base.BaseEvaluator` and
+override the following methods:
+
+* ``define_new_metrics``: define new metrics and associated requirements.
+* ``eval``: compute the metrics and return them as a ``dict``:
+  `` {"metrics": {metric_name: metric_value}, "data": {str: Any}}``.
+* ``plot``: return a ``dict`` of figures as ``{figure_title: figure}``.
+
+By default, the training loop will call the ``eval_and_log`` method which itself calls
+the ``eval`` method to log the metrics, and the ``plot`` method to log the figures:
+
+..code-block:: python
+
+    def eval_and_log(self, metrics=None, **plot_kwargs):
+        results = self.eval(metrics=metrics)
+        for m, v in results["metrics"].items():
+            setattr(self.gfn, m, v)
+
+        mertics_to_log = {
+            METRICS[k]["display_name"]: v for k, v in results["metrics"].items()
+        }
+
+        figs = self.plot(**results["data"])
+
+        self.logger.log_metrics(mertics_to_log, it, self.gfn.use_context)
+        self.logger.log_plots(figs, it, use_context=self.gfn.use_context)
+
+Example implementation:
+
 .. code-block:: python
 
     # gflownet/evaluator/my_evaluator.py
-    from gflownet.evaluator.base import BaseEvaluator, METRICS, ALL_REQS
+    from gflownet.evaluator.base import BaseEvaluator
 
     class MyEvaluator(BaseEvaluator):
         def define_new_metrics(self):
@@ -122,12 +151,12 @@ Implementing your own evaluator
             This method is called when the class is instantiated and is used to update
             the global METRICS and ALL_REQS variables.
             '''
-            return {
-                "your_metric": {
-                    "display_name": "My custom metric",
-                    "requirements": ["density", "new_req"],
-                },
+            my_metrics = super().define_new_metrics()
+            my_metrics["new_metric"] = {
+                "display_name": "My custom metric",
+                "requirements": ["density", "new_req"],
             }
+            return my_metrics
 
 
         def my_custom_metric(self, some, arguments):
