@@ -134,6 +134,7 @@ class Composition(GFlowNetEnv):
         self.space_group = space_group
         self.do_charge_check = do_charge_check
         self.do_spacegroup_check = do_spacegroup_check
+        self.elem2idx = {el: idx for idx, el in enumerate(self.elements)}
         # Source state: empty dict
         self.source = {}
         # End-of-sequence action
@@ -453,13 +454,13 @@ class Composition(GFlowNetEnv):
         -------
         A tensor containing all the states in the batch.
         """
-        # Create dummy column at index 0 to enable indexing directly with list
-        states_policy = np.zeros((len(states), len(self.elements) + 1))
+        states_policy = np.zeros((len(states), len(self.elements)))
         for idx, state in enumerate(states):
             if len(state) == 0:
                 continue
-            states_policy[idx, list(state.keys())] = list(state.values())
-        return tfloat(states_policy[:, 1:], device=self.device, float_type=self.float)
+            indices_elements = [self.elem2idx[el] for el in state]
+            states_policy[idx, indices_elements] = list(state.values())
+        return tfloat(states_policy, device=self.device, float_type=self.float)
 
     def state2readable(self, state=None):
         """

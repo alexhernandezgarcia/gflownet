@@ -17,6 +17,15 @@ def env():
 
 
 @pytest.fixture
+def env_restricted_elements():
+    return Composition(
+        elements=[1, 3],
+        alphabet={1: "H", 2: "He", 3: "Li", 4: "Be"},
+        oxidation_states={1: [-1, 0, 1], 2: [0], 3: [0, 1], 4: [0, 1, 2]},
+    )
+
+
+@pytest.fixture
 def env_with_spacegroup():
     return Composition(
         elements=4,
@@ -160,6 +169,25 @@ def test__state2policy__returns_expected_tensor(env, state, exp_tensor):
     ],
 )
 def test__states2policy__returns_expected_tensor(env, batch, exp_tensor):
+    assert torch.equal(
+        env.states2policy(batch),
+        tfloat(exp_tensor, device=env.device, float_type=env.float),
+    )
+
+
+@pytest.mark.parametrize(
+    "batch, exp_tensor",
+    [
+        (
+            [{3: 2}, {1: 3}, {1: 3, 3: 2}, {}],
+            [[0, 2], [3, 0], [3, 2], [0, 0]],
+        ),
+    ],
+)
+def test__states2policy__restricted_elements__returns_expected_tensor(
+    env_restricted_elements, batch, exp_tensor
+):
+    env = env_restricted_elements
     assert torch.equal(
         env.states2policy(batch),
         tfloat(exp_tensor, device=env.device, float_type=env.float),
