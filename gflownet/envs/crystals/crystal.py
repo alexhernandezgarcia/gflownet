@@ -11,6 +11,7 @@ from collections import OrderedDict
 from enum import Enum
 from typing import Dict, List, Optional, Tuple, Union
 
+import pandas as pd
 import torch
 from torch import Tensor
 from torchtyping import TensorType
@@ -157,13 +158,48 @@ class Crystal(Stack):
             dim=1,
         )
 
-    # TODO: this could eventually be moved to Stack
-    def process_data_set(self, data: List[List]) -> List[List]:
+    def process_data_set(self, df: pd.DataFrame) -> List[List]:
+        """
+        Converts a data set passed as a pandas DataFrame into a list of states in
+        environment format.
+
+        The DataFrame is expected to have the following columns:
+            - Formulae: non-reduced formulae of the composition
+            - Space Group: international number of the space group
+            - a, b, c, alpha, beta, gamma: lattice parameters
+
+        Parameters
+        ----------
+        df : DataFrame
+            A pandas DataFrame containing the necessary columns to represent a crystal
+            as described above.
+
+        Returns
+        -------
+        list
+            A list of states in environment format.
+        """
         data_valid = []
-        for x in data:
+        for row in df.iterrows():
+            # Index 0 is the row index; index 1 is the remaining columns
+            row = row[1]
+            state = {}
+            state[self.stage_composition] = self.subenvs[
+                self.stage_composition
+            ].readable2state(row["Formulae"])
+            state[self.stage_spacegroup] = self.subenvs[
+                self.stage_spacegroup
+            ]._set_constrained_properties([0, 0, row["Space Group"]])
+            state[self.stage_latticeparameters] = [
+                row["a"],
+                row["b"],
+                row["c"],
+                row["alpha"],
+                row["beta"],
+                row["gamma"],
+            ]
             is_valid_subenvs = [
-                subenv.is_valid(self._get_substate(x, stage))
-                for stage, subenv in self.subenvs.items()
+                subenv.is_valid(state[stage]) for stage, subenv in self.subenvs.items()
             ]
             if all(is_valid_subenvs):
                 data_valid.append(x)

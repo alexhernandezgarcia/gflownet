@@ -421,6 +421,20 @@ class SpaceGroup(GFlowNetEnv):
         return len(self.source) + 1
 
     def _set_constrained_properties(self, state: List[int]) -> List[int]:
+        """
+        Sets the missing properties in a state that can be determined from the existing
+        properties in the input state.
+
+        Parameters
+        ----------
+        state : list
+            A state in environment format.
+
+        Returns
+        -------
+        list
+            The updated state.
+        """
         cls_idx, ps_idx, sg_idx = state
         if sg_idx != 0:
             if cls_idx == 0:
