@@ -27,7 +27,10 @@ N_ELEMENTS_ORACLE = 94
 
 class Composition(GFlowNetEnv):
     """
-    Composition environment for crystal materials
+    Composition environment for crystal materials.
+
+    States are represented as a dictionary where the keys are the atomic numbers of the
+    elements and the values the number of atoms per element.
     """
 
     def __init__(
@@ -133,8 +136,8 @@ class Composition(GFlowNetEnv):
         self.do_spacegroup_check = do_spacegroup_check
         self.elem2idx = {e: i for i, e in enumerate(self.elements)}
         self.idx2elem = {i: e for i, e in enumerate(self.elements)}
-        # Source state: 0 atoms for all elements
-        self.source = [0 for _ in self.elements]
+        # Source state: empty dict
+        self.source = {}
         # End-of-sequence action
         self.eos = (-1, -1)
         super().__init__(**kwargs)
@@ -180,7 +183,7 @@ class Composition(GFlowNetEnv):
             trajectory.
         """
         space_group = get_space_group(self.space_group)
-        n_atoms = [s for s in state if s > 0]
+        n_atoms = list(state.values())
 
         # Get the greated common divisor of the group's wyckoff position.
         # It cannot be valid to add a number of atoms that is not a
@@ -249,13 +252,13 @@ class Composition(GFlowNetEnv):
             return [True for _ in range(self.action_space_dim)]
 
         mask = [False] * self.action_space_dim
-        used_elements = [self.idx2elem[i] for i, e in enumerate(state) if e > 0]
+        used_elements = list(state.keys())
         unused_required_elements = [
             e for e in self.required_elements if e not in used_elements
         ]
         n_used_elements = len(used_elements)
         n_unused_required_elements = len(unused_required_elements)
-        n_used_atoms = sum(state)
+        n_used_atoms = sum(state.values())
 
         if self.do_spacegroup_check and isinstance(self.space_group, int):
             space_group = get_space_group(self.space_group)
@@ -271,7 +274,7 @@ class Composition(GFlowNetEnv):
 
             # Determine if the current composition is compatible with the
             # space group
-            n_atoms = [s for s in state if s > 0]
+            n_atoms = list(state.values())
             sg_compatible = space_group_check_compatible(self.space_group, n_atoms)
         else:
             # Don't impose additional constraints on the min/max number of
@@ -391,7 +394,7 @@ class Composition(GFlowNetEnv):
             action_start_idx = element_idx * nb_actions_per_element
             action_end_idx = action_start_idx + nb_actions_per_element
             # Set the mask for the actions associated with this element
-            if state[element_idx] > 0:
+            if element in state:
                 # This element has already been added, we cannot add more
                 mask[action_start_idx:action_end_idx] = [True] * nb_actions_per_element
             elif element in unused_required_elements:
@@ -406,7 +409,7 @@ class Composition(GFlowNetEnv):
         return mask
 
     def states2proxy(
-        self, states: Union[List[List], TensorType["batch", "state_dim"]]
+        self, states: List[dict]
     ) -> TensorType["batch", "state_proxy_dim"]:
         """
         Prepares a batch of states in "environment format" for the proxy: The output is
@@ -424,43 +427,68 @@ class Composition(GFlowNetEnv):
         -------
         A tensor containing all the states in the batch.
         """
-        states = tlong(states, device=self.device)
-        states_proxy = torch.zeros(
-            (states.shape[0], N_ELEMENTS_ORACLE + 1),
-            device=self.device,
-            dtype=torch.long,
-        )
-        states_proxy[:, tlong(self.elements, device=self.device)] = states
-        return states_proxy
+        states_proxy = np.zeros((len(states), N_ELEMENTS_ORACLE + 1))
+        for idx, state in enumerate(states):
+            if len(state) == 0:
+                continue
+            states_proxy[idx, list(state.keys())] = list(state.values())
+        return tlong(states_proxy, device=self.device)
+
+    def states2policy(
+        self, states: List[dict]
+    ) -> TensorType["batch", "policy_input_dim"]:
+        """
+        Prepares a batch of states in "environment format" for the policy model: in
+        order to not waste memory and for backward compatibility, the policy state only
+        contains the number of atoms of the allowed elements.
+
+        For example, if self.elements is [1, 2, 3, 4]:
+            states: [{2: 1, 4: 2}, {1: 3}]
+            states2policy(states): tensor([[0, 1, 0, 2], [3, 0, 0, 0]])
+
+        Args
+        ----
+        states : list
+            A batch of states in environment format, that is a list of dictionaries.
+
+        Returns
+        -------
+        A tensor containing all the states in the batch.
+        """
+        # Create dummy column at index 0 to enable indexing directly with list
+        states_policy = np.zeros((len(states), len(self.elements) + 1))
+        for idx, state in enumerate(states):
+            if len(state) == 0:
+                continue
+            states_policy[idx, list(state.keys())] = list(state.values())
+        return tfloat(states_policy[:, 1:], device=self.device, float_type=self.float)
 
     def state2readable(self, state=None):
         """
-        Transforms the state, represented as a list of elements' counts, into a
-        human-readable version: a non-reduced formula, following the Hill system.
+        Transforms the state, represented as a dictionary of element: n_atoms key-value
+        pairs, into a human-readable version: a non-reduced formula, following the Hill
+        system.
 
         See: https://en.wikipedia.org/wiki/Chemical_formula#Hill_system
 
         Example:
-            state: [2, 0, 1, 0]
-            self.alphabet: {1: "H", 2: "He", 3: "Li", 4: "Be"}
+            state: {1: 2, 3: 1}
+                1: atomic number of H
+                3: atomic number of Li
             output: H2Li1
         """
         if state is None:
             state = self.state
-        elements_atoms_dict = {
-            self.alphabet[self.idx2elem[i]]: s_i
-            for i, s_i in enumerate(state)
-            if s_i > 0
-        }
+        state_elements = {self.alphabet[el]: n for el, n in state.items()}
         formula = ""
-        if "C" in elements_atoms_dict:
-            formula += "C" + str(elements_atoms_dict["C"])
-        if "H" in elements_atoms_dict:
-            formula += "H" + str(elements_atoms_dict["H"])
+        if "C" in state_elements:
+            formula += "C" + str(state_elements["C"])
+        if "H" in state_elements:
+            formula += "H" + str(state_elements["H"])
         formula += "".join(
             [
                 el + str(n)
-                for el, n in sorted(elements_atoms_dict.items())
+                for el, n in sorted(state_elements.items())
                 if el not in ["C", "H"]
             ]
         )
@@ -469,20 +497,20 @@ class Composition(GFlowNetEnv):
     def readable2state(self, readable):
         """
         Converts the readable representation of a state (a chemical formula) into the
-        standard format.
+        environment format.
 
         Example:
             readable: H2Li1
             self.alphabet: {1: "H", 2: "He", 3: "Li", 4: "Be"}
-            output: [2, 0, 1, 0]
+            output: {1: 2, 3: 1}
         """
-        state = [0 for _ in self.elements]
+        state = {}
         offset = 0
         for match in re.finditer(r"\d+", readable):
             span = match.span(0)
             element = readable[offset : span[0]]
             n_atoms = int(readable[span[0] : span[1]])
-            state[self.elem2idx[self.alphabet_rev[element]]] = n_atoms
+            state[self.alphabet_rev[element]] = n_atoms
             offset = span[1]
         return state
 
@@ -502,10 +530,10 @@ class Composition(GFlowNetEnv):
 
         Args
         ----
-        state : list
-            Representation of a state as a list of length equal to that of
-            self.elements, where i-th value contains the count of atoms for i-th
-            element, from 0 to self.max_atoms_i.
+        state : dict
+            Representation of a state as a dictionary of element: n_atoms key-value
+            pairs. Elements whose atomic number is not a key of the dictionary have
+            zero atoms.
 
         done : bool
             Whether the trajectory is done. If None, done is taken from instance.
@@ -532,9 +560,9 @@ class Composition(GFlowNetEnv):
             actions = []
             for idx, action in enumerate(self.action_space[:-1]):
                 element, n = action
-                if state[self.elem2idx[element]] == n > 0:
+                if element in state and state[element] == n:
                     parent = state.copy()
-                    parent[self.elem2idx[element]] -= n
+                    del parent[element]
                     parents.append(parent)
                     actions.append(action)
         return parents, actions
@@ -551,7 +579,7 @@ class Composition(GFlowNetEnv):
         Returns
         -------
         self.state : list
-            The sequence after executing the action
+            The state after executing the action
 
         action : tuple
             Action executed
@@ -575,13 +603,10 @@ class Composition(GFlowNetEnv):
         # If action is not eos, then perform action
         if action != self.eos:
             element, num = action
-            idx = self.elem2idx[element]
-            state_next = self.state[:]
-            state_next[idx] = num
-            self.state = state_next
+            self.state[element] = num
             self.n_actions += 1
             return self.state, action, True
-        # If action is eos, then perform eos
+        # If action is eos, then attempt eos action
         else:
             if self.get_mask_invalid_actions_forward()[-1]:
                 valid = False
@@ -610,9 +635,7 @@ class Composition(GFlowNetEnv):
             state = self.state
 
         nums_charges = [
-            (num, self.oxidation_states[self.idx2elem[i]])
-            for i, num in enumerate(state)
-            if num > 0
+            (num, self.oxidation_states[element]) for element, num in state.items()
         ]
 
         # Process all atoms one by one, gradually accumulating a set of all possible
@@ -640,27 +663,25 @@ class Composition(GFlowNetEnv):
 
         return 0 in poss_charge_sum
 
-    def is_valid(self, x: List) -> bool:
+    def is_valid(self, x: dict) -> bool:
         """
         Determines whether a state is valid, according to the attributes of the
         environment.
         """
-        # Check length is equal to number of elements
-        if len(x) != len(self.elements):
-            return False
+        n_atoms_per_element = x.values()
         # Check total number of atoms
-        n_atoms = sum(x)
+        n_atoms = sum(n_atoms_per_element)
         if n_atoms < self.min_atoms:
             return False
         if n_atoms > self.max_atoms:
             return False
         # Check number element
-        if any([n < self.min_atom_i for n in x if n > 0]):
+        if any([n < self.min_atom_i for n in n_atoms_per_element]):
             return False
-        if any([n > self.max_atom_i for n in x if n > 0]):
+        if any([n > self.max_atom_i for n in n_atoms_per_element]):
             return False
         # Check required elements
-        used_elements = [self.idx2elem[idx] for idx, n in enumerate(x) if n > 0]
+        used_elements = list(state.keys())
         if len(used_elements) < self.min_diff_elem:
             return False
         if len(used_elements) > self.max_diff_elem:

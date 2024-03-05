@@ -4,7 +4,7 @@ import pytest
 import torch
 
 from gflownet.envs.crystals.composition import Composition
-from gflownet.utils.common import tlong
+from gflownet.utils.common import tfloat, tlong
 
 
 @pytest.fixture
@@ -31,14 +31,14 @@ def env_with_spacegroup():
 def test__environment__initializes_properly(elements):
     env = Composition(elements=elements)
 
-    assert env.state == [0] * elements
+    assert env.state == {}
 
 
 @pytest.mark.parametrize(
     "state, exp_tensor",
     [
         (
-            [0, 0, 2, 0],
+            {3: 2},
             [
                 # fmt: off
                 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -50,7 +50,7 @@ def test__environment__initializes_properly(elements):
             ],
         ),
         (
-            [3, 0, 0, 0],
+            {1: 3},
             [
                 # fmt: off
                 0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -62,7 +62,7 @@ def test__environment__initializes_properly(elements):
             ],
         ),
         (
-            [0, 1, 0, 1],
+            {2: 1, 4: 1},
             [
                 # fmt: off
                 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -80,13 +80,100 @@ def test__state2proxy__returns_expected_tensor(env, state, exp_tensor):
 
 
 @pytest.mark.parametrize(
+    "batch, exp_tensor",
+    [
+        (
+            [{3: 2}, {1: 3}, {2: 1, 4: 1}, {}],
+            [
+                # fmt: off
+                [
+                    0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                ],
+                [
+                    0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                ],
+                [
+                    0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                ],
+                [
+                    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                ],
+                # fmt: on
+            ],
+        ),
+    ],
+)
+def test__states2proxy__returns_expected_tensor(env, batch, exp_tensor):
+    assert torch.equal(
+        env.states2proxy(batch),
+        tfloat(exp_tensor, device=env.device, float_type=env.float),
+    )
+
+
+@pytest.mark.parametrize(
+    "state, exp_tensor",
+    [
+        (
+            {3: 2},
+            [0, 0, 2, 0],
+        ),
+        (
+            {1: 3},
+            [3, 0, 0, 0],
+        ),
+        (
+            {2: 1, 4: 1},
+            [0, 1, 0, 1],
+        ),
+    ],
+)
+def test__state2policy__returns_expected_tensor(env, state, exp_tensor):
+    assert torch.equal(
+        env.state2policy(state),
+        tfloat(exp_tensor, device=env.device, float_type=env.float),
+    )
+
+
+@pytest.mark.parametrize(
+    "batch, exp_tensor",
+    [
+        (
+            [{3: 2}, {1: 3}, {2: 1, 4: 1}, {}],
+            [[0, 0, 2, 0], [3, 0, 0, 0], [0, 1, 0, 1], [0, 0, 0, 0]],
+        ),
+    ],
+)
+def test__states2policy__returns_expected_tensor(env, batch, exp_tensor):
+    assert torch.equal(
+        env.states2policy(batch),
+        tfloat(exp_tensor, device=env.device, float_type=env.float),
+    )
+
+
+@pytest.mark.parametrize(
     "state, readable",
     [
-        ([2, 0, 1, 0], "H2Li1"),
-        ([2, 0, 0, 0], "H2"),
-        ([0, 0, 2, 0], "Li2"),
-        ([2, 5, 1, 16], "H2Be16He5Li1"),
-        ([0, 15, 7, 16], "Be16He15Li7"),
+        ({1: 2, 3: 1}, "H2Li1"),
+        ({1: 2}, "H2"),
+        ({3: 2}, "Li2"),
+        ({1: 2, 2: 5, 3: 1, 4: 16}, "H2Be16He5Li1"),
+        ({2: 15, 3: 7, 4: 16}, "Be16He15Li7"),
     ],
 )
 def test__state2readable(env, state, readable):
@@ -98,11 +185,11 @@ def test__state2readable(env, state, readable):
 @pytest.mark.parametrize(
     "state, readable",
     [
-        ([2, 0, 1, 0], "H2Li1"),
-        ([2, 0, 0, 0], "H2"),
-        ([0, 0, 2, 0], "Li2"),
-        ([2, 5, 1, 16], "H2Be16He5Li1"),
-        ([0, 15, 7, 16], "Be16He15Li7"),
+        ({1: 2, 3: 1}, "H2Li1"),
+        ({1: 2}, "H2"),
+        ({3: 2}, "Li2"),
+        ({1: 2, 2: 5, 3: 1, 4: 16}, "H2Be16He5Li1"),
+        ({2: 15, 3: 7, 4: 16}, "Be16He15Li7"),
     ],
 )
 def test__readable2state(env, state, readable):
@@ -188,13 +275,13 @@ def test__get_mask_invalid_actions_forward__all_false_but_eos_for_empty_state(en
 
 @pytest.mark.parametrize(
     "state",
-    [[0, 0, 0, 0], [0, 2, 0, 0], [0, 0, 0, 1], [1, 0, 1, 0]],
+    [{}, {2: 2}, {4: 1}, {1: 1, 3: 1}],
 )
 def test__get_mask_invalid_actions_forward__already_set_elements_are_masked(env, state):
     mask = env.get_mask_invalid_actions_forward(state)[:-1]
     action_space = env.action_space[:-1]
 
-    nonzero_indices = [i for i, s_i in enumerate(state) if s_i > 0]
+    nonzero_indices = list(state.keys())
 
     for i in nonzero_indices:
         for a_j, m_j in zip(action_space, mask):
