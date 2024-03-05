@@ -926,7 +926,6 @@ class GFlowNetAgent:
         probs_std: torch.tensor
             Bootstrap std of the torch.exp(logprobs_estimates)
         """
-        print("Compute logprobs...", flush=True)
         times = {}
         # Determine terminating states
         if isinstance(data, list):
@@ -960,19 +959,23 @@ class GFlowNetAgent:
         mult_indices = max(n_states, n_trajectories)
         init_batch = 0
         end_batch = min(batch_size, n_states)
-        print(
-            "Sampling backward actions from test data to estimate logprobs...",
-            flush=True,
+        pbar = tqdm(
+            total=n_states,
+            disable=not self.logger.progress,
+            leave=False,
+            desc="Sampling backward actions from test data to estimate logprobs",
         )
-        pbar = tqdm(total=n_states, disable=not self.logger.progress)
         pbar2 = trange(
-            end_batch * n_trajectories, disable=not self.logger.progress, leave=False
+            end_batch * n_trajectories,
+            disable=not self.logger.progress,
+            leave=False,
+            desc="Setting env terminal states",
         )
         while init_batch < n_states:
             batch = Batch(env=self.env, device=self.device, float_type=self.float)
             # Create an environment for each data point and trajectory and set the state
             envs = []
-            pbar2.reset()
+            pbar2.reset((end_batch - init_batch) * n_trajectories)
             for state_idx in range(init_batch, end_batch):
                 for traj_idx in range(n_trajectories):
                     idx = int(mult_indices * state_idx + traj_idx)
@@ -1029,7 +1032,6 @@ class GFlowNetAgent:
         probs_std = torch.std(torch.exp(logprobs_estimates_bs), dim=-1)
         pbar.close()
         pbar2.close()
-        print("Done computing logprobs", flush=True)
         return logprobs_estimates, logprobs_std, probs_std
 
     def train(self):
