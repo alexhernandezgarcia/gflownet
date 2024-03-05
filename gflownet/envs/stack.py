@@ -220,7 +220,7 @@ class Stack(GFlowNetEnv):
         However, if is_backward is True, then the relevant stage will be the previous
         stage if the following conditions are true:
             - The stage indicated in the state is not 0.
-            - The state of the subenv of the stage indicated by the state is not the
+            - The state of the subenv of the stage indicated by the state is the
               source state.
             - The global done is False
 
@@ -235,7 +235,7 @@ class Stack(GFlowNetEnv):
             is_backward
             and stage > 0
             and not done
-            and self.equal(state_subenv, subenv.source)
+            and subenv.equal(state_subenv, subenv.source)
         ):
             stage = stage - 1
             subenv = self.subenvs[stage]
