@@ -177,11 +177,11 @@ ogp_social_cards = {
 }
 
 
-def skip_util_classes(app, what, name, obj, skip, options):
-    return any(
-        name.startswith(f"gflownet.{p}") for p in ["envs", "proxy", "policy", "utils"]
-    )
+# def skip_util_classes(app, what, name, obj, skip, options):
+#     return any(
+#         name.startswith(f"gflownet.{p}") for p in ["envs", "proxy", "policy", "utils"]
+#     )
 
 
-def setup(sphinx):
-    sphinx.connect("autoapi-skip-member", skip_util_classes)
+# def setup(sphinx):
+#     sphinx.connect("autoapi-skip-member", skip_util_classes)
