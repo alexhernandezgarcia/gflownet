@@ -17,7 +17,7 @@ from torch import Tensor
 from torchtyping import TensorType
 
 from gflownet.envs.crystals.composition import Composition
-from gflownet.envs.crystals.lattice_parameters import LatticeParameters
+from gflownet.envs.crystals.lattice_parameters import PARAMETER_NAMES, LatticeParameters
 from gflownet.envs.crystals.spacegroup import SpaceGroup
 from gflownet.envs.stack import Stack
 from gflownet.utils.common import copy, tbool, tfloat, tlong
@@ -190,17 +190,15 @@ class Crystal(Stack):
             state[self.stage_spacegroup] = self.subenvs[
                 self.stage_spacegroup
             ]._set_constrained_properties([0, 0, row["Space Group"]])
-            state[self.stage_latticeparameters] = [
-                row["a"],
-                row["b"],
-                row["c"],
-                row["alpha"],
-                row["beta"],
-                row["gamma"],
-            ]
+            state[self.stage_latticeparameters] = self.subenvs[
+                self.stage_latticeparameters
+            ].parameters2state(tuple(row[list(PARAMETER_NAMES)]))
             is_valid_subenvs = [
                 subenv.is_valid(state[stage]) for stage, subenv in self.subenvs.items()
             ]
             if all(is_valid_subenvs):
-                data_valid.append(x)
+                # TODO: Consider making stack state a dict which would avoid having to
+                # do this, among other advantages
+                state_stack = [2] + [state[stage] for stage in self.subenvs]
+                data_valid.append(state_stack)
         return data_valid
