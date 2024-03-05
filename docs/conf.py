@@ -53,11 +53,6 @@ extensions = [
 templates_path = ["_templates"]
 exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
 
-# List of patterns, relative to source directory, that match files and
-# directories to ignore when looking for source files.
-# This pattern also affects html_static_path and html_extra_path.
-exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
-
 
 # -- Options for HTML output -------------------------------------------------
 
@@ -122,6 +117,7 @@ html_theme_options = {
 # sphinx.ext.intersphinx
 intersphinx_mapping = {
     "torch": ("https://pytorch.org/docs/stable", None),
+    "omegaconf": ("https://omegaconf.readthedocs.io/en/latest", None),
 }
 
 # sphinx.ext.autodoc & autoapi.extension
@@ -179,3 +175,13 @@ ogp_social_cards = {
     "enable": True,
     "image": "./_static/images/gflownet-logo.png",
 }
+
+
+def skip_util_classes(app, what, name, obj, skip, options):
+    return any(
+        name.startswith(f"gflownet.{p}") for p in ["envs", "proxy", "policy", "utils"]
+    )
+
+
+def setup(sphinx):
+    sphinx.connect("autoapi-skip-member", skip_util_classes)

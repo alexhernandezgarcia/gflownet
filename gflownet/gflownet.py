@@ -17,7 +17,7 @@ from torch.distributions import Bernoulli
 from tqdm import tqdm
 
 from gflownet.envs.base import GFlowNetEnv
-from gflownet.evaluator.base import GFlowNetEvaluator
+from gflownet.evaluator.base import BaseEvaluator
 from gflownet.utils.batch import Batch
 from gflownet.utils.buffer import Buffer
 from gflownet.utils.common import (
@@ -94,7 +94,7 @@ class GFlowNetAgent:
             (`gflownet/utils/logger.py:Logger`).
         num_empirical_loss : int
             Number of empirical loss samples to be used for training.
-        evaluator : gflownet.evaluator.base.GFlowNetEvaluator
+        evaluator : gflownet.evaluator.base.BaseEvaluator
             :py:mod:`~gflownet.evaluator` ``Evaluator`` instance.
         state_flow : dict, optional
             State flow config dictionary. See `gflownet.yaml:state_flow` for details. By
@@ -104,10 +104,10 @@ class GFlowNetAgent:
             `active_learning: bool` flag. By default False.
         replay_sampling : str, optional
             Type of sampling for the replay buffer. See
-            :method:`~gflownet.utils.buffer.select`. By default "permutation".
+            :meth:`~gflownet.utils.buffer.select`. By default "permutation".
         train_sampling : str, optional
             Type of sampling for the train buffer (offline backward trajectories). See
-            :method:`~gflownet.utils.buffer.select`. By default "permutation".
+            :meth:`~gflownet.utils.buffer.select`. By default "permutation".
 
         Raises
         ------

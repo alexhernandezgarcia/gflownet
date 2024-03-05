@@ -1,4 +1,4 @@
-_target_: gflownet.evaluator.base.GFlowNetEvaluator
+_target_: gflownet.evaluator.base.BaseEvaluator
 
 # config formerly from logger.test
 first_it: True

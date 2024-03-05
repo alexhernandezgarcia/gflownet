@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import pytest
 from omegaconf import OmegaConf
 
-from gflownet.evaluator.base import METRICS, GFlowNetEvaluator, _sentinel
+from gflownet.evaluator.base import METRICS, BaseEvaluator, _sentinel
 
 PERIOD_STEP_TARGET = [
     (0, 0, False),
@@ -28,7 +28,7 @@ PERIOD_STEP_TARGET = [
     (3, 3, True),
 ]
 
-CONSTANT_EVALUATOR = GFlowNetEvaluator(
+CONSTANT_EVALUATOR = BaseEvaluator(
     gfn_agent=OmegaConf.create({"eval_config": {"metrics": "all"}, "logger": {}}),
     sentinel=_sentinel,
 )
@@ -42,7 +42,7 @@ def dummy_evaluator(config_for_tests):
             "logger": config_for_tests.logger,
         }
     )
-    return GFlowNetEvaluator(gfn_agent=gfna_dummy, sentinel=_sentinel)
+    return BaseEvaluator(gfn_agent=gfna_dummy, sentinel=_sentinel)
 
 
 @pytest.fixture

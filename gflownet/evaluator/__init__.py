@@ -1,30 +1,33 @@
 """
-Create a new evaluator by subclassing this class and extending the :py:meth:`eval`
+Create a new evaluator by subclassing this class and extending the :meth:`eval`
 method to add more metrics and plots.
 
 .. important::
 
-    Only the :py:meth:`~gflownet.evaluator.abstract.GFlowNetAbstractEvaluator.from_dir`
-    and :py:meth:`~gflownet.evaluator.abstract.GFlowNetAbstractEvaluator.from_agent`
-    class methods should be used to instantiate this class.
+    Prefer the :meth:`~gflownet.evaluator.abstract.AbstractEvaluator.from_dir`
+    and :meth:`~gflownet.evaluator.abstract.AbstractEvaluator.from_agent`
+    class methods to instantiate an evaluator.
 
 Typical call stack:
 
-1. :py:meth:`gflownet.gflownet.GFlowNetAgent.train` calls the evaluator's
+1. :meth:`gflownet.gflownet.GFlowNetAgent.train` calls the evaluator's
 
-2. :py:meth:`~gflownet.evaluator.abstract.GFlowNetAbstractEvaluator.should_eval`.
-   If it returns ``True`` then :py:meth:`~gflownet.gflownet.GFlowNetAgent.train` calls
+2. :meth:`~gflownet.evaluator.abstract.AbstractEvaluator.should_eval`.
+   If it returns ``True`` then :meth:`~gflownet.gflownet.GFlowNetAgent.train` calls
 
-3. :py:meth:`~gflownet.evaluator.abstract.GFlowNetAbstractEvaluator.eval_and_log`
+3. :meth:`~gflownet.evaluator.abstract.AbstractEvaluator.eval_and_log`
    which itself calls
 
-4. :py:meth:`~gflownet.evaluator.base.GFlowNetEvaluator.eval` as
+4. :meth:`~gflownet.evaluator.base.BaseEvaluator.eval` as
    ``results = self.eval(metrics=None)`` and then
    ``figs = self.plot(**results["data"])``
 
-5. finally, :py:meth:`~gflownet.evaluator.base.GFlowNetEvaluator.eval_and_log` logs the
-   results using the GFlowNetAgent's logger as
+5. finally, :meth:`~gflownet.evaluator.abstract.AbstractEvaluator.eval_and_log`
+   logs the results using the GFlowNetAgent's logger as
    ``self.logger.log_metrics(results["metrics"])`` and ``self.logger.log_plots(figs)``.
+
+
+.. _evaluator basic concepts:
 
 Basic concepts
 --------------
@@ -39,22 +42,30 @@ are to be computed. They can take the following forms:
 - ``None``: all metrics defined in the config file / in the evaluator's
   ``.config.metrics`` attribute will be computed.
 
-- ``"all"``: all known metrics as defined in :py:const:`METRICS` will be computed.
+- ``"all"``: all known metrics as defined in
+  :const:`~gflownet.evaluator.abstract.AbstractEvaluator.METRICS`
+  will be computed.
 
-  - Note that classes that inherit from :py:class:`GFlowNetEvaluator` can define new
-    metrics with the :py:meth:`define_new_metrics` method.
+  - Note that classes that inherit from
+    :class:`~gflownet.evaluator.abstract.AbstractEvaluator` can define new
+    metrics with the
+    :meth:`~gflownet.evaluator.abstract.AbstractEvaluator.define_new_metrics`
+    method.
 
 - ``list``: a list of metric names to be computed. The names must be keys of
-  :py:const:`METRICS`.
+  :const:`~gflownet.evaluator.abstract.AbstractEvaluator.METRICS`.
 
-- ``dict``: a dictionary that is a subset of :py:const:`METRICS`.
+- ``dict``: a dictionary that is a subset of
+  :const:`~gflownet.evaluator.abstract.AbstractEvaluator.METRICS`.
 
 The concept of ``requirements`` is used to avoid unnecessary computations. If a metric
 requires a certain quantity to be computed, then the evaluator will only compute that
-quantity if the metric is requested. This is done by the :py:meth:`make_requirements`
+quantity if the metric is requested. This is done by the
+:meth:`~gflownet.evaluator.abstract.AbstractEvaluator.make_requirements`
 method and can be used in methods that compute metrics and plots like
 ``if "some_req" in reqs`` (see below for an example).
 
+.. _using an evaluator:
 
 Using an Evaluator
 ------------------
@@ -62,10 +73,10 @@ Using an Evaluator
 .. code-block:: python
 
     # How to create a new evaluator:
-    from gflownet.evaluator.base import GFlowNetEvaluator
+    from gflownet.evaluator.base import BaseEvaluator
 
     gfn_run_dir = "PUT_YOUR_RUN_DIR_HERE"  # a run dir contains a .hydra folder
-    gfne = GFlowNetEvaluator.from_dir(gfn_run_dir)
+    gfne = BaseEvaluator.from_dir(gfn_run_dir)
     results = gfne.eval()
 
     for name, metric in results["metrics"].items():
@@ -87,9 +98,9 @@ Implementing your own evaluator
 .. code-block:: python
 
     # gflownet/evaluator/my_evaluator.py
-    from gflownet.evaluator.base import GFlowNetEvaluator, METRICS, ALL_REQS
+    from gflownet.evaluator.base import BaseEvaluator, METRICS, ALL_REQS
 
-    class MyEvaluator(GFlowNetEvaluator):
+    class MyEvaluator(BaseEvaluator):
         def define_new_metrics(self):
             '''
             This method is called when the class is instantiated and is used to update
@@ -106,7 +117,7 @@ Implementing your own evaluator
         def my_custom_metric(self, some, arguments):
             '''
             Your metric-computing method. It should return a dict with two keys:
-            "metrics" and "data".
+            ``"metrics"`` and ``"data"``.
 
             The "metrics" key should contain the new metric(s) and the "data" key
             should contain the intermediate results that can be used to plot the
@@ -124,7 +135,7 @@ Implementing your own evaluator
             Returns
             -------
             dict
-                A dict with two keys: "metrics" and "data".
+                A dict with two keys: ``"metrics"`` and ``"data"``.
             '''
             intermediate = some + arguments
 
@@ -214,7 +225,7 @@ Implementing your own evaluator
             '''
             Your custom eval method.
 
-            It should return a dict with two keys: "metrics" and "data".
+            It should return a dict with two keys: ``"metrics"`` and ``"data"``.
 
             It will be called by the `eval_and_log` method to log the metrics,
 
@@ -227,7 +238,7 @@ Implementing your own evaluator
             Returns
             -------
             dict
-                A dict with two keys: "metrics" and "data".
+                A dict with two keys: ``"metrics"`` and ``"data"``.
             '''
             metrics = self.make_metrics(metrics)
             reqs = self.make_requirements(metrics=metrics)
@@ -260,17 +271,19 @@ Then define your own ``evaluator`` in the config file:
 
 In the previous example, the ``define_new_metrics`` method is used to define new
 metrics and associated requirements. It will be called when the
-``MyEvaluator`` class is instantiated, in the init of ``GFlowNetAbstractEvaluator``.
+``MyEvaluator`` class is instantiated, in the init of
+:class:`~gflownet.evaluator.abstract.AbstractEvaluator`.
 
 By defining a new requirement, you ensure that the new metrics and plots will only be
 computed if user asks for a metric that requires such computations.
 
-By default, the train loop will call
-:py:meth:`~gflownet.evaluator.base.GFlowNetAbstractEvaluator.eval_and_log` which itself
-calls :py:meth:`~gflownet.evaluator.base.GFlowNetEvaluator.eval` so if you override
-``eval()`` as above, the new metrics and plots will be computed and logged.
+By default, the training loop will call
+:meth:`~gflownet.evaluator.abstract.AbstractEvaluator.eval_and_log` which itself
+calls :meth:`~gflownet.evaluator.abstract.AbstractEvaluator.eval` so if you
+override ``eval()`` as above, the new metrics and plots will be computed and logged.
 
-Similarly, :py:meth:`~gflownet.evaluator.base.GFlowNetEvaluator.eval_and_log`
+Similarly, :meth:`~gflownet.evaluator.abstract.AbstractEvaluator.eval_and_log`
 will compute the ``dict`` of figures as ``fig_dict = self.plot(**results["data"])``
-where ``results`` is the output of ``eval``.
+where ``results`` is the output of
+:meth:`~gflownet.evaluator.abstract.AbstractEvaluator.eval`.
 """

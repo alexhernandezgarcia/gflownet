@@ -6,13 +6,15 @@ Abstract evaluator class for GFlowNetAgent.
     Should not be used directly, but subclassed to implement specific evaluators for
     different tasks and environments.
 
-See :py:class:`~gflownet.evaluator.base.GFlowNetEvaluator` for a default,
+See :class:`~gflownet.evaluator.base.BaseEvaluator` for a default,
 concrete implementation of this abstract class.
 
 This class handles some logic that will be the same for all evaluators.
-The only requirements for a subclass are to implement the `plot` and `eval` methods
+The only requirements for a subclass are to implement the
+:meth:`~gflownet.evaluator.abstract.AbstractEvaluator.eval` and
+:meth:`~gflownet.evaluator.abstract.AbstractEvaluator.plot` methods
 which will be called by the
-:py:meth:`~gflownet.evaluator.abstract.GFlowNetAbstractEvaluator.eval_and_log` method.
+:meth:`~gflownet.evaluator.abstract.AbstractEvaluator.eval_and_log` method:
 
 .. code-block:: python
 
@@ -30,8 +32,8 @@ which will be called by the
             self.logger.log_metrics(mertics_to_log, it, self.gfn.use_context)
             self.logger.log_plots(figs, it, use_context=self.gfn.use_context)
 
-See :py:mod:`gflownet.evaluator` for a full-fledged example and
-:py:mod:`gflownet.evaluator.base` for a concrete implementation of this abstract class.
+See :mod:`gflownet.evaluator` for a full-fledged example and
+:mod:`gflownet.evaluator.base` for a concrete implementation of this abstract class.
 """
 
 import os
@@ -42,7 +44,11 @@ from omegaconf import OmegaConf
 
 from gflownet.utils.common import load_gflow_net_from_run_path
 
+# purposefully non-documented object, hidden from Sphinx docs
 _sentinel = object()
+"""
+A sentinel object to be used as a default value for arguments that could be None.
+"""
 
 METRICS = {
     "l1": {
@@ -83,7 +89,7 @@ METRICS = {
     },
 }
 """
-All metrics that can be computed by a ``GFlowNetEvaluator``.
+All metrics that can be computed by a ``BaseEvaluator``.
 
 Structured as a dict with the metric names as keys and the metric display
 names and requirements as values.
@@ -93,70 +99,60 @@ metric.
 
 Display names are used to log the metrics and to display them in the console.
 
-Implementations of :py:class:`GFlowNetAbstractEvaluator` can add new metrics to
+Implementations of :class:`AbstractEvaluator` can add new metrics to
 this dict by implementing the method
-:py:method:`~gflownet.evaluator.abstract.define_new_metrics`.
+:meth:`AbstractEvaluator.define_new_metrics`.
 """
 
 ALL_REQS = set([r for m in METRICS.values() for r in m["requirements"]])
 """
-Union of all requirements of all metrics in :py:const:`METRICS`.
+Union of all requirements of all metrics in :const:`METRICS`.
 """
 
 
-class GFlowNetAbstractEvaluator(metaclass=ABCMeta):
+class AbstractEvaluator(metaclass=ABCMeta):
     def __init__(self, gfn_agent=None, **config):
         """
-        Abstract evaluator class for :py:class:`GFlowNetAgent`.
+        Abstract evaluator class for :class:`GFlowNetAgent`.
 
-        In charge of evaluating the :py:class:`GFlowNetAgent`, computing metrics
+        In charge of evaluating the :class:`GFlowNetAgent`, computing metrics
         plotting figures and optionally logging results using the
-        :py:class:`GFlowNetAgent`'s :py:class:`Logger`.
+        :class:`GFlowNetAgent`'s :class:`Logger`.
 
-        You can use the :py:method:`from_dir` or :py:method:`from_agent` class methods
+        You can use the :meth:`from_dir` or :meth:`from_agent` class methods
         to easily instantiate this class from a run directory or an existing
-        in-memory :py:class:`GFlowNetAgent`.
+        in-memory :class:`GFlowNetAgent`.
 
         Use
-        :py:method:`~gflownet.evaluator.abstract.GFlowNetAbstractEvaluator.set_agent`
-        to set the evaluator's :py:class:`GFlowNetAgent` after initialization if it was
+        :meth:`~gflownet.evaluator.abstract.AbstractEvaluator.set_agent`
+        to set the evaluator's :class:`GFlowNetAgent` after initialization if it was
         not provided at instantiation as ``GflowNetEvaluator(gfn_agent=...)``.
 
         This ``__init__`` function will call, in order:
 
-        1. :py:method:`~gflownet.evaluator.abstract.GFlowNetAbstractEvaluator.update_all_metrics_and_requirements`
-           which uses new metrics
-           defined in the
-           :py:method:`~gflownet.evaluator.abstract.GFlowNetAbstractEvaluator.define_new_metrics`
-           method to update the global :py:const:`METRICS` and :py:const:`ALL_REQS`
-           variables in classes inheriting from :py:class:`GFlowNetAbstractEvaluator`.
+        1. :meth:`update_all_metrics_and_requirements` which uses new metrics defined in
+           the :meth:`define_new_metrics` method to update the global :const:`METRICS`
+           and :const:`ALL_REQS` variables in classes inheriting from
+           :class:`AbstractEvaluator`.
 
         2. ``self.metrics = self.make_metrics(self.config.metrics)`` using
-           :py:method:`make_metrics`
+           :meth:`make_metrics`
 
-        3. ``self.reqs = self.make_requirements()`` using
-        :py:method:`~gflownet.evaluator.abstract.GFlowNetAbstractEvaluator.make_requirements`
+        3. ``self.reqs = self.make_requirements()`` using :meth:`make_requirements`
 
         Arguments
         ---------
         gfn_agent : GFlowNetAgent, optional
             The GFlowNetAgent to evaluate. By default None. Should be set using the
-            :py:method:`from_dir` or :py:method:`from_agent` class methods.
+            :meth:`from_dir` or :meth:`from_agent` class methods.
 
         config : dict
             The configuration of the evaluator. Will be converted to an OmegaConf
             instance and stored in the ``self.config`` attribute.
 
-        Raises
-        ------
-        NotImplementedError
-            If the `sentinel` keyword argument is not `_sentinel`, which is used to
-            prevent instantiation of the base class without using the `from_dir` or
-            `from_agent` class methods.
-
         Attributes
         ----------
-        config : OmegaConf
+        config : :class:`omegaconf.OmegaConf`
             The configuration of the evaluator.
         metrics : dict
             Dictionary of metrics to compute, with the metric names as keys and the
@@ -167,7 +163,7 @@ class GFlowNetAbstractEvaluator(metaclass=ABCMeta):
         logger : Logger
             The logger to use to log the results of the evaluation. Will be set to the
             GFlowNetAgent's logger.
-        gfn: :py:class:`GFlowNetAgent`
+        gfn: :class:`GFlowNetAgent`
             The GFlowNetAgent to evaluate.
         """
 
@@ -226,7 +222,7 @@ class GFlowNetAbstractEvaluator(metaclass=ABCMeta):
         Returns
         -------
         dict
-            Dictionary of new metrics to add to the global :py:const:`METRICS` dict.
+            Dictionary of new metrics to add to the global :const:`METRICS` dict.
         """
         pass
 
@@ -244,7 +240,7 @@ class GFlowNetAbstractEvaluator(metaclass=ABCMeta):
 
     @classmethod
     def from_dir(
-        cls: "GFlowNetAbstractEvaluator",
+        cls: "AbstractEvaluator",
         path: Union[str, os.PathLike],
         no_wandb: bool = True,
         print_config: bool = False,
@@ -252,11 +248,11 @@ class GFlowNetAbstractEvaluator(metaclass=ABCMeta):
         load_final_ckpt: bool = True,
     ):
         """
-        Instantiate a GFlowNetEvaluator from a run directory.
+        Instantiate a BaseEvaluator from a run directory.
 
         Parameters
         ----------
-        cls : GFlowNetEvaluator
+        cls : BaseEvaluator
             Class to instantiate.
         path : Union[str, os.PathLike]
             Path to the run directory from which to load the GFlowNetAgent.
@@ -271,8 +267,8 @@ class GFlowNetAbstractEvaluator(metaclass=ABCMeta):
 
         Returns
         -------
-        GFlowNetEvaluator
-            Instance of GFlowNetEvaluator with the GFlowNetAgent loaded from the run.
+        BaseEvaluator
+            Instance of BaseEvaluator with the GFlowNetAgent loaded from the run.
         """
         gfn_agent, _ = load_gflow_net_from_run_path(
             path,
@@ -286,19 +282,19 @@ class GFlowNetAbstractEvaluator(metaclass=ABCMeta):
     @classmethod
     def from_agent(cls, gfn_agent):
         """
-        Instantiate a GFlowNetEvaluator from a GFlowNetAgent.
+        Instantiate a BaseEvaluator from a GFlowNetAgent.
 
         Parameters
         ----------
-        cls : GFlowNetEvaluator
+        cls : BaseEvaluator
             Evaluator class to instantiate.
         gfn_agent : GFlowNetAgent
-            Instance of GFlowNetAgent to use for the GFlowNetEvaluator.
+            Instance of GFlowNetAgent to use for the BaseEvaluator.
 
         Returns
         -------
-        GFlowNetEvaluator
-            Instance of GFlowNetEvaluator with the provided GFlowNetAgent.
+        BaseEvaluator
+            Instance of BaseEvaluator with the provided GFlowNetAgent.
         """
         from gflownet.gflownet import GFlowNetAgent
 
@@ -316,19 +312,18 @@ class GFlowNetAbstractEvaluator(metaclass=ABCMeta):
         - If ``None``, all metrics are selected.
         - If a string, it can be a comma-separated list of metric names, with or without
           spaces.
-        - If a list, it should be a list of metric names (keys of :py:const:`METRICS`).
+        - If a list, it should be a list of metric names (keys of :const:`METRICS`).
         - If a dict, its keys should be metric names and its values will be ignored:
-          they will be assigned from :py:const:`METRICS`.
+          they will be assigned from :const:`METRICS`.
 
-        All metrics must be in :py:const:`METRICS`.
+        All metrics must be in :const:`METRICS`.
 
         Parameters
         ----------
         metrics : Union[str, List[str]], optional
             Metrics to compute when running the
-            :py:meth:`~gflownet.evaluator.abstract.GFlowNetAbstractEvaluator.eval`
-            method. Defaults to ``None``, i.e. all metrics in :py:const:`METRICS`
-            are computed.
+            :meth:`.eval` method. Defaults to ``None``, i.e. all metrics in
+            :const:`METRICS` are computed.
 
         Returns
         -------
@@ -339,7 +334,7 @@ class GFlowNetAbstractEvaluator(metaclass=ABCMeta):
         Raises
         ------
             ValueError
-                If a metric name is not in :py:const:`METRICS`.
+                If a metric name is not in :const:`METRICS`.
         """
         if metrics is None:
             assert self.metrics is not _sentinel, (
@@ -401,8 +396,7 @@ class GFlowNetAbstractEvaluator(metaclass=ABCMeta):
             By default ``None``.
         metrics : Union[str, List[str], dict], optional
             The metrics to compute requirements for. If not a dict, will be passed to
-            :py:meth:`~gflownet.evaluator.abstract.GFlowNetAbstractEvaluator.make_metrics``.
-            By default None.
+            :meth:`make_metrics`. By default None.
 
         Returns
         -------
@@ -573,7 +567,7 @@ class GFlowNetAbstractEvaluator(metaclass=ABCMeta):
         """
         The main method to compute metrics and intermediate results.
 
-        This method should return a dict with two keys: "metrics" and "data".
+        This method should return a dict with two keys: ``"metrics"`` and ``"data"``.
 
         The "metrics" key should contain the new metric(s) and the "data" key should
         contain the intermediate results that can be used to plot the new metric(s).
@@ -592,6 +586,8 @@ class GFlowNetAbstractEvaluator(metaclass=ABCMeta):
 
         >>> metrics = "l1,kl" # alternative syntax
         >>> results = gfne.eval(metrics=metrics)
+
+        See :ref:`evaluator basic concepts` for more details about ``metrics``.
 
         Parameters
         ----------

@@ -1,17 +1,20 @@
 """
-Base evaluator class for GFlowNetAgent.
+Base evaluator class for a :class:`~gflownet.gflownet.GFlowNetAgent`.
 
-In charge of evaluating a generic GFlowNetAgent, computing metrics plotting figures and
-optionally logging results using the GFlowNetAgent's logger.
+In charge of evaluating a generic :class:`~gflownet.gflownet.GFlowNetAgent`,
+computing metrics plotting figures and optionally logging results using the
+:class:`~gflownet.gflownet.GFlowNetAgent`'s :class:`~gflownet.utils.logger.Logger`.
 
-Take it as example to implement your own evaluator class for your custom use-case.
+Take this :class:`BaseEvaluator` as example to implement your own evaluator class
+for your custom use-case.
 
 .. important::
 
-    Only the :py:meth:`~gflownet.evaluator.abstract.GFlowNetAbstractEvaluator.from_dir`
-    and :py:meth:`~gflownet.evaluator.abstract.GFlowNetAbstractEvaluator.from_agent`
-    class methods should be used to instantiate this class.
+    Prefer the :meth:`~gflownet.evaluator.abstract.AbstractEvaluator.from_dir`
+    and :meth:`~gflownet.evaluator.abstract.AbstractEvaluator.from_agent`
+    class methods to instantiate an evaluator.
 
+See :ref:`using an evaluator` for more details about how to use an Evaluator.
 """
 
 import copy
@@ -25,12 +28,35 @@ from scipy.special import logsumexp
 
 from gflownet.evaluator.abstract import ALL_REQS  # noqa
 from gflownet.evaluator.abstract import METRICS  # noqa
-from gflownet.evaluator.abstract import GFlowNetAbstractEvaluator
+from gflownet.evaluator.abstract import AbstractEvaluator
 from gflownet.utils.batch import Batch
 from gflownet.utils.common import batch_with_rest, tfloat, torch2np
 
 
-class GFlowNetEvaluator(GFlowNetAbstractEvaluator):
+class BaseEvaluator(AbstractEvaluator):
+
+    def __init__(self, gfn_agent=None, **config):
+        """
+        Base evaluator class for GFlowNetAgent.
+
+        In particular, implements the :meth:`eval` with:
+
+        - :meth:`compute_log_prob_metrics` to compute log-probability metrics.
+        - :meth:`compute_density_metrics` to compute density metrics.
+
+        And the :meth:`plot` method with:
+
+        - The :class:`~gflownet.envs.base.GFlowNetEnv`'s :meth:`plot_reward_samples`
+          method.
+        - The :class:`~gflownet.envs.base.GFlowNetEnv`'s :meth:`plot_kde` method if
+          it exists, for both the ``kde_pred`` and ``kde_true`` arguments if they are
+          returned in the ``"data"`` dict of the :meth:`eval` method.
+
+        See the :class:`~gflownet.evaluator.abstract.AbstractEvaluator` for more
+        details about other methods and attributes, including the
+        :meth:`~gflownet.evaluator.abstract.AbstractEvaluator.__init__`.
+        """
+        super().__init__(gfn_agent, **config)
 
     @torch.no_grad()
     def eval_top_k(self, it, gfn_states=None, random_states=None):
@@ -148,6 +174,36 @@ class GFlowNetEvaluator(GFlowNetAbstractEvaluator):
         }
 
     def compute_log_prob_metrics(self, x_tt, metrics=None):
+        """
+        Compute log-probability metrics for the given test data.
+
+        Uses :meth:`~gflownet.gflownet.GFlowNetAgent.estimate_logprobs_data`.
+
+        Known metrics:
+
+        - ``mean_logprobs_std``: Mean of the standard deviation of the log-probabilities.
+        - ``mean_probs_std``: Mean of the standard deviation of the probabilities.
+        - ``corr_prob_traj_rewards``: Correlation between the probabilities and the
+            rewards.
+        - ``var_logrewards_logp``: Variance of the log-rewards minus the log-probabilities.
+        - ``nll_tt``: Negative log-likelihood of the test data.
+        - ``logprobs_std_nll_ratio``: Ratio of the mean of the standard deviation of the
+            log-probabilities over the negative log-likelihood of the test data.
+
+
+        Parameters
+        ----------
+        x_tt : torch.Tensor
+            Test data.
+        metrics : List[str], optional
+            List of metrics to compute, by default ``None`` i.e. the evaluator's
+            ``self.metrics``
+
+        Returns
+        -------
+        dict
+            Computed dict of metrics and data as ``{"metrics": {str: float}}``.
+        """
         metrics = self.make_metrics(metrics)
         reqs = self.make_requirements(metrics=metrics)
 
@@ -201,6 +257,38 @@ class GFlowNetEvaluator(GFlowNetAbstractEvaluator):
         }
 
     def compute_density_metrics(self, x_tt, dict_tt, metrics=None):
+        """
+        Compute density metrics for the given test data.
+
+        Known metrics:
+
+        - ``l1``: L1 error between the true and predicted densities.
+        - ``kl``: KL divergence between the true and predicted densities.
+        - ``jsd``: Jensen-Shannon divergence between the true and predicted densities.
+
+        Returned data in the ``"data"`` sub-dict:
+
+        - ``x_sampled``: Sampled states from the GFN.
+        - ``kde_pred``: KDE policy as per
+          :meth:`~gflownet.envs.base.GFlowNetEnv.fit_kde`.
+        - ``kde_true``: True KDE.
+
+        Parameters
+        ----------
+        x_tt : torch.Tensor
+            Test data.
+        dict_tt : dict
+            Dictionary of test data.
+        metrics : List[str], optional
+            List of metrics to compute, by default ``None`` i.e. the evaluator's
+            ``self.metrics``
+
+        Returns
+        -------
+        dict
+            Computed dict of metrics and data as
+            ``{"metrics": {str: float}, "data": {str: object}}``.
+        """
         metrics = self.make_metrics(metrics)
 
         density_metrics = {}
@@ -434,27 +522,3 @@ class GFlowNetEvaluator(GFlowNetAbstractEvaluator):
             "GFlowNet KDE Policy": fig_kde_pred,
             "Reward KDE": fig_kde_true,
         }
-
-
-if __name__ == "__main__":
-    # Try using the GFlowNetEvaluator by running this script from the root:
-    # $ ipython
-    # In [1]: run gflownet/evaluator/base.py
-    #
-    # Note: this will not work on previous checkpoints whose config does not contain an
-    # `eval` entry, you have to run one. Add `eval.checkpoint_period=10` to quickly
-    # have a checkpoint to test.
-
-    gfn_run_dir = "PUT_YOUR_RUN_DIR_HERE"  # a run dir contains a .hydra folder
-
-    gfne = GFlowNetEvaluator.from_dir(gfn_run_dir)
-    results = gfne.eval()
-
-    for name, metric in results["metrics"].items():
-        print(f"{name:20}: {metric:.4f}")
-
-    print(
-        "Available figures in results['figs']:",
-        ", ".join([fname for fname, fig in results["figs"].items() if fig is not None])
-        or "None",
-    )
