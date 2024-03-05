@@ -957,6 +957,14 @@ class GFlowNetEnv:
                     torch.isclose(state_x[~x_nan], state_y[~y_nan], atol=atol)
                 )
             return torch.equal(state_x, state_y)
+        if isinstance(state_x, dict) and isinstance(state_y, dict):
+            keys_equal = set(state_x.keys()) == set(state_y.keys())
+            values_close = np.all(
+                np.isclose(
+                    sorted(state_x.values()), sorted(state_y.values()), atol=atol
+                )
+            )
+            return keys_equal and values_close
         else:
             return np.all(np.isclose(state_x, state_y, atol=atol))
 

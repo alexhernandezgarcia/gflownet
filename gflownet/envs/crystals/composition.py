@@ -134,8 +134,6 @@ class Composition(GFlowNetEnv):
         self.space_group = space_group
         self.do_charge_check = do_charge_check
         self.do_spacegroup_check = do_spacegroup_check
-        self.elem2idx = {e: i for i, e in enumerate(self.elements)}
-        self.idx2elem = {i: e for i, e in enumerate(self.elements)}
         # Source state: empty dict
         self.source = {}
         # End-of-sequence action

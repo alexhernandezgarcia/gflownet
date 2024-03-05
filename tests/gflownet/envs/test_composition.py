@@ -200,11 +200,11 @@ def test__reset(env):
     env.step((1, 1))
     env.step((2, 1))
 
-    assert env.state != [0] * len(env.elements)
+    assert env.state != {}
 
     env.reset()
 
-    assert env.state == [0] * len(env.elements)
+    assert env.state == {}
 
 
 @pytest.mark.parametrize(
@@ -281,12 +281,10 @@ def test__get_mask_invalid_actions_forward__already_set_elements_are_masked(env,
     mask = env.get_mask_invalid_actions_forward(state)[:-1]
     action_space = env.action_space[:-1]
 
-    nonzero_indices = list(state.keys())
-
-    for i in nonzero_indices:
-        for a_j, m_j in zip(action_space, mask):
-            if env.elem2idx[a_j[0]] == i:
-                assert m_j
+    for el in state:
+        for action, is_invalid in zip(action_space, mask):
+            if action[0] == el:
+                assert is_invalid
 
 
 def test__get_parents__returns_no_parents_in_initial_state(env):
@@ -319,23 +317,28 @@ def test__get_parents__returns_same_number_of_parents_and_actions(env, actions):
     "state, exp_parents, exp_actions",
     [
         (
-            [0, 0, 2, 0],
-            [[0, 0, 0, 0]],
+            {3: 2},
+            [{}],
             [(3, 2)],
         ),
         (
-            [3, 0, 0, 0],
-            [[0, 0, 0, 0]],
+            {1: 3},
+            [{}],
             [(1, 3)],
         ),
         (
-            [0, 1, 0, 1],
-            [[0, 1, 0, 0], [0, 0, 0, 1]],
+            {2: 1, 4: 1},
+            [{2: 1}, {4: 1}],
             [(2, 1), (4, 1)],
         ),
         (
-            [1, 2, 3, 4],
-            [[0, 2, 3, 4], [1, 0, 3, 4], [1, 2, 0, 4], [1, 2, 3, 0]],
+            {1: 1, 2: 2, 3: 3, 4: 4},
+            [
+                {2: 2, 3: 3, 4: 4},
+                {1: 1, 3: 3, 4: 4},
+                {1: 1, 2: 2, 4: 4},
+                {1: 1, 2: 2, 3: 3},
+            ],
             [(1, 1), (2, 2), (3, 3), (4, 4)],
         ),
     ],
@@ -347,16 +350,18 @@ def test__get_parents__returns_expected_parents_and_actions(
 
     parents, actions = env.get_parents()
 
-    assert set(tuple(x) for x in parents) == set(tuple(x) for x in exp_parents)
+    assert set(tuple(sorted(p.items())) for p in parents) == set(
+        tuple(sorted(p.items())) for p in exp_parents
+    )
     assert set(actions) == set(exp_actions)
 
 
 @pytest.mark.parametrize(
     "actions, exp_state",
     [
-        ([(1, 2), (2, 3), (3, 4)], [2, 3, 4, 0]),
-        ([(4, 2)], [0, 0, 0, 2]),
-        ([(1, 3), (4, 2), (2, 3), (3, 2)], [3, 3, 2, 2]),
+        ([(1, 2), (2, 3), (3, 4)], {1: 2, 2: 3, 3: 4}),
+        ([(4, 2)], {4: 2}),
+        ([(1, 3), (4, 2), (2, 3), (3, 2)], {1: 3, 2: 3, 3: 2, 4: 2}),
     ],
 )
 def test__step__changes_state_as_expected(env, actions, exp_state):
@@ -378,7 +383,8 @@ def test__step__changes_state_as_expected(env, actions, exp_state):
 def test__step__does_not_change_state_if_element_already_set(
     env, valid_action, invalid_action
 ):
-    initial_state = env.state
+    # Copy because step will update the same dictionary
+    initial_state = env.state.copy()
 
     state_after_valid, action, valid = env.step(valid_action)
 
@@ -399,23 +405,23 @@ def test__step__does_not_change_state_if_element_already_set(
     "state, exp_result",
     [
         (
-            [0, 0, 0, 0],
+            {},
             True,
         ),
         (
-            [3, 0, 0, 0],
+            {1: 3},
             True,
         ),
         (
-            [0, 1, 0, 1],
+            {2: 1, 4: 1},
             False,
         ),
         (
-            [1, 2, 3, 4],
+            {1: 1, 2: 2, 3: 3, 4: 4},
             False,
         ),
         (
-            [5, 0, 0, 2],
+            {1: 5, 4: 2},
             True,
         ),
     ],
