@@ -547,6 +547,25 @@ class AbstractEvaluator(metaclass=ABCMeta):
 
     @abstractmethod
     def plot(self, **kwargs):
+        """
+        The main method to plot results.
+
+        Will be called by the :meth:`eval_and_log` method to plot the results
+        of the evaluation.
+        Will be passed the results of the :meth:`eval` method:
+
+        .. code-block:: python
+
+            # in eval_and_log
+            results = self.eval(metrics=metrics)
+            figs = self.plot(**results["data"])
+
+        Returns
+        -------
+        dict
+            Dictionary of figures to log, with the figure names as keys and the figures
+            as values.
+        """
         pass
 
     @abstractmethod
@@ -585,6 +604,28 @@ class AbstractEvaluator(metaclass=ABCMeta):
 
     @abstractmethod
     def eval_top_k(self, it):
+        """
+        Evaluate the ``GFlowNetAgent``'s top k samples performance.
+
+        Classes extending this abstract class should implement this method.
+
+        Parameters
+        ----------
+        it : int
+            Current iteration step.
+
+        Returns
+        -------
+        dict
+            Dictionary with the following keys schema:
+            .. code-block:: python
+
+                {
+                    "metrics": {str: float},
+                    "figs": {str: plt.Figure},
+                    "summary": {str: float},
+                }
+        """
         pass
 
     def eval_and_log(self, it, metrics=None):
