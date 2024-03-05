@@ -14,7 +14,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 from torch.distributions import Bernoulli
-from tqdm import tqdm
+from tqdm import tqdm, trange
 
 from gflownet.envs.base import GFlowNetEnv
 from gflownet.evaluator.base import BaseEvaluator
@@ -964,19 +964,23 @@ class GFlowNetAgent:
             "Sampling backward actions from test data to estimate logprobs...",
             flush=True,
         )
-        pbar = tqdm(total=n_states)
+        pbar = tqdm(total=n_states, disable=not self.logger.progress)
+        pbar2 = trange(
+            end_batch * n_trajectories, disable=not self.logger.progress, leave=False
+        )
         while init_batch < n_states:
             batch = Batch(env=self.env, device=self.device, float_type=self.float)
             # Create an environment for each data point and trajectory and set the state
             envs = []
+            pbar2.reset()
             for state_idx in range(init_batch, end_batch):
                 for traj_idx in range(n_trajectories):
                     idx = int(mult_indices * state_idx + traj_idx)
                     env = self.env.copy().reset(idx)
                     env.set_state(states_term[state_idx], done=True)
                     envs.append(env)
+                    pbar2.update(1)
             # Sample trajectories
-            max_iters = n_trajectories * max_iters_per_traj
             while envs:
                 # Sample backward actions
                 actions = self.sample_actions(
@@ -1023,6 +1027,8 @@ class GFlowNetAgent:
         )
         logprobs_std = torch.std(logprobs_estimates_bs, dim=-1)
         probs_std = torch.std(torch.exp(logprobs_estimates_bs), dim=-1)
+        pbar.close()
+        pbar2.close()
         print("Done computing logprobs", flush=True)
         return logprobs_estimates, logprobs_std, probs_std
 
