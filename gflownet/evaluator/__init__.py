@@ -116,7 +116,7 @@ override the following methods:
 
 * ``define_new_metrics``: define new metrics and associated requirements.
 * ``eval``: compute the metrics and return them as a ``dict``:
-  `` {"metrics": {metric_name: metric_value}, "data": {str: Any}}``.
+  ``{"metrics": {metric_name: metric_value}, "data": {str: Any}}``.
 * ``plot``: return a ``dict`` of figures as ``{figure_title: figure}``.
 
 By default, the training loop will call the ``eval_and_log`` method which itself calls
@@ -313,6 +313,12 @@ Then define your own ``evaluator`` in the config file:
 
     period: 1000
 
+
+.. note::
+
+    In general, you should not override the ``make_requirements`` or ``make_metrics``
+    methods. They should be used as-is in your ``eval`` method (or any other) to decide
+    which metrics and plots to compute.
 
 In the previous example, the ``define_new_metrics`` method is used to define new
 metrics and associated requirements. It will be called when the
