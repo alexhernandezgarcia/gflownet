@@ -50,44 +50,7 @@ _sentinel = object()
 A sentinel object to be used as a default value for arguments that could be None.
 """
 
-METRICS = {
-    "l1": {
-        "display_name": "L1 error",
-        "requirements": ["density"],
-    },
-    "kl": {
-        "display_name": "KL Div.",
-        "requirements": ["density"],
-    },
-    "jsd": {
-        "display_name": "Jensen Shannon Div.",
-        "requirements": ["density"],
-    },
-    "corr_prob_traj_rewards": {
-        "display_name": "Corr. (test probs., rewards)",
-        "requirements": ["log_probs", "reward_batch"],
-    },
-    "var_logrewards_logp": {
-        "display_name": "Var(logR - logp) test",
-        "requirements": ["log_probs", "reward_batch"],
-    },
-    "nll_tt": {
-        "display_name": "NLL of test data",
-        "requirements": ["log_probs"],
-    },
-    "mean_logprobs_std": {
-        "display_name": "Mean BS Std(logp)",
-        "requirements": ["log_probs"],
-    },
-    "mean_probs_std": {
-        "display_name": "Mean BS Std(p)",
-        "requirements": ["log_probs"],
-    },
-    "logprobs_std_nll_ratio": {
-        "display_name": "BS Std(logp) / NLL",
-        "requirements": ["log_probs"],
-    },
-}
+METRICS = {}
 """
 All metrics that can be computed by a ``BaseEvaluator``.
 
@@ -163,8 +126,6 @@ class AbstractEvaluator(metaclass=ABCMeta):
         logger : Logger
             The logger to use to log the results of the evaluation. Will be set to the
             GFlowNetAgent's logger.
-        gfn: :class:`GFlowNetAgent`
-            The GFlowNetAgent to evaluate.
         """
 
         self._gfn_agent = gfn_agent
@@ -181,14 +142,40 @@ class AbstractEvaluator(metaclass=ABCMeta):
 
     @property
     def gfn(self):
+        """
+        Get the ``GFlowNetAgent`` to evaluate.
+
+        This is a read-only property. Use the :meth:`set_agent` method to set
+        the ``GFlowNetAgent``.
+
+        Returns
+        -------
+        :class:`GFlowNetAgent`
+            The ``GFlowNetAgent`` to evaluate.
+
+        Raises
+        ------
+        ValueError
+            If the ``GFlowNetAgent`` has not been set.
+        """
         if type(self._gfn_agent).__name__ != "GFlowNetAgent":
             raise ValueError(
                 "The GFlowNetAgent has not been set. Use the `from_dir` or `from_agent`"
-                + " class methods to instantiate this class or set the `gfn` attribute."
+                + " class methods to instantiate this class or the `set_agent` method"
             )
         return self._gfn_agent
 
     def set_agent(self, gfn_agent):
+        """
+        Set the ``GFlowNetAgent`` to evaluate after initialization.
+
+        It is then accessible through the ``self.gfn`` property.
+
+        Parameters
+        ----------
+        gfn_agent : :class:`GFlowNetAgent`
+            The ``GFlowNetAgent`` to evaluate.
+        """
         assert type(gfn_agent).__name__ == "GFlowNetAgent", (
             "gfn_agent should be an instance of GFlowNetAgent, but is an instance of "
             + f"{type(gfn_agent)}."

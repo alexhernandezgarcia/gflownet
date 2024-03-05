@@ -58,6 +58,46 @@ class BaseEvaluator(AbstractEvaluator):
         """
         super().__init__(gfn_agent, **config)
 
+    def define_new_metrics(self):
+        return {
+            "l1": {
+                "display_name": "L1 error",
+                "requirements": ["density"],
+            },
+            "kl": {
+                "display_name": "KL Div.",
+                "requirements": ["density"],
+            },
+            "jsd": {
+                "display_name": "Jensen Shannon Div.",
+                "requirements": ["density"],
+            },
+            "corr_prob_traj_rewards": {
+                "display_name": "Corr. (test probs., rewards)",
+                "requirements": ["log_probs", "reward_batch"],
+            },
+            "var_logrewards_logp": {
+                "display_name": "Var(logR - logp) test",
+                "requirements": ["log_probs", "reward_batch"],
+            },
+            "nll_tt": {
+                "display_name": "NLL of test data",
+                "requirements": ["log_probs"],
+            },
+            "mean_logprobs_std": {
+                "display_name": "Mean BS Std(logp)",
+                "requirements": ["log_probs"],
+            },
+            "mean_probs_std": {
+                "display_name": "Mean BS Std(p)",
+                "requirements": ["log_probs"],
+            },
+            "logprobs_std_nll_ratio": {
+                "display_name": "BS Std(logp) / NLL",
+                "requirements": ["log_probs"],
+            },
+        }
+
     @torch.no_grad()
     def eval_top_k(self, it, gfn_states=None, random_states=None):
         """
@@ -296,7 +336,7 @@ class BaseEvaluator(AbstractEvaluator):
 
         x_sampled = density_true = density_pred = None
 
-        if self.gfn.buffer.test_type is not None and self.gfn.buffer.test_type == "all":
+        if self.gfn.buffer.test_type == "all":
             batch, _ = self.gfn.sample_batch(n_forward=self.config.n, train=False)
             assert batch.is_valid()
             x_sampled = batch.get_terminating_states()
