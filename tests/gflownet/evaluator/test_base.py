@@ -4,7 +4,8 @@ import matplotlib.pyplot as plt
 import pytest
 from omegaconf import OmegaConf
 
-from gflownet.evaluator.base import METRICS, BaseEvaluator, _sentinel
+from gflownet.evaluator.abstract import METRICS, _sentinel
+from gflownet.evaluator.base import BaseEvaluator
 
 PERIOD_STEP_TARGET = [
     (0, 0, False),
@@ -28,28 +29,17 @@ PERIOD_STEP_TARGET = [
     (3, 3, True),
 ]
 
-CONSTANT_EVALUATOR = BaseEvaluator(
-    gfn_agent=OmegaConf.create({"eval_config": {"metrics": "all"}, "logger": {}}),
-    sentinel=_sentinel,
-)
+CONSTANT_EVALUATOR = BaseEvaluator(metrics="all")
 
 
 @pytest.fixture
 def dummy_evaluator(config_for_tests):
-    gfna_dummy = OmegaConf.create(
-        {
-            "eval_config": config_for_tests.eval,
-            "logger": config_for_tests.logger,
-        }
-    )
-    return BaseEvaluator(gfn_agent=gfna_dummy, sentinel=_sentinel)
+    return BaseEvaluator(**config_for_tests.evaluator)
 
 
 @pytest.fixture
 def constant_evaluator():  # faster fixture for state-less tests
-    CONSTANT_EVALUATOR.config = OmegaConf.create(
-        {"eval_config": {"metrics": "all"}, "logger": {}}
-    )
+    CONSTANT_EVALUATOR.config = OmegaConf.create({"metrics": "all"})
     return CONSTANT_EVALUATOR
 
 
@@ -234,6 +224,7 @@ def test__eval(gflownet_for_tests, parameterization):
     assert Path("./replay.pkl").exists()
     # results: {"metrics": dict[str, float], "figs": list[plt.Figure]}
     results = gflownet_for_tests.evaluator.eval()
+    figs = gflownet_for_tests.evaluator.plot(**results["data"])
 
     for k, v in results["metrics"].items():
         assert isinstance(k, str)
@@ -244,7 +235,7 @@ def test__eval(gflownet_for_tests, parameterization):
     elif parameterization == "grid_length_4":
         pass
     elif parameterization == "ctorus":
-        for figname, fig in results["figs"].items():
+        for figname, fig in figs.items():
             assert isinstance(figname, str)
             assert isinstance(fig, plt.Figure)
     else:

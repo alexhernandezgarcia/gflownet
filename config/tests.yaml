@@ -5,7 +5,7 @@ defaults:
   - policy: mlp
   - logger: base
   - user: alex
-  - eval: base
+  - evaluator: base
   - _self_
 
 # Device
