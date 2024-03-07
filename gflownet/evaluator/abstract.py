@@ -16,6 +16,14 @@ The only requirements for a subclass are to implement the
 which will be called by the
 :meth:`~gflownet.evaluator.abstract.AbstractEvaluator.eval_and_log` method:
 
+.. code-include :: :meth:`gflownet.evaluator.abstract.AbstractEvaluator.eval_and_log`
+
+.. code-include :: :func:`gflownet.evaluator.abstract.AbstractEvaluator.eval_and_log`
+
+.. code-include :: :class:`gflownet.gflownet.abstract.AbstractEvaluator`
+
+.. code-include :: :func:`gflownet.utils.common.gflownet_from_config`
+
 .. code-block:: python
 
         def eval_and_log(self, it, metrics=None):

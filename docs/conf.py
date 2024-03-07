@@ -47,6 +47,7 @@ extensions = [
     "sphinx_design",
     "sphinx_copybutton",
     "sphinxext.opengraph",
+    "code_include.extension",
 ]
 
 # Add any paths that contain templates here, relative to this directory.
