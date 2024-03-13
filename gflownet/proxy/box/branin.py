@@ -13,11 +13,8 @@ zero but positive. In order to map the range into the convential negative range,
 upper bound of of Branin in the standard domain (UPPER_BOUND_IN_DOMAIN) is subtracted.
 """
 
-import matplotlib.pyplot as plt
-import numpy as np
 import torch
 from botorch.test_functions.multi_fidelity import AugmentedBranin
-from mpl_toolkits.axes_grid1 import make_axes_locatable
 from torchtyping import TensorType
 
 from gflownet.proxy.base import Proxy
@@ -110,36 +107,3 @@ class Branin(Proxy):
         (UPPER_BOUND_IN_DOMAIN).
         """
         return values + UPPER_BOUND_IN_DOMAIN
-
-    def plot_true_rewards(self, env, ax, rescale):
-        states = torch.FloatTensor(env.get_all_terminating_states()).to(self.device)
-        states_oracle = states.clone()
-        grid_size = env.length
-        states_oracle = states_oracle / (grid_size - 1)
-        states_oracle[:, 0] = states_oracle[:, 0] * rescale - 5
-        states_oracle[:, 1] = states_oracle[:, 1] * rescale
-        scores = self(states_oracle).detach().cpu().numpy()
-        if hasattr(self, "fid"):
-            title = "Oracle Energy (TrainY) with fid {}".format(self.fid)
-        else:
-            title = "Oracle Energy (TrainY)"
-        # what the GP is trained on
-        #         if self.maximize == False:
-        #             scores = scores * (-1)
-        index = states.long().detach().cpu().numpy()
-        grid_scores = np.zeros((env.length, env.length))
-        grid_scores[index[:, 0], index[:, 1]] = scores
-        ax.set_xticks(
-            np.arange(start=0, stop=env.length, step=int(env.length / rescale))
-        )
-        ax.set_yticks(
-            np.arange(start=0, stop=env.length, step=int(env.length / rescale))
-        )
-        ax.imshow(grid_scores)
-        ax.set_title(title)
-        im = ax.imshow(grid_scores)
-        divider = make_axes_locatable(ax)
-        cax = divider.append_axes("right", size="5%", pad=0.05)
-        plt.colorbar(im, cax=cax)
-        plt.show()
-        return ax
