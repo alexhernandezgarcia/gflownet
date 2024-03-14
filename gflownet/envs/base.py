@@ -74,7 +74,6 @@ class GFlowNetEnv:
         # Proxy
         self.proxy = proxy
         self.setup_proxy()
-        self.proxy_factor = -1.0
         self.proxy_state_format = proxy_state_format
         # Flag to skip checking if action is valid (computing mask) before step
         self.skip_mask_check = skip_mask_check
@@ -796,12 +795,12 @@ class GFlowNetEnv:
 
     def proxy2reward(self, proxy_vals):
         """
-        Prepares the output of a proxy for GFlowNet: the inputs proxy_vals is expected
-        to be a negative value (energy), unless self.denorm_proxy is True. If the
-        latter, the proxy values are first de-normalized according to the mean and
-        standard deviation in self.energies_stats. The output of the function is a
-        strictly positive reward - provided self.reward_norm and self.reward_beta are
-        positive - and larger than self.min_reward.
+        Prepares the output of an oracle for GFlowNet: the inputs proxy_vals is
+        expected to be a negative value (energy), unless self.denorm_proxy is True. If
+        the latter, the proxy values are first de-normalized according to the mean and
+        standard deviation in self.energies_stats, then made negative. The output of
+        the function is a strictly positive reward - self.reward_norm and
+        self.reward_beta must be positive - and larger than or equal to self.min_reward.
         """
         if self.denorm_proxy:
             # TODO: do with torch
@@ -811,21 +810,22 @@ class GFlowNetEnv:
                 + self.energies_stats[0]
             )
             # proxy_vals = proxy_vals * self.energies_stats[3] + self.energies_stats[2]
+        proxy_vals = -1.0 * proxy_vals
         if self.reward_func == "power":
             return torch.clamp(
-                (self.proxy_factor * proxy_vals / self.reward_norm) ** self.reward_beta,
+                (proxy_vals / self.reward_norm) ** self.reward_beta,
                 min=self.min_reward,
                 max=None,
             )
         elif self.reward_func == "boltzmann":
             return torch.clamp(
-                torch.exp(self.proxy_factor * self.reward_beta * proxy_vals),
+                torch.exp(self.reward_beta * proxy_vals),
                 min=self.min_reward,
                 max=None,
             )
         elif self.reward_func == "identity":
             return torch.clamp(
-                self.proxy_factor * proxy_vals,
+                proxy_vals,
                 min=self.min_reward,
                 max=None,
             )
@@ -844,7 +844,7 @@ class GFlowNetEnv:
         a proxy.
         """
         if self.reward_func == "power":
-            return self.proxy_factor * torch.exp(
+            return -1.0 * torch.exp(
                 (
                     torch.log(reward)
                     + self.reward_beta * torch.log(torch.as_tensor(self.reward_norm))
@@ -852,11 +852,11 @@ class GFlowNetEnv:
                 / self.reward_beta
             )
         elif self.reward_func == "boltzmann":
-            return self.proxy_factor * torch.log(reward) / self.reward_beta
+            return -1.0 * torch.log(reward) / self.reward_beta
         elif self.reward_func == "identity":
-            return self.proxy_factor * reward
+            return -1.0 * reward
         elif self.reward_func == "shift":
-            return self.proxy_factor * (reward - self.reward_beta)
+            return -1.0 * (reward - self.reward_beta)
         else:
             raise NotImplementedError
 

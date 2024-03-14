@@ -5,7 +5,7 @@
 defaults:
    - override /env: ccube
    - override /gflownet: trajectorybalance
-   - override /proxy: corners
+   - override /proxy: box/corners
    - override /logger: wandb
    - override /user: alex
 

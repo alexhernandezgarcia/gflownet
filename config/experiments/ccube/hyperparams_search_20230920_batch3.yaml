@@ -27,7 +27,7 @@ shared:
           output_csv: ccube_test.csv
           output_pkl: ccube_test.pkl
     # Proxy
-    proxy: corners
+    proxy: box/corners
     # GFlowNet config
     gflownet:
       __value__: trajectorybalance

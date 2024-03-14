@@ -1,38 +1,33 @@
 # @package _global_
+# A configuration that works well with the Branin proxy.
+# wandb: https://wandb.ai/alexhg/Branin/runs/xlxfdc6k
 
 defaults:
-   - override /env: crystals/clattice_parameters
+   - override /env: ccube
    - override /gflownet: trajectorybalance
-   - override /proxy: box/corners
+   - override /proxy: box/branin
    - override /logger: wandb
    - override /user: alex
 
 # Environment
 env:
-  # Lattice system
-  lattice_system: cubic
-  # Allowed ranges of size and angles
-  min_length: 1.0
-  max_length: 5.0
-  min_angle: 30.0
-  max_angle: 150.0
-  # Cube
+  n_dim: 2
   n_comp: 5
-  beta_params_min: 0.01
+  beta_params_min: 0.1
   beta_params_max: 100.0
   min_incr: 0.1
-  fixed_distribution:
+  fixed_distr_params:
     beta_weights: 1.0
-    beta_alpha: 0.01
-    beta_beta: 0.01
-    bernoulli_source_logit: 1.0
-    bernoulli_eos_logit: 1.0
-  random_distribution:
+    beta_alpha: 10.0
+    beta_beta: 10.0
+    bernoulli_eos_prob: 0.1
+    bernoulli_bts_prob: 0.1
+  random_distr_params:
     beta_weights: 1.0
-    beta_alpha: 0.01
-    beta_beta: 0.01
-    bernoulli_source_logit: 1.0
-    bernoulli_eos_logit: 1.0
+    beta_alpha: 10.0
+    beta_beta: 10.0
+    bernoulli_eos_prob: 0.1
+    bernoulli_bts_prob: 0.1
   reward_func: identity
 
 # GFlowNet hyperparameters
@@ -50,24 +45,24 @@ gflownet:
 policy:
   forward:
     type: mlp
-    n_hid: 512
-    n_layers: 5
+    n_hid: 128
+    n_layers: 2
     checkpoint: forward
   backward:
-    type: mlp
-    n_hid: 512
-    n_layers: 5
-    shared_weights: False
+    shared_weights: True
     checkpoint: backward
 
 # WandB
 logger:
+  do:
+    online: true
   lightweight: True
-  project_name: "GFlowNet Cube"
+  project_name: "branin"
   tags: 
     - gflownet
     - continuous
     - ccube
+    - branin
   test:
     period: 500
     n: 1000
@@ -77,4 +72,4 @@ logger:
 # Hydra
 hydra:
   run:
-    dir: ${user.logdir.root}/debug/ccube/${now:%Y-%m-%d_%H-%M-%S}
+    dir: ${user.logdir.root}/ccube/branin/${now:%Y-%m-%d_%H-%M-%S}
