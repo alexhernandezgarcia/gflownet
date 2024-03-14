@@ -68,6 +68,7 @@ dev = [
 materials = ["pymatgen", "pyxtal", "dave", "pyshtools"]
 molecules = [
     "pyg_lib",
+    "torch-geometric",
     "torch-scatter",
     "torch-sparse",
     "torch-cluster",
