@@ -9,7 +9,7 @@
   point_symmetry_idx: 1
   symbol: P1
   wyckoff_positions:
-  - 284
+  - 1
 2:
   crystal_class: pinacoidal
   crystal_lattice_system_idx: 1
@@ -21,15 +21,15 @@
   point_symmetry_idx: 2
   symbol: P-1
   wyckoff_positions:
-  - 689
-  - 747
-  - 17
-  - 256
-  - 366
-  - 151
-  - 555
-  - 118
-  - 263
+  - 10
+  - 9
+  - 8
+  - 7
+  - 6
+  - 5
+  - 4
+  - 3
+  - 2
 3:
   crystal_class: sphenoidal
   crystal_lattice_system_idx: 2
@@ -41,11 +41,11 @@
   point_symmetry_idx: 1
   symbol: P121
   wyckoff_positions:
-  - 152
-  - 146
-  - 945
-  - 682
-  - 476
+  - 15
+  - 14
+  - 13
+  - 12
+  - 11
 4:
   crystal_class: sphenoidal
   crystal_lattice_system_idx: 2
@@ -57,7 +57,7 @@
   point_symmetry_idx: 1
   symbol: P12_11
   wyckoff_positions:
-  - 734
+  - 16
 5:
   crystal_class: sphenoidal
   crystal_lattice_system_idx: 2
@@ -69,9 +69,9 @@
   point_symmetry_idx: 1
   symbol: C121
   wyckoff_positions:
-  - 95
-  - 616
-  - 434
+  - 19
+  - 18
+  - 17
 6:
   crystal_class: domatic
   crystal_lattice_system_idx: 2
@@ -83,9 +83,9 @@
   point_symmetry_idx: 3
   symbol: P1m1
   wyckoff_positions:
-  - 165
-  - 653
-  - 911
+  - 22
+  - 21
+  - 20
 7:
   crystal_class: domatic
   crystal_lattice_system_idx: 2
@@ -97,7 +97,7 @@
   point_symmetry_idx: 3
   symbol: P1c1
   wyckoff_positions:
-  - 176
+  - 23
 8:
   crystal_class: domatic
   crystal_lattice_system_idx: 2
@@ -109,8 +109,8 @@
   point_symmetry_idx: 3
   symbol: C1m1
   wyckoff_positions:
-  - 108
-  - 856
+  - 25
+  - 24
 9:
   crystal_class: domatic
   crystal_lattice_system_idx: 2
@@ -122,7 +122,7 @@
   point_symmetry_idx: 3
   symbol: C1c1
   wyckoff_positions:
-  - 119
+  - 26
 10:
   crystal_class: prismatic
   crystal_lattice_system_idx: 2
@@ -134,21 +134,21 @@
   point_symmetry_idx: 2
   symbol: P12/m1
   wyckoff_positions:
-  - 769
-  - 129
-  - 224
-  - 624
-  - 586
-  - 632
-  - 662
-  - 747
-  - 256
-  - 17
-  - 366
-  - 151
-  - 118
-  - 555
-  - 263
+  - 33
+  - 32
+  - 31
+  - 30
+  - 29
+  - 28
+  - 27
+  - 9
+  - 7
+  - 8
+  - 6
+  - 5
+  - 3
+  - 4
+  - 2
 11:
   crystal_class: prismatic
   crystal_lattice_system_idx: 2
@@ -160,12 +160,12 @@
   point_symmetry_idx: 2
   symbol: P12_1/m1
   wyckoff_positions:
-  - 680
-  - 762
-  - 533
-  - 604
-  - 721
-  - 21
+  - 39
+  - 38
+  - 37
+  - 36
+  - 35
+  - 34
 12:
   crystal_class: prismatic
   crystal_lattice_system_idx: 2
@@ -177,16 +177,16 @@
   point_symmetry_idx: 2
   symbol: C12/m1
   wyckoff_positions:
-  - 709
-  - 153
-  - 519
-  - 603
-  - 622
-  - 858
-  - 935
-  - 69
-  - 503
-  - 189
+  - 49
+  - 48
+  - 47
+  - 46
+  - 45
+  - 44
+  - 43
+  - 42
+  - 41
+  - 40
 13:
   crystal_class: prismatic
   crystal_lattice_system_idx: 2
@@ -198,13 +198,13 @@
   point_symmetry_idx: 2
   symbol: P12/c1
   wyckoff_positions:
-  - 368
-  - 580
-  - 923
-  - 534
-  - 918
-  - 388
-  - 818
+  - 56
+  - 55
+  - 54
+  - 53
+  - 52
+  - 51
+  - 50
 14:
   crystal_class: prismatic
   crystal_lattice_system_idx: 2
@@ -216,11 +216,11 @@
   point_symmetry_idx: 2
   symbol: P12_1/c1
   wyckoff_positions:
-  - 799
-  - 638
-  - 645
-  - 756
-  - 10
+  - 61
+  - 60
+  - 59
+  - 58
+  - 57
 15:
   crystal_class: prismatic
   crystal_lattice_system_idx: 2
@@ -232,12 +232,12 @@
   point_symmetry_idx: 2
   symbol: C12/c1
   wyckoff_positions:
-  - 319
-  - 877
-  - 40
-  - 384
-  - 865
-  - 778
+  - 67
+  - 66
+  - 65
+  - 64
+  - 63
+  - 62
 16:
   crystal_class: rhombic-disphenoidal
   crystal_lattice_system_idx: 3
@@ -249,27 +249,27 @@
   point_symmetry_idx: 4
   symbol: P222
   wyckoff_positions:
-  - 932
-  - 971
-  - 164
-  - 369
-  - 15
-  - 624
-  - 632
-  - 586
-  - 662
-  - 374
-  - 507
-  - 104
-  - 552
-  - 747
-  - 17
-  - 256
-  - 366
-  - 118
-  - 555
-  - 151
-  - 263
+  - 76
+  - 75
+  - 74
+  - 73
+  - 72
+  - 30
+  - 28
+  - 29
+  - 27
+  - 71
+  - 70
+  - 69
+  - 68
+  - 9
+  - 8
+  - 7
+  - 6
+  - 3
+  - 4
+  - 5
+  - 2
 17:
   crystal_class: rhombic-disphenoidal
   crystal_lattice_system_idx: 3
@@ -281,11 +281,11 @@
   point_symmetry_idx: 4
   symbol: P222_1
   wyckoff_positions:
-  - 595
-  - 580
-  - 923
-  - 18
-  - 207
+  - 79
+  - 55
+  - 54
+  - 78
+  - 77
 18:
   crystal_class: rhombic-disphenoidal
   crystal_lattice_system_idx: 3
@@ -297,9 +297,9 @@
   point_symmetry_idx: 4
   symbol: P2_12_12
   wyckoff_positions:
-  - 48
-  - 490
-  - 484
+  - 82
+  - 81
+  - 80
 19:
   crystal_class: rhombic-disphenoidal
   crystal_lattice_system_idx: 3
@@ -311,7 +311,7 @@
   point_symmetry_idx: 4
   symbol: P2_12_121
   wyckoff_positions:
-  - 30
+  - 83
 20:
   crystal_class: rhombic-disphenoidal
   crystal_lattice_system_idx: 3
@@ -323,9 +323,9 @@
   point_symmetry_idx: 4
   symbol: C222_1
   wyckoff_positions:
-  - 523
-  - 877
-  - 142
+  - 85
+  - 66
+  - 84
 21:
   crystal_class: rhombic-disphenoidal
   crystal_lattice_system_idx: 3
@@ -337,18 +337,18 @@
   point_symmetry_idx: 4
   symbol: C222
   wyckoff_positions:
-  - 884
-  - 683
-  - 107
-  - 933
-  - 519
-  - 603
-  - 52
-  - 500
-  - 69
-  - 185
-  - 503
-  - 189
+  - 92
+  - 91
+  - 90
+  - 89
+  - 47
+  - 46
+  - 88
+  - 87
+  - 42
+  - 86
+  - 41
+  - 40
 22:
   crystal_class: rhombic-disphenoidal
   crystal_lattice_system_idx: 3
@@ -360,17 +360,17 @@
   point_symmetry_idx: 4
   symbol: F222
   wyckoff_positions:
-  - 327
+  - 103
+  - 102
+  - 101
+  - 100
+  - 99
+  - 98
+  - 97
   - 96
-  - 665
-  - 419
-  - 383
-  - 36
-  - 275
-  - 145
-  - 826
-  - 798
-  - 897
+  - 95
+  - 94
+  - 93
 23:
   crystal_class: rhombic-disphenoidal
   crystal_lattice_system_idx: 3
@@ -382,17 +382,17 @@
   point_symmetry_idx: 4
   symbol: I222
   wyckoff_positions:
-  - 714
-  - 264
-  - 91
-  - 715
-  - 743
-  - 187
-  - 646
-  - 340
-  - 198
-  - 248
-  - 322
+  - 114
+  - 113
+  - 112
+  - 111
+  - 110
+  - 109
+  - 108
+  - 107
+  - 106
+  - 105
+  - 104
 24:
   crystal_class: rhombic-disphenoidal
   crystal_lattice_system_idx: 3
@@ -404,10 +404,10 @@
   point_symmetry_idx: 4
   symbol: I2_12_121
   wyckoff_positions:
-  - 103
-  - 797
-  - 628
-  - 251
+  - 118
+  - 117
+  - 116
+  - 115
 25:
   crystal_class: rhombic-pyramidal
   crystal_lattice_system_idx: 3
@@ -419,15 +419,15 @@
   point_symmetry_idx: 3
   symbol: Pmm2
   wyckoff_positions:
-  - 670
-  - 804
-  - 341
-  - 875
-  - 144
-  - 443
-  - 819
-  - 522
-  - 888
+  - 127
+  - 126
+  - 125
+  - 124
+  - 123
+  - 122
+  - 121
+  - 120
+  - 119
 26:
   crystal_class: rhombic-pyramidal
   crystal_lattice_system_idx: 3
@@ -439,9 +439,9 @@
   point_symmetry_idx: 3
   symbol: Pmc2_1
   wyckoff_positions:
-  - 757
-  - 403
-  - 63
+  - 130
+  - 129
+  - 128
 27:
   crystal_class: rhombic-pyramidal
   crystal_lattice_system_idx: 3
@@ -453,11 +453,11 @@
   point_symmetry_idx: 3
   symbol: Pcc2
   wyckoff_positions:
-  - 1
-  - 46
-  - 262
-  - 707
-  - 515
+  - 135
+  - 134
+  - 133
+  - 132
+  - 131
 28:
   crystal_class: rhombic-pyramidal
   crystal_lattice_system_idx: 3
@@ -469,10 +469,10 @@
   point_symmetry_idx: 3
   symbol: Pma2
   wyckoff_positions:
-  - 526
-  - 259
-  - 750
-  - 587
+  - 139
+  - 138
+  - 137
+  - 136
 29:
   crystal_class: rhombic-pyramidal
   crystal_lattice_system_idx: 3
@@ -484,7 +484,7 @@
   point_symmetry_idx: 3
   symbol: Pca2_1
   wyckoff_positions:
-  - 685
+  - 140
 30:
   crystal_class: rhombic-pyramidal
   crystal_lattice_system_idx: 3
@@ -496,9 +496,9 @@
   point_symmetry_idx: 3
   symbol: Pnc2
   wyckoff_positions:
-  - 33
-  - 506
-  - 376
+  - 143
+  - 142
+  - 141
 31:
   crystal_class: rhombic-pyramidal
   crystal_lattice_system_idx: 3
@@ -510,8 +510,8 @@
   point_symmetry_idx: 3
   symbol: Pmn2_1
   wyckoff_positions:
-  - 160
-  - 314
+  - 145
+  - 144
 32:
   crystal_class: rhombic-pyramidal
   crystal_lattice_system_idx: 3
@@ -523,9 +523,9 @@
   point_symmetry_idx: 3
   symbol: Pba2
   wyckoff_positions:
-  - 660
-  - 640
-  - 866
+  - 148
+  - 147
+  - 146
 33:
   crystal_class: rhombic-pyramidal
   crystal_lattice_system_idx: 3
@@ -537,7 +537,7 @@
   point_symmetry_idx: 3
   symbol: Pna2_1
   wyckoff_positions:
-  - 179
+  - 149
 34:
   crystal_class: rhombic-pyramidal
   crystal_lattice_system_idx: 3
@@ -549,9 +549,9 @@
   point_symmetry_idx: 3
   symbol: Pnn2
   wyckoff_positions:
-  - 483
-  - 649
-  - 47
+  - 152
+  - 151
+  - 150
 35:
   crystal_class: rhombic-pyramidal
   crystal_lattice_system_idx: 3
@@ -563,12 +563,12 @@
   point_symmetry_idx: 3
   symbol: Cmm2
   wyckoff_positions:
-  - 607
-  - 297
-  - 88
-  - 171
-  - 477
-  - 833
+  - 158
+  - 157
+  - 156
+  - 155
+  - 154
+  - 153
 36:
   crystal_class: rhombic-pyramidal
   crystal_lattice_system_idx: 3
@@ -580,8 +580,8 @@
   point_symmetry_idx: 3
   symbol: Cmc2_1
   wyckoff_positions:
-  - 706
-  - 983
+  - 160
+  - 159
 37:
   crystal_class: rhombic-pyramidal
   crystal_lattice_system_idx: 3
@@ -593,10 +593,10 @@
   point_symmetry_idx: 3
   symbol: Ccc2
   wyckoff_positions:
-  - 925
-  - 82
-  - 641
-  - 470
+  - 164
+  - 163
+  - 162
+  - 161
 38:
   crystal_class: rhombic-pyramidal
   crystal_lattice_system_idx: 3
@@ -608,12 +608,12 @@
   point_symmetry_idx: 3
   symbol: Amm2
   wyckoff_positions:
-  - 324
-  - 446
-  - 957
-  - 788
-  - 468
-  - 847
+  - 170
+  - 169
+  - 168
+  - 167
+  - 166
+  - 165
 39:
   crystal_class: rhombic-pyramidal
   crystal_lattice_system_idx: 3
@@ -625,10 +625,10 @@
   point_symmetry_idx: 3
   symbol: Aem2
   wyckoff_positions:
-  - 439
-  - 278
-  - 722
-  - 861
+  - 174
+  - 173
+  - 172
+  - 171
 40:
   crystal_class: rhombic-pyramidal
   crystal_lattice_system_idx: 3
@@ -640,9 +640,9 @@
   point_symmetry_idx: 3
   symbol: Ama2
   wyckoff_positions:
-  - 496
-  - 202
-  - 267
+  - 177
+  - 176
+  - 175
 41:
   crystal_class: rhombic-pyramidal
   crystal_lattice_system_idx: 3
@@ -654,8 +654,8 @@
   point_symmetry_idx: 3
   symbol: Aea2
   wyckoff_positions:
-  - 615
-  - 509
+  - 179
+  - 178
 42:
   crystal_class: rhombic-pyramidal
   crystal_lattice_system_idx: 3
@@ -667,11 +667,11 @@
   point_symmetry_idx: 3
   symbol: Fmm2
   wyckoff_positions:
-  - 43
-  - 495
-  - 704
-  - 573
-  - 571
+  - 184
+  - 183
+  - 182
+  - 181
+  - 180
 43:
   crystal_class: rhombic-pyramidal
   crystal_lattice_system_idx: 3
@@ -683,8 +683,8 @@
   point_symmetry_idx: 3
   symbol: Fdd2
   wyckoff_positions:
-  - 976
-  - 567
+  - 186
+  - 185
 44:
   crystal_class: rhombic-pyramidal
   crystal_lattice_system_idx: 3
@@ -696,11 +696,11 @@
   point_symmetry_idx: 3
   symbol: Imm2
   wyckoff_positions:
-  - 437
-  - 410
-  - 239
-  - 614
-  - 965
+  - 191
+  - 190
+  - 189
+  - 188
+  - 187
 45:
   crystal_class: rhombic-pyramidal
   crystal_lattice_system_idx: 3
@@ -712,9 +712,9 @@
   point_symmetry_idx: 3
   symbol: Iba2
   wyckoff_positions:
-  - 741
-  - 720
-  - 636
+  - 194
+  - 193
+  - 192
 46:
   crystal_class: rhombic-pyramidal
   crystal_lattice_system_idx: 3
@@ -726,9 +726,9 @@
   point_symmetry_idx: 3
   symbol: Ima2
   wyckoff_positions:
-  - 617
-  - 321
-  - 674
+  - 197
+  - 196
+  - 195
 47:
   crystal_class: rhombic-dipyramidal
   crystal_lattice_system_idx: 3
@@ -740,33 +740,33 @@
   point_symmetry_idx: 2
   symbol: Pmmm
   wyckoff_positions:
-  - 535
-  - 802
-  - 817
-  - 472
-  - 76
-  - 643
-  - 829
-  - 971
-  - 369
-  - 164
-  - 15
-  - 624
-  - 632
-  - 586
-  - 662
-  - 374
-  - 507
-  - 104
-  - 552
-  - 747
-  - 17
-  - 366
-  - 555
-  - 256
-  - 118
-  - 151
-  - 263
+  - 198
+  - 204
+  - 203
+  - 202
+  - 201
+  - 200
+  - 199
+  - 75
+  - 73
+  - 74
+  - 72
+  - 30
+  - 28
+  - 29
+  - 27
+  - 71
+  - 70
+  - 69
+  - 68
+  - 9
+  - 8
+  - 6
+  - 4
+  - 7
+  - 3
+  - 5
+  - 2
 48:
   crystal_class: rhombic-dipyramidal
   crystal_lattice_system_idx: 3
@@ -778,19 +778,19 @@
   point_symmetry_idx: 2
   symbol: Pnnn
   wyckoff_positions:
-  - 183
-  - 83
-  - 498
-  - 895
-  - 53
-  - 29
-  - 323
-  - 561
-  - 651
-  - 406
-  - 480
-  - 758
-  - 845
+  - 217
+  - 216
+  - 215
+  - 214
+  - 213
+  - 212
+  - 211
+  - 210
+  - 209
+  - 208
+  - 207
+  - 206
+  - 205
 49:
   crystal_class: rhombic-dipyramidal
   crystal_lattice_system_idx: 3
@@ -802,24 +802,24 @@
   point_symmetry_idx: 2
   symbol: Pccm
   wyckoff_positions:
-  - 650
-  - 563
-  - 356
-  - 77
-  - 478
-  - 287
-  - 655
-  - 120
-  - 462
-  - 236
-  - 559
-  - 887
-  - 536
-  - 562
-  - 534
-  - 918
-  - 388
-  - 818
+  - 231
+  - 230
+  - 229
+  - 228
+  - 227
+  - 226
+  - 225
+  - 224
+  - 223
+  - 222
+  - 221
+  - 220
+  - 219
+  - 218
+  - 53
+  - 52
+  - 51
+  - 50
 50:
   crystal_class: rhombic-dipyramidal
   crystal_lattice_system_idx: 3
@@ -831,19 +831,19 @@
   point_symmetry_idx: 2
   symbol: Pban
   wyckoff_positions:
-  - 2
-  - 379
-  - 429
-  - 166
-  - 335
-  - 569
-  - 921
-  - 871
-  - 199
-  - 407
-  - 671
-  - 274
-  - 254
+  - 244
+  - 243
+  - 242
+  - 241
+  - 240
+  - 239
+  - 238
+  - 237
+  - 236
+  - 235
+  - 234
+  - 233
+  - 232
 51:
   crystal_class: rhombic-dipyramidal
   crystal_lattice_system_idx: 3
@@ -855,18 +855,18 @@
   point_symmetry_idx: 2
   symbol: Pmma
   wyckoff_positions:
-  - 65
-  - 346
-  - 456
-  - 193
+  - 256
+  - 255
+  - 254
+  - 253
+  - 252
+  - 251
   - 250
-  - 666
-  - 172
-  - 596
-  - 49
-  - 745
-  - 329
-  - 623
+  - 249
+  - 248
+  - 247
+  - 246
+  - 245
 52:
   crystal_class: rhombic-dipyramidal
   crystal_lattice_system_idx: 3
@@ -878,11 +878,11 @@
   point_symmetry_idx: 2
   symbol: Pnna
   wyckoff_positions:
-  - 577
-  - 345
-  - 786
-  - 960
-  - 537
+  - 261
+  - 260
+  - 259
+  - 258
+  - 257
 53:
   crystal_class: rhombic-dipyramidal
   crystal_lattice_system_idx: 3
@@ -894,15 +894,15 @@
   point_symmetry_idx: 2
   symbol: Pmna
   wyckoff_positions:
-  - 347
-  - 174
-  - 824
-  - 687
-  - 315
-  - 770
-  - 292
-  - 427
-  - 702
+  - 270
+  - 269
+  - 268
+  - 267
+  - 266
+  - 265
+  - 264
+  - 263
+  - 262
 54:
   crystal_class: rhombic-dipyramidal
   crystal_lattice_system_idx: 3
@@ -914,12 +914,12 @@
   point_symmetry_idx: 2
   symbol: Pcca
   wyckoff_positions:
-  - 782
-  - 38
-  - 527
-  - 261
-  - 228
-  - 283
+  - 276
+  - 275
+  - 274
+  - 273
+  - 272
+  - 271
 55:
   crystal_class: rhombic-dipyramidal
   crystal_lattice_system_idx: 3
@@ -931,15 +931,15 @@
   point_symmetry_idx: 2
   symbol: Pbam
   wyckoff_positions:
-  - 729
-  - 538
-  - 157
-  - 379
-  - 429
-  - 671
-  - 274
-  - 407
-  - 254
+  - 279
+  - 278
+  - 277
+  - 243
+  - 242
+  - 234
+  - 233
+  - 235
+  - 232
 56:
   crystal_class: rhombic-dipyramidal
   crystal_lattice_system_idx: 3
@@ -951,11 +951,11 @@
   point_symmetry_idx: 2
   symbol: Pccn
   wyckoff_positions:
-  - 305
-  - 303
-  - 958
-  - 588
-  - 712
+  - 284
+  - 283
+  - 282
+  - 281
+  - 280
 57:
   crystal_class: rhombic-dipyramidal
   crystal_lattice_system_idx: 3
@@ -967,11 +967,11 @@
   point_symmetry_idx: 2
   symbol: Pbcm
   wyckoff_positions:
-  - 11
-  - 190
-  - 977
-  - 78
-  - 311
+  - 289
+  - 288
+  - 287
+  - 286
+  - 285
 58:
   crystal_class: rhombic-dipyramidal
   crystal_lattice_system_idx: 3
@@ -983,14 +983,14 @@
   point_symmetry_idx: 2
   symbol: Pnnm
   wyckoff_positions:
-  - 954
-  - 516
-  - 83
-  - 498
-  - 758
-  - 406
-  - 480
-  - 845
+  - 291
+  - 290
+  - 216
+  - 215
+  - 206
+  - 208
+  - 207
+  - 205
 59:
   crystal_class: rhombic-dipyramidal
   crystal_lattice_system_idx: 3
@@ -1002,13 +1002,13 @@
   point_symmetry_idx: 2
   symbol: Pmmn
   wyckoff_positions:
-  - 317
-  - 458
-  - 776
-  - 871
-  - 199
-  - 490
-  - 484
+  - 294
+  - 293
+  - 292
+  - 237
+  - 236
+  - 81
+  - 80
 60:
   crystal_class: rhombic-dipyramidal
   crystal_lattice_system_idx: 3
@@ -1020,10 +1020,10 @@
   point_symmetry_idx: 2
   symbol: Pbcn
   wyckoff_positions:
-  - 201
-  - 499
-  - 556
-  - 333
+  - 298
+  - 297
+  - 296
+  - 295
 61:
   crystal_class: rhombic-dipyramidal
   crystal_lattice_system_idx: 3
@@ -1035,9 +1035,9 @@
   point_symmetry_idx: 2
   symbol: Pbca
   wyckoff_positions:
-  - 99
-  - 588
-  - 712
+  - 299
+  - 281
+  - 280
 62:
   crystal_class: rhombic-dipyramidal
   crystal_lattice_system_idx: 3
@@ -1049,10 +1049,10 @@
   point_symmetry_idx: 2
   symbol: Pnma
   wyckoff_positions:
-  - 565
-  - 532
-  - 633
-  - 74
+  - 303
+  - 302
+  - 301
+  - 300
 63:
   crystal_class: rhombic-dipyramidal
   crystal_lattice_system_idx: 3
@@ -1064,14 +1064,14 @@
   point_symmetry_idx: 2
   symbol: Cmcm
   wyckoff_positions:
-  - 652
-  - 168
-  - 644
-  - 299
-  - 723
-  - 877
-  - 865
-  - 778
+  - 308
+  - 307
+  - 306
+  - 305
+  - 304
+  - 66
+  - 63
+  - 62
 64:
   crystal_class: rhombic-dipyramidal
   crystal_lattice_system_idx: 3
@@ -1083,13 +1083,13 @@
   point_symmetry_idx: 2
   symbol: Cmce
   wyckoff_positions:
-  - 872
-  - 943
-  - 488
-  - 84
-  - 723
-  - 705
-  - 929
+  - 314
+  - 313
+  - 312
+  - 311
+  - 304
+  - 310
+  - 309
 65:
   crystal_class: rhombic-dipyramidal
   crystal_lattice_system_idx: 3
@@ -1101,24 +1101,24 @@
   point_symmetry_idx: 2
   symbol: Cmmm
   wyckoff_positions:
-  - 487
-  - 433
-  - 777
-  - 5
-  - 790
-  - 716
-  - 107
-  - 933
-  - 519
-  - 603
-  - 52
-  - 500
-  - 622
-  - 858
-  - 69
-  - 185
-  - 97
-  - 189
+  - 321
+  - 320
+  - 319
+  - 318
+  - 317
+  - 316
+  - 90
+  - 89
+  - 47
+  - 46
+  - 88
+  - 87
+  - 45
+  - 44
+  - 42
+  - 86
+  - 315
+  - 40
 66:
   crystal_class: rhombic-dipyramidal
   crystal_lattice_system_idx: 3
@@ -1130,19 +1130,19 @@
   point_symmetry_idx: 2
   symbol: Cccm
   wyckoff_positions:
-  - 583
-  - 510
-  - 489
-  - 6
-  - 229
-  - 71
-  - 163
-  - 763
-  - 384
-  - 865
-  - 778
-  - 832
-  - 508
+  - 331
+  - 330
+  - 329
+  - 328
+  - 327
+  - 326
+  - 325
+  - 324
+  - 64
+  - 63
+  - 62
+  - 323
+  - 322
 67:
   crystal_class: rhombic-dipyramidal
   crystal_lattice_system_idx: 3
@@ -1154,21 +1154,21 @@
   point_symmetry_idx: 2
   symbol: Cmme
   wyckoff_positions:
-  - 394
-  - 600
-  - 834
-  - 281
-  - 362
-  - 235
-  - 524
-  - 79
-  - 842
-  - 622
-  - 858
-  - 531
-  - 639
-  - 448
-  - 934
+  - 344
+  - 343
+  - 342
+  - 341
+  - 340
+  - 339
+  - 338
+  - 337
+  - 336
+  - 45
+  - 44
+  - 335
+  - 334
+  - 333
+  - 332
 68:
   crystal_class: rhombic-dipyramidal
   crystal_lattice_system_idx: 3
@@ -1180,15 +1180,15 @@
   point_symmetry_idx: 2
   symbol: Ccce
   wyckoff_positions:
-  - 206
-  - 385
-  - 24
-  - 279
-  - 328
-  - 931
-  - 642
-  - 578
-  - 929
+  - 352
+  - 351
+  - 350
+  - 349
+  - 348
+  - 347
+  - 346
+  - 345
+  - 309
 69:
   crystal_class: rhombic-dipyramidal
   crystal_lattice_system_idx: 3
@@ -1200,22 +1200,22 @@
   point_symmetry_idx: 2
   symbol: Fmmm
   wyckoff_positions:
-  - 265
-  - 203
-  - 739
-  - 511
-  - 654
-  - 286
-  - 454
-  - 383
-  - 36
-  - 275
-  - 881
-  - 310
-  - 238
-  - 371
-  - 798
-  - 897
+  - 363
+  - 362
+  - 361
+  - 360
+  - 359
+  - 358
+  - 357
+  - 99
+  - 98
+  - 97
+  - 356
+  - 355
+  - 354
+  - 353
+  - 94
+  - 93
 70:
   crystal_class: rhombic-dipyramidal
   crystal_lattice_system_idx: 3
@@ -1227,14 +1227,14 @@
   point_symmetry_idx: 2
   symbol: Fddd
   wyckoff_positions:
-  - 903
-  - 550
-  - 724
-  - 783
-  - 989
-  - 302
-  - 436
-  - 608
+  - 371
+  - 370
+  - 369
+  - 368
+  - 367
+  - 366
+  - 365
+  - 364
 71:
   crystal_class: rhombic-dipyramidal
   crystal_lattice_system_idx: 3
@@ -1246,21 +1246,21 @@
   point_symmetry_idx: 2
   symbol: Immm
   wyckoff_positions:
-  - 626
-  - 890
-  - 141
-  - 905
-  - 416
-  - 130
-  - 91
-  - 675
-  - 743
-  - 304
-  - 646
-  - 320
-  - 441
-  - 93
-  - 322
+  - 382
+  - 381
+  - 380
+  - 379
+  - 378
+  - 377
+  - 112
+  - 376
+  - 110
+  - 375
+  - 108
+  - 374
+  - 373
+  - 372
+  - 104
 72:
   crystal_class: rhombic-dipyramidal
   crystal_lattice_system_idx: 3
@@ -1272,17 +1272,17 @@
   point_symmetry_idx: 2
   symbol: Ibam
   wyckoff_positions:
-  - 810
-  - 252
-  - 138
-  - 497
-  - 200
-  - 959
-  - 416
-  - 13
-  - 978
-  - 627
-  - 656
+  - 392
+  - 391
+  - 390
+  - 389
+  - 388
+  - 387
+  - 378
+  - 386
+  - 385
+  - 384
+  - 383
 73:
   crystal_class: rhombic-dipyramidal
   crystal_lattice_system_idx: 3
@@ -1294,12 +1294,12 @@
   point_symmetry_idx: 2
   symbol: Ibca
   wyckoff_positions:
-  - 181
-  - 936
-  - 602
-  - 67
-  - 416
-  - 469
+  - 397
+  - 396
+  - 395
+  - 394
+  - 378
+  - 393
 74:
   crystal_class: rhombic-dipyramidal
   crystal_lattice_system_idx: 3
@@ -1311,16 +1311,16 @@
   point_symmetry_idx: 2
   symbol: Imma
   wyckoff_positions:
-  - 212
-  - 735
-  - 967
-  - 815
-  - 209
-  - 974
-  - 695
-  - 749
-  - 693
-  - 785
+  - 407
+  - 406
+  - 405
+  - 404
+  - 403
+  - 402
+  - 401
+  - 400
+  - 399
+  - 398
 75:
   crystal_class: tetragonal-pyramidal
   crystal_lattice_system_idx: 4
@@ -1332,10 +1332,10 @@
   point_symmetry_idx: 1
   symbol: P4
   wyckoff_positions:
-  - 713
-  - 640
-  - 443
-  - 888
+  - 408
+  - 147
+  - 122
+  - 119
 76:
   crystal_class: tetragonal-pyramidal
   crystal_lattice_system_idx: 4
@@ -1347,7 +1347,7 @@
   point_symmetry_idx: 1
   symbol: P4_1
   wyckoff_positions:
-  - 896
+  - 409
 77:
   crystal_class: tetragonal-pyramidal
   crystal_lattice_system_idx: 4
@@ -1359,10 +1359,10 @@
   point_symmetry_idx: 1
   symbol: P4_2
   wyckoff_positions:
-  - 678
-  - 649
-  - 46
-  - 515
+  - 410
+  - 151
+  - 134
+  - 131
 78:
   crystal_class: tetragonal-pyramidal
   crystal_lattice_system_idx: 4
@@ -1374,7 +1374,7 @@
   point_symmetry_idx: 1
   symbol: P4_3
   wyckoff_positions:
-  - 56
+  - 411
 79:
   crystal_class: tetragonal-pyramidal
   crystal_lattice_system_idx: 4
@@ -1386,9 +1386,9 @@
   point_symmetry_idx: 1
   symbol: I4
   wyckoff_positions:
-  - 796
-  - 720
-  - 965
+  - 412
+  - 193
+  - 187
 80:
   crystal_class: tetragonal-pyramidal
   crystal_lattice_system_idx: 4
@@ -1400,8 +1400,8 @@
   point_symmetry_idx: 1
   symbol: I4_1
   wyckoff_positions:
-  - 85
-  - 755
+  - 414
+  - 413
 81:
   crystal_class: tetragonal-disphenoidal
   crystal_lattice_system_idx: 4
@@ -1413,14 +1413,14 @@
   point_symmetry_idx: 5
   symbol: P-4
   wyckoff_positions:
-  - 844
-  - 490
-  - 971
-  - 15
-  - 747
-  - 366
-  - 118
-  - 263
+  - 415
+  - 81
+  - 75
+  - 72
+  - 9
+  - 6
+  - 3
+  - 2
 82:
   crystal_class: tetragonal-disphenoidal
   crystal_lattice_system_idx: 4
@@ -1432,13 +1432,13 @@
   point_symmetry_idx: 5
   symbol: I-4
   wyckoff_positions:
-  - 609
-  - 564
-  - 91
-  - 618
-  - 879
-  - 198
-  - 322
+  - 419
+  - 418
+  - 112
+  - 417
+  - 416
+  - 106
+  - 104
 83:
   crystal_class: tetragonal-dipyramidal
   crystal_lattice_system_idx: 4
@@ -1450,18 +1450,18 @@
   point_symmetry_idx: 2
   symbol: P4/m
   wyckoff_positions:
-  - 821
-  - 288
-  - 710
-  - 379
-  - 971
-  - 15
-  - 671
-  - 274
-  - 747
-  - 366
-  - 118
-  - 263
+  - 422
+  - 421
+  - 420
+  - 243
+  - 75
+  - 72
+  - 234
+  - 233
+  - 9
+  - 6
+  - 3
+  - 2
 84:
   crystal_class: tetragonal-dipyramidal
   crystal_lattice_system_idx: 4
@@ -1473,17 +1473,17 @@
   point_symmetry_idx: 2
   symbol: P4_2/m
   wyckoff_positions:
-  - 529
-  - 430
-  - 83
-  - 478
-  - 287
-  - 559
-  - 562
-  - 758
-  - 406
-  - 388
-  - 818
+  - 424
+  - 423
+  - 216
+  - 227
+  - 226
+  - 221
+  - 218
+  - 206
+  - 208
+  - 51
+  - 50
 85:
   crystal_class: tetragonal-dipyramidal
   crystal_lattice_system_idx: 4
@@ -1495,13 +1495,13 @@
   point_symmetry_idx: 2
   symbol: P4/n
   wyckoff_positions:
-  - 830
-  - 429
-  - 871
-  - 199
-  - 490
-  - 407
-  - 254
+  - 425
+  - 242
+  - 237
+  - 236
+  - 81
+  - 235
+  - 232
 86:
   crystal_class: tetragonal-dipyramidal
   crystal_lattice_system_idx: 4
@@ -1513,13 +1513,13 @@
   point_symmetry_idx: 2
   symbol: P4_2/n
   wyckoff_positions:
-  - 186
-  - 498
-  - 838
-  - 561
-  - 651
-  - 480
-  - 845
+  - 427
+  - 215
+  - 426
+  - 210
+  - 209
+  - 207
+  - 205
 87:
   crystal_class: tetragonal-dipyramidal
   crystal_lattice_system_idx: 4
@@ -1531,15 +1531,15 @@
   point_symmetry_idx: 2
   symbol: I4/m
   wyckoff_positions:
-  - 584
-  - 789
-  - 138
-  - 169
-  - 91
-  - 725
-  - 13
-  - 198
-  - 322
+  - 431
+  - 430
+  - 390
+  - 429
+  - 112
+  - 428
+  - 386
+  - 106
+  - 104
 88:
   crystal_class: tetragonal-dipyramidal
   crystal_lattice_system_idx: 4
@@ -1551,12 +1551,12 @@
   point_symmetry_idx: 2
   symbol: I4_1/a
   wyckoff_positions:
-  - 414
-  - 405
-  - 386
-  - 906
-  - 445
-  - 316
+  - 437
+  - 436
+  - 435
+  - 434
+  - 433
+  - 432
 89:
   crystal_class: tetragonal-trapezohedral
   crystal_lattice_system_idx: 4
@@ -1568,22 +1568,22 @@
   point_symmetry_idx: 4
   symbol: P422
   wyckoff_positions:
-  - 873
-  - 791
-  - 629
-  - 972
-  - 109
-  - 574
-  - 966
-  - 379
-  - 971
-  - 15
-  - 671
-  - 274
-  - 747
-  - 366
-  - 118
-  - 263
+  - 444
+  - 443
+  - 442
+  - 441
+  - 440
+  - 439
+  - 438
+  - 243
+  - 75
+  - 72
+  - 234
+  - 233
+  - 9
+  - 6
+  - 3
+  - 2
 90:
   crystal_class: tetragonal-trapezohedral
   crystal_lattice_system_idx: 4
@@ -1595,13 +1595,13 @@
   point_symmetry_idx: 4
   symbol: P42_12
   wyckoff_positions:
-  - 914
-  - 101
-  - 177
-  - 429
-  - 490
-  - 407
-  - 254
+  - 447
+  - 446
+  - 445
+  - 242
+  - 81
+  - 235
+  - 232
 91:
   crystal_class: tetragonal-trapezohedral
   crystal_lattice_system_idx: 4
@@ -1613,10 +1613,10 @@
   point_symmetry_idx: 4
   symbol: P4_122
   wyckoff_positions:
-  - 461
-  - 399
-  - 840
-  - 688
+  - 451
+  - 450
+  - 449
+  - 448
 92:
   crystal_class: tetragonal-trapezohedral
   crystal_lattice_system_idx: 4
@@ -1628,8 +1628,8 @@
   point_symmetry_idx: 4
   symbol: P4_12_12
   wyckoff_positions:
-  - 466
-  - 717
+  - 453
+  - 452
 93:
   crystal_class: tetragonal-trapezohedral
   crystal_lattice_system_idx: 4
@@ -1641,22 +1641,22 @@
   point_symmetry_idx: 4
   symbol: P4_222
   wyckoff_positions:
-  - 590
-  - 318
-  - 105
-  - 987
-  - 26
-  - 668
-  - 257
-  - 83
-  - 478
-  - 287
-  - 559
-  - 562
-  - 758
-  - 406
-  - 388
-  - 818
+  - 460
+  - 459
+  - 458
+  - 457
+  - 456
+  - 455
+  - 454
+  - 216
+  - 227
+  - 226
+  - 221
+  - 218
+  - 206
+  - 208
+  - 51
+  - 50
 94:
   crystal_class: tetragonal-trapezohedral
   crystal_lattice_system_idx: 4
@@ -1668,13 +1668,13 @@
   point_symmetry_idx: 4
   symbol: P4_22_12
   wyckoff_positions:
-  - 494
-  - 422
-  - 360
-  - 838
-  - 498
-  - 480
-  - 845
+  - 463
+  - 462
+  - 461
+  - 426
+  - 215
+  - 207
+  - 205
 95:
   crystal_class: tetragonal-trapezohedral
   crystal_lattice_system_idx: 4
@@ -1686,10 +1686,10 @@
   point_symmetry_idx: 4
   symbol: P4_322
   wyckoff_positions:
-  - 389
-  - 949
-  - 816
-  - 139
+  - 467
+  - 466
+  - 465
+  - 464
 96:
   crystal_class: tetragonal-trapezohedral
   crystal_lattice_system_idx: 4
@@ -1701,8 +1701,8 @@
   point_symmetry_idx: 4
   symbol: P4_32_12
   wyckoff_positions:
-  - 64
-  - 746
+  - 469
+  - 468
 97:
   crystal_class: tetragonal-trapezohedral
   crystal_lattice_system_idx: 4
@@ -1714,17 +1714,17 @@
   point_symmetry_idx: 4
   symbol: I422
   wyckoff_positions:
-  - 944
-  - 61
-  - 401
-  - 191
-  - 72
-  - 138
-  - 91
-  - 725
-  - 13
-  - 198
-  - 322
+  - 474
+  - 473
+  - 472
+  - 471
+  - 470
+  - 390
+  - 112
+  - 428
+  - 386
+  - 106
+  - 104
 98:
   crystal_class: tetragonal-trapezohedral
   crystal_lattice_system_idx: 4
@@ -1736,13 +1736,13 @@
   point_symmetry_idx: 4
   symbol: I4_122
   wyckoff_positions:
-  - 391
-  - 459
-  - 839
-  - 795
   - 479
-  - 445
-  - 316
+  - 478
+  - 477
+  - 476
+  - 475
+  - 433
+  - 432
 99:
   crystal_class: ditetragonal-pyramidal
   crystal_lattice_system_idx: 4
@@ -1754,13 +1754,13 @@
   point_symmetry_idx: 3
   symbol: P4mm
   wyckoff_positions:
-  - 382
-  - 54
-  - 544
-  - 962
-  - 640
-  - 443
-  - 888
+  - 483
+  - 482
+  - 481
+  - 480
+  - 147
+  - 122
+  - 119
 100:
   crystal_class: ditetragonal-pyramidal
   crystal_lattice_system_idx: 4
@@ -1772,10 +1772,10 @@
   point_symmetry_idx: 3
   symbol: P4bm
   wyckoff_positions:
-  - 12
-  - 606
-  - 640
-  - 866
+  - 485
+  - 484
+  - 147
+  - 146
 101:
   crystal_class: ditetragonal-pyramidal
   crystal_lattice_system_idx: 4
@@ -1787,11 +1787,11 @@
   point_symmetry_idx: 3
   symbol: P4_2cm
   wyckoff_positions:
-  - 553
-  - 919
-  - 599
-  - 46
-  - 515
+  - 488
+  - 487
+  - 486
+  - 134
+  - 131
 102:
   crystal_class: ditetragonal-pyramidal
   crystal_lattice_system_idx: 4
@@ -1803,10 +1803,10 @@
   point_symmetry_idx: 3
   symbol: P4_2nm
   wyckoff_positions:
-  - 727
-  - 864
-  - 599
-  - 47
+  - 490
+  - 489
+  - 486
+  - 150
 103:
   crystal_class: ditetragonal-pyramidal
   crystal_lattice_system_idx: 4
@@ -1818,10 +1818,10 @@
   point_symmetry_idx: 3
   symbol: P4cc
   wyckoff_positions:
-  - 352
-  - 599
-  - 46
-  - 515
+  - 491
+  - 486
+  - 134
+  - 131
 104:
   crystal_class: ditetragonal-pyramidal
   crystal_lattice_system_idx: 4
@@ -1833,9 +1833,9 @@
   point_symmetry_idx: 3
   symbol: P4nc
   wyckoff_positions:
-  - 530
-  - 599
-  - 47
+  - 492
+  - 486
+  - 150
 105:
   crystal_class: ditetragonal-pyramidal
   crystal_lattice_system_idx: 4
@@ -1847,12 +1847,12 @@
   point_symmetry_idx: 3
   symbol: P4_2mc
   wyckoff_positions:
-  - 167
-  - 55
-  - 898
-  - 649
-  - 46
-  - 515
+  - 495
+  - 494
+  - 493
+  - 151
+  - 134
+  - 131
 106:
   crystal_class: ditetragonal-pyramidal
   crystal_lattice_system_idx: 4
@@ -1864,9 +1864,9 @@
   point_symmetry_idx: 3
   symbol: P4_2bc
   wyckoff_positions:
-  - 525
-  - 599
-  - 447
+  - 497
+  - 486
+  - 496
 107:
   crystal_class: ditetragonal-pyramidal
   crystal_lattice_system_idx: 4
@@ -1878,11 +1878,11 @@
   point_symmetry_idx: 3
   symbol: I4mm
   wyckoff_positions:
-  - 140
-  - 634
-  - 738
-  - 720
-  - 965
+  - 500
+  - 499
+  - 498
+  - 193
+  - 187
 108:
   crystal_class: ditetragonal-pyramidal
   crystal_lattice_system_idx: 4
@@ -1894,10 +1894,10 @@
   point_symmetry_idx: 3
   symbol: I4cm
   wyckoff_positions:
-  - 110
-  - 694
-  - 720
-  - 605
+  - 503
+  - 502
+  - 193
+  - 501
 109:
   crystal_class: ditetragonal-pyramidal
   crystal_lattice_system_idx: 4
@@ -1909,9 +1909,9 @@
   point_symmetry_idx: 3
   symbol: I4_1md
   wyckoff_positions:
-  - 122
-  - 809
-  - 755
+  - 505
+  - 504
+  - 413
 110:
   crystal_class: ditetragonal-pyramidal
   crystal_lattice_system_idx: 4
@@ -1923,8 +1923,8 @@
   point_symmetry_idx: 3
   symbol: I4_1cd
   wyckoff_positions:
-  - 182
-  - 886
+  - 507
+  - 506
 111:
   crystal_class: tetragonal-scalenohedral
   crystal_lattice_system_idx: 4
@@ -1936,21 +1936,21 @@
   point_symmetry_idx: 5
   symbol: P-42m
   wyckoff_positions:
-  - 372
-  - 210
-  - 379
-  - 791
-  - 629
-  - 972
-  - 109
-  - 971
-  - 15
-  - 671
-  - 274
-  - 366
-  - 118
-  - 747
-  - 263
+  - 509
+  - 508
+  - 243
+  - 443
+  - 442
+  - 441
+  - 440
+  - 75
+  - 72
+  - 234
+  - 233
+  - 6
+  - 3
+  - 9
+  - 2
 112:
   crystal_class: tetragonal-scalenohedral
   crystal_lattice_system_idx: 4
@@ -1962,20 +1962,20 @@
   point_symmetry_idx: 5
   symbol: P-42c
   wyckoff_positions:
-  - 223
-  - 771
-  - 478
-  - 287
-  - 471
-  - 213
-  - 831
-  - 982
-  - 388
-  - 818
-  - 767
-  - 559
-  - 216
-  - 562
+  - 517
+  - 516
+  - 227
+  - 226
+  - 515
+  - 514
+  - 513
+  - 512
+  - 51
+  - 50
+  - 511
+  - 221
+  - 510
+  - 218
 113:
   crystal_class: tetragonal-scalenohedral
   crystal_lattice_system_idx: 4
@@ -1987,12 +1987,12 @@
   point_symmetry_idx: 5
   symbol: P-42_1m
   wyckoff_positions:
-  - 336
-  - 493
-  - 429
-  - 490
-  - 407
-  - 254
+  - 519
+  - 518
+  - 242
+  - 81
+  - 235
+  - 232
 114:
   crystal_class: tetragonal-scalenohedral
   crystal_lattice_system_idx: 4
@@ -2004,11 +2004,11 @@
   point_symmetry_idx: 5
   symbol: P-42_1c
   wyckoff_positions:
-  - 805
-  - 838
-  - 498
-  - 480
-  - 845
+  - 520
+  - 426
+  - 215
+  - 207
+  - 205
 115:
   crystal_class: tetragonal-scalenohedral
   crystal_lattice_system_idx: 4
@@ -2020,18 +2020,18 @@
   point_symmetry_idx: 5
   symbol: P-4m2
   wyckoff_positions:
-  - 230
-  - 889
-  - 893
-  - 574
-  - 966
-  - 490
-  - 971
-  - 15
-  - 118
-  - 747
-  - 366
-  - 263
+  - 523
+  - 522
+  - 521
+  - 439
+  - 438
+  - 81
+  - 75
+  - 72
+  - 3
+  - 9
+  - 6
+  - 2
 116:
   crystal_class: tetragonal-scalenohedral
   crystal_lattice_system_idx: 4
@@ -2043,16 +2043,16 @@
   point_symmetry_idx: 5
   symbol: P-4c2
   wyckoff_positions:
-  - 90
-  - 838
-  - 478
-  - 287
-  - 318
-  - 105
-  - 388
-  - 818
-  - 559
-  - 562
+  - 524
+  - 426
+  - 227
+  - 226
+  - 459
+  - 458
+  - 51
+  - 50
+  - 221
+  - 218
 117:
   crystal_class: tetragonal-scalenohedral
   crystal_lattice_system_idx: 4
@@ -2064,15 +2064,15 @@
   point_symmetry_idx: 5
   symbol: P-4b2
   wyckoff_positions:
-  - 593
-  - 420
-  - 126
-  - 379
-  - 429
-  - 671
-  - 274
-  - 407
-  - 254
+  - 527
+  - 526
+  - 525
+  - 243
+  - 242
+  - 234
+  - 233
+  - 235
+  - 232
 118:
   crystal_class: tetragonal-scalenohedral
   crystal_lattice_system_idx: 4
@@ -2084,15 +2084,15 @@
   point_symmetry_idx: 5
   symbol: P-4n2
   wyckoff_positions:
-  - 68
-  - 771
-  - 691
-  - 736
-  - 498
-  - 216
-  - 767
-  - 480
-  - 845
+  - 530
+  - 516
+  - 529
+  - 528
+  - 215
+  - 510
+  - 511
+  - 207
+  - 205
 119:
   crystal_class: tetragonal-scalenohedral
   crystal_lattice_system_idx: 4
@@ -2104,16 +2104,16 @@
   point_symmetry_idx: 5
   symbol: I-4m2
   wyckoff_positions:
-  - 306
-  - 673
-  - 772
-  - 72
-  - 564
-  - 91
-  - 618
-  - 879
-  - 198
-  - 322
+  - 533
+  - 532
+  - 531
+  - 470
+  - 418
+  - 112
+  - 417
+  - 416
+  - 106
+  - 104
 120:
   crystal_class: tetragonal-scalenohedral
   crystal_lattice_system_idx: 4
@@ -2125,15 +2125,15 @@
   point_symmetry_idx: 5
   symbol: I-4c2
   wyckoff_positions:
-  - 835
-  - 868
-  - 912
-  - 353
-  - 188
-  - 13
-  - 963
-  - 891
-  - 656
+  - 540
+  - 539
+  - 538
+  - 537
+  - 536
+  - 386
+  - 535
+  - 534
+  - 383
 121:
   crystal_class: tetragonal-scalenohedral
   crystal_lattice_system_idx: 4
@@ -2145,16 +2145,16 @@
   point_symmetry_idx: 5
   symbol: I-42m
   wyckoff_positions:
-  - 133
-  - 939
-  - 138
-  - 401
-  - 191
-  - 91
-  - 963
-  - 13
-  - 198
-  - 322
+  - 542
+  - 541
+  - 390
+  - 472
+  - 471
+  - 112
+  - 535
+  - 386
+  - 106
+  - 104
 122:
   crystal_class: tetragonal-scalenohedral
   crystal_lattice_system_idx: 4
@@ -2166,11 +2166,11 @@
   point_symmetry_idx: 5
   symbol: I-42d
   wyckoff_positions:
-  - 465
-  - 501
-  - 66
-  - 337
-  - 19
+  - 547
+  - 546
+  - 545
+  - 544
+  - 543
 123:
   crystal_class: ditetragonal-dipyramidal
   crystal_lattice_system_idx: 4
@@ -2182,27 +2182,27 @@
   point_symmetry_idx: 2
   symbol: P4/mmm
   wyckoff_positions:
-  - 659
-  - 225
-  - 759
-  - 375
-  - 647
-  - 948
-  - 972
-  - 791
-  - 629
-  - 109
-  - 574
-  - 966
-  - 379
-  - 971
-  - 15
-  - 274
-  - 671
-  - 747
-  - 366
-  - 118
-  - 263
+  - 553
+  - 552
+  - 551
+  - 550
+  - 549
+  - 548
+  - 441
+  - 443
+  - 442
+  - 440
+  - 439
+  - 438
+  - 243
+  - 75
+  - 72
+  - 233
+  - 234
+  - 9
+  - 6
+  - 3
+  - 2
 124:
   crystal_class: ditetragonal-dipyramidal
   crystal_lattice_system_idx: 4
@@ -2214,20 +2214,20 @@
   point_symmetry_idx: 2
   symbol: P4/mcc
   wyckoff_positions:
-  - 398
-  - 8
-  - 293
-  - 822
-  - 134
-  - 149
-  - 478
-  - 287
-  - 753
-  - 556
-  - 388
+  - 560
   - 559
-  - 818
-  - 562
+  - 558
+  - 557
+  - 556
+  - 555
+  - 227
+  - 226
+  - 554
+  - 296
+  - 51
+  - 221
+  - 50
+  - 218
 125:
   crystal_class: ditetragonal-dipyramidal
   crystal_lattice_system_idx: 4
@@ -2239,20 +2239,20 @@
   point_symmetry_idx: 2
   symbol: P4/nbm
   wyckoff_positions:
-  - 325
-  - 442
-  - 620
-  - 952
-  - 867
-  - 857
-  - 379
-  - 429
-  - 871
-  - 199
-  - 671
-  - 274
-  - 407
-  - 254
+  - 566
+  - 565
+  - 564
+  - 563
+  - 562
+  - 561
+  - 243
+  - 242
+  - 237
+  - 236
+  - 234
+  - 233
+  - 235
+  - 232
 126:
   crystal_class: ditetragonal-dipyramidal
   crystal_lattice_system_idx: 4
@@ -2264,17 +2264,17 @@
   point_symmetry_idx: 2
   symbol: P4/nnc
   wyckoff_positions:
-  - 979
-  - 392
-  - 768
-  - 464
-  - 149
-  - 611
-  - 498
-  - 753
-  - 556
-  - 480
-  - 845
+  - 571
+  - 570
+  - 569
+  - 568
+  - 555
+  - 567
+  - 215
+  - 554
+  - 296
+  - 207
+  - 205
 127:
   crystal_class: ditetragonal-dipyramidal
   crystal_lattice_system_idx: 4
@@ -2286,18 +2286,18 @@
   point_symmetry_idx: 2
   symbol: P4/mbm
   wyckoff_positions:
-  - 81
-  - 801
-  - 34
-  - 197
-  - 420
-  - 126
-  - 379
-  - 429
-  - 274
-  - 671
-  - 407
-  - 254
+  - 575
+  - 574
+  - 573
+  - 572
+  - 526
+  - 525
+  - 243
+  - 242
+  - 233
+  - 234
+  - 235
+  - 232
 128:
   crystal_class: ditetragonal-dipyramidal
   crystal_lattice_system_idx: 4
@@ -2309,15 +2309,15 @@
   point_symmetry_idx: 2
   symbol: P4/mnc
   wyckoff_positions:
-  - 961
-  - 915
-  - 220
-  - 149
-  - 498
-  - 753
-  - 556
-  - 480
-  - 845
+  - 578
+  - 577
+  - 576
+  - 555
+  - 215
+  - 554
+  - 296
+  - 207
+  - 205
 129:
   crystal_class: ditetragonal-dipyramidal
   crystal_lattice_system_idx: 4
@@ -2329,17 +2329,17 @@
   point_symmetry_idx: 2
   symbol: P4/nmm
   wyckoff_positions:
-  - 542
-  - 178
-  - 184
-  - 867
-  - 857
-  - 429
-  - 871
-  - 199
-  - 490
-  - 407
-  - 254
+  - 581
+  - 580
+  - 579
+  - 562
+  - 561
+  - 242
+  - 237
+  - 236
+  - 81
+  - 235
+  - 232
 130:
   crystal_class: ditetragonal-dipyramidal
   crystal_lattice_system_idx: 4
@@ -2351,13 +2351,13 @@
   point_symmetry_idx: 2
   symbol: P4/ncc
   wyckoff_positions:
-  - 393
-  - 980
-  - 813
-  - 517
-  - 838
-  - 333
-  - 576
+  - 586
+  - 585
+  - 584
+  - 583
+  - 426
+  - 295
+  - 582
 131:
   crystal_class: ditetragonal-dipyramidal
   crystal_lattice_system_idx: 4
@@ -2369,24 +2369,24 @@
   point_symmetry_idx: 2
   symbol: P4_2/mmc
   wyckoff_positions:
-  - 852
-  - 23
-  - 708
-  - 253
-  - 134
-  - 987
-  - 26
-  - 668
-  - 257
-  - 83
-  - 478
-  - 287
-  - 559
-  - 562
-  - 758
-  - 406
-  - 388
-  - 818
+  - 590
+  - 589
+  - 588
+  - 587
+  - 556
+  - 457
+  - 456
+  - 455
+  - 454
+  - 216
+  - 227
+  - 226
+  - 221
+  - 218
+  - 206
+  - 208
+  - 51
+  - 50
 132:
   crystal_class: ditetragonal-dipyramidal
   crystal_lattice_system_idx: 4
@@ -2398,22 +2398,22 @@
   point_symmetry_idx: 2
   symbol: P4_2/mcm
   wyckoff_positions:
-  - 774
-  - 214
-  - 87
-  - 293
-  - 822
-  - 149
-  - 3
-  - 22
-  - 478
-  - 287
-  - 556
-  - 753
-  - 559
-  - 388
-  - 562
-  - 818
+  - 595
+  - 594
+  - 593
+  - 558
+  - 557
+  - 555
+  - 592
+  - 591
+  - 227
+  - 226
+  - 296
+  - 554
+  - 221
+  - 51
+  - 218
+  - 50
 133:
   crystal_class: ditetragonal-dipyramidal
   crystal_lattice_system_idx: 4
@@ -2425,17 +2425,17 @@
   point_symmetry_idx: 2
   symbol: P4_2/nbc
   wyckoff_positions:
-  - 514
-  - 411
-  - 787
-  - 637
-  - 813
-  - 149
-  - 611
-  - 333
-  - 556
-  - 576
-  - 753
+  - 599
+  - 598
+  - 597
+  - 596
+  - 584
+  - 555
+  - 567
+  - 295
+  - 296
+  - 582
+  - 554
 134:
   crystal_class: ditetragonal-dipyramidal
   crystal_lattice_system_idx: 4
@@ -2447,20 +2447,20 @@
   point_symmetry_idx: 2
   symbol: P4_2/nnm
   wyckoff_positions:
-  - 124
-  - 271
-  - 246
-  - 444
-  - 392
-  - 768
-  - 149
-  - 498
-  - 561
-  - 651
-  - 753
-  - 556
-  - 480
-  - 845
+  - 603
+  - 602
+  - 601
+  - 600
+  - 570
+  - 569
+  - 555
+  - 215
+  - 210
+  - 209
+  - 554
+  - 296
+  - 207
+  - 205
 135:
   crystal_class: ditetragonal-dipyramidal
   crystal_lattice_system_idx: 4
@@ -2472,15 +2472,15 @@
   point_symmetry_idx: 2
   symbol: P4_2/mbc
   wyckoff_positions:
-  - 351
-  - 610
-  - 220
-  - 149
-  - 813
-  - 753
-  - 556
+  - 605
+  - 604
   - 576
-  - 333
+  - 555
+  - 584
+  - 554
+  - 296
+  - 582
+  - 295
 136:
   crystal_class: ditetragonal-dipyramidal
   crystal_lattice_system_idx: 4
@@ -2492,17 +2492,17 @@
   point_symmetry_idx: 2
   symbol: P4_2/mnm
   wyckoff_positions:
-  - 841
-  - 862
-  - 543
-  - 149
-  - 513
-  - 360
-  - 498
-  - 753
-  - 556
-  - 480
-  - 845
+  - 609
+  - 608
+  - 607
+  - 555
+  - 606
+  - 461
+  - 215
+  - 554
+  - 296
+  - 207
+  - 205
 137:
   crystal_class: ditetragonal-dipyramidal
   crystal_lattice_system_idx: 4
@@ -2514,14 +2514,14 @@
   point_symmetry_idx: 2
   symbol: P4_2/nmc
   wyckoff_positions:
-  - 205
-  - 581
-  - 464
   - 611
-  - 838
-  - 498
-  - 480
-  - 845
+  - 610
+  - 568
+  - 567
+  - 426
+  - 215
+  - 207
+  - 205
 138:
   crystal_class: ditetragonal-dipyramidal
   crystal_lattice_system_idx: 4
@@ -2533,16 +2533,16 @@
   point_symmetry_idx: 2
   symbol: P4_2/ncm
   wyckoff_positions:
-  - 222
-  - 276
-  - 20
-  - 397
-  - 813
-  - 838
-  - 561
-  - 651
-  - 333
-  - 576
+  - 615
+  - 614
+  - 613
+  - 612
+  - 584
+  - 426
+  - 210
+  - 209
+  - 295
+  - 582
 139:
   crystal_class: ditetragonal-dipyramidal
   crystal_lattice_system_idx: 4
@@ -2554,21 +2554,21 @@
   point_symmetry_idx: 2
   symbol: I4/mmm
   wyckoff_positions:
-  - 426
-  - 793
-  - 449
-  - 50
-  - 950
-  - 850
-  - 191
-  - 72
-  - 138
-  - 169
-  - 91
-  - 725
-  - 13
-  - 198
-  - 322
+  - 621
+  - 620
+  - 619
+  - 618
+  - 617
+  - 616
+  - 471
+  - 470
+  - 390
+  - 429
+  - 112
+  - 428
+  - 386
+  - 106
+  - 104
 140:
   crystal_class: ditetragonal-dipyramidal
   crystal_lattice_system_idx: 4
@@ -2580,19 +2580,19 @@
   point_symmetry_idx: 2
   symbol: I4/mcm
   wyckoff_positions:
-  - 154
-  - 211
-  - 86
-  - 585
-  - 221
-  - 868
-  - 601
-  - 353
-  - 169
-  - 13
-  - 891
-  - 725
-  - 656
+  - 627
+  - 626
+  - 625
+  - 624
+  - 623
+  - 539
+  - 622
+  - 537
+  - 429
+  - 386
+  - 534
+  - 428
+  - 383
 141:
   crystal_class: ditetragonal-dipyramidal
   crystal_lattice_system_idx: 4
@@ -2604,15 +2604,15 @@
   point_symmetry_idx: 2
   symbol: I4_1/amd
   wyckoff_positions:
-  - 348
-  - 946
-  - 272
-  - 676
-  - 479
-  - 386
-  - 906
-  - 445
-  - 316
+  - 631
+  - 630
+  - 629
+  - 628
+  - 475
+  - 435
+  - 434
+  - 433
+  - 432
 142:
   crystal_class: ditetragonal-dipyramidal
   crystal_lattice_system_idx: 4
@@ -2624,13 +2624,13 @@
   point_symmetry_idx: 2
   symbol: I4_1/acd
   wyckoff_positions:
-  - 349
-  - 984
-  - 648
-  - 428
-  - 395
-  - 435
-  - 57
+  - 638
+  - 637
+  - 636
+  - 635
+  - 634
+  - 633
+  - 632
 143:
   crystal_class: trigonal-pyramidal
   crystal_lattice_system_idx: 6
@@ -2642,10 +2642,10 @@
   point_symmetry_idx: 1
   symbol: P3
   wyckoff_positions:
-  - 440
-  - 431
-  - 249
-  - 888
+  - 641
+  - 640
+  - 639
+  - 119
 144:
   crystal_class: trigonal-pyramidal
   crystal_lattice_system_idx: 6
@@ -2657,7 +2657,7 @@
   point_symmetry_idx: 1
   symbol: P3_1
   wyckoff_positions:
-  - 899
+  - 642
 145:
   crystal_class: trigonal-pyramidal
   crystal_lattice_system_idx: 6
@@ -2669,7 +2669,7 @@
   point_symmetry_idx: 1
   symbol: P3_2
   wyckoff_positions:
-  - 204
+  - 643
 146:
   crystal_class: trigonal-pyramidal
   crystal_lattice_system_idx: 5
@@ -2681,8 +2681,8 @@
   point_symmetry_idx: 1
   symbol: R3
   wyckoff_positions:
-  - 136
-  - 900
+  - 645
+  - 644
 147:
   crystal_class: rhombohedral
   crystal_lattice_system_idx: 6
@@ -2694,13 +2694,13 @@
   point_symmetry_idx: 2
   symbol: P-3
   wyckoff_positions:
-  - 630
-  - 870
-  - 505
-  - 625
-  - 15
-  - 118
-  - 263
+  - 649
+  - 648
+  - 647
+  - 646
+  - 72
+  - 3
+  - 2
 148:
   crystal_class: rhombohedral
   crystal_lattice_system_idx: 5
@@ -2712,12 +2712,12 @@
   point_symmetry_idx: 2
   symbol: R-3
   wyckoff_positions:
-  - 339
-  - 233
-  - 568
-  - 711
-  - 131
-  - 273
+  - 655
+  - 654
+  - 653
+  - 652
+  - 651
+  - 650
 149:
   crystal_class: trigonal-trapezohedral
   crystal_lattice_system_idx: 6
@@ -2729,18 +2729,18 @@
   point_symmetry_idx: 4
   symbol: P312
   wyckoff_positions:
-  - 869
-  - 964
-  - 728
-  - 453
-  - 35
-  - 15
-  - 460
-  - 901
-  - 39
-  - 860
-  - 118
-  - 263
+  - 664
+  - 663
+  - 662
+  - 661
+  - 660
+  - 72
+  - 659
+  - 658
+  - 657
+  - 656
+  - 3
+  - 2
 150:
   crystal_class: trigonal-trapezohedral
   crystal_lattice_system_idx: 6
@@ -2752,13 +2752,13 @@
   point_symmetry_idx: 4
   symbol: P321
   wyckoff_positions:
-  - 808
-  - 180
-  - 244
-  - 625
-  - 15
-  - 118
-  - 263
+  - 667
+  - 666
+  - 665
+  - 646
+  - 72
+  - 3
+  - 2
 151:
   crystal_class: trigonal-trapezohedral
   crystal_lattice_system_idx: 6
@@ -2770,9 +2770,9 @@
   point_symmetry_idx: 4
   symbol: P3_112
   wyckoff_positions:
-  - 128
-  - 956
-  - 417
+  - 670
+  - 669
+  - 668
 152:
   crystal_class: trigonal-trapezohedral
   crystal_lattice_system_idx: 6
@@ -2784,9 +2784,9 @@
   point_symmetry_idx: 4
   symbol: P3_121
   wyckoff_positions:
-  - 277
-  - 58
-  - 941
+  - 673
+  - 672
+  - 671
 153:
   crystal_class: trigonal-trapezohedral
   crystal_lattice_system_idx: 6
@@ -2798,9 +2798,9 @@
   point_symmetry_idx: 4
   symbol: P3_212
   wyckoff_positions:
-  - 878
-  - 123
-  - 92
+  - 676
+  - 675
+  - 674
 154:
   crystal_class: trigonal-trapezohedral
   crystal_lattice_system_idx: 6
@@ -2812,9 +2812,9 @@
   point_symmetry_idx: 4
   symbol: P3_221
   wyckoff_positions:
-  - 570
-  - 635
-  - 208
+  - 679
+  - 678
+  - 677
 155:
   crystal_class: trigonal-trapezohedral
   crystal_lattice_system_idx: 5
@@ -2826,12 +2826,12 @@
   point_symmetry_idx: 4
   symbol: R32
   wyckoff_positions:
-  - 814
-  - 196
-  - 907
-  - 711
-  - 131
-  - 273
+  - 682
+  - 681
+  - 680
+  - 652
+  - 651
+  - 650
 156:
   crystal_class: ditrigonal-pyramidal
   crystal_lattice_system_idx: 6
@@ -2843,11 +2843,11 @@
   point_symmetry_idx: 3
   symbol: P3m1
   wyckoff_positions:
-  - 909
-  - 481
-  - 431
-  - 249
-  - 888
+  - 684
+  - 683
+  - 640
+  - 639
+  - 119
 157:
   crystal_class: ditrigonal-pyramidal
   crystal_lattice_system_idx: 6
@@ -2859,10 +2859,10 @@
   point_symmetry_idx: 3
   symbol: P31m
   wyckoff_positions:
-  - 14
-  - 452
-  - 836
-  - 888
+  - 687
+  - 686
+  - 685
+  - 119
 158:
   crystal_class: ditrigonal-pyramidal
   crystal_lattice_system_idx: 6
@@ -2874,10 +2874,10 @@
   point_symmetry_idx: 3
   symbol: P3c1
   wyckoff_positions:
-  - 243
-  - 147
-  - 947
-  - 515
+  - 690
+  - 689
+  - 688
+  - 131
 159:
   crystal_class: ditrigonal-pyramidal
   crystal_lattice_system_idx: 6
@@ -2889,9 +2889,9 @@
   point_symmetry_idx: 3
   symbol: P31c
   wyckoff_positions:
-  - 300
-  - 696
-  - 515
+  - 692
+  - 691
+  - 131
 160:
   crystal_class: ditrigonal-pyramidal
   crystal_lattice_system_idx: 5
@@ -2903,9 +2903,9 @@
   point_symmetry_idx: 3
   symbol: R3m
   wyckoff_positions:
-  - 612
-  - 491
-  - 900
+  - 694
+  - 693
+  - 644
 161:
   crystal_class: ditrigonal-pyramidal
   crystal_lattice_system_idx: 5
@@ -2917,8 +2917,8 @@
   point_symmetry_idx: 3
   symbol: R3c
   wyckoff_positions:
-  - 904
-  - 255
+  - 696
+  - 695
 162:
   crystal_class: ditrigonal-scalenohedral
   crystal_lattice_system_idx: 6
@@ -2930,18 +2930,18 @@
   point_symmetry_idx: 2
   symbol: P-31m
   wyckoff_positions:
-  - 751
-  - 485
-  - 269
-  - 121
-  - 158
-  - 870
-  - 505
-  - 15
-  - 9
-  - 100
-  - 118
-  - 263
+  - 703
+  - 702
+  - 701
+  - 700
+  - 699
+  - 648
+  - 647
+  - 72
+  - 698
+  - 697
+  - 3
+  - 2
 163:
   crystal_class: ditrigonal-scalenohedral
   crystal_lattice_system_idx: 6
@@ -2953,15 +2953,15 @@
   point_symmetry_idx: 2
   symbol: P-31c
   wyckoff_positions:
-  - 475
-  - 684
-  - 451
-  - 289
-  - 287
-  - 37
-  - 589
-  - 818
-  - 562
+  - 709
+  - 708
+  - 707
+  - 706
+  - 226
+  - 705
+  - 704
+  - 50
+  - 218
 164:
   crystal_class: ditrigonal-scalenohedral
   crystal_lattice_system_idx: 6
@@ -2973,16 +2973,16 @@
   point_symmetry_idx: 2
   symbol: P-3m1
   wyckoff_positions:
-  - 975
-  - 357
-  - 270
-  - 354
-  - 870
-  - 505
-  - 625
-  - 15
-  - 118
-  - 263
+  - 713
+  - 712
+  - 711
+  - 710
+  - 648
+  - 647
+  - 646
+  - 72
+  - 3
+  - 2
 165:
   crystal_class: ditrigonal-scalenohedral
   crystal_lattice_system_idx: 6
@@ -2994,13 +2994,13 @@
   point_symmetry_idx: 2
   symbol: P-3c1
   wyckoff_positions:
-  - 350
-  - 361
-  - 451
-  - 619
-  - 287
-  - 818
-  - 562
+  - 716
+  - 715
+  - 707
+  - 714
+  - 226
+  - 50
+  - 218
 166:
   crystal_class: ditrigonal-scalenohedral
   crystal_lattice_system_idx: 5
@@ -3012,15 +3012,15 @@
   point_symmetry_idx: 2
   symbol: R-3m
   wyckoff_positions:
-  - 692
-  - 51
-  - 920
-  - 363
-  - 233
-  - 568
-  - 711
-  - 131
-  - 273
+  - 720
+  - 719
+  - 718
+  - 717
+  - 654
+  - 653
+  - 652
+  - 651
+  - 650
 167:
   crystal_class: ditrigonal-scalenohedral
   crystal_lattice_system_idx: 5
@@ -3032,12 +3032,12 @@
   point_symmetry_idx: 2
   symbol: R-3c
   wyckoff_positions:
-  - 42
-  - 373
-  - 150
-  - 942
-  - 828
-  - 579
+  - 726
+  - 725
+  - 724
+  - 723
+  - 722
+  - 721
 168:
   crystal_class: hexagonal-pyramidal
   crystal_lattice_system_idx: 7
@@ -3049,10 +3049,10 @@
   point_symmetry_idx: 1
   symbol: P6
   wyckoff_positions:
-  - 137
-  - 927
-  - 836
-  - 888
+  - 728
+  - 727
+  - 685
+  - 119
 169:
   crystal_class: hexagonal-pyramidal
   crystal_lattice_system_idx: 7
@@ -3064,7 +3064,7 @@
   point_symmetry_idx: 1
   symbol: P6_1
   wyckoff_positions:
-  - 482
+  - 729
 170:
   crystal_class: hexagonal-pyramidal
   crystal_lattice_system_idx: 7
@@ -3076,7 +3076,7 @@
   point_symmetry_idx: 1
   symbol: P6_5
   wyckoff_positions:
-  - 455
+  - 730
 171:
   crystal_class: hexagonal-pyramidal
   crystal_lattice_system_idx: 7
@@ -3088,9 +3088,9 @@
   point_symmetry_idx: 1
   symbol: P6_2
   wyckoff_positions:
-  - 298
-  - 31
-  - 173
+  - 733
+  - 732
+  - 731
 172:
   crystal_class: hexagonal-pyramidal
   crystal_lattice_system_idx: 7
@@ -3102,9 +3102,9 @@
   point_symmetry_idx: 1
   symbol: P6_4
   wyckoff_positions:
-  - 370
-  - 591
-  - 173
+  - 735
+  - 734
+  - 731
 173:
   crystal_class: hexagonal-pyramidal
   crystal_lattice_system_idx: 7
@@ -3116,9 +3116,9 @@
   point_symmetry_idx: 1
   symbol: P6_3
   wyckoff_positions:
-  - 245
-  - 696
-  - 515
+  - 736
+  - 691
+  - 131
 174:
   crystal_class: trigonal-dipyramidal
   crystal_lattice_system_idx: 7
@@ -3130,18 +3130,18 @@
   point_symmetry_idx: 5
   symbol: P-6
   wyckoff_positions:
-  - 582
-  - 681
-  - 990
-  - 453
-  - 35
-  - 15
-  - 460
-  - 901
-  - 39
-  - 860
-  - 118
-  - 263
+  - 739
+  - 738
+  - 737
+  - 661
+  - 660
+  - 72
+  - 659
+  - 658
+  - 657
+  - 656
+  - 3
+  - 2
 175:
   crystal_class: hexagonal-dipyramidal
   crystal_lattice_system_idx: 7
@@ -3153,18 +3153,18 @@
   point_symmetry_idx: 2
   symbol: P6/m
   wyckoff_positions:
-  - 970
-  - 432
-  - 908
-  - 294
-  - 158
-  - 870
-  - 505
-  - 15
-  - 9
-  - 100
-  - 118
-  - 263
+  - 743
+  - 742
+  - 741
+  - 740
+  - 699
+  - 648
+  - 647
+  - 72
+  - 698
+  - 697
+  - 3
+  - 2
 176:
   crystal_class: hexagonal-dipyramidal
   crystal_lattice_system_idx: 7
@@ -3176,15 +3176,15 @@
   point_symmetry_idx: 2
   symbol: P6_3/m
   wyckoff_positions:
-  - 355
-  - 765
-  - 451
-  - 289
-  - 287
-  - 37
-  - 589
-  - 818
-  - 562
+  - 745
+  - 744
+  - 707
+  - 706
+  - 226
+  - 705
+  - 704
+  - 50
+  - 218
 177:
   crystal_class: hexagonal-trapezohedral
   crystal_lattice_system_idx: 7
@@ -3196,20 +3196,20 @@
   point_symmetry_idx: 4
   symbol: P622
   wyckoff_positions:
-  - 718
-  - 269
-  - 121
-  - 270
-  - 354
-  - 294
-  - 158
-  - 870
-  - 505
-  - 15
-  - 9
-  - 100
-  - 118
-  - 263
+  - 746
+  - 701
+  - 700
+  - 711
+  - 710
+  - 740
+  - 699
+  - 648
+  - 647
+  - 72
+  - 698
+  - 697
+  - 3
+  - 2
 178:
   crystal_class: hexagonal-trapezohedral
   crystal_lattice_system_idx: 7
@@ -3221,9 +3221,9 @@
   point_symmetry_idx: 4
   symbol: P6_122
   wyckoff_positions:
-  - 677
-  - 955
-  - 80
+  - 749
+  - 748
+  - 747
 179:
   crystal_class: hexagonal-trapezohedral
   crystal_lattice_system_idx: 7
@@ -3235,9 +3235,9 @@
   point_symmetry_idx: 4
   symbol: P6_522
   wyckoff_positions:
-  - 32
-  - 194
-  - 332
+  - 752
+  - 751
+  - 750
 180:
   crystal_class: hexagonal-trapezohedral
   crystal_lattice_system_idx: 7
@@ -3249,17 +3249,17 @@
   point_symmetry_idx: 4
   symbol: P6_222
   wyckoff_positions:
-  - 240
-  - 418
-  - 312
-  - 241
-  - 764
-  - 825
-  - 733
-  - 837
-  - 423
-  - 572
-  - 732
+  - 763
+  - 762
+  - 761
+  - 760
+  - 759
+  - 758
+  - 757
+  - 756
+  - 755
+  - 754
+  - 753
 181:
   crystal_class: hexagonal-trapezohedral
   crystal_lattice_system_idx: 7
@@ -3271,17 +3271,17 @@
   point_symmetry_idx: 4
   symbol: P6_422
   wyckoff_positions:
-  - 719
-  - 380
-  - 988
-  - 358
-  - 367
-  - 148
-  - 733
-  - 575
-  - 863
-  - 572
-  - 732
+  - 771
+  - 770
+  - 769
+  - 768
+  - 767
+  - 766
+  - 757
+  - 765
+  - 764
+  - 754
+  - 753
 182:
   crystal_class: hexagonal-trapezohedral
   crystal_lattice_system_idx: 7
@@ -3293,15 +3293,15 @@
   point_symmetry_idx: 4
   symbol: P6_322
   wyckoff_positions:
-  - 408
-  - 684
-  - 760
-  - 289
-  - 287
-  - 37
-  - 589
-  - 562
-  - 818
+  - 773
+  - 708
+  - 772
+  - 706
+  - 226
+  - 705
+  - 704
+  - 218
+  - 50
 183:
   crystal_class: dihexagonal-pyramidal
   crystal_lattice_system_idx: 7
@@ -3313,12 +3313,12 @@
   point_symmetry_idx: 3
   symbol: P6mm
   wyckoff_positions:
-  - 520
-  - 215
-  - 396
-  - 927
-  - 836
-  - 888
+  - 776
+  - 775
+  - 774
+  - 727
+  - 685
+  - 119
 184:
   crystal_class: dihexagonal-pyramidal
   crystal_lattice_system_idx: 7
@@ -3330,10 +3330,10 @@
   point_symmetry_idx: 3
   symbol: P6cc
   wyckoff_positions:
-  - 773
-  - 551
-  - 59
-  - 515
+  - 779
+  - 778
+  - 777
+  - 131
 185:
   crystal_class: dihexagonal-pyramidal
   crystal_lattice_system_idx: 7
@@ -3345,10 +3345,10 @@
   point_symmetry_idx: 3
   symbol: P6_3cm
   wyckoff_positions:
-  - 342
-  - 402
-  - 59
-  - 515
+  - 781
+  - 780
+  - 777
+  - 131
 186:
   crystal_class: dihexagonal-pyramidal
   crystal_lattice_system_idx: 7
@@ -3360,10 +3360,10 @@
   point_symmetry_idx: 3
   symbol: P6_3mc
   wyckoff_positions:
-  - 409
-  - 784
-  - 696
-  - 515
+  - 783
+  - 782
+  - 691
+  - 131
 187:
   crystal_class: ditrigonal-dipyramidal
   crystal_lattice_system_idx: 7
@@ -3375,21 +3375,21 @@
   point_symmetry_idx: 5
   symbol: P-6m2
   wyckoff_positions:
-  - 800
-  - 730
-  - 742
-  - 882
-  - 964
-  - 728
-  - 453
-  - 35
-  - 15
-  - 460
-  - 901
-  - 39
-  - 860
-  - 118
-  - 263
+  - 787
+  - 786
+  - 785
+  - 784
+  - 663
+  - 662
+  - 661
+  - 660
+  - 72
+  - 659
+  - 658
+  - 657
+  - 656
+  - 3
+  - 2
 188:
   crystal_class: ditrigonal-dipyramidal
   crystal_lattice_system_idx: 7
@@ -3401,18 +3401,18 @@
   point_symmetry_idx: 5
   symbol: P-6c2
   wyckoff_positions:
-  - 175
-  - 917
-  - 344
-  - 400
-  - 780
-  - 287
-  - 463
-  - 973
-  - 876
-  - 937
-  - 562
-  - 818
+  - 796
+  - 795
+  - 794
+  - 793
+  - 792
+  - 226
+  - 791
+  - 790
+  - 789
+  - 788
+  - 218
+  - 50
 189:
   crystal_class: ditrigonal-dipyramidal
   crystal_lattice_system_idx: 7
@@ -3424,18 +3424,18 @@
   point_symmetry_idx: 5
   symbol: P-62m
   wyckoff_positions:
-  - 926
-  - 521
-  - 114
-  - 125
-  - 158
-  - 180
-  - 244
-  - 15
-  - 9
-  - 100
-  - 118
-  - 263
+  - 800
+  - 799
+  - 798
+  - 797
+  - 699
+  - 666
+  - 665
+  - 72
+  - 698
+  - 697
+  - 3
+  - 2
 190:
   crystal_class: ditrigonal-dipyramidal
   crystal_lattice_system_idx: 7
@@ -3447,15 +3447,15 @@
   point_symmetry_idx: 5
   symbol: P-62c
   wyckoff_positions:
-  - 438
-  - 334
-  - 307
-  - 289
-  - 287
-  - 37
-  - 589
-  - 562
-  - 818
+  - 803
+  - 802
+  - 801
+  - 706
+  - 226
+  - 705
+  - 704
+  - 218
+  - 50
 191:
   crystal_class: dihexagonal-dipyramidal
   crystal_lattice_system_idx: 7
@@ -3467,24 +3467,24 @@
   point_symmetry_idx: 2
   symbol: P6/mmm
   wyckoff_positions:
-  - 541
+  - 808
+  - 807
+  - 806
+  - 805
+  - 804
+  - 701
   - 700
-  - 661
-  - 343
-  - 548
-  - 269
-  - 121
-  - 270
-  - 354
-  - 294
-  - 158
-  - 870
-  - 505
-  - 15
-  - 9
-  - 100
-  - 118
-  - 263
+  - 711
+  - 710
+  - 740
+  - 699
+  - 648
+  - 647
+  - 72
+  - 698
+  - 697
+  - 3
+  - 2
 192:
   crystal_class: dihexagonal-dipyramidal
   crystal_lattice_system_idx: 7
@@ -3496,19 +3496,19 @@
   point_symmetry_idx: 2
   symbol: P6/mcc
   wyckoff_positions:
-  - 854
-  - 45
-  - 679
-  - 473
-  - 686
-  - 492
-  - 451
-  - 697
-  - 287
-  - 232
-  - 425
-  - 818
-  - 562
+  - 817
+  - 816
+  - 815
+  - 814
+  - 813
+  - 812
+  - 707
+  - 811
+  - 226
+  - 810
+  - 809
+  - 50
+  - 218
 193:
   crystal_class: dihexagonal-dipyramidal
   crystal_lattice_system_idx: 7
@@ -3520,18 +3520,18 @@
   point_symmetry_idx: 2
   symbol: P6_3/mcm
   wyckoff_positions:
-  - 803
+  - 821
   - 820
-  - 308
-  - 545
-  - 492
-  - 361
-  - 451
-  - 287
-  - 232
-  - 425
+  - 819
   - 818
-  - 562
+  - 812
+  - 715
+  - 707
+  - 226
+  - 810
+  - 809
+  - 50
+  - 218
 194:
   crystal_class: dihexagonal-dipyramidal
   crystal_lattice_system_idx: 7
@@ -3543,18 +3543,18 @@
   point_symmetry_idx: 2
   symbol: P6_3/mmc
   wyckoff_positions:
-  - 539
-  - 986
-  - 234
-  - 231
-  - 684
-  - 451
-  - 289
-  - 287
-  - 37
-  - 589
-  - 562
-  - 818
+  - 825
+  - 824
+  - 823
+  - 822
+  - 708
+  - 707
+  - 706
+  - 226
+  - 705
+  - 704
+  - 218
+  - 50
 195:
   crystal_class: tetartoidal
   crystal_lattice_system_idx: 8
@@ -3566,16 +3566,16 @@
   point_symmetry_idx: 4
   symbol: P23
   wyckoff_positions:
-  - 219
-  - 111
-  - 658
-  - 969
+  - 833
+  - 832
+  - 831
+  - 830
+  - 829
+  - 828
   - 827
-  - 113
-  - 474
-  - 421
-  - 747
-  - 263
+  - 826
+  - 9
+  - 2
 196:
   crystal_class: tetartoidal
   crystal_lattice_system_idx: 8
@@ -3587,14 +3587,14 @@
   point_symmetry_idx: 4
   symbol: F23
   wyckoff_positions:
-  - 549
-  - 894
-  - 226
-  - 792
-  - 28
-  - 826
-  - 116
-  - 897
+  - 839
+  - 838
+  - 837
+  - 836
+  - 835
+  - 95
+  - 834
+  - 93
 197:
   crystal_class: tetartoidal
   crystal_lattice_system_idx: 8
@@ -3606,12 +3606,12 @@
   point_symmetry_idx: 4
   symbol: I23
   wyckoff_positions:
-  - 951
-  - 740
-  - 902
-  - 195
-  - 486
-  - 322
+  - 844
+  - 843
+  - 842
+  - 841
+  - 840
+  - 104
 198:
   crystal_class: tetartoidal
   crystal_lattice_system_idx: 8
@@ -3623,8 +3623,8 @@
   point_symmetry_idx: 4
   symbol: P2_13
   wyckoff_positions:
-  - 330
-  - 592
+  - 846
+  - 845
 199:
   crystal_class: tetartoidal
   crystal_lattice_system_idx: 8
@@ -3636,9 +3636,9 @@
   point_symmetry_idx: 4
   symbol: I2_13
   wyckoff_positions:
-  - 89
-  - 161
-  - 365
+  - 849
+  - 848
+  - 847
 200:
   crystal_class: diploidal
   crystal_lattice_system_idx: 8
@@ -3650,18 +3650,18 @@
   point_symmetry_idx: 2
   symbol: Pm-3
   wyckoff_positions:
-  - 280
-  - 985
-  - 467
-  - 266
-  - 111
-  - 658
-  - 969
+  - 853
+  - 852
+  - 851
+  - 850
+  - 832
+  - 831
+  - 830
+  - 829
   - 827
-  - 474
-  - 421
-  - 747
-  - 263
+  - 826
+  - 9
+  - 2
 201:
   crystal_class: diploidal
   crystal_lattice_system_idx: 8
@@ -3673,14 +3673,14 @@
   point_symmetry_idx: 2
   symbol: Pn-3
   wyckoff_positions:
-  - 910
-  - 290
-  - 874
-  - 258
-  - 285
-  - 561
-  - 651
-  - 845
+  - 858
+  - 857
+  - 856
+  - 855
+  - 854
+  - 210
+  - 209
+  - 205
 202:
   crystal_class: diploidal
   crystal_lattice_system_idx: 8
@@ -3692,15 +3692,15 @@
   point_symmetry_idx: 2
   symbol: Fm-3
   wyckoff_positions:
-  - 916
-  - 159
-  - 849
-  - 597
-  - 226
-  - 726
-  - 881
-  - 116
-  - 897
+  - 863
+  - 862
+  - 861
+  - 860
+  - 837
+  - 859
+  - 356
+  - 834
+  - 93
 203:
   crystal_class: diploidal
   crystal_lattice_system_idx: 8
@@ -3712,13 +3712,13 @@
   point_symmetry_idx: 2
   symbol: Fd-3
   wyckoff_positions:
-  - 621
-  - 940
-  - 512
-  - 989
-  - 302
-  - 170
-  - 608
+  - 867
+  - 866
+  - 865
+  - 367
+  - 366
+  - 864
+  - 364
 204:
   crystal_class: diploidal
   crystal_lattice_system_idx: 8
@@ -3730,14 +3730,14 @@
   point_symmetry_idx: 2
   symbol: Im-3
   wyckoff_positions:
-  - 338
-  - 528
-  - 326
-  - 744
-  - 902
-  - 416
-  - 486
-  - 322
+  - 871
+  - 870
+  - 869
+  - 868
+  - 842
+  - 378
+  - 840
+  - 104
 205:
   crystal_class: diploidal
   crystal_lattice_system_idx: 8
@@ -3749,10 +3749,10 @@
   point_symmetry_idx: 2
   symbol: Pa-3
   wyckoff_positions:
-  - 657
-  - 60
-  - 588
-  - 712
+  - 873
+  - 872
+  - 281
+  - 280
 206:
   crystal_class: diploidal
   crystal_lattice_system_idx: 8
@@ -3764,11 +3764,11 @@
   point_symmetry_idx: 2
   symbol: Ia-3
   wyckoff_positions:
-  - 737
-  - 295
-  - 127
-  - 416
-  - 469
+  - 876
+  - 875
+  - 874
+  - 378
+  - 393
 207:
   crystal_class: gyroidal
   crystal_lattice_system_idx: 8
@@ -3780,17 +3780,17 @@
   point_symmetry_idx: 4
   symbol: P432
   wyckoff_positions:
-  - 242
-  - 309
-  - 853
-  - 794
-  - 266
-  - 111
+  - 880
+  - 879
+  - 878
+  - 877
+  - 850
+  - 832
+  - 829
   - 827
-  - 474
-  - 421
-  - 747
-  - 263
+  - 826
+  - 9
+  - 2
 208:
   crystal_class: gyroidal
   crystal_lattice_system_idx: 8
@@ -3802,19 +3802,19 @@
   point_symmetry_idx: 4
   symbol: P4_232
   wyckoff_positions:
-  - 4
-  - 102
-  - 667
-  - 557
-  - 806
-  - 874
-  - 258
-  - 913
-  - 117
-  - 285
-  - 561
-  - 651
-  - 845
+  - 887
+  - 886
+  - 885
+  - 884
+  - 883
+  - 856
+  - 855
+  - 882
+  - 881
+  - 854
+  - 210
+  - 209
+  - 205
 209:
   crystal_class: gyroidal
   crystal_lattice_system_idx: 8
@@ -3826,16 +3826,16 @@
   point_symmetry_idx: 4
   symbol: F432
   wyckoff_positions:
-  - 885
-  - 594
-  - 953
-  - 260
-  - 597
-  - 226
-  - 726
-  - 16
-  - 116
-  - 897
+  - 892
+  - 891
+  - 890
+  - 889
+  - 860
+  - 837
+  - 859
+  - 888
+  - 834
+  - 93
 210:
   crystal_class: gyroidal
   crystal_lattice_system_idx: 8
@@ -3847,14 +3847,14 @@
   point_symmetry_idx: 4
   symbol: F4_132
   wyckoff_positions:
-  - 892
-  - 390
-  - 387
-  - 75
-  - 247
-  - 412
-  - 227
-  - 846
+  - 900
+  - 899
+  - 898
+  - 897
+  - 896
+  - 895
+  - 894
+  - 893
 211:
   crystal_class: gyroidal
   crystal_lattice_system_idx: 8
@@ -3866,16 +3866,16 @@
   point_symmetry_idx: 4
   symbol: I432
   wyckoff_positions:
-  - 313
-  - 748
-  - 924
-  - 851
-  - 326
+  - 905
+  - 904
+  - 903
   - 902
-  - 698
-  - 416
-  - 486
-  - 322
+  - 869
+  - 842
+  - 901
+  - 378
+  - 840
+  - 104
 212:
   crystal_class: gyroidal
   crystal_lattice_system_idx: 8
@@ -3887,11 +3887,11 @@
   point_symmetry_idx: 4
   symbol: P4_332
   wyckoff_positions:
-  - 669
-  - 761
-  - 752
-  - 359
-  - 922
+  - 910
+  - 909
+  - 908
+  - 907
+  - 906
 213:
   crystal_class: gyroidal
   crystal_lattice_system_idx: 8
@@ -3903,11 +3903,11 @@
   point_symmetry_idx: 4
   symbol: P4_132
   wyckoff_positions:
-  - 218
-  - 143
-  - 502
-  - 25
-  - 663
+  - 915
+  - 914
+  - 913
+  - 912
+  - 911
 214:
   crystal_class: gyroidal
   crystal_lattice_system_idx: 8
@@ -3919,15 +3919,15 @@
   point_symmetry_idx: 4
   symbol: I4_132
   wyckoff_positions:
-  - 301
-  - 823
-  - 237
-  - 843
-  - 296
-  - 540
-  - 664
-  - 94
-  - 27
+  - 924
+  - 923
+  - 922
+  - 921
+  - 920
+  - 919
+  - 918
+  - 917
+  - 916
 215:
   crystal_class: hextetrahedral
   crystal_lattice_system_idx: 8
@@ -3939,16 +3939,16 @@
   point_symmetry_idx: 5
   symbol: P-43m
   wyckoff_positions:
-  - 132
-  - 155
-  - 794
-  - 111
+  - 926
+  - 925
+  - 877
+  - 832
+  - 829
+  - 828
   - 827
-  - 113
-  - 474
-  - 421
-  - 747
-  - 263
+  - 826
+  - 9
+  - 2
 216:
   crystal_class: hextetrahedral
   crystal_lattice_system_idx: 8
@@ -3960,15 +3960,15 @@
   point_symmetry_idx: 5
   symbol: F-43m
   wyckoff_positions:
-  - 807
-  - 504
-  - 894
-  - 226
-  - 792
-  - 28
-  - 826
-  - 116
-  - 897
+  - 928
+  - 927
+  - 838
+  - 837
+  - 836
+  - 835
+  - 95
+  - 834
+  - 93
 217:
   crystal_class: hextetrahedral
   crystal_lattice_system_idx: 8
@@ -3980,14 +3980,14 @@
   point_symmetry_idx: 5
   symbol: I-43m
   wyckoff_positions:
-  - 566
-  - 457
-  - 851
+  - 930
+  - 929
   - 902
-  - 698
-  - 195
-  - 486
-  - 322
+  - 842
+  - 901
+  - 841
+  - 840
+  - 104
 218:
   crystal_class: hextetrahedral
   crystal_lattice_system_idx: 8
@@ -3999,15 +3999,15 @@
   point_symmetry_idx: 5
   symbol: P-43n
   wyckoff_positions:
-  - 779
-  - 806
-  - 557
-  - 874
-  - 672
-  - 117
-  - 913
-  - 285
-  - 845
+  - 932
+  - 883
+  - 884
+  - 856
+  - 931
+  - 881
+  - 882
+  - 854
+  - 205
 219:
   crystal_class: hextetrahedral
   crystal_lattice_system_idx: 8
@@ -4019,14 +4019,14 @@
   point_symmetry_idx: 5
   symbol: F-43c
   wyckoff_positions:
-  - 450
-  - 812
-  - 547
-  - 44
-  - 613
-  - 726
-  - 881
-  - 518
+  - 938
+  - 937
+  - 936
+  - 935
+  - 934
+  - 859
+  - 356
+  - 933
 220:
   crystal_class: hextetrahedral
   crystal_lattice_system_idx: 8
@@ -4038,11 +4038,11 @@
   point_symmetry_idx: 5
   symbol: I-43d
   wyckoff_positions:
-  - 377
-  - 731
-  - 70
-  - 106
-  - 928
+  - 943
+  - 942
+  - 941
+  - 940
+  - 939
 221:
   crystal_class: hexoctahedral
   crystal_lattice_system_idx: 8
@@ -4054,20 +4054,20 @@
   point_symmetry_idx: 2
   symbol: Pm-3m
   wyckoff_positions:
-  - 192
-  - 703
-  - 162
-  - 938
-  - 309
-  - 853
-  - 794
-  - 266
-  - 111
+  - 947
+  - 946
+  - 945
+  - 944
+  - 879
+  - 878
+  - 877
+  - 850
+  - 832
+  - 829
   - 827
-  - 474
-  - 421
-  - 747
-  - 263
+  - 826
+  - 9
+  - 2
 222:
   crystal_class: hexoctahedral
   crystal_lattice_system_idx: 8
@@ -4079,15 +4079,15 @@
   point_symmetry_idx: 2
   symbol: Pn-3n
   wyckoff_positions:
-  - 73
-  - 413
-  - 855
-  - 62
-  - 874
-  - 7
-  - 611
-  - 285
-  - 845
+  - 952
+  - 951
+  - 950
+  - 949
+  - 856
+  - 948
+  - 567
+  - 854
+  - 205
 223:
   crystal_class: hexoctahedral
   crystal_lattice_system_idx: 8
@@ -4099,18 +4099,18 @@
   point_symmetry_idx: 2
   symbol: Pm-3n
   wyckoff_positions:
+  - 955
+  - 954
+  - 953
+  - 949
+  - 884
   - 883
-  - 217
-  - 699
-  - 62
-  - 557
-  - 806
-  - 874
-  - 611
-  - 913
-  - 117
-  - 285
-  - 845
+  - 856
+  - 567
+  - 882
+  - 881
+  - 854
+  - 205
 224:
   crystal_class: hexoctahedral
   crystal_lattice_system_idx: 8
@@ -4122,18 +4122,18 @@
   point_symmetry_idx: 2
   symbol: Pn-3m
   wyckoff_positions:
-  - 766
-  - 364
-  - 981
-  - 754
+  - 959
+  - 958
+  - 957
+  - 956
+  - 950
+  - 856
+  - 948
   - 855
-  - 874
-  - 7
-  - 258
-  - 285
-  - 561
-  - 651
-  - 845
+  - 854
+  - 210
+  - 209
+  - 205
 225:
   crystal_class: hexoctahedral
   crystal_lattice_system_idx: 8
@@ -4145,18 +4145,18 @@
   point_symmetry_idx: 2
   symbol: Fm-3m
   wyckoff_positions:
-  - 848
-  - 381
-  - 631
-  - 953
-  - 260
-  - 594
-  - 597
-  - 226
-  - 726
-  - 16
-  - 116
-  - 897
+  - 962
+  - 961
+  - 960
+  - 890
+  - 889
+  - 891
+  - 860
+  - 837
+  - 859
+  - 888
+  - 834
+  - 93
 226:
   crystal_class: hexoctahedral
   crystal_lattice_system_idx: 8
@@ -4168,16 +4168,16 @@
   point_symmetry_idx: 2
   symbol: Fm-3c
   wyckoff_positions:
-  - 560
-  - 546
-  - 112
-  - 415
-  - 849
-  - 547
-  - 726
-  - 613
-  - 518
-  - 881
+  - 966
+  - 965
+  - 964
+  - 963
+  - 861
+  - 936
+  - 859
+  - 934
+  - 933
+  - 356
 227:
   crystal_class: hexoctahedral
   crystal_lattice_system_idx: 8
@@ -4189,15 +4189,15 @@
   point_symmetry_idx: 2
   symbol: Fd-3m
   wyckoff_positions:
-  - 930
-  - 135
-  - 880
-  - 387
-  - 75
-  - 247
-  - 412
-  - 227
-  - 846
+  - 969
+  - 968
+  - 967
+  - 898
+  - 897
+  - 896
+  - 895
+  - 894
+  - 893
 228:
   crystal_class: hexoctahedral
   crystal_lattice_system_idx: 8
@@ -4209,14 +4209,14 @@
   point_symmetry_idx: 2
   symbol: Fd-3c
   wyckoff_positions:
-  - 968
-  - 115
-  - 156
-  - 331
-  - 690
-  - 378
-  - 404
-  - 268
+  - 977
+  - 976
+  - 975
+  - 974
+  - 973
+  - 972
+  - 971
+  - 970
 229:
   crystal_class: hexoctahedral
   crystal_lattice_system_idx: 8
@@ -4228,18 +4228,18 @@
   point_symmetry_idx: 2
   symbol: Im-3m
   wyckoff_positions:
-  - 282
-  - 781
-  - 41
-  - 775
-  - 924
-  - 851
-  - 326
+  - 982
+  - 981
+  - 980
+  - 979
+  - 903
   - 902
-  - 859
-  - 416
-  - 486
-  - 322
+  - 869
+  - 842
+  - 978
+  - 378
+  - 840
+  - 104
 230:
   crystal_class: hexoctahedral
   crystal_lattice_system_idx: 8
@@ -4251,11 +4251,11 @@
   point_symmetry_idx: 2
   symbol: Ia-3d
   wyckoff_positions:
-  - 424
-  - 598
-  - 554
-  - 701
-  - 811
-  - 98
-  - 291
-  - 558
+  - 990
+  - 989
+  - 988
+  - 987
+  - 986
+  - 985
+  - 984
+  - 983

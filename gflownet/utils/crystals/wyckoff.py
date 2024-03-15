@@ -136,6 +136,56 @@ def parse_wyckoff_csv():
     return wyckoff
 
 
+class SpacegroupLetter:
+    """Represents a Spacegroup and Wyckoff letter, e.g. 62a or 225c
+    Most importantly it implements a comparison method to order them nicely (instead of relying on string comparisons).
+    """
+
+    def __init__(self, spacegroup_letter: str) -> None:
+        """
+        Parameters
+        ----------
+        spacegroup_letter : str
+            E.g. 62a or 225c
+        """
+        self.spacegroup_letter = spacegroup_letter
+
+    def get_spacegroup_letter(self) -> str:
+        """Get spacegroup letter (e.g. 225c)
+
+        Returns
+        -------
+        str
+        """
+
+        return self.spacegroup_letter
+
+    def get_spacegroup(self) -> int:
+        """Get spacegroup (e.g. 225)
+
+        Returns
+        -------
+        str
+        """
+
+        return int(self.spacegroup_letter[:-1])
+
+    def __lt__(self, other) -> bool:
+        """low level function used for comparisons and sorted() method. E.g. 1a < 10a < 10b"""
+        self_id = self.get_spacegroup_letter()
+        other_id = other.get_spacegroup_letter()
+        if self_id[:-1] == other_id[:-1]:  # if same spacegroup, compare letter
+            return self_id[-1] < other_id[-1]
+        else:
+            return int(self_id[:-1]) < int(
+                other_id[:-1]
+            )  # otherwise compare spacegroup number
+
+    def __str__(self) -> str:
+        """String representation of a SpacegroupLetter"""
+        return self.spacegroup_letter
+
+
 class Wyckoff:
     """Simple class representing a Wyckoff position. Only defined by its offset and algebraic terms."""
 
@@ -150,6 +200,18 @@ class Wyckoff:
         """
         self.offset = frozenset(offset)
         self.algebraic = frozenset(algebraic)
+        self.spacegroup_letters = set()
+
+    def add_spacegroup_letter(self, spg_number_letter: str):
+        """Add a spacegroup and corresponding letter to a particular Wyckoff position.
+        For instance if you want to add 225c to this specific Wyckoff object.
+
+        Parameters
+        ----------
+        spg_number_letter : str
+            E.g. 225c
+        """
+        self.spacegroup_letters.add(SpacegroupLetter(spg_number_letter))
 
     def get_multiplicity(self) -> int:
         """Get Wyckoff multiplicity: number of sites
@@ -181,6 +243,55 @@ class Wyckoff:
         """
         return self.algebraic
 
+    def get_spacegroup_letters(self) -> Iterable:
+        """Return list of spacegroups and corresponding letters for a Wyckoff position.
+
+        Returns
+        -------
+        Iterable
+            List of spacegroups and letter appended. E.g. ["65a", "225c"]
+        """
+        return [
+            str(spacegroup_letter)
+            for spacegroup_letter in sorted(self.spacegroup_letters)
+        ]
+
+    def get_spacegroups(self) -> Iterable:
+        """Return list of spacegroups using this Wyckoff position.
+
+        Returns
+        -------
+        Iterable
+            List of spacegroups. E.g. [65, 225]
+        """
+        return [
+            spacegroup_letter.get_spacegroup()
+            for spacegroup_letter in sorted(self.spacegroup_letters)
+        ]
+
+    def get_name(self) -> str:
+        """Get the unique name of a Wyckoff position. Defined as first spacegroup and Wyckoff letter using this position.
+
+        Returns
+        -------
+        str
+            E.g. 65a
+        """
+        return self.get_spacegroup_letters()[0]
+
+    def is_special_position(self) -> bool:
+        """Return wheter this position is a special position.
+
+        Returns
+        -------
+        bool
+        """
+        for position in self.get_algebraic():
+            if "x" in position or "y" in position or "z" in position:
+                return False
+
+        return True
+
     def get_all_positions(self) -> Iterable:
         """Get all Wyckoff positions, i.e. outer product over offsets and algebraic contributions.
            The number of positions equals the multiplicity.
@@ -208,7 +319,10 @@ class Wyckoff:
             keys: multiplicity, offset, algebraic and positions.
         """
         return {
+            "name": self.get_name(),
             "multiplicity": self.get_multiplicity(),
+            "is_special_position": self.is_special_position(),
+            "spacegroups": self.get_spacegroups(),
             "offset": list(self.get_offset()),
             "algebraic": list(self.get_algebraic()),
             "positions": list(self.get_all_positions()),
@@ -222,6 +336,9 @@ class Wyckoff:
         """Two Wyckoff positions are same if and only if they have the same set of
         offsets and algebraic terms, order invariant."""
         return self.__hash__() == __value.__hash__()
+
+    def __lt__(self, other):
+        return SpacegroupLetter(self.get_name()) < SpacegroupLetter(other.get_name())
 
     def __str__(self) -> str:
         """Simple string representation of a Wyckoff position."""
@@ -284,20 +401,25 @@ spacegroups = parse_wyckoff_csv()
 
 
 # convert to Wyckoff objects
-wyckoff_positions = []
-for spacegroup in spacegroups:
+wyckoff_positions = dict()
+for spg_idx, spacegroup in enumerate(spacegroups):
     for wyckoff_data in spacegroup["wyckoff"]:
         pure_trans = lattice_offset[spacegroup["symbol"][0]]  # get space group letter
-        wyckoff_data["positions"] = Wyckoff(pure_trans, wyckoff_data["positions"])
-        wyckoff_positions.append(wyckoff_data["positions"])
-
+        wyckoff_pos = Wyckoff(pure_trans, wyckoff_data["positions"])
+        wyckoff_data["positions"] = wyckoff_pos
+        if wyckoff_pos.__hash__() not in wyckoff_positions:
+            wyckoff_positions[wyckoff_pos.__hash__()] = wyckoff_pos
+        wyckoff_positions[wyckoff_pos.__hash__()].add_spacegroup_letter(
+            str(spg_idx + 1) + wyckoff_data["letter"]
+        )
 
 # create a mapping between unique idx and unique Wyckoff position
-wyckoff_positions = list(set(wyckoff_positions))
-wyckoff2idx = {
+wyckoff_positions = sorted(list(wyckoff_positions.values()))
+
+wyckoff2idx = {  # Wyckoff to index map
     wyckoff_position: idx + 1 for idx, wyckoff_position in enumerate(wyckoff_positions)
 }
-idx2wyckoff = {
+idx2wyckoff = {  # Index to Wyckoff map, starting from 1
     idx + 1: wyckoff_position.as_dict()
     for idx, wyckoff_position in enumerate(wyckoff_positions)
 }
@@ -305,7 +427,7 @@ idx2wyckoff = {
 
 # create yaml file for unique Wyckoff indices
 with open("gflownet/envs/crystals/wyckoff.yaml", "w") as fp:
-    yaml.dump(idx2wyckoff, fp)
+    yaml.dump(idx2wyckoff, fp, sort_keys=False)
 
 
 # Update yaml file defining the spacegroups
