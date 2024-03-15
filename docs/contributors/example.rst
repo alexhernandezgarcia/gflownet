@@ -26,11 +26,17 @@ Remember, this works in docstrings *and* in stand-alone ``.rst`` files.
 
 Cool features:
 
-Reference to a class: :class:`gflownet.proxy.crystals.dave.DAVE` (long), or another
-:class:`~gflownet.gflownet.GFlowNetAgent` or to a method:
-:meth:`~gflownet.gflownet.GFlowNetAgent.trajectorybalance_loss`
-or to an external function :func:`torch.cuda.synchronize()`
-(this <- needs to be listed in ``docs/conf.py:intersphinx_mapping``).
+Reference code docs of:
+
+- A class: :class:`gflownet.envs.grid.Grid` (long format)
+- Another class :class:`~gflownet.gflownet.GFlowNetAgent` (short format, by prepending ``~``)
+- A method :meth:`~gflownet.gflownet.GFlowNetAgent.trajectorybalance_loss`
+- Or even an external function :func:`torch.cuda.synchronize()`
+
+.. note
+
+    External content should be listed in ``docs/conf.py:intersphinx_mapping``.
+    More info in the `Read The Docs documentation <https://docs.readthedocs.io/en/stable/guides/intersphinx.html>`_.
 
 An actual tutorial on ``.rst``:
 `ReStructured Text for those who know Markdown <https://docs.open-mpi.org/en/v5.0.x/developers/rst-for-markdown-expats.html#hyperlinks-to-urls>`_
