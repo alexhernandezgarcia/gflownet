@@ -37,7 +37,7 @@ from gflownet.utils.common import (
 class GFlowNetAgent:
     def __init__(
         self,
-        env,
+        env_maker,
         seed,
         device,
         float_precision,
@@ -66,7 +66,8 @@ class GFlowNetAgent:
         # Float precision
         self.float = set_float_precision(float_precision)
         # Environment
-        self.env = env
+        self.env_maker = env_maker
+        self.env = self.env_maker()
         # Continuous environments
         self.continuous = hasattr(self.env, "continuous") and self.env.continuous
         if self.continuous and optimizer.loss in ["flowmatch", "flowmatching"]:
@@ -435,7 +436,7 @@ class GFlowNetAgent:
 
         # ON-POLICY FORWARD trajectories
         t0_forward = time.time()
-        envs = [self.env.copy().reset(idx) for idx in range(n_forward)]
+        envs = [self.env_maker().set_id(idx) for idx in range(n_forward)]
         batch_forward = Batch(env=self.env, device=self.device, float_type=self.float)
         while envs:
             # Sample actions
@@ -457,7 +458,7 @@ class GFlowNetAgent:
 
         # TRAIN BACKWARD trajectories
         t0_train = time.time()
-        envs = [self.env.copy().reset(idx) for idx in range(n_train)]
+        envs = [self.env_maker().set_id(idx) for idx in range(n_train)]
         batch_train = Batch(env=self.env, device=self.device, float_type=self.float)
         if n_train > 0 and self.buffer.train_pkl is not None:
             with open(self.buffer.train_pkl, "rb") as f:
@@ -494,7 +495,7 @@ class GFlowNetAgent:
             with open(self.buffer.replay_pkl, "rb") as f:
                 dict_replay = pickle.load(f)
                 n_replay = min(n_replay, len(dict_replay["x"]))
-                envs = [self.env.copy().reset(idx) for idx in range(n_replay)]
+                envs = [self.env_maker().set_id(idx) for idx in range(n_replay)]
                 x_replay = self.buffer.select(
                     dict_replay, n_replay, self.replay_sampling, self.rng
                 )
@@ -915,7 +916,7 @@ class GFlowNetAgent:
             for state_idx in range(init_batch, end_batch):
                 for traj_idx in range(n_trajectories):
                     idx = int(mult_indices * state_idx + traj_idx)
-                    env = self.env.copy().reset(idx)
+                    env = self.env_maker().set_id(idx)
                     env.set_state(states_term[state_idx], done=True)
                     envs.append(env)
             # Sample trajectories
