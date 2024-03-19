@@ -1,6 +1,7 @@
 """
 Runnable script with hydra capabilities
 """
+
 import os
 import pickle
 import random
@@ -37,12 +38,16 @@ def main(config):
         float_precision=config.float_precision,
     )
     # The proxy is passed to env and used for computing rewards
-    env = hydra.utils.instantiate(
+    # Using Hydra's partial instantiation, see:
+    # https://hydra.cc/docs/advanced/instantiate_objects/overview/#partial-instantiation
+    env_maker = hydra.utils.instantiate(
         config.env,
         proxy=proxy,
         device=config.device,
         float_precision=config.float_precision,
+        _partial_=True,
     )
+    env = env_maker()
     # The policy is used to model the probability of a forward/backward action
     forward_config = parse_policy_config(config, kind="forward")
     backward_config = parse_policy_config(config, kind="backward")
@@ -76,7 +81,7 @@ def main(config):
         config.gflownet,
         device=config.device,
         float_precision=config.float_precision,
-        env=env,
+        env_maker=env_maker,
         forward_policy=forward_policy,
         backward_policy=backward_policy,
         state_flow=state_flow,

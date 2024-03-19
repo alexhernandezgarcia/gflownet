@@ -477,7 +477,7 @@ class BaseTestsDiscrete(BaseTestsCommon):
                 config.gflownet,
                 device=config.device,
                 float_precision=config.float_precision,
-                env=self.env,
+                env_maker=self.env.__class__,
                 forward_policy=forward_policy,
                 backward_policy=backward_policy,
                 buffer=config.env.buffer,
