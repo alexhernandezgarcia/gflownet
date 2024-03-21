@@ -6,21 +6,17 @@ these changes or the history previous to that commit to consult previous
 implementations.
 """
 
-import json
-from collections import OrderedDict
-from enum import Enum
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Dict, List, Optional, Tuple
 
 import pandas as pd
 import torch
-from torch import Tensor
 from torchtyping import TensorType
+from tqdm import tqdm
 
 from gflownet.envs.crystals.composition import Composition
 from gflownet.envs.crystals.lattice_parameters import PARAMETER_NAMES, LatticeParameters
 from gflownet.envs.crystals.spacegroup import SpaceGroup
 from gflownet.envs.stack import Stack
-from gflownet.utils.common import copy, tbool, tfloat, tlong
 from gflownet.utils.crystals.constants import TRICLINIC
 
 
@@ -158,7 +154,7 @@ class Crystal(Stack):
             dim=1,
         )
 
-    def process_data_set(self, df: pd.DataFrame) -> List[List]:
+    def process_data_set(self, df: pd.DataFrame, progress=False) -> List[List]:
         """
         Converts a data set passed as a pandas DataFrame into a list of states in
         environment format.
@@ -173,6 +169,8 @@ class Crystal(Stack):
         df : DataFrame
             A pandas DataFrame containing the necessary columns to represent a crystal
             as described above.
+        progress : bool
+            Whether to display a progress bar.
 
         Returns
         -------
@@ -180,7 +178,7 @@ class Crystal(Stack):
             A list of states in environment format.
         """
         data_valid = []
-        for row in df.iterrows():
+        for row in tqdm(df.iterrows(), total=len(df), disable=not progress):
             # Index 0 is the row index; index 1 is the remaining columns
             row = row[1]
             state = {}
