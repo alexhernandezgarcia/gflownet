@@ -87,8 +87,10 @@ class LatticeParameters(ContinuousCube):
         self.min_angle = min_angle
         self.max_angle = max_angle
         self.angle_range = self.max_angle - self.min_angle
-        self._setup_constraints()
         super().__init__(n_dim=6, **kwargs)
+        # Setup constraints after the call of super to avoid getting the variable
+        # self.ignored_dims overriden by the Cube initialization
+        self._setup_constraints()
 
     # TODO: if source, keep as is
     def _statevalue2length(self, value):
@@ -157,7 +159,7 @@ class LatticeParameters(ContinuousCube):
             lengths_ignored_dims = [False, True, False]
             self.a_idx = 0
             self.b_idx = 0
-            self.c_idx = 1
+            self.c_idx = 2
         # a != b and a != c and b != c
         elif self.lattice_system in [MONOCLINIC, ORTHORHOMBIC, TRICLINIC]:
             lengths_ignored_dims = [False, False, False]
