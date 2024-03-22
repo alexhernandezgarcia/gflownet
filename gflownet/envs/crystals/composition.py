@@ -692,13 +692,13 @@ class Composition(GFlowNetEnv):
             return False
         # Check required elements
         used_elements = set(state.keys())
-        if len(set(used_elements).difference(set(self.elements))) > 0:
+        if len(used_elements - set(self.elements)) > 0:
             return False
         if len(used_elements) < self.min_diff_elem:
             return False
         if len(used_elements) > self.max_diff_elem:
             return False
-        if any(r not in used_elements for r in self.required_elements):
+        if len(set(self.required_elements) - used_elements) > 0:
             return False
 
         # If all checks are passed, return True
