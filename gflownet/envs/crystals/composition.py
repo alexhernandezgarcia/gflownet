@@ -691,7 +691,7 @@ class Composition(GFlowNetEnv):
         if any([n > self.max_atom_i for n in n_atoms_per_element]):
             return False
         # Check required elements
-        used_elements = list(state.keys())
+        used_elements = set(state.keys())
         if len(set(used_elements).difference(set(self.elements))) > 0:
             return False
         if len(used_elements) < self.min_diff_elem:
