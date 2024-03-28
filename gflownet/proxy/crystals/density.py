@@ -5,8 +5,8 @@ import pandas as pd
 import torch
 from torchtyping import TensorType
 
-from gflownet.envs.crystals.crystal import Crystal
 from gflownet.envs.crystals.composition import N_ELEMENTS_ORACLE
+from gflownet.envs.crystals.crystal import Crystal
 from gflownet.proxy.base import Proxy
 from gflownet.utils.common import tfloat, tlong
 from gflownet.utils.crystals.constants import ATOMIC_MASS

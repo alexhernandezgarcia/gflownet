@@ -1,5 +1,6 @@
 import os
 import random
+from copy import deepcopy
 from os.path import expandvars
 from pathlib import Path
 from typing import List, Union
@@ -284,7 +285,7 @@ def copy(x: Union[List, TensorType["..."]]):
     if torch.is_tensor(x):
         return x.clone().detach()
     else:
-        return x.copy()
+        return deepcopy(x)
 
 
 def chdir_random_subdir():
