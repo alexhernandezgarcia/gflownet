@@ -123,6 +123,8 @@ class Proxy(ABC):
               the proxy values.  See: :py:meth:`~gflownet.proxy.base._exponential()`
             - shift: the rewards are the proxy values shifted by beta.
               See: :py:meth:`~gflownet.proxy.base._shift()`
+            - prod(uct): the rewards are the proxy values multiplied by beta.
+              See: :py:meth:`~gflownet.proxy.base._product()`
 
         Parameters
         ----------
@@ -143,11 +145,20 @@ class Proxy(ABC):
         if reward_function.startswith("pow"):
             return Proxy._power(**kwargs)
 
-        if reward_function.startswith("exp") or reward_function == "boltzmann":
+        elif reward_function.startswith("exp") or reward_function == "boltzmann":
             return Proxy._exponential(**kwargs)
 
-        if reward_function.startswith("shift"):
+        elif reward_function == "shift":
             return Proxy._shift(**kwargs)
+
+        elif reward_function.startswith("prod"):
+            return Proxy._product(**kwargs)
+
+        else:
+            raise ValueError(
+                "reward_function must be one of: pow(er), exp(onential), shift, "
+                f"prod(uct). Received {reward_function} instead."
+            )
 
     @staticmethod
     def _power(beta: float = 1.0) -> Callable:
@@ -210,6 +221,27 @@ class Proxy(ABC):
         A lambda expression that shifts the proxy values by beta.
         """
         return lambda proxy_values: proxy_values + beta
+
+    @staticmethod
+    def _product(beta: float = 1.0) -> Callable:
+        r"""
+        Returns a lambda expression where the inputs (proxy values) are multiplied by
+        beta.
+
+        $$
+        R(x) = \beta\varepsilon(x)
+        $$
+
+        Parameters
+        ----------
+        beta : float
+            The factor by which the proxy values are multiplied.
+
+        Returns
+        -------
+        A lambda expression that multiplies the proxy values by beta.
+        """
+        return lambda proxy_values: proxy_values * beta
 
     def infer_on_train_set(self):
         """

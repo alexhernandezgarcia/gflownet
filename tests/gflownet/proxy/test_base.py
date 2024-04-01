@@ -41,6 +41,16 @@ def uniform_shift(beta):
     )
 
 
+@pytest.fixture()
+def uniform_product(beta):
+    return Uniform(
+        reward_function="product",
+        reward_function_kwargs={"beta": beta},
+        device="cpu",
+        float_precision=32,
+    )
+
+
 @pytest.mark.parametrize(
     "proxy, beta",
     [
@@ -51,6 +61,8 @@ def uniform_shift(beta):
         ("uniform_exponential", -1),
         ("uniform_shift", 5),
         ("uniform_shift", -5),
+        ("uniform_product", 2),
+        ("uniform_product", -2),
     ],
 )
 def test__uniform_proxy_initializes_without_errors(proxy, beta, request):
@@ -149,6 +161,31 @@ def test_reward_function_shift__behaves_as_expected(
     uniform_shift, beta, proxy_values, rewards_exp
 ):
     proxy = uniform_shift
+    proxy_values = tfloat(proxy_values, device=proxy.device, float_type=proxy.float)
+    rewards_exp = tfloat(rewards_exp, device=proxy.device, float_type=proxy.float)
+    assert all(torch.isclose(proxy._reward_function(proxy_values), rewards_exp))
+    assert all(torch.isclose(proxy.proxy2reward(proxy_values), rewards_exp))
+
+
+@pytest.mark.parametrize(
+    "beta, proxy_values, rewards_exp",
+    [
+        (
+            2,
+            [-100, -10, -1, -0.5, -0.1, 0.0, 0.1, 0.5, 1, 10, 100],
+            [-200, -20, -2, -1.0, -0.2, 0.0, 0.2, 1.0, 2, 20, 200],
+        ),
+        (
+            -2,
+            [-100, -10, -1, -0.5, -0.1, 0.0, 0.1, 0.5, 1, 10, 100],
+            [200, 20, 2, 1.0, 0.2, 0.0, -0.2, -1.0, -2, -20, -200],
+        ),
+    ],
+)
+def test_reward_function_product__behaves_as_expected(
+    uniform_product, beta, proxy_values, rewards_exp
+):
+    proxy = uniform_product
     proxy_values = tfloat(proxy_values, device=proxy.device, float_type=proxy.float)
     rewards_exp = tfloat(rewards_exp, device=proxy.device, float_type=proxy.float)
     assert all(torch.isclose(proxy._reward_function(proxy_values), rewards_exp))
