@@ -22,7 +22,7 @@ class Proxy(ABC):
         self,
         device,
         float_precision,
-        reward_function: Optional[Union[Callable, str]] = "identity",
+        reward_function: Optional[Union[Callable, str]] = "absolute",
         logreward_function: Optional[Callable] = None,
         reward_function_kwargs: Optional[dict] = {},
         reward_min: float = 1e-8,
@@ -36,7 +36,7 @@ class Proxy(ABC):
             reward_function, logreward_function, **reward_function_kwargs
         )
         self.reward_min = reward_min
-        self.logreward_min = torch.log(logreward_min)
+        self.logreward_min = np.log(reward_min)
         # Device
         self.device = set_device(device)
         # Float precision
@@ -57,7 +57,9 @@ class Proxy(ABC):
         """
         pass
 
-    def rewards(self, states: Union[TensorType, List, npt.NDArray]) -> TensorType:
+    def rewards(
+        self, states: Union[TensorType, List, npt.NDArray], log: bool = False
+    ) -> TensorType:
         """
         Computes the rewards of a batch of states.
 
@@ -68,33 +70,19 @@ class Proxy(ABC):
         ----------
         states : tensor or list or array
             A batch of states in proxy format.
+        log : bool
+            If True, returns the logarithm of the rewards. If False (default), returns
+            the natural rewards.
 
         Returns
         -------
         tensor
             The reward of all elements in the batch.
         """
-        return self.proxy2reward(self(states))
-
-    def log_rewards(self, states: Union[TensorType, List, npt.NDArray]) -> TensorType:
-        """
-        Computes the log(rewards) of a batch of states.
-
-        The rewards are computed by first calling the proxy function, then
-        transforming the proxy values according to the reward function, then taking the
-        logarithm.
-
-        Parameters
-        ----------
-        states : tensor or list or array
-            A batch of states in proxy format.
-
-        Returns
-        -------
-        tensor
-            The log reward of all elements in the batch.
-        """
-        return self.proxy2logreward(self(states))
+        if log:
+            return self.proxy2logreward(self(states))
+        else:
+            return self.proxy2reward(self(states))
 
     # TODO: consider adding option to clip values
     # TODO: check that rewards are non-negative
@@ -144,7 +132,8 @@ class Proxy(ABC):
         If reward_function is callable, it is returned as is. If it is a string, it
         must correspond to one of the following options:
 
-            - identity: the rewards are directly the proxy values.
+            - id(entity): the rewards are directly the proxy values.
+            - abs(olute): the rewards are the absolute value of the proxy values.
             - pow(er): the rewards are the proxy values to the power of beta. See:
               :py:meth:`~gflownet.proxy.base._power()`
             - exp(onential) or boltzmann: the rewards are the negative exponential of
@@ -184,10 +173,16 @@ class Proxy(ABC):
                 f"got {type(reward_function)} instead."
             )
 
-        if reward_function.startswith("identity"):
+        if reward_function.startswith("id"):
             return (
                 lambda x: x,
                 lambda x: torch.log(x),
+            )
+
+        if reward_function.startswith("abs"):
+            return (
+                lambda x: torch.abs(x),
+                lambda x: torch.log(torch.abs(x)),
             )
 
         elif reward_function.startswith("pow"):
@@ -213,8 +208,8 @@ class Proxy(ABC):
 
         else:
             raise ValueError(
-                "reward_function must be one of: pow(er), exp(onential), shift, "
-                f"prod(uct). Received {reward_function} instead."
+                "reward_function must be one of: id(entity), abs(olute) pow(er), "
+                f"exp(onential), shift, prod(uct). Received {reward_function} instead."
             )
 
     @staticmethod
