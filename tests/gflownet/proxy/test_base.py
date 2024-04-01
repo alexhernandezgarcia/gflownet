@@ -21,10 +21,31 @@ def uniform_power(beta):
     )
 
 
-@pytest.mark.parametrize("proxy, beta", [("uniform", None), ("uniform_power", 1)])
+@pytest.fixture()
+def uniform_exponential(beta):
+    return Uniform(
+        reward_function="exponential",
+        reward_function_kwargs={"beta": beta},
+        device="cpu",
+        float_precision=32,
+    )
+
+
+@pytest.mark.parametrize(
+    "proxy, beta",
+    [
+        ("uniform", None),
+        ("uniform_power", 1),
+        ("uniform_power", 2),
+        ("uniform_exponential", 1),
+        ("uniform_exponential", -1),
+        ("uniform_exponential", 2),
+        ("uniform_exponential", -2),
+    ],
+)
 def test__uniform_proxy_initializes_without_errors(proxy, beta, request):
     proxy = request.getfixturevalue(proxy)
-    return proxy
+    assert True
 
 
 @pytest.mark.parametrize(
@@ -50,3 +71,50 @@ def test_reward_function_power__behaves_as_expected(
     rewards_exp = tfloat(rewards_exp, device=proxy.device, float_type=proxy.float)
     assert all(torch.isclose(proxy._reward_function(proxy_values), rewards_exp))
     assert all(torch.isclose(proxy.proxy2reward(proxy_values), rewards_exp))
+
+
+@pytest.mark.parametrize(
+    "beta, proxy_values, rewards_exp",
+    [
+        (
+            1.0,
+            [-10, -1, -0.5, -0.1, 0.0, 0.1, 0.5, 1, 10],
+            [
+                4.54e-05,
+                3.6788e-01,
+                6.0653e-01,
+                9.0484e-01,
+                1.0,
+                1.1052,
+                1.6487e00,
+                2.7183,
+                22026.4648,
+            ],
+        ),
+        (
+            -1.0,
+            [-10, -1, -0.5, -0.1, 0.0, 0.1, 0.5, 1, 10],
+            [
+                22026.4648,
+                2.7183,
+                1.6487,
+                1.1052,
+                1.0,
+                9.0484e-01,
+                6.0653e-01,
+                3.6788e-01,
+                4.54e-05,
+            ],
+        ),
+    ],
+)
+def test_reward_function_exponential__behaves_as_expected(
+    uniform_exponential, beta, proxy_values, rewards_exp
+):
+    proxy = uniform_exponential
+    proxy_values = tfloat(proxy_values, device=proxy.device, float_type=proxy.float)
+    rewards_exp = tfloat(rewards_exp, device=proxy.device, float_type=proxy.float)
+    assert all(
+        torch.isclose(proxy._reward_function(proxy_values), rewards_exp, atol=1e-4)
+    )
+    assert all(torch.isclose(proxy.proxy2reward(proxy_values), rewards_exp, atol=1e-4))

@@ -7,6 +7,7 @@ from typing import Callable, List, Union
 
 import numpy as np
 import numpy.typing as npt
+import torch
 from torchtyping import TensorType
 
 from gflownet.utils.common import set_device, set_float_precision
@@ -115,12 +116,12 @@ class Proxy(ABC):
         If reward_function is callable, it is returned as is. If it is a string, it
         must correspond to one of the following options:
 
-            - power: the rewards are the proxy values to the power of beta. See:
+            - pow(er): the rewards are the proxy values to the power of beta. See:
               :py:meth:`~gflownet.proxy.base._power()`
-            - boltzmann: the rewards are the negative exponential of the proxy values.
-              See: :py:meth:`~gflownet.proxy.base._boltzmann()`
+            - exp(onential) or boltzmann: the rewards are the negative exponential of
+              the proxy values.  See: :py:meth:`~gflownet.proxy.base._exponential()`
             - shift: the rewards are the proxy values shifted by beta.
-              See: :py:meth:`~gflownet.proxy.base._boltzmann()`
+              See: :py:meth:`~gflownet.proxy.base._shift()`
 
         Parameters
         ----------
@@ -138,13 +139,16 @@ class Proxy(ABC):
                 f"got {type(reward_function)} instead."
             )
 
-        if reward_function == "power":
+        if reward_function.startswith("pow"):
             return Proxy._power(**kwargs)
+
+        if reward_function.startswith("exp") or reward_function == "boltzmann":
+            return Proxy._exponential(**kwargs)
 
     @staticmethod
     def _power(beta: float = 1.0) -> Callable:
         """
-        Returns a lambda expression where the input (proxy values) are raised to the
+        Returns a lambda expression where the inputs (proxy values) are raised to the
         power of beta.
 
         Parameters
@@ -154,9 +158,26 @@ class Proxy(ABC):
 
         Returns
         -------
-        A lambda expression proxy values raised to the power of beta.
+        A lambda expression where the proxy values raised to the power of beta.
         """
         return lambda proxy_values: proxy_values**beta
+
+    @staticmethod
+    def _exponential(beta: float = 1.0) -> Callable:
+        """
+        Returns a lambda expression where the output is the exponential of the product
+        of the input (proxy) values and beta.
+
+        Parameters
+        ----------
+        beta : float
+            The factor by which the proxy values are multiplied.
+
+        Returns
+        -------
+        A lambda expression that takes the exponential of the proxy values * beta.
+        """
+        return lambda proxy_values: torch.exp(proxy_values**beta)
 
     def infer_on_train_set(self):
         """
