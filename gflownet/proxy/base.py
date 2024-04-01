@@ -117,6 +117,7 @@ class Proxy(ABC):
         If reward_function is callable, it is returned as is. If it is a string, it
         must correspond to one of the following options:
 
+            - identity: the rewards are directly the proxy values.
             - pow(er): the rewards are the proxy values to the power of beta. See:
               :py:meth:`~gflownet.proxy.base._power()`
             - exp(onential) or boltzmann: the rewards are the negative exponential of
@@ -142,7 +143,10 @@ class Proxy(ABC):
                 f"got {type(reward_function)} instead."
             )
 
-        if reward_function.startswith("pow"):
+        if reward_function.startswith("identity"):
+            return lambda proxy_values: proxy_values
+
+        elif reward_function.startswith("pow"):
             return Proxy._power(**kwargs)
 
         elif reward_function.startswith("exp") or reward_function == "boltzmann":
