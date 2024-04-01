@@ -26,7 +26,8 @@ class Proxy(ABC):
         **kwargs,
     ):
         # Proxy to reward function
-        self.reward_function = self._get_reward_function(
+        self.reward_function = reward_function
+        self._reward_function = self._get_reward_function(
             reward_function, **reward_function_kwargs
         )
         # Device
@@ -90,7 +91,7 @@ class Proxy(ABC):
 
     # TODO: consider adding option to clip values
     # TODO: check that rewards are non-negative
-    def proxy2reward(proxy_values: TensorType) -> TensorType:
+    def proxy2reward(self, proxy_values: TensorType) -> TensorType:
         """
         Transform a tensor of proxy values into rewards.
 
@@ -104,7 +105,7 @@ class Proxy(ABC):
         tensor
             The reward of all elements in the batch.
         """
-        return self.reward_func(proxy_values)
+        return self._reward_function(proxy_values)
 
     def _get_reward_function(self, reward_function: Union[Callable, str], **kwargs):
         r"""
@@ -133,9 +134,29 @@ class Proxy(ABC):
         # Otherwise it must be a string
         if not isinstance(reward_function, str):
             raise AssertionError(
-                "reward_func must be a callable or a string; "
+                "reward_function must be a callable or a string; "
                 f"got {type(reward_function)} instead."
             )
+
+        if reward_function == "power":
+            return Proxy._power(**kwargs)
+
+    @staticmethod
+    def _power(beta: float = 1.0) -> Callable:
+        """
+        Returns a lambda expression where the input (proxy values) are raised to the
+        power of beta.
+
+        Parameters
+        ----------
+        beta : float
+            The exponent to which the proxy values are raised.
+
+        Returns
+        -------
+        A lambda expression proxy values raised to the power of beta.
+        """
+        return lambda proxy_values: proxy_values**beta
 
     def infer_on_train_set(self):
         """
