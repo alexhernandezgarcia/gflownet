@@ -25,6 +25,7 @@ class Proxy(ABC):
         reward_function: Optional[Union[Callable, str]] = "identity",
         logreward_function: Optional[Callable] = None,
         reward_function_kwargs: Optional[dict] = {},
+        reward_min: float = 1e-8,
         **kwargs,
     ):
         # Proxy to reward function
@@ -34,6 +35,8 @@ class Proxy(ABC):
         self._reward_function, self._logreward_function = self._get_reward_functions(
             reward_function, logreward_function, **reward_function_kwargs
         )
+        self.reward_min = reward_min
+        self.logreward_min = torch.log(logreward_min)
         # Device
         self.device = set_device(device)
         # Float precision
