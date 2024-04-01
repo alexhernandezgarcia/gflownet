@@ -28,6 +28,7 @@ class Proxy(ABC):
     ):
         # Proxy to reward function
         self.reward_function = reward_function
+        self.reward_function_kwargs = reward_function_kwargs
         self._reward_function = self._get_reward_function(
             reward_function, **reward_function_kwargs
         )
@@ -145,11 +146,18 @@ class Proxy(ABC):
         if reward_function.startswith("exp") or reward_function == "boltzmann":
             return Proxy._exponential(**kwargs)
 
+        if reward_function.startswith("shift"):
+            return Proxy._shift(**kwargs)
+
     @staticmethod
     def _power(beta: float = 1.0) -> Callable:
-        """
+        r"""
         Returns a lambda expression where the inputs (proxy values) are raised to the
         power of beta.
+
+        $$
+        R(x) = \varepsilon(x)^{\beta}
+        $$
 
         Parameters
         ----------
@@ -164,9 +172,13 @@ class Proxy(ABC):
 
     @staticmethod
     def _exponential(beta: float = 1.0) -> Callable:
-        """
+        r"""
         Returns a lambda expression where the output is the exponential of the product
         of the input (proxy) values and beta.
+
+        $$
+        R(x) = \exp{\beta\varepsilon(x)}
+        $$
 
         Parameters
         ----------
@@ -177,7 +189,27 @@ class Proxy(ABC):
         -------
         A lambda expression that takes the exponential of the proxy values * beta.
         """
-        return lambda proxy_values: torch.exp(proxy_values**beta)
+        return lambda proxy_values: torch.exp(proxy_values * beta)
+
+    @staticmethod
+    def _shift(beta: float = 1.0) -> Callable:
+        r"""
+        Returns a lambda expression where the inputs (proxy values) are shifted by beta.
+
+        $$
+        R(x) = \varepsilon(x) + \beta
+        $$
+
+        Parameters
+        ----------
+        beta : float
+            The factor by which the proxy values are shifted.
+
+        Returns
+        -------
+        A lambda expression that shifts the proxy values by beta.
+        """
+        return lambda proxy_values: proxy_values + beta
 
     def infer_on_train_set(self):
         """
