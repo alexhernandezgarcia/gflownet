@@ -240,11 +240,12 @@ def test__get_masks_backward__single_env_returns_expected(env, batch, request):
 def test__get_rewards__single_env_returns_expected(env, proxy, batch, request):
     env = request.getfixturevalue(env)
     proxy = request.getfixturevalue(proxy)
+    proxy.setup(env)
     env = env.reset()
-    env.proxy = proxy
-    env.setup_proxy()
     batch.set_env(env)
+    batch.set_proxy(proxy)
 
+    rewards_from_env = []
     rewards = []
     while not env.done:
         parent = env.state
@@ -253,7 +254,10 @@ def test__get_rewards__single_env_returns_expected(env, proxy, batch, request):
         # Add to batch
         batch.add_to_batch([env], [action], [valid])
         if valid:
-            rewards.append(env.reward())
+            if env.done:
+                rewards.append(proxy.rewards(env.state2proxy())[0])
+            else:
+                rewards.append(tfloat(0.0, float_type=batch.float, device=batch.device))
     rewards_batch = batch.get_rewards()
     rewards = torch.stack(rewards)
     assert torch.equal(
