@@ -13,7 +13,7 @@ def uniform():
 
 
 @pytest.fixture()
-def uniform_identity(beta):
+def proxy_identity(beta):
     return Uniform(
         reward_function="power",
         reward_function_kwargs={"beta": beta},
@@ -23,7 +23,7 @@ def uniform_identity(beta):
 
 
 @pytest.fixture()
-def uniform_power(beta):
+def proxy_power(beta):
     return Uniform(
         reward_function="power",
         reward_function_kwargs={"beta": beta},
@@ -33,7 +33,7 @@ def uniform_power(beta):
 
 
 @pytest.fixture()
-def uniform_exponential(beta):
+def proxy_exponential(beta):
     return Uniform(
         reward_function="exponential",
         reward_function_kwargs={"beta": beta},
@@ -43,7 +43,7 @@ def uniform_exponential(beta):
 
 
 @pytest.fixture()
-def uniform_shift(beta):
+def proxy_shift(beta):
     return Uniform(
         reward_function="shift",
         reward_function_kwargs={"beta": beta},
@@ -53,10 +53,20 @@ def uniform_shift(beta):
 
 
 @pytest.fixture()
-def uniform_product(beta):
+def proxy_product(beta):
     return Uniform(
         reward_function="product",
         reward_function_kwargs={"beta": beta},
+        device="cpu",
+        float_precision=32,
+    )
+
+
+@pytest.fixture()
+def proxy_callable(reward_function, logreward_function):
+    return Uniform(
+        reward_function=reward_function,
+        logreward_function=logreward_function,
         device="cpu",
         float_precision=32,
     )
@@ -66,17 +76,31 @@ def uniform_product(beta):
     "proxy, beta",
     [
         ("uniform", None),
-        ("uniform_power", 1),
-        ("uniform_power", 2),
-        ("uniform_exponential", 1),
-        ("uniform_exponential", -1),
-        ("uniform_shift", 5),
-        ("uniform_shift", -5),
-        ("uniform_product", 2),
-        ("uniform_product", -2),
+        ("proxy_power", 1),
+        ("proxy_power", 2),
+        ("proxy_exponential", 1),
+        ("proxy_exponential", -1),
+        ("proxy_shift", 5),
+        ("proxy_shift", -5),
+        ("proxy_product", 2),
+        ("proxy_product", -2),
     ],
 )
 def test__uniform_proxy_initializes_without_errors(proxy, beta, request):
+    proxy = request.getfixturevalue(proxy)
+    assert True
+
+
+@pytest.mark.parametrize(
+    "proxy, reward_function, logreward_function",
+    [
+        ("proxy_callable", lambda x: x + 1, None),
+        ("proxy_callable", lambda x: torch.exp(x - 1), lambda x: x - 1),
+    ],
+)
+def test__uniform_proxy_callable_initializes_without_errors(
+    proxy, reward_function, logreward_function, request
+):
     proxy = request.getfixturevalue(proxy)
     assert True
 
@@ -117,9 +141,9 @@ def check_proxy2reward(rewards_computed, rewards_expected, atol=1e-3):
     ],
 )
 def test_reward_function_identity__behaves_as_expected(
-    uniform_identity, beta, proxy_values, rewards_exp, logrewards_exp
+    proxy_identity, beta, proxy_values, rewards_exp, logrewards_exp
 ):
-    proxy = uniform_identity
+    proxy = proxy_identity
     proxy_values = tfloat(proxy_values, device=proxy.device, float_type=proxy.float)
     # Rewards
     rewards_exp = tfloat(rewards_exp, device=proxy.device, float_type=proxy.float)
@@ -175,9 +199,9 @@ def test_reward_function_identity__behaves_as_expected(
     ],
 )
 def test_reward_function_power__behaves_as_expected(
-    uniform_power, beta, proxy_values, rewards_exp, logrewards_exp
+    proxy_power, beta, proxy_values, rewards_exp, logrewards_exp
 ):
-    proxy = uniform_power
+    proxy = proxy_power
     proxy_values = tfloat(proxy_values, device=proxy.device, float_type=proxy.float)
     # Rewards
     rewards_exp = tfloat(rewards_exp, device=proxy.device, float_type=proxy.float)
@@ -229,9 +253,9 @@ def test_reward_function_power__behaves_as_expected(
     ],
 )
 def test_reward_function_exponential__behaves_as_expected(
-    uniform_exponential, beta, proxy_values, rewards_exp, logrewards_exp
+    proxy_exponential, beta, proxy_values, rewards_exp, logrewards_exp
 ):
-    proxy = uniform_exponential
+    proxy = proxy_exponential
     proxy_values = tfloat(proxy_values, device=proxy.device, float_type=proxy.float)
     # Rewards
     rewards_exp = tfloat(rewards_exp, device=proxy.device, float_type=proxy.float)
@@ -287,9 +311,9 @@ def test_reward_function_exponential__behaves_as_expected(
     ],
 )
 def test_reward_function_shift__behaves_as_expected(
-    uniform_shift, beta, proxy_values, rewards_exp, logrewards_exp
+    proxy_shift, beta, proxy_values, rewards_exp, logrewards_exp
 ):
-    proxy = uniform_shift
+    proxy = proxy_shift
     proxy_values = tfloat(proxy_values, device=proxy.device, float_type=proxy.float)
     # Rewards
     rewards_exp = tfloat(rewards_exp, device=proxy.device, float_type=proxy.float)
@@ -345,9 +369,89 @@ def test_reward_function_shift__behaves_as_expected(
     ],
 )
 def test_reward_function_product__behaves_as_expected(
-    uniform_product, beta, proxy_values, rewards_exp, logrewards_exp
+    proxy_product, beta, proxy_values, rewards_exp, logrewards_exp
 ):
-    proxy = uniform_product
+    proxy = proxy_product
+    proxy_values = tfloat(proxy_values, device=proxy.device, float_type=proxy.float)
+    # Rewards
+    rewards_exp = tfloat(rewards_exp, device=proxy.device, float_type=proxy.float)
+    assert all(check_proxy2reward(proxy._reward_function(proxy_values), rewards_exp))
+    assert all(check_proxy2reward(proxy.proxy2reward(proxy_values), rewards_exp))
+    # Log Rewards
+    logrewards_exp = tfloat(logrewards_exp, device=proxy.device, float_type=proxy.float)
+    assert all(
+        check_proxy2reward(proxy._logreward_function(proxy_values), logrewards_exp)
+    )
+    assert all(check_proxy2reward(proxy.proxy2logreward(proxy_values), logrewards_exp))
+
+
+@pytest.mark.parametrize(
+    "reward_function, logreward_function, proxy_values, rewards_exp, logrewards_exp",
+    [
+        (
+            lambda x: x + 1,
+            None,
+            [-100, -10, -1, -0.5, -0.1, 0.0, 0.1, 0.5, 1, 10, 100],
+            [-99, -9, 0, 0.5, 0.9, 1.0, 1.1, 1.5, 2, 11, 101],
+            [
+                np.nan,
+                np.nan,
+                -np.inf,
+                -0.6931,
+                -0.1054,
+                0.0,
+                0.0953,
+                0.4055,
+                0.6931,
+                2.3979,
+                4.6151,
+            ],
+        ),
+        (
+            lambda x: torch.exp(x - 1),
+            lambda x: x - 1,
+            [-10, -1, -0.5, -0.1, 0.0, 0.1, 0.5, 1, 10],
+            [
+                1.6702e-05,
+                1.3534e-01,
+                2.2313e-01,
+                3.3287e-01,
+                3.6788e-01,
+                4.0657e-01,
+                6.0653e-01,
+                1.0,
+                8.1031e03,
+            ],
+            [-11, -2, -1.5, -1.1, -1, -0.9, -0.5, 0, 9],
+        ),
+        (
+            lambda x: torch.exp(x - 1),
+            None,
+            [-10, -1, -0.5, -0.1, 0.0, 0.1, 0.5, 1, 10],
+            [
+                1.6702e-05,
+                1.3534e-01,
+                2.2313e-01,
+                3.3287e-01,
+                3.6788e-01,
+                4.0657e-01,
+                6.0653e-01,
+                1.0,
+                8.1031e03,
+            ],
+            [-11, -2, -1.5, -1.1, -1, -0.9, -0.5, 0, 9],
+        ),
+    ],
+)
+def test_reward_function_callable__behaves_as_expected(
+    proxy_callable,
+    reward_function,
+    logreward_function,
+    proxy_values,
+    rewards_exp,
+    logrewards_exp,
+):
+    proxy = proxy_callable
     proxy_values = tfloat(proxy_values, device=proxy.device, float_type=proxy.float)
     # Rewards
     rewards_exp = tfloat(rewards_exp, device=proxy.device, float_type=proxy.float)

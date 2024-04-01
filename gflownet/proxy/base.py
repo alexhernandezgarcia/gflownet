@@ -3,7 +3,7 @@ Base class of GFlowNet proxies
 """
 
 from abc import ABC, abstractmethod
-from typing import Callable, List, Tuple, Union
+from typing import Callable, List, Optional, Tuple, Union
 
 import numpy as np
 import numpy.typing as npt
@@ -22,15 +22,17 @@ class Proxy(ABC):
         self,
         device,
         float_precision,
-        reward_function: Union[Callable, str] = "identity",
-        reward_function_kwargs: dict = {},
+        reward_function: Optional[Union[Callable, str]] = "identity",
+        logreward_function: Optional[Callable] = None,
+        reward_function_kwargs: Optional[dict] = {},
         **kwargs,
     ):
         # Proxy to reward function
         self.reward_function = reward_function
+        self.logreward_function = logreward_function
         self.reward_function_kwargs = reward_function_kwargs
         self._reward_function, self._logreward_function = self._get_reward_functions(
-            reward_function, **reward_function_kwargs
+            reward_function, logreward_function, **reward_function_kwargs
         )
         # Device
         self.device = set_device(device)
@@ -127,7 +129,10 @@ class Proxy(ABC):
         return self._logreward_function(proxy_values)
 
     def _get_reward_functions(
-        self, reward_function: Union[Callable, str], **kwargs
+        self,
+        reward_function: Union[Callable, str],
+        logreward_function: Callable = None,
+        **kwargs,
     ) -> Tuple[Callable, Callable]:
         r"""
         Returns a tuple of callable corresponding to the function that transforms proxy
@@ -150,6 +155,10 @@ class Proxy(ABC):
         ----------
         reward_function : callable or str
             A callable or a string corresponding to one of the pre-defined functions.
+        reward_function : callable
+            A callable of the logreward function, meant to be used to compute the log
+            rewards in a more numerically stable way. None by default, in which case
+            the log of the reward function will be taken.
 
         Returns
         -------
@@ -160,7 +169,10 @@ class Proxy(ABC):
         """
         # If reward_function is callable, return it
         if isinstance(reward_function, Callable):
-            return reward_function, lambda y: torch.log(reward_function)
+            if isinstance(logreward_function, Callable):
+                return reward_function, logreward_function
+            else:
+                return reward_function, lambda x: torch.log(reward_function(x))
 
         # Otherwise it must be a string
         if not isinstance(reward_function, str):
