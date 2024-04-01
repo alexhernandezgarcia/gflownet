@@ -53,7 +53,7 @@ class Proxy(ABC):
         """
         Computes the rewards of a batch of states.
 
-        The rewards are computing by first calling the proxy function, then
+        The rewards are computed by first calling the proxy function, then
         transforming the proxy values according to the reward function.
 
         Parameters
@@ -67,6 +67,26 @@ class Proxy(ABC):
             The reward of all elements in the batch.
         """
         return self.proxy2reward(self(states))
+
+    def log_rewards(self, states: Union[TensorType, List, npt.NDArray]) -> TensorType:
+        """
+        Computes the log(rewards) of a batch of states.
+
+        The rewards are computed by first calling the proxy function, then
+        transforming the proxy values according to the reward function, then taking the
+        logarithm.
+
+        Parameters
+        ----------
+        states : tensor or list or array
+            A batch of states in proxy format.
+
+        Returns
+        -------
+        tensor
+            The log reward of all elements in the batch.
+        """
+        return torch.log(self.proxy2reward(self(states)))
 
     # TODO: consider adding option to clip values
     # TODO: check that rewards are non-negative
