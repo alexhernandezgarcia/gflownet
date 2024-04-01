@@ -3,7 +3,7 @@ Base class of GFlowNet proxies
 """
 
 from abc import ABC, abstractmethod
-from typing import Callable, List, Union
+from typing import Callable, List, Tuple, Union
 
 import numpy as np
 import numpy.typing as npt
@@ -29,7 +29,7 @@ class Proxy(ABC):
         # Proxy to reward function
         self.reward_function = reward_function
         self.reward_function_kwargs = reward_function_kwargs
-        self._reward_function = self._get_reward_function(
+        self._reward_function, _logreward_function = self._get_reward_functions(
             reward_function, **reward_function_kwargs
         )
         # Device
@@ -109,10 +109,29 @@ class Proxy(ABC):
         """
         return self._reward_function(proxy_values)
 
-    def _get_reward_function(self, reward_function: Union[Callable, str], **kwargs):
+    # TODO: consider adding option to clip values
+    def proxy2logreward(self, proxy_values: TensorType) -> TensorType:
+        """
+        Transform a tensor of proxy values into log-rewards.
+
+        Parameters
+        ----------
+        proxy_values : tensor
+            The proxy values corresponding to a batch of states.
+
+        Returns
+        -------
+        tensor
+            The log-reward of all elements in the batch.
+        """
+        return self._logreward_function(proxy_values)
+
+    def _get_reward_functions(
+        self, reward_function: Union[Callable, str], **kwargs
+    ) -> Tuple[Callable, Callable]:
         r"""
-        Returns a callable corresponding to the function that transforms proxy values
-        into rewards.
+        Returns a tuple of callable corresponding to the function that transforms proxy
+        values into rewards and log-rewards.
 
         If reward_function is callable, it is returned as is. If it is a string, it
         must correspond to one of the following options:
@@ -131,10 +150,17 @@ class Proxy(ABC):
         ----------
         reward_function : callable or str
             A callable or a string corresponding to one of the pre-defined functions.
+
+        Returns
+        -------
+        Callable
+            The function the transforms proxy values into rewards.
+        Callable
+            The function the transforms proxy values into log-rewards.
         """
         # If reward_function is callable, return it
         if isinstance(reward_function, Callable):
-            return reward_function
+            return reward_function, lambda y: torch.log(reward_function)
 
         # Otherwise it must be a string
         if not isinstance(reward_function, str):
@@ -144,19 +170,22 @@ class Proxy(ABC):
             )
 
         if reward_function.startswith("identity"):
-            return lambda proxy_values: proxy_values
+            return (
+                lambda y: x,
+                lambda y: torch.log(x),
+            )
 
         elif reward_function.startswith("pow"):
-            return Proxy._power(**kwargs)
+            return Proxy._power(**kwargs), Proxy._power(**kwargs)
 
         elif reward_function.startswith("exp") or reward_function == "boltzmann":
-            return Proxy._exponential(**kwargs)
+            return Proxy._exponential(**kwargs), Proxy._product(**kwargs)
 
         elif reward_function == "shift":
-            return Proxy._shift(**kwargs)
+            return Proxy._shift(**kwargs), Proxy._shift(**kwargs)
 
         elif reward_function.startswith("prod"):
-            return Proxy._product(**kwargs)
+            return Proxy._product(**kwargs), Proxy._product(**kwargs)
 
         else:
             raise ValueError(
