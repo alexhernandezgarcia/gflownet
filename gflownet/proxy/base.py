@@ -29,7 +29,7 @@ class Proxy(ABC):
         # Proxy to reward function
         self.reward_function = reward_function
         self.reward_function_kwargs = reward_function_kwargs
-        self._reward_function, _logreward_function = self._get_reward_functions(
+        self._reward_function, self._logreward_function = self._get_reward_functions(
             reward_function, **reward_function_kwargs
         )
         # Device
@@ -171,21 +171,30 @@ class Proxy(ABC):
 
         if reward_function.startswith("identity"):
             return (
-                lambda y: x,
-                lambda y: torch.log(x),
+                lambda x: x,
+                lambda x: torch.log(x),
             )
 
         elif reward_function.startswith("pow"):
-            return Proxy._power(**kwargs), Proxy._power(**kwargs)
+            return (
+                Proxy._power(**kwargs),
+                lambda x: torch.log(Proxy._power(**kwargs)(x)),
+            )
 
         elif reward_function.startswith("exp") or reward_function == "boltzmann":
             return Proxy._exponential(**kwargs), Proxy._product(**kwargs)
 
         elif reward_function == "shift":
-            return Proxy._shift(**kwargs), Proxy._shift(**kwargs)
+            return (
+                Proxy._shift(**kwargs),
+                lambda x: torch.log(Proxy._shift(**kwargs)(x)),
+            )
 
         elif reward_function.startswith("prod"):
-            return Proxy._product(**kwargs), Proxy._product(**kwargs)
+            return (
+                Proxy._product(**kwargs),
+                lambda x: torch.log(Proxy._product(**kwargs)(x)),
+            )
 
         else:
             raise ValueError(
