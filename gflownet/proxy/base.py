@@ -23,7 +23,6 @@ class Proxy(ABC):
         float_precision,
         reward_function: Union[Callable, str] = "identity",
         reward_function_kwargs: dict = {},
-        higher_is_better=False,
         **kwargs,
     ):
         # Proxy to reward function
@@ -34,8 +33,6 @@ class Proxy(ABC):
         self.device = set_device(device)
         # Float precision
         self.float = set_float_precision(float_precision)
-        # Reward2Proxy multiplicative factor (1 or -1)
-        self.higher_is_better = higher_is_better
 
     def setup(self, env=None):
         pass
