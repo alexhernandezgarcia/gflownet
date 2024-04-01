@@ -22,13 +22,13 @@ class Proxy(ABC):
         device,
         float_precision,
         reward_function: Union[Callable, str] = "identity",
-        reward_function_kwargs: dict = None,
+        reward_function_kwargs: dict = {},
         higher_is_better=False,
         **kwargs,
     ):
         # Proxy to reward function
         self.reward_function = self._get_reward_function(
-            reward_function, reward_function_kwargs
+            reward_function, **reward_function_kwargs
         )
         # Device
         self.device = set_device(device)
@@ -89,7 +89,7 @@ class Proxy(ABC):
         """
         return self.reward_func(proxy_values)
 
-    def _get_reward_function(reward_function: Union[Callable, str], **kwargs):
+    def _get_reward_function(self, reward_function: Union[Callable, str], **kwargs):
         r"""
         Returns a callable corresponding to the function that transforms proxy values
         into rewards.
