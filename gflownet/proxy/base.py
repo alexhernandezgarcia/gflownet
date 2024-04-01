@@ -91,7 +91,7 @@ class Proxy(ABC):
         tensor
             The log reward of all elements in the batch.
         """
-        return torch.log(self.proxy2reward(self(states)))
+        return self.proxy2logreward(self(states))
 
     # TODO: consider adding option to clip values
     # TODO: check that rewards are non-negative
