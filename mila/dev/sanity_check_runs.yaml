@@ -67,7 +67,8 @@ jobs:
         height: 10
         pieces: ["J", "L", "S", "Z"]
         allow_eos_before_full: True
-        reward_func: boltzmann
+      proxy:
+        reward_func: exponential
       gflownet: flowmatch
       proxy: tetris
   - slurm:
@@ -79,7 +80,8 @@ jobs:
         height: 10
         pieces: ["J", "L", "S", "Z"]
         allow_eos_before_full: True
-        reward_func: boltzmann
+      proxy:
+        reward_func: exponential
       gflownet: trajectorybalance
       proxy: tetris
   - slurm:
@@ -91,7 +93,8 @@ jobs:
         height: 10
         pieces: ["J", "L", "S", "Z"]
         allow_eos_before_full: True
-        reward_func: boltzmann
+      proxy:
+        reward_func: exponential
       gflownet: forwardlooking
       proxy: tetris
   # Ctorus
