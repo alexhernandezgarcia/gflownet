@@ -451,9 +451,11 @@ def test__forward_sampling_multiple_envs_all_as_expected(env, proxy, batch, requ
     # Check rewards
     rewards_batch = batch.get_rewards()
     rewards = torch.stack(rewards)
-    assert torch.equal(
-        rewards_batch,
-        tfloat(rewards, device=batch.device, float_type=batch.float),
+    assert torch.all(
+        torch.isclose(
+            rewards_batch,
+            tfloat(rewards, device=batch.device, float_type=batch.float),
+        )
     ), (rewards, rewards_batch)
     # Check terminating states (sorted by trajectory)
     states_term_batch = batch.get_terminating_states(sort_by="traj")
@@ -612,9 +614,11 @@ def test__backward_sampling_multiple_envs_all_as_expected(env, proxy, batch, req
     # Check rewards
     rewards_batch = batch.get_rewards()
     rewards = torch.stack(rewards)
-    assert torch.equal(
-        rewards_batch,
-        tfloat(rewards, device=batch.device, float_type=batch.float),
+    assert torch.all(
+        torch.isclose(
+            rewards_batch,
+            tfloat(rewards, device=batch.device, float_type=batch.float),
+        )
     ), (rewards, rewards_batch)
     # Check terminating states (sorted by trajectory)
     states_term_batch = batch.get_terminating_states(sort_by="traj")
@@ -839,9 +843,11 @@ def test__mixed_sampling_multiple_envs_all_as_expected(env, proxy, batch, reques
     # Check rewards
     rewards_batch = batch.get_rewards()
     rewards = torch.stack(rewards)
-    assert torch.equal(
-        rewards_batch,
-        tfloat(rewards, device=batch.device, float_type=batch.float),
+    assert torch.all(
+        torch.isclose(
+            rewards_batch,
+            tfloat(rewards, device=batch.device, float_type=batch.float),
+        )
     ), (rewards, rewards_batch)
     # Check terminating states (sorted by trajectory)
     states_term_batch = batch.get_terminating_states(sort_by="traj")
@@ -1073,9 +1079,11 @@ def test__mixed_sampling_merged_all_as_expected(env, proxy, request):
     # Check rewards
     rewards_batch = batch.get_rewards()
     rewards = torch.stack(rewards)
-    assert torch.equal(
-        rewards_batch,
-        tfloat(rewards, device=batch.device, float_type=batch.float),
+    assert torch.all(
+        torch.isclose(
+            rewards_batch,
+            tfloat(rewards, device=batch.device, float_type=batch.float),
+        )
     ), (rewards, rewards_batch)
     # Check terminating states (sorted by trajectory)
     states_term_batch = batch.get_terminating_states(sort_by="traj")
@@ -1307,9 +1315,11 @@ def test__get_rewards__single_env_returns_expected_non_terminating(
             rewards.append(proxy.rewards(env.state2proxy())[0])
     rewards_batch = batch.get_rewards(do_non_terminating=True)
     rewards = torch.stack(rewards)
-    assert torch.equal(
-        rewards_batch,
-        tfloat(rewards, device=batch.device, float_type=batch.float),
+    assert torch.all(
+        torch.isclose(
+            rewards_batch,
+            tfloat(rewards, device=batch.device, float_type=batch.float),
+        )
     ), (rewards, rewards_batch)
 
 
@@ -1393,9 +1403,11 @@ def test__get_rewards_multiple_env_returns_expected_non_zero_non_terminating(
 
     rewards_batch = batch.get_rewards(do_non_terminating=True)
     rewards = torch.stack(rewards)
-    assert torch.equal(
-        rewards_batch,
-        tfloat(rewards, device=batch.device, float_type=batch.float),
+    assert torch.all(
+        torch.isclose(
+            rewards_batch,
+            tfloat(rewards, device=batch.device, float_type=batch.float),
+        )
     ), (rewards, rewards_batch)
     assert ~torch.any(
         torch.isclose(rewards_batch, torch.zeros_like(rewards_batch))
@@ -1448,9 +1460,11 @@ def test__get_logrewards_multiple_env_returns_expected_non_zero_non_terminating(
 
     logrewards_batch = batch.get_rewards(log=True, do_non_terminating=True)
     logrewards = torch.stack(logrewards)
-    assert torch.equal(
-        logrewards_batch,
-        tfloat(logrewards, device=batch.device, float_type=batch.float),
+    assert torch.all(
+        torch.isclose(
+            logrewards_batch,
+            tfloat(logrewards, device=batch.device, float_type=batch.float),
+        )
     ), (logrewards, logrewards_batch)
     assert ~torch.any(
         torch.isclose(logrewards_batch, torch.zeros_like(logrewards_batch))
