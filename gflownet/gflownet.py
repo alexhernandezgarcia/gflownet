@@ -107,7 +107,11 @@ class GFlowNetAgent:
         self.replay_sampling = replay_sampling
         self.train_sampling = train_sampling
         self.buffer = Buffer(
-            **buffer, env=self.env, make_train_test=not sample_only, logger=logger
+            **buffer,
+            env=self.env,
+            proxy=self.proxy,
+            make_train_test=not sample_only,
+            logger=logger,
         )
         # Train set statistics and reward normalization constant
         if self.buffer.train is not None:
