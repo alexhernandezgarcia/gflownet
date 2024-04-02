@@ -79,10 +79,6 @@ class Grid(GFlowNetEnv):
         self.eos = tuple([0 for _ in range(self.n_dim)])
         # Base class init
         super().__init__(**kwargs)
-        # Proxy format
-        # TODO: assess if really needed
-        if self.proxy_state_format == "ohe":
-            self.states2proxy = self.states2policy
 
     def get_action_space(self):
         """
