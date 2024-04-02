@@ -900,7 +900,9 @@ class Batch:
         if do_non_terminating:
             rewards = self.proxy.rewards(self.states2proxy(), log)
         else:
-            rewards = torch.zeros(len(self), dtype=self.float, device=self.device)
+            rewards = self.proxy.get_min_reward(log) * torch.ones(
+                len(self), dtype=self.float, device=self.device
+            )
             done = self.get_done()
             if len(done) > 0:
                 states_proxy_done = self.get_terminating_states(proxy=True)
