@@ -67,10 +67,6 @@ class Proxy(ABC):
         The rewards are computed by first calling the proxy function, then
         transforming the proxy values according to the reward function.
 
-        If log is True, nan values are set to self.logreward_min.
-
-        If do_clip_rewards is True, rewards are clipped to self.reward_min.
-
         Parameters
         ----------
         states : tensor or list or array
@@ -85,20 +81,15 @@ class Proxy(ABC):
             The reward of all elements in the batch.
         """
         if log:
-            logrewards = self.proxy2logreward(self(states))
-            logrewards[logrewards.isnan()] = self.get_min_reward(log)
-            return logrewards
+            return self.proxy2logreward(self(states))
         else:
-            rewards = self.proxy2reward(self(states))
-            if self.do_clip_rewards:
-                rewards = torch.clip(rewards, min=self.reward_min, max=None)
-            return rewards
+            return self.proxy2reward(self(states))
 
-    # TODO: consider adding option to clip values
-    # TODO: check that rewards are non-negative
     def proxy2reward(self, proxy_values: TensorType) -> TensorType:
         """
         Transform a tensor of proxy values into rewards.
+
+        If do_clip_rewards is True, rewards are clipped to self.reward_min.
 
         Parameters
         ----------
@@ -110,12 +101,16 @@ class Proxy(ABC):
         tensor
             The reward of all elements in the batch.
         """
-        return self._reward_function(proxy_values)
+        rewards = self._reward_function(proxy_values)
+        if self.do_clip_rewards:
+            rewards = torch.clip(rewards, min=self.reward_min, max=None)
+        return rewards
 
-    # TODO: consider adding option to clip values
     def proxy2logreward(self, proxy_values: TensorType) -> TensorType:
         """
         Transform a tensor of proxy values into log-rewards.
+
+        NaN values are set to self.logreward_min.
 
         Parameters
         ----------
@@ -127,7 +122,9 @@ class Proxy(ABC):
         tensor
             The log-reward of all elements in the batch.
         """
-        return self._logreward_function(proxy_values)
+        logrewards = self._logreward_function(proxy_values)
+        logrewards[logrewards.isnan()] = self.get_min_reward(log=True)
+        return logrewards
 
     def get_min_reward(self, log: bool = False) -> float:
         """
