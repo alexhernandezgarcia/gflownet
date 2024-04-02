@@ -467,7 +467,6 @@ class BaseTestsDiscrete(BaseTestsCommon):
                 float_precision=config.float_precision,
                 base=forward_policy,
             )
-            self.env.proxy = proxy  # Set proxy in env.
             config.env.buffer.train = None  # No buffers
             config.env.buffer.test = None
             config.env.buffer.replay_capacity = 0  # No replay buffer
@@ -478,6 +477,7 @@ class BaseTestsDiscrete(BaseTestsCommon):
                 device=config.device,
                 float_precision=config.float_precision,
                 env_maker=self.env.__class__,
+                proxy=proxy,
                 forward_policy=forward_policy,
                 backward_policy=backward_policy,
                 buffer=config.env.buffer,
