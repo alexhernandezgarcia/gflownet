@@ -855,6 +855,7 @@ class Batch:
             ].get_mask_invalid_actions_backward(state, done)
         self.masks_backward_available = True
 
+    # TODO: better handling of availability of rewards, logrewards, proxy_values.
     def get_rewards(
         self,
         log: bool = False,
