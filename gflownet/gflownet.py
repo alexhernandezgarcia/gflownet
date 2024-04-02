@@ -71,6 +71,7 @@ class GFlowNetAgent:
         self.env = self.env_maker()
         # Proxy
         self.proxy = proxy
+        self.proxy.setup(self.env)
         # Continuous environments
         self.continuous = hasattr(self.env, "continuous") and self.env.continuous
         if self.continuous and optimizer.loss in ["flowmatch", "flowmatching"]:
@@ -1102,6 +1103,7 @@ class GFlowNetAgent:
             proxy_vals = self.proxy(states_proxy_term)
             rewards = self.proxy.proxy2reward(proxy_vals)
             rewards = rewards.tolist()
+            proxy_vals = proxy_vals.tolist()
             actions_trajectories = batch.get_actions_trajectories()
             self.buffer.add(states_term, actions_trajectories, rewards, proxy_vals, it)
             self.buffer.add(
