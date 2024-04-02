@@ -68,7 +68,7 @@ jobs:
         pieces: ["J", "L", "S", "Z"]
         allow_eos_before_full: True
       proxy:
-        reward_func: exponential
+        reward_function: exponential
       gflownet: flowmatch
       proxy: tetris
   - slurm:
@@ -81,7 +81,7 @@ jobs:
         pieces: ["J", "L", "S", "Z"]
         allow_eos_before_full: True
       proxy:
-        reward_func: exponential
+        reward_function: exponential
       gflownet: trajectorybalance
       proxy: tetris
   - slurm:
@@ -94,7 +94,7 @@ jobs:
         pieces: ["J", "L", "S", "Z"]
         allow_eos_before_full: True
       proxy:
-        reward_func: exponential
+        reward_function: exponential
       gflownet: forwardlooking
       proxy: tetris
   # Ctorus
