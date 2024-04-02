@@ -16,4 +16,6 @@ logreward_function: null
 # The default functions use an argument with key beta
 reward_function_kwargs: {}
 # Minimum reward. Used to clip the rewards.
-reward_min: 1e-8
+reward_min: 0.0
+# Flag to control whether rewards are clipped
+do_clip_rewards: False

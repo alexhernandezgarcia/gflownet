@@ -25,7 +25,8 @@ class Proxy(ABC):
         reward_function: Optional[Union[Callable, str]] = "absolute",
         logreward_function: Optional[Callable] = None,
         reward_function_kwargs: Optional[dict] = {},
-        reward_min: float = 1e-8,
+        reward_min: float = 0.0,
+        do_clip_rewards: bool = False,
         **kwargs,
     ):
         # Proxy to reward function
@@ -36,6 +37,7 @@ class Proxy(ABC):
             reward_function, logreward_function, **reward_function_kwargs
         )
         self.reward_min = reward_min
+        self.do_clip_rewards = do_clip_rewards
         # Device
         self.device = set_device(device)
         # Float precision
@@ -65,6 +67,10 @@ class Proxy(ABC):
         The rewards are computed by first calling the proxy function, then
         transforming the proxy values according to the reward function.
 
+        If log is True, nan values are set to self.logreward_min.
+
+        If do_clip_rewards is True, rewards are clipped to self.reward_min.
+
         Parameters
         ----------
         states : tensor or list or array
@@ -79,9 +85,14 @@ class Proxy(ABC):
             The reward of all elements in the batch.
         """
         if log:
-            return self.proxy2logreward(self(states))
+            logrewards = self.proxy2logreward(self(states))
+            logrewards[logrewards.isnan()] = self.get_min_reward(log)
+            return logrewards
         else:
-            return self.proxy2reward(self(states))
+            rewards = self.proxy2reward(self(states))
+            if self.do_clip_rewards:
+                rewards = torch.clip(rewards, min=self.reward_min, max=None)
+            return rewards
 
     # TODO: consider adding option to clip values
     # TODO: check that rewards are non-negative
@@ -122,6 +133,8 @@ class Proxy(ABC):
         """
         Returns the minimum value of the (log) reward, retrieved from self.reward_min.
 
+        If self.reward_min is exactly 0, then self.logreward_min is set to -inf.
+
         Parameters
         ----------
         log : bool
@@ -134,7 +147,12 @@ class Proxy(ABC):
             The mimnimum (log) reward.
         """
         if log:
-            return np.log(self.reward_min)
+            if not hasattr(self, "logreward_min"):
+                if self.reward_min == 0.0:
+                    self.logreward_min = -np.inf
+                else:
+                    self.logreward_min = np.log(self.reward_min)
+            return self.logreward_min
         else:
             return self.reward_min
 
