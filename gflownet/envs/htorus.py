@@ -516,7 +516,9 @@ class HybridTorus(GFlowNetEnv):
         states = np.concatenate((angles, np.ones((n_states, 1))), axis=1)
         return states.tolist()
 
-    # TODO: make generic for all environments
+    # TODO: make generic for all environments, or rather elsewhere
+    # TODO: fix because it currently uses reward_batch, proxy2reward, etc.. For
+    # example, this could be done by passing the proxy as a parameter.
     def sample_from_reward(
         self, n_samples: int, epsilon=1e-4
     ) -> TensorType["n_samples", "state_dim"]:
