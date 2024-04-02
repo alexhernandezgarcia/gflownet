@@ -36,7 +36,6 @@ class Proxy(ABC):
             reward_function, logreward_function, **reward_function_kwargs
         )
         self.reward_min = reward_min
-        self.logreward_min = np.log(reward_min)
         # Device
         self.device = set_device(device)
         # Float precision
@@ -118,6 +117,26 @@ class Proxy(ABC):
             The log-reward of all elements in the batch.
         """
         return self._logreward_function(proxy_values)
+
+    def get_min_reward(self, log: bool = False) -> float:
+        """
+        Returns the minimum value of the (log) reward, retrieved from self.reward_min.
+
+        Parameters
+        ----------
+        log : bool
+            If True, returns the logarithm of the minimum reward. If False (default),
+            returns the natural minimum reward.
+
+        Returns
+        -------
+        float
+            The mimnimum (log) reward.
+        """
+        if log:
+            return np.log(self.reward_min)
+        else:
+            return self.reward_min
 
     def _get_reward_functions(
         self,
