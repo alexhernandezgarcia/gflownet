@@ -42,7 +42,6 @@ def main(config):
     # https://hydra.cc/docs/advanced/instantiate_objects/overview/#partial-instantiation
     env_maker = hydra.utils.instantiate(
         config.env,
-        proxy=proxy,
         device=config.device,
         float_precision=config.float_precision,
         _partial_=True,

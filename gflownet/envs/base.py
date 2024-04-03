@@ -37,8 +37,6 @@ class GFlowNetEnv:
         reward_norm: float = 1.0,
         reward_norm_std_mult: float = 0.0,
         energies_stats: List[int] = None,
-        denorm_proxy: bool = False,
-        proxy=None,
         fixed_distr_params: Optional[dict] = None,
         random_distr_params: Optional[dict] = None,
         skip_mask_check: bool = False,
@@ -61,7 +59,6 @@ class GFlowNetEnv:
         assert self.reward_norm > 0
         self.reward_norm_std_mult = reward_norm_std_mult
         self.energies_stats = energies_stats
-        self.denorm_proxy = denorm_proxy
         # Flag to skip checking if action is valid (computing mask) before step
         self.skip_mask_check = skip_mask_check
         # Log SoftMax function
