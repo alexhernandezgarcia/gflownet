@@ -319,7 +319,12 @@ class Buffer:
             samples = list(samples.values())
         if mode == "permutation":
             assert rng is not None
-            samples = [samples[idx] for idx in rng.permutation(n)]
+            indices = rng.choice(
+                len(samples),
+                size=n,
+                replace=False,
+            )
+            samples = [samples[idx] for idx in indices]
         elif mode == "weighted":
             if "rewards" in data_dict:
                 score = "rewards"
