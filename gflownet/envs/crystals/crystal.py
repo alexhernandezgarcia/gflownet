@@ -6,20 +6,17 @@ these changes or the history previous to that commit to consult previous
 implementations.
 """
 
-import json
-from collections import OrderedDict
-from enum import Enum
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Dict, List, Optional, Tuple
 
+import pandas as pd
 import torch
-from torch import Tensor
 from torchtyping import TensorType
+from tqdm import tqdm
 
 from gflownet.envs.crystals.composition import Composition
-from gflownet.envs.crystals.lattice_parameters import LatticeParameters
+from gflownet.envs.crystals.lattice_parameters import PARAMETER_NAMES, LatticeParameters
 from gflownet.envs.crystals.spacegroup import SpaceGroup
 from gflownet.envs.stack import Stack
-from gflownet.utils.common import copy, tbool, tfloat, tlong
 from gflownet.utils.crystals.constants import TRICLINIC
 
 
@@ -157,14 +154,49 @@ class Crystal(Stack):
             dim=1,
         )
 
-    # TODO: this could eventually be moved to Stack
-    def process_data_set(self, data: List[List]) -> List[List]:
+    def process_data_set(self, df: pd.DataFrame, progress=False) -> List[List]:
+        """
+        Converts a data set passed as a pandas DataFrame into a list of states in
+        environment format.
+
+        The DataFrame is expected to have the following columns:
+            - Formulae: non-reduced formulae of the composition
+            - Space Group: international number of the space group
+            - a, b, c, alpha, beta, gamma: lattice parameters
+
+        Parameters
+        ----------
+        df : DataFrame
+            A pandas DataFrame containing the necessary columns to represent a crystal
+            as described above.
+        progress : bool
+            Whether to display a progress bar.
+
+        Returns
+        -------
+        list
+            A list of states in environment format.
+        """
         data_valid = []
-        for x in data:
+        for row in tqdm(df.iterrows(), total=len(df), disable=not progress):
+            # Index 0 is the row index; index 1 is the remaining columns
+            row = row[1]
+            state = {}
+            state[self.stage_composition] = self.subenvs[
+                self.stage_composition
+            ].readable2state(row["Formulae"])
+            state[self.stage_spacegroup] = self.subenvs[
+                self.stage_spacegroup
+            ]._set_constrained_properties([0, 0, row["Space Group"]])
+            state[self.stage_latticeparameters] = self.subenvs[
+                self.stage_latticeparameters
+            ].parameters2state(tuple(row[list(PARAMETER_NAMES)]))
             is_valid_subenvs = [
-                subenv.is_valid(self._get_substate(x, stage))
-                for stage, subenv in self.subenvs.items()
+                subenv.is_valid(state[stage]) for stage, subenv in self.subenvs.items()
             ]
             if all(is_valid_subenvs):
-                data_valid.append(x)
+                # TODO: Consider making stack state a dict which would avoid having to
+                # do this, among other advantages
+                state_stack = [2] + [state[stage] for stage in self.subenvs]
+                data_valid.append(state_stack)
         return data_valid

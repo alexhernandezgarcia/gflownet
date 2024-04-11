@@ -5,7 +5,7 @@
 # Learning rate decay
 
 defaults:
-  - override /env: crystals/ccrystal_stack
+  - override /env: crystals/crystal
   - override /gflownet: trajectorybalance
   - override /proxy: crystals/dave
   - override /logger: wandb
@@ -56,15 +56,15 @@ env:
   buffer:
     replay_capacity: 1000
     train:
-      type: pkl
-      path: /network/scratch/s/schmidtv/crystals-proxys/data/ai4mat-plots-data/matbench_normed_stack_sg_first_l0.9-100_a50-150_train_22_SGinter_states_energy.pkl
-      output_csv: ccrystal_train.csv
-      output_pkl: ccrystal_train.pkl
+      type: csv
+      path: /network/projects/crystalgfn/data/bandgap/train.csv
+      output_csv: crystal_train.csv
+      output_pkl: crystal_train.pkl
     test:
-      type: pkl
-      path: /network/scratch/s/schmidtv/crystals-proxys/data/ai4mat-plots-data/matbench_normed_stack_sg_first_l0.9-100_a50-150_val_22_SGinter_states_energy.pkl
-      output_csv: ccrystal_val.csv
-      output_pkl: ccrystal_val.pkl
+      type: csv
+      path: /network/projects/crystalgfn/data/bandgap/val.csv
+      output_csv: crystal_val.csv
+      output_pkl: crystal_val.pkl
 
 # GFlowNet hyperparameters
 gflownet:

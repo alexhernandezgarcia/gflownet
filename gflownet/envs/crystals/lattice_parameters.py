@@ -257,6 +257,43 @@ class LatticeParameters(ContinuousCube):
         ]
         return (a, b, c), (alpha, beta, gamma)
 
+    def parameters2state(
+        self, parameters: Tuple = None, lengths: Tuple = None, angles: Tuple = None
+    ) -> List[float]:
+        """Converts a set of lattice parameters in angstroms and degrees into an
+        environment state, with the parameters in the [0, 1] range.
+
+        The parameters may be passed as a single tuple parameters containing the six
+        parameters or via separate lengths and angles. If parameters is not None,
+        lengths and angles are ignored.
+
+        Parameters
+        ----------
+        parameters : tuple (optional)
+            The six lattice parameters (a, b, c, alpha, beta, gamma) in target units
+            (angstroms and degrees).
+        lengths : tuple (optional)
+            A triplet of length lattice parameters (a, b, c) in angstroms. Ignored if
+            parameters is not None.
+        angles : tuple (optional)
+            A triplet of angle lattice parameters (alpha, beta, gamma) in degrees.
+            Ignored if parameters is not None.
+
+        Returns
+        -------
+        state
+            A state in environment format.
+        """
+        if parameters is None:
+            if lengths is None or angles is None:
+                raise ValueError("Cannot determine all six parameters.")
+            parameters = lengths + angles
+
+        state = copy(self.source)
+        for param, value in zip(PARAMETER_NAMES, parameters):
+            state = self._set_param(state, param, value)
+        return state
+
     def states2proxy(
         self, states: Union[List, TensorType["batch", "state_dim"]]
     ) -> TensorType["height", "width", "batch"]:
@@ -298,23 +335,31 @@ class LatticeParameters(ContinuousCube):
         """
         Converts a human-readable representation of a state into the standard format.
         """
-        state = copy(self.source)
-
         for c in ["(", ")", " "]:
             readable = readable.replace(c, "")
         values = readable.split(",")
         values = [float(value) for value in values]
 
-        for param, value in zip(PARAMETER_NAMES, values):
-            state = self._set_param(state, param, value)
-        return state
+        return self.parameters2state(values)
 
-    def is_valid(self, x: List) -> bool:
+    def is_valid(self, state: List) -> bool:
         """
         Determines whether a state is valid, according to the attributes of the
         environment.
+
+        Parameters
+        ----------
+        state : list
+            A state in environment format. If None, then lengths and angles will be
+            used instead.
+
+        Returns
+        -------
+        bool
+            True if the state is valid according to the attributes of the environment;
+            False otherwise.
         """
-        lengths, angles = self._unpack_lengths_angles(x)
+        lengths, angles = self._unpack_lengths_angles(state)
         # Check lengths
         if any([l < self.min_length or l > self.max_length for l in lengths]):
             return False

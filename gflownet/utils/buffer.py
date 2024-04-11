@@ -219,13 +219,22 @@ class Buffer:
                         f", but only {n_samples_new} are valid according to the "
                         "environment settings. Invalid samples have been discarded."
                     )
-                print("Remember to write a function to normalise the data in code")
-                print("Max number of elements in data set has to match config")
-                print("Actually, write a function that contrasts the stats")
         elif config.type == "csv" and "path" in config:
             print(f"from CSV: {config.path}\n")
-            df = pd.read_csv(config.path, index_col=0)
-            samples = df.iloc[:, :-1].values
+            if "samples_column" in config:
+                df = pd.read_csv(config.path, index_col=False)
+                samples = df[config.samples_column].values
+            else:
+                samples = pd.read_csv(config.path, index_col=0)
+            n_samples_orig = len(samples)
+            print(f"The data set containts {n_samples_orig} samples", end="")
+            samples = self.env.process_data_set(samples)
+            n_samples_new = len(samples)
+            if n_samples_new != n_samples_orig:
+                print(
+                    f", but only {n_samples_new} are valid according to the "
+                    "environment settings. Invalid samples have been discarded."
+                )
         elif config.type == "all" and hasattr(self.env, "get_all_terminating_states"):
             samples = self.env.get_all_terminating_states()
         elif (
@@ -332,6 +341,8 @@ class Buffer:
             # need to keep its values only
             if isinstance(scores, dict):
                 scores = np.fromiter(scores.values(), dtype=float)
+            if isinstance(scores, list):
+                scores = np.array(scores, dtype=float)
             indices = np.random.choice(
                 len(samples),
                 size=n,

@@ -169,6 +169,9 @@ def main(args):
             corr_prob_traj_rew,
             var_logrew_logp,
             nll,
+            mean_logprobs_std,
+            mean_probs_std,
+            logprobs_std_nll_ratio,
             figs,
             env_metrics,
         ) = gflownet.test()
@@ -193,6 +196,9 @@ def main(args):
         print(f"Corr (exp(logp), rewards): {corr_prob_traj_rew}")
         print(f"Var (log(R) - logp): {var_logrew_logp}")
         print(f"NLL: {nll}")
+        print(f"Mean Std. logprobs: {mean_logprobs_std}")
+        print(f"Mean Std. probs: {mean_probs_std}")
+        print(f"Std. logprobs / NLL: {logprobs_std_nll_ratio}")
 
     # ------------------------------------------
     # -----  Sample GFlowNet  -----
