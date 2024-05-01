@@ -9,6 +9,7 @@ of the state, for example in test__trajectories_are_reversible(), a copy is need
 
 import inspect
 import warnings
+from functools import partial
 
 import hydra
 import numpy as np
@@ -16,7 +17,6 @@ import pytest
 import torch
 import yaml
 from hydra import compose, initialize
-from omegaconf import OmegaConf
 
 from gflownet.utils.common import copy, tbool, tfloat
 from gflownet.utils.policy import parse_policy_config
@@ -444,7 +444,10 @@ class BaseTestsDiscrete(BaseTestsCommon):
             ):
                 config = compose(config_name="tests")
 
+            # Logger
             logger = hydra.utils.instantiate(config.logger, config, _recursive_=False)
+
+            # Proxy
             proxy = hydra.utils.instantiate(
                 config.proxy,
                 device=config.device,
@@ -472,11 +475,12 @@ class BaseTestsDiscrete(BaseTestsCommon):
             config.env.buffer.replay_capacity = 0  # No replay buffer
             config.gflownet.optimizer.n_train_steps = 1  # Set 1 training step
 
+            # GFlowNet agent
             gflownet = hydra.utils.instantiate(
                 config.gflownet,
                 device=config.device,
                 float_precision=config.float_precision,
-                env_maker=self.env.__class__,
+                env_maker=partial(self.env.copy),
                 proxy=proxy,
                 forward_policy=forward_policy,
                 backward_policy=backward_policy,

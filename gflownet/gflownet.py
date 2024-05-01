@@ -9,6 +9,7 @@ import os
 import pickle
 import time
 from collections import defaultdict
+from functools import partial
 from pathlib import Path
 from typing import List, Optional, Tuple, Union
 
@@ -37,7 +38,7 @@ from gflownet.utils.common import (
 class GFlowNetAgent:
     def __init__(
         self,
-        env_maker,
+        env_maker: partial,
         proxy,
         seed,
         device,
