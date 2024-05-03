@@ -124,6 +124,7 @@ class Proxy(ABC):
         """
         logrewards = self._logreward_function(proxy_values)
         logrewards[logrewards.isnan()] = self.get_min_reward(log=True)
+        logrewards[~logrewards.isfinite()] = self.get_min_reward(log=True)
         return logrewards
 
     def get_min_reward(self, log: bool = False) -> float:
@@ -146,7 +147,7 @@ class Proxy(ABC):
         if log:
             if not hasattr(self, "logreward_min"):
                 if self.reward_min == 0.0:
-                    self.logreward_min = -np.inf
+                    self.logreward_min = -1e3
                 else:
                     self.logreward_min = np.log(self.reward_min)
             return self.logreward_min
