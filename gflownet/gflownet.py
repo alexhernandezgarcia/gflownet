@@ -1254,7 +1254,7 @@ class GFlowNetAgent:
         elif self.continuous and hasattr(self.env, "fit_kde"):
             batch, _ = self.sample_batch(n_forward=self.logger.test.n, train=False)
             assert batch.is_valid()
-            x_sampled = batch.get_terminating_states()
+            x_sampled = batch.get_terminating_states(proxy=True)
             # TODO make it work with conditional env
             x_tt = torch2np(self.env.states2proxy(x_tt))
             kde_pred = self.env.fit_kde(
@@ -1315,10 +1315,23 @@ class GFlowNetAgent:
         jsd += 0.5 * np.sum(density_pred * (log_density_pred - log_mean_dens))
 
         # Plots
-        if hasattr(self.env, "plot_samples_reward"):
-            rewards = self.proxy.rewards(self.env.states2proxy(x_sampled))
-            fig_reward_samples = self.env.plot_samples_reward(
-                x_sampled, rewards, **plot_kwargs
+        if hasattr(self.env, "plot_reward_samples"):
+            if hasattr(self.env, "get_all_terminating_states"):
+                samples_reward = self.env.get_all_terminating_states()
+            elif hasattr(self.env, "get_grid_terminating_states"):
+                samples_reward = self.env.get_grid_terminating_states(
+                    self.logger.test.n_grid
+                )
+            else:
+                raise NotImplementedError(
+                    "In order to plot the reward density and the samples, the "
+                    "environment must implement either get_all_terminating_states() "
+                    "or get_grid_terminating_states()"
+                )
+            samples_reward = self.env.states2proxy(samples_reward)
+            rewards = self.proxy.rewards(samples_reward)
+            fig_reward_samples = self.env.plot_reward_samples(
+                x_sampled, samples_reward, rewards, **plot_kwargs
             )
         else:
             fig_reward_samples = None

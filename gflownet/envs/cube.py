@@ -17,6 +17,9 @@ from torchtyping import TensorType
 from gflownet.envs.base import GFlowNetEnv
 from gflownet.utils.common import copy, tbool, tfloat, torch2np
 
+CELL_MIN = -1.0
+CELL_MAX = 1.0
+
 
 class CubeBase(GFlowNetEnv, ABC):
     """
@@ -136,7 +139,7 @@ class CubeBase(GFlowNetEnv, ABC):
     ) -> TensorType["batch", "state_dim"]:
         """
         Prepares a batch of states in "environment format" for a proxy: clips the
-        states into [0, 1] and maps them to [-1.0, 1.0]
+        states into [0, 1] and maps them to [CELL_MIN, CELL_MAX]
 
         Args
         ----
@@ -149,7 +152,7 @@ class CubeBase(GFlowNetEnv, ABC):
         A tensor containing all the states in the batch.
         """
         states = tfloat(states, device=self.device, float_type=self.float)
-        return 2.0 * torch.clip(states, min=0.0, max=1.0) - 1.0
+        return 2.0 * torch.clip(states, min=0.0, max=CELL_MAX) - CELL_MAX
 
     def states2policy(
         self, states: Union[List, TensorType["batch", "state_dim"]]
@@ -1418,13 +1421,33 @@ class ContinuousCube(CubeBase):
         states = rng.uniform(low=kappa, high=1.0 - kappa, size=(n_states, self.n_dim))
         return states.tolist()
 
-    def fit_kde(self, samples, kernel="gaussian", bandwidth=0.1):
-        samples = torch2np(self.states2proxy(samples))
+    def fit_kde(
+        self,
+        samples: TensorType["batch_size", "state_proxy_dim"],
+        kernel: str = "gaussian",
+        bandwidth: float = 0.1,
+    ):
+        r"""
+        Fits a Kernel Density Estimator on a batch of samples.
+
+        Parameters
+        ----------
+        samples : tensor
+            A batch of samples in proxy format.
+        kernel : str
+            An identifier of the kernel to use for the density estimation. It must be a
+            valid kernel for the scikit-learn method
+            :py:meth:`sklearn.neighbors.KernelDensity`.
+        bandwidth : float
+            The bandwidth of the kernel.
+        """
+        samples = torch2np(samples)
         return KernelDensity(kernel=kernel, bandwidth=bandwidth).fit(samples)
 
-    def plot_samples_reward(
+    def plot_reward_samples(
         self,
-        samples: List[List],
+        samples: TensorType["batch_size", "state_proxy_dim"],
+        samples_reward: TensorType["batch_size", "state_proxy_dim"],
         rewards: TensorType["batch_size"],
         alpha: float = 0.5,
         cell_min: float = -1.0,
@@ -1433,22 +1456,39 @@ class ContinuousCube(CubeBase):
         max_samples: int = 500,
         **kwargs,
     ):
+        """
+        Plots the reward contour alongside a batch of samples.
+
+        Parameters
+        ----------
+        samples : tensor
+            A batch of samples from the GFlowNet policy in proxy format. These samples
+            will be plotted on top of the reward density.
+        samples_reward : tensor
+            A batch of samples containing a grid over the sample space, from which the
+            reward has been obtained. These samples are used to plot the contour of
+            reward density.
+        rewards : tensor
+            The reward of samples_reward.
+        alpha : float
+            Transparency of the reward contour.
+        dpi : int
+            Dots per inch, indicating the resolution of the plot.
+        """
         if self.n_dim != 2:
             return None
-        samples = torch2np(self.states2proxy(samples))
-        # Sample a grid of points in the state space and obtain the rewards
-        x = np.linspace(cell_min, cell_max, 201)
-        y = np.linspace(cell_min, cell_max, 201)
+        samples = torch2np(samples)
+        samples_reward = torch2np(samples_reward)
+        rewards = torch2np(rewards)
+        # Create mesh from samples_reward
+        x = np.unique(samples_reward[:, 0])
+        y = np.unique(samples_reward[:, 1])
         xx, yy = np.meshgrid(x, y)
-        X = np.stack([xx, yy], axis=-1)
-        states_mesh = torch.tensor(
-            X.reshape(-1, 2), device=self.device, dtype=self.float
-        )
         # Init figure
         fig, ax = plt.subplots()
         fig.set_dpi(dpi)
         # Plot reward contour
-        h = ax.contourf(xx, yy, rewards.reshape(xx.shape).cpu().numpy(), alpha=alpha)
+        h = ax.contourf(xx, yy, rewards.reshape(xx.shape), alpha=alpha)
         ax.axis("scaled")
         fig.colorbar(h, ax=ax)
         # Plot samples
@@ -1456,9 +1496,9 @@ class ContinuousCube(CubeBase):
         ax.scatter(samples[random_indices, 0], samples[random_indices, 1], alpha=alpha)
         # Figure settings
         ax.grid()
-        padding = 0.05 * (cell_max - cell_min)
-        ax.set_xlim([cell_min - padding, cell_max + padding])
-        ax.set_ylim([cell_min - padding, cell_max + padding])
+        padding = 0.05 * (CELL_MAX - CELL_MIN)
+        ax.set_xlim([CELL_MIN - padding, CELL_MAX + padding])
+        ax.set_ylim([CELL_MIN - padding, CELL_MAX + padding])
         plt.tight_layout()
         return fig
 
