@@ -15,7 +15,7 @@ from torch.distributions import Bernoulli, Beta, Categorical, MixtureSameFamily
 from torchtyping import TensorType
 
 from gflownet.envs.base import GFlowNetEnv
-from gflownet.utils.common import copy, tbool, tfloat
+from gflownet.utils.common import copy, tbool, tfloat, torch2np
 
 
 class CubeBase(GFlowNetEnv, ABC):
@@ -1418,49 +1418,24 @@ class ContinuousCube(CubeBase):
         states = rng.uniform(low=kappa, high=1.0 - kappa, size=(n_states, self.n_dim))
         return states.tolist()
 
-    # TODO: make generic for all environments, or rather elsewhere
-    # TODO: fix because it currently uses reward_batch, proxy2reward, etc.. For
-    # example, this could be done by passing the proxy as a parameter.
-    def sample_from_reward(
-        self, n_samples: int, epsilon=1e-4
-    ) -> TensorType["n_samples", "state_dim"]:
-        """
-        Rejection sampling with proposal the uniform distribution in [0, 1]^n_dim.
-
-        Returns a tensor in GFloNet (state) format.
-        """
-        samples_final = []
-        max_reward = self.proxy2reward(self.proxy.min)
-        while len(samples_final) < n_samples:
-            samples_uniform = self.states2proxy(
-                self.get_uniform_terminating_states(n_samples)
-            )
-            rewards = self.proxy2reward(self.proxy(samples_uniform))
-            mask = (
-                torch.rand(n_samples, dtype=self.float, device=self.device)
-                * (max_reward + epsilon)
-                < rewards
-            )
-            samples_accepted = samples_uniform[mask]
-            samples_final.extend(samples_accepted[-(n_samples - len(samples_final)) :])
-        return torch.vstack(samples_final)
-
-    # TODO: make generic for all envs
     def fit_kde(self, samples, kernel="gaussian", bandwidth=0.1):
+        samples = torch2np(self.states2proxy(samples))
         return KernelDensity(kernel=kernel, bandwidth=bandwidth).fit(samples)
 
-    def plot_reward_samples(
+    def plot_samples_reward(
         self,
-        samples,
-        alpha=0.5,
-        cell_min=-1.0,
-        cell_max=1.0,
-        dpi=150,
-        max_samples=500,
+        samples: List[List],
+        rewards: TensorType["batch_size"],
+        alpha: float = 0.5,
+        cell_min: float = -1.0,
+        cell_max: float = 1.0,
+        dpi: int = 150,
+        max_samples: int = 500,
         **kwargs,
     ):
         if self.n_dim != 2:
             return None
+        samples = torch2np(self.states2proxy(samples))
         # Sample a grid of points in the state space and obtain the rewards
         x = np.linspace(cell_min, cell_max, 201)
         y = np.linspace(cell_min, cell_max, 201)
@@ -1469,7 +1444,6 @@ class ContinuousCube(CubeBase):
         states_mesh = torch.tensor(
             X.reshape(-1, 2), device=self.device, dtype=self.float
         )
-        rewards = self.proxy2reward(self.proxy(states_mesh))
         # Init figure
         fig, ax = plt.subplots()
         fig.set_dpi(dpi)
@@ -1488,7 +1462,6 @@ class ContinuousCube(CubeBase):
         plt.tight_layout()
         return fig
 
-    # TODO: make generic for all envs
     def plot_kde(
         self,
         kde,

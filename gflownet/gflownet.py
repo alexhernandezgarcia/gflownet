@@ -11,16 +11,18 @@ import time
 from collections import defaultdict
 from functools import partial
 from pathlib import Path
-from typing import List, Optional, Tuple, Union
+from typing import Callable, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import torch
 import torch.nn as nn
 from scipy.special import logsumexp
 from torch.distributions import Bernoulli
+from torchtyping import TensorType
 from tqdm import tqdm
 
 from gflownet.envs.base import GFlowNetEnv
+from gflownet.proxy.base import Proxy
 from gflownet.utils.batch import Batch
 from gflownet.utils.buffer import Buffer
 from gflownet.utils.common import (
@@ -1254,7 +1256,6 @@ class GFlowNetAgent:
             assert batch.is_valid()
             x_sampled = batch.get_terminating_states()
             # TODO make it work with conditional env
-            x_sampled = torch2np(self.env.states2proxy(x_sampled))
             x_tt = torch2np(self.env.states2proxy(x_tt))
             kde_pred = self.env.fit_kde(
                 x_sampled,
@@ -1266,10 +1267,7 @@ class GFlowNetAgent:
                 kde_true = dict_tt["kde_true"]
             else:
                 # Sample from reward via rejection sampling
-                x_from_reward = self.env.sample_from_reward(
-                    n_samples=self.logger.test.n
-                )
-                x_from_reward = torch2np(self.env.states2proxy(x_from_reward))
+                x_from_reward = self.sample_from_reward(n_samples=self.logger.test.n)
                 # Fit KDE with samples from reward
                 kde_true = self.env.fit_kde(
                     x_from_reward,
@@ -1317,9 +1315,11 @@ class GFlowNetAgent:
         jsd += 0.5 * np.sum(density_pred * (log_density_pred - log_mean_dens))
 
         # Plots
-
-        if hasattr(self.env, "plot_reward_samples"):
-            fig_reward_samples = self.env.plot_reward_samples(x_sampled, **plot_kwargs)
+        if hasattr(self.env, "plot_samples_reward"):
+            rewards = self.proxy.rewards(self.env.states2proxy(x_sampled))
+            fig_reward_samples = self.env.plot_samples_reward(
+                x_sampled, rewards, **plot_kwargs
+            )
         else:
             fig_reward_samples = None
         if hasattr(self.env, "plot_kde"):
@@ -1456,6 +1456,59 @@ class GFlowNetAgent:
         )
         print()
         return metrics, figs, fig_names, summary
+
+    # TODO: implement other proposal distributions
+    # TODO: rethink whether it is needed to convert to reward
+    def sample_from_reward(
+        self,
+        n_samples: int,
+        proposal_distribution: str = "uniform",
+        epsilon=1e-4,
+    ) -> Union[List, Dict, TensorType["n_samples", "state_dim"]]:
+        """
+        Rejection sampling with proposal the uniform distribution defined over the
+        sample space.
+
+        Returns a tensor in GFloNet (state) format.
+
+        Parameters
+        ----------
+        n_samples : int
+            The number of samples to draw from the reward distribution.
+        proposal_distribution : str
+            Identifier of the proposal distribution. Currently only `uniform` is
+            implemented.
+        epsilon : float
+            Small epsilon parameter for rejection sampling.
+
+        Returns
+        -------
+        samples_final : list
+            The list of samples drawn from the reward distribution.
+        """
+        samples_final = []
+        max_reward = self.proxy.proxy2reward(self.proxy.min)
+        while len(samples_final) < n_samples:
+            if proposal_distribution == "uniform":
+                # TODO: sample only the remaining number of samples
+                samples_uniform = self.env.get_uniform_terminating_states(n_samples)
+            else:
+                raise NotImplementedError("The proposal distribution must be uniform")
+            rewards = self.proxy.proxy2reward(
+                self.proxy(self.env.states2proxy(samples_uniform))
+            )
+            indices_accept = (
+                (
+                    torch.rand(n_samples, dtype=self.float, device=self.device)
+                    * (max_reward + epsilon)
+                    < rewards
+                )
+                .flatten()
+                .tolist()
+            )
+            samples_accepted = [samples_uniform[idx] for idx in indices_accept]
+            samples_final.extend(samples_accepted[-(n_samples - len(samples_final)) :])
+        return samples_final
 
     def get_log_corr(self, times):
         data_logq = []
