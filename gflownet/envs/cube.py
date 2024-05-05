@@ -1480,15 +1480,17 @@ class ContinuousCube(CubeBase):
         samples = torch2np(samples)
         samples_reward = torch2np(samples_reward)
         rewards = torch2np(rewards)
-        # Create mesh from samples_reward
-        x = np.unique(samples_reward[:, 0])
-        y = np.unique(samples_reward[:, 1])
-        xx, yy = np.meshgrid(x, y)
+        # Create mesh grid from samples_reward
+        n_per_dim = int(np.sqrt(samples_reward.shape[0]))
+        assert n_per_dim**2 == samples_reward.shape[0]
+        x_coords = samples_reward[:, 0].reshape((n_per_dim, n_per_dim))
+        y_coords = samples_reward[:, 1].reshape((n_per_dim, n_per_dim))
+        rewards = rewards.reshape((n_per_dim, n_per_dim))
         # Init figure
         fig, ax = plt.subplots()
         fig.set_dpi(dpi)
         # Plot reward contour
-        h = ax.contourf(xx, yy, rewards.reshape(xx.shape), alpha=alpha)
+        h = ax.contourf(x_coords, y_coords, rewards, alpha=alpha)
         ax.axis("scaled")
         fig.colorbar(h, ax=ax)
         # Plot samples
@@ -1530,17 +1532,18 @@ class ContinuousCube(CubeBase):
         if self.n_dim != 2:
             return None
         samples = torch2np(samples)
-        # Create mesh from samples_reward
-        x = np.unique(samples[:, 0])
-        y = np.unique(samples[:, 1])
-        xx, yy = np.meshgrid(x, y)
+        # Create mesh grid from samples
+        n_per_dim = int(np.sqrt(samples.shape[0]))
+        assert n_per_dim**2 == samples.shape[0]
+        x_coords = samples[:, 0].reshape((n_per_dim, n_per_dim))
+        y_coords = samples[:, 1].reshape((n_per_dim, n_per_dim))
         # Score samples with KDE
-        Z = np.exp(kde.score_samples(samples)).reshape(xx.shape)
+        Z = np.exp(kde.score_samples(samples)).reshape((n_per_dim, n_per_dim))
         # Init figure
         fig, ax = plt.subplots()
         fig.set_dpi(dpi)
         # Plot KDE
-        h = ax.contourf(xx, yy, Z, alpha=alpha)
+        h = ax.contourf(x_coords, y_coords, Z, alpha=alpha)
         ax.axis("scaled")
         if colorbar:
             fig.colorbar(h, ax=ax)
