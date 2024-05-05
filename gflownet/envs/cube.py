@@ -1450,8 +1450,6 @@ class ContinuousCube(CubeBase):
         samples_reward: TensorType["batch_size", "state_proxy_dim"],
         rewards: TensorType["batch_size"],
         alpha: float = 0.5,
-        cell_min: float = -1.0,
-        cell_max: float = 1.0,
         dpi: int = 150,
         max_samples: int = 500,
         **kwargs,
@@ -1474,6 +1472,8 @@ class ContinuousCube(CubeBase):
             Transparency of the reward contour.
         dpi : int
             Dots per inch, indicating the resolution of the plot.
+        max_samples : int
+            Maximum of number of samples to include in the plot.
         """
         if self.n_dim != 2:
             return None
@@ -1504,22 +1504,37 @@ class ContinuousCube(CubeBase):
 
     def plot_kde(
         self,
+        samples: TensorType["batch_size", "state_proxy_dim"],
         kde,
-        alpha=0.5,
-        cell_min=-1.0,
-        cell_max=1.0,
+        alpha: float = 0.5,
         dpi=150,
-        colorbar=True,
+        colorbar: bool = True,
         **kwargs,
     ):
+        """
+        Plots the density previously estimated from a batch of samples via KDE over the
+        entire sample space.
+
+        Parameters
+        ----------
+        samples : tensor
+            A batch of samples containing a grid over the sample space. These samples
+            are used to plot the contour of the estimated density.
+        kde : KDE
+            A scikit-learn KDE object fit with a batch of samples.
+        alpha : float
+            Transparency of the density contour.
+        dpi : int
+            Dots per inch, indicating the resolution of the plot.
+        """
         if self.n_dim != 2:
             return None
-        # Sample a grid of points in the state space and score them with the KDE
-        x = np.linspace(cell_min, cell_max, 201)
-        y = np.linspace(cell_min, cell_max, 201)
+        samples = torch2np(samples)
+        # Create mesh from samples_reward
+        x = np.unique(samples[:, 0])
+        y = np.unique(samples[:, 1])
         xx, yy = np.meshgrid(x, y)
-        X = np.stack([xx, yy], axis=-1)
-        Z = np.exp(kde.score_samples(X.reshape(-1, 2))).reshape(xx.shape)
+        Z = np.exp(kde.score_samples(samples)).reshape(xx.shape)
         # Init figure
         fig, ax = plt.subplots()
         fig.set_dpi(dpi)

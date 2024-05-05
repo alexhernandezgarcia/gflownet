@@ -1316,28 +1316,53 @@ class GFlowNetAgent:
 
         # Plots
         if hasattr(self.env, "plot_reward_samples"):
-            if hasattr(self.env, "get_all_terminating_states"):
-                samples_reward = self.env.get_all_terminating_states()
-            elif hasattr(self.env, "get_grid_terminating_states"):
-                samples_reward = self.env.get_grid_terminating_states(
-                    self.logger.test.n_grid
-                )
-            else:
-                raise NotImplementedError(
-                    "In order to plot the reward density and the samples, the "
-                    "environment must implement either get_all_terminating_states() "
-                    "or get_grid_terminating_states()"
-                )
-            samples_reward = self.env.states2proxy(samples_reward)
-            rewards = self.proxy.rewards(samples_reward)
+            # TODO: improve to not repeat code
+            if not hasattr(self, "sample_space_batch"):
+                if hasattr(self.env, "get_all_terminating_states"):
+                    self.sample_space_batch = self.env.get_all_terminating_states()
+                elif hasattr(self.env, "get_grid_terminating_states"):
+                    self.sample_space_batch = self.env.get_grid_terminating_states(
+                        self.logger.test.n_grid
+                    )
+                else:
+                    raise NotImplementedError(
+                        "In order to plot the reward density and the samples, the "
+                        "environment must implement either get_all_terminating_states() "
+                        "or get_grid_terminating_states()"
+                    )
+                self.sample_space_batch = self.env.states2proxy(self.sample_space_batch)
+            if not hasattr(self, "rewards_sample_space"):
+                self.rewards_sample_space = self.proxy.rewards(self.sample_space_batch)
             fig_reward_samples = self.env.plot_reward_samples(
-                x_sampled, samples_reward, rewards, **plot_kwargs
+                x_sampled,
+                self.sample_space_batch,
+                self.rewards_sample_space,
+                **plot_kwargs,
             )
         else:
             fig_reward_samples = None
         if hasattr(self.env, "plot_kde"):
-            fig_kde_pred = self.env.plot_kde(kde_pred, **plot_kwargs)
-            fig_kde_true = self.env.plot_kde(kde_true, **plot_kwargs)
+            # TODO: improve to not repeat code
+            if not hasattr(self, "sample_space_batch"):
+                if hasattr(self.env, "get_all_terminating_states"):
+                    self.sample_space_batch = self.env.get_all_terminating_states()
+                elif hasattr(self.env, "get_grid_terminating_states"):
+                    self.sample_space_batch = self.env.get_grid_terminating_states(
+                        self.logger.test.n_grid
+                    )
+                else:
+                    raise NotImplementedError(
+                        "In order to plot the KDEs over the sample space, the "
+                        "environment must implement either get_all_terminating_states() "
+                        "or get_grid_terminating_states()"
+                    )
+                self.sample_space_batch = self.env.states2proxy(self.sample_space_batch)
+            fig_kde_pred = self.env.plot_kde(
+                self.sample_space_batch, kde_pred, **plot_kwargs
+            )
+            fig_kde_true = self.env.plot_kde(
+                self.sample_space_batch, kde_true, **plot_kwargs
+            )
         else:
             fig_kde_pred = None
             fig_kde_true = None
