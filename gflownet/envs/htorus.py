@@ -516,78 +516,83 @@ class HybridTorus(GFlowNetEnv):
         states = np.concatenate((angles, np.ones((n_states, 1))), axis=1)
         return states.tolist()
 
-    # TODO: make generic for all environments, or rather elsewhere
-    # TODO: fix because it currently uses reward_batch, proxy2reward, etc.. For
-    # example, this could be done by passing the proxy as a parameter.
-    def sample_from_reward(
-        self, n_samples: int, epsilon=1e-4
-    ) -> TensorType["n_samples", "state_dim"]:
-        """
-        Rejection sampling  with proposal the uniform distribution in [0, 2pi]]^n_dim.
+    def fit_kde(
+        self,
+        samples: TensorType["batch_size", "state_proxy_dim"],
+        kernel: str = "gaussian",
+        bandwidth: float = 0.1,
+    ):
+        r"""
+        Fits a Kernel Density Estimator on a batch of samples.
 
-        Returns a tensor in GFloNet (state) format.
-        """
-        samples_final = []
-        max_reward = self.proxy2reward(torch.tensor([self.proxy.min])).to(self.device)
-        while len(samples_final) < n_samples:
-            angles_uniform = (
-                torch.rand(
-                    (n_samples, self.n_dim), dtype=self.float, device=self.device
-                )
-                * 2
-                * np.pi
-            )
-            samples = torch.cat(
-                (
-                    angles_uniform,
-                    torch.ones((angles_uniform.shape[0], 1)).to(angles_uniform),
-                ),
-                axis=1,
-            )
-            rewards = tfloat(
-                self.reward_batch(samples), device=self.device, float_type=self.float
-            )
-            mask = (
-                torch.rand(n_samples, dtype=self.float, device=self.device)
-                * (max_reward + epsilon)
-                < rewards
-            )
-            samples_accepted = samples[mask, :]
-            samples_final.extend(samples_accepted[-(n_samples - len(samples_final)) :])
-        return torch.vstack(samples_final)
+        The samples are previously augmented in order to visualise the periodic aspect
+        of the sample space.
 
-    def fit_kde(self, samples, kernel="gaussian", bandwidth=0.1):
-        aug_samples = []
+        Parameters
+        ----------
+        samples : tensor
+            A batch of samples in proxy format.
+        kernel : str
+            An identifier of the kernel to use for the density estimation. It must be a
+            valid kernel for the scikit-learn method
+            :py:meth:`sklearn.neighbors.KernelDensity`.
+        bandwidth : float
+            The bandwidth of the kernel.
+        """
+        samples = torch2np(samples)
+        samples_aug = []
         for add_0 in [0, -2 * np.pi, 2 * np.pi]:
             for add_1 in [0, -2 * np.pi, 2 * np.pi]:
-                aug_samples.append(
+                samples_aug.append(
                     np.stack([samples[:, 0] + add_0, samples[:, 1] + add_1], axis=1)
                 )
-        aug_samples = np.concatenate(aug_samples)
-        kde = KernelDensity(kernel=kernel, bandwidth=bandwidth).fit(aug_samples)
+        samples_aug = np.concatenate(samples_aug)
+        kde = KernelDensity(kernel=kernel, bandwidth=bandwidth).fit(samples_aug)
         return kde
 
     def plot_reward_samples(
         self,
-        samples,
-        alpha=0.5,
-        low=-np.pi * 0.5,
-        high=2.5 * np.pi,
-        dpi=150,
-        limit_n_samples=500,
+        samples: TensorType["batch_size", "state_proxy_dim"],
+        samples_reward: TensorType["batch_size", "state_proxy_dim"],
+        rewards: TensorType["batch_size"],
+        alpha: float = 0.5,
+        dpi: int = 150,
+        max_samples: int = 500,
         **kwargs,
     ):
-        x = np.linspace(low, high, 201)
-        y = np.linspace(low, high, 201)
+        """
+        Plots the reward contour alongside a batch of samples.
+
+        The samples are previously augmented in order to visualise the periodic aspect
+        of the sample space.
+
+        Parameters
+        ----------
+        samples : tensor
+            A batch of samples from the GFlowNet policy in proxy format. These samples
+            will be plotted on top of the reward density.
+        samples_reward : tensor
+            A batch of samples containing a grid over the sample space, from which the
+            reward has been obtained. These samples are used to plot the contour of
+            reward density.
+        rewards : tensor
+            The reward of samples_reward.
+        alpha : float
+            Transparency of the reward contour.
+        dpi : int
+            Dots per inch, indicating the resolution of the plot.
+        max_samples : int
+            Maximum of number of samples to include in the plot.
+        """
+        if self.n_dim != 2:
+            return None
+        samples = torch2np(samples)
+        samples_reward = torch2np(samples_reward)
+        rewards = torch2np(rewards)
+        # Create mesh from samples_reward
+        x = np.unique(samples_reward[:, 0])
+        y = np.unique(samples_reward[:, 1])
         xx, yy = np.meshgrid(x, y)
-        X = np.stack([xx, yy], axis=-1)
-        samples_mesh = torch.tensor(X.reshape(-1, 2), dtype=self.float)
-        states_mesh = torch.cat(
-            [samples_mesh, torch.ones(samples_mesh.shape[0], 1)], 1
-        ).to(self.device)
-        rewards = torch2np(
-            self.proxy2reward(self.proxy(self.states2proxy(states_mesh)))
-        )
         # Init figure
         fig, ax = plt.subplots()
         fig.set_dpi(dpi)
@@ -599,25 +604,24 @@ class HybridTorus(GFlowNetEnv):
         ax.plot([0, 2 * np.pi], [0, 0], "-w", alpha=alpha)
         ax.plot([2 * np.pi, 2 * np.pi], [2 * np.pi, 0], "-w", alpha=alpha)
         ax.plot([2 * np.pi, 0], [2 * np.pi, 2 * np.pi], "-w", alpha=alpha)
-        # Plot samples
-        extra_samples = []
+        # Augment samples
+        samples_aug = []
         for add_0 in [0, -2 * np.pi, 2 * np.pi]:
             for add_1 in [0, -2 * np.pi, 2 * np.pi]:
                 if not (add_0 == add_1 == 0):
-                    extra_samples.append(
+                    samples_aug.append(
                         np.stack(
                             [
-                                samples[:limit_n_samples, 0] + add_0,
-                                samples[:limit_n_samples, 1] + add_1,
+                                samples[:max_samples, 0] + add_0,
+                                samples[:max_samples, 1] + add_1,
                             ],
                             axis=1,
                         )
                     )
-        extra_samples = np.concatenate(extra_samples)
-        ax.scatter(
-            samples[:limit_n_samples, 0], samples[:limit_n_samples, 1], alpha=alpha
-        )
-        ax.scatter(extra_samples[:, 0], extra_samples[:, 1], alpha=alpha, color="white")
+        samples_aug = np.concatenate(samples_aug)
+        # Plot samples
+        ax.scatter(samples[:max_samples, 0], samples[:max_samples, 1], alpha=alpha)
+        ax.scatter(samples_aug[:, 0], samples_aug[:, 1], alpha=alpha, color="white")
         ax.grid()
         # Set tight layout
         plt.tight_layout()
@@ -625,19 +629,38 @@ class HybridTorus(GFlowNetEnv):
 
     def plot_kde(
         self,
+        samples: TensorType["batch_size", "state_proxy_dim"],
         kde,
-        alpha=0.5,
-        low=-np.pi * 0.5,
-        high=2.5 * np.pi,
+        alpha: float = 0.5,
         dpi=150,
-        colorbar=True,
+        colorbar: bool = True,
         **kwargs,
     ):
-        x = np.linspace(0, 2 * np.pi, 101)
-        y = np.linspace(0, 2 * np.pi, 101)
+        """
+        Plots the density previously estimated from a batch of samples via KDE over the
+        entire sample space.
+
+        Parameters
+        ----------
+        samples : tensor
+            A batch of samples containing a grid over the sample space. These samples
+            are used to plot the contour of the estimated density.
+        kde : KDE
+            A scikit-learn KDE object fit with a batch of samples.
+        alpha : float
+            Transparency of the density contour.
+        dpi : int
+            Dots per inch, indicating the resolution of the plot.
+        """
+        if self.n_dim != 2:
+            return None
+        samples = torch2np(samples)
+        # Create mesh from samples_reward
+        x = np.unique(samples[:, 0])
+        y = np.unique(samples[:, 1])
         xx, yy = np.meshgrid(x, y)
-        X = np.stack([xx, yy], axis=-1)
-        Z = np.exp(kde.score_samples(X.reshape(-1, 2))).reshape(xx.shape)
+        # Score samples with KDE
+        Z = np.exp(kde.score_samples(samples)).reshape(xx.shape)
         # Init figure
         fig, ax = plt.subplots()
         fig.set_dpi(dpi)

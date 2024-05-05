@@ -1534,6 +1534,7 @@ class ContinuousCube(CubeBase):
         x = np.unique(samples[:, 0])
         y = np.unique(samples[:, 1])
         xx, yy = np.meshgrid(x, y)
+        # Score samples with KDE
         Z = np.exp(kde.score_samples(samples)).reshape(xx.shape)
         # Init figure
         fig, ax = plt.subplots()
