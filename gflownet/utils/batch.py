@@ -556,7 +556,10 @@ class Batch:
         """
         self.parents = []
         self.parents_indices = []
-        indices = []
+
+        indices_dict = {}
+        indices_next = 0
+
         # Iterate over the trajectories to obtain the parents from the states
         for traj_idx, batch_indices in self.trajectories.items():
             # parent is source
@@ -567,12 +570,18 @@ class Batch:
             # TODO: check if tensor and sort without iter
             self.parents.extend([self.states[idx] for idx in batch_indices[:-1]])
             self.parents_indices.extend(batch_indices[:-1])
-            indices.extend(batch_indices)
+
+            # Store the indices required to reorder the parents lists in the same
+            # order as the states
+            for b_idx in batch_indices:
+                indices_dict[b_idx] = indices_next
+                indices_next += 1
+
         # Sort parents list in the same order as states
         # TODO: check if tensor and sort without iter
-        self.parents = [self.parents[indices.index(idx)] for idx in range(len(self))]
+        self.parents = [self.parents[indices_dict[idx]] for idx in range(len(self))]
         self.parents_indices = tlong(
-            [self.parents_indices[indices.index(idx)] for idx in range(len(self))],
+            [self.parents_indices[indices_dict[idx]] for idx in range(len(self))],
             device=self.device,
         )
         self.parents_available = True
