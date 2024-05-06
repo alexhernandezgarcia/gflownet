@@ -1003,6 +1003,7 @@ class GFlowNetAgent:
                 "True reward and GFlowNet samples",
                 "GFlowNet KDE Policy",
                 "Reward KDE",
+                "Samples TopK",
             ]
             if self.logger.do_test(it):
                 (
@@ -1253,6 +1254,8 @@ class GFlowNetAgent:
             density_pred = np.array([hist[tuple(x)] / z_pred for x in x_tt])
             log_density_true = np.log(density_true + 1e-8)
             log_density_pred = np.log(density_pred + 1e-8)
+        elif self.buffer.test_type == "random":
+            env_metrics = self.env.test(x_sampled)
         elif self.continuous and hasattr(self.env, "fit_kde"):
             batch, _ = self.sample_batch(n_forward=self.logger.test.n, train=False)
             assert batch.is_valid()
@@ -1294,29 +1297,23 @@ class GFlowNetAgent:
             density_true = np.exp(log_density_true)
             density_pred = np.exp(log_density_pred)
         else:
-            # TODO: refactor
-            env_metrics = self.env.test(x_sampled)
-            return (
-                self.l1,
-                self.kl,
-                self.jsd,
-                corr_prob_traj_rewards,
-                var_logrewards_logp,
-                nll_tt,
-                mean_logprobs_std,
-                mean_probs_std,
-                logprobs_std_nll_ratio,
-                (None,),
-                env_metrics,
+            raise NotImplementedError
+
+        if self.buffer.test_type == "all" or self.continuous:
+            # L1 error
+            l1 = np.abs(density_pred - density_true).mean()
+            # KL divergence
+            kl = (density_true * (log_density_true - log_density_pred)).mean()
+            # Jensen-Shannon divergence
+            log_mean_dens = np.logaddexp(log_density_true, log_density_pred) + np.log(
+                0.5
             )
-        # L1 error
-        l1 = np.abs(density_pred - density_true).mean()
-        # KL divergence
-        kl = (density_true * (log_density_true - log_density_pred)).mean()
-        # Jensen-Shannon divergence
-        log_mean_dens = np.logaddexp(log_density_true, log_density_pred) + np.log(0.5)
-        jsd = 0.5 * np.sum(density_true * (log_density_true - log_mean_dens))
-        jsd += 0.5 * np.sum(density_pred * (log_density_pred - log_mean_dens))
+            jsd = 0.5 * np.sum(density_true * (log_density_true - log_mean_dens))
+            jsd += 0.5 * np.sum(density_pred * (log_density_pred - log_mean_dens))
+        else:
+            l1 = self.l1
+            kl = self.kl
+            jsd = self.jsd
 
         # Plots
         if hasattr(self.env, "plot_reward_samples"):
@@ -1370,6 +1367,21 @@ class GFlowNetAgent:
         else:
             fig_kde_pred = None
             fig_kde_true = None
+        if hasattr(self.env, "plot_samples_topk"):
+            # TODO: samples are in environment format because this is what is needed by
+            # Tetris. We may want to adapt it.
+            # TODO: this is a pretty bad implementation, but it will be fixed with the
+            # Evaluator
+            batch, _ = self.sample_batch(n_forward=self.logger.test.n, train=False)
+            x_sampled = batch.get_terminating_states()
+            rewards = self.proxy.rewards(self.env.states2proxy(x_sampled))
+            fig_samples_topk = self.env.plot_samples_topk(
+                x_sampled,
+                rewards,
+                **plot_kwargs,
+            )
+        else:
+            fig_samples_topk = None
         return (
             l1,
             kl,
@@ -1380,7 +1392,7 @@ class GFlowNetAgent:
             mean_logprobs_std,
             mean_probs_std,
             logprobs_std_nll_ratio,
-            [fig_reward_samples, fig_kde_pred, fig_kde_true],
+            [fig_reward_samples, fig_kde_pred, fig_kde_true, fig_samples_topk],
             {},
         )
 
