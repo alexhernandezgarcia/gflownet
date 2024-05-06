@@ -525,8 +525,8 @@ class HybridTorus(GFlowNetEnv):
         r"""
         Fits a Kernel Density Estimator on a batch of samples.
 
-        The samples are previously augmented in order to visualise the periodic aspect
-        of the sample space.
+        The samples are previously augmented in order to account for the periodic
+        aspect of the sample space.
 
         Parameters
         ----------
@@ -540,13 +540,7 @@ class HybridTorus(GFlowNetEnv):
             The bandwidth of the kernel.
         """
         samples = torch2np(samples)
-        samples_aug = []
-        for add_0 in [0, -2 * np.pi, 2 * np.pi]:
-            for add_1 in [0, -2 * np.pi, 2 * np.pi]:
-                samples_aug.append(
-                    np.stack([samples[:, 0] + add_0, samples[:, 1] + add_1], axis=1)
-                )
-        samples_aug = np.concatenate(samples_aug)
+        samples_aug = self.augment_samples(samples)
         kde = KernelDensity(kernel=kernel, bandwidth=bandwidth).fit(samples_aug)
         return kde
 
@@ -555,6 +549,8 @@ class HybridTorus(GFlowNetEnv):
         samples: TensorType["batch_size", "state_proxy_dim"],
         samples_reward: TensorType["batch_size", "state_proxy_dim"],
         rewards: TensorType["batch_size"],
+        min_domain: float = -np.pi,
+        max_domain: float = 3 * np.pi,
         alpha: float = 0.5,
         dpi: int = 150,
         max_samples: int = 500,
@@ -564,7 +560,7 @@ class HybridTorus(GFlowNetEnv):
         Plots the reward contour alongside a batch of samples.
 
         The samples are previously augmented in order to visualise the periodic aspect
-        of the sample space.
+        of the sample space. It is assumed that the samples and the rewards are sorted.
 
         Parameters
         ----------
@@ -577,6 +573,10 @@ class HybridTorus(GFlowNetEnv):
             reward density.
         rewards : tensor
             The reward of samples_reward.
+        min_domain : float
+            Minimum value of the domain to keep in the plot.
+        max_domain : float
+            Maximum value of the domain to keep in the plot.
         alpha : float
             Transparency of the reward contour.
         dpi : int
@@ -589,39 +589,43 @@ class HybridTorus(GFlowNetEnv):
         samples = torch2np(samples)
         samples_reward = torch2np(samples_reward)
         rewards = torch2np(rewards)
-        # Create mesh from samples_reward
-        x = np.unique(samples_reward[:, 0])
-        y = np.unique(samples_reward[:, 1])
-        xx, yy = np.meshgrid(x, y)
+        n_per_dim = int(np.sqrt(samples_reward.shape[0]))
+        assert n_per_dim**2 == samples_reward.shape[0]
+        # Augment rewards to apply periodic boundary conditions
+        rewards = rewards.reshape((n_per_dim, n_per_dim))
+        rewards = np.tile(rewards, (3, 3))
+        # Create mesh grid from samples_reward
+        x = np.linspace(-2 * np.pi, 4 * np.pi, 3 * n_per_dim)
+        y = np.linspace(-2 * np.pi, 4 * np.pi, 3 * n_per_dim)
+        x_coords, y_coords = np.meshgrid(x, y)
         # Init figure
         fig, ax = plt.subplots()
         fig.set_dpi(dpi)
         # Plot reward contour
-        h = ax.contourf(xx, yy, rewards.reshape(xx.shape), alpha=alpha)
+        h = ax.contourf(x_coords, y_coords, rewards, alpha=alpha)
         ax.axis("scaled")
         fig.colorbar(h, ax=ax)
         ax.plot([0, 0], [0, 2 * np.pi], "-w", alpha=alpha)
         ax.plot([0, 2 * np.pi], [0, 0], "-w", alpha=alpha)
         ax.plot([2 * np.pi, 2 * np.pi], [2 * np.pi, 0], "-w", alpha=alpha)
         ax.plot([2 * np.pi, 0], [2 * np.pi, 2 * np.pi], "-w", alpha=alpha)
+        # Randomize and subsample samples
+        random_indices = np.random.permutation(samples.shape[0])[:max_samples]
+        samples = samples[random_indices, :]
         # Augment samples
-        samples_aug = []
-        for add_0 in [0, -2 * np.pi, 2 * np.pi]:
-            for add_1 in [0, -2 * np.pi, 2 * np.pi]:
-                if not (add_0 == add_1 == 0):
-                    samples_aug.append(
-                        np.stack(
-                            [
-                                samples[:max_samples, 0] + add_0,
-                                samples[:max_samples, 1] + add_1,
-                            ],
-                            axis=1,
-                        )
-                    )
-        samples_aug = np.concatenate(samples_aug)
-        # Plot samples
-        ax.scatter(samples[:max_samples, 0], samples[:max_samples, 1], alpha=alpha)
-        ax.scatter(samples_aug[:, 0], samples_aug[:, 1], alpha=alpha, color="white")
+        samples_aug = self.augment_samples(samples, exclude_original=True)
+        ax.scatter(
+            samples_aug[:, 0], samples_aug[:, 1], alpha=1.5 * alpha, color="white"
+        )
+        ax.scatter(samples[:, 0], samples[:, 1], alpha=alpha)
+        # Set axes limits
+        ax.set_xlim([min_domain, max_domain])
+        ax.set_ylim([min_domain, max_domain])
+        # Set ticks and labels
+        ticks = [0.0, np.pi / 2, np.pi, (3 * np.pi) / 2, 2 * np.pi]
+        labels = ["0.0", r"$\frac{\pi}{2}$", r"$\pi$", r"$\frac{3\pi}{3}$", f"$2\pi$"]
+        ax.set_xticks(ticks, labels)
+        ax.set_yticks(ticks, labels)
         ax.grid()
         # Set tight layout
         plt.tight_layout()
@@ -655,12 +659,13 @@ class HybridTorus(GFlowNetEnv):
         if self.n_dim != 2:
             return None
         samples = torch2np(samples)
-        # Create mesh from samples_reward
-        x = np.unique(samples[:, 0])
-        y = np.unique(samples[:, 1])
-        xx, yy = np.meshgrid(x, y)
+        # Create mesh grid from samples
+        n_per_dim = int(np.sqrt(samples.shape[0]))
+        assert n_per_dim**2 == samples.shape[0]
+        x_coords = samples[:, 0].reshape((n_per_dim, n_per_dim))
+        y_coords = samples[:, 1].reshape((n_per_dim, n_per_dim))
         # Score samples with KDE
-        Z = np.exp(kde.score_samples(samples)).reshape(xx.shape)
+        Z = np.exp(kde.score_samples(samples)).reshape((n_per_dim, n_per_dim))
         # Init figure
         fig, ax = plt.subplots()
         fig.set_dpi(dpi)
@@ -669,14 +674,34 @@ class HybridTorus(GFlowNetEnv):
         ax.axis("scaled")
         if colorbar:
             fig.colorbar(h, ax=ax)
-        ax.set_xticks([])
-        ax.set_yticks([])
-        ax.text(0, -0.3, r"$0$", fontsize=15)
-        ax.text(-0.28, 0, r"$0$", fontsize=15)
-        ax.text(2 * np.pi - 0.4, -0.3, r"$2\pi$", fontsize=15)
-        ax.text(-0.45, 2 * np.pi - 0.3, r"$2\pi$", fontsize=15)
+        # Set ticks and labels
+        ticks = [0.0, np.pi / 2, np.pi, (3 * np.pi) / 2, 2 * np.pi]
+        labels = ["0.0", r"$\frac{\pi}{2}$", r"$\pi$", r"$\frac{3\pi}{3}$", f"$2\pi$"]
+        ax.set_xticks(ticks, labels)
+        ax.set_yticks(ticks, labels)
         for spine in ax.spines.values():
             spine.set_visible(False)
         # Set tight layout
         plt.tight_layout()
         return fig
+
+    @staticmethod
+    def augment_samples(samples: np.array, exclude_original: bool = False) -> np.array:
+        """
+        Augments a batch of samples by applying the periodic boundary conditions from
+        [0, 2pi) to [-2pi, 4pi) for all dimensions.
+        """
+        samples_aug = []
+        for offsets in itertools.product(
+            [-2 * np.pi, 0.0, 2 * np.pi], repeat=samples.shape[-1]
+        ):
+            if exclude_original and all([offset == 0.0 for offset in offsets]):
+                continue
+            samples_aug.append(
+                np.stack(
+                    [samples[:, dim] + offset for dim, offset in enumerate(offsets)],
+                    axis=-1,
+                )
+            )
+        samples_aug = np.concatenate(samples_aug, axis=0)
+        return samples_aug
