@@ -1267,7 +1267,9 @@ class GFlowNetAgent:
                 kde_true = dict_tt["kde_true"]
             else:
                 # Sample from reward via rejection sampling
-                x_from_reward = self.sample_from_reward(n_samples=self.logger.test.n)
+                x_from_reward = self.env.states2proxy(
+                    self.sample_from_reward(n_samples=self.logger.test.n)
+                )
                 # Fit KDE with samples from reward
                 kde_true = self.env.fit_kde(
                     x_from_reward,
@@ -1522,7 +1524,8 @@ class GFlowNetAgent:
         Returns
         -------
         samples_final : list
-            The list of samples drawn from the reward distribution.
+            The list of samples drawn from the reward distribution in environment
+            format.
         """
         samples_final = []
         max_reward = self.proxy.proxy2reward(self.proxy.min)
