@@ -920,7 +920,8 @@ class GFlowNetAgent:
             "Sampling backward actions from test data to estimate logprobs...",
             flush=True,
         )
-        pbar = tqdm(total=n_states)
+        if n_states > batch_size:
+            pbar = tqdm(total=n_states)
         while init_batch < n_states:
             batch = Batch(
                 env=self.env,
@@ -970,7 +971,8 @@ class GFlowNetAgent:
             # Increment batch indices
             init_batch += batch_size
             end_batch = min(end_batch + batch_size, n_states)
-            pbar.update(end_batch - init_batch)
+            if n_states > batch_size:
+                pbar.update(end_batch - init_batch)
 
         # Compute log of the average probabilities of the ratio PF / PB
         logprobs_estimates = torch.logsumexp(
