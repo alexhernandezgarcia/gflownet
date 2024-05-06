@@ -9,11 +9,12 @@ import matplotlib.pyplot as plt
 import numpy as np
 import numpy.typing as npt
 import torch
+from matplotlib.axes import Axes
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 from torchtyping import TensorType
 
 from gflownet.envs.base import GFlowNetEnv
-from gflownet.utils.common import tfloat, tlong
+from gflownet.utils.common import tfloat, tlong, torch2np
 
 
 class Grid(GFlowNetEnv):
@@ -311,9 +312,8 @@ class Grid(GFlowNetEnv):
         return self.n_dim * self.length
 
     def get_all_terminating_states(self) -> List[List]:
-        all_x = np.int32(
-            list(itertools.product(*[list(range(self.length))] * self.n_dim))
-        )
+        grid = np.meshgrid(*[range(self.length)] * self.n_dim)
+        all_x = np.stack(grid).reshape((self.n_dim, -1)).T
         return all_x.tolist()
 
     def get_uniform_terminating_states(
@@ -325,59 +325,84 @@ class Grid(GFlowNetEnv):
 
     def plot_reward_samples(
         self,
-        samples,
-        ax=None,
-        title=None,
-        rescale=1,
-        dpi=150,
-        n_ticks_max=50,
-        reward_norm=True,
+        samples: TensorType["batch_size", "state_proxy_dim"],
+        samples_reward: TensorType["batch_size", "state_proxy_dim"],
+        rewards: TensorType["batch_size"],
+        dpi: int = 150,
+        n_ticks_max: int = 50,
+        reward_norm: bool = True,
+        **kwargs,
     ):
         """
-        Plot 2D histogram of samples.
+        Plots the reward density as a 2D histogram on the grid, alongside a histogram
+        representing the samples density.
+
+        Parameters
+        ----------
+        samples : tensor
+            A batch of samples from the GFlowNet policy in proxy format. These samples
+            will be plotted on top of the reward density.
+        samples_reward : tensor
+            A batch of samples containing a grid over the sample space, from which the
+            reward has been obtained. These samples are used to plot the contour of
+            reward density.
+        rewards : tensor
+            The reward of samples_reward.
+        dpi : int
+            Dots per inch, indicating the resolution of the plot.
+        n_ticks_max : int
+            Maximum of number of ticks to include in the axes.
+        reward_norm : bool
+            Whether to normalize the histogram. True by default.
         """
         # Only available for 2D grids
         if self.n_dim != 2:
             return None
+        samples = torch2np(samples)
+        samples_reward = torch2np(samples_reward)
+        rewards = torch2np(rewards)
         # Init figure
         fig, axes = plt.subplots(ncols=2, dpi=dpi)
         step_ticks = np.ceil(self.length / n_ticks_max).astype(int)
-        # Get all states and their reward
-        if not hasattr(self, "_rewards_all_2d"):
-            states_all = self.get_all_terminating_states()
-            rewards_all = self.proxy2reward(
-                self.proxy(self.statebatch2proxy(states_all))
-            )
-            if reward_norm:
-                rewards_all = rewards_all / rewards_all.sum()
-            self._rewards_all_2d = torch.empty(
-                (self.length, self.length), device=self.device, dtype=self.float
-            )
-            for row in range(self.length):
-                for col in range(self.length):
-                    idx = states_all.index([row, col])
-                    self._rewards_all_2d[row, col] = rewards_all[idx]
-            self._rewards_all_2d = self._rewards_all_2d.detach().cpu().numpy()
         # 2D histogram of samples
-        samples = np.array(samples)
         samples_hist, xedges, yedges = np.histogram2d(
             samples[:, 0], samples[:, 1], bins=(self.length, self.length), density=True
         )
         # Transpose and reverse rows so that [0, 0] is at bottom left
         samples_hist = samples_hist.T[::-1, :]
+        # Normalize and reshape reward into a grid with [0, 0] at the bottom left
+        if reward_norm:
+            rewards = rewards / rewards.sum()
+        rewards_2d = rewards.reshape(self.length, self.length).T[::-1, :]
         # Plot reward
-        self._plot_grid_2d(self._rewards_all_2d, axes[0], step_ticks)
+        self._plot_grid_2d(rewards_2d, axes[0], step_ticks, title="True reward")
         # Plot samples histogram
-        self._plot_grid_2d(samples_hist, axes[1], step_ticks)
+        self._plot_grid_2d(samples_hist, axes[1], step_ticks, title="Samples density")
         fig.tight_layout()
         return fig
 
     @staticmethod
-    def _plot_grid_2d(img, ax, step_ticks):
+    def _plot_grid_2d(img: np.array, ax: Axes, step_ticks: int, title: str):
+        """
+        Plots a 2D histogram of a grid environment as an image.
+
+        Parameters
+        ----------
+        img : np.array
+            An array containing a 2D histogram over a grid.
+        ax : Axes
+            A matplotlib Axes object on which the image will be plotted.
+        step_ticks : int
+            The step value to add ticks to the axes. For example, if it is 2, the ticks
+            will be at 0, 2, 4, ...
+        title : str
+            Title for the axes.
+        """
         ax_img = ax.imshow(img)
         divider = make_axes_locatable(ax)
         cax = divider.append_axes("top", size="5%", pad=0.05)
         ax.set_xticks(np.arange(start=0, stop=img.shape[0], step=step_ticks))
         ax.set_yticks(np.arange(start=0, stop=img.shape[1], step=step_ticks)[::-1])
+        cax.set_title(title)
         plt.colorbar(ax_img, cax=cax, orientation="horizontal")
         cax.xaxis.set_ticks_position("top")
