@@ -502,10 +502,27 @@ class HybridTorus(GFlowNetEnv):
         return deepcopy(self)
 
     def get_grid_terminating_states(self, n_states: int) -> List[List]:
+        """
+        Samples n terminating states by sub-sampling the state space as a grid, where n
+        / n_dim points are obtained for each dimension.
+
+        Parameters
+        ----------
+        n_states : int
+            The number of terminating states to sample.
+
+        Returns
+        -------
+        states : list
+            A list of randomly sampled terminating states.
+        """
         n_per_dim = int(np.ceil(n_states ** (1 / self.n_dim)))
-        linspaces = [np.linspace(0, 2 * np.pi, n_per_dim) for _ in range(self.n_dim)]
-        angles = list(itertools.product(*linspaces))
-        states = [list(el) + [self.length_traj] for el in angles]
+        linspace = np.linspace(0, 2 * np.pi, n_per_dim)
+        angles = np.meshgrid(*[linspace] * self.n_dim)
+        angles = np.stack(angles).reshape((self.n_dim, -1)).T
+        states = np.concatenate(
+            (angles, self.length_traj * np.ones((angles.shape[0], 1))), axis=1
+        ).tolist()
         return states
 
     def get_uniform_terminating_states(
@@ -664,13 +681,13 @@ class HybridTorus(GFlowNetEnv):
         assert n_per_dim**2 == samples.shape[0]
         x_coords = samples[:, 0].reshape((n_per_dim, n_per_dim))
         y_coords = samples[:, 1].reshape((n_per_dim, n_per_dim))
-        # Score samples with KDE
+        # Score samples with KDE and reshape
         Z = np.exp(kde.score_samples(samples)).reshape((n_per_dim, n_per_dim))
         # Init figure
         fig, ax = plt.subplots()
         fig.set_dpi(dpi)
         # Plot KDE
-        h = ax.contourf(xx, yy, Z, alpha=alpha)
+        h = ax.contourf(x_coords, y_coords, Z, alpha=alpha)
         ax.axis("scaled")
         if colorbar:
             fig.colorbar(h, ax=ax)
