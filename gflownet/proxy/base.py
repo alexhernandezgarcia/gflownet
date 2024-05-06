@@ -12,6 +12,8 @@ from torchtyping import TensorType
 
 from gflownet.utils.common import set_device, set_float_precision
 
+LOGZERO = -1e3
+
 
 class Proxy(ABC):
     """
@@ -36,7 +38,13 @@ class Proxy(ABC):
         self._reward_function, self._logreward_function = self._get_reward_functions(
             reward_function, logreward_function, **reward_function_kwargs
         )
+        # Set minimum reward and log reward. If the minimum reward is exactly 0,
+        # the minimum log reward is set to -1000 in order to avoid -inf.
         self.reward_min = reward_min
+        if self.reward_min == 0:
+            self.logreward_min = LOGZERO
+        else:
+            self.logreward_min = np.log(self.reward_min)
         self.do_clip_rewards = do_clip_rewards
         # Device
         self.device = set_device(device)
@@ -129,9 +137,8 @@ class Proxy(ABC):
 
     def get_min_reward(self, log: bool = False) -> float:
         """
-        Returns the minimum value of the (log) reward, retrieved from self.reward_min.
-
-        If self.reward_min is exactly 0, then self.logreward_min is set to -inf.
+        Returns the minimum value of the (log) reward, retrieved from self.reward_min
+        and self.logreward_min.
 
         Parameters
         ----------
@@ -145,11 +152,6 @@ class Proxy(ABC):
             The mimnimum (log) reward.
         """
         if log:
-            if not hasattr(self, "logreward_min"):
-                if self.reward_min == 0.0:
-                    self.logreward_min = -1e3
-                else:
-                    self.logreward_min = np.log(self.reward_min)
             return self.logreward_min
         else:
             return self.reward_min
