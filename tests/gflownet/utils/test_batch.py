@@ -728,8 +728,6 @@ def test__mixed_sampling_multiple_envs_all_as_expected(env, proxy, batch, reques
         env_aux = env_ref.copy().reset(idx + batch_size_forward)
         env_aux = env_aux.set_state(state=x, done=True)
         env_aux.n_actions = env_aux.get_max_traj_length()
-        env_aux.proxy = proxy
-        env_aux.setup_proxy()
         envs.append(env_aux)
 
     states_term_sorted.extend([copy(x) for x in x_batch])
@@ -957,8 +955,6 @@ def test__mixed_sampling_merged_all_as_expected(env, proxy, request):
         env_aux = env_ref.copy().reset(idx)
         env_aux = env_aux.set_state(state=x, done=True)
         env_aux.n_actions = env_aux.get_max_traj_length()
-        env_aux.proxy = proxy
-        env_aux.setup_proxy()
         envs.append(env_aux)
 
     states_term_sorted.extend([copy(x) for x in x_batch])
