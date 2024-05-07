@@ -34,8 +34,6 @@ class GFlowNetEnv:
         device: str = "cpu",
         float_precision: int = 32,
         env_id: Union[int, str] = "env",
-        reward_norm: float = 1.0,
-        reward_norm_std_mult: float = 0.0,
         energies_stats: List[int] = None,
         fixed_distr_params: Optional[dict] = None,
         random_distr_params: Optional[dict] = None,
@@ -54,10 +52,6 @@ class GFlowNetEnv:
         self.device = set_device(device)
         # Float precision
         self.float = set_float_precision(float_precision)
-        # Reward settings
-        self.reward_norm = reward_norm
-        assert self.reward_norm > 0
-        self.reward_norm_std_mult = reward_norm_std_mult
         self.energies_stats = energies_stats
         # Flag to skip checking if action is valid (computing mask) before step
         self.skip_mask_check = skip_mask_check
@@ -837,9 +831,6 @@ class GFlowNetEnv:
 
     def set_energies_stats(self, energies_stats):
         self.energies_stats = energies_stats
-
-    def set_reward_norm(self, reward_norm):
-        self.reward_norm = reward_norm
 
     def get_max_traj_length(self):
         return 1e3

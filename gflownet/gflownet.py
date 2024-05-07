@@ -134,9 +134,6 @@ class GFlowNetAgent:
             print(f"\tMax score: {energies_stats_tr[1]}")
         else:
             energies_stats_tr = None
-        if self.env.reward_norm_std_mult > 0 and energies_stats_tr is not None:
-            self.env.reward_norm = self.env.reward_norm_std_mult * energies_stats_tr[3]
-            self.env.set_reward_norm(self.env.reward_norm)
         # Test set statistics
         if self.buffer.test is not None:
             print("\nTest data")
