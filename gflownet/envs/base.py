@@ -34,7 +34,6 @@ class GFlowNetEnv:
         device: str = "cpu",
         float_precision: int = 32,
         env_id: Union[int, str] = "env",
-        energies_stats: List[int] = None,
         fixed_distr_params: Optional[dict] = None,
         random_distr_params: Optional[dict] = None,
         skip_mask_check: bool = False,
@@ -52,7 +51,6 @@ class GFlowNetEnv:
         self.device = set_device(device)
         # Float precision
         self.float = set_float_precision(float_precision)
-        self.energies_stats = energies_stats
         # Flag to skip checking if action is valid (computing mask) before step
         self.skip_mask_check = skip_mask_check
         # Log SoftMax function
@@ -828,9 +826,6 @@ class GFlowNetEnv:
             return torch.equal(state_x, state_y)
         else:
             return np.all(np.isclose(state_x, state_y, atol=atol))
-
-    def set_energies_stats(self, energies_stats):
-        self.energies_stats = energies_stats
 
     def get_max_traj_length(self):
         return 1e3
