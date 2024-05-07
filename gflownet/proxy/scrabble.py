@@ -93,7 +93,7 @@ class ScrabbleScorer(Proxy):
                 ):
                     scores.append(0.0)
                 else:
-                    scores.append(-1.0 * self._sum_scores(sample))
+                    scores.append(self._sum_scores(sample))
             return tfloat(scores, device=self.device, float_type=self.float)
         else:
             raise NotImplementedError(

@@ -41,8 +41,7 @@ class Corners(Proxy):
 
     def __call__(self, states: TensorType["batch", "state_dim"]) -> TensorType["batch"]:
         return (
-            -1.0
-            * self.mulnormal_norm
+            self.mulnormal_norm
             * torch.exp(
                 -0.5
                 * (

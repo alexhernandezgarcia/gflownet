@@ -24,7 +24,7 @@ class Proxy(ABC):
         self,
         device,
         float_precision,
-        reward_function: Optional[Union[Callable, str]] = "absolute",
+        reward_function: Optional[Union[Callable, str]] = "identity",
         logreward_function: Optional[Callable] = None,
         reward_function_kwargs: Optional[dict] = {},
         reward_min: float = 0.0,

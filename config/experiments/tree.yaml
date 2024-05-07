@@ -19,6 +19,11 @@ env:
   buffer:
     replay_capacity: 100
 
+# Proxy
+proxy:
+  reward_function: exponential
+  beta: 32
+
 # GFlowNet hyperparameters
 gflownet:
   random_action_prob: 0.1

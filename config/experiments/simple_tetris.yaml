@@ -20,6 +20,10 @@ env:
       output_pkl: simple_tetris_val.pkl
       n: 100
 
+proxy:
+  reward_function: exponential
+  beta: 10
+
 gflownet:
   random_action_prob: 0.3
   optimizer:

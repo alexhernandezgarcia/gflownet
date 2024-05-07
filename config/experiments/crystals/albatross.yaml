@@ -50,6 +50,11 @@ env:
       output_csv: ccrystal_val.csv
       output_pkl: ccrystal_val.pkl
 
+# Proxy
+proxy:
+  reward_function: exponential
+  beta: 8
+
 # GFlowNet hyperparameters
 gflownet:
   random_action_prob: 0.1
