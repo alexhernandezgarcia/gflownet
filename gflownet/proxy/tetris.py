@@ -17,7 +17,7 @@ class Tetris(Proxy):
     @property
     def norm(self):
         if self.normalize:
-            return (self.height * self.width)
+            return self.height * self.width
         else:
             return 1.0
 
