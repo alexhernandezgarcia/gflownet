@@ -12,7 +12,6 @@ env:
   n_dim: 2
   n_angles: 20
   length_traj: 20
-  reward_func: identity
 
 # Proxy
 proxy:

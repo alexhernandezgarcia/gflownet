@@ -8,8 +8,6 @@ defaults:
   - override /logger: wandb
 
 env:
-  reward_func: boltzmann
-  reward_beta: 10.0
   width: 4
   height: 4
   pieces: ["I", "O", "J", "L", "T"]

@@ -14,8 +14,6 @@ env:
   continuous: False
   policy_format: mlp
   threshold_components: 3
-  reward_func: boltzmann
-  reward_beta: 32
   test_args:
     top_k_trees: 100
   buffer:

@@ -42,8 +42,6 @@ env:
       beta_beta: 10.0
       bernoulli_eos_prob: 0.1
       bernoulli_bts_prob: 0.1
-  reward_func: boltzmann
-  reward_beta: 8
   buffer:
     replay_capacity: 0
     test:
