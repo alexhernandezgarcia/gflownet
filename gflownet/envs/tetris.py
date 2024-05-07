@@ -11,6 +11,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import numpy.typing as npt
 import torch
+from matplotlib.axes import Axes
 from torchtyping import TensorType
 
 from gflownet.envs.base import GFlowNetEnv
@@ -555,6 +556,7 @@ class Tetris(GFlowNetEnv):
         # Init figure
         n_cols = np.ceil(k_top / n_rows).astype(int)
         fig, axes = plt.subplots(nrows=n_rows, ncols=n_cols, dpi=dpi)
+        # Select top-k samples and plot them
         rewards_topk, indices_topk = torch.sort(rewards, descending=True)[:k_top]
         indices_topk = indices_topk.tolist()
         for idx, ax in zip(indices_topk, axes.flatten()):
@@ -563,21 +565,18 @@ class Tetris(GFlowNetEnv):
         return fig
 
     @staticmethod
-    def _plot_board(board, ax, cellsize=20, linewidth=2):
+    def _plot_board(board, ax: Axes, cellsize: int = 20, linewidth: int = 2):
         """
         Plots a single Tetris board (a state).
 
-        Args
-        ----
+        Parameters
+        ----------
         board : tensor
             State to plot.
-
-        ax : matplotlib Axis
-            The axis in which to plot the board.
-
+        ax : matplotlib Axes object
+            A matplotlib Axes object on which the board will be plotted.
         cellsize : int
            The size (length) of each board cell, in pixels.
-
         linewidth : int
             The width of the separation between cells, in pixels.
         """
