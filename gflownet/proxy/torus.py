@@ -16,15 +16,15 @@ class Torus(Proxy):
             self.n_dim = env.n_dim
 
     @property
-    def min(self):
-        if not hasattr(self, "_min"):
+    def optimum(self):
+        if not hasattr(self, "_optimum"):
             if self.normalize:
-                self._min = torch.tensor(0.0, device=self.device, dtype=self.float)
+                self._optimum = torch.tensor(1.0, device=self.device, dtype=self.float)
             else:
-                self._min = torch.tensor(
+                self._optimum = torch.tensor(
                     ((self.n_dim * 2) ** 3), device=self.device, dtype=self.float
                 )
-        return self._min
+        return self._optimum
 
     @property
     def norm(self):

@@ -623,3 +623,29 @@ def test_reward_function_callable__behaves_as_expected(
     # Log Rewards
     logrewards_exp = tfloat(logrewards_exp, device=proxy.device, float_type=proxy.float)
     assert all(check_proxy2reward(proxy.proxy2logreward(proxy_values), logrewards_exp))
+
+
+@pytest.mark.parametrize(
+    "proxy, beta, optimum, reward_max",
+    [
+        ("uniform", None, 1.0, 1.0),
+        ("uniform", None, 2.0, 2.0),
+        ("proxy_power", 1, 2.0, 2.0),
+        ("proxy_power", 2, 2.0, 4.0),
+        ("proxy_exponential", 1, 1.0, np.exp(1.0)),
+        ("proxy_exponential", -1, -1.0, np.exp(1.0)),
+        ("proxy_shift", 5, 10.0, 15.0),
+        ("proxy_shift", -5, 10.0, 5.0),
+        ("proxy_product", 2, 2.0, 4.0),
+        ("proxy_product", -2, -5.0, 10.0),
+    ],
+)
+def test__uniform_proxy_initializes_without_errors(
+    proxy, beta, optimum, reward_max, request
+):
+    proxy = request.getfixturevalue(proxy)
+    reward_max = torch.tensor(reward_max, dtype=proxy.float, device=proxy.device)
+    # Forcibly set the optimum for testing purposes, even if the proxy is uniform.
+    proxy.optimum = torch.tensor(optimum)
+    assert torch.isclose(proxy.get_max_reward(log=False), reward_max)
+    assert torch.isclose(proxy.get_max_reward(log=True), torch.log(reward_max))

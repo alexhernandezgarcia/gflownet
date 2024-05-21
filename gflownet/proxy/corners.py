@@ -31,13 +31,13 @@ class Corners(Proxy):
             self.mulnormal_norm = 1.0 / ((2 * torch.pi) ** 2 * cov_det) ** 0.5
 
     @property
-    def min(self):
-        if not hasattr(self, "_min"):
+    def optimum(self):
+        if not hasattr(self, "_optimum"):
             mode = self.mu * torch.ones(
                 self.n_dim, device=self.device, dtype=self.float
             )
-            self._min = self(torch.unsqueeze(mode, 0))[0]
-        return self._min
+            self._optimum = self(torch.unsqueeze(mode, 0))[0]
+        return self._optimum
 
     def __call__(self, states: TensorType["batch", "state_dim"]) -> TensorType["batch"]:
         return self.mulnormal_norm * torch.exp(

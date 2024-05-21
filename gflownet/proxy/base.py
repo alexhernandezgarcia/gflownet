@@ -177,12 +177,58 @@ class Proxy(ABC):
         Returns
         -------
         float
-            The mimnimum (log) reward.
+            The minimum (log) reward.
         """
         if log:
             return self.logreward_min
         else:
             return self.reward_min
+
+    def get_max_reward(self, log: bool = False) -> float:
+        """
+        Returns the maximum value of the (log) reward, retrieved from self.optimum, in
+        case it is defined.
+
+        Parameters
+        ----------
+        log : bool
+            If True, returns the logarithm of the maximum reward. If False (default),
+            returns the natural maximum reward.
+
+        Returns
+        -------
+        float
+            The maximum (log) reward.
+        """
+        if log:
+            return self.proxy2logreward(self.optimum)
+        else:
+            return self.proxy2reward(self.optimum)
+
+    @property
+    def optimum(self):
+        """
+        Returns the optimum value of the proxy.
+
+        Not implemented by default but may be implemented for synthetic proxies or when
+        the optimum is known.
+
+        The optimum is used, for example, to accelerate rejection sampling, to sample
+        from the reward function.
+        """
+        if not hasattr(self, "_optimum"):
+            raise NotImplementedError(
+                "The optimum value of the proxy needs to be implemented explicitly for "
+                f"each Proxy and is not available for {self.__class__}."
+            )
+        return self._optimum
+
+    @optimum.setter
+    def optimum(self, value):
+        """
+        Sets the optimum value of the proxy.
+        """
+        self._optimum = value
 
     def _get_reward_functions(
         self,
