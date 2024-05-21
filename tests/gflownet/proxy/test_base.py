@@ -15,8 +15,7 @@ def uniform():
 @pytest.fixture()
 def proxy_identity(beta):
     return Uniform(
-        reward_function="power",
-        reward_function_kwargs={"beta": beta},
+        reward_function="identity",
         device="cpu",
         float_precision=32,
     )
