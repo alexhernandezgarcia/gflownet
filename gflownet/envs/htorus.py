@@ -577,7 +577,8 @@ class HybridTorus(GFlowNetEnv):
         Plots the reward contour alongside a batch of samples.
 
         The samples are previously augmented in order to visualise the periodic aspect
-        of the sample space. It is assumed that the samples and the rewards are sorted.
+        of the sample space. It is assumed that the rewards are sorted from left to
+        right (first) and top to bottom of the grid of samples.
 
         Parameters
         ----------
@@ -586,10 +587,12 @@ class HybridTorus(GFlowNetEnv):
             will be plotted on top of the reward density.
         samples_reward : tensor
             A batch of samples containing a grid over the sample space, from which the
-            reward has been obtained. These samples are used to plot the contour of
-            reward density.
+            reward has been obtained. Ignored by this method.
         rewards : tensor
-            The reward of samples_reward.
+            The rewards of samples_reward. It should be a vector of dimensionality
+            n_per_dim ** 2 and be sorted such that the each block at rewards[i *
+            n_per_dim:i * n_per_dim + n_per_dim] correspond to the rewards at the i-th
+            row of the grid of samples, from top to bottom.
         min_domain : float
             Minimum value of the domain to keep in the plot.
         max_domain : float
@@ -604,10 +607,9 @@ class HybridTorus(GFlowNetEnv):
         if self.n_dim != 2:
             return None
         samples = torch2np(samples)
-        samples_reward = torch2np(samples_reward)
         rewards = torch2np(rewards)
-        n_per_dim = int(np.sqrt(samples_reward.shape[0]))
-        assert n_per_dim**2 == samples_reward.shape[0]
+        n_per_dim = int(np.sqrt(rewards.shape[0]))
+        assert n_per_dim**2 == rewards.shape[0]
         # Augment rewards to apply periodic boundary conditions
         rewards = rewards.reshape((n_per_dim, n_per_dim))
         rewards = np.tile(rewards, (3, 3))

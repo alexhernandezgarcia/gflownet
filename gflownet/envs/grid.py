@@ -337,6 +337,9 @@ class Grid(GFlowNetEnv):
         Plots the reward density as a 2D histogram on the grid, alongside a histogram
         representing the samples density.
 
+        It is assumed that the rewards correspond to entire domain of the grid and are
+        sorted from left to right (first) and top to bottom of the grid of samples.
+
         Parameters
         ----------
         samples : tensor
@@ -344,10 +347,12 @@ class Grid(GFlowNetEnv):
             will be plotted on top of the reward density.
         samples_reward : tensor
             A batch of samples containing a grid over the sample space, from which the
-            reward has been obtained. These samples are used to plot the contour of
-            reward density.
+            reward has been obtained. Ignored by this method.
         rewards : tensor
-            The reward of samples_reward.
+            The rewards of samples_reward. It should be a vector of dimensionality
+            length ** 2 and be sorted such that the each block at rewards[i *
+            length:i * length + length] correspond to the rewards at the i-th
+            row of the grid of samples, from top to bottom.
         dpi : int
             Dots per inch, indicating the resolution of the plot.
         n_ticks_max : int
@@ -359,8 +364,8 @@ class Grid(GFlowNetEnv):
         if self.n_dim != 2:
             return None
         samples = torch2np(samples)
-        samples_reward = torch2np(samples_reward)
         rewards = torch2np(rewards)
+        assert rewards.shape[0] == self.length**2
         # Init figure
         fig, axes = plt.subplots(ncols=2, dpi=dpi)
         step_ticks = np.ceil(self.length / n_ticks_max).astype(int)

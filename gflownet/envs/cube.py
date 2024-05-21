@@ -1467,7 +1467,11 @@ class ContinuousCube(CubeBase):
             reward has been obtained. These samples are used to plot the contour of
             reward density.
         rewards : tensor
-            The reward of samples_reward.
+            The rewards of samples_reward. It should be a vector of dimensionality
+            n_per_dim ** 2 and be sorted such that the each block at rewards[i *
+            n_per_dim:i * n_per_dim + n_per_dim] correspond to the rewards at the i-th
+            row of the grid of samples, from top to bottom. The same is assumed for
+            samples_reward.
         alpha : float
             Transparency of the reward contour.
         dpi : int
