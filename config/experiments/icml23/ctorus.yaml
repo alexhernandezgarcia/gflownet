@@ -55,7 +55,7 @@ logger:
     - continuous
     - ctorus
   test:
-    period: 500
+    period: 25
     n: 1000
   checkpoints:
     period: 500
