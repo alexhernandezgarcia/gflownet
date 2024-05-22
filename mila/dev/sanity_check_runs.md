@@ -116,17 +116,17 @@ python mila/launch.py --conda_env=<conda-env-name> user=$USER env=tetris proxy=t
 `salloc`:
 
 ```bash
-python main.py user=$USER +experiments=icml23/ctorus device=cpu logger.project_name=gfn_sanity_checks logger.do.online=True
+python main.py user=$USER +experiments=icml23/ctorus logger.test.period=500 device=cpu logger.project_name=gfn_sanity_checks logger.do.online=True
 ```
 
 `sbatch` with `virtualenv`:
 
 ```bash
-python mila/launch.py --venv=<path-to-env> --template=mila/sbatch/template-venv.sh user=$USER +experiments=icml23/ctorus device=cpu logger.project_name=gfn_sanity_checks logger.do.online=True
+python mila/launch.py --venv=<path-to-env> --template=mila/sbatch/template-venv.sh user=$USER +experiments=icml23/ctorus logger.test.period=500 device=cpu logger.project_name=gfn_sanity_checks logger.do.online=True
 ```
 
 `sbatch` with `conda`:
 
 ```bash
-python mila/launch.py --conda_env=<conda-env-name> user=$USER +experiments=icml23/ctorus device=cpu logger.project_name=gfn_sanity_checks logger.do.online=True
+python mila/launch.py --conda_env=<conda-env-name> user=$USER +experiments=icml23/ctorus logger.test.period=500 device=cpu logger.project_name=gfn_sanity_checks logger.do.online=True
 ```

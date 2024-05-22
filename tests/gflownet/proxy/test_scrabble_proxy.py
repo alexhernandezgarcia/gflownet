@@ -32,8 +32,6 @@ def env():
 def test__scrabble_scorer__returns_expected_scores_list_input_list_tokens(
     env, proxy, samples, scores_expected
 ):
-    # Make scores expected negative
-    scores_expected = [-s for s in scores_expected]
     proxy.setup(env)
     scores = proxy(samples)
     assert scores.tolist() == scores_expected
@@ -51,8 +49,6 @@ def test__scrabble_scorer__returns_expected_scores_list_input_list_tokens(
 def test__scrabble_scorer__returns_expected_scores_input_list_strings(
     env, proxy, samples, scores_expected
 ):
-    # Make scores expected negative
-    scores_expected = [-s for s in scores_expected]
     proxy.setup(env)
     scores = proxy(samples)
     assert scores.tolist() == scores_expected
@@ -94,4 +90,4 @@ def test__scrabble_scorer__returns_expected_scores_input_state2proxy(
     env.set_state(env.readable2state(sample))
     sample_proxy = env.state2proxy()
     score = proxy(sample_proxy)
-    assert score.tolist() == [-1.0 * score_expected]
+    assert score.tolist() == [score_expected]

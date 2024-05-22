@@ -17,5 +17,9 @@ allow_eos_before_full: False
 buffer:
   data_path: null
   train: null
-  test: null
+  test:
+    type: random
+    n: 10
+    output_csv: tetris_test.csv
+    output_pkl: tetris_test.pkl
 
