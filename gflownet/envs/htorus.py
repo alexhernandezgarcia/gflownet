@@ -502,10 +502,27 @@ class HybridTorus(GFlowNetEnv):
         return deepcopy(self)
 
     def get_grid_terminating_states(self, n_states: int) -> List[List]:
+        """
+        Samples n terminating states by sub-sampling the state space as a grid, where n
+        / n_dim points are obtained for each dimension.
+
+        Parameters
+        ----------
+        n_states : int
+            The number of terminating states to sample.
+
+        Returns
+        -------
+        states : list
+            A list of randomly sampled terminating states.
+        """
         n_per_dim = int(np.ceil(n_states ** (1 / self.n_dim)))
-        linspaces = [np.linspace(0, 2 * np.pi, n_per_dim) for _ in range(self.n_dim)]
-        angles = list(itertools.product(*linspaces))
-        states = [list(el) + [self.length_traj] for el in angles]
+        linspace = np.linspace(0, 2 * np.pi, n_per_dim)
+        angles = np.meshgrid(*[linspace] * self.n_dim)
+        angles = np.stack(angles).reshape((self.n_dim, -1)).T
+        states = np.concatenate(
+            (angles, self.length_traj * np.ones((angles.shape[0], 1))), axis=1
+        ).tolist()
         return states
 
     def get_uniform_terminating_states(
@@ -516,106 +533,118 @@ class HybridTorus(GFlowNetEnv):
         states = np.concatenate((angles, np.ones((n_states, 1))), axis=1)
         return states.tolist()
 
-    # TODO: make generic for all environments
-    def sample_from_reward(
-        self, n_samples: int, epsilon=1e-4
-    ) -> TensorType["n_samples", "state_dim"]:
-        """
-        Rejection sampling  with proposal the uniform distribution in [0, 2pi]]^n_dim.
+    def fit_kde(
+        self,
+        samples: TensorType["batch_size", "state_proxy_dim"],
+        kernel: str = "gaussian",
+        bandwidth: float = 0.1,
+    ):
+        r"""
+        Fits a Kernel Density Estimator on a batch of samples.
 
-        Returns a tensor in GFloNet (state) format.
-        """
-        samples_final = []
-        max_reward = self.proxy2reward(torch.tensor([self.proxy.min])).to(self.device)
-        while len(samples_final) < n_samples:
-            angles_uniform = (
-                torch.rand(
-                    (n_samples, self.n_dim), dtype=self.float, device=self.device
-                )
-                * 2
-                * np.pi
-            )
-            samples = torch.cat(
-                (
-                    angles_uniform,
-                    torch.ones((angles_uniform.shape[0], 1)).to(angles_uniform),
-                ),
-                axis=1,
-            )
-            rewards = tfloat(
-                self.reward_batch(samples), device=self.device, float_type=self.float
-            )
-            mask = (
-                torch.rand(n_samples, dtype=self.float, device=self.device)
-                * (max_reward + epsilon)
-                < rewards
-            )
-            samples_accepted = samples[mask, :]
-            samples_final.extend(samples_accepted[-(n_samples - len(samples_final)) :])
-        return torch.vstack(samples_final)
+        The samples are previously augmented in order to account for the periodic
+        aspect of the sample space.
 
-    def fit_kde(self, samples, kernel="gaussian", bandwidth=0.1):
-        aug_samples = []
-        for add_0 in [0, -2 * np.pi, 2 * np.pi]:
-            for add_1 in [0, -2 * np.pi, 2 * np.pi]:
-                aug_samples.append(
-                    np.stack([samples[:, 0] + add_0, samples[:, 1] + add_1], axis=1)
-                )
-        aug_samples = np.concatenate(aug_samples)
-        kde = KernelDensity(kernel=kernel, bandwidth=bandwidth).fit(aug_samples)
+        Parameters
+        ----------
+        samples : tensor
+            A batch of samples in proxy format.
+        kernel : str
+            An identifier of the kernel to use for the density estimation. It must be a
+            valid kernel for the scikit-learn method
+            :py:meth:`sklearn.neighbors.KernelDensity`.
+        bandwidth : float
+            The bandwidth of the kernel.
+        """
+        samples = torch2np(samples)
+        samples_aug = self.augment_samples(samples)
+        kde = KernelDensity(kernel=kernel, bandwidth=bandwidth).fit(samples_aug)
         return kde
 
     def plot_reward_samples(
         self,
-        samples,
-        alpha=0.5,
-        low=-np.pi * 0.5,
-        high=2.5 * np.pi,
-        dpi=150,
-        limit_n_samples=500,
+        samples: TensorType["batch_size", "state_proxy_dim"],
+        samples_reward: TensorType["batch_size", "state_proxy_dim"],
+        rewards: TensorType["batch_size"],
+        min_domain: float = -np.pi,
+        max_domain: float = 3 * np.pi,
+        alpha: float = 0.5,
+        dpi: int = 150,
+        max_samples: int = 500,
         **kwargs,
     ):
-        x = np.linspace(low, high, 201)
-        y = np.linspace(low, high, 201)
-        xx, yy = np.meshgrid(x, y)
-        X = np.stack([xx, yy], axis=-1)
-        samples_mesh = torch.tensor(X.reshape(-1, 2), dtype=self.float)
-        states_mesh = torch.cat(
-            [samples_mesh, torch.ones(samples_mesh.shape[0], 1)], 1
-        ).to(self.device)
-        rewards = torch2np(
-            self.proxy2reward(self.proxy(self.states2proxy(states_mesh)))
-        )
+        """
+        Plots the reward contour alongside a batch of samples.
+
+        The samples are previously augmented in order to visualise the periodic aspect
+        of the sample space. It is assumed that the rewards are sorted from left to
+        right (first) and top to bottom of the grid of samples.
+
+        Parameters
+        ----------
+        samples : tensor
+            A batch of samples from the GFlowNet policy in proxy format. These samples
+            will be plotted on top of the reward density.
+        samples_reward : tensor
+            A batch of samples containing a grid over the sample space, from which the
+            reward has been obtained. Ignored by this method.
+        rewards : tensor
+            The rewards of samples_reward. It should be a vector of dimensionality
+            n_per_dim ** 2 and be sorted such that the each block at rewards[i *
+            n_per_dim:i * n_per_dim + n_per_dim] correspond to the rewards at the i-th
+            row of the grid of samples, from top to bottom.
+        min_domain : float
+            Minimum value of the domain to keep in the plot.
+        max_domain : float
+            Maximum value of the domain to keep in the plot.
+        alpha : float
+            Transparency of the reward contour.
+        dpi : int
+            Dots per inch, indicating the resolution of the plot.
+        max_samples : int
+            Maximum of number of samples to include in the plot.
+        """
+        if self.n_dim != 2:
+            return None
+        samples = torch2np(samples)
+        rewards = torch2np(rewards)
+        n_per_dim = int(np.sqrt(rewards.shape[0]))
+        assert n_per_dim**2 == rewards.shape[0]
+        # Augment rewards to apply periodic boundary conditions
+        rewards = rewards.reshape((n_per_dim, n_per_dim))
+        rewards = np.tile(rewards, (3, 3))
+        # Create mesh grid from samples_reward
+        x = np.linspace(-2 * np.pi, 4 * np.pi, 3 * n_per_dim)
+        y = np.linspace(-2 * np.pi, 4 * np.pi, 3 * n_per_dim)
+        x_coords, y_coords = np.meshgrid(x, y)
         # Init figure
         fig, ax = plt.subplots()
         fig.set_dpi(dpi)
         # Plot reward contour
-        h = ax.contourf(xx, yy, rewards.reshape(xx.shape), alpha=alpha)
+        h = ax.contourf(x_coords, y_coords, rewards, alpha=alpha)
         ax.axis("scaled")
         fig.colorbar(h, ax=ax)
         ax.plot([0, 0], [0, 2 * np.pi], "-w", alpha=alpha)
         ax.plot([0, 2 * np.pi], [0, 0], "-w", alpha=alpha)
         ax.plot([2 * np.pi, 2 * np.pi], [2 * np.pi, 0], "-w", alpha=alpha)
         ax.plot([2 * np.pi, 0], [2 * np.pi, 2 * np.pi], "-w", alpha=alpha)
-        # Plot samples
-        extra_samples = []
-        for add_0 in [0, -2 * np.pi, 2 * np.pi]:
-            for add_1 in [0, -2 * np.pi, 2 * np.pi]:
-                if not (add_0 == add_1 == 0):
-                    extra_samples.append(
-                        np.stack(
-                            [
-                                samples[:limit_n_samples, 0] + add_0,
-                                samples[:limit_n_samples, 1] + add_1,
-                            ],
-                            axis=1,
-                        )
-                    )
-        extra_samples = np.concatenate(extra_samples)
+        # Randomize and subsample samples
+        random_indices = np.random.permutation(samples.shape[0])[:max_samples]
+        samples = samples[random_indices, :]
+        # Augment samples
+        samples_aug = self.augment_samples(samples, exclude_original=True)
         ax.scatter(
-            samples[:limit_n_samples, 0], samples[:limit_n_samples, 1], alpha=alpha
+            samples_aug[:, 0], samples_aug[:, 1], alpha=1.5 * alpha, color="white"
         )
-        ax.scatter(extra_samples[:, 0], extra_samples[:, 1], alpha=alpha, color="white")
+        ax.scatter(samples[:, 0], samples[:, 1], alpha=alpha)
+        # Set axes limits
+        ax.set_xlim([min_domain, max_domain])
+        ax.set_ylim([min_domain, max_domain])
+        # Set ticks and labels
+        ticks = [0.0, np.pi / 2, np.pi, (3 * np.pi) / 2, 2 * np.pi]
+        labels = ["0.0", r"$\frac{\pi}{2}$", r"$\pi$", r"$\frac{3\pi}{3}$", f"$2\pi$"]
+        ax.set_xticks(ticks, labels)
+        ax.set_yticks(ticks, labels)
         ax.grid()
         # Set tight layout
         plt.tight_layout()
@@ -623,35 +652,75 @@ class HybridTorus(GFlowNetEnv):
 
     def plot_kde(
         self,
+        samples: TensorType["batch_size", "state_proxy_dim"],
         kde,
-        alpha=0.5,
-        low=-np.pi * 0.5,
-        high=2.5 * np.pi,
+        alpha: float = 0.5,
         dpi=150,
-        colorbar=True,
+        colorbar: bool = True,
         **kwargs,
     ):
-        x = np.linspace(0, 2 * np.pi, 101)
-        y = np.linspace(0, 2 * np.pi, 101)
-        xx, yy = np.meshgrid(x, y)
-        X = np.stack([xx, yy], axis=-1)
-        Z = np.exp(kde.score_samples(X.reshape(-1, 2))).reshape(xx.shape)
+        """
+        Plots the density previously estimated from a batch of samples via KDE over the
+        entire sample space.
+
+        Parameters
+        ----------
+        samples : tensor
+            A batch of samples containing a grid over the sample space. These samples
+            are used to plot the contour of the estimated density.
+        kde : KDE
+            A scikit-learn KDE object fit with a batch of samples.
+        alpha : float
+            Transparency of the density contour.
+        dpi : int
+            Dots per inch, indicating the resolution of the plot.
+        """
+        if self.n_dim != 2:
+            return None
+        samples = torch2np(samples)
+        # Create mesh grid from samples
+        n_per_dim = int(np.sqrt(samples.shape[0]))
+        assert n_per_dim**2 == samples.shape[0]
+        x_coords = samples[:, 0].reshape((n_per_dim, n_per_dim))
+        y_coords = samples[:, 1].reshape((n_per_dim, n_per_dim))
+        # Score samples with KDE and reshape
+        Z = np.exp(kde.score_samples(samples)).reshape((n_per_dim, n_per_dim))
         # Init figure
         fig, ax = plt.subplots()
         fig.set_dpi(dpi)
         # Plot KDE
-        h = ax.contourf(xx, yy, Z, alpha=alpha)
+        h = ax.contourf(x_coords, y_coords, Z, alpha=alpha)
         ax.axis("scaled")
         if colorbar:
             fig.colorbar(h, ax=ax)
-        ax.set_xticks([])
-        ax.set_yticks([])
-        ax.text(0, -0.3, r"$0$", fontsize=15)
-        ax.text(-0.28, 0, r"$0$", fontsize=15)
-        ax.text(2 * np.pi - 0.4, -0.3, r"$2\pi$", fontsize=15)
-        ax.text(-0.45, 2 * np.pi - 0.3, r"$2\pi$", fontsize=15)
+        # Set ticks and labels
+        ticks = [0.0, np.pi / 2, np.pi, (3 * np.pi) / 2, 2 * np.pi]
+        labels = ["0.0", r"$\frac{\pi}{2}$", r"$\pi$", r"$\frac{3\pi}{3}$", f"$2\pi$"]
+        ax.set_xticks(ticks, labels)
+        ax.set_yticks(ticks, labels)
         for spine in ax.spines.values():
             spine.set_visible(False)
         # Set tight layout
         plt.tight_layout()
         return fig
+
+    @staticmethod
+    def augment_samples(samples: np.array, exclude_original: bool = False) -> np.array:
+        """
+        Augments a batch of samples by applying the periodic boundary conditions from
+        [0, 2pi) to [-2pi, 4pi) for all dimensions.
+        """
+        samples_aug = []
+        for offsets in itertools.product(
+            [-2 * np.pi, 0.0, 2 * np.pi], repeat=samples.shape[-1]
+        ):
+            if exclude_original and all([offset == 0.0 for offset in offsets]):
+                continue
+            samples_aug.append(
+                np.stack(
+                    [samples[:, dim] + offset for dim, offset in enumerate(offsets)],
+                    axis=-1,
+                )
+            )
+        samples_aug = np.concatenate(samples_aug, axis=0)
+        return samples_aug

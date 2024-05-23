@@ -8,8 +8,6 @@ defaults:
   - override /logger: wandb
 
 env:
-  reward_func: boltzmann
-  reward_beta: 10.0
   width: 4
   height: 4
   pieces: ["I", "O", "J", "L", "T"]
@@ -21,6 +19,10 @@ env:
       output_csv: simple_tetris_val.csv
       output_pkl: simple_tetris_val.pkl
       n: 100
+
+proxy:
+  reward_function: exponential
+  beta: 10
 
 gflownet:
   random_action_prob: 0.3

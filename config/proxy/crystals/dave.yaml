@@ -1,3 +1,6 @@
+defaults:
+  - base
+
 _target_: gflownet.proxy.crystals.dave.DAVE
 
 # releases 0.x.x refer to Formation Energy models

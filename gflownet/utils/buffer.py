@@ -19,6 +19,7 @@ class Buffer:
     def __init__(
         self,
         env,
+        proxy,
         make_train_test=False,
         replay_capacity=0,
         output_csv=None,
@@ -30,6 +31,7 @@ class Buffer:
     ):
         self.logger = logger
         self.env = env
+        self.proxy = proxy
         self.replay_capacity = replay_capacity
         self.main = pd.DataFrame(columns=["state", "traj", "reward", "energy", "iter"])
         self.replay = pd.DataFrame(
@@ -261,7 +263,7 @@ class Buffer:
             samples = self.env.get_random_terminating_states(config.n)
         else:
             return None, None
-        energies = self.env.proxy(self.env.states2proxy(samples)).tolist()
+        energies = self.proxy(self.env.states2proxy(samples)).tolist()
         df = pd.DataFrame(
             {
                 "samples": [self.env.state2readable(s) for s in samples],
@@ -328,7 +330,12 @@ class Buffer:
             samples = list(samples.values())
         if mode == "permutation":
             assert rng is not None
-            samples = [samples[idx] for idx in rng.permutation(n)]
+            indices = rng.choice(
+                len(samples),
+                size=n,
+                replace=False,
+            )
+            samples = [samples[idx] for idx in indices]
         elif mode == "weighted":
             if "rewards" in data_dict:
                 score = "rewards"

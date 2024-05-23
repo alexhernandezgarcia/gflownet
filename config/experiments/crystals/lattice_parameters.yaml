@@ -9,10 +9,13 @@ defaults:
 
 # Environment
 env:
-  reward_func: boltzmann
-  reward_beta: 0.3
   buffer:
     replay_capacity: 1000
+
+# Proxy
+proxy:
+  reward_function: exponential
+  beta: 0.3
 
 # GFlowNet hyperparameters
 gflownet:

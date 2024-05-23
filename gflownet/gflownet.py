@@ -9,17 +9,20 @@ import os
 import pickle
 import time
 from collections import defaultdict
+from functools import partial
 from pathlib import Path
-from typing import List, Optional, Tuple, Union
+from typing import Callable, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import torch
 import torch.nn as nn
 from scipy.special import logsumexp
 from torch.distributions import Bernoulli
+from torchtyping import TensorType
 from tqdm import tqdm
 
 from gflownet.envs.base import GFlowNetEnv
+from gflownet.proxy.base import Proxy
 from gflownet.utils.batch import Batch
 from gflownet.utils.buffer import Buffer
 from gflownet.utils.common import (
@@ -37,7 +40,8 @@ from gflownet.utils.common import (
 class GFlowNetAgent:
     def __init__(
         self,
-        env,
+        env_maker: partial,
+        proxy,
         seed,
         device,
         float_precision,
@@ -66,7 +70,11 @@ class GFlowNetAgent:
         # Float precision
         self.float = set_float_precision(float_precision)
         # Environment
-        self.env = env
+        self.env_maker = env_maker
+        self.env = self.env_maker()
+        # Proxy
+        self.proxy = proxy
+        self.proxy.setup(self.env)
         # Continuous environments
         self.continuous = hasattr(self.env, "continuous") and self.env.continuous
         if self.continuous and optimizer.loss in ["flowmatch", "flowmatching"]:
@@ -103,7 +111,11 @@ class GFlowNetAgent:
         self.replay_sampling = replay_sampling
         self.train_sampling = train_sampling
         self.buffer = Buffer(
-            **buffer, env=self.env, make_train_test=not sample_only, logger=logger
+            **buffer,
+            env=self.env,
+            proxy=self.proxy,
+            make_train_test=not sample_only,
+            logger=logger,
         )
         # Train set statistics and reward normalization constant
         if self.buffer.train is not None:
@@ -114,7 +126,6 @@ class GFlowNetAgent:
                 self.buffer.std_tr,
                 self.buffer.max_norm_tr,
             ]
-            self.env.set_energies_stats(energies_stats_tr)
             print("\nTrain data")
             print(f"\tMean score: {energies_stats_tr[2]}")
             print(f"\tStd score: {energies_stats_tr[3]}")
@@ -122,9 +133,6 @@ class GFlowNetAgent:
             print(f"\tMax score: {energies_stats_tr[1]}")
         else:
             energies_stats_tr = None
-        if self.env.reward_norm_std_mult > 0 and energies_stats_tr is not None:
-            self.env.reward_norm = self.env.reward_norm_std_mult * energies_stats_tr[3]
-            self.env.set_reward_norm(self.env.reward_norm)
         # Test set statistics
         if self.buffer.test is not None:
             print("\nTest data")
@@ -488,8 +496,10 @@ class GFlowNetAgent:
 
         # ON-POLICY FORWARD trajectories
         t0_forward = time.time()
-        envs = [self.env.copy().reset(idx) for idx in range(n_forward)]
-        batch_forward = Batch(env=self.env, device=self.device, float_type=self.float)
+        envs = [self.env_maker().set_id(idx) for idx in range(n_forward)]
+        batch_forward = Batch(
+            env=self.env, proxy=self.proxy, device=self.device, float_type=self.float
+        )
         while envs:
             # Sample actions
             t0_a_envs = time.time()
@@ -511,8 +521,10 @@ class GFlowNetAgent:
 
         # TRAIN BACKWARD trajectories
         t0_train = time.time()
-        envs = [self.env.copy().reset(idx) for idx in range(n_train)]
-        batch_train = Batch(env=self.env, device=self.device, float_type=self.float)
+        envs = [self.env_maker().set_id(idx) for idx in range(n_train)]
+        batch_train = Batch(
+            env=self.env, proxy=self.proxy, device=self.device, float_type=self.float
+        )
         if n_train > 0 and self.buffer.train_pkl is not None:
             with open(self.buffer.train_pkl, "rb") as f:
                 dict_train = pickle.load(f)
@@ -543,12 +555,14 @@ class GFlowNetAgent:
 
         # REPLAY BACKWARD trajectories
         t0_replay = time.time()
-        batch_replay = Batch(env=self.env, device=self.device, float_type=self.float)
+        batch_replay = Batch(
+            env=self.env, proxy=self.proxy, device=self.device, float_type=self.float
+        )
         if n_replay > 0 and self.buffer.replay_pkl is not None:
             with open(self.buffer.replay_pkl, "rb") as f:
                 dict_replay = pickle.load(f)
                 n_replay = min(n_replay, len(dict_replay["x"]))
-                envs = [self.env.copy().reset(idx) for idx in range(n_replay)]
+                envs = [self.env_maker().set_id(idx) for idx in range(n_replay)]
                 x_replay = self.buffer.select(
                     dict_replay, n_replay, self.replay_sampling, self.rng
                 )
@@ -662,8 +676,7 @@ class GFlowNetAgent:
         done = batch.get_done()
         masks_sf = batch.get_masks_forward()
         parents_a_idx = self.env.actions2indices(parents_actions)
-        rewards = batch.get_rewards()
-        assert torch.all(rewards[done] > 0)
+        logrewards = batch.get_rewards(log=True)
         # In-flows
         inflow_logits = torch.full(
             (states.shape[0], self.env.policy_output_dim),
@@ -680,7 +693,7 @@ class GFlowNetAgent:
         outflow_logits[masks_sf] = -torch.inf
         outflow = torch.logsumexp(outflow_logits, dim=1)
         # Loss at terminating nodes
-        loss_term = (inflow[done] - torch.log(rewards[done])).pow(2).mean()
+        loss_term = (inflow[done] - logrewards[done]).pow(2).mean()
         contrib_term = done.eq(1).to(self.float).mean()
         # Loss at intermediate nodes
         loss_interm = (inflow[~done] - outflow[~done]).pow(2).mean()
@@ -715,14 +728,10 @@ class GFlowNetAgent:
         logprobs_f = self.compute_logprobs_trajectories(batch, backward=False)
         logprobs_b = self.compute_logprobs_trajectories(batch, backward=True)
         # Get rewards from batch
-        rewards = batch.get_terminating_rewards(sort_by="trajectory")
+        logrewards = batch.get_terminating_rewards(log=True, sort_by="trajectory")
 
         # Trajectory balance loss
-        loss = (
-            (self.logZ.sum() + logprobs_f - logprobs_b - torch.log(rewards))
-            .pow(2)
-            .mean()
-        )
+        loss = (self.logZ.sum() + logprobs_f - logprobs_b - logrewards).pow(2).mean()
         return loss, loss, loss
 
     def detailedbalance_loss(self, it, batch):
@@ -758,7 +767,7 @@ class GFlowNetAgent:
         parents = batch.get_parents(policy=False)
         parents_policy = batch.get_parents(policy=True)
         done = batch.get_done()
-        rewards = batch.get_terminating_rewards(sort_by="insertion")
+        logrewards = batch.get_terminating_rewards(log=True, sort_by="insertion")
 
         # Get logprobs
         masks_f = batch.get_masks_forward(of_parents=True)
@@ -774,7 +783,7 @@ class GFlowNetAgent:
 
         # Get logflows
         logflows_states = self.state_flow(states_policy)
-        logflows_states[done.eq(1)] = torch.log(rewards)
+        logflows_states[done.eq(1)] = logrewards
         # TODO: Optimise by reusing logflows_states and batch.get_parent_indices
         logflows_parents = self.state_flow(parents_policy)
 
@@ -817,8 +826,8 @@ class GFlowNetAgent:
         actions = batch.get_actions()
         parents = batch.get_parents(policy=False)
         parents_policy = batch.get_parents(policy=True)
-        rewards_states = batch.get_rewards(do_non_terminating=True)
-        rewards_parents = batch.get_rewards_parents()
+        logrewards_states = batch.get_rewards(log=True, do_non_terminating=True)
+        logrewards_parents = batch.get_rewards_parents(log=True)
         done = batch.get_done()
 
         # Get logprobs
@@ -841,7 +850,7 @@ class GFlowNetAgent:
         logflflows_parents = self.state_flow(parents_policy)
 
         # Get energies transitions
-        energies_transitions = torch.log(rewards_parents) - torch.log(rewards_states)
+        energies_transitions = logrewards_parents - logrewards_states
 
         # Forward-looking loss
         loss_all = (
@@ -962,15 +971,21 @@ class GFlowNetAgent:
             "Sampling backward actions from test data to estimate logprobs...",
             flush=True,
         )
-        pbar = tqdm(total=n_states)
+        if n_states > batch_size:
+            pbar = tqdm(total=n_states)
         while init_batch < n_states:
-            batch = Batch(env=self.env, device=self.device, float_type=self.float)
+            batch = Batch(
+                env=self.env,
+                proxy=self.proxy,
+                device=self.device,
+                float_type=self.float,
+            )
             # Create an environment for each data point and trajectory and set the state
             envs = []
             for state_idx in range(init_batch, end_batch):
                 for traj_idx in range(n_trajectories):
                     idx = int(mult_indices * state_idx + traj_idx)
-                    env = self.env.copy().reset(idx)
+                    env = self.env_maker().set_id(idx)
                     env.set_state(states_term[state_idx], done=True)
                     envs.append(env)
             # Sample trajectories
@@ -1007,7 +1022,8 @@ class GFlowNetAgent:
             # Increment batch indices
             init_batch += batch_size
             end_batch = min(end_batch + batch_size, n_states)
-            pbar.update(end_batch - init_batch)
+            if n_states > batch_size:
+                pbar.update(end_batch - init_batch)
 
         # Compute log of the average probabilities of the ratio PF / PB
         logprobs_estimates = torch.logsumexp(
@@ -1038,6 +1054,7 @@ class GFlowNetAgent:
                 "True reward and GFlowNet samples",
                 "GFlowNet KDE Policy",
                 "Reward KDE",
+                "Samples TopK",
             ]
             if self.logger.do_test(it):
                 (
@@ -1078,7 +1095,12 @@ class GFlowNetAgent:
                 self.logger.log_metrics(metrics, use_context=self.use_context, step=it)
                 self.logger.log_summary(summary)
             t0_iter = time.time()
-            batch = Batch(env=self.env, device=self.device, float_type=self.float)
+            batch = Batch(
+                env=self.env,
+                proxy=self.proxy,
+                device=self.device,
+                float_type=self.float,
+            )
             for j in range(self.sttr):
                 sub_batch, times = self.sample_batch(
                     n_forward=self.batch_size.forward,
@@ -1119,11 +1141,27 @@ class GFlowNetAgent:
                     all_losses.append([i.item() for i in losses])
             # Buffer
             t0_buffer = time.time()
+            # TODO: the current implementation recomputes the proxy values of the
+            # terminating states in order to store the proxy values in the Buffer.
+            # Depending on the computational cost of the proxy, this may be very
+            # inneficient. For example, proxy.rewards() could return the proxy values,
+            # which could be stored in the Batch.
+            if it == 0:
+                print(
+                    "IMPORTANT: The current implementation recomputes the proxy "
+                    "values of the terminating states in order to store the proxy "
+                    "values in the Buffer. Depending on the computational cost of "
+                    "the proxy, this may be very inneficient."
+                )
             states_term = batch.get_terminating_states(sort_by="trajectory")
-            rewards = batch.get_terminating_rewards(sort_by="trajectory")
-            actions_trajectories = batch.get_actions_trajectories()
-            proxy_vals = self.env.reward2proxy(rewards).tolist()
+            states_proxy_term = batch.get_terminating_states(
+                proxy=True, sort_by="trajectory"
+            )
+            proxy_vals = self.proxy(states_proxy_term)
+            rewards = self.proxy.proxy2reward(proxy_vals)
             rewards = rewards.tolist()
+            proxy_vals = proxy_vals.tolist()
+            actions_trajectories = batch.get_actions_trajectories()
             self.buffer.add(states_term, actions_trajectories, rewards, proxy_vals, it)
             self.buffer.add(
                 states_term,
@@ -1234,7 +1272,7 @@ class GFlowNetAgent:
         )
         mean_logprobs_std = logprobs_std.mean().item()
         mean_probs_std = probs_std.mean().item()
-        rewards_x_tt = self.env.reward_batch(x_tt)
+        rewards_x_tt = self.proxy.rewards(self.env.states2proxy(x_tt))
         corr_prob_traj_rewards = np.corrcoef(
             np.exp(logprobs_x_tt.cpu().numpy()), rewards_x_tt
         )[0, 1]
@@ -1254,9 +1292,9 @@ class GFlowNetAgent:
             if "density_true" in dict_tt:
                 density_true = dict_tt["density_true"]
             else:
-                rewards = self.env.reward_batch(x_tt)
-                z_true = rewards.sum()
-                density_true = rewards / z_true
+                # This is hacky but it is re-done anyway in the Evaluator class.
+                z_true = rewards_x_tt.sum().item()
+                density_true = rewards_x_tt.numpy() / z_true
                 with open(self.buffer.test_pkl, "wb") as f:
                     dict_tt["density_true"] = density_true
                     pickle.dump(dict_tt, f)
@@ -1267,12 +1305,13 @@ class GFlowNetAgent:
             density_pred = np.array([hist[tuple(x)] / z_pred for x in x_tt])
             log_density_true = np.log(density_true + 1e-8)
             log_density_pred = np.log(density_pred + 1e-8)
+        elif self.buffer.test_type == "random":
+            env_metrics = self.env.test(x_sampled)
         elif self.continuous and hasattr(self.env, "fit_kde"):
             batch, _ = self.sample_batch(n_forward=self.logger.test.n, train=False)
             assert batch.is_valid()
-            x_sampled = batch.get_terminating_states()
+            x_sampled = batch.get_terminating_states(proxy=True)
             # TODO make it work with conditional env
-            x_sampled = torch2np(self.env.states2proxy(x_sampled))
             x_tt = torch2np(self.env.states2proxy(x_tt))
             kde_pred = self.env.fit_kde(
                 x_sampled,
@@ -1284,10 +1323,9 @@ class GFlowNetAgent:
                 kde_true = dict_tt["kde_true"]
             else:
                 # Sample from reward via rejection sampling
-                x_from_reward = self.env.sample_from_reward(
-                    n_samples=self.logger.test.n
+                x_from_reward = self.env.states2proxy(
+                    self.sample_from_reward(n_samples=self.logger.test.n)
                 )
-                x_from_reward = torch2np(self.env.states2proxy(x_from_reward))
                 # Fit KDE with samples from reward
                 kde_true = self.env.fit_kde(
                     x_from_reward,
@@ -1310,42 +1348,91 @@ class GFlowNetAgent:
             density_true = np.exp(log_density_true)
             density_pred = np.exp(log_density_pred)
         else:
-            # TODO: refactor
-            env_metrics = self.env.test(x_sampled)
-            return (
-                self.l1,
-                self.kl,
-                self.jsd,
-                corr_prob_traj_rewards,
-                var_logrewards_logp,
-                nll_tt,
-                mean_logprobs_std,
-                mean_probs_std,
-                logprobs_std_nll_ratio,
-                (None,),
-                env_metrics,
+            raise NotImplementedError
+
+        if self.buffer.test_type == "all" or self.continuous:
+            # L1 error
+            l1 = np.abs(density_pred - density_true).mean()
+            # KL divergence
+            kl = (density_true * (log_density_true - log_density_pred)).mean()
+            # Jensen-Shannon divergence
+            log_mean_dens = np.logaddexp(log_density_true, log_density_pred) + np.log(
+                0.5
             )
-        # L1 error
-        l1 = np.abs(density_pred - density_true).mean()
-        # KL divergence
-        kl = (density_true * (log_density_true - log_density_pred)).mean()
-        # Jensen-Shannon divergence
-        log_mean_dens = np.logaddexp(log_density_true, log_density_pred) + np.log(0.5)
-        jsd = 0.5 * np.sum(density_true * (log_density_true - log_mean_dens))
-        jsd += 0.5 * np.sum(density_pred * (log_density_pred - log_mean_dens))
+            jsd = 0.5 * np.sum(density_true * (log_density_true - log_mean_dens))
+            jsd += 0.5 * np.sum(density_pred * (log_density_pred - log_mean_dens))
+        else:
+            l1 = self.l1
+            kl = self.kl
+            jsd = self.jsd
 
         # Plots
-
         if hasattr(self.env, "plot_reward_samples"):
-            fig_reward_samples = self.env.plot_reward_samples(x_sampled, **plot_kwargs)
+            # TODO: improve to not repeat code
+            if not hasattr(self, "sample_space_batch"):
+                if hasattr(self.env, "get_all_terminating_states"):
+                    self.sample_space_batch = self.env.get_all_terminating_states()
+                elif hasattr(self.env, "get_grid_terminating_states"):
+                    self.sample_space_batch = self.env.get_grid_terminating_states(
+                        self.logger.test.n_grid
+                    )
+                else:
+                    raise NotImplementedError(
+                        "In order to plot the reward density and the samples, the "
+                        "environment must implement either get_all_terminating_states() "
+                        "or get_grid_terminating_states()"
+                    )
+                self.sample_space_batch = self.env.states2proxy(self.sample_space_batch)
+            if not hasattr(self, "rewards_sample_space"):
+                self.rewards_sample_space = self.proxy.rewards(self.sample_space_batch)
+            fig_reward_samples = self.env.plot_reward_samples(
+                x_sampled,
+                self.sample_space_batch,
+                self.rewards_sample_space,
+                **plot_kwargs,
+            )
         else:
             fig_reward_samples = None
         if hasattr(self.env, "plot_kde"):
-            fig_kde_pred = self.env.plot_kde(kde_pred, **plot_kwargs)
-            fig_kde_true = self.env.plot_kde(kde_true, **plot_kwargs)
+            # TODO: improve to not repeat code
+            if not hasattr(self, "sample_space_batch"):
+                if hasattr(self.env, "get_all_terminating_states"):
+                    self.sample_space_batch = self.env.get_all_terminating_states()
+                elif hasattr(self.env, "get_grid_terminating_states"):
+                    self.sample_space_batch = self.env.get_grid_terminating_states(
+                        self.logger.test.n_grid
+                    )
+                else:
+                    raise NotImplementedError(
+                        "In order to plot the KDEs over the sample space, the "
+                        "environment must implement either get_all_terminating_states() "
+                        "or get_grid_terminating_states()"
+                    )
+                self.sample_space_batch = self.env.states2proxy(self.sample_space_batch)
+            fig_kde_pred = self.env.plot_kde(
+                self.sample_space_batch, kde_pred, **plot_kwargs
+            )
+            fig_kde_true = self.env.plot_kde(
+                self.sample_space_batch, kde_true, **plot_kwargs
+            )
         else:
             fig_kde_pred = None
             fig_kde_true = None
+        if hasattr(self.env, "plot_samples_topk"):
+            # TODO: samples are in environment format because this is what is needed by
+            # Tetris. We may want to adapt it.
+            # TODO: this is a pretty bad implementation, but it will be fixed with the
+            # Evaluator
+            batch, _ = self.sample_batch(n_forward=self.logger.test.n, train=False)
+            x_sampled = batch.get_terminating_states()
+            rewards = self.proxy.rewards(self.env.states2proxy(x_sampled))
+            fig_samples_topk = self.env.plot_samples_topk(
+                x_sampled,
+                rewards,
+                **plot_kwargs,
+            )
+        else:
+            fig_samples_topk = None
         return (
             l1,
             kl,
@@ -1356,7 +1443,7 @@ class GFlowNetAgent:
             mean_logprobs_std,
             mean_probs_std,
             logprobs_std_nll_ratio,
-            [fig_reward_samples, fig_kde_pred, fig_kde_true],
+            [fig_reward_samples, fig_kde_pred, fig_kde_true, fig_samples_topk],
             {},
         )
 
@@ -1391,7 +1478,12 @@ class GFlowNetAgent:
         print()
         if not gfn_states:
             # sample states from the current gfn
-            batch = Batch(env=self.env, device=self.device, float_type=self.float)
+            batch = Batch(
+                env=self.env,
+                proxy=self.proxy,
+                device=self.device,
+                float_type=self.float,
+            )
             self.random_action_prob = 0
             t = time.time()
             print("Sampling from GFN...", end="\r")
@@ -1414,7 +1506,12 @@ class GFlowNetAgent:
         if do_random:
             # sample random states from uniform actions
             if not random_states:
-                batch = Batch(env=self.env, device=self.device, float_type=self.float)
+                batch = Batch(
+                    env=self.env,
+                    proxy=self.proxy,
+                    device=self.device,
+                    float_type=self.float,
+                )
                 self.random_action_prob = 1.0
                 print("[test_top_k] Sampling at random...", end="\r")
                 for b in batch_with_rest(
@@ -1464,6 +1561,60 @@ class GFlowNetAgent:
         )
         print()
         return metrics, figs, fig_names, summary
+
+    # TODO: implement other proposal distributions
+    # TODO: rethink whether it is needed to convert to reward
+    def sample_from_reward(
+        self,
+        n_samples: int,
+        proposal_distribution: str = "uniform",
+        epsilon=1e-4,
+    ) -> Union[List, Dict, TensorType["n_samples", "state_dim"]]:
+        """
+        Rejection sampling with proposal the uniform distribution defined over the
+        sample space.
+
+        Returns a tensor in GFloNet (state) format.
+
+        Parameters
+        ----------
+        n_samples : int
+            The number of samples to draw from the reward distribution.
+        proposal_distribution : str
+            Identifier of the proposal distribution. Currently only `uniform` is
+            implemented.
+        epsilon : float
+            Small epsilon parameter for rejection sampling.
+
+        Returns
+        -------
+        samples_final : list
+            The list of samples drawn from the reward distribution in environment
+            format.
+        """
+        samples_final = []
+        max_reward = self.get_max_reward()
+        while len(samples_final) < n_samples:
+            if proposal_distribution == "uniform":
+                # TODO: sample only the remaining number of samples
+                samples_uniform = self.env.get_uniform_terminating_states(n_samples)
+            else:
+                raise NotImplementedError("The proposal distribution must be uniform")
+            rewards = self.proxy.proxy2reward(
+                self.proxy(self.env.states2proxy(samples_uniform))
+            )
+            indices_accept = (
+                (
+                    torch.rand(n_samples, dtype=self.float, device=self.device)
+                    * (max_reward + epsilon)
+                    < rewards
+                )
+                .flatten()
+                .tolist()
+            )
+            samples_accepted = [samples_uniform[idx] for idx in indices_accept]
+            samples_final.extend(samples_accepted[-(n_samples - len(samples_final)) :])
+        return samples_final
 
     def get_log_corr(self, times):
         data_logq = []

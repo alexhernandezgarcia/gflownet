@@ -46,8 +46,6 @@ env:
       beta_beta: 10.0
       bernoulli_eos_prob: 0.1
       bernoulli_bts_prob: 0.1
-  reward_func: boltzmann
-  reward_beta: 8
   buffer:
     replay_capacity: 0
     test:
@@ -55,6 +53,11 @@ env:
       path: /home/mila/h/hernanga/gflownet/data/crystals/matbench_normed_l0.9-100_a50-150_val_12_SGinter_states_energy.pkl
       output_csv: ccrystal_val.csv
       output_pkl: ccrystal_val.pkl
+
+# Proxy
+proxy:
+  reward_function: exponential
+  beta: 8
 
 # GFlowNet hyperparameters
 gflownet:

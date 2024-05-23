@@ -1,29 +1,17 @@
 _target_: gflownet.envs.base.GFlowNetEnv
 
-# Reward function: power or boltzmann
-# boltzmann: exp(-1.0 * reward_beta * proxy)
-# power: (-1.0 * proxy / reward_norm) ** self.reward_beta
-# identity: proxy
-reward_func: identity
-# Minimum reward
-reward_min: 1e-8
-# Beta parameter of the reward function
-reward_beta: 1.0
-# Reward normalization for "power" reward function
-reward_norm: 1.0
-# If > 0, reward_norm = reward_norm_std_mult * std(energies)
-reward_norm_std_mult: 0.0
-proxy_state_format: oracle
+env_id: "env"
+# Policy distribution parameters
+fixed_distr_params: null
+random_distr_params: null
 # Check if action valid with mask before step
 skip_mask_check: False
 # Whether the environment has conditioning variables
 conditional: False
 # Whether the environment is continuous
 continuous: False
-# Buffer
+# Buffer: no train and test buffers by default
 buffer:
   replay_capacity: 0
-  train:
-    path: null
-  test:
-    path: null
+  train: null
+  test: null
