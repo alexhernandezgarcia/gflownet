@@ -34,15 +34,6 @@ class GFlowNetEnv:
         device: str = "cpu",
         float_precision: int = 32,
         env_id: Union[int, str] = "env",
-        reward_min: float = 1e-8,
-        reward_beta: float = 1.0,
-        reward_norm: float = 1.0,
-        reward_norm_std_mult: float = 0.0,
-        reward_func: str = "identity",
-        energies_stats: List[int] = None,
-        denorm_proxy: bool = False,
-        proxy=None,
-        proxy_state_format: str = "oracle",
         fixed_distr_params: Optional[dict] = None,
         random_distr_params: Optional[dict] = None,
         skip_mask_check: bool = False,
@@ -60,21 +51,6 @@ class GFlowNetEnv:
         self.device = set_device(device)
         # Float precision
         self.float = set_float_precision(float_precision)
-        # Reward settings
-        self.min_reward = reward_min
-        assert self.min_reward > 0
-        self.reward_beta = reward_beta
-        assert self.reward_beta > 0
-        self.reward_norm = reward_norm
-        assert self.reward_norm > 0
-        self.reward_norm_std_mult = reward_norm_std_mult
-        self.reward_func = reward_func
-        self.energies_stats = energies_stats
-        self.denorm_proxy = denorm_proxy
-        # Proxy
-        self.proxy = proxy
-        self.setup_proxy()
-        self.proxy_state_format = proxy_state_format
         # Flag to skip checking if action is valid (computing mask) before step
         self.skip_mask_check = skip_mask_check
         # Log SoftMax function
@@ -766,100 +742,6 @@ class GFlowNetEnv:
         """
         return str(traj).replace("(", "[").replace(")", "]").replace(",", "")
 
-    def reward(self, state=None, done=None, do_non_terminating=False):
-        """
-        Computes the reward of a state
-        """
-        state = self._get_state(state)
-        done = self._get_done(done)
-        if not done and not do_non_terminating:
-            return tfloat(0.0, float_type=self.float, device=self.device)
-        return self.proxy2reward(self.proxy(self.state2proxy(state))[0])
-
-    # TODO: cleanup
-    def reward_batch(self, states: List[List], done=None):
-        """
-        Computes the rewards of a batch of states, given a list of states and 'dones'
-        """
-        if done is None:
-            done = np.ones(len(states), dtype=bool)
-        states_proxy = self.states2proxy(states)
-        if isinstance(states_proxy, torch.Tensor):
-            states_proxy = states_proxy[list(done), :]
-        elif isinstance(states_proxy, list):
-            states_proxy = [states_proxy[i] for i in range(len(done)) if done[i]]
-        rewards = np.zeros(len(done))
-        if len(states_proxy) > 0:
-            rewards[list(done)] = self.proxy2reward(self.proxy(states_proxy)).tolist()
-        return rewards
-
-    def proxy2reward(self, proxy_vals):
-        """
-        Prepares the output of an oracle for GFlowNet: the inputs proxy_vals is
-        expected to be a negative value (energy), unless self.denorm_proxy is True. If
-        the latter, the proxy values are first de-normalized according to the mean and
-        standard deviation in self.energies_stats, then made negative. The output of
-        the function is a strictly positive reward - self.reward_norm and
-        self.reward_beta must be positive - and larger than or equal to self.min_reward.
-        """
-        if self.denorm_proxy:
-            # TODO: do with torch
-            # TODO: review
-            proxy_vals = (
-                proxy_vals * (self.energies_stats[1] - self.energies_stats[0])
-                + self.energies_stats[0]
-            )
-            # proxy_vals = proxy_vals * self.energies_stats[3] + self.energies_stats[2]
-        proxy_vals = -1.0 * proxy_vals
-        if self.reward_func == "power":
-            return torch.clamp(
-                (proxy_vals / self.reward_norm) ** self.reward_beta,
-                min=self.min_reward,
-                max=None,
-            )
-        elif self.reward_func == "boltzmann":
-            return torch.clamp(
-                torch.exp(self.reward_beta * proxy_vals),
-                min=self.min_reward,
-                max=None,
-            )
-        elif self.reward_func == "identity":
-            return torch.clamp(
-                proxy_vals,
-                min=self.min_reward,
-                max=None,
-            )
-        elif self.reward_func == "shift":
-            return torch.clamp(
-                self.proxy_factor * proxy_vals + self.reward_beta,
-                min=self.min_reward,
-                max=None,
-            )
-        else:
-            raise NotImplementedError
-
-    def reward2proxy(self, reward):
-        """
-        Converts a "GFlowNet reward" into a (negative) energy or values as returned by
-        a proxy.
-        """
-        if self.reward_func == "power":
-            return -1.0 * torch.exp(
-                (
-                    torch.log(reward)
-                    + self.reward_beta * torch.log(torch.as_tensor(self.reward_norm))
-                )
-                / self.reward_beta
-            )
-        elif self.reward_func == "boltzmann":
-            return -1.0 * torch.log(reward) / self.reward_beta
-        elif self.reward_func == "identity":
-            return -1.0 * reward
-        elif self.reward_func == "shift":
-            return -1.0 * (reward - self.reward_beta)
-        else:
-            raise NotImplementedError
-
     def reset(self, env_id: Union[int, str] = None):
         """
         Resets the environment.
@@ -945,12 +827,6 @@ class GFlowNetEnv:
         else:
             return np.all(np.isclose(state_x, state_y, atol=atol))
 
-    def set_energies_stats(self, energies_stats):
-        self.energies_stats = energies_stats
-
-    def set_reward_norm(self, reward_norm):
-        self.reward_norm = reward_norm
-
     def get_max_traj_length(self):
         return 1e3
 
@@ -992,10 +868,6 @@ class GFlowNetEnv:
                 traj_list, traj_actions_list, current_traj + [p], current_actions + [a]
             )
         return traj_list, traj_actions_list
-
-    def setup_proxy(self):
-        if self.proxy:
-            self.proxy.setup(self)
 
     @torch.no_grad()
     def compute_train_energy_proxy_and_rewards(self):

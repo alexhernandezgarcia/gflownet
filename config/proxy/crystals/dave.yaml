@@ -1,3 +1,6 @@
+defaults:
+  - base
+
 _target_: gflownet.proxy.crystals.dave.DAVE
 
 release: 0.3.4

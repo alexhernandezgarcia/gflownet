@@ -7,6 +7,7 @@ import torch
 from torchtyping import TensorType
 
 from gflownet.envs.base import GFlowNetEnv
+from gflownet.proxy.base import Proxy
 from gflownet.utils.common import (
     concat_items,
     copy,
@@ -37,20 +38,23 @@ class Batch:
     def __init__(
         self,
         env: Optional[GFlowNetEnv] = None,
+        proxy: Optional[Proxy] = None,
         device: Union[str, torch.device] = "cpu",
         float_type: Union[int, torch.dtype] = 32,
     ):
         """
+        Arguments
+        ---------
         env : GFlowNetEnv
             An instance of the environment that will be used to form the batch.
-
+        proxy : Proxy
+            An instance of a GFlowNet proxy that will be used to compute proxy values
+            and rewards.
         device : str or torch.device
             torch.device or string indicating the device to use ("cpu" or "cuda")
-
         float_type : torch.dtype or int
             One of float torch.dtype or an int indicating the float precision (16, 32
             or 64).
-
         """
         # Device
         self.device = set_device(device)
@@ -65,6 +69,8 @@ class Batch:
             self.source = None
             self.conditional = None
             self.continuous = None
+        # Proxy
+        self.proxy = proxy
         # Initialize batch size 0
         self.size = 0
         # Initialize empty batch variables
@@ -96,6 +102,9 @@ class Batch:
         self.rewards_available = False
         self.rewards_parents_available = False
         self.rewards_source_available = False
+        self.logrewards_available = False
+        self.logrewards_parents_available = False
+        self.logrewards_source_available = False
 
     def __len__(self):
         return self.size
@@ -143,6 +152,12 @@ class Batch:
         }
         self.conditional = self.env.conditional
         self.continuous = self.env.continuous
+
+    def set_proxy(self, proxy: Proxy):
+        """
+        Sets the proxy, used to compute rewards from a batch of states.
+        """
+        self.proxy = proxy
 
     def add_to_batch(
         self,
@@ -241,6 +256,7 @@ class Batch:
         self.parents_policy_available = False
         self.parents_all_available = False
         self.rewards_available = False
+        self.logrewards_available = False
 
     def get_n_trajectories(self) -> int:
         """
@@ -556,7 +572,10 @@ class Batch:
         """
         self.parents = []
         self.parents_indices = []
-        indices = []
+
+        indices_dict = {}
+        indices_next = 0
+
         # Iterate over the trajectories to obtain the parents from the states
         for traj_idx, batch_indices in self.trajectories.items():
             # parent is source
@@ -567,12 +586,18 @@ class Batch:
             # TODO: check if tensor and sort without iter
             self.parents.extend([self.states[idx] for idx in batch_indices[:-1]])
             self.parents_indices.extend(batch_indices[:-1])
-            indices.extend(batch_indices)
+
+            # Store the indices required to reorder the parents lists in the same
+            # order as the states
+            for b_idx in batch_indices:
+                indices_dict[b_idx] = indices_next
+                indices_next += 1
+
         # Sort parents list in the same order as states
         # TODO: check if tensor and sort without iter
-        self.parents = [self.parents[indices.index(idx)] for idx in range(len(self))]
+        self.parents = [self.parents[indices_dict[idx]] for idx in range(len(self))]
         self.parents_indices = tlong(
-            [self.parents_indices[indices.index(idx)] for idx in range(len(self))],
+            [self.parents_indices[indices_dict[idx]] for idx in range(len(self))],
             device=self.device,
         )
         self.parents_available = True
@@ -839,112 +864,163 @@ class Batch:
             ].get_mask_invalid_actions_backward(state, done)
         self.masks_backward_available = True
 
+    # TODO: better handling of availability of rewards, logrewards, proxy_values.
     def get_rewards(
         self,
+        log: bool = False,
         force_recompute: Optional[bool] = False,
         do_non_terminating: Optional[bool] = False,
     ) -> TensorType["n_states"]:
         """
         Returns the rewards of all states in the batch (including not done).
 
-        Args
-        ----
+        Parameters
+        ----------
+        log : bool
+            If True, return the logarithm of the rewards.
         force_recompute : bool
             If True, the rewards are recomputed even if they are available.
-
         do_non_terminating : bool
-            If True, compute the rewards of the non-terminating states instead of
-            assigning reward 0.
+            If True, compute the actual rewards of the non-terminating states. If
+            False, non-terminating states will be assigned reward 0.
         """
         if self.rewards_available is False or force_recompute is True:
-            self._compute_rewards(do_non_terminating)
-        return self.rewards
+            self._compute_rewards(log, do_non_terminating)
+        if log:
+            return self.logrewards
+        else:
+            return self.rewards
 
-    def _compute_rewards(self, do_non_terminating: Optional[bool] = False):
+    def _compute_rewards(
+        self, log: bool = False, do_non_terminating: Optional[bool] = False
+    ):
         """
         Computes rewards for all self.states by first converting the states into proxy
         format. The result is stored in self.rewards as a torch.tensor
 
-        Args
-        ----
+        Parameters
+        ----------
+        log : bool
+            If True, compute the logarithm of the rewards.
         do_non_terminating : bool
             If True, compute the rewards of the non-terminating states instead of
             assigning reward 0.
         """
 
         if do_non_terminating:
-            self.rewards = self.env.proxy2reward(self.env.proxy(self.states2proxy()))
+            rewards = self.proxy.rewards(self.states2proxy(), log)
         else:
-            self.rewards = torch.zeros(len(self), dtype=self.float, device=self.device)
+            rewards = self.proxy.get_min_reward(log) * torch.ones(
+                len(self), dtype=self.float, device=self.device
+            )
             done = self.get_done()
             if len(done) > 0:
                 states_proxy_done = self.get_terminating_states(proxy=True)
-                self.rewards[done] = self.env.proxy2reward(
-                    self.env.proxy(states_proxy_done)
-                )
-        self.rewards_available = True
+                rewards[done] = self.proxy.rewards(states_proxy_done, log)
+        if log:
+            self.logrewards = rewards
+            self.logrewards_available = True
+        else:
+            self.rewards = rewards
+            self.rewards_available = True
 
-    def get_rewards_parents(self) -> TensorType["n_states"]:
+    def get_rewards_parents(self, log: bool = False) -> TensorType["n_states"]:
         """
         Returns the rewards of all parents in the batch.
 
+        Parameters
+        ----------
+        log : bool
+            If True, return the logarithm of the rewards.
+
         Returns
         -------
-        self.rewards_parents
+        self.rewards_parents or self.logrewards_parents
             A tensor containing the rewards of the parents of self.states.
         """
         if not self.rewards_parents_available:
-            self._compute_rewards_parents()
-        return self.rewards_parents
+            self._compute_rewards_parents(log)
+        if log:
+            return self.logrewards_parents
+        else:
+            return self.rewards_parents
 
-    def _compute_rewards_parents(self):
+    def _compute_rewards_parents(self, log: bool = False):
         """
         Computes the rewards of self.parents by reusing the rewards of the states
         (self.rewards).
 
-        Stores the result in self.rewards_parents.
+        Stores the result in self.rewards_parents or self.logrewards_parents.
+
+        Parameters
+        ----------
+        log : bool
+            If True, compute the logarithm of the rewards.
         """
         # TODO: this may return zero rewards for all parents if before
         # rewards for states were computed with do_non_terminating=False
-        state_rewards = self.get_rewards(do_non_terminating=True)
-        self.rewards_parents = torch.zeros_like(state_rewards)
+        state_rewards = self.get_rewards(log=log, do_non_terminating=True)
+        rewards_parents = torch.zeros_like(state_rewards)
         parent_indices = self.get_parents_indices()
         parent_is_source = parent_indices == -1
-        self.rewards_parents[~parent_is_source] = self.rewards[
+        rewards_parents[~parent_is_source] = state_rewards[
             parent_indices[~parent_is_source]
         ]
-        rewards_source = self.get_rewards_source()
-        self.rewards_parents[parent_is_source] = rewards_source[parent_is_source]
-        self.rewards_parents_available = True
+        rewards_source = self.get_rewards_source(log)
+        rewards_parents[parent_is_source] = rewards_source[parent_is_source]
+        if log:
+            self.logrewards_parents = rewards_parents
+            self.logrewards_parents_available = True
+        else:
+            self.rewards_parents = rewards_parents
+            self.rewards_parents_available = True
 
-    def get_rewards_source(self) -> TensorType["n_states"]:
+    def get_rewards_source(self, log: bool = False) -> TensorType["n_states"]:
         """
         Returns rewards of the corresponding source states for each state in the batch.
 
+        Parameters
+        ----------
+        log : bool
+            If True, return the logarithm of the rewards.
+
         Returns
         -------
-        self.rewards_source
+        self.rewards_source or self.logrewards_source
             A tensor containing the rewards the source states.
         """
         if not self.rewards_source_available:
-            self._compute_rewards_source()
-        return self.rewards_source
+            self._compute_rewards_source(log)
+        if log:
+            return self.logrewards_source
+        else:
+            return self.rewards_source
 
-    def _compute_rewards_source(self):
+    def _compute_rewards_source(self, log: bool = False):
         """
         Computes a tensor of length len(self.states) with the rewards of the
         corresponding source states.
 
-        Stores the result in self.rewards_source.
+        Stores the result in self.rewards_source or self.logrewards_source.
+
+        Parameters
+        ----------
+        log : bool
+            If True, compute the logarithm of the rewards.
         """
         # This will not work if source is randomised
         if not self.conditional:
             source_proxy = self.env.state2proxy(self.env.source)
-            reward_source = self.env.proxy2reward(self.env.proxy(source_proxy))
-            self.rewards_source = reward_source.expand(len(self))
+            reward_source = self.proxy.rewards(source_proxy, log)
+            rewards_source = reward_source.expand(len(self))
         else:
             raise NotImplementedError
-        self.rewards_source_available = True
+        if log:
+            self.logrewards_source = rewards_source
+            self.logrewards_source_available = True
+        else:
+            self.rewards_source = rewards_source
+            self.rewards_source_available = True
 
     def get_terminating_states(
         self,
@@ -1013,6 +1089,7 @@ class Batch:
     def get_terminating_rewards(
         self,
         sort_by: str = "insertion",
+        log: bool = False,
         force_recompute: Optional[bool] = False,
     ) -> TensorType["n_trajectories"]:
         """
@@ -1021,15 +1098,16 @@ class Batch:
         (sort_by = "insert[ion]", default) or by trajectory index (sort_by =
         "traj[ectory]".
 
-        Args
-        ----
+        Parameters
+        ----------
         sort_by : str
             Indicates how to sort the output:
                 - insert[ion]: sort by order of insertion (rewards of trajectories that
                   reached the terminating state first come first)
                 - traj[ectory]: sort by trajectory index (the order in the ordered
                   dict self.trajectories)
-
+        log : bool
+            If True, return the logarithm of the rewards.
         force_recompute : bool
             If True, the rewards are recomputed even if they are available.
         """
@@ -1040,9 +1118,12 @@ class Batch:
         else:
             raise ValueError("sort_by must be either insert[ion] or traj[ectory]")
         if self.rewards_available is False or force_recompute is True:
-            self._compute_rewards()
+            self._compute_rewards(log, do_non_terminating=False)
         done = self.get_done()[indices]
-        return self.rewards[indices][done]
+        if log:
+            return self.logrewards[indices][done]
+        else:
+            return self.rewards[indices][done]
 
     def get_actions_trajectories(self) -> List[List[Tuple]]:
         """
@@ -1166,6 +1247,10 @@ class Batch:
                 self.rewards = extend(self.rewards, batch.rewards)
             else:
                 self.rewards = None
+            if self.logrewards_available and batch.logrewards_available:
+                self.logrewards = extend(self.logrewards, batch.logrewards)
+            else:
+                self.logrewards = None
         assert self.is_valid()
         return self
 

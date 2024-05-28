@@ -17,9 +17,9 @@ class Tetris(Proxy):
     @property
     def norm(self):
         if self.normalize:
-            return -(self.height * self.width)
+            return self.height * self.width
         else:
-            return -1.0
+            return 1.0
 
     def __call__(self, states: TensorType["batch", "state_dim"]) -> TensorType["batch"]:
         if states.dim() == 2:

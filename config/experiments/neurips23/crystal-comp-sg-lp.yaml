@@ -16,8 +16,11 @@ env:
     grid_size: 10
   composition_kwargs:
     elements: 89
-  reward_func: boltzmann
-  reward_beta: 1
+
+# Proxy
+proxy:
+  reward_function: exponential
+  beta: 1
 
 # GFlowNet hyperparameters
 gflownet:
