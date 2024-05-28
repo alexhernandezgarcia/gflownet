@@ -4,7 +4,7 @@ Branin objective function, relying on the botorch implementation.
 This code is based on the implementation by Nikita Saxena (nikita-0209) in 
 https://github.com/alexhernandezgarcia/activelearning
 
-The implementation assumes by default that the inputs will be on [0, 1] x [0, 1] and
+The implementation assumes by default that the inputs will be on [-1, 1] x [-1, 1] and
 will be mapped to the standard domain of the Branin function (see X1_DOMAIN and
 X2_DOMAIN). Setting do_domain_map to False will prevent the mapping.
 
@@ -27,7 +27,14 @@ UPPER_BOUND_IN_DOMAIN = 309
 
 
 class Branin(Proxy):
-    def __init__(self, fidelity=1.0, do_domain_map=True, **kwargs):
+    def __init__(
+        self,
+        fidelity=1.0,
+        do_domain_map=True,
+        reward_function="product",
+        rewareward_function_kwargs={"beta": -1},
+        **kwargs
+    ):
         """
         Parameters
         ----------
@@ -91,10 +98,10 @@ class Branin(Proxy):
         """
         Maps a batch of input states onto the domain typically used to evaluate the
         Branin function. See X1_DOMAIN and X2_DOMAIN. It assumes that the inputs are on
-        [0, 1] x [0, 1].
+        [-1, 1] x [-1, 1].
         """
-        states[:, 0] = X1_DOMAIN[0] + states[:, 0] * X1_LENGTH
-        states[:, 1] = X2_DOMAIN[0] + states[:, 1] * X2_LENGTH
+        states[:, 0] = X1_DOMAIN[0] + ((states[:, 0] + 1.0) * X1_LENGTH) / 2.0
+        states[:, 1] = X2_DOMAIN[0] + ((states[:, 1] + 1.0) * X2_LENGTH) / 2.0
         return states
 
     @staticmethod
