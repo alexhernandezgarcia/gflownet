@@ -9,8 +9,8 @@ will be mapped to the standard domain of the Branin function (see X1_DOMAIN and
 X2_DOMAIN). Setting do_domain_map to False will prevent the mapping.
 
 Branin function is typically used as a minimization problem, with the minima around
-zero but positive. In order to map the range into the convential negative range, an
-upper bound of of Branin in the standard domain (UPPER_BOUND_IN_DOMAIN) is subtracted.
+zero but positive. This is the convention followed by default, therefore the user
+should carefully select the reward function.
 """
 
 import torch
@@ -29,9 +29,15 @@ UPPER_BOUND_IN_DOMAIN = 309
 class Branin(Proxy):
     def __init__(self, fidelity=1.0, do_domain_map=True, **kwargs):
         """
+        Parameters
+        ----------
         fidelity : float
             Fidelity of the Branin oracle. 1.0 corresponds to the original Branin.
             Smaller values (up to 0.0) reduce the fidelity of the oracle.
+        do_domain_map : bool
+            If True, the states are assumed to be in [0, 1] x [0, 1] and are re-mapped
+            to the standard domain before calling the botorch method. If False, the
+            botorch method is called directly on the states values.
 
         See: https://botorch.org/api/test_functions.html
         """
