@@ -18,6 +18,7 @@ from botorch.test_functions.multi_fidelity import AugmentedBranin
 from torchtyping import TensorType
 
 from gflownet.proxy.base import Proxy
+from gflownet.utils.common import tfloat
 
 X1_DOMAIN = [-5, 10]
 X1_LENGTH = X1_DOMAIN[1] - X1_DOMAIN[0]
@@ -31,6 +32,7 @@ class Branin(Proxy):
         self,
         fidelity=1.0,
         do_domain_map=True,
+        shift_to_negative=False,
         reward_function="product",
         rewareward_function_kwargs={"beta": -1},
         **kwargs
@@ -51,7 +53,15 @@ class Branin(Proxy):
         super().__init__(**kwargs)
         self.fidelity = fidelity
         self.do_domain_map = do_domain_map
+        self.shift_to_negative = shift_to_negative
         self.function_mf_botorch = AugmentedBranin(negate=False)
+        # Constants
+        self.domain_left = tfloat(
+            [[X1_DOMAIN[0], X2_DOMAIN[0]]], float_type=self.float, device=self.device
+        )
+        self.domain_length = tfloat(
+            [[X1_LENGTH, X2_LENGTH]], float_type=self.float, device=self.device
+        )
         # Modes and extremum compatible with 100x100 grid
         self.modes = [
             [12.4, 81.833],
@@ -69,7 +79,7 @@ class Branin(Proxy):
             """
             )
         if self.do_domain_map:
-            states = Branin.map_to_standard_domain(states)
+            states = self.map_to_standard_domain(states)
         # Append fidelity as a new dimension of states
         states = torch.cat(
             [
@@ -81,7 +91,10 @@ class Branin(Proxy):
             ],
             dim=1,
         )
-        return Branin.map_to_negative_range(self.function_mf_botorch(states))
+        if self.shift_to_negative:
+            return Branin.map_to_negative_range(self.function_mf_botorch(states))
+        else:
+            return self.function_mf_botorch(states)
 
     @property
     def min(self):
@@ -91,18 +104,16 @@ class Branin(Proxy):
             )
         return self._min
 
-    @staticmethod
     def map_to_standard_domain(
-        states: TensorType["batch", "2"]
+        self,
+        states: TensorType["batch", "2"],
     ) -> TensorType["batch", "2"]:
         """
         Maps a batch of input states onto the domain typically used to evaluate the
         Branin function. See X1_DOMAIN and X2_DOMAIN. It assumes that the inputs are on
         [-1, 1] x [-1, 1].
         """
-        states[:, 0] = X1_DOMAIN[0] + ((states[:, 0] + 1.0) * X1_LENGTH) / 2.0
-        states[:, 1] = X2_DOMAIN[0] + ((states[:, 1] + 1.0) * X2_LENGTH) / 2.0
-        return states
+        return self.domain_left + ((states + 1.0) * self.domain_length) / 2.0
 
     @staticmethod
     def map_to_negative_range(values: TensorType["batch"]) -> TensorType["batch"]:

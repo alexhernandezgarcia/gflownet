@@ -58,3 +58,27 @@ def test__map_to_standard_domain__returns_expected(
     assert torch.allclose(
         proxy.map_to_standard_domain(samples), samples_standard_domain
     )
+
+
+@pytest.mark.parametrize(
+    "samples, proxy_expected",
+    [
+        (
+            [
+                [-1.0, -1.0],
+                [-1.0, 1.0],
+                [1.0, -1.0],
+                [1.0, 1.0],
+                [0.0, -1.0],
+                [0.0, 1.0],
+                [0.0, 0.0],
+            ],
+            [308.1291, 17.5083, 10.9609, 145.8722, 10.3079, 150.4520, 24.1300],
+        ),
+    ],
+)
+def test__proxy__returns_expected(proxy_default, samples, proxy_expected):
+    proxy = proxy_default
+    samples = tfloat(samples, float_type=proxy.float, device=proxy.device)
+    proxy_expected = tfloat(proxy_expected, float_type=proxy.float, device=proxy.device)
+    assert torch.allclose(proxy(samples), proxy_expected)
