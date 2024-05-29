@@ -9,9 +9,12 @@ will be mapped to the standard domain of the Branin function (see X1_DOMAIN and
 X2_DOMAIN). Setting do_domain_map to False will prevent the mapping.
 
 Branin function is typically used as a minimization problem, with the minima around
-zero but positive. This is the convention followed by default, therefore the user
-should carefully select the reward function.
+zero but positive. By default, proxy values remain in this range and the reward is
+mapped to (~0, UPPER_BOUND_IN_DOMAIN). The user should carefully select the reward
+function in order to stick to the conventional use of the Branin function.
 """
+
+from typing import Callable, List, Optional, Tuple, Union
 
 import torch
 from botorch.test_functions.multi_fidelity import AugmentedBranin
@@ -25,16 +28,23 @@ X1_LENGTH = X1_DOMAIN[1] - X1_DOMAIN[0]
 X2_DOMAIN = [0, 15]
 X2_LENGTH = X2_DOMAIN[1] - X2_DOMAIN[0]
 UPPER_BOUND_IN_DOMAIN = 309
+OPTIMUM = 0.397887
+# Modes compatible with 100x100 grid
+MODES = [
+    [12.4, 81.833],
+    [54.266, 15.16],
+    [94.98, 16.5],
+]
 
 
 class Branin(Proxy):
     def __init__(
         self,
-        fidelity=1.0,
-        do_domain_map=True,
-        shift_to_negative=False,
-        reward_function="product",
-        rewareward_function_kwargs={"beta": -1},
+        fidelity: float = 1.0,
+        do_domain_map: bool = True,
+        negate: bool = False,
+        reward_function: Optional[Union[Callable, str]] = lambda x: -1.0
+        * (x - UPPER_BOUND_IN_DOMAIN),
         **kwargs
     ):
         """
@@ -47,14 +57,24 @@ class Branin(Proxy):
             If True, the states are assumed to be in [0, 1] x [0, 1] and are re-mapped
             to the standard domain before calling the botorch method. If False, the
             botorch method is called directly on the states values.
+        negate : bool
+            If True, proxy values are multiplied by -1.
+        reward_function : str or Callable
+            The transformation applied to the proxy outputs to obtain a GFlowNet
+            reward. By default, proxy values are shifted by UPPER_BOUND_IN_DOMAIN and
+            multiplied by minus one, in order to make them positive and the higher the
+            better.
 
         See: https://botorch.org/api/test_functions.html
         """
+        # Replace the value of reward_function in kwargs by the one passed explicitly
+        # as a parameter
+        kwargs["reward_function"] = reward_function
+        # Call __init__ of parent class
         super().__init__(**kwargs)
         self.fidelity = fidelity
         self.do_domain_map = do_domain_map
-        self.shift_to_negative = shift_to_negative
-        self.function_mf_botorch = AugmentedBranin(negate=False)
+        self.function_mf_botorch = AugmentedBranin(negate=negate)
         # Constants
         self.domain_left = tfloat(
             [[X1_DOMAIN[0], X2_DOMAIN[0]]], float_type=self.float, device=self.device
@@ -62,13 +82,10 @@ class Branin(Proxy):
         self.domain_length = tfloat(
             [[X1_LENGTH, X2_LENGTH]], float_type=self.float, device=self.device
         )
-        # Modes and extremum compatible with 100x100 grid
-        self.modes = [
-            [12.4, 81.833],
-            [54.266, 15.16],
-            [94.98, 16.5],
-        ]
-        self.extremum = 0.397887
+        # Optimum
+        self._optimum = torch.tensor(OPTIMUM, device=self.device, dtype=self.float)
+        if negate:
+            self._optimum *= -1.0
 
     def __call__(self, states: TensorType["batch", "2"]) -> TensorType["batch"]:
         if states.shape[1] != 2:
@@ -91,18 +108,7 @@ class Branin(Proxy):
             ],
             dim=1,
         )
-        if self.shift_to_negative:
-            return Branin.map_to_negative_range(self.function_mf_botorch(states))
-        else:
-            return self.function_mf_botorch(states)
-
-    @property
-    def min(self):
-        if not hasattr(self, "_min"):
-            self._min = torch.tensor(
-                -UPPER_BOUND_IN_DOMAIN, device=self.device, dtype=self.float
-            )
-        return self._min
+        return self.function_mf_botorch(states)
 
     def map_to_standard_domain(
         self,
@@ -114,20 +120,3 @@ class Branin(Proxy):
         [-1, 1] x [-1, 1].
         """
         return self.domain_left + ((states + 1.0) * self.domain_length) / 2.0
-
-    @staticmethod
-    def map_to_negative_range(values: TensorType["batch"]) -> TensorType["batch"]:
-        """
-        Maps a batch of function values onto a negative range by substracting an upper
-        bound of the Branin function in the standard domain (UPPER_BOUND_IN_DOMAIN).
-        """
-        return values - UPPER_BOUND_IN_DOMAIN
-
-    @staticmethod
-    def map_to_standard_range(values: TensorType["batch"]) -> TensorType["batch"]:
-        """
-        Maps a batch of function values in a negative range back onto the standard
-        range by adding an upper bound of the Branin function in the standard domain
-        (UPPER_BOUND_IN_DOMAIN).
-        """
-        return values + UPPER_BOUND_IN_DOMAIN
