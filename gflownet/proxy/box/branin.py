@@ -14,7 +14,7 @@ mapped to (~0, UPPER_BOUND_IN_DOMAIN). The user should carefully select the rewa
 function in order to stick to the conventional use of the Branin function.
 """
 
-from typing import Callable, List, Optional, Tuple, Union
+from typing import Callable, Optional, Union
 
 import torch
 from botorch.test_functions.multi_fidelity import AugmentedBranin
@@ -54,7 +54,7 @@ class Branin(Proxy):
             Fidelity of the Branin oracle. 1.0 corresponds to the original Branin.
             Smaller values (up to 0.0) reduce the fidelity of the oracle.
         do_domain_map : bool
-            If True, the states are assumed to be in [0, 1] x [0, 1] and are re-mapped
+            If True, the states are assumed to be in [-1, 1] x [-1, 1] and are re-mapped
             to the standard domain before calling the botorch method. If False, the
             botorch method is called directly on the states values.
         negate : bool
