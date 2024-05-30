@@ -2,9 +2,9 @@
 An ``Evaluator`` is a class that is used to compute metrics and generate plots.
 It serves two complementary purposes:
 
-1. It is used to evaluate the performance of the agent during training and to log the
+1. Evaluate the performance of the agent during training and to log the
    results.
-2. It is intended to be used to evaluate the performance of a trained agent, from a
+2. Evaluate the performance of a trained agent, from a
    directory containing the agent's checkpoints for instance.
 
 .. note::
