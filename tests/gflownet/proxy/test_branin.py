@@ -3,7 +3,7 @@ import torch
 
 from gflownet.envs.cube import ContinuousCube
 from gflownet.envs.grid import Grid
-from gflownet.proxy.box.branin import Branin
+from gflownet.proxy.box.branin import X1_DOMAIN, X2_DOMAIN, Branin
 from gflownet.utils.common import tfloat
 
 
@@ -202,3 +202,52 @@ def test__rewards__returns_expected(proxy, samples, rewards_expected, request):
 def test__get_max_reward__returns_expected(proxy, max_reward_expected, request):
     proxy = request.getfixturevalue(proxy)
     assert torch.isclose(proxy.get_max_reward(), torch.tensor(max_reward_expected))
+
+
+@pytest.mark.parametrize(
+    "proxy, env",
+    [
+        (
+            "proxy_default",
+            "grid",
+        ),
+        (
+            "proxy_negate_exp_reward",
+            "grid",
+        ),
+        (
+            "proxy_fid05_exp_reward",
+            "grid",
+        ),
+        (
+            "proxy_default",
+            "cube",
+        ),
+        (
+            "proxy_negate_exp_reward",
+            "cube",
+        ),
+        (
+            "proxy_fid05_exp_reward",
+            "cube",
+        ),
+    ],
+)
+def test__env_states_are_within_expected_domain(proxy, env, request):
+    proxy = request.getfixturevalue(proxy)
+    env = request.getfixturevalue(env)
+    # Generate a batch of states
+    if hasattr(env, "get_all_terminating_states"):
+        states = env.states2proxy(env.get_all_terminating_states())
+    else:
+        states = env.states2proxy(env.get_random_terminating_states(100))
+    # Map states to Branin domain
+    states_branin_domain = proxy.map_to_standard_domain(states)
+    # Check that domain is correct
+    assert torch.all(states_branin_domain[:, 0] >= X1_DOMAIN[0])
+    assert torch.all(states_branin_domain[:, 0] <= X1_DOMAIN[1])
+    assert torch.all(states_branin_domain[:, 1] >= X2_DOMAIN[0])
+    assert torch.all(states_branin_domain[:, 1] <= X2_DOMAIN[1])
+    # Simple checks that proxy values and rewards can be computed
+    assert torch.all(torch.isfinite(proxy(states)))
+    assert torch.all(proxy.rewards(states) >= 0.0)

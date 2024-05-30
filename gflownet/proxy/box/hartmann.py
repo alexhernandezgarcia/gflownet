@@ -22,6 +22,7 @@ from torchtyping import TensorType
 
 from gflownet.proxy.base import Proxy
 
+X_DOMAIN = [0, 1]
 # Global optimum, according to BoTorch
 OPTIMUM = -3.32237
 # A rough estimate of modes

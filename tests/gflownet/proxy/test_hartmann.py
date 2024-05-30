@@ -3,7 +3,7 @@ import torch
 
 from gflownet.envs.cube import ContinuousCube
 from gflownet.envs.grid import Grid
-from gflownet.proxy.box.hartmann import Hartmann
+from gflownet.proxy.box.hartmann import X_DOMAIN, Hartmann
 from gflownet.utils.common import tfloat
 
 
@@ -176,3 +176,47 @@ def test__rewards__returns_expected(proxy, samples, rewards_expected, request):
 def test__get_max_reward__returns_expected(proxy, max_reward_expected, request):
     proxy = request.getfixturevalue(proxy)
     assert torch.isclose(proxy.get_max_reward(), torch.tensor(max_reward_expected))
+
+
+@pytest.mark.parametrize(
+    "proxy, env",
+    [
+        (
+            "proxy_default",
+            "grid",
+        ),
+        (
+            "proxy_negate_exp_reward",
+            "grid",
+        ),
+        (
+            "proxy_fid01_exp_reward",
+            "grid",
+        ),
+        (
+            "proxy_default",
+            "cube",
+        ),
+        (
+            "proxy_negate_exp_reward",
+            "cube",
+        ),
+        (
+            "proxy_fid01_exp_reward",
+            "cube",
+        ),
+    ],
+)
+def test__env_states_are_within_expected_domain(proxy, env, request):
+    proxy = request.getfixturevalue(proxy)
+    env = request.getfixturevalue(env)
+    # Generate a batch of states
+    states = env.states2proxy(env.get_random_terminating_states(100))
+    # Map states to Hartmann domain
+    states_hartmann_domain = proxy.map_to_standard_domain(states)
+    # Check that domain is correct
+    assert torch.all(states_hartmann_domain >= X_DOMAIN[0])
+    assert torch.all(states_hartmann_domain <= X_DOMAIN[1])
+    # Simple checks that proxy values and rewards can be computed
+    assert torch.all(torch.isfinite(proxy(states)))
+    assert torch.all(proxy.rewards(states) >= 0.0)
