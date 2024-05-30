@@ -48,7 +48,7 @@ Typical call stack:
 Basic concepts
 --------------
 
-The evaluator is used to compute metrics and plots. It is used to evaluate the
+The evaluator is used to compute metrics and generate plots. It is used to evaluate the
 performance of the agent during training and to log the results. It is also
 intended to be used to evaluate the performance of a trained agent.
 
