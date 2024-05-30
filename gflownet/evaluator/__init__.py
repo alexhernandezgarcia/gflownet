@@ -1,5 +1,5 @@
 """
-An ``Evaluator`` is a class that is used to compute metrics and plots.
+An ``Evaluator`` is a class that is used to compute metrics and generate plots.
 It serves two complementary purposes:
 
 1. It is used to evaluate the performance of the agent during training and to log the
