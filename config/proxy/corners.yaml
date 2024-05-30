@@ -1,0 +1,8 @@
+defaults:
+  - base
+
+_target_: gflownet.proxy.corners.Corners
+
+mu: 0.75
+sigma: 0.05
+higher_is_better: False

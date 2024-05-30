@@ -1,3 +1,6 @@
+defaults:
+  - base
+
 _target_: gflownet.proxy.crystals.lattice_parameters.LatticeParameters
 
 min_value: -100
