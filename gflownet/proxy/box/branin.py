@@ -45,7 +45,7 @@ class Branin(Proxy):
         negate: bool = False,
         reward_function: Optional[Union[Callable, str]] = lambda x: -1.0
         * (x - UPPER_BOUND_IN_DOMAIN),
-        **kwargs
+        **kwargs,
     ):
         """
         Parameters
@@ -90,10 +90,8 @@ class Branin(Proxy):
     def __call__(self, states: TensorType["batch", "2"]) -> TensorType["batch"]:
         if states.shape[1] != 2:
             raise ValueError(
-                """
-            Inputs to the Branin function must be 2-dimensional, but inputs with
-            {states.shape[1]} dimensions were passed.
-            """
+                "Inputs to the Branin function must be 2-dimensional, "
+                f"but inputs with {states.shape[1]} dimensions were passed."
             )
         if self.do_domain_map:
             states = self.map_to_standard_domain(states)

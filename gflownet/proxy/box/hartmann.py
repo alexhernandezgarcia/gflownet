@@ -42,7 +42,7 @@ class Hartmann(Proxy):
         do_domain_map: bool = True,
         negate: bool = False,
         reward_function: Optional[Union[Callable, str]] = "absolute",
-        **kwargs
+        **kwargs,
     ):
         """
         Parameters
@@ -78,10 +78,8 @@ class Hartmann(Proxy):
     def __call__(self, states: TensorType["batch", "state_dim"]) -> TensorType["batch"]:
         if states.shape[1] != 6:
             raise ValueError(
-                """
-            Inputs to the Hartmann function must be 6-dimensional, but inputs with
-            {states.shape[1]} dimensions were passed.
-            """
+                "Inputs to the Hartmann function must be 6-dimensional, "
+                f"but inputs with {states.shape[1]} dimensions were passed."
             )
         # Append fidelity as a new dimension of states
         states = torch.cat(
