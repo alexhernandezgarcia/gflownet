@@ -1538,7 +1538,7 @@ class GFlowNetAgent:
             format.
         """
         samples_final = []
-        max_reward = self.get_max_reward()
+        max_reward = self.proxy.get_max_reward()
         while len(samples_final) < n_samples:
             if proposal_distribution == "uniform":
                 # TODO: sample only the remaining number of samples
