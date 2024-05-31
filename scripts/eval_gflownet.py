@@ -175,7 +175,7 @@ def main(args):
         print("output_dir: ", str(output_dir))
         output_dir.mkdir(parents=True, exist_ok=True)
 
-        for k, (figname, fig) in enumerate(eval_results["figs"].items()):
+        for figname, fig in eval_results["figs"].items():
             output_fig = output_dir / (path_compatible(figname) + ".pdf")
             if fig is not None:
                 fig.savefig(output_fig, bbox_inches="tight")
