@@ -55,7 +55,7 @@ class GFlowNetAgent:
         **kwargs,
     ):
         """
-        Main class of this repository. Handles
+        Main class of this repository. Handles the training logic for a GFlowNet model.
 
         Parameters
         ----------
