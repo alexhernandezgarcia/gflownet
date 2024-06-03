@@ -70,16 +70,15 @@ class Stack(GFlowNetEnv):
             max([subenv.mask_dim for subenv in self.subenvs.values()]) + self.n_subenvs
         )
 
+        # Policy distributions parameters
+        kwargs["fixed_distr_params"] = [
+            subenv.fixed_distr_params for subenv in self.subenvs.values()
+        ]
+        kwargs["random_distr_params"] = [
+            subenv.random_distr_params for subenv in self.subenvs.values()
+        ]
         # Base class init
-        super().__init__(
-            fixed_distr_params=[
-                subenv.fixed_distr_params for subenv in self.subenvs.values()
-            ],
-            random_distr_params=[
-                subenv.random_distr_params for subenv in self.subenvs.values()
-            ],
-            **kwargs,
-        )
+        super().__init__(**kwargs)
 
         # The stack is continuous if any subenv is continuous
         self.continuous = any([subenv.continuous for subenv in self.subenvs.values()])
