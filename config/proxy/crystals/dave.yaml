@@ -16,11 +16,11 @@ rescale_outputs: true
 reward_function: exponential
 # Parameters of the reward function
 reward_function_kwargs:
-  beta: 1.0
+  beta: -1.0
   alpha: 1.0
   # Target value if the rbf_exponential reward_function is used
-  center: 1.34 # https://mila-umontreal.slack.com/archives/C04SC06HCTH/p1706213674295289
-  distance: squared # Metric to compute the distance to the target
+  # center: 1.34 # https://mila-umontreal.slack.com/archives/C04SC06HCTH/p1706213674295289
+  # distance: squared # Metric to compute the distance to the target
 
 # Debug params
 clip:
