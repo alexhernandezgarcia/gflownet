@@ -49,7 +49,6 @@ env:
       beta_beta: 10.0
       bernoulli_eos_prob: 0.1
       bernoulli_bts_prob: 0.1
-  reward_func: identity
   buffer:
     replay_capacity: 1000
     train:

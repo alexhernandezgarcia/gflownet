@@ -6,7 +6,7 @@
 defaults:
   - override /env: crystals/crystal
   - override /gflownet: trajectorybalance
-  - override /proxy: crystals/dave
+  - override /proxy: crystals/density
   - override /logger: wandb
 
 device: cpu
@@ -93,16 +93,6 @@ policy:
     shared_weights: False
     checkpoint: backward
 
-# Proxy (eform)
-proxy:
-  release: 0.3.4 # Formation energy release
-  # Boltzmann (exponential), with negative beta because the formation energy is negative and the lower the better
-  reward_function: exponential
-  # Parameters of the reward function
-  reward_function_kwargs:
-    beta: -8.0
-    alpha: 1.0
-
 # WandB
 logger:
   lightweight: True
@@ -113,7 +103,7 @@ logger:
     - stack
     - matbench
     - icml24
-    - formationenergy
+    - density
   checkpoints:
     period: 500
   do:
