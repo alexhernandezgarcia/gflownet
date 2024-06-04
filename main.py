@@ -33,14 +33,13 @@ def main(config):
     # Logger
     logger = hydra.utils.instantiate(config.logger, config, _recursive_=False)
 
-    # The proxy is required for scoring
+    # The proxy is required by the GFlowNetAgent for computing rewards
     proxy = hydra.utils.instantiate(
         config.proxy,
         device=config.device,
         float_precision=config.float_precision,
     )
 
-    # The proxy is passed to env and used for computing rewards
     # Using Hydra's partial instantiation, see:
     # https://hydra.cc/docs/advanced/instantiate_objects/overview/#partial-instantiation
     env_maker = hydra.utils.instantiate(
