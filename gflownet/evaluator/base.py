@@ -129,7 +129,10 @@ class BaseEvaluator(AbstractEvaluator):
         if not gfn_states:
             # sample states from the current gfn
             batch = Batch(
-                env=self.gfn.env, device=self.gfn.device, float_type=self.gfn.float
+                env=self.gfn.env,
+                proxy=self.gfn.proxy,
+                device=self.gfn.device,
+                float_type=self.gfn.float,
             )
             self.gfn.random_action_prob = 0
             t = time.time()
@@ -154,7 +157,10 @@ class BaseEvaluator(AbstractEvaluator):
             # sample random states from uniform actions
             if not random_states:
                 batch = Batch(
-                    env=self.gfn.env, device=self.gfn.device, float_type=self.gfn.float
+                    env=self.gfn.env,
+                    proxy=self.gfn.proxy,
+                    device=self.gfn.device,
+                    float_type=self.gfn.float,
                 )
                 self.gfn.random_action_prob = 1.0
                 print("[eval_top_k] Sampling at random...", end="\r")
@@ -264,16 +270,14 @@ class BaseEvaluator(AbstractEvaluator):
             lp_metrics["mean_probs_std"] = probs_std.mean().item()
 
         if "reward_batch" in reqs:
-            rewards_x_tt = self.gfn.env.reward_batch(x_tt)
+            rewards_x_tt = self.gfn.proxy.rewards(self.gfn.env.states2proxy(x_tt))
 
             if "corr_prob_traj_rewards" in metrics:
-                rewards_x_tt = self.gfn.env.reward_batch(x_tt)
                 lp_metrics["corr_prob_traj_rewards"] = np.corrcoef(
                     np.exp(logprobs_x_tt.cpu().numpy()), rewards_x_tt
                 )[0, 1]
 
             if "var_logrewards_logp" in metrics:
-                rewards_x_tt = self.gfn.env.reward_batch(x_tt)
                 lp_metrics["var_logrewards_logp"] = torch.var(
                     torch.log(
                         tfloat(
@@ -342,9 +346,11 @@ class BaseEvaluator(AbstractEvaluator):
             x_sampled = batch.get_terminating_states()
 
             if "density_true" in dict_tt:
-                density_true = dict_tt["density_true"]
+                density_true = torch2np(dict_tt["density_true"])
             else:
-                rewards = self.gfn.env.reward_batch(x_tt)
+                rewards = torch2np(
+                    self.gfn.proxy.rewards(self.gfn.env.states2proxy(x_tt))
+                )
                 z_true = rewards.sum()
                 density_true = rewards / z_true
                 with open(self.gfn.buffer.test_pkl, "wb") as f:
@@ -361,9 +367,8 @@ class BaseEvaluator(AbstractEvaluator):
         elif self.gfn.continuous and hasattr(self.gfn.env, "fit_kde"):
             batch, _ = self.gfn.sample_batch(n_forward=self.config.n, train=False)
             assert batch.is_valid()
-            x_sampled = batch.get_terminating_states()
+            x_sampled = batch.get_terminating_states(proxy=True)
             # TODO make it work with conditional env
-            x_sampled = torch2np(self.gfn.env.states2proxy(x_sampled))
             x_tt = torch2np(self.gfn.env.states2proxy(x_tt))
             kde_pred = self.gfn.env.fit_kde(
                 x_sampled,
@@ -375,8 +380,9 @@ class BaseEvaluator(AbstractEvaluator):
                 kde_true = dict_tt["kde_true"]
             else:
                 # Sample from reward via rejection sampling
-                x_from_reward = self.gfn.env.sample_from_reward(n_samples=self.config.n)
-                x_from_reward = torch2np(self.gfn.env.states2proxy(x_from_reward))
+                x_from_reward = self.gfn.env.states2proxy(
+                    self.gfn.sample_from_reward(n_samples=self.config.n)
+                )
                 # Fit KDE with samples from reward
                 kde_true = self.gfn.env.fit_kde(
                     x_from_reward,
@@ -547,15 +553,26 @@ class BaseEvaluator(AbstractEvaluator):
         fig_kde_pred = fig_kde_true = fig_reward_samples = None
 
         if hasattr(self.gfn.env, "plot_reward_samples") and x_sampled is not None:
+            (sample_space_batch, rewards_sample_space) = (
+                self.gfn.get_sample_space_and_reward()
+            )
             fig_reward_samples = self.gfn.env.plot_reward_samples(
-                x_sampled, **plot_kwargs
+                x_sampled,
+                sample_space_batch,
+                rewards_sample_space,
+                **plot_kwargs,
             )
 
         if hasattr(self.gfn.env, "plot_kde"):
+            sample_space_batch, _ = self.gfn.get_sample_space_and_reward()
             if kde_pred is not None:
-                fig_kde_pred = self.gfn.env.plot_kde(kde_pred, **plot_kwargs)
+                fig_kde_pred = self.gfn.env.plot_kde(
+                    sample_space_batch, kde_pred, **plot_kwargs
+                )
             if kde_true is not None:
-                fig_kde_true = self.gfn.env.plot_kde(kde_true, **plot_kwargs)
+                fig_kde_true = self.gfn.env.plot_kde(
+                    sample_space_batch, kde_true, **plot_kwargs
+                )
 
         return {
             "True reward and GFlowNet samples": fig_reward_samples,

@@ -169,7 +169,6 @@ class GFlowNetAgent:
             **buffer,
             env=self.env,
             proxy=self.proxy,
-            make_train_test=not sample_only,
             logger=logger,
         )
         # Train set statistics and reward normalization constant
@@ -1212,6 +1211,36 @@ class GFlowNetAgent:
         if self.use_context is False:
             self.logger.end()
 
+    def get_sample_space_and_reward(self):
+        """
+        Returns samples representative of the env state space with their rewards
+
+        Returns
+        -------
+        sample_space_batch : tensor
+            Repressentative terminating states for the environment
+         rewards_sample_space : tensor
+            Rewards associated with the tates in sample_space_batch
+        """
+        if not hasattr(self, "sample_space_batch"):
+            if hasattr(self.env, "get_all_terminating_states"):
+                self.sample_space_batch = self.env.get_all_terminating_states()
+            elif hasattr(self.env, "get_grid_terminating_states"):
+                self.sample_space_batch = self.env.get_grid_terminating_states(
+                    self.evaluator.config.n_grid
+                )
+            else:
+                raise NotImplementedError(
+                    "In order to obtain representative terminating states, the "
+                    "environment must implement either get_all_terminating_states() "
+                    "or get_grid_terminating_states()"
+                )
+            self.sample_space_batch = self.env.states2proxy(self.sample_space_batch)
+        if not hasattr(self, "rewards_sample_space"):
+            self.rewards_sample_space = self.proxy.rewards(self.sample_space_batch)
+
+        return self.sample_space_batch, self.rewards_sample_space
+
     # TODO: implement other proposal distributions
     # TODO: rethink whether it is needed to convert to reward
     def sample_from_reward(
@@ -1243,7 +1272,7 @@ class GFlowNetAgent:
             format.
         """
         samples_final = []
-        max_reward = self.get_max_reward()
+        max_reward = self.proxy.get_max_reward()
         while len(samples_final) < n_samples:
             if proposal_distribution == "uniform":
                 # TODO: sample only the remaining number of samples

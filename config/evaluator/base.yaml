@@ -16,6 +16,8 @@ logprobs_batch_size: 100
 logprobs_bootstrap_size: 10000
 # Maximum number of test data points to compute log likelihood probs.
 max_data_logprobs: 1e5
+# Number of points to obtain a grid to estimate the reward density
+n_grid: 40000
 train_log_period: 1
 checkpoints_period: 1000
 # List of metrics as per gflownet/eval/evaluator.py:METRICS_NAMES

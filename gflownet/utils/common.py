@@ -251,12 +251,13 @@ def gflownet_from_config(config):
     )
 
     # The proxy is passed to env and used for computing rewards
-    env = instantiate(
+    env_maker = instantiate(
         config.env,
-        proxy=proxy,
         device=config.device,
         float_precision=config.float_precision,
+        _partial_=True,
     )
+    env = env_maker()
 
     # The evaluator is used to compute metrics and plots
     evaluator = instantiate(config.evaluator)
@@ -296,7 +297,8 @@ def gflownet_from_config(config):
         config.gflownet,
         device=config.device,
         float_precision=config.float_precision,
-        env=env,
+        env_maker=env_maker,
+        proxy=proxy,
         forward_policy=forward_policy,
         backward_policy=backward_policy,
         state_flow=state_flow,

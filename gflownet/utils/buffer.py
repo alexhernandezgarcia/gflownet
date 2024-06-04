@@ -20,7 +20,6 @@ class Buffer:
         self,
         env,
         proxy,
-        make_train_test=False,
         replay_capacity=0,
         output_csv=None,
         data_path=None,
