@@ -32,21 +32,28 @@ def main(config):
     # Initialize GFlowNet from config
     # Logger
     logger = hydra.utils.instantiate(config.logger, config, _recursive_=False)
-    # The proxy is required in the env for scoring
+
+    # The proxy is required for scoring
     proxy = hydra.utils.instantiate(
         config.proxy,
         device=config.device,
         float_precision=config.float_precision,
     )
+
     # The proxy is passed to env and used for computing rewards
-    env = hydra.utils.instantiate(
+    # Using Hydra's partial instantiation, see:
+    # https://hydra.cc/docs/advanced/instantiate_objects/overview/#partial-instantiation
+    env_maker = hydra.utils.instantiate(
         config.env,
-        proxy=proxy,
         device=config.device,
         float_precision=config.float_precision,
+        _partial_=True,
     )
+    env = env_maker()
+    
     # The evaluator is used to compute metrics and plots
     evaluator = hydra.utils.instantiate(config.evaluator)
+
     # The policy is used to model the probability of a forward/backward action
     forward_config = parse_policy_config(config, kind="forward")
     backward_config = parse_policy_config(config, kind="backward")
@@ -81,7 +88,8 @@ def main(config):
         config.gflownet,
         device=config.device,
         float_precision=config.float_precision,
-        env=env,
+        env_maker=env_maker,
+        proxy=proxy,
         forward_policy=forward_policy,
         backward_policy=backward_policy,
         state_flow=state_flow,
@@ -97,7 +105,7 @@ def main(config):
     if config.n_samples > 0 and config.n_samples <= 1e5:
         batch, times = gflownet.sample_batch(n_forward=config.n_samples, train=False)
         x_sampled = batch.get_terminating_states(proxy=True)
-        energies = gflownet.env.proxy(x_sampled)
+        energies = proxy(x_sampled)
         x_sampled = batch.get_terminating_states()
         df = pd.DataFrame(
             {

@@ -33,7 +33,6 @@ env:
     beta_beta: 0.01
     bernoulli_source_logit: 1.0
     bernoulli_eos_logit: 1.0
-  reward_func: identity
 
 # GFlowNet hyperparameters
 gflownet:

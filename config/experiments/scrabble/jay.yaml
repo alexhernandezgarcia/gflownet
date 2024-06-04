@@ -21,7 +21,6 @@ env:
       n: 1000
       output_csv: scrabble_test.csv
       output_pkl: scrabble_test.pkl
-  reward_func: identity
 
 # Proxy
 proxy:

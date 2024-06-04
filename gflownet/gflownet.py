@@ -7,17 +7,21 @@ TODO:
 import copy
 import pickle
 import time
+from collections import defaultdict
+from functools import partial
 from pathlib import Path
-from typing import List, Optional, Tuple, Union
+from typing import Callable, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import torch
 import torch.nn as nn
 from torch.distributions import Bernoulli
+from torchtyping import TensorType
 from tqdm import tqdm, trange
 
 from gflownet.envs.base import GFlowNetEnv
 from gflownet.evaluator.base import BaseEvaluator
+from gflownet.proxy.base import Proxy
 from gflownet.utils.batch import Batch
 from gflownet.utils.buffer import Buffer
 from gflownet.utils.common import (
@@ -33,7 +37,8 @@ from gflownet.utils.common import (
 class GFlowNetAgent:
     def __init__(
         self,
-        env,
+        env_maker: partial,
+        proxy,
         seed,
         device,
         float_precision,
@@ -121,7 +126,11 @@ class GFlowNetAgent:
         # Float precision
         self.float = set_float_precision(float_precision)
         # Environment
-        self.env = env
+        self.env_maker = env_maker
+        self.env = self.env_maker()
+        # Proxy
+        self.proxy = proxy
+        self.proxy.setup(self.env)
         # Continuous environments
         self.continuous = hasattr(self.env, "continuous") and self.env.continuous
         if self.continuous and optimizer.loss in ["flowmatch", "flowmatching"]:
@@ -156,7 +165,13 @@ class GFlowNetAgent:
         # Buffers
         self.replay_sampling = replay_sampling
         self.train_sampling = train_sampling
-        self.buffer = Buffer(**buffer, env=self.env, logger=logger)
+        self.buffer = Buffer(
+            **buffer,
+            env=self.env,
+            proxy=self.proxy,
+            make_train_test=not sample_only,
+            logger=logger,
+        )
         # Train set statistics and reward normalization constant
         if self.buffer.train is not None:
             energies_stats_tr = [
@@ -166,7 +181,6 @@ class GFlowNetAgent:
                 self.buffer.std_tr,
                 self.buffer.max_norm_tr,
             ]
-            self.env.set_energies_stats(energies_stats_tr)
             print("\nTrain data")
             print(f"\tMean score: {energies_stats_tr[2]}")
             print(f"\tStd score: {energies_stats_tr[3]}")
@@ -174,9 +188,6 @@ class GFlowNetAgent:
             print(f"\tMax score: {energies_stats_tr[1]}")
         else:
             energies_stats_tr = None
-        if self.env.reward_norm_std_mult > 0 and energies_stats_tr is not None:
-            self.env.reward_norm = self.env.reward_norm_std_mult * energies_stats_tr[3]
-            self.env.set_reward_norm(self.env.reward_norm)
         # Test set statistics
         if self.buffer.test is not None:
             print("\nTest data")
@@ -492,8 +503,10 @@ class GFlowNetAgent:
 
         # ON-POLICY FORWARD trajectories
         t0_forward = time.time()
-        envs = [self.env.copy().reset(idx) for idx in range(n_forward)]
-        batch_forward = Batch(env=self.env, device=self.device, float_type=self.float)
+        envs = [self.env_maker().set_id(idx) for idx in range(n_forward)]
+        batch_forward = Batch(
+            env=self.env, proxy=self.proxy, device=self.device, float_type=self.float
+        )
         while envs:
             # Sample actions
             t0_a_envs = time.time()
@@ -514,8 +527,10 @@ class GFlowNetAgent:
 
         # TRAIN BACKWARD trajectories
         t0_train = time.time()
-        envs = [self.env.copy().reset(idx) for idx in range(n_train)]
-        batch_train = Batch(env=self.env, device=self.device, float_type=self.float)
+        envs = [self.env_maker().set_id(idx) for idx in range(n_train)]
+        batch_train = Batch(
+            env=self.env, proxy=self.proxy, device=self.device, float_type=self.float
+        )
         if n_train > 0 and self.buffer.train_pkl is not None:
             with open(self.buffer.train_pkl, "rb") as f:
                 dict_train = pickle.load(f)
@@ -546,12 +561,14 @@ class GFlowNetAgent:
 
         # REPLAY BACKWARD trajectories
         t0_replay = time.time()
-        batch_replay = Batch(env=self.env, device=self.device, float_type=self.float)
+        batch_replay = Batch(
+            env=self.env, proxy=self.proxy, device=self.device, float_type=self.float
+        )
         if n_replay > 0 and self.buffer.replay_pkl is not None:
             with open(self.buffer.replay_pkl, "rb") as f:
                 dict_replay = pickle.load(f)
                 n_replay = min(n_replay, len(dict_replay["x"]))
-                envs = [self.env.copy().reset(idx) for idx in range(n_replay)]
+                envs = [self.env_maker().set_id(idx) for idx in range(n_replay)]
                 x_replay = self.buffer.select(
                     dict_replay, n_replay, self.replay_sampling, self.rng
                 )
@@ -664,8 +681,7 @@ class GFlowNetAgent:
         done = batch.get_done()
         masks_sf = batch.get_masks_forward()
         parents_a_idx = self.env.actions2indices(parents_actions)
-        rewards = batch.get_rewards()
-        assert torch.all(rewards[done] > 0)
+        logrewards = batch.get_rewards(log=True)
         # In-flows
         inflow_logits = torch.full(
             (states.shape[0], self.env.policy_output_dim),
@@ -682,7 +698,7 @@ class GFlowNetAgent:
         outflow_logits[masks_sf] = -torch.inf
         outflow = torch.logsumexp(outflow_logits, dim=1)
         # Loss at terminating nodes
-        loss_term = (inflow[done] - torch.log(rewards[done])).pow(2).mean()
+        loss_term = (inflow[done] - logrewards[done]).pow(2).mean()
         contrib_term = done.eq(1).to(self.float).mean()
         # Loss at intermediate nodes
         loss_interm = (inflow[~done] - outflow[~done]).pow(2).mean()
@@ -717,14 +733,10 @@ class GFlowNetAgent:
         logprobs_f = self.compute_logprobs_trajectories(batch, backward=False)
         logprobs_b = self.compute_logprobs_trajectories(batch, backward=True)
         # Get rewards from batch
-        rewards = batch.get_terminating_rewards(sort_by="trajectory")
+        logrewards = batch.get_terminating_rewards(log=True, sort_by="trajectory")
 
         # Trajectory balance loss
-        loss = (
-            (self.logZ.sum() + logprobs_f - logprobs_b - torch.log(rewards))
-            .pow(2)
-            .mean()
-        )
+        loss = (self.logZ.sum() + logprobs_f - logprobs_b - logrewards).pow(2).mean()
         return loss, loss, loss
 
     def detailedbalance_loss(self, it, batch):
@@ -760,7 +772,7 @@ class GFlowNetAgent:
         parents = batch.get_parents(policy=False)
         parents_policy = batch.get_parents(policy=True)
         done = batch.get_done()
-        rewards = batch.get_terminating_rewards(sort_by="insertion")
+        logrewards = batch.get_terminating_rewards(log=True, sort_by="insertion")
 
         # Get logprobs
         masks_f = batch.get_masks_forward(of_parents=True)
@@ -776,7 +788,7 @@ class GFlowNetAgent:
 
         # Get logflows
         logflows_states = self.state_flow(states_policy)
-        logflows_states[done.eq(1)] = torch.log(rewards)
+        logflows_states[done.eq(1)] = logrewards
         # TODO: Optimise by reusing logflows_states and batch.get_parent_indices
         logflows_parents = self.state_flow(parents_policy)
 
@@ -819,8 +831,8 @@ class GFlowNetAgent:
         actions = batch.get_actions()
         parents = batch.get_parents(policy=False)
         parents_policy = batch.get_parents(policy=True)
-        rewards_states = batch.get_rewards(do_non_terminating=True)
-        rewards_parents = batch.get_rewards_parents()
+        logrewards_states = batch.get_rewards(log=True, do_non_terminating=True)
+        logrewards_parents = batch.get_rewards_parents(log=True)
         done = batch.get_done()
 
         # Get logprobs
@@ -843,7 +855,7 @@ class GFlowNetAgent:
         logflflows_parents = self.state_flow(parents_policy)
 
         # Get energies transitions
-        energies_transitions = torch.log(rewards_parents) - torch.log(rewards_states)
+        energies_transitions = logrewards_parents - logrewards_states
 
         # Forward-looking loss
         loss_all = (
@@ -972,14 +984,19 @@ class GFlowNetAgent:
             desc="Setting env terminal states",
         )
         while init_batch < n_states:
-            batch = Batch(env=self.env, device=self.device, float_type=self.float)
+            batch = Batch(
+                env=self.env,
+                proxy=self.proxy,
+                device=self.device,
+                float_type=self.float,
+            )
             # Create an environment for each data point and trajectory and set the state
             envs = []
             pbar2.reset((end_batch - init_batch) * n_trajectories)
             for state_idx in range(init_batch, end_batch):
                 for traj_idx in range(n_trajectories):
                     idx = int(mult_indices * state_idx + traj_idx)
-                    env = self.env.copy().reset(idx)
+                    env = self.env_maker().set_id(idx)
                     env.set_state(states_term[state_idx], done=True)
                     envs.append(env)
                     pbar2.update(1)
@@ -1016,7 +1033,8 @@ class GFlowNetAgent:
             # Increment batch indices
             init_batch += batch_size
             end_batch = min(end_batch + batch_size, n_states)
-            pbar.update(end_batch - init_batch)
+            if n_states > batch_size:
+                pbar.update(end_batch - init_batch)
 
         # Compute log of the average probabilities of the ratio PF / PB
         logprobs_estimates = torch.logsumexp(
@@ -1050,7 +1068,12 @@ class GFlowNetAgent:
                 self.evaluator.eval_and_log_top_k(it)
 
             t0_iter = time.time()
-            batch = Batch(env=self.env, device=self.device, float_type=self.float)
+            batch = Batch(
+                env=self.env,
+                proxy=self.proxy,
+                device=self.device,
+                float_type=self.float,
+            )
             for j in range(self.sttr):
                 sub_batch, times = self.sample_batch(
                     n_forward=self.batch_size.forward,
@@ -1091,11 +1114,27 @@ class GFlowNetAgent:
                     all_losses.append([i.item() for i in losses])
             # Buffer
             t0_buffer = time.time()
+            # TODO: the current implementation recomputes the proxy values of the
+            # terminating states in order to store the proxy values in the Buffer.
+            # Depending on the computational cost of the proxy, this may be very
+            # inneficient. For example, proxy.rewards() could return the proxy values,
+            # which could be stored in the Batch.
+            if it == 0:
+                print(
+                    "IMPORTANT: The current implementation recomputes the proxy "
+                    "values of the terminating states in order to store the proxy "
+                    "values in the Buffer. Depending on the computational cost of "
+                    "the proxy, this may be very inneficient."
+                )
             states_term = batch.get_terminating_states(sort_by="trajectory")
-            rewards = batch.get_terminating_rewards(sort_by="trajectory")
-            actions_trajectories = batch.get_actions_trajectories()
-            proxy_vals = self.env.reward2proxy(rewards).tolist()
+            states_proxy_term = batch.get_terminating_states(
+                proxy=True, sort_by="trajectory"
+            )
+            proxy_vals = self.proxy(states_proxy_term)
+            rewards = self.proxy.proxy2reward(proxy_vals)
             rewards = rewards.tolist()
+            proxy_vals = proxy_vals.tolist()
+            actions_trajectories = batch.get_actions_trajectories()
             self.buffer.add(states_term, actions_trajectories, rewards, proxy_vals, it)
             self.buffer.add(
                 states_term,
@@ -1172,6 +1211,60 @@ class GFlowNetAgent:
         # Close logger
         if self.use_context is False:
             self.logger.end()
+
+    # TODO: implement other proposal distributions
+    # TODO: rethink whether it is needed to convert to reward
+    def sample_from_reward(
+        self,
+        n_samples: int,
+        proposal_distribution: str = "uniform",
+        epsilon=1e-4,
+    ) -> Union[List, Dict, TensorType["n_samples", "state_dim"]]:
+        """
+        Rejection sampling with proposal the uniform distribution defined over the
+        sample space.
+
+        Returns a tensor in GFloNet (state) format.
+
+        Parameters
+        ----------
+        n_samples : int
+            The number of samples to draw from the reward distribution.
+        proposal_distribution : str
+            Identifier of the proposal distribution. Currently only `uniform` is
+            implemented.
+        epsilon : float
+            Small epsilon parameter for rejection sampling.
+
+        Returns
+        -------
+        samples_final : list
+            The list of samples drawn from the reward distribution in environment
+            format.
+        """
+        samples_final = []
+        max_reward = self.get_max_reward()
+        while len(samples_final) < n_samples:
+            if proposal_distribution == "uniform":
+                # TODO: sample only the remaining number of samples
+                samples_uniform = self.env.get_uniform_terminating_states(n_samples)
+            else:
+                raise NotImplementedError("The proposal distribution must be uniform")
+            rewards = self.proxy.proxy2reward(
+                self.proxy(self.env.states2proxy(samples_uniform))
+            )
+            indices_accept = (
+                (
+                    torch.rand(n_samples, dtype=self.float, device=self.device)
+                    * (max_reward + epsilon)
+                    < rewards
+                )
+                .flatten()
+                .tolist()
+            )
+            samples_accepted = [samples_uniform[idx] for idx in indices_accept]
+            samples_final.extend(samples_accepted[-(n_samples - len(samples_final)) :])
+        return samples_final
 
     def get_log_corr(self, times):
         data_logq = []

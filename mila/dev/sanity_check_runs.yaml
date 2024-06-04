@@ -17,6 +17,7 @@ jobs:
         __value__: grid
         length: 10
       gflownet: flowmatch
+      proxy: corners
   - slurm:
       job_name: sanity-grid-tb
     script:
@@ -24,6 +25,7 @@ jobs:
         __value__: grid
         length: 10
       gflownet: trajectorybalance
+      proxy: corners
   - slurm:
       job_name: sanity-grid-db
     script:
@@ -31,6 +33,7 @@ jobs:
         __value__: grid
         length: 10
       gflownet: detailedbalance
+      proxy: corners
   - slurm:
       job_name: sanity-grid-fl
     script:
@@ -38,6 +41,7 @@ jobs:
         __value__: grid
         length: 10
       gflownet: forwardlooking
+      proxy: corners
   # Tetris
   - slurm:
       job_name: sanity-tetris-fm
@@ -67,9 +71,10 @@ jobs:
         height: 10
         pieces: ["J", "L", "S", "Z"]
         allow_eos_before_full: True
-        reward_func: boltzmann
+      proxy:
+        __value__: tetris
+        reward_function: exponential
       gflownet: flowmatch
-      proxy: tetris
   - slurm:
       job_name: sanity-mintetris-tb
     script:
@@ -79,9 +84,10 @@ jobs:
         height: 10
         pieces: ["J", "L", "S", "Z"]
         allow_eos_before_full: True
-        reward_func: boltzmann
+      proxy:
+        __value__: tetris
+        reward_function: exponential
       gflownet: trajectorybalance
-      proxy: tetris
   - slurm:
       job_name: sanity-mintetris-fl
     script:
@@ -91,11 +97,15 @@ jobs:
         height: 10
         pieces: ["J", "L", "S", "Z"]
         allow_eos_before_full: True
-        reward_func: boltzmann
+      proxy:
+        __value__: tetris
+        reward_function: exponential
       gflownet: forwardlooking
-      proxy: tetris
   # Ctorus
   - slurm:
       job_name: sanity-ctorus
     script:
       +experiments: icml23/ctorus
+      logger:
+        test:
+          period: 500
