@@ -73,19 +73,19 @@ python mila/launch.py --conda_env=<conda-env-name> user=$USER env=grid env.lengt
 `salloc`:
 
 ```bash
-python main.py user=$USER env=tetris proxy=tetris env.width=5 env.height=10 gflownet=trajectorybalance device=cpu logger.project_name=gfn_sanity_checks logger.do.online=True
+python main.py user=$USER env=tetris proxy=tetris env.width=5 env.height=10 gflownet=trajectorybalance device=cpu logger.project_name=gfn_sanity_checks logger.do.online=True evaluator.top_k=10 evaluator.n_top_k=100
 ```
 
 `sbatch` with `virtualenv`:
 
 ```bash
-python mila/launch.py --venv=<path-to-env> --template=mila/sbatch/template-venv.sh user=$USER env=tetris proxy=tetris env.width=5 env.height=10 gflownet=trajectorybalance device=cpu logger.project_name=gfn_sanity_checks logger.do.online=True
+python mila/launch.py --venv=<path-to-env> --template=mila/sbatch/template-venv.sh user=$USER env=tetris proxy=tetris env.width=5 env.height=10 gflownet=trajectorybalance device=cpu logger.project_name=gfn_sanity_checks logger.do.online=True evaluator.top_k=10 evaluator.n_top_k=100
 ```
 
 `sbatch` with `conda`:
 
 ```bash
-python mila/launch.py --conda_env=<conda-env-name> user=$USER env=tetris proxy=tetris env.width=5 env.height=10 gflownet=trajectorybalance device=cpu logger.project_name=gfn_sanity_checks logger.do.online=True
+python mila/launch.py --conda_env=<conda-env-name> user=$USER env=tetris proxy=tetris env.width=5 env.height=10 gflownet=trajectorybalance device=cpu logger.project_name=gfn_sanity_checks logger.do.online=True evaluator.top_k=10 evaluator.n_top_k=100
 ```
 
 ### Flow Matching loss
@@ -93,19 +93,19 @@ python mila/launch.py --conda_env=<conda-env-name> user=$USER env=tetris proxy=t
 `salloc`:
 
 ```bash
-python main.py user=$USER env=tetris proxy=tetris env.width=5 env.height=10 gflownet=flowmatch device=cpu logger.project_name=gfn_sanity_checks logger.do.online=True
+python main.py user=$USER env=tetris proxy=tetris env.width=5 env.height=10 gflownet=flowmatch device=cpu logger.project_name=gfn_sanity_checks logger.do.online=True evaluator.top_k=10 evaluator.n_top_k=100
 ```
 
 `sbatch` with `virtualenv`:
 
 ```bash
-python mila/launch.py --venv=<path-to-env> --template=mila/sbatch/template-venv.sh user=$USER env=tetris proxy=tetris env.width=5 env.height=10 gflownet=flowmatch device=cpu logger.project_name=gfn_sanity_checks logger.do.online=True
+python mila/launch.py --venv=<path-to-env> --template=mila/sbatch/template-venv.sh user=$USER env=tetris proxy=tetris env.width=5 env.height=10 gflownet=flowmatch device=cpu logger.project_name=gfn_sanity_checks logger.do.online=True evaluator.top_k=10 evaluator.n_top_k=100
 ```
 
 `sbatch` with `conda`:
 
 ```bash
-python mila/launch.py --conda_env=<conda-env-name> user=$USER env=tetris proxy=tetris env.width=5 env.height=10 gflownet=flowmatch device=cpu logger.project_name=gfn_sanity_checks logger.do.online=True
+python mila/launch.py --conda_env=<conda-env-name> user=$USER env=tetris proxy=tetris env.width=5 env.height=10 gflownet=flowmatch device=cpu logger.project_name=gfn_sanity_checks logger.do.online=True evaluator.top_k=10 evaluator.n_top_k=100
 ```
 
 ## Continuous Torus as in Lahlou et al (ICML 2023)
