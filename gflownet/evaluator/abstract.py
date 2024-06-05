@@ -31,13 +31,13 @@ which will be called by the
             for m, v in results["metrics"].items():
                 setattr(self.gfn, m, v)
 
-            mertics_to_log = {
+            metrics_to_log = {
                 METRICS[k]["display_name"]: v for k, v in results["metrics"].items()
             }
 
             figs = self.plot(**results["data"])
 
-            self.logger.log_metrics(mertics_to_log, it, self.gfn.use_context)
+            self.logger.log_metrics(metrics_to_log, it, self.gfn.use_context)
             self.logger.log_plots(figs, it, use_context=self.gfn.use_context)
 
 See :mod:`gflownet.evaluator` for a full-fledged example and
@@ -655,13 +655,13 @@ class AbstractEvaluator(metaclass=ABCMeta):
         for m, v in results["metrics"].items():
             setattr(self.gfn, m, v)
 
-        mertics_to_log = {
+        metrics_to_log = {
             METRICS[k]["display_name"]: v for k, v in results["metrics"].items()
         }
 
         figs = self.plot(**results["data"])
 
-        self.logger.log_metrics(mertics_to_log, it, self.gfn.use_context)
+        self.logger.log_metrics(metrics_to_log, it, self.gfn.use_context)
         self.logger.log_plots(figs, it, use_context=self.gfn.use_context)
 
     def eval_and_log_top_k(self, it):
