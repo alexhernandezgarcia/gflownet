@@ -10,19 +10,18 @@ import sys
 import hydra
 import pandas as pd
 
-from gflownet.utils.common import chdir_random_subdir
 from gflownet.utils.policy import parse_policy_config
 
 
 @hydra.main(config_path="./config", config_name="main", version_base="1.1")
 def main(config):
-    # TODO: fix race condition in a more elegant way
-    chdir_random_subdir()
 
-    # Get current directory and set it as root log dir for Logger
-    cwd = os.getcwd()
-    config.logger.logdir.root = cwd
-    print(f"\nLogging directory of this run:  {cwd}\n")
+    # Print working and logging directory
+    print(f"\nWorking directory of this run: {os.getcwd()}")
+    print(
+        "Logging directory of this run: "
+        f"{hydra.core.hydra_config.HydraConfig.get().runtime.output_dir}"
+    )
 
     # Reset seed for job-name generation in multirun jobs
     random.seed(None)
