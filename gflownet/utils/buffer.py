@@ -51,7 +51,8 @@ class Buffer:
         self.test_pkl = None
 
         self.save_replay()
-        # Define train and test data sets
+
+        # Define train data set
         if train is not None and "type" in train:
             self.train_type = train.type
         else:
@@ -83,6 +84,7 @@ class Buffer:
             )
             self.train_pkl = None
 
+        # Define test data set
         if test is not None and "type" in test:
             self.test_type = test.type
         else:
@@ -109,6 +111,7 @@ class Buffer:
             """
             )
             self.test_pkl = None
+
         # Compute buffer statistics
         if self.train is not None:
             (
