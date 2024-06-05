@@ -98,6 +98,9 @@ class BaseEvaluator(AbstractEvaluator):
             },
         }
 
+    # TODO: this method will most likely crash if used (top_k_period != -1) because
+    # self.gfn.env.top_k_metrics_and_plots still makes use of env.proxy.
+    # Re-implementing this wil require a non-trivial amount of work.
     @torch.no_grad()
     def eval_top_k(self, it, gfn_states=None, random_states=None):
         """
@@ -124,6 +127,7 @@ class BaseEvaluator(AbstractEvaluator):
         do_random = it // self.logger.test.top_k_period == 1
         duration = None
         summary = {}
+        # TODO: Why deepcopy?
         prob = copy.deepcopy(self.random_action_prob)
         print()
         if not gfn_states:
@@ -517,9 +521,12 @@ class BaseEvaluator(AbstractEvaluator):
         Plots this evaluator should do, returned as a dict `{str: plt.Figure}` which
         will be logged.
 
-        By default, this method will call the `plot_reward_samples` method of the
-        GFlowNetAgent's environment, and the `plot_kde` method of the GFlowNetAgent's
-        environment if it exists for both the `kde_pred` and `kde_true` arguments.
+        By default, this method will call the following methods of the GFlowNetAgent's
+        environment if they exist:
+
+        - `plot_reward_samples`
+        - `plot_kde` (for both the `kde_pred` and `kde_true` arguments)
+        - `plot_samples_topk`
 
         Extend this method to add more plots:
 
@@ -574,8 +581,24 @@ class BaseEvaluator(AbstractEvaluator):
                     sample_space_batch, kde_true, **plot_kwargs
                 )
 
+        # TODO: consider moving this to eval_top_k once fixed
+        if hasattr(self.gfn.env, "plot_samples_topk"):
+            if x_sampled is None:
+                batch, _ = self.gfn.sample_batch(
+                    n_forward=self.config.n_top_k, train=False
+                )
+                x_sampled = batch.get_terminating_states()
+            rewards = self.gfn.proxy.rewards(self.gfn.env.states2proxy(x_sampled))
+            fig_samples_topk = self.gfn.env.plot_samples_topk(
+                x_sampled,
+                rewards,
+                self.config.top_k,
+                **plot_kwargs,
+            )
+
         return {
             "True reward and GFlowNet samples": fig_reward_samples,
             "GFlowNet KDE Policy": fig_kde_pred,
             "Reward KDE": fig_kde_true,
+            "Samples TopK": fig_samples_topk,
         }
