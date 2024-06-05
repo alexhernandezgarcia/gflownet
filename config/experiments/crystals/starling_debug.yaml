@@ -123,5 +123,5 @@ logger:
 # Hydra
 hydra:
   run:
-    dir: ${user.logdir.root}/icml24/crystalgfn/${oc.env:SLURM_JOB_ID,local}/${now:%Y-%m-%d_%H-%M-%S}
+    dir: ${user.logdir.root}/crystalgfn/${oc.env:SLURM_JOB_ID,local}/${now:%Y-%m-%d_%H-%M-%S}
 
