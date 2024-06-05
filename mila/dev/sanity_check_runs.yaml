@@ -106,6 +106,5 @@ jobs:
       job_name: sanity-ctorus
     script:
       +experiments: icml23/ctorus
-      logger:
-        test:
-          period: 500
+      evalutor:
+        period: 500
