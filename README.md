@@ -134,7 +134,7 @@ So far, we've discussed how to manually set actions or use random actions in the
 
 As the agent interacts with the environment, it collects data about the outcomes of its actions. This data is used to train a policy network, which models the probability distribution of possible actions given the current state. Over time, the policy network learns to favor actions that lead to more successful outcomes with higher reward, optimizing the agent's performance.
 
-8. Sample a batch of trajectories from a trained agent 
+9. Sample a batch of trajectories from a trained agent 
 
 ```python 
 batch, _ = gflownet.sample_batch(n_forward=3,  train=False)
