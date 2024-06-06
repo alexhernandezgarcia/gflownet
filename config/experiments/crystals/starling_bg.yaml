@@ -96,6 +96,8 @@ policy:
 
 # Proxy (bandgap)
 proxy:
+  reward_min: 1e-08
+  do_clip_rewards: True
   release: 1.0.0 # Bandgap release
   # RBF exponential, to compute the proximity to a target
   reward_function: rbf_exponential

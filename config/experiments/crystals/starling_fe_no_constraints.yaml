@@ -95,6 +95,8 @@ policy:
 
 # Proxy (eform)
 proxy:
+  reward_min: 1e-08
+  do_clip_rewards: True
   release: 0.3.4 # Formation energy release
   # Boltzmann (exponential), with negative beta because the formation energy is negative and the lower the better
   reward_function: exponential

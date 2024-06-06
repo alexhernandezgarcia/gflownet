@@ -93,6 +93,11 @@ policy:
     shared_weights: False
     checkpoint: backward
 
+# Proxy
+proxy:
+  reward_min: 1e-08
+  do_clip_rewards: True
+
 # WandB
 logger:
   lightweight: True
