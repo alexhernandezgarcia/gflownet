@@ -169,6 +169,10 @@ class Proxy(ABC):
             The log-reward of all elements in the batch.
         """
         logrewards = self._logreward_function(proxy_values)
+        if self.do_clip_rewards:
+            logrewards = torch.clip(
+                logrewards, min=self.get_min_reward(log=True), max=None
+            )
         logrewards[logrewards.isnan()] = self.get_min_reward(log=True)
         logrewards[~logrewards.isfinite()] = self.get_min_reward(log=True)
         return logrewards
