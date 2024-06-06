@@ -72,7 +72,7 @@ class ScrabbleScorer(Proxy):
 
         Returns
         -------
-        A vector with the (negative) score of each sequence in the batch.
+        A vector with the score of each sequence in the batch.
         """
         if torch.is_tensor(states):
             output = torch.zeros(states.shape[0], device=self.device, dtype=self.float)
@@ -80,8 +80,10 @@ class ScrabbleScorer(Proxy):
                 is_in_vocabulary = self._is_in_vocabulary(states)
             else:
                 is_in_vocabulary = torch.ones_like(output, dtype=torch.bool)
-            output[is_in_vocabulary] = -1.0 * self.scores[states[is_in_vocabulary]].sum(
-                dim=1
+            output[is_in_vocabulary] = tfloat(
+                self.scores[states[is_in_vocabulary]].sum(dim=1),
+                float_type=self.float,
+                device=self.device,
             )
             return output
         elif isinstance(states, list):
@@ -93,7 +95,7 @@ class ScrabbleScorer(Proxy):
                 ):
                     scores.append(0.0)
                 else:
-                    scores.append(-1.0 * self._sum_scores(sample))
+                    scores.append(self._sum_scores(sample))
             return tfloat(scores, device=self.device, float_type=self.float)
         else:
             raise NotImplementedError(

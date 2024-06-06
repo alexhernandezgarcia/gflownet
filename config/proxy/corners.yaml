@@ -1,3 +1,6 @@
+defaults:
+  - base
+
 _target_: gflownet.proxy.corners.Corners
 
 mu: 0.75

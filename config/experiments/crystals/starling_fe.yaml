@@ -49,8 +49,6 @@ env:
       beta_beta: 10.0
       bernoulli_eos_prob: 0.1
       bernoulli_bts_prob: 0.1
-  reward_func: boltzmann
-  reward_beta: 8
   buffer:
     replay_capacity: 1000
     train:
@@ -95,6 +93,18 @@ policy:
     shared_weights: False
     checkpoint: backward
 
+# Proxy (eform)
+proxy:
+  reward_min: 1e-08
+  do_clip_rewards: True
+  release: 0.3.4 # Formation energy release
+  # Boltzmann (exponential), with negative beta because the formation energy is negative and the lower the better
+  reward_function: exponential
+  # Parameters of the reward function
+  reward_function_kwargs:
+    beta: -8.0
+    alpha: 1.0
+
 # WandB
 logger:
   lightweight: True
@@ -104,7 +114,6 @@ logger:
     - crystals
     - stack
     - matbench
-    - icml24
     - formationenergy
   checkpoints:
     period: 500
@@ -123,5 +132,5 @@ logger:
 # Hydra
 hydra:
   run:
-    dir: ${user.logdir.root}/icml24/crystalgfn/${oc.env:SLURM_JOB_ID,local}/${now:%Y-%m-%d_%H-%M-%S}
+    dir: ${user.logdir.root}/crystalgfn/${oc.env:SLURM_JOB_ID,local}/${now:%Y-%m-%d_%H-%M-%S}
 

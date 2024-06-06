@@ -1,0 +1,26 @@
+_target_: gflownet.proxy.base.Proxy
+
+# Reward function: string identifier of the proxy-to-reward function:
+# - identity (default)
+# - absolute
+# - power
+# - exponential
+# - shift
+# - product
+# - rbf_exponential
+# Alternatively, it can be a callable of the function itself.
+reward_function: identity
+# A callable of the proxy-to-logreward function. 
+# None by default, which takes the log of the proxy-to-reward function
+logreward_function: null
+# Arguments of the proxy-to-reward function (beta, alpha, center, distance):
+# - power: R(x) = x ** beta
+# - exponential: R(x) = alpha * exp(x * beta)
+# - shift: R(x) = x + beta
+# - product: R(x) = x * beta
+# - rbf_exponential: R(x) = alpha * exp(distance(x, center) * beta)
+reward_function_kwargs: {}
+# Minimum reward. Used to clip the rewards.
+reward_min: 0.0
+# Flag to control whether rewards are clipped
+do_clip_rewards: False

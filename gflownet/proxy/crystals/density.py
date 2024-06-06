@@ -68,5 +68,4 @@ class Density(Proxy):
             + (2 * cos_alpha * cos_beta * cos_gamma)
         )
 
-        density = (total_mass / volume) * DENSITY_CONVERSION
-        return -density  # minus to make it energy-like
+        return (total_mass / volume) * DENSITY_CONVERSION

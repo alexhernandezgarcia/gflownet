@@ -15,7 +15,10 @@ from torch.distributions import Bernoulli, Beta, Categorical, MixtureSameFamily
 from torchtyping import TensorType
 
 from gflownet.envs.base import GFlowNetEnv
-from gflownet.utils.common import copy, tbool, tfloat
+from gflownet.utils.common import copy, tbool, tfloat, torch2np
+
+CELL_MIN = -1.0
+CELL_MAX = 1.0
 
 
 class CubeBase(GFlowNetEnv, ABC):
@@ -136,7 +139,7 @@ class CubeBase(GFlowNetEnv, ABC):
     ) -> TensorType["batch", "state_dim"]:
         """
         Prepares a batch of states in "environment format" for a proxy: clips the
-        states into [0, 1] and maps them to [-1.0, 1.0]
+        states into [0, 1] and maps them to [CELL_MIN, CELL_MAX]
 
         Args
         ----
@@ -149,7 +152,7 @@ class CubeBase(GFlowNetEnv, ABC):
         A tensor containing all the states in the batch.
         """
         states = tfloat(states, device=self.device, float_type=self.float)
-        return 2.0 * torch.clip(states, min=0.0, max=1.0) - 1.0
+        return 2.0 * torch.clip(states, min=0.0, max=CELL_MAX) - CELL_MAX
 
     def states2policy(
         self, states: Union[List, TensorType["batch", "state_dim"]]
@@ -1426,61 +1429,80 @@ class ContinuousCube(CubeBase):
         states = rng.uniform(low=kappa, high=1.0 - kappa, size=(n_states, self.n_dim))
         return states.tolist()
 
-    # TODO: make generic for all environments
-    def sample_from_reward(
-        self, n_samples: int, epsilon=1e-4
-    ) -> TensorType["n_samples", "state_dim"]:
-        """
-        Rejection sampling with proposal the uniform distribution in [0, 1]^n_dim.
+    def fit_kde(
+        self,
+        samples: TensorType["batch_size", "state_proxy_dim"],
+        kernel: str = "gaussian",
+        bandwidth: float = 0.1,
+    ):
+        r"""
+        Fits a Kernel Density Estimator on a batch of samples.
 
-        Returns a tensor in GFloNet (state) format.
+        Parameters
+        ----------
+        samples : tensor
+            A batch of samples in proxy format.
+        kernel : str
+            An identifier of the kernel to use for the density estimation. It must be a
+            valid kernel for the scikit-learn method
+            :py:meth:`sklearn.neighbors.KernelDensity`.
+        bandwidth : float
+            The bandwidth of the kernel.
         """
-        samples_final = []
-        max_reward = self.proxy2reward(self.proxy.min)
-        while len(samples_final) < n_samples:
-            samples_uniform = self.states2proxy(
-                self.get_uniform_terminating_states(n_samples)
-            )
-            rewards = self.proxy2reward(self.proxy(samples_uniform))
-            mask = (
-                torch.rand(n_samples, dtype=self.float, device=self.device)
-                * (max_reward + epsilon)
-                < rewards
-            )
-            samples_accepted = samples_uniform[mask]
-            samples_final.extend(samples_accepted[-(n_samples - len(samples_final)) :])
-        return torch.vstack(samples_final)
-
-    # TODO: make generic for all envs
-    def fit_kde(self, samples, kernel="gaussian", bandwidth=0.1):
+        samples = torch2np(samples)
         return KernelDensity(kernel=kernel, bandwidth=bandwidth).fit(samples)
 
     def plot_reward_samples(
         self,
-        samples,
-        alpha=0.5,
-        cell_min=-1.0,
-        cell_max=1.0,
-        dpi=150,
-        max_samples=500,
+        samples: TensorType["batch_size", "state_proxy_dim"],
+        samples_reward: TensorType["batch_size", "state_proxy_dim"],
+        rewards: TensorType["batch_size"],
+        alpha: float = 0.5,
+        dpi: int = 150,
+        max_samples: int = 500,
         **kwargs,
     ):
+        """
+        Plots the reward contour alongside a batch of samples.
+
+        Parameters
+        ----------
+        samples : tensor
+            A batch of samples from the GFlowNet policy in proxy format. These samples
+            will be plotted on top of the reward density.
+        samples_reward : tensor
+            A batch of samples containing a grid over the sample space, from which the
+            reward has been obtained. These samples are used to plot the contour of
+            reward density.
+        rewards : tensor
+            The rewards of samples_reward. It should be a vector of dimensionality
+            n_per_dim ** 2 and be sorted such that the each block at rewards[i *
+            n_per_dim:i * n_per_dim + n_per_dim] correspond to the rewards at the i-th
+            row of the grid of samples, from top to bottom. The same is assumed for
+            samples_reward.
+        alpha : float
+            Transparency of the reward contour.
+        dpi : int
+            Dots per inch, indicating the resolution of the plot.
+        max_samples : int
+            Maximum of number of samples to include in the plot.
+        """
         if self.n_dim != 2:
             return None
-        # Sample a grid of points in the state space and obtain the rewards
-        x = np.linspace(cell_min, cell_max, 201)
-        y = np.linspace(cell_min, cell_max, 201)
-        xx, yy = np.meshgrid(x, y)
-        X = np.stack([xx, yy], axis=-1)
-        states_mesh = torch.tensor(
-            X.reshape(-1, 2), device=self.device, dtype=self.float
-        )
-        rewards = self.proxy2reward(self.proxy(states_mesh))
+        samples = torch2np(samples)
+        samples_reward = torch2np(samples_reward)
+        rewards = torch2np(rewards)
+        # Create mesh grid from samples_reward
+        n_per_dim = int(np.sqrt(samples_reward.shape[0]))
+        assert n_per_dim**2 == samples_reward.shape[0]
+        x_coords = samples_reward[:, 0].reshape((n_per_dim, n_per_dim))
+        y_coords = samples_reward[:, 1].reshape((n_per_dim, n_per_dim))
+        rewards = rewards.reshape((n_per_dim, n_per_dim))
         # Init figure
         fig, ax = plt.subplots()
         fig.set_dpi(dpi)
         # Plot reward contour
-        h = ax.contourf(xx, yy, rewards.reshape(xx.shape).cpu().numpy(), alpha=alpha)
+        h = ax.contourf(x_coords, y_coords, rewards, alpha=alpha)
         ax.axis("scaled")
         fig.colorbar(h, ax=ax)
         # Plot samples
@@ -1488,36 +1510,52 @@ class ContinuousCube(CubeBase):
         ax.scatter(samples[random_indices, 0], samples[random_indices, 1], alpha=alpha)
         # Figure settings
         ax.grid()
-        padding = 0.05 * (cell_max - cell_min)
-        ax.set_xlim([cell_min - padding, cell_max + padding])
-        ax.set_ylim([cell_min - padding, cell_max + padding])
+        padding = 0.05 * (CELL_MAX - CELL_MIN)
+        ax.set_xlim([CELL_MIN - padding, CELL_MAX + padding])
+        ax.set_ylim([CELL_MIN - padding, CELL_MAX + padding])
         plt.tight_layout()
         return fig
 
-    # TODO: make generic for all envs
     def plot_kde(
         self,
+        samples: TensorType["batch_size", "state_proxy_dim"],
         kde,
-        alpha=0.5,
-        cell_min=-1.0,
-        cell_max=1.0,
+        alpha: float = 0.5,
         dpi=150,
-        colorbar=True,
+        colorbar: bool = True,
         **kwargs,
     ):
+        """
+        Plots the density previously estimated from a batch of samples via KDE over the
+        entire sample space.
+
+        Parameters
+        ----------
+        samples : tensor
+            A batch of samples containing a grid over the sample space. These samples
+            are used to plot the contour of the estimated density.
+        kde : KDE
+            A scikit-learn KDE object fit with a batch of samples.
+        alpha : float
+            Transparency of the density contour.
+        dpi : int
+            Dots per inch, indicating the resolution of the plot.
+        """
         if self.n_dim != 2:
             return None
-        # Sample a grid of points in the state space and score them with the KDE
-        x = np.linspace(cell_min, cell_max, 201)
-        y = np.linspace(cell_min, cell_max, 201)
-        xx, yy = np.meshgrid(x, y)
-        X = np.stack([xx, yy], axis=-1)
-        Z = np.exp(kde.score_samples(X.reshape(-1, 2))).reshape(xx.shape)
+        samples = torch2np(samples)
+        # Create mesh grid from samples
+        n_per_dim = int(np.sqrt(samples.shape[0]))
+        assert n_per_dim**2 == samples.shape[0]
+        x_coords = samples[:, 0].reshape((n_per_dim, n_per_dim))
+        y_coords = samples[:, 1].reshape((n_per_dim, n_per_dim))
+        # Score samples with KDE
+        Z = np.exp(kde.score_samples(samples)).reshape((n_per_dim, n_per_dim))
         # Init figure
         fig, ax = plt.subplots()
         fig.set_dpi(dpi)
         # Plot KDE
-        h = ax.contourf(xx, yy, Z, alpha=alpha)
+        h = ax.contourf(x_coords, y_coords, Z, alpha=alpha)
         ax.axis("scaled")
         if colorbar:
             fig.colorbar(h, ax=ax)

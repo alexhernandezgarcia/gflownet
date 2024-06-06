@@ -49,7 +49,6 @@ env:
       beta_beta: 10.0
       bernoulli_eos_prob: 0.1
       bernoulli_bts_prob: 0.1
-  reward_func: identity
   buffer:
     replay_capacity: 1000
     train:
@@ -94,6 +93,11 @@ policy:
     shared_weights: False
     checkpoint: backward
 
+# Proxy
+proxy:
+  reward_min: 1e-08
+  do_clip_rewards: True
+
 # WandB
 logger:
   lightweight: True
@@ -103,7 +107,6 @@ logger:
     - crystals
     - stack
     - matbench
-    - icml24
     - density
   checkpoints:
     period: 500
@@ -122,5 +125,5 @@ logger:
 # Hydra
 hydra:
   run:
-    dir: ${user.logdir.root}/icml24/crystalgfn/${oc.env:SLURM_JOB_ID,local}/${now:%Y-%m-%d_%H-%M-%S}
+    dir: ${user.logdir.root}/crystalgfn/${oc.env:SLURM_JOB_ID,local}/${now:%Y-%m-%d_%H-%M-%S}
 
