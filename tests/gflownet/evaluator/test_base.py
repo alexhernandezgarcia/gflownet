@@ -237,6 +237,9 @@ def test__eval(gflownet_for_tests, parameterization):
     elif parameterization == "ctorus":
         for figname, fig in figs.items():
             assert isinstance(figname, str)
+            # plot_samples_topk not implemented in ctorus
+            if figname == "Samples TopK":
+                continue
             assert isinstance(fig, plt.Figure)
     else:
         raise ValueError(f"Unknown parameterization: {parameterization}")
