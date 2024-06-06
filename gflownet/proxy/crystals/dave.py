@@ -20,9 +20,6 @@ class DAVE(Proxy):
         ckpt_path=None,
         release=None,
         rescale_outputs=True,
-        mb_gap_target=None,
-        amplitude=None,
-        gamma=None,
         **kwargs,
     ):
         """
@@ -55,36 +52,31 @@ class DAVE(Proxy):
         """
         super().__init__(**kwargs)
         self.rescale_outputs = rescale_outputs
-        self.mb_gap_target = mb_gap_target
         self.release = release
-        self.amplitude = amplitude
-        self.gamma = gamma
 
         self.is_eform = self.is_bandgap = False
 
         if release.startswith("0."):
             self.is_eform = True
         elif release.startswith("1."):
-            assert self.mb_gap_target is not None, (
-                "mb_gap_target must be specified for releases "
-                + "1.x.x (i.e. band gap models)"
-            )
-            assert isinstance(self.mb_gap_target, float), (
-                "mb_gap_target must be a float (received "
-                + f"{self.mb_gap_target}: {type(self.mb_gap_target)})"
+            assert self.reward_function.startswith("rbf_exp"), (
+                "The RBF exponential reward function must be used with band gap models "
+                "in order for the reward to reflect proximity to a target value. "
+                f"{self.reward_function} has been used instead."
             )
             assert (
-                isinstance(amplitude, (float, int))
-                and isinstance(gamma, (float, int))
-                and amplitude > 0
-                and gamma > 0
+                "center" in self.reward_function_kwargs
+                and self.reward_function_kwargs["center"] is not None
             ), (
-                "amplitude and gamma must be specified for releases "
-                + "1.x.x (i.e. band gap models) and must be positive floats "
-                + f"(received {amplitude}: {type(amplitude)}, {gamma}: {type(gamma)})"
+                "A target band gap (reward_function_kwargs.center must be specified "
+                "for releases 1.x.x (i.e. band gap models)"
             )
-            print(
-                "\nUsing a *Boltzmann PROXY* -> make sure to use the *Identity REWARD\n"
+            bandgap_target = self.reward_function_kwargs["center"]
+            assert (
+                torch.is_tensor(bandgap_target) and bandgap_target.dtype == self.float
+            ), (
+                "reward_function_kwargs.center must be a float (received "
+                f"{bandgap_target}: {type(bandgap_target)})"
             )
             self.is_bandgap = True
         else:
@@ -197,10 +189,6 @@ class DAVE(Proxy):
 
         if self.rescale_outputs:
             y = y * self.scales["y"]["std"] + self.scales["y"]["mean"]
-
-        if self.is_bandgap:
-            y = (y - self.mb_gap_target) ** 2
-            y = -self.amplitude * torch.exp(-self.gamma * y)
 
         if self.clip and self.clip.do:
             if self.rescale_outputs:
