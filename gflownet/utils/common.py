@@ -632,22 +632,6 @@ def copy(x: Union[List, TensorType["..."]]):
         return x.copy()
 
 
-def chdir_random_subdir():
-    """
-    Creates a directory with random name and changes current working directory to it.
-
-    Aimed as a hotfix for race conditions: currently, by default, the directory in
-    which the experiment will be logged is named based on the current timestamp. If
-    multiple jobs start at exactly the same time, they can be trying to log to
-    the same directory. In particular, this causes issues when using dataset
-    evaluation (e.g., JSD computation).
-    """
-    cwd = os.getcwd()
-    cwd += "/%08x" % random.getrandbits(32)
-    os.mkdir(cwd)
-    os.chdir(cwd)
-
-
 def bootstrap_samples(tensor, num_samples):
     """
     Bootstraps tensor along the last dimention
