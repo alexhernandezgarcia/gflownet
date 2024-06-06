@@ -23,33 +23,131 @@ Aside from the base packages, you can optionally install `dev` tools using this 
 
 ## Main Components of the GFlowNet Library
 
-The GFlowNet library has 5 core components, each playing a crucial role in the network's operation. Understanding these components is essential for effectively using and extending the library for your own task. These 5 component are the Logger, Proxy, Environment,  Policies (Forward and Backward), and GFlowNet Agent. 
-
-### Logger
-The purpose of the Logger is to manage all logging activities during the training and evaluation of the network. It captures and stores logs to track the model's performance and debugging information. For instance, it logs details such as training progress, performance metrics, and any potential errors or warnings that occur. It also integrates to WandB providing a cloud-based platform for visualizing and comparing experiments. 
+The GFlowNet library comprises four core components, each playing a crucial role in the network's operation. Understanding these components is essential for effectively using and extending the library for your tasks. These components are the Environment, Proxy, Policies (Forward and Backward), and the GFlowNet Agent.
 
 ### Environment
-The Environment is main and most important component of GFlowNet Library. To understand the Environment, let us consider a simple enviroment currently implemented in the library, the Scramble enviroment. 
 
-The Scramble environment simulates a simple letter arrangement game where sequences are constructed by adding one letter at a time, up to a maximum sequence length (in our case 7). Each enviroment would have State Representation and Actions. For instance, for scramble enviroment, Each ``State`` within the environment is a list of indices corresponding to letters. These indices start from 1 and are padded with index 0 to denote unused slots up to the maximum length. For example, if our sequence length is 7, and our constructed word is `Alex`, we will have `[1, 11, 4, 23, 0, 0, 0]`. In the library, we already have helper functions that automatically format and convert the states to human readable and vice versa. 
+The Environment is the main and most important component of the GFlowNet Library. To illustrate this, consider a simple environment currently implemented in the library: the Scrabble environment. 
 
-``Actions`` in the Scramble environment are single-element tuples containing the index of the letter to be added to the sequence. For instance, the end of the sequence (EOS) action is denoted by (-1,). It is tuple because you could have certain enviroments where actions could be more than single action. 
+The Scrabble environment simulates a simple letter arrangement game where sequences are constructed by adding one letter at a time, up to a maximum sequence length (in our case 7). Each environment has State Representations and Actions. For instance, in the Scrabble enviroment, Each `State` is a list of indices corresponding to letters. These indices start from 1 and are padded with index 0 to denote unused slots up to the maximum length. For example, if our sequence length is 7, and our constructed word is `Alex`, it would be represented as `[1, 11, 4, 23, 0, 0, 0]`. The library includes helper functions that automatically format and convert states to and from a human-readable format. 
 
-In GFlowNet library, we make it easy adding new enviroments for your own task, in the documentation, we show how to do this seamlessly. 
+``Actions`` in the Scrabble environment are single-element tuples containing the index of the letter to be added to the sequence. For instance, the end of the sequence (EOS) action is denoted by (-1,). The tuple format allows us to represent more than single action, because certain enviroments could have multiple actions. 
+
+In the library, we make it easy adding new enviroments for your own task. In the documentation, we show how to do this seamlessly. 
 
 ### Proxy
 
-The Proxy plays a crucial role in computing rewards for the actions taken within an environment. In other words, In the context of GFlowNets, the proxy can be thought of as a transformation function `R(x) = g(e(x))`, where `e(x)` represents an encoding or transformation or computes the score of the generated output x, and g translates this into a reward (i.e. `R(x)`). For instance, let us say we sample the word `Alex` in our Scramble game's enviroment, if the word is valid in our vocabulary, then we will have a maximum score (e.g. `39`), and if g is the identity function then our reward would be equal to the proxy directly. For certain enviroments, the proxy is just scorer but to have a common name for more complex enviroments (e.g. in molecule generation where it could be energy function) we call it Proxy in the GFlowNet library.
+The Proxy plays a crucial role in computing rewards for the actions taken within an environment. In other words, In the context of GFlowNets, the proxy can be thought of as a transformation function `R(x) = g(e(x))`, where `e(x)` represents an encoding or transformation or computes the score of the generated output `x`, and `g` translates this into a reward (i.e. `R(x)`). For example, if the word `Alex` is sampled in our Scrabble environment and is valid in our vocabulary, it might receive a score of 39. If `g` is the identity function, then our reward would directly be equal to the proxy score. While in many environments the proxy functions is a simple scorer, in more complex settings (like molecule generation where it could be an energy function), we consistently refer to it as the Proxy in the GFlowNet library.
 
 ### Policies (Forward and Backward)
 
-The policies are neural networks that model the probability distributions of possible actions in a given state. They are key to deciding the next state given previous state in the network's exploration of the environment. Both forward and backward policies receive the current state as input and output a flow distribution over possible actions. We call it flow, because the idea of GFlowNet is to flow a sequence of intermediate steps before generating the final object `x` (e.g. we could have `s_1 -> s_2 -> s_3 -> ... -> x`). Particularly, the forward policy determines the next state, while the backward policy determines the previous state.
+The policies are neural networks that model the probability distributions of possible actions given a current state. They are key to deciding the next state given previous state in the network's exploration of the environment. Both forward and backward policies receive the current state as input and output a flow distribution over possible actions. We use the term "flow" here, because the idea of GFlowNet is to flow a sequence of intermediate steps before generating the final object `x` (e.g. to generate `x` we might take the steps `s_1 -> s_2 -> s_3 -> ... -> x`). Particularly, the forward policy determines the next state, while the backward policy determines the previous state (i.e. helps retrace steps to a previous state).
 
 ### GFlowNet Agent
 
-The GFlowNet Agent is central component that ties all others together. It orchestrates the interaction between the environment, policies, and proxy to conduct the training and generation tasks. The agent handles the training process, action sampling, and trajectory generation, leveraging the loss functions to optimize performance. Some of the Key Features and Functionalities are initializing and configuring the environment and proxy to ensure they are ready for training and evaluation. Manages both forward and backward policies to determine the next actions based on the current state. Does the training by utilizing  different types of loss functions like flow matching, trajectory balance, and detailed balance, Action Sampling and Metrics and Logging. 
+The GFlowNet Agent is the central component that ties all others together. It orchestrates the interaction between the environment, policies, and proxy to conduct training and generation tasks. The agent manages the training setup, action sampling, trajectory generation, and metrics logging. Some of the features and functionalities are initializing and configuring the environment and proxy to ensure they are ready for training and evaluation. The agent also manages both forward and backward policies to determine the next actions based on the current state. The agent utilizes various types of loss functions, such as flow matching, trajectory balance, and detailed balance to optimize model's performance during training. 
 
-To understand better the above components, let us play with the scramble enviroment below:
+#### Exploring the Scrabble Environment
+
+To better understand the GFlowNet components, let us explore the Scrabble environment in more detail below.
+
+When initializing any GFlowNet agent, it's useful to explore the properties of the environment. The library offers various functionalities for this purpose. Below are some detailed examples, among others:
+
+1. Checking the Initial State 
+
+Before training the agent, you can observe the initial state of the environment. For Scrabble environment, this would be an empty board or sequence:
+
+```python
+env.state
+>>> [0, 0, 0, 0, 0, 0, 0]
+```
+
+2. Exploring the Action Space
+```python
+env.get_action_space()
+>>> [(1,), (2,), (3,), (4,), (5,), (6,), (7,), (8,), (9,), (10,), (11,), (12,), (13,), (14,), (15,), (16,), (17,), (18,), (19,), (20,), (21,), (22,), (23,), (24,), (25,), (26,), (-1,)]
+```
+This action space includes actions for adding each letter of the alphabet to the sequence, represented by indices from 1 to 26. The action (-1,) represents the end-of-sequence (EOS) action, indicating the termination of word formation.
+
+3. Taking a Random Step
+
+```python
+new_state, action_taken, valid = env.step_random()
+print("New State:", new_state)
+print("Action Taken:", action_taken)
+print("Action Valid:", valid)
+
+>>> New State: [24, 0, 0, 0, 0, 0, 0]
+>>> Action Taken: (24,)
+>>> Action Valid: True
+```
+
+This function randomly selects a valid action (adding a letter or ending the sequence) and applies it to the environment. The output shows the new state, the action taken, and whether the action was valid.
+
+4. Performing a Specific Action
+
+```python
+action = (1,)  # Action to add 'A'
+new_state, performed_action, is_valid = env.step(action)
+print("Updated State:", new_state)
+print("Performed Action:", performed_action)
+print("Was the Action Valid:", is_valid)
+>>> Updated State: [24, 1, 0, 0, 0, 0, 0]
+>>> Performed Action: (1,)
+>>> Was the Action Valid: True
+```
+
+5. Displaying the State as a human readable
+
+```python
+env.state2readable(env.state)
+>>> 'X A'
+```
+
+6. Interpreting Actions as a human readable
+
+```python
+print("Action Meaning:", env.idx2token[action[0]])
+>>> Action Meaning: A
+```
+
+7. Sampling a Random Trajectory
+
+```python
+new_state, action_sequence = env.trajectory_random()
+print("New State:", new_state)
+print("Action Sequence:" action_sequence)
+
+>>> New State: [16, 16, 17, 20, 11, 16, 0]
+>>> Action Sequence: [(16,), (16,), (17,), (20,), (11,), (16,), (-1,)]
+```
+
+8. Reset enviroment 
+
+```python
+env.reset()
+env.state
+>>> [0, 0, 0, 0, 0, 0, 0]
+```
+
+So far, we've discussed how to manually set actions or use random actions in the GFlowNet environment. This approach is useful for testing or understanding the basic mechanics of the environment. However, in practice, the goal of a GFlowNet agent is to learn from its experiences to take increasingly effective actions that are driven by a learned policy. 
+
+As the agent interacts with the environment, it collects data about the outcomes of its actions. This data is used to train a policy network, which models the probability distribution of possible actions given the current state. Over time, the policy network learns to favor actions that lead to more successful outcomes with higher reward, optimizing the agent's performance.
+
+8. Sample a batch of trajectories from a trained agent 
+
+```python 
+batch, _ = gflownet.sample_batch(n_forward=3,  train=False)
+batch.states
+>>> [[20, 20, 21, 3, 0, 0, 0], [12, 16, 8, 6, 14, 11, 20], [17, 17, 16, 23, 20, 16, 24]]
+```
+
+We can convert the first state to human readable:
+
+```python
+env.state2readable(batch.states[0])
+>>> 'T T U C'
+```
 
 ## How to train a GFlowNet model
 
@@ -84,9 +182,9 @@ Currently, the implementation includes the following GFlowNet losses:
 - [Detailed balance (DB)](https://arxiv.org/abs/2201.13259): `gflownet=detailedbalance`
 - [Forward-looking (FL)](https://arxiv.org/abs/2302.01687): `gflownet=forwardlooking`
 
-## Logging to wandb
+## Logger 
 
-The repository supports logging of train and evaluation metrics to [wandb.ai](https://wandb.ai), but it is disabled by default. In order to enable it, set the configuration variable `logger.do.online` to `True`.
+The library also has Logger class which helps to manage all logging activities during the training and evaluation of the network. It captures and stores logs to track the model's performance and debugging information. For instance, it logs details such as training progress, performance metrics, and any potential errors or warnings that occur. It also integrates to [wandb.ai](https://wandb.ai) providing a cloud-based platform for logging the train and evaluation metrics to [wandb.ai](https://wandb.ai). The WandB is disabled by default. In order to enable it, set the configuration variable `logger.do.online` to `True`.
 
 ## Contributors
 
