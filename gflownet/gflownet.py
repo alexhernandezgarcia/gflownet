@@ -5,7 +5,6 @@ TODO:
 """
 
 import copy
-import os
 import pickle
 import time
 from collections import defaultdict
@@ -16,24 +15,22 @@ from typing import Callable, Dict, List, Optional, Tuple, Union
 import numpy as np
 import torch
 import torch.nn as nn
-from scipy.special import logsumexp
 from torch.distributions import Bernoulli
 from torchtyping import TensorType
-from tqdm import tqdm
+from tqdm import tqdm, trange
 
 from gflownet.envs.base import GFlowNetEnv
+from gflownet.evaluator.base import BaseEvaluator
 from gflownet.proxy.base import Proxy
 from gflownet.utils.batch import Batch
 from gflownet.utils.buffer import Buffer
 from gflownet.utils.common import (
-    batch_with_rest,
     bootstrap_samples,
     set_device,
     set_float_precision,
     tbool,
     tfloat,
     tlong,
-    torch2np,
 )
 
 
@@ -55,14 +52,73 @@ class GFlowNetAgent:
         pct_offline,
         logger,
         num_empirical_loss,
-        oracle,
+        evaluator,
         state_flow=None,
-        active_learning=False,
-        sample_only=False,
+        use_context=False,
         replay_sampling="permutation",
         train_sampling="permutation",
         **kwargs,
     ):
+        """
+        Main class of this repository. Handles the training logic for a GFlowNet model.
+
+        Parameters
+        ----------
+        env : GFlowNetEnv
+            The environment to be used for training, i.e. the DAG, action space and
+            reward function.
+        seed : int
+            Random seed to be used for reproducibility.
+        device : str
+            Device to be used for training and inference, e.g. "cuda" or "cpu".
+        float_precision : int
+            Precision of the floating point numbers, e.g. 32 or 64.
+        optimizer : dict
+            Optimizer config dictionary. See gflownet.yaml:optimizer for details.
+        buffer : dict
+            Buffer config dictionary. See gflownet.yaml:buffer for details.
+        forward_policy : gflownet.policy.base.Policy
+            The forward policy to be used for training. Parameterized from
+            `gflownet.yaml:forward_policy` and parsed with
+            `gflownet/utils/policy.py:set_policy`.
+        backward_policy : gflownet.policy.base.Policy
+            Same as forward_policy, but for the backward policy.
+        mask_invalid_actions : bool
+            Whether to mask invalid actions in the policy outputs.
+        temperature_logits : float
+            Temperature to adjust the logits by logits /= temperature. If None,
+            self.temperature_logits is used.
+        random_action_prob : float
+            Probability of sampling random actions. If None (default),
+            self.random_action_prob is used, unless its value is forced to either 0.0 or
+            1.0 by other arguments (sampling_method or no_random).
+        pct_offline : float
+            Percentage of offline data to be used for training.
+        logger : gflownet.utils.logger.Logger
+            Logger object to be used for logging and saving checkpoints
+            (`gflownet/utils/logger.py:Logger`).
+        num_empirical_loss : int
+            Number of empirical loss samples to be used for training.
+        evaluator : gflownet.evaluator.base.BaseEvaluator
+            :py:mod:`~gflownet.evaluator` ``Evaluator`` instance.
+        state_flow : dict, optional
+            State flow config dictionary. See `gflownet.yaml:state_flow` for details. By
+            default None.
+        use_context : bool, optional
+            Whether the logger will use its context in metrics names. Formerly the
+            `active_learning: bool` flag. By default False.
+        replay_sampling : str, optional
+            Type of sampling for the replay buffer. See
+            :meth:`~gflownet.utils.buffer.select`. By default "permutation".
+        train_sampling : str, optional
+            Type of sampling for the train buffer (offline backward trajectories). See
+            :meth:`~gflownet.utils.buffer.select`. By default "permutation".
+
+        Raises
+        ------
+        Exception
+            If the loss is flowmatch/flowmatching and the environment is continuous.
+        """
         # Seed
         self.rng = np.random.default_rng(seed)
         # Device
@@ -106,7 +162,6 @@ class GFlowNetAgent:
         # Logging
         self.num_empirical_loss = num_empirical_loss
         self.logger = logger
-        self.oracle_n = oracle.n
         # Buffers
         self.replay_sampling = replay_sampling
         self.train_sampling = train_sampling
@@ -114,7 +169,6 @@ class GFlowNetAgent:
             **buffer,
             env=self.env,
             proxy=self.proxy,
-            make_train_test=not sample_only,
             logger=logger,
         )
         # Train set statistics and reward normalization constant
@@ -182,6 +236,11 @@ class GFlowNetAgent:
             )
         else:
             self.opt, self.lr_scheduler, self.target = None, None, None
+
+        # Evaluator
+        self.evaluator = evaluator
+        self.evaluator.set_agent(self)
+
         self.n_train_steps = optimizer.n_train_steps
         self.batch_size = optimizer.batch_size
         self.batch_size_total = sum(self.batch_size.values())
@@ -191,7 +250,7 @@ class GFlowNetAgent:
         self.tau = optimizer.bootstrap_tau
         self.ema_alpha = optimizer.ema_alpha
         self.early_stopping = optimizer.early_stopping
-        self.use_context = active_learning
+        self.use_context = use_context
         self.logsoftmax = torch.nn.LogSoftmax(dim=1)
         # Training
         self.mask_invalid_actions = mask_invalid_actions
@@ -878,7 +937,6 @@ class GFlowNetAgent:
         probs_std: torch.tensor
             Bootstrap std of the torch.exp(logprobs_estimates)
         """
-        print("Compute logprobs...", flush=True)
         times = {}
         # Determine terminating states
         if isinstance(data, list):
@@ -912,12 +970,18 @@ class GFlowNetAgent:
         mult_indices = max(n_states, n_trajectories)
         init_batch = 0
         end_batch = min(batch_size, n_states)
-        print(
-            "Sampling backward actions from test data to estimate logprobs...",
-            flush=True,
+        pbar = tqdm(
+            total=n_states,
+            disable=not self.logger.progress,
+            leave=False,
+            desc="Sampling backward actions from test data to estimate logprobs",
         )
-        if n_states > batch_size:
-            pbar = tqdm(total=n_states)
+        pbar2 = trange(
+            end_batch * n_trajectories,
+            disable=not self.logger.progress,
+            leave=False,
+            desc="Setting env terminal states",
+        )
         while init_batch < n_states:
             batch = Batch(
                 env=self.env,
@@ -927,14 +991,15 @@ class GFlowNetAgent:
             )
             # Create an environment for each data point and trajectory and set the state
             envs = []
+            pbar2.reset((end_batch - init_batch) * n_trajectories)
             for state_idx in range(init_batch, end_batch):
                 for traj_idx in range(n_trajectories):
                     idx = int(mult_indices * state_idx + traj_idx)
                     env = self.env_maker().set_id(idx)
                     env.set_state(states_term[state_idx], done=True)
                     envs.append(env)
+                    pbar2.update(1)
             # Sample trajectories
-            max_iters = n_trajectories * max_iters_per_traj
             while envs:
                 # Sample backward actions
                 actions = self.sample_actions(
@@ -982,7 +1047,8 @@ class GFlowNetAgent:
         )
         logprobs_std = torch.std(logprobs_estimates_bs, dim=-1)
         probs_std = torch.std(torch.exp(logprobs_estimates_bs), dim=-1)
-        print("Done computing logprobs", flush=True)
+        pbar.close()
+        pbar2.close()
         return logprobs_estimates, logprobs_std, probs_std
 
     def train(self):
@@ -994,51 +1060,12 @@ class GFlowNetAgent:
         # Train loop
         pbar = tqdm(range(1, self.n_train_steps + 1), disable=not self.logger.progress)
         for it in pbar:
-            # Test
-            fig_names = [
-                "True reward and GFlowNet samples",
-                "GFlowNet KDE Policy",
-                "Reward KDE",
-                "Samples TopK",
-            ]
-            if self.logger.do_test(it):
-                (
-                    self.l1,
-                    self.kl,
-                    self.jsd,
-                    self.corr_prob_traj_rewards,
-                    self.var_logrewards_logp,
-                    self.nll_tt,
-                    self.mean_logprobs_std,
-                    self.mean_probs_std,
-                    self.logprobs_std_nll_ratio,
-                    figs,
-                    env_metrics,
-                ) = self.test()
-                self.logger.log_test_metrics(
-                    self.l1,
-                    self.kl,
-                    self.jsd,
-                    self.corr_prob_traj_rewards,
-                    self.var_logrewards_logp,
-                    self.nll_tt,
-                    self.mean_logprobs_std,
-                    self.mean_probs_std,
-                    self.logprobs_std_nll_ratio,
-                    it,
-                    self.use_context,
-                )
-                self.logger.log_metrics(env_metrics, it, use_context=self.use_context)
-                self.logger.log_plots(
-                    figs, it, fig_names=fig_names, use_context=self.use_context
-                )
-            if self.logger.do_top_k(it):
-                metrics, figs, fig_names, summary = self.test_top_k(it)
-                self.logger.log_plots(
-                    figs, it, use_context=self.use_context, fig_names=fig_names
-                )
-                self.logger.log_metrics(metrics, use_context=self.use_context, step=it)
-                self.logger.log_summary(summary)
+            # Test and log
+            if self.evaluator.should_eval(it):
+                self.evaluator.eval_and_log(it)
+            if self.evaluator.should_eval_top_k(it):
+                self.evaluator.eval_and_log_top_k(it)
+
             t0_iter = time.time()
             batch = Batch(
                 env=self.env,
@@ -1121,7 +1148,6 @@ class GFlowNetAgent:
             # Log
             if self.logger.lightweight:
                 all_losses = all_losses[-100:]
-                all_visited = states_term
             else:
                 all_visited.extend(states_term)
             # Progress bar
@@ -1130,24 +1156,26 @@ class GFlowNetAgent:
             )
             # Train logs
             t0_log = time.time()
-            self.logger.log_train(
-                losses=losses,
-                rewards=rewards,
-                proxy_vals=proxy_vals,
-                states_term=states_term,
-                batch_size=len(batch),
-                logz=self.logZ,
-                learning_rates=self.lr_scheduler.get_last_lr(),
-                step=it,
-                use_context=self.use_context,
-            )
+            if self.evaluator.should_log_train(it):
+                self.logger.log_train(
+                    losses=losses,
+                    rewards=rewards,
+                    proxy_vals=proxy_vals,
+                    states_term=states_term,
+                    batch_size=len(batch),
+                    logz=self.logZ,
+                    learning_rates=self.lr_scheduler.get_last_lr(),
+                    step=it,
+                    use_context=self.use_context,
+                )
             t1_log = time.time()
             times.update({"log": t1_log - t0_log})
             # Save intermediate models
             t0_model = time.time()
-            self.logger.save_models(
-                self.forward_policy, self.backward_policy, self.state_flow, step=it
-            )
+            if self.evaluator.should_checkpoint(it):
+                self.logger.save_models(
+                    self.forward_policy, self.backward_policy, self.state_flow, step=it
+                )
             t1_model = time.time()
             times.update({"save_interim_model": t1_model - t0_model})
 
@@ -1183,329 +1211,35 @@ class GFlowNetAgent:
         if self.use_context is False:
             self.logger.end()
 
-    def test(self, **plot_kwargs):
+    def get_sample_space_and_reward(self):
         """
-        Computes metrics by sampling trajectories from the forward policy.
-        """
-        if self.buffer.test_pkl is None:
-            return (
-                self.l1,
-                self.kl,
-                self.jsd,
-                self.corr_prob_traj_rewards,
-                self.var_logrewards_logp,
-                self.nll_tt,
-                self.mean_logprobs_std,
-                self.mean_probs_std,
-                self.logprobs_std_nll_ratio,
-                (None,),
-                {},
-            )
-        with open(self.buffer.test_pkl, "rb") as f:
-            dict_tt = pickle.load(f)
-            x_tt = dict_tt["x"]
-
-        # Compute correlation between the rewards of the test data and the log
-        # likelihood of the data according the the GFlowNet policy; and NLL.
-        # TODO: organise code for better efficiency and readability
-        logprobs_x_tt, logprobs_std, probs_std = self.estimate_logprobs_data(
-            x_tt,
-            n_trajectories=self.logger.test.n_trajs_logprobs,
-            max_data_size=self.logger.test.max_data_logprobs,
-            batch_size=self.logger.test.logprobs_batch_size,
-            bs_num_samples=self.logger.test.logprobs_bootstrap_size,
-        )
-        mean_logprobs_std = logprobs_std.mean().item()
-        mean_probs_std = probs_std.mean().item()
-        rewards_x_tt = self.proxy.rewards(self.env.states2proxy(x_tt))
-        corr_prob_traj_rewards = np.corrcoef(
-            np.exp(logprobs_x_tt.cpu().numpy()), rewards_x_tt
-        )[0, 1]
-        var_logrewards_logp = torch.var(
-            torch.log(tfloat(rewards_x_tt, float_type=self.float, device=self.device))
-            - logprobs_x_tt
-        ).item()
-        nll_tt = -logprobs_x_tt.mean().item()
-        logprobs_std_nll_ratio = torch.mean(-logprobs_std / logprobs_x_tt).item()
-
-        x_sampled = []
-        if self.buffer.test_type is not None and self.buffer.test_type == "all":
-            batch, _ = self.sample_batch(n_forward=self.logger.test.n, train=False)
-            assert batch.is_valid()
-            x_sampled = batch.get_terminating_states()
-
-            if "density_true" in dict_tt:
-                density_true = dict_tt["density_true"]
-            else:
-                # This is hacky but it is re-done anyway in the Evaluator class.
-                z_true = rewards_x_tt.sum().item()
-                density_true = rewards_x_tt.numpy() / z_true
-                with open(self.buffer.test_pkl, "wb") as f:
-                    dict_tt["density_true"] = density_true
-                    pickle.dump(dict_tt, f)
-            hist = defaultdict(int)
-            for x in x_sampled:
-                hist[tuple(x)] += 1
-            z_pred = sum([hist[tuple(x)] for x in x_tt]) + 1e-9
-            density_pred = np.array([hist[tuple(x)] / z_pred for x in x_tt])
-            log_density_true = np.log(density_true + 1e-8)
-            log_density_pred = np.log(density_pred + 1e-8)
-        elif self.buffer.test_type == "random":
-            env_metrics = self.env.test(x_sampled)
-        elif self.continuous and hasattr(self.env, "fit_kde"):
-            batch, _ = self.sample_batch(n_forward=self.logger.test.n, train=False)
-            assert batch.is_valid()
-            x_sampled = batch.get_terminating_states(proxy=True)
-            # TODO make it work with conditional env
-            x_tt = torch2np(self.env.states2proxy(x_tt))
-            kde_pred = self.env.fit_kde(
-                x_sampled,
-                kernel=self.logger.test.kde.kernel,
-                bandwidth=self.logger.test.kde.bandwidth,
-            )
-            if "log_density_true" in dict_tt and "kde_true" in dict_tt:
-                log_density_true = dict_tt["log_density_true"]
-                kde_true = dict_tt["kde_true"]
-            else:
-                # Sample from reward via rejection sampling
-                x_from_reward = self.env.states2proxy(
-                    self.sample_from_reward(n_samples=self.logger.test.n)
-                )
-                # Fit KDE with samples from reward
-                kde_true = self.env.fit_kde(
-                    x_from_reward,
-                    kernel=self.logger.test.kde.kernel,
-                    bandwidth=self.logger.test.kde.bandwidth,
-                )
-                # Estimate true log density using test samples
-                # TODO: this may be specific-ish for the torus or not
-                scores_true = kde_true.score_samples(x_tt)
-                log_density_true = scores_true - logsumexp(scores_true, axis=0)
-                # Add log_density_true and kde_true to pickled test dict
-                with open(self.buffer.test_pkl, "wb") as f:
-                    dict_tt["log_density_true"] = log_density_true
-                    dict_tt["kde_true"] = kde_true
-                    pickle.dump(dict_tt, f)
-            # Estimate pred log density using test samples
-            # TODO: this may be specific-ish for the torus or not
-            scores_pred = kde_pred.score_samples(x_tt)
-            log_density_pred = scores_pred - logsumexp(scores_pred, axis=0)
-            density_true = np.exp(log_density_true)
-            density_pred = np.exp(log_density_pred)
-        else:
-            raise NotImplementedError
-
-        if self.buffer.test_type == "all" or self.continuous:
-            # L1 error
-            l1 = np.abs(density_pred - density_true).mean()
-            # KL divergence
-            kl = (density_true * (log_density_true - log_density_pred)).mean()
-            # Jensen-Shannon divergence
-            log_mean_dens = np.logaddexp(log_density_true, log_density_pred) + np.log(
-                0.5
-            )
-            jsd = 0.5 * np.sum(density_true * (log_density_true - log_mean_dens))
-            jsd += 0.5 * np.sum(density_pred * (log_density_pred - log_mean_dens))
-        else:
-            l1 = self.l1
-            kl = self.kl
-            jsd = self.jsd
-
-        # Plots
-        if hasattr(self.env, "plot_reward_samples"):
-            # TODO: improve to not repeat code
-            if not hasattr(self, "sample_space_batch"):
-                if hasattr(self.env, "get_all_terminating_states"):
-                    self.sample_space_batch = self.env.get_all_terminating_states()
-                elif hasattr(self.env, "get_grid_terminating_states"):
-                    self.sample_space_batch = self.env.get_grid_terminating_states(
-                        self.logger.test.n_grid
-                    )
-                else:
-                    raise NotImplementedError(
-                        "In order to plot the reward density and the samples, the "
-                        "environment must implement either get_all_terminating_states() "
-                        "or get_grid_terminating_states()"
-                    )
-                self.sample_space_batch = self.env.states2proxy(self.sample_space_batch)
-            if not hasattr(self, "rewards_sample_space"):
-                self.rewards_sample_space = self.proxy.rewards(self.sample_space_batch)
-            fig_reward_samples = self.env.plot_reward_samples(
-                x_sampled,
-                self.sample_space_batch,
-                self.rewards_sample_space,
-                **plot_kwargs,
-            )
-        else:
-            fig_reward_samples = None
-        if hasattr(self.env, "plot_kde"):
-            # TODO: improve to not repeat code
-            if not hasattr(self, "sample_space_batch"):
-                if hasattr(self.env, "get_all_terminating_states"):
-                    self.sample_space_batch = self.env.get_all_terminating_states()
-                elif hasattr(self.env, "get_grid_terminating_states"):
-                    self.sample_space_batch = self.env.get_grid_terminating_states(
-                        self.logger.test.n_grid
-                    )
-                else:
-                    raise NotImplementedError(
-                        "In order to plot the KDEs over the sample space, the "
-                        "environment must implement either get_all_terminating_states() "
-                        "or get_grid_terminating_states()"
-                    )
-                self.sample_space_batch = self.env.states2proxy(self.sample_space_batch)
-            fig_kde_pred = self.env.plot_kde(
-                self.sample_space_batch, kde_pred, **plot_kwargs
-            )
-            fig_kde_true = self.env.plot_kde(
-                self.sample_space_batch, kde_true, **plot_kwargs
-            )
-        else:
-            fig_kde_pred = None
-            fig_kde_true = None
-        if hasattr(self.env, "plot_samples_topk"):
-            # TODO: samples are in environment format because this is what is needed by
-            # Tetris. We may want to adapt it.
-            # TODO: this is a pretty bad implementation, but it will be fixed with the
-            # Evaluator
-            batch, _ = self.sample_batch(n_forward=self.logger.test.n, train=False)
-            x_sampled = batch.get_terminating_states()
-            rewards = self.proxy.rewards(self.env.states2proxy(x_sampled))
-            fig_samples_topk = self.env.plot_samples_topk(
-                x_sampled,
-                rewards,
-                **plot_kwargs,
-            )
-        else:
-            fig_samples_topk = None
-        return (
-            l1,
-            kl,
-            jsd,
-            corr_prob_traj_rewards,
-            var_logrewards_logp,
-            nll_tt,
-            mean_logprobs_std,
-            mean_probs_std,
-            logprobs_std_nll_ratio,
-            [fig_reward_samples, fig_kde_pred, fig_kde_true, fig_samples_topk],
-            {},
-        )
-
-    @torch.no_grad()
-    def test_top_k(self, it, progress=False, gfn_states=None, random_states=None):
-        """
-        Sample from the current GFN and compute metrics and plots for the top k states
-        according to both the energy and the reward.
-
-        Parameters
-        ----------
-        it : int
-            Current iteration.
-        progress : bool, optional
-            Print sampling progress. Defaults to False.
-        gfn_states : list, optional
-            Already sampled gfn states. Defaults to None.
-        random_states : list, optional
-            Already sampled random states. Defaults to None.
+        Returns samples representative of the env state space with their rewards
 
         Returns
         -------
-        tuple[dict, list[plt.Figure], list[str], dict]
-            Computed dict of metrics, and figures, their names and optionally (only
-            once) summary metrics.
+        sample_space_batch : tensor
+            Repressentative terminating states for the environment
+         rewards_sample_space : tensor
+            Rewards associated with the tates in sample_space_batch
         """
-        # only do random top k plots & metrics once
-        do_random = it // self.logger.test.top_k_period == 1
-        duration = None
-        summary = {}
-        prob = copy.deepcopy(self.random_action_prob)
-        print()
-        if not gfn_states:
-            # sample states from the current gfn
-            batch = Batch(
-                env=self.env,
-                proxy=self.proxy,
-                device=self.device,
-                float_type=self.float,
-            )
-            self.random_action_prob = 0
-            t = time.time()
-            print("Sampling from GFN...", end="\r")
-            for b in batch_with_rest(
-                0, self.logger.test.n_top_k, self.batch_size_total
-            ):
-                sub_batch, _ = self.sample_batch(n_forward=len(b), train=False)
-                batch.merge(sub_batch)
-            duration = time.time() - t
-            gfn_states = batch.get_terminating_states()
-
-        # compute metrics and get plots
-        print("[test_top_k] Making GFN plots...", end="\r")
-        metrics, figs, fig_names = self.env.top_k_metrics_and_plots(
-            gfn_states, self.logger.test.top_k, name="gflownet", step=it
-        )
-        if duration:
-            metrics["gflownet top k sampling duration"] = duration
-
-        if do_random:
-            # sample random states from uniform actions
-            if not random_states:
-                batch = Batch(
-                    env=self.env,
-                    proxy=self.proxy,
-                    device=self.device,
-                    float_type=self.float,
+        if not hasattr(self, "sample_space_batch"):
+            if hasattr(self.env, "get_all_terminating_states"):
+                self.sample_space_batch = self.env.get_all_terminating_states()
+            elif hasattr(self.env, "get_grid_terminating_states"):
+                self.sample_space_batch = self.env.get_grid_terminating_states(
+                    self.evaluator.config.n_grid
                 )
-                self.random_action_prob = 1.0
-                print("[test_top_k] Sampling at random...", end="\r")
-                for b in batch_with_rest(
-                    0, self.logger.test.n_top_k, self.batch_size_total
-                ):
-                    sub_batch, _ = self.sample_batch(n_forward=len(b), train=False)
-                    batch.merge(sub_batch)
-            # compute metrics and get plots
-            random_states = batch.get_terminating_states()
-            print("[test_top_k] Making Random plots...", end="\r")
-            (
-                random_metrics,
-                random_figs,
-                random_fig_names,
-            ) = self.env.top_k_metrics_and_plots(
-                random_states, self.logger.test.top_k, name="random", step=None
-            )
-            # add to current metrics and plots
-            summary.update(random_metrics)
-            figs += random_figs
-            fig_names += random_fig_names
-            # compute training data metrics and get plots
-            print("[test_top_k] Making train plots...", end="\r")
-            (
-                train_metrics,
-                train_figs,
-                train_fig_names,
-            ) = self.env.top_k_metrics_and_plots(
-                None, self.logger.test.top_k, name="train", step=None
-            )
-            # add to current metrics and plots
-            summary.update(train_metrics)
-            figs += train_figs
-            fig_names += train_fig_names
+            else:
+                raise NotImplementedError(
+                    "In order to obtain representative terminating states, the "
+                    "environment must implement either get_all_terminating_states() "
+                    "or get_grid_terminating_states()"
+                )
+            self.sample_space_batch = self.env.states2proxy(self.sample_space_batch)
+        if not hasattr(self, "rewards_sample_space"):
+            self.rewards_sample_space = self.proxy.rewards(self.sample_space_batch)
 
-        self.random_action_prob = prob
-
-        print(" " * 100, end="\r")
-        print("test_top_k metrics:")
-        max_k = max([len(k) for k in (list(metrics.keys()) + list(summary.keys()))]) + 1
-        print(
-            "  •  "
-            + "\n  •  ".join(
-                f"{k:{max_k}}: {v:.4f}"
-                for k, v in (list(metrics.items()) + list(summary.items()))
-            )
-        )
-        print()
-        return metrics, figs, fig_names, summary
+        return self.sample_space_batch, self.rewards_sample_space
 
     # TODO: implement other proposal distributions
     # TODO: rethink whether it is needed to convert to reward
@@ -1588,47 +1322,6 @@ class GFlowNetAgent:
             times["test_logq"] += t1_test_logq - t0_test_logq
         corr = np.corrcoef(data_logq, self.buffer.test["energies"])
         return corr, data_logq, times
-
-    # TODO: reorganize and remove
-    def log_iter(
-        self,
-        pbar,
-        rewards,
-        proxy_vals,
-        states_term,
-        data,
-        it,
-        times,
-        losses,
-        all_losses,
-        all_visited,
-    ):
-        # train metrics
-        self.logger.log_sampler_train(
-            rewards, proxy_vals, states_term, data, it, self.use_context
-        )
-
-        # logZ
-        self.logger.log_metric("logZ", self.logZ.sum(), it, use_context=False)
-
-        # test metrics
-        # TODO: integrate corr into test()
-        if not self.logger.lightweight and self.buffer.test is not None:
-            corr, data_logq, times = self.get_log_corr(times)
-            self.logger.log_sampler_test(corr, data_logq, it, self.use_context)
-
-        # oracle metrics
-        oracle_batch, oracle_times = self.sample_batch(
-            n_forward=self.oracle_n, train=False
-        )
-
-        if not self.logger.lightweight:
-            self.logger.log_metric(
-                "unique_states",
-                np.unique(all_visited).shape[0],
-                step=it,
-                use_context=self.use_context,
-            )
 
 
 def make_opt(params, logZ, config):

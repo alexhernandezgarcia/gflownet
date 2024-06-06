@@ -5,6 +5,7 @@
 defaults:
    - override /env: scrabble
    - override /gflownet: trajectorybalance
+   - override /evaluator: base
    - override /proxy: scrabble
    - override /logger: wandb
    - override /user: alex
@@ -50,21 +51,21 @@ policy:
     shared_weights: False
     checkpoint: backward
 
+# Evaluator
+period: 500
+n: 1000
+checkpoints_period: 500
+
 # WandB
 logger:
   do:
     online: true
   lightweight: True
   project_name: "scrabble"
-  tags: 
+  tags:
     - gflownet
     - discrete
     - scrabble
-  test:
-    period: 500
-    n: 1000
-  checkpoints:
-    period: 500
 
 # Hydra
 hydra:

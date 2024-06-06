@@ -6,6 +6,7 @@ defaults:
   - proxy: corners
   - logger: wandb
   - user: default
+  - evaluator: base
 
 # Device
 device: cuda

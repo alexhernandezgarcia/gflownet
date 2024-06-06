@@ -427,7 +427,7 @@ if __name__ == "__main__":
     dave_config["rescale_outputs"] = True
     dave = DAVE(**dave_config)
 
-    gflownet = load_gflow_net_from_run_path(args.gflownet_path, device=dave.device)
+    gflownet, _ = load_gflow_net_from_run_path(args.gflownet_path, device=dave.device)
 
     loaders = make_loaders(dave.model_config)
     loaders["train"].dataset.ytransform = False
