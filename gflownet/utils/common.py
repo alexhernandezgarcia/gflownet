@@ -239,6 +239,7 @@ def read_hydra_config(run_path=None, config_name="config"):
     ):
         return compose(config_name=config_name)
 
+
 def gflownet_from_config(config):
     """
     Create GFlowNet from a Hydra OmegaConf config.
