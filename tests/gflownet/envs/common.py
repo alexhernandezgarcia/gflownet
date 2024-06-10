@@ -442,6 +442,7 @@ class BaseTestsDiscrete(BaseTestsCommon):
                 device=config.device,
                 float_precision=config.float_precision,
             )
+            evaluator = hydra.utils.instantiate(config.evaluator)
 
             # Policy
             forward_config = parse_policy_config(config, kind="forward")
@@ -475,6 +476,7 @@ class BaseTestsDiscrete(BaseTestsCommon):
                 backward_policy=backward_policy,
                 buffer=config.env.buffer,
                 logger=logger,
+                evaluator=evaluator,
             )
             gflownet.train()
             assert True

@@ -20,7 +20,6 @@ class Buffer:
         self,
         env,
         proxy,
-        make_train_test=False,
         replay_capacity=0,
         output_csv=None,
         data_path=None,
@@ -45,8 +44,15 @@ class Buffer:
         self.replay_trajs = {}
         self.replay_rewards = {}
         self.replay_pkl = "replay.pkl"
+
+        self.train_csv = None
+        self.train_pkl = None
+        self.test_csv = None
+        self.test_pkl = None
+
         self.save_replay()
-        # Define train and test data sets
+
+        # Define train data set
         if train is not None and "type" in train:
             self.train_type = train.type
         else:
@@ -58,6 +64,7 @@ class Buffer:
             and train.output_csv is not None
         ):
             self.train.to_csv(train.output_csv)
+            self.train_csv = train.output_csv
         if (
             dict_tr is not None
             and "output_pkl" in train
@@ -76,6 +83,8 @@ class Buffer:
             """
             )
             self.train_pkl = None
+
+        # Define test data set
         if test is not None and "type" in test:
             self.test_type = test.type
         else:
@@ -86,6 +95,7 @@ class Buffer:
             and "output_csv" in test
             and test.output_csv is not None
         ):
+            self.test_csv = test.output_csv
             self.test.to_csv(test.output_csv)
         if dict_tt is not None and "output_pkl" in test and test.output_pkl is not None:
             with open(test.output_pkl, "wb") as f:
@@ -101,6 +111,7 @@ class Buffer:
             """
             )
             self.test_pkl = None
+
         # Compute buffer statistics
         if self.train is not None:
             (
@@ -301,26 +312,25 @@ class Buffer:
             - weighted: data points are sampled with probability proportional to their
               score.
 
-        Args
-        ----
+        Parameters
+        ----------
         data_dict : dict
             A dictionary with samples (key "x") and scores (key "energy" or "rewards").
-
         n : int
             The number of samples to select from the dictionary.
-
         mode : str
             Sampling mode. Options: permutation, weighted.
-
         rng : np.random.Generator
-            A numpy random number generator, used for the permutation mode. Ignored
-            otherwise.
+            A numpy random number generator, used for the permutation and weighted
+            modes. If None (default), a generator with a random seed is used.
 
         Returns
         -------
         list
             A batch of n samples, selected from data_dict.
         """
+        if rng is None:
+            rng = np.random.default_rng()
         if n == 0:
             return []
         samples = data_dict["x"]
@@ -329,7 +339,6 @@ class Buffer:
         if isinstance(samples, dict):
             samples = list(samples.values())
         if mode == "permutation":
-            assert rng is not None
             indices = rng.choice(
                 len(samples),
                 size=n,
@@ -350,7 +359,7 @@ class Buffer:
                 scores = np.fromiter(scores.values(), dtype=float)
             if isinstance(scores, list):
                 scores = np.array(scores, dtype=float)
-            indices = np.random.choice(
+            indices = rng.choice(
                 len(samples),
                 size=n,
                 replace=False,

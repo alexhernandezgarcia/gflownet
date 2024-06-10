@@ -56,6 +56,8 @@ python main.py gflownet=trajectorybalance env=ctorus proxy=torus
 
 The above command will overwrite the `env` and `proxy` default configuration with the configuration files in `config/env/ctorus.yaml` and `config/proxy/torus.yaml` respectively.
 
+Note that by default, PyTorch will operate on the CPU because we have not observed performance improvements by running on the GPU. You may run on GPU with `device=cuda`.
+
 Hydra configuration is hierarchical. For instance, a handy variable to change while debugging our code is to avoid logging to wandb. You can do this by setting `logger.do.online=False`.
 
 ## GFlowNet loss functions
@@ -75,7 +77,7 @@ The repository supports logging of train and evaluation metrics to [wandb.ai](ht
 
 Bibtex Format
 
-```txt
+```text
 @misc{hernandez-garcia2024,
   author = {Hernandez-Garcia, Alex and Saxena, Nikita and Volokhova, Alexandra and Koziarski, Michał and Sharma, Divya and Viviano, Joseph D and Carrier, Pierre Luc and Schmidt, Victor},
   title  = {gflownet},

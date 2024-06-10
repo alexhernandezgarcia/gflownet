@@ -3,5 +3,5 @@ defaults:
 
 _target_: gflownet.utils.logger.Logger
 
-tags: 
+tags:
     - gflownet
