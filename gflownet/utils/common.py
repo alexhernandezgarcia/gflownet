@@ -226,6 +226,20 @@ def find_latest_checkpoint(ckpt_dir, ckpt_name):
     return sorted(ckpts, key=lambda f: float(f.stem.split("iter")[1]))[-1]
 
 
+def read_hydra_config(run_path=None, config_name="config"):
+    if run_path is None:
+        run_path = Path(config_name)
+        hydra_dir = run_path.parent
+        config_name = run_path.name
+    else:
+        hydra_dir = run_path / ".hydra"
+
+    with initialize_config_dir(
+        version_base=None, config_dir=str(hydra_dir), job_name="xxx"
+    ):
+        return compose(config_name=config_name)
+
+
 def gflownet_from_config(config):
     """
     Create GFlowNet from a Hydra OmegaConf config.
@@ -347,12 +361,7 @@ def load_gflow_net_from_run_path(
         If no checkpoints are found in the directory.
     """
     run_path = resolve_path(run_path)
-    hydra_dir = run_path / ".hydra"
-
-    with initialize_config_dir(
-        version_base=None, config_dir=str(hydra_dir), job_name="xxx"
-    ):
-        config = compose(config_name="config")
+    config = read_hydra_config(run_path)
 
     if print_config:
         print(OmegaConf.to_yaml(config))
@@ -629,7 +638,7 @@ def copy(x: Union[List, TensorType["..."]]):
     if torch.is_tensor(x):
         return x.clone().detach()
     else:
-        return x.copy()
+        return deepcopy(x)
 
 
 def bootstrap_samples(tensor, num_samples):

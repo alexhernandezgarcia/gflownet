@@ -3,27 +3,25 @@ defaults:
 
 _target_: gflownet.envs.crystals.crystal.Crystal
 
-# Composition parameters
+# Composition config
 id: crystal
 composition_kwargs:
   elements: 89
-  max_atoms: 20
-  max_atom_i: 16
+# Lattice parameters config
 lattice_parameters_kwargs:
   min_length: 1.0
-  max_length: 5.0
-  min_angle: 30.0
+  max_length: 350.0
+  min_angle: 50.0
   max_angle: 150.0
-  grid_size: 10
+# Space group config
+space_group_kwargs:
+  space_groups_subset: null
 # Stoichiometry <-> space group check
-do_stoichiometry_sg_check: False
+do_composition_to_sg_constraints: True
+self.do_sg_to_lp_constraints: True
 
 # Buffer
 buffer:
   data_path: null
-  train:
-    type: all
-    output_csv: crystal_train.csv
-  test:
-    type: all
-    output_csv: crystal_test.csv
+  train: null
+  test: null

@@ -195,8 +195,25 @@ class GFlowNetEnv:
             mask[self.action_space.index(pa)] = False
         return mask
 
+    def get_mask(
+        self,
+        state: Optional[List] = None,
+        done: Optional[bool] = None,
+        backward: Optional[bool] = False,
+    ) -> List:
+        """
+        Returns a mask of invalid actions given a state and a done value. Depending on
+        backward, either the forward or the backward mask is returned, by calling the
+        corresponding method.
+        """
+        if backward:
+            return self.get_mask_invalid_actions_backward(state, done)
+        else:
+            return self.get_mask_invalid_actions_forward(state, done)
+
     def get_valid_actions(
         self,
+        mask: Optional[bool] = None,
         state: Optional[List] = None,
         done: Optional[bool] = None,
         backward: Optional[bool] = False,
@@ -208,11 +225,9 @@ class GFlowNetEnv:
         More documentation about the meaning and use of invalid actions can be found in
         gflownet/envs/README.md.
         """
-        if backward:
-            mask = self.get_mask_invalid_actions_backward(state, done)
-        else:
-            mask = self.get_mask_invalid_actions_forward(state, done)
-        return [action for action, m in zip(self.action_space, mask) if m is False]
+        if mask is None:
+            mask = self.get_mask(state, done, backward)
+        return [action for action, m in zip(self.action_space, mask) if not m]
 
     def get_parents(
         self,
@@ -450,9 +465,9 @@ class GFlowNetEnv:
             )
 
         if mask is not None:
-            assert not torch.all(mask), dedent(
+            assert not torch.all(mask, dim=1).any(), dedent(
                 """
-            All actions in the mask are invalid.
+            All actions in the mask are invalid for some states in the batch.
             """
             )
             logits[mask] = -torch.inf
@@ -824,6 +839,14 @@ class GFlowNetEnv:
                     torch.isclose(state_x[~x_nan], state_y[~y_nan], atol=atol)
                 )
             return torch.equal(state_x, state_y)
+        if isinstance(state_x, dict) and isinstance(state_y, dict):
+            keys_equal = set(state_x.keys()) == set(state_y.keys())
+            values_close = np.all(
+                np.isclose(
+                    sorted(state_x.values()), sorted(state_y.values()), atol=atol
+                )
+            )
+            return keys_equal and values_close
         else:
             return np.all(np.isclose(state_x, state_y, atol=atol))
 
@@ -897,6 +920,39 @@ class GFlowNetEnv:
         proxy_reward = self.proxy2reward(proxy_energy)
 
         return gt_energy, proxy_energy, gt_reward, proxy_reward
+
+    def mask_conditioning(
+        self, mask: Union[List[bool], TensorType["mask_dim"]], env_cond, backward: bool
+    ):
+        """
+        Conditions the input mask based on the restrictions imposed by a conditioning
+        environment, env_cond.
+
+        It is assumed that the state space of the conditioning environment is a subset
+        of the state space of the original environment (self). The conditioning
+        mechanism goes as follows: given a state, its corresponding mask and a
+        conditioning environment, the mask of invalid actions is updated such that all
+        actions that would be invalid in the conditioning environment are made invalid,
+        even though they may not be invalid in the original environment.
+        """
+        # Set state in conditional environment
+        env_cond.reset()
+        env_cond.set_state(self.state, self.done)
+        # If the environment is continuous, then we simply return the mask of the
+        # conditioning environment. It is thus assumed that the dimensionality and
+        # interpretation is the same.
+        if self.continuous:
+            return env_cond.get_mask(backward=backward)
+        # Get valid actions common to both the original and the conditioning env
+        actions_valid_orig = self.get_valid_actions(mask)
+        actions_valid_cond = env_cond.get_valid_actions(backward=backward)
+        actions_valid = set(actions_valid_orig).intersection(set(actions_valid_cond))
+        # Construct new mask by setting to False (valid or not invalid) the actions
+        # that are valid to both environments
+        mask = [True] * self.mask_dim
+        for action in actions_valid:
+            mask[self.action_space.index(action)] = False
+        return mask
 
     @torch.no_grad()
     def top_k_metrics_and_plots(

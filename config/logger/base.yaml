@@ -16,3 +16,4 @@ lightweight: False
 progress: True
 context: "0"
 notes: null # wandb run notes (e.g. "baseline")
+entity: null # wandb entity (e.g. "gflownet", "hernanga", "mila-ocp" etc.)

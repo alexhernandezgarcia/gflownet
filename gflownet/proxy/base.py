@@ -2,6 +2,7 @@
 Base class of GFlowNet proxies
 """
 
+import numbers
 from abc import ABC, abstractmethod
 from typing import Callable, List, Optional, Tuple, Union
 
@@ -10,7 +11,7 @@ import numpy.typing as npt
 import torch
 from torchtyping import TensorType
 
-from gflownet.utils.common import set_device, set_float_precision
+from gflownet.utils.common import set_device, set_float_precision, tfloat
 
 LOGZERO = -1e3
 
@@ -59,12 +60,25 @@ class Proxy(ABC):
         do_clip_rewards : bool
             Whether to clip the rewards according to the minimum value.
         """
+        # Device
+        self.device = set_device(device)
+        # Float precision
+        self.float = set_float_precision(float_precision)
+        # Parameters of proxy to reward function. Numbers are converted to float
+        # tensors
+        self.reward_function_kwargs = {
+            k: (
+                tfloat(v, float_type=self.float, device=self.device)
+                if isinstance(v, numbers.Number)
+                else v
+            )
+            for k, v in reward_function_kwargs.items()
+        }
         # Proxy to reward function
         self.reward_function = reward_function
         self.logreward_function = logreward_function
-        self.reward_function_kwargs = reward_function_kwargs
         self._reward_function, self._logreward_function = self._get_reward_functions(
-            reward_function, logreward_function, **reward_function_kwargs
+            reward_function, logreward_function, **self.reward_function_kwargs
         )
         # Set minimum reward and log reward. If the minimum reward is exactly 0,
         # the minimum log reward is set to -1000 in order to avoid -inf.
@@ -74,10 +88,6 @@ class Proxy(ABC):
         else:
             self.logreward_min = np.log(self.reward_min)
         self.do_clip_rewards = do_clip_rewards
-        # Device
-        self.device = set_device(device)
-        # Float precision
-        self.float = set_float_precision(float_precision)
 
     def setup(self, env=None):
         pass
@@ -159,6 +169,10 @@ class Proxy(ABC):
             The log-reward of all elements in the batch.
         """
         logrewards = self._logreward_function(proxy_values)
+        if self.do_clip_rewards:
+            logrewards = torch.clip(
+                logrewards, min=self.get_min_reward(log=True), max=None
+            )
         logrewards[logrewards.isnan()] = self.get_min_reward(log=True)
         logrewards[~logrewards.isfinite()] = self.get_min_reward(log=True)
         return logrewards
@@ -253,6 +267,9 @@ class Proxy(ABC):
               See: :py:meth:`~gflownet.proxy.base._shift()`
             - prod(uct): the rewards are the proxy values multiplied by beta.
               See: :py:meth:`~gflownet.proxy.base._product()`
+            - rbf_exp(onential): the rewards are an exponential RBF applied on the
+              proxies with respect to a target value.
+              See: :py:meth:`~gflownet.proxy.base._rbf_exponential()`
 
         Parameters
         ----------
@@ -303,7 +320,9 @@ class Proxy(ABC):
             )
 
         elif reward_function.startswith("exp") or reward_function == "boltzmann":
-            return Proxy._exponential(**kwargs), Proxy._product(**kwargs)
+            return Proxy._exponential(**kwargs), lambda x: torch.log(
+                kwargs["alpha"]
+            ) + Proxy._product(beta=kwargs["beta"])(x)
 
         elif reward_function == "shift":
             return (
@@ -316,11 +335,22 @@ class Proxy(ABC):
                 Proxy._product(**kwargs),
                 lambda x: torch.log(Proxy._product(**kwargs)(x)),
             )
+        elif reward_function.lower().startswith("rbf_exp"):
+            return (
+                Proxy._rbf_exponential(**kwargs),
+                lambda x: torch.log(kwargs["alpha"])
+                + Proxy._product(beta=kwargs["beta"])(
+                    Proxy._distance(
+                        center=kwargs["center"], distance=kwargs["distance"]
+                    )(x)
+                ),
+            )
 
         else:
             raise ValueError(
                 "reward_function must be one of: id(entity), abs(olute) pow(er), "
-                f"exp(onential), shift, prod(uct). Received {reward_function} instead."
+                f"exp(onential), shift, prod(uct), rbf_exp(onential). "
+                f"Received {reward_function} instead."
             )
 
     @staticmethod
@@ -345,25 +375,31 @@ class Proxy(ABC):
         return lambda proxy_values: proxy_values**beta
 
     @staticmethod
-    def _exponential(beta: float = 1.0) -> Callable:
+    def _exponential(
+        beta: float = 1.0,
+        alpha: float = 1.0,
+    ) -> Callable:
         r"""
         Returns a lambda expression where the output is the exponential of the product
         of the input (proxy) values and beta.
 
         $$
-        R(x) = \exp{\beta\varepsilon(x)}
+        R(x) = \alpha\exp{\beta\varepsilon(x)}
         $$
 
         Parameters
         ----------
         beta : float
             The factor by which the proxy values are multiplied.
+        alpha : float
+            The factor multiplying the exponential.
 
         Returns
         -------
-        A lambda expression that takes the exponential of the proxy values * beta.
+        A lambda expression that takes the exponential of the proxy values * beta, all
+        multiplied by alpha.
         """
-        return lambda proxy_values: torch.exp(proxy_values * beta)
+        return lambda proxy_values: alpha * torch.exp(proxy_values * beta)
 
     @staticmethod
     def _shift(beta: float = 1.0) -> Callable:
@@ -405,6 +441,83 @@ class Proxy(ABC):
         A lambda expression that multiplies the proxy values by beta.
         """
         return lambda proxy_values: proxy_values * beta
+
+    @staticmethod
+    def _rbf_exponential(
+        center: float = 0.0,
+        beta: float = 1.0,
+        alpha: float = 1.0,
+        distance: str = "squared",
+    ) -> Callable:
+        r"""
+        Returns a lambda expression where the output is the exponential of a distance
+        to a center from the inputs (proxy values).
+
+        $$
+        R(x) = \alpha\exp(\beta dist(\varepsilon(x), c)),
+        $$
+
+        where $$c$$ is the center (a target value) and dist can be the Euclidean
+        (absolute) distance or the squared Euclidean distance.
+
+        Parameters
+        ----------
+        center : float
+            A target value with respect to which the distance of the proxy values is
+            computed.
+        beta : float
+            The factor by which the proxy values are multiplied.
+        alpha : float
+            The factor multiplying the exponential.
+        distance : str
+            A string indicating the type of metric used to compute the distance. The
+            available options are:
+                - abs(olute) OR euclidean: The Euclidean distance between the proxy
+                  values and the center.
+                - square(d): The squared Euclidean distance between the proxy values and
+                  the center (default).
+
+        Returns
+        -------
+        A lambda expression that returns an exponential radial basis function applied
+        on the proxy values.
+        """
+        return lambda proxy_values: Proxy._exponential(beta=beta, alpha=alpha)(
+            Proxy._distance(center=center, distance=distance)(proxy_values)
+        )
+
+    @staticmethod
+    def _distance(center: float = 0.0, distance: str = "squared") -> Callable:
+        r"""
+        Auxiliary function that returns a lambda expression where a distance is
+        computed with respect to a target (center).
+
+        Parameters
+        ----------
+        center : float
+            A target value with respect to which the distance of the proxy values is
+            computed.
+        distance : str
+            A string indicating the type of metric used to compute the distance. The
+            available options are:
+                - abs(olute) OR euclidean: The Euclidean distance between the proxy
+                  values and the center.
+                - square(d): The squared Euclidean distance between the proxy values and
+                  the center (default).
+
+        Returns
+        -------
+        A lambda expression that computes a distance of the inputs with respect to a
+        target.
+        """
+        if distance.startswith("abs") or distance.lower() == "euclidean":
+            return lambda proxy_values: torch.abs(proxy_values - center)
+        elif distance.lower().startswith("square"):
+            return lambda proxy_values: torch.square(proxy_values - center)
+        else:
+            raise NotImplementedError(
+                f"{distance} is not a valid identifier of a distance metric"
+            )
 
     def infer_on_train_set(self):
         """
