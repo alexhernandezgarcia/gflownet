@@ -71,14 +71,21 @@ class Logger:
         self.lightweight = lightweight
         self.debug = debug
         # Log directory
-        self.logdir = Path(logdir.root)
+        if "path" in logdir:
+            self.logdir = Path(logdir.path)
+        else:
+            self.logdir = Path(logdir.root)
         if not self.logdir.exists() or logdir.overwrite:
             self.logdir.mkdir(parents=True, exist_ok=True)
         else:
             print(f"logdir {logdir} already exists! - Ending run...")
             sys.exit(1)
+        # Checkpoints directory
         self.ckpts_dir = self.logdir / logdir.ckpts
         self.ckpts_dir.mkdir(parents=True, exist_ok=True)
+        # Data directory
+        self.datadir = self.logdir / "data"
+        self.datadir.mkdir(parents=True, exist_ok=True)
         # Write wandb URL
         self.write_url_file()
 

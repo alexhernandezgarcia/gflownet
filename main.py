@@ -9,6 +9,7 @@ import sys
 
 import hydra
 import pandas as pd
+from omegaconf import open_dict
 
 from gflownet.utils.policy import parse_policy_config
 
@@ -16,12 +17,13 @@ from gflownet.utils.policy import parse_policy_config
 @hydra.main(config_path="./config", config_name="main", version_base="1.1")
 def main(config):
 
-    # Print working and logging directory
+    # Set and print working and logging directory
+    with open_dict(config):
+        config.logger.logdir.path = (
+            hydra.core.hydra_config.HydraConfig.get().runtime.output_dir
+        )
     print(f"\nWorking directory of this run: {os.getcwd()}")
-    print(
-        "Logging directory of this run: "
-        f"{hydra.core.hydra_config.HydraConfig.get().runtime.output_dir}"
-    )
+    print(f"Logging directory of this run: {config.logger.logdir.path}\n")
 
     # Reset seed for job-name generation in multirun jobs
     random.seed(None)
@@ -48,7 +50,7 @@ def main(config):
         _partial_=True,
     )
     env = env_maker()
-    
+
     # The evaluator is used to compute metrics and plots
     evaluator = hydra.utils.instantiate(config.evaluator)
 

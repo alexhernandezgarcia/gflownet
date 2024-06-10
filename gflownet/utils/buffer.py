@@ -3,6 +3,7 @@ Buffer class to handle train and test data sets, reply buffer, etc.
 """
 
 import pickle
+from pathlib import Path
 from typing import List
 
 import numpy as np
@@ -28,7 +29,7 @@ class Buffer:
         logger=None,
         **kwargs,
     ):
-        self.logger = logger
+        self.datadir = logger.datadir
         self.env = env
         self.proxy = proxy
         self.replay_capacity = replay_capacity
@@ -43,7 +44,7 @@ class Buffer:
         self.replay_states = {}
         self.replay_trajs = {}
         self.replay_rewards = {}
-        self.replay_pkl = "replay.pkl"
+        self.replay_pkl = self.datadir / "replay.pkl"
 
         self.train_csv = None
         self.train_pkl = None
@@ -63,16 +64,16 @@ class Buffer:
             and "output_csv" in train
             and train.output_csv is not None
         ):
-            self.train.to_csv(train.output_csv)
-            self.train_csv = train.output_csv
+            self.train_csv = self.datadir / train.output_csv
+            self.train.to_csv(self.train_csv)
         if (
             dict_tr is not None
             and "output_pkl" in train
             and train.output_pkl is not None
         ):
-            with open(train.output_pkl, "wb") as f:
+            self.train_pkl = self.datadir / train.output_pkl
+            with open(self.train_pkl, "wb") as f:
                 pickle.dump(dict_tr, f)
-                self.train_pkl = train.output_pkl
         else:
             print(
                 """
@@ -95,12 +96,12 @@ class Buffer:
             and "output_csv" in test
             and test.output_csv is not None
         ):
-            self.test_csv = test.output_csv
-            self.test.to_csv(test.output_csv)
+            self.test_csv = self.datadir / test.output_csv
+            self.test.to_csv(self.test_csv)
         if dict_tt is not None and "output_pkl" in test and test.output_pkl is not None:
-            with open(test.output_pkl, "wb") as f:
+            self.test_pkl = self.datadir / test.output_pkl
+            with open(self.test_pkl, "wb") as f:
                 pickle.dump(dict_tt, f)
-                self.test_pkl = test.output_pkl
         else:
             print(
                 """
