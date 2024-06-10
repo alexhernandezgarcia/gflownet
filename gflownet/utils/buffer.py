@@ -22,7 +22,6 @@ class Buffer:
         env,
         proxy,
         replay_capacity=0,
-        output_csv=None,
         data_path=None,
         train=None,
         test=None,
@@ -59,19 +58,11 @@ class Buffer:
         else:
             self.train_type = None
         self.train, dict_tr = self.make_data_set(train)
-        if (
-            self.train is not None
-            and "output_csv" in train
-            and train.output_csv is not None
-        ):
-            self.train_csv = self.datadir / train.output_csv
+        if self.train is not None:
+            self.train_csv = self.datadir / "train.csv"
             self.train.to_csv(self.train_csv)
-        if (
-            dict_tr is not None
-            and "output_pkl" in train
-            and train.output_pkl is not None
-        ):
-            self.train_pkl = self.datadir / train.output_pkl
+        if dict_tr is not None:
+            self.train_pkl = self.datadir / "train.pkl"
             with open(self.train_pkl, "wb") as f:
                 pickle.dump(dict_tr, f)
         else:
@@ -79,8 +70,7 @@ class Buffer:
                 """
             Important: offline trajectories will NOT be sampled. In order to sample
             offline trajectories, the train configuration of the buffer should be
-            complete and feasible and an output pkl file should be defined in
-            env.buffer.train.output_pkl.
+            complete and feasible. It should at least specify env.buffer.train.type.
             """
             )
             self.train_pkl = None
@@ -91,15 +81,11 @@ class Buffer:
         else:
             self.train_type = None
         self.test, dict_tt = self.make_data_set(test)
-        if (
-            self.test is not None
-            and "output_csv" in test
-            and test.output_csv is not None
-        ):
-            self.test_csv = self.datadir / test.output_csv
+        if self.test is not None:
+            self.test_csv = self.datadir / "test.csv"
             self.test.to_csv(self.test_csv)
-        if dict_tt is not None and "output_pkl" in test and test.output_pkl is not None:
-            self.test_pkl = self.datadir / test.output_pkl
+        if dict_tt is not None:
+            self.test_pkl = self.datadir / "test.pkl"
             with open(self.test_pkl, "wb") as f:
                 pickle.dump(dict_tt, f)
         else:
@@ -107,8 +93,7 @@ class Buffer:
                 """
             Important: test metrics will NOT be computed. In order to compute
             test metrics the test configuration of the buffer should be complete and
-            feasible and an output pkl file should be defined in
-            env.buffer.test.output_pkl.
+            feasible. It should at least specify env.buffer.test.type.
             """
             )
             self.test_pkl = None
