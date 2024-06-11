@@ -28,7 +28,11 @@ class Buffer:
         logger=None,
         **kwargs,
     ):
-        self.datadir = logger.datadir
+        if logger is not None:
+            self.datadir = logger.datadir
+        else:
+            self.datadir = Path("./logs")
+            self.datadir.mkdir(parents=True, exist_ok=True)
         self.env = env
         self.proxy = proxy
         self.replay_capacity = replay_capacity
