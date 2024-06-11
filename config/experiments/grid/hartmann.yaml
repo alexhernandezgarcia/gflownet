@@ -50,6 +50,13 @@ policy:
     n_layers: 3
     checkpoint: backward
 
+# Evaluator
+evaluator:
+  first_it: False
+  period: 500
+  n: 1000
+  checkpoints_period: 500
+
 # WandB
 logger:
   do:
@@ -60,13 +67,8 @@ logger:
     - gflownet
     - grid
     - hartmann
-  test:
-    period: 500
-    n: 1000
-  checkpoints:
-    period: 500
 
 # Hydra
 hydra:
   run:
-    dir: ${user.logdir.root}/grid/hartmann/${now:%Y-%m-%d_%H-%M-%S}
+    dir: ${user.logdir.root}/grid/hartmann/${now:%Y-%m-%d_%H-%M-%S_%f}
