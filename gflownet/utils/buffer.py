@@ -3,6 +3,7 @@ Buffer class to handle train and test data sets, reply buffer, etc.
 """
 
 import pickle
+from pathlib import Path
 from typing import List
 
 import numpy as np
@@ -20,16 +21,18 @@ class Buffer:
         self,
         env,
         proxy,
-        make_train_test=False,
         replay_capacity=0,
-        output_csv=None,
         data_path=None,
         train=None,
         test=None,
         logger=None,
         **kwargs,
     ):
-        self.logger = logger
+        if logger is not None:
+            self.datadir = logger.datadir
+        else:
+            self.datadir = Path("./logs")
+            self.datadir.mkdir(parents=True, exist_ok=True)
         self.env = env
         self.proxy = proxy
         self.replay_capacity = replay_capacity
@@ -44,63 +47,61 @@ class Buffer:
         self.replay_states = {}
         self.replay_trajs = {}
         self.replay_rewards = {}
-        self.replay_pkl = "replay.pkl"
+        self.replay_pkl = self.datadir / "replay.pkl"
+
+        self.train_csv = None
+        self.train_pkl = None
+        self.test_csv = None
+        self.test_pkl = None
+
         self.save_replay()
-        # Define train and test data sets
+
+        # Define train data set
         if train is not None and "type" in train:
             self.train_type = train.type
         else:
             self.train_type = None
         self.train, dict_tr = self.make_data_set(train)
-        if (
-            self.train is not None
-            and "output_csv" in train
-            and train.output_csv is not None
-        ):
-            self.train.to_csv(train.output_csv)
-        if (
-            dict_tr is not None
-            and "output_pkl" in train
-            and train.output_pkl is not None
-        ):
-            with open(train.output_pkl, "wb") as f:
+        if self.train is not None:
+            self.train_csv = self.datadir / "train.csv"
+            self.train.to_csv(self.train_csv)
+        if dict_tr is not None:
+            self.train_pkl = self.datadir / "train.pkl"
+            with open(self.train_pkl, "wb") as f:
                 pickle.dump(dict_tr, f)
-                self.train_pkl = train.output_pkl
         else:
             print(
                 """
             Important: offline trajectories will NOT be sampled. In order to sample
             offline trajectories, the train configuration of the buffer should be
-            complete and feasible and an output pkl file should be defined in
-            env.buffer.train.output_pkl.
+            complete and feasible. It should at least specify env.buffer.train.type.
             """
             )
             self.train_pkl = None
+
+        # Define test data set
         if test is not None and "type" in test:
             self.test_type = test.type
         else:
             self.train_type = None
         self.test, dict_tt = self.make_data_set(test)
-        if (
-            self.test is not None
-            and "output_csv" in test
-            and test.output_csv is not None
-        ):
-            self.test.to_csv(test.output_csv)
-        if dict_tt is not None and "output_pkl" in test and test.output_pkl is not None:
-            with open(test.output_pkl, "wb") as f:
+        if self.test is not None:
+            self.test_csv = self.datadir / "test.csv"
+            self.test.to_csv(self.test_csv)
+        if dict_tt is not None:
+            self.test_pkl = self.datadir / "test.pkl"
+            with open(self.test_pkl, "wb") as f:
                 pickle.dump(dict_tt, f)
-                self.test_pkl = test.output_pkl
         else:
             print(
                 """
             Important: test metrics will NOT be computed. In order to compute
             test metrics the test configuration of the buffer should be complete and
-            feasible and an output pkl file should be defined in
-            env.buffer.test.output_pkl.
+            feasible. It should at least specify env.buffer.test.type.
             """
             )
             self.test_pkl = None
+
         # Compute buffer statistics
         if self.train is not None:
             (
@@ -221,13 +222,22 @@ class Buffer:
                         f", but only {n_samples_new} are valid according to the "
                         "environment settings. Invalid samples have been discarded."
                     )
-                print("Remember to write a function to normalise the data in code")
-                print("Max number of elements in data set has to match config")
-                print("Actually, write a function that contrasts the stats")
         elif config.type == "csv" and "path" in config:
             print(f"from CSV: {config.path}\n")
-            df = pd.read_csv(config.path, index_col=0)
-            samples = df.iloc[:, :-1].values
+            if "samples_column" in config:
+                df = pd.read_csv(config.path, index_col=False)
+                samples = df[config.samples_column].values
+            else:
+                samples = pd.read_csv(config.path, index_col=0)
+            n_samples_orig = len(samples)
+            print(f"The data set containts {n_samples_orig} samples", end="")
+            samples = self.env.process_data_set(samples)
+            n_samples_new = len(samples)
+            if n_samples_new != n_samples_orig:
+                print(
+                    f", but only {n_samples_new} are valid according to the "
+                    "environment settings. Invalid samples have been discarded."
+                )
         elif config.type == "all" and hasattr(self.env, "get_all_terminating_states"):
             samples = self.env.get_all_terminating_states()
         elif (
@@ -292,26 +302,25 @@ class Buffer:
             - weighted: data points are sampled with probability proportional to their
               score.
 
-        Args
-        ----
+        Parameters
+        ----------
         data_dict : dict
             A dictionary with samples (key "x") and scores (key "energy" or "rewards").
-
         n : int
             The number of samples to select from the dictionary.
-
         mode : str
             Sampling mode. Options: permutation, weighted.
-
         rng : np.random.Generator
-            A numpy random number generator, used for the permutation mode. Ignored
-            otherwise.
+            A numpy random number generator, used for the permutation and weighted
+            modes. If None (default), a generator with a random seed is used.
 
         Returns
         -------
         list
             A batch of n samples, selected from data_dict.
         """
+        if rng is None:
+            rng = np.random.default_rng()
         if n == 0:
             return []
         samples = data_dict["x"]
@@ -320,7 +329,6 @@ class Buffer:
         if isinstance(samples, dict):
             samples = list(samples.values())
         if mode == "permutation":
-            assert rng is not None
             indices = rng.choice(
                 len(samples),
                 size=n,
@@ -339,7 +347,9 @@ class Buffer:
             # need to keep its values only
             if isinstance(scores, dict):
                 scores = np.fromiter(scores.values(), dtype=float)
-            indices = np.random.choice(
+            if isinstance(scores, list):
+                scores = np.array(scores, dtype=float)
+            indices = rng.choice(
                 len(samples),
                 size=n,
                 replace=False,

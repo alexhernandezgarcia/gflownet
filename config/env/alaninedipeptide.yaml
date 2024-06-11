@@ -26,5 +26,3 @@ buffer:
   test:
     type: grid
     n: 1000
-    output_csv: alaninedipeptide_test.csv
-    output_pkl: alaninedipeptide_test.pkl

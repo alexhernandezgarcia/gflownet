@@ -351,9 +351,10 @@ class SpaceGroup(GFlowNetEnv):
                 action = (self.sg_idx, sg, 0)
                 actions.append(action)
                 # Add parents: states before setting space group
-                state[self.sg_idx] = 0
-                for prop in range(len(state)):
-                    parent = state.copy()
+                state_pre_sg = state.copy()
+                state_pre_sg[self.sg_idx] = 0
+                for prop in range(len(state_pre_sg)):
+                    parent = state_pre_sg.copy()
                     parent[prop] = 0
                     parents.append(parent)
                     parent_type = self.get_state_type(parent)
@@ -420,8 +421,24 @@ class SpaceGroup(GFlowNetEnv):
         return len(self.source) + 1
 
     def _set_constrained_properties(self, state: List[int]) -> List[int]:
+        """
+        Sets the missing properties in a state that can be determined from the existing
+        properties in the input state.
+
+        Parameters
+        ----------
+        state : list
+            A state in environment format.
+
+        Returns
+        -------
+        list
+            The updated state.
+        """
         cls_idx, ps_idx, sg_idx = state
         if sg_idx != 0:
+            if sg_idx not in self.space_groups:
+                return state
             if cls_idx == 0:
                 state[self.cls_idx] = self.space_groups[state[self.sg_idx]][
                     "crystal_lattice_system_idx"
@@ -438,6 +455,7 @@ class SpaceGroup(GFlowNetEnv):
         """
         if state is None:
             state = self.state
+        state = self._set_constrained_properties(state)
         if state[self.cls_idx] != 0:
             return self.crystal_lattice_systems[state[self.cls_idx]]["crystal_system"]
         else:
@@ -453,6 +471,7 @@ class SpaceGroup(GFlowNetEnv):
         """
         if state is None:
             state = self.state
+        state = self._set_constrained_properties(state)
         if state[self.cls_idx] != 0:
             return self.crystal_lattice_systems[state[self.cls_idx]]["lattice_system"]
         else:
@@ -485,6 +504,7 @@ class SpaceGroup(GFlowNetEnv):
         """
         if state is None:
             state = self.state
+        state = self._set_constrained_properties(state)
         if state[self.ps_idx] != 0:
             return self.point_symmetries[state[self.ps_idx]]["point_symmetry"]
         else:

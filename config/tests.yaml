@@ -1,11 +1,12 @@
 defaults:
-  - _self_
   - env: grid
   - gflownet: trajectorybalance
   - proxy: uniform
   - policy: mlp
   - logger: base
   - user: alex
+  - evaluator: base
+  - _self_
 
 # Device
 device: cpu

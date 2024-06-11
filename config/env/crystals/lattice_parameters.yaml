@@ -5,24 +5,37 @@ _target_: gflownet.envs.crystals.lattice_parameters.LatticeParameters
 
 id: lattice_parameters
 
+# Lattice system
 lattice_system: triclinic
+# Allowed ranges of size and angles
 min_length: 1.0
 max_length: 350.0
 min_angle: 50.0
 max_angle: 150.0
-grid_size: 10
-max_increment: 1
+
+# Policy
+min_incr: 0.1
+n_comp: 2
+epsilon: 1e-6
+beta_params_min: 0.1
+beta_params_max: 100.0
+fixed_distribution:
+  beta_weights: 1.0
+  beta_alpha: 10.0
+  beta_beta: 10.0
+  bernoulli_bts_prob: 0.1
+  bernoulli_eos_prob: 0.1
+random_distribution:
+  beta_weights: 1.0
+  beta_alpha: 10.0
+  beta_beta: 10.0
+  bernoulli_bts_prob: 0.1
+  bernoulli_eos_prob: 0.1
 
 # Buffer
 buffer:
   data_path: null
-  train:
-    type: random
-    n: 2000
-    output_csv: lattice_parameters_train.csv
-    output_pkl: lattice_parameters_train.pkl
+  train: null
   test:
-    type: random
-    n: 2000
-    output_csv: lattice_parameters_test.csv
-    output_pkl: lattice_parameters_test.pkl
+    type: grid
+    n: 900

@@ -5,9 +5,9 @@
 defaults:
    - override /env: scrabble
    - override /gflownet: trajectorybalance
+   - override /evaluator: base
    - override /proxy: scrabble
    - override /logger: wandb
-   - override /user: alex
 
 # Environment
 env:
@@ -18,8 +18,6 @@ env:
     test:
       type: random
       n: 1000
-      output_csv: scrabble_test.csv
-      output_pkl: scrabble_test.pkl
 
 # Proxy
 proxy:
@@ -50,23 +48,23 @@ policy:
     shared_weights: False
     checkpoint: backward
 
+# Evaluator
+period: 500
+n: 1000
+checkpoints_period: 500
+
 # WandB
 logger:
   do:
     online: true
   lightweight: True
   project_name: "scrabble"
-  tags: 
+  tags:
     - gflownet
     - discrete
     - scrabble
-  test:
-    period: 500
-    n: 1000
-  checkpoints:
-    period: 500
 
 # Hydra
 hydra:
   run:
-    dir: ${user.logdir.root}/debug/ccube/${now:%Y-%m-%d_%H-%M-%S}
+    dir: ${user.logdir.root}/ccube/${now:%Y-%m-%d_%H-%M-%S}

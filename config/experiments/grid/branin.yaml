@@ -1,0 +1,71 @@
+# @package _global_
+# 100x100 grid with a configuration that works well with the Branin proxy.
+# wandb: https://wandb.ai/alexhg/Branin/runs/0ujb3hwl
+
+defaults:
+   - override /env: grid
+   - override /gflownet: trajectorybalance
+   - override /proxy: box/branin
+   - override /logger: wandb
+
+# Environment
+env:
+  n_dim: 2
+  length: 100
+  max_increment: 1
+  max_dim_per_action: 1
+  reward_func: identity
+  # Buffer
+  buffer:
+    train: null
+    test:
+      type: uniform
+      n: 1000
+      seed: 0
+      output_csv: grid_test.csv
+      output_pkl: grid_test.pkl
+
+# GFlowNet hyperparameters
+gflownet:
+  random_action_prob: 0.01
+  optimizer:
+    batch_size:
+      forward: 100
+    lr: 0.0001
+    z_dim: 16
+    lr_z_mult: 100
+    n_train_steps: 10000
+
+# Policy
+policy:
+  forward:
+    type: mlp
+    n_hid: 128
+    n_layers: 2
+    checkpoint: forward
+  backward:
+    shared_weights: True
+    checkpoint: backward
+
+# Evaluator
+evaluator:
+  first_it: False
+  period: 500
+  n: 1000
+  checkpoints_period: 500
+
+# WandB
+logger:
+  do:
+    online: true
+  lightweight: True
+  project_name: "branin"
+  tags: 
+    - gflownet
+    - grid
+    - branin
+
+# Hydra
+hydra:
+  run:
+    dir: ${user.logdir.root}/grid/branin/${now:%Y-%m-%d_%H-%M-%S_%f}

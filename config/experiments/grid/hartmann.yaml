@@ -1,0 +1,74 @@
+# @package _global_
+# 10^6 grid with a configuration that works well with the Hartmann proxy.
+# wandb: https://wandb.ai/alexhg/Hartmann/runs/1l1y5xwb
+
+defaults:
+   - override /env: grid
+   - override /gflownet: trajectorybalance
+   - override /proxy: box/hartmann
+   - override /logger: wandb
+
+# Environment
+env:
+  n_dim: 6
+  length: 10
+  max_increment: 1
+  max_dim_per_action: 1
+  reward_func: identity
+  # Buffer
+  buffer:
+    train: null
+    test:
+      type: uniform
+      n: 1000
+      seed: 0
+      output_csv: grid_test.csv
+      output_pkl: grid_test.pkl
+
+# GFlowNet hyperparameters
+gflownet:
+  random_action_prob: 0.01
+  optimizer:
+    batch_size:
+      forward: 100
+    lr: 0.0001
+    z_dim: 16
+    lr_z_mult: 100
+    n_train_steps: 10000
+
+# Policy
+policy:
+  forward:
+    type: mlp
+    n_hid: 256
+    n_layers: 3
+    checkpoint: forward
+  backward:
+    shared_weights: False
+    type: mlp
+    n_hid: 256
+    n_layers: 3
+    checkpoint: backward
+
+# Evaluator
+evaluator:
+  first_it: False
+  period: 500
+  n: 1000
+  checkpoints_period: 500
+
+# WandB
+logger:
+  do:
+    online: true
+  lightweight: True
+  project_name: "hartmann"
+  tags: 
+    - gflownet
+    - grid
+    - hartmann
+
+# Hydra
+hydra:
+  run:
+    dir: ${user.logdir.root}/grid/hartmann/${now:%Y-%m-%d_%H-%M-%S_%f}

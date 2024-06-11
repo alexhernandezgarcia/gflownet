@@ -4,7 +4,6 @@ defaults:
 _target_: gflownet.envs.ctorus.ContinuousTorus
 
 id: ctorus
-func: sincos
 # Dimensions of hypertorus
 n_dim: 2
 policy_encoding_dim_per_angle: null
@@ -27,5 +26,3 @@ buffer:
   test:
     type: grid
     n: 1000
-    output_csv: ctorus_test.csv
-    output_pkl: ctorus_test.pkl

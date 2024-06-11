@@ -237,7 +237,7 @@ This repository has been used in at least the following research articles:
 
 Bibtex Format
 
-```txt
+```text
 @misc{hernandez-garcia2024,
   author = {Hernandez-Garcia, Alex and Saxena, Nikita and Volokhova, Alexandra and Koziarski, Michał and Sharma, Divya and Viviano, Joseph D and Carrier, Pierre Luc and Schmidt, Victor},
   title  = {gflownet},

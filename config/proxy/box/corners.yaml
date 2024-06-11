@@ -1,0 +1,4 @@
+_target_: gflownet.proxy.box.corners.Corners
+
+mu: 0.75
+sigma: 0.05

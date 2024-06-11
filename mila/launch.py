@@ -279,12 +279,10 @@ def quote(value):
     v = str(value)
     v = v.replace("(", r"\(").replace(")", r"\)")
     if " " in v or "=" in v:
-        if '"' not in v:
-            v = f'"{v}"'
-        elif "'" not in v:
-            v = f"'{v}'"
-        else:
-            raise ValueError(f"Cannot quote {value}")
+        v = v.replace('"', r"\"")
+        if "'" in v:
+            v = v.replace("'", r"\'")
+        v = f'"{v}"'
     return v
 
 
@@ -309,7 +307,7 @@ def script_dict_to_main_args_str(script_dict, is_first=True, nested_key=""):
     """
     if not isinstance(script_dict, dict):
         candidate = f"{nested_key}={quote(script_dict)}"
-        if candidate.count("=") > 1:
+        if candidate.count("=") > 1 or " " in candidate:
             assert "'" not in candidate, """Keys cannot contain ` ` and `'` and `=` """
             candidate = f"'{candidate}'"
         return candidate + " "
@@ -404,7 +402,7 @@ def ssh_to_https(url):
     raise ValueError(f"Could not convert {url} to https")
 
 
-def code_dir_for_slurm_tmp_dir_checkout(git_checkout):
+def code_dir_for_slurm_tmp_dir_checkout(git_checkout, is_private=False):
     global GIT_WARNING
 
     repo = Repo(ROOT)
@@ -426,7 +424,7 @@ def code_dir_for_slurm_tmp_dir_checkout(git_checkout):
             sys.exit(0)
         GIT_WARNING = False
 
-    repo_url = ssh_to_https(repo.remotes.origin.url)
+    repo_url = ssh_to_https(repo.remotes.origin.url) if not is_private else str(ROOT)
     repo_name = repo_url.split("/")[-1].split(".git")[0]
 
     return dedent(
@@ -444,6 +442,29 @@ def code_dir_for_slurm_tmp_dir_checkout(git_checkout):
     )
 
 
+def clean_sbatch_params(templated):
+    """
+    Removes all SBATCH params that have an empty value.
+
+    Args:
+        templated (str): templated sbatch file
+
+    Returns:
+        str: cleaned sbatch file
+    """
+    new_lines = []
+    for line in templated.splitlines():
+        if not line.startswith("#SBATCH"):
+            new_lines.append(line)
+            continue
+        if "=" not in line:
+            new_lines.append(line)
+            continue
+        if line.split("=")[1].strip():
+            new_lines.append(line)
+    return "\n".join(new_lines)
+
+
 if __name__ == "__main__":
     defaults = {
         "code_dir": "$root",
@@ -452,7 +473,8 @@ if __name__ == "__main__":
         "dry-run": False,
         "force": False,
         "git_checkout": None,
-        "gres": "gpu:1",
+        "gres": "",
+        "is_private": False,
         "job_name": "gflownet",
         "jobs": None,
         "main_args": None,
@@ -461,7 +483,7 @@ if __name__ == "__main__":
         "outdir": "$SCRATCH/gflownet/logs/slurm",
         "partition": "long",
         "template": "$root/mila/sbatch/template-conda.sh",
-        "time": "0",
+        "time": "",
         "venv": None,
         "verbose": False,
     }
@@ -576,6 +598,14 @@ if __name__ == "__main__":
         action="store_true",
         help="skip user confirmation." + f" Defaults to {defaults['force']}",
     )
+    parser.add_argument(
+        "--is_private",
+        action="store_true",
+        help="Whether the code is private (i.e. not on github or private repo)."
+        + "In this case, the code is cloned to $SLURM_TMPDIR "
+        + "from the current local repo path."
+        + f" Defaults to {defaults['is_private']}",
+    )
 
     known, unknown = parser.parse_known_args()
 
@@ -637,7 +667,9 @@ if __name__ == "__main__":
         job_args["code_dir"] = (
             str(resolve(job_args["code_dir"]))
             if "SLURM_TMPDIR" not in job_args["code_dir"]
-            else code_dir_for_slurm_tmp_dir_checkout(job_args.get("git_checkout"))
+            else code_dir_for_slurm_tmp_dir_checkout(
+                job_args.get("git_checkout"), args.get("is_private")
+            )
         )
         job_args["outdir"] = str(resolve(job_args["outdir"]))
         job_args["venv"] = str(resolve(job_args["venv"]))
@@ -658,6 +690,7 @@ if __name__ == "__main__":
 
         # format template for this run
         templated = template.format(**job_args)
+        templated = clean_sbatch_params(templated)
 
         # set output path for the sbatch file to execute in order to submit the job
         if jobs_conf_path is not None:
@@ -679,9 +712,7 @@ if __name__ == "__main__":
             print("  ✅ " + out)
             # Rename sbatch file with job id
             parts = sbatch_path.stem.split(f"_{now}")
-            new_name = f"{parts[0]}_{job_id}_{now}"
-            if len(parts) > 1:
-                new_name += f"_{parts[1]}"
+            new_name = f"{parts[0]}_{job_id}_{now}.sbatch"
             sbatch_path = sbatch_path.rename(sbatch_path.parent / new_name)
             print(f"  🏷  Created ./{sbatch_path.relative_to(Path.cwd())}")
             # Write job ID & output file path in the sbatch file
@@ -723,6 +754,10 @@ if __name__ == "__main__":
             + "\n#".join([f"  • {f}" for f in job_out_files])
             + "\n"
         )
+        wandb_query = f"({'|'.join(job_ids)})"
+        conf += f"\n# Wandb RegEx query:\n#  • {wandb_query}\n"
+        scancel = f"scancel {' '.join(job_ids)}"
+        conf += f"\n# Cancel all jobs:\n#  • {scancel}\n"
         rel = new_conf_path.relative_to(Path.cwd())
         if not dry_run:
             new_conf_path.write_text(conf)

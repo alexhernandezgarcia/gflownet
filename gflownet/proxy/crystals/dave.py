@@ -15,7 +15,13 @@ and installed ``dave`` release.
 
 
 class DAVE(Proxy):
-    def __init__(self, ckpt_path=None, release=None, rescale_outputs=True, **kwargs):
+    def __init__(
+        self,
+        ckpt_path=None,
+        release=None,
+        rescale_outputs=True,
+        **kwargs,
+    ):
         """
         Wrapper class around the Divya-Alexandre-Victor proxy.
 
@@ -46,6 +52,36 @@ class DAVE(Proxy):
         """
         super().__init__(**kwargs)
         self.rescale_outputs = rescale_outputs
+        self.release = release
+
+        self.is_eform = self.is_bandgap = False
+
+        if release.startswith("0."):
+            self.is_eform = True
+        elif release.startswith("1."):
+            assert self.reward_function.startswith("rbf_exp"), (
+                "The RBF exponential reward function must be used with band gap models "
+                "in order for the reward to reflect proximity to a target value. "
+                f"{self.reward_function} has been used instead."
+            )
+            assert (
+                "center" in self.reward_function_kwargs
+                and self.reward_function_kwargs["center"] is not None
+            ), (
+                "A target band gap (reward_function_kwargs.center must be specified "
+                "for releases 1.x.x (i.e. band gap models)"
+            )
+            bandgap_target = self.reward_function_kwargs["center"]
+            assert (
+                torch.is_tensor(bandgap_target) and bandgap_target.dtype == self.float
+            ), (
+                "reward_function_kwargs.center must be a float (received "
+                f"{bandgap_target}: {type(bandgap_target)})"
+            )
+            self.is_bandgap = True
+        else:
+            raise ValueError(f"Unknown release: {release}. Allowed: 0.x.x or 1.x.x")
+
         self.scaled = False
         if "clip" in kwargs:
             self.clip = kwargs["clip"]
@@ -55,7 +91,7 @@ class DAVE(Proxy):
         print("Initializing DAVE proxy:")
         print("  Checking out release:", release)
 
-        pip_url = f"${REPO_URL}@{release}"
+        pip_url = f"{REPO_URL}@{release}"
 
         try:
             dave_version = version("dave")
@@ -167,6 +203,7 @@ class DAVE(Proxy):
             else:
                 y_min = self.clip.min
                 y_max = self.clip.max
+
             y = torch.clamp(min=y_min, max=y_max)
 
         return y
