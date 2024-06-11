@@ -205,6 +205,8 @@ The above command will overwrite the `env` and `proxy` default configuration wit
 
 Hydra configuration is hierarchical. For instance, You can seamlessly modify exisiting flag or variable in the configuration by setting `logger.do.online=False`. For more, feel free to read the [Hydra documentation](https://hydra.cc/docs/intro/). 
 
+Note that by default, PyTorch will operate on the CPU because we have not observed performance improvements by running on the GPU. You may run on GPU with `device=cuda`.
+
 ## GFlowNet loss functions
 
 Currently, the implementation includes the following GFlowNet losses:
