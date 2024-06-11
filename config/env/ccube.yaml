@@ -35,5 +35,3 @@ buffer:
   test:
     type: grid
     n: 900
-    output_csv: ccube_test.csv
-    output_pkl: ccube_test.pkl

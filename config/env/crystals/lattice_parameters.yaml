@@ -39,5 +39,3 @@ buffer:
   test:
     type: grid
     n: 900
-    output_csv: clp_test.csv
-    output_pkl: clp_test.pkl

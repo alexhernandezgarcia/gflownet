@@ -20,6 +20,3 @@ buffer:
   test:
     type: random
     n: 10
-    output_csv: tetris_test.csv
-    output_pkl: tetris_test.pkl
-

@@ -11,5 +11,3 @@ buffer:
   test:
     type: uniform
     n: 10
-    output_csv: scrabble_test.csv
-    output_pkl: scrabble_test.pkl

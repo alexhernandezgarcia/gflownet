@@ -20,8 +20,5 @@ buffer:
   data_path: null
   train:
     type: all
-    output_csv: torus_train.csv
   test:
     type: all
-    output_csv: torus_test.csv
-    output_pkl: torus_test.pkl
